@@ -2755,7 +2755,7 @@
   function openDeleteModal() {
     if (!selected.size) { toast("Select at least one policy first"); return; }
     const ps = delSelection();
-    const live = ps.filter(p => p.state === "enabled");
+    const live = ps.filter(p => p.state === "on" || p.raw?.state === "enabled");
     $("delDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} selected `
       + `in ${tenantName || "this tenant"}.${isDemo ? " (demo — simulated, nothing is really deleted)" : ""}`;
     $("delOnWarn").style.display = live.length ? "block" : "none";
@@ -2816,34 +2816,30 @@
     } finally { $("delGo").disabled = false; }
   });
 
-  // ---------- housekeeping: delete superseded (Off) policy versions ----------
-  // "Match & replace" deliberately leaves the old version behind, switched Off,
-  // as the rollback. Nothing ever cleans those up, so a tenant that has been
-  // through a few baseline upgrades accumulates dead policies. This lists them
-  // with what replaced them and hands the chosen ones to the normal delete flow,
-  // guards and JSON backup included.
-  function hkFind() { return Importer.supersededOff(policies); }
+  // ---------- housekeeping: review older versions across the loaded inventory ----------
+  function hkFind() { return Importer.housekeeping(policies); }
   function syncHkBtn() {
     const n = hkFind().length;
     const b = $("hkBtn"); if (!b) return;
     b.style.display = (n && viewMode !== "analyze") ? "" : "none";
     b.textContent = `🧹 Housekeeping (${n})`;
-    b.title = `${n} old policy version${n === 1 ? "" : "s"} left switched Off by a match & replace import — review and clean up`;
+    b.title = `${n} older policy version${n === 1 ? "" : "s"} in the loaded inventory — review status, scope and controls`;
   }
   function openHousekeeping() {
-    const rows = hkFind();
-    $("hkDesc").textContent = `${rows.length} superseded ${rows.length === 1 ? "policy" : "policies"} in ${tenantName || "this tenant"}.`;
+    const rows = hkFind(), eligible = rows.filter(r => r.canDelete).length;
+    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates. Includes policies outside the current search filter.`;
     $("hkList").innerHTML = `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
-      + rows.map((r, i) => `<li><label class="chk" style="margin:0">
-          <input type="checkbox" data-hk="${i}" checked>
-          ${Render.stateChip(r.policy.state)} ${esc(r.policy.name)}
-          <span class="mini">superseded by <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
+      + rows.map(r => `<li><label class="chk hk-choice">
+          <input type="checkbox" data-hk="${esc(r.policy.id)}" ${r.canDelete ? "" : "disabled"}>
+          <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>
+          <span class="mini">Higher version: <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
+          <span class="mini"><b>${r.canDelete ? "Cleanup candidate" : "Needs review"}</b> — ${esc(r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" "))}</span></span>
         </label></li>`).join("") + "</ul>";
     syncHkGo();
     $("hkModal").classList.add("open");
   }
   function syncHkGo() {
-    const n = document.querySelectorAll("[data-hk]:checked").length;
+    const n = $("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)").length;
     $("hkGo").disabled = n === 0;
     $("hkGo").textContent = n ? `Review & delete ${n}` : "Review & delete";
   }
@@ -2851,11 +2847,12 @@
   $("hkCancel").addEventListener("click", () => $("hkModal").classList.remove("open"));
   $("hkList").addEventListener("change", (e) => { if (e.target.matches("[data-hk]")) syncHkGo(); });
   $("hkGo").addEventListener("click", () => {
-    const rows = hkFind();
-    const ids = [...document.querySelectorAll("[data-hk]:checked")].map(cb => rows[+cb.dataset.hk]?.policy.id).filter(Boolean);
+    const eligible = new Set(hkFind().filter(r => r.canDelete).map(r => r.policy.id));
+    const ids = [...$("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)")].map(cb => cb.dataset.hk);
     if (!ids.length) return;
+    // Recheck the current inventory by ID; list positions may have changed.
+    if (ids.some(id => !eligible.has(id))) { openHousekeeping(); toast("Policy details changed. Review the updated list before continuing."); return; }
     $("hkModal").classList.remove("open");
-    // Hand over to the delete flow — typed DELETE, backup download, the lot.
     selected = new Set(ids);
     refreshViews();
     openDeleteModal();

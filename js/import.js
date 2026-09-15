@@ -391,27 +391,42 @@ const Importer = (() => {
     }
     return 0;
   }
-  // "Match & replace" leaves the superseded policy in the tenant, switched Off,
-  // on purpose: it is the rollback until the new version is trusted. Once it is,
-  // those Off leftovers are just clutter. A policy counts as superseded when it
-  // is Off and the same CA number also exists at a HIGHER version.
-  // `list` = the app's policy model ({id, name, state}); returns pairs so the
-  // review list can show what replaced what.
-  function supersededOff(list) {
-    const items = (list || []).map((p) => {
-      const { num, ver } = parseCaVersion(p.name);
-      return { p, num, ver };
-    }).filter((x) => x.num != null && x.ver);
+  // A higher version is a review signal, not proof that protection is redundant.
+  // Compare the loaded raw payload conservatively, retaining unknown preview fields.
+  function housekeeping(list) {
+    const canonical = value => {
+      if (Array.isArray(value)) return value.map(canonical).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+      if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])]));
+      return value;
+    };
+    const signature = value => JSON.stringify(canonical(value));
+    const state = p => ({ disabled: "off", enabled: "on", enabledForReportingButNotEnforced: "report", off: "off", on: "on", report: "report" })[p.raw?.state ?? p.state] || "unknown";
+    const family = name => cleanName(name).replace(/\s+v\d+(?:\.\d+)+\s*$/i, "").replace(/\s+/g, " ").trim();
+    const payload = p => Object.fromEntries(Object.entries(p.raw || {}).filter(([k]) => !["id", "displayName", "state", "createdDateTime", "modifiedDateTime", "deletedDateTime"].includes(k) && !k.startsWith("@odata.")));
+    const items = (list || []).map(p => ({ p, ...parseCaVersion(p.name) })).filter(x => x.num != null && x.ver);
     const out = [];
     for (const x of items) {
-      if (String(x.p.state || "").toLowerCase() !== "off") continue;
-      const newer = items
-        .filter((y) => y.num === x.num && y.p.id !== x.p.id && cmpVer(y.ver, x.ver) > 0)
-        .sort((a, b) => cmpVer(b.ver, a.ver))[0];
-      if (newer) out.push({ policy: x.p, num: x.num, ver: x.ver, newer: newer.p, newerVer: newer.ver });
+      const higher = items.filter(y => y.num === x.num && y.p.id !== x.p.id && cmpVer(y.ver, x.ver) > 0).sort((a, b) => cmpVer(b.ver, a.ver));
+      if (!higher.length) continue;
+      const newer = higher[0], reasons = [];
+      if (state(x.p) !== "off") reasons.push("Older version is still " + (state(x.p) === "report" ? "Report-only" : state(x.p) === "on" ? "On" : "in an unknown state") + ".");
+      if (state(newer.p) !== "on") reasons.push("Newer version is not On.");
+      if (higher.filter(y => cmpVer(y.ver, newer.ver) === 0).length > 1) reasons.push("Multiple policies share the highest version; choose the intended successor.");
+      if (family(x.p.name) !== family(newer.p.name)) reasons.push("Policy names differ beyond the version; the same CA number does not prove a replacement.");
+      if (!x.p.raw?.conditions || !newer.p.raw?.conditions || !(x.p.raw.grantControls || x.p.raw.sessionControls) || !(newer.p.raw.grantControls || newer.p.raw.sessionControls)) {
+        reasons.push("Policy details are incomplete; configuration could not be compared.");
+      } else {
+        const old = payload(x.p), next = payload(newer.p);
+        const assignments = p => ({ users: p.conditions.users, clientApplications: p.conditions.clientApplications });
+        if (signature(assignments(old)) !== signature(assignments(next))) reasons.push("Assignments or exclusions differ; review who each version reaches.");
+        const rest = p => ({ ...p, conditions: Object.fromEntries(Object.entries(p.conditions).filter(([k]) => !["users", "clientApplications"].includes(k))) });
+        if (signature(rest(old)) !== signature(rest(next))) reasons.push("Conditions or controls differ; review the protection before retiring a version.");
+      }
+      out.push({ policy: x.p, num: x.num, ver: x.ver, newer: newer.p, newerVer: newer.ver, canDelete: reasons.length === 0, reasons });
     }
     return out.sort((a, b) => a.num - b.num || cmpVer(a.ver, b.ver));
   }
+  function supersededOff(list) { return housekeeping(list).filter(r => r.canDelete); }
 
   // ---------- dependencies: create-if-missing, build old-id → new-id maps ----------
   // Narrow a bundle to only the dependencies the chosen policies actually
@@ -1024,5 +1039,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

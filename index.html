@@ -26,21 +26,21 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25371"></script>
+<script src="js/popup-guard.js?v=25372"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25371" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25371">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25372" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25372">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25371"></script>
+<script src="js/selfhost-boot.js?v=25372"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25371"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25371"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25371">
+<script src="js/counter.js?v=25372"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25372"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25372">
 </head>
 <body>
 
@@ -48,7 +48,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25371" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25372" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -100,7 +100,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25371" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25372" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -348,7 +348,7 @@
       <label class="chk selall" id="selAllWrap" title="Select or clear every policy matching the current filter"><input type="checkbox" id="selAllTop"> <span id="selAllLabel">Select all</span></label>
       <div class="tb-actions">
         <button class="btn" id="collapseAllBtn" title="Expand or collapse all persona sections">⊟ Collapse all</button>
-        <button class="btn" id="hkBtn" style="display:none" title="Old policy versions left switched Off by a match &amp; replace import — review and clean up">🧹 Housekeeping</button>
+        <button class="btn" id="hkBtn" style="display:none" title="Older policy versions — review status, scope and controls">🧹 Housekeeping</button>
         <button class="btn" id="plFull" style="display:none" title="Open the settings matrix full screen">⤢ Full screen</button>
         <button class="btn" id="refreshBtn" disabled title="Fetch the latest policies from Entra">⟳ Refresh</button>
       </div>
@@ -1689,7 +1689,7 @@
         <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups or roles</b>, <b>Set state</b> or <b>Delete</b>.</li>
         <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups or roles, and Policy state, scoped to that one policy.</li>
         <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
-        <li><b>🧹 Housekeeping</b> — appears only when there is something to clean: policies that are <b>Off</b> while a <i>higher version of the same CA number</i> also exists, i.e. the old versions a <b>match &amp; replace</b> import left behind as your rollback. It lists each one next to the policy that superseded it; the ones you tick go through the normal delete flow (JSON backup + typed <code>DELETE</code>).</li>
+        <li><b>🧹 Housekeeping</b> — lists older versions when a higher version of the same CA number exists, including On and Report-only policies. Status, assignment and configuration differences are shown as review points. Only an Off version with matching configuration and a newer On successor can be selected for the normal delete confirmation (JSON backup + typed <code>DELETE</code>). Nothing is selected automatically.</li>
               <li><b>The policy ID is on the expanded card too.</b> The compact card carried it and the expanded one did not, so opening a policy to look at it properly took away the one string that identifies it — on the card that gets exported, screenshotted and pasted into a ticket. Two policies can share a name, a version and a persona; the portal is reached by id. One click selects the whole GUID.</li>
 </ul>
       <p class="help-x">Browsing is read-only; the two writing actions on the bar — 👥 Assign groups or roles and 🎚 Policy state — each confirm before they touch the tenant.</p>
@@ -2991,9 +2991,9 @@
 <!-- ============ HOUSEKEEPING (superseded policies) ============ -->
 <div class="modal-bg" id="hkModal">
   <div class="modal">
-    <h3>🧹 Housekeeping — superseded policies</h3>
+    <h3>🧹 Housekeeping — older policy versions</h3>
     <p class="mini" id="hkDesc"></p>
-    <p class="mini">A <b>match &amp; replace</b> import switches the version it supersedes <b>Off</b> and leaves it in place — that old policy is your rollback until the new one is trusted. Once it is, these are just clutter. Everything listed is <b>Off</b> and has a higher version of the same CA number in the tenant.</p>
+    <p class="mini">A higher version is a reason to review an older policy. It does not prove that the older policy is redundant. Compare the status, assignments and controls below. Cleanup candidates are Off with matching configuration and a newer On successor; keep them if you still need a rollback. Selected candidates go through the normal backup and typed deletion confirmation.</p>
     <div id="hkList" style="max-height:45vh;overflow:auto;margin-top:12px"></div>
     <div class="row">
       <button class="btn" id="hkCancel">Close</button>
@@ -3021,74 +3021,74 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25371"></script>
-<script src="js/selfhost.js?v=25371"></script>
-<script src="js/version.js?v=25371"></script>
-<script src="js/verdict.js?v=25371"></script>
-<script src="js/fork.js?v=25371"></script>
-<script src="js/promote.js?v=25371"></script>
-<script src="js/authConfig.js?v=25371"></script>
-<script src="js/labels.js?v=25371"></script>
-<script src="js/capabilities.js?v=25371"></script>
-<script src="js/graph.js?v=25371"></script>
-<script src="js/model.js?v=25371"></script>
-<script src="js/render.js?v=25371"></script>
-<script src="js/analyze.js?v=25371"></script>
-<script src="js/whatif.js?v=25371"></script>
-<script src="js/mslearn.js?v=25371"></script>
-<script src="js/gapcheck.js?v=25371"></script>
-<script src="js/cisdata.js?v=25371"></script>
-<script src="js/cischeck.js?v=25371"></script>
-<script src="js/exclusions.js?v=25371"></script>
-<script src="js/cascope.js?v=25371"></script>
-<script src="js/validator.js?v=25371"></script>
-<script src="js/whatifeval.js?v=25371"></script>
-<script src="js/compare.js?v=25371"></script>
-<script src="js/whois.js?v=25371"></script>
-<script src="js/wave.js?v=25371"></script>
-<script src="js/sessionctl.js?v=25371"></script>
-<script src="js/spgap.js?v=25371"></script>
-<script src="js/groupuse.js?v=25371"></script>
-<script src="js/iso3166.js?v=25371"></script>
-<script src="js/causes.js?v=25371"></script>
-<script src="js/locations.js?v=25371"></script>
-<script src="js/authcontexts.js?v=25371"></script>
-<script src="js/authstrengths.js?v=25371"></script>
-<script src="js/recycle.js?v=25371"></script>
-<script src="js/rmau.js?v=25371"></script>
-<script src="js/camap.js?v=25371"></script>
-<script src="js/rmaudoc.js?v=25371"></script>
-<script src="js/termsofuse.js?v=25371"></script>
-<script src="js/audit.js?v=25371"></script>
-<script src="js/drift.js?v=25371"></script>
-<script src="js/guide.js?v=25371"></script>
-<script src="js/userimpact.js?v=25371"></script>
-<script src="js/smsvoice.js?v=25371"></script>
-<script src="js/memberof.js?v=25371"></script>
-<script src="js/devcheck.js?v=25371"></script>
-<script src="js/licgap.js?v=25371"></script>
-<script src="js/teamsdev.js?v=25371"></script>
-<script src="js/signins.js?v=25371"></script>
-<script src="js/reportimpact.js?v=25371"></script>
-<script src="js/changelog.js?v=25371"></script>
-<script src="js/baselineData.js?v=25371"></script>
-<script src="js/baselineJoeyData.js?v=25371"></script>
-<script src="js/baselineLive.js?v=25371"></script>
-<script src="js/baseline.js?v=25371"></script>
-<script src="js/baselineCleanup.js?v=25371"></script>
-<script src="js/groupTemplates.js?v=25371"></script>
-<script src="js/assign.js?v=25371"></script>
-<script src="js/cagroups.js?v=25371"></script>
-<script src="js/groupsview.js?v=25371"></script>
-<script src="js/runledger.js?v=25371"></script>
-<script src="js/protect.js?v=25371"></script>
-<script src="js/import.js?v=25371"></script>
-<script src="js/export.js?v=25371"></script>
-<script src="js/demo.js?v=25371"></script>
-<script src="js/workspace.js?v=25371"></script>
-<script src="js/analysis-jobs.js?v=25371"></script>
-<script src="js/search-suggest.js?v=25371"></script>
-<script src="js/app.js?v=25371"></script>
-<script src="js/accessibility.js?v=25371"></script>
+<script src="js/branding.js?v=25372"></script>
+<script src="js/selfhost.js?v=25372"></script>
+<script src="js/version.js?v=25372"></script>
+<script src="js/verdict.js?v=25372"></script>
+<script src="js/fork.js?v=25372"></script>
+<script src="js/promote.js?v=25372"></script>
+<script src="js/authConfig.js?v=25372"></script>
+<script src="js/labels.js?v=25372"></script>
+<script src="js/capabilities.js?v=25372"></script>
+<script src="js/graph.js?v=25372"></script>
+<script src="js/model.js?v=25372"></script>
+<script src="js/render.js?v=25372"></script>
+<script src="js/analyze.js?v=25372"></script>
+<script src="js/whatif.js?v=25372"></script>
+<script src="js/mslearn.js?v=25372"></script>
+<script src="js/gapcheck.js?v=25372"></script>
+<script src="js/cisdata.js?v=25372"></script>
+<script src="js/cischeck.js?v=25372"></script>
+<script src="js/exclusions.js?v=25372"></script>
+<script src="js/cascope.js?v=25372"></script>
+<script src="js/validator.js?v=25372"></script>
+<script src="js/whatifeval.js?v=25372"></script>
+<script src="js/compare.js?v=25372"></script>
+<script src="js/whois.js?v=25372"></script>
+<script src="js/wave.js?v=25372"></script>
+<script src="js/sessionctl.js?v=25372"></script>
+<script src="js/spgap.js?v=25372"></script>
+<script src="js/groupuse.js?v=25372"></script>
+<script src="js/iso3166.js?v=25372"></script>
+<script src="js/causes.js?v=25372"></script>
+<script src="js/locations.js?v=25372"></script>
+<script src="js/authcontexts.js?v=25372"></script>
+<script src="js/authstrengths.js?v=25372"></script>
+<script src="js/recycle.js?v=25372"></script>
+<script src="js/rmau.js?v=25372"></script>
+<script src="js/camap.js?v=25372"></script>
+<script src="js/rmaudoc.js?v=25372"></script>
+<script src="js/termsofuse.js?v=25372"></script>
+<script src="js/audit.js?v=25372"></script>
+<script src="js/drift.js?v=25372"></script>
+<script src="js/guide.js?v=25372"></script>
+<script src="js/userimpact.js?v=25372"></script>
+<script src="js/smsvoice.js?v=25372"></script>
+<script src="js/memberof.js?v=25372"></script>
+<script src="js/devcheck.js?v=25372"></script>
+<script src="js/licgap.js?v=25372"></script>
+<script src="js/teamsdev.js?v=25372"></script>
+<script src="js/signins.js?v=25372"></script>
+<script src="js/reportimpact.js?v=25372"></script>
+<script src="js/changelog.js?v=25372"></script>
+<script src="js/baselineData.js?v=25372"></script>
+<script src="js/baselineJoeyData.js?v=25372"></script>
+<script src="js/baselineLive.js?v=25372"></script>
+<script src="js/baseline.js?v=25372"></script>
+<script src="js/baselineCleanup.js?v=25372"></script>
+<script src="js/groupTemplates.js?v=25372"></script>
+<script src="js/assign.js?v=25372"></script>
+<script src="js/cagroups.js?v=25372"></script>
+<script src="js/groupsview.js?v=25372"></script>
+<script src="js/runledger.js?v=25372"></script>
+<script src="js/protect.js?v=25372"></script>
+<script src="js/import.js?v=25372"></script>
+<script src="js/export.js?v=25372"></script>
+<script src="js/demo.js?v=25372"></script>
+<script src="js/workspace.js?v=25372"></script>
+<script src="js/analysis-jobs.js?v=25372"></script>
+<script src="js/search-suggest.js?v=25372"></script>
+<script src="js/app.js?v=25372"></script>
+<script src="js/accessibility.js?v=25372"></script>
 </body>
 </html>

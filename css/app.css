@@ -2099,3 +2099,9 @@ body.cgg-modal-open{overflow:hidden}
 .pr-barwrap .cgg-bulk{width:100%}
 .pr-barwrap .cgg-bulk .btn.primary[disabled]{opacity:.5}
 @media (max-width:860px){.pr-settings-grid{grid-template-columns:1fr}}
+
+/* Housekeeping pairs stay readable at narrow widths and with long policy names. */
+#hkModal .modal{max-width:800px}
+#hkList .hk-choice{margin:0;align-items:flex-start}
+#hkList .hk-choice input{flex-shrink:0;margin-top:3px}
+#hkList .hk-details{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}

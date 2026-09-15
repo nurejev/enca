@@ -119,6 +119,36 @@ const PROMOTE = {
 
   items: [
 {
+  "n": 207,
+  "title": "Housekeeping review for older policy versions",
+  "tools": [
+    "Policies"
+  ],
+  "builds": [
+    25372
+  ],
+  "risk": "medium",
+  "what": "Include older On and Report-only policies alongside Off predecessors when a higher version of the same CA number exists. Show status, assignment and configuration differences. Only matching Off predecessors of a newer On policy can proceed to deletion review; no preselected items. Recheck stable policy IDs before handoff. Restore the On-policy acknowledgement in the shared deletion dialog.",
+  "why": "Housekeeping only listed old Off policies, hiding a report-only predecessor when the newer version was Off. A shared CA number alone also did not establish that configurations or assignments matched.",
+  "test": [
+    "PASSED: all 97 offline tests, including nine new cases covering the screenshot pair, active predecessors, successor states, raw-state precedence, numeric versions, CA families, configuration ordering, missing details and ambiguous successors.",
+    "PASSED: local Edge fixture acceptance at light/1440px and dark/390px covers review visibility, disabled review rows, no preselection, stable IDs, stale eligibility, backup/typed confirmation and On acknowledgement. No deletion is executed.",
+    "PENDING: live-tenant acceptance and other browsers. Existing P1-only, large-tenant network and tenant-write release gates remain open. Validation: review/2026-09-15/BETA-25372.md."
+  ],
+  "files": [
+    "js/import.js",
+    "js/app.js",
+    "css/app.css",
+    "index.html",
+    "js/version.js",
+    "js/changelog.js",
+    "js/promote.js",
+    "tools/housekeeping.test.cjs",
+    "tools/housekeeping-browser.cjs",
+    "review/2026-09-15/BETA-25372.md"
+  ]
+},
+{
   "n": 206,
   "title": "Resume the last subtab when returning to an open workspace tab",
   "tools": [

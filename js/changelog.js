@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  "build": 25372,
+  "date": "2026-09-15",
+  "title": "Housekeeping shows older versions that still need review",
+  "items": [
+    {
+      "kind": "fixed",
+      "tool": "Policies",
+      "text": "Housekeeping now includes older On and Report-only versions when a higher version of the same CA number exists. Each pair shows status, assignment and control differences. Off policies with the same configuration and a newer On successor can be selected for deletion review; nothing is selected automatically and rollback remains a reason to keep them."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Policies",
+      "text": "Housekeeping uses stable policy IDs and rechecks eligibility before opening the existing backup and typed deletion confirmation. The normal deletion dialog again asks for an extra acknowledgement when a selected policy is On."
+    }
+  ]
+},
+{
   "build": 25371,
   "date": "2026-09-15",
   "title": "Workspace tabs return to the subtab you were using",
