@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  "build": 25371,
+  "date": "2026-09-15",
+  "title": "Workspace tabs return to the subtab you were using",
+  "items": [
+    {
+      "kind": "fixed",
+      "tool": "Navigation",
+      "text": "Returning to Sign-in log now restores Report-only impact or Session controls when that was your last subtab. The same behavior applies to all eight tools with shared subtabs, including returns through the sidebar, the plus menu and closing a neighbouring tab. Closing a tab forgets its subtab; explicit tool links keep their requested destination."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Browser history",
+      "text": "Back and Forward restore the matching tool, subtab and navigation highlight. Policies and Gap analyse are distinguished even though they share one screen. Returning to Report-only impact preserves the active read and its source, period, view and search."
+    }
+  ]
+},
+{
   "build": 25370,
   "date": "2026-09-15",
   "title": "Search suggestions across tools and policy inventory acceptance",

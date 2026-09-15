@@ -119,6 +119,43 @@ const PROMOTE = {
 
   items: [
 {
+  "n": 206,
+  "title": "Resume the last subtab when returning to an open workspace tab",
+  "tools": [
+    "Sign-in log",
+    "Changes",
+    "Gap analyse",
+    "Who is to CA",
+    "What-If",
+    "Checks",
+    "Policy building blocks",
+    "Baseline",
+    "Navigation"
+  ],
+  "builds": [
+    25371
+  ],
+  "risk": "low",
+  "what": "Remember the last visible subtab per open workspace tab. Restore it through the top tabs, sidebar, plus menu and neighbour selection after closing a tab. Browser history stores/restores tool and subtab, including the shared Policies/Coverage screen. Explicit destinations and closed-tab reset retain their normal behavior.",
+  "why": "The top-level Sign-in log tab called the default T17 open function, even when the user left T26 mid-read. The same default-entry behavior affected other hosts. Browser Back previously showed the screen without updating the active tool.",
+  "test": [
+    "PASSED: all 23 subtabs across eight hosts resume through the top bar and sidebar in light/1440px and dark/390px local Edge demo runs.",
+    "PASSED: a deliberately delayed T26 analysis is started only once across a tab round-trip; source, range, per-user view, search and results survive. Plus menu, neighbouring-tab close, Back/Forward, Policies/Coverage history, explicit default links and close/reopen also pass.",
+    "PASSED: 88 offline tests, including remembered route selection, hidden production subtab fallback, and closed/removed subtab fallback. Toolbar order, plain text, syntax and diff checks pass.",
+    "PENDING: live-tenant network-delay acceptance and other browsers. No tenant reads/writes, remote push or production deployment for this fix. Validation: review/2026-09-15/BETA-25371.md."
+  ],
+  "files": [
+    "js/app.js",
+    "tools/navigation.test.cjs",
+    "tools/navigation-browser.cjs",
+    "review/2026-09-15/BETA-25371.md",
+    "js/version.js",
+    "index.html",
+    "js/changelog.js",
+    "js/promote.js"
+  ]
+},
+{
   "n": 205,
   "title": "Result search suggestions and extended screen/export acceptance",
   "tools": [

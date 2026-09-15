@@ -209,8 +209,8 @@
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
     // Replace rather than push when the screen has not changed, so clicking the
     // same tool twice does not need two Backs to leave it.
-    if (history.state && history.state.screen === id) return;
-    history.pushState({ screen: id }, "", location.pathname + location.search);
+    if (history.state && history.state.screen === id && history.state.tool === activeTab) return;
+    history.pushState({ screen: id, tool: activeTab }, "", location.pathname + location.search);
   }
 
   window.addEventListener("popstate", (e) => {
@@ -227,7 +227,13 @@
     const target = (e.state && e.state.screen) || (policies.length ? "screen-home" : null);
     if (!target) return;                       // not signed in — let the browser go back
     navSuppress = true;
-    try { show(target); } finally { navSuppress = false; }
+    try {
+      const h = TAB_HOSTS[e.state?.host];
+      const tab = h?.tabs.find(t => t.key === e.state?.subtab && tabShown(t));
+      if (tab) tab.open();
+      else if (e.state?.tool && $(e.state.tool)) $(e.state.tool).click();
+      else { crumb(""); show(target); }
+    } finally { navSuppress = false; }
   });
   // R33 — a tool's permanent number, formatted. Two digits so T07 and T31 line
   // up in a list and read as the same kind of thing; empty for the three app
@@ -429,6 +435,15 @@
     },
   };
   const tabShown = (t) => !t.betaOnly || !isProdHost();
+  // An open workspace tab resumes its own last subtab. Explicit tool links
+  // still call their requested open function; no results or identities persist.
+  const lastHostTab = new Map();
+  function resumeToolTab(id) {
+    const h = Object.values(TAB_HOSTS).find(host => host.tile === id);
+    const tab = openTabs.includes(id) && h?.tabs.find(t => t.key === lastHostTab.get(id) && tabShown(t));
+    if (tab) tab.open();
+    else $(id)?.click();
+  }
   function toolTabsSeg(hostKey) {
     const h = TAB_HOSTS[hostKey]; if (!h) return "";
     return `<div class="seg tool-tabs" title="One tool, ${h.tabs.filter(tabShown).length} views of it — they read the same window, so switching costs no second read">`
@@ -454,8 +469,10 @@
   // the name of that tool.
   function mountToolTabs(hostKey, tabKey) {
     const h = TAB_HOSTS[hostKey]; if (!h) return;
+    const t = h.tabs.find((x) => x.key === tabKey && tabShown(x)); if (!t) return;
+    lastHostTab.set(h.tile, tabKey);
+    if (!navSuppress) history.replaceState({ ...history.state, tool: h.tile, host: hostKey, subtab: tabKey }, "", location.pathname + location.search);
     if (h.tabs.filter(tabShown).length < 2) return;
-    const t = h.tabs.find((x) => x.key === tabKey); if (!t) return;
     const tb = $(t.toolbar); if (!tb) return;
     const screen = tb.closest("section.screen"); if (!screen) return;
     let bar = screen.querySelector(":scope > .tool-tabs-bar");
@@ -2502,15 +2519,16 @@
     const act = $("toolNav").querySelector(".toolnav-tab.active, .toolnav-btn.home.active");
     if (act && act.scrollIntoView) act.scrollIntoView({ inline: "nearest", block: "nearest" });
   }
-  function buildToolNav() { openTabs = []; activeTab = null; renderTabs(); }
+  function buildToolNav() { openTabs = []; activeTab = null; lastHostTab.clear(); renderTabs(); }
 
   function closeTab(id) {
     const i = openTabs.indexOf(id);
     if (i < 0) return;
     openTabs.splice(i, 1);
+    lastHostTab.delete(id);
     if (activeTab === id) {
       const next = openTabs[i] || openTabs[i - 1] || null;   // neighbour, else last
-      if (next) { $(next).click(); }                          // switch to it
+      if (next) { resumeToolTab(next); }                    // resume its subtab
       else { crumb(""); show("screen-home"); }
     } else { renderTabs(); }
   }
@@ -2528,7 +2546,7 @@
     menu.style.left = `${Math.min(r.left, window.innerWidth - 280)}px`;
     menu.addEventListener("click", (e) => {
       const b = e.target.closest("[data-nav]"); if (!b) return;
-      closeAddMenu(); $(b.dataset.nav).click();
+      closeAddMenu(); resumeToolTab(b.dataset.nav);
     });
     setTimeout(() => document.addEventListener("click", closeAddMenu, { once: true }), 0);
   }
@@ -2536,12 +2554,12 @@
 
   $("toolNav").addEventListener("click", (e) => {
     if (e.target.closest("[data-navhelp]")) { openHelp(); return; }
-    if (e.target.closest("[data-navcloseall]")) { openTabs = []; activeTab = null; renderTabs(); crumb(""); show("screen-home"); return; }
+    if (e.target.closest("[data-navcloseall]")) { openTabs = []; activeTab = null; lastHostTab.clear(); renderTabs(); crumb(""); show("screen-home"); return; }
     if (e.target.closest("[data-navhome]")) { crumb(""); show("screen-home"); return; }
     if (e.target.closest("[data-navadd]")) { openAddMenu(e.target.closest("[data-navadd]")); return; }
     const x = e.target.closest("[data-close]"); if (x) { e.stopPropagation(); closeTab(x.dataset.close); return; }
     const b = e.target.closest("[data-nav]");
-    if (b) $(b.dataset.nav).click();   // reuse the tile's own handler (crumb, screen, setup)
+    if (b) resumeToolTab(b.dataset.nav);
   });
 
   // Header breadcrumb + tab state: crumb(name) is called by every tool on entry,
@@ -2648,7 +2666,7 @@
     // peek is a glance, not a state change
     if (e.target.closest("[data-navhome]")) { $("sideNav").classList.remove("peek"); crumb(""); show("screen-home"); return; }
     const b = e.target.closest("[data-nav]");
-    if (b) { $("sideNav").classList.remove("peek"); $(b.dataset.nav).click(); }   // the tile's own handler: crumb, screen, setup
+    if (b) { $("sideNav").classList.remove("peek"); resumeToolTab(b.dataset.nav); }
   });
   // The peek: hovering the collapsed rail expands it as an overlay; leaving
   // closes it. The 120ms delay keeps a cursor merely passing on its way to
