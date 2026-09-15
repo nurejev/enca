@@ -1,0 +1,48 @@
+{
+  "variants": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "checks": [
+        "compare on review-only pair",
+        "added/removed named assignments",
+        "differences/all toggle",
+        "Escape preserves Housekeeping selection",
+        "CA008 added exclusion and Linux",
+        "unchanged 3-hour session setting",
+        "comparison fits viewport and scrolls on mobile",
+        "review-only screenshot pair visible",
+        "no automatic selection",
+        "disabled review row",
+        "status and assignment reasons",
+        "stable ID after reorder",
+        "backup and typed confirmation",
+        "stale eligibility blocked",
+        "On deletion acknowledgement"
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "checks": [
+        "compare on review-only pair",
+        "added/removed named assignments",
+        "differences/all toggle",
+        "Escape preserves Housekeeping selection",
+        "CA008 added exclusion and Linux",
+        "unchanged 3-hour session setting",
+        "comparison fits viewport and scrolls on mobile",
+        "review-only screenshot pair visible",
+        "no automatic selection",
+        "disabled review row",
+        "status and assignment reasons",
+        "stable ID after reorder",
+        "backup and typed confirmation",
+        "stale eligibility blocked",
+        "On deletion acknowledgement"
+      ]
+    }
+  ],
+  "errors": [],
+  "build": 25373
+}

@@ -119,6 +119,37 @@ const PROMOTE = {
 
   items: [
 {
+  "n": 208,
+  "title": "Housekeeping: compare older and newer policy versions",
+  "tools": [
+    "Policies"
+  ],
+  "builds": [
+    25373
+  ],
+  "risk": "low",
+  "what": "Add a read-only field comparison to every Housekeeping pair. Show added/removed values and already resolved directory names, with differences-only and all-settings views. Share configuration normalization with cleanup eligibility; retain selection when comparison closes. Record Codex co-authorship on the implementation commit.",
+  "why": "The previous dialog explained which categories differed, but could not show the exact extra exclusion, platform or control before a retirement decision.",
+  "test": [
+    "PASSED: 104 offline tests, including seven comparison tests; local Edge light/1440px and dark/390px acceptance covers exact additions/removals, name resolution, differences/all toggle, preserved selection, Escape, the CA008 exclusion/platform example, and mobile scrolling. Zero page exceptions. Validation: review/2026-09-15/BETA-25373.md.",
+    "PENDING: live-tenant acceptance and other browsers. No Graph writes, remote push or production deployment are part of this change. Existing production gates remain open."
+  ],
+  "files": [
+    "js/policy-compare.js",
+    "js/import.js",
+    "js/app.js",
+    "css/app.css",
+    "index.html",
+    "js/version.js",
+    "js/changelog.js",
+    "js/promote.js",
+    "tools/policy-compare.test.cjs",
+    "tools/housekeeping.test.cjs",
+    "tools/housekeeping-browser.cjs",
+    "review/2026-09-15/BETA-25373.md"
+  ]
+},
+{
   "n": 207,
   "title": "Housekeeping review for older policy versions",
   "tools": [

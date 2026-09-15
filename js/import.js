@@ -394,15 +394,10 @@ const Importer = (() => {
   // A higher version is a review signal, not proof that protection is redundant.
   // Compare the loaded raw payload conservatively, retaining unknown preview fields.
   function housekeeping(list) {
-    const canonical = value => {
-      if (Array.isArray(value)) return value.map(canonical).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-      if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])]));
-      return value;
-    };
-    const signature = value => JSON.stringify(canonical(value));
+    const signature = PolicyCompare.signature;
     const state = p => ({ disabled: "off", enabled: "on", enabledForReportingButNotEnforced: "report", off: "off", on: "on", report: "report" })[p.raw?.state ?? p.state] || "unknown";
     const family = name => cleanName(name).replace(/\s+v\d+(?:\.\d+)+\s*$/i, "").replace(/\s+/g, " ").trim();
-    const payload = p => Object.fromEntries(Object.entries(p.raw || {}).filter(([k]) => !["id", "displayName", "state", "createdDateTime", "modifiedDateTime", "deletedDateTime"].includes(k) && !k.startsWith("@odata.")));
+    const payload = PolicyCompare.config;
     const items = (list || []).map(p => ({ p, ...parseCaVersion(p.name) })).filter(x => x.num != null && x.ver);
     const out = [];
     for (const x of items) {

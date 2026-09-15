@@ -2105,3 +2105,18 @@ body.cgg-modal-open{overflow:hidden}
 #hkList .hk-choice{margin:0;align-items:flex-start}
 #hkList .hk-choice input{flex-shrink:0;margin-top:3px}
 #hkList .hk-details{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}
+#hkList .hk-compare{margin:10px 0 2px 24px}
+#hkCompareModal .modal{max-width:1180px}
+#hkCompareModal{z-index:1001}
+.hk-compare-scroll{overflow:auto;margin-top:14px;border:1px solid var(--border);border-radius:8px}
+.hk-compare-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}
+.hk-compare-table th,.hk-compare-table td{padding:12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border);overflow-wrap:anywhere}
+.hk-compare-table thead th{background:var(--soft);width:38%}
+.hk-compare-table thead th:first-child{width:24%}
+.hk-compare-table tbody th .mini{display:block;margin-top:6px}
+.hk-compare-table .hk-changed th{box-shadow:inset 3px 0 var(--report)}
+.hk-values{margin:0;padding-left:16px}
+.hk-values li+li{margin-top:6px}
+.hk-value-changed{background:var(--warn-bg2);border-radius:4px;padding:3px}
+.hk-value{white-space:pre-wrap}
+@media(max-width:600px){.hk-compare-table{min-width:640px}}

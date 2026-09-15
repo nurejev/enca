@@ -3,6 +3,7 @@
 // ======================================================================
 (() => {
   const $ = (id) => document.getElementById(id);
+  let policyResolve = (id, map) => map?.[id] || id;
   let policies = [];          // view models
   // When the policy set in memory was last read from the tenant. Tools that
   // derive from it rather than reading for themselves need to be able to say
@@ -2153,6 +2154,7 @@
       isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+      policyResolve = resolve;
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
       // R36.1 — with no saved choice, the baseline this tenant matches best
       // is the active one for the session (the card says so, and why).
@@ -2210,6 +2212,7 @@
     try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
+    policyResolve = resolve;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
     try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
     policiesReadAt = Date.now();
@@ -2834,7 +2837,7 @@
           <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>
           <span class="mini">Higher version: <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
           <span class="mini"><b>${r.canDelete ? "Cleanup candidate" : "Needs review"}</b> — ${esc(r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" "))}</span></span>
-        </label></li>`).join("") + "</ul>";
+        </label><button type="button" class="btn sm hk-compare" data-hk-compare="${esc(r.policy.id)}" data-hk-newer="${esc(r.newer.id)}">Compare versions</button></li>`).join("") + "</ul>";
     syncHkGo();
     $("hkModal").classList.add("open");
   }
@@ -2843,6 +2846,21 @@
     $("hkGo").disabled = n === 0;
     $("hkGo").textContent = n ? `Review & delete ${n}` : "Review & delete";
   }
+  let hkComparison = null;
+  function renderHkComparison() {
+    if (hkComparison) $("hkCompareBody").innerHTML = PolicyCompare.render(hkComparison, { onlyChanges: $("hkCompareOnly").checked, resolve: policyResolve });
+  }
+  $("hkList").addEventListener("click", e => {
+    const button = e.target.closest("[data-hk-compare]"); if (!button) return;
+    const older = policies.find(p => p.id === button.dataset.hkCompare), newer = policies.find(p => p.id === button.dataset.hkNewer);
+    if (!older || !newer) { openHousekeeping(); toast("Policy inventory changed. Review the updated list."); return; }
+    hkComparison = PolicyCompare.compare(older, newer);
+    $("hkCompareOnly").checked = true;
+    renderHkComparison();
+    $("hkCompareModal").classList.add("open");
+  });
+  $("hkCompareOnly").addEventListener("change", renderHkComparison);
+  $("hkCompareClose").addEventListener("click", () => { $("hkCompareModal").classList.remove("open"); hkComparison = null; });
   $("hkBtn").addEventListener("click", openHousekeeping);
   $("hkCancel").addEventListener("click", () => $("hkModal").classList.remove("open"));
   $("hkList").addEventListener("change", (e) => { if (e.target.matches("[data-hk]")) syncHkGo(); });

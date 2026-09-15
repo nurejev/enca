@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  "build": 25373,
+  "date": "2026-09-15",
+  "title": "Compare policy versions directly in Housekeeping",
+  "items": [
+    {
+      "kind": "new",
+      "tool": "Policies",
+      "text": "Every Housekeeping pair now has Compare versions, including policies that need review before cleanup. See older and newer settings side by side, with added and removed groups, exclusions, resources, platforms and controls highlighted. Differences only is the default; matching settings can also be shown. Directory names use the loaded snapshot, so no extra tenant requests are made."
+    }
+  ]
+},
+{
   "build": 25372,
   "date": "2026-09-15",
   "title": "Housekeeping shows older versions that still need review",

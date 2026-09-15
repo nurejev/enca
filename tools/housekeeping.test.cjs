@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const box={console,AUTH_CONFIG:{scopes:[]}};vm.createContext(box);
-for(const file of ['render','import'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/'+file+'.js'),'utf8'),box);
+for(const file of ['render','policy-compare','import'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/'+file+'.js'),'utf8'),box);
 const api=vm.runInContext('Importer',box);
 const policy=(id,ver,state='off',group='admins')=>({id,name:'(UP)CA110-BLOCK-Admins-O365 v'+ver,state,raw:{id,displayName:'CA110 v'+ver,state:({off:'disabled',on:'enabled',report:'enabledForReportingButNotEnforced'})[state],conditions:{users:{includeGroups:[group],excludeUsers:['emergency']},applications:{includeApplications:['Office365']}},grantControls:{operator:'OR',builtInControls:['block']}}});
 const pair=(oldState='off',newState='on')=>[policy('old','1.0.1',oldState),policy('new','1.0.2',newState)];
