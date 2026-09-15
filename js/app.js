@@ -1350,15 +1350,24 @@
     const out = [];
     let list = null, table = null;
     const closeList = () => { if (list) { out.push(list === "ol" ? "</ol>" : "</ul>"); list = null; } };
-    const closeTable = () => { if (table) { out.push("</tbody></table>"); table = null; } };
+    const closeTable = () => { if (table) { out.push("</tbody></table></div>"); table = null; } };
     for (let i = 0; i < lines.length; i++) {
       const ln = lines[i];
       const row = /^\s*\|(.+)\|\s*$/.exec(ln);
       if (row) {
-        const cells = row[1].split("|").map((c) => c.trim());
+        // Exporters escape a literal pipe in a name as \|. It is content,
+        // not an extra table column. An even number of slashes is literal.
+        const cells = []; let cell = "", slashes = 0;
+        for (const ch of row[1]) {
+          if (ch === "|" && slashes % 2) cell = cell.slice(0, -1) + "|";
+          else if (ch === "|") { cells.push(cell.trim()); cell = ""; }
+          else cell += ch;
+          slashes = ch === "\\" ? slashes + 1 : 0;
+        }
+        cells.push(cell.trim());
         // the |---|---| separator only tells us the header ended
         if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue;
-        if (!table) { out.push(`<table><thead><tr>${cells.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>`); table = true; continue; }
+        if (!table) { closeList(); out.push(`<div class="md-table-scroll" role="region" aria-label="Report table — scroll horizontally for more columns" tabindex="0"><table><thead><tr>${cells.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>`); table = true; continue; }
         out.push(`<tr>${cells.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`);
         continue;
       }
@@ -11096,7 +11105,7 @@ This is a directory write. Nothing else changes.`)) return;
 
     const q = auQuery.toLowerCase();
     const rows = r.rows.filter((x) => (auFilter === "all" || (auFilter === "new" ? auSnap && auSnap.cmp.newIds.has(x.id) : x.kind === auFilter))
-      && (!q || `${x.target} ${x.actor.name} ${x.activity} ${x.changes.map((c) => c.path).join(" ")}`.toLowerCase().includes(q)));
+      && (!q || `${x.target} ${x.actor.name} ${x.actor.upn || ""} ${x.member || ""} ${x.activity} ${x.changes.map((c) => c.path).join(" ")}`.toLowerCase().includes(q)));
     if (!rows.length) { $("auBody").innerHTML = '<p class="mini" style="padding:20px">No change matches the current filter.</p>'; return; }
 
     [...$("auViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.auview === auView));
@@ -17005,6 +17014,7 @@ This is a directory write. Nothing else changes.`)) return;
         <p class="mini muted" style="margin:8px 0 0">Click a row to open that group's references — read straight from this sweep, no second scan.</p>
       </div>
       ${guNotReadCard(res)}`;
+    SearchSuggest.bind($("guSweepSearch"), () => searchFields(guTotals, ["name"]), () => `${tenantId}:${isDemo}:${policiesReadAt}`);
     wireSearchClears();
     applyFolds("guBody");
     syncStickyTops();
@@ -17152,7 +17162,13 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("guMatchText").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runGroupUse(); } });
   $("guBody").addEventListener("input", (e) => {
-    if (e.target.id === "guSweepSearch") { guQuery = e.target.value; renderGuSweep(); $("guSweepSearch").focus(); }
+    if (e.target.id === "guSweepSearch") {
+      const picked = SearchSuggest.picked(e);
+      const start = e.target.selectionStart, end = e.target.selectionEnd;
+      guQuery = e.target.value; renderGuSweep();
+      const input = $("guSweepSearch"); input.focus(); input.setSelectionRange(start, end);
+      if (picked) SearchSuggest.clear(input);
+    }
   });
   $("guBody").addEventListener("change", (e) => {
     if (e.target.id === "guUnused") { guUnusedOnly = e.target.checked; renderGuSweep(); }
@@ -20040,6 +20056,44 @@ This is a directory write. Nothing else changes.`)) return;
   document.querySelectorAll("[data-tool-head]").forEach((el) => {
     el.innerHTML = toolHeadInner(el.dataset.toolHead);
   });
+
+  // Local filters suggest only fields their matching logic can find. Source
+  // generators avoid copying large result sets; the shared helper yields and
+  // discards stale work when the query or tenant changes.
+  function* searchFields(rows, fields) {
+    for (const row of rows || []) for (const field of fields) yield row[field];
+  }
+  const localSearchSources = {
+    searchBox: function* () { yield* searchFields(policies, ["name"]); },
+    anSearch: () => searchFields(anReport, ["user", "upn"]),
+    auSearch: function* () {
+      for (const r of auRes?.rows || []) {
+        yield r.target; yield r.actor?.name; yield r.actor?.upn; yield r.member; yield r.activity;
+        yield* searchFields(r.changes, ["path"]);
+      }
+    },
+    cgSearch: function* () {
+      for (const r of cgRes?.rows || []) { yield r.name; yield r.id; yield* searchFields(r.members, ["name", "upn"]); }
+    },
+    exSearch: function* () {
+      if (exTab === "users") yield* searchFields(exUsers, ["name", "upn"]);
+      else if (exTab === "risk") yield* searchFields(exModel ? Exclusions.risk(exModel).rows : [], ["name"]);
+      else yield* searchFields(exModel?.entities, ["name", "id"]);
+    },
+    blSearch: function* () { for (const r of blResult?.rows || []) { yield r.num; yield r.baseline?.name; yield r.tenant?.name; } },
+    vaSearch: function* () { for (const p of vaResult?.personas || []) for (const g of p.groups || []) yield g.name; },
+    sgSearch: function* () {
+      for (const r of sgRes?.apps || []) { yield r.name; yield r.appId; yield* searchFields(r.impact?.will, ["name"]); yield* searchFields(r.phantomIn, ["name"]); }
+    },
+    loSearch: () => searchFields(loList, ["displayName"]),
+    acSearch: () => searchFields(acList, ["id", "displayName", "description"]),
+    asSearch: () => searchFields(asList, ["displayName", "description"]),
+    tuSearch: () => searchFields(tuList, ["displayName"]),
+    rcSearch: function* () { yield* searchFields(rcPols, ["displayName"]); yield* searchFields(rcLocs, ["displayName"]); },
+    ruSearch: () => searchFields(ruList, ["displayName", "description"]),
+    lgUserSearch: () => searchFields((lgModalKey === "p2" ? lgRes?.p2 : lgRes?.p1)?.gapUsers, ["name", "upn"]),
+  };
+  Object.entries(localSearchSources).forEach(([id, source]) => SearchSuggest.bind($(id), source, () => `${tenantId}:${isDemo}:${policiesReadAt}:${exTab}:${lgModalKey}`));
 
   Graph.init().then((resumed) => {
     if (new URLSearchParams(location.search).get("demo")) { loadDemo(); return; }

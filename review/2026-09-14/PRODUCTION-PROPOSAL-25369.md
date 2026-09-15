@@ -1,5 +1,7 @@
 # Production proposal — beta 25369
 
+> Follow-up 2026-09-15, beta 25370: the policy inventory difference is resolved. All seven beta-only policies return Graph v1.0 HTTP 400 / service message 1037 requiring beta because they contain preview features. The beta inventory is retained. See [BETA-25370](../2026-09-15/BETA-25370.md) for the new search, screen and report acceptance. Other production gates below remain open; no production approval is implied.
+
 **Decision: hold production promotion.** This is the prepared work package 5 proposal, not deployment approval. Work packages 1–3 are implemented; work package 4 now has local scale, browser, container and limited live read-only evidence. The remaining gates below are explicit.
 
 ## Candidate scope

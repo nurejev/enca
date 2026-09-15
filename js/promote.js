@@ -119,7 +119,53 @@ const PROMOTE = {
 
   items: [
 {
+  "n": 205,
+  "title": "Result search suggestions and extended screen/export acceptance",
+  "tools": [
+    "Change audit",
+    "Policies",
+    "Gap analyse",
+    "Exclusions",
+    "CA groups",
+    "Baseline",
+    "What-If simulations",
+    "Apps with no service principal",
+    "Policy building blocks",
+    "Restricted AUs",
+    "Licence gap",
+    "User or Group analyzer"
+  ],
+  "builds": [
+    25370
+  ],
+  "group": "p1-scale-1-3",
+  "risk": "low",
+  "what": "Local suggestions for T16 and 15 other result filters, actor UPN/member matching in T16, unbroken tool version badges, and independently scrolling report tables with escaped pipe handling. Investigation confirms all seven beta-only policies contain preview features (v1.0 error 1037). Existing beta policy reads remain in place.",
+  "why": "Result filters without suggestions make users remember exact names. Suggestions must remain useful on large results without another directory read. The API inventory difference must be explained before any endpoint migration.",
+  "test": [
+    "PASSED: 85 offline tests, including late matches in 250k identities, stale-search cancellation, bounded suggestions and escaped report table values.",
+    "Open T16, read the audit log and type a resource, actor UPN or changed field. Pick a suggestion: matching rows remain and the list is not rewritten. Clear the search to restore rows.",
+    "PASSED: 136 local light/dark desktop/mobile screen/view checks, 96 report/export cases and targeted T19/T31 search tests; supplemental Checks/CIS/Teams reports rendered. No page exceptions. See review/2026-09-15/BETA-25370.md for exact passed/pending scope.",
+    "Live read-only PASSED: 98 v1.0 / 105 beta policies; all seven additional policies return v1.0 HTTP 400, message 1037 requiring beta. P1-only, live write/readback/rollback, real large-tenant latency, optional source and full assistive-technology acceptance remain pending."
+  ],
+  "files": [
+    "js/search-suggest.js",
+    "js/app.js",
+    "css/app.css",
+    "tools/search-suggest.test.cjs",
+    "tools/release-acceptance-browser.cjs",
+    "tools/search-browser.cjs",
+    "review/2026-09-15/BETA-25370.md",
+    "review/2026-09-15/policy-inventory-25370.json",
+    "js/version.js",
+    "index.html",
+    "js/changelog.js",
+    "js/promote.js"
+  ]
+},
+{
     "n": 204,
+    "acceptance": "Follow-up beta 25370: the inventory difference is explained by Graph service error 1037 (preview features); see queue 205 and review/2026-09-15/BETA-25370.md. Earlier evidence below describes the 25369 run.",
     "title": "Work package 4 acceptance fixes and work package 5 production proposal",
     "tools": [
         "Gap analyse",

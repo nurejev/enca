@@ -1,0 +1,281 @@
+{
+  "v1": 98,
+  "beta": 105,
+  "betaOnly": 7,
+  "detailReads": [
+    {
+      "sample": 0,
+      "version": "v1.0",
+      "status": 400,
+      "keys": [
+        "error"
+      ],
+      "error": "BadRequest",
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": null,
+      "previewRequired": true,
+      "deleted": null
+    },
+    {
+      "sample": 0,
+      "version": "beta",
+      "status": 200,
+      "keys": [
+        "@odata.context",
+        "conditions",
+        "createdDateTime",
+        "deletedDateTime",
+        "displayName",
+        "grantControls",
+        "id",
+        "modifiedDateTime",
+        "partialEnablementStrategy",
+        "sessionControls",
+        "state",
+        "templateId"
+      ],
+      "error": null,
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": "disabled",
+      "previewRequired": false,
+      "deleted": false
+    },
+    {
+      "sample": 1,
+      "version": "v1.0",
+      "status": 400,
+      "keys": [
+        "error"
+      ],
+      "error": "BadRequest",
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": null,
+      "previewRequired": true,
+      "deleted": null
+    },
+    {
+      "sample": 1,
+      "version": "beta",
+      "status": 200,
+      "keys": [
+        "@odata.context",
+        "conditions",
+        "createdDateTime",
+        "deletedDateTime",
+        "displayName",
+        "grantControls",
+        "id",
+        "modifiedDateTime",
+        "partialEnablementStrategy",
+        "sessionControls",
+        "state",
+        "templateId"
+      ],
+      "error": null,
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": "disabled",
+      "previewRequired": false,
+      "deleted": false
+    },
+    {
+      "sample": 2,
+      "version": "v1.0",
+      "status": 400,
+      "keys": [
+        "error"
+      ],
+      "error": "BadRequest",
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": null,
+      "previewRequired": true,
+      "deleted": null
+    },
+    {
+      "sample": 2,
+      "version": "beta",
+      "status": 200,
+      "keys": [
+        "@odata.context",
+        "conditions",
+        "createdDateTime",
+        "deletedDateTime",
+        "displayName",
+        "grantControls",
+        "id",
+        "modifiedDateTime",
+        "partialEnablementStrategy",
+        "sessionControls",
+        "state",
+        "templateId"
+      ],
+      "error": null,
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": "disabled",
+      "previewRequired": false,
+      "deleted": false
+    },
+    {
+      "sample": 3,
+      "version": "v1.0",
+      "status": 400,
+      "keys": [
+        "error"
+      ],
+      "error": "BadRequest",
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": null,
+      "previewRequired": true,
+      "deleted": null
+    },
+    {
+      "sample": 3,
+      "version": "beta",
+      "status": 200,
+      "keys": [
+        "@odata.context",
+        "conditions",
+        "createdDateTime",
+        "deletedDateTime",
+        "displayName",
+        "grantControls",
+        "id",
+        "modifiedDateTime",
+        "partialEnablementStrategy",
+        "sessionControls",
+        "state",
+        "templateId"
+      ],
+      "error": null,
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": "disabled",
+      "previewRequired": false,
+      "deleted": false
+    },
+    {
+      "sample": 4,
+      "version": "v1.0",
+      "status": 400,
+      "keys": [
+        "error"
+      ],
+      "error": "BadRequest",
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": null,
+      "previewRequired": true,
+      "deleted": null
+    },
+    {
+      "sample": 4,
+      "version": "beta",
+      "status": 200,
+      "keys": [
+        "@odata.context",
+        "conditions",
+        "createdDateTime",
+        "deletedDateTime",
+        "displayName",
+        "grantControls",
+        "id",
+        "modifiedDateTime",
+        "partialEnablementStrategy",
+        "sessionControls",
+        "state",
+        "templateId"
+      ],
+      "error": null,
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": "disabled",
+      "previewRequired": false,
+      "deleted": false
+    },
+    {
+      "sample": 5,
+      "version": "v1.0",
+      "status": 400,
+      "keys": [
+        "error"
+      ],
+      "error": "BadRequest",
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": null,
+      "previewRequired": true,
+      "deleted": null
+    },
+    {
+      "sample": 5,
+      "version": "beta",
+      "status": 200,
+      "keys": [
+        "@odata.context",
+        "conditions",
+        "createdDateTime",
+        "deletedDateTime",
+        "displayName",
+        "grantControls",
+        "id",
+        "modifiedDateTime",
+        "partialEnablementStrategy",
+        "sessionControls",
+        "state",
+        "templateId"
+      ],
+      "error": null,
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": "disabled",
+      "previewRequired": false,
+      "deleted": false
+    },
+    {
+      "sample": 6,
+      "version": "v1.0",
+      "status": 400,
+      "keys": [
+        "error"
+      ],
+      "error": "BadRequest",
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": null,
+      "previewRequired": true,
+      "deleted": null
+    },
+    {
+      "sample": 6,
+      "version": "beta",
+      "status": 200,
+      "keys": [
+        "@odata.context",
+        "conditions",
+        "createdDateTime",
+        "deletedDateTime",
+        "displayName",
+        "grantControls",
+        "id",
+        "modifiedDateTime",
+        "partialEnablementStrategy",
+        "sessionControls",
+        "state",
+        "templateId"
+      ],
+      "error": null,
+      "templateId": false,
+      "partialEnablementStrategy": null,
+      "state": "disabled",
+      "previewRequired": false,
+      "deleted": false
+    }
+  ],
+  "conclusion": "All seven beta-only policies return v1.0 HTTP 400 / BadRequest with service message 1037 requiring beta because the policy contains preview features. Beta detail GET succeeds; none is deleted. Keep beta inventory; do not equate v1.0 policy list with full inventory."
+}

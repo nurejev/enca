@@ -29,6 +29,33 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  "build": 25370,
+  "date": "2026-09-15",
+  "title": "Search suggestions across tools and policy inventory acceptance",
+  "items": [
+    {
+      "kind": "fixed",
+      "tool": "Change audit",
+      "text": "The search box suggests resources, actors, UPNs, affected members, activities and changed fields from the loaded audit result. Actor UPNs and affected member names now also match the filter."
+    },
+    {
+      "kind": "improved",
+      "tool": "Search across tools",
+      "text": "Added local suggestions to 15 other result filters, including policies, analysis, groups, baseline, building blocks and apps. Suggestions match before the 60-option limit, yield during large searches, and leave a selected value in place. No extra tenant read is needed."
+    },
+    {
+      "kind": "fixed",
+      "tool": "Layout",
+      "text": "Tool number and version badges stay together on narrow screens. Wide report tables scroll independently from the surrounding text. A literal pipe in a name no longer becomes an extra report column."
+    },
+    {
+      "kind": "improved",
+      "tool": "Beta acceptance",
+      "text": "The seven beta-only policies were confirmed by Graph v1.0 error 1037 as requiring the beta API because they contain preview features. Keep the existing beta policy inventory. Screen, report and search acceptance is recorded separately from outstanding live P1-only and write tests."
+    }
+  ]
+},
+{
   "build": 25369,
   "date": "2026-09-14",
   "title": "Beta acceptance: mobile navigation, container access and large analysis transfers",

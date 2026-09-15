@@ -50,3 +50,7 @@ The review used Microsoft's official documentation and the installed Merill msgr
 ## Acceptance still required
 
 Run P1-only, P2-only, P1 + Intune, P2 + Defender, and Workload Premium lanes. In each lane distinguish missing licence, consent, operator role, unpopulated source, unsupported endpoint, transient error and a genuinely empty completed result. Verify actual writes only in a dedicated test tenant. Do not promote the contract as verified merely because the offline fixtures pass.
+
+## Verified policy inventory constraint — 2026-09-15
+
+Beta 25370 read-only acceptance repeated the 98 v1.0 / 105 beta inventory. Individual v1.0 GETs for every one of the seven additional policies returned HTTP 400, BadRequest, service message 1037: preview features require the beta endpoint. All seven beta detail reads succeeded; none was soft-deleted. This explains the difference without assuming lost policies. Keep the existing beta policy inventory for complete coverage. Aggregate evidence: `../2026-09-15/policy-inventory-25370.json`. This is an API compatibility finding, not P1-only certification.

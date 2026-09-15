@@ -456,7 +456,9 @@ table.plist tr:hover td{background:var(--hover)}
 /* the five condition dropdowns share the row evenly and wrap gracefully */
 
 /* rendered Markdown report inside the viewer overlay */
-.md-view{max-height:72vh;overflow:auto;padding-right:6px;font-size:13.5px;line-height:1.65}
+.md-view{max-height:72vh;overflow:auto;overflow-wrap:anywhere;padding-right:6px;font-size:13.5px;line-height:1.65}
+.md-table-scroll{max-width:100%;overflow-x:auto;overflow-wrap:normal}
+.md-table-scroll:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
 .md-view h1{font-size:18px;margin:0 0 10px}
 .md-view h2{font-size:15px;margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);color:var(--green)}
 .md-view h3{font-size:13.5px;margin:14px 0 6px}
@@ -1271,7 +1273,7 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .tool-tile h3{padding-right:104px}
 .tool-tile:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
 /* the same stamp, on the tool's own header card */
-.tool-ver-head{margin-left:9px;font-size:10.5px;letter-spacing:.04em;font-weight:400;vertical-align:middle;
+.tool-ver-head{display:inline-block;white-space:nowrap;margin-left:9px;font-size:10.5px;letter-spacing:.04em;font-weight:400;vertical-align:middle;
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);
   border:1px solid var(--border);border-radius:999px;padding:2px 8px;cursor:help}
 
