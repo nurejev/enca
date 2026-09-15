@@ -6,14 +6,6 @@ const Workspace = (() => {
   let api, current, inspected = null, reviewIndex = 0, step = 0, checks = new Set();
   let sourceBusy = false, sourceMessage = '', tenantRevision = 0;
   const state = s => ({on:"On",report:"Report-only",off:"Off"}[s] || s);
-  const names = p => {
-    const native = p.name || "Unnamed policy";
-    if (!/^CA\d+/i.test(native)) return { title: native, native };
-    const parts = native.split(/\s*-\s*/).filter(x => !/^v\d[.\d]*$/i.test(x));
-    const label = (parts.at(-1) || native).replace(/([a-z])([A-Z])/g,'$1 $2');
-    const audience = parts.length > 3 ? parts[2] : '';
-    return { title: audience ? `${label} · ${audience}` : label, native };
-  };
   function init(callbacks) {
     api = callbacks;
     $('workspaceMenu').addEventListener('click', () => {
@@ -80,9 +72,8 @@ const Workspace = (() => {
     host.hidden=!p || current.view!=='list';
     $('policyWorkspace').classList.toggle('with-inspector',!!p&&current.view==='list');
     if(!p)return;
-    const n=names(p);
     host.innerHTML=`<div class="workspace-panel-head"><span>POLICY DETAILS</span><button class="btn sm" data-inspector-close aria-label="Close policy details">✕</button></div>
-      <h2>${esc(n.title)}</h2><p class="workspace-native">${esc(n.native)}</p><span class="state ${esc(p.state)}">${state(p.state)}</span>
+      <h2>${esc(p.name)}</h2><span class="state ${esc(p.state)}">${state(p.state)}</span>
       <dl>${[['Includes',p.users.inc],['Excludes',p.users.exc],['Resources',p.apps.inc],['Grant controls',p.grant.controls]].map(([l,v])=>`<dt>${l}</dt><dd>${esc(v.join(' · ')||'None configured')}</dd>`).join('')}<dt>Operator</dt><dd>${esc(p.raw.grantControls?.operator||'Not configured')}</dd><dt>Modified</dt><dd>${esc(p.modified||'Not available')}</dd></dl>
       <button class="btn primary" data-inspector-detail>Open full policy & actions →</button><details><summary>Original definition</summary><pre>${esc(JSON.stringify(p.raw,null,2))}</pre></details>`;
   }
@@ -128,7 +119,7 @@ const Workspace = (() => {
     const impact=api.impact();
     $('rolloutSteps').innerHTML=['Scope','Plan','Observed impact','Go live'].map((name,i)=>`<button data-rollout-step="${i}" aria-current="${step===i?'step':'false'}" class="${step===i?'active':''}"><span>${i+1}</span>${name}</button>`).join('');
     const head=`<div class="workspace-source">${esc(current.tenant)} · ${current.demo?'Demo — writes are simulated':'Tenant changes use the existing confirmation flow'} · ${picked.length} selected policies</div>`;
-    const selection=`<div class="rollout-selection">${picked.length?picked.map(p=>`<div><b>${esc(names(p).title)}</b><span class="state ${esc(p.state)}">${state(p.state)}</span><small>${esc(p.name)}</small></div>`).join(''):'No policies selected. Choose policies in the policy workspace, or prepare a new baseline import.'}</div>`;
+    const selection=`<div class="rollout-selection">${picked.length?picked.map(p=>`<div><b>${esc(p.name)}</b><span class="state ${esc(p.state)}">${state(p.state)}</span></div>`).join(''):'No policies selected. Choose policies in the policy workspace, or prepare a new baseline import.'}</div>`;
     const action=(key,label,primary=false)=>`<button class="btn ${primary?'primary':''}" data-rollout-action="${key}">${label}</button>`;
     const sources=`<section class="rollout-sources" aria-label="Baseline policy sources"><h3>Start from a baseline</h3><div class="rollout-source-grid"><article><h4>CloudFellows</h4><p>Load policies and dependencies from your baseline backup ZIP.</p><button class="btn primary" data-rollout-action="cloudfellows" ${sourceBusy?'disabled':''}>Choose ZIP</button></article><article><h4>Joey Verlinden</h4><p>Fetch the latest release, including policies, groups and named locations.</p><button class="btn primary" data-rollout-action="joey" ${sourceBusy?'disabled':''}>${sourceBusy?'Fetching…':'Fetch latest'}</button></article></div><p class="workspace-source">Review the imported policies and assignment mode before applying them. Source policies are separate from the existing tenant selection above. Shared E-Admins policies come from the CloudFellows ZIP.</p><p role="status" aria-live="polite">${esc(sourceMessage)}</p></section>`;
     let content;
@@ -139,5 +130,5 @@ const Workspace = (() => {
     $('rolloutBody').innerHTML=head+`<div class="rollout-content">${content}${step<2?sources:''}${step<3?`<div class="rollout-next">${action('next','Continue →')}</div>`:''}</div>`;
     if(focusCheck)$('rolloutBody').querySelector(`[data-rollout-check="${focusCheck}"]`)?.focus();
   }
-  return {init,update,inspect,names,review,pickReview,openRollout};
+  return {init,update,inspect,review,pickReview,openRollout};
 })();

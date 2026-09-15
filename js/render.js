@@ -39,7 +39,7 @@ const Render = (() => {
   function listRow(p, selected) {
     return `<tr>
         <td><input type="checkbox" data-sel="${esc(p.id)}" aria-label="Select ${esc(p.name)}" ${selected.has(p.id) ? "checked" : ""}></td>
-        <td><button class="pname" data-open="${esc(p.id)}">${esc(Workspace.names(p).title)}</button>${Workspace.names(p).title !== p.name ? `<div class="workspace-native">${esc(p.name)}</div>` : ""}
+        <td><button class="pname" data-open="${esc(p.id)}">${esc(p.name)}</button>
             <div class="mini">${p.seq}${p.usesNew ? ' · <span class="tag new">uses new CA settings</span>' : ""}</div></td>
         <td>${stateChip(p.state)}</td>
         <td class="mini">${esc(p.users.inc[0] || "")}${p.users.inc.length > 1 ? ` <span class="muted">+${p.users.inc.length - 1} more</span>` : ""}${p.users.exc.length ? `<br><span class="excl-note">− ${p.users.exc.length} excluded</span>` : ""}</td>

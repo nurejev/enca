@@ -119,6 +119,35 @@ const PROMOTE = {
 
   items: [
 {
+  "n": 209,
+  "title": "Preserve original policy names in all workspace titles",
+  "tools": [
+    "Policies",
+    "Guided rollout"
+  ],
+  "builds": [
+    25374
+  ],
+  "risk": "low",
+  "what": "Remove generated aliases from list titles, inspector headings and rollout selection. Display the complete original policy name, preserving prefixes, CA numbers and versions; remove duplicate name subtitles. Long rollout names wrap inside their column.",
+  "why": "The layout helper shortened CA-prefixed names to titles such as MFA · Global, making distinct policies look alike and treating UP-prefixed policies differently.",
+  "test": [
+    "PASSED: 104 offline tests and local Edge checks at light/1440px and dark/390px. Five fixture names remain exact in list, inspector, full detail, cards, matrix and rollout; full-name search, duplicate-subtitle removal and long-name rollout wrapping pass. Zero page exceptions. Validation: review/2026-09-15/BETA-25374.md.",
+    "PENDING: live tenant and other browsers. No tenant writes, push or deployment. Existing production acceptance gates remain open."
+  ],
+  "files": [
+    "js/render.js",
+    "js/workspace.js",
+    "css/workspace.css",
+    "js/version.js",
+    "index.html",
+    "js/changelog.js",
+    "js/promote.js",
+    "tools/policy-names-browser.cjs",
+    "review/2026-09-15/BETA-25374.md"
+  ]
+},
+{
   "n": 208,
   "title": "Housekeeping: compare older and newer policy versions",
   "tools": [

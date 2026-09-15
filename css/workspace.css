@@ -73,3 +73,7 @@ html{scrollbar-gutter:stable}
   .wo-fact{display:block;max-width:100%}
   body:has(#betaRibbon)>header{padding-top:34px}
 }
+
+/* Preserve long tenant policy names in the rollout selection. */
+.rollout-selection>div{grid-template-columns:minmax(0,1fr) auto}
+.rollout-selection>div>b{overflow-wrap:anywhere}

@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  "build": 25374,
+  "date": "2026-09-15",
+  "title": "Always show the original policy name",
+  "items": [
+    {
+      "kind": "fixed",
+      "tool": "Policies",
+      "text": "Policy list titles now show the full original tenant policy name, including CA number, prefix and version. Removed the generated short titles such as MFA · Global. The detail inspector and rollout selection also use the original name, without repeating it as a subtitle. Cards and the settings matrix retain their full names."
+    }
+  ]
+},
+{
   "build": 25373,
   "date": "2026-09-15",
   "title": "Compare policy versions directly in Housekeeping",

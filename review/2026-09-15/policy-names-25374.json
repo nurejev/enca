@@ -1,0 +1,34 @@
+{
+  "variants": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "policies": 5,
+      "checks": [
+        "list exact titles",
+        "no duplicate subtitle",
+        "inspector exact titles",
+        "full policy exact names",
+        "full-name search",
+        "cards and matrix unchanged",
+        "rollout exact names and wrapping"
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "policies": 5,
+      "checks": [
+        "list exact titles",
+        "no duplicate subtitle",
+        "inspector exact titles",
+        "full policy exact names",
+        "full-name search",
+        "cards and matrix unchanged",
+        "rollout exact names and wrapping"
+      ]
+    }
+  ],
+  "errors": [],
+  "build": 25374
+}
