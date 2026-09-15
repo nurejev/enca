@@ -5,14 +5,16 @@
 // What it is for. A report-only review is a cadence — an hour after the
 // policy was staged, four hours, the next morning, a week — and each look
 // used to read the whole window again. This store keeps what an earlier
-// read brought back so a later one asks Microsoft only for the hours it
-// does not hold yet. The unit is the HOUR, because Report-only impact's
-// hunting read (T26 2.0) already comes back per hour and hours are
-// additive over disjoint time: coverage is a list of settled [from, to)
-// intervals, and "what is missing" is plain interval arithmetic.
+// read brought back so a later one asks Microsoft only for the days it
+// does not hold yet. The unit is the DAY (UTC), because Report-only impact's
+// hunting read (T26 2.0) comes back per day and days are additive over
+// disjoint time: coverage is a list of settled [from, to) intervals, and
+// "what is missing" is plain interval arithmetic. (25378 used hours; on a
+// large tenant hour × user × app × policy was millions of records a week,
+// more than a browser tab can hold — 25379 moved to days.)
 //
 // What it holds. Report-only verdict BUCKETS (Signins.fromRoBuckets rows:
-// policy, verdict, hour, user, app, counts, one sample sign-in), per tenant
+// policy, verdict, day, user, app, counts, one sample sign-in), per tenant
 // and sign-in source. That is user principal names, IP addresses and
 // locations of sign-ins — evidence, not tokens; tokens never come near this
 // file. Nothing is kept until the person ticks the box for THIS tenant, the
@@ -30,7 +32,7 @@
 // NOT here yet — a later build, and a separate, larger consent.
 // ======================================================================
 const SigninStore = (() => {
-  const DB = "enca-signins", VERSION = 1, HOUR = 3600000;
+  const DB = "enca-signins", VERSION = 1, HOUR = 3600000, UNIT = 86400000;   // UNIT: the bin the buckets are kept in
   const DEFAULT_TTL_DAYS = 8, MAX_TTL_DAYS = 30;
 
   // ---- interval arithmetic (pure; exported for the tests) -----------------
@@ -54,7 +56,7 @@ const SigninStore = (() => {
   }
   const covered = (window, coverage) => merge(coverage).reduce((n, [a, b]) => n + Math.max(0, Math.min(b, window[1]) - Math.max(a, window[0])), 0);
   const subtract = (coverage, cut) => merge(coverage).flatMap(([a, b]) => missing([a, b], [cut]));   // coverage minus one interval
-  const floorHour = (t) => Math.floor(t / HOUR) * HOUR;
+  const floorUnit = (t) => Math.floor(t / UNIT) * UNIT;
 
   // ---- backends ------------------------------------------------------------
   // Both expose the same five verbs over the three stores; the IndexedDB one
@@ -163,24 +165,27 @@ const SigninStore = (() => {
   }
 
   // ---- buckets -------------------------------------------------------------
-  // One entry per (tenant, source, hour): the bucket records of that hour.
-  // A re-read of an hour replaces the hour whole — the unsettled tail is
-  // re-read on purpose, and two copies of an hour would double count.
-  const bKey = (tenantId, source, hour) => `b:${tenantId}|${source}|${hour}`;
-  const hourOf = (rec) => floorHour(Date.parse(rec.hour || rec.createdDateTime || 0));
+  // One entry per (tenant, source, day): the bucket records of that day.
+  // A re-read of a day replaces the day whole — the unsettled tail is
+  // re-read on purpose, and two copies of a day would double count.
+  const bKey = (tenantId, source, bin) => `b:${tenantId}|${source}|${bin}`;
+  const binOf = (rec) => floorUnit(Date.parse(rec.bin || rec.hour || rec.createdDateTime || 0));
   async function putBuckets(tenantId, source, from, to, records) {
-    const byHour = new Map();
-    for (let h = floorHour(from); h < to; h += HOUR) byHour.set(h, []);
-    for (const r of records || []) { const h = hourOf(r); if (!Number.isFinite(h)) continue; if (!byHour.has(h)) byHour.set(h, []); byHour.get(h).push(r); }
-    for (const [h, rows] of byHour) {
-      if (rows.length) await safe((b) => b.put("buckets", bKey(tenantId, source, h), { tenantId, source, hour: h, rows }));
-      else await safe((b) => b.del("buckets", bKey(tenantId, source, h)));
+    const byBin = new Map();
+    for (let d = floorUnit(from); d < to; d += UNIT) byBin.set(d, []);
+    for (const r of records || []) { const d = binOf(r); if (!Number.isFinite(d)) continue; if (!byBin.has(d)) byBin.set(d, []); byBin.get(d).push(r); }
+    for (const [d, rows] of byBin) {
+      if (rows.length) await safe((b) => b.put("buckets", bKey(tenantId, source, d), { tenantId, source, bin: d, rows }));
+      else await safe((b) => b.del("buckets", bKey(tenantId, source, d)));
     }
-    return byHour.size;
+    return byBin.size;
   }
   async function getBuckets(tenantId, source, from, to) {
-    const hours = await safe((b) => b.all("buckets", (v) => v.tenantId === tenantId && v.source === source && v.hour >= floorHour(from) && v.hour < to), []);
-    return hours.sort((a, b) => a.hour - b.hour).flatMap((h) => h.rows);
+    const bins = await safe((b) => b.all("buckets", (v) => v.tenantId === tenantId && v.source === source && v.bin >= floorUnit(from) && v.bin < to), []);
+    // no spread, no concat chain: a week of a large tenant is a lot of rows
+    const out = [];
+    for (const d of bins.sort((a, b) => a.bin - b.bin)) for (const r of d.rows) out.push(r);
+    return out;
   }
 
   // ---- forgetting ----------------------------------------------------------
@@ -201,8 +206,8 @@ const SigninStore = (() => {
     let dropped = 0;
     for (const t of tenants) {
       if (!t.on) { await forget(t.tenantId, { keepConsent: true }); continue; }
-      const cutoff = floorHour(now - (t.ttlDays || DEFAULT_TTL_DAYS) * 86400000);
-      dropped += await safe((b) => b.delWhere("buckets", (v) => v.tenantId === t.tenantId && v.hour < cutoff), 0);
+      const cutoff = floorUnit(now - (t.ttlDays || DEFAULT_TTL_DAYS) * 86400000);
+      dropped += await safe((b) => b.delWhere("buckets", (v) => v.tenantId === t.tenantId && v.bin < cutoff), 0);
       const covs = await safe((b) => b.all("coverage", (v) => v.tenantId === t.tenantId), []);
       for (const c of covs) {
         const cut = subtract(c.intervals, [-Infinity, cutoff]);
@@ -213,11 +218,13 @@ const SigninStore = (() => {
   }
   async function summary(tenantId) {
     const c = await consent(tenantId); if (!c) return null;
-    const hours = await safe((b) => b.all("buckets", (v) => v.tenantId === tenantId), []);
-    const rows = hours.reduce((n, h) => n + h.rows.length, 0);
-    const bytes = hours.reduce((n, h) => n + JSON.stringify(h.rows).length, 0);
-    return { ...c, hours: hours.length, rows, bytes, backend: backendKind || be().kind };
+    const bins = await safe((b) => b.all("buckets", (v) => v.tenantId === tenantId), []);
+    const rows = bins.reduce((n, d) => n + d.rows.length, 0);
+    // a size estimate from a sample, not a stringify of the whole store
+    const sample = bins.length ? bins[0].rows.slice(0, 50) : [];
+    const bytes = sample.length ? Math.round(JSON.stringify(sample).length / sample.length * rows) : 0;
+    return { ...c, days: bins.length, hours: bins.length, rows, bytes, backend: backendKind || be().kind };
   }
 
-  return { HOUR, DEFAULT_TTL_DAYS, MAX_TTL_DAYS, merge, missing, covered, floorHour, consent, enabled, setConsent, coverage, addCoverage, putBuckets, getBuckets, forget, forgetAll, purge, summary, backend: () => backendKind || be().kind, _useMemory: () => { backend = memBackend(); backendKind = "memory"; } };
+  return { HOUR, UNIT, DEFAULT_TTL_DAYS, MAX_TTL_DAYS, merge, missing, covered, floorUnit, consent, enabled, setConsent, coverage, addCoverage, putBuckets, getBuckets, forget, forgetAll, purge, summary, backend: () => backendKind || be().kind, _useMemory: () => { backend = memBackend(); backendKind = "memory"; } };
 })();

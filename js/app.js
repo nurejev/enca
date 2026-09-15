@@ -13184,7 +13184,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---- Report-only verdicts as buckets (T26 2.0, 25377) --------------------
   // The hunting sources answer Report-only impact with Signins.roBucketQuery:
-  // the verdicts summarised per hour × policy × verdict × user × app, one
+  // the verdicts summarised per day × policy × verdict × user × app, one
   // query a day instead of dozens of row slices, through the same slicing,
   // stride, priming and Stop as the row read (opts.query / shape / kind).
   // Its own cache — the rows cache stays what 🕵 🌊 🛂 read. A query the
@@ -13200,19 +13200,25 @@ This is a directory write. Nothing else changes.`)) return;
     const c = roCache, s = c.stored;
     const line = coverageHtml(c, c.signIns);
     if (!s) return line;
-    const note = s.hours ? `${s.hours} of ${s.of} settled hours from this device, ${s.read} hour${s.read === 1 ? "" : "s"} and the last ${SETTLE_HOURS} hours from Microsoft just now` : `nothing held for this window yet — all ${s.of} hours read from Microsoft and kept on this device for next time`;
+    const note = s.days ? `${s.days} of ${s.of} settled day${s.of === 1 ? "" : "s"} from this device, ${s.read} day${s.read === 1 ? "" : "s"} and the current day from Microsoft just now (the window starts at a day boundary)` : `nothing held for this window yet — all ${s.of} day${s.of === 1 ? "" : "s"} read from Microsoft and kept on this device for next time`;
     return line.replace("</p>", ` · 💾 ${note}</p>`);
   };
   const isRoRefusal = (e) => /semantic|syntax|SEM0|not recognized|unknown function|union|arg_max|take_any|mv-expand|bin\(/i.test(String((e && e.message) || ""));
-  // THE ON-DEVICE STORE (R58, 25378). With the tenant's consent the buckets
-  // are kept in this browser (js/signinstore.js) and a later read asks
-  // Microsoft only for the hours the store lacks. Hours are the unit because
-  // the query already comes back per hour and hours add up over disjoint
-  // time. The newest SETTLE_HOURS are never trusted from the store: sign-ins
-  // reach the hunting table with a lag, so that tail is re-read every time
-  // and rewritten hour by hour. A capped interval (a day whose summary still
-  // hit the result cap) is shown but never stored — a partial hour would be
-  // believed whole next time. Without consent this is the 25377 read.
+  // THE ON-DEVICE STORE (R58, 25378; days since 25379). With the tenant's
+  // consent the buckets are kept in this browser (js/signinstore.js) and a
+  // later read asks Microsoft only for the DAYS the store lacks. The day is
+  // the unit because the query comes back per day (UTC) and days add up over
+  // disjoint time. The current day — and the previous one within
+  // SETTLE_HOURS of midnight, since sign-ins reach the hunting table with a
+  // lag — is never trusted from the store: that tail is re-read every time
+  // and rewritten day by day. The window's start is floored to the day when
+  // the store is in use, so the forecast covers whole days (a little more
+  // evidence than asked, never less); the coverage line says so. A capped
+  // interval is shown but never stored — a partial day would be believed
+  // whole next time. What the store already holds is handed to the caller
+  // FIRST (onPartial with a "held" note) so the screen shows the forecast the
+  // device has before Microsoft has answered. Without consent this is the
+  // 25377 read.
   const SETTLE_HOURS = 2;
   async function readRoBuckets(days, prog, force, onPartial) {
     const source = logSource, key = roReadKey(days, source);
@@ -13226,10 +13232,14 @@ This is a directory write. Nothing else changes.`)) return;
       query: (a, b, cap) => Signins.roBucketQuery({ from: new Date(a).toISOString(), to: new Date(b).toISOString(), table: huntTable, interactiveOnly, cap }),
       shape: Signins.fromRoBuckets,
     });
-    const H = SigninStore.HOUR, now = Date.now();
-    const start = SigninStore.floorHour(now - days * 86400000), settled = SigninStore.floorHour(now) - SETTLE_HOURS * H;
+    const U = SigninStore.UNIT, now = Date.now();
+    const start = SigninStore.floorUnit(now - days * 86400000), settled = SigninStore.floorUnit(now - SETTLE_HOURS * SigninStore.HOUR);
     const useStore = !isDemo && tenantId && await SigninStore.enabled(tenantId);
-    let records = [], capped = false, queries = 0, stored = { hours: 0, of: 0, read: 0 };
+    // never spread a large array into push — Safari's argument limit is a
+    // few tens of thousands and a week of buckets is far past it (25378 died
+    // on exactly that: "Maximum call stack size exceeded")
+    const append = (into, more) => { for (const r of more) into.push(r); return into; };
+    let records = [], capped = false, queries = 0, stored = { days: 0, of: 0, read: 0 };
     if (!useStore || settled <= start) {
       const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
       const r = await readSignInsHunting(days, prog, { ...opts(undefined, undefined, partial), from: undefined, to: undefined });
@@ -13237,28 +13247,32 @@ This is a directory write. Nothing else changes.`)) return;
     } else {
       const cov = await SigninStore.coverage(tenantId, source, "ro");
       const gaps = force ? [[start, settled]] : SigninStore.missing([start, settled], cov);
-      stored.of = Math.round((settled - start) / H);
-      stored.hours = force ? 0 : Math.round(SigninStore.covered([start, settled], cov) / H);
-      stored.read = stored.of - stored.hours;
+      stored.of = Math.round((settled - start) / U);
+      stored.days = force ? 0 : Math.round(SigninStore.covered([start, settled], cov) / U);
+      stored.read = stored.of - stored.days;
       const held = force ? [] : await SigninStore.getBuckets(tenantId, source, start, settled);
       const got = [];   // records read this time (gaps, then the tail)
-      const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(held.concat(got, rows), done, total); } : null;
+      const steps = gaps.length + 1;
+      const partial = onPartial ? async (rows, done, total, note) => { check(); await onPartial(append(append(held.slice(), got), rows), done, total, note); } : null;
+      // what the device already holds, before Microsoft has answered anything
+      if (partial && held.length) await partial([], 0, steps, "held");
+      let step = 0;
       for (const [a, b] of gaps) {
-        const r = await readSignInsHunting(0, prog, opts(a, b, partial));
-        check(); queries += r.queries;
-        if (r.capped) { capped = true; got.push(...r.records); continue; }
+        const r = await readSignInsHunting(0, prog, opts(a, b, partial ? (rows, done, total) => partial(rows, step, steps) : null));
+        check(); queries += r.queries; step++;
+        if (r.capped) { capped = true; append(got, r.records); continue; }
         await SigninStore.putBuckets(tenantId, source, a, b, r.records);
         await SigninStore.addCoverage(tenantId, source, "ro", [a, b]);
-        got.push(...r.records);
+        append(got, r.records);
       }
-      // the unsettled tail: read every time, kept hour by hour but never counted as covered
-      const tail = await readSignInsHunting(0, prog, opts(settled, now, partial));
+      // the unsettled tail: read every time, never counted as covered
+      const tail = await readSignInsHunting(0, prog, opts(settled, now, partial ? (rows, done, total) => partial(rows, step, steps) : null));
       check(); queries += tail.queries; if (tail.capped) capped = true;
-      records = (force ? got : held.concat(got)).concat(tail.records);
+      records = append(append(force ? [] : held.slice(), got), tail.records);
     }
-    const times = records.map(r => r.createdDateTime).filter(Boolean).sort();
-    const signIns = records.reduce((a, r) => a + (r.signIns || 0), 0);
-    const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest: times[0] || null, newest: times.at(-1) || null, queries, signIns, buckets: true, stored: useStore ? stored : null };
+    let signIns = 0, oldest = null, newest = null;
+    for (const r of records) { signIns += r.signIns || 0; const t = r.createdDateTime; if (t) { if (!oldest || t < oldest) oldest = t; if (!newest || t > newest) newest = t; } }
+    const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest, newest, queries, signIns, buckets: true, stored: useStore ? stored : null };
     roCache = result; return { ...result, reused: false };
   }
   const logAgeLabel = () => {
@@ -13635,7 +13649,7 @@ This is a directory write. Nothing else changes.`)) return;
       "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
       isGraphLogSource(logSource) ? `Reads up to ${SI_MAX.toLocaleString()} sign-ins. A partial interval is labelled; this limit is not a completion percentage.` : "The summarised query was refused by this tenant's hunting engine, so the sign-in rows are read instead — slower, same verdicts.")
     : riProg.panel(
-      "Asking Defender hunting for the report-only verdicts — summarised per hour, policy, verdict, user and app before they leave Microsoft. A day is one query; the forecast fills in as the days land, and this keeps running if you switch tabs.",
+      "Asking Defender hunting for the report-only verdicts — summarised per day, policy, verdict, user and app before they leave Microsoft. A day is one query; the forecast fills in as the days land, and this keeps running if you switch tabs.",
       "The sign-ins themselves are not read: the query returns counts and one sample sign-in per row. A day whose summary still exceeds the 50 MB result cap is halved like a row read would be.");
 
   // The tenant's report-only policies from the list already in memory — so a
@@ -13652,10 +13666,16 @@ This is a directory write. Nothing else changes.`)) return;
     $("riRescan").style.display = riRes && !riBusy ? "" : "none";
     if (riBusy) { if (riRes && riPartial) renderImpact(); else $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
+    // 💾 on for this tenant and a hunting source: the read starts by itself
+    // and shows what the device holds first — asking someone who opted in to
+    // press ▶ to see their own data would be the store not doing its job
+    if (!isDemo && tenantId && !isGraphLogSource(logSource) && roBucketsOk) {
+      SigninStore.enabled(tenantId).then((on) => { if (on && !riRes && !riBusy && $("screen-impact").classList.contains("active")) runImpact(); });
+    }
     const ro = riTenantRo();
     $("riHead").innerHTML = `${toolHead("toolImpact")}
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
-      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. On the hunting sources the verdicts are <b>summarised by Microsoft</b> per hour, policy, verdict, user and app before they leave the tenant — a day is one query, and the sign-ins themselves are never read. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
+      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. On the hunting sources the verdicts are <b>summarised by Microsoft</b> per day, policy, verdict, user and app before they leave the tenant — a day is one query, and the sign-ins themselves are never read. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
     $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
@@ -13670,13 +13690,14 @@ This is a directory write. Nothing else changes.`)) return;
     riBusy = true; riCapped = false; riPartial = null; riPartialAt = 0; riProg.begin();
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
-    const onPartial = async (recs, done, total) => {
+    const onPartial = async (recs, done, total, note) => {
       if (!riBusy || runKey !== logReadKey(riDays)) return;   // a late day from a stopped read
       // at most one rebuild every 3 seconds — a build over 100k records is
-      // a few hundred milliseconds and the reader needs time to look
+      // a few hundred milliseconds and the reader needs time to look; what
+      // the device held (note "held") is always rendered at once
       const now = Date.now();
-      riPartial = { done, total, recs };
-      if (now - riPartialAt < 3000 && done !== total) return;
+      riPartial = { done, total, recs, note };
+      if (note !== "held" && now - riPartialAt < 3000 && done !== total) return;
       riPartialAt = now;
       const partialResult = await AnalysisJobs.run("impact", { records: recs, policies: riTenantRo() }, { signal: riProg.signal });
       riProg.check();
@@ -13754,8 +13775,10 @@ This is a directory write. Nothing else changes.`)) return;
 
   const riPartialStrip = () => {
     const pt = riPartial; if (!pt) return "";
+    if (pt.recs && pt.recs.some((r) => r.bucket) && pt.note !== "held") return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — ${pt.done} of ${pt.total} read${pt.total === 1 ? "" : "s"} back, ${(pt.recs.reduce((a, r) => a + (r.signIns || 0), 0)).toLocaleString()} sign-ins summarised so far. The numbers below grow as days land; the verdicts are not final until the bar is.`)}</div>`;
     const where = pt.total ? `${pt.done} of ${pt.total} day${pt.total === 1 ? "" : "s"}` : `${pt.recs.length.toLocaleString()} sign-ins`;
     if (pt.stopped) return `<div class="wo-callout" style="margin:0 0 10px"><b>Stopped by you</b> — this is ${where}${pt.total ? " of the window" : ""}, ${pt.recs.length.toLocaleString()} sign-ins. A verdict on a partial window is a verdict on a partial window: a policy that looks safe here may have its denials in the days not read. ⟳ Rescan reads it whole.</div>`;
+    if (pt.note === "held") return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>From this device</b> — the forecast below is what this browser already held for the window (💾). Microsoft is being asked for the days it lacks and for today; the numbers update as they land.`)}</div>`;
     return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — showing ${where} so far, ${pt.recs.length.toLocaleString()} sign-ins. The numbers below grow as days land; the verdicts are not final until the bar is.`)}</div>`;
   };
   function renderImpact() {

@@ -32,7 +32,7 @@ There is one deliberate, opt-in exception, and it is on the reader's side of
 the line, not the site's: **💾 Keep on this device** (roadmap R58, beta 25378).
 Switched on per tenant, after a dialog that names the data, the browser keeps
 the report-only verdict summaries the Defender hunting sources return — per
-hour, policy, verdict, user and app, with one sample sign-in per row, so user
+day, policy, verdict, user and app, with one sample sign-in per row, so user
 principal names, IP addresses, locations and device state of real sign-ins —
 in its own IndexedDB, on that device, for the number of days chosen (3–30,
 default 8). It never leaves the device, the site cannot read it from anywhere

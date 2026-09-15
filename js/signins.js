@@ -203,13 +203,16 @@ ${slim === false ? "" : SLIM}
   // verdict × user × app × the few device facts the deny explanation is
   // judged on (compliance, management, trust type, OS, MFA requirement, client,
   // both risk levels); a day of 300,000 sign-ins on a tenant with five staged
-  // policies is low thousands of rows of a few hundred bytes, so a day is one
-  // query where it used to be dozens. Hourly because hours are ADDITIVE over
-  // disjoint time — the on-device store reads only the hours it lacks.
+  // policies is thousands of rows of a few hundred bytes, so a day is one
+  // query where it used to be dozens. Per DAY (25379 — 25377/25378 binned by
+  // the hour, and on a large tenant that was 24× the rows: hour × user × app ×
+  // policy ran to millions of records a week, more than a browser tab holds,
+  // and Safari killed the tab). Days are still additive over disjoint time,
+  // which is all the on-device store needs to read only the days it lacks.
   //
   // Three kinds of row come back in one union, told apart by Kind:
-  //   n   — sign-ins per hour (the denominator the forecast states)
-  //   na  — reportOnlyNotApplied per hour × policy (no user columns; the
+  //   n   — sign-ins per day (the denominator the forecast states)
+  //   na  — reportOnlyNotApplied per day × policy (no user columns; the
   //         "never in scope" verdict only needs the count)
   //   ro  — the evaluated verdicts with the dimensions above; arg_max on
   //         Timestamp carries ONE consistent sample row (the latest) so the
@@ -231,15 +234,15 @@ let P = W
 | extend PolicyId = tostring(_X.id), PolicyName = tostring(_X.displayName), Result = tostring(_X.result)
 | where Result in~ (${kql([...RO_WORDS, ...RO_NA])});
 union
-  (W | summarize N = count() by Hour = bin(Timestamp, 1h) | extend Kind = "n"),
-  (P | where Result in~ (${kql(RO_NA)}) | summarize N = count(), First = min(Timestamp), Last = max(Timestamp) by Hour = bin(Timestamp, 1h), PolicyId, PolicyName | extend Kind = "na"),
+  (W | summarize N = count() by Bin = bin(Timestamp, 1d) | extend Kind = "n"),
+  (P | where Result in~ (${kql(RO_NA)}) | summarize N = count(), First = min(Timestamp), Last = max(Timestamp) by Bin = bin(Timestamp, 1d), PolicyId, PolicyName | extend Kind = "na"),
   (P | where Result !in~ (${kql(RO_NA)})
      | summarize N = count(), First = min(Timestamp),
          Grant = take_any(tostring(_X.enforcedGrantControls)), Session = take_any(tostring(_X.enforcedSessionControls)),
          arg_max(Timestamp, RequestId, IPAddress, City, Country, Browser, ErrorCode, ResourceDisplayName, ResourceId, ApplicationId, EntraIdDeviceId, DeviceName, RiskState)
-       by Hour = bin(Timestamp, 1h), PolicyId, PolicyName, Result, AccountObjectId, AccountUpn, AccountDisplayName, Application, ClientAppUsed, OSPlatform, DeviceTrustType, IsCompliant, IsManaged, AuthenticationRequirement, RiskLevelDuringSignIn, RiskLevelAggregated, LogonType
+       by Bin = bin(Timestamp, 1d), PolicyId, PolicyName, Result, AccountObjectId, AccountUpn, AccountDisplayName, Application, ClientAppUsed, OSPlatform, DeviceTrustType, IsCompliant, IsManaged, AuthenticationRequirement, RiskLevelDuringSignIn, RiskLevelAggregated, LogonType
      | extend Kind = "ro")
-| order by Hour desc
+| order by Bin desc
 | take ${cap || HUNT_CAP}`;
   }
   const parseList = (s) => { try { const v = typeof s === "string" ? JSON.parse(s || "[]") : (s || []); return Array.isArray(v) ? v.filter(Boolean).map(String) : []; } catch { return []; } };
@@ -247,13 +250,13 @@ union
     const out = [];
     for (const r of rows || []) {
       const n = Number(r.N) || 0;
-      if (r.Kind === "n") { out.push({ signIns: n, hour: r.Hour, createdDateTime: r.Hour, appliedConditionalAccessPolicies: [], source: "hunting", bucket: true }); continue; }
+      if (r.Kind === "n") { out.push({ signIns: n, bin: r.Bin, createdDateTime: r.Bin, appliedConditionalAccessPolicies: [], source: "hunting", bucket: true }); continue; }
       const result = r.Kind === "na" ? "reportOnlyNotApplied" : /^\d+$/.test(String(r.Result)) ? (RESULT_N[Number(r.Result)] || String(r.Result)) : String(r.Result || "");
       const pol = { id: r.PolicyId || "", displayName: r.PolicyName || "", result, enforcedGrantControls: r.Kind === "na" ? [] : parseList(r.Grant), enforcedSessionControls: r.Kind === "na" ? [] : parseList(r.Session) };
       // one synthetic hunting row through the ordinary shaper, so every
       // field name and every enum mapping stays in one place
-      const rec = fromHunting([{ ...r, Timestamp: r.Timestamp || r.Last || r.Hour, ConditionalAccessPolicies: JSON.stringify([pol]), RoNotApplied: "[]" }])[0];
-      rec.n = n; rec.firstDateTime = r.First || r.Hour; rec.hour = r.Hour; rec.bucket = true;
+      const rec = fromHunting([{ ...r, Timestamp: r.Timestamp || r.Last || r.Bin, ConditionalAccessPolicies: JSON.stringify([pol]), RoNotApplied: "[]" }])[0];
+      rec.n = n; rec.firstDateTime = r.First || r.Bin; rec.bin = r.Bin; rec.bucket = true;
       out.push(rec);
     }
     return out;

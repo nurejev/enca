@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25379,
+  date: "2026-09-15",
+  title: "Keep on this device: days, not hours — and what is held shows first",
+  items: [
+    {
+      kind: "fixed",
+      tool: "Sign-in log",
+      text: "The first real run of 25378 failed twice on a large tenant: “Could not read the sign-in log: Maximum call stack size exceeded”, and then the browser tab itself (Safari's “a problem occurred on this page”, error 5 — out of memory). The first was a week of buckets appended with a spread, which Safari refuses past a few tens of thousands of arguments; the second was the buckets themselves — per HOUR × user × app × policy on a large tenant is millions of records a week, more than a tab holds. Buckets are now per DAY in the query, in the store and in the coverage (24× fewer rows; a day is still one query), and every large append is a loop. The store's contents from 25378 are hour-shaped and are simply re-read once.",
+    },
+    {
+      kind: "improved",
+      tool: "Sign-in log",
+      text: "With 💾 Keep on this device switched on for the tenant, opening Report-only impact no longer waits for you to press ▶ and then reads before showing anything. It starts by itself, shows the forecast this browser already holds under a “From this device” strip, and asks Microsoft only for the days it lacks plus today — the numbers update as they land. The coverage line reads “6 of 7 settled days from this device, 1 day and the current day from Microsoft just now”. The window starts at a day boundary when the store is in use: whole days, a little more evidence than asked, never less.",
+    },
+  ],
+},
+{
   build: 25378,
   date: "2026-09-15",
   title: "Keep sign-ins on this device — the cadence read",

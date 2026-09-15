@@ -40,23 +40,23 @@ function rows() {
 // the summarize the query performs, done here over the same rows
 const RO = new Set(["reportOnlySuccess", "reportOnlyFailure", "reportOnlyInterrupted"]);
 function bucket(full) {
-  const hour = (t) => new Date(Math.floor(Date.parse(t) / HOUR) * HOUR).toISOString();
+  const DAY = 24 * HOUR, hour = (t) => new Date(Math.floor(Date.parse(t) / DAY) * DAY).toISOString();   // the query bins by UTC day
   const n = new Map(), na = new Map(), ro = new Map();
   for (const r of full) {
     const H = hour(r.Timestamp);
     n.set(H, (n.get(H) || 0) + 1);
     for (const p of JSON.parse(r.ConditionalAccessPolicies)) {
-      if (p.result === "reportOnlyNotApplied") { const k = [H, p.id].join("|"); const e = na.get(k) || { Kind: "na", Hour: H, PolicyId: p.id, PolicyName: p.displayName, N: 0, First: r.Timestamp, Last: r.Timestamp }; e.N++; if (r.Timestamp < e.First) e.First = r.Timestamp; if (r.Timestamp > e.Last) e.Last = r.Timestamp; na.set(k, e); continue; }
+      if (p.result === "reportOnlyNotApplied") { const k = [H, p.id].join("|"); const e = na.get(k) || { Kind: "na", Bin: H, PolicyId: p.id, PolicyName: p.displayName, N: 0, First: r.Timestamp, Last: r.Timestamp }; e.N++; if (r.Timestamp < e.First) e.First = r.Timestamp; if (r.Timestamp > e.Last) e.Last = r.Timestamp; na.set(k, e); continue; }
       if (!RO.has(p.result)) continue;
       const k = [H, p.id, p.result, r.AccountObjectId, r.Application, r.ClientAppUsed, r.OSPlatform, r.DeviceTrustType, r.IsCompliant, r.IsManaged, r.AuthenticationRequirement, r.RiskLevelDuringSignIn, r.RiskLevelAggregated, r.LogonType].join("|");
       let e = ro.get(k);
-      if (!e) { e = { Kind: "ro", Hour: H, PolicyId: p.id, PolicyName: p.displayName, Result: p.result, AccountObjectId: r.AccountObjectId, AccountUpn: r.AccountUpn, AccountDisplayName: r.AccountDisplayName, Application: r.Application, ClientAppUsed: r.ClientAppUsed, OSPlatform: r.OSPlatform, DeviceTrustType: r.DeviceTrustType, IsCompliant: r.IsCompliant, IsManaged: r.IsManaged, AuthenticationRequirement: r.AuthenticationRequirement, RiskLevelDuringSignIn: r.RiskLevelDuringSignIn, RiskLevelAggregated: r.RiskLevelAggregated, LogonType: r.LogonType, N: 0, First: r.Timestamp, Grant: JSON.stringify(p.enforcedGrantControls), Session: JSON.stringify(p.enforcedSessionControls) }; ro.set(k, e); }
+      if (!e) { e = { Kind: "ro", Bin: H, PolicyId: p.id, PolicyName: p.displayName, Result: p.result, AccountObjectId: r.AccountObjectId, AccountUpn: r.AccountUpn, AccountDisplayName: r.AccountDisplayName, Application: r.Application, ClientAppUsed: r.ClientAppUsed, OSPlatform: r.OSPlatform, DeviceTrustType: r.DeviceTrustType, IsCompliant: r.IsCompliant, IsManaged: r.IsManaged, AuthenticationRequirement: r.AuthenticationRequirement, RiskLevelDuringSignIn: r.RiskLevelDuringSignIn, RiskLevelAggregated: r.RiskLevelAggregated, LogonType: r.LogonType, N: 0, First: r.Timestamp, Grant: JSON.stringify(p.enforcedGrantControls), Session: JSON.stringify(p.enforcedSessionControls) }; ro.set(k, e); }
       e.N++;
       if (r.Timestamp < e.First) e.First = r.Timestamp;
       if (!e.Timestamp || r.Timestamp > e.Timestamp) Object.assign(e, { Timestamp: r.Timestamp, RequestId: r.RequestId, IPAddress: r.IPAddress, City: r.City, Country: r.Country, Browser: r.Browser, ErrorCode: r.ErrorCode, ResourceDisplayName: r.ResourceDisplayName, ResourceId: r.ResourceId, ApplicationId: r.ApplicationId, RiskState: r.RiskState });
     }
   }
-  return [...[...n].map(([H, N]) => ({ Kind: "n", Hour: H, N })), ...na.values(), ...ro.values()];
+  return [...[...n].map(([H, N]) => ({ Kind: "n", Bin: H, N })), ...na.values(), ...ro.values()];
 }
 const ro = [{ id: "p1", name: P1.displayName }, { id: "p2", name: P2.displayName }, { id: "p3", name: "Staged, no traffic" }];
 const strip = (p) => ({ key: p.key, verdict: p.verdict, success: p.success, interrupted: p.interrupted, failure: p.failure, notApplied: p.notApplied, evaluated: p.evaluated, controls: p.controls, first: p.first, last: p.last, apps: p.apps,
@@ -82,12 +82,12 @@ test("the forecast from buckets equals the forecast from rows — per policy, pe
 });
 
 test("numeric result codes and the query text", () => {
-  const rec = S.fromRoBuckets([{ Kind: "ro", Hour: "2026-09-08T06:00:00Z", PolicyId: "p1", PolicyName: "P", Result: "7", N: 4, AccountObjectId: "u", AccountUpn: "u@x", Application: "A", Grant: '["Block"]', Session: "[]", First: "2026-09-08T06:01:00Z", Timestamp: "2026-09-08T06:50:00Z", RequestId: "r1", IsCompliant: 0 }])[0];
+  const rec = S.fromRoBuckets([{ Kind: "ro", Bin: "2026-09-08T00:00:00Z", PolicyId: "p1", PolicyName: "P", Result: "7", N: 4, AccountObjectId: "u", AccountUpn: "u@x", Application: "A", Grant: '["Block"]', Session: "[]", First: "2026-09-08T06:01:00Z", Timestamp: "2026-09-08T06:50:00Z", RequestId: "r1", IsCompliant: 0 }])[0];
   assert.equal(rec.appliedConditionalAccessPolicies[0].result, "reportOnlyFailure");
   assert.deepEqual(rec.appliedConditionalAccessPolicies[0].enforcedGrantControls, ["Block"]);
   assert.equal(rec.n, 4); assert.equal(rec.firstDateTime, "2026-09-08T06:01:00Z"); assert.equal(rec.createdDateTime, "2026-09-08T06:50:00Z");
   const q = S.roBucketQuery({ from: "2026-09-08T00:00:00.000Z", to: "2026-09-09T00:00:00.000Z", interactiveOnly: true, cap: 20000 });
-  for (const piece of ["let W = EntraIdSignInEvents", 'LogonType !has "non"', "mv-expand _X = _P", 'extend Kind = "n"', 'extend Kind = "na"', 'extend Kind = "ro"', "arg_max(Timestamp, RequestId", "bin(Timestamp, 1h)", "take 20000"]) assert.ok(q.includes(piece), piece);
+  for (const piece of ["let W = EntraIdSignInEvents", 'LogonType !has "non"', "mv-expand _X = _P", 'extend Kind = "n"', 'extend Kind = "na"', 'extend Kind = "ro"', "arg_max(Timestamp, RequestId", "bin(Timestamp, 1d)", "take 20000"]) assert.ok(q.includes(piece), piece);
   assert.ok(!S.roBucketQuery({ from: "a", to: "b", interactiveOnly: false }).includes('!has "non"'));
   assert.ok(S.roBucketQuery({ from: "a", to: "b", table: "AADSignInEventsBeta" }).startsWith("let W = AADSignInEventsBeta"));
 });
