@@ -118,6 +118,24 @@ const PROMOTE = {
   },
 
   items: [
+    {
+      n: 210,
+      title: "\ud83c\udf9a The hunting read keeps the slice length that worked (T26 1.6.0 / T17 2.4.0)",
+      tools: ["Sign-in log"],
+      builds: [25375],
+      risk: "medium",
+      what: "js/app.js readSignInsHunting: a STRIDE — the slice length that last worked — replaces the fresh 24-hour start of every day. It shrinks on a halving (size error or row cap), doubles after three whole slices in a row came back at a third of the cap or less, and is kept in localStorage per tenant, source and kind (enca-huntstride:<tenant>:<source>:<kind>). When no stride is known the first worker reads alone until one slice has landed (priming), then the others start at what it found. HUNT_WORKERS 4 (was 2). Reads filtered to a user or to enforced failures keep plain day slices. The reader also takes opts.from/to, opts.query, opts.shape, opts.kind, opts.cap and opts.label so a different query can run over the same slicing — unused in this build, groundwork for the bucket read. makeProgress line(): rows already back are said before the first whole step lands. tools/hunting-stride.test.cjs lifts the function out of app.js and asserts the query counts against a simulated tenant.",
+      why: "Medium: the reader every hunting-source tool goes through changed shape. The result is the same rows — no slice is skipped, halves are still both read, the cap logic is unchanged — but the query count and the order the days land in differ, and priming means the first day is read by one worker before the rest start. What would have to be true to graduate: a real tenant's 7-day read returns the same row count as 25374 with fewer queries, and the stride the session leaves in localStorage is a sane one (between 15 min and a day).",
+      test: [
+        "node --test tools/hunting-stride.test.cjs: five green — 31 queries for the week that used to cost 49, the user-filtered read unchanged at 49, growth on an easy tenant, cap lowering below 15 minutes, from/to with a custom query.",
+        "Real tenant (Perfetti-sized), Hunting + non-interactive, Last 7 days, \ud83c\udf9a Report-only impact: note the final query count on the detail line and compare with the same read on 25374 — expect roughly half. The per-policy counts must be identical.",
+        "Same tenant, immediately re-read (\u27f3 Rescan): the detail line names the stride from the first query (e.g. “22 min slices”) and no 24-hour query is issued — localStorage enca-huntstride:<tenant>:huntall:rows holds a value between 900000 and 86400000.",
+        "While the first day is being read the top line reads “N sign-ins · first day in progress” as soon as one slice has landed; before that, “Waiting for Microsoft's first response”.",
+        "Small tenant, Defender hunting, Last 30 days: 30 queries, one per day, stride stays a day (no halving, no growth message).",
+        "\ud83d\udd75 Who is Anna to CA on the hunting source: unchanged — one query per day, no stride on the line.",
+      ],
+      files: ["js/app.js", "tools/hunting-stride.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
 {
   "n": 209,
   "title": "Preserve original policy names in all workspace titles",

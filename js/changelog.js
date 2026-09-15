@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25375,
+  date: "2026-09-15",
+  title: "The hunting read stops starting over every day",
+  items: [
+    {
+      kind: "improved",
+      tool: "Sign-in log",
+      text: "A large tenant's week from Defender hunting took a quarter of an hour to get through its FIRST day: every day began at a 24-hour slice and was halved on the way down to 22 minutes, and each halving is a query that comes back with nothing — 63 of them for the 64 that returned rows, every day, all week. The reader now remembers the slice length that worked, starts the next slice there, lets it grow back when three slices in a row come back light, and keeps it per tenant and source for the next session. The first worker reads alone until one slice has landed, then three more start at the stride it found. Report-only impact, Sign-in failures on the hunting source, Who is Anna, the wave and Session controls all read through it.",
+    },
+    {
+      kind: "fixed",
+      tool: "Sign-in log",
+      text: "The progress line said “Waiting for Microsoft's first response” for as long as the first day took, while the detail line under it was on query 84. It now says how many sign-ins are already back and that the first day is in progress, and the detail names the stride (22 min slices, 6 h slices).",
+    },
+  ],
+},
+{
   "build": 25374,
   "date": "2026-09-15",
   "title": "Always show the original policy name",

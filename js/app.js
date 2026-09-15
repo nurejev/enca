@@ -10909,7 +10909,14 @@ This is a directory write. Nothing else changes.`)) return;
     const currentContext = () => `${tenantId}:${policiesReadAt}:${isDemo}`;
     const elapsed = () => { const s = Math.max(0, Math.round((Date.now() - st.t0) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
     const line = () => {
-      const count = st.step ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""}` : "Waiting for Microsoft's first response";
+      // Before the first whole step lands the line used to say "Waiting for
+      // Microsoft's first response" for as long as the first day took —
+      // fifteen minutes of it on a large tenant while the detail line under
+      // it was on query 84. Rows that have arrived are said as soon as the
+      // reader sets st.n; only a read with nothing back yet is waiting.
+      const count = st.step ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""}`
+        : st.n ? `${st.n.toLocaleString()} ${st.label} · first ${st.stepLabel} in progress${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""}`
+        : "Waiting for Microsoft's first response";
       const wait = Math.ceil((st.throttleUntil - Date.now()) / 1000);
       return `${count} · ${elapsed()}${st.detail ? ` · ${st.detail}` : ""}${st.lastResponse ? ` · last response ${Math.max(0, Math.round((Date.now() - st.lastResponse) / 1000))}s ago` : ""}${wait > 0 ? ` · Microsoft asked read requests to wait: ${wait}s` : ""}${st.stop ? " · stopping — results are incomplete" : ""}`;
     };
@@ -12938,83 +12945,147 @@ This is a directory write. Nothing else changes.`)) return;
   // STILL fails on size — a large tenant's non-interactive traffic, each row
   // carrying the policies JSON — lowers its row cap and retries, down to
   // 1,000 rows, and is reported as capped rather than failing the read.
+  //
+  // THE STRIDE (25375). Halving used to start over at 24 hours for EVERY
+  // day. A tenant whose non-interactive traffic needs 22-minute slices paid
+  // 63 failed queries for the 64 that returned rows — 1 + 2 + 4 + 8 + 16 + 32
+  // on the way down — every day of the window, and every one of them spent
+  // the tenant's hunting CPU allocation on a query that returned nothing
+  // ("query 84 running · 45 slices halved", fifteen minutes into day one).
+  // The slice length that last worked is now the STRIDE: the next slice
+  // starts at that length, not at a day. It shrinks on a halving, it grows
+  // again (doubles) after three slices in a row came back at a third of the
+  // cap or less — night traffic is a fraction of the day's — and it is kept
+  // per tenant and source in localStorage so the next session starts where
+  // this one ended. Reads filtered to one user or to enforced failures are
+  // a few hundred rows a day and keep the plain day slice.
   const HUNT_MIN_SLICE_MS = 15 * 60 * 1000;
   const HUNT_MIN_CAP = 1000;
+  const HUNT_WORKERS = 4;
+  const HUNT_DAY_MS = 86400000;
+  const HUNT_STRIDE_KEY = (source, kind) => `enca-huntstride:${tenantId || "demo"}:${source}:${kind}`;
+  const loadStride = (source, kind) => { try { const v = +localStorage.getItem(HUNT_STRIDE_KEY(source, kind)); return v >= HUNT_MIN_SLICE_MS && v <= HUNT_DAY_MS ? v : HUNT_DAY_MS; } catch { return HUNT_DAY_MS; } };
+  const saveStride = (source, kind, v) => { try { localStorage.setItem(HUNT_STRIDE_KEY(source, kind), String(Math.round(v))); } catch { /* private mode */ } };
   const isSizeError = (e) => /exceeded the allowed result size|result size|too large|ResultSize/i.test((e && e.message) || "");
+  // opts: source, userId, enforcedOnly, onPartial(records, done, total) — and,
+  // for a reader that wants a different query over the same slicing:
+  //   from / to   the window in ms (default: the last `days`)
+  //   query(from, to, cap) → KQL, shape(rows) → records, kind (stride key),
+  //   cap (row cap), label (progress noun)
   async function readSignInsHunting(days, prog, opts = {}) {
     const source = opts.source || logSource;
     await requireProduct("p2");
     const interactiveOnly = source !== "huntall";
-    const now = Date.now(), start = now - days * 86400000;
-    const dayMs = 86400000;
+    const dayMs = HUNT_DAY_MS;
+    const now = opts.to ?? Date.now(), start = opts.from ?? (now - days * dayMs);
+    // Timespan must cover the oldest instant the query names, however the
+    // window was given.
+    const spanDays = Math.max(1, Math.ceil((Date.now() - start) / dayMs));
     const slices = [];
     for (let t = start; t < now; t += dayMs) slices.push([t, Math.min(t + dayMs, now)]);
-    prog.start(slices.length, "sign-ins", "day");
-    let out = [], capped = false, splits = 0, lowered = 0, dayStart = 0, dayCovered = 0, queries = 0;
+    prog.start(slices.length, opts.label || "sign-ins", "day");
+    const strided = !opts.userId && !opts.enforcedOnly;
+    const kind = opts.kind || "rows";
+    let stride = strided ? loadStride(source, kind) : dayMs;
+    const cap0 = opts.cap || Signins.HUNT_CAP;
+    const shape = opts.shape || Signins.fromHunting;
+    const buildQuery = opts.query || ((from, to, cap) => Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim }));
+    let out = [], capped = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
+    // Priming: with several workers every day would start its own descent
+    // from 24 hours before the first one had learnt anything. When no stride
+    // is known yet, the first worker reads alone until one slice has come
+    // back, and the others start at the stride it found.
+    let primeResolve = null;
+    const primed = strided && stride >= dayMs && slices.length > 1 ? new Promise((res) => { primeResolve = res; }) : null;
+    const prime = () => { if (primeResolve) { primeResolve(); primeResolve = null; } };
     const hm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
     const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
+    const strideLabel = () => stride >= dayMs ? "" : stride >= 3600000 ? ` · ${Math.round(stride / 360000) / 10} h slices` : ` · ${Math.round(stride / 60000)} min slices`;
     // Every query is said while it runs: which day, which slice of it, how
-    // many rows so far, how many slices were halved. A large tenant's day of
-    // non-interactive sign-ins is dozens of queries of a minute each, and
-    // "waiting for the first page" for that long reads as nothing happening.
-    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, dayCovered / dayMs);
+    // many rows so far, how many slices were halved, what the stride is. A
+    // large tenant's day of non-interactive sign-ins is dozens of queries of
+    // a minute each, and "waiting for the first page" for that long reads as
+    // nothing happening. The bar's fraction is the coverage of the days in
+    // flight, clamped — with several workers it is indicative, not exact.
+    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${strided ? strideLabel() : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, Math.min(0.999, covered / dayMs));
+    const halve = async (from, to) => {
+      splits++;
+      if (strided) { stride = Math.max(HUNT_MIN_SLICE_MS, Math.min(stride, Math.floor((to - from) / 2))); easy = 0; }
+      const mid = from + Math.floor((to - from) / 2);
+      await readSlice(from, mid); await readSlice(mid, to);
+    };
     const readSlice = async (from, to, cap) => {
       if (prog.check) prog.check();
-      cap = cap || Signins.HUNT_CAP;
-      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim });
+      cap = cap || cap0;
+      const q = buildQuery(from, to, cap);
       let rows;
       queries++;
-      say(from, to, `query ${queries} running${cap < Signins.HUNT_CAP ? ` (cap ${cap.toLocaleString()})` : ""}${huntSlim ? "" : " · full rows"}`);
-      try { rows = await huntRun(q, days); }
+      say(from, to, `query ${queries} running${cap < cap0 ? ` (cap ${cap.toLocaleString()})` : ""}${huntSlim || opts.query ? "" : " · full rows"}`);
+      try { rows = await huntRun(q, spanDays); }
       catch (e) {
         // The slim query uses mv-apply / make_list_if; a schema or engine
         // that refuses it must not fail the read — fall back to full rows
         // for the rest of the session and say so on the line.
-        if (huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
+        if (!opts.query && huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
           console.warn("hunting: slim query refused, reading full rows", e.message);
           huntSlim = false;
           return readSlice(from, to, cap);
         }
         if (isSizeError(e)) {
-          if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
-          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; await readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2))); return; }
+          if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to);
+          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; return readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2))); }
         }
         throw e;
       }
       if (rows.length >= cap) {
-        if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
+        if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to);
         capped = true;
+      } else if (strided && to - from >= stride && stride < dayMs) {
+        // a whole stride (not the tail of a day) well under the cap: three
+        // of those in a row and the stride doubles
+        if (rows.length * 3 <= cap) { if (++easy >= 3) { stride = Math.min(dayMs, stride * 2); easy = 0; } }
+        else easy = 0;
       }
-      out = out.concat(Signins.fromHunting(rows));
-      dayCovered = Math.min(dayMs, to - dayStart);
+      out = out.concat(shape(rows));
+      covered += to - from;
       prog.st.n = out.length;
       say(from, to, `${rows.length.toLocaleString()} rows`);
+      prime();
     };
-    // Two days at a time (25328). Each hunting query is a round trip of
-    // seconds to a minute that the browser only waits on; two in flight
-    // roughly halve the wall clock without troubling the per-tenant call
-    // limits, and the order of the result does not matter. After every
+    // A day is walked in strides. The stride can shrink (a halving inside
+    // readSlice) or grow (three easy slices) while the walk is under way;
+    // the walk simply continues from where the last slice ended.
+    const readDay = async (from, to) => {
+      for (let t = from; t < to;) { const end = Math.min(t + stride, to); await readSlice(t, end); t = end; }
+    };
+    // Several days at a time (two since 25328, four since 25375). Each
+    // hunting query is a round trip of seconds to a minute that the browser
+    // only waits on; the documented floor is 45 calls a minute per tenant
+    // and Graph.gpost waits out a 429's Retry-After, so four in flight are
+    // safe, and the order of the result does not matter. After every
     // finished day opts.onPartial(records so far, done, total) lets the
     // caller show what it already has.
     let next = 0, done = 0;
-    const worker = async () => {
+    const worker = async (w) => {
+      if (w && primed) await primed;
       while (next < slices.length) {
         const i = next++;
         if (prog.check) prog.check();
-        dayStart = slices[i][0]; dayCovered = 0;
-        await readSlice(slices[i][0], slices[i][1]);
+        try { await readDay(slices[i][0], slices[i][1]); } finally { prime(); }
         done++;
+        covered = Math.max(0, covered - dayMs);
         prog.tick(out.length, done);
         if (opts.onPartial) { try { await opts.onPartial(out.slice(), done, slices.length); } catch (e) { console.warn("onPartial", e); } }
       }
     };
-    // allSettled, not all: on a stop or a failure the other worker's query
-    // is still in flight, and the read must not report done while it is
-    const settled = await Promise.allSettled([worker(), worker()]);
+    // allSettled, not all: on a stop or a failure the other workers' queries
+    // are still in flight, and the read must not report done while they are
+    const settled = await Promise.allSettled(Array.from({ length: Math.min(HUNT_WORKERS, slices.length) }, (_, w) => worker(w)));
+    if (strided) saveStride(source, kind, stride);
     const bad = settled.find((r) => r.status === "rejected");
     if (bad) throw bad.reason;
     prog.detail("");
-    return { records: out, capped, splits };
+    return { records: out, capped, splits, queries };
   }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
