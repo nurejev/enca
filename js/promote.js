@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 211,
+      title: "\ud83e\uddf9 Housekeeping compares settings, not JSON (T01 2.12.6)",
+      tools: ["Policies"],
+      builds: [25376],
+      risk: "medium",
+      what: "js/policy-compare.js: config() strips @odata.* keys at every depth (strip()); walk() expands a null side as an object whose every setting is null, so a block against null yields per-setting rows and null-against-null rows are unchanged; grantControls.authenticationStrength is a LEAF compared and rendered as one row; text() renders a reference object as “name (id)” and any other object as one Setting: value line per entry — never JSON.stringify. A null leaf against an absent one is still a difference (the existing test keeps that).",
+      why: "Medium: PolicyCompare.config feeds the Housekeeping ELIGIBILITY signature in js/import.js as well as the view. Stripping nested @odata makes two policies on the same authentication strength compare as identical configuration — which is correct, and which was wrong before (the annotation names each policy's own id) — but it is a change to what Housekeeping may offer for cleanup. What would have to be true to graduate: an older version whose only difference from its successor was that annotation now shows as matching configuration and is offered for cleanup only when it is Off and the successor On, as the rules already say.",
+      test: [
+        "node --test tools/policy-compare.test.cjs tools/housekeeping.test.cjs: 17 green, including the new 25376 case (block against null, strength as one row, no @odata row, no raw JSON, same-strength signatures equal).",
+        "Real tenant, 🗂 Policies → 🧹 Housekeeping → Compare on a pair where the older version has a session control and the newer has sessionControls unset: rows read Session controls · Sign-in frequency · Enabled / Frequency interval / Authentication type, no curly braces anywhere in the table, and the controls the newer version also leaves null do not appear under Differences only.",
+        "Same pair with an authentication strength on one side: one row “Grant controls · Authentication strength” reading “Multifactor authentication (00000000-0000-0000-0000-000000000002)” against Not configured; no “Authentication Strength@odata · Context” row.",
+        "Two versions on the SAME strength and otherwise identical config: Housekeeping lists no configuration difference for the pair (it did before this build).",
+        "Turn Differences only off: matching settings render as plain values, still no JSON.",
+      ],
+      files: ["js/policy-compare.js", "tools/policy-compare.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 210,
       title: "\ud83c\udf9a The hunting read keeps the slice length that worked (T26 1.6.0 / T17 2.4.0)",
       tools: ["Sign-in log"],

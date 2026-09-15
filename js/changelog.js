@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25376,
+  date: "2026-09-15",
+  title: "Housekeeping compares settings, not JSON",
+  items: [
+    {
+      kind: "fixed",
+      tool: "Policies",
+      text: "The Housekeeping comparison showed the raw JSON of a whole block when the other version had it unset — forty lines of an authentication strength's allowed combinations against “null (not set)”, the session controls likewise — and listed the authenticationStrength@odata.context URL as a changed setting. A block against null is now walked setting by setting (Sign-in frequency · Enabled: Yes against Not configured), an authentication strength is one row with its name and id, and @odata annotations are stripped at every depth. That last one also fixes a wrong verdict: the annotation carries the policy's OWN id, so two versions on the same strength compared as differently configured.",
+    },
+  ],
+},
+{
   build: 25375,
   date: "2026-09-15",
   title: "The hunting read stops starting over every day",

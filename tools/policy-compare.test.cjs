@@ -8,3 +8,23 @@ test('Missing payload cannot be presented as equivalence or as removed protectio
 test('Null, absent, false and empty collections stay distinguishable; object type changes do not crash',()=>{const ps=pair();ps[0].raw.preview={mode:false,scope:null,empty:[],object:{k:'value'}};ps[1].raw.preview={mode:'false',empty:null,object:'new'};const r=api.compare(...ps);for(const key of ['mode','scope','empty','object'])assert.equal(r.rows.find(x=>x.path==='preview.'+key).changed,true);assert.match(api.render(r),/Not configured/);assert.match(api.render(r),/None \(empty list\)/);});
 test('Comparison escapes policy names, unknown fields, resolved labels and filter strings',()=>{const ps=pair();ps[0].name='<img src=x onerror=alert(1)>';ps[0].raw.conditions.devices={deviceFilter:{rule:'<script>alert(1)</script>'}};const html=api.render(api.compare(...ps),{resolve:()=>'<svg onload=alert(1)>'});assert.doesNotMatch(html,/<img|<svg|<script/);assert.match(html,/&lt;script&gt;/);});
 test('Session control value change and arrays of objects compare without order noise',()=>{const ps=pair();ps[0].raw.preview=[{a:1,b:2},{a:2,b:1}];ps[1].raw.preview=[{b:1,a:2},{b:2,a:1}];ps[1].raw.sessionControls.signInFrequency.value=6;const r=api.compare(...ps);assert.equal(r.rows.find(x=>x.path==='preview').changed,false);const row=r.rows.find(x=>x.path==='sessionControls.signInFrequency.value');assert.equal(row.left,3);assert.equal(row.right,6);assert.equal(row.changed,true);});
+test('A whole block against null is compared setting by setting, a strength is one named row, @odata annotations are not settings (25376)',()=>{
+ const ps=pair();
+ ps[0].raw.grantControls={operator:'OR',builtInControls:[],'authenticationStrength@odata.context':'https://graph.microsoft.com/beta/$metadata#policies(p0)/grantControls/authenticationStrength/$entity',authenticationStrength:{id:'00000000-0000-0000-0000-000000000002',displayName:'Multifactor authentication',description:'x',allowedCombinations:['fido2','password,sms'],combinationConfigurations:[],'combinationConfigurations@odata.context':'https://graph.microsoft.com/beta/x',createdDateTime:'2021-12-01T08:00:00Z',policyType:'builtIn'}};
+ ps[1].raw.grantControls={operator:'OR',builtInControls:['block'],'authenticationStrength@odata.context':'https://graph.microsoft.com/beta/$metadata#policies(p1)/grantControls/authenticationStrength/$entity',authenticationStrength:null};
+ ps[0].raw.sessionControls={applicationEnforcedRestrictions:null,cloudAppSecurity:null,persistentBrowser:null,signInFrequency:{authenticationType:'primaryAndSecondaryAuthentication',frequencyInterval:'everyTime',isEnabled:true,type:null,value:null}};
+ ps[1].raw.sessionControls=null;
+ const r=api.compare(...ps);const paths=r.rows.map(x=>x.path);
+ assert.ok(paths.every(p=>!/@odata/.test(p)),'no @odata row');
+ assert.equal(r.rows.filter(x=>x.path==='grantControls.authenticationStrength').length,1,'one strength row');
+ assert.equal(r.rows.find(x=>x.path==='sessionControls.applicationEnforcedRestrictions').changed,false,'null against null is not a change');
+ assert.equal(r.rows.find(x=>x.path==='sessionControls.signInFrequency.isEnabled').changed,true);
+ assert.equal(r.rows.find(x=>x.path==='sessionControls.signInFrequency.frequencyInterval').changed,true);
+ const html=api.render(r);
+ assert.match(html,/Multifactor authentication \(00000000-0000-0000-0000-000000000002\)/);
+ assert.doesNotMatch(html,/allowedCombinations|"isEnabled"|\{\s*"/,'no raw JSON in the table');
+ assert.match(html,/Session controls · Sign-in frequency · Enabled/);
+ // two policies on the SAME strength differ only by the annotation naming their own id: not a configuration difference
+ const same=pair();same[1]=structuredClone(same[0]);same[0].raw.grantControls={operator:'OR',builtInControls:[],'authenticationStrength@odata.context':'…p0…',authenticationStrength:{id:'s1',displayName:'S'}};same[1].raw.grantControls={operator:'OR',builtInControls:[],'authenticationStrength@odata.context':'…p1…',authenticationStrength:{id:'s1',displayName:'S'}};
+ assert.equal(api.signature(api.config(same[0])),api.signature(api.config(same[1])));
+});
