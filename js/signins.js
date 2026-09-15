@@ -195,6 +195,70 @@ ${slim === false ? "" : SLIM}
       };
     });
   }
+  // ---- Report-only verdicts as BUCKETS (T26 2.0, 25377) ------------------
+  // Report-only impact never reads a sign-in as a sign-in: it counts, per
+  // policy × verdict × user × app, remembers first and last, collects the
+  // controls and keeps a sample. That is a summarize, so the query asks
+  // Microsoft for the answer instead of the rows. One row per HOUR × policy ×
+  // verdict × user × app × the few device facts the deny explanation is
+  // judged on (compliance, management, trust type, OS, MFA requirement, client,
+  // both risk levels); a day of 300,000 sign-ins on a tenant with five staged
+  // policies is low thousands of rows of a few hundred bytes, so a day is one
+  // query where it used to be dozens. Hourly because hours are ADDITIVE over
+  // disjoint time — the on-device store reads only the hours it lacks.
+  //
+  // Three kinds of row come back in one union, told apart by Kind:
+  //   n   — sign-ins per hour (the denominator the forecast states)
+  //   na  — reportOnlyNotApplied per hour × policy (no user columns; the
+  //         "never in scope" verdict only needs the count)
+  //   ro  — the evaluated verdicts with the dimensions above; arg_max on
+  //         Timestamp carries ONE consistent sample row (the latest) so the
+  //         evidence shown is a real sign-in, not a mix of several
+  // The result is shaped into the SAME record ReportImpact.build reads, with
+  // n = how many sign-ins the row stands for, so build never learns which
+  // path fed it. Numeric and word forms of result are both matched — the
+  // hunting schema has carried either.
+  const RO_WORDS = ["reportOnlySuccess", "reportOnlyFailure", "reportOnlyInterrupted", "6", "7", "9"];
+  const RO_NA = ["reportOnlyNotApplied", "8"];
+  const kql = (list) => list.map((s) => `"${s}"`).join(", ");
+  function roBucketQuery({ from, to, table, interactiveOnly, cap }) {
+    const T = table || "EntraIdSignInEvents";
+    return `let W = ${T}
+| where Timestamp between (datetime(${from}) .. datetime(${to}))${interactiveOnly ? '\n| where LogonType !has "non"' : ""};
+let P = W
+| extend _P = todynamic(ConditionalAccessPolicies)
+| mv-expand _X = _P
+| extend PolicyId = tostring(_X.id), PolicyName = tostring(_X.displayName), Result = tostring(_X.result)
+| where Result in~ (${kql([...RO_WORDS, ...RO_NA])});
+union
+  (W | summarize N = count() by Hour = bin(Timestamp, 1h) | extend Kind = "n"),
+  (P | where Result in~ (${kql(RO_NA)}) | summarize N = count(), First = min(Timestamp), Last = max(Timestamp) by Hour = bin(Timestamp, 1h), PolicyId, PolicyName | extend Kind = "na"),
+  (P | where Result !in~ (${kql(RO_NA)})
+     | summarize N = count(), First = min(Timestamp),
+         Grant = take_any(tostring(_X.enforcedGrantControls)), Session = take_any(tostring(_X.enforcedSessionControls)),
+         arg_max(Timestamp, RequestId, IPAddress, City, Country, Browser, ErrorCode, ResourceDisplayName, ResourceId, ApplicationId, EntraIdDeviceId, DeviceName, RiskState)
+       by Hour = bin(Timestamp, 1h), PolicyId, PolicyName, Result, AccountObjectId, AccountUpn, AccountDisplayName, Application, ClientAppUsed, OSPlatform, DeviceTrustType, IsCompliant, IsManaged, AuthenticationRequirement, RiskLevelDuringSignIn, RiskLevelAggregated, LogonType
+     | extend Kind = "ro")
+| order by Hour desc
+| take ${cap || HUNT_CAP}`;
+  }
+  const parseList = (s) => { try { const v = typeof s === "string" ? JSON.parse(s || "[]") : (s || []); return Array.isArray(v) ? v.filter(Boolean).map(String) : []; } catch { return []; } };
+  function fromRoBuckets(rows) {
+    const out = [];
+    for (const r of rows || []) {
+      const n = Number(r.N) || 0;
+      if (r.Kind === "n") { out.push({ signIns: n, hour: r.Hour, createdDateTime: r.Hour, appliedConditionalAccessPolicies: [], source: "hunting", bucket: true }); continue; }
+      const result = r.Kind === "na" ? "reportOnlyNotApplied" : /^\d+$/.test(String(r.Result)) ? (RESULT_N[Number(r.Result)] || String(r.Result)) : String(r.Result || "");
+      const pol = { id: r.PolicyId || "", displayName: r.PolicyName || "", result, enforcedGrantControls: r.Kind === "na" ? [] : parseList(r.Grant), enforcedSessionControls: r.Kind === "na" ? [] : parseList(r.Session) };
+      // one synthetic hunting row through the ordinary shaper, so every
+      // field name and every enum mapping stays in one place
+      const rec = fromHunting([{ ...r, Timestamp: r.Timestamp || r.Last || r.Hour, ConditionalAccessPolicies: JSON.stringify([pol]), RoNotApplied: "[]" }])[0];
+      rec.n = n; rec.firstDateTime = r.First || r.Hour; rec.hour = r.Hour; rec.bucket = true;
+      out.push(rec);
+    }
+    return out;
+  }
+
   // interactive unless the record says otherwise (the Graph list ENCA reads is interactive-only)
   const isInteractive = (rec) => rec.interactive != null ? !!rec.interactive : !((rec.signInEventTypes || []).some((t) => /noninteractive/i.test(String(t))));
 
@@ -335,5 +399,5 @@ ${slim === false ? "" : SLIM}
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
 })();

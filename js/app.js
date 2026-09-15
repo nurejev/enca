@@ -12888,7 +12888,7 @@ This is a directory write. Nothing else changes.`)) return;
     logSource = v;
     try { localStorage.setItem(LOG_SRC_KEY(), v); } catch {}
     document.querySelectorAll(".logsrc-seg").forEach((seg) => [...seg.children].forEach((x) => x.classList.toggle("active", x.dataset.logsrc === v)));
-    logCache = null;
+    logCache = null; roCache = null;
     siRes = null; riRes = null; woRes = null; wvRes = null; scRes = null;
     toast(`Sign-ins now read from <span>${esc(logSourceLabel())}</span>`);
     // the tool that is open re-reads with the new source; the others re-read when opened
@@ -13130,10 +13130,46 @@ This is a directory write. Nothing else changes.`)) return;
     try { return { ...await run, reused: false }; }
     finally { if (logInflight?.promise === run) logInflight = null; }
   }
-  function logCoverageHtml(days) {
-    if (!logCacheUsable(days)) return "";
-    const c = logCache, time = v => v ? new Date(v).toLocaleString() : "no events";
-    return `<p class="mini muted">${c.complete ? "Query complete" : "Partial query — not the full requested interval"} · ${c.records.length.toLocaleString()} events · observed ${esc(time(c.oldest))} to ${esc(time(c.newest))} · read ${esc(new Date(c.at).toLocaleString())}</p>`;
+  function coverageHtml(c, count) {
+    if (!c) return "";
+    const time = v => v ? new Date(v).toLocaleString() : "no events";
+    return `<p class="mini muted">${c.complete ? "Query complete" : "Partial query — not the full requested interval"} · ${(count ?? c.records.length).toLocaleString()} events · observed ${esc(time(c.oldest))} to ${esc(time(c.newest))} · read ${esc(new Date(c.at).toLocaleString())}</p>`;
+  }
+  const logCoverageHtml = (days) => coverageHtml(logCacheUsable(days) ? logCache : null);
+
+  // ---- Report-only verdicts as buckets (T26 2.0, 25377) --------------------
+  // The hunting sources answer Report-only impact with Signins.roBucketQuery:
+  // the verdicts summarised per hour × policy × verdict × user × app, one
+  // query a day instead of dozens of row slices, through the same slicing,
+  // stride, priming and Stop as the row read (opts.query / shape / kind).
+  // Its own cache — the rows cache stays what 🕵 🌊 🛂 read. A query the
+  // tenant's hunting engine refuses (a schema without the functions, an
+  // older table shape) falls back to the row read for the rest of the
+  // session and says so, so the forecast never fails for the query's sake.
+  let roCache = null;      // { key, days, source, records, capped, complete, at, oldest, newest, queries }
+  let roBucketsOk = true;
+  const roReadKey = (days, source = logSource) => JSON.stringify([tenantId, isDemo, policiesReadAt, days, source, "ro"]);
+  const roCacheUsable = (days) => !!roCache && roCache.key === roReadKey(days);
+  const roCoverageHtml = (days) => coverageHtml(roCacheUsable(days) ? roCache : null, roCacheUsable(days) ? roCache.signIns : undefined);
+  const isRoRefusal = (e) => /semantic|syntax|SEM0|not recognized|unknown function|union|arg_max|take_any|mv-expand|bin\(/i.test(String((e && e.message) || ""));
+  async function readRoBuckets(days, prog, force, onPartial) {
+    const source = logSource, key = roReadKey(days, source);
+    if (!force && roCacheUsable(days)) return { ...roCache, reused: true };
+    await requireProduct("p2");
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the P1 Entra log remains available");
+    const interactiveOnly = source !== "huntall";
+    const check = () => { if (key !== roReadKey(days)) throw new Error("Sign-in read discarded: tenant, source or policy snapshot changed"); };
+    const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
+    const { records, capped, queries } = await readSignInsHunting(days, prog, {
+      source, kind: "ro", label: "verdict rows", onPartial: partial,
+      query: (from, to, cap) => Signins.roBucketQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, cap }),
+      shape: Signins.fromRoBuckets,
+    });
+    check();
+    const times = records.map(r => r.createdDateTime).filter(Boolean).sort();
+    const signIns = records.reduce((a, r) => a + (r.signIns || 0), 0);
+    const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest: times[0] || null, newest: times.at(-1) || null, queries, signIns, buckets: true };
+    roCache = result; return { ...result, reused: false };
   }
   const logAgeLabel = () => {
     const m = Math.round(logCacheAge() / 60000);
@@ -13504,9 +13540,13 @@ This is a directory write. Nothing else changes.`)) return;
   // and shown under a "still reading" strip, so a 40-minute read gives a
   // first answer after the first day. riPartial = { done, total, recs }.
   let riPartial = null, riPartialAt = 0;
-  const riBusyPanel = () => riProg.panel(
-    "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
-    `Reads up to ${SI_MAX.toLocaleString()} sign-ins. A partial interval is labelled; this limit is not a completion percentage.`);
+  const riBusyPanel = () => isGraphLogSource(logSource) || !roBucketsOk
+    ? riProg.panel(
+      "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
+      isGraphLogSource(logSource) ? `Reads up to ${SI_MAX.toLocaleString()} sign-ins. A partial interval is labelled; this limit is not a completion percentage.` : "The summarised query was refused by this tenant's hunting engine, so the sign-in rows are read instead — slower, same verdicts.")
+    : riProg.panel(
+      "Asking Defender hunting for the report-only verdicts — summarised per hour, policy, verdict, user and app before they leave Microsoft. A day is one query; the forecast fills in as the days land, and this keeps running if you switch tabs.",
+      "The sign-ins themselves are not read: the query returns counts and one sample sign-in per row. A day whose summary still exceeds the 50 MB result cap is halved like a row read would be.");
 
   // The tenant's report-only policies from the list already in memory — so a
   // staged policy with zero traffic still shows up, as "no data".
@@ -13525,7 +13565,7 @@ This is a directory write. Nothing else changes.`)) return;
     const ro = riTenantRo();
     $("riHead").innerHTML = `${toolHead("toolImpact")}
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
-      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
+      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. On the hunting sources the verdicts are <b>summarised by Microsoft</b> per hour, policy, verdict, user and app before they leave the tenant — a day is one query, and the sign-ins themselves are never read. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
     $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
@@ -13558,6 +13598,20 @@ This is a directory write. Nothing else changes.`)) return;
       let records, reused = false;
       if (isDemo) {
         records = demoSignIns();
+      } else if (!isGraphLogSource(logSource) && roBucketsOk) {
+        try {
+          const w = await readRoBuckets(riDays, riProg, force, onPartial);
+          records = w.records; riCapped = w.capped; reused = w.reused;
+        } catch (e) {
+          if (e && (e.stopped || !isRoRefusal(e))) throw e;
+          // the engine refused the summarised query: say so, read rows for the rest of the session
+          console.warn("report-only impact: bucket query refused, reading rows", e.message);
+          roBucketsOk = false; riPartial = null; riPartialAt = 0;
+          toast("This tenant's hunting engine refused the summarised query — reading the sign-in rows instead");
+          $("riBody").innerHTML = riBusyPanel();
+          const w = await readSignInWindow(riDays, riProg, force, onPartial);
+          records = w.records; riCapped = w.capped; reused = w.reused;
+        }
       } else {
         const w = await readSignInWindow(riDays, riProg, force, onPartial);
         records = w.records; riCapped = w.capped; reused = w.reused;
@@ -13621,7 +13675,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${toolHead("toolImpact")}
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
-        ${logCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read from <b>${esc(logSourceLabel())}</b>${riCapped ? `, <span style="color:var(--off)">truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
+        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}` : ""}${riCapped ? `, <span style="color:var(--off)">truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>

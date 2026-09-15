@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 212,
+      title: "\ud83c\udf9a Report-only impact reads buckets, not rows, on the hunting sources (T26 2.0.0)",
+      tools: ["Sign-in log"],
+      builds: [25377],
+      risk: "high",
+      what: "js/signins.js roBucketQuery: let W (window, LogonType filter) / let P (mv-expand ConditionalAccessPolicies, report-only results by word or number) / union of three summaries — n (sign-ins per hour), na (reportOnlyNotApplied per hour × policy, with First/Last), ro (count, First, take_any of the control lists, arg_max(Timestamp, sample columns) by hour × policy × verdict × user × app × client × OS × trust × compliance × management × MFA requirement × both risk levels × logon type) — order by Hour desc, take cap. fromRoBuckets shapes each row through fromHunting with a one-entry policies JSON and sets n, firstDateTime, hour, bucket (an n row sets signIns). js/reportimpact.js build: every count adds rec.n || 1, first uses firstDateTime, records is the sum of signIns when any row carries it. js/app.js: readRoBuckets (own roCache, roReadKey with a “ro” tag, requireProduct + ThreatHunting consent) drives readSignInsHunting with opts.query/shape/kind ro/label; runImpact uses it for the hunting sources and falls back to readSignInWindow on an isRoRefusal error (roBucketsOk false for the session, toast); riBusyPanel, the head copy, the coverage line (roCoverageHtml) and the result sentence (“summarised by … in N queries”) follow the path. The source switch drops roCache with logCache.",
+      why: "High until a real tenant confirms it: the KQL has never run against a live hunting schema (the sandbox has none) — union, let, mv-expand, arg_max with many columns and take_any on tostring(dynamic) are all standard Kusto and all documented for advanced hunting, but the same was true of 25328's mv-apply and that shipped unverified too. The forecast is the tool people decide a go-live on, so a wrong count here is worse than a slow one. What would have to be true to graduate: on the same tenant, day and source, per-policy success / interrupted / failure / notApplied and the per-user rows from this build equal those of 25376 (row read), and the “sign-ins summarised” number equals the row count 25376 read. If the engine refuses the query, the fallback must land the row read without a second consent prompt.",
+      test: [
+        "node --test tools/report-impact-buckets.test.cjs: buckets and rows built from the same 2,880 synthetic sign-ins give identical per-policy and per-user results, samples are real sign-in ids, the denominator is the sign-in count; numeric result codes map; the query text carries the three Kinds, arg_max and the LogonType filter only when interactive-only.",
+        "Real tenant with report-only policies, Defender hunting, Last 24 hours: the read finishes in a handful of queries (the header says “… summarised by Defender hunting in N queries”); switch to 25376 (or stop the store and force rows) on the same window: per-policy numbers identical, per-user rows identical.",
+        "Same tenant, Hunting + non-interactive, Last 7 days: finishes in well under five minutes on the Perfetti-shaped tenant; the day-one “first day in progress” line shows within a minute.",
+        "Expand a would-deny user: the sample sign-ins list real request ids, times, client, OS and location; the “needs a compliant device — device NOT compliant …” evidence is present.",
+        "A staged policy with no traffic still shows as “no data”; a policy only ever out of scope shows “never in scope” with its out-of-scope count.",
+        "Entra sign-in log source: unchanged — rows, 10,000 cap, “read from” wording.",
+        "Fault injection: edit roBucketQuery to misspell arg_max in the console and run — the toast says the engine refused the summarised query, the row read runs and the forecast still renders.",
+        "\ud83d\udd75 Who is Anna, \ud83c\udf0a the wave and \ud83d\udec2 Session controls after a T26 bucket read: they run their own row read (the bucket cache is not offered to them), and T26 does not re-read when opened again on the same window.",
+      ],
+      files: ["js/signins.js", "js/reportimpact.js", "js/app.js", "tools/report-impact-buckets.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 211,
       title: "\ud83e\uddf9 Housekeeping compares settings, not JSON (T01 2.12.6)",
       tools: ["Policies"],

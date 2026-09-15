@@ -125,7 +125,7 @@ const ReportImpact = (() => {
     if (s && s !== "no risk") out.push(`sign-in risk ${s}`);
     return out.length ? out.join(" · ") : null;
   }
-  const bump = (m, k) => { if (k) m.set(k, (m.get(k) || 0) + 1); };
+  const bump = (m, k, w = 1) => { if (k) m.set(k, (m.get(k) || 0) + w); };
 
   // A handful of the actual sign-ins behind a verdict. Capped deliberately:
   // this is evidence for a reader, not a log — three is enough to see a
@@ -152,7 +152,14 @@ const ReportImpact = (() => {
   // roPolicies: [{id, name}] — the tenant's report-only policies from the
   // already-loaded policy list, so a policy with zero log traffic still
   // shows up (as "no data" — the one answer that should stop a go-live).
+  //
+  // records are sign-ins — or BUCKETS (Signins.fromRoBuckets, 25377): a
+  // record with n stands for n sign-ins that shared every dimension counted
+  // here, so the counts add n rather than one; firstDateTime carries the
+  // bucket's earliest instant; a record with signIns is the hour's total and
+  // only feeds the denominator. Nothing else in here knows the difference.
   function build(records, roPolicies) {
+    let signIns = 0, counted = false;
     const pol = new Map();      // policy id/name → aggregate
     const usr = new Map();      // upn → cross-policy aggregate
     const ensureP = (id, name) => {
@@ -169,45 +176,47 @@ const ReportImpact = (() => {
     for (const rp of roPolicies || []) { ensureP(rp.id, rp.name).inTenant = true; }
 
     for (const rec of records || []) {
+      if (rec.signIns != null) { signIns += rec.signIns; counted = true; }
+      const w = rec.n || 1;
       for (const ap of rec.appliedConditionalAccessPolicies || []) {
         const kind = RO[ap.result];
         if (!kind) continue;                       // enforced / notEnabled / unknown
         const e = ensureP(ap.id, ap.displayName);
-        e[kind]++;
-        const when = rec.createdDateTime || "";
+        e[kind] += w;
+        const when = rec.createdDateTime || "", first = rec.firstDateTime || when;
         if (!e.last || when > e.last) e.last = when;
-        if (!e.first || when < e.first) e.first = when;
+        if (!e.first || first < e.first) e.first = first;
         [...(ap.enforcedGrantControls || []), ...(ap.enforcedSessionControls || [])]
           .filter(Boolean).forEach((c) => e.controls.add(c));
         if (kind === "notApplied") continue;       // out of scope: no user/app impact
         const upn = rec.userPrincipalName || rec.userDisplayName || "(unknown)";
         let u = e.users.get(upn);
         if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map(), deny: new Map(), samples: [] }; e.users.set(upn, u); }
-        u[kind]++;
+        u[kind] += w;
         // WHY the policy bit. A verdict of "3 interrupted" on a policy called
         // LowMediumUserRisk raises the obvious question — low, or medium? —
         // and the answer was in the record all along and being discarded.
         // Counted per level so a mixture reads as a mixture.
-        if (kind !== "success") bump(u.risk, riskOf(rec));
+        if (kind !== "success") bump(u.risk, riskOf(rec), w);
         // Only a FAILURE is a denial. An interruption was satisfied by doing
         // the extra step, so explaining it as a refusal would be wrong.
-        if (kind === "failure") { bump(u.deny, denyWhy(rec, ap)); keep(u.samples, rec, ap); }
+        if (kind === "failure") { bump(u.deny, denyWhy(rec, ap), w); keep(u.samples, rec, ap); }
         if (when > u.last) u.last = when;
         const app = rec.appDisplayName || rec.resourceDisplayName || "(app)";
         u.apps.add(app);
-        e.apps.set(app, (e.apps.get(app) || 0) + 1);
+        e.apps.set(app, (e.apps.get(app) || 0) + w);
 
         // cross-policy view: one row per user over everything in report-only
         let g = usr.get(upn);
         if (!g) { g = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", policies: new Map() }; usr.set(upn, g); }
-        g[kind]++;
+        g[kind] += w;
         if (when > g.last) g.last = when;
         g.apps.add(app);
         let gp = g.policies.get(e.key);
         if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map(), deny: new Map(), samples: [] }; g.policies.set(e.key, gp); }
-        gp[kind]++;
-        if (kind !== "success") bump(gp.risk, riskOf(rec));
-        if (kind === "failure") { bump(gp.deny, denyWhy(rec, ap)); keep(gp.samples, rec, ap); }
+        gp[kind] += w;
+        if (kind !== "success") bump(gp.risk, riskOf(rec), w);
+        if (kind === "failure") { bump(gp.deny, denyWhy(rec, ap), w); keep(gp.samples, rec, ap); }
       }
     }
 
@@ -251,7 +260,7 @@ const ReportImpact = (() => {
       },
       blockedUsers: users.filter((u) => u.worst === "block").length,
       promptedUsers: users.filter((u) => u.worst === "prompt").length,
-      records: (records || []).length,
+      records: counted ? signIns : (records || []).length,
     };
   }
 

@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25377,
+  date: "2026-09-15",
+  title: "Report-only impact asks for the answer, not the rows",
+  items: [
+    {
+      kind: "improved",
+      tool: "Sign-in log",
+      text: "Report-only impact 2.0: on Defender hunting and Hunting + non-interactive the forecast is read as SUMMARIES — per hour, policy, verdict, user and app, with the device facts the deny explanation needs and one real sample sign-in per row — instead of every sign-in row. A day of a large tenant is one query where it was dozens of slices; a week lands in about a minute. The numbers are the ones the row read produced (an offline test builds both from the same rows and compares), the samples behind a would-deny are real sign-ins, and the header says how many sign-ins were summarised in how many queries. The Entra sign-in log source reads rows as before — Graph cannot summarise — and a tenant whose hunting engine refuses the summarised query falls back to rows with a note.",
+    },
+  ],
+},
+{
   build: 25376,
   date: "2026-09-15",
   title: "Housekeeping compares settings, not JSON",
