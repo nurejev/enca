@@ -233,6 +233,8 @@ footer{position:sticky;top:100vh}
 .toolbar > *{order:5}
 .toolbar > .search{order:1;flex:0 0 auto;width:clamp(200px,26%,320px);min-width:0}
 .toolbar > .seg,.toolbar > .tb-scope{order:2}
+/* 💾 Keep on this device (R58) belongs to the sign-in source segment it follows, so it shares the segment's slot */
+.toolbar > .sistore{order:2;align-self:center;white-space:nowrap}
 .toolbar > .chip-filter{order:3}
 .toolbar > .tb-win{order:4}
 .toolbar > .tb-actions{order:6}

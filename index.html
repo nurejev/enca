@@ -26,21 +26,21 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25377"></script>
+<script src="js/popup-guard.js?v=25378"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25377" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25377">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25378" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25378">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25377"></script>
+<script src="js/selfhost-boot.js?v=25378"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25377"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25377"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25377">
+<script src="js/counter.js?v=25378"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25378"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25378">
 </head>
 <body>
 
@@ -48,7 +48,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25377" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25378" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -100,7 +100,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25377" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25378" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1433,7 +1433,7 @@
           <div class="list-card rm-card" data-shipped="25195">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R06</span> 🐳 Self-hosting with Docker <span class="tag grant">live · beta 25195 · production 305</span></h4>
             <p class="mini" style="margin:0">ENCA is static files and a browser — no server, no database, nothing stored anywhere. That makes it trivially self-hostable, and some tenants will require it: a security tool that reads Conditional Access is exactly the kind of thing an organisation wants served from its own infrastructure rather than from someone else's GitHub Pages, whatever the code does.</p>
-            <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save. A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
+            <p class="mini" style="margin:6px 0 0"><b>And with a host of your own, somewhere to keep things.</b> Today nothing survives the tab closing on the server side, by design — there is no server to keep it on, so a Drift snapshot is a file you download and a report is a file you save (the one exception is the browser-side, opt-in store of <span class="rm-ref">R58</span>, which lives on your device and nowhere else). A self-hosted instance changes what is possible: an optional <b>SQLite</b> store alongside the container could hold drift snapshots, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having had to keep track of a JSON file. Strictly opt-in and self-hosted only — the hosted site keeps storing nothing, because "nothing is kept anywhere" is a promise worth more than the convenience. Tokens would stay out of it regardless: they belong in the browser session and nowhere else.</p>
             <p class="mini" style="margin:6px 0 0"><b>First cut shipped:</b> a published image — <code>ghcr.io/nurejev/enca</code>, nginx over these files, built by CI from <code>main</code> (<code>:latest</code>) and the beta channel (<code>:beta</code>) — plus a <code>docker compose</code> example, <b>one-command install scripts for Mac and Windows</b> that check Docker, pull, run and open the browser, and a <b>Deploy to Azure button</b> that stands up an Azure Container App with scale-to-zero, so an idle instance costs close to nothing. SELF-HOSTING.md in the repo ties it together and leads with the one step nothing can automate: the <b>redirect URI</b> — every host you serve from must be registered as a SPA redirect URI on the app registration, and it is the step that produces the confusing sign-in error when missed. It pairs with the <b>single-tenant app registration</b> already available: your own registration, your own host, no dependency on anything of ours at run time. A self-hosted instance also gets its <b>own branding</b> without forking — Branding settings, in the account menu — and its own roadmap: the <b>Self-hosted</b> section below, where the SQLite idea above now lives as <span class="rm-ref">S01</span>.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25179">
@@ -1548,6 +1548,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card" data-shipped="25378">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R58</span> <a href="#" class="md-tool" data-tool="toolImpact">💾 Keep sign-ins on this device</a> <span class="tag grant">live · beta 25378</span></h4>
+            <p class="mini" style="margin:0">A report-only review is a cadence — an hour after staging, four hours, the next morning, a week — and every look used to read the whole window again. With your consent, per tenant, the browser now keeps the report-only verdicts the hunting sources bring back (per hour, policy, verdict, user and app — the buckets of <span class="rm-ref">T26</span> 2.0) and a later look asks Microsoft only for the hours it does not hold yet, plus the newest two hours, which are re-read every time because sign-ins reach the hunting table late. <b>Off by default</b>, in words: the button next to the sign-in source says what is kept, where (this browser, this device, nowhere else), who can read it (anyone in this browser profile), and Forget deletes it at once; everything ages out after the days you choose. Tokens stay out of it, the Entra-log source is not stored, and the hosted site itself still keeps nothing anywhere. <b>Next:</b> whole sign-in rows for 🕵 🌊 🛂, behind a second, larger consent, once the buckets have earned their keep.</p>
+          </div>
                     <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
@@ -1580,11 +1584,15 @@
           <h3>Self-hosted <span class="rm-when">for the instance you run yourself — see SELF-HOSTING.md in the repo</span></h3>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">S01</span> 💾 Keep things between visits <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The hosted site stores nothing anywhere, by design, and keeps that promise. A host of your own changes what is possible: an optional <b>SQLite</b> store alongside the container — a volume, nothing more — holding <b>Drift watch snapshots</b>, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having kept track of a JSON file. Strictly opt-in and self-hosted only; tokens stay out of it regardless — they belong in the browser session and nowhere else. Drift is the first customer: a snapshot that survives the tab closing is the difference between a drift <i>check</i> and a drift <i>watch</i>.</p>
+            <p class="mini" style="margin:0">The hosted site stores nothing anywhere, by design, and keeps that promise — what <span class="rm-ref">R58</span> keeps is in your browser, by your choice, and never on the site. A host of your own changes what is possible: an optional <b>SQLite</b> store alongside the container — a volume, nothing more — holding <b>Drift watch snapshots</b>, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having kept track of a JSON file. Strictly opt-in and self-hosted only; tokens stay out of it regardless — they belong in the browser session and nowhere else. Drift is the first customer: a snapshot that survives the tab closing is the difference between a drift <i>check</i> and a drift <i>watch</i>.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25195">
             <h4 style="margin:0 0 4px"><span class="rm-ref">S02</span> 🎨 Branding without a fork <span class="tag grant">live · beta 25195 · production 297</span></h4>
             <p class="mini" style="margin:0">Branding settings, in the account menu behind your initials, on any host: product and organisation names, logos, login text and light/dark identity colours, through the same override mechanism as the hosted per-audience looks — chrome only, exports keep the neutral product credit. <b>Apply</b> keeps the look in this browser; <b>Download</b> produces <code>selfhost-branding.json</code>, <b>Import</b> reads one back into the form for review — so a look made elsewhere or handed over by a customer never has to be retyped — and serving that file next to index.html (the compose file and install scripts mount it) gives every visitor the branding — and softens the red BETA ribbon to a neutral SELF-HOSTED one, because a deliberately configured instance is not a test site. What the dialog will never configure is the canonical host: that drives the production check and the export credit, and a settings dialog must not be able to make a copy claim to be production.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S04</span> ⏱ A collector that reads ahead of you <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0"><span class="rm-ref">R58</span> still needs someone to open the tool for a read to happen, and Microsoft still keeps only 30 days. A self-hosted instance could run a small <b>collector</b> next to the container — its own identity (application permissions on <i>your</i> registration, a certificate or a managed identity, never a secret in the browser), the same hourly bucket query every hour, the rows in a <b>SQLite</b> file on a volume that outlives every image update (schema kept by <code>PRAGMA user_version</code>, forward-only migrations, a nightly <code>VACUUM INTO</code> backup) — and the app reading <code>/api/</code> on its own origin, so the week is already there when the tool opens and the retention is yours: ninety days, a year. Three things make it a different product and are why it is S-numbered: an unattended, tenant-wide read on a service principal; an API that has to authorise its callers with an exposed scope and a role check, because a Graph token cannot; and a second process behind nginx. On Azure Container Apps the store cannot be SQLite on Azure Files (Microsoft says not to put a database on an SMB mount) and the hourly run wants a Container Apps Job, so the storage layer has two backends — SQLite for compose and a VM, a hosted table store for ACA. Single-tenant self-hosters only; the shared registration never gets application permissions. Design note: <code>review/SIGNIN-STORE-DESIGN.md</code>.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">S03</span> 📦 Update channel choice <span class="tag">planned</span></h4>
@@ -2069,6 +2077,7 @@
         <li><b>A verdict is only as good as its window.</b> The range and the number of sign-ins read are stated up front, and a truncated read says so — a policy with <b>no evidence</b> is called out rather than counted as safe, because "nobody was affected" and "nobody signed in" look identical in a summary and only one of them is a reason to go live.</li>
         <li><b>Sign-in source.</b> The segment in the toolbar is shared with 🚦 Sign-in failures, 🕵 Who is Anna to CA and 🌊 the wave: the <b>Entra sign-in log</b> (interactive only, capped at 10,000, AuditLog.Read.All), <b>Defender hunting</b> (the same sign-ins from <code>EntraIdSignInEvents</code> through advanced hunting on Graph — ThreatHunting.Read.All, no cap, 30 days, Entra ID P2 for the table to be populated) or <b>Hunting + non-interactive</b>, which adds the token refreshes and background client sign-ins the Graph list never returns. A forecast that counts non-interactive sign-ins is a different number — the header says which source the verdicts came from. The hunting read is one query per day, halved on size, and narrates every query; two tools asking for the same window at once share one read. Full detail under 🚦.</li>
         <li><b>Require app protection policy cannot be evaluated in report-only.</b> Microsoft documents that the control reports <i>Report-only: Failure</i> in report-only mode even where it passes once enforced, so a staged policy with that grant shows would-deny counts that are not denials. The tool says so under such a policy; enable it for a pilot group to get the real answer.</li>
+        <li><b>💾 Keep on this device</b> (build 25378, <span class="rm-ref">R58</span>). The button after the sign-in source. Off, every read asks Microsoft for the whole window. On — per tenant, after a dialog that says exactly what is kept — the browser keeps the report-only verdict buckets the hunting sources bring back, and the next read asks only for the hours it does not hold yet plus the newest two hours, which are re-read every time because sign-ins reach the hunting table late. The coverage line says how much came from the device and how much from Microsoft (“144 of 166 settled hours from this device, 22 hours and the last 2 hours from Microsoft just now”). What is kept: user principal names, IP addresses, locations, device state and verdicts of real sign-ins — in this browser's IndexedDB, on this device, readable by anyone using this browser profile and by nobody else; never tokens, never the Entra-log source's rows. Forget deletes it at once; it ages out after the days you choose (3 to 30, default 8). A capped day is shown but never kept, so a partial hour is never believed whole later. ⟳ Rescan reads the whole window from Microsoft and rewrites what is held.</li>
         <li><b>On the hunting sources the verdicts are summarised before they leave Microsoft</b> (build 25377). Report-only impact never needed the sign-ins — it counts them per policy, verdict, user and app — so on Defender hunting and Hunting + non-interactive the query now asks for exactly that: one row per hour × policy × verdict × user × app, with the device facts the “why it would say no” line is judged on and one real sample sign-in per row. A day of a large tenant is one query instead of dozens of slices, the week lands in a minute, and the header says “N sign-ins summarised by Defender hunting in 7 queries”. The per-policy and per-user numbers are the same ones the row read produced — the offline test builds both from the same rows and compares. A tenant whose hunting engine refuses the summarised query is read row by row instead, with a note; the Entra sign-in log source always reads rows (Graph cannot summarise).</li>
         <li><b>The hunting read keeps the slice length that worked</b> (build 25375). Advanced hunting refuses a result over 50 MB, so a day of a large tenant's sign-ins is read in slices and a slice that is too big is halved. Halving used to start again from 24 hours for every day of the window — on a tenant that needs 22-minute slices that was 63 failed queries for the 64 that returned rows, every day, each one spending the tenant's hunting CPU allowance on nothing. The reader now starts the next slice at the length that last worked, lets it grow again when three slices in a row come back light, keeps it per tenant and source between sessions, and reads four days at a time. The progress line says how many sign-ins are already back and what the stride is, instead of "waiting for Microsoft's first response" for the whole first day.</li>
         <li><b>The forecast arrives as the days land.</b> After every finished day (every five pages on the Entra log) the verdicts are rebuilt from what has been read so far and shown under a <i>still reading</i> strip, so a large tenant gives a first answer in a minute instead of after the whole window. <b>■ Stop</b> keeps what was read and marks the result as a partial window — a verdict on a partial window is said to be one; ⟳ Rescan reads it whole.</li>
@@ -3004,6 +3013,18 @@
   </div>
 </div>
 
+<!-- 💾 Keep on this device (R58) — the consent for the on-device sign-in store. -->
+<div class="modal-bg" id="siStoreModal">
+  <div class="modal" style="max-width:640px">
+    <h3>💾 Keep sign-ins on this device</h3>
+    <p class="mini">For <b id="ssTenant"></b>. Stores the <b>report-only verdicts</b> the hunting sources read for this tenant — per hour, policy, verdict, user and app, with one sample sign-in per row — in <b>this browser, on this device</b>, so a later look (an hour on, the next morning, a week later) asks Microsoft only for the hours it does not hold yet.</p>
+    <p class="mini"><b>What is in it:</b> user principal names, IP addresses, locations, device state and the policy verdicts of real sign-ins. <b>Not in it:</b> tokens, passwords, the sign-ins of the Entra-log source, or anything from other tools. <b>Where it goes:</b> nowhere. It never leaves this device; the site cannot read it from anywhere else; anyone using this browser profile can. <b>Forget</b> deletes it at once, and it ages out by itself after the days chosen. The hosted site itself still stores nothing anywhere.</p>
+    <p class="mini" id="ssState"></p>
+    <label class="chk">Keep for <select id="ssTtl" class="mini"><option value="3">3 days</option><option value="8">8 days (a week and the unsettled tail)</option><option value="15">15 days</option><option value="30">30 days (all Microsoft keeps)</option></select></label>
+    <div class="row"><button class="btn primary" id="ssKeep">Keep sign-ins on this device</button><button class="btn" id="ssOff" style="display:none">Forget this tenant</button><button class="btn" id="ssClose">Close</button></div>
+    <p class="mini muted" style="margin:8px 0 0"><a href="#" id="ssForgetAll">Forget every tenant's stored sign-ins in this browser</a></p>
+  </div>
+</div>
 <!-- Read-only comparison; Housekeeping remains open behind it. -->
 <div class="modal-bg" id="hkCompareModal">
   <div class="modal">
@@ -3034,75 +3055,76 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25377"></script>
-<script src="js/selfhost.js?v=25377"></script>
-<script src="js/version.js?v=25377"></script>
-<script src="js/verdict.js?v=25377"></script>
-<script src="js/fork.js?v=25377"></script>
-<script src="js/promote.js?v=25377"></script>
-<script src="js/authConfig.js?v=25377"></script>
-<script src="js/labels.js?v=25377"></script>
-<script src="js/capabilities.js?v=25377"></script>
-<script src="js/graph.js?v=25377"></script>
-<script src="js/model.js?v=25377"></script>
-<script src="js/render.js?v=25377"></script>
-<script src="js/analyze.js?v=25377"></script>
-<script src="js/whatif.js?v=25377"></script>
-<script src="js/mslearn.js?v=25377"></script>
-<script src="js/gapcheck.js?v=25377"></script>
-<script src="js/cisdata.js?v=25377"></script>
-<script src="js/cischeck.js?v=25377"></script>
-<script src="js/exclusions.js?v=25377"></script>
-<script src="js/cascope.js?v=25377"></script>
-<script src="js/validator.js?v=25377"></script>
-<script src="js/whatifeval.js?v=25377"></script>
-<script src="js/compare.js?v=25377"></script>
-<script src="js/whois.js?v=25377"></script>
-<script src="js/wave.js?v=25377"></script>
-<script src="js/sessionctl.js?v=25377"></script>
-<script src="js/spgap.js?v=25377"></script>
-<script src="js/groupuse.js?v=25377"></script>
-<script src="js/iso3166.js?v=25377"></script>
-<script src="js/causes.js?v=25377"></script>
-<script src="js/locations.js?v=25377"></script>
-<script src="js/authcontexts.js?v=25377"></script>
-<script src="js/authstrengths.js?v=25377"></script>
-<script src="js/recycle.js?v=25377"></script>
-<script src="js/rmau.js?v=25377"></script>
-<script src="js/camap.js?v=25377"></script>
-<script src="js/rmaudoc.js?v=25377"></script>
-<script src="js/termsofuse.js?v=25377"></script>
-<script src="js/audit.js?v=25377"></script>
-<script src="js/drift.js?v=25377"></script>
-<script src="js/guide.js?v=25377"></script>
-<script src="js/userimpact.js?v=25377"></script>
-<script src="js/smsvoice.js?v=25377"></script>
-<script src="js/memberof.js?v=25377"></script>
-<script src="js/devcheck.js?v=25377"></script>
-<script src="js/licgap.js?v=25377"></script>
-<script src="js/teamsdev.js?v=25377"></script>
-<script src="js/signins.js?v=25377"></script>
-<script src="js/reportimpact.js?v=25377"></script>
-<script src="js/changelog.js?v=25377"></script>
-<script src="js/baselineData.js?v=25377"></script>
-<script src="js/baselineJoeyData.js?v=25377"></script>
-<script src="js/baselineLive.js?v=25377"></script>
-<script src="js/baseline.js?v=25377"></script>
-<script src="js/baselineCleanup.js?v=25377"></script>
-<script src="js/groupTemplates.js?v=25377"></script>
-<script src="js/assign.js?v=25377"></script>
-<script src="js/cagroups.js?v=25377"></script>
-<script src="js/groupsview.js?v=25377"></script>
-<script src="js/runledger.js?v=25377"></script>
-<script src="js/protect.js?v=25377"></script>
-<script src="js/policy-compare.js?v=25377"></script>
-<script src="js/import.js?v=25377"></script>
-<script src="js/export.js?v=25377"></script>
-<script src="js/demo.js?v=25377"></script>
-<script src="js/workspace.js?v=25377"></script>
-<script src="js/analysis-jobs.js?v=25377"></script>
-<script src="js/search-suggest.js?v=25377"></script>
-<script src="js/app.js?v=25377"></script>
-<script src="js/accessibility.js?v=25377"></script>
+<script src="js/branding.js?v=25378"></script>
+<script src="js/selfhost.js?v=25378"></script>
+<script src="js/version.js?v=25378"></script>
+<script src="js/verdict.js?v=25378"></script>
+<script src="js/fork.js?v=25378"></script>
+<script src="js/promote.js?v=25378"></script>
+<script src="js/authConfig.js?v=25378"></script>
+<script src="js/labels.js?v=25378"></script>
+<script src="js/capabilities.js?v=25378"></script>
+<script src="js/graph.js?v=25378"></script>
+<script src="js/model.js?v=25378"></script>
+<script src="js/render.js?v=25378"></script>
+<script src="js/analyze.js?v=25378"></script>
+<script src="js/whatif.js?v=25378"></script>
+<script src="js/mslearn.js?v=25378"></script>
+<script src="js/gapcheck.js?v=25378"></script>
+<script src="js/cisdata.js?v=25378"></script>
+<script src="js/cischeck.js?v=25378"></script>
+<script src="js/exclusions.js?v=25378"></script>
+<script src="js/cascope.js?v=25378"></script>
+<script src="js/validator.js?v=25378"></script>
+<script src="js/whatifeval.js?v=25378"></script>
+<script src="js/compare.js?v=25378"></script>
+<script src="js/whois.js?v=25378"></script>
+<script src="js/wave.js?v=25378"></script>
+<script src="js/sessionctl.js?v=25378"></script>
+<script src="js/spgap.js?v=25378"></script>
+<script src="js/groupuse.js?v=25378"></script>
+<script src="js/iso3166.js?v=25378"></script>
+<script src="js/causes.js?v=25378"></script>
+<script src="js/locations.js?v=25378"></script>
+<script src="js/authcontexts.js?v=25378"></script>
+<script src="js/authstrengths.js?v=25378"></script>
+<script src="js/recycle.js?v=25378"></script>
+<script src="js/rmau.js?v=25378"></script>
+<script src="js/camap.js?v=25378"></script>
+<script src="js/rmaudoc.js?v=25378"></script>
+<script src="js/termsofuse.js?v=25378"></script>
+<script src="js/audit.js?v=25378"></script>
+<script src="js/drift.js?v=25378"></script>
+<script src="js/guide.js?v=25378"></script>
+<script src="js/userimpact.js?v=25378"></script>
+<script src="js/smsvoice.js?v=25378"></script>
+<script src="js/memberof.js?v=25378"></script>
+<script src="js/devcheck.js?v=25378"></script>
+<script src="js/licgap.js?v=25378"></script>
+<script src="js/teamsdev.js?v=25378"></script>
+<script src="js/signinstore.js?v=25378"></script>
+<script src="js/signins.js?v=25378"></script>
+<script src="js/reportimpact.js?v=25378"></script>
+<script src="js/changelog.js?v=25378"></script>
+<script src="js/baselineData.js?v=25378"></script>
+<script src="js/baselineJoeyData.js?v=25378"></script>
+<script src="js/baselineLive.js?v=25378"></script>
+<script src="js/baseline.js?v=25378"></script>
+<script src="js/baselineCleanup.js?v=25378"></script>
+<script src="js/groupTemplates.js?v=25378"></script>
+<script src="js/assign.js?v=25378"></script>
+<script src="js/cagroups.js?v=25378"></script>
+<script src="js/groupsview.js?v=25378"></script>
+<script src="js/runledger.js?v=25378"></script>
+<script src="js/protect.js?v=25378"></script>
+<script src="js/policy-compare.js?v=25378"></script>
+<script src="js/import.js?v=25378"></script>
+<script src="js/export.js?v=25378"></script>
+<script src="js/demo.js?v=25378"></script>
+<script src="js/workspace.js?v=25378"></script>
+<script src="js/analysis-jobs.js?v=25378"></script>
+<script src="js/search-suggest.js?v=25378"></script>
+<script src="js/app.js?v=25378"></script>
+<script src="js/accessibility.js?v=25378"></script>
 </body>
 </html>

@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 213,
+      title: "\ud83d\udcbe Keep sign-ins on this device — R58 (T26 2.1.0 / T17 2.5.0)",
+      tools: ["Sign-in log"],
+      builds: [25378],
+      risk: "high",
+      what: "js/signinstore.js (new): IndexedDB store enca-signins with tenants / coverage / buckets, a memory backend for private mode, jsdom and the tests, and a fall-back to memory when IndexedDB fails mid-session; consent per tenant (on, ttlDays 1–30, at); coverage as merged [from,to) intervals per tenant × source × kind; buckets kept per hour and replaced per hour; purge() ages buckets past the tenant's ttl and cuts the coverage to match; forget / forgetAll; navigator.storage.persist() on consent. js/app.js readRoBuckets: with consent, window floored to the hour, settled = now − 2 h, gaps = missing(settled window, coverage) read through readSignInsHunting with from/to, stored and covered unless capped, the tail read every time; result.stored {hours, of, read} for the coverage line (roCoverageHtml). mountLogSourceSeg draws the 💾 button (class sistore, order 2 in css/app.css) after the segment; #siStoreModal (index.html) is the consent dialog with ttl select, Keep, Forget this tenant, Forget every tenant; SigninStore.purge() runs at sign-in. Roadmap: R58 (in beta today), S04 (self-hosted, planned); the two “nothing survives” roadmap paragraphs now name the exception; SECURITY.md has a paragraph on it; T26 Help has the bullet. Rows for the other tools are deliberately not stored.",
+      why: "High: it is the first time ENCA keeps tenant data past the tab, and the promise “nothing is stored anywhere” is the one customers quote. Everything about it is built to keep the promise honest — off by default, per tenant, the dialog names the data, Forget is one click, the hosted site itself still stores nothing — but the copy has to be right everywhere it is made, and a wrong coverage computation would show a forecast that silently misses hours. What would have to be true to graduate: SECURITY.md, the roadmap, the Help and the dialog all describe the same thing; on a real tenant the second read after consent asks only for the new hours (the detail line shows one or two short queries, not the week) and the forecast equals a forced Rescan's; Forget empties IndexedDB (DevTools → Application → IndexedDB → enca-signins) at once.",
+      test: [
+        "node --test tools/signinstore.test.cjs tools/report-impact-store.test.cjs: interval arithmetic, consent, hour replacement, purge/ttl, forget; and the lifted readRoBuckets asking 168.5 hours on the first read, 3.5 an hour later, 168.5 on Rescan, 2.5 for a 1-day window on a full store, and never covering a capped interval.",
+        "Real tenant, Hunting + non-interactive, Last 7 days, store OFF: the read runs as on 25377 (no “from this device” clause). Press 💾: the dialog names the tenant, what is kept, where, who can read it; Keep. The button reads “💾 Kept on this device” on the Report-only impact toolbar AND on the Failures toolbar.",
+        "Run the read: the coverage line ends with “💾 nothing held for this window yet — all 166 hours read from Microsoft and kept on this device for next time”. DevTools → Application → IndexedDB → enca-signins → buckets holds one entry per hour.",
+        "Reload the page an hour later (or change the range to Last 24 hours): the read finishes in seconds; the detail line shows a short query; the coverage line says “N of M settled hours from this device, K hours and the last 2 hours from Microsoft just now”. Per-policy numbers equal a ⟳ Rescan's on the same window.",
+        "Forget this tenant: IndexedDB is empty for the tenant, the button reads “Keep on this device”, the next read is a full one. Forget every tenant: the tenants store is empty too.",
+        "Private window (IndexedDB blocked): Keep works, the dialog says “memory for this tab only”, a reload loses the store and no error is shown.",
+        "Demo tenant: the button is disabled and the dialog does not open.",
+        "Entra sign-in log source: the button is present, but the coverage line never mentions the device — the Entra rows are not stored.",
+      ],
+      files: ["js/signinstore.js", "js/app.js", "css/app.css", "index.html", "SECURITY.md", "SELF-HOSTING.md", "review/SIGNIN-STORE-DESIGN.md", "tools/signinstore.test.cjs", "tools/report-impact-store.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 212,
       title: "\ud83c\udf9a Report-only impact reads buckets, not rows, on the hunting sources (T26 2.0.0)",
       tools: ["Sign-in log"],

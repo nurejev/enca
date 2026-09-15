@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25378,
+  date: "2026-09-15",
+  title: "Keep sign-ins on this device — the cadence read",
+  items: [
+    {
+      kind: "new",
+      tool: "Sign-in log",
+      text: "💾 Keep on this device (R58), the button after the sign-in source. A report-only review is a cadence — an hour after staging, four hours, the next morning, a week — and every look used to read the whole window again. Switched on for a tenant, after a dialog that says exactly what is kept and where, the browser keeps the report-only verdicts the hunting sources bring back (the per-hour buckets of Report-only impact 2.0) and the next look asks Microsoft only for the hours it does not hold yet plus the newest two, which are re-read every time because sign-ins reach the hunting table late. The coverage line under the forecast says how much came from the device and how much from Microsoft. OFF BY DEFAULT. What is kept: user principal names, IP addresses, locations, device state and verdicts of real sign-ins, in this browser's IndexedDB on this device — readable by anyone using this browser profile and by nobody else. Never tokens, never the Entra-log source. Forget deletes it at once; everything ages out after the days you choose (3 to 30, default 8). The hosted site itself still stores nothing anywhere.",
+    },
+    {
+      kind: "improved",
+      tool: "Roadmap",
+      text: "R58 Keep sign-ins on this device is in beta today. S04 A collector that reads ahead of you is planned for self-hosted instances: a small process next to the container with its own identity running the hourly bucket query, a SQLite file on a volume that outlives image updates, and an API on the same origin — so the week is already there when the tool opens and the retention is yours. The design note is in review/SIGNIN-STORE-DESIGN.md.",
+    },
+  ],
+},
+{
   build: 25377,
   date: "2026-09-15",
   title: "Report-only impact asks for the answer, not the rows",

@@ -2169,6 +2169,9 @@
       $("baselineBadge").style.display = isBaselineTenant() ? "inline-block" : "none";
       tenantId = account?.tenantId || "";
       loadLogSource();
+      // age out what the on-device store holds past its ttl (R58); the
+      // buttons say whether this tenant is kept
+      SigninStore.purge().catch(() => {}).then(() => paintStoreButtons());
       setAccountBox(account?.username || "", account?.name || "");
       showSideNav();
       selected = new Set();
@@ -12880,7 +12883,49 @@ This is a directory write. Nothing else changes.`)) return;
       before ? tb.insertBefore(seg, before) : tb.appendChild(seg);
     }
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.logsrc === logSource));
+    // 💾 Keep on this device (R58) sits right after the source it applies to —
+    // one button on every toolbar that carries the segment, one state.
+    let keep = tb.querySelector("[data-sistore]");
+    if (!keep) {
+      keep = document.createElement("button"); keep.className = "btn sm sistore"; keep.dataset.sistore = "1";
+      keep.title = "Keep the report-only verdicts this browser reads for this tenant, so a later look only asks Microsoft for the hours it does not hold yet. Off by default; says what it keeps; Forget deletes it.";
+      seg.insertAdjacentElement("afterend", keep);
+    }
+    paintStoreButtons();
   }
+  async function paintStoreButtons() {
+    const on = !isDemo && tenantId ? await SigninStore.enabled(tenantId) : false;
+    document.querySelectorAll("[data-sistore]").forEach((b) => { b.textContent = on ? "💾 Kept on this device" : "💾 Keep on this device"; b.classList.toggle("on", on); b.disabled = !!isDemo; b.title = isDemo ? "The demo tenant keeps nothing" : b.title; });
+  }
+  async function openStoreModal() {
+    if (isDemo || !tenantId) { toast("Sign in to a tenant first — the demo keeps nothing"); return; }
+    const c = await SigninStore.consent(tenantId), s = await SigninStore.summary(tenantId);
+    $("ssTenant").textContent = tenantName || tenantId;
+    $("ssTtl").value = String((c && c.ttlDays) || SigninStore.DEFAULT_TTL_DAYS);
+    $("ssState").innerHTML = c && c.on
+      ? `<b>On</b> since ${esc(new Date(c.at).toLocaleString())} · ${s.hours.toLocaleString()} hour${s.hours === 1 ? "" : "s"} held (${s.rows.toLocaleString()} rows, about ${Math.max(1, Math.round(s.bytes / 1024)).toLocaleString()} KB) · kept ${c.ttlDays} days · stored in this browser's ${s.backend === "indexeddb" ? "IndexedDB" : "memory for this tab only — IndexedDB is not available here"}`
+      : `<b>Off</b> — nothing is kept for this tenant. Every read asks Microsoft for the whole window.`;
+    $("ssKeep").textContent = c && c.on ? "Keep on with these settings" : "Keep sign-ins on this device";
+    $("ssOff").style.display = c && c.on ? "" : "none";
+    $("siStoreModal").classList.add("open");
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-sistore]")) openStoreModal(); });
+  $("ssKeep").addEventListener("click", async () => {
+    await SigninStore.setConsent(tenantId, { on: true, ttlDays: +$("ssTtl").value });
+    $("siStoreModal").classList.remove("open"); paintStoreButtons();
+    toast("Report-only verdicts for this tenant are kept on this device — the next read only asks for new hours");
+  });
+  $("ssOff").addEventListener("click", async () => {
+    await SigninStore.setConsent(tenantId, { on: false });
+    roCache = null; $("siStoreModal").classList.remove("open"); paintStoreButtons();
+    toast("Forgotten — nothing is kept for this tenant any more");
+  });
+  $("ssForgetAll").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await SigninStore.forgetAll(); roCache = null; $("siStoreModal").classList.remove("open"); paintStoreButtons();
+    toast("Every tenant's stored sign-ins are gone from this browser");
+  });
+  $("ssClose").addEventListener("click", () => $("siStoreModal").classList.remove("open"));
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-logsrc]"); if (!b) return;
     const v = b.dataset.logsrc; if (v === logSource) return;
@@ -13150,8 +13195,25 @@ This is a directory write. Nothing else changes.`)) return;
   let roBucketsOk = true;
   const roReadKey = (days, source = logSource) => JSON.stringify([tenantId, isDemo, policiesReadAt, days, source, "ro"]);
   const roCacheUsable = (days) => !!roCache && roCache.key === roReadKey(days);
-  const roCoverageHtml = (days) => coverageHtml(roCacheUsable(days) ? roCache : null, roCacheUsable(days) ? roCache.signIns : undefined);
+  const roCoverageHtml = (days) => {
+    if (!roCacheUsable(days)) return "";
+    const c = roCache, s = c.stored;
+    const line = coverageHtml(c, c.signIns);
+    if (!s) return line;
+    const note = s.hours ? `${s.hours} of ${s.of} settled hours from this device, ${s.read} hour${s.read === 1 ? "" : "s"} and the last ${SETTLE_HOURS} hours from Microsoft just now` : `nothing held for this window yet — all ${s.of} hours read from Microsoft and kept on this device for next time`;
+    return line.replace("</p>", ` · 💾 ${note}</p>`);
+  };
   const isRoRefusal = (e) => /semantic|syntax|SEM0|not recognized|unknown function|union|arg_max|take_any|mv-expand|bin\(/i.test(String((e && e.message) || ""));
+  // THE ON-DEVICE STORE (R58, 25378). With the tenant's consent the buckets
+  // are kept in this browser (js/signinstore.js) and a later read asks
+  // Microsoft only for the hours the store lacks. Hours are the unit because
+  // the query already comes back per hour and hours add up over disjoint
+  // time. The newest SETTLE_HOURS are never trusted from the store: sign-ins
+  // reach the hunting table with a lag, so that tail is re-read every time
+  // and rewritten hour by hour. A capped interval (a day whose summary still
+  // hit the result cap) is shown but never stored — a partial hour would be
+  // believed whole next time. Without consent this is the 25377 read.
+  const SETTLE_HOURS = 2;
   async function readRoBuckets(days, prog, force, onPartial) {
     const source = logSource, key = roReadKey(days, source);
     if (!force && roCacheUsable(days)) return { ...roCache, reused: true };
@@ -13159,16 +13221,44 @@ This is a directory write. Nothing else changes.`)) return;
     if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the P1 Entra log remains available");
     const interactiveOnly = source !== "huntall";
     const check = () => { if (key !== roReadKey(days)) throw new Error("Sign-in read discarded: tenant, source or policy snapshot changed"); };
-    const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
-    const { records, capped, queries } = await readSignInsHunting(days, prog, {
-      source, kind: "ro", label: "verdict rows", onPartial: partial,
-      query: (from, to, cap) => Signins.roBucketQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, cap }),
+    const opts = (from, to, partial) => ({
+      source, kind: "ro", label: "verdict rows", from, to, onPartial: partial,
+      query: (a, b, cap) => Signins.roBucketQuery({ from: new Date(a).toISOString(), to: new Date(b).toISOString(), table: huntTable, interactiveOnly, cap }),
       shape: Signins.fromRoBuckets,
     });
-    check();
+    const H = SigninStore.HOUR, now = Date.now();
+    const start = SigninStore.floorHour(now - days * 86400000), settled = SigninStore.floorHour(now) - SETTLE_HOURS * H;
+    const useStore = !isDemo && tenantId && await SigninStore.enabled(tenantId);
+    let records = [], capped = false, queries = 0, stored = { hours: 0, of: 0, read: 0 };
+    if (!useStore || settled <= start) {
+      const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
+      const r = await readSignInsHunting(days, prog, { ...opts(undefined, undefined, partial), from: undefined, to: undefined });
+      records = r.records; capped = r.capped; queries = r.queries;
+    } else {
+      const cov = await SigninStore.coverage(tenantId, source, "ro");
+      const gaps = force ? [[start, settled]] : SigninStore.missing([start, settled], cov);
+      stored.of = Math.round((settled - start) / H);
+      stored.hours = force ? 0 : Math.round(SigninStore.covered([start, settled], cov) / H);
+      stored.read = stored.of - stored.hours;
+      const held = force ? [] : await SigninStore.getBuckets(tenantId, source, start, settled);
+      const got = [];   // records read this time (gaps, then the tail)
+      const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(held.concat(got, rows), done, total); } : null;
+      for (const [a, b] of gaps) {
+        const r = await readSignInsHunting(0, prog, opts(a, b, partial));
+        check(); queries += r.queries;
+        if (r.capped) { capped = true; got.push(...r.records); continue; }
+        await SigninStore.putBuckets(tenantId, source, a, b, r.records);
+        await SigninStore.addCoverage(tenantId, source, "ro", [a, b]);
+        got.push(...r.records);
+      }
+      // the unsettled tail: read every time, kept hour by hour but never counted as covered
+      const tail = await readSignInsHunting(0, prog, opts(settled, now, partial));
+      check(); queries += tail.queries; if (tail.capped) capped = true;
+      records = (force ? got : held.concat(got)).concat(tail.records);
+    }
     const times = records.map(r => r.createdDateTime).filter(Boolean).sort();
     const signIns = records.reduce((a, r) => a + (r.signIns || 0), 0);
-    const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest: times[0] || null, newest: times.at(-1) || null, queries, signIns, buckets: true };
+    const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest: times[0] || null, newest: times.at(-1) || null, queries, signIns, buckets: true, stored: useStore ? stored : null };
     roCache = result; return { ...result, reused: false };
   }
   const logAgeLabel = () => {
