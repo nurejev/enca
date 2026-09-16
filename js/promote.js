@@ -119,6 +119,40 @@ const PROMOTE = {
 
   items: [
     {
+      n: 215,
+      title: "\ud83d\udd11 What the user signed in with \u2014 T17 2.6.0 / T36 1.4.0 (a password where phishing-resistant MFA was required)",
+      tools: ["Sign-in log", "Who is \u2026 to CA"],
+      builds: [25381],
+      risk: "medium",
+      what: "js/signins.js: Signins.authOf(rec) reads authenticationDetails / authenticationRequirement / authenticationRequirementPolicies into { known, requirement, strength, steps, used, claim, mfaAsked, mfaOk, gap, passwordOnly, phishResistant, need, summary }; a step counts as the second factor by its METHOD (the password row carries the requirement too); parse() adds row.auth; build() adds authGap / authKnown and per-policy gap; CSV columns authRequired, authUsed, authGap; PHISH_RESISTANT exported. app.js 🚦: header count, auth:gap chip and filter, search over the summary, per-policy 🔑 count and detail line, card sub-line and detail (signed in with + the steps), MD column and line. js/whois.js: methodsOf(recs) (methods tally, gap with apps / needs / newest sample, strengths held to, phishResistant, claim, single) hung on log.mfa.methods; mfaStepOf returns missing (was fresh) for asked-and-not-given and never counts a primary step; mfaOf counts missing per app and total, and demanded policies include result failure; render: the 🔑 line and the red callout at the top of the 🔐 card, the third tile reads Asked, not given, the per-app Required cell says (n not given), the stopped table prints 🔑 under the result with the steps in the title; toMd for all three. css: .si-authgap, .si-steps. demo.js: si-3 (Alex Admin, Azure Management, Require MFA for all admins) carries the exact steps from Mihai's screenshot. Help for 🚦 and 🕵.",
+      why: "Mihai, 16 Sep, from a sign-in log screenshot: T36 and T17 should include what a user used to sign in \u2014 the user must use phishing-resistant MFA but is using a password. The stopped table said WHICH policy failed her and never WHAT SHE BROUGHT; the two look identical in the list and have opposite fixes (a policy change vs registering a method). Medium: it also corrects a wrong number \u2014 the 🔐 card counted a strength that was asked and never given as a fresh prompt, which reads as “she did MFA” when she did not.",
+      test: [
+        "Demo: 🚦 Sign-in failures, Read: the header says “1 without the MFA asked”, a chip 🔑 MFA asked, not given (1); Sign-ins view: Alex Admin → Microsoft Azure Management reads “🔑 Password — Phishing-resistant MFA not provided” in red on the sub-line; open the card: signed in with + two steps (✓ Password · Password in the cloud — Correct password; ✗ (no method) — MFA required in Azure AD). Per policy view: Require MFA for all admins shows “🔑 1 without the MFA asked” and the detail line carries it.",
+        "Demo: 🕵 alex.admin@contoso.com, Read user: the 🔐 card opens with “What she signed in with: Password ×1 · Held to Phishing-resistant MFA ×1”, a red callout naming Microsoft Azure Management and the never-used-a-passkey conclusion, the third tile “Asked, not given 1”, Fresh prompts 0; the table row says Require MFA for all admins (not “no applied policy carried an MFA grant”); the stopped table's Result cell carries the 🔑 line. Export MD: the same in the brief.",
+        "Demo: 🕵 eva@contoso.com: Fresh prompts 1 (si-6), Satisfied by the token 1 (si-10), no red callout — the fixed step check must not move those.",
+        "Real tenant, Entra sign-in log source: a user held to an authentication strength who signed in with a password: the rows read as above; a user whose MFA was satisfied by claim reads “MFA by a claim already in the token — MFA satisfied”. Switch to Defender hunting: every 🔑 line says the methods are not in the hunting source, no red, no callout.",
+        "CSV from 🚦: three new columns after signInRisk; a gap row says yes.",
+        "node --test tools/*.test.cjs green (12 suites); tools/check-plain-text.js clean.",
+      ],
+      files: ["js/signins.js", "js/whois.js", "js/app.js", "js/demo.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
+      n: 214,
+      title: "\ud83e\udee5 T39 0.3.0 \u2014 the apps table folds: one line per app, expand and collapse per row and for all",
+      tools: ["Apps with no service principal"],
+      builds: [25381],
+      risk: "low",
+      what: "js/spgap.js renderTable(R, filter, q, open, allOpen): one .au-sumrow.sg-row per app (chevron, name, id, sign-ins, verdict, a colspan-4 summary with the would / may / excluded-by counts and the newest sign-in date) and, when open, an .au-sumdet.sg-det row with a four-column grid of the pills and the evidence; .sg-foldbar above the table with ⊞ Expand all / ⊟ Collapse all and “n of m expanded”; the header row has one colspan-4 head. app.js: sgOpen (Set of app ids toggled by hand) and sgAllOpen (the default); data-sg-toggle flips an id, data-sg-all sets the default and clears the exceptions; .pol-link still opens the card first. css: .sg-folded (min-width 760 instead of 1300, 4th column auto), .sg-foldbar, .sg-row, .sg-det, .sg-detgrid, .sg-dk. Exports unchanged.",
+      why: "Mihai, 16 Sep: T39 should have expand and collapse per item and global. The 0.2 table (queue 200) was seven columns and 1,300px wide; a tenant with sixty unregistered apps scrolled sideways through pills to find the one that mattered. Low: rendering only, the analysis and both exports are untouched.",
+      test: [
+        "Demo: 🫥, Read the 30-day app summary: two rows, both folded, the bar reads “0 of 2 expanded”, Collapse all disabled. Click the first row: it opens (▾, tinted), the four detail columns show Would apply / May apply / Excluded by / Newest sign-in, the bar reads 1 of 2. ⊞ Expand all: both open, Expand all disabled; click the first row: it closes and the other stays open; ⊟ Collapse all: none open.",
+        "Type in the filter box and pick a chip: the open rows stay open. ⟳ Rescan: same.",
+        "Real tenant with phantom exclusions: the summary line counts them (“2 excluded by”) and the red pills sit in the detail's third column. 📖 Read evidence: the summary's newest-sign-in date fills in per app.",
+        "Export MD and CSV: unchanged from 0.2.",
+      ],
+      files: ["js/spgap.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 213,
       title: "\ud83d\udcbe Keep sign-ins on this device — R58 (T26 2.1.1 / T17 2.5.0)",
       tools: ["Sign-in log"],

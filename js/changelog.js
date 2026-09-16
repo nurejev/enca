@@ -29,6 +29,33 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25381,
+  date: "2026-09-16",
+  title: "What the user signed in with — and the apps table folds",
+  items: [
+    {
+      kind: "improved",
+      tool: "Sign-in log",
+      text: "Every failed or interrupted sign-in now says what the person authenticated with, read from the record's authentication steps — the portal's Authentication Details tab: “Password — Phishing-resistant MFA required, not provided (MFA required in Azure AD)”, “Password + Microsoft Authenticator — MFA satisfied”, or “MFA by a claim already in the token”. A password where MFA or an authentication strength was required is the gap that explains a failure without touching a policy — the user has no method that meets the strength, or that device cannot present one. It is red on the card and on the per-policy detail line, counted per policy (“3 without the MFA asked”) and in the header, and it has its own filter chip. The sign-in card lists the steps one by one. The CSV carries authRequired, authUsed and authGap; the Markdown export a Signed in with column. Rows from the hunting source carry the requirement and none of the steps, and say so.",
+    },
+    {
+      kind: "improved",
+      tool: "Who is … to CA",
+      text: "The 🔐 card opens with what she signed in with across the window — Password, Microsoft Authenticator, a passkey, an MFA claim already in the token, each with its count — and the authentication strengths she was held to. A sign-in that asked for MFA or a strength and got a password only is called out in red with the app and the newest case; when the strength was phishing-resistant and no passkey, FIDO2 key, Windows Hello or certificate appears anywhere in her window, the callout says so plainly: the method is the fix, not a policy. The third tile reads “Asked, not given” for those sign-ins, and the stopped table prints 🔑 what was used under each result, with the steps in the tooltip. The Markdown brief carries all of it.",
+    },
+    {
+      kind: "fixed",
+      tool: "Who is … to CA",
+      text: "A sign-in that asked for a second factor and never got one was counted as a FRESH PROMPT — the password step carries the requirement (“Phishing-resistant MFA” on the Correct-password row, exactly as the portal prints it), and the step check read that as the second factor being done. A step counts as the factor by its method now, never by its requirement column, and the policies-that-demanded-MFA column includes the policy that failed the sign-in for want of it, so “no applied policy carried an MFA grant” is no longer said about a sign-in a strength policy stopped.",
+    },
+    {
+      kind: "improved",
+      tool: "Apps with no service principal",
+      text: "The apps table folds. One line per app — name, sign-ins, verdict, and the counts of what the policy columns hold (“1 would · 9 may · 0 excluded by · newest sign-in”) — opens on click to the full row: the would / may / excluded-by pills and the newest sign-in, laid out as four columns. ⊞ Expand all and ⊟ Collapse all above the table set the default for every row; a click on a row is an exception to that default, so Expand all then one click closes just that one. The state survives a filter, a search and a rescan. Same click as the Sign-in log's per-policy rows.",
+    },
+  ],
+},
+{
   build: 25380,
   date: "2026-09-16",
   title: "Report-only impact holds nothing — the week streams through",

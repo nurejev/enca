@@ -67,6 +67,57 @@ const Signins = (() => {
   const codeText = (code) => CODE_TEXT[Number(code)] || "";
   const isInterrupt = (rec) => INTERRUPT.has((rec.status || {}).errorCode);
 
+  // ---- HOW the user signed in (T17 2.6 / T36 1.4, 25381) ---------------
+  // The record's authenticationDetails are the portal's Authentication
+  // Details tab: one step per method — "Password · Password in the cloud ·
+  // succeeded · Correct password · Primary authentication" — and then the
+  // second factor, or the step that was ASKED FOR and never came ("MFA
+  // required in Azure AD", requirement "Phishing-resistant MFA"). That is
+  // the difference between "the policy failed her" and "she signed in with
+  // a password where a passkey was required": the same failure row, a very
+  // different fix. authenticationRequirement says whether a second factor
+  // was demanded at all; a step whose requirement names a strength says
+  // which one. Hunting rows carry the requirement and none of the steps.
+  const MFA_METHOD = /authenticator|passkey|fido|security key|windows hello|hello for business|certificate|phone|sms|text message|voice|oath|hardware token|software token|temporary access|previously satisfied|claim/i;
+  const PHISH_RESISTANT = /passkey|fido|security key|windows hello|hello for business|certificate/i;
+  const PRIMARY_METHOD = /^password|primary/i;
+  const CLAIM = /claim in the token|satisfied by claim|already satisfied|previously satisfied/i;
+  const FACTOR_REQ = /multi|mfa|second|strength|resistant/i;
+  function authOf(rec) {
+    const requirement = String(rec.authenticationRequirement || "");
+    const policies = (rec.authenticationRequirementPolicies || []).map((p) => ({ provider: String(p.requirementProvider || ""), detail: String(p.detail || "") }));
+    const raw = rec.authenticationDetails;
+    const known = Array.isArray(raw);
+    const steps = known ? raw.map((st) => ({
+      method: String(st.authenticationMethod || ""), detail: String(st.authenticationMethodDetail || ""), ok: st.succeeded === true,
+      result: String(st.authenticationStepResultDetail || ""), req: String(st.authenticationStepRequirement || ""), when: String(st.authenticationStepDateTime || ""),
+    })) : [];
+    // An authentication strength writes its own name into the step
+    // requirement ("Phishing-resistant MFA") where plain MFA writes
+    // "Multi-factor authentication" — the name is what the person has to meet.
+    const strength = steps.map((st) => st.req).find((r) => r && FACTOR_REQ.test(r) && !/^multi-?factor authentication$/i.test(r)) || "";
+    const used = [...new Set(steps.filter((st) => st.ok && st.method).map((st) => st.method))];
+    const claim = steps.some((st) => CLAIM.test(st.result) || CLAIM.test(st.method));
+    // A satisfied factor is a succeeded step whose METHOD is a second factor
+    // — the portal writes the requirement ("Phishing-resistant MFA") on the
+    // password row as well, so the requirement column alone proves nothing.
+    const mfaOk = claim || steps.some((st) => st.ok && !PRIMARY_METHOD.test(st.method) && (MFA_METHOD.test(st.method) || /mfa|multi|strong|satisfied|completed/i.test(st.result)));
+    const asked = steps.find((st) => !st.ok && (FACTOR_REQ.test(st.req) || /mfa required|strong authentication|additional/i.test(st.result)));
+    const mfaAsked = requirement === "multiFactorAuthentication" || !!strength || !!asked;
+    const gap = known && mfaAsked && !mfaOk;
+    const passwordOnly = known && used.length > 0 && used.every((m) => PRIMARY_METHOD.test(m));
+    const phishResistant = used.some((m) => PHISH_RESISTANT.test(m));
+    const need = strength || (mfaAsked ? "MFA" : "");
+    let summary;
+    if (!known) summary = requirement === "multiFactorAuthentication" ? "MFA was required — the methods are not in the hunting source"
+      : requirement ? "single factor — the methods are not in the hunting source" : "methods not recorded";
+    else if (!steps.length) summary = "no authentication step recorded";
+    else if (gap) summary = `${used.length ? used.join(" + ") : "nothing completed"} — ${need} required, not provided${asked && asked.result ? ` (${asked.result})` : ""}`;
+    else if (mfaAsked) summary = `${used.join(" + ") || "MFA"}${claim ? " — MFA by a claim already in the token" : ""} — ${need} satisfied`;
+    else summary = `${used.join(" + ") || steps.map((st) => st.method).filter(Boolean).join(" + ") || "—"} — single factor`;
+    return { known, requirement, policies, strength, steps, used, claim, mfaAsked, mfaOk, gap, passwordOnly, phishResistant, need, summary };
+  }
+
   // The error code narrows WHICH control stopped the sign-in — a 50097 next
   // to an MFA policy and a sign-in-frequency policy belongs to the latter:
   // enforcing SIF in a browser means authenticating the DEVICE to read the
@@ -354,6 +405,7 @@ union${withTotals ? `
       interrupted: fails.some((p) => p.result === "interrupted"),
       interactive: isInteractive(rec),
       policies: fails,
+      auth: authOf(rec),
     };
   }
 
@@ -369,12 +421,13 @@ union${withTotals ? `
         const key = p.id || p.name;
         let e = byPolicy.get(key);
         if (!e) {
-          e = { key, id: p.id, name: p.name, count: 0, ints: 0, users: new Map(), apps: new Map(),
+          e = { key, id: p.id, name: p.name, count: 0, ints: 0, gap: 0, users: new Map(), apps: new Map(),
             controls: new Set(), first: r.when, last: r.when, rows: [] };
           byPolicy.set(key, e);
         }
         e.count++;
         if (p.result === "interrupted") e.ints++;
+        if (r.auth && r.auth.gap) e.gap++;
         const uk = r.upn || r.user;
         e.users.set(uk, (e.users.get(uk) || 0) + 1);
         e.apps.set(r.app, (e.apps.get(r.app) || 0) + 1);
@@ -398,6 +451,10 @@ union${withTotals ? `
       rows,
       total: rows.length,
       interrupted: rows.filter((r) => r.interrupted).length,
+      // the second factor was asked for and never came — a password where
+      // MFA or a strength was required
+      authGap: rows.filter((r) => r.auth && r.auth.gap).length,
+      authKnown: rows.filter((r) => r.auth && r.auth.known).length,
       nonInteractive, recTotal: (records || []).length, recNonInteractive,
       policies,
       users: Object.entries(by((r) => r.upn || r.user)).sort((a, b) => b[1] - a[1]),
@@ -413,7 +470,7 @@ union${withTotals ? `
   const CSV_HEAD = ["when", "userDisplayName", "userPrincipalName", "appDisplayName", "appId",
     "policyName", "policyId", "result", "enforcedControls", "ipAddress", "city", "country",
     "clientAppUsed", "operatingSystem", "browser", "deviceCompliant", "deviceTrustType",
-    "signInRisk", "errorCode", "failureReason", "signInId"];
+    "signInRisk", "authRequired", "authUsed", "authGap", "errorCode", "failureReason", "signInId"];
   const csvCell = (v) => {
     const s = String(v ?? "");
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -425,11 +482,12 @@ union${withTotals ? `
         L.push([r.when, r.user, r.upn, r.app, r.appId,
           p.name, p.id, p.result, p.controls.join("|"), r.ip, r.city, r.country,
           r.client, r.os, r.browser, r.compliant ? "yes" : "no", r.trustType,
-          r.signInRisk, r.errorCode ?? "", r.failureReason, r.id].map(csvCell).join(","));
+          r.signInRisk, r.auth ? (r.auth.need || (r.auth.requirement ? "single factor" : "")) : "", r.auth ? r.auth.used.join("|") : "", r.auth && r.auth.gap ? "yes" : "",
+          r.errorCode ?? "", r.failureReason, r.id].map(csvCell).join(","));
       }
     }
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, RO_CAP, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, RO_CAP, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText, authOf, PHISH_RESISTANT };
 })();

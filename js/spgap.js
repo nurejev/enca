@@ -137,36 +137,58 @@ const SpGap = (() => {
     return `<span class="sev ${v[0] === "bad" ? "high" : v[0] === "warn" ? "medium" : "info"}" title="${esc(v[2])}">${esc(v[1])}</span>`;
   }
 
-  function renderTable(R, filter, q) {
+  // FOLDED ROWS (0.3, 25381 — Mihai: "expand and collapse per item and
+  // global"). One line per app — name, sign-ins, verdict, and the counts
+  // of what the three policy columns would say — that opens on click to
+  // the full row: the would / may / excluded-by pills and the newest
+  // sign-in. `open` is the set of app ids opened by hand, `allOpen` flips
+  // the default for every row; the toggle bar above the table drives both.
+  // Same pattern as 🚦 Sign-in failures' per-policy rows (au-sumrow /
+  // au-sumdet), so the click reads the same everywhere.
+  function renderTable(R, filter, q, open, allOpen) {
     const qq = lc(q || "").trim();
+    const isOpen = (a) => (open && open.has(lc(a.appId))) ? !allOpen : !!allOpen;
     let rows = R.apps;
     if (filter && filter !== "all") rows = rows.filter((a) => filter === "phantom" ? a.phantomIn.length : a.verdict === filter);
     if (qq) rows = rows.filter((a) => lc(a.name).includes(qq) || lc(a.appId).includes(qq) || a.impact.will.some((w) => lc(w.name).includes(qq)) || a.phantomIn.some((p) => lc(p.name).includes(qq)));
     if (!R.apps.length) return `<p class="mini" style="padding:20px">Every app that signed in over the last 30 days has a service principal in this tenant — Conditional Access can name all of them.${R.truncated ? " (The summary was capped at 1,000 apps, so this is true of the 1,000 busiest.)" : ""}</p>`;
     if (!rows.length) return `<p class="mini" style="padding:20px">No app matches the current filter.</p>`;
     const pol = (list, cls) => list.length ? list.map((p) => `<span class="pill sg-pill ${cls}" title="${esc(p.reason || (p.grant || []).join(" " + (p.operator || "OR") + " ") || "")}">${esc(p.name)}${p.state === "enabledForReportingButNotEnforced" ? " <span class=\"muted\">(report-only)</span>" : ""}</span>`).join(" ") : '<span class="muted">—</span>';
+    const openCount = rows.filter(isOpen).length;
     const body = rows.map((a) => {
       const ev = a.evidence;
       const evHtml = !R.hasEvidence ? '<span class="muted" title="Load a sign-in window (📖 Read evidence) to see the newest sign-in">not read</span>'
         : !ev ? '<span class="muted">not in the loaded window</span>'
         : `<div title="${esc(ev.when)}">${esc((ev.when || "").slice(0, 16).replace("T", " "))} · ${esc(ev.user)}${ev.client ? ` · ${esc(ev.client)}` : ""}</div><div class="mini muted">CA: ${esc(ev.caStatus || "—")}${ev.error ? ` · error ${esc(ev.error)}` : ""}${ev.applied.length ? ` · ${ev.applied.map((p) => `${esc(p.name)} (${esc(p.result)})`).join(", ")}` : " · no policy applied"}</div>`;
-      return `<tr data-sg-app="${esc(a.appId)}">
-        <td class="sg-app"><div><b>${esc(a.name)}</b>${a.firstParty ? ' <span class="tag" title="Microsoft first-party app id (name from ENCA\'s built-in map, not from this tenant)">Microsoft</span>' : ""}</div><div class="sg-id muted">${esc(a.appId)}</div></td>
+      const on = isOpen(a);
+      const evShort = !R.hasEvidence ? "not read" : !ev ? "not in the window" : `${(ev.when || "").slice(0, 10)} · ${ev.user || ""}`;
+      const counts = `<span title="policies that would apply">${a.impact.will.length} would</span> · <span title="policies that may apply">${a.impact.may.length} may</span> · <span title="policies that exclude the id">${a.phantomIn.length} excluded by</span> · <span class="muted" title="newest sign-in">${esc(evShort)}</span>`;
+      const head = `<tr class="au-sumrow sg-row${on ? " open" : ""}" data-sg-toggle="${esc(a.appId)}" title="${on ? "Collapse" : "Expand"} this app">
+        <td class="sg-app"><div><span class="sg-chev">${on ? "▾" : "▸"}</span> <b>${esc(a.name)}</b>${a.firstParty ? ' <span class="tag" title="Microsoft first-party app id (name from ENCA\'s built-in map, not from this tenant)">Microsoft</span>' : ""}</div><div class="sg-id muted">${esc(a.appId)}</div></td>
         <td class="num">${a.signIns.toLocaleString()}</td>
         <td>${verdictChip(a)}</td>
-        <td>${pol(a.impact.will, "green")}</td>
-        <td>${pol(a.impact.may, "amber")}</td>
-        <td>${a.phantomIn.length ? a.phantomIn.map((p) => `<span class="pill sg-pill red" title="This policy excludes the app by id — the exclusion protects nothing today and goes live on consent">${esc(p.name)}</span>`).join(" ") : '<span class="muted">—</span>'}</td>
-        <td>${evHtml}</td>
+        <td colspan="4" class="mini sg-sum">${counts}</td>
       </tr>`;
+      const detail = on ? `<tr class="au-sumdet sg-det" data-sg-app="${esc(a.appId)}">
+        <td colspan="7"><div class="sg-detgrid">
+          <div><div class="sg-dk">Would apply</div>${pol(a.impact.will, "green")}</div>
+          <div><div class="sg-dk">May apply</div>${pol(a.impact.may, "amber")}</div>
+          <div><div class="sg-dk">Excluded by</div>${a.phantomIn.length ? a.phantomIn.map((p) => `<span class="pill sg-pill red" title="This policy excludes the app by id — the exclusion protects nothing today and goes live on consent">${esc(p.name)}</span>`).join(" ") : '<span class="muted">—</span>'}</div>
+          <div><div class="sg-dk">Newest sign-in</div>${evHtml}</div>
+        </div></td>
+      </tr>` : "";
+      return head + detail;
     }).join("");
     // The CA-groups list table, not the matrix table: .mtable is built for a
     // sticky policy matrix — no cell padding, nowrap everywhere, a 280px
     // minimum height — and on a five-row list it drew cramped rows over a
     // block of empty surface. This is a plain list: padded cells, left-aligned
     // headers, wrapping pills, as tall as its rows.
-    return `<div class="cg-tablewrap sg-wrap"><table class="cg-table sg-table"><thead><tr>
-      <th>App</th><th class="num" title="Sign-ins over the last 30 days, from the app summary">Sign-ins</th><th>Once it exists</th><th>Would apply</th><th>May apply</th><th>Excluded by</th><th>Newest sign-in</th>
+    const bar = `<div class="sg-foldbar"><span class="mini muted">${openCount} of ${rows.length} expanded</span>
+      <button class="fchip" data-sg-all="open" ${openCount === rows.length ? "disabled" : ""} title="Expand every app">⊞ Expand all</button>
+      <button class="fchip" data-sg-all="close" ${openCount === 0 ? "disabled" : ""} title="Collapse every app">⊟ Collapse all</button></div>`;
+    return `${bar}<div class="cg-tablewrap sg-wrap"><table class="cg-table sg-table sg-folded"><thead><tr>
+      <th>App</th><th class="num" title="Sign-ins over the last 30 days, from the app summary">Sign-ins</th><th>Once it exists</th><th colspan="4">Would apply · may apply · excluded by · newest sign-in <span class="muted">— click a row</span></th>
     </tr></thead><tbody>${body}</tbody></table></div>
     <p class="mini muted" style="margin-top:8px">${rows.length} of ${R.apps.length} app${R.apps.length === 1 ? "" : "s"}${R.truncated ? " · the summary tops out at 1,000 apps — the tenant has more" : ""} · “Would apply” is the 🧪 What-If verdict for an All-users sign-in to this app with nothing else known; “May apply” lists the policies whose other conditions the scenario cannot decide.</p>`;
   }

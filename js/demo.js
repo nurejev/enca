@@ -345,6 +345,15 @@ const DEMO_DATA = {
       deviceDetail: { operatingSystem: "MacOs", browser: "Safari 18", isCompliant: false, isManaged: false, trustType: "" },
       status: { errorCode: 50074, failureReason: "Strong Authentication is required." },
       conditionalAccessStatus: "failure", riskLevelDuringSignIn: "medium", riskLevelAggregated: "medium", riskState: "atRisk", riskDetail: "none", riskEventTypes_v2: ["unfamiliarFeatures", "anonymizedIPAddress"],
+      // 🚦 2.6 / 🕵 1.4: the portal's Authentication Details tab — a correct
+      // password, then the phishing-resistant step that never came. The
+      // policy failed him; the METHOD is why.
+      authenticationRequirement: "multiFactorAuthentication",
+      authenticationRequirementPolicies: [{ requirementProvider: "conditionalAccess", detail: "Require MFA for all admins" }],
+      authenticationDetails: [
+        { authenticationStepDateTime: "2026-07-20T19:03:10Z", authenticationMethod: "Password", authenticationMethodDetail: "Password in the cloud", succeeded: true, authenticationStepResultDetail: "Correct password", authenticationStepRequirement: "Phishing-resistant MFA" },
+        { authenticationStepDateTime: "2026-07-20T19:03:12Z", authenticationMethod: "", authenticationMethodDetail: "", succeeded: false, authenticationStepResultDetail: "MFA required in Azure AD", authenticationStepRequirement: "Phishing-resistant MFA" },
+      ],
       appliedConditionalAccessPolicies: [
         { id: "d1", displayName: "Require MFA for all admins", result: "failure", enforcedGrantControls: ["RequireAuthenticationStrength:Phishing-resistant MFA"], enforcedSessionControls: [] },
       ],

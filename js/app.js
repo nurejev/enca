@@ -13539,7 +13539,7 @@ This is a directory write. Nothing else changes.`)) return;
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> sign-ins</span></div>
-        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}</div>
+        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}${r.authGap ? ` · <span style="color:var(--off)" title="The second factor was asked for and never came — a password where MFA or an authentication strength was required">${r.authGap} without the MFA asked</span>` : ""}</div>
         <div class="mini muted">source: ${esc(logSourceLabel())}${r.nonInteractive ? ` · <button class="fchip ${siFilter === "kind:int" ? "active" : ""}" data-sif="kind:int" style="padding:1px 8px;font-size:11px">${r.total - r.nonInteractive} interactive</button> <button class="fchip ${siFilter === "kind:non" ? "active" : ""}" data-sif="kind:non" style="padding:1px 8px;font-size:11px">${r.nonInteractive} non-interactive</button>` : ""}</div>
         ${logCoverageHtml(siDays)}
         ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()} sign-ins` : " — a day hit the hunting row cap"}</div>` : ""}
@@ -13549,6 +13549,7 @@ This is a directory write. Nothing else changes.`)) return;
       ...(siMode !== "reportonly" && r.interrupted
         ? [["blk", `Blocked (${r.total - r.interrupted})`], ["int", `Interrupted (${r.interrupted})`]] : []),
       ...(r.nonInteractive ? [["kind:int", `Interactive (${r.total - r.nonInteractive})`], ["kind:non", `Non-interactive (${r.nonInteractive})`]] : []),
+      ...(r.authGap ? [["auth:gap", `🔑 MFA asked, not given (${r.authGap})`]] : []),
       ...r.policies.slice(0, 8).map((p) => [p.key, `${p.name.length > 34 ? p.name.slice(0, 32) + "…" : p.name} (${p.count})`])];
     $("siChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${siFilter === k ? "active" : ""}" data-sif="${esc(k)}">${esc(l)}</button>`).join("");
 
@@ -13556,8 +13557,9 @@ This is a directory write. Nothing else changes.`)) return;
     const match = (x) => (siFilter === "all"
         || (siFilter === "int" ? x.interrupted : siFilter === "blk" ? !x.interrupted
           : siFilter === "kind:int" ? x.interactive : siFilter === "kind:non" ? !x.interactive
+          : siFilter === "auth:gap" ? !!(x.auth && x.auth.gap)
           : x.policies.some((p) => (p.id || p.name) === siFilter)))
-      && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")}`.toLowerCase().includes(q));
+      && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")} ${x.auth ? x.auth.summary : ""}`.toLowerCase().includes(q));
     const rows = r.rows.filter(match);
     if (!rows.length) { $("siBody").innerHTML = '<p class="mini" style="padding:20px">No sign-in matches the current filter.</p>'; return; }
 
@@ -13567,7 +13569,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (siView === "policies") {
       const pols = r.policies
         .map((p) => ({ ...p, rows: p.rows.filter(match) }))
-        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || siFilter.startsWith("kind:") || p.key === siFilter));
+        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || siFilter.startsWith("kind:") || siFilter.startsWith("auth:") || p.key === siFilter));
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
@@ -13578,12 +13580,13 @@ This is a directory write. Nothing else changes.`)) return;
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
               <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${x.interactive ? "" : "non-interactive · "}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
+              ${x.auth ? `<div class="wi-why${x.auth.gap ? " si-authgap" : ""}" title="${esc(x.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 signed in with ${esc(x.auth.summary)}</div>` : ""}
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
           return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
             <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
-            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}</td>
+            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}${p.gap ? `<div class="mini si-authgap" title="The second factor was asked for and never came — these users signed in with a password where MFA or an authentication strength was required">🔑 ${p.gap} without the MFA asked</div>` : ""}</td>
             <td>${p.userCount} distinct</td>
             <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
             <td class="mini">${esc(p.controls.join(", ") || "—")}</td>
@@ -13604,6 +13607,8 @@ This is a directory write. Nothing else changes.`)) return;
       const detail = open ? `<div class="au-diff">
           ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
+          ${x.auth ? `<div><span class="au-op ${x.auth.gap ? "remove" : "set"}">signed in with</span> <span class="au-path">${esc(x.auth.summary)}</span></div>
+          ${x.auth.steps.length ? `<div class="mini muted si-steps">${x.auth.steps.map((st) => `${st.ok ? "✓" : "✗"} ${esc(st.method || "(no method)")}${st.detail && st.detail !== st.method ? ` <span class="muted">· ${esc(st.detail)}</span>` : ""}${st.result ? ` — ${esc(st.result)}` : ""}${st.req ? ` <span class="muted">[${esc(st.req)}]</span>` : ""}`).join("<br>")}</div>` : ""}` : ""}
           ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
           ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}
         </div>` : "";
@@ -13615,7 +13620,7 @@ This is a directory write. Nothing else changes.`)) return;
           <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪</button>
           <span class="au-when">${esc(auAgo(x.when))}</span>
         </div>
-        <div class="au-sub">${esc([x.upn !== x.user ? x.upn : "", x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))} · ${esc(new Date(x.when).toLocaleString())}</div>
+        <div class="au-sub">${esc([x.upn !== x.user ? x.upn : "", x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))} · ${esc(new Date(x.when).toLocaleString())}${x.auth && x.auth.known ? ` · <span class="${x.auth.gap ? "si-authgap" : ""}">🔑 ${esc(x.auth.used.join(" + ") || "no method")}${x.auth.gap ? ` — ${esc(x.auth.need)} not provided` : ""}</span>` : ""}</div>
         ${detail}
       </div>`;
     }).join("");
@@ -13631,16 +13636,17 @@ This is a directory write. Nothing else changes.`)) return;
     const L = [`# Conditional Access sign-in failures — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
       `- Window: last ${rangeLabel(siDays)}${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""} — ${siModeLabel()}${siCapped ? `, truncated at ${SI_MAX} sign-ins` : ""}`,
-      `- Sign-ins: **${r.total}** across ${r.policies.length} policies${r.interrupted ? ` — ${r.interrupted} interrupted (MFA prompt, enrolment, device auth, terms of use)` : ""}`,
+      `- Sign-ins: **${r.total}** across ${r.policies.length} policies${r.interrupted ? ` — ${r.interrupted} interrupted (MFA prompt, enrolment, device auth, terms of use)` : ""}${r.authGap ? ` — ${r.authGap} signed in without the MFA that was asked (password where MFA or a strength was required)` : ""}`,
       `- Most affected users: ${r.users.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
       `- Most affected apps: ${r.apps.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
     for (const p of r.policies) {
       L.push(`## ${p.name}`, "",
         `- Failures: **${p.count}**${p.ints ? ` (${p.ints} interrupted)` : ""} — ${p.userCount} distinct users, ${p.appCount} apps`,
         `- Controls not met: ${p.controls.join(", ") || "—"}`,
+        ...(p.gap ? [`- Signed in without the MFA asked: **${p.gap}** of ${p.count} — a password where MFA or an authentication strength was required`] : []),
         `- Last failure: ${p.last}`, "",
-        "| When | User | App | Client | Location | IP | Device |", "| --- | --- | --- | --- | --- | --- | --- |");
-      p.rows.slice(0, 100).forEach((x) => L.push(`| ${String(x.when).replace("T", " ").slice(0, 19)} | ${x.user} | ${x.app} | ${x.client} | ${siWhere(x)} | ${x.ip} | ${siDevice(x) || "—"} |`));
+        "| When | User | App | Client | Location | IP | Device | Signed in with |", "| --- | --- | --- | --- | --- | --- | --- | --- |");
+      p.rows.slice(0, 100).forEach((x) => L.push(`| ${String(x.when).replace("T", " ").slice(0, 19)} | ${x.user} | ${x.app} | ${x.client} | ${siWhere(x)} | ${x.ip} | ${siDevice(x) || "—"} | ${x.auth ? x.auth.summary : "—"} |`));
       if (p.rows.length > 100) L.push("", `_+${p.rows.length - 100} more — use the CSV export for the full set._`);
       L.push("");
     }
@@ -16772,6 +16778,11 @@ This is a directory write. Nothing else changes.`)) return;
   // sign-in window, read only on request. Reads only; the CSV is the list
   // for whoever registers the apps, by hand, on purpose.
   let sgRes = null, sgBusy = false, sgFilter = "all", sgQ = "", sgRecords = null;
+  // Folded rows (0.3): sgOpen holds the apps toggled BY HAND, sgAllOpen is
+  // the default the bar sets — a hand toggle is an exception to the default,
+  // so "Expand all" then one click closes just that one, and "Collapse all"
+  // clears the exceptions. A rescan keeps the state: same apps, same reading.
+  let sgOpen = new Set(), sgAllOpen = false;
   const sgProg = makeProgress("sg"); sgProg.by = "🫥 Apps with no service principal";
 
   function openSpGap() {
@@ -16786,7 +16797,15 @@ This is a directory write. Nothing else changes.`)) return;
     $("sgBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-sgrun>▶ Read the 30-day app summary</button><p class="mini muted">One call for the summary, one paged read of the service principals. Nothing is written.</p></div>`;
   }
   $("toolSpGap").addEventListener("click", () => openSpGap());
-  $("sgBody").addEventListener("click", (e) => { if (e.target.closest("[data-sgrun]")) runSpGap(); });
+  $("sgBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-sgrun]")) { runSpGap(); return; }
+    // the policy name opens its card — before the row toggle, or the click folds the row instead
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const all = e.target.closest("[data-sg-all]");
+    if (all) { sgAllOpen = all.dataset.sgAll === "open"; sgOpen = new Set(); if (sgRes) renderSpGap(); return; }
+    const t = e.target.closest("[data-sg-toggle]");
+    if (t) { const k = String(t.dataset.sgToggle).toLowerCase(); sgOpen.has(k) ? sgOpen.delete(k) : sgOpen.add(k); if (sgRes) renderSpGap(); }
+  });
   $("sgRescan").addEventListener("click", () => runSpGap());
   $("sgEvidence").addEventListener("click", () => readSpGapEvidence());
   let sgQTimer = null;
@@ -16846,7 +16865,7 @@ This is a directory write. Nothing else changes.`)) return;
     const t = R.tiles;
     const chip = (k, label, n) => `<button class="fchip${sgFilter === k ? " active" : ""}" data-sgf="${k}">${esc(label)}${n != null ? ` <span class="pill zero">${n}</span>` : ""}</button>`;
     $("sgChips").innerHTML = chip("all", "All", t.total) + chip("uncovered", "No Conditional Access", t.uncovered) + chip("maybe", "Depends", t.maybe) + chip("enforced", "Enforced", t.enforced) + chip("blocked", "Blocked", t.blocked) + chip("phantom", "Phantom exclusions", t.phantom);
-    $("sgBody").innerHTML = SpGap.renderTiles(R) + `<div style="margin-top:14px">${SpGap.renderTable(R, sgFilter, sgQ)}</div>`;
+    $("sgBody").innerHTML = SpGap.renderTiles(R) + `<div style="margin-top:14px">${SpGap.renderTable(R, sgFilter, sgQ, sgOpen, sgAllOpen)}</div>`;
   }
   $("sgMd").addEventListener("click", () => { const R = sgRes; if (!R) return; showReport("🫥 Apps with no service principal", "CA-AppsNoServicePrincipal", SpGap.toMd(R, tenantName)); });
   $("sgCsv").addEventListener("click", () => { const R = sgRes; if (!R) return; downloadText("CA-AppsNoServicePrincipal", "csv", "text/csv", SpGap.toCsv(R)); });

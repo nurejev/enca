@@ -357,6 +357,24 @@ table.plist tr:hover td{background:var(--hover)}
 .sg-table .sg-pill{display:block;width:fit-content;max-width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.35;margin:2px 0}
 .sg-table .tag{font-size:10px;padding:1px 6px;vertical-align:middle}
 .sg-table td{line-height:1.45}
+/* 0.3 — folded rows: one line per app that opens on click (au-sumrow /
+   au-sumdet, the 🚦 per-policy pattern); the summary spans the four detail
+   columns, the detail row lays the same four out as a grid. */
+.sg-table.sg-folded{min-width:760px}
+.sg-table.sg-folded th:nth-child(4){width:auto}
+.sg-foldbar{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin:0 0 6px}
+.sg-foldbar .fchip[disabled]{opacity:.45;cursor:default}
+.sg-row .sg-chev{display:inline-block;width:12px;color:var(--muted);font-size:12px}
+.sg-row .sg-sum{white-space:normal;color:var(--muted)}
+.sg-row.open td{background:var(--hover)}
+.sg-det td{background:var(--soft);padding:10px 14px 12px 34px}
+.sg-detgrid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:10px 18px}
+.sg-dk{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px}
+@media (max-width:900px){.sg-detgrid{grid-template-columns:1fr 1fr}}
+/* 🚦 / 🕵 — the second factor was asked for and never came */
+.si-authgap{color:var(--off)}
+.au-diff div.si-steps{display:block;padding:0 0 4px 92px;line-height:1.5}
+.si-steps .muted{opacity:.85}
 /* persona quick-pick in the assign wizard */
 .persona-row{display:flex;flex-wrap:wrap;gap:6px}
 .persona-chip{background:var(--soft);border-color:var(--border)}
