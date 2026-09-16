@@ -11,9 +11,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs"), vm = require("node:vm"), path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
-const a = app.indexOf("  const HUNT_MIN_SLICE_MS ="), b = app.indexOf("    return { records: out, capped, splits, queries };\n  }\n", a);
+const a = app.indexOf("  const HUNT_MIN_SLICE_MS ="), b = app.indexOf("    return { records: out, count, capped, splits, queries };\n  }\n", a);
 assert.ok(a > 0 && b > a, "readSignInsHunting markers");
-const src = app.slice(a, b + "    return { records: out, capped, splits, queries };\n  }\n".length);
+const src = app.slice(a, b + "    return { records: out, count, capped, splits, queries };\n  }\n".length);
 const DAY = 86400000;
 
 function harness({ perDay, cap = 20000, sizeLimitRows = Infinity, saved = null, rateAt = null }) {

@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25380,
+  date: "2026-09-16",
+  title: "Report-only impact holds nothing — the week streams through",
+  items: [
+    {
+      kind: "fixed",
+      tool: "Sign-in log",
+      text: "25379 still crashed the tab on a large tenant. The cause was structural, not one line: the bucket read kept every summary row of the window in the tab before building the forecast, and a week of a large tenant — even per day — was still more than a browser tab holds. Three changes. The read is a STREAM now: every answer from Microsoft (and every day the device already holds) is folded into the running forecast the moment it lands and then let go; the tab holds the forecast, never the rows. The user rows are no longer split by app, client and OS — those multiplied the rows without changing a verdict; the apps a user hit are a set on the row, the per-app counts and the one sample denial per user and policy are small rows of their own. And the query runs once per report-only policy per day, so a day of a large tenant stays under the engine's cap without being sliced into hours (slicing a day into 22-minute pieces was multiplying the rows by the number of pieces). The device store keeps each day in chunks of 4,000 rows appended as slices land; the old hour-shaped and day-shaped contents are cleared on first open and read once more.",
+    },
+    {
+      kind: "improved",
+      tool: "Sign-in log",
+      text: "The progress line names the policy being read (“policy 2 of 5 · CA200 Compliant device”), the still-reading strip counts summary rows folded in, and the header reads “N sign-ins summarised by Defender hunting in 35 queries (one per policy per day)”.",
+    },
+  ],
+},
+{
   build: 25379,
   date: "2026-09-15",
   title: "Keep on this device: days, not hours — and what is held shows first",

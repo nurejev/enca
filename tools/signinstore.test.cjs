@@ -86,3 +86,36 @@ test("purge ages buckets out past the tenant's ttl and cuts the coverage to matc
   await S.forgetAll();
   assert.equal(await S.consent("t1"), null);
 });
+
+test("a day is stored in chunks of 4,000 and read back whole, in order; a re-read replaces every chunk", async () => {
+  const S = load(); S._useMemory();
+  await S.setConsent("t1", { on: true });
+  const many = (n, tag) => Array.from({ length: n }, (_, i) => ({ bin: new Date(T).toISOString(), i, tag }));
+  await S.putBuckets("t1", "hunt", T, T + D, many(9001, "a"));
+  const back = await S.getBuckets("t1", "hunt", T, T + D);
+  assert.equal(back.length, 9001); assert.equal(back[0].i, 0); assert.equal(back[9000].i, 9000);
+  let chunks = 0; await S.forBuckets("t1", "hunt", T, T + D, () => { chunks++; });
+  assert.equal(chunks, 3);
+  await S.putBuckets("t1", "hunt", T, T + D, many(10, "b"));
+  const again = await S.getBuckets("t1", "hunt", T, T + D);
+  assert.equal(again.length, 10); assert.ok(again.every((r) => r.tag === "b"), "no chunk of the old day survives");
+  // a sample row without a bin of its own is filed under the day it was read for
+  await S.putBuckets("t1", "hunt", T + D, T + 2 * D, [{ kind: "s", policyId: "p", userId: "u", sample: {} }]);
+  assert.equal((await S.getBuckets("t1", "hunt", T + D, T + 2 * D)).length, 1);
+  assert.equal((await S.summary("t1")).days, 2);
+});
+
+test("streaming writes: clear the gap's days, append each slice as its own chunk", async () => {
+  const S = load(); S._useMemory();
+  await S.setConsent("t1", { on: true });
+  await S.putBuckets("t1", "hunt", T, T + D, [{ bin: new Date(T).toISOString(), old: true }]);
+  await S.clearBuckets("t1", "hunt", T, T + 2 * D);
+  assert.equal((await S.getBuckets("t1", "hunt", T, T + 2 * D)).length, 0);
+  await S.appendBuckets("t1", "hunt", T + 3600000, [{ p: 1 }, { p: 1 }]);
+  await S.appendBuckets("t1", "hunt", T + 7200000, [{ p: 2 }]);
+  await S.appendBuckets("t1", "hunt", T + D, [{ p: 3 }]);
+  const back = await S.getBuckets("t1", "hunt", T, T + 2 * D);
+  assert.equal(back.map((r) => r.p).join(), "1,1,2,3", "appended in order, a later day after");
+  let chunks = 0; await S.forBuckets("t1", "hunt", T, T + D, () => { chunks++; });
+  assert.equal(chunks, 2, "one chunk per append on the same day");
+});

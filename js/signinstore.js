@@ -32,7 +32,12 @@
 // NOT here yet — a later build, and a separate, larger consent.
 // ======================================================================
 const SigninStore = (() => {
-  const DB = "enca-signins", VERSION = 1, HOUR = 3600000, UNIT = 86400000;   // UNIT: the bin the buckets are kept in
+  // VERSION 2 (25380): the bucket rows changed shape (slim, per policy, apps
+  // as a set, samples their own rows) and are kept in CHUNKS per day. An
+  // upgrade clears buckets and coverage — the next read fills them again —
+  // and keeps the consent decisions.
+  const DB = "enca-signins", VERSION = 2, HOUR = 3600000, UNIT = 86400000;   // UNIT: the bin the buckets are kept in
+  const CHUNK = 4000;   // records per stored value: keeps every structured clone small
   const DEFAULT_TTL_DAYS = 8, MAX_TTL_DAYS = 30;
 
   // ---- interval arithmetic (pure; exported for the tests) -----------------
@@ -70,6 +75,7 @@ const SigninStore = (() => {
       async put(store, key, value) { t[store].set(String(key), value); },
       async del(store, key) { t[store].delete(String(key)); },
       async all(store, pred) { return [...t[store].values()].filter(pred || (() => true)); },
+      async each(store, pred, fn) { for (const v of [...t[store].values()]) if (!pred || pred(v)) await fn(v); },
       async delWhere(store, pred) { let n = 0; for (const [k, v] of [...t[store]]) if (pred(v)) { t[store].delete(k); n++; } return n; },
     };
   }
@@ -77,11 +83,13 @@ const SigninStore = (() => {
     let dbp = null;
     const open = () => dbp || (dbp = new Promise((res, rej) => {
       const req = indexedDB.open(DB, VERSION);
-      req.onupgradeneeded = () => {
+      req.onupgradeneeded = (ev) => {
         const db = req.result;
         if (!db.objectStoreNames.contains("tenants")) db.createObjectStore("tenants", { keyPath: "k" });
-        if (!db.objectStoreNames.contains("coverage")) db.createObjectStore("coverage", { keyPath: "k" });
-        if (!db.objectStoreNames.contains("buckets")) db.createObjectStore("buckets", { keyPath: "k" });
+        for (const name of ["coverage", "buckets"]) {
+          if (db.objectStoreNames.contains(name) && ev.oldVersion && ev.oldVersion < VERSION) db.deleteObjectStore(name);   // old shape: start over
+          if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: "k" });
+        }
       };
       req.onsuccess = () => res(req.result);
       req.onerror = () => rej(req.error || new Error("IndexedDB refused to open"));
@@ -112,6 +120,20 @@ const SigninStore = (() => {
           const t = db.transaction(store, "readonly");
           cursorAll(t.objectStore(store), (c, out) => { if (!pred || pred(c.value.v)) out.push(c.value.v); }).then(res, rej);
         });
+      },
+      async each(store, pred, fn) {
+        // one cursor, one value in memory at a time; fn may await — the
+        // transaction is kept alive by requesting the next value only after
+        // fn has finished with the current one, so the values are collected
+        // per cursor step and handed on outside the transaction
+        const db = await open();
+        const keys = await new Promise((res, rej) => {
+          const t = db.transaction(store, "readonly"), os = t.objectStore(store), out = [];
+          const req = os.openCursor();
+          req.onsuccess = () => { const c = req.result; if (!c) { res(out); return; } if (!pred || pred(c.value.v)) out.push(c.key); c.continue(); };
+          req.onerror = () => rej(req.error);
+        });
+        for (const k of keys) { const v = await this.get(store, k); if (v != null) await fn(v); }
       },
       async delWhere(store, pred) {
         const db = await open();
@@ -168,23 +190,66 @@ const SigninStore = (() => {
   // One entry per (tenant, source, day): the bucket records of that day.
   // A re-read of a day replaces the day whole — the unsettled tail is
   // re-read on purpose, and two copies of a day would double count.
-  const bKey = (tenantId, source, bin) => `b:${tenantId}|${source}|${bin}`;
-  const binOf = (rec) => floorUnit(Date.parse(rec.bin || rec.hour || rec.createdDateTime || 0));
+  // A day is stored as CHUNKS of at most CHUNK records (b:<tenant>|<source>|<bin>|<i>),
+  // so no single IndexedDB value — and no single structured clone — is a
+  // week of a large tenant. A record with no bin of its own (a sample row,
+  // an app-count row of the day) is filed under the day it was read for.
+  const bKey = (tenantId, source, bin, i) => `b:${tenantId}|${source}|${bin}|${i}`;
+  const binOf = (rec, fallback) => { const t = Date.parse(rec.bin || rec.hour || rec.createdDateTime || ""); return Number.isFinite(t) ? floorUnit(t) : fallback; };
   async function putBuckets(tenantId, source, from, to, records) {
     const byBin = new Map();
-    for (let d = floorUnit(from); d < to; d += UNIT) byBin.set(d, []);
-    for (const r of records || []) { const d = binOf(r); if (!Number.isFinite(d)) continue; if (!byBin.has(d)) byBin.set(d, []); byBin.get(d).push(r); }
+    const first = floorUnit(from);
+    for (let d = first; d < to; d += UNIT) byBin.set(d, []);
+    for (const r of records || []) { const d = binOf(r, first); if (!byBin.has(d)) byBin.set(d, []); byBin.get(d).push(r); }
     for (const [d, rows] of byBin) {
-      if (rows.length) await safe((b) => b.put("buckets", bKey(tenantId, source, d), { tenantId, source, bin: d, rows }));
-      else await safe((b) => b.del("buckets", bKey(tenantId, source, d)));
+      await safe((b) => b.delWhere("buckets", (v) => v.tenantId === tenantId && v.source === source && v.bin === d), 0);
+      for (let i = 0; i * CHUNK < rows.length; i++) {
+        const slice = rows.slice(i * CHUNK, (i + 1) * CHUNK);
+        await safe((b) => b.put("buckets", bKey(tenantId, source, d, i), { tenantId, source, bin: d, i, rows: slice }));
+      }
     }
     return byBin.size;
   }
+  // Streaming writes (25380): a gap's days are cleared before the read and
+  // every slice that lands is appended to its day as a new chunk, so the tab
+  // never holds a day's records to store them in one go.
+  async function clearBuckets(tenantId, source, from, to) {
+    const lo = floorUnit(from);
+    return safe((b) => b.delWhere("buckets", (v) => v.tenantId === tenantId && v.source === source && v.bin >= lo && v.bin < to), 0);
+  }
+  // Chunk numbers come from one session-wide counter (seeded with the clock),
+  // never from scanning the day: four reader workers append to the same day
+  // at once, and two scans would hand out the same number to both.
+  let seq = Date.now();
+  async function appendBuckets(tenantId, source, at, records) {
+    if (!records || !records.length) return 0;
+    const d = floorUnit(at);
+    let written = 0;
+    for (let i = 0; i * CHUNK < records.length; i++) {
+      const slice = records.slice(i * CHUNK, (i + 1) * CHUNK), n = ++seq;
+      await safe((b) => b.put("buckets", bKey(tenantId, source, d, n), { tenantId, source, bin: d, i: n, rows: slice }));
+      written++;
+    }
+    return written;
+  }
+  // Streams the held records of [from, to) to fn, chunk by chunk, oldest day
+  // first — the caller folds each chunk and lets it go, so the tab never
+  // holds the window at once. getBuckets collects (tests, small windows).
+  async function forBuckets(tenantId, source, from, to, fn) {
+    const lo = floorUnit(from);
+    const chunks = [];
+    await safe((b) => b.each("buckets", (v) => v.tenantId === tenantId && v.source === source && v.bin >= lo && v.bin < to, async (v) => { chunks.push([v.bin, v.i || 0]); }));
+    chunks.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    let n = 0;
+    for (const [d, i] of chunks) {
+      const v = await safe((b) => b.get("buckets", bKey(tenantId, source, d, i)), null);
+      if (v && v.rows && v.rows.length) { n += v.rows.length; await fn(v.rows, d); }
+    }
+    return n;
+  }
   async function getBuckets(tenantId, source, from, to) {
-    const bins = await safe((b) => b.all("buckets", (v) => v.tenantId === tenantId && v.source === source && v.bin >= floorUnit(from) && v.bin < to), []);
-    // no spread, no concat chain: a week of a large tenant is a lot of rows
     const out = [];
-    for (const d of bins.sort((a, b) => a.bin - b.bin)) for (const r of d.rows) out.push(r);
+    await forBuckets(tenantId, source, from, to, (rows) => { for (const r of rows) out.push(r); });
     return out;
   }
 
@@ -218,13 +283,11 @@ const SigninStore = (() => {
   }
   async function summary(tenantId) {
     const c = await consent(tenantId); if (!c) return null;
-    const bins = await safe((b) => b.all("buckets", (v) => v.tenantId === tenantId), []);
-    const rows = bins.reduce((n, d) => n + d.rows.length, 0);
-    // a size estimate from a sample, not a stringify of the whole store
-    const sample = bins.length ? bins[0].rows.slice(0, 50) : [];
-    const bytes = sample.length ? Math.round(JSON.stringify(sample).length / sample.length * rows) : 0;
-    return { ...c, days: bins.length, hours: bins.length, rows, bytes, backend: backendKind || be().kind };
+    // counted chunk by chunk; the size is an estimate from the first chunk
+    let rows = 0, bytes = 0; const days = new Set(); let sampled = false;
+    await safe((b) => b.each("buckets", (v) => v.tenantId === tenantId, async (v) => { rows += v.rows.length; days.add(v.bin); if (!sampled && v.rows.length) { sampled = true; bytes = JSON.stringify(v.rows.slice(0, 50)).length / Math.min(50, v.rows.length); } }));
+    return { ...c, days: days.size, hours: days.size, rows, bytes: Math.round(bytes * rows), backend: backendKind || be().kind };
   }
 
-  return { HOUR, UNIT, DEFAULT_TTL_DAYS, MAX_TTL_DAYS, merge, missing, covered, floorUnit, consent, enabled, setConsent, coverage, addCoverage, putBuckets, getBuckets, forget, forgetAll, purge, summary, backend: () => backendKind || be().kind, _useMemory: () => { backend = memBackend(); backendKind = "memory"; } };
+  return { HOUR, UNIT, DEFAULT_TTL_DAYS, MAX_TTL_DAYS, merge, missing, covered, floorUnit, consent, enabled, setConsent, coverage, addCoverage, putBuckets, appendBuckets, clearBuckets, getBuckets, forBuckets, forget, forgetAll, purge, summary, backend: () => backendKind || be().kind, _useMemory: () => { backend = memBackend(); backendKind = "memory"; } };
 })();

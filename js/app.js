@@ -13015,8 +13015,16 @@ This is a directory write. Nothing else changes.`)) return;
   // opts: source, userId, enforcedOnly, onPartial(records, done, total) — and,
   // for a reader that wants a different query over the same slicing:
   //   from / to   the window in ms (default: the last `days`)
-  //   query(from, to, cap) → KQL, shape(rows) → records, kind (stride key),
+  //   query(from, to, cap, part) → KQL, shape(rows) → records, kind (stride key),
   //   cap (row cap), label (progress noun)
+  //   parts       (25380) values the window is read once per — one query per
+  //               day × part (the bucket read passes the report-only policy
+  //               ids, so a day of a large tenant stays under the row cap
+  //               without time slicing); partLabel(part) names it on the line
+  //   onRows(records, info) (25380) — STREAMING: called with every slice's
+  //               records as they land and the records are NOT kept; the
+  //               result's records is then empty and its count says how many
+  //               went by. info = { from, to, part, done, total, capped }
   async function readSignInsHunting(days, prog, opts = {}) {
     const source = opts.source || logSource;
     await requireProduct("p2");
@@ -13026,16 +13034,17 @@ This is a directory write. Nothing else changes.`)) return;
     // Timespan must cover the oldest instant the query names, however the
     // window was given.
     const spanDays = Math.max(1, Math.ceil((Date.now() - start) / dayMs));
+    const parts = opts.parts && opts.parts.length ? opts.parts : [undefined];
     const slices = [];
-    for (let t = start; t < now; t += dayMs) slices.push([t, Math.min(t + dayMs, now)]);
-    prog.start(slices.length, opts.label || "sign-ins", "day");
+    for (let t = start; t < now; t += dayMs) for (const part of parts) slices.push([t, Math.min(t + dayMs, now), part]);
+    prog.start(slices.length, opts.label || "sign-ins", opts.stepLabel || (parts.length > 1 ? "read" : "day"));
     const strided = !opts.userId && !opts.enforcedOnly;
     const kind = opts.kind || "rows";
     let stride = strided ? loadStride(source, kind) : dayMs;
     const cap0 = opts.cap || Signins.HUNT_CAP;
     const shape = opts.shape || Signins.fromHunting;
-    const buildQuery = opts.query || ((from, to, cap) => Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim }));
-    let out = [], capped = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
+    const buildQuery = opts.query || ((from, to, cap, part) => Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim }));
+    let out = [], count = 0, capped = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
     // Priming: with several workers every day would start its own descent
     // from 24 hours before the first one had learnt anything. When no stride
     // is known yet, the first worker reads alone until one slice has come
@@ -13052,17 +13061,18 @@ This is a directory write. Nothing else changes.`)) return;
     // a minute each, and "waiting for the first page" for that long reads as
     // nothing happening. The bar's fraction is the coverage of the days in
     // flight, clamped — with several workers it is indicative, not exact.
-    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${strided ? strideLabel() : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, Math.min(0.999, covered / dayMs));
-    const halve = async (from, to) => {
+    let curPart = undefined;
+    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${curPart !== undefined && opts.partLabel ? ` · ${opts.partLabel(curPart)}` : ""}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${strided ? strideLabel() : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, Math.min(0.999, covered / dayMs));
+    const halve = async (from, to, part) => {
       splits++;
       if (strided) { stride = Math.max(HUNT_MIN_SLICE_MS, Math.min(stride, Math.floor((to - from) / 2))); easy = 0; }
       const mid = from + Math.floor((to - from) / 2);
-      await readSlice(from, mid); await readSlice(mid, to);
+      await readSlice(from, mid, undefined, part); await readSlice(mid, to, undefined, part);
     };
-    const readSlice = async (from, to, cap) => {
+    const readSlice = async (from, to, cap, part) => {
       if (prog.check) prog.check();
-      cap = cap || cap0;
-      const q = buildQuery(from, to, cap);
+      cap = cap || cap0; curPart = part;
+      const q = buildQuery(from, to, cap, part);
       let rows;
       queries++;
       say(from, to, `query ${queries} running${cap < cap0 ? ` (cap ${cap.toLocaleString()})` : ""}${huntSlim || opts.query ? "" : " · full rows"}`);
@@ -13077,31 +13087,35 @@ This is a directory write. Nothing else changes.`)) return;
           return readSlice(from, to, cap);
         }
         if (isSizeError(e)) {
-          if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to);
-          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; return readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2))); }
+          if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to, part);
+          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; return readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2)), part); }
         }
         throw e;
       }
+      let sliceCapped = false;
       if (rows.length >= cap) {
-        if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to);
-        capped = true;
+        if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to, part);
+        capped = true; sliceCapped = true;
       } else if (strided && to - from >= stride && stride < dayMs) {
         // a whole stride (not the tail of a day) well under the cap: three
         // of those in a row and the stride doubles
         if (rows.length * 3 <= cap) { if (++easy >= 3) { stride = Math.min(dayMs, stride * 2); easy = 0; } }
         else easy = 0;
       }
-      out = out.concat(shape(rows));
+      const recs = shape(rows);
+      count += recs.length;
+      if (opts.onRows) { await opts.onRows(recs, { from, to, part, done, total: slices.length, capped: sliceCapped }); }
+      else out = out.concat(recs);
       covered += to - from;
-      prog.st.n = out.length;
+      prog.st.n = count;
       say(from, to, `${rows.length.toLocaleString()} rows`);
       prime();
     };
     // A day is walked in strides. The stride can shrink (a halving inside
     // readSlice) or grow (three easy slices) while the walk is under way;
     // the walk simply continues from where the last slice ended.
-    const readDay = async (from, to) => {
-      for (let t = from; t < to;) { const end = Math.min(t + stride, to); await readSlice(t, end); t = end; }
+    const readDay = async (from, to, part) => {
+      for (let t = from; t < to;) { const end = Math.min(t + stride, to); await readSlice(t, end, undefined, part); t = end; }
     };
     // Several days at a time (two since 25328, four since 25375). Each
     // hunting query is a round trip of seconds to a minute that the browser
@@ -13116,10 +13130,10 @@ This is a directory write. Nothing else changes.`)) return;
       while (next < slices.length) {
         const i = next++;
         if (prog.check) prog.check();
-        try { await readDay(slices[i][0], slices[i][1]); } finally { prime(); }
+        try { await readDay(slices[i][0], slices[i][1], slices[i][2]); } finally { prime(); }
         done++;
         covered = Math.max(0, covered - dayMs);
-        prog.tick(out.length, done);
+        prog.tick(count, done);
         if (opts.onPartial) { try { await opts.onPartial(out.slice(), done, slices.length); } catch (e) { console.warn("onPartial", e); } }
       }
     };
@@ -13130,7 +13144,7 @@ This is a directory write. Nothing else changes.`)) return;
     const bad = settled.find((r) => r.status === "rejected");
     if (bad) throw bad.reason;
     prog.detail("");
-    return { records: out, capped, splits, queries };
+    return { records: out, count, capped, splits, queries };
   }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
@@ -13204,75 +13218,82 @@ This is a directory write. Nothing else changes.`)) return;
     return line.replace("</p>", ` · 💾 ${note}</p>`);
   };
   const isRoRefusal = (e) => /semantic|syntax|SEM0|not recognized|unknown function|union|arg_max|take_any|mv-expand|bin\(/i.test(String((e && e.message) || ""));
-  // THE ON-DEVICE STORE (R58, 25378; days since 25379). With the tenant's
-  // consent the buckets are kept in this browser (js/signinstore.js) and a
-  // later read asks Microsoft only for the DAYS the store lacks. The day is
-  // the unit because the query comes back per day (UTC) and days add up over
-  // disjoint time. The current day — and the previous one within
-  // SETTLE_HOURS of midnight, since sign-ins reach the hunting table with a
-  // lag — is never trusted from the store: that tail is re-read every time
-  // and rewritten day by day. The window's start is floored to the day when
-  // the store is in use, so the forecast covers whole days (a little more
+  // THE ON-DEVICE STORE (R58, 25378; days since 25379; streaming since 25380).
+  // With the tenant's consent the buckets are kept in this browser
+  // (js/signinstore.js) and a later read asks Microsoft only for the DAYS the
+  // store lacks. The day is the unit because the query comes back per day
+  // (UTC) and days add up over disjoint time. The current day — and the
+  // previous one within SETTLE_HOURS of midnight, since sign-ins reach the
+  // hunting table with a lag — is never trusted from the store: that tail is
+  // re-read every time. The window's start is floored to the day when the
+  // store is in use, so the forecast covers whole days (a little more
   // evidence than asked, never less); the coverage line says so. A capped
-  // interval is shown but never stored — a partial day would be believed
-  // whole next time. What the store already holds is handed to the caller
-  // FIRST (onPartial with a "held" note) so the screen shows the forecast the
-  // device has before Microsoft has answered. Without consent this is the
-  // 25377 read.
+  // read is shown but its days are never marked covered.
+  //
+  // NOTHING IS KEPT IN THE TAB (25380). 25378/25379 held every record of the
+  // window in memory and a large tenant's week was more than a tab holds. The
+  // read is a STREAM now: every slice's records go to sink.onRows(records,
+  // note) — the caller folds them into ReportImpact.accumulator and lets them
+  // go — and, with the store on, to the device chunk by chunk. What the
+  // device already holds is streamed to the sink FIRST (note "held") so the
+  // screen shows the forecast the device has before Microsoft has answered.
+  // The query runs once per report-only policy per day (parts) so a day of a
+  // large tenant stays under the row cap without time slicing. Without
+  // consent this is the 25377 read, streamed.
   const SETTLE_HOURS = 2;
-  async function readRoBuckets(days, prog, force, onPartial) {
+  async function readRoBuckets(days, prog, force, sink) {
     const source = logSource, key = roReadKey(days, source);
     if (!force && roCacheUsable(days)) return { ...roCache, reused: true };
     await requireProduct("p2");
     if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the P1 Entra log remains available");
     const interactiveOnly = source !== "huntall";
     const check = () => { if (key !== roReadKey(days)) throw new Error("Sign-in read discarded: tenant, source or policy snapshot changed"); };
-    const opts = (from, to, partial) => ({
-      source, kind: "ro", label: "verdict rows", from, to, onPartial: partial,
-      query: (a, b, cap) => Signins.roBucketQuery({ from: new Date(a).toISOString(), to: new Date(b).toISOString(), table: huntTable, interactiveOnly, cap }),
+    // one part per report-only policy; the totals travel with the first part
+    const ro = (policies || []).filter((p) => p.state === "enabledForReportingButNotEnforced");
+    const parts = ro.length ? ro.map((p) => p.id) : [null];
+    const nameOf = new Map(ro.map((p) => [p.id, p.name]));
+    let signIns = 0, oldest = null, newest = null, queries = 0, capped = false;
+    const meta = (recs) => { for (const r of recs) { if (r.kind === "n") signIns += r.signIns || 0; const t = r.createdDateTime; if (t) { if (!oldest || t < oldest) oldest = t; if (!newest || t > newest) newest = t; } } };
+    const opts = (from, to, onRows) => ({
+      source, kind: "ro", label: "verdict rows", from, to, cap: Signins.RO_CAP, parts,
+      partLabel: (id) => id ? `policy ${parts.indexOf(id) + 1} of ${parts.length}${nameOf.get(id) ? ` · ${nameOf.get(id)}` : ""}` : "",
+      onRows: async (recs, info) => { check(); meta(recs); await onRows(recs, info); },
+      query: (a, b, cap, part) => Signins.roBucketQuery({ from: new Date(a).toISOString(), to: new Date(b).toISOString(), table: huntTable, interactiveOnly, cap, policyId: part || undefined, withTotals: !part || part === parts[0] }),
       shape: Signins.fromRoBuckets,
     });
     const U = SigninStore.UNIT, now = Date.now();
     const start = SigninStore.floorUnit(now - days * 86400000), settled = SigninStore.floorUnit(now - SETTLE_HOURS * SigninStore.HOUR);
     const useStore = !isDemo && tenantId && await SigninStore.enabled(tenantId);
-    // never spread a large array into push — Safari's argument limit is a
-    // few tens of thousands and a week of buckets is far past it (25378 died
-    // on exactly that: "Maximum call stack size exceeded")
-    const append = (into, more) => { for (const r of more) into.push(r); return into; };
-    let records = [], capped = false, queries = 0, stored = { days: 0, of: 0, read: 0 };
+    let stored = { days: 0, of: 0, read: 0 };
     if (!useStore || settled <= start) {
-      const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
-      const r = await readSignInsHunting(days, prog, { ...opts(undefined, undefined, partial), from: undefined, to: undefined });
-      records = r.records; capped = r.capped; queries = r.queries;
+      const r = await readSignInsHunting(days, prog, { ...opts(undefined, undefined, (recs) => sink.onRows(recs, "read")), from: undefined, to: undefined });
+      capped = r.capped; queries = r.queries;
     } else {
       const cov = await SigninStore.coverage(tenantId, source, "ro");
       const gaps = force ? [[start, settled]] : SigninStore.missing([start, settled], cov);
       stored.of = Math.round((settled - start) / U);
       stored.days = force ? 0 : Math.round(SigninStore.covered([start, settled], cov) / U);
       stored.read = stored.of - stored.days;
-      const held = force ? [] : await SigninStore.getBuckets(tenantId, source, start, settled);
-      const got = [];   // records read this time (gaps, then the tail)
-      const steps = gaps.length + 1;
-      const partial = onPartial ? async (rows, done, total, note) => { check(); await onPartial(append(append(held.slice(), got), rows), done, total, note); } : null;
-      // what the device already holds, before Microsoft has answered anything
-      if (partial && held.length) await partial([], 0, steps, "held");
-      let step = 0;
+      // what the device holds, day by day, before any query
+      if (!force) await SigninStore.forBuckets(tenantId, source, start, settled, async (rows) => { check(); meta(rows); await sink.onRows(rows, "held"); });
       for (const [a, b] of gaps) {
-        const r = await readSignInsHunting(0, prog, opts(a, b, partial ? (rows, done, total) => partial(rows, step, steps) : null));
-        check(); queries += r.queries; step++;
-        if (r.capped) { capped = true; append(got, r.records); continue; }
-        await SigninStore.putBuckets(tenantId, source, a, b, r.records);
-        await SigninStore.addCoverage(tenantId, source, "ro", [a, b]);
-        append(got, r.records);
+        // the gap's days start empty on the device; every slice that lands is
+        // appended to its day; the gap is marked covered only if no slice was capped
+        await SigninStore.clearBuckets(tenantId, source, a, b);
+        let gapCapped = false;
+        const r = await readSignInsHunting(0, prog, opts(a, b, async (recs, info) => {
+          if (info.capped) gapCapped = true;
+          await SigninStore.appendBuckets(tenantId, source, info.from, recs);
+          await sink.onRows(recs, "read");
+        }));
+        check(); queries += r.queries;
+        if (r.capped || gapCapped) capped = true; else await SigninStore.addCoverage(tenantId, source, "ro", [a, b]);
       }
-      // the unsettled tail: read every time, never counted as covered
-      const tail = await readSignInsHunting(0, prog, opts(settled, now, partial ? (rows, done, total) => partial(rows, step, steps) : null));
+      // the unsettled tail: read every time, never kept, never counted as covered
+      const tail = await readSignInsHunting(0, prog, opts(settled, now, (recs) => sink.onRows(recs, "read")));
       check(); queries += tail.queries; if (tail.capped) capped = true;
-      records = append(append(force ? [] : held.slice(), got), tail.records);
     }
-    let signIns = 0, oldest = null, newest = null;
-    for (const r of records) { signIns += r.signIns || 0; const t = r.createdDateTime; if (t) { if (!oldest || t < oldest) oldest = t; if (!newest || t > newest) newest = t; } }
-    const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest, newest, queries, signIns, buckets: true, stored: useStore ? stored : null };
+    const result = { key, days, source, capped, complete: !capped, at: Date.now(), oldest, newest, queries, signIns, buckets: true, stored: useStore ? stored : null, parts: parts.length };
     roCache = result; return { ...result, reused: false };
   }
   const logAgeLabel = () => {
@@ -13683,6 +13704,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("riDays").addEventListener("change", (e) => { if (riBusy) { e.target.value = riDays; toast("Stop the current read before changing the period"); return; } riDays = +e.target.value; if (riRes) runImpact(); });
 
   let riReused = false;
+  let riAcc = null;   // the accumulator of the bucket read in flight / last completed
   async function runImpact(force) {
     const runKey = logReadKey(riDays);
     if (riBusy) return;
@@ -13690,14 +13712,15 @@ This is a directory write. Nothing else changes.`)) return;
     riBusy = true; riCapped = false; riPartial = null; riPartialAt = 0; riProg.begin();
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
+    // ROW PATH (Entra log, demo, or a hunting engine that refused the summary):
+    // the records are read whole and built in the worker, as before
     const onPartial = async (recs, done, total, note) => {
       if (!riBusy || runKey !== logReadKey(riDays)) return;   // a late day from a stopped read
       // at most one rebuild every 3 seconds — a build over 100k records is
-      // a few hundred milliseconds and the reader needs time to look; what
-      // the device held (note "held") is always rendered at once
+      // a few hundred milliseconds and the reader needs time to look
       const now = Date.now();
       riPartial = { done, total, recs, note };
-      if (note !== "held" && now - riPartialAt < 3000 && done !== total) return;
+      if (now - riPartialAt < 3000 && done !== total) return;
       riPartialAt = now;
       const partialResult = await AnalysisJobs.run("impact", { records: recs, policies: riTenantRo() }, { signal: riProg.signal });
       riProg.check();
@@ -13705,48 +13728,74 @@ This is a directory write. Nothing else changes.`)) return;
       riRes = partialResult;
       renderImpact();
     };
+    // BUCKET PATH (25380): nothing is held — every slice is folded into the
+    // accumulator as it lands and the screen is rebuilt from it, at once for
+    // what the device held, then at most every 3 seconds
+    let heldShown = false, folded = 0;
+    const acc = ReportImpact.accumulator(riTenantRo());
+    const sink = { onRows: async (recs, note) => {
+      if (!riBusy || runKey !== logReadKey(riDays)) return;
+      acc.add(recs); folded += recs.length;
+      const now = Date.now();
+      riPartial = { note, folded, acc };
+      if (note === "held" && heldShown && now - riPartialAt < 1500) return;
+      if (note !== "held" && now - riPartialAt < 3000) return;
+      riPartialAt = now; if (note === "held") heldShown = true;
+      riRes = acc.finish(); renderImpact();
+      await new Promise((r) => setTimeout(r, 0));   // let the frame paint before the next fold
+    } };
     try {
-      let records, reused = false;
+      let reused = false, viaBuckets = false;
       if (isDemo) {
-        records = demoSignIns();
+        const records = demoSignIns();
+        riRes = await AnalysisJobs.run("impact", { records, policies: riTenantRo() }, { signal: riProg.signal });
       } else if (!isGraphLogSource(logSource) && roBucketsOk) {
-        try {
-          const w = await readRoBuckets(riDays, riProg, force, onPartial);
-          records = w.records; riCapped = w.capped; reused = w.reused;
-        } catch (e) {
+        let w;
+        try { w = await readRoBuckets(riDays, riProg, force, sink); }
+        catch (e) {
           if (e && (e.stopped || !isRoRefusal(e))) throw e;
           // the engine refused the summarised query: say so, read rows for the rest of the session
           console.warn("report-only impact: bucket query refused, reading rows", e.message);
           roBucketsOk = false; riPartial = null; riPartialAt = 0;
           toast("This tenant's hunting engine refused the summarised query — reading the sign-in rows instead");
           $("riBody").innerHTML = riBusyPanel();
-          const w = await readSignInWindow(riDays, riProg, force, onPartial);
-          records = w.records; riCapped = w.capped; reused = w.reused;
+          const rw = await readSignInWindow(riDays, riProg, force, onPartial);
+          riCapped = rw.capped; reused = rw.reused;
+          riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
+        }
+        if (w) {
+          viaBuckets = true;
+          // a cache entry without its accumulator (a run that ended between
+          // the read and this line) is no use: read again rather than show nothing
+          if (w.reused && !(roCache && roCache.acc)) { roCache = null; w = await readRoBuckets(riDays, riProg, true, sink); }
+          riCapped = w.capped; reused = w.reused;
+          if (reused) riRes = roCache.acc.finish();
+          else { riRes = acc.finish(); if (roCache && roCache.key === w.key) roCache.acc = acc; riAcc = acc; }
         }
       } else {
-        const w = await readSignInWindow(riDays, riProg, force, onPartial);
-        records = w.records; riCapped = w.capped; reused = w.reused;
+        const rw = await readSignInWindow(riDays, riProg, force, onPartial);
+        riCapped = rw.capped; reused = rw.reused;
+        riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
       }
       riReused = reused; riPartial = null;
-      if (runKey !== logReadKey(riDays)) throw new Error("Read discarded: selected range, source or tenant changed");
-      const result = await AnalysisJobs.run("impact", { records, policies: riTenantRo() }, { signal: riProg.signal });
       riProg.check();
-      if (runKey !== logReadKey(riDays)) throw new Error("Read selection changed");
-      riRes = result;
+      if (runKey !== logReadKey(riDays)) throw new Error("Read discarded: selected range, source or tenant changed");
       riReadAt = Date.now(); riReadTenant = tenantId || tenantName;
       riOpen.clear(); riFilter = "all";
       riBusy = false;
       $("riRescan").style.display = "";
       renderImpact();
       if (!riRes.policies.length) toast("No report-only policy was evaluated in this window");
+      void viaBuckets;
     } catch (e) {
       riBusy = false;
-      if (e && e.stopped && riPartial && riPartial.recs && riPartial.recs.length) {
+      const pt = riPartial;
+      if (e && e.stopped && pt && ((pt.recs && pt.recs.length) || (pt.acc && pt.folded))) {
         // Stopped by the reader: what was read is a real, partial window —
         // shown as such, never cached as the whole one.
-        const pt = riPartial; riPartial = { ...pt, stopped: true };
-        riReused = false; riCapped = true;
-        riRes = await AnalysisJobs.run("impact", { records: pt.recs, policies: riTenantRo() });
+        riPartial = { ...pt, stopped: true };
+        riReused = false; riCapped = true; roCache = null;
+        riRes = pt.acc ? pt.acc.finish() : await AnalysisJobs.run("impact", { records: pt.recs, policies: riTenantRo() });
         riOpen.clear(); riFilter = "all";
         $("riRescan").style.display = "";
         renderImpact();
@@ -13775,7 +13824,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   const riPartialStrip = () => {
     const pt = riPartial; if (!pt) return "";
-    if (pt.recs && pt.recs.some((r) => r.bucket) && pt.note !== "held") return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — ${pt.done} of ${pt.total} read${pt.total === 1 ? "" : "s"} back, ${(pt.recs.reduce((a, r) => a + (r.signIns || 0), 0)).toLocaleString()} sign-ins summarised so far. The numbers below grow as days land; the verdicts are not final until the bar is.`)}</div>`;
+    if (pt.acc && pt.note !== "held") return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — ${(pt.folded || 0).toLocaleString()} summary rows folded in so far. The numbers below grow as the days and policies land; the verdicts are not final until the bar is.`)}</div>`;
     const where = pt.total ? `${pt.done} of ${pt.total} day${pt.total === 1 ? "" : "s"}` : `${pt.recs.length.toLocaleString()} sign-ins`;
     if (pt.stopped) return `<div class="wo-callout" style="margin:0 0 10px"><b>Stopped by you</b> — this is ${where}${pt.total ? " of the window" : ""}, ${pt.recs.length.toLocaleString()} sign-ins. A verdict on a partial window is a verdict on a partial window: a policy that looks safe here may have its denials in the days not read. ⟳ Rescan reads it whole.</div>`;
     if (pt.note === "held") return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>From this device</b> — the forecast below is what this browser already held for the window (💾). Microsoft is being asked for the days it lacks and for today; the numbers update as they land.`)}</div>`;
@@ -13788,7 +13837,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${toolHead("toolImpact")}
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
-        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}` : ""}${riCapped ? `, <span style="color:var(--off)">truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
+        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}${roCache.parts > 1 ? ` (one per policy per day)` : ""}` : ""}${riCapped ? `, <span style="color:var(--off)">truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>

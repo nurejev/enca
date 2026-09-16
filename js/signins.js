@@ -195,71 +195,100 @@ ${slim === false ? "" : SLIM}
       };
     });
   }
-  // ---- Report-only verdicts as BUCKETS (T26 2.0, 25377) ------------------
+  // ---- Report-only verdicts as BUCKETS (T26 2.0, 25377; reshaped 25380) --
   // Report-only impact never reads a sign-in as a sign-in: it counts, per
-  // policy × verdict × user × app, remembers first and last, collects the
-  // controls and keeps a sample. That is a summarize, so the query asks
-  // Microsoft for the answer instead of the rows. One row per HOUR × policy ×
-  // verdict × user × app × the few device facts the deny explanation is
-  // judged on (compliance, management, trust type, OS, MFA requirement, client,
-  // both risk levels); a day of 300,000 sign-ins on a tenant with five staged
-  // policies is thousands of rows of a few hundred bytes, so a day is one
-  // query where it used to be dozens. Per DAY (25379 — 25377/25378 binned by
-  // the hour, and on a large tenant that was 24× the rows: hour × user × app ×
-  // policy ran to millions of records a week, more than a browser tab holds,
-  // and Safari killed the tab). Days are still additive over disjoint time,
-  // which is all the on-device store needs to read only the days it lacks.
+  // policy × verdict × user, remembers first and last, collects the controls,
+  // lists the apps and keeps a sample of a denial. That is a summarize, so
+  // the query asks Microsoft for the answer instead of the rows.
   //
-  // Three kinds of row come back in one union, told apart by Kind:
-  //   n   — sign-ins per day (the denominator the forecast states)
-  //   na  — reportOnlyNotApplied per day × policy (no user columns; the
-  //         "never in scope" verdict only needs the count)
-  //   ro  — the evaluated verdicts with the dimensions above; arg_max on
-  //         Timestamp carries ONE consistent sample row (the latest) so the
-  //         evidence shown is a real sign-in, not a mix of several
-  // The result is shaped into the SAME record ReportImpact.build reads, with
-  // n = how many sign-ins the row stands for, so build never learns which
-  // path fed it. Numeric and word forms of result are both matched — the
-  // hunting schema has carried either.
+  // WHAT THE ROWS ARE — and why the shape is what it is. 25377 grouped by
+  // hour × user × app × client × OS × trust × … with a sample sign-in on
+  // every row; on a large tenant that was millions of rows a week and the
+  // tab died twice (25378/25379). The dimensions that multiply rows without
+  // changing a verdict are gone from the user rows: the day is the only time
+  // bin, the app is a SET on the row (make_set) with the per-app counts in
+  // their own small rows, and the sample sign-ins are their own rows too —
+  // one per user × policy, only for the denials, which are the rare thing.
+  // What stays exact per user × policy × verdict × day: the count, first and
+  // last, device compliance, management, the MFA requirement and both risk
+  // levels — everything the "why it would say no" line is judged on.
+  //
+  // The query is run PER POLICY (part = one policy id) so that a day of a
+  // large tenant stays under the engine's 100,000-row cap without time
+  // slicing — slicing a day into hours multiplies the day rows by the number
+  // of slices, which is what made 25379 heavy. Five kinds of row, one union:
+  //   n   — sign-ins per day (the denominator; part 0 only, withTotals)
+  //   na  — reportOnlyNotApplied per day × policy (the "never in scope" count)
+  //   a   — sign-ins per day × policy × app for the evaluated verdicts (the
+  //         policy's app list with real counts)
+  //   ro  — the user rows: count, first, last, controls, app set, by day ×
+  //         policy × verdict × user × compliance × management × MFA × risks
+  //   s   — one sample sign-in per user × policy that WOULD BE DENIED
+  //         (arg_max on Timestamp: the latest denial, a real sign-in)
+  // fromRoBuckets shapes them into slim records ReportImpact's accumulator
+  // reads; a record's n is how many sign-ins it stands for. Numeric and word
+  // forms of result are both matched — the hunting schema has carried either.
   const RO_WORDS = ["reportOnlySuccess", "reportOnlyFailure", "reportOnlyInterrupted", "6", "7", "9"];
   const RO_NA = ["reportOnlyNotApplied", "8"];
-  const kql = (list) => list.map((s) => `"${s}"`).join(", ");
-  function roBucketQuery({ from, to, table, interactiveOnly, cap }) {
+  const RO_FAIL = ["reportOnlyFailure", "7"];
+  const RO_CAP = 90000;   // rows: the engine stops at 100,000 and 50 MB; slim rows keep 90,000 well under the size
+  const kql = (list) => list.map((s) => `"${String(s).replace(/"/g, "")}"`).join(", ");
+  function roBucketQuery({ from, to, table, interactiveOnly, cap, policyId, withTotals = true }) {
     const T = table || "EntraIdSignInEvents";
+    const D = "bin(Timestamp, 1d)";
     return `let W = ${T}
 | where Timestamp between (datetime(${from}) .. datetime(${to}))${interactiveOnly ? '\n| where LogonType !has "non"' : ""};
 let P = W
 | extend _P = todynamic(ConditionalAccessPolicies)
 | mv-expand _X = _P
 | extend PolicyId = tostring(_X.id), PolicyName = tostring(_X.displayName), Result = tostring(_X.result)
-| where Result in~ (${kql([...RO_WORDS, ...RO_NA])});
-union
-  (W | summarize N = count() by Bin = bin(Timestamp, 1d) | extend Kind = "n"),
-  (P | where Result in~ (${kql(RO_NA)}) | summarize N = count(), First = min(Timestamp), Last = max(Timestamp) by Bin = bin(Timestamp, 1d), PolicyId, PolicyName | extend Kind = "na"),
+| where Result in~ (${kql([...RO_WORDS, ...RO_NA])})${policyId ? `\n| where PolicyId =~ ${kql([policyId])}` : ""};
+union${withTotals ? `
+  (W | summarize N = count() by Bin = ${D} | extend Kind = "n"),` : ""}
+  (P | where Result in~ (${kql(RO_NA)}) | summarize N = count(), First = min(Timestamp), Last = max(Timestamp) by Bin = ${D}, PolicyId, PolicyName | extend Kind = "na"),
+  (P | where Result !in~ (${kql(RO_NA)}) | summarize N = count() by Bin = ${D}, PolicyId, PolicyName, Application | extend Kind = "a"),
   (P | where Result !in~ (${kql(RO_NA)})
-     | summarize N = count(), First = min(Timestamp),
-         Grant = take_any(tostring(_X.enforcedGrantControls)), Session = take_any(tostring(_X.enforcedSessionControls)),
-         arg_max(Timestamp, RequestId, IPAddress, City, Country, Browser, ErrorCode, ResourceDisplayName, ResourceId, ApplicationId, EntraIdDeviceId, DeviceName, RiskState)
-       by Bin = bin(Timestamp, 1d), PolicyId, PolicyName, Result, AccountObjectId, AccountUpn, AccountDisplayName, Application, ClientAppUsed, OSPlatform, DeviceTrustType, IsCompliant, IsManaged, AuthenticationRequirement, RiskLevelDuringSignIn, RiskLevelAggregated, LogonType
-     | extend Kind = "ro")
-| order by Bin desc
-| take ${cap || HUNT_CAP}`;
+     | summarize N = count(), First = min(Timestamp), Last = max(Timestamp), Apps = make_set(Application, 32),
+         Grant = take_any(tostring(_X.enforcedGrantControls)), Session = take_any(tostring(_X.enforcedSessionControls))
+       by Bin = ${D}, PolicyId, PolicyName, Result, AccountObjectId, AccountUpn, AccountDisplayName, IsCompliant, IsManaged, AuthenticationRequirement, RiskLevelDuringSignIn, RiskLevelAggregated
+     | extend Kind = "ro"),
+  (P | where Result in~ (${kql(RO_FAIL)})
+     | summarize arg_max(Timestamp, RequestId, Application, ResourceDisplayName, ClientAppUsed, OSPlatform, Browser, IPAddress, City, Country, IsCompliant, IsManaged, DeviceTrustType, ErrorCode)
+       by PolicyId, AccountObjectId
+     | extend Kind = "s")
+| take ${cap || RO_CAP}`;
   }
   const parseList = (s) => { try { const v = typeof s === "string" ? JSON.parse(s || "[]") : (s || []); return Array.isArray(v) ? v.filter(Boolean).map(String) : []; } catch { return []; } };
+  const roResult = (v) => /^\d+$/.test(String(v)) ? (RESULT_N[Number(v)] || String(v)) : String(v || "");
+  const riskOfN = (v) => typeof v === "number" ? (RISK_N[v] || "none") : String(v || "none").toLowerCase();
+  const isOn = (v) => Number(v) === 1 || v === true || String(v).toLowerCase() === "true";
+  // Slim records — only the fields ReportImpact reads. Samples and app
+  // counts come first in the output so the accumulator holds them before
+  // the user rows that refer to them arrive.
   function fromRoBuckets(rows) {
-    const out = [];
+    const first = [], rest = [];
     for (const r of rows || []) {
       const n = Number(r.N) || 0;
-      if (r.Kind === "n") { out.push({ signIns: n, bin: r.Bin, createdDateTime: r.Bin, appliedConditionalAccessPolicies: [], source: "hunting", bucket: true }); continue; }
-      const result = r.Kind === "na" ? "reportOnlyNotApplied" : /^\d+$/.test(String(r.Result)) ? (RESULT_N[Number(r.Result)] || String(r.Result)) : String(r.Result || "");
-      const pol = { id: r.PolicyId || "", displayName: r.PolicyName || "", result, enforcedGrantControls: r.Kind === "na" ? [] : parseList(r.Grant), enforcedSessionControls: r.Kind === "na" ? [] : parseList(r.Session) };
-      // one synthetic hunting row through the ordinary shaper, so every
-      // field name and every enum mapping stays in one place
-      const rec = fromHunting([{ ...r, Timestamp: r.Timestamp || r.Last || r.Bin, ConditionalAccessPolicies: JSON.stringify([pol]), RoNotApplied: "[]" }])[0];
-      rec.n = n; rec.firstDateTime = r.First || r.Bin; rec.bin = r.Bin; rec.bucket = true;
-      out.push(rec);
+      switch (r.Kind) {
+        case "n": rest.push({ kind: "n", signIns: n, bin: r.Bin, createdDateTime: r.Bin, bucket: true }); break;
+        case "a": first.push({ kind: "a", n, bin: r.Bin, policyId: r.PolicyId || "", policyName: r.PolicyName || "", app: r.Application || "(app)", bucket: true }); break;
+        case "s": first.push({ kind: "s", policyId: r.PolicyId || "", userId: r.AccountObjectId || "", bucket: true,
+          sample: { id: r.RequestId || "", when: r.Timestamp || "", app: r.Application || r.ResourceDisplayName || "(app)", client: r.ClientAppUsed || "", os: r.OSPlatform || "", browser: r.Browser || "",
+            ip: r.IPAddress || "", city: r.City || "", country: r.Country || "", compliant: isOn(r.IsCompliant), managed: isOn(r.IsManaged),
+            trustType: { workplace: "Workplace", azuread: "AzureAd", serverad: "ServerAd" }[String(r.DeviceTrustType || "").toLowerCase()] || (r.DeviceTrustType || ""),
+            errorCode: Number(r.ErrorCode) || 0, failureReason: "", controls: [] } }); break;
+        case "na": rest.push({ kind: "na", n, bin: r.Bin, createdDateTime: r.Last || r.Bin, firstDateTime: r.First || r.Bin, bucket: true,
+          appliedConditionalAccessPolicies: [{ id: r.PolicyId || "", displayName: r.PolicyName || "", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] }] }); break;
+        default: rest.push({ kind: "ro", n, bin: r.Bin, createdDateTime: r.Last || r.Bin, firstDateTime: r.First || r.Bin, bucket: true,
+          userId: r.AccountObjectId || "", userPrincipalName: r.AccountUpn || "", userDisplayName: r.AccountDisplayName || "",
+          apps: parseList(r.Apps),
+          deviceDetail: { isCompliant: r.IsCompliant == null || r.IsCompliant === "" ? undefined : isOn(r.IsCompliant), isManaged: r.IsManaged == null || r.IsManaged === "" ? undefined : isOn(r.IsManaged) },
+          authenticationRequirement: /multi/i.test(String(r.AuthenticationRequirement || "")) ? "multiFactorAuthentication" : (r.AuthenticationRequirement ? "singleFactorAuthentication" : ""),
+          riskLevelDuringSignIn: riskOfN(r.RiskLevelDuringSignIn), riskLevelAggregated: riskOfN(r.RiskLevelAggregated),
+          appliedConditionalAccessPolicies: [{ id: r.PolicyId || "", displayName: r.PolicyName || "", result: roResult(r.Result), enforcedGrantControls: parseList(r.Grant), enforcedSessionControls: parseList(r.Session) }] });
+      }
     }
-    return out;
+    return first.concat(rest);
   }
 
   // interactive unless the record says otherwise (the Graph list ENCA reads is interactive-only)
@@ -402,5 +431,5 @@ union
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, RO_CAP, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
 })();

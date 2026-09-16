@@ -153,15 +153,27 @@ const ReportImpact = (() => {
   // already-loaded policy list, so a policy with zero log traffic still
   // shows up (as "no data" — the one answer that should stop a go-live).
   //
-  // records are sign-ins — or BUCKETS (Signins.fromRoBuckets, 25377): a
-  // record with n stands for n sign-ins that shared every dimension counted
-  // here, so the counts add n rather than one; firstDateTime carries the
-  // bucket's earliest instant; a record with signIns is the hour's total and
-  // only feeds the denominator. Nothing else in here knows the difference.
-  function build(records, roPolicies) {
-    let signIns = 0, counted = false;
+  // THE ACCUMULATOR (25380). build(records) used to be one pass over every
+  // record of the window held in memory at once. On a large tenant the
+  // bucket read of a week is far more than a tab holds, so the aggregation
+  // is now a thing that is fed in pieces — add(records) as each day lands or
+  // is read back from the device — and asked for a result at any time:
+  // finish() is pure over the maps and can be called after every piece for
+  // the progressive render. build() is add + finish, unchanged for the row
+  // path and the worker.
+  //
+  // records are sign-ins — or BUCKETS (Signins.fromRoBuckets): a record with
+  // kind "ro" stands for n sign-ins of one user × policy × verdict × day that
+  // shared the device facts counted here (apps is the SET of apps they hit);
+  // "na" is the out-of-scope count; "a" is a per-app count for the policy's
+  // app list; "n" is a day's sign-in total and only feeds the denominator;
+  // "s" is the one sample sign-in kept per user × policy that would be
+  // denied. Nothing else in here knows the difference.
+  function accumulator(roPolicies) {
+    let signIns = 0, counted = false, plain = 0;
     const pol = new Map();      // policy id/name → aggregate
     const usr = new Map();      // upn → cross-policy aggregate
+    const samples = new Map();  // policy id|user id → sample sign-in (bucket path)
     const ensureP = (id, name) => {
       const key = id || name;
       let e = pol.get(key);
@@ -175,94 +187,125 @@ const ReportImpact = (() => {
     };
     for (const rp of roPolicies || []) { ensureP(rp.id, rp.name).inTenant = true; }
 
-    for (const rec of records || []) {
-      if (rec.signIns != null) { signIns += rec.signIns; counted = true; }
-      const w = rec.n || 1;
-      for (const ap of rec.appliedConditionalAccessPolicies || []) {
-        const kind = RO[ap.result];
-        if (!kind) continue;                       // enforced / notEnabled / unknown
-        const e = ensureP(ap.id, ap.displayName);
-        e[kind] += w;
-        const when = rec.createdDateTime || "", first = rec.firstDateTime || when;
-        if (!e.last || when > e.last) e.last = when;
-        if (!e.first || first < e.first) e.first = first;
-        [...(ap.enforcedGrantControls || []), ...(ap.enforcedSessionControls || [])]
-          .filter(Boolean).forEach((c) => e.controls.add(c));
-        if (kind === "notApplied") continue;       // out of scope: no user/app impact
-        const upn = rec.userPrincipalName || rec.userDisplayName || "(unknown)";
-        let u = e.users.get(upn);
-        if (!u) { u = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map(), deny: new Map(), samples: [] }; e.users.set(upn, u); }
-        u[kind] += w;
-        // WHY the policy bit. A verdict of "3 interrupted" on a policy called
-        // LowMediumUserRisk raises the obvious question — low, or medium? —
-        // and the answer was in the record all along and being discarded.
-        // Counted per level so a mixture reads as a mixture.
-        if (kind !== "success") bump(u.risk, riskOf(rec), w);
-        // Only a FAILURE is a denial. An interruption was satisfied by doing
-        // the extra step, so explaining it as a refusal would be wrong.
-        if (kind === "failure") { bump(u.deny, denyWhy(rec, ap), w); keep(u.samples, rec, ap); }
-        if (when > u.last) u.last = when;
-        const app = rec.appDisplayName || rec.resourceDisplayName || "(app)";
-        u.apps.add(app);
-        e.apps.set(app, (e.apps.get(app) || 0) + w);
+    // the evidence a denial is judged on: the bucket row carries compliance,
+    // management and the MFA requirement exactly; trust type, OS and client
+    // come from the sample denial of that user × policy when it is there
+    const evidence = (rec, ap) => {
+      if (!rec.bucket) return rec;
+      const s = samples.get(`${ap.id}|${rec.userId}`);
+      if (!s) return rec;
+      return { ...rec, clientAppUsed: s.client || rec.clientAppUsed, deviceDetail: { ...(rec.deviceDetail || {}), trustType: s.trustType || (rec.deviceDetail || {}).trustType, operatingSystem: s.os || (rec.deviceDetail || {}).operatingSystem } };
+    };
 
-        // cross-policy view: one row per user over everything in report-only
-        let g = usr.get(upn);
-        if (!g) { g = { upn, name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", policies: new Map() }; usr.set(upn, g); }
-        g[kind] += w;
-        if (when > g.last) g.last = when;
-        g.apps.add(app);
-        let gp = g.policies.get(e.key);
-        if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map(), deny: new Map(), samples: [] }; g.policies.set(e.key, gp); }
-        gp[kind] += w;
-        if (kind !== "success") bump(gp.risk, riskOf(rec), w);
-        if (kind === "failure") { bump(gp.deny, denyWhy(rec, ap), w); keep(gp.samples, rec, ap); }
+    function add(records) {
+      for (const rec of records || []) {
+        if (rec.kind === "n" || rec.signIns != null) { signIns += rec.signIns || 0; counted = true; continue; }
+        if (rec.kind === "a") { const e = ensureP(rec.policyId, rec.policyName); e.apps.set(rec.app, (e.apps.get(rec.app) || 0) + (rec.n || 0)); continue; }
+        if (rec.kind === "s") { samples.set(`${rec.policyId}|${rec.userId}`, rec.sample); continue; }
+        if (!rec.bucket) plain++;
+        const w = rec.n || 1;
+        for (const ap of rec.appliedConditionalAccessPolicies || []) {
+          const kind = RO[ap.result];
+          if (!kind) continue;                       // enforced / notEnabled / unknown
+          const e = ensureP(ap.id, ap.displayName);
+          e[kind] += w;
+          const when = rec.createdDateTime || "", first = rec.firstDateTime || when;
+          if (!e.last || when > e.last) e.last = when;
+          if (!e.first || first < e.first) e.first = first;
+          [...(ap.enforcedGrantControls || []), ...(ap.enforcedSessionControls || [])]
+            .filter(Boolean).forEach((c) => e.controls.add(c));
+          if (kind === "notApplied") continue;       // out of scope: no user/app impact
+          const upn = rec.userPrincipalName || rec.userDisplayName || "(unknown)";
+          let u = e.users.get(upn);
+          if (!u) { u = { upn, id: rec.userId || "", name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", risk: new Map(), deny: new Map(), samples: [] }; e.users.set(upn, u); }
+          u[kind] += w;
+          // WHY the policy bit. A verdict of "3 interrupted" on a policy called
+          // LowMediumUserRisk raises the obvious question — low, or medium? —
+          // and the answer was in the record all along and being discarded.
+          // Counted per level so a mixture reads as a mixture.
+          if (kind !== "success") bump(u.risk, riskOf(rec), w);
+          // Only a FAILURE is a denial. An interruption was satisfied by doing
+          // the extra step, so explaining it as a refusal would be wrong.
+          if (kind === "failure") { const ev = evidence(rec, ap); bump(u.deny, denyWhy(ev, ap), w); if (!rec.bucket) keep(u.samples, rec, ap); }
+          if (when > u.last) u.last = when;
+          const apps = rec.apps ? rec.apps : [rec.appDisplayName || rec.resourceDisplayName || "(app)"];
+          for (const app of apps) u.apps.add(app);
+          if (!rec.bucket) for (const app of apps) e.apps.set(app, (e.apps.get(app) || 0) + w);
+
+          // cross-policy view: one row per user over everything in report-only
+          let g = usr.get(upn);
+          if (!g) { g = { upn, id: rec.userId || "", name: rec.userDisplayName || upn, success: 0, interrupted: 0, failure: 0, apps: new Set(), last: "", policies: new Map() }; usr.set(upn, g); }
+          g[kind] += w;
+          if (when > g.last) g.last = when;
+          for (const app of apps) g.apps.add(app);
+          let gp = g.policies.get(e.key);
+          if (!gp) { gp = { key: e.key, id: e.id, name: e.name, success: 0, interrupted: 0, failure: 0, risk: new Map(), deny: new Map(), samples: [] }; g.policies.set(e.key, gp); }
+          gp[kind] += w;
+          if (kind !== "success") bump(gp.risk, riskOf(rec), w);
+          if (kind === "failure") { const ev = evidence(rec, ap); bump(gp.deny, denyWhy(ev, ap), w); if (!rec.bucket) keep(gp.samples, rec, ap); }
+        }
       }
+      return api;
     }
 
-    const ORDER = { block: 0, prompt: 1, clean: 2, scoped: 3, nodata: 4 };
-    const riskList = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ what: k, n }));
-    const policies = [...pol.values()].map((e) => {
-      const users = [...e.users.values()]
-        .map((u) => ({ ...u, riskWhy: riskList(u.risk), denyWhy: riskList(u.deny) }))
-        .sort((a, b) => (b.failure - a.failure) || (b.interrupted - a.interrupted) || (b.success - a.success));
-      const evaluated = e.success + e.interrupted + e.failure;
-      return {
-        ...e,
-        users,
-        apps: [...e.apps.entries()].sort((a, b) => b[1] - a[1]),
-        controls: [...e.controls],
-        evaluated,
-        total: evaluated + e.notApplied,
-        blockedUsers: users.filter((u) => u.failure > 0),
-        promptedUsers: users.filter((u) => !u.failure && u.interrupted > 0),
-        verdict: verdictOf(e),
+    // Pure over the maps: callable after every add() for a progressive
+    // render, and once more at the end.
+    function finish() {
+      const ORDER = { block: 0, prompt: 1, clean: 2, scoped: 3, nodata: 4 };
+      const riskList = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ what: k, n }));
+      // a bucket user's samples are the denial kept per user × policy, with
+      // the policy's controls written in the way sampleOf would
+      const sampleFor = (policyId, u, controls) => {
+        if (u.samples.length) return u.samples;
+        const s = samples.get(`${policyId}|${u.id}`);
+        return s ? [{ ...s, controls: controls.length ? controls : s.controls }] : [];
       };
-    }).sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict] || b.failure - a.failure || b.interrupted - a.interrupted || b.evaluated - a.evaluated);
+      const policies = [...pol.values()].map((e) => {
+        const controls = [...e.controls];
+        const users = [...e.users.values()]
+          .map((u) => ({ ...u, apps: u.apps, samples: sampleFor(e.id, u, controls), riskWhy: riskList(u.risk), denyWhy: riskList(u.deny) }))
+          .sort((a, b) => (b.failure - a.failure) || (b.interrupted - a.interrupted) || (b.success - a.success));
+        const evaluated = e.success + e.interrupted + e.failure;
+        return {
+          ...e,
+          users,
+          apps: [...e.apps.entries()].sort((a, b) => b[1] - a[1]),
+          controls,
+          evaluated,
+          total: evaluated + e.notApplied,
+          blockedUsers: users.filter((u) => u.failure > 0),
+          promptedUsers: users.filter((u) => !u.failure && u.interrupted > 0),
+          verdict: verdictOf(e),
+        };
+      }).sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict] || b.failure - a.failure || b.interrupted - a.interrupted || b.evaluated - a.evaluated);
 
-    const users = [...usr.values()].map((g) => ({
-      ...g,
-      apps: [...g.apps],
-      policies: [...g.policies.values()]
-        .map((x) => ({ ...x, riskWhy: riskList(x.risk), denyWhy: riskList(x.deny) }))
-        .sort((a, b) => b.failure - a.failure || b.interrupted - a.interrupted),
-      worst: g.failure ? "block" : g.interrupted ? "prompt" : "clean",
-    })).sort((a, b) => ORDER[a.worst] - ORDER[b.worst] || b.failure - a.failure || b.interrupted - a.interrupted);
+      const users = [...usr.values()].map((g) => ({
+        ...g,
+        apps: [...g.apps],
+        policies: [...g.policies.values()]
+          .map((x) => ({ ...x, samples: sampleFor(x.id, { id: g.id, samples: x.samples }, [...(pol.get(x.key)?.controls || [])]), riskWhy: riskList(x.risk), denyWhy: riskList(x.deny) }))
+          .sort((a, b) => b.failure - a.failure || b.interrupted - a.interrupted),
+        worst: g.failure ? "block" : g.interrupted ? "prompt" : "clean",
+      })).sort((a, b) => ORDER[a.worst] - ORDER[b.worst] || b.failure - a.failure || b.interrupted - a.interrupted);
 
-    return {
-      policies, users,
-      counts: {
-        block: policies.filter((p) => p.verdict === "block").length,
-        prompt: policies.filter((p) => p.verdict === "prompt").length,
-        clean: policies.filter((p) => p.verdict === "clean").length,
-        scoped: policies.filter((p) => p.verdict === "scoped").length,
-        nodata: policies.filter((p) => p.verdict === "nodata").length,
-      },
-      blockedUsers: users.filter((u) => u.worst === "block").length,
-      promptedUsers: users.filter((u) => u.worst === "prompt").length,
-      records: counted ? signIns : (records || []).length,
-    };
+      return {
+        policies, users,
+        counts: {
+          block: policies.filter((p) => p.verdict === "block").length,
+          prompt: policies.filter((p) => p.verdict === "prompt").length,
+          clean: policies.filter((p) => p.verdict === "clean").length,
+          scoped: policies.filter((p) => p.verdict === "scoped").length,
+          nodata: policies.filter((p) => p.verdict === "nodata").length,
+        },
+        blockedUsers: users.filter((u) => u.worst === "block").length,
+        promptedUsers: users.filter((u) => u.worst === "prompt").length,
+        records: counted ? signIns : plain,
+      };
+    }
+    const api = { add, finish, get size() { return usr.size; } };
+    return api;
   }
+  function build(records, roPolicies) { return accumulator(roPolicies).add(records).finish(); }
 
   // One line a change-advisory board can read per policy.
   function verdictLine(p) {
@@ -316,5 +359,5 @@ const ReportImpact = (() => {
     return L.join("\n");
   }
 
-  return { query, build, verdictLine, toMd, RO };
+  return { query, build, accumulator, verdictLine, toMd, RO };
 })();
