@@ -29,6 +29,28 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25382,
+  date: "2026-09-16",
+  title: "Where is this group used — Windows 365 and Intune roles too",
+  items: [
+    {
+      kind: "new",
+      tool: "User or Group analyzer",
+      text: "Windows 365 joins the Intune area: a provisioning policy assigned to a group gives every licensed member a Cloud PC, and the Cloud PC user settings decide whether they are local admins on it — both now show up when you ask where a group is used. Needs CloudPC.Read.All (asked for with the Intune area) and a role that can read Cloud PC configuration.",
+    },
+    {
+      kind: "new",
+      tool: "User or Group analyzer",
+      text: "Intune role assignments, in both directions. A group that is a MEMBER of an Intune role assignment can manage devices — membership is privilege, the same way a role-assignable group is for Entra roles. A group in a role assignment's SCOPE is what those admins may act on. The row says which it is (“member (may manage)” or “in scope (is managed by)”), the role, whether it is custom, and how wide the scope is. Needs DeviceManagementRBAC.Read.All.",
+    },
+    {
+      kind: "fixed",
+      tool: "User or Group analyzer",
+      text: "The enrolment source read every enrolment configuration but called them all “platform restrictions” with a raw type tail, so an Enrollment Status Page or a Windows Hello for Business policy assigned to the group appeared as a platform restriction named windows10EnrollmentCompletionPage. The source is “Enrolment configurations” now and each row says what it is: platform restriction, Enrollment Status Page, Windows Hello for Business, enrolment notification, co-management authority.",
+    },
+  ],
+},
+{
   build: 25381,
   date: "2026-09-16",
   title: "What the user signed in with — and the apps table folds",

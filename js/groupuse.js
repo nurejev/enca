@@ -34,7 +34,9 @@ const GroupUse = (() => {
     // macOS shell scripts and remediations are NOT covered by
     // DeviceManagementConfiguration.Read.All, which is why they came back 403
     // while compliance and configuration profiles read fine.
-    intune: ["DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All"],
+    // CloudPC.Read.All (Windows 365, 25382) and DeviceManagementRBAC.Read.All
+    // (Intune role assignments, 25382) are their own scopes as well.
+    intune: ["DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "CloudPC.Read.All", "DeviceManagementRBAC.Read.All"],
     m365: [],
     azure: [],   // Azure is a different resource entirely — see Graph.ARM_SCOPES
   };
@@ -431,16 +433,30 @@ const GroupUse = (() => {
       },
     },
     {
+      // Every deviceEnrollmentConfiguration that is not a device limit lands
+      // here — it always did, but until 25382 the source was called "platform
+      // restrictions" and the type was a raw @odata.type tail, so an
+      // Enrollment Status Page or a Windows Hello policy assigned to the group
+      // read as a platform restriction called
+      // "windows10EnrollmentCompletionPage". Named for what they are now.
       id: "intuneEnrollPlatform",
-      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Enrolment platform restrictions",
+      roleHint: "An Intune RBAC role that can read this workload (e.g. Read Only Operator) and an active Intune licence for the tenant.", area: "intune", label: "Enrolment configurations",
       scopes: ["DeviceManagementServiceConfig.Read.All"],
       doc: "https://learn.microsoft.com/intune/intune-service/enrollment/enrollment-restrictions-set",
-      hint: "Which device platforms a member may enrol, and whether personal devices are allowed.",
+      hint: "Platform restrictions, the Enrollment Status Page, Windows Hello for Business, enrolment notifications and the co-management authority — everything Intune applies at enrolment.",
       async run(ctx) {
+        const KIND = [
+          [/platformrestriction/, "Platform restriction"],
+          [/enrollmentcompletionpage/, "Enrollment Status Page"],
+          [/windowshelloforbusiness/, "Windows Hello for Business"],
+          [/notificationconfiguration/, "Enrolment notification"],
+          [/comanagementauthority/, "Co-management authority"],
+          [/windowsrestore/, "Windows backup and restore"],
+        ];
+        const kindOf = (x) => { const t = lc(x["@odata.type"]); const k = KIND.find(([rx]) => rx.test(t)); return k ? k[1] : String(x["@odata.type"] || "").split(".").pop().replace(/Configuration$/, ""); };
         const all = await safeAll("/deviceManagement/deviceEnrollmentConfigurations?$expand=assignments");
         return all.filter((c) => !lc(c["@odata.type"]).includes("limitconfiguration"))
-          .flatMap((c) => intuneHits(c, (x) => x.displayName || x.id, ctx.ids,
-            (x) => String(x["@odata.type"] || "").split(".").pop().replace(/Configuration$/, "")));
+          .flatMap((c) => intuneHits(c, (x) => x.displayName || x.id, ctx.ids, kindOf).map((h) => ({ ...h, sub: kindOf(c) })));
       },
     },
     {
@@ -553,6 +569,55 @@ const GroupUse = (() => {
           ["/deviceManagement/windowsDriverUpdateProfiles?$expand=assignments", "displayName", "Driver update"],
         ], ctx.ids, ctx);
         return r.hits;
+      },
+    },
+    {
+      // Windows 365 (25382). A provisioning policy assigned to a group is what
+      // gives its members a Cloud PC — with a licence, that is a machine per
+      // member — and the user settings decide whether they are local admins on
+      // it. Both carry the Intune assignment shape
+      // (cloudPcManagementGroupAssignmentTarget), so intuneHits reads them.
+      id: "w365",
+      roleHint: "A Windows 365 or Intune role that can read Cloud PC configuration (e.g. Cloud PC Reader) and Windows 365 licences in the tenant.", area: "intune", label: "Windows 365 Cloud PC",
+      scopes: ["CloudPC.Read.All"],
+      doc: "https://learn.microsoft.com/windows-365/enterprise/create-provisioning-policy",
+      hint: "Provisioning policies (a Cloud PC per licensed member) and user settings (local admin, restore points).",
+      async run(ctx) {
+        const r = await intuneFamily([
+          ["/deviceManagement/virtualEndpoint/provisioningPolicies?$expand=assignments", "displayName", "Provisioning policy"],
+          ["/deviceManagement/virtualEndpoint/userSettings?$expand=assignments", "displayName", "User settings"],
+        ], ctx.ids, ctx);
+        return r.hits;
+      },
+    },
+    {
+      // Intune RBAC (25382). A role assignment's MEMBERS are groups — being in
+      // one turns membership into Intune privilege, the same way a
+      // role-assignable group does for Entra roles — and its RESOURCE SCOPES
+      // are groups too: the devices and users those admins may act on. Both
+      // directions are reported, and they mean opposite things.
+      id: "intuneRbac",
+      roleHint: "An Intune role that can read role assignments (e.g. Intune Role Administrator or Read Only Operator).", area: "intune", label: "Intune role assignments",
+      scopes: ["DeviceManagementRBAC.Read.All"],
+      doc: "https://learn.microsoft.com/intune/intune-service/fundamentals/role-based-access-control",
+      hint: "Members of an Intune role assignment can manage devices; groups in its scope are the devices and users being managed.",
+      async run(ctx) {
+        const out = [];
+        let items, defs = new Map();
+        try { ({ items } = await firstThatWorks(["/deviceManagement/roleAssignments?$expand=roleDefinition($select=displayName,isBuiltIn)", "/deviceManagement/roleAssignments"], "Intune role assignments")); }
+        catch (e) { throw e; }
+        if (items.some((a) => !a.roleDefinition)) {
+          try { (await safeAll("/deviceManagement/roleDefinitions?$select=id,displayName,isBuiltIn")).forEach((d) => defs.set(lc(d.id), d)); } catch { /* names fall back to ids */ }
+        }
+        for (const a of items) {
+          const rd = a.roleDefinition || defs.get(lc(a.roleDefinitionId)) || {};
+          const role = rd.displayName || a.roleDefinitionId || "(role)";
+          const name = a.displayName || role;
+          const scopeText = lc(a.scopeType) === "alldevices" ? "all devices" : lc(a.scopeType) === "alllicensedusers" ? "all licensed users" : lc(a.scopeType) === "alldevicesandlicensedusers" ? "all devices and licensed users" : `${(a.resourceScopes || []).length} scope group${(a.resourceScopes || []).length === 1 ? "" : "s"}`;
+          for (const m of (a.members || [])) if (ctx.ids.has(lc(m))) out.push({ pid: lc(m), name, id: a.id, how: "member (may manage)", detail: `role: ${role}${rd.isBuiltIn === false ? " (custom)" : ""} · scope: ${scopeText}`, sub: "Member" });
+          for (const s of (a.resourceScopes || [])) if (ctx.ids.has(lc(s))) out.push({ pid: lc(s), name, id: a.id, how: "in scope (is managed by)", detail: `role: ${role}${rd.isBuiltIn === false ? " (custom)" : ""} · ${(a.members || []).length} member group${(a.members || []).length === 1 ? "" : "s"}`, sub: "Scope" });
+        }
+        return out;
       },
     },
 
