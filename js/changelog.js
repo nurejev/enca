@@ -29,6 +29,28 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25385,
+  date: "2026-09-17",
+  title: "Import reads back patiently, and takes only what the policies name",
+  items: [
+    {
+      kind: "fixed",
+      tool: "Import",
+      text: "A policy that was just created is no longer reported as failed because Conditional Access did not know it yet. The six E-Admins policies on Courseware were created, and the read that followed each one answered “does not exist”. Reads after a write are now repeated for up to about 20 seconds; a policy that is still unreadable after that is reported as created but not verified, with its id, and importing again skips it.",
+    },
+    {
+      kind: "fixed",
+      tool: "Import",
+      text: "An import no longer creates an authentication context that no chosen policy uses. The E-Admins import created “Strong Authentication for PIM” (c3) because an id in the files happened to contain the letters c3; locations, strengths, contexts and terms of use are now taken only when a policy names them exactly.",
+    },
+    {
+      kind: "fixed",
+      tool: "Import",
+      text: "The groups the E-Admins policies name (Emergency_Access1 and 2, the break-glass group) are filed in the break-glass restricted unit instead of the Admins one, and an E-Admins policy no longer pulls the CAD-SEC-U-DG-ADM deploy group into a Deployment groups import.",
+    },
+  ],
+},
+{
   build: 25384,
   date: "2026-09-17",
   title: "Joey's agent policies are written the way Graph documents a create",

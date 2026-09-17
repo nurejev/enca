@@ -135,6 +135,13 @@ const Importer = (() => {
   // this is derived rather than written out a second time and left to rot.
   const PERSONA_CODE = Object.fromEntries(
     Object.entries(PERSONA_GROUPS).map(([k, g]) => [k, g.replace(/^CAD-SEC-U-DG-/, "")]));
+  // Where a group a policy names is FILED (its restricted unit). The E-Admins
+  // policies are emergency access: the groups they name — Emergency_Access1/2
+  // and the break-glass group — belong in the break-glass vault, not in the
+  // Admins one their names happen to match (Courseware, 17 Sep: both
+  // Emergency_Access groups were routed to ADM).
+  const VAULT_CODE = { ...PERSONA_CODE, breakglass: "BreakGlass" };
+  const vaultPersonaOf = (name) => (isEAdmins(name) ? "breakglass" : personaOf(name));
 
   // A group's vault is decided by ONE rule, shared with ⑥ Protect:
   // CaMap.codeOf — this tenant's own stated mapping (R28) first, then the CA
@@ -174,14 +181,14 @@ const Importer = (() => {
       for (const raw of chosenRaws) {
         const blob = JSON.stringify(raw);
         if (!blob.includes(g.id) && !(g.displayName && blob.includes(g.displayName))) continue;
-        const p = personaOf(raw.displayName);
+        const p = vaultPersonaOf(raw.displayName);
         if (p) seen.add(p);
       }
       out.set(g.id, {
         name: g.displayName,
         personas: [...seen],
         persona: seen.size === 1 ? [...seen][0] : null,
-        code: seen.size === 1 ? PERSONA_CODE[[...seen][0]] : null,
+        code: seen.size === 1 ? VAULT_CODE[[...seen][0]] : null,
         why: seen.size === 0 ? "no persona could be read from the policies that use it"
            : seen.size > 1 ? `used by ${seen.size} personas (${[...seen].join(", ")}) — a shared group placed in one persona's unit would be editable by that persona's admin alone, and placing it in both would let either edit it`
            : null,
@@ -195,8 +202,8 @@ const Importer = (() => {
   function personaCodes(bundle, chosenRaws) {
     const codes = new Set();
     for (const raw of chosenRaws) {
-      const p = personaOf(raw.displayName);
-      if (p && PERSONA_CODE[p]) codes.add(PERSONA_CODE[p]);
+      const p = vaultPersonaOf(raw.displayName);
+      if (p && VAULT_CODE[p]) codes.add(VAULT_CODE[p]);
     }
     // Break-glass is not a persona, so it is added by the presence of the group
     // itself rather than by any policy name.
@@ -577,7 +584,7 @@ const Importer = (() => {
     for (const [k, fs] of files) {
       for (const f of fs) {
         if (planned.has(lower(f.displayName))) continue;
-        if (blobs.some((b) => b.includes(f.displayName))) want({ name: f.displayName, file: f }, k);
+        if (blobs.some((b) => b.includes(`:${f.displayName}}}`))) want({ name: f.displayName, file: f }, k);
       }
     }
     for (const [k, fs] of files) {
@@ -623,7 +630,7 @@ const Importer = (() => {
     const all = ((source && source.policies) || []).filter((p) => isEAdmins(p.displayName));
     const add = all.filter((p) => !have.has(cleanName(p.displayName)));
     const blob = add.map((p) => JSON.stringify(p)).join("\n");
-    const used = (x) => !!x && ((x.id && blob.includes(x.id)) || (x.displayName && blob.includes(`:${x.displayName}}}`)));
+    const used = (x) => !!x && ((x.id && blob.includes(JSON.stringify(String(x.id)))) || (x.displayName && blob.includes(`:${x.displayName}}}`)));
     const from = lower(opts.breakGlassFrom), to = String(opts.breakGlassTo || "").trim();
     const rename = !!(from && to && from !== lower(to));
     const groups = ((source && source.groups) || []).filter(used).map((g) =>
@@ -762,10 +769,13 @@ const Importer = (() => {
   // auth strength/context, terms of use, or a {{…}} placeholder by name).
   function scopeBundle(bundle, chosenRaws) {
     const blobs = chosenRaws.map(r => JSON.stringify(r));
-    const used = (id) => id != null && blobs.some(b => b.includes(id));
+    // Matched as a whole JSON string value. A bare substring test made the
+    // authentication context "c3" part of every import whose JSON held a GUID
+    // with "c3" in it — and the import then created it (Courseware, 17 Sep).
+    const used = (id) => id != null && blobs.some(b => b.includes(JSON.stringify(String(id))));
     const keep = (arr) => (arr || []).filter(x => used(x.id));
     // placeholders reference by name, e.g. {{group:CAB-SEC-U-Persona-Admins}}
-    const usedName = (name) => name && blobs.some(b => b.includes(name));
+    const usedName = (name) => name && blobs.some(b => b.includes(`:${name}}}`));
     return {
       ...bundle,
       policies: chosenRaws,
@@ -870,7 +880,8 @@ const Importer = (() => {
     }
 
     // persona groups needed by the policies themselves (not the replaced ones)
-    const personaNames = [...new Set(bundle.policies.filter(p => !matchedNames.has(p.displayName)).map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]).filter(Boolean))];
+    // (an E-Admins policy is imported as-is: it never gets a deploy group)
+    const personaNames = [...new Set(bundle.policies.filter(p => !matchedNames.has(p.displayName) && !isEAdmins(p.displayName)).map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]).filter(Boolean))];
     maps.personaGroupIds = {};
     for (const gname of personaNames) {
       onStatus?.(`Persona group ${gname}…`);
@@ -1237,6 +1248,34 @@ const Importer = (() => {
     return p;
   }
 
+  // ---------- reads after a write (beta 25385) ----------
+  // Conditional Access is eventually consistent. A policy created a moment ago
+  // can answer 404 to a read by its own id, and one just patched can read back
+  // as it was: Courseware, 17 Sep — six E-Admins policies were created, the
+  // read that followed said they did not exist, and all six were reported as
+  // failed. So a read after a write is repeated with a short backoff:
+  //   * a 404 is retried on the long schedule (about 20 s) before it counts;
+  //   * `until` (optional) is the answer being waited for — a stale read is
+  //     retried on the short schedule; after that the last read is returned
+  //     and the caller judges it.
+  const READ_WAITS = { missing: [1000, 2000, 3000, 5000, 8000], stale: [1000, 2000, 4000] };
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function readSettled(url, until, waits) {
+    const w = waits || READ_WAITS;
+    let missing = 0, stale = 0, last;
+    for (;;) {
+      try {
+        last = await Graph.gget(url);
+      } catch (e) {
+        if (!/\(404\)|ResourceNotFound|does not exist/i.test(e.message || "") || missing >= w.missing.length) throw e;
+        await pause(w.missing[missing++]);
+        continue;
+      }
+      if (!until || until(last) || stale >= w.stale.length) return last;
+      await pause(w.stale[stale++]);
+    }
+  }
+
   // ---------- Conditional Access for agents: the WRITE shape (beta 25384) ----------
   // An export is a READ. Graph's "Create conditionalAccessPolicy" (beta,
   // examples 5–9) documents a different body for agent policies than the one a
@@ -1370,15 +1409,18 @@ const Importer = (() => {
         };
         let saved;
         try {
-          saved = await Graph.gget(url);
+          saved = await readSettled(url, null, opts.readWaits);
           if (!contains(saved, staged)) throw new Error("Stored policy differs from the approved plan");
           if (payload.state !== "disabled") {
             await Graph.gpatch(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE]);
-            saved = await Graph.gget(url);
+            saved = await readSettled(url, (s) => contains(s, payload), opts.readWaits);
             if (!contains(saved, payload)) throw new Error("Activated policy could not be verified");
           }
         } catch (e) {
-          throw new Error(`${e.message}. New policy ${created.id} may exist (last verified state: ${saved?.state || "unknown"}); inspect it before retrying. Previous policy was not changed.`);
+          const unread = /\(404\)|ResourceNotFound|does not exist/i.test(e.message || "");
+          throw new Error(unread
+            ? `Created as ${created.id}, but Conditional Access still answered “does not exist” after about 20 seconds, so its settings are not verified. It is almost certainly there, Off — open it before importing again (a re-run skips it by name). Previous policy was not changed.`
+            : `${e.message}. New policy ${created.id} may exist (last verified state: ${saved?.state || "unknown"}); inspect it before retrying. Previous policy was not changed.`);
         }
         const newState = payload.state;
         let disabledOld = false;
@@ -1388,7 +1430,7 @@ const Importer = (() => {
           // reviews the new one and removes the old when satisfied.
           try {
             await Graph.gpatch(`/identity/conditionalAccess/policies/${supersedes.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE]);
-            const oldReadback = await Graph.gget(`/identity/conditionalAccess/policies/${supersedes.id}`);
+            const oldReadback = await readSettled(`/identity/conditionalAccess/policies/${supersedes.id}`, (s) => s && s.state === "disabled", opts.readWaits);
             if (oldReadback.state !== "disabled") throw new Error("previous policy did not read back as Off");
             disabledOld = true;
           } catch (e) {
@@ -1448,7 +1490,7 @@ const Importer = (() => {
       opts.onItem?.(i, "start");
       try {
         const url = `/identity/conditionalAccess/policies/${r.id}`;
-        const fresh = await Graph.gget(url);
+        const fresh = await readSettled(url, null, opts.readWaits);
         const users = stripOdata(JSON.parse(JSON.stringify((fresh && fresh.conditions && fresh.conditions.users) || {})));
         const done = [];
         for (const s of r.swaps) {
@@ -1464,7 +1506,8 @@ const Importer = (() => {
         }
         if (!done.length) { results.push({ ...r, ok: true, changed: false, done }); opts.onItem?.(i, "end", results[results.length - 1]); continue; }
         await Graph.gpatch(url, { conditions: { users } }, [...AUTH_CONFIG.scopes, ...WRITE]);
-        const back = await Graph.gget(url);
+        const swapped = (b) => { const u = (b && b.conditions && b.conditions.users) || {}; return done.every((s) => !(u[s.list] || []).includes(s.from) && (u[s.list] || []).includes(s.to)); };
+        const back = await readSettled(url, swapped, opts.readWaits);
         const bu = (back && back.conditions && back.conditions.users) || {};
         const left = done.filter((s) => (bu[s.list] || []).includes(s.from));
         const gone = done.filter((s) => !(bu[s.list] || []).includes(s.to));

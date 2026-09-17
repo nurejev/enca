@@ -86,7 +86,7 @@ function world(opts = {}) {
     },
     templates: () => [],
   };
-  const box = { console: { log() {}, warn() {}, error() {} }, Set, Map, URL, TextDecoder, structuredClone, JSON, encodeURIComponent, decodeURIComponent,
+  const box = { console: { log() {}, warn() {}, error() {} }, Set, Map, URL, TextDecoder, structuredClone, JSON, encodeURIComponent, decodeURIComponent, setTimeout,
     localStorage: { getItem: () => null, setItem() {} }, document: { dispatchEvent() {} }, CustomEvent: class {},
     Render: { caGroup: (n) => { const m = /\bCA(\d{3,4})\b/.exec(String(n || '')); const num = m ? +m[1] : null; return { num, key: num == null ? null : num >= 1100 && num < 1200 ? 1100 : Math.floor(num / 100) * 100, label: 'x' }; } },
     AUTH_CONFIG: { scopes: [] }, BRANDING: { name: 'ENCA' }, Graph, Assign };
@@ -319,4 +319,60 @@ test('agent policies import against a Graph that refuses the read shape; agentCo
   const md = w2.I.buildReport({ tenantName: 'T', fileName: 'f', depLog: out.dep.log, planItems: w2.I.plan(out.prepared, []), results: out.res.results, warnings: out.res.warnings, mode: 'shipped', licence: { known: false } });
   assert.doesNotMatch(md, /Workload ID licence could not be read/, 'no workload-identity policy, no workload-identity warning');
   assert.match(md, /🤖/);
+});
+
+// ---- beta 25385: Courseware, second report ------------------------------------
+test('an authentication context is taken only when a policy names it — not when a GUID happens to contain "c3"', () => {
+  const { I } = world();
+  const b = joey();
+  b.policies = [pol(N000, { excludeGroups: ['0000c300-0000-4000-8000-000000000000'] })];
+  b.authContexts = [{ id: 'c3', displayName: 'Strong Authentication for PIM' }];
+  assert.equal(I.scopeBundle(b, b.policies).authContexts.length, 0);
+  const withCtx = pol(N000, {}, { conditions: { applications: { includeApplications: [], includeAuthenticationContextClassReferences: ['c3'] } } });
+  assert.equal(I.scopeBundle(b, [withCtx]).authContexts.length, 1);
+  const cf = { policies: [pol('CA1104-BLOCK-E-Admins-ASR-AnyApp-NonBrowserClients-v3.0', { includeUsers: [], includeGroups: ['0000c300-0000-4000-8000-000000000000'] })],
+    groups: [], namedLocations: [], authStrengths: [], authContexts: [{ id: 'c3', displayName: 'x' }], termsOfUse: [] };
+  assert.equal(I.mergeShared(joey(), cf, {}).bundle.authContexts.length, 0);
+});
+
+test('a policy that is not readable yet right after its create is read again, not reported as failed', async () => {
+  const w = world();
+  const g = w.graphRef, get = g.gget;
+  let misses = 0;
+  g.gget = async (url) => {
+    if (misses < 2) { misses++; throw new Error('Graph request failed (404): ConditionalAccessPolicy with id x does not exist in the directory. · code: ResourceNotFound'); }
+    return get(url);
+  };
+  const b = joey(); b.policies = [pol(N000, { excludeGroups: [G000] })];
+  const prepared = w.I.prepareBundle(b);
+  const chosen = w.I.plan(prepared, []);
+  const dep = await w.I.ensureDependencies(w.I.scopeBundle(prepared, chosen.map((p) => p.raw)), () => {}, { matchedNames: chosen.map((p) => p.name) });
+  const fast = { missing: [1, 1, 1], stale: [1] };
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', readWaits: fast });
+  assert.equal(res.results[0].ok, true, res.results[0].error);
+  assert.equal(misses, 2);
+  // never readable: said as created-but-unverified, with the id
+  const w2 = world();
+  w2.graphRef.gget = async () => { throw new Error('Graph request failed (404): ConditionalAccessPolicy with id x does not exist in the directory.'); };
+  const p2 = w2.I.prepareBundle(b);
+  const c2 = w2.I.plan(p2, []);
+  const d2 = await w2.I.ensureDependencies(w2.I.scopeBundle(p2, c2.map((p) => p.raw)), () => {}, { matchedNames: c2.map((p) => p.name) });
+  const r2 = await w2.I.importPolicies(c2, d2.maps, () => {}, { mode: 'shipped', readWaits: fast });
+  assert.equal(r2.results[0].ok, false);
+  assert.match(r2.results[0].error, /^Created as \S+, but Conditional Access still answered/);
+});
+
+test('E-Admins groups are filed in the break-glass vault and never get a deploy persona group', async () => {
+  const w = world();
+  const EA = '33333333-3333-4333-8333-333333333333';
+  const b = { policies: [pol('(UP)CA1100-GRANT-E-Admins-IP-AllApps-AnyPlatform-Emergency_access1-v3.0', { includeUsers: [], includeGroups: [EA] })],
+    groups: [{ id: EA, displayName: 'Emergency_Access1' }], namedLocations: [], authStrengths: [], authContexts: [], termsOfUse: [] };
+  const prepared = w.I.prepareBundle(b);
+  const per = w.I.groupPersonas(prepared, prepared.policies);
+  const key = prepared.groups[0].id;
+  assert.equal(per.get(key).code, 'BreakGlass');
+  assert.deepEqual(plain(w.I.personaCodes(prepared, prepared.policies)), ['BreakGlass']);
+  const chosen = w.I.plan(prepared, []);
+  const dep = await w.I.ensureDependencies(w.I.scopeBundle(prepared, chosen.map((p) => p.raw)), () => {}, { matchedNames: [] });
+  assert.equal(dep.log.created.concat(dep.log.reused).some((x) => /CAD-SEC-U-DG/.test(x)), false, 'no deploy group for an as-is policy');
 });
