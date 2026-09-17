@@ -44,6 +44,20 @@ const Importer = (() => {
   const isWorkloadIdentity = (raw) =>
     ((raw.conditions?.clientApplications?.includeServicePrincipals) || []).length > 0;
 
+  // Conditional Access for agents (preview) — Joey Verlinden's CA5xx block.
+  // Graph documents part of the shape only in beta (clientApplications'
+  // includeAgentIdServicePrincipals, agentIdRiskLevels, "AllAgentIdResources")
+  // and part of it not at all (conditions.agents, conditions.agentContext), and
+  // the tenant needs Microsoft Entra Agent ID to accept any of it. A refusal on
+  // one of these is most often the tenant, not the file — the failure says so.
+  const isAgentPolicy = (raw) => {
+    const c = (raw && raw.conditions) || {};
+    return !!(c.agents || c.agentContext || c.agentIdRiskLevels
+      || ((c.clientApplications && c.clientApplications.includeAgentIdServicePrincipals) || []).length
+      || ((c.applications && c.applications.includeApplications) || []).includes("AllAgentIdResources")
+      || ((c.users && c.users.includeUsers) || []).includes("AllAgentIdUsers"));
+  };
+
   // Conditional Access for workload identities is a separately purchased SKU
   // (Microsoft Entra Workload ID — NOT part of Entra ID P1/P2). Without it Graph
   // refuses to create or modify a policy scoped to service principals, so the
@@ -198,6 +212,25 @@ const Importer = (() => {
     return { num: Render.caGroup(name).num, ver: m ? m[1] : null };
   }
 
+  // Backup files can be UTF-16. Windows PowerShell's Out-File writes UTF-16 LE
+  // with a byte-order mark, and that is how Joey Verlinden's repository ships
+  // every policy, group and named location. JSZip's "string" and File.text()
+  // decode as UTF-8 whatever the bytes are, so a downloaded copy of his
+  // repository used to load as zero policies without a word. Sniff the mark
+  // (or the NUL-every-other-byte shape of UTF-16 without one) and decode
+  // accordingly — the same rule js/baselineLive.js applies to the live read.
+  function decodeBytes(bytes) {
+    const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    let enc = "utf-8";
+    if (b.length >= 2 && b[0] === 0xFF && b[1] === 0xFE) enc = "utf-16le";
+    else if (b.length >= 2 && b[0] === 0xFE && b[1] === 0xFF) enc = "utf-16be";
+    else if (b.length >= 4 && b[0] !== 0 && b[1] === 0 && b[3] === 0) enc = "utf-16le";
+    let txt;
+    try { txt = new TextDecoder(enc).decode(b); }
+    catch { txt = new TextDecoder("utf-8").decode(b); }
+    return txt.replace(/^\ufeff/, "");
+  }
+
   // ---------- read a backup (zip file OR selected folder), same structure ----------
   const FOLDER_KEY = { Groups: "groups", NamedLocations: "namedLocations", AuthenticationStrengths: "authStrengths", AuthenticationContexts: "authContexts", TermsOfUse: "termsOfUse" };
 
@@ -227,7 +260,7 @@ const Importer = (() => {
     const entries = [];
     for (const [path, entry] of Object.entries(zip.files)) {
       if (entry.dir || !path.endsWith(".json")) continue;
-      entries.push({ path, text: await entry.async("string") });
+      entries.push({ path, text: decodeBytes(await entry.async("uint8array")) });
     }
     return parseEntries(entries);
   }
@@ -238,7 +271,7 @@ const Importer = (() => {
     const entries = [];
     for (const f of fileList) {
       if (!f.name.endsWith(".json")) continue;
-      entries.push({ path: (f.webkitRelativePath || f.name), text: await f.text() });
+      entries.push({ path: (f.webkitRelativePath || f.name), text: decodeBytes(new Uint8Array(await f.arrayBuffer())) });
     }
     return parseEntries(entries);
   }
@@ -276,6 +309,9 @@ const Importer = (() => {
       const { num, ver } = parseCaVersion(name);
       return { num, ver, name, raw, id: raw && raw.id };
     }).filter((e) => e.num != null);
+    // E-Admins taken from another backup into this one (mergeShared) land Off.
+    const forceOff = new Set((bundle.forceOff || []).map(cleanName));
+    const renamed = bundle.sharedRenamed || null;
     return bundle.policies.map(raw => {
       const { num, ver } = parseCaVersion(raw.displayName);
       const sameNum = num != null ? ex.filter((e) => e.num === num) : [];
@@ -298,8 +334,10 @@ const Importer = (() => {
       // step (create the ToU in the portal, re-import). Flag it up front.
       const needsTou = touReferences(raw);
       const label = (e) => e.ver ? `v${e.ver}` : `"${e.name}"`;
+      const off = forceOff.has(cleanName(raw.displayName));
       return {
         raw, name: raw.displayName, num, ver, asIs,
+        agent: isAgentPolicy(raw), forceOff: off,
         // workload-identity policy (CA900 range): needs the Workload ID SKU
         wid: isWorkloadIdentity(raw),
         persona, personaGroup: (persona && PERSONA_GROUPS[persona]) || null,
@@ -308,6 +346,7 @@ const Importer = (() => {
         needsTou,
         reason: exists ? `already exists (CA${String(num).padStart(3, "0")}${ver ? ` v${ver}` : ""})`
           : upgrade ? `already in tenant as ${label(other)}`
+          : asIs && off ? `E-Admins from ${bundle.sharedFrom || "another backup"} — lands Off; assignment as shipped${renamed ? `, break-glass group ${renamed.from} → ${renamed.to}` : ""}`
           : asIs ? "E-Admins — imported as-is (state & assignments unchanged)"
           : persona === "agents" ? "agent identities — include assignment kept as shipped"
           : !persona ? "no persona detected — include assignment kept as-is" : null,
@@ -381,6 +420,298 @@ const Importer = (() => {
     return best;
   }
 
+  // ---------- groups are attached BY NAME (beta 25383) ----------
+  // A backup's Groups folder records the NAME each source id had in the tenant
+  // it was exported from. The id itself means nothing anywhere else, and
+  // written into a policy it is an exclusion that excludes nobody — 👥 CA
+  // groups lists it as "referenced but gone". That is what a Joey Verlinden
+  // import left behind whenever a group could not be created: the policies
+  // landed anyway, carrying his tenant's ids, so 29 of them excluded a
+  // break-glass group that only exists in his tenant.
+  //
+  // So a policy never carries a source group id any more. prepareBundle()
+  // rewrites every reference to a group the bundle ships into a NAME KEY, and
+  // the group list becomes one entry per name; ensureDependencies() creates or
+  // finds each group BY THAT NAME and maps the key to THIS tenant's id; a key
+  // that did not resolve fails its policy, which is then not created at all.
+  //
+  // The name is the file's, with two corrections only a baseline's naming
+  // contract can make — both are in Joey's 2026.6.1 release:
+  //   * one source id, two files: CA005 and CA006 each had their exclusion
+  //     group renamed in his tenant and the export wrote both names under the
+  //     same id. Each policy gets the file that carries ITS OWN name.
+  //   * a policy's own exclusion group under another name: CA403 and CA404
+  //     exclude "CA403-Guests-… - Exclude" while the policies are called
+  //     "CA403-GuestUsers-…". A group that is the policy's OWN exclusion (same
+  //     CA number, exclusion-shaped) is created under the name the convention
+  //     gives that policy, so every tool that reads the convention finds it.
+  const GROUP_KEY = "enca-group:";
+  // encodeURIComponent escapes ";", so the trailing one can only be the end —
+  // no key is ever a prefix of another when the bundle is searched as text.
+  const groupKey = (name) => `${GROUP_KEY}${encodeURIComponent(String(name || "").trim().toLowerCase())};`;
+  const isGroupKey = (v) => typeof v === "string" && v.startsWith(GROUP_KEY) && v.endsWith(";");
+  const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+  const lower = (s) => String(s || "").trim().toLowerCase();
+  const isGuidStr = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || "").trim());
+  const caNumOf = (name) => { const m = /\bCA(\d{3,4})\b/i.exec(String(name || "")); return m ? parseInt(m[1], 10) : null; };
+  // "All Compliant Network locations" is Microsoft's, not the tenant's: Global
+  // Secure Access provides it under this id in every tenant (Learn's own
+  // break-glass script looks for exactly this id), so it is referenced as-is
+  // and never created — the old path tried to create it as an IP location.
+  const COMPLIANT_NETWORK_ID = "3d46dbda-8382-466a-856d-eb00cbc6b910";
+
+  function catalogForBundle(bundle) {
+    try {
+      if (typeof Baseline === "undefined" || !Baseline.catalog) return null;
+      const id = catalogOfBundle(bundle);
+      if (!id) return null;
+      const c = Baseline.catalog(id);
+      if (!c || c.id !== id) return null;
+      return Baseline.withContract ? Baseline.withContract(c) : c;
+    } catch { return null; }
+  }
+
+  // Pure over the bundle (and the catalog contracts). Returns a NEW bundle:
+  // policies with name keys, one group entry per name ({ id: key,
+  // displayName, srcIds, fileNames, … }), the notes worth showing, and an
+  // index the repair step asks "which group did this source id mean for
+  // THIS policy?".
+  function prepareBundle(raw) {
+    if (!raw || raw.prepared) return raw;
+    const cat = catalogForBundle(raw);
+    const safe = (fn, dflt) => { try { return fn(); } catch { return dflt; } };
+    const isExcl = (n) => safe(() => !!(cat && cat.isExclusionGroup && cat.isExclusionGroup(n)), false);
+    const convFor = (policyName) => safe(() => { const e = cat && cat.exclusionGroupFor ? cat.exclusionGroupFor(policyName) : null; return e && e.name ? e.name : null; }, null);
+    const templates = safe(() => (cat && cat.templates ? cat.templates() : []) || [], []);
+    const tplFor = (name) => templates.find((t) => lower(t.displayName) === lower(name)) || null;
+
+    // source id -> the group files that carry it
+    const files = new Map();
+    for (const g of raw.groups || []) {
+      if (!g || !g.id || !g.displayName) continue;
+      const k = lower(g.id);
+      if (!files.has(k)) files.set(k, []);
+      if (!files.get(k).some((x) => lower(x.displayName) === lower(g.displayName))) files.get(k).push(g);
+    }
+    const own = (policyName, id) => {
+      const cands = files.get(lower(id)) || [];
+      const num = caNumOf(policyName);
+      if (num == null || !cands.length) return null;
+      const mine = cands.filter((f) => caNumOf(f.displayName) === num && isExcl(f.displayName));
+      if (!mine.length) return null;
+      const conv = convFor(policyName);
+      const exact = conv ? mine.find((f) => lower(f.displayName) === lower(conv)) : null;
+      if (exact) return { name: exact.displayName, file: exact };
+      if (conv) return { name: conv, file: mine[0], renamedFrom: mine.map((f) => f.displayName) };
+      return mine.length === 1 ? { name: mine[0].displayName, file: mine[0] } : null;
+    };
+    // what each source id is, to the policy that OWNS it — the name every
+    // other policy pointing at that id is then attached to as well
+    const owners = new Map();
+    for (const p of raw.policies || []) {
+      const u = (p.conditions && p.conditions.users) || {};
+      for (const id of [...(u.includeGroups || []), ...(u.excludeGroups || [])]) {
+        const o = typeof id === "string" ? own(p.displayName, id) : null;
+        if (!o) continue;
+        const k = lower(id);
+        if (!owners.has(k)) owners.set(k, []);
+        if (!owners.get(k).some((x) => lower(x.name) === lower(o.name))) owners.get(k).push(o);
+      }
+    }
+    const resolve = (policyName, id) => {
+      const k = lower(id);
+      const cands = files.get(k);
+      if (!cands || !cands.length) return null;
+      const o = own(policyName, id);
+      if (o) return o;
+      const os = owners.get(k) || [];
+      if (os.length) return os[0];
+      if (cands.length === 1) return { name: cands[0].displayName, file: cands[0] };
+      const byConv = cands.find((f) => (raw.policies || []).some((p) => lower(convFor(p.displayName)) === lower(f.displayName)));
+      const pick = byConv || cands[0];
+      return { name: pick.displayName, file: pick };
+    };
+
+    const planned = new Map();
+    const notes = [];
+    const want = (r, id) => {
+      const k = lower(r.name);
+      if (!planned.has(k)) {
+        const f = r.file || {};
+        const tpl = tplFor(r.name);
+        planned.set(k, {
+          id: groupKey(r.name), displayName: r.name,
+          description: f.description || (tpl && tpl.description) || null,
+          groupTypes: Array.isArray(f.groupTypes) ? f.groupTypes.slice() : [],
+          membershipRule: f.membershipRule || null,
+          securityEnabled: f.securityEnabled !== false, mailEnabled: f.mailEnabled === true,
+          srcIds: [], fileNames: [],
+        });
+      }
+      const g = planned.get(k);
+      if (id && !g.srcIds.includes(lower(id))) g.srcIds.push(lower(id));
+      for (const n of [r.file && r.file.displayName, ...(r.renamedFrom || [])]) if (n && !g.fileNames.includes(n)) g.fileNames.push(n);
+      if (r.renamedFrom && !g.renamedFrom) {
+        g.renamedFrom = r.renamedFrom.slice();
+        notes.push(`“${r.name}” is created under the name the baseline gives this policy's exclusion group — the file calls it “${r.renamedFrom.join("” / “")}”`);
+      }
+      return g;
+    };
+    const policies = (raw.policies || []).map((p) => {
+      const q = JSON.parse(JSON.stringify(p));
+      const u = q.conditions && q.conditions.users;
+      if (!u) return q;
+      for (const list of ["includeGroups", "excludeGroups"]) {
+        if (!Array.isArray(u[list])) continue;
+        u[list] = u[list].map((id) => {
+          if (typeof id !== "string" || parsePlaceholder(id) || isGroupKey(id)) return id;
+          const r = resolve(p.displayName, id);
+          return r ? want(r, id).id : id;
+        });
+      }
+      return q;
+    });
+    // a group a file ships that the policies name only by NAME (a {{group:…}}
+    // placeholder, say) still comes along, as it always did
+    const blobs = (raw.policies || []).map((p) => JSON.stringify(p));
+    for (const [k, fs] of files) {
+      for (const f of fs) {
+        if (planned.has(lower(f.displayName))) continue;
+        if (blobs.some((b) => b.includes(f.displayName))) want({ name: f.displayName, file: f }, k);
+      }
+    }
+    for (const [k, fs] of files) {
+      if (fs.length < 2) continue;
+      const got = [...planned.values()].filter((g) => g.srcIds.includes(k)).map((g) => `“${g.displayName}”`);
+      notes.push(`one source id carries ${fs.length} names (${fs.map((f) => `“${f.displayName}”`).join(", ")}) — each policy is attached to the group that carries its own name${got.length ? `: ${got.join(", ")}` : ""}`);
+    }
+    const sourceIds = new Set(files.keys());
+    return {
+      ...raw,
+      policies,
+      groups: [...planned.values()],
+      prepared: true,
+      groupNotes: notes,
+      groupIndex: {
+        isSource: (id) => sourceIds.has(lower(id)),
+        nameFor: (policyName, id) => { const r = resolve(policyName, id); return r ? r.name : null; },
+        // the group entry a (policy, source id) pair means — created in the
+        // plan if the bundle's own policies never named it (a tenant policy
+        // under an older name, in the repair step)
+        entryFor: (policyName, id) => { const r = resolve(policyName, id); return r ? want(r, id) : null; },
+      },
+    };
+  }
+
+  // 🚨 The shared E-Admins policies (CA1100–CA1105) are expected under every
+  // baseline, and only a CloudFellows backup ships them. A Joey Verlinden
+  // import used to say so and stop there. mergeShared() takes them — and only
+  // them — from such a backup into the bundle being imported:
+  //   * the groups, locations, strengths and contexts they name come along,
+  //   * the break-glass group becomes the TARGET baseline's, because the block
+  //     policies have to reach the accounts that baseline excludes everywhere
+  //     (CAB-SEC-U-BreakGlass → CA-BreakGlassAccounts - Exclude),
+  //   * every policy taken this way lands Off (forceOff): an emergency-access
+  //     policy switched On in a tenant without the trusted locations or the
+  //     phishing-resistant methods it expects locks the emergency accounts
+  //     out — the one thing they exist to prevent.
+  // A policy the bundle already carries is not taken twice. Pure over two raw
+  // (unprepared) bundles; the result is prepared like any other.
+  function mergeShared(target, source, opts = {}) {
+    const t = target || {};
+    const have = new Set((t.policies || []).map((p) => cleanName(p.displayName)));
+    const all = ((source && source.policies) || []).filter((p) => isEAdmins(p.displayName));
+    const add = all.filter((p) => !have.has(cleanName(p.displayName)));
+    const blob = add.map((p) => JSON.stringify(p)).join("\n");
+    const used = (x) => !!x && ((x.id && blob.includes(x.id)) || (x.displayName && blob.includes(`:${x.displayName}}}`)));
+    const from = lower(opts.breakGlassFrom), to = String(opts.breakGlassTo || "").trim();
+    const rename = !!(from && to && from !== lower(to));
+    const groups = ((source && source.groups) || []).filter(used).map((g) =>
+      rename && lower(g.displayName) === from ? { ...g, displayName: to } : { ...g });
+    const merge = (a, b) => {
+      const out = (a || []).slice();
+      for (const x of b || []) if (x && !out.some((y) => y.id === x.id)) out.push(x);
+      return out;
+    };
+    const pick = (arr) => (arr || []).filter(used);
+    return {
+      bundle: {
+        ...t,
+        policies: [...(t.policies || []), ...add],
+        groups: merge(t.groups, groups),
+        namedLocations: merge(t.namedLocations, pick(source && source.namedLocations)),
+        authStrengths: merge(t.authStrengths, pick(source && source.authStrengths)),
+        authContexts: merge(t.authContexts, pick(source && source.authContexts)),
+        termsOfUse: merge(t.termsOfUse, pick(source && source.termsOfUse)),
+        forceOff: [...new Set([...(t.forceOff || []), ...add.map((p) => p.displayName)])],
+        sharedFrom: opts.label || t.sharedFrom || "a CloudFellows backup",
+        sharedRenamed: rename ? { from: opts.breakGlassFrom, to } : (t.sharedRenamed || null),
+        prepared: false,
+      },
+      added: add.map((p) => p.displayName),
+      already: all.length - add.length,
+      found: all.length,
+    };
+  }
+
+  // 🔧 Policies ALREADY in the tenant that point at a source group id — what
+  // an import before 25383 left behind when a group could not be created. The
+  // prepared bundle says which group NAME each such id meant for that policy;
+  // the repair creates or finds that group and swaps the id. Only ids the
+  // bundle's own group files carry, and only those the directory does not
+  // hold, are touched: an id this tenant has is never "repaired".
+  function repairPlan(prepared, tenantRaws, directory) {
+    const idx = prepared && prepared.groupIndex;
+    if (!idx) return [];
+    const here = (id) => !!(directory && directory.ids && directory.ids.has(lower(id)));
+    const out = [];
+    for (const raw of tenantRaws || []) {
+      const u = (raw && raw.conditions && raw.conditions.users) || {};
+      const swaps = [];
+      for (const list of ["includeGroups", "excludeGroups"]) {
+        for (const id of u[list] || []) {
+          if (!isGuidStr(id) || !idx.isSource(id) || here(id)) continue;
+          const g = idx.entryFor(raw.displayName, id);
+          if (g && !swaps.some((s) => s.list === list && s.from === id)) swaps.push({ list, from: id, name: g.displayName, key: g.id, group: g });
+        }
+      }
+      if (swaps.length) out.push({ id: raw.id, name: raw.displayName, state: raw.state, swaps });
+    }
+    return out;
+  }
+
+  // Which of these ids does the directory hold? One getByIds per thousand.
+  // A failed read is an ANSWER ({ error }), never an empty set dressed up as
+  // "none of them exist".
+  async function readDirectoryIds(ids) {
+    const out = { ids: new Set(), error: null };
+    const list = [...new Set((ids || []).map(lower).filter(isGuidStr))];
+    try {
+      for (let i = 0; i < list.length; i += 1000) {
+        const j = await Graph.gpost("/directoryObjects/getByIds", { ids: list.slice(i, i + 1000), types: ["user", "group"] });
+        for (const o of (j && j.value) || []) if (o && o.id) out.ids.add(lower(o.id));
+      }
+    } catch (e) { out.error = e.message || String(e); }
+    return out;
+  }
+  // The directory ids an import has to be sure of: every user or group a
+  // policy names by id that no file in the bundle explains, and — for a
+  // backup, not a repository — the source ids of the groups it ships, so a
+  // backup restored into the tenant it came from binds to the same objects.
+  function directoryIdsToCheck(bundle) {
+    const out = new Set();
+    for (const p of (bundle && bundle.policies) || []) {
+      const u = (p.conditions && p.conditions.users) || {};
+      for (const id of [...(u.includeUsers || []), ...(u.excludeUsers || []), ...(u.includeGroups || []), ...(u.excludeGroups || [])]) {
+        if (isGuidStr(id)) out.add(lower(id));
+      }
+    }
+    if (bundle && !bundle.fromRepository) {
+      for (const g of bundle.groups || []) for (const s of g.srcIds || []) if (isGuidStr(s)) out.add(lower(s));
+    }
+    return [...out];
+  }
+
   // ---------- housekeeping: policies left behind by a "match & replace" ----------
   // Compare two dotted version strings ("3.10" > "3.9").
   function cmpVer(a, b) {
@@ -447,15 +778,18 @@ const Importer = (() => {
   }
 
   async function ensureDependencies(bundle, onStatus, opts = {}) {
+    // Prepared here if the caller did not, so no path can write a source group
+    // id into a policy (see prepareBundle).
+    if (bundle && !bundle.prepared) bundle = prepareBundle(bundle);
     // Policies being replaced keep their current tenant assignment, so they need
     // no deploy persona group — don't create one just for them.
     const matchedNames = new Set(opts.matchedNames || []);
-    const maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, ph: {} };
+    const maps = { group: {}, loc: {}, strength: {}, ctx: {}, tou: {}, ph: {}, groupFailed: {}, groupNames: {} };
     // missingTou: ToU display names the tenant lacks. A ToU has no Graph create
     // API (the PDF/localised content must be uploaded in the portal), so these
     // are collected for the report as a to-create checklist rather than a
     // generic warning.
-    const log = { created: [], reused: [], warnings: [], missingTou: [], placed: [], placeFailed: [], unplaced: [] };
+    const log = { created: [], reused: [], warnings: [], missingTou: [], placed: [], placeFailed: [], unplaced: [], groupNotes: (bundle.groupNotes || []).slice() };
     const noteMissingTou = (name) => { if (name && !log.missingTou.includes(name)) log.missingTou.push(name); };
     // Groups are created as ORDINARY security groups. They were role-assignable
     // until build 254; the baseline moved off that, because a role-assignable
@@ -554,16 +888,45 @@ const Importer = (() => {
     const auByCode = opts.auByCode || null;
     const personas = auByCode ? groupPersonas(bundle, bundle.policies) : null;
 
+    // What the directory holds, read once — see directoryIdsToCheck().
+    const dirIds = directoryIdsToCheck(bundle);
+    maps.directory = dirIds.length ? await readDirectoryIds(dirIds) : { ids: new Set(), error: null };
+    if (maps.directory.error) {
+      log.warnings.push(`The directory could not be read to confirm the users and groups the policies name by id (${maps.directory.error}) — a policy that names one is held back rather than created on an unconfirmed reference.`);
+    }
+    // A source id that means exactly one group maps straight to it too, for a
+    // caller still holding the unprepared policies.
+    const bySource = new Map();
+    for (const g of bundle.groups || []) for (const s of g.srcIds || []) bySource.set(s, bySource.has(s) ? null : g.id);
+    const alsoBySource = (raw, id) => { for (const s of raw.srcIds || []) if (bySource.get(s) === raw.id) maps.group[s] = id; };
+
     for (const raw of bundle.groups) {
       onStatus?.(`Group ${raw.displayName}…`);
       let created = null;
+      maps.groupNames[raw.id] = raw.displayName;
+      // a backup restored into the tenant it came from binds to the same object
+      const same = !bundle.fromRepository && (raw.srcIds || []).find((s) => maps.directory.ids.has(lower(s)));
+      if (same) {
+        maps.group[raw.id] = same;
+        alsoBySource(raw, same);
+        log.reused.push(`Group: ${raw.displayName} (the same object as in the backup)`);
+        continue;
+      }
       try {
         const dyn = (raw.groupTypes || []).includes("DynamicMembership");
         const g = await Assign.createGroup({ displayName: raw.displayName, description: raw.description, mailNickname: raw.mailNickname, dynamic: dyn, membershipRule: raw.membershipRule });
+        if (!g || !g.id) throw new Error("the create returned no group id");
         maps.group[raw.id] = g.id;
-        noteGroup(g, `Group: ${raw.displayName}`);
+        alsoBySource(raw, g.id);
+        noteGroup(g, `Group: ${raw.displayName}${raw.renamedFrom ? ` (the file calls it ${raw.renamedFrom.join(" / ")})` : ""}`);
         if (g.created) created = g;
-      } catch (e) { log.warnings.push(`Group ${raw.displayName}: ${e.message}`); continue; }
+      } catch (e) {
+        // Recorded against the key: every policy naming this group fails with
+        // this reason instead of landing on a group that does not exist.
+        maps.groupFailed[raw.id] = e.message || String(e);
+        log.warnings.push(`Group ${raw.displayName}: ${e.message} — every policy that names it is held back, rather than created pointing at a group that does not exist.`);
+        continue;
+      }
 
       if (!created || !auByCode) continue;
       const info = personas.get(raw.id);
@@ -590,16 +953,33 @@ const Importer = (() => {
       }
     }
 
-    if (bundle.namedLocations.length) {
+    // Named locations. Read whenever a policy names one by id, so a reference
+    // no file explains can be checked against what the tenant has (locKnown).
+    const namesLocations = (bundle.policies || []).some((p) => {
+      const l = p.conditions && p.conditions.locations;
+      return !!l && [...(l.includeLocations || []), ...(l.excludeLocations || [])].some(isGuidStr);
+    });
+    if ((bundle.namedLocations || []).length || namesLocations) {
       onStatus?.("Named locations…");
       let existing = [];
-      try { existing = await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); } catch {}
-      for (const raw of bundle.namedLocations) {
+      try {
+        existing = await Graph.ggetAll("/identity/conditionalAccess/namedLocations");
+        maps.locKnown = new Set(existing.map((x) => lower(x.id)));
+      } catch (e) { maps.locKnownError = e.message || String(e); }
+      for (const raw of bundle.namedLocations || []) {
+        const t = raw["@odata.type"] || "";
+        if (/compliantNetwork/i.test(t) || lower(raw.id) === COMPLIANT_NETWORK_ID) {
+          maps.loc[raw.id] = COMPLIANT_NETWORK_ID;
+          log.reused.push(`Named location: ${raw.displayName} (Microsoft's compliant network location — referenced, never created; it applies once Global Secure Access signaling is enabled for Conditional Access)`);
+          continue;
+        }
         const found = existing.find(x => x.displayName === raw.displayName);
         if (found) { maps.loc[raw.id] = found.id; log.reused.push(`Named location: ${raw.displayName}`); continue; }
         try {
-          const t = raw["@odata.type"] || "";
-          const body = t.includes("country")
+          if (!/country|ipNamedLocation/i.test(t) && !Array.isArray(raw.ipRanges)) {
+            throw new Error(`${t.replace("#microsoft.graph.", "") || "this kind of location"} cannot be created through Graph — create it in the portal, then import again`);
+          }
+          const body = /country/i.test(t)
             ? { "@odata.type": "#microsoft.graph.countryNamedLocation", displayName: raw.displayName, countriesAndRegions: raw.countriesAndRegions || [], includeUnknownCountriesAndRegions: !!raw.includeUnknownCountriesAndRegions, countryLookupMethod: raw.countryLookupMethod || "clientIpAddress" }
             : { "@odata.type": "#microsoft.graph.ipNamedLocation", displayName: raw.displayName, isTrusted: !!raw.isTrusted, ipRanges: (raw.ipRanges || []).map(r => ({ "@odata.type": r["@odata.type"] || "#microsoft.graph.iPv4CidrRange", cidrAddress: r.cidrAddress })) };
           const created = await Graph.gpost("/identity/conditionalAccess/namedLocations", body, [...AUTH_CONFIG.scopes, ...WRITE]);
@@ -673,6 +1053,20 @@ const Importer = (() => {
     return o;
   };
 
+  // A create does not need a property it leaves unset, and an export carries
+  // dozens of them as null — Joey's files carry conditions.agents: null on all
+  // 38 policies, a preview property a tenant may not know. Omitting a null is
+  // the same request, minus a 400 over a property this tenant does not have.
+  const dropNulls = (o) => {
+    if (Array.isArray(o)) return o.map(dropNulls);
+    if (o && typeof o === "object") {
+      const r = {};
+      for (const [k, v] of Object.entries(o)) if (v !== null && v !== undefined) r[k] = dropNulls(v);
+      return r;
+    }
+    return o;
+  };
+
   // keepAssignment: 🔀 switch baseline — the assignment as the baseline
   // ships it (its own groups, remapped to the ones this import created),
   // not the deploy persona group and not the replaced policy's scoping.
@@ -688,8 +1082,8 @@ const Importer = (() => {
       }
       return (kindMap && kindMap[v]) || v;
     };
-    const p = stripOdata(JSON.parse(JSON.stringify(raw)));
-    delete p.id; delete p.createdDateTime; delete p.modifiedDateTime; delete p.templateId; delete p.partialEnablementStrategy;
+    const p = dropNulls(stripOdata(JSON.parse(JSON.stringify(raw))));
+    delete p.id; delete p.createdDateTime; delete p.modifiedDateTime; delete p.templateId; delete p.partialEnablementStrategy; delete p.deletedDateTime;
     if (!asIs) p.state = "disabled"; // always import as Off — except E-Admins (as-is)
     // Match & replace is a seamless swap: the new version takes over in the SAME
     // state as the policy it supersedes (which importPolicies then switches Off).
@@ -697,7 +1091,34 @@ const Importer = (() => {
     const c = p.conditions = p.conditions || {};
     const u = c.users = c.users || {};
 
-    const mapGroups = (arr) => (arr || []).map(id => resolveRef(id, maps.group));
+    // A group reference resolves to THIS tenant's id or the policy fails. A
+    // name key (prepareBundle) resolves through the groups this import created
+    // or found; a bare GUID no file explains must be one the directory holds,
+    // whenever the import read the directory (maps.directory).
+    const dir = maps.directory || null;
+    const groupRef = (v) => {
+      if (isGroupKey(v)) {
+        const hit = maps.group && maps.group[v];
+        if (hit) return hit;
+        const name = (maps.groupNames && maps.groupNames[v]) || safeDecode(v.slice(GROUP_KEY.length, -1));
+        const why = maps.groupFailed && maps.groupFailed[v];
+        throw new Error(`group “${name}” ${why ? `could not be created (${why})` : "was not created or found in this tenant"} — the policy was not created, so it cannot point at a group that does not exist`);
+      }
+      const r = resolveRef(v, maps.group);
+      if (dir && isGuidStr(r) && r === v && !(maps.group && maps.group[v]) && !(dir.ids && dir.ids.has(lower(v)))) {
+        throw new Error(`group ${v} is not in this import and ${dir.error ? `could not be confirmed in this tenant (${dir.error})` : "does not exist in this tenant"} — the policy was not created`);
+      }
+      return r;
+    };
+    const mapGroups = (arr) => (arr || []).map(groupRef);
+    // In an as-shipped assignment a user named by id has to exist here too.
+    const checkUsers = () => {
+      if (!dir) return;
+      const foreign = [...(u.includeUsers || []), ...(u.excludeUsers || [])].filter((x) => isGuidStr(x) && !(dir.ids && dir.ids.has(lower(x))));
+      if (foreign.length) {
+        throw new Error(`${foreign.length} user reference${foreign.length === 1 ? "" : "s"} (${foreign.slice(0, 2).join(", ")}${foreign.length > 2 ? ", …" : ""}) ${dir.error ? "could not be confirmed in this tenant" : `${foreign.length === 1 ? "does" : "do"} not exist in this tenant`} — the policy was not created`);
+      }
+    };
 
     if (matchFrom) {
       // Match & replace: this CA number already exists in the tenant. Keep the
@@ -723,7 +1144,7 @@ const Importer = (() => {
       let added = 0;
       for (const ref of newExcludeGroups) {
         let id;
-        try { id = resolveRef(ref, maps.group); }
+        try { id = groupRef(ref); }
         catch (e) { throw new Error(`Required exclusion could not be resolved: ${e.message}`); }
         if (id && !u.excludeGroups.includes(id)) { u.excludeGroups.push(id); added++; }
       }
@@ -732,6 +1153,7 @@ const Importer = (() => {
       // as-is, a baseline switch, or a workload-identity policy: keep the
       // assignment exactly as it is. Injecting a persona group into a
       // clientApplications-scoped policy makes Graph reject the create outright.
+      checkUsers();
       u.includeGroups = mapGroups(u.includeGroups);
       u.excludeGroups = mapGroups(u.excludeGroups);
       const ca = c.clientApplications;
@@ -763,9 +1185,15 @@ const Importer = (() => {
       for (const k of ["includeLocations", "excludeLocations"]) {
         if (!c.locations[k]) continue;
         c.locations[k] = c.locations[k].flatMap(id => {
-          if (id === "All" || id === "AllTrusted") return [id];
-          try { return [resolveRef(id, maps.loc)]; }
+          if (id === "All" || id === "AllTrusted" || id === "AllCompliantNetworkLocations") return [id];
+          if (lower(id) === COMPLIANT_NETWORK_ID) return [COMPLIANT_NETWORK_ID];
+          let v;
+          try { v = resolveRef(id, maps.loc); }
           catch (e) { throw new Error(`${e.message} (named location)`); } // location is material — fail the policy
+          if (isGuidStr(v) && v === id && !(maps.loc && maps.loc[id]) && maps.locKnown && !maps.locKnown.has(lower(id))) {
+            throw new Error(`named location ${id} is not in this import and does not exist in this tenant — the policy was not created`);
+          }
+          return [v];
         });
       }
     }
@@ -820,7 +1248,7 @@ const Importer = (() => {
   // opts.onItem(i, "start" | "end", result) lets the caller drive a run
   // ledger; opts.shouldStop() is checked between policies.
   async function importPolicies(items, maps, onStatus, opts = {}) {
-    const replace = opts.mode === "replace", switching = opts.mode === "switch";
+    const replace = opts.mode === "replace", switching = opts.mode === "switch", shipped = opts.mode === "shipped";
     const results = [], warnings = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -829,10 +1257,12 @@ const Importer = (() => {
       onStatus?.(`Importing ${it.name} (${i + 1}/${items.length})…`);
       let createdId = null;
       try {
-        const gid = it.personaGroup && !switching ? maps.personaGroupIds?.[it.personaGroup] : null;
+        const gid = it.personaGroup && !switching && !shipped ? maps.personaGroupIds?.[it.personaGroup] : null;
         const matchFrom = replace && it.upgrade && it.existing ? it.existing.raw : null;
         const supersedes = (replace || switching) && it.upgrade && it.existing && it.existing.id ? it.existing : null;
-        const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching);
+        const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching || shipped);
+        // E-Admins taken from another backup land Off, whatever their source state
+        if (it.forceOff) payload.state = "disabled";
         const dropped = [];
         const missing = appRefs([payload]).filter(id => maps.missingApps?.has(String(id).toLowerCase()));
         if (missing.length) throw new Error(`Required application references are missing: ${missing.map(appLabel).join(", ")}. No policy was created.`);
@@ -852,7 +1282,11 @@ const Importer = (() => {
         const contains = (actual, expected) => {
           if (expected == null) return actual == null;
           if (Array.isArray(expected)) return JSON.stringify(canonical(actual || [])) === JSON.stringify(canonical(expected));
-          if (typeof expected === "object") return Object.entries(expected).every(([k,v]) => contains(actual?.[k],v));
+          // An OData annotation is not a setting. Graph answers a read with
+          // minimal metadata, so the "@odata.type" an export carries on every
+          // nested object never comes back — comparing it failed every Joey
+          // policy as "differs from the approved plan" after creating it.
+          if (typeof expected === "object") return Object.entries(expected).every(([k,v]) => k.includes("@odata") || contains(actual?.[k],v));
           return actual === expected;
         };
         let saved;
@@ -882,13 +1316,19 @@ const Importer = (() => {
             warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
           }
         }
-        results.push({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching ? null : it.personaGroup, asIs: it.asIs, matched: !!matchFrom, switched: switching, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped });
+        results.push({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching || shipped ? null : it.personaGroup, asIs: it.asIs, forceOff: !!it.forceOff, matched: !!matchFrom, switched: switching, shipped: shipped && !matchFrom, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped });
       } catch (e) {
         console.error("Import failed:", it.name, e);
         // Graph answers most policy-shape problems with a bare 400, so add the
         // causes we can actually see in the payload.
         let hint = "";
-        if (/\(400\)|BadRequest/i.test(e.message || "")) {
+        if (/\((400|403)\)|BadRequest|Forbidden/i.test(e.message || "") && isAgentPolicy(it.raw)) {
+          hint += " — a Conditional Access for agents policy (preview): the tenant needs Microsoft Entra Agent ID (Entra ID P1 or P2 with a Microsoft Agent 365 licence), agent risk needs ID Protection, and the file uses preview properties (agents, agentContext, agentIdRiskLevels) Graph may have changed since it was exported";
+        }
+        if (/\(400\)|BadRequest/i.test(e.message || "") && JSON.stringify(it.raw.conditions?.locations || {}).toLowerCase().includes(COMPLIANT_NETWORK_ID)) {
+          hint += " — it uses the compliant network location, which needs Global Secure Access signaling enabled for Conditional Access";
+        }
+        if (/\(400\)|BadRequest/i.test(e.message || "") && !isAgentPolicy(it.raw)) {
           const a = it.raw.conditions?.applications || {};
           const refs = [...(a.includeApplications || []), ...(a.excludeApplications || [])]
             .filter((x) => /^[0-9a-f]{8}-/i.test(x));
@@ -899,7 +1339,7 @@ const Importer = (() => {
           if (isWorkloadIdentity(it.raw)) bits.push("it is a workload-identity policy, which cannot also carry a user or group scope");
           if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");
           if ((it.raw.grantControls?.termsOfUse || []).length) bits.push("it grants a terms of use, which must already exist here");
-          if (bits.length) hint = ` — likely because ${bits.join("; ")}`;
+          if (bits.length) hint += ` — likely because ${bits.join("; ")}`;
         }
         // An "update" is create-new-version + switch-old-Off. When the create
         // fails, say so — otherwise a failed upgrade reads as if the existing
@@ -912,6 +1352,85 @@ const Importer = (() => {
       opts.onItem?.(i, "end", results[results.length - 1]);
     }
     return { results, warnings };
+  }
+
+  // ---------- 🔧 re-attach: swap source ids for this tenant's groups ----------
+  // rows from repairPlan(); maps from ensureDependencies() over the groups the
+  // rows name. Per policy: read it fresh, swap only the ids the plan named
+  // (one that has changed since is left alone), PATCH the users block, read it
+  // back and require the swap to be there. State, conditions and every other
+  // assignment stay as they are.
+  async function repairPolicies(rows, maps, opts = {}) {
+    const results = [];
+    for (let i = 0; i < (rows || []).length; i++) {
+      const r = rows[i];
+      if (opts.shouldStop && opts.shouldStop()) { results.push({ ...r, ok: false, stopped: true, error: "stopped before this policy — nothing changed" }); continue; }
+      opts.onItem?.(i, "start");
+      try {
+        const url = `/identity/conditionalAccess/policies/${r.id}`;
+        const fresh = await Graph.gget(url);
+        const users = stripOdata(JSON.parse(JSON.stringify((fresh && fresh.conditions && fresh.conditions.users) || {})));
+        const done = [];
+        for (const s of r.swaps) {
+          const to = maps.group && maps.group[s.key];
+          if (!to) {
+            const why = maps.groupFailed && maps.groupFailed[s.key];
+            throw new Error(`group “${s.name}” ${why ? `could not be created (${why})` : "was not created or found"} — this policy was left unchanged`);
+          }
+          const arr = Array.isArray(users[s.list]) ? users[s.list] : [];
+          if (!arr.includes(s.from)) continue;
+          users[s.list] = [...new Set(arr.map((x) => (x === s.from ? to : x)))];
+          done.push({ ...s, to });
+        }
+        if (!done.length) { results.push({ ...r, ok: true, changed: false, done }); opts.onItem?.(i, "end", results[results.length - 1]); continue; }
+        await Graph.gpatch(url, { conditions: { users } }, [...AUTH_CONFIG.scopes, ...WRITE]);
+        const back = await Graph.gget(url);
+        const bu = (back && back.conditions && back.conditions.users) || {};
+        const left = done.filter((s) => (bu[s.list] || []).includes(s.from));
+        const gone = done.filter((s) => !(bu[s.list] || []).includes(s.to));
+        if (left.length || gone.length) {
+          throw new Error(`Graph accepted the update but the policy does not read back with the groups attached (${[...left.map((s) => `${s.from} still there`), ...gone.map((s) => `${s.name} missing`)].join(", ")}) — inspect it before switching it On`);
+        }
+        results.push({ ...r, ok: true, changed: true, done });
+      } catch (e) {
+        results.push({ ...r, ok: false, error: e.message || String(e) });
+      }
+      opts.onItem?.(i, "end", results[results.length - 1]);
+    }
+    return results;
+  }
+
+  function repairReport({ tenantName, fileName, rows, results, depLog }) {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const ok = (results || []).filter((r) => r.ok && r.changed);
+    const same = (results || []).filter((r) => r.ok && !r.changed);
+    const bad = (results || []).filter((r) => !r.ok);
+    const log = depLog || { created: [], reused: [], warnings: [] };
+    const lines = [
+      `# Conditional Access re-attach report`,
+      ``,
+      `- **Tenant:** ${tenantName}`,
+      `- **Date:** ${stamp}`,
+      `- **Source:** ${fileName}`,
+      `- **Policies re-attached:** ${ok.length} of ${(rows || []).length}${same.length ? ` (${same.length} already fixed)` : ""}`,
+      `- **Failures:** ${bad.length}`,
+      ``,
+      `These policies were imported earlier with the group ids of the tenant the file came from. An id this tenant does not have excludes (or includes) nobody. Each one was swapped for the group the file meant, created here or found by name; nothing else in the policy — state, conditions, the other assignments — was changed.`,
+      ``,
+      `## Groups`,
+      ``,
+      ...(log.created || []).map((x) => `- ➕ ${x}`),
+      ...(log.reused || []).map((x) => `- ♻️ ${x}`),
+      ``,
+      ...(ok.length ? [`## Re-attached`, ``, ...ok.map((r) => `- ✅ **${r.name}** — ${r.done.map((s) => `${s.list === "excludeGroups" ? "exclusion" : "include"} \`${s.from}\` → **${s.name}** (\`${s.to}\`)`).join("; ")}`), ``] : []),
+      ...(bad.length ? [`## Failed — left unchanged`, ``, ...bad.map((r) => `- ❌ **${r.name}** — ${r.error}`), ``] : []),
+      ...((log.warnings || []).length ? [`## Warnings`, ``, ...log.warnings.map((w) => `- ⚠ ${w}`), ``] : []),
+      `---`,
+      `Generated by ${BRANDING.name} — Import (BETA)`,
+    ];
+    return lines.join("\n");
   }
 
   // ---------- markdown change report ----------
@@ -933,6 +1452,7 @@ const Importer = (() => {
       `- **Source:** ${fileName}`,
       `- **Assignment mode:** ${mode === "replace" ? "Match & replace — existing policies keep their current assignment; the superseded version is switched Off"
         : mode === "switch" ? `Switch baseline — policies land with the baseline's own groups (created here), members copied across from the ${depLog.switchFrom ? depLog.switchFrom + " " : ""}counterpart groups; a superseded policy is switched Off`
+        : mode === "shipped" ? "As shipped — the baseline's own groups, created or found by name in this tenant and attached; no id from the source tenant is written into a policy"
         : "Deployment groups — includes remapped to the deploy persona group (CAD-SEC-U-DG-*)"}`,
       `- **Policies imported:** ${results.filter(r => r.ok).length} (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${results.filter(r => r.ok && r.state === s).length} ${stateLabel(s)}`).join(", ")})`,
       ...(replaced.length ? [`- **Policies replaced (old version disabled):** ${replaced.filter(r => r.disabledOld).length} of ${replaced.length}`] : []),
@@ -943,6 +1463,14 @@ const Importer = (() => {
       ``,
       ...(depLog.created.length ? [`### Created`, ``, ...depLog.created.map(x => `- ${x}`), ``] : []),
       ...(depLog.reused.length ? [`### Reused (already existed)`, ``, ...depLog.reused.map(x => `- ${x}`), ``] : []),
+      ...((depLog.groupNotes || []).length ? [
+        `### Groups attached by name`,
+        ``,
+        `The group ids in the file belong to the tenant it was exported from. Every group was created or found here by NAME and the policies point at this tenant's objects; a group that could not be created held its policies back (see Failed).`,
+        ``,
+        ...depLog.groupNotes.map(x => `- ${x}`),
+        ``,
+      ] : []),
       ...(((depLog.placed || []).length || (depLog.placeFailed || []).length || (depLog.unplaced || []).length) ? [
         `### Protection — restricted administrative units`,
         ``,
@@ -980,12 +1508,16 @@ const Importer = (() => {
       ] : []),
       `## Imported policies`,
       ``,
-      ...(results.filter(r => r.ok).map(r => r.asIs
+      ...(results.filter(r => r.ok).map(r => r.asIs && r.forceOff
+        ? `- 🚨 **${r.name}** — **imported Off** (E-Admins taken from ${depLog.sharedFrom || "another backup"})${depLog.sharedRenamed ? `; break-glass group \`${depLog.sharedRenamed.from}\` → \`${depLog.sharedRenamed.to}\`` : ""} — check the trusted locations and the emergency accounts' sign-in methods before switching it On`
+        : r.asIs
         ? `- ✅ **${r.name}** — **imported as-is** (E-Admins: state and assignments unchanged)`
         : r.matched
         ? `- ♻️ **${r.name}** — state **${stateLabel(r.state)}** (taken from the policy it replaces); **assignment copied from the current policy** (new exclusion groups from this version merged in)${r.disabledOld ? `; previous version **${r.oldName}** switched Off` : `; ⚠ could not disable previous version${r.oldName ? ` **${r.oldName}**` : ""}`}`
         : r.switched
         ? `- 🔀 **${r.name}** — state set to Off; assignment as the baseline ships it, on the groups created or reused here${r.oldName ? (r.disabledOld ? `; superseded **${r.oldName}** switched Off` : `; ⚠ could not disable superseded **${r.oldName}**`) : ""}`
+        : r.shipped
+        ? `- 🧩 **${r.name}** — state set to Off; assignment as the baseline ships it, attached to the groups created or found by name here`
         : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
@@ -1034,5 +1566,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, parsePlaceholder, collectPlaceholders, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

@@ -29,6 +29,38 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25383,
+  date: "2026-09-17",
+  title: "Joey Verlinden import — groups attached by name, earlier imports re-attached, E-Admins added",
+  items: [
+    {
+      kind: "fixed",
+      tool: "Import",
+      text: "Importing Joey Verlinden's baseline no longer leaves policies pointing at groups from his tenant. Every group a policy names is created in yours, or found when one with that name already exists, and the policy gets YOUR group. A group that cannot be created now holds back the policies that name it, with the reason on the row, instead of letting them land on an id this tenant does not have — which is how the break-glass accounts ended up excluded by a group that does not exist here.",
+    },
+    {
+      kind: "new",
+      tool: "Import",
+      text: "Re-attach for policies imported before this build: open the Joey import again and a panel lists every policy that still points at a group from his tenant, with the group each id should have been. One click creates those groups by name, swaps only those ids and reads every policy back. State, conditions and the other assignments stay as they are.",
+    },
+    {
+      kind: "new",
+      tool: "Import",
+      text: "The shared E-Admins policies can be imported while Joey's baseline is the one in use: add them to the import from a CloudFellows backup ZIP or folder. Only the E-Admins policies and what they use are taken, the break-glass group becomes Joey's CA-BreakGlassAccounts - Exclude, and they land Off, so an emergency account cannot be locked out by a policy switched On before the trusted locations and sign-in methods are in place.",
+    },
+    {
+      kind: "improved",
+      tool: "Import",
+      text: "New assignment mode As shipped, pre-selected for Joey's baseline: the policies keep their own includes and exclusions, on groups created by name — no CloudFellows deploy groups. Joey's naming quirks are handled: CA005 and CA006 each get the exclusion group that carries their own name, and CA403 and CA404 get a group named after the policy.",
+    },
+    {
+      kind: "fixed",
+      tool: "Import",
+      text: "Policies from Joey's files are no longer reported as failed after they were created — the check compared labels his export carries and Graph never sends back. CA505 uses Microsoft's compliant network location as it is instead of trying to create it, the agent policies carry a preview tag and say what the tenant needs when Graph refuses them, and a downloaded copy of his repository (UTF-16 files) now loads.",
+    },
+  ],
+},
+{
   build: 25382,
   date: "2026-09-16",
   title: "Where is this group used — Windows 365 and Intune roles too",

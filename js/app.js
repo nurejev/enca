@@ -2881,6 +2881,11 @@
 
   // ---------- import tool (BETA) ----------
   let imBundle = null, imPlan = null, imFileName = "", imMode = "deploy";
+  // imRaw — the bundle as it was read, before prepareBundle() turned its group
+  // references into names; the E-Admins merge works on this one.
+  // imEa — the 🚨 E-Admins taken from a CloudFellows backup into this import.
+  // imRepair — 🔧 policies already here that point at the file's source ids.
+  let imRaw = null, imEa = null, imRepair = null;
   // Workload ID licence state for this tenant: { known, licensed, sku }. Read
   // once per file load — a workload-identity policy cannot be created without it.
   let imLic = { known: false, licensed: false, sku: null };
@@ -2890,6 +2895,7 @@
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
     imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imRaw = null; imEa = null; imRepair = null;
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -3287,18 +3293,209 @@
     </div>`;
   }
 
+  // ---- 👥 groups attached by name (beta 25383) ------------------------------
+  // What prepareBundle() did to the file's group references, said before the
+  // import runs: the count, and every name it corrected.
+  function imGroupsPanel() {
+    if (!imBundle || !imBundle.prepared) return "";
+    const n = (imBundle.groups || []).length;
+    if (!n) return "";
+    const notes = imBundle.groupNotes || [];
+    return `<div class="cg-panel">
+      <h4>👥 GROUPS — ${n} ATTACHED BY NAME</h4>
+      <p class="mini" style="margin:0${notes.length ? " 0 6px" : ""}">Every group these policies name is created in this tenant — or found, when one with that name already exists — and the policies are attached to <b>this tenant's</b> group. The group ids in the file belong to the tenant it was exported from and are never written into a policy: a group that cannot be created holds back the policies that name it, instead of letting them point at a group that does not exist.</p>
+      ${notes.length ? `<ul class="mini" style="margin:0;padding-left:18px">${notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    </div>`;
+  }
+
+  // ---- 🚨 E-Admins from a CloudFellows backup (beta 25383) ------------------
+  // The emergency-access policies are expected under every baseline and only
+  // a CloudFellows backup ships them; with Joey Verlinden's baseline active
+  // there was no way to bring them in. Importer.mergeShared() takes them, and
+  // only them, into THIS import — break-glass group renamed to the target
+  // baseline's, landing Off.
+  function imTargetCatalog() {
+    try {
+      const id = Importer.catalogOfBundle(imBundle) || Baseline.activeCatalogId();
+      return Baseline.withContract(Baseline.catalog(id));
+    } catch { return null; }
+  }
+  function imEaPanel() {
+    if (!imBundle || !imPlan) return "";
+    const toCat = imTargetCatalog();
+    if (imEa && imEa.added && imEa.added.length) {
+      return `<div class="cg-panel">
+        <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED FROM ${esc(String(imEa.label).toUpperCase())}</h4>
+        <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
+      </div>`;
+    }
+    // a file that ships its own E-Admins (a CloudFellows backup) needs nothing
+    if (imPlan.some((p) => p.asIs)) return "";
+    const shared = (typeof Baseline !== "undefined" && Baseline.sharedPolicies && toCat) ? Baseline.sharedPolicies(toCat) : [];
+    const cf = Baseline.catalog("limonit");
+    return `<div class="cg-panel">
+      <h4>🚨 E-ADMINS — NOT IN THIS FILE</h4>
+      <p class="mini" style="margin:0 0 8px">The emergency-access policies${shared.length ? ` (${shared.length}: ${esc(shared.map((p) => `CA${p.num}`).join(", "))})` : ""} are expected under every baseline, and only a CloudFellows backup ships them. Add them to this import from one: only the E-Admins policies and the groups, locations and authentication strengths they use are taken${toCat && cf && toCat.breakGlassGroup && cf.breakGlassGroup && toCat.breakGlassGroup !== cf.breakGlassGroup ? `, the break-glass group becomes ${esc(toCat.label)}'s (<code>${esc(toCat.breakGlassGroup)}</code>)` : ""}, and they land <b>Off</b>.</p>
+      ${imEa && imEa.error ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">${esc(imEa.error)}</p>` : ""}
+      <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" id="imEaZip">＋ E-Admins from a CloudFellows backup ZIP</button>
+        <button class="btn sm" id="imEaFolder">＋ from an extracted backup folder</button>
+      </div>
+    </div>`;
+  }
+  function imEaPick(folder) {
+    if (!imRaw) return;
+    const inp = document.createElement("input");
+    inp.type = "file";
+    if (folder) { inp.webkitdirectory = true; inp.multiple = true; }
+    else inp.accept = ".zip,application/zip";
+    inp.addEventListener("change", async () => {
+      const files = [...(inp.files || [])];
+      if (!files.length) return;
+      const label = folder ? "the selected folder" : files[0].name;
+      try {
+        const src = folder ? await Importer.readFolder(files) : await Importer.readZip(files[0]);
+        const toCat = imTargetCatalog();
+        const cf = Baseline.catalog("limonit");
+        const m = Importer.mergeShared(imRaw, src, { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
+        if (!m.found) {
+          imEa = { label, error: `${label} holds no E-Admins policies (CA1100–CA1105) — pick the CloudFellows baseline backup.` };
+          imRenderList();
+          return;
+        }
+        // keep what was ticked, and tick what was just added
+        const keep = new Set([...document.querySelectorAll("[data-imp]:checked")].map((cb) => imPlan[+cb.dataset.imp].name));
+        m.added.forEach((n) => keep.add(n));
+        imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed };
+        await imLoaded(m.bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins from ${label}`, { mode: imMode, only: keep });
+        toast(m.added.length ? `<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} added — they land Off` : "The E-Admins policies are already in this import");
+      } catch (err) {
+        console.error(err);
+        imEa = { label, error: `Could not read ${label}: ${err.message || err}` };
+        imRenderList();
+      }
+    });
+    inp.click();
+  }
+
+  // ---- 🔧 re-attach policies already imported with source ids (beta 25383) --
+  // An import before this build wrote the file's own group ids into a policy
+  // whenever a group could not be created. The tenant then holds policies that
+  // exclude groups it does not have — Joey's break-glass group among them. The
+  // loaded file knows what each of those ids was CALLED, so the fix is the same
+  // as the import's: create or find the group by name, swap the id.
+  async function imLoadRepair() {
+    imRepair = null;
+    const idx = imBundle && imBundle.groupIndex;
+    if (!idx) return;
+    const cands = new Set();
+    for (const p of policies) {
+      const u = (p.raw && p.raw.conditions && p.raw.conditions.users) || {};
+      for (const id of [...(u.includeGroups || []), ...(u.excludeGroups || [])]) if (idx.isSource(id)) cands.add(String(id).toLowerCase());
+    }
+    if (!cands.size) return;
+    imRepair = { rows: [], error: null, results: null };
+    try {
+      const dir = isDemo ? { ids: new Set(), error: null } : await Importer.readDirectoryIds([...cands]);
+      if (dir.error) { imRepair.error = dir.error; return; }
+      imRepair.rows = Importer.repairPlan(imBundle, policies.map((p) => p.raw), dir);
+    } catch (e) { imRepair.error = e.message || String(e); }
+  }
+  function imRepairPanel() {
+    if (!imRepair) return "";
+    if (imRepair.error) {
+      return `<div class="cg-panel"><h4>🔧 RE-ATTACH — COULD NOT CHECK</h4>
+        <p class="mini" style="margin:0">Policies in this tenant name ids that this file's groups carried, and the directory could not be read to tell whether those groups exist here (${esc(imRepair.error)}). Nothing was changed; open the file again to retry.</p></div>`;
+    }
+    const rows = imRepair.rows || [];
+    if (!rows.length) return "";
+    const nGroups = new Set(rows.flatMap((r) => r.swaps.map((s) => s.key))).size;
+    const on = rows.filter((r) => r.state === "enabled").length;
+    const st = (s) => s === "enabled" ? "On" : s === "enabledForReportingButNotEnforced" ? "Report-only" : "Off";
+    return `<div class="cg-panel" style="border-color:var(--off)">
+      <h4>🔧 RE-ATTACH — ${rows.length} ${rows.length === 1 ? "POLICY" : "POLICIES"} ALREADY HERE ${rows.length === 1 ? "POINTS" : "POINT"} AT GROUPS THIS TENANT DOES NOT HAVE</h4>
+      <p class="mini" style="margin:0 0 8px">These were imported earlier with the group ids of the tenant this file comes from — 👥 CA groups lists them as <b>referenced but gone</b>. An exclusion naming a group that does not exist excludes <b>nobody</b>: the break-glass accounts are not exempt from a policy that points at a break-glass group this tenant does not have. ${on ? `<b style="color:var(--off)">${on} of them ${on === 1 ? "is" : "are"} On.</b> ` : "None of them is On yet — keep it that way until they are re-attached. "}The fix is the import's own: create the ${nGroups} group${nGroups === 1 ? "" : "s"} (or find them by name) and swap the ids. State, conditions and every other assignment stay as they are.</p>
+      <div class="cg-pick">${rows.map((r) => `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="mini muted">${st(r.state)}</span></div>
+        <div class="mini">${r.swaps.map((s) => `${s.list === "excludeGroups" ? "exclusion" : "include"} <code>${esc(s.from)}</code> → <b>${esc(s.name)}</b>`).join("<br>")}</div></div>`).join("")}</div>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" id="imRepairGo">🔧 Create ${nGroups} group${nGroups === 1 ? "" : "s"} and re-attach ${rows.length} ${rows.length === 1 ? "policy" : "policies"}</button>
+        <span class="mini muted">writes to the tenant — a separate click from Import</span>
+      </div>
+      <div id="imRepairLog" style="margin-top:8px"></div>
+    </div>`;
+  }
+  async function imRepairRun(btn) {
+    const rows = (imRepair && imRepair.rows) || [];
+    if (!rows.length) return;
+    const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess",
+      "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", ...(placing ? ["AdministrativeUnit.ReadWrite.All"] : [])])) return;
+    btn.disabled = true;
+    const host = $("imRepairLog");
+    const L = RunLedger.create(host, { unit: "policies", title: "re-attach", items: [
+      { label: "Groups", sub: "created, or found by name" },
+      ...rows.map((r) => ({ label: r.name, sub: r.swaps.map((s) => `${s.from.slice(0, 8)}… → ${s.name}`).join(" · ") })),
+    ], onStop: () => {} });
+    try {
+      L.start(0);
+      const groups = [...new Map(rows.flatMap((r) => r.swaps.map((s) => [s.key, s.group]))).values()];
+      let dep;
+      if (isDemo) {
+        dep = { maps: { group: Object.fromEntries(groups.map((g) => [g.id, "demo-" + g.displayName])), groupFailed: {} },
+          log: { created: groups.map((g) => `Group: ${g.displayName} (assigned)`), reused: [], warnings: [] } };
+      } else {
+        const mini = { policies: rows.map((r) => ({ displayName: r.name, conditions: { users: { includeGroups: [], excludeGroups: r.swaps.map((s) => s.key) } } })),
+          groups, namedLocations: [], authStrengths: [], authContexts: [], termsOfUse: [], prepared: true, fromRepository: !!imBundle.fromRepository };
+        dep = await Importer.ensureDependencies(mini, (m) => L.note(0, m), { matchedNames: rows.map((r) => r.name), auByCode: placing ? imAu.byCode : null });
+      }
+      const gf = Object.keys(dep.maps.groupFailed || {}).length;
+      (gf ? L.part : L.done)(0, `${dep.log.created.length} created · ${dep.log.reused.length} reused${gf ? ` · ${gf} could not be created — their policies stay as they are` : ""}`, gf ? "partly done" : "ready");
+      const res = isDemo
+        ? rows.map((r) => ({ ...r, ok: true, changed: true, done: r.swaps.map((s) => ({ ...s, to: dep.maps.group[s.key] })) }))
+        : await Importer.repairPolicies(rows, dep.maps, {
+          shouldStop: () => L.stopped,
+          onItem: (i, phase, r) => {
+            if (phase === "start") { L.start(i + 1); return; }
+            if (!r) return;
+            if (r.stopped) L.skip(i + 1, "stopped");
+            else if (r.ok) L.done(i + 1, r.changed ? `${r.done.length} group${r.done.length === 1 ? "" : "s"} attached` : "already fixed — nothing to swap", r.changed ? "re-attached" : "no change");
+            else L.fail(i + 1, r.error || "refused", "refused");
+          },
+        });
+      if (isDemo) res.forEach((r, i) => L.done(i + 1, `${r.done.length} group${r.done.length === 1 ? "" : "s"} attached (simulated)`, "re-attached"));
+      L.finish();
+      imRepair.results = res;
+      const bad = res.filter((r) => !r.ok).length;
+      showReport("🔧 Re-attach report", "CA-Import-Reattach", Importer.repairReport({ tenantName, fileName: imFileName, rows, results: res, depLog: dep.log }));
+      toast(bad ? `Re-attach done with <span>${bad} failure(s)</span>` : `<span>${res.filter((r) => r.changed).length}</span> policies re-attached${isDemo ? " (simulated)" : ""}`);
+      if (!isDemo && res.some((r) => r.ok && r.changed)) await loadFromGraph(true);
+    } catch (e) {
+      console.error(e);
+      try { L.finish(); } catch { /* already finished */ }
+      host.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:8px;color:var(--off)">✗ ${esc(e.message || e)}</p>`);
+    } finally { btn.disabled = false; }
+  }
+
   // opts.mode — the assignment mode to start on; opts.only — a Set of policy
   // names to leave ticked (the gap the Baseline tool handed over), the rest
   // unticked but still listed.
   async function imLoaded(bundle, fileName, opts = {}) {
+    // Every group reference becomes a NAME before anything else looks at the
+    // file (Importer.prepareBundle): the ids in it belong to the tenant it was
+    // exported from, and the import attaches this tenant's groups by name.
+    imRaw = bundle;
+    bundle = Importer.prepareBundle(bundle);
     imBundle = bundle; imFileName = fileName;
     // pass the tenant's raw policies (not just names) so "match & replace" can
     // read the current assignment and id of a policy it supersedes
     imPlan = Importer.plan(bundle, policies.map(p => p.raw));
     imCapabilities = await readCapabilities(true);
     imSwitch = imSwitchPlan(bundle);
-    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : "deploy");
-    const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${bundle[k].length} ${k}`).join(", ");
+    // A baseline other than CloudFellows has no CAD-SEC-U-DG deploy groups of
+    // its own: its policies land as shipped, on its own groups.
+    const cid = Importer.catalogOfBundle(bundle);
+    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : cid && cid !== "limonit" ? "shipped" : "deploy");
+    const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${(bundle[k] || []).length} ${k}`).join(", ");
     $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.${bundle.depSkipped && bundle.depSkipped.length ? ` ${bundle.depSkipped.length} dependency file(s) could not be read.` : ""}`;
     // Only worth a Graph call when the file actually contains one.
     imLic = imPlan.some(p => p.wid)
@@ -3306,6 +3503,7 @@
       : { known: false, licensed: false, sku: null };
     await imLoadAu();
     await imLoadRoleAssignable();
+    await imLoadRepair();
     imRenderList();
     if (opts.only) {
       imPlan.forEach((p, i) => {
@@ -3322,7 +3520,7 @@
   function imRenderList() {
     const importable = imPlan.filter(p => !p.exists && !imWidBlocked(p));
     const nUpg = imPlan.filter(p => p.upgrade).length;
-    const replace = imMode === "replace", switching = imMode === "switch";
+    const replace = imMode === "replace", switching = imMode === "switch", shipped = imMode === "shipped";
     const nWid = imPlan.filter(p => p.wid && !p.exists).length;
     const sw = imSwitch;
 
@@ -3345,6 +3543,11 @@
       if (p.upgrade) return replace
         ? `♻️ replaces the current ${esc(p.existing.label)} — assignment + state kept (new exclusions merged), old policy switched Off`
         : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current ${esc(p.existing.label)} stays as-is</span>`;
+      if (shipped && !p.asIs) {
+        const u = (p.raw.conditions && p.raw.conditions.users) || {};
+        const n = (u.includeGroups || []).length + (u.excludeGroups || []).length;
+        return `🧩 as shipped${n ? ` — ${n} group${n === 1 ? "" : "s"} attached by name` : ""}${p.agent ? ` · <span style="color:var(--muted)">agent policy (preview): needs Microsoft Entra Agent ID</span>` : ""}`;
+      }
       if (p.personaGroup) return `→ ${esc(p.personaGroup)}`;
       return esc(p.reason || "");
     };
@@ -3355,11 +3558,16 @@
           <b>🔀 Switch baseline</b><span class="mini">Not available for this file: it matches no other baseline's group naming, so there is nothing to carry members from.</span></label>`;
 
     $("imBody").innerHTML = `
+      ${imRepairPanel()}
+      ${imEaPanel()}
+      ${imGroupsPanel()}
       ${imRaPanel()}
       ${imExPanel()}
       ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
-        <label class="im-mode-opt${!replace ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${!replace ? "checked" : ""}>
+        <label class="im-mode-opt${shipped ? " on" : ""}"><input type="radio" name="imMode" value="shipped" ${shipped ? "checked" : ""}>
+          <b>🧩 As shipped — the baseline's own groups</b><span class="mini">Every group the policies name is created in this tenant, or found when one with that name exists, and attached: includes and exclusions exactly as the file ships them. Nothing existing is touched; the policies land Off.</span></label>
+        <label class="im-mode-opt${imMode === "deploy" ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${imMode === "deploy" ? "checked" : ""}>
           <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
         <label class="im-mode-opt${replace ? " on" : ""}"><input type="radio" name="imMode" value="replace" ${replace ? "checked" : ""}>
           <b>♻️ Match &amp; replace</b><span class="mini">A policy already in this tenant keeps its current assignment and state (plus any new exclusion groups this version adds); its old version is switched Off.${nUpg ? ` ${nUpg} match${nUpg === 1 ? "es" : "es"} here.` : " No matches in this file."}</span></label>
@@ -3381,7 +3589,8 @@
       <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
       imPlan.map((p, i) => `<li data-imrow="${i}" data-imkey="${esc(imPersonaKey(p))}"><label class="chk" style="margin:0">
         <input type="checkbox" data-imp="${i}" ${p.exists || imWidBlocked(p) ? "disabled" : "checked"}>
-        ${p.exists ? '<span class="tag">skip</span>' : imWidBlocked(p) ? `<span class="tag block" title="${esc(imRequirement(p).reason)}">licence evidence required</span>` : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
+        ${p.exists ? '<span class="tag">skip</span>' : imWidBlocked(p) ? `<span class="tag block" title="${esc(imRequirement(p).reason)}">licence evidence required</span>` : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs && p.forceOff ? '<span class="tag new" title="Taken from a CloudFellows backup into this import — lands Off">🚨 E-Admins · Off</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
+        ${p.agent && !p.exists ? '<span class="tag" title="Conditional Access for agents (preview) — the tenant needs Microsoft Entra Agent ID: Entra ID P1 or P2 with a Microsoft Agent 365 licence">🤖 preview</span>' : ""}
         ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; unresolved controls stop the import">📜 needs ToU</span>' : ""}
         ${esc(p.name)}
         <span class="mini">${rowHint(p)}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">requires a resolved Terms of use before import</span>' : ""}</span>
@@ -3411,6 +3620,8 @@
     btn.textContent = n ? `Import ${n}` : "Import";
   }
   $("imBody").addEventListener("click", async (e) => {
+    if (e.target.id === "imEaZip" || e.target.id === "imEaFolder") { imEaPick(e.target.id === "imEaFolder"); return; }
+    if (e.target.id === "imRepairGo") { await imRepairRun(e.target); return; }
     if (e.target.id === "imAuAll") {
       imAu.sel = imAu.sel.size === imAu.missing.length ? new Set() : new Set(imAu.missing.map(r => r.name));
       imRenderList();
@@ -3554,11 +3765,13 @@
   }
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
+    imEa = null;
     try { await imLoaded(await Importer.readZip(f), f.name); }
     catch (err) { console.error(err); toast(`Could not read zip: <span>${esc(err.message || err)}</span>`); }
   });
   $("imFolder").addEventListener("change", async (e) => {
     if (!e.target.files.length) return;
+    imEa = null;
     try { await imLoaded(await Importer.readFolder([...e.target.files]), "selected folder"); }
     catch (err) { console.error(err); toast(`Could not read folder: <span>${esc(err.message || err)}</span>`); }
   });
@@ -3600,7 +3813,7 @@
       // policies that will be replaced in place don't need a deploy group made;
       // a baseline switch keeps every assignment as shipped, so none does
       const matchedNames = imMode === "replace" ? chosen.filter(p => p.upgrade).map(p => p.name)
-        : imMode === "switch" ? chosen.map(p => p.name) : [];
+        : imMode === "switch" || imMode === "shipped" ? chosen.map(p => p.name) : [];
       const switching = imMode === "switch" && imSwitch;
       if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
       L.start(0);
@@ -3609,8 +3822,10 @@
         res.results = chosen.map(p => {
           const matched = imMode === "replace" && p.upgrade;
           const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs };
+          const asShipped = imMode === "shipped" && !matched;
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching || asShipped ? null : p.personaGroup, matched, switched: !!switching, shipped: asShipped, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: p.forceOff ? "disabled" : matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs, forceOff: !!p.forceOff };
         });
+        depLog.groupNotes = (imBundle.groupNotes || []).slice();
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
         if (switching) {
           // the same three outcomes a real copy has, so the demo report is honest
@@ -3640,20 +3855,21 @@
         const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
+        const heldBack = Object.keys(maps.groupFailed || {}).length;
         // 🔀 the members come across BEFORE the policies land, so a policy
         // that is switched On afterwards already excludes the right people.
         if (switching) {
           depLog.copied = await imCopyCounterparts(scoped, maps, depSay);
           if (depLog.copied.some(r => r.error || r.failed?.length)) throw new Error("Baseline switch stopped: counterpart membership was not fully copied and verified. No policies were imported; inspect the staged groups before retrying.");
         }
-        L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, "ready");
+        (heldBack ? L.part : L.done)(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${heldBack ? ` · ${heldBack} group${heldBack === 1 ? "" : "s"} could not be created — the policies naming ${heldBack === 1 ? "it are" : "them are"} held back` : ""}${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, heldBack ? "partly done" : "ready");
         res = await Importer.importPolicies(chosen, maps, (m) => { const i = chosen.findIndex((p) => m.startsWith(p.name + ":")); if (i >= 0) L.note(i + 1, m.slice(chosen[i].name.length + 1).trim()); }, {
           mode: imMode, shouldStop: () => L.stopped,
           onItem: (i, phase, r) => {
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
             if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
-            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
+            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : r.shipped ? "created as shipped" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
             else L.fail(i + 1, r.error || "refused", "refused");
           },
         });
@@ -3670,6 +3886,7 @@
       L.finish();
       // Change report — shown on screen and downloadable. A failed import is
       // the case you most need to read, so it should not require opening a file.
+      depLog.sharedFrom = imBundle.sharedFrom || null; depLog.sharedRenamed = imBundle.sharedRenamed || null;
       const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings, mode: imMode, licence: imLic });
       const failed = res.results.filter(r => !r.ok).length;
       // a clean run closes the dialog; one with failures (or a stop) stays open
@@ -8720,7 +8937,7 @@ This is a directory write. Nothing else changes.`)) return;
     const res = blResult;
     const n = res ? res.toImport.length : 0;
     const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
-      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships` : "") + ". ";
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships — add ${res.toImportShared.length === 1 ? "it" : "them"} below with ＋ E-Admins` : "") + ". ";
     if (res && res.catalog.id === "joey" && typeof BaselineLive !== "undefined" && !isDemo) {
       const btn = $("blImport");
       btn.disabled = true;
@@ -8736,7 +8953,7 @@ This is a directory write. Nothing else changes.`)) return;
           $("imDesc").textContent = gapNote() + `Reading the repository at ${b.release}${b.commit ? ` (${String(b.commit).slice(0, 7)})` : ""}…`;
           const only = new Set(res.toImport.map((r) => r.baseline.name));
           await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`, { only });
-          $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. Pick an assignment mode — 🔀 Switch baseline carries the members of this tenant's existing groups across.`;
+          $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. 🧩 As shipped creates the baseline's own groups by name and attaches them; 🔀 Switch baseline also carries the members of this tenant's existing groups across.`;
           return;
         }
         toast(`Could not read the repository — <span>${esc(BaselineLive.status().error || "no usable read")}</span>. Download it at ${esc(res.catalog.url)} and import the folder instead.`);

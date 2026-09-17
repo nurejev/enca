@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 219,
+      title: "📥 Joey import — groups attached by name, 🔧 re-attach, 🚨 E-Admins from a CloudFellows backup (Import 2.13)",
+      tools: ["Import"],
+      builds: [25383],
+      risk: "high",
+      what: "js/import.js: prepareBundle() turns every group reference into a name key and plans one group per name — one source id with two files gives each policy the file with its own name, a policy's own exclusion group under another name (CA403, CA404) is created under the convention name; ensureDependencies() creates or finds each group by name, maps key to tenant id, records groupFailed, reads the directory once (getByIds) for ids no file explains and, for a backup rather than a repository, binds a source id the tenant still has to the same object; buildPolicyPayload() throws for an unresolved key and for an unknown group, user or named-location id; nulls are dropped from the create body; the readback comparison skips OData annotations; a compliantNetworkNamedLocation is referenced by 3d46dbda-8382-466a-856d-eb00cbc6b910 and never created; mode shipped (assignment as shipped, no deploy groups, no supersede); forceOff for merged E-Admins; mergeShared(); repairPlan(), repairPolicies(), repairReport(); decodeBytes() for UTF-16 zip and folder files; isAgentPolicy() failure hint. js/app.js: imLoaded() prepares the bundle and pre-selects shipped for a catalog that is not CloudFellows; panels 🔧 re-attach, 🚨 E-Admins and 👥 groups attached by name; the 🧩 As shipped radio; 🤖 preview and 🚨 E-Admins Off tags. js/baselineLive.js: bundle() says fromRepository. js/workspace.js: the Joey source text. tools/import-joey.test.cjs: 10 tests.",
+      why: "Mihai, 17 Sep: importing Joey's baseline gave a lot of errors on the agent policies, the groups were not imported correctly, and with Joey as the default baseline the E-Admins policies could not be imported; then: get the list of groups, create them yourself and attach them to the CA. His tenant showed 34 referenced-but-gone group ids — ids from Joey's own tenant, his break-glass group among them, excluded by 29 policies. HIGH: a policy pointing at a group that does not exist excludes nobody, so switching those policies On enforces them on the break-glass accounts. Production has the same importer.",
+      test: [
+        "Tenant with the broken Joey import (👥 CA groups shows 34 referenced but gone): ↗ Guided rollout → Joey → Fetch latest. The import dialog opens with 🔧 RE-ATTACH listing each policy and, per id, the group it meant (CA-BreakGlassAccounts - Exclude on nearly every row). Click Create … and re-attach: the ledger shows Groups, then one ✓ per policy; the report lists every swap. 👥 CA groups → Refresh: referenced but gone is 0 and the break-glass group lists the policies that exclude it.",
+        "Open the same import again: no 🔧 panel — nothing is left to swap.",
+        "Fresh test tenant, Joey import, 🧩 As shipped pre-selected: all 38 policies import Off and none is reported as differing from the approved plan. CA005 AnyPlatform excludes its own AnyPlatform group and the iOS/Android CA005 its own; CA403 excludes CA403-GuestUsers-…-PersistentBrowser - Exclude; CA000 includes All users. 👥 CA groups shows no referenced-but-gone ids.",
+        "CA505: without Global Secure Access signaling the row fails with the compliant network and agent hints and no named location is created; with signaling on it imports and excludes All Compliant Network locations.",
+        "CA501–CA504 carry the 🤖 preview tag; in a tenant without Agent ID a refusal names Microsoft Entra Agent ID and the Agent 365 licence.",
+        "Sign in without the right to create groups: the ledger's Groups row is partly done and every policy naming a group that could not be created fails with the reason — no policy is created on a missing group.",
+        "Joey import → 🚨 panel → ＋ E-Admins from a CloudFellows backup ZIP: six rows appear ticked with the E-Admins Off tag; import; CA1102–CA1105 include CA-BreakGlassAccounts - Exclude (not CAB-SEC-U-BreakGlass), CA1100 and CA1101 Emergency_Access1 and 2 with their authentication strength, all Off. A ZIP without E-Admins says so in the panel.",
+        "CloudFellows ZIP restored into the CloudFellows reference tenant: groups bind to the same objects (the report says so), 🚀 Deployment groups is still pre-selected, no 🚨 panel.",
+        "node --test tools/*.test.cjs green, tools/import-joey.test.cjs included; node tools/check-plain-text.js clean.",
+      ],
+      files: ["js/import.js", "js/app.js", "js/baselineLive.js", "js/workspace.js", "tools/import-joey.test.cjs", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 216,
       title: "\ud83d\udd17 Group analyzer reads Windows 365 (T19 1.4.0)",
       tools: ["User or Group analyzer"],

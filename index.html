@@ -26,21 +26,21 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25382"></script>
+<script src="js/popup-guard.js?v=25383"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25382" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25382">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25383" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25383">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25382"></script>
+<script src="js/selfhost-boot.js?v=25383"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25382"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25382"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25382">
+<script src="js/counter.js?v=25383"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25383"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25383">
 </head>
 <body>
 
@@ -48,7 +48,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25382" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25383" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -100,7 +100,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25382" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25383" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -249,7 +249,7 @@
       <div class="tool tool-tile" id="toolDeploy"><div class="tool-ic">↗</div><h3>Guided rollout <span class="tag new">NEW</span></h3><p>CloudFellows from a backup ZIP, Joey via Fetch latest. Review the import, observed impact and enforcement with the existing confirmations.</p></div>
       <div class="tool tool-tile" id="toolImport">
         <div class="tool-ic">📥</div><h3>Import <span class="tag upd">UPDATED</span></h3>
-        <p>Restore a backup (zip or folder): dependencies first, policies staged Off and verified; approved replacements and as-is imports can retain their state. <span class="tag block">writes to tenant</span></p>
+        <p>Restore a backup or a baseline (zip, folder or Joey's repository): groups created and attached by name, dependencies first, policies staged Off and verified; re-attach earlier imports, add the E-Admins. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>❓ Help</h3></div>
@@ -2335,12 +2335,17 @@
       <h4>📥 Import <span class="tag block">writes to tenant</span></h4>
       <p>Restore a backup (zip or extracted folder). Dependencies are created first (create-if-missing), then the policies — always in state <b>Off</b> unless a replacement inherits an existing state.</p>
       <ul>
+        <li><b>Groups are attached by name</b> <span class="tag upd">UPDATED</span> — the group ids in a file belong to the tenant it was exported from and are never written into a policy. Every group a policy names is created here, or found when one with that name exists, and the policy gets <b>this tenant's</b> group. A group that cannot be created holds back the policies that name it (they fail with the reason) instead of letting them land on an id this tenant does not have — an exclusion naming a group that does not exist excludes <b>nobody</b>, break-glass included. The 👥 panel counts the groups and names every correction: one source id exported under two names (Joey's CA005 and CA006) gives each policy the group that carries its own name, and a policy's own exclusion group filed under another name (Joey's CA403 and CA404) is created under the name the baseline gives that policy. A backup restored into the tenant it came from binds to the same group objects. Ids no file explains — a user, a group, a named location — must exist here, or the policy is not created.</li>
+        <li><b>Assignment mode — 🧩 As shipped</b> <span class="tag new">NEW</span>: the policies keep the includes and exclusions the file ships, on the groups created or found by name. Nothing already in the tenant is touched and the policies land Off. Pre-selected for a baseline that is not CloudFellows (Joey Verlinden's), which has no <code>CAD-SEC-U-DG-*</code> deploy groups of its own.</li>
         <li><b>Assignment mode — 🚀 Deployment groups</b>: new policies are scoped to this tenant’s deploy persona groups (<code>CAD-SEC-U-DG-*</code>). Staged and safe — nothing already in the tenant is touched.</li>
         <li><b>Assignment mode — ♻️ Match &amp; replace</b>: for a policy whose CA number already exists at a different version, the new version keeps the <b>current policy’s assignment and state</b>, merges in any <b>new exclusion groups</b> the update adds (created if missing), and the old version is switched <b>Off</b> — a seamless swap.</li>
         <li><b>Assignment mode — 🔀 Switch baseline</b> <span class="tag new">BETA</span>: for moving a tenant from one baseline's groups to the other's. Policies land with the <b>baseline's own groups</b> as shipped (created here — Joey Verlinden's “&lt;policy name&gt; - Exclude” and <code>CA-BreakGlassAccounts - Exclude</code>, or the CloudFellows <code>CAB-SEC-U-CAnnn-Exclusion</code> set), and the <b>members of the other baseline's counterpart groups are copied across</b>: break-glass to break-glass, the exclusion group of the same CA number, the persona include group. It is a copy — the old groups keep their members as the rollback and show in 🧹 <b>What &lt;baseline&gt; left behind</b> (🧬 Baseline Policies) once nothing references them. A same-policy-other-name it supersedes is switched Off. Offered only when the file matches a baseline the tenant is not on, and pre-selected when the tenant's policies visibly use the other baseline's groups.</li>
-        <li><b>From the repository</b> — 📥 Import baseline on 🧩 Baseline (Joey Verlinden) needs no zip: the live read of his repository ships the policy files, <code>Config/Groups</code> and <code>Config/NamedLocations</code> — the same layout as a backup — so the import starts from that read with the gap ticked and the rest of the release listed unticked. The shared 🚨 E-Admins policies are only in the CloudFellows backup and are said so.</li>
+        <li><b>From the repository</b> — 📥 Import baseline on 🧬 Baseline (Joey Verlinden) and Fetch latest in ↗ Guided rollout need no zip: the live read of his repository ships the policy files, <code>Config/Groups</code> and <code>Config/NamedLocations</code> — the same layout as a backup — so the import starts from that read with the gap ticked and the rest of the release listed unticked. A downloaded copy of the repository imports too (its files are UTF-16).</li>
+        <li><b>🚨 E-Admins from a CloudFellows backup</b> <span class="tag new">NEW</span> — the emergency-access policies (CA1100–CA1105) are expected under every baseline and only a CloudFellows backup ships them. A file without them shows the 🚨 panel: <b>＋ E-Admins from a CloudFellows backup ZIP</b> (or an extracted folder) takes only the E-Admins policies and the groups, locations and authentication strengths they use into this import, renames the break-glass group to the target baseline's (<code>CAB-SEC-U-BreakGlass</code> → <code>CA-BreakGlassAccounts - Exclude</code> for Joey), and lands them <b>Off</b> whatever the backup says — an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out.</li>
+        <li><b>🔧 Re-attach</b> <span class="tag new">NEW</span> <span class="tag block">writes to tenant</span> — policies already in the tenant that point at group ids from the loaded file (an import before beta 25383 left them when a group could not be created; 👥 CA groups lists them as <b>referenced but gone</b>) are listed with the group each id meant. One click creates or finds those groups by name, swaps only those ids, and reads every policy back; state, conditions and the other assignments are untouched. A separate click from Import, with its own ledger and report.</li>
+        <li><b>🤖 Agent policies (preview)</b> — Joey's CA5xx block targets agent identities and agents' user accounts. The tenant needs <b>Microsoft Entra Agent ID</b> (Entra ID P1 or P2 with a Microsoft Agent 365 licence) and agent risk needs ID Protection; the files use preview properties Graph may change. A refusal says so on the row. CA505 excludes Microsoft's <b>compliant network</b> location, which is referenced by its fixed id and never created — it applies once Global Secure Access signaling is enabled for Conditional Access.</li>
         <li><b>Import only</b> — pick a persona to bring in just its policies, or use All / None. A policy with the same CA number <i>and</i> version is skipped.</li>
-        <li><b>Unknown application references</b> — a policy can only name an app that has a <b>service principal</b> in this tenant, and Graph rejects the whole policy over one it cannot resolve. The importer instantiates the missing ones first (the baseline excludes Microsoft first-party apps like Defender for Endpoint and Defender for Mobile TVM that an unused tenant does not have). If one still cannot be created, the policy is imported <b>without that reference</b> rather than failing — the report names each drop, and a dropped <b>exclusion widens the policy</b>, so review it before switching it On.</li>
+        <li><b>Unknown application references</b> — a policy can only name an app that has a <b>service principal</b> in this tenant, and Graph rejects the whole policy over one it cannot resolve. The importer instantiates the missing ones first (the baseline excludes Microsoft first-party apps like Defender for Endpoint and Defender for Mobile TVM that an unused tenant does not have). If one still cannot be created, the policy is <b>not created</b> and the row names the missing app — dropping an exclusion would widen the policy.</li>
         <li><b>🔒 no Workload ID licence</b> — a policy scoped to service principals (the CA900 range) needs the separately purchased <b>Microsoft Entra Workload ID</b> licence, which is <i>not</i> part of Entra ID P1/P2. The importer reads the tenant’s subscriptions first; without the licence those policies are shown greyed out and left out entirely, rather than attempted and rejected by Graph with a bare 400. Buy or trial the licence, then re-import.</li>
         <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
         <li><b>🛡 Protection preflight</b> <span class="tag new">BETA</span> — before the import runs, the tool checks that a restricted administrative unit exists for each persona <i>your selection actually touches</i>, and offers to create the missing ones (restricted, with you scoped as Groups Administrator). Every group the import <b>creates</b> is then added to its persona's unit, so a tenant-wide Groups Administrator cannot afterwards widen a Conditional Access exclusion. It is optional and never blocks the import: skip it and the groups simply land unprotected.</li>
@@ -2350,7 +2355,7 @@
         <li><b>A tenant that partly has the groups is the normal case, and the two halves are treated differently.</b> Groups the file brings that already exist here are <b>reused</b> — the policies bind to them, nothing is duplicated, and nothing about them is changed. That is the safe default: an existing group may hold members and sit somewhere deliberately, and an import is not the place to overrule that. But it means a reused group <b>inherits none of the hardening a created one gets</b>: a created group has nesting disabled and is filed into its persona vault, a reused one keeps whatever it has, and the placement step skips it unless you say otherwise. That skip used to be invisible — a reused group appeared in the report as a bare name. The preflight now lists them with what is actually being inherited: nesting disabled, allowed, or not reported by this tenant; already in a restricted unit or unprotected; a Microsoft 365 group that can never go in one; and a <b>shape mismatch</b>, where the file expects a dynamic group with a membership rule and the tenant has an assigned group of that name — the rule is not applied, and that would otherwise pass unnoticed.</li>
         <li><b>What a reused group is missing can now be finished here.</b> Naming the gap was only half an answer: the panel said the group was unprotected and its nesting untouched, then sent you to two other tools. Each reusable row now carries a <b>tick</b> for what is actually still open on it — 🚫 disable nesting, 🔒 file it into its persona vault — and anything impossible says why on the row rather than offering a dead checkbox: role-assignable (⑦ Migrate first), dynamic, a Microsoft 365 group, already protected, a group two personas share, or a vault that does not exist yet. <b>Nothing is pre-ticked</b>, and the writes run <b>after</b> the policies import, so an import that fails leaves every existing group exactly as it found it. Members are never touched. Both are writes the create path already makes and neither is destructive — Entra refuses the nesting change rather than forcing it when a group holds nested groups, and unit membership can be undone — while the destructive recreate stays in ⑧ Disable nesting behind its own confirmation. Every outcome reaches the change report, a failure included: it is reported as still unprotected rather than rounded to done.</li>
 </ul>
-      <p class="help-x">Writes; a change report is shown on screen and downloadable. Creating administrative units is a separate click from Import, and needs <code>AdministrativeUnit.ReadWrite.All</code> plus <b>Privileged Role Administrator</b>.</p>
+      <p class="help-x">Writes; a change report is shown on screen and downloadable. Creating administrative units and 🔧 Re-attach are separate clicks from Import; units need <code>AdministrativeUnit.ReadWrite.All</code> plus <b>Privileged Role Administrator</b>, groups <code>Group.ReadWrite.All</code>.</p>
     </section>
 
     <section class="help-sec">
@@ -3058,76 +3063,76 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25382"></script>
-<script src="js/selfhost.js?v=25382"></script>
-<script src="js/version.js?v=25382"></script>
-<script src="js/verdict.js?v=25382"></script>
-<script src="js/fork.js?v=25382"></script>
-<script src="js/promote.js?v=25382"></script>
-<script src="js/authConfig.js?v=25382"></script>
-<script src="js/labels.js?v=25382"></script>
-<script src="js/capabilities.js?v=25382"></script>
-<script src="js/graph.js?v=25382"></script>
-<script src="js/model.js?v=25382"></script>
-<script src="js/render.js?v=25382"></script>
-<script src="js/analyze.js?v=25382"></script>
-<script src="js/whatif.js?v=25382"></script>
-<script src="js/mslearn.js?v=25382"></script>
-<script src="js/gapcheck.js?v=25382"></script>
-<script src="js/cisdata.js?v=25382"></script>
-<script src="js/cischeck.js?v=25382"></script>
-<script src="js/exclusions.js?v=25382"></script>
-<script src="js/cascope.js?v=25382"></script>
-<script src="js/validator.js?v=25382"></script>
-<script src="js/whatifeval.js?v=25382"></script>
-<script src="js/compare.js?v=25382"></script>
-<script src="js/whois.js?v=25382"></script>
-<script src="js/wave.js?v=25382"></script>
-<script src="js/sessionctl.js?v=25382"></script>
-<script src="js/spgap.js?v=25382"></script>
-<script src="js/groupuse.js?v=25382"></script>
-<script src="js/iso3166.js?v=25382"></script>
-<script src="js/causes.js?v=25382"></script>
-<script src="js/locations.js?v=25382"></script>
-<script src="js/authcontexts.js?v=25382"></script>
-<script src="js/authstrengths.js?v=25382"></script>
-<script src="js/recycle.js?v=25382"></script>
-<script src="js/rmau.js?v=25382"></script>
-<script src="js/camap.js?v=25382"></script>
-<script src="js/rmaudoc.js?v=25382"></script>
-<script src="js/termsofuse.js?v=25382"></script>
-<script src="js/audit.js?v=25382"></script>
-<script src="js/drift.js?v=25382"></script>
-<script src="js/guide.js?v=25382"></script>
-<script src="js/userimpact.js?v=25382"></script>
-<script src="js/smsvoice.js?v=25382"></script>
-<script src="js/memberof.js?v=25382"></script>
-<script src="js/devcheck.js?v=25382"></script>
-<script src="js/licgap.js?v=25382"></script>
-<script src="js/teamsdev.js?v=25382"></script>
-<script src="js/signinstore.js?v=25382"></script>
-<script src="js/signins.js?v=25382"></script>
-<script src="js/reportimpact.js?v=25382"></script>
-<script src="js/changelog.js?v=25382"></script>
-<script src="js/baselineData.js?v=25382"></script>
-<script src="js/baselineJoeyData.js?v=25382"></script>
-<script src="js/baselineLive.js?v=25382"></script>
-<script src="js/baseline.js?v=25382"></script>
-<script src="js/baselineCleanup.js?v=25382"></script>
-<script src="js/groupTemplates.js?v=25382"></script>
-<script src="js/assign.js?v=25382"></script>
-<script src="js/cagroups.js?v=25382"></script>
-<script src="js/groupsview.js?v=25382"></script>
-<script src="js/runledger.js?v=25382"></script>
-<script src="js/protect.js?v=25382"></script>
-<script src="js/policy-compare.js?v=25382"></script>
-<script src="js/import.js?v=25382"></script>
-<script src="js/export.js?v=25382"></script>
-<script src="js/demo.js?v=25382"></script>
-<script src="js/workspace.js?v=25382"></script>
-<script src="js/analysis-jobs.js?v=25382"></script>
-<script src="js/search-suggest.js?v=25382"></script>
-<script src="js/app.js?v=25382"></script>
-<script src="js/accessibility.js?v=25382"></script>
+<script src="js/branding.js?v=25383"></script>
+<script src="js/selfhost.js?v=25383"></script>
+<script src="js/version.js?v=25383"></script>
+<script src="js/verdict.js?v=25383"></script>
+<script src="js/fork.js?v=25383"></script>
+<script src="js/promote.js?v=25383"></script>
+<script src="js/authConfig.js?v=25383"></script>
+<script src="js/labels.js?v=25383"></script>
+<script src="js/capabilities.js?v=25383"></script>
+<script src="js/graph.js?v=25383"></script>
+<script src="js/model.js?v=25383"></script>
+<script src="js/render.js?v=25383"></script>
+<script src="js/analyze.js?v=25383"></script>
+<script src="js/whatif.js?v=25383"></script>
+<script src="js/mslearn.js?v=25383"></script>
+<script src="js/gapcheck.js?v=25383"></script>
+<script src="js/cisdata.js?v=25383"></script>
+<script src="js/cischeck.js?v=25383"></script>
+<script src="js/exclusions.js?v=25383"></script>
+<script src="js/cascope.js?v=25383"></script>
+<script src="js/validator.js?v=25383"></script>
+<script src="js/whatifeval.js?v=25383"></script>
+<script src="js/compare.js?v=25383"></script>
+<script src="js/whois.js?v=25383"></script>
+<script src="js/wave.js?v=25383"></script>
+<script src="js/sessionctl.js?v=25383"></script>
+<script src="js/spgap.js?v=25383"></script>
+<script src="js/groupuse.js?v=25383"></script>
+<script src="js/iso3166.js?v=25383"></script>
+<script src="js/causes.js?v=25383"></script>
+<script src="js/locations.js?v=25383"></script>
+<script src="js/authcontexts.js?v=25383"></script>
+<script src="js/authstrengths.js?v=25383"></script>
+<script src="js/recycle.js?v=25383"></script>
+<script src="js/rmau.js?v=25383"></script>
+<script src="js/camap.js?v=25383"></script>
+<script src="js/rmaudoc.js?v=25383"></script>
+<script src="js/termsofuse.js?v=25383"></script>
+<script src="js/audit.js?v=25383"></script>
+<script src="js/drift.js?v=25383"></script>
+<script src="js/guide.js?v=25383"></script>
+<script src="js/userimpact.js?v=25383"></script>
+<script src="js/smsvoice.js?v=25383"></script>
+<script src="js/memberof.js?v=25383"></script>
+<script src="js/devcheck.js?v=25383"></script>
+<script src="js/licgap.js?v=25383"></script>
+<script src="js/teamsdev.js?v=25383"></script>
+<script src="js/signinstore.js?v=25383"></script>
+<script src="js/signins.js?v=25383"></script>
+<script src="js/reportimpact.js?v=25383"></script>
+<script src="js/changelog.js?v=25383"></script>
+<script src="js/baselineData.js?v=25383"></script>
+<script src="js/baselineJoeyData.js?v=25383"></script>
+<script src="js/baselineLive.js?v=25383"></script>
+<script src="js/baseline.js?v=25383"></script>
+<script src="js/baselineCleanup.js?v=25383"></script>
+<script src="js/groupTemplates.js?v=25383"></script>
+<script src="js/assign.js?v=25383"></script>
+<script src="js/cagroups.js?v=25383"></script>
+<script src="js/groupsview.js?v=25383"></script>
+<script src="js/runledger.js?v=25383"></script>
+<script src="js/protect.js?v=25383"></script>
+<script src="js/policy-compare.js?v=25383"></script>
+<script src="js/import.js?v=25383"></script>
+<script src="js/export.js?v=25383"></script>
+<script src="js/demo.js?v=25383"></script>
+<script src="js/workspace.js?v=25383"></script>
+<script src="js/analysis-jobs.js?v=25383"></script>
+<script src="js/search-suggest.js?v=25383"></script>
+<script src="js/app.js?v=25383"></script>
+<script src="js/accessibility.js?v=25383"></script>
 </body>
 </html>
