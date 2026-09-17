@@ -27,6 +27,17 @@ const GroupsView = (() => {
   const norm = (p, ctx) => typeof p === "string" ? { id: p, name: (ctx.nameOf && ctx.nameOf(p)) || p } : (p || { id: "", name: "" });
   const refsOf = (r, ctx) => ({ include: (r.refs && r.refs.include || []).map((p) => norm(p, ctx)), exclude: (r.refs && r.refs.exclude || []).map((p) => norm(p, ctx)) });
 
+  // Why a group its catalog does not define still counts as the baseline's
+  // (CaGroups.knownNames, 25386). Nothing for the catalog's own groups.
+  const BASIS_NOTE = {
+    eadmins: "🚨 E-Admins, every baseline",
+    "eadmins-target": "🚨 E-Admins policy target",
+    deploy: "every baseline",
+    convention: "the baseline's naming rule",
+    repository: "the repository's group name",
+  };
+  const basisNote = (r) => (r && r.basis && BASIS_NOTE[r.basis]) || "";
+
   // What kind of group is this, in the baseline's own words.
   function classify(r, ctx) {
     const name = r.name || "", cat = ctx.cat;
@@ -195,7 +206,7 @@ const GroupsView = (() => {
       <thead><tr><th style="width:28px"><input type="checkbox" class="cgg-chk" data-cgg-selall="1"${allSel ? " checked" : ""} title="Select every group in this view"></th>${[["name", "Group"], ["status", "Status"], ["members", "Members"], ["usedby", "Used by"], ["prot", "Protection"]].map(([k, l]) => `<th class="cgg-sort${o.sort && o.sort.key === k ? " on" : ""}" data-cgg-sort="${k}" title="Sort by ${l.toLowerCase()}">${l}${o.sort && o.sort.key === k ? (o.sort.dir < 0 ? " ▼" : " ▲") : ""}</th>`).join("")}<th></th></tr></thead>
       <tbody>${rows.map(({ r, c }) => `<tr class="cgg-row${o.open === r.name ? " open" : ""}${o.sel.has(r.name) ? " sel" : ""}" data-cgg-row="${esc(r.name)}">
         <td><input type="checkbox" class="cgg-chk" data-cgg-sel="${esc(r.name)}"${o.sel.has(r.name) ? " checked" : ""}></td>
-        <td><b>${esc(r.name)}</b><div class="mini muted">${esc([c.kindLabel, r.roleAssignable ? "role-assignable" : "", r.dynamic ? "dynamic" : "", r.status === "extra" ? "not in baseline" : "", r.status === "missing" && r.sources.length ? `expected by ${r.sources.join(", ")}` : ""].filter(Boolean).join(" · "))}</div></td>
+        <td><b>${esc(r.name)}</b><div class="mini muted">${esc([c.kindLabel, basisNote(r), r.roleAssignable ? "role-assignable" : "", r.dynamic ? "dynamic" : "", r.status === "extra" ? "not in baseline" : "", r.status === "missing" && r.sources.length ? `expected by ${r.sources.join(", ")}` : ""].filter(Boolean).join(" · "))}</div></td>
         <td>${statusCell(r, c)}</td>
         <td>${membersCell(r, c)}</td>
         <td>${usedByCell(r, ctx)}</td>
@@ -245,7 +256,7 @@ const GroupsView = (() => {
     if (c.excOn && r.memberTotal) facts.push(`<span class="wo-fact warn">excluded from <b>${c.excOn}</b> enforced polic${c.excOn === 1 ? "y" : "ies"} — every member is a standing bypass</span>`);
     const head = `<div class="cgg-drhead">
       <div><div class="wo-name">${esc(r.name)}</div>
-        <div class="mini muted">${esc(c.kindLabel || (r.status === "extra" ? "not in the baseline" : "group"))}${r.id ? ` · <span class="uupn">${esc(r.id)}</span>` : " · not in this tenant"}${r.description ? ` · ${esc(r.description)}` : ""}</div>
+        <div class="mini muted">${esc([c.kindLabel || (r.status === "extra" ? "not in the baseline" : "group"), basisNote(r)].filter(Boolean).join(" · "))}${r.id ? ` · <span class="uupn">${esc(r.id)}</span>` : " · not in this tenant"}${r.description ? ` · ${esc(r.description)}` : ""}</div>
         <div class="wo-facts">${facts.join("")}</div></div>
       <div class="wo-actions">${r.id ? `<button class="btn sm" data-cgg-act="analyzer" data-cgg-name="${esc(r.name)}" title="🔗 User or Group analyzer — everything that points at this group">🔗</button>` : ""}<button class="btn sm" data-cgg-close title="Close">✕</button></div>
     </div>

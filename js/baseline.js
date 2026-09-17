@@ -176,7 +176,9 @@ const Baseline = (() => {
     return {
       ...cat,
       auName: (code) => J.auName(J, code),
-      codeForGroup: (name) => J.codeForGroup(J, name),
+      // a shared group (E-Admins, deploy) is filed by the rule every
+      // catalog shares when the catalog's own exact rule has no answer
+      codeForGroup: (name) => J.codeForGroup(J, name) || sharedCode(J, name),
       personaOfPolicy: (name) => J.personaOfPolicy(J, name),
       exclusionGroupFor: (name) => J.exclusionGroupFor(J, name),
       exclusionByNumber: (num) => { const p = (J.policies || []).find((x) => x.num === num); return p ? J.exclusionName(p.name) : null; },
@@ -399,6 +401,77 @@ const Baseline = (() => {
     if (!cat || cat.id === DEFAULT_ID || typeof BASELINE === "undefined") return [];
     return (BASELINE.policies || []).filter((p) => personaKey(p.name) === "eadmin")
       .map((p) => ({ ...p, persona: "🚨 E-Admins", shared: "CloudFellows" }));
+  }
+
+  // ---- groups every baseline shares (beta 25386) ------------------------
+  // Two families of group belong to no single catalog, so 👥 CA groups counts
+  // them as the baseline's whichever catalog is active. Under Joey
+  // Verlinden's they were listed as "not in the baseline" (Courseware, 17 Sep:
+  // the five CAD-SEC-U-DG groups the import staged on, and the E-Admins
+  // groups the import had just created).
+  //   🚨 E-Admins — the groups the shared E-Admins policies name
+  //      (Emergency_Access1, Emergency_Access2, CAB-SEC-U-BreakGlass). A
+  //      community catalog does the break-glass part with its OWN break-glass
+  //      group (the import renames it), so under one of those only the
+  //      Emergency_Access pair is EXPECTED; CAB-SEC-U-BreakGlass is still
+  //      recognised where a tenant has it.
+  //   🚀 deploy groups — CAD-SEC-U-DG-<CODE>, ENCA's staging convention. The
+  //      import's Deployment groups mode and 🌊 waves use them under any
+  //      catalog, so a tenant staged that way is following its baseline.
+  //      Recognised, never expected: a tenant imported as shipped has none.
+  const CF_BREAKGLASS = "CAB-SEC-U-BreakGlass";
+  const DEPLOY_GROUP_RE = /^CAD-SEC-U-DG-[A-Za-z0-9_]+$/i;
+  const isDeployGroup = (name) => DEPLOY_GROUP_RE.test(String(name || "").trim());
+  function eAdminsGroupNames() {
+    if (typeof BASELINE === "undefined") return [];
+    const out = [];
+    for (const p of BASELINE.policies || []) {
+      if (personaKey(p.name) !== "eadmin") continue;
+      for (const v of [...(p.include || []), ...(p.exclude || [])]) {
+        if (!/\(group\)\s*$/i.test(String(v))) continue;
+        const n = String(v).replace(/\s*\(group\)\s*$/i, "").trim();
+        if (n && !out.some((x) => x.toLowerCase() === n.toLowerCase())) out.push(n);
+      }
+    }
+    return out;
+  }
+  // [{ name, family: "eadmins" | "deploy", expected }] for a catalog (the
+  // active one when none is given). The deploy family is listed by the names
+  // the import stages on; sharedFamily() recognises any CAD-SEC-U-DG-* name.
+  function sharedGroups(cat) {
+    const c = cat || active();
+    const own = !c || c.id === DEFAULT_ID;
+    const out = eAdminsGroupNames().map((name) => ({
+      name, family: "eadmins",
+      expected: own || name.toLowerCase() !== CF_BREAKGLASS.toLowerCase(),
+    }));
+    for (const name of CF_PREDEFINED) {
+      if (isDeployGroup(name)) out.push({ name, family: "deploy", expected: false });
+    }
+    return out;
+  }
+  // "eadmins" | "deploy" | null — by exact name for the E-Admins groups, by
+  // the naming convention for a deploy group.
+  function sharedFamily(name) {
+    const n = String(name || "").trim().toLowerCase();
+    if (!n) return null;
+    if (eAdminsGroupNames().some((x) => x.toLowerCase() === n)) return "eadmins";
+    return isDeployGroup(n) ? "deploy" : null;
+  }
+  // The unit a shared group is filed in under a community catalog: an
+  // E-Admins group in its break-glass unit (where 📥 Import puts them since
+  // 25385), a deploy group in the unit of the persona its code names — when
+  // the catalog has that persona. Null otherwise: never a guess.
+  function sharedCode(cat, name) {
+    const fam = sharedFamily(name);
+    const personas = (cat && cat.personas) || [];
+    if (fam === "eadmins") return personas.some((p) => p.code === "BreakGlass") ? "BreakGlass" : null;
+    if (fam === "deploy") {
+      const code = String(name).trim().replace(/^CAD-SEC-U-DG-/i, "").toLowerCase();
+      const hit = personas.find((p) => String(p.code || "").toLowerCase() === code);
+      return hit ? hit.code : null;
+    }
+    return null;
   }
 
   // ---- compare tenant policies against the catalog ----
@@ -871,7 +944,7 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, sharedPolicies, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
+  return { catalogs, catalog, compare, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
     // R36
     use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, previewSwitch, renderPreview, DEFAULT_ID,
     // R36.1 — matched, not chosen

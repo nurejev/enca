@@ -4254,6 +4254,10 @@
       .filter((r) => (all ?? cgCsvAll)
         || r.template
         || (r.sources || []).some((x) => x === "template" || x === "catalog")
+        // the scan's own verdict (25386): a deploy group or an E-Admins group
+        // is the baseline's under every catalog — the pilot users of a Joey
+        // Verlinden deployment go into CAD-SEC-U-DG-* too
+        || !!r.basis
         || isBaseline(r.name))
       .map((r) => r.name).sort();
   }

@@ -29,6 +29,43 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25386,
+  date: "2026-09-17",
+  title: "E-Admins and deploy groups count as the baseline's under every baseline",
+  items: [
+    {
+      kind: "fixed",
+      tool: "Conditional Access groups",
+      text: "With Joey Verlinden's baseline active, the CAD-SEC-U-DG deploy groups an import stages on and the E-Admins groups (Emergency_Access1 and 2, the break-glass group) were listed as not in the baseline. Both belong to every baseline, so they now count as present and the row says “every baseline”. A group an E-Admins policy includes counts as an E-Admins group too.",
+    },
+    {
+      kind: "improved",
+      tool: "Conditional Access groups",
+      text: "Three more kinds of name count as Joey Verlinden's: the names his repository gives its group files (CA403-Guests-…), his example include group APP_Microsoft365_E5, and the exclusion group his naming rule gives a policy this tenant has under an older release name (CA005 …AppEnforcedRestrictions on Courseware). Only a group none of this explains stays under Not in the baseline, and the All groups scope now classifies unreferenced groups the same way.",
+    },
+    {
+      kind: "fixed",
+      tool: "Conditional Access groups",
+      text: "The warning that this tenant's policies carry names from the CloudFellows baseline no longer counts the six E-Admins policies, which every baseline expects.",
+    },
+    {
+      kind: "improved",
+      tool: "Conditional Access groups",
+      text: "Under Joey Verlinden's baseline, Baseline + templates expects the Emergency_Access pair, which the shared E-Admins policies name, and Create makes it from the CloudFellows template. Deploy groups are recognised but never reported missing.",
+    },
+    {
+      kind: "improved",
+      tool: "Protect exclusions",
+      text: "Under Joey Verlinden's baseline, Emergency_Access1, Emergency_Access2 and CAB-SEC-U-BreakGlass have a vault now (CA-RMAU-BreakGlass), and a CAD-SEC-U-DG deploy group goes to the unit of the persona its code names when his baseline has that persona. They all read unmapped before.",
+    },
+    {
+      kind: "improved",
+      tool: "Baseline",
+      text: "After a baseline switch, the leftovers list no longer offers a CAD-SEC-U-DG deploy group or an E-Admins group: every baseline uses them.",
+    },
+  ],
+},
+{
   build: 25385,
   date: "2026-09-17",
   title: "Import reads back patiently, and takes only what the policies name",

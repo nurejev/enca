@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 220,
+      title: "👥 CA groups — E-Admins and CAD-SEC-U-DG deploy groups count as the baseline's under every baseline (T12 5.13.0, Protect 3.0.4, Baseline 2.7.3)",
+      tools: ["Conditional Access groups", "Protect exclusions", "Baseline"],
+      builds: [25386],
+      risk: "medium",
+      what: "js/baseline.js: sharedGroups(cat) lists the groups every baseline shares — the E-Admins groups the CloudFellows E-Admins policies name (Emergency_Access1, Emergency_Access2, CAB-SEC-U-BreakGlass; expected under a community catalog except CAB-SEC-U-BreakGlass, whose job its own break-glass group does) and the CAD-SEC-U-DG deploy groups (never expected); sharedFamily(name) recognises them (exact names, or the deploy naming convention); withContract() falls back to sharedCode() so Joey's codeForGroup files the E-Admins groups under BreakGlass and a deploy group under its persona code when his catalog has it. js/cagroups.js: knownNames() — templates, catalog, predefined, the repository's group file names (bundled groupFiles, live bundle.groups), the shared families and the naming rule's exclusion group for each tenant policy — and eAdminTargets() classify referenced and, in the All groups scope, unreferenced groups; rows carry basis; catalogGroupNames() and templateNames() expect the Emergency_Access pair under a community catalog with the CloudFellows template; otherBaseline() skips names the active catalog expects, shared E-Admins included; Export MD says why a row counts. js/groupsview.js: the row and drawer say every baseline, E-Admins, naming rule or repository name. js/baselineJoeyData.js: groupFiles. js/baselineCleanup.js: a shared group is no leftover. js/app.js: CSV targets include rows the scan calls the baseline's. tools/cagroups-shared.test.cjs: 9 tests.",
+      why: "Mihai, 17 Sep, Courseware with Joey Verlinden active: 34 present and 11 not in the baseline in 👥 CA groups, the CAD-SEC-U-DG-ADM, GLO, GUESTUSERS, INT and SA rows reading deploy group not in baseline, plus the E-Admins groups, and a warning that 6 policies carry CloudFellows names — the six shared E-Admins policies. He asked for all E-Admins groups and the CAD groups to count as in the baseline. A simulation of that tenant (the release imported in Deployment groups mode, E-Admins merged, the older CA005 re-attached) went from 8 not-in-baseline rows and the warning to none. MEDIUM: classification and routing only, no write path changed — but under Joey, Protect now offers vaults for groups it called unmapped, and the leftovers cleanup offers fewer groups.",
+      test: [
+        "Courseware, Joey Verlinden active, 👥 CA groups, scope Used by CA policies → Refresh: CAD-SEC-U-DG-ADM, GLO, GUESTUSERS, INT and SA read deploy group · every baseline and count as present; Emergency_Access1 and 2 read break-glass · 🚨 E-Admins, every baseline. The chip Not in the baseline shows only groups none of the baseline explains (send a screenshot of any that remain), and there is no warning about CloudFellows policy names.",
+        "Same tenant, scope Baseline + templates: Emergency_Access1 and 2 are present; in a Joey tenant without them they are missing with ＋ Create, and Create makes them. No CAD-SEC-U-DG row is ever missing, and CAB-SEC-U-BreakGlass is not expected under Joey.",
+        "Scope All groups: an unreferenced CAD-SEC-U-DG group reads present, an unrelated security group reads not in the baseline.",
+        "Export MD: the deploy and E-Admins rows carry (deploy group, every baseline) / (E-Admins group, every baseline) in the Expected by column.",
+        "🔒 Protect exclusions under Joey: Emergency_Access1 and 2 would go to CA-RMAU-BreakGlass (a tick, or the reason the unit does not exist yet), CAD-SEC-U-DG-INT to CA-RMAU-Internals-Exclusions; CAD-SEC-U-DG-GUESTAdmins stays unmapped.",
+        "A CloudFellows tenant: 👥 CA groups looks as before — no every-baseline notes, the same present / not-in-baseline counts for its own groups, and a tenant holding three CloudFellows-only policy names under Joey still gets the warning.",
+        "🧬 Baseline → the non-active card → 🧹 leftovers after switching CloudFellows → Joey: CAB-SEC-U-CA… exclusion groups are listed as before, CAD-SEC-U-DG groups and Emergency_Access groups are not.",
+        "node --test tools/*.test.cjs green, tools/cagroups-shared.test.cjs included; node tools/check-plain-text.js clean.",
+      ],
+      files: ["js/baseline.js", "js/cagroups.js", "js/groupsview.js", "js/baselineJoeyData.js", "js/baselineCleanup.js", "js/app.js", "tools/cagroups-shared.test.cjs", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 219,
       title: "📥 Joey import — groups attached by name, 🔧 re-attach, 🚨 E-Admins from a CloudFellows backup, 🤖 agent policies in the create shape, patient readback (Import 2.13.2)",
       tools: ["Import"],

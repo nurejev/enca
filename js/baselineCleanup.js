@@ -55,6 +55,9 @@ const BaselineCleanup = (() => {
     if ((cat.templates() || []).some((t) => norm(t.displayName) === n)) return true;
     try { return !!cat.isExclusionGroup(name); } catch { return false; }
   }
+  const isShared = (name) => {
+    try { return !!(typeof Baseline !== "undefined" && Baseline.sharedFamily && Baseline.sharedFamily(name)); } catch { return false; }
+  };
   // Break-glass is never offered, whatever its state: an empty break-glass
   // group is a deployment mistake to fix, not an object to tidy away.
   const BREAKGLASS = /break[-_ ]?glass|emergency[-_ ]?access|^bg[-_]/i;
@@ -70,7 +73,10 @@ const BaselineCleanup = (() => {
     const f = facts || {};
     const oldGroups = (f.groups || []).filter((g) => g && g.id && belongsTo(oldCat, g.displayName)
       // a name BOTH baselines claim is not a leftover of either
-      && !belongsTo(curCat, g.displayName));
+      && !belongsTo(curCat, g.displayName)
+      // nor is a group every baseline shares (25386): the E-Admins groups and
+      // the CAD-SEC-U-DG deploy groups serve the new baseline as they did the old
+      && !isShared(g.displayName));
     const oldIds = new Set(oldGroups.map((g) => g.id));
 
     // policy references, from the policies already loaded — every policy in
