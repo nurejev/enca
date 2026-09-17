@@ -1237,6 +1237,62 @@ const Importer = (() => {
     return p;
   }
 
+  // ---------- Conditional Access for agents: the WRITE shape (beta 25384) ----------
+  // An export is a READ. Graph's "Create conditionalAccessPolicy" (beta,
+  // examples 5–9) documents a different body for agent policies than the one a
+  // GET returns, and Joey's June 2026 files are GETs:
+  //   * agent identities — the read carries an empty includeServicePrincipals
+  //     beside includeAgentIdServicePrincipals and a users block of "None";
+  //     the documented create has neither, only the agent-id lists;
+  //   * agents' user accounts — the read carries conditions.agents
+  //     (includeAgentUsers); the documented create names them as users,
+  //     includeUsers "AllAgentIdUsers", and has no agents object at all.
+  // Graph refused all five of Joey's agent policies with a bare 400 on
+  // Courseware (17 Sep, beta 25382). So an agent policy is written in the
+  // documented shape, without OData annotations; what could not be expressed
+  // is a reason (blocked), never a silent guess.
+  const isNoneUsers = (u) => {
+    if (!u || typeof u !== "object") return false;
+    const inc = u.includeUsers || [];
+    const empty = (k) => !(u[k] || []).length;
+    return inc.length === 1 && inc[0] === "None" && empty("excludeUsers") && empty("includeGroups") && empty("excludeGroups")
+      && empty("includeRoles") && empty("excludeRoles") && !u.includeGuestsOrExternalUsers && !u.excludeGuestsOrExternalUsers;
+  };
+  const noAnnotations = (o) => {
+    if (Array.isArray(o)) return o.map(noAnnotations);
+    if (o && typeof o === "object") {
+      const r = {};
+      for (const [k, v] of Object.entries(o)) if (!k.includes("@odata")) r[k] = noAnnotations(v);
+      return r;
+    }
+    return o;
+  };
+  function agentWriteShape(src) {
+    const p = noAnnotations(JSON.parse(JSON.stringify(src || {})));
+    const c = p.conditions || (p.conditions = {});
+    const notes = [];
+    const ca = c.clientApplications;
+    if (ca && (ca.includeAgentIdServicePrincipals || []).length) {
+      for (const k of ["includeServicePrincipals", "excludeServicePrincipals"]) if (Array.isArray(ca[k]) && !ca[k].length) delete ca[k];
+      if (!Array.isArray(ca.excludeAgentIdServicePrincipals)) ca.excludeAgentIdServicePrincipals = [];
+      if (isNoneUsers(c.users)) delete c.users;
+    }
+    const ag = c.agents;
+    if (ag && typeof ag === "object") {
+      const inc = (ag.includeAgentUsers || []).filter(Boolean), exc = (ag.excludeAgentUsers || []).filter(Boolean);
+      if (ag.agentFilter) return { payload: p, notes, blocked: "it scopes agents' user accounts with an agent filter, which Graph's documented create cannot express — create this one in the portal" };
+      if (!inc.length) return { payload: p, notes, blocked: "its agents condition includes no agents' user accounts" };
+      if (c.users && !isNoneUsers(c.users)) return { payload: p, notes, blocked: "it scopes users and agents' user accounts at once, which Graph's documented create cannot express — create this one in the portal" };
+      const users = c.users || {};
+      users.includeUsers = inc.map((x) => (x === "All" ? "AllAgentIdUsers" : x));
+      users.excludeUsers = exc;
+      c.users = users;
+      delete c.agents;
+      notes.push(`agents' user accounts written as users ${users.includeUsers.join(", ")} — the shape Graph documents for a create`);
+    }
+    return { payload: p, notes, blocked: null };
+  }
+
   // ---------- apply ----------
   // opts.mode: "deploy" (default) → new/updated policies scoped to the deploy
   // persona group; "replace" → policies already in the tenant keep their current
@@ -1260,16 +1316,39 @@ const Importer = (() => {
         const gid = it.personaGroup && !switching && !shipped ? maps.personaGroupIds?.[it.personaGroup] : null;
         const matchFrom = replace && it.upgrade && it.existing ? it.existing.raw : null;
         const supersedes = (replace || switching) && it.upgrade && it.existing && it.existing.id ? it.existing : null;
-        const payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching || shipped);
+        let payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching || shipped);
         // E-Admins taken from another backup land Off, whatever their source state
         if (it.forceOff) payload.state = "disabled";
+        // agent policies go out in the create shape Graph documents
+        const agentNotes = [];
+        let retryWithoutContext = false;
+        if (isAgentPolicy(it.raw)) {
+          const w = agentWriteShape(payload);
+          if (w.blocked) throw new Error(`${w.blocked} — the policy was not created`);
+          payload = w.payload;
+          agentNotes.push(...w.notes);
+          retryWithoutContext = !!(payload.conditions && payload.conditions.agentContext);
+        }
         const dropped = [];
         const missing = appRefs([payload]).filter(id => maps.missingApps?.has(String(id).toLowerCase()));
         if (missing.length) throw new Error(`Required application references are missing: ${missing.map(appLabel).join(", ")}. No policy was created.`);
         // Create disabled, verify material settings, then restore the approved state.
         // The previous version remains active until the replacement is read back.
         const staged = { ...payload, state: "disabled" };
-        const created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
+        let created;
+        try {
+          created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
+        } catch (e1) {
+          // A 400 creates nothing, so one retry is safe — and only for the one
+          // part of an agent policy Graph documents nowhere: the agent
+          // execution environment (agentContext). Without it the policy covers
+          // EVERY session of the agents' user accounts, so the report says so.
+          if (!retryWithoutContext || !/\(400\)|BadRequest/i.test(e1.message || "")) throw e1;
+          delete payload.conditions.agentContext;
+          onStatus?.(`${it.name}: retrying without the agent execution environment condition…`);
+          created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
+          agentNotes.push("created WITHOUT the agent execution environment condition (sessions initiated from endpoints), which Graph refused: as created it applies to every session of the agents' user accounts, cloud-hosted agents with no device included — add the condition in the portal before switching it On");
+        }
         if (!created?.id) throw new Error("Create returned no policy id; verify the tenant before retrying. Previous policy was not changed.");
         createdId = created.id;
         const url = `/identity/conditionalAccess/policies/${created.id}`;
@@ -1316,7 +1395,8 @@ const Importer = (() => {
             warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
           }
         }
-        results.push({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching || shipped ? null : it.personaGroup, asIs: it.asIs, forceOff: !!it.forceOff, matched: !!matchFrom, switched: switching, shipped: shipped && !matchFrom, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped });
+        results.push({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching || shipped ? null : it.personaGroup, asIs: it.asIs, forceOff: !!it.forceOff, matched: !!matchFrom, switched: switching, shipped: shipped && !matchFrom, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped, agentNotes });
+        for (const n of agentNotes) warnings.push(`${it.name}: ${n}`);
       } catch (e) {
         console.error("Import failed:", it.name, e);
         // Graph answers most policy-shape problems with a bare 400, so add the
@@ -1517,8 +1597,8 @@ const Importer = (() => {
         : r.switched
         ? `- 🔀 **${r.name}** — state set to Off; assignment as the baseline ships it, on the groups created or reused here${r.oldName ? (r.disabledOld ? `; superseded **${r.oldName}** switched Off` : `; ⚠ could not disable superseded **${r.oldName}**`) : ""}`
         : r.shipped
-        ? `- 🧩 **${r.name}** — state set to Off; assignment as the baseline ships it, attached to the groups created or found by name here`
-        : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}`)),
+        ? `- 🧩 **${r.name}** — state set to Off; assignment as the baseline ships it, attached to the groups created or found by name here${(r.agentNotes || []).length ? ` · 🤖 ${r.agentNotes.join("; ")}` : ""}`
+        : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}${(r.agentNotes || []).length ? ` · 🤖 ${r.agentNotes.join("; ")}` : ""}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
       ...(results.some((r) => r.ok && (r.dropped || []).length) ? [
@@ -1542,7 +1622,7 @@ const Importer = (() => {
         `Acquire the licence (a 90-day trial is available at **Entra admin center → Identity → Workload identities**), then re-run this import — nothing else needs redoing.`,
         ``,
       ] : []),
-      ...(licence && !licence.known ? [
+      ...(licence && !licence.known && planItems.some((p) => p.wid && !p.exists) ? [
         `> ⚠ The Workload ID licence could not be read from \`/subscribedSkus\`${licence.error ? ` (${licence.error})` : ""}, so workload-identity policies were attempted anyway. A 400 on a CA900-range policy usually means the licence is absent.`,
         ``,
       ] : []),
@@ -1566,5 +1646,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

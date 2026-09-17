@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25384,
+  date: "2026-09-17",
+  title: "Joey's agent policies are written the way Graph documents a create",
+  items: [
+    {
+      kind: "fixed",
+      tool: "Import",
+      text: "Joey Verlinden's five agent policies (CA501 to CA505) were refused by Graph with a bare 400. His files are what Graph returns when you READ a policy, and the create Graph documents looks different: agent identities without the users None block, agents' user accounts as users AllAgentIdUsers instead of a separate agents object. The import now writes that shape. CA503's condition for sessions started from endpoints is documented nowhere; if Graph refuses it, the policy is created without it and the row and the report say it then covers every session of the agents' user accounts.",
+    },
+    {
+      kind: "fixed",
+      tool: "Import",
+      text: "The report no longer warns that the Workload ID licence could not be read for a file without any workload-identity policy.",
+    },
+  ],
+},
+{
   build: 25383,
   date: "2026-09-17",
   title: "Joey Verlinden import — groups attached by name, earlier imports re-attached, E-Admins added",

@@ -94,7 +94,7 @@ function world(opts = {}) {
   const src = ['baselineData.js', 'baselineJoeyData.js', 'baseline.js', 'import.js']
     .map((f) => fs.readFileSync(path.join(root, 'js', f), 'utf8')).join('\n;\n');
   vm.runInContext(`${src}\n;globalThis.I = Importer;`, box);
-  return { I: box.I, groups, pols, posts };
+  return { I: box.I, groups, pols, posts, graphRef: Graph };
 }
 // values built inside the vm context carry its Array prototype; compare plain copies
 const plain = (x) => JSON.parse(JSON.stringify(x));
@@ -242,4 +242,81 @@ test('re-attach swaps only the source ids the tenant does not have, and reads th
   assert.equal(ex.includes(G000), true, 'an id this tenant has is never swapped');
   assert.deepEqual(plain(w.I.repairPlan(prepared, [w.pols.get('t-403')], await w.I.readDirectoryIds(ex))), []);
   assert.match(w.I.repairReport({ tenantName: 'T', fileName: 'f', rows, results: out, depLog: dep.log }), /Policies re-attached:\*\* 1 of 1/);
+});
+
+// ---- beta 25384: agent policies in the create shape Graph documents ----------
+const agentPolicies = () => {
+  const base = joey().policies;
+  const a501 = pol('CA501-Agents-IdentityProtection-AnyApp-AnyPlatform-BLOCK-HighRiskAgent', { includeUsers: ['None'] }, { conditions: {
+    agentIdRiskLevels: 'high', agents: null,
+    clientApplications: od('conditionalAccessClientApplications', { includeServicePrincipals: [], includeAgentIdServicePrincipals: ['All'], excludeServicePrincipals: [] }) } });
+  a501.grantControls = od('conditionalAccessGrantControls', { operator: 'OR', builtInControls: ['block'] });
+  const a503 = pol('CA503-Agents-BaseProtection-AllAgentUsers-RequireCompliantDevice', { includeUsers: ['None'] }, { conditions: {
+    clientApplications: null,
+    agents: od('conditionalAccessAgents', { includeAgentUsers: ['All'], excludeAgentUsers: [], agentFilter: null }),
+    agentContext: od('conditionalAccessAgentContext', { includeAgentContexts: ['agentUserSessionsInitiatedFromEndpoints'], excludeAgentContexts: [] }) } });
+  const a504 = pol('CA504-Agents-IdentityProtection-AllAgentUsers-AllResources-BlockRiskyAgents', { includeUsers: ['None'] }, { conditions: {
+    agentIdRiskLevels: 'medium,high', agents: od('conditionalAccessAgents', { includeAgentUsers: ['All'], excludeAgentUsers: [], agentFilter: null }) } });
+  return { ...joey(), policies: [a501, a503, a504, base.find((p) => p.displayName === N505)] };
+};
+// Graph as the Courseware tenant answered it: the READ shape is refused.
+function strictGraph() {
+  return async (url, body) => {
+    if (url === '/identity/conditionalAccess/policies') {
+      const c = body.conditions || {};
+      const s = JSON.stringify(body);
+      const ca = c.clientApplications;
+      if (c.agents || s.includes('@odata') || (ca && Array.isArray(ca.includeServicePrincipals) && !ca.includeServicePrincipals.length) || c.agentContext) {
+        throw new Error('Graph request failed (400): The server could not process the request because it is malformed or incorrect. · code: BadRequest');
+      }
+    }
+  };
+}
+
+test('agentWriteShape: agent identities lose the read-only users "None" block and the empty service-principal list', () => {
+  const { I } = world();
+  const src = agentPolicies().policies[0];
+  const w = I.agentWriteShape(src);
+  assert.equal(w.blocked, null);
+  const c = plain(w.payload).conditions;
+  assert.equal('users' in c, false);
+  assert.deepEqual(c.clientApplications, { includeAgentIdServicePrincipals: ['All'], excludeAgentIdServicePrincipals: [] });
+  assert.equal(c.agentIdRiskLevels, 'high');
+  assert.equal(JSON.stringify(w.payload).includes('@odata'), false);
+});
+
+test('agentWriteShape: agents\' user accounts become users "AllAgentIdUsers"; an agent filter is refused, not guessed', () => {
+  const { I } = world();
+  const [, a503, a504] = agentPolicies().policies;
+  const w = I.agentWriteShape(a504);
+  const c = plain(w.payload).conditions;
+  assert.equal('agents' in c, false);
+  assert.deepEqual(c.users.includeUsers, ['AllAgentIdUsers']);
+  assert.equal(c.agentIdRiskLevels, 'medium,high');
+  assert.equal(w.notes.length, 1);
+  const f = structuredClone(a503); f.conditions.agents.agentFilter = { mode: 'include', rule: 'x' };
+  assert.match(I.agentWriteShape(f).blocked, /agent filter/);
+  const both = structuredClone(a503); both.conditions.users.includeUsers = ['All'];
+  assert.match(I.agentWriteShape(both).blocked, /users and agents/);
+});
+
+test('agent policies import against a Graph that refuses the read shape; agentContext is retried without, and said so', async () => {
+  const posts = [];
+  const strict = strictGraph();
+  const w2 = world();
+  const g2 = w2.graphRef;
+  const create = g2.gpost;
+  g2.gpost = async (url, body) => { await strict(url, body); posts.push([url, structuredClone(body)]); return create(url, body); };
+  const out = await runImport(w2, agentPolicies());
+  const failed = out.res.results.filter((r) => !r.ok);
+  assert.deepEqual(plain(failed.map((r) => r.name + ' ' + r.error)), []);
+  const r503 = out.byName['CA503-Agents-BaseProtection-AllAgentUsers-RequireCompliantDevice'];
+  assert.ok(r503.agentNotes.some((n) => /WITHOUT the agent execution environment/.test(n)));
+  assert.ok(out.res.warnings.some((n) => /CA503.*WITHOUT/.test(n)));
+  const p505 = w2.pols.get(out.byName[N505].createdId);
+  assert.deepEqual(plain(p505.conditions.users.includeUsers), ['AllAgentIdUsers']);
+  assert.deepEqual(plain(p505.conditions.locations.excludeLocations), [CN]);
+  const md = w2.I.buildReport({ tenantName: 'T', fileName: 'f', depLog: out.dep.log, planItems: w2.I.plan(out.prepared, []), results: out.res.results, warnings: out.res.warnings, mode: 'shipped', licence: { known: false } });
+  assert.doesNotMatch(md, /Workload ID licence could not be read/, 'no workload-identity policy, no workload-identity warning');
+  assert.match(md, /🤖/);
 });
