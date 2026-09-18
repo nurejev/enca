@@ -85,5 +85,45 @@
       l.rel = "icon"; l.href = fav;
       document.head.appendChild(l);
     }
+    // content:url() PAINTS OVER an <img>; it does not stop the element from
+    // loading the src the markup gave it. Measured on a branded deployment,
+    // the login mark still fetched and decoded assets/logo-mark-light.svg —
+    // currentSrc and naturalWidth both said so — so on a cold start the
+    // product's own logo can reach the screen before the replacement is ready
+    // (Dovilo, 18 Sep, Chrome), and an engine that does not honour content on
+    // a replaced element never replaces it at all. Setting the src is what
+    // makes the wrong mark never be the element's image in the first place.
+    //
+    // A MutationObserver started here sees each <img> the moment the parser
+    // creates it — the body has not been parsed yet when this file runs — so
+    // the branded src is in place before the element can be painted. The CSS
+    // rule above stays as the belt to this pair of braces: neither mechanism
+    // is sufficient in every engine, and they cannot disagree, because both
+    // carry the same value.
+    // Its own try, and after everything else that must happen: this half is
+    // the newest and the most dependent on the environment, and a browser
+    // without MutationObserver used to take the favicon down with it.
+    try {
+    if (logo && typeof MutationObserver === "function" && document.addEventListener) {
+      const SEL = ".logo img, .login-card > img";
+      const paint = (el) => {
+        if (!el || el.tagName !== "IMG" || el.dataset.shBoot === "1") return;
+        el.dataset.shBoot = "1";
+        el.src = logo;
+        if (b.org || b.name) el.alt = String(b.org || b.name).slice(0, 120);
+        if (b.logoWide === true) { el.style.width = "auto"; el.style.height = el.id === "brandLogo" ? "34px" : "56px"; }
+      };
+      const scan = (n) => {
+        if (!n || n.nodeType !== 1) return;
+        if (n.matches && n.matches(SEL)) paint(n);
+        if (n.querySelectorAll) n.querySelectorAll(SEL).forEach(paint);
+      };
+      const mo = new MutationObserver((recs) => { recs.forEach((r) => r.addedNodes.forEach(scan)); });
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+      // Belt for the braces: a parser chunk the observer somehow missed is
+      // caught here, and the observer is let go the moment it can stop.
+      document.addEventListener("DOMContentLoaded", () => { scan(document.body); mo.disconnect(); }, { once: true });
+    }
+    } catch { /* the CSS rule above still covers this in most engines */ }
   } catch { /* boot polish only — the body scripts brand authoritatively */ }
 })();

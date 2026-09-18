@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 319, date: "2026-09-18", title: "A self-hosted deployment's own logo is the first one drawn",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "A BRANDED INSTANCE STILL SHOWED THE PRODUCT LOGO FOR A MOMENT ON A FIRST CONNECT. The before-first-paint half put the deployment's mark on screen with a CSS content rule, and a content rule only PAINTS OVER an image — it does not stop the element loading the one the markup names. Measured on a branded deployment, the sign-in mark had still fetched and decoded the product SVG: it was the element's real image, and the replacement only covered it once ready, so a cold start could put the wrong mark on screen first. A browser that does not honour content on an image never covered it at all. The branded address is now set on the image ITSELF as the page is parsed and before anything can be painted, so on a branded instance the product mark is never the element's image. The content rule stays as the second of the two, because neither is sufficient in every browser and both carry the same value. A deployment with no branding, and any logo that fails the data-address guard, behave exactly as before." },
+    ],
+  },
+  {
     build: 318, date: "2026-09-18", title: "A branded instance names itself in the browser tab",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "A SELF-HOSTED INSTANCE WITH ITS OWN BRANDING STILL NAMED THE PUBLISHER IN THE BROWSER TAB, and nothing in the branding gear could change it. The tab and the sign-in heading are chrome, but both borrowed the NEUTRAL product strings — the ones that exist so an export carries the product credit whoever is signed in, and which deliberately ignore a branding override. So a deployment that had set its own name still had ENCA and Limon-IT in its title, in every bookmark and in every screenshot somebody shared of their own site; and the sign-in heading fell back to the product title unless the Login title box had been filled in by hand, however carefully Product name and Long name were set. Both read the active look now. The export credit is untouched and still neutral, which is the point of an override changing chrome only: a deployment brands what is on its screen and never claims authorship of the tool. A copy with no branding set is exactly as it was." },
