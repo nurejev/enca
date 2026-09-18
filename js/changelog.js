@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 316, date: "2026-09-18", title: "📐 CIS Benchmark is off this channel again",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "📐 CIS Benchmark alignment (T21) is a beta-only tool and build 315 carried it into production by accident — the wholesale port took the files with everything else. It was hidden on this site, because the guard that keeps a beta-only tab off production reads the canonical host name; a copy of this build served from anywhere else — a self-hosted instance, most of all — showed the tab. The tool, its benchmark catalog and its screen are out of this build entirely, so there is nothing left to show. T21 keeps its number, as every retired or held-back number does, and the tool goes on being developed on the beta channel." },
+    ],
+  },
+  {
     build: 315, date: "2026-09-18", title: "Sign-ins kept on this device, a report-only forecast that streams, duplicates found and merged, and the P1 reliability work — queue 200–221",
     items: [
       { kind: "improved", tool: "All tools", text: "Production is build 315: everything the beta channel gathered since 312 — twenty-two queue items, 200 to 221. In one release: the P1 reliability work packages, so the tools that need Entra ID P1 say what they can and cannot read before a run rather than failing halfway; report-only impact read as summaries and streamed through the tab, with the verdicts optionally kept on this device between looks; Housekeeping comparing settings rather than JSON and finding the same policy twice; the Joey Verlinden import attaching groups by name and reading back patiently; E-Admins and deploy groups counted as the baseline own groups under every catalog; the group analyzer reading Windows 365, Intune roles and enrolment configurations; result search suggestions across tools; and workspace tabs returning to the subtab you were using. Item 34, the CIS Help section, stays behind with the CIS tab it describes." },
