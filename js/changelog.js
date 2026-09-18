@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25391,
+  date: "2026-09-18",
+  title: "📐 CIS is beta and CloudFellows only, and out of production",
+  items: [
+    {
+      kind: "fixed",
+      tool: "CIS Benchmark",
+      text: "📐 CIS Benchmark alignment (T21) is shown only in the tenant whose benchmark work it is. It was beta-only through a guard that reads the HOST name, and the wholesale port to production 315 carried the tool's files along with everything else: on the production host the tab stayed hidden, but any other host serving that build — a self-hosted instance above all — showed it. Production build 316 takes the tool out of that build completely, and on this channel the tab, its command-palette entry and its links appear only when the signed-in tenant's verified domains include cloudfellows.dev. The tenant is read from the organization rather than from the account, so an administrator invited as a guest is judged by the tenant they are in; demo mode is not that tenant, because this site is reachable by anyone.",
+    },
+  ],
+},
+{
   build: 25390,
   date: "2026-09-18",
   title: "Reviewed releases a held duplicate, and a branded instance is branded on the first paint",

@@ -11,6 +11,11 @@
   let policiesReadAt = null;
   let tenantName = "";
   let tenantDomain = "";
+  // Every verified domain of the signed-in tenant, lowercased. A gate that has
+  // to answer WHICH TENANT IS THIS cannot go by the signed-in UPN alone: an
+  // administrator invited as a guest carries their own domain, not the
+  // tenant's. Empty in the demo and before sign-in.
+  let tenantDomains = [];
   let tenantId = "";        // for the account menu's Copy tenant ID; "" in the demo
   let capabilityCache = null;
   async function readCapabilities(force = false) {
@@ -278,7 +283,7 @@
     toolMsLearn:      { into: "toolGapCheck", label: "📘 MS Learn checks",            where: "the Microsoft Learn tab",    build: 25342,
                         open: () => openMsLearn() },
     toolCis:          { into: "toolGapCheck", label: "📐 CIS Benchmark",              where: "the CIS 5.2.2 tab",          build: 25342,
-                        open: () => openCis(), betaOnly: true },
+                        open: () => openCis(), betaOnly: true, only: () => isCisTenant() },
     toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
                         open: () => openDevCheck() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
@@ -302,6 +307,7 @@
   function openFolded(id) {
     const f = FOLDED[id]; if (!f) return false;
     if (f.betaOnly && isProdHost()) return false;
+    if (f.only && !f.only()) return false;
     if (f.open) { f.open(); return true; }
     const tile = $(f.into); if (tile) { tile.click(); return true; }
     return false;
@@ -413,7 +419,7 @@
       tabs: [
         { key: "bypass", icon: "🛡", name: "Bypass & Swiss cheese", toolbar: "gcToolbar", open: () => openGapCheck() },
         { key: "mslearn", icon: "📘", name: "Microsoft Learn",      toolbar: "mlToolbar", open: () => openMsLearn() },
-        { key: "cis",     icon: "📐", name: "CIS 5.2.2",            toolbar: "ciToolbar", open: () => openCis(), beta: true, betaOnly: true },
+        { key: "cis",     icon: "📐", name: "CIS 5.2.2",            toolbar: "ciToolbar", open: () => openCis(), beta: true, betaOnly: true, only: () => isCisTenant() },
         { key: "intune",  icon: "🖥", name: "Intune reality",       toolbar: "dvToolbar", open: () => openDevCheck() },
       ],
     },
@@ -435,7 +441,19 @@
       ],
     },
   };
-  const tabShown = (t) => !t.betaOnly || !isProdHost();
+  // 📐 CIS Benchmark (T21) is beta-only AND tenant-only. betaOnly keeps a tab
+  // off the production HOST, which turns out not to be the same thing as off a
+  // production BUILD: the port to 315 carried the tool into main, where the
+  // guard hid it on enca.limon-it.nl and showed it on every OTHER host serving
+  // that build — a customer's self-hosted instance included (18 Sep). It is out
+  // of production entirely now (316), and here it is shown only in the tenant
+  // whose benchmark work it is. Demo mode is not that tenant: the beta site is
+  // reachable by anyone, and ?demo=1 must not be the window next to the door.
+  const CIS_TENANT = /(^|\.)cloudfellows\.dev$/i;
+  const isCisTenant = () => CIS_TENANT.test(String(tenantDomain || "")) || tenantDomains.some((d) => CIS_TENANT.test(d));
+  // `only` is the per-tab version of the same idea: a predicate read at render
+  // time, so signing into another tenant in the same session is enough.
+  const tabShown = (t) => (!t.betaOnly || !isProdHost()) && (!t.only || t.only());
   // An open workspace tab resumes its own last subtab. Explicit tool links
   // still call their requested open function; no results or identities persist.
   const lastHostTab = new Map();
@@ -2135,6 +2153,7 @@
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
+      tenantDomains = (org?.verifiedDomains || []).map((d) => String(d?.name || "").toLowerCase()).filter(Boolean);
       // R28 — the group → persona mapping is per tenant, so it is bound HERE
       // and nowhere else: keyed on the tenant id rather than the name, because
       // two customers can share a display name and a mapping landing in the
@@ -2204,6 +2223,7 @@
 
   function loadDemo() {
     tenantName = DEMO_DATA.tenantName;
+    tenantDomains = [];
     // Demo has no domain. Left over from a signed-in session it would keep
     // answering isBaselineTenant(), and the demo would scope its backup to a
     // catalog it is not.
@@ -11758,6 +11778,7 @@ This is a directory write. Nothing else changes.`)) return;
     for (const [old, f] of Object.entries(FOLDED)) {
       if (!$(f.into)) continue;
       if (f.betaOnly && isProdHost()) continue;
+      if (f.only && !f.only()) continue;
       const no = toolNoOf(old);
       const qn = q.trim().toLowerCase();
       const exact = no && (qn === no.toLowerCase() || qn === String(+no.slice(1)) || qn === `t${+no.slice(1)}`);
