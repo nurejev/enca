@@ -8,20 +8,29 @@
 // brand this browser already knows about, and injects the palette and
 // logo before anything is painted.
 //
-// It can only ever be the SECOND paint that is authoritative:
-//   · js/selfhost.js still fetches /selfhost-branding.json, updates the
-//     cache this file reads, and repaints through applyBranding() — so a
-//     changed file wins on this load, and this file is right on the next.
-//   · The very first visit in a browser has no cache and still flashes
-//     once. That is the floor for a static site: the alternative is a
-//     blocking fetch before every paint, which taxes every load to save
-//     the first.
+// Two sources, because a browser that has never been here has no cache:
+//   · window.ENCA_BRAND_BOOT — the deployment's own branding file, written
+//     into the top of THIS FILE at container start by
+//     selfhost/docker-entrypoint.sh (build 25389). It is what makes the
+//     FIRST visit branded: the fetch below cannot finish before the page
+//     paints, and on Azure Container Apps a cold start sits in front of it,
+//     so a first-time visitor read the image's own look for a moment
+//     (Dovilo, 18 Sep). A deployment that mounts the file gets the same
+//     treatment; a static host with no entrypoint has no block and behaves
+//     exactly as it did before.
+//   · localStorage — what the ⚙ gear applied in this browser, and the cache
+//     js/selfhost.js keeps of the last fetched file.
+// js/selfhost.js still fetches /selfhost-branding.json and repaints through
+// applyBranding(), so a file changed since the container started wins on
+// this load, and the block is right again after the next restart.
 //
-// Everything read here was sanitised by cleanBrand (js/selfhost.js)
-// before it was stored, and is guarded again anyway: colour values are
-// charset-checked and images must be data: URIs. applyBranding() removes
-// the injected tag when it takes over, so this can never fight the real
-// branding code.
+// What comes from localStorage was sanitised by cleanBrand (js/selfhost.js)
+// before it was stored; the injected block is the deployment file itself,
+// escaped as a JSON string so it cannot be code. Either way the guards here
+// are what decide what is used: colour values are charset-checked, images
+// must be data: URIs, and nothing reaches the DOM as markup.
+// applyBranding() removes the injected tag when it takes over, so this can
+// never fight the real branding code.
 //
 // Kept dependency-free on purpose: it runs before BRANDING exists.
 // ======================================================================
@@ -31,9 +40,20 @@
     const read = (k) => {
       try { const j = JSON.parse(localStorage.getItem(k) || "null"); return (j && j.brand) || null; } catch { return null; }
     };
-    // The admin's own Apply beats the cached deployment file, same
-    // precedence as js/selfhost.js.
-    const b = read("enca-selfhost-brand") || read("enca-selfhost-brand-cache");
+    // The deployment's file as the container start wrote it into this file.
+    const injected = (() => {
+      try {
+        const raw = window.ENCA_BRAND_BOOT;
+        if (typeof raw !== "string" || !raw) return null;
+        const j = JSON.parse(raw);
+        const brand = (j && j.brand) || j;
+        return brand && typeof brand === "object" ? brand : null;
+      } catch { return null; }
+    })();
+    // The admin's own Apply beats the deployment, which beats this browser's
+    // cache of an older read of it — the precedence js/selfhost.js registers
+    // (localBrand || deploymentBrand).
+    const b = read("enca-selfhost-brand") || injected || read("enca-selfhost-brand-cache");
     if (!b || typeof b !== "object") return;
 
     const SAFE = /^[#a-zA-Z0-9(),.%\s\/-]+$/;

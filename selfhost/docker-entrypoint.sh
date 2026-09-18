@@ -56,7 +56,10 @@
 # ======================================================================
 set -eu
 
-ROOT="/usr/share/nginx/html"
+# The web root. ENCA_ROOT exists so the script can be run against a copy of
+# the site in a test (tools/selfhost-brand-boot.test.cjs does exactly that);
+# in the image it is never set and the default is the only path that matters.
+ROOT="${ENCA_ROOT:-/usr/share/nginx/html}"
 CFG="$ROOT/js/authConfig.js"
 MARK_START="// >>> ENCA-RUNTIME-CONFIG"
 MARK_END="// <<< ENCA-RUNTIME-CONFIG"
@@ -206,6 +209,94 @@ if [ -n "$BRAND_JSON" ] || [ -n "$BRAND_URL" ]; then
     echo "enca: branding did not parse as JSON - leaving the deployment unbranded." >&2
   fi
   rm -f "$BRAND_TMP"
+fi
+
+# ---------------------------------------------------------------------
+# The FIRST paint (build 25389).
+#
+# The branding file above is FETCHED by the app, and a fetch cannot finish
+# before the page paints: the first visit in a browser therefore painted the
+# image's own look and swapped to the deployment's a moment later. On Azure
+# Container Apps, with a cold start in front of that fetch, it was long
+# enough to read (Dovilo, 18 Sep).
+#
+# js/selfhost-boot.js runs BLOCKING in <head> and already paints a brand it
+# can read synchronously — it just had nothing to read on a first visit,
+# because the only synchronous source was this browser's own cache of an
+# earlier read. So the deployment's brand is written INTO that file here,
+# exactly the way the runtime configuration block is written into
+# js/authConfig.js: markers, idempotent, and nothing at all when no branding
+# is configured.
+#
+# The SOURCE is the file the app itself will fetch — whether this script
+# just wrote it from ENCA_BRANDING or the operator mounted it — so the two
+# paints can never disagree.
+#
+# It is embedded as a JSON *string* rather than as an object literal. The
+# file is executable content served to every visitor, and a string whose
+# backslashes and quotes are escaped cannot become code whatever the
+# variable held. The app parses it and applies its own guards (colour values
+# are charset-checked, images must be data: URIs) exactly as it does for the
+# fetched copy.
+# ---------------------------------------------------------------------
+BOOT="$ROOT/js/selfhost-boot.js"
+BOOT_START="// >>> ENCA-RUNTIME-BRAND"
+BOOT_END="// <<< ENCA-RUNTIME-BRAND"
+
+if [ -f "$BOOT" ]; then
+  # Always drop a block from an earlier start first: a container restarted
+  # without branding must not keep painting the old one.
+  BOOT_STRIPPED="$(mktemp)"
+  awk -v s="$BOOT_START" -v e="$BOOT_END" '
+    $0 == s { skip = 1; next }
+    $0 == e { skip = 0; next }
+    !skip   { print }
+  ' "$BOOT" > "$BOOT_STRIPPED"
+
+  BOOT_BRAND=""
+  if [ -s "$BRAND_FILE" ]; then
+    # Same check as above: parse it when the image has a parser, otherwise
+    # look at its shape. Neither is the security boundary — the escaping and
+    # the app's own guards are.
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$BRAND_FILE" 2>/dev/null && BOOT_BRAND=1
+    else
+      head -c 1 "$BRAND_FILE" | grep -q '{' && tail -c 2 "$BRAND_FILE" | grep -q '}' && BOOT_BRAND=1
+    fi
+  fi
+
+  if [ -n "$BOOT_BRAND" ]; then
+    ESCAPED="$(sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$BRAND_FILE" | tr -d '\n\r\t')"
+    SIZE="$(printf '%s' "$ESCAPED" | wc -c | tr -d ' ')"
+    if [ "$SIZE" -gt 600000 ]; then
+      echo "enca: branding is $SIZE bytes - too large for the first paint; the app still fetches it." >&2
+      BOOT_BRAND=""
+    fi
+  fi
+
+  BOOT_NEW="$(mktemp)"
+  {
+    if [ -n "$BOOT_BRAND" ]; then
+      echo "$BOOT_START"
+      echo "// Written at container start from the deployment's branding file by"
+      echo "// selfhost/docker-entrypoint.sh, so the FIRST paint is branded too."
+      echo "// NOT part of the source tree - if you are reading this in a"
+      echo "// repository, something copied it out of a running container."
+      printf 'window.ENCA_BRAND_BOOT = "%s";\n' "$ESCAPED"
+      echo "$BOOT_END"
+    fi
+    cat "$BOOT_STRIPPED"
+  } > "$BOOT_NEW"
+
+  # Never fatal: branding is cosmetic, and a container that refuses to serve
+  # the tool because a logo could not be inlined has turned a cosmetic
+  # problem into an outage.
+  if cat "$BOOT_NEW" > "$BOOT" 2>/dev/null; then
+    [ -n "$BOOT_BRAND" ] && echo "enca: branding applied to the first paint (js/selfhost-boot.js)."
+  else
+    echo "enca: js/selfhost-boot.js is not writable - the first visit in a browser will still flash the default look." >&2
+  fi
+  rm -f "$BOOT_NEW" "$BOOT_STRIPPED"
 fi
 
 exec "$@"

@@ -2169,3 +2169,15 @@ body.cgg-modal-open{overflow:hidden}
 .dup-plan > div:last-child{border-bottom:0}
 .dup-plan .del{color:var(--off)}
 @media (max-width:700px){.dup-row{flex-wrap:wrap}.dup-assign{min-width:0;max-width:none}}
+/* The popup owns the scroll while it is open. The page behind it scrolled
+   under the wheel, so coming back from a comparison landed somewhere else
+   entirely (25389). :has() rather than a class on <body>, because Escape and
+   a backdrop click close the modal without going through a handler and would
+   leave the page locked. The gutter stays reserved, so nothing shifts
+   sideways when the page scrollbar goes. */
+html:has(#dupModal.open){overflow:hidden;scrollbar-gutter:stable}
+#dupList{overscroll-behavior:contain}
+/* A set released by hand reads as decided, not as still blocked. */
+.dup-set.reviewed{border-color:var(--warn-bd)}
+.dup-set.reviewed .dup-head{background:var(--warn-bg2)}
+.dup-review{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}

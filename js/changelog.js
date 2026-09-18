@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 317, date: "2026-09-18", title: "Reviewed releases a held duplicate, and a branded instance is branded on the first paint",
+    items: [
+      { kind: "improved", tool: "Policies", text: "A 👯 Duplicates set that needs review now carries a Reviewed tick. Copies that differ in their conditions, controls or guest scope are still held back — keeping one of those is a security decision — but ticking Reviewed releases that set for selection and merging like any other. The report records that it was released by hand and what had differed, and the refusal that the copy being deleted is the only enforcing one is not lifted by it." },
+      { kind: "fixed", tool: "Policies", text: "The 👯 Duplicates popup keeps its place. The page behind it no longer scrolls while it is open, the list no longer jumps back to the top when you tick something — 27 sets on one tenant made that unusable — and closing a comparison comes back to the set it was opened from." },
+      { kind: "fixed", tool: "Self-hosting", text: "A branded instance no longer shows the default look on a first visit. The branding file is fetched by the app, and a fetch cannot finish before the page paints, so the first visit in a browser painted the image's own identity and swapped a moment later — on Azure Container Apps, with a cold start in front of the fetch, long enough to read. The container now writes the deployment's branding into js/selfhost-boot.js at start, the same way it writes your app registration into js/authConfig.js, so the first paint is already yours. It works for a mounted branding file as well as for ENCA_BRANDING, a start without branding removes the block again, and a host with no entrypoint is unchanged." },
+    ],
+  },
+  {
     build: 316, date: "2026-09-18", title: "📐 CIS Benchmark is off this channel again",
     items: [
       { kind: "fixed", tool: "All tools", text: "📐 CIS Benchmark alignment (T21) is a beta-only tool and build 315 carried it into production by accident — the wholesale port took the files with everything else. It was hidden on this site, because the guard that keeps a beta-only tab off production reads the canonical host name; a copy of this build served from anywhere else — a self-hosted instance, most of all — showed the tab. The tool, its benchmark catalog and its screen are out of this build entirely, so there is nothing left to show. T21 keeps its number, as every retired or held-back number does, and the tool goes on being developed on the beta channel." },

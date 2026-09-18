@@ -184,6 +184,41 @@ test('the only enforcing copy is never the one deleted', () => {
   assert.equal(I.mergePlan(s, 'copy', ['live:state']).canRun, true);
 });
 
+test('a needs-review set is released by hand, and only that refusal lifts', () => {
+  const { I } = world();
+  const ps = [pol('a', 'CA041', N004, 'report', { includeGroups: ['g'] }, { grant: { operator: 'OR', builtInControls: ['block'] } }),
+    pol('b', 'CA042', N004, 'off', { includeGroups: ['g'] }, { created: '2026-09-17T16:48:00Z' })];
+  const [s] = I.duplicates(ps);
+  assert.equal(s.verdict, 'review');
+  assert.equal(I.mergePlan(s, s.keepId, []).canRun, false);
+  const released = I.mergePlan(s, s.keepId, [], { reviewed: true });
+  assert.equal(released.canRun, true, 'the reader looked at it — that is a decision the tool does not make for them');
+  assert.equal(released.reviewed, true);
+  assert.match(released.reasons.join(' '), /Grant controls differ/);
+  // the safety refusal that has nothing to do with the verdict still stands
+  const live = [pol('on', 'CA050', N004, 'on', { includeUsers: ['All'] }, { grant: { operator: 'OR', builtInControls: ['block'] } }),
+    pol('off', 'CA051', N004, 'off', { includeUsers: ['All'] })];
+  const [s2] = I.duplicates(live);
+  assert.equal(s2.verdict, 'review');
+  const still = I.mergePlan(s2, 'off', [], { reviewed: true });
+  assert.equal(still.canRun, false);
+  assert.match(still.refusals[0].why, /CA050 is On/);
+});
+
+test('the report says a set was released by hand, and why it had been held', async () => {
+  const held = [pol('p19', 'CA019', N004, 'report', { includeUsers: ['All'] }, { session: { signInFrequency: { value: 1, type: 'hours', isEnabled: true } } }),
+    pol('p18', 'CA018', N004, 'off', { includeUsers: ['All'] }, { created: '2026-09-17T16:48:00Z' })];
+  const w = world({ policies: held });
+  const [s] = w.I.duplicates(held);
+  assert.equal(s.verdict, 'review', 'the session controls differ');
+  const plan = w.I.mergePlan(s, 'p19', [], { reviewed: true });
+  const md = w.I.mergeReport({ tenantName: 'Courseware', plans: [plan], results: await w.I.mergePolicies([plan], { readWaits: { missing: [1], stale: [1] } }) });
+  assert.match(md, /Released by hand after review:.*Session controls differ/);
+  // a set that never needed releasing does not claim it was
+  const [ok] = w.I.duplicates(courseware());
+  assert.equal(w.I.mergePlan(ok, 'p19', [], { reviewed: true }).reviewed, false);
+});
+
 test('the run: patch verified, copy deleted, report written', async () => {
   const w = world({ policies: courseware() });
   const [s] = w.I.duplicates(courseware());
