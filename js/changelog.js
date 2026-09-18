@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 320, date: "2026-09-18", title: "A baseline policy the tenant already has is no longer reported as new",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "\ud83e\uddec Baseline no longer reports a policy as new when the tenant already has it. Joey Verlinden's repository numbers more than one policy CA005 \u2014 the AnyPlatform copy and the iOS/Android one, and CA006 the same way \u2014 and the comparison stopped looking at that number as soon as the first of them had matched. The second row read not present in this tenant with its own policy two lines above it, and \ud83d\udce5 Import counted it among the policies to create. Each baseline policy is now paired with a tenant policy of its own; the row whose exact name is in the tenant claims first, so the result does not depend on the order Graph returns; and the warning that two policies share a CA number is kept for the copies the catalog does not account for." },
+    ],
+  },
+  {
     build: 319, date: "2026-09-18", title: "A self-hosted deployment's own logo is the first one drawn",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "A BRANDED INSTANCE STILL SHOWED THE PRODUCT LOGO FOR A MOMENT ON A FIRST CONNECT. The before-first-paint half put the deployment's mark on screen with a CSS content rule, and a content rule only PAINTS OVER an image — it does not stop the element loading the one the markup names. Measured on a branded deployment, the sign-in mark had still fetched and decoded the product SVG: it was the element's real image, and the replacement only covered it once ready, so a cold start could put the wrong mark on screen first. A browser that does not honour content on an image never covered it at all. The branded address is now set on the image ITSELF as the page is parsed and before anything can be painted, so on a branded instance the product mark is never the element's image. The content rule stays as the second of the two, because neither is sufficient in every browser and both carry the same value. A deployment with no branding, and any logo that fails the data-address guard, behave exactly as before." },
