@@ -2912,6 +2912,16 @@
   }
   const dupPlans = () => (dupSets || []).filter((s) => dupOn.has(s.key))
     .map((s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, [...dupPicks]));
+  // "17 Sep 2026, 16:48" in the reader's own timezone. The DAY alone does not
+  // tell two runs of the same import apart — both copies read 2026-09-17.
+  const dupWhen = (iso) => {
+    const raw = String(iso || "");
+    if (!raw) return "";
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw.slice(0, 16).replace("T", " ");
+    try { return d.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); }
+    catch { return raw.slice(0, 16).replace("T", " "); }
+  };
   // An id as the policy card names it, so a tick reads like the assignment does.
   function dupIdLabel(field, id) {
     if (/Users$/.test(field)) return policyResolve(id, LABELS.users);
@@ -2932,10 +2942,11 @@
       + (p.users.exc.length ? `<div class="ex">− ${esc(p.users.exc.slice(0, 2).join(", "))}${p.users.exc.length > 2 ? ` +${p.users.exc.length - 2}` : ""}</div>` : "");
     const rows = s.members.map((p) => {
       const keep = p.id === plan.keep.id;
+      const age = (s.ages || []).find((x) => x.id === p.id) || {};
       return `<div class="dup-row${keep ? " keep" : ""}">
         <input type="radio" name="dupk-${esc(s.key)}" data-dup-keep="${esc(s.key)}" value="${esc(p.id)}"${keep ? " checked" : ""}>
         <div class="dup-meta"><span class="dup-name">${esc(p.name)}</span> <span class="dup-seq">${esc(p.seq)}</span>
-          <div class="mini">${esc(p.raw?.createdDateTime ? `created ${p.raw.createdDateTime.slice(0, 10)}` : `modified ${p.modified}`)} · <b>${keep ? "keep this one" : "to be deleted"}</b></div></div>
+          <div class="mini">${esc(age.created ? `created ${dupWhen(age.created)}` : `modified ${p.modified}`)}${age.label ? ` <span class="tag${age.label === "newer" || age.label === "newest" ? " new" : ""}">${esc(age.label)}</span>` : ""}${age.modified && age.created && age.modified > age.created ? ` · ${esc(`changed ${dupWhen(age.modified)}`)}` : ""} · <b>${keep ? "keep this one" : "to be deleted"}</b></div></div>
         <div class="dup-assign">${assign(p)}</div>
       </div>`;
     }).join("");

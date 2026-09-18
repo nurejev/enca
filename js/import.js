@@ -798,6 +798,27 @@ const Importer = (() => {
   const madeAt = (p) => String((p.raw && (p.raw.createdDateTime || p.raw.modifiedDateTime)) || "");
   const usersOf = (p) => ((p.raw && p.raw.conditions && p.raw.conditions.users) || {});
 
+  // WHICH COPY IS THE NEWER ONE. Two copies made by two runs of the same
+  // import carry the same DAY, and "created 2026-09-17" on both rows answers
+  // nothing (Courseware, 18 Sep). So the set says it outright — per copy, when
+  // it was created, when it was last changed, and whether it is the newer or
+  // the older of the set. Two identical timestamps, or a copy the directory
+  // gave no created time for, get NO claim rather than a guess.
+  function ages(members) {
+    const stamps = members.map((p) => ({ id: p.id, created: madeAt(p), modified: String((p.raw && p.raw.modifiedDateTime) || "") }));
+    const known = stamps.filter((x) => x.created).map((x) => x.created).sort();
+    const newest = known[known.length - 1], oldest = known[0];
+    const two = members.length === 2;
+    const uniq = new Set(known).size > 1;
+    return stamps.map((x) => ({
+      ...x,
+      rank: x.created ? known.length - 1 - known.lastIndexOf(x.created) : null,
+      label: !uniq || !x.created ? ""
+        : x.created === newest ? (two ? "newer" : "newest")
+        : x.created === oldest ? (two ? "older" : "oldest") : "",
+    }));
+  }
+
   function duplicates(list) {
     const sig = PolicyCompare.signature, payload = PolicyCompare.config;
     const by = new Map();
@@ -844,6 +865,7 @@ const Importer = (() => {
         key, name: ranked[0].name, num: caNumOf(ranked[0].name),
         verdict, reasons, members: ranked, keepId: ranked[0].id,
         states: ranked.map((p) => STATE_WORD[rawState(p)] || "unknown"),
+        ages: ages(ranked),
       });
     }
     return out.sort((a, b) => (a.num == null) - (b.num == null) || (a.num || 0) - (b.num || 0) || a.name.localeCompare(b.name));
@@ -864,7 +886,11 @@ const Importer = (() => {
     for (const o of others) {
       for (const f of USER_LISTS) {
         const have = usersOf(keep)[f] || [];
-        const ids = (usersOf(o)[f] || []).filter((x) => !have.includes(x));
+        // "None" is Graph's placeholder for "no users are included", not a
+        // principal: adding it to a list that already names one says nothing
+        // and Graph may refuse the pair (Courseware showed it as a tick
+        // reading "Users included: None").
+        const ids = (usersOf(o)[f] || []).filter((x) => !have.includes(x) && String(x).toLowerCase() !== "none");
         if (!ids.length) continue;
         const key = `${o.id}:${f}`;
         adds.push({ key, from: o.id, fromSeq: o.seq, field: f, label: USER_LABEL[f], ids,

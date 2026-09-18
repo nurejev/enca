@@ -124,6 +124,37 @@ test('incomplete details cannot be compared', () => {
   assert.match(s.reasons.join(' '), /incomplete/);
 });
 
+test('which copy the second run made: created, changed, newer or older', () => {
+  const { I } = world();
+  const [s] = I.duplicates(courseware());
+  const ages = Object.fromEntries(plain(s.ages).map((a) => [a.id, a]));
+  assert.equal(ages.p18.label, 'newer', 'the 16:48 copy');
+  assert.equal(ages.p19.label, 'older');
+  assert.equal(ages.p18.rank, 0);
+  assert.equal(ages.p19.created, '2026-06-03T10:00:00Z');
+  // same timestamp, or none at all: no claim rather than a guess
+  const same = [pol('a', 'CA001', N004, 'off', {}), pol('b', 'CA002', N004, 'off', {})];
+  assert.deepEqual(plain(I.duplicates(same)[0].ages).map((a) => a.label), ['', '']);
+  const blind = [pol('a', 'CA001', N004, 'off', {}), pol('b', 'CA002', N004, 'off', {}, { created: '2026-09-17T16:48:00Z' })];
+  delete blind[0].raw.createdDateTime;
+  const got = Object.fromEntries(plain(I.duplicates(blind)[0].ages).map((a) => [a.id, a.label]));
+  assert.equal(got.a, '', 'no created time, no claim');
+  assert.equal(got.b, '', 'and nothing to compare it against');
+  // three copies read newest and oldest
+  const three = [pol('a', 'CA001', N004, 'off', {}), pol('b', 'CA002', N004, 'off', {}, { created: '2026-07-01T09:00:00Z' }), pol('c', 'CA003', N004, 'off', {}, { created: '2026-09-17T16:48:00Z' })];
+  const m = Object.fromEntries(plain(I.duplicates(three)[0].ages).map((a) => [a.id, a.label]));
+  assert.deepEqual(m, { a: 'oldest', b: '', c: 'newest' });
+});
+
+test('Graph\'s "None" placeholder is never brought across', () => {
+  const { I } = world();
+  const ps = [pol('keep', 'CA015', N004, 'report', { includeUsers: ['All'] }),
+    pol('copy', 'CA014', N004, 'off', { includeUsers: ['None'], includeGroups: ['dg-glo'] }, { created: '2026-09-17T16:48:00Z' })];
+  const [s] = I.duplicates(ps);
+  const plan = I.mergePlan(s, 'keep', []);
+  assert.deepEqual(plain(plan.adds.map((a) => a.field)).sort(), ['includeGroups', 'state'], 'no includeUsers tick for None');
+});
+
 test('the merge plan: what is offered, what a tick writes', () => {
   const { I } = world();
   const [s] = I.duplicates(courseware());

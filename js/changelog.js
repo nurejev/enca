@@ -29,6 +29,23 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25388,
+  date: "2026-09-18",
+  title: "Which copy of a duplicate is the newer one",
+  items: [
+    {
+      kind: "improved",
+      tool: "Policies",
+      text: "👯 Duplicates says which copy the later import made. Two runs on the same day gave both rows the same date — 27 sets on Courseware all read created 2026-09-17 — so each row now carries the created time to the minute in your own timezone and a newer or older marker for its set, plus the changed time when a copy was edited after it was made. Equal timestamps, or a copy the directory gave no created time for, get no marker rather than a guess.",
+    },
+    {
+      kind: "fixed",
+      tool: "Policies",
+      text: "A tick reading “Users included: None” is gone. None is Graph's placeholder for “no users are included”, not a principal, so it is never offered as something to bring across to the policy you keep.",
+    },
+  ],
+},
+{
   build: 25387,
   date: "2026-09-18",
   title: "The same policy twice, found and merged",
