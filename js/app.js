@@ -709,7 +709,7 @@
         : esc(org);
     });
     set("brandTag", (el) => { el.textContent = B.name; });
-    set("brandLoginTitle", (el) => { el.textContent = B.loginTitle || Brand.title; });
+    set("brandLoginTitle", (el) => { el.textContent = B.loginTitle || Brand.chromeTitle; });
     set("brandLoginBlurb", (el) => { if (B.loginBlurb) el.textContent = B.loginBlurb; });
     set("brandFoot", (el) => { el.textContent = [B.copyright, B.name].filter(Boolean).join(" · "); });
     set("brandOrgLink", (el) => {

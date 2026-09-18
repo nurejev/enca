@@ -19,6 +19,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 318, date: "2026-09-18", title: "A branded instance names itself in the browser tab",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "A SELF-HOSTED INSTANCE WITH ITS OWN BRANDING STILL NAMED THE PUBLISHER IN THE BROWSER TAB, and nothing in the branding gear could change it. The tab and the sign-in heading are chrome, but both borrowed the NEUTRAL product strings — the ones that exist so an export carries the product credit whoever is signed in, and which deliberately ignore a branding override. So a deployment that had set its own name still had ENCA and Limon-IT in its title, in every bookmark and in every screenshot somebody shared of their own site; and the sign-in heading fell back to the product title unless the Login title box had been filled in by hand, however carefully Product name and Long name were set. Both read the active look now. The export credit is untouched and still neutral, which is the point of an override changing chrome only: a deployment brands what is on its screen and never claims authorship of the tool. A copy with no branding set is exactly as it was." },
+    ],
+  },
+  {
     build: 317, date: "2026-09-18", title: "Reviewed releases a held duplicate, and a branded instance is branded on the first paint",
     items: [
       { kind: "improved", tool: "Policies", text: "A 👯 Duplicates set that needs review now carries a Reviewed tick. Copies that differ in their conditions, controls or guest scope are still held back — keeping one of those is a security decision — but ticking Reviewed releases that set for selection and merging like any other. The report records that it was released by hand and what had differed, and the refusal that the copy being deleted is the only enforcing one is not lifted by it." },

@@ -139,9 +139,21 @@ const Brand = {
   setActive(b) { ACTIVE_BRANDING = b || null; },
 
   // "ENCA — Conditional Access Baseline Tools"
+  // The NEUTRAL product title: the base identity whoever is signed in. It
+  // feeds Brand.credit and every export footer, so it must not follow an
+  // override — see the note above ACTIVE_BRANDING.
   get title() { return BRANDING.longName ? `${BRANDING.name} — ${BRANDING.longName}` : BRANDING.name; },
+  // The same two shapes for CHROME, read from the active look.
+  //
+  // The browser tab and the login heading are chrome, and both used to borrow
+  // the neutral getters above — so a self-hosted deployment that had set its
+  // own name still had the publisher's in its <title>, in every bookmark and
+  // in every screenshot somebody shared, and its login heading fell back to
+  // the publisher's title unless loginTitle was filled in by hand. Neither is
+  // an export, and an override exists precisely to change what chrome says.
+  get chromeTitle() { const B = Brand.current; return B.longName ? `${B.name} — ${B.longName}` : B.name; },
   // "ENCA · Conditional Access Baseline Tools · Limon-IT" — the <title>
-  get pageTitle() { return [BRANDING.name, BRANDING.longName, BRANDING.org].filter(Boolean).join(" · "); },
+  get pageTitle() { const B = Brand.current; return [B.name, B.longName, B.org].filter(Boolean).join(" · "); },
   // "ENCA — Conditional Access Baseline Tools (enca.limon-it.nl)"
   get credit() { return BRANDING.host ? `${Brand.title} (${BRANDING.host})` : Brand.title; },
   // The line every Markdown export ends its header with.
