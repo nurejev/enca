@@ -29,6 +29,28 @@
 // ======================================================================
 const CHANGELOG = [
 {
+  build: 25387,
+  date: "2026-09-18",
+  title: "The same policy twice, found and merged",
+  items: [
+    {
+      kind: "new",
+      tool: "Policies",
+      text: "👯 Duplicates, beside 🧹 Housekeeping: the policies this tenant holds under one name. Housekeeping reads versions and needs one in the name, so a baseline that does not version its names — Joey Verlinden's — left a second import sitting beside the first with nothing saying so. Courseware carried CA004-Global-…-AuthenticationFlows twice: CA018 Off on the deploy group, CA019 Report-only on All users.",
+    },
+    {
+      kind: "new",
+      tool: "Policies",
+      text: "Merging is a decision you make, not one the tool makes: pick the copy to keep, tick what to bring across from the other — include groups, exclusions, directory roles, the state — and the rest are deleted. Every tick says what it changes and whether it widens who the policy reaches, and 🔍 Compare opens the same field-by-field view Housekeeping uses. A set whose copies differ in their conditions, controls or guest scope is never merged: keeping one of those is a security decision, and the set says so.",
+    },
+    {
+      kind: "improved",
+      tool: "Policies",
+      text: "Before anything is written: a plan of what is patched and what is deleted, a JSON backup of the policies going, the typed DELETE, the run ledger with ■ Stop, and a Markdown report. The copy that is On is never the one deleted while the copy you keep is not — that set is refused with the reason on it. A deleted policy is restorable for 30 days in ♻️ Recycle bin.",
+    },
+  ],
+},
+{
   build: 25386,
   date: "2026-09-17",
   title: "E-Admins and deploy groups count as the baseline's under every baseline",

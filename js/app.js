@@ -1731,6 +1731,7 @@
     updateSelbar();
     syncCollapseAllBtn();
     syncHkBtn();
+    syncDupBtn();
     syncWorkspace();
   }
   function groupIds(key) {
@@ -2877,6 +2878,211 @@
     selected = new Set(ids);
     refreshViews();
     openDeleteModal();
+  });
+
+  // ---------- duplicates: the same policy twice --------------------------
+  // 🧹 Housekeeping above reads VERSIONS, and a baseline whose names carry no
+  // version (Joey Verlinden's) cannot be read that way — a second import just
+  // leaves the policy in the tenant twice. Same modal shape as Housekeeping:
+  // review, then a plan, then the write, and 🔍 Compare is the one PolicyCompare
+  // view both use.
+  let dupSets = null;            // Importer.duplicates(policies)
+  let dupKeep = new Map();       // set key -> the policy id to keep
+  let dupPicks = new Set();      // "<other policy id>:<field>" ticked to bring across
+  let dupOn = new Set();         // set keys ticked to merge
+  let dupStep = "list";          // list | plan
+  let dupResults = null;
+  const dupFind = () => { try { return Importer.duplicates(policies); } catch (e) { console.warn("duplicates:", e.message || e); return []; } };
+  function syncDupBtn() {
+    const n = dupFind().length;
+    const b = $("dupBtn"); if (!b) return;
+    b.style.display = (n && viewMode !== "analyze") ? "" : "none";
+    b.textContent = `👯 Duplicates (${n})`;
+    b.title = `${n} policy name${n === 1 ? " is" : "s are"} carried by more than one policy in this tenant — keep one, bring what you need across, delete the copy`;
+  }
+  function openDuplicates() {
+    dupSets = dupFind();
+    dupKeep = new Map(dupSets.map((s) => [s.key, s.keepId]));
+    dupPicks = new Set();
+    dupOn = new Set(dupSets.filter((s) => Importer.mergePlan(s, s.keepId, []).canRun).map((s) => s.key));
+    dupStep = "list"; dupResults = null;
+    $("dupLedger").innerHTML = "";
+    renderDup();
+    $("dupModal").classList.add("open");
+  }
+  const dupPlans = () => (dupSets || []).filter((s) => dupOn.has(s.key))
+    .map((s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, [...dupPicks]));
+  // An id as the policy card names it, so a tick reads like the assignment does.
+  function dupIdLabel(field, id) {
+    if (/Users$/.test(field)) return policyResolve(id, LABELS.users);
+    if (/Groups$/.test(field)) return `${policyResolve(id)} (group)`;
+    return `${policyResolve(id)} (role)`;
+  }
+  const DUP_VERDICT = {
+    identical: ['<span class="tag upd">identical</span>', "nothing but the state differs"],
+    assignment: ['<span class="tag new">assignment differs</span>', "the copies reach different people"],
+    review: ['<span class="tag block">needs review</span>', "they differ beyond who they reach"],
+  };
+  function dupSetHtml(s) {
+    const keepId = dupKeep.get(s.key) || s.keepId;
+    const plan = Importer.mergePlan(s, keepId, [...dupPicks]);
+    const [chip, why] = DUP_VERDICT[s.verdict] || DUP_VERDICT.review;
+    const keepAll = ((plan.keep.raw?.conditions?.users?.includeUsers) || []).includes("All");
+    const assign = (p) => `${Render.stateChip(p.state)}<div>${esc(p.users.inc.slice(0, 3).join(", "))}${p.users.inc.length > 3 ? ` +${p.users.inc.length - 3}` : ""}</div>`
+      + (p.users.exc.length ? `<div class="ex">− ${esc(p.users.exc.slice(0, 2).join(", "))}${p.users.exc.length > 2 ? ` +${p.users.exc.length - 2}` : ""}</div>` : "");
+    const rows = s.members.map((p) => {
+      const keep = p.id === plan.keep.id;
+      return `<div class="dup-row${keep ? " keep" : ""}">
+        <input type="radio" name="dupk-${esc(s.key)}" data-dup-keep="${esc(s.key)}" value="${esc(p.id)}"${keep ? " checked" : ""}>
+        <div class="dup-meta"><span class="dup-name">${esc(p.name)}</span> <span class="dup-seq">${esc(p.seq)}</span>
+          <div class="mini">${esc(p.raw?.createdDateTime ? `created ${p.raw.createdDateTime.slice(0, 10)}` : `modified ${p.modified}`)} · <b>${keep ? "keep this one" : "to be deleted"}</b></div></div>
+        <div class="dup-assign">${assign(p)}</div>
+      </div>`;
+    }).join("");
+    const opts = plan.adds.map((a) => {
+      const disabled = s.verdict === "review";
+      const note = a.field === "state"
+        ? `the kept policy becomes <b>${esc(a.word)}</b>${a.state !== "enabled" && (plan.keep.raw?.state) === "enabled" ? " — it would stop enforcing" : a.state === "enabled" ? " — it would start enforcing" : ""}`
+        : a.widens
+          ? (keepAll ? "the kept policy already includes All users, so this changes nothing" : "widens who the kept policy reaches")
+          : "narrows who the kept policy reaches — an exclusion is always the safe direction";
+      const what = a.field === "state" ? `<b>State</b> ${esc(a.word)}` : `<b>${esc(a.label[0].toUpperCase() + a.label.slice(1))}</b>: ${esc(a.ids.map((x) => dupIdLabel(a.field, x)).join(", "))}`;
+      return `<label class="chk${disabled ? " off" : ""}"><input type="checkbox" data-dup-opt="${esc(a.key)}"${a.picked ? " checked" : ""}${disabled ? " disabled" : ""}>
+        <span>${what} <span class="why">— from ${esc(a.fromSeq)}, ${note}</span></span></label>`;
+    }).join("");
+    const refusal = plan.refusals.length
+      ? `<div class="dup-bad">⚠ ${esc(plan.refusals.map((r) => r.why).join(" "))}${s.verdict === "review" ? " Compare the copies, fix the one you keep in ✏️ Edit, and this set becomes mergeable." : ""}</div>`
+      : "";
+    return `<div class="dup-set">
+      <div class="dup-head">
+        <label class="chk" style="margin:0"><input type="checkbox" data-dup-set="${esc(s.key)}"${dupOn.has(s.key) ? " checked" : ""}${plan.canRun ? "" : " disabled"}></label>
+        <div><b>${esc(s.name)}</b><div class="mini">${s.members.length} copies · same name · ${esc(why)}</div></div>
+        <span class="dup-verdict">${chip}</span>
+      </div>
+      ${rows}
+      <div class="dup-opts">
+        <div class="mini" style="display:flex;gap:8px;align-items:center"><span>${plan.adds.length ? "Bring across to the kept policy" : "Nothing to bring across — the copies are the same policy, written twice"}</span>
+          <button type="button" class="btn sm" data-dup-compare="${esc(s.key)}" style="margin-left:auto">🔍 Compare the two</button></div>
+        ${opts}${refusal}
+      </div>
+      <div class="dup-foot"><span class="arrow">→</span> ${plan.canRun
+        ? `Keep <b>${esc(plan.keep.seq)}</b>${plan.patch ? " (updated)" : " (unchanged)"} · delete <b>${esc(plan.deletes.map((d) => d.seq).join(", "))}</b>`
+        : "<span class=\"muted\">nothing will be written for this set</span>"}</div>
+    </div>`;
+  }
+  function dupPlanHtml() {
+    const plans = dupPlans().filter((p) => p.canRun);
+    const dels = plans.reduce((n, p) => n + p.deletes.length, 0);
+    const patches = plans.filter((p) => p.patch).length;
+    return `<p class="mini" style="margin-bottom:10px"><b>${plans.length} set${plans.length === 1 ? "" : "s"}</b> · ${patches} polic${patches === 1 ? "y" : "ies"} changed, ${dels} deleted, in this order. A deleted policy is restorable for 30 days in ♻️ Recycle bin.</p>
+      <div class="dup-plan">${plans.map((p) => `<div><b>Keep ${esc(p.keep.seq)}</b> ${esc(p.keep.name)} ${Render.stateChip(p.keep.state)}
+          <div class="mini">${p.patch ? esc([...p.lists.map((a) => `${Importer.countLabel(a.ids.length, a.label)} from ${a.fromSeq}`), ...(p.state ? [`state ${p.state.word} from ${p.state.fromSeq}`] : [])].join(" · ")) : "unchanged — nothing ticked to bring across"}</div></div>
+        ${p.deletes.map((d) => `<div class="del"><b>Delete ${esc(d.seq)}</b> ${esc(d.name)} ${Render.stateChip(d.state)}
+          <div class="mini">${d.state === "off" ? "Off, so no sign-in is affected" : "Report-only — it stops evaluating sign-ins"}</div></div>`).join("")}`).join("")}</div>
+      <label class="chk"><input type="checkbox" id="dupBackup" checked> Download a JSON backup of the policies being deleted first</label>
+      <label class="mini" for="dupConfirm" style="display:block;margin-top:12px">Type <b>DELETE</b> to confirm</label>
+      <input id="dupConfirm" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">`;
+  }
+  function renderDup() {
+    const sets = dupSets || [];
+    const mergeable = sets.filter((s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, []).canRun).length;
+    $("dupDesc").textContent = dupStep === "plan"
+      ? `Review before anything is written in ${tenantName || "this tenant"}.`
+      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${tenantName || "this tenant"}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first. Includes policies outside the current search filter.`;
+    $("dupNote").style.display = dupStep === "plan" ? "none" : "";
+    $("dupList").innerHTML = dupStep === "plan" ? dupPlanHtml() : sets.map(dupSetHtml).join("")
+      || '<p class="mini muted">No duplicates in the loaded inventory.</p>';
+    $("dupBack").style.display = dupStep === "plan" ? "" : "none";
+    $("dupNext").style.display = dupStep === "plan" ? "none" : "";
+    $("dupGo").style.display = dupStep === "plan" ? "" : "none";
+    const plans = dupPlans().filter((p) => p.canRun);
+    const dels = plans.reduce((n, p) => n + p.deletes.length, 0);
+    $("dupNext").disabled = !plans.length;
+    $("dupNext").textContent = plans.length ? `Review the merge (${plans.length}) →` : "Review the merge →";
+    $("dupGo").textContent = `Merge & delete ${dels}`;
+    syncDupGo();
+  }
+  function syncDupGo() {
+    const c = $("dupConfirm");
+    $("dupGo").disabled = dupStep !== "plan" || !c || c.value.trim().toUpperCase() !== "DELETE" || !dupPlans().filter((p) => p.canRun).length;
+  }
+  async function dupRun() {
+    const plans = dupPlans().filter((p) => p.canRun);
+    if (!plans.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...ML_WRITE])) return;
+    // The backup is the only thing between a mistaken click and a policy that
+    // has to be rebuilt by hand — same rule as the delete flow.
+    if ($("dupBackup") && $("dupBackup").checked) {
+      try {
+        downloadText("CA-Duplicates-Deleted", "json", "application/json", JSON.stringify({
+          tenant: tenantName, exported: new Date().toISOString(),
+          policies: plans.flatMap((p) => p.deletes.map((d) => d.raw)),
+        }, null, 2));
+      } catch (e) { console.error(e); toast("Backup download <span>failed</span> — nothing was merged"); return; }
+    }
+    $("dupGo").disabled = true; $("dupBack").style.display = "none"; $("dupCancel").disabled = true;
+    const L = RunLedger.create($("dupLedger"), { unit: "duplicate sets", title: "merge", items: plans.map((p) => ({
+      label: p.name, sub: `keep ${p.keep.seq}${p.patch ? " (updated)" : ""} · delete ${p.deletes.map((d) => d.seq).join(", ")}`,
+    })), onStop: () => {} });
+    const note = (p, r) => `${r.patched ? "updated and " : ""}${(r.deleted || []).filter((d) => d.ok).length} deleted`;
+    let res;
+    if (isDemo) {
+      res = plans.map((p, i) => {
+        L.start(i);
+        const r = { key: p.key, name: p.name, keep: p.keep, patched: !!p.patch, deleted: p.deletes.map((d) => ({ id: d.id, seq: d.seq, name: d.name, ok: true })), ok: true };
+        L.done(i, `${note(p, r)} (simulated)`, "merged");
+        return r;
+      });
+    } else {
+      res = await Importer.mergePolicies(plans, {
+        shouldStop: () => L.stopped,
+        onItem: (i, phase, r) => {
+          if (phase === "start") { L.start(i); return; }
+          if (!r) return;
+          if (r.stopped) L.skip(i, "stopped — nothing changed");
+          else if (r.ok) L.done(i, note(plans[i], r), "merged");
+          else if (r.patched || (r.deleted || []).some((d) => d.ok)) L.part(i, `${note(plans[i], r)} · ${r.error}`, "partly done");
+          else L.fail(i, r.error || "refused", "refused");
+        },
+      });
+    }
+    dupResults = res;
+    L.finish({ report: () => showReport("👯 Duplicate merge report", `CA-Duplicate-Merge-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`,
+      Importer.mergeReport({ tenantName, plans, results: res })) });
+    $("dupCancel").disabled = false;
+    $("dupList").innerHTML = "";
+    $("dupDesc").textContent = `${res.filter((r) => r.ok).length} of ${plans.length} set${plans.length === 1 ? "" : "s"} merged in ${tenantName || "this tenant"}${isDemo ? " (simulated)" : ""}.`;
+    $("dupGo").style.display = "none";
+    if (!isDemo && res.some((r) => r.patched || (r.deleted || []).some((d) => d.ok))) await loadFromGraph(true); else refreshViews();
+  }
+  $("dupBtn").addEventListener("click", openDuplicates);
+  $("dupCancel").addEventListener("click", () => { $("dupModal").classList.remove("open"); });
+  $("dupBack").addEventListener("click", () => { dupStep = "list"; renderDup(); });
+  $("dupNext").addEventListener("click", () => { dupStep = "plan"; renderDup(); });
+  $("dupGo").addEventListener("click", dupRun);
+  $("dupList").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.matches("[data-dup-keep]")) {
+      dupKeep.set(t.dataset.dupKeep, t.value);
+      // a tick belongs to the copy it came from; keeping that copy retires it
+      [...dupPicks].filter((k) => k.startsWith(`${t.value}:`)).forEach((k) => dupPicks.delete(k));
+      renderDup(); return;
+    }
+    if (t.matches("[data-dup-opt]")) { t.checked ? dupPicks.add(t.dataset.dupOpt) : dupPicks.delete(t.dataset.dupOpt); renderDup(); return; }
+    if (t.matches("[data-dup-set]")) { t.checked ? dupOn.add(t.dataset.dupSet) : dupOn.delete(t.dataset.dupSet); renderDup(); return; }
+    if (t.id === "dupConfirm") syncDupGo();
+  });
+  $("dupList").addEventListener("input", (e) => { if (e.target.id === "dupConfirm") syncDupGo(); });
+  $("dupList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dup-compare]"); if (!b) return;
+    const s = (dupSets || []).find((x) => x.key === b.dataset.dupCompare);
+    if (!s) { openDuplicates(); toast("Policy inventory changed. Review the updated list."); return; }
+    const keepId = dupKeep.get(s.key) || s.keepId;
+    const keep = s.members.find((p) => p.id === keepId), other = s.members.find((p) => p.id !== keepId);
+    hkComparison = PolicyCompare.compare(other, keep);
+    $("hkCompareOnly").checked = true;
+    renderHkComparison();
+    $("hkCompareModal").classList.add("open");
   });
 
   // ---------- import tool (BETA) ----------

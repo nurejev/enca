@@ -2140,3 +2140,32 @@ body.cgg-modal-open{overflow:hidden}
 .hk-value-changed{background:var(--warn-bg2);border-radius:4px;padding:3px}
 .hk-value{white-space:pre-wrap}
 @media(max-width:600px){.hk-compare-table{min-width:640px}}
+
+/* ---------- 👯 duplicates (T01, build 25387) ---------- */
+/* One set per card: the copies as rows with the keep radio, what can be
+   brought across underneath, and the outcome on the foot. Same grammar as
+   the CA-groups rows, so a policy row reads the same in both tools. */
+.dup-set{border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.dup-head{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:var(--soft2);border-bottom:1px solid var(--line)}
+.dup-head b{font-size:13.5px}
+.dup-verdict{margin-left:auto;white-space:nowrap}
+.dup-row{display:flex;gap:12px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid var(--line)}
+.dup-row.keep{background:var(--hl)}
+.dup-row input[type=radio]{margin-top:3px}
+.dup-meta{flex:1;min-width:0}
+.dup-name{font-weight:700;word-break:break-word}
+.dup-seq{color:var(--muted);font-weight:600;font-size:12px}
+.dup-assign{min-width:250px;max-width:320px;font-size:12.5px}
+.dup-assign .ex{color:var(--off)}
+.dup-opts{padding:11px 14px}
+.dup-opts .chk{margin:6px 0;align-items:flex-start;color:var(--ink)}
+.dup-opts .chk.off{color:var(--muted)}
+.dup-opts .why{color:var(--muted)}
+.dup-bad{background:var(--bad-bg2);border:1px solid var(--bad-bd);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
+.dup-foot{padding:10px 14px;background:var(--soft2);border-top:1px solid var(--line);font-size:12.5px}
+.dup-foot .arrow{color:var(--accent2);font-weight:700}
+.dup-plan{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:10px 0}
+.dup-plan > div{padding:9px 13px;border-bottom:1px solid var(--line);font-size:12.5px}
+.dup-plan > div:last-child{border-bottom:0}
+.dup-plan .del{color:var(--off)}
+@media (max-width:700px){.dup-row{flex-wrap:wrap}.dup-assign{min-width:0;max-width:none}}

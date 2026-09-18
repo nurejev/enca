@@ -761,6 +761,223 @@ const Importer = (() => {
   }
   function supersededOff(list) { return housekeeping(list).filter(r => r.canDelete); }
 
+  // ---------- duplicates: the same policy twice (beta 25387) ---------------
+  // housekeeping() above answers "is there an older VERSION of this policy",
+  // and it needs a version in the name to do it (v1.0 → v3.0). A baseline
+  // whose names carry no version — Joey Verlinden's — cannot be read that way,
+  // so a second import simply leaves the policy in the tenant TWICE and
+  // nothing said so: Courseware carries
+  // CA004-Global-IdentityProtection-AnyApp-AnyPlatform-AuthenticationFlows as
+  // CA018 (Off, on the deploy group) and CA019 (Report-only, All users).
+  //
+  // A duplicate set is one NAME carried by two or more policies, the staging
+  // prefix ((NEW)/(UP)) aside. The version is PART of the name, so v1.0 beside
+  // v3.0 is not a duplicate — that is the older-version case and it stays with
+  // housekeeping(). The same CA number under two different names is a number
+  // clash, which 🧬 Baseline reports; it is never a duplicate here.
+  //
+  // The verdict says what a merge would have to decide:
+  //   identical  — nothing but the state differs (or nothing at all)
+  //   assignment — only the six user lists differ: who each copy reaches
+  //   review     — conditions, controls or a scope a merge cannot express
+  //                (the guest-type selection, a workload scope) differ. Never
+  //                merged here: keeping one is then a security decision.
+  const USER_LISTS = ["includeUsers", "excludeUsers", "includeGroups", "excludeGroups", "includeRoles", "excludeRoles"];
+  const USER_LABEL = {
+    includeUsers: "users included", excludeUsers: "users excluded",
+    includeGroups: "groups included", excludeGroups: "groups excluded",
+    includeRoles: "directory roles included", excludeRoles: "directory roles excluded",
+  };
+  const STATE_WORD = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+  // "1 group included", not "1 groups included" — the first plural word in the
+  // label is the noun.
+  const countLabel = (n, label) => `${n} ${n === 1 ? String(label).replace(/\b(\w+)s\b/, "$1") : label}`;
+  const STATE_RANK = { enabled: 2, enabledForReportingButNotEnforced: 1, disabled: 0 };
+  const rawState = (p) => (p.raw && p.raw.state)
+    || ({ on: "enabled", report: "enabledForReportingButNotEnforced", off: "disabled" })[p.state] || p.state || "";
+  const madeAt = (p) => String((p.raw && (p.raw.createdDateTime || p.raw.modifiedDateTime)) || "");
+  const usersOf = (p) => ((p.raw && p.raw.conditions && p.raw.conditions.users) || {});
+
+  function duplicates(list) {
+    const sig = PolicyCompare.signature, payload = PolicyCompare.config;
+    const by = new Map();
+    for (const p of list || []) {
+      const k = cleanName(p.name);
+      if (!k) continue;
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(p);
+    }
+    const out = [];
+    for (const [key, members] of by) {
+      if (members.length < 2) continue;
+      // Suggested survivor first: the copy that is most live, then the OLDEST
+      // object — the one every report, ticket and screenshot already names.
+      const ranked = members.slice().sort((a, b) =>
+        (STATE_RANK[rawState(b)] || 0) - (STATE_RANK[rawState(a)] || 0)
+        || madeAt(a).localeCompare(madeAt(b))
+        || String(a.seq || "").localeCompare(String(b.seq || "")));
+      const reasons = [];
+      let verdict = "identical";
+      const complete = members.every((p) => p.raw && p.raw.conditions && (p.raw.grantControls || p.raw.sessionControls));
+      if (!complete) {
+        verdict = "review";
+        reasons.push("Policy details are incomplete, so the copies could not be compared.");
+      } else {
+        const part = (p, pick) => sig(pick(payload(p)));
+        const many = (pick) => new Set(members.map((p) => part(p, pick))).size > 1;
+        const conds = (c) => Object.fromEntries(Object.entries(c.conditions || {}).filter(([k2]) => k2 !== "users"));
+        if (many((c) => conds(c))) reasons.push("Conditions differ — the copies do not cover the same sign-ins.");
+        if (many((c) => c.grantControls || null)) reasons.push("Grant controls differ — one copy grants or blocks what the other does not.");
+        if (many((c) => c.sessionControls || null)) reasons.push("Session controls differ.");
+        if (reasons.length) verdict = "review";
+        else {
+          const rest = (u) => Object.fromEntries(Object.entries(u || {}).filter(([k2]) => !USER_LISTS.includes(k2)));
+          if (many((c) => rest((c.conditions || {}).users))) {
+            verdict = "review";
+            reasons.push("The guest, external or workload scope differs, which a merge cannot express — compare the copies and fix one by hand.");
+          } else if (many((c) => USER_LISTS.map((f) => (((c.conditions || {}).users || {})[f] || [])))) {
+            verdict = "assignment";
+          }
+        }
+      }
+      out.push({
+        key, name: ranked[0].name, num: caNumOf(ranked[0].name),
+        verdict, reasons, members: ranked, keepId: ranked[0].id,
+        states: ranked.map((p) => STATE_WORD[rawState(p)] || "unknown"),
+      });
+    }
+    return out.sort((a, b) => (a.num == null) - (b.num == null) || (a.num || 0) - (b.num || 0) || a.name.localeCompare(b.name));
+  }
+
+  // What merging ONE set would do. Pure: the UI renders it, the run executes
+  // it, and both read the same object.
+  //   keepId — the copy to keep; picks — the "bring across" keys it ticked
+  //   ("<other policy id>:<field>", or "<id>:state").
+  // A patch carries the FULL users block of the kept policy with the ticked
+  // lists extended, because a PATCH replaces conditions.users wholesale (the
+  // same shape 🔧 re-attach writes).
+  function mergePlan(set, keepId, picks) {
+    const chosen = new Set(picks || []);
+    const keep = (set.members || []).find((p) => p.id === keepId) || (set.members || [])[0];
+    const others = (set.members || []).filter((p) => p !== keep);
+    const adds = [];
+    for (const o of others) {
+      for (const f of USER_LISTS) {
+        const have = usersOf(keep)[f] || [];
+        const ids = (usersOf(o)[f] || []).filter((x) => !have.includes(x));
+        if (!ids.length) continue;
+        const key = `${o.id}:${f}`;
+        adds.push({ key, from: o.id, fromSeq: o.seq, field: f, label: USER_LABEL[f], ids,
+          widens: /^include/.test(f), picked: chosen.has(key) });
+      }
+      if (rawState(o) !== rawState(keep)) {
+        const key = `${o.id}:state`;
+        adds.push({ key, from: o.id, fromSeq: o.seq, field: "state", label: "state",
+          state: rawState(o), word: STATE_WORD[rawState(o)] || rawState(o), picked: chosen.has(key) });
+      }
+    }
+    const lists = adds.filter((a) => a.picked && a.field !== "state");
+    const state = adds.filter((a) => a.picked && a.field === "state").pop() || null;
+    let patch = null;
+    if (lists.length || state) {
+      patch = {};
+      if (lists.length) {
+        const u = JSON.parse(JSON.stringify(usersOf(keep)));
+        for (const a of lists) u[a.field] = [...new Set([...(u[a.field] || []), ...a.ids])];
+        patch.conditions = { users: u };
+      }
+      if (state) patch.state = state.state;
+    }
+    // Refusals. A copy that is On while the kept one is not is the only
+    // enforcing one: deleting it would silently stop the enforcement.
+    const refusals = [];
+    const keepState = state ? state.state : rawState(keep);
+    for (const o of others) {
+      if (rawState(o) === "enabled" && keepState !== "enabled") {
+        refusals.push({ id: o.id, why: `${o.seq} is On and the copy you keep (${keep.seq}) is not — deleting it would stop that enforcement. Keep ${o.seq} instead, or switch ${keep.seq} On first.` });
+      }
+    }
+    if (set.verdict === "review") refusals.push({ id: null, why: set.reasons[0] || "the copies differ beyond who they reach" });
+    return { key: set.key, name: set.name, verdict: set.verdict, keep, deletes: others, adds, lists, state, patch, refusals, canRun: !refusals.length };
+  }
+
+  // Run the merges: per set, PATCH the kept policy (verified by a read-back,
+  // the same patient read every write here uses) and then DELETE each copy.
+  // Partly done is a real outcome — the patch can land and a delete be refused.
+  async function mergePolicies(plans, opts = {}) {
+    const results = [];
+    for (let i = 0; i < (plans || []).length; i++) {
+      const plan = plans[i];
+      if (opts.shouldStop && opts.shouldStop()) { results.push({ key: plan.key, name: plan.name, ok: false, stopped: true, error: "stopped before this set — nothing changed" }); continue; }
+      opts.onItem?.(i, "start", null);
+      const r = { key: plan.key, name: plan.name, keep: plan.keep, patched: false, deleted: [], ok: false, error: null };
+      try {
+        if (plan.patch) {
+          const url = `/identity/conditionalAccess/policies/${plan.keep.id}`;
+          const body = {};
+          if (plan.patch.conditions) {
+            const fresh = await readSettled(url, null, opts.readWaits);
+            const users = stripOdata(JSON.parse(JSON.stringify((fresh && fresh.conditions && fresh.conditions.users) || {})));
+            for (const a of plan.lists) users[a.field] = [...new Set([...(users[a.field] || []), ...a.ids])];
+            body.conditions = { users };
+          }
+          if (plan.patch.state) body.state = plan.patch.state;
+          await Graph.gpatch(url, body, [...AUTH_CONFIG.scopes, ...WRITE]);
+          const ok = (b) => {
+            if (!b) return false;
+            const u = (b.conditions && b.conditions.users) || {};
+            const listsIn = plan.lists.every((a) => a.ids.every((x) => (u[a.field] || []).includes(x)));
+            return listsIn && (!plan.patch.state || b.state === plan.patch.state);
+          };
+          const back = await readSettled(url, ok, opts.readWaits);
+          if (!ok(back)) throw new Error("Graph accepted the update but the kept policy does not read back with it — nothing was deleted");
+          r.patched = true;
+        }
+        for (const d of plan.deletes) {
+          try {
+            await Graph.gdelete(`/identity/conditionalAccess/policies/${d.id}`, [...AUTH_CONFIG.scopes, ...WRITE]);
+            r.deleted.push({ id: d.id, seq: d.seq, name: d.name, ok: true });
+          } catch (e) {
+            r.deleted.push({ id: d.id, seq: d.seq, name: d.name, ok: false, error: e.message || String(e) });
+          }
+        }
+        const failed = r.deleted.filter((d) => !d.ok);
+        r.ok = !failed.length;
+        if (failed.length) r.error = failed.map((d) => `${d.seq}: ${d.error}`).join("; ");
+      } catch (e) {
+        r.error = e.message || String(e);
+      }
+      results.push(r);
+      opts.onItem?.(i, "end", r);
+    }
+    return results;
+  }
+
+  function mergeReport({ tenantName, plans, results }) {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const res = new Map((results || []).map((r) => [r.key, r]));
+    const L = ["# Conditional Access duplicate merge report", "",
+      `- **Tenant:** ${tenantName || "this tenant"}`,
+      `- **Date:** ${stamp}`,
+      `- **Sets merged:** ${(results || []).filter((r) => r.ok).length} of ${(plans || []).length}`,
+      `- **Policies deleted:** ${(results || []).reduce((n, r) => n + (r.deleted || []).filter((x) => x.ok).length, 0)}`, ""];
+    for (const plan of plans || []) {
+      const r = res.get(plan.key) || {};
+      L.push(`## ${plan.name}`, "");
+      L.push(`- **Kept:** ${plan.keep.seq} ${plan.keep.name} (${STATE_WORD[rawState(plan.keep)] || "unknown"})${r.patched ? " — updated" : " — unchanged"}`);
+      for (const a of plan.lists || []) L.push(`- **Brought across** from ${a.fromSeq}: ${countLabel(a.ids.length, a.label)}${a.widens ? " (widens who the policy reaches)" : ""}`);
+      if (plan.state) L.push(`- **State** taken from ${plan.state.fromSeq}: ${plan.state.word}`);
+      for (const x of r.deleted || []) L.push(`- **${x.ok ? "Deleted" : "NOT deleted"}:** ${x.seq} ${x.name}${x.ok ? "" : ` — ${x.error}`}`);
+      if (r.stopped) L.push("- ⏹ Stopped before this set — nothing changed.");
+      else if (r.error && !(r.deleted || []).some((x) => !x.ok)) L.push(`- ❌ ${r.error}`);
+      L.push("");
+    }
+    L.push("A deleted Conditional Access policy is restorable for 30 days — ♻️ Recycle bin in 🧩 Policy building blocks.", "");
+    return L.join("\n");
+  }
+
   // ---------- dependencies: create-if-missing, build old-id → new-id maps ----------
   // Narrow a bundle to only the dependencies the chosen policies actually
   // reference, so importing one persona does not create all 97 groups. Matching
@@ -1689,5 +1906,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
+  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport };
 })();

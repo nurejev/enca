@@ -119,6 +119,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 221,
+      title: "🗂 Policies — 👯 Duplicates: the same policy twice, merged and deleted (T01 2.13.0)",
+      tools: ["Policies"],
+      builds: [25387],
+      risk: "high",
+      what: "js/import.js: duplicates(list) groups the inventory by cleanName (the staging prefix aside, the version left IN the name, so v1.0 beside v3.0 stays housekeeping's older-version case) and gives each set a verdict from PolicyCompare signatures — identical (only the state differs), assignment (only the six conditions.users lists differ) or review (conditions, grant or session controls, or a users block a merge cannot express: the guest-type selection, a workload scope). mergePlan(set, keepId, picks) is pure: the offered adds per other copy (one per user list plus the state), the full users patch the kept policy would take, and the refusals — a copy that is On while the kept one is not is never deleted. mergePolicies() PATCHes the kept policy from a fresh read (readSettled, the same patient read 🔧 re-attach uses), verifies the read-back and only then DELETEs each copy, reporting partly done when a delete is refused; mergeReport() writes the Markdown. js/app.js: the 👯 button beside 🧹 (same show rules), the modal with one card per set (keep radio, bring-across ticks, 🔍 Compare into the existing PolicyCompare modal), the plan step, the JSON backup, the typed DELETE, RunLedger and the report. css/app.css: .dup-*. index.html: the button, the modal, the Help bullet. tools/duplicates.test.cjs: 12 tests.",
+      why: "Mihai, 18 Sep, Courseware: T01 showed CA004-Global-IdentityProtection-AnyApp-AnyPlatform-AuthenticationFlows twice — CA018 Off on CAD-SEC-U-DG-GLO and CA019 Report-only on All users — and asked for duplicate detection with merge and delete; a mockup was approved the same day (review/2026-09-18). HIGH: this deletes policies. Every guard the delete flow has is here (backup, typed DELETE, per-row reasons), plus two of its own: the only enforcing copy is never deleted, and a set that differs beyond who it reaches is never merged.",
+      test: [
+        "Courseware: 👯 Duplicates (1) appears beside 🧹 Housekeeping. Open it: CA004-Global-…-AuthenticationFlows, verdict assignment differs, CA019 (Report-only, All users) pre-selected as the copy to keep, CA018 (Off, CAD-SEC-U-DG-GLO) to be deleted.",
+        "Tick nothing → the foot reads Keep CA019 (unchanged) · delete CA018; Review the merge shows one delete and no patch; type DELETE and run: CA018 is gone, CA019 is untouched, the report names both.",
+        "Tick Groups included: CAD-SEC-U-DG-GLO → the foot reads (updated) and the plan shows 1 group included from CA018. After the run, CA019 includes All users AND the deploy group, and the read-back verified it.",
+        "Switch the keep radio to CA018 (Off) while CA019 is Report-only: allowed, and the set says the deleted copy stops evaluating sign-ins. Do the same where the deleted copy is On and the kept one is not: the set is refused with the reason and cannot be ticked.",
+        "A tenant with an older version beside a newer one (CloudFellows v1.0 / v3.0): it stays in 🧹 Housekeeping and does NOT appear here. Two different policies sharing a CA number appear in neither.",
+        "A set whose copies differ in grant controls: verdict needs review, ticks disabled, 🔍 Compare opens the field-by-field view, and the set cannot be ticked for the run.",
+        "Stop mid-run: the sets already merged stay merged, the rest report stopped and nothing of theirs was written.",
+        "Untick the backup and confirm nothing downloads; leave it ticked and confirm the JSON holds the raw policies about to be deleted.",
+        "Demo mode (?demo=1): the whole flow runs simulated and the report says so.",
+        "node --test tools/*.test.cjs green, tools/duplicates.test.cjs included; node tools/check-plain-text.js clean.",
+      ],
+      files: ["js/import.js", "js/app.js", "css/app.css", "index.html", "tools/duplicates.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 220,
       title: "👥 CA groups — E-Admins and CAD-SEC-U-DG deploy groups count as the baseline's under every baseline (T12 5.13.0, Protect 3.0.4, Baseline 2.7.3)",
       tools: ["Conditional Access groups", "Protect exclusions", "Baseline"],
