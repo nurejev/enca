@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.316",
+  productionBuild: "v1.0.317",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -135,43 +135,6 @@ const PROMOTE = {
         "A self-hosted container built from 316: the same three tabs - this is the case that started it.",
       ],
       files: ["js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 223,
-      title: "⚙ Self-hosting — a branded instance is branded on the FIRST paint",
-      tools: ["Self-hosting"],
-      builds: [25390],
-      risk: "medium",
-      what: "selfhost/docker-entrypoint.sh: after the branding file is in place (written from ENCA_BRANDING or mounted by the operator), the same JSON is written into the top of js/selfhost-boot.js as an escaped JSON STRING in a marked block — the same markers-and-awk shape the runtime configuration block uses on js/authConfig.js: idempotent, stripped first so a restart without branding stops painting the old one, never fatal, and ENCA_ROOT makes it testable. js/selfhost-boot.js parses window.ENCA_BRAND_BOOT and prefers it over its localStorage cache, keeping the gear's own Apply on top (the precedence js/selfhost.js registers). selfhost/nginx.conf stops caching that one file, because its content now changes without the build number changing. SELF-HOSTING.md says so. tools/selfhost-brand-boot.test.cjs: 7 tests, including that a value which could close a CSS rule or be code is refused by the guards.",
-      why: "Mihai, 18 Sep, the Dovilo instance on Azure Container Apps: the first visit shows Limon-IT branding before switching. The branding file is fetched, and a fetch cannot finish before the page paints; the boot script could only paint what this browser had already cached, so a first-time visitor read the publisher's identity on somebody else's deployment. MEDIUM: a served script is written at container start. A failure is cosmetic by design (the app still fetches the file and repaints), but the file is executable content, which is why the brand goes in as an escaped string and every value still passes the boot script's colour and data: URI guards.",
-      test: [
-        "A container with ENCA_BRANDING set, opened in a browser that has never seen it (or a private window): the first paint is the deployment's palette, logo and favicon — no flash of the image's own look. Reload: unchanged.",
-        "The same with the branding MOUNTED as selfhost-branding.json and no environment variable.",
-        "Restart the container with ENCA_BRANDING removed: the first paint is the default look again and js/selfhost-boot.js has no block in it.",
-        "⚙ Branding settings → Apply in this browser with a different colour: that still wins over the deployment on the next load.",
-        "Edit selfhost-branding.json on a running container: the fetch still repaints on this load; the first paint follows on the next restart.",
-        "curl -I js/selfhost-boot.js: Cache-Control: no-store.",
-        "GitHub Pages (no entrypoint) and a plain docker run with no branding: js/selfhost-boot.js is byte-for-byte the file in the repo.",
-        "node --test tools/selfhost-brand-boot.test.cjs green.",
-      ],
-      files: ["selfhost/docker-entrypoint.sh", "js/selfhost-boot.js", "selfhost/nginx.conf", "tools/selfhost-brand-boot.test.cjs", "SELF-HOSTING.md", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 222,
-      title: "🗂 Policies — 👯 Duplicates: Reviewed releases a held set, and the popup keeps its place (T01 2.13.2)",
-      tools: ["Policies"],
-      builds: [25390],
-      risk: "medium",
-      what: "js/import.js: mergePlan() takes opts.reviewed, which lifts the review refusal and only that one, and only on a set whose verdict actually is review; the flag and the reasons travel on the plan into mergeReport(). js/app.js: the Reviewed tick per held set (ticking it also selects the set, unticking takes it back out), the list keeps its scrollTop across a re-render, and closing 🔍 Compare scrolls the card it was opened from back into view. css/app.css: html:has(#dupModal.open) locks the page behind the popup — a rule rather than a class, so Escape and a backdrop click cannot leave it locked — with the scrollbar gutter kept so nothing shifts sideways. tools/duplicates.test.cjs: 16 tests.",
-      why: "Mihai, 18 Sep, on Courseware's 27 sets: 8 needed review and there was no way to act on them, the page behind the popup scrolled away under the wheel, and every tick threw the list back to the top. The tool should refuse to DECIDE a security question, not refuse to be overruled by somebody who has looked at the difference. MEDIUM: it widens what can be deleted — a released set is one the tool held back — so the report names it and the only-enforcing-copy refusal is untouched.",
-      test: [
-        "A needs-review set: its tick and its bring-across options are disabled until Reviewed is ticked; ticking it selects the set, the count on the button goes up, the card turns amber and the report says released by hand with what differed. Unticking takes it back out.",
-        "Ticking Reviewed on a set whose copies differ only in who they reach changes nothing and puts nothing in the report.",
-        "A released set whose deleted copy is On while the kept one is not is STILL refused, with the reason on the row.",
-        "With the popup open: the page behind it does not scroll, ticking a set in a long list does not jump back to the top, and closing 🔍 Compare returns to the set it was opened from. Escape and a click on the backdrop close it and leave the page scrollable.",
-        "node --test tools/duplicates.test.cjs green; the jsdom smoke walks the whole flow with no console errors.",
-      ],
-      files: ["js/import.js", "js/app.js", "css/app.css", "index.html", "tools/duplicates.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
     },
     {
       n: 34,

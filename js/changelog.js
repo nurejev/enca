@@ -28,6 +28,12 @@
 // Newest release first.
 // ======================================================================
 const CHANGELOG = [
+  {
+    build: 25392, date: "2026-09-18", title: "Production is 317",
+    items: [
+      { kind: "improved", tool: "Help", text: "Production is build 317. The two items this channel was holding have been ported: a \ud83d\udc6f Duplicates set that needs review carries a Reviewed tick that releases it for merging, the popup no longer scrolls the page behind it and keeps its place, and a branded self-hosted instance is branded on the first paint instead of showing the image's own look for a moment. What stays here is \ud83d\udcd0 CIS Benchmark \u2014 the tool, its tenant gate and its Help section \u2014 which is beta-only by design, and this queue itself." },
+    ],
+  },
 {
   build: 25391,
   date: "2026-09-18",
