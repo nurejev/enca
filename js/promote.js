@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.318",
+  productionBuild: "v1.0.319",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -118,26 +118,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 226,
-      title: "⚙ Self-hosting — the deployment's own logo is the first one drawn, not the product's",
-      tools: ["Self-hosting"],
-      builds: [25395],
-      risk: "medium",
-      what: "js/selfhost-boot.js: besides the content:url() rule it already wrote, a MutationObserver started in the head sets the branded src on .logo img and .login-card > img as the parser creates them, with the wide-wordmark sizing and the alt text, once per element; a DOMContentLoaded sweep catches anything missed and disconnects the observer. The data-address guard still decides what may be used, and a brand with no usable logo registers nothing.",
-      why: "Dovilo, 18 Sep, Chrome: a fully branded instance on 318 still showed the product logo when first connecting. content:url() paints over an img but leaves the markup's src as the element's real image — measured on the live deployment, the login mark had currentSrc on assets/logo-mark-light.svg and naturalWidth 856 — so the product mark is fetched and decoded on every first connect and can win the race to the screen on a cold start. WebKit does not honour content on a replaced element at all, so there the rule never did anything for the logo.",
-      test: [
-        "node tools/selfhost-boot-logo.test.cjs — 9 tests, five of which fail on 25394 and pass here; and tools/selfhost-brand-boot.test.cjs, all 7, which caught this change breaking the favicon in a browser without MutationObserver and now guards it.",
-        "A browser with no MutationObserver: the favicon and the palette still arrive. The early src is the newest half and the least portable, so it is last, guarded and separately caught — it must never cost the other two.",
-        "A branded instance in a browser that has never opened it, hard refresh with the cache disabled: the deployment's mark is the only one that appears. Watch the network panel — assets/logo-mark-light.svg should not be what the login image resolves to.",
-        "Same instance in Safari, which ignores content on an img: before this build the product logo stayed until the body scripts ran; it should now be branded from the first frame.",
-        "A wide wordmark (logoWide): it keeps its aspect on the first paint, not only after the body scripts land.",
-        "A deployment with NO branding, and enca.limon-it.nl itself: no observer, no style block, and the page is exactly as it was.",
-        "A branding whose logo is a path rather than a data address, and one pointing off-origin: neither is painted early — the guard still decides — and the body scripts brand as before.",
-        "⚙ Apply in this browser, then a reload: the gear's own look still wins over the deployment's on the first paint.",
-      ],
-      files: ["js/selfhost-boot.js", "tools/selfhost-boot-logo.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
-    },
     {
       n: 224,
       title: "📐 CIS Benchmark (T21) — beta AND the CloudFellows tenant only; production 316 removes it from that build",

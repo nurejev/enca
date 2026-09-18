@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25396, date: "2026-09-18", title: "Production is 319",
+    items: [
+      { kind: "improved", tool: "Help", text: "Production is build 319. Queue item 226 is out: on a self-hosted deployment the deployment's own logo is the first one drawn, rather than the product's appearing for a moment on a first connect. It went to production without the usual soak on this channel, because a customer instance was showing the wrong mark to its own users. 🚚 Waiting for production holds 224, the per-tenant 📐 CIS Benchmark guard, and 34, the CIS Help section that travels with it." },
+    ],
+  },
+  {
     build: 25395, date: "2026-09-18", title: "The deployment's own logo is the first one drawn",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "A BRANDED INSTANCE STILL SHOWED THE PRODUCT LOGO FOR A MOMENT ON A FIRST CONNECT. The before-first-paint half put the deployment's mark on screen with a CSS content rule, and a content rule only PAINTS OVER an image — it does not stop the element loading the one the markup names. Measured on a branded deployment, the login mark had still fetched and decoded the product SVG: it was the element's real image, and the replacement only covered it once ready, so a cold start could show the wrong mark first. An engine that does not honour content on an image never covered it at all. The branded address is now set on the image ITSELF, as the parser creates it and before anything can be painted, so the product mark is never the element's image on a branded instance. The content rule stays as the second of two, because neither is sufficient in every browser and both carry the same value. A deployment with no branding, and any logo that fails the data-address guard, are exactly as they were." },
