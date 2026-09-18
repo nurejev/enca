@@ -488,15 +488,45 @@ const Baseline = (() => {
       byNum.get(n).push(p);
     }
 
+    // A catalog can define SEVERAL policies on ONE CA number. The live read
+    // of the repository keeps them rather than hiding them (cat.dups records
+    // it as a finding), and release 2026.6.1 numbers both the AnyPlatform and
+    // the iOS/Android copy CA005. So the number is matched one policy to one
+    // policy: what a row claims is gone for the next row on that number.
+    // Until build 25393 the whole number was dropped as soon as the FIRST row
+    // matched, so the second read "not present in this tenant" while its
+    // policy sat two lines above it, and 📥 Import offered to create a policy
+    // the tenant already had.
+    const entries = [...cat.policies, ...shared];
+    const defined = new Map();
+    for (const b of entries) defined.set(b.num, (defined.get(b.num) || 0) + 1);
+    const byNumEntries = new Map();
+    for (const b of entries) {
+      if (!byNumEntries.has(b.num)) byNumEntries.set(b.num, []);
+      byNumEntries.get(b.num).push(b);
+    }
+    // Rows whose exact name IS in the tenant claim first, so a greedy pass
+    // cannot hand that policy to the neighbour sharing its number and leave
+    // its real owner reported as missing.
+    const hasExact = (b) => ((byNum.get(b.num) || []).some((p) => exactName(p.name, b.name)) ? 1 : 0);
+    const order = [];
+    for (const list of byNumEntries.values()) {
+      order.push(...(list.length < 2 ? list : [...list].sort((x, y) => hasExact(y) - hasExact(x))));
+    }
+
     const rows = [];
-    for (const b of [...cat.policies, ...shared]) {
+    const claimed = new Set();
+    for (const b of order) {
       const hits = byNum.get(b.num) || [];
-      if (!hits.length) {
+      // free: the copies no row on this number has taken yet. None left means
+      // the tenant holds fewer copies than the catalog defines — missing.
+      const free = hits.filter((p) => !claimed.has(p));
+      if (!free.length) {
         rows.push({ num: b.num, baseline: b, tenant: null, status: "missing", shared: b.shared || null });
         continue;
       }
       // when a number appears twice, judge on the best (newest) match
-      const scored = hits.map((p) => {
+      const scored = free.map((p) => {
         const tv = version(p.name);
         let status;
         // a number match that the name contradicts is a clash, not a match
@@ -523,14 +553,19 @@ const Baseline = (() => {
       // best status
       }).sort((a, b2) => (exactName(b2.p.name, b.name) - exactName(a.p.name, b.name)) || (STATUS[b2.status].order - STATUS[a.status].order));
       const best = scored[0];
-      // every candidate contradicted the baseline → the policy is really absent
+      claimed.add(best.p);
+      // "2 policies share CA5" is a warning about a leftover COPY, not about
+      // a catalog that deliberately numbers two policies the same: only count
+      // what the catalog does not account for.
+      const spare = hits.length > (defined.get(b.num) || 1);
       rows.push({
         num: b.num, baseline: b, tenant: best.p, tenantVersion: best.tv,
         status: best.status, why: best.why || null,
-        duplicates: hits.length > 1 ? hits.length : 0, shared: b.shared || null,
+        duplicates: spare ? hits.length : 0, shared: b.shared || null,
       });
-      byNum.delete(b.num);
     }
+    // the catalog accounted for these numbers, matched or not
+    for (const num of byNumEntries.keys()) byNum.delete(num);
     // numbered policies the baseline does not define
     for (const [num, hits] of byNum) {
       rows.push({ num, baseline: null, tenant: hits[0], tenantVersion: version(hits[0].name), status: "extra", duplicates: hits.length > 1 ? hits.length : 0 });

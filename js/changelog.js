@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25397, date: "2026-09-18", title: "A baseline policy the tenant already has is no longer reported as new",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "\ud83e\uddec Baseline no longer reports a policy as new when the tenant already has it. Joey Verlinden's repository numbers more than one policy CA005 \u2014 the AnyPlatform copy and the iOS/Android one, and CA006 the same way \u2014 and the comparison stopped looking at that number as soon as the first of them had matched. The second row read not present in this tenant with its own policy two lines above it, and \ud83d\udce5 Import counted it among the policies to create. Each baseline policy is now paired with a tenant policy of its own; the row whose exact name is in the tenant claims first, so the result does not depend on the order Graph returns; and the warning that two policies share a CA number is kept for the copies the catalog does not account for." },
+    ],
+  },
+  {
     build: 25396, date: "2026-09-18", title: "Production is 319",
     items: [
       { kind: "improved", tool: "Help", text: "Production is build 319. Queue item 226 is out: on a self-hosted deployment the deployment's own logo is the first one drawn, rather than the product's appearing for a moment on a first connect. It went to production without the usual soak on this channel, because a customer instance was showing the wrong mark to its own users. 🚚 Waiting for production holds 224, the per-tenant 📐 CIS Benchmark guard, and 34, the CIS Help section that travels with it." },
