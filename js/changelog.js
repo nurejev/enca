@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25398, date: "2026-09-18", title: "Production is 320",
+    items: [
+      { kind: "improved", tool: "Help", text: "Production is build 320. \ud83e\uddec Baseline pairs a CA number that the catalog uses more than once one policy to one policy, so a policy the tenant already has is no longer reported as new and \ud83d\udce5 Import baseline no longer offers to create it. What stays on this channel is \ud83d\udcd0 CIS Benchmark \u2014 the tool, its tenant gate and its Help section \u2014 and this queue." },
+    ],
+  },
+  {
     build: 25397, date: "2026-09-18", title: "A baseline policy the tenant already has is no longer reported as new",
     items: [
       { kind: "fixed", tool: "Baseline", text: "\ud83e\uddec Baseline no longer reports a policy as new when the tenant already has it. Joey Verlinden's repository numbers more than one policy CA005 \u2014 the AnyPlatform copy and the iOS/Android one, and CA006 the same way \u2014 and the comparison stopped looking at that number as soon as the first of them had matched. The second row read not present in this tenant with its own policy two lines above it, and \ud83d\udce5 Import counted it among the policies to create. Each baseline policy is now paired with a tenant policy of its own; the row whose exact name is in the tenant claims first, so the result does not depend on the order Graph returns; and the warning that two policies share a CA number is kept for the copies the catalog does not account for." },

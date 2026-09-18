@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.319",
+  productionBuild: "v1.0.320",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -118,25 +118,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 227,
-      title: "🧬 Baseline — a policy the tenant already has is no longer reported as new (2.7.4)",
-      tools: ["Baseline"],
-      builds: [25397],
-      risk: "high",
-      what: "js/baseline.js compare(): a CA number is matched one policy to one policy instead of being dropped as soon as the first baseline row on it had matched. Entries are grouped by number, the rows whose exact name is in the tenant claim first (so a greedy pass cannot hand that policy to the neighbour sharing its number), each row claims the candidate it matched and the next row on that number chooses from what is left. A row with nothing left is genuinely missing. duplicates now counts only what the catalog does not account for, so two catalog policies on CA005 plus two tenant policies is no longer a shared-number warning, while two tenant copies of a number the catalog defines once still is. tools/baseline-pairing.test.cjs covers it: 8 tests, 5 of which fail on the previous code.",
-      why: "Mihai, 18 Sep, screenshots of the Global group: CA005 and CA006 each showed one matched row and one reading not present in this tenant, with the missing policy's own copy two lines above it. The live read of the repository keeps a duplicate CA number as a finding (cat.dups) rather than hiding it, and release 2026.6.1 numbers both the AnyPlatform and the iOS/Android copy CA005; the comparison could not express that. It also inflated Import baseline (7), offering to create policies the tenant already had.",
-      test: [
-        "Joey Verlinden's baseline, live from the repository (release 2026.6.1), on a tenant holding all four: CA005 and CA006 each show TWO rows, each naming its own policy in the tenant, and neither reads not present in this tenant.",
-        "The same tenant: neither CA005 row carries the warning that two policies share CA5 — the catalog defines two, so nothing is spare.",
-        "A tenant holding only the iOS/Android copy of CA005: that row matches it, the AnyPlatform row alone reads not present in this tenant, and Import baseline counts one policy for CA005, not two.",
-        "A tenant holding the same policy twice on a number the catalog defines ONCE: the row still says two policies share that CA number — that warning is about a leftover copy and has to survive.",
-        "Import baseline (n): the count drops by the number of second copies the tenant already had, and running it creates nothing that is already there.",
-        "The CloudFellows catalog, which numbers every policy once: the table reads exactly as before.",
-        "A numbered policy the catalog does not define at all is still listed as extra.",
-      ],
-      files: ["js/baseline.js", "tools/baseline-pairing.test.cjs", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
     {
       n: 224,
       title: "📐 CIS Benchmark (T21) — beta AND the CloudFellows tenant only; production 316 removes it from that build",
