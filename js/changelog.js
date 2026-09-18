@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25393, date: "2026-09-18", title: "A branded instance names itself in the browser tab",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "A SELF-HOSTED INSTANCE WITH ITS OWN BRANDING STILL SAID LIMON-IT IN THE BROWSER TAB, and there was nothing the branding gear could do about it. The tab and the login heading are chrome, but both borrowed the NEUTRAL product strings — the ones that exist so an export carries the product credit whoever is signed in, and which deliberately ignore an override. So the title read the publisher\u2019s name in every tab, every bookmark and every screenshot somebody shared, and the login heading fell back to the publisher\u2019s title unless the Login title box was filled in by hand, however carefully the Product name and Long name had been set. Both now read the active look. The export credit is untouched and still neutral, which is the whole point of an override only changing chrome: a deployment brands its own chrome and never claims authorship of the tool. Nothing changes on a copy with no branding set." },
+    ],
+  },
+  {
     build: 25392, date: "2026-09-18", title: "Production is 317",
     items: [
       { kind: "improved", tool: "Help", text: "Production is build 317. The two items this channel was holding have been ported: a \ud83d\udc6f Duplicates set that needs review carries a Reviewed tick that releases it for merging, the popup no longer scrolls the page behind it and keeps its place, and a branded self-hosted instance is branded on the first paint instead of showing the image's own look for a moment. What stays here is \ud83d\udcd0 CIS Benchmark \u2014 the tool, its tenant gate and its Help section \u2014 which is beta-only by design, and this queue itself." },
