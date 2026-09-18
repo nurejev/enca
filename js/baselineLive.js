@@ -434,6 +434,9 @@ const BaselineLive = (() => {
       authStrengths: [], authContexts: [], termsOfUse: [],
       depSkipped: live.bundle.depSkipped.slice(), complete: live.bundle.complete,
       release: live.release, commit: live.commit, label: live.label, catalogId: live.id,
+      // the ids in these files belong to the author's tenant, never this one —
+      // the import attaches every group by name (Importer.prepareBundle)
+      fromRepository: true,
     };
   }
 

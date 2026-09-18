@@ -3,6 +3,7 @@
 // ======================================================================
 (() => {
   const $ = (id) => document.getElementById(id);
+  let policyResolve = (id, map) => map?.[id] || id;
   let policies = [];          // view models
   // When the policy set in memory was last read from the tenant. Tools that
   // derive from it rather than reading for themselves need to be able to say
@@ -11,6 +12,31 @@
   let tenantName = "";
   let tenantDomain = "";
   let tenantId = "";        // for the account menu's Copy tenant ID; "" in the demo
+  let capabilityCache = null;
+  async function readCapabilities(force = false) {
+    const key = `${tenantId}:${isDemo}`;
+    if (!force && capabilityCache?.key === key && Date.now() - capabilityCache.at < 60000) return capabilityCache.value;
+    let skus = null;
+    try { skus = isDemo ? (DEMO_DATA.skus || []) : await Graph.ggetAll("/v1.0/subscribedSkus"); } catch { /* unknown remains unknown */ }
+    const value = Capabilities.fromSkus(skus);
+    if (key !== `${tenantId}:${isDemo}`) throw new Error("Capability read discarded: tenant changed");
+    capabilityCache = { key, at: Date.now(), value };
+    return value;
+  }
+  async function requireProduct(product) {
+    if (isDemo) return;
+    const evidence = await readCapabilities();
+    if (evidence[product] === false) throw new Error(`${Capabilities.labels[product]} is required for this optional evidence. The P1 policy and directory views remain available.`);
+  }
+  async function checkImportPlan(items) {
+    if (isDemo) return;
+    const context = `${tenantId}:${policiesReadAt}`;
+    const [evidence, current] = await Promise.all([readCapabilities(true), Graph.ggetAll("/identity/conditionalAccess/policies?$select=id")]);
+    if (context !== `${tenantId}:${policiesReadAt}`) throw new Error("Import plan expired: tenant or policies changed");
+    const plan = Capabilities.plan(items.map(p => p.raw), evidence, current.length);
+    if (!plan.ok) throw new Error([plan.capacity, ...plan.rows.filter(r => !r.ok).map(r => `${r.name}: ${r.reason}`)].filter(Boolean).join(" · "));
+  }
+
   // Baseline tenants deploy the persona policies Off first; there the Gap and
   // MS Learn checks review only the persona baseline policies (always Off),
   // and skip non-persona policies.
@@ -184,8 +210,8 @@
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
     // Replace rather than push when the screen has not changed, so clicking the
     // same tool twice does not need two Backs to leave it.
-    if (history.state && history.state.screen === id) return;
-    history.pushState({ screen: id }, "", location.pathname + location.search);
+    if (history.state && history.state.screen === id && history.state.tool === activeTab) return;
+    history.pushState({ screen: id, tool: activeTab }, "", location.pathname + location.search);
   }
 
   window.addEventListener("popstate", (e) => {
@@ -202,7 +228,13 @@
     const target = (e.state && e.state.screen) || (policies.length ? "screen-home" : null);
     if (!target) return;                       // not signed in — let the browser go back
     navSuppress = true;
-    try { show(target); } finally { navSuppress = false; }
+    try {
+      const h = TAB_HOSTS[e.state?.host];
+      const tab = h?.tabs.find(t => t.key === e.state?.subtab && tabShown(t));
+      if (tab) tab.open();
+      else if (e.state?.tool && $(e.state.tool)) $(e.state.tool).click();
+      else { crumb(""); show(target); }
+    } finally { navSuppress = false; }
   });
   // R33 — a tool's permanent number, formatted. Two digits so T07 and T31 line
   // up in a list and read as the same kind of thing; empty for the three app
@@ -404,6 +436,15 @@
     },
   };
   const tabShown = (t) => !t.betaOnly || !isProdHost();
+  // An open workspace tab resumes its own last subtab. Explicit tool links
+  // still call their requested open function; no results or identities persist.
+  const lastHostTab = new Map();
+  function resumeToolTab(id) {
+    const h = Object.values(TAB_HOSTS).find(host => host.tile === id);
+    const tab = openTabs.includes(id) && h?.tabs.find(t => t.key === lastHostTab.get(id) && tabShown(t));
+    if (tab) tab.open();
+    else $(id)?.click();
+  }
   function toolTabsSeg(hostKey) {
     const h = TAB_HOSTS[hostKey]; if (!h) return "";
     return `<div class="seg tool-tabs" title="One tool, ${h.tabs.filter(tabShown).length} views of it — they read the same window, so switching costs no second read">`
@@ -429,8 +470,10 @@
   // the name of that tool.
   function mountToolTabs(hostKey, tabKey) {
     const h = TAB_HOSTS[hostKey]; if (!h) return;
+    const t = h.tabs.find((x) => x.key === tabKey && tabShown(x)); if (!t) return;
+    lastHostTab.set(h.tile, tabKey);
+    if (!navSuppress) history.replaceState({ ...history.state, tool: h.tile, host: hostKey, subtab: tabKey }, "", location.pathname + location.search);
     if (h.tabs.filter(tabShown).length < 2) return;
-    const t = h.tabs.find((x) => x.key === tabKey); if (!t) return;
     const tb = $(t.toolbar); if (!tb) return;
     const screen = tb.closest("section.screen"); if (!screen) return;
     let bar = screen.querySelector(":scope > .tool-tabs-bar");
@@ -1325,15 +1368,24 @@
     const out = [];
     let list = null, table = null;
     const closeList = () => { if (list) { out.push(list === "ol" ? "</ol>" : "</ul>"); list = null; } };
-    const closeTable = () => { if (table) { out.push("</tbody></table>"); table = null; } };
+    const closeTable = () => { if (table) { out.push("</tbody></table></div>"); table = null; } };
     for (let i = 0; i < lines.length; i++) {
       const ln = lines[i];
       const row = /^\s*\|(.+)\|\s*$/.exec(ln);
       if (row) {
-        const cells = row[1].split("|").map((c) => c.trim());
+        // Exporters escape a literal pipe in a name as \|. It is content,
+        // not an extra table column. An even number of slashes is literal.
+        const cells = []; let cell = "", slashes = 0;
+        for (const ch of row[1]) {
+          if (ch === "|" && slashes % 2) cell = cell.slice(0, -1) + "|";
+          else if (ch === "|") { cells.push(cell.trim()); cell = ""; }
+          else cell += ch;
+          slashes = ch === "\\" ? slashes + 1 : 0;
+        }
+        cells.push(cell.trim());
         // the |---|---| separator only tells us the header ended
         if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue;
-        if (!table) { out.push(`<table><thead><tr>${cells.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>`); table = true; continue; }
+        if (!table) { closeList(); out.push(`<div class="md-table-scroll" role="region" aria-label="Report table — scroll horizontally for more columns" tabindex="0"><table><thead><tr>${cells.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>`); table = true; continue; }
         out.push(`<tr>${cells.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`);
         continue;
       }
@@ -1679,6 +1731,7 @@
     updateSelbar();
     syncCollapseAllBtn();
     syncHkBtn();
+    syncDupBtn();
     syncWorkspace();
   }
   function groupIds(key) {
@@ -2102,6 +2155,7 @@
       isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+      policyResolve = resolve;
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
       // R36.1 — with no saved choice, the baseline this tenant matches best
       // is the active one for the session (the card says so, and why).
@@ -2116,6 +2170,9 @@
       $("baselineBadge").style.display = isBaselineTenant() ? "inline-block" : "none";
       tenantId = account?.tenantId || "";
       loadLogSource();
+      // age out what the on-device store holds past its ttl (R58); the
+      // buttons say whether this tenant is kept
+      SigninStore.purge().catch(() => {}).then(() => paintStoreButtons());
       setAccountBox(account?.username || "", account?.name || "");
       showSideNav();
       selected = new Set();
@@ -2159,6 +2216,7 @@
     try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
+    policyResolve = resolve;
     policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
     try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
     policiesReadAt = Date.now();
@@ -2468,15 +2526,16 @@
     const act = $("toolNav").querySelector(".toolnav-tab.active, .toolnav-btn.home.active");
     if (act && act.scrollIntoView) act.scrollIntoView({ inline: "nearest", block: "nearest" });
   }
-  function buildToolNav() { openTabs = []; activeTab = null; renderTabs(); }
+  function buildToolNav() { openTabs = []; activeTab = null; lastHostTab.clear(); renderTabs(); }
 
   function closeTab(id) {
     const i = openTabs.indexOf(id);
     if (i < 0) return;
     openTabs.splice(i, 1);
+    lastHostTab.delete(id);
     if (activeTab === id) {
       const next = openTabs[i] || openTabs[i - 1] || null;   // neighbour, else last
-      if (next) { $(next).click(); }                          // switch to it
+      if (next) { resumeToolTab(next); }                    // resume its subtab
       else { crumb(""); show("screen-home"); }
     } else { renderTabs(); }
   }
@@ -2494,7 +2553,7 @@
     menu.style.left = `${Math.min(r.left, window.innerWidth - 280)}px`;
     menu.addEventListener("click", (e) => {
       const b = e.target.closest("[data-nav]"); if (!b) return;
-      closeAddMenu(); $(b.dataset.nav).click();
+      closeAddMenu(); resumeToolTab(b.dataset.nav);
     });
     setTimeout(() => document.addEventListener("click", closeAddMenu, { once: true }), 0);
   }
@@ -2502,12 +2561,12 @@
 
   $("toolNav").addEventListener("click", (e) => {
     if (e.target.closest("[data-navhelp]")) { openHelp(); return; }
-    if (e.target.closest("[data-navcloseall]")) { openTabs = []; activeTab = null; renderTabs(); crumb(""); show("screen-home"); return; }
+    if (e.target.closest("[data-navcloseall]")) { openTabs = []; activeTab = null; lastHostTab.clear(); renderTabs(); crumb(""); show("screen-home"); return; }
     if (e.target.closest("[data-navhome]")) { crumb(""); show("screen-home"); return; }
     if (e.target.closest("[data-navadd]")) { openAddMenu(e.target.closest("[data-navadd]")); return; }
     const x = e.target.closest("[data-close]"); if (x) { e.stopPropagation(); closeTab(x.dataset.close); return; }
     const b = e.target.closest("[data-nav]");
-    if (b) $(b.dataset.nav).click();   // reuse the tile's own handler (crumb, screen, setup)
+    if (b) resumeToolTab(b.dataset.nav);
   });
 
   // Header breadcrumb + tab state: crumb(name) is called by every tool on entry,
@@ -2614,7 +2673,7 @@
     // peek is a glance, not a state change
     if (e.target.closest("[data-navhome]")) { $("sideNav").classList.remove("peek"); crumb(""); show("screen-home"); return; }
     const b = e.target.closest("[data-nav]");
-    if (b) { $("sideNav").classList.remove("peek"); $(b.dataset.nav).click(); }   // the tile's own handler: crumb, screen, setup
+    if (b) { $("sideNav").classList.remove("peek"); resumeToolTab(b.dataset.nav); }
   });
   // The peek: hovering the collapsed rail expands it as an overlay; leaving
   // closes it. The 120ms delay keeps a cursor merely passing on its way to
@@ -2703,7 +2762,7 @@
   function openDeleteModal() {
     if (!selected.size) { toast("Select at least one policy first"); return; }
     const ps = delSelection();
-    const live = ps.filter(p => p.state === "enabled");
+    const live = ps.filter(p => p.state === "on" || p.raw?.state === "enabled");
     $("delDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} selected `
       + `in ${tenantName || "this tenant"}.${isDemo ? " (demo — simulated, nothing is really deleted)" : ""}`;
     $("delOnWarn").style.display = live.length ? "block" : "none";
@@ -2764,60 +2823,296 @@
     } finally { $("delGo").disabled = false; }
   });
 
-  // ---------- housekeeping: delete superseded (Off) policy versions ----------
-  // "Match & replace" deliberately leaves the old version behind, switched Off,
-  // as the rollback. Nothing ever cleans those up, so a tenant that has been
-  // through a few baseline upgrades accumulates dead policies. This lists them
-  // with what replaced them and hands the chosen ones to the normal delete flow,
-  // guards and JSON backup included.
-  function hkFind() { return Importer.supersededOff(policies); }
+  // ---------- housekeeping: review older versions across the loaded inventory ----------
+  function hkFind() { return Importer.housekeeping(policies); }
   function syncHkBtn() {
     const n = hkFind().length;
     const b = $("hkBtn"); if (!b) return;
     b.style.display = (n && viewMode !== "analyze") ? "" : "none";
     b.textContent = `🧹 Housekeeping (${n})`;
-    b.title = `${n} old policy version${n === 1 ? "" : "s"} left switched Off by a match & replace import — review and clean up`;
+    b.title = `${n} older policy version${n === 1 ? "" : "s"} in the loaded inventory — review status, scope and controls`;
   }
   function openHousekeeping() {
-    const rows = hkFind();
-    $("hkDesc").textContent = `${rows.length} superseded ${rows.length === 1 ? "policy" : "policies"} in ${tenantName || "this tenant"}.`;
+    const rows = hkFind(), eligible = rows.filter(r => r.canDelete).length;
+    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates. Includes policies outside the current search filter.`;
     $("hkList").innerHTML = `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
-      + rows.map((r, i) => `<li><label class="chk" style="margin:0">
-          <input type="checkbox" data-hk="${i}" checked>
-          ${Render.stateChip(r.policy.state)} ${esc(r.policy.name)}
-          <span class="mini">superseded by <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
-        </label></li>`).join("") + "</ul>";
+      + rows.map(r => `<li><label class="chk hk-choice">
+          <input type="checkbox" data-hk="${esc(r.policy.id)}" ${r.canDelete ? "" : "disabled"}>
+          <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>
+          <span class="mini">Higher version: <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
+          <span class="mini"><b>${r.canDelete ? "Cleanup candidate" : "Needs review"}</b> — ${esc(r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" "))}</span></span>
+        </label><button type="button" class="btn sm hk-compare" data-hk-compare="${esc(r.policy.id)}" data-hk-newer="${esc(r.newer.id)}">Compare versions</button></li>`).join("") + "</ul>";
     syncHkGo();
     $("hkModal").classList.add("open");
   }
   function syncHkGo() {
-    const n = document.querySelectorAll("[data-hk]:checked").length;
+    const n = $("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)").length;
     $("hkGo").disabled = n === 0;
     $("hkGo").textContent = n ? `Review & delete ${n}` : "Review & delete";
   }
+  let hkComparison = null;
+  function renderHkComparison() {
+    if (hkComparison) $("hkCompareBody").innerHTML = PolicyCompare.render(hkComparison, { onlyChanges: $("hkCompareOnly").checked, resolve: policyResolve });
+  }
+  $("hkList").addEventListener("click", e => {
+    const button = e.target.closest("[data-hk-compare]"); if (!button) return;
+    const older = policies.find(p => p.id === button.dataset.hkCompare), newer = policies.find(p => p.id === button.dataset.hkNewer);
+    if (!older || !newer) { openHousekeeping(); toast("Policy inventory changed. Review the updated list."); return; }
+    hkComparison = PolicyCompare.compare(older, newer);
+    $("hkCompareOnly").checked = true;
+    renderHkComparison();
+    $("hkCompareModal").classList.add("open");
+  });
+  $("hkCompareOnly").addEventListener("change", renderHkComparison);
+  $("hkCompareClose").addEventListener("click", () => { $("hkCompareModal").classList.remove("open"); hkComparison = null; });
   $("hkBtn").addEventListener("click", openHousekeeping);
   $("hkCancel").addEventListener("click", () => $("hkModal").classList.remove("open"));
   $("hkList").addEventListener("change", (e) => { if (e.target.matches("[data-hk]")) syncHkGo(); });
   $("hkGo").addEventListener("click", () => {
-    const rows = hkFind();
-    const ids = [...document.querySelectorAll("[data-hk]:checked")].map(cb => rows[+cb.dataset.hk]?.policy.id).filter(Boolean);
+    const eligible = new Set(hkFind().filter(r => r.canDelete).map(r => r.policy.id));
+    const ids = [...$("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)")].map(cb => cb.dataset.hk);
     if (!ids.length) return;
+    // Recheck the current inventory by ID; list positions may have changed.
+    if (ids.some(id => !eligible.has(id))) { openHousekeeping(); toast("Policy details changed. Review the updated list before continuing."); return; }
     $("hkModal").classList.remove("open");
-    // Hand over to the delete flow — typed DELETE, backup download, the lot.
     selected = new Set(ids);
     refreshViews();
     openDeleteModal();
   });
 
+  // ---------- duplicates: the same policy twice --------------------------
+  // 🧹 Housekeeping above reads VERSIONS, and a baseline whose names carry no
+  // version (Joey Verlinden's) cannot be read that way — a second import just
+  // leaves the policy in the tenant twice. Same modal shape as Housekeeping:
+  // review, then a plan, then the write, and 🔍 Compare is the one PolicyCompare
+  // view both use.
+  let dupSets = null;            // Importer.duplicates(policies)
+  let dupKeep = new Map();       // set key -> the policy id to keep
+  let dupPicks = new Set();      // "<other policy id>:<field>" ticked to bring across
+  let dupOn = new Set();         // set keys ticked to merge
+  let dupStep = "list";          // list | plan
+  let dupResults = null;
+  const dupFind = () => { try { return Importer.duplicates(policies); } catch (e) { console.warn("duplicates:", e.message || e); return []; } };
+  function syncDupBtn() {
+    const n = dupFind().length;
+    const b = $("dupBtn"); if (!b) return;
+    b.style.display = (n && viewMode !== "analyze") ? "" : "none";
+    b.textContent = `👯 Duplicates (${n})`;
+    b.title = `${n} policy name${n === 1 ? " is" : "s are"} carried by more than one policy in this tenant — keep one, bring what you need across, delete the copy`;
+  }
+  function openDuplicates() {
+    dupSets = dupFind();
+    dupKeep = new Map(dupSets.map((s) => [s.key, s.keepId]));
+    dupPicks = new Set();
+    dupOn = new Set(dupSets.filter((s) => Importer.mergePlan(s, s.keepId, []).canRun).map((s) => s.key));
+    dupStep = "list"; dupResults = null;
+    $("dupLedger").innerHTML = "";
+    renderDup();
+    $("dupModal").classList.add("open");
+  }
+  const dupPlans = () => (dupSets || []).filter((s) => dupOn.has(s.key))
+    .map((s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, [...dupPicks]));
+  // "17 Sep 2026, 16:48" in the reader's own timezone. The DAY alone does not
+  // tell two runs of the same import apart — both copies read 2026-09-17.
+  const dupWhen = (iso) => {
+    const raw = String(iso || "");
+    if (!raw) return "";
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw.slice(0, 16).replace("T", " ");
+    try { return d.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); }
+    catch { return raw.slice(0, 16).replace("T", " "); }
+  };
+  // An id as the policy card names it, so a tick reads like the assignment does.
+  function dupIdLabel(field, id) {
+    if (/Users$/.test(field)) return policyResolve(id, LABELS.users);
+    if (/Groups$/.test(field)) return `${policyResolve(id)} (group)`;
+    return `${policyResolve(id)} (role)`;
+  }
+  const DUP_VERDICT = {
+    identical: ['<span class="tag upd">identical</span>', "nothing but the state differs"],
+    assignment: ['<span class="tag new">assignment differs</span>', "the copies reach different people"],
+    review: ['<span class="tag block">needs review</span>', "they differ beyond who they reach"],
+  };
+  function dupSetHtml(s) {
+    const keepId = dupKeep.get(s.key) || s.keepId;
+    const plan = Importer.mergePlan(s, keepId, [...dupPicks]);
+    const [chip, why] = DUP_VERDICT[s.verdict] || DUP_VERDICT.review;
+    const keepAll = ((plan.keep.raw?.conditions?.users?.includeUsers) || []).includes("All");
+    const assign = (p) => `${Render.stateChip(p.state)}<div>${esc(p.users.inc.slice(0, 3).join(", "))}${p.users.inc.length > 3 ? ` +${p.users.inc.length - 3}` : ""}</div>`
+      + (p.users.exc.length ? `<div class="ex">− ${esc(p.users.exc.slice(0, 2).join(", "))}${p.users.exc.length > 2 ? ` +${p.users.exc.length - 2}` : ""}</div>` : "");
+    const rows = s.members.map((p) => {
+      const keep = p.id === plan.keep.id;
+      const age = (s.ages || []).find((x) => x.id === p.id) || {};
+      return `<div class="dup-row${keep ? " keep" : ""}">
+        <input type="radio" name="dupk-${esc(s.key)}" data-dup-keep="${esc(s.key)}" value="${esc(p.id)}"${keep ? " checked" : ""}>
+        <div class="dup-meta"><span class="dup-name">${esc(p.name)}</span> <span class="dup-seq">${esc(p.seq)}</span>
+          <div class="mini">${esc(age.created ? `created ${dupWhen(age.created)}` : `modified ${p.modified}`)}${age.label ? ` <span class="tag${age.label === "newer" || age.label === "newest" ? " new" : ""}">${esc(age.label)}</span>` : ""}${age.modified && age.created && age.modified > age.created ? ` · ${esc(`changed ${dupWhen(age.modified)}`)}` : ""} · <b>${keep ? "keep this one" : "to be deleted"}</b></div></div>
+        <div class="dup-assign">${assign(p)}</div>
+      </div>`;
+    }).join("");
+    const opts = plan.adds.map((a) => {
+      const disabled = s.verdict === "review";
+      const note = a.field === "state"
+        ? `the kept policy becomes <b>${esc(a.word)}</b>${a.state !== "enabled" && (plan.keep.raw?.state) === "enabled" ? " — it would stop enforcing" : a.state === "enabled" ? " — it would start enforcing" : ""}`
+        : a.widens
+          ? (keepAll ? "the kept policy already includes All users, so this changes nothing" : "widens who the kept policy reaches")
+          : "narrows who the kept policy reaches — an exclusion is always the safe direction";
+      const what = a.field === "state" ? `<b>State</b> ${esc(a.word)}` : `<b>${esc(a.label[0].toUpperCase() + a.label.slice(1))}</b>: ${esc(a.ids.map((x) => dupIdLabel(a.field, x)).join(", "))}`;
+      return `<label class="chk${disabled ? " off" : ""}"><input type="checkbox" data-dup-opt="${esc(a.key)}"${a.picked ? " checked" : ""}${disabled ? " disabled" : ""}>
+        <span>${what} <span class="why">— from ${esc(a.fromSeq)}, ${note}</span></span></label>`;
+    }).join("");
+    const refusal = plan.refusals.length
+      ? `<div class="dup-bad">⚠ ${esc(plan.refusals.map((r) => r.why).join(" "))}${s.verdict === "review" ? " Compare the copies, fix the one you keep in ✏️ Edit, and this set becomes mergeable." : ""}</div>`
+      : "";
+    return `<div class="dup-set">
+      <div class="dup-head">
+        <label class="chk" style="margin:0"><input type="checkbox" data-dup-set="${esc(s.key)}"${dupOn.has(s.key) ? " checked" : ""}${plan.canRun ? "" : " disabled"}></label>
+        <div><b>${esc(s.name)}</b><div class="mini">${s.members.length} copies · same name · ${esc(why)}</div></div>
+        <span class="dup-verdict">${chip}</span>
+      </div>
+      ${rows}
+      <div class="dup-opts">
+        <div class="mini" style="display:flex;gap:8px;align-items:center"><span>${plan.adds.length ? "Bring across to the kept policy" : "Nothing to bring across — the copies are the same policy, written twice"}</span>
+          <button type="button" class="btn sm" data-dup-compare="${esc(s.key)}" style="margin-left:auto">🔍 Compare the two</button></div>
+        ${opts}${refusal}
+      </div>
+      <div class="dup-foot"><span class="arrow">→</span> ${plan.canRun
+        ? `Keep <b>${esc(plan.keep.seq)}</b>${plan.patch ? " (updated)" : " (unchanged)"} · delete <b>${esc(plan.deletes.map((d) => d.seq).join(", "))}</b>`
+        : "<span class=\"muted\">nothing will be written for this set</span>"}</div>
+    </div>`;
+  }
+  function dupPlanHtml() {
+    const plans = dupPlans().filter((p) => p.canRun);
+    const dels = plans.reduce((n, p) => n + p.deletes.length, 0);
+    const patches = plans.filter((p) => p.patch).length;
+    return `<p class="mini" style="margin-bottom:10px"><b>${plans.length} set${plans.length === 1 ? "" : "s"}</b> · ${patches} polic${patches === 1 ? "y" : "ies"} changed, ${dels} deleted, in this order. A deleted policy is restorable for 30 days in ♻️ Recycle bin.</p>
+      <div class="dup-plan">${plans.map((p) => `<div><b>Keep ${esc(p.keep.seq)}</b> ${esc(p.keep.name)} ${Render.stateChip(p.keep.state)}
+          <div class="mini">${p.patch ? esc([...p.lists.map((a) => `${Importer.countLabel(a.ids.length, a.label)} from ${a.fromSeq}`), ...(p.state ? [`state ${p.state.word} from ${p.state.fromSeq}`] : [])].join(" · ")) : "unchanged — nothing ticked to bring across"}</div></div>
+        ${p.deletes.map((d) => `<div class="del"><b>Delete ${esc(d.seq)}</b> ${esc(d.name)} ${Render.stateChip(d.state)}
+          <div class="mini">${d.state === "off" ? "Off, so no sign-in is affected" : "Report-only — it stops evaluating sign-ins"}</div></div>`).join("")}`).join("")}</div>
+      <label class="chk"><input type="checkbox" id="dupBackup" checked> Download a JSON backup of the policies being deleted first</label>
+      <label class="mini" for="dupConfirm" style="display:block;margin-top:12px">Type <b>DELETE</b> to confirm</label>
+      <input id="dupConfirm" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">`;
+  }
+  function renderDup() {
+    const sets = dupSets || [];
+    const mergeable = sets.filter((s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, []).canRun).length;
+    $("dupDesc").textContent = dupStep === "plan"
+      ? `Review before anything is written in ${tenantName || "this tenant"}.`
+      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${tenantName || "this tenant"}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first. Includes policies outside the current search filter.`;
+    $("dupNote").style.display = dupStep === "plan" ? "none" : "";
+    $("dupList").innerHTML = dupStep === "plan" ? dupPlanHtml() : sets.map(dupSetHtml).join("")
+      || '<p class="mini muted">No duplicates in the loaded inventory.</p>';
+    $("dupBack").style.display = dupStep === "plan" ? "" : "none";
+    $("dupNext").style.display = dupStep === "plan" ? "none" : "";
+    $("dupGo").style.display = dupStep === "plan" ? "" : "none";
+    const plans = dupPlans().filter((p) => p.canRun);
+    const dels = plans.reduce((n, p) => n + p.deletes.length, 0);
+    $("dupNext").disabled = !plans.length;
+    $("dupNext").textContent = plans.length ? `Review the merge (${plans.length}) →` : "Review the merge →";
+    $("dupGo").textContent = `Merge & delete ${dels}`;
+    syncDupGo();
+  }
+  function syncDupGo() {
+    const c = $("dupConfirm");
+    $("dupGo").disabled = dupStep !== "plan" || !c || c.value.trim().toUpperCase() !== "DELETE" || !dupPlans().filter((p) => p.canRun).length;
+  }
+  async function dupRun() {
+    const plans = dupPlans().filter((p) => p.canRun);
+    if (!plans.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...ML_WRITE])) return;
+    // The backup is the only thing between a mistaken click and a policy that
+    // has to be rebuilt by hand — same rule as the delete flow.
+    if ($("dupBackup") && $("dupBackup").checked) {
+      try {
+        downloadText("CA-Duplicates-Deleted", "json", "application/json", JSON.stringify({
+          tenant: tenantName, exported: new Date().toISOString(),
+          policies: plans.flatMap((p) => p.deletes.map((d) => d.raw)),
+        }, null, 2));
+      } catch (e) { console.error(e); toast("Backup download <span>failed</span> — nothing was merged"); return; }
+    }
+    $("dupGo").disabled = true; $("dupBack").style.display = "none"; $("dupCancel").disabled = true;
+    const L = RunLedger.create($("dupLedger"), { unit: "duplicate sets", title: "merge", items: plans.map((p) => ({
+      label: p.name, sub: `keep ${p.keep.seq}${p.patch ? " (updated)" : ""} · delete ${p.deletes.map((d) => d.seq).join(", ")}`,
+    })), onStop: () => {} });
+    const note = (p, r) => `${r.patched ? "updated and " : ""}${(r.deleted || []).filter((d) => d.ok).length} deleted`;
+    let res;
+    if (isDemo) {
+      res = plans.map((p, i) => {
+        L.start(i);
+        const r = { key: p.key, name: p.name, keep: p.keep, patched: !!p.patch, deleted: p.deletes.map((d) => ({ id: d.id, seq: d.seq, name: d.name, ok: true })), ok: true };
+        L.done(i, `${note(p, r)} (simulated)`, "merged");
+        return r;
+      });
+    } else {
+      res = await Importer.mergePolicies(plans, {
+        shouldStop: () => L.stopped,
+        onItem: (i, phase, r) => {
+          if (phase === "start") { L.start(i); return; }
+          if (!r) return;
+          if (r.stopped) L.skip(i, "stopped — nothing changed");
+          else if (r.ok) L.done(i, note(plans[i], r), "merged");
+          else if (r.patched || (r.deleted || []).some((d) => d.ok)) L.part(i, `${note(plans[i], r)} · ${r.error}`, "partly done");
+          else L.fail(i, r.error || "refused", "refused");
+        },
+      });
+    }
+    dupResults = res;
+    L.finish({ report: () => showReport("👯 Duplicate merge report", `CA-Duplicate-Merge-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`,
+      Importer.mergeReport({ tenantName, plans, results: res })) });
+    $("dupCancel").disabled = false;
+    $("dupList").innerHTML = "";
+    $("dupDesc").textContent = `${res.filter((r) => r.ok).length} of ${plans.length} set${plans.length === 1 ? "" : "s"} merged in ${tenantName || "this tenant"}${isDemo ? " (simulated)" : ""}.`;
+    $("dupGo").style.display = "none";
+    if (!isDemo && res.some((r) => r.patched || (r.deleted || []).some((d) => d.ok))) await loadFromGraph(true); else refreshViews();
+  }
+  $("dupBtn").addEventListener("click", openDuplicates);
+  $("dupCancel").addEventListener("click", () => { $("dupModal").classList.remove("open"); });
+  $("dupBack").addEventListener("click", () => { dupStep = "list"; renderDup(); });
+  $("dupNext").addEventListener("click", () => { dupStep = "plan"; renderDup(); });
+  $("dupGo").addEventListener("click", dupRun);
+  $("dupList").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.matches("[data-dup-keep]")) {
+      dupKeep.set(t.dataset.dupKeep, t.value);
+      // a tick belongs to the copy it came from; keeping that copy retires it
+      [...dupPicks].filter((k) => k.startsWith(`${t.value}:`)).forEach((k) => dupPicks.delete(k));
+      renderDup(); return;
+    }
+    if (t.matches("[data-dup-opt]")) { t.checked ? dupPicks.add(t.dataset.dupOpt) : dupPicks.delete(t.dataset.dupOpt); renderDup(); return; }
+    if (t.matches("[data-dup-set]")) { t.checked ? dupOn.add(t.dataset.dupSet) : dupOn.delete(t.dataset.dupSet); renderDup(); return; }
+    if (t.id === "dupConfirm") syncDupGo();
+  });
+  $("dupList").addEventListener("input", (e) => { if (e.target.id === "dupConfirm") syncDupGo(); });
+  $("dupList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dup-compare]"); if (!b) return;
+    const s = (dupSets || []).find((x) => x.key === b.dataset.dupCompare);
+    if (!s) { openDuplicates(); toast("Policy inventory changed. Review the updated list."); return; }
+    const keepId = dupKeep.get(s.key) || s.keepId;
+    const keep = s.members.find((p) => p.id === keepId), other = s.members.find((p) => p.id !== keepId);
+    hkComparison = PolicyCompare.compare(other, keep);
+    $("hkCompareOnly").checked = true;
+    renderHkComparison();
+    $("hkCompareModal").classList.add("open");
+  });
+
   // ---------- import tool (BETA) ----------
   let imBundle = null, imPlan = null, imFileName = "", imMode = "deploy";
+  // imRaw — the bundle as it was read, before prepareBundle() turned its group
+  // references into names; the E-Admins merge works on this one.
+  // imEa — the 🚨 E-Admins taken from a CloudFellows backup into this import.
+  // imRepair — 🔧 policies already here that point at the file's source ids.
+  let imRaw = null, imEa = null, imRepair = null;
   // Workload ID licence state for this tenant: { known, licensed, sku }. Read
   // once per file load — a workload-identity policy cannot be created without it.
   let imLic = { known: false, licensed: false, sku: null };
-  const imWidBlocked = (p) => p.wid && imLic.known && !imLic.licensed;
+  let imCapabilities = null;
+  const imRequirement = p => isDemo ? { ok: true, reason: "" } : Capabilities.check(p.raw, imCapabilities);
+  const imWidBlocked = p => !imRequirement(p).ok;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
     imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
+    imRaw = null; imEa = null; imRepair = null;
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -3215,17 +3510,209 @@
     </div>`;
   }
 
+  // ---- 👥 groups attached by name (beta 25383) ------------------------------
+  // What prepareBundle() did to the file's group references, said before the
+  // import runs: the count, and every name it corrected.
+  function imGroupsPanel() {
+    if (!imBundle || !imBundle.prepared) return "";
+    const n = (imBundle.groups || []).length;
+    if (!n) return "";
+    const notes = imBundle.groupNotes || [];
+    return `<div class="cg-panel">
+      <h4>👥 GROUPS — ${n} ATTACHED BY NAME</h4>
+      <p class="mini" style="margin:0${notes.length ? " 0 6px" : ""}">Every group these policies name is created in this tenant — or found, when one with that name already exists — and the policies are attached to <b>this tenant's</b> group. The group ids in the file belong to the tenant it was exported from and are never written into a policy: a group that cannot be created holds back the policies that name it, instead of letting them point at a group that does not exist.</p>
+      ${notes.length ? `<ul class="mini" style="margin:0;padding-left:18px">${notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    </div>`;
+  }
+
+  // ---- 🚨 E-Admins from a CloudFellows backup (beta 25383) ------------------
+  // The emergency-access policies are expected under every baseline and only
+  // a CloudFellows backup ships them; with Joey Verlinden's baseline active
+  // there was no way to bring them in. Importer.mergeShared() takes them, and
+  // only them, into THIS import — break-glass group renamed to the target
+  // baseline's, landing Off.
+  function imTargetCatalog() {
+    try {
+      const id = Importer.catalogOfBundle(imBundle) || Baseline.activeCatalogId();
+      return Baseline.withContract(Baseline.catalog(id));
+    } catch { return null; }
+  }
+  function imEaPanel() {
+    if (!imBundle || !imPlan) return "";
+    const toCat = imTargetCatalog();
+    if (imEa && imEa.added && imEa.added.length) {
+      return `<div class="cg-panel">
+        <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED FROM ${esc(String(imEa.label).toUpperCase())}</h4>
+        <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
+      </div>`;
+    }
+    // a file that ships its own E-Admins (a CloudFellows backup) needs nothing
+    if (imPlan.some((p) => p.asIs)) return "";
+    const shared = (typeof Baseline !== "undefined" && Baseline.sharedPolicies && toCat) ? Baseline.sharedPolicies(toCat) : [];
+    const cf = Baseline.catalog("limonit");
+    return `<div class="cg-panel">
+      <h4>🚨 E-ADMINS — NOT IN THIS FILE</h4>
+      <p class="mini" style="margin:0 0 8px">The emergency-access policies${shared.length ? ` (${shared.length}: ${esc(shared.map((p) => `CA${p.num}`).join(", "))})` : ""} are expected under every baseline, and only a CloudFellows backup ships them. Add them to this import from one: only the E-Admins policies and the groups, locations and authentication strengths they use are taken${toCat && cf && toCat.breakGlassGroup && cf.breakGlassGroup && toCat.breakGlassGroup !== cf.breakGlassGroup ? `, the break-glass group becomes ${esc(toCat.label)}'s (<code>${esc(toCat.breakGlassGroup)}</code>)` : ""}, and they land <b>Off</b>.</p>
+      ${imEa && imEa.error ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">${esc(imEa.error)}</p>` : ""}
+      <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" id="imEaZip">＋ E-Admins from a CloudFellows backup ZIP</button>
+        <button class="btn sm" id="imEaFolder">＋ from an extracted backup folder</button>
+      </div>
+    </div>`;
+  }
+  function imEaPick(folder) {
+    if (!imRaw) return;
+    const inp = document.createElement("input");
+    inp.type = "file";
+    if (folder) { inp.webkitdirectory = true; inp.multiple = true; }
+    else inp.accept = ".zip,application/zip";
+    inp.addEventListener("change", async () => {
+      const files = [...(inp.files || [])];
+      if (!files.length) return;
+      const label = folder ? "the selected folder" : files[0].name;
+      try {
+        const src = folder ? await Importer.readFolder(files) : await Importer.readZip(files[0]);
+        const toCat = imTargetCatalog();
+        const cf = Baseline.catalog("limonit");
+        const m = Importer.mergeShared(imRaw, src, { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
+        if (!m.found) {
+          imEa = { label, error: `${label} holds no E-Admins policies (CA1100–CA1105) — pick the CloudFellows baseline backup.` };
+          imRenderList();
+          return;
+        }
+        // keep what was ticked, and tick what was just added
+        const keep = new Set([...document.querySelectorAll("[data-imp]:checked")].map((cb) => imPlan[+cb.dataset.imp].name));
+        m.added.forEach((n) => keep.add(n));
+        imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed };
+        await imLoaded(m.bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins from ${label}`, { mode: imMode, only: keep });
+        toast(m.added.length ? `<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} added — they land Off` : "The E-Admins policies are already in this import");
+      } catch (err) {
+        console.error(err);
+        imEa = { label, error: `Could not read ${label}: ${err.message || err}` };
+        imRenderList();
+      }
+    });
+    inp.click();
+  }
+
+  // ---- 🔧 re-attach policies already imported with source ids (beta 25383) --
+  // An import before this build wrote the file's own group ids into a policy
+  // whenever a group could not be created. The tenant then holds policies that
+  // exclude groups it does not have — Joey's break-glass group among them. The
+  // loaded file knows what each of those ids was CALLED, so the fix is the same
+  // as the import's: create or find the group by name, swap the id.
+  async function imLoadRepair() {
+    imRepair = null;
+    const idx = imBundle && imBundle.groupIndex;
+    if (!idx) return;
+    const cands = new Set();
+    for (const p of policies) {
+      const u = (p.raw && p.raw.conditions && p.raw.conditions.users) || {};
+      for (const id of [...(u.includeGroups || []), ...(u.excludeGroups || [])]) if (idx.isSource(id)) cands.add(String(id).toLowerCase());
+    }
+    if (!cands.size) return;
+    imRepair = { rows: [], error: null, results: null };
+    try {
+      const dir = isDemo ? { ids: new Set(), error: null } : await Importer.readDirectoryIds([...cands]);
+      if (dir.error) { imRepair.error = dir.error; return; }
+      imRepair.rows = Importer.repairPlan(imBundle, policies.map((p) => p.raw), dir);
+    } catch (e) { imRepair.error = e.message || String(e); }
+  }
+  function imRepairPanel() {
+    if (!imRepair) return "";
+    if (imRepair.error) {
+      return `<div class="cg-panel"><h4>🔧 RE-ATTACH — COULD NOT CHECK</h4>
+        <p class="mini" style="margin:0">Policies in this tenant name ids that this file's groups carried, and the directory could not be read to tell whether those groups exist here (${esc(imRepair.error)}). Nothing was changed; open the file again to retry.</p></div>`;
+    }
+    const rows = imRepair.rows || [];
+    if (!rows.length) return "";
+    const nGroups = new Set(rows.flatMap((r) => r.swaps.map((s) => s.key))).size;
+    const on = rows.filter((r) => r.state === "enabled").length;
+    const st = (s) => s === "enabled" ? "On" : s === "enabledForReportingButNotEnforced" ? "Report-only" : "Off";
+    return `<div class="cg-panel" style="border-color:var(--off)">
+      <h4>🔧 RE-ATTACH — ${rows.length} ${rows.length === 1 ? "POLICY" : "POLICIES"} ALREADY HERE ${rows.length === 1 ? "POINTS" : "POINT"} AT GROUPS THIS TENANT DOES NOT HAVE</h4>
+      <p class="mini" style="margin:0 0 8px">These were imported earlier with the group ids of the tenant this file comes from — 👥 CA groups lists them as <b>referenced but gone</b>. An exclusion naming a group that does not exist excludes <b>nobody</b>: the break-glass accounts are not exempt from a policy that points at a break-glass group this tenant does not have. ${on ? `<b style="color:var(--off)">${on} of them ${on === 1 ? "is" : "are"} On.</b> ` : "None of them is On yet — keep it that way until they are re-attached. "}The fix is the import's own: create the ${nGroups} group${nGroups === 1 ? "" : "s"} (or find them by name) and swap the ids. State, conditions and every other assignment stay as they are.</p>
+      <div class="cg-pick">${rows.map((r) => `<div class="dr-row"><div class="dr-head"><b>${esc(r.name)}</b> <span class="mini muted">${st(r.state)}</span></div>
+        <div class="mini">${r.swaps.map((s) => `${s.list === "excludeGroups" ? "exclusion" : "include"} <code>${esc(s.from)}</code> → <b>${esc(s.name)}</b>`).join("<br>")}</div></div>`).join("")}</div>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" id="imRepairGo">🔧 Create ${nGroups} group${nGroups === 1 ? "" : "s"} and re-attach ${rows.length} ${rows.length === 1 ? "policy" : "policies"}</button>
+        <span class="mini muted">writes to the tenant — a separate click from Import</span>
+      </div>
+      <div id="imRepairLog" style="margin-top:8px"></div>
+    </div>`;
+  }
+  async function imRepairRun(btn) {
+    const rows = (imRepair && imRepair.rows) || [];
+    if (!rows.length) return;
+    const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess",
+      "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", ...(placing ? ["AdministrativeUnit.ReadWrite.All"] : [])])) return;
+    btn.disabled = true;
+    const host = $("imRepairLog");
+    const L = RunLedger.create(host, { unit: "policies", title: "re-attach", items: [
+      { label: "Groups", sub: "created, or found by name" },
+      ...rows.map((r) => ({ label: r.name, sub: r.swaps.map((s) => `${s.from.slice(0, 8)}… → ${s.name}`).join(" · ") })),
+    ], onStop: () => {} });
+    try {
+      L.start(0);
+      const groups = [...new Map(rows.flatMap((r) => r.swaps.map((s) => [s.key, s.group]))).values()];
+      let dep;
+      if (isDemo) {
+        dep = { maps: { group: Object.fromEntries(groups.map((g) => [g.id, "demo-" + g.displayName])), groupFailed: {} },
+          log: { created: groups.map((g) => `Group: ${g.displayName} (assigned)`), reused: [], warnings: [] } };
+      } else {
+        const mini = { policies: rows.map((r) => ({ displayName: r.name, conditions: { users: { includeGroups: [], excludeGroups: r.swaps.map((s) => s.key) } } })),
+          groups, namedLocations: [], authStrengths: [], authContexts: [], termsOfUse: [], prepared: true, fromRepository: !!imBundle.fromRepository };
+        dep = await Importer.ensureDependencies(mini, (m) => L.note(0, m), { matchedNames: rows.map((r) => r.name), auByCode: placing ? imAu.byCode : null });
+      }
+      const gf = Object.keys(dep.maps.groupFailed || {}).length;
+      (gf ? L.part : L.done)(0, `${dep.log.created.length} created · ${dep.log.reused.length} reused${gf ? ` · ${gf} could not be created — their policies stay as they are` : ""}`, gf ? "partly done" : "ready");
+      const res = isDemo
+        ? rows.map((r) => ({ ...r, ok: true, changed: true, done: r.swaps.map((s) => ({ ...s, to: dep.maps.group[s.key] })) }))
+        : await Importer.repairPolicies(rows, dep.maps, {
+          shouldStop: () => L.stopped,
+          onItem: (i, phase, r) => {
+            if (phase === "start") { L.start(i + 1); return; }
+            if (!r) return;
+            if (r.stopped) L.skip(i + 1, "stopped");
+            else if (r.ok) L.done(i + 1, r.changed ? `${r.done.length} group${r.done.length === 1 ? "" : "s"} attached` : "already fixed — nothing to swap", r.changed ? "re-attached" : "no change");
+            else L.fail(i + 1, r.error || "refused", "refused");
+          },
+        });
+      if (isDemo) res.forEach((r, i) => L.done(i + 1, `${r.done.length} group${r.done.length === 1 ? "" : "s"} attached (simulated)`, "re-attached"));
+      L.finish();
+      imRepair.results = res;
+      const bad = res.filter((r) => !r.ok).length;
+      showReport("🔧 Re-attach report", "CA-Import-Reattach", Importer.repairReport({ tenantName, fileName: imFileName, rows, results: res, depLog: dep.log }));
+      toast(bad ? `Re-attach done with <span>${bad} failure(s)</span>` : `<span>${res.filter((r) => r.changed).length}</span> policies re-attached${isDemo ? " (simulated)" : ""}`);
+      if (!isDemo && res.some((r) => r.ok && r.changed)) await loadFromGraph(true);
+    } catch (e) {
+      console.error(e);
+      try { L.finish(); } catch { /* already finished */ }
+      host.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:8px;color:var(--off)">✗ ${esc(e.message || e)}</p>`);
+    } finally { btn.disabled = false; }
+  }
+
   // opts.mode — the assignment mode to start on; opts.only — a Set of policy
   // names to leave ticked (the gap the Baseline tool handed over), the rest
   // unticked but still listed.
   async function imLoaded(bundle, fileName, opts = {}) {
+    // Every group reference becomes a NAME before anything else looks at the
+    // file (Importer.prepareBundle): the ids in it belong to the tenant it was
+    // exported from, and the import attaches this tenant's groups by name.
+    imRaw = bundle;
+    bundle = Importer.prepareBundle(bundle);
     imBundle = bundle; imFileName = fileName;
     // pass the tenant's raw policies (not just names) so "match & replace" can
     // read the current assignment and id of a policy it supersedes
     imPlan = Importer.plan(bundle, policies.map(p => p.raw));
+    imCapabilities = await readCapabilities(true);
     imSwitch = imSwitchPlan(bundle);
-    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : "deploy");
-    const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${bundle[k].length} ${k}`).join(", ");
+    // A baseline other than CloudFellows has no CAD-SEC-U-DG deploy groups of
+    // its own: its policies land as shipped, on its own groups.
+    const cid = Importer.catalogOfBundle(bundle);
+    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : cid && cid !== "limonit" ? "shipped" : "deploy");
+    const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${(bundle[k] || []).length} ${k}`).join(", ");
     $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.${bundle.depSkipped && bundle.depSkipped.length ? ` ${bundle.depSkipped.length} dependency file(s) could not be read.` : ""}`;
     // Only worth a Graph call when the file actually contains one.
     imLic = imPlan.some(p => p.wid)
@@ -3233,6 +3720,7 @@
       : { known: false, licensed: false, sku: null };
     await imLoadAu();
     await imLoadRoleAssignable();
+    await imLoadRepair();
     imRenderList();
     if (opts.only) {
       imPlan.forEach((p, i) => {
@@ -3249,7 +3737,7 @@
   function imRenderList() {
     const importable = imPlan.filter(p => !p.exists && !imWidBlocked(p));
     const nUpg = imPlan.filter(p => p.upgrade).length;
-    const replace = imMode === "replace", switching = imMode === "switch";
+    const replace = imMode === "replace", switching = imMode === "switch", shipped = imMode === "shipped";
     const nWid = imPlan.filter(p => p.wid && !p.exists).length;
     const sw = imSwitch;
 
@@ -3263,7 +3751,7 @@
 
     const rowHint = (p) => {
       if (p.exists) return esc(p.reason);
-      if (imWidBlocked(p)) return `<span style="color:var(--off)">workload identity — this tenant has no Microsoft Entra Workload ID licence, so Graph will not create it</span>`;
+      if (imWidBlocked(p)) return `<span style="color:var(--off)">${esc(imRequirement(p).reason)} — policy left unselected</span>`;
       if (switching && !p.asIs) {
         const mine = sw ? sw.pairs.filter((x) => x.policy === p.name || x.kind !== "exclusion") : [];
         const ex = mine.find((x) => x.kind === "exclusion");
@@ -3272,6 +3760,11 @@
       if (p.upgrade) return replace
         ? `♻️ replaces the current ${esc(p.existing.label)} — assignment + state kept (new exclusions merged), old policy switched Off`
         : `→ ${esc(p.personaGroup || "")} · <span style="color:var(--muted)">current ${esc(p.existing.label)} stays as-is</span>`;
+      if (shipped && !p.asIs) {
+        const u = (p.raw.conditions && p.raw.conditions.users) || {};
+        const n = (u.includeGroups || []).length + (u.excludeGroups || []).length;
+        return `🧩 as shipped${n ? ` — ${n} group${n === 1 ? "" : "s"} attached by name` : ""}${p.agent ? ` · <span style="color:var(--muted)">agent policy (preview): needs Microsoft Entra Agent ID</span>` : ""}`;
+      }
       if (p.personaGroup) return `→ ${esc(p.personaGroup)}`;
       return esc(p.reason || "");
     };
@@ -3282,11 +3775,16 @@
           <b>🔀 Switch baseline</b><span class="mini">Not available for this file: it matches no other baseline's group naming, so there is nothing to carry members from.</span></label>`;
 
     $("imBody").innerHTML = `
+      ${imRepairPanel()}
+      ${imEaPanel()}
+      ${imGroupsPanel()}
       ${imRaPanel()}
       ${imExPanel()}
       ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
-        <label class="im-mode-opt${!replace ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${!replace ? "checked" : ""}>
+        <label class="im-mode-opt${shipped ? " on" : ""}"><input type="radio" name="imMode" value="shipped" ${shipped ? "checked" : ""}>
+          <b>🧩 As shipped — the baseline's own groups</b><span class="mini">Every group the policies name is created in this tenant, or found when one with that name exists, and attached: includes and exclusions exactly as the file ships them. Nothing existing is touched; the policies land Off.</span></label>
+        <label class="im-mode-opt${imMode === "deploy" ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${imMode === "deploy" ? "checked" : ""}>
           <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
         <label class="im-mode-opt${replace ? " on" : ""}"><input type="radio" name="imMode" value="replace" ${replace ? "checked" : ""}>
           <b>♻️ Match &amp; replace</b><span class="mini">A policy already in this tenant keeps its current assignment and state (plus any new exclusion groups this version adds); its old version is switched Off.${nUpg ? ` ${nUpg} match${nUpg === 1 ? "es" : "es"} here.` : " No matches in this file."}</span></label>
@@ -3308,7 +3806,8 @@
       <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
       imPlan.map((p, i) => `<li data-imrow="${i}" data-imkey="${esc(imPersonaKey(p))}"><label class="chk" style="margin:0">
         <input type="checkbox" data-imp="${i}" ${p.exists || imWidBlocked(p) ? "disabled" : "checked"}>
-        ${p.exists ? '<span class="tag">skip</span>' : imWidBlocked(p) ? '<span class="tag block" title="Conditional Access for workload identities requires the Microsoft Entra Workload ID licence">🔒 no Workload ID licence</span>' : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
+        ${p.exists ? '<span class="tag">skip</span>' : imWidBlocked(p) ? `<span class="tag block" title="${esc(imRequirement(p).reason)}">licence evidence required</span>` : p.upgrade ? '<span class="tag grant">update</span>' : p.asIs && p.forceOff ? '<span class="tag new" title="Taken from a CloudFellows backup into this import — lands Off">🚨 E-Admins · Off</span>' : p.asIs ? '<span class="tag new">as-is</span>' : `<span class="tag grant">import</span>`}
+        ${p.agent && !p.exists ? '<span class="tag" title="Conditional Access for agents (preview) — the tenant needs Microsoft Entra Agent ID: Entra ID P1 or P2 with a Microsoft Agent 365 licence">🤖 preview</span>' : ""}
         ${p.needsTou ? '<span class="tag block" title="Grants a Terms of use — create the ToU in the portal first, then re-import; unresolved controls stop the import">📜 needs ToU</span>' : ""}
         ${esc(p.name)}
         <span class="mini">${rowHint(p)}${p.needsTou && !p.exists ? ' · <span style="color:var(--off)">requires a resolved Terms of use before import</span>' : ""}</span>
@@ -3338,6 +3837,8 @@
     btn.textContent = n ? `Import ${n}` : "Import";
   }
   $("imBody").addEventListener("click", async (e) => {
+    if (e.target.id === "imEaZip" || e.target.id === "imEaFolder") { imEaPick(e.target.id === "imEaFolder"); return; }
+    if (e.target.id === "imRepairGo") { await imRepairRun(e.target); return; }
     if (e.target.id === "imAuAll") {
       imAu.sel = imAu.sel.size === imAu.missing.length ? new Set() : new Set(imAu.missing.map(r => r.name));
       imRenderList();
@@ -3481,17 +3982,20 @@
   }
   $("imZip").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
+    imEa = null;
     try { await imLoaded(await Importer.readZip(f), f.name); }
     catch (err) { console.error(err); toast(`Could not read zip: <span>${esc(err.message || err)}</span>`); }
   });
   $("imFolder").addEventListener("change", async (e) => {
     if (!e.target.files.length) return;
+    imEa = null;
     try { await imLoaded(await Importer.readFolder([...e.target.files]), "selected folder"); }
     catch (err) { console.error(err); toast(`Could not read folder: <span>${esc(err.message || err)}</span>`); }
   });
   $("imGo").addEventListener("click", async () => {
     const chosen = [...document.querySelectorAll("[data-imp]:checked")].map(cb => imPlan[+cb.dataset.imp]);
     if (!chosen.length) { toast("Nothing selected to import"); return; }
+    try { await checkImportPlan(chosen); } catch (e) { toast(esc(e.message)); return; }
     // Consent first, while the click is still fresh — an import creates
     // dependencies (groups, locations) as well as policies, so ask for both.
     const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
@@ -3526,7 +4030,7 @@
       // policies that will be replaced in place don't need a deploy group made;
       // a baseline switch keeps every assignment as shipped, so none does
       const matchedNames = imMode === "replace" ? chosen.filter(p => p.upgrade).map(p => p.name)
-        : imMode === "switch" ? chosen.map(p => p.name) : [];
+        : imMode === "switch" || imMode === "shipped" ? chosen.map(p => p.name) : [];
       const switching = imMode === "switch" && imSwitch;
       if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
       L.start(0);
@@ -3535,8 +4039,10 @@
         res.results = chosen.map(p => {
           const matched = imMode === "replace" && p.upgrade;
           const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching ? null : p.personaGroup, matched, switched: !!switching, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs };
+          const asShipped = imMode === "shipped" && !matched;
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching || asShipped ? null : p.personaGroup, matched, switched: !!switching, shipped: asShipped, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: p.forceOff ? "disabled" : matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs, forceOff: !!p.forceOff };
         });
+        depLog.groupNotes = (imBundle.groupNotes || []).slice();
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
         if (switching) {
           // the same three outcomes a real copy has, so the demo report is honest
@@ -3566,17 +4072,21 @@
         const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
+        const heldBack = Object.keys(maps.groupFailed || {}).length;
         // 🔀 the members come across BEFORE the policies land, so a policy
         // that is switched On afterwards already excludes the right people.
-        if (switching) depLog.copied = await imCopyCounterparts(scoped, maps, depSay);
-        L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, "ready");
+        if (switching) {
+          depLog.copied = await imCopyCounterparts(scoped, maps, depSay);
+          if (depLog.copied.some(r => r.error || r.failed?.length)) throw new Error("Baseline switch stopped: counterpart membership was not fully copied and verified. No policies were imported; inspect the staged groups before retrying.");
+        }
+        (heldBack ? L.part : L.done)(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${heldBack ? ` · ${heldBack} group${heldBack === 1 ? "" : "s"} could not be created — the policies naming ${heldBack === 1 ? "it are" : "them are"} held back` : ""}${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, heldBack ? "partly done" : "ready");
         res = await Importer.importPolicies(chosen, maps, (m) => { const i = chosen.findIndex((p) => m.startsWith(p.name + ":")); if (i >= 0) L.note(i + 1, m.slice(chosen[i].name.length + 1).trim()); }, {
           mode: imMode, shouldStop: () => L.stopped,
           onItem: (i, phase, r) => {
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
             if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
-            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}`, "imported");
+            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : r.shipped ? "created as shipped" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}${(r.agentNotes || []).length ? " · 🤖 written in the documented agent shape" : ""}`, "imported");
             else L.fail(i + 1, r.error || "refused", "refused");
           },
         });
@@ -3593,6 +4103,7 @@
       L.finish();
       // Change report — shown on screen and downloadable. A failed import is
       // the case you most need to read, so it should not require opening a file.
+      depLog.sharedFrom = imBundle.sharedFrom || null; depLog.sharedRenamed = imBundle.sharedRenamed || null;
       const md = Importer.buildReport({ tenantName, fileName: imFileName, depLog, planItems: imPlan, results: res.results, warnings: res.warnings, mode: imMode, licence: imLic });
       const failed = res.results.filter(r => !r.ok).length;
       // a clean run closes the dialog; one with failures (or a stop) stays open
@@ -3960,6 +4471,10 @@
       .filter((r) => (all ?? cgCsvAll)
         || r.template
         || (r.sources || []).some((x) => x === "template" || x === "catalog")
+        // the scan's own verdict (25386): a deploy group or an E-Admins group
+        // is the baseline's under every catalog — the pilot users of a Joey
+        // Verlinden deployment go into CAD-SEC-U-DG-* too
+        || !!r.basis
         || isBaseline(r.name))
       .map((r) => r.name).sort();
   }
@@ -5134,7 +5649,7 @@ max@contoso.com,"Global, DevOps"</pre>
             const extra = (inc.length + exc.length) - (incIds.length + excIds.length);
             if (extra > 0) say(`<div>&nbsp;&nbsp;· ${extra} more reference${extra === 1 ? "" : "s"} found than the scan knew about</div>`);
             incIds = inc; excIds = exc;
-          } catch (e) { say(`<div style="color:var(--report)">&nbsp;&nbsp;⚠ could not re-read the policies (${esc(e.message || e)}) — using the scan's list</div>`); }
+          } catch (e) { throw new Error(`Could not verify current policy references: ${e.message}. Replacement remains staged; references were not changed.`); }
         }
         // add first, remove last: at no point is a policy without the group
         res.refsAdded = 0; res.refsRemoved = 0;
@@ -6041,13 +6556,14 @@ max@contoso.com,"Global, DevOps"</pre>
     // role-assignable group cannot contain GROUPS as members, so nested
     // groups are reported as skipped with that reason instead of failing.
     const log = { moved: 0, total: 0, failed: [], skippedGroups: [] };
-    const members = await Graph.ggetAll(`/groups/${fromId}/members?$select=id,displayName`).catch(() => []);
+    const members = await Graph.ggetAll(`/groups/${fromId}/members?$select=id,displayName`);
     const movable = [];
     for (const m of members) {
       if (String(m["@odata.type"] || "").toLowerCase().includes("group")) log.skippedGroups.push(m.displayName || m.id);
       else movable.push(m);
     }
     log.total = members.length;
+    if (log.skippedGroups.length) throw new Error(`Membership copy stopped: ${log.skippedGroups.length} nested groups need an explicit migration plan. Policy references were not changed.`);
     for (let i = 0; i < movable.length; i++) {
       onStatus?.(`Moving member ${i + 1}/${movable.length}…`);
       try {
@@ -6061,6 +6577,10 @@ max@contoso.com,"Global, DevOps"</pre>
         else log.failed.push({ name: movable[i].displayName || movable[i].id, error: e.message || String(e) });
       }
     }
+    if (log.failed.length) throw new Error(`Membership copy incomplete: ${log.failed.length} failed. The replacement remains staged; policy references were not changed.`);
+    const actual = new Set((await Graph.ggetAll(`/groups/${toId}/members?$select=id`)).map(m => m.id));
+    const missing = movable.filter(m => !actual.has(m.id));
+    if (missing.length) throw new Error(`Membership verification incomplete: ${missing.length} members not confirmed in the replacement. Retry after replication; policy references were not changed.`);
     return log;
   }
 
@@ -8638,7 +9158,7 @@ This is a directory write. Nothing else changes.`)) return;
     const res = blResult;
     const n = res ? res.toImport.length : 0;
     const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
-      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships` : "") + ". ";
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships — add ${res.toImportShared.length === 1 ? "it" : "them"} below with ＋ E-Admins` : "") + ". ";
     if (res && res.catalog.id === "joey" && typeof BaselineLive !== "undefined" && !isDemo) {
       const btn = $("blImport");
       btn.disabled = true;
@@ -8654,7 +9174,7 @@ This is a directory write. Nothing else changes.`)) return;
           $("imDesc").textContent = gapNote() + `Reading the repository at ${b.release}${b.commit ? ` (${String(b.commit).slice(0, 7)})` : ""}…`;
           const only = new Set(res.toImport.map((r) => r.baseline.name));
           await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`, { only });
-          $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. Pick an assignment mode — 🔀 Switch baseline carries the members of this tenant's existing groups across.`;
+          $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. 🧩 As shipped creates the baseline's own groups by name and attaches them; 🔀 Switch baseline also carries the members of this tenant's existing groups across.`;
           return;
         }
         toast(`Could not read the repository — <span>${esc(BaselineLive.status().error || "no usable read")}</span>. Download it at ${esc(res.catalog.url)} and import the folder instead.`);
@@ -8692,23 +9212,29 @@ This is a directory write. Nothing else changes.`)) return;
     $("exChips").innerHTML = ""; $("exPager").style.display = "none"; $("exHint").style.display = "none";
     $("exBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-exrun>▶ Run exclusion scan</button><p class="mini muted">Expands group memberships via Microsoft Graph. The result stays until you rescan.</p></div>';
   }
+  let exBusy = false;
   async function runExclusionScan() {
+    if (exBusy) return;
+    exBusy = true;
+    const exProg = makeProgress("ex"); exProg.begin();
     $("exRescan").style.display = "";
-    $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Collecting exclusions…</p>';
+    $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel("Collecting exclusions…");
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
     exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
     Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "matrix"));
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
       exModel = Exclusions.collect(policies.map(p => p.raw));
-      await Exclusions.resolve(exModel, { demo: isDemo, onStatus: (m, done, total) => { $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="margin:6px 0 0">${esc(m)}</p>` + progInline(done, total); } });
-      exUsers = Exclusions.effectiveUsers(exModel);
+      await Exclusions.resolve(exModel, { demo: isDemo, signal: exProg.signal, onStatus: (m, done, total) => { exProg.detail(m); if (total) { exProg.st.cap = total; exProg.st.stepLabel = "group"; exProg.tick(done, done); } $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel(esc(m)); } });
+      const result = await AnalysisJobs.run("exclusions", { model: exModel }, { signal: exProg.signal });
+      exProg.check();
+      exUsers = result;
       renderExclusions();
     } catch (e) {
       console.error("Exclusion analyzer failed:", e);
       exModel = null;
       $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
-    }
+    } finally { exBusy = false; exProg.stop(); }
   }
   $("exRescan").addEventListener("click", runExclusionScan);
   // The filter banner sticks directly under the (sticky) toolbar. The toolbar
@@ -10819,72 +11345,66 @@ This is a directory write. Nothing else changes.`)) return;
     const p = PROG_REG[b.dataset.pgstop]; if (p) p.requestStop();
   });
   function makeProgress(prefix) {
-    // detail: what the read is doing RIGHT NOW inside a step (a hunting slice,
-    // a wait on another tool's read) — the difference between a bar that sits
-    // at 0 for three minutes and one that says why. frac: how far into the
-    // current step, so the bar moves inside a long step.
-    // stop: set by the ■ Stop button (25320, T37 + T38 on Mihai's ask). A
-    // running Graph call cannot be cancelled, so the loops CHECK it between
-    // calls — check() throws a stopped error the runner catches — and the
-    // line says so while the current query finishes.
-    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false, detail: "", frac: 0, stop: false };
-    const elapsed = () => { const s = Math.round((Date.now() - st.t0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+    const st = { n: 0, step: 0, t0: 0, cap: 0, label: "records", stepLabel: "page", capped: false, detail: "", frac: 0, stop: false, active: false, lastResponse: 0, throttleUntil: 0 };
+    let clock = null, controller = null, context = "";
+    const currentContext = () => `${tenantId}:${policiesReadAt}:${isDemo}`;
+    const elapsed = () => { const s = Math.max(0, Math.round((Date.now() - st.t0) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
     const line = () => {
-      if (!st.step && !st.detail) return "Waiting for the first page from Microsoft Graph…";
-      const base = st.step
-        ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""} · ${elapsed()}`
-        : `${st.n.toLocaleString()} ${st.label} · ${elapsed()}`;
-      const withDetail = st.detail ? `${base} · ${st.detail}` : base;
-      return st.stop ? `${withDetail} · stopping after the current query — a running query cannot be cancelled` : withDetail;
+      // Before the first whole step lands the line used to say "Waiting for
+      // Microsoft's first response" for as long as the first day took —
+      // fifteen minutes of it on a large tenant while the detail line under
+      // it was on query 84. Rows that have arrived are said as soon as the
+      // reader sets st.n; only a read with nothing back yet is waiting.
+      const count = st.step ? `${st.n.toLocaleString()} ${st.label} · ${st.stepLabel} ${st.step}${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""}`
+        : st.n ? `${st.n.toLocaleString()} ${st.label} · first ${st.stepLabel} in progress${st.cap && st.stepLabel !== "page" ? ` of ${st.cap.toLocaleString()}` : ""}`
+        : "Waiting for Microsoft's first response";
+      const wait = Math.ceil((st.throttleUntil - Date.now()) / 1000);
+      return `${count} · ${elapsed()}${st.detail ? ` · ${st.detail}` : ""}${st.lastResponse ? ` · last response ${Math.max(0, Math.round((Date.now() - st.lastResponse) / 1000))}s ago` : ""}${wait > 0 ? ` · Microsoft asked read requests to wait: ${wait}s` : ""}${st.stop ? " · stopping — results are incomplete" : ""}`;
     };
-    const width = () => st.cap ? Math.min(100, (st.stepLabel === "page" ? st.n : st.step + (st.frac || 0)) / st.cap * 100) : 0;
-    // The clock moves on its own: a single hunting query can take a minute,
-    // and a line that only updates when a page lands reads as "hung".
-    let clock = null;
-    const paint = () => { const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar"); if (t) t.textContent = line(); if (b) b.style.width = width() + "%"; return !!t; };
-    const startClock = () => { if (clock) clearInterval(clock); let miss = 0; clock = setInterval(() => { if (!paint()) { if (++miss > 3) { clearInterval(clock); clock = null; } } else miss = 0; }, 1000); };
-    // The ■ Stop button renders only for a progress that opted in
-    // (api.stoppable = true) — the tools whose runner knows what a stop means.
-    const panel = (msg, note) => `<div class="run-prompt"><div class="spinner"></div>
-      <p class="mini muted">${msg}</p>
-      <div class="ri-progwrap"><div class="ri-progbar" id="${prefix}PgBar" style="width:${width()}%"></div></div>
-      <p class="mini" id="${prefix}PgTxt">${line()}</p>
-      ${note ? `<p class="mini muted" style="margin-top:2px">${note}</p>` : ""}
-      ${api.stoppable ? `<button class="btn sm" data-pgstop="${prefix}" ${st.stop ? "disabled" : ""} title="Stop after the query that is running now">${st.stop ? "■ Stopping…" : "■ Stop"}</button>` : ""}</div>`;
-    const start = (cap, label, stepLabel) => { st.n = 0; st.step = 0; st.t0 = Date.now(); st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; st.detail = ""; st.frac = 0; startClock(); };
-    // begin(): a runner calls it once per run, so a stop from the previous
-    // run never leaks into the next. check(): the loops call it between
-    // calls; it throws an error the runner recognises by e.stopped.
-    const begin = () => { st.stop = false; };
-    const stopErr = () => Object.assign(new Error("stopped"), { stopped: true });
-    const check = () => { if (st.stop) throw stopErr(); };
-    const requestStop = () => {
-      st.stop = true; paint();
-      document.querySelectorAll(`[data-pgstop="${prefix}"]`).forEach((b) => { b.disabled = true; b.textContent = "■ Stopping…"; });
+    const known = () => st.cap > 0 && st.stepLabel !== "page";
+    const width = () => known() ? Math.min(100, (st.step + st.frac) / st.cap * 100) : 0;
+    const paint = () => {
+      const t = $(prefix + "PgTxt"), b = $(prefix + "PgBar");
+      if (t) t.textContent = line();
+      if (b) { b.style.width = known() ? width() + "%" : "35%"; b.classList.toggle("read-indeterminate", !known() && !st.stop); }
     };
-    const tick = (n, step) => {
-      st.n = n; st.step = step != null ? step : st.step + 1; st.frac = 0;
-      paint();
+    const startClock = () => { if (clock) clearInterval(clock); clock = setInterval(paint, 1000); };
+    const begin = () => {
+      st.stop = false; st.active = true; st.t0 = Date.now(); st.lastResponse = 0; st.throttleUntil = 0;
+      context = currentContext(); controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     };
-    // inside a step: say what is happening and how far along the step is
+    const check = () => {
+      if (st.stop || controller?.signal.aborted) throw Object.assign(new Error("Read stopped; results are incomplete"), { stopped: true });
+      if (context !== currentContext()) throw new Error("Read discarded: tenant or policy snapshot changed");
+    };
+    const start = (cap, label, stepLabel) => {
+      if (!st.active) begin();
+      st.n = 0; st.step = 0; st.cap = cap || 0; st.label = label || "records"; st.stepLabel = stepLabel || "page"; st.capped = false; st.detail = ""; st.frac = 0;
+      startClock(); paint();
+    };
+    const panel = (msg, note) => {
+      if (!st.active) start(0);
+      startClock();
+      return `<div class="run-prompt read-progress"><div class="spinner" aria-hidden="true"></div><p class="mini muted">${msg}</p>
+        <div class="ri-progwrap"><div class="ri-progbar${known() ? "" : " read-indeterminate"}" id="${prefix}PgBar" style="width:${known() ? width() : 35}%"></div></div>
+        <p class="mini" id="${prefix}PgTxt">${esc(line())}</p>
+        <span class="sr-only" role="status">Read started. Results appear as they become available.</span>
+        ${note ? `<p class="mini muted">${note}</p>` : ""}
+        ${api.stoppable ? `<button class="btn sm" data-pgstop="${prefix}" ${st.stop ? "disabled" : ""}>${st.stop ? "Stopping…" : "Stop read"}</button>` : ""}</div>`;
+    };
+    const tick = (n, step) => { check(); st.n = n; st.step = step ?? st.step + 1; st.frac = 0; st.lastResponse = Date.now(); paint(); };
     const detail = (text, frac) => { st.detail = text || ""; if (frac != null) st.frac = Math.max(0, Math.min(0.999, frac)); paint(); };
-    const stop = () => { if (clock) { clearInterval(clock); clock = null; } };
-    // Capped, narrated pager — the record cap is also the bar's 100%.
+    const stop = () => { if (clock) clearInterval(clock); clock = null; st.active = false; };
+    const requestStop = () => { st.stop = true; controller?.abort(); paint(); document.querySelectorAll(`[data-pgstop="${prefix}"]`).forEach(b => { b.disabled = true; b.textContent = "Stopping…"; }); };
     const fetchAll = async (url, cap, label, onPage) => {
       start(cap, label, "page");
-      let out = [], next = url;
-      while (next && out.length < cap) {
-        check();
-        const j = await Graph.gget(next);
-        out = out.concat(j.value || []);
-        tick(out.length);
-        if (onPage) { try { onPage(out); } catch (e) { console.warn("onPage", e); } }
-        next = j["@odata.nextLink"] || null;
-      }
-      st.capped = !!next;
-      return out.slice(0, cap);
+      try {
+        const r = await Graph.readPages(url, { cap, signal: controller?.signal, shouldStop: () => st.stop,
+          onPage: async (items, state) => { check(); st.capped = state.capped; tick(items.length, state.pages); if (onPage) await onPage(items, state); } });
+        check(); st.capped = r.capped; st.coverage = { ...r, items: undefined }; return r.items;
+      } catch (e) { st.capped = true; if (e.name === "AbortError") e.stopped = true; throw e; }
     };
-    const api = { st, panel, start, tick, detail, stop, fetchAll, begin, check, requestStop, stoppable: false };
+    const api = { st, panel, start, tick, detail, stop, fetchAll, begin, check, requestStop, stoppable: true, get signal() { return controller?.signal; } };
     PROG_REG[prefix] = api;
     return api;
   }
@@ -10911,7 +11431,7 @@ This is a directory write. Nothing else changes.`)) return;
   const auProg = makeProgress("au");
   const auBusyPanel = () => auProg.panel(
     "Reading the audit log… this keeps running if you switch tabs.",
-    `The bar runs to the ${AU_MAX.toLocaleString()}-entry cap — Conditional Access changes rarely get near it.`);
+    `Reads up to ${AU_MAX.toLocaleString()} entries; a limit is not a percentage of the requested interval.`);
 
   function openAudit() {
     crumb("🕓 Changes");
@@ -10930,7 +11450,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   $("toolAudit").addEventListener("click", () => openAudit());
   $("auRescan").addEventListener("click", () => runAudit());
-  $("auDays").addEventListener("change", (e) => { auDays = +e.target.value; if (auRes) runAudit(); });
+  $("auDays").addEventListener("change", (e) => { if (auBusy) { e.target.value = auDays; toast("Stop the current read before changing the period"); return; } auDays = +e.target.value; if (auRes) runAudit(); });
 
   async function runAudit() {
     if (auBusy) return;                       // already reading — don't start a second pass
@@ -10949,7 +11469,7 @@ This is a directory write. Nothing else changes.`)) return;
         : await Promise.all([
             auProg.fetchAll(Audit.queryPolicy(auDays), AU_MAX, "audit entries"),
             // only worth asking if any policy actually points at a group
-            watch.size ? Graph.ggetAll(Audit.queryMembership(auDays), scopes).catch(() => []) : [],
+            watch.size ? Graph.ggetAll(Audit.queryMembership(auDays), { scopes }) : [],
           ]);
       if (auProg.st.capped) toast(`Audit window truncated at ${AU_MAX.toLocaleString()} entries`);
       auRes = Audit.build([...pol, ...mem], { watch });
@@ -10965,7 +11485,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("auBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the audit log: ${esc(e.message || e)}<br>
         <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator.</span></p>
         <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-aurun>Try again</button></div>`;
-    } finally { auBusy = false; }
+    } finally { auBusy = false; auProg.stop(); }
   }
   $("auBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-aurun]")) { runAudit(); return; }
@@ -11066,7 +11586,7 @@ This is a directory write. Nothing else changes.`)) return;
 
     const q = auQuery.toLowerCase();
     const rows = r.rows.filter((x) => (auFilter === "all" || (auFilter === "new" ? auSnap && auSnap.cmp.newIds.has(x.id) : x.kind === auFilter))
-      && (!q || `${x.target} ${x.actor.name} ${x.activity} ${x.changes.map((c) => c.path).join(" ")}`.toLowerCase().includes(q)));
+      && (!q || `${x.target} ${x.actor.name} ${x.actor.upn || ""} ${x.member || ""} ${x.activity} ${x.changes.map((c) => c.path).join(" ")}`.toLowerCase().includes(q)));
     if (!rows.length) { $("auBody").innerHTML = '<p class="mini" style="padding:20px">No change matches the current filter.</p>'; return; }
 
     [...$("auViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.auview === auView));
@@ -11332,7 +11852,7 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) {
       $("drBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the configuration failed: ${esc(e.message || e)}</p></div>`;
       return null;
-    } finally { drBusy = false; }
+    } finally { drBusy = false; drProg.stop(); }
   }
 
   // AdministrativeUnit.Read.All is asked for on the click, once, like every
@@ -11664,10 +12184,10 @@ This is a directory write. Nothing else changes.`)) return;
       ugOpen.clear();
     } catch (e) {
       $("ugBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p></div>`;
-      ugBusy = false;
+      ugProg.stop(); ugBusy = false;
       return;
     }
-    ugBusy = false;
+    ugProg.stop(); ugBusy = false;
     renderGuide();
   }
 
@@ -11880,6 +12400,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   async function dvRead(key) {
+    await requireProduct("intune");
     if (isDemo) return DV_DEMO[key];
     if (key === "comp")
       return dvFillAssignments(await Graph.ggetAll("/deviceManagement/deviceCompliancePolicies?$expand=assignments"),
@@ -11891,7 +12412,7 @@ This is a directory write. Nothing else changes.`)) return;
       try {
         return await dvFillAssignments(await Graph.ggetAll("/deviceManagement/compliancePolicies?$expand=assignments"),
           "/deviceManagement/compliancePolicies");
-      } catch { return []; }
+      } catch (e) { throw new Error(`Settings-catalog compliance not read: ${e.message}`); }
     }
     if (key === "appPols") {
       const fams = [
@@ -11932,7 +12453,7 @@ This is a directory write. Nothing else changes.`)) return;
         // leaves the tool with no way to run at all short of reopening it.
         $("dvBody").innerHTML = '<div class="list-card"><p class="mini">Reading Intune needs DeviceManagementConfiguration.Read.All and DeviceManagementApps.Read.All — asked once, on this click. Without them the other half of the device grant stays unreadable.</p>'
           + '<div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-dvrun>▶ Try again</button></div>' + '</div>';
-        dvBusy = false;
+        dvProg.stop(); dvBusy = false;
         return;
       }
       const ctx = { policies: policies.map((p) => p.raw), names: {} };
@@ -12009,10 +12530,10 @@ This is a directory write. Nothing else changes.`)) return;
       }
     } catch (e) {
       $("dvBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading Intune failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-dvrun>▶ Try again</button></div></div>`;
-      dvBusy = false;
+      dvProg.stop(); dvBusy = false;
       return;
     }
-    dvBusy = false;
+    dvProg.stop(); dvBusy = false;
     renderDevCheck();
   }
 
@@ -12322,6 +12843,7 @@ This is a directory write. Nothing else changes.`)) return;
                   next = j["@odata.nextLink"] || null;
                   pages++;
                 }
+                if (next) throw new Error("Role-assigned group membership is incomplete");
               } else if (!ty.endsWith(".servicePrincipal")) {
                 ids2.push(x.id);
               }
@@ -12338,10 +12860,10 @@ This is a directory write. Nothing else changes.`)) return;
       lgRes = LicGap.analyze(ctx);
     } catch (e) {
       $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-lgrun>▶ Try again</button></div></div>`;
-      lgBusy = false;
+      lgProg.stop(); lgBusy = false;
       return;
     }
-    lgBusy = false;
+    lgProg.stop(); lgBusy = false;
     renderLicGap();
   }
 
@@ -12774,22 +13296,12 @@ This is a directory write. Nothing else changes.`)) return;
   let logCache = null;   // { days, source, records, capped, at }
   const LOG_CACHE_MAX_AGE = 10 * 60 * 1000;   // beyond this, offer it but say so
 
-  // ---------- the sign-in SOURCE ----------
-  // Two ways to read the same sign-ins:
-  //   entra    the Graph sign-in list — interactive only, capped at SI_MAX,
-  //            AuditLog.Read.All. The default, and the only one on a tenant
-  //            without Defender.
-  //   hunt     Defender advanced hunting (EntraIdSignInEvents) — the same
-  //            interactive sign-ins, no cap, 30 days, ThreatHunting.Read.All.
-  //   huntall  hunting including NON-INTERACTIVE sign-ins: token refreshes
-  //            and background client sign-ins, which the Graph list never
-  //            returns — where sign-in-frequency re-prompts, legacy-protocol
-  //            blocks of service accounts and token-protection failures live.
-  // Chosen once per tenant, kept in the browser; the four tools that read
-  // sign-ins (🚦, 🎚, 🕵, 🌊) carry the same segment and share the window.
+  // Graph is the P1 source. Non-interactive user events are an explicit beta
+  // query choice. Hunting is optional and has separate product/access checks.
   const LOG_SOURCES = [
     ["entra", "Entra sign-in log", `interactive · cap ${SI_MAX.toLocaleString()} · AuditLog.Read.All`],
-    ["hunt", "Defender hunting", "interactive · 30 days · no cap · ThreatHunting.Read.All"],
+    ["entraall", "Entra + non-interactive · preview", "P1/P2 · Graph beta · interactive and non-interactive users · capped reads are labelled"],
+    ["hunt", "Defender hunting", "P2 plus hunting access · interactive · time slices can be capped"],
     ["huntall", "Hunting + non-interactive", "token refreshes and background sign-ins too"],
   ];
   const LOG_SRC_KEY = () => `enca-logsource:${tenantId || "demo"}`;
@@ -12809,27 +13321,73 @@ This is a directory write. Nothing else changes.`)) return;
       before ? tb.insertBefore(seg, before) : tb.appendChild(seg);
     }
     [...seg.children].forEach((b) => b.classList.toggle("active", b.dataset.logsrc === logSource));
+    // 💾 Keep on this device (R58) sits right after the source it applies to —
+    // one button on every toolbar that carries the segment, one state.
+    let keep = tb.querySelector("[data-sistore]");
+    if (!keep) {
+      keep = document.createElement("button"); keep.className = "btn sm sistore"; keep.dataset.sistore = "1";
+      keep.title = "Keep the report-only verdicts this browser reads for this tenant, so a later look only asks Microsoft for the hours it does not hold yet. Off by default; says what it keeps; Forget deletes it.";
+      seg.insertAdjacentElement("afterend", keep);
+    }
+    paintStoreButtons();
   }
+  async function paintStoreButtons() {
+    const on = !isDemo && tenantId ? await SigninStore.enabled(tenantId) : false;
+    document.querySelectorAll("[data-sistore]").forEach((b) => { b.textContent = on ? "💾 Kept on this device" : "💾 Keep on this device"; b.classList.toggle("on", on); b.disabled = !!isDemo; b.title = isDemo ? "The demo tenant keeps nothing" : b.title; });
+  }
+  async function openStoreModal() {
+    if (isDemo || !tenantId) { toast("Sign in to a tenant first — the demo keeps nothing"); return; }
+    const c = await SigninStore.consent(tenantId), s = await SigninStore.summary(tenantId);
+    $("ssTenant").textContent = tenantName || tenantId;
+    $("ssTtl").value = String((c && c.ttlDays) || SigninStore.DEFAULT_TTL_DAYS);
+    $("ssState").innerHTML = c && c.on
+      ? `<b>On</b> since ${esc(new Date(c.at).toLocaleString())} · ${s.hours.toLocaleString()} hour${s.hours === 1 ? "" : "s"} held (${s.rows.toLocaleString()} rows, about ${Math.max(1, Math.round(s.bytes / 1024)).toLocaleString()} KB) · kept ${c.ttlDays} days · stored in this browser's ${s.backend === "indexeddb" ? "IndexedDB" : "memory for this tab only — IndexedDB is not available here"}`
+      : `<b>Off</b> — nothing is kept for this tenant. Every read asks Microsoft for the whole window.`;
+    $("ssKeep").textContent = c && c.on ? "Keep on with these settings" : "Keep sign-ins on this device";
+    $("ssOff").style.display = c && c.on ? "" : "none";
+    $("siStoreModal").classList.add("open");
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-sistore]")) openStoreModal(); });
+  $("ssKeep").addEventListener("click", async () => {
+    await SigninStore.setConsent(tenantId, { on: true, ttlDays: +$("ssTtl").value });
+    $("siStoreModal").classList.remove("open"); paintStoreButtons();
+    toast("Report-only verdicts for this tenant are kept on this device — the next read only asks for new hours");
+  });
+  $("ssOff").addEventListener("click", async () => {
+    await SigninStore.setConsent(tenantId, { on: false });
+    roCache = null; $("siStoreModal").classList.remove("open"); paintStoreButtons();
+    toast("Forgotten — nothing is kept for this tenant any more");
+  });
+  $("ssForgetAll").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await SigninStore.forgetAll(); roCache = null; $("siStoreModal").classList.remove("open"); paintStoreButtons();
+    toast("Every tenant's stored sign-ins are gone from this browser");
+  });
+  $("ssClose").addEventListener("click", () => $("siStoreModal").classList.remove("open"));
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-logsrc]"); if (!b) return;
     const v = b.dataset.logsrc; if (v === logSource) return;
+    if (siBusy || riBusy || woBusy || wvBusy || scBusy) { toast("Stop or finish the current sign-in read before changing its source"); return; }
     logSource = v;
     try { localStorage.setItem(LOG_SRC_KEY(), v); } catch {}
     document.querySelectorAll(".logsrc-seg").forEach((seg) => [...seg.children].forEach((x) => x.classList.toggle("active", x.dataset.logsrc === v)));
-    logCache = null;
+    logCache = null; roCache = null;
+    siRes = null; riRes = null; woRes = null; wvRes = null; scRes = null;
     toast(`Sign-ins now read from <span>${esc(logSourceLabel())}</span>`);
     // the tool that is open re-reads with the new source; the others re-read when opened
-    if (typeof siRes !== "undefined" && siRes && $("screen-signins").classList.contains("active")) runSignins(true);
-    else if (typeof riRes !== "undefined" && riRes && $("screen-impact").classList.contains("active")) runImpact(true);
-    else if (typeof woRes !== "undefined" && woRes && $("screen-whois").classList.contains("active")) runWhoIs(true);
-    else if (typeof wvRes !== "undefined" && wvRes && $("screen-wave").classList.contains("active")) runWave(true);
+    if (typeof siRes !== "undefined" && $("screen-signins").classList.contains("active")) runSignins(true);
+    else if (typeof riRes !== "undefined" && $("screen-impact").classList.contains("active")) runImpact(true);
+    else if (typeof woRes !== "undefined" && $("screen-whois").classList.contains("active")) runWhoIs(true);
+    else if (typeof wvRes !== "undefined" && $("screen-wave").classList.contains("active")) runWave(true);
   });
 
   // the demo honours the source too: the hunting-with-non-interactive choice
   // adds the token-refresh sign-ins the Graph list would never return
-  const demoSignIns = () => ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || []).concat(logSource === "huntall" ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.demoNonInteractive) || []) : []);
+  const demoSignIns = () => ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.signIns) || []).concat((logSource === "huntall" || logSource === "entraall") ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.demoNonInteractive) || []) : []);
   function logCacheAge() { return logCache ? Date.now() - logCache.at : Infinity; }
-  function logCacheUsable(days) { return !!logCache && logCache.days === days && logCache.source === logSource; }
+  const isGraphLogSource = source => source === "entra" || source === "entraall";
+  const logReadKey = (days, source = logSource) => JSON.stringify([tenantId, isDemo, policiesReadAt, days, source]);
+  function logCacheUsable(days) { return !!logCache && logCache.key === logReadKey(days); }
 
   // Hunting read: one query per day (each under the 50 MB response cap), the
   // table name falling back to the pre-October-2026 one, a day that hits the
@@ -12870,81 +13428,161 @@ This is a directory write. Nothing else changes.`)) return;
   // STILL fails on size — a large tenant's non-interactive traffic, each row
   // carrying the policies JSON — lowers its row cap and retries, down to
   // 1,000 rows, and is reported as capped rather than failing the read.
+  //
+  // THE STRIDE (25375). Halving used to start over at 24 hours for EVERY
+  // day. A tenant whose non-interactive traffic needs 22-minute slices paid
+  // 63 failed queries for the 64 that returned rows — 1 + 2 + 4 + 8 + 16 + 32
+  // on the way down — every day of the window, and every one of them spent
+  // the tenant's hunting CPU allocation on a query that returned nothing
+  // ("query 84 running · 45 slices halved", fifteen minutes into day one).
+  // The slice length that last worked is now the STRIDE: the next slice
+  // starts at that length, not at a day. It shrinks on a halving, it grows
+  // again (doubles) after three slices in a row came back at a third of the
+  // cap or less — night traffic is a fraction of the day's — and it is kept
+  // per tenant and source in localStorage so the next session starts where
+  // this one ended. Reads filtered to one user or to enforced failures are
+  // a few hundred rows a day and keep the plain day slice.
   const HUNT_MIN_SLICE_MS = 15 * 60 * 1000;
   const HUNT_MIN_CAP = 1000;
+  const HUNT_WORKERS = 4;
+  const HUNT_DAY_MS = 86400000;
+  const HUNT_STRIDE_KEY = (source, kind) => `enca-huntstride:${tenantId || "demo"}:${source}:${kind}`;
+  const loadStride = (source, kind) => { try { const v = +localStorage.getItem(HUNT_STRIDE_KEY(source, kind)); return v >= HUNT_MIN_SLICE_MS && v <= HUNT_DAY_MS ? v : HUNT_DAY_MS; } catch { return HUNT_DAY_MS; } };
+  const saveStride = (source, kind, v) => { try { localStorage.setItem(HUNT_STRIDE_KEY(source, kind), String(Math.round(v))); } catch { /* private mode */ } };
   const isSizeError = (e) => /exceeded the allowed result size|result size|too large|ResultSize/i.test((e && e.message) || "");
+  // opts: source, userId, enforcedOnly, onPartial(records, done, total) — and,
+  // for a reader that wants a different query over the same slicing:
+  //   from / to   the window in ms (default: the last `days`)
+  //   query(from, to, cap, part) → KQL, shape(rows) → records, kind (stride key),
+  //   cap (row cap), label (progress noun)
+  //   parts       (25380) values the window is read once per — one query per
+  //               day × part (the bucket read passes the report-only policy
+  //               ids, so a day of a large tenant stays under the row cap
+  //               without time slicing); partLabel(part) names it on the line
+  //   onRows(records, info) (25380) — STREAMING: called with every slice's
+  //               records as they land and the records are NOT kept; the
+  //               result's records is then empty and its count says how many
+  //               went by. info = { from, to, part, done, total, capped }
   async function readSignInsHunting(days, prog, opts = {}) {
-    const interactiveOnly = logSource !== "huntall";
-    const now = Date.now(), start = now - days * 86400000;
-    const dayMs = 86400000;
+    const source = opts.source || logSource;
+    await requireProduct("p2");
+    const interactiveOnly = source !== "huntall";
+    const dayMs = HUNT_DAY_MS;
+    const now = opts.to ?? Date.now(), start = opts.from ?? (now - days * dayMs);
+    // Timespan must cover the oldest instant the query names, however the
+    // window was given.
+    const spanDays = Math.max(1, Math.ceil((Date.now() - start) / dayMs));
+    const parts = opts.parts && opts.parts.length ? opts.parts : [undefined];
     const slices = [];
-    for (let t = start; t < now; t += dayMs) slices.push([t, Math.min(t + dayMs, now)]);
-    prog.start(slices.length, "sign-ins", "day");
-    let out = [], capped = false, splits = 0, lowered = 0, dayStart = 0, dayCovered = 0, queries = 0;
+    for (let t = start; t < now; t += dayMs) for (const part of parts) slices.push([t, Math.min(t + dayMs, now), part]);
+    prog.start(slices.length, opts.label || "sign-ins", opts.stepLabel || (parts.length > 1 ? "read" : "day"));
+    const strided = !opts.userId && !opts.enforcedOnly;
+    const kind = opts.kind || "rows";
+    let stride = strided ? loadStride(source, kind) : dayMs;
+    const cap0 = opts.cap || Signins.HUNT_CAP;
+    const shape = opts.shape || Signins.fromHunting;
+    const buildQuery = opts.query || ((from, to, cap, part) => Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim }));
+    let out = [], count = 0, capped = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
+    // Priming: with several workers every day would start its own descent
+    // from 24 hours before the first one had learnt anything. When no stride
+    // is known yet, the first worker reads alone until one slice has come
+    // back, and the others start at the stride it found.
+    let primeResolve = null;
+    const primed = strided && stride >= dayMs && slices.length > 1 ? new Promise((res) => { primeResolve = res; }) : null;
+    const prime = () => { if (primeResolve) { primeResolve(); primeResolve = null; } };
     const hm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
     const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
+    const strideLabel = () => stride >= dayMs ? "" : stride >= 3600000 ? ` · ${Math.round(stride / 360000) / 10} h slices` : ` · ${Math.round(stride / 60000)} min slices`;
     // Every query is said while it runs: which day, which slice of it, how
-    // many rows so far, how many slices were halved. A large tenant's day of
-    // non-interactive sign-ins is dozens of queries of a minute each, and
-    // "waiting for the first page" for that long reads as nothing happening.
-    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, dayCovered / dayMs);
-    const readSlice = async (from, to, cap) => {
+    // many rows so far, how many slices were halved, what the stride is. A
+    // large tenant's day of non-interactive sign-ins is dozens of queries of
+    // a minute each, and "waiting for the first page" for that long reads as
+    // nothing happening. The bar's fraction is the coverage of the days in
+    // flight, clamped — with several workers it is indicative, not exact.
+    let curPart = undefined;
+    const say = (from, to, what) => prog.detail(`${dayLabel(from)} ${hm(from)}–${hm(to)}${curPart !== undefined && opts.partLabel ? ` · ${opts.partLabel(curPart)}` : ""}${what ? ` · ${what}` : ""}${splits ? ` · ${splits} slice${splits === 1 ? "" : "s"} halved` : ""}${lowered ? ` · ${lowered} capped` : ""}${strided ? strideLabel() : ""}${interactiveOnly ? "" : " · incl. non-interactive"}`, Math.min(0.999, covered / dayMs));
+    const halve = async (from, to, part) => {
+      splits++;
+      if (strided) { stride = Math.max(HUNT_MIN_SLICE_MS, Math.min(stride, Math.floor((to - from) / 2))); easy = 0; }
+      const mid = from + Math.floor((to - from) / 2);
+      await readSlice(from, mid, undefined, part); await readSlice(mid, to, undefined, part);
+    };
+    const readSlice = async (from, to, cap, part) => {
       if (prog.check) prog.check();
-      cap = cap || Signins.HUNT_CAP;
-      const q = Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim });
+      cap = cap || cap0; curPart = part;
+      const q = buildQuery(from, to, cap, part);
       let rows;
       queries++;
-      say(from, to, `query ${queries} running${cap < Signins.HUNT_CAP ? ` (cap ${cap.toLocaleString()})` : ""}${huntSlim ? "" : " · full rows"}`);
-      try { rows = await huntRun(q, days); }
+      say(from, to, `query ${queries} running${cap < cap0 ? ` (cap ${cap.toLocaleString()})` : ""}${huntSlim || opts.query ? "" : " · full rows"}`);
+      try { rows = await huntRun(q, spanDays); }
       catch (e) {
         // The slim query uses mv-apply / make_list_if; a schema or engine
         // that refuses it must not fail the read — fall back to full rows
         // for the rest of the session and say so on the line.
-        if (huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
+        if (!opts.query && huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
           console.warn("hunting: slim query refused, reading full rows", e.message);
           huntSlim = false;
           return readSlice(from, to, cap);
         }
         if (isSizeError(e)) {
-          if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
-          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; await readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2))); return; }
+          if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to, part);
+          if (cap > HUNT_MIN_CAP) { lowered++; capped = true; return readSlice(from, to, Math.max(HUNT_MIN_CAP, Math.floor(cap / 2)), part); }
         }
         throw e;
       }
+      let sliceCapped = false;
       if (rows.length >= cap) {
-        if (to - from > HUNT_MIN_SLICE_MS) { splits++; const mid = from + Math.floor((to - from) / 2); await readSlice(from, mid); await readSlice(mid, to); return; }
-        capped = true;
+        if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to, part);
+        capped = true; sliceCapped = true;
+      } else if (strided && to - from >= stride && stride < dayMs) {
+        // a whole stride (not the tail of a day) well under the cap: three
+        // of those in a row and the stride doubles
+        if (rows.length * 3 <= cap) { if (++easy >= 3) { stride = Math.min(dayMs, stride * 2); easy = 0; } }
+        else easy = 0;
       }
-      out = out.concat(Signins.fromHunting(rows));
-      dayCovered = Math.min(dayMs, to - dayStart);
-      prog.st.n = out.length;
+      const recs = shape(rows);
+      count += recs.length;
+      if (opts.onRows) { await opts.onRows(recs, { from, to, part, done, total: slices.length, capped: sliceCapped }); }
+      else out = out.concat(recs);
+      covered += to - from;
+      prog.st.n = count;
       say(from, to, `${rows.length.toLocaleString()} rows`);
+      prime();
     };
-    // Two days at a time (25328). Each hunting query is a round trip of
-    // seconds to a minute that the browser only waits on; two in flight
-    // roughly halve the wall clock without troubling the per-tenant call
-    // limits, and the order of the result does not matter. After every
+    // A day is walked in strides. The stride can shrink (a halving inside
+    // readSlice) or grow (three easy slices) while the walk is under way;
+    // the walk simply continues from where the last slice ended.
+    const readDay = async (from, to, part) => {
+      for (let t = from; t < to;) { const end = Math.min(t + stride, to); await readSlice(t, end, undefined, part); t = end; }
+    };
+    // Several days at a time (two since 25328, four since 25375). Each
+    // hunting query is a round trip of seconds to a minute that the browser
+    // only waits on; the documented floor is 45 calls a minute per tenant
+    // and Graph.gpost waits out a 429's Retry-After, so four in flight are
+    // safe, and the order of the result does not matter. After every
     // finished day opts.onPartial(records so far, done, total) lets the
     // caller show what it already has.
     let next = 0, done = 0;
-    const worker = async () => {
+    const worker = async (w) => {
+      if (w && primed) await primed;
       while (next < slices.length) {
         const i = next++;
         if (prog.check) prog.check();
-        dayStart = slices[i][0]; dayCovered = 0;
-        await readSlice(slices[i][0], slices[i][1]);
+        try { await readDay(slices[i][0], slices[i][1], slices[i][2]); } finally { prime(); }
         done++;
-        prog.tick(out.length, done);
-        if (opts.onPartial) { try { opts.onPartial(out.slice(), done, slices.length); } catch (e) { console.warn("onPartial", e); } }
+        covered = Math.max(0, covered - dayMs);
+        prog.tick(count, done);
+        if (opts.onPartial) { try { await opts.onPartial(out.slice(), done, slices.length); } catch (e) { console.warn("onPartial", e); } }
       }
     };
-    // allSettled, not all: on a stop or a failure the other worker's query
-    // is still in flight, and the read must not report done while it is
-    const settled = await Promise.allSettled([worker(), worker()]);
+    // allSettled, not all: on a stop or a failure the other workers' queries
+    // are still in flight, and the read must not report done while they are
+    const settled = await Promise.allSettled(Array.from({ length: Math.min(HUNT_WORKERS, slices.length) }, (_, w) => worker(w)));
+    if (strided) saveStride(source, kind, stride);
     const bad = settled.find((r) => r.status === "rejected");
     if (bad) throw bad.reason;
     prog.detail("");
-    return { records: out, capped, splits };
+    return { records: out, count, capped, splits, queries };
   }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
@@ -12957,33 +13595,144 @@ This is a directory write. Nothing else changes.`)) return;
   let logInflight = null;   // { days, source, promise, prog }
   let huntSlim = true;      // the mv-apply slimming of the policy JSON (25328); off after one refusal
   async function readSignInWindow(days, prog, force, onPartial) {
+    const source = logSource, key = logReadKey(days, source);
+    const check = () => { if (key !== logReadKey(days)) throw new Error("Sign-in read discarded: tenant, source or policy snapshot changed"); };
     if (!force && logCacheUsable(days)) return { ...logCache, reused: true };
-    if (!force && logInflight && logInflight.days === days && logInflight.source === logSource) {
+    if (!force && logInflight?.key === key) {
       const other = logInflight;
       prog.start(other.prog.st.cap, other.prog.st.label, other.prog.st.stepLabel);
-      const mirror = setInterval(() => { const s = other.prog.st; prog.st.n = s.n; prog.st.step = s.step; prog.st.cap = s.cap; prog.st.label = s.label; prog.st.stepLabel = s.stepLabel; prog.st.frac = s.frac; prog.st.t0 = s.t0; prog.detail(`${other.by} is already reading this window — joining that read${s.detail ? ` · ${s.detail}` : ""}`); }, 1000);
-      // A stop while joined leaves the join; the other tool's read goes on.
-      const leave = new Promise((_, rej) => { const t = setInterval(() => { if (prog.st.stop) { clearInterval(t); rej(Object.assign(new Error("stopped"), { stopped: true })); } }, 500); other.promise.then(() => clearInterval(t), () => clearInterval(t)); });
-      try { await Promise.race([other.promise, leave]); } finally { clearInterval(mirror); prog.detail(""); }
-      if (logCacheUsable(days)) return { ...logCache, reused: true };
-      // the read we joined failed or was replaced — fall through to our own
+      const mirror = setInterval(() => { try { const s = other.prog.st; prog.tick(s.n, s.step); prog.detail(`Sharing the current sign-in read · ${s.detail || "waiting for Microsoft"}`); } catch { /* the leave timer rejects this subscriber */ } }, 1000);
+      let cancel;
+      const leave = new Promise((_, reject) => { cancel = setInterval(() => { try { prog.check(); } catch (e) { reject(e); } }, 250); });
+      try { const result = await Promise.race([other.promise, leave]); check(); return { ...result, reused: true }; }
+      finally { clearInterval(mirror); clearInterval(cancel); }
     }
-    let records, capped;
+    const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
     const run = (async () => {
-      if (logSource === "entra") {
-        // partial every 5 pages: 5,000 sign-ins is worth a first look
-        let pages = 0;
-        records = await prog.fetchAll(ReportImpact.query(days), SI_MAX, "sign-ins", onPartial ? (sofar) => { if (++pages % 5 === 0) onPartial(sofar.slice(), pages, null); } : null);
+      let records, capped;
+      if (isGraphLogSource(source)) {
+        records = await prog.fetchAll(ReportImpact.query(days, source === "entraall"), SI_MAX, "sign-ins", partial ? (rows, state) => partial(rows.slice(), state.pages, null) : null);
         capped = !!prog.st.capped;
       } else {
-        if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
-        ({ records, capped } = await readSignInsHunting(days, prog, { onPartial }));
+        await requireProduct("p2");
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the P1 Entra log remains available");
+        ({ records, capped } = await readSignInsHunting(days, prog, { source, onPartial: partial }));
       }
-      logCache = { days, source: logSource, records, capped, at: Date.now() };
+      check();
+      const times = records.map(r => r.createdDateTime).filter(Boolean).sort();
+      const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest: times[0] || null, newest: times.at(-1) || null };
+      logCache = result; return result;
     })();
-    logInflight = { days, source: logSource, promise: run, prog, by: prog.by || "another tool" };
-    try { await run; } finally { if (logInflight && logInflight.promise === run) logInflight = null; prog.stop(); }
-    return { ...logCache, reused: false };
+    logInflight = { key, days, source, promise: run, prog };
+    try { return { ...await run, reused: false }; }
+    finally { if (logInflight?.promise === run) logInflight = null; }
+  }
+  function coverageHtml(c, count) {
+    if (!c) return "";
+    const time = v => v ? new Date(v).toLocaleString() : "no events";
+    return `<p class="mini muted">${c.complete ? "Query complete" : "Partial query — not the full requested interval"} · ${(count ?? c.records.length).toLocaleString()} events · observed ${esc(time(c.oldest))} to ${esc(time(c.newest))} · read ${esc(new Date(c.at).toLocaleString())}</p>`;
+  }
+  const logCoverageHtml = (days) => coverageHtml(logCacheUsable(days) ? logCache : null);
+
+  // ---- Report-only verdicts as buckets (T26 2.0, 25377) --------------------
+  // The hunting sources answer Report-only impact with Signins.roBucketQuery:
+  // the verdicts summarised per day × policy × verdict × user × app, one
+  // query a day instead of dozens of row slices, through the same slicing,
+  // stride, priming and Stop as the row read (opts.query / shape / kind).
+  // Its own cache — the rows cache stays what 🕵 🌊 🛂 read. A query the
+  // tenant's hunting engine refuses (a schema without the functions, an
+  // older table shape) falls back to the row read for the rest of the
+  // session and says so, so the forecast never fails for the query's sake.
+  let roCache = null;      // { key, days, source, records, capped, complete, at, oldest, newest, queries }
+  let roBucketsOk = true;
+  const roReadKey = (days, source = logSource) => JSON.stringify([tenantId, isDemo, policiesReadAt, days, source, "ro"]);
+  const roCacheUsable = (days) => !!roCache && roCache.key === roReadKey(days);
+  const roCoverageHtml = (days) => {
+    if (!roCacheUsable(days)) return "";
+    const c = roCache, s = c.stored;
+    const line = coverageHtml(c, c.signIns);
+    if (!s) return line;
+    const note = s.days ? `${s.days} of ${s.of} settled day${s.of === 1 ? "" : "s"} from this device, ${s.read} day${s.read === 1 ? "" : "s"} and the current day from Microsoft just now (the window starts at a day boundary)` : `nothing held for this window yet — all ${s.of} day${s.of === 1 ? "" : "s"} read from Microsoft and kept on this device for next time`;
+    return line.replace("</p>", ` · 💾 ${note}</p>`);
+  };
+  const isRoRefusal = (e) => /semantic|syntax|SEM0|not recognized|unknown function|union|arg_max|take_any|mv-expand|bin\(/i.test(String((e && e.message) || ""));
+  // THE ON-DEVICE STORE (R58, 25378; days since 25379; streaming since 25380).
+  // With the tenant's consent the buckets are kept in this browser
+  // (js/signinstore.js) and a later read asks Microsoft only for the DAYS the
+  // store lacks. The day is the unit because the query comes back per day
+  // (UTC) and days add up over disjoint time. The current day — and the
+  // previous one within SETTLE_HOURS of midnight, since sign-ins reach the
+  // hunting table with a lag — is never trusted from the store: that tail is
+  // re-read every time. The window's start is floored to the day when the
+  // store is in use, so the forecast covers whole days (a little more
+  // evidence than asked, never less); the coverage line says so. A capped
+  // read is shown but its days are never marked covered.
+  //
+  // NOTHING IS KEPT IN THE TAB (25380). 25378/25379 held every record of the
+  // window in memory and a large tenant's week was more than a tab holds. The
+  // read is a STREAM now: every slice's records go to sink.onRows(records,
+  // note) — the caller folds them into ReportImpact.accumulator and lets them
+  // go — and, with the store on, to the device chunk by chunk. What the
+  // device already holds is streamed to the sink FIRST (note "held") so the
+  // screen shows the forecast the device has before Microsoft has answered.
+  // The query runs once per report-only policy per day (parts) so a day of a
+  // large tenant stays under the row cap without time slicing. Without
+  // consent this is the 25377 read, streamed.
+  const SETTLE_HOURS = 2;
+  async function readRoBuckets(days, prog, force, sink) {
+    const source = logSource, key = roReadKey(days, source);
+    if (!force && roCacheUsable(days)) return { ...roCache, reused: true };
+    await requireProduct("p2");
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the P1 Entra log remains available");
+    const interactiveOnly = source !== "huntall";
+    const check = () => { if (key !== roReadKey(days)) throw new Error("Sign-in read discarded: tenant, source or policy snapshot changed"); };
+    // one part per report-only policy; the totals travel with the first part
+    const ro = (policies || []).filter((p) => p.state === "enabledForReportingButNotEnforced");
+    const parts = ro.length ? ro.map((p) => p.id) : [null];
+    const nameOf = new Map(ro.map((p) => [p.id, p.name]));
+    let signIns = 0, oldest = null, newest = null, queries = 0, capped = false;
+    const meta = (recs) => { for (const r of recs) { if (r.kind === "n") signIns += r.signIns || 0; const t = r.createdDateTime; if (t) { if (!oldest || t < oldest) oldest = t; if (!newest || t > newest) newest = t; } } };
+    const opts = (from, to, onRows) => ({
+      source, kind: "ro", label: "verdict rows", from, to, cap: Signins.RO_CAP, parts,
+      partLabel: (id) => id ? `policy ${parts.indexOf(id) + 1} of ${parts.length}${nameOf.get(id) ? ` · ${nameOf.get(id)}` : ""}` : "",
+      onRows: async (recs, info) => { check(); meta(recs); await onRows(recs, info); },
+      query: (a, b, cap, part) => Signins.roBucketQuery({ from: new Date(a).toISOString(), to: new Date(b).toISOString(), table: huntTable, interactiveOnly, cap, policyId: part || undefined, withTotals: !part || part === parts[0] }),
+      shape: Signins.fromRoBuckets,
+    });
+    const U = SigninStore.UNIT, now = Date.now();
+    const start = SigninStore.floorUnit(now - days * 86400000), settled = SigninStore.floorUnit(now - SETTLE_HOURS * SigninStore.HOUR);
+    const useStore = !isDemo && tenantId && await SigninStore.enabled(tenantId);
+    let stored = { days: 0, of: 0, read: 0 };
+    if (!useStore || settled <= start) {
+      const r = await readSignInsHunting(days, prog, { ...opts(undefined, undefined, (recs) => sink.onRows(recs, "read")), from: undefined, to: undefined });
+      capped = r.capped; queries = r.queries;
+    } else {
+      const cov = await SigninStore.coverage(tenantId, source, "ro");
+      const gaps = force ? [[start, settled]] : SigninStore.missing([start, settled], cov);
+      stored.of = Math.round((settled - start) / U);
+      stored.days = force ? 0 : Math.round(SigninStore.covered([start, settled], cov) / U);
+      stored.read = stored.of - stored.days;
+      // what the device holds, day by day, before any query
+      if (!force) await SigninStore.forBuckets(tenantId, source, start, settled, async (rows) => { check(); meta(rows); await sink.onRows(rows, "held"); });
+      for (const [a, b] of gaps) {
+        // the gap's days start empty on the device; every slice that lands is
+        // appended to its day; the gap is marked covered only if no slice was capped
+        await SigninStore.clearBuckets(tenantId, source, a, b);
+        let gapCapped = false;
+        const r = await readSignInsHunting(0, prog, opts(a, b, async (recs, info) => {
+          if (info.capped) gapCapped = true;
+          await SigninStore.appendBuckets(tenantId, source, info.from, recs);
+          await sink.onRows(recs, "read");
+        }));
+        check(); queries += r.queries;
+        if (r.capped || gapCapped) capped = true; else await SigninStore.addCoverage(tenantId, source, "ro", [a, b]);
+      }
+      // the unsettled tail: read every time, never kept, never counted as covered
+      const tail = await readSignInsHunting(0, prog, opts(settled, now, (recs) => sink.onRows(recs, "read")));
+      check(); queries += tail.queries; if (tail.capped) capped = true;
+    }
+    const result = { key, days, source, capped, complete: !capped, at: Date.now(), oldest, newest, queries, signIns, buckets: true, stored: useStore ? stored : null, parts: parts.length };
+    roCache = result; return { ...result, reused: false };
   }
   const logAgeLabel = () => {
     const m = Math.round(logCacheAge() / 60000);
@@ -13062,10 +13811,11 @@ This is a directory write. Nothing else changes.`)) return;
   }
   $("toolSignins").addEventListener("click", () => openSignins());
   $("siRescan").addEventListener("click", () => runSignins(true));
-  $("siDays").addEventListener("change", (e) => { siDays = +e.target.value; if (siRes) runSignins(); });
+  $("siDays").addEventListener("change", (e) => { if (siBusy) { e.target.value = siDays; toast("Stop the current read before changing the period"); return; } siDays = +e.target.value; if (siRes) runSignins(); });
   $("siModeSeg").addEventListener("click", (e) => {
     const b = e.target.closest("[data-simode]"); if (!b) return;
     if (siMode === b.dataset.simode) return;
+    if (siBusy) { toast("Stop the current read before changing mode"); return; }
     siMode = b.dataset.simode;
     [...$("siModeSeg").children].forEach((x) => x.classList.toggle("active", x.dataset.simode === siMode));
     if (siRes || siBusy) runSignins(); else openSignins();
@@ -13075,6 +13825,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   let siReused = false;
   async function runSignins(force) {
+    const runKey = logReadKey(siDays);
     if (siBusy) return;                       // already reading — don't start a second pass
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
     siBusy = true; siCapped = false;
@@ -13090,7 +13841,7 @@ This is a directory write. Nothing else changes.`)) return;
         // otherwise it reads only the failures and interrupts, filtered in
         // KQL — a large tenant's day is hundreds of rows instead of hundreds
         // of thousands — and leaves the shared cache alone.
-        if (siMode !== "reportonly" && !(!force && logCacheUsable(siDays))) {
+        if (!isGraphLogSource(logSource) && siMode !== "reportonly" && !(!force && logCacheUsable(siDays))) {
           if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
           const h = await readSignInsHunting(siDays, siProg, { enforcedOnly: true });
           records = h.records; siCapped = h.capped;
@@ -13116,24 +13867,28 @@ This is a directory write. Nothing else changes.`)) return;
           siCapped = siCapped || siProg.st.capped;
           for (const r of ints) if (!seen.has(r.id)) records.push(r);
         } catch (e) {
+          if (e.stopped) throw e;
+          siCapped = true;
           console.warn("sign-ins: interrupt read failed, showing failures only", e.message);
           toast("Could not read the interrupted sign-ins — showing the failures only");
         }
       }
       siReused = reused;
+      if (runKey !== logReadKey(siDays)) throw new Error("Read discarded: selected range, source or tenant changed");
+      siProg.check();
       siRes = Signins.build(records, siMode);
       siOpen.clear(); siFilter = "all";
       siBusy = false;
       $("siRescan").style.display = "";
       renderSignins();
-      if (!siRes.total) toast(`No Conditional Access ${siModeLabel()} in this window`);
+      if (!siRes.total && !siCapped) toast(`No Conditional Access ${siModeLabel()} in this window`);
     } catch (e) {
       console.error("Sign-in failures read failed:", e);
       siBusy = false;
       $("siBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the sign-in log: ${esc(e.message || e)}<br>
         <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator. The sign-in log also needs an Entra ID P1/P2 licence.</span></p>
         <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-sirun>Try again</button></div>`;
-    } finally { siBusy = false; }
+    } finally { siBusy = false; siProg.stop(); }
   }
 
   // ---- replay a logged sign-in in What-If --------------------------------
@@ -13222,15 +13977,17 @@ This is a directory write. Nothing else changes.`)) return;
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.total}<span class="mini" style="font-weight:400"> sign-ins</span></div>
-        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}</div>
+        <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}${r.authGap ? ` · <span style="color:var(--off)" title="The second factor was asked for and never came — a password where MFA or an authentication strength was required">${r.authGap} without the MFA asked</span>` : ""}</div>
         <div class="mini muted">source: ${esc(logSourceLabel())}${r.nonInteractive ? ` · <button class="fchip ${siFilter === "kind:int" ? "active" : ""}" data-sif="kind:int" style="padding:1px 8px;font-size:11px">${r.total - r.nonInteractive} interactive</button> <button class="fchip ${siFilter === "kind:non" ? "active" : ""}" data-sif="kind:non" style="padding:1px 8px;font-size:11px">${r.nonInteractive} non-interactive</button>` : ""}</div>
-        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()} sign-ins` : " — a day hit the hunting row cap"}</div>` : ""}
+        ${logCoverageHtml(siDays)}
+        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()} sign-ins` : " — a day hit the hunting row cap"}</div>` : ""}
       </div></div>`;
 
     const chips = [["all", `All (${r.total})`],
       ...(siMode !== "reportonly" && r.interrupted
         ? [["blk", `Blocked (${r.total - r.interrupted})`], ["int", `Interrupted (${r.interrupted})`]] : []),
       ...(r.nonInteractive ? [["kind:int", `Interactive (${r.total - r.nonInteractive})`], ["kind:non", `Non-interactive (${r.nonInteractive})`]] : []),
+      ...(r.authGap ? [["auth:gap", `🔑 MFA asked, not given (${r.authGap})`]] : []),
       ...r.policies.slice(0, 8).map((p) => [p.key, `${p.name.length > 34 ? p.name.slice(0, 32) + "…" : p.name} (${p.count})`])];
     $("siChips").innerHTML = chips.map(([k, l]) => `<button class="fchip ${siFilter === k ? "active" : ""}" data-sif="${esc(k)}">${esc(l)}</button>`).join("");
 
@@ -13238,8 +13995,9 @@ This is a directory write. Nothing else changes.`)) return;
     const match = (x) => (siFilter === "all"
         || (siFilter === "int" ? x.interrupted : siFilter === "blk" ? !x.interrupted
           : siFilter === "kind:int" ? x.interactive : siFilter === "kind:non" ? !x.interactive
+          : siFilter === "auth:gap" ? !!(x.auth && x.auth.gap)
           : x.policies.some((p) => (p.id || p.name) === siFilter)))
-      && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")}`.toLowerCase().includes(q));
+      && (!q || `${x.user} ${x.upn} ${x.app} ${x.ip} ${x.country} ${x.city} ${x.client} ${x.os} ${x.policies.map((p) => p.name).join(" ")} ${x.auth ? x.auth.summary : ""}`.toLowerCase().includes(q));
     const rows = r.rows.filter(match);
     if (!rows.length) { $("siBody").innerHTML = '<p class="mini" style="padding:20px">No sign-in matches the current filter.</p>'; return; }
 
@@ -13249,7 +14007,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (siView === "policies") {
       const pols = r.policies
         .map((p) => ({ ...p, rows: p.rows.filter(match) }))
-        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || siFilter.startsWith("kind:") || p.key === siFilter));
+        .filter((p) => p.rows.length && (siFilter === "all" || siFilter === "int" || siFilter === "blk" || siFilter.startsWith("kind:") || siFilter.startsWith("auth:") || p.key === siFilter));
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
@@ -13260,12 +14018,13 @@ This is a directory write. Nothing else changes.`)) return;
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
               <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${x.interactive ? "" : "non-interactive · "}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
+              ${x.auth ? `<div class="wi-why${x.auth.gap ? " si-authgap" : ""}" title="${esc(x.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 signed in with ${esc(x.auth.summary)}</div>` : ""}
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
           return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
             <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
-            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}</td>
+            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}${p.gap ? `<div class="mini si-authgap" title="The second factor was asked for and never came — these users signed in with a password where MFA or an authentication strength was required">🔑 ${p.gap} without the MFA asked</div>` : ""}</td>
             <td>${p.userCount} distinct</td>
             <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
             <td class="mini">${esc(p.controls.join(", ") || "—")}</td>
@@ -13286,6 +14045,8 @@ This is a directory write. Nothing else changes.`)) return;
       const detail = open ? `<div class="au-diff">
           ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
+          ${x.auth ? `<div><span class="au-op ${x.auth.gap ? "remove" : "set"}">signed in with</span> <span class="au-path">${esc(x.auth.summary)}</span></div>
+          ${x.auth.steps.length ? `<div class="mini muted si-steps">${x.auth.steps.map((st) => `${st.ok ? "✓" : "✗"} ${esc(st.method || "(no method)")}${st.detail && st.detail !== st.method ? ` <span class="muted">· ${esc(st.detail)}</span>` : ""}${st.result ? ` — ${esc(st.result)}` : ""}${st.req ? ` <span class="muted">[${esc(st.req)}]</span>` : ""}`).join("<br>")}</div>` : ""}` : ""}
           ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
           ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}
         </div>` : "";
@@ -13297,7 +14058,7 @@ This is a directory write. Nothing else changes.`)) return;
           <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪</button>
           <span class="au-when">${esc(auAgo(x.when))}</span>
         </div>
-        <div class="au-sub">${esc([x.upn !== x.user ? x.upn : "", x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))} · ${esc(new Date(x.when).toLocaleString())}</div>
+        <div class="au-sub">${esc([x.upn !== x.user ? x.upn : "", x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))} · ${esc(new Date(x.when).toLocaleString())}${x.auth && x.auth.known ? ` · <span class="${x.auth.gap ? "si-authgap" : ""}">🔑 ${esc(x.auth.used.join(" + ") || "no method")}${x.auth.gap ? ` — ${esc(x.auth.need)} not provided` : ""}</span>` : ""}</div>
         ${detail}
       </div>`;
     }).join("");
@@ -13313,16 +14074,17 @@ This is a directory write. Nothing else changes.`)) return;
     const L = [`# Conditional Access sign-in failures — ${tenantName || "tenant"}`, "",
       Brand.generatedBy("Generated"), "",
       `- Window: last ${rangeLabel(siDays)}${r.from ? ` (${String(r.from).slice(0, 10)} → ${String(r.to).slice(0, 10)})` : ""} — ${siModeLabel()}${siCapped ? `, truncated at ${SI_MAX} sign-ins` : ""}`,
-      `- Sign-ins: **${r.total}** across ${r.policies.length} policies${r.interrupted ? ` — ${r.interrupted} interrupted (MFA prompt, enrolment, device auth, terms of use)` : ""}`,
+      `- Sign-ins: **${r.total}** across ${r.policies.length} policies${r.interrupted ? ` — ${r.interrupted} interrupted (MFA prompt, enrolment, device auth, terms of use)` : ""}${r.authGap ? ` — ${r.authGap} signed in without the MFA that was asked (password where MFA or a strength was required)` : ""}`,
       `- Most affected users: ${r.users.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`,
       `- Most affected apps: ${r.apps.slice(0, 3).map(([n, c]) => `${n} (${c})`).join(", ") || "—"}`, ""];
     for (const p of r.policies) {
       L.push(`## ${p.name}`, "",
         `- Failures: **${p.count}**${p.ints ? ` (${p.ints} interrupted)` : ""} — ${p.userCount} distinct users, ${p.appCount} apps`,
         `- Controls not met: ${p.controls.join(", ") || "—"}`,
+        ...(p.gap ? [`- Signed in without the MFA asked: **${p.gap}** of ${p.count} — a password where MFA or an authentication strength was required`] : []),
         `- Last failure: ${p.last}`, "",
-        "| When | User | App | Client | Location | IP | Device |", "| --- | --- | --- | --- | --- | --- | --- |");
-      p.rows.slice(0, 100).forEach((x) => L.push(`| ${String(x.when).replace("T", " ").slice(0, 19)} | ${x.user} | ${x.app} | ${x.client} | ${siWhere(x)} | ${x.ip} | ${siDevice(x) || "—"} |`));
+        "| When | User | App | Client | Location | IP | Device | Signed in with |", "| --- | --- | --- | --- | --- | --- | --- | --- |");
+      p.rows.slice(0, 100).forEach((x) => L.push(`| ${String(x.when).replace("T", " ").slice(0, 19)} | ${x.user} | ${x.app} | ${x.client} | ${siWhere(x)} | ${x.ip} | ${siDevice(x) || "—"} | ${x.auth ? x.auth.summary : "—"} |`));
       if (p.rows.length > 100) L.push("", `_+${p.rows.length - 100} more — use the CSV export for the full set._`);
       L.push("");
     }
@@ -13347,9 +14109,13 @@ This is a directory write. Nothing else changes.`)) return;
   // and shown under a "still reading" strip, so a 40-minute read gives a
   // first answer after the first day. riPartial = { done, total, recs }.
   let riPartial = null, riPartialAt = 0;
-  const riBusyPanel = () => riProg.panel(
-    "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
-    `The bar runs to the ${SI_MAX.toLocaleString()}-sign-in cap — most tenants finish well before the end of it.`);
+  const riBusyPanel = () => isGraphLogSource(logSource) || !roBucketsOk
+    ? riProg.panel(
+      "Reading the sign-in log — report-only verdicts cannot be server-filtered, so the whole window is read page by page. A large tenant takes a while; this keeps running if you switch tabs.",
+      isGraphLogSource(logSource) ? `Reads up to ${SI_MAX.toLocaleString()} sign-ins. A partial interval is labelled; this limit is not a completion percentage.` : "The summarised query was refused by this tenant's hunting engine, so the sign-in rows are read instead — slower, same verdicts.")
+    : riProg.panel(
+      "Asking Defender hunting for the report-only verdicts — summarised per day, policy, verdict, user and app before they leave Microsoft. A day is one query; the forecast fills in as the days land, and this keeps running if you switch tabs.",
+      "The sign-ins themselves are not read: the query returns counts and one sample sign-in per row. A day whose summary still exceeds the 50 MB result cap is halved like a row read would be.");
 
   // The tenant's report-only policies from the list already in memory — so a
   // staged policy with zero traffic still shows up, as "no data".
@@ -13365,58 +14131,115 @@ This is a directory write. Nothing else changes.`)) return;
     $("riRescan").style.display = riRes && !riBusy ? "" : "none";
     if (riBusy) { if (riRes && riPartial) renderImpact(); else $("riBody").innerHTML = riBusyPanel(); return; }
     if (riRes) { renderImpact(); return; }
+    // 💾 on for this tenant and a hunting source: the read starts by itself
+    // and shows what the device holds first — asking someone who opted in to
+    // press ▶ to see their own data would be the store not doing its job
+    if (!isDemo && tenantId && !isGraphLogSource(logSource) && roBucketsOk) {
+      SigninStore.enabled(tenantId).then((on) => { if (on && !riRes && !riBusy && $("screen-impact").classList.contains("active")) runImpact(); });
+    }
     const ro = riTenantRo();
     $("riHead").innerHTML = `${toolHead("toolImpact")}
       <p style="margin-bottom:4px">What happens the day a report-only policy goes live. Per policy: who would be <b>denied</b>, who is <b>interrupted</b> for an extra step (MFA, compliant device, terms of use…), who <b>passes unchanged</b>. Per user: the combined effect of everything in report-only at once.</p>
-      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
+      <p class="mini muted" style="margin:0">Reads the window from the <b>sign-in source</b> chosen in the toolbar — the Entra sign-in log (AuditLog.Read.All), Defender hunting, or Hunting + non-interactive — and shows the forecast as the days land. On the Entra log report-only verdicts cannot be filtered by Graph, so the whole window is read — capped at ${SI_MAX.toLocaleString()} sign-ins. On the hunting sources the verdicts are <b>summarised by Microsoft</b> per day, policy, verdict, user and app before they leave the tenant — a day is one query, and the sign-ins themselves are never read. Retention is what your licence keeps — about 30 days on Entra ID P1/P2.${ro.length ? ` This tenant currently has <b>${ro.length}</b> report-only polic${ro.length === 1 ? "y" : "ies"}.` : ""}</p>`;
     $("riChips").innerHTML = "";
     $("riBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-rirun>▶ Read the sign-in log</button><p class="mini muted">Nothing is written. The result stays until you rescan.</p></div>';
   }
   $("riRescan").addEventListener("click", () => runImpact(true));
-  $("riDays").addEventListener("change", (e) => { riDays = +e.target.value; if (riRes) runImpact(); });
+  $("riDays").addEventListener("change", (e) => { if (riBusy) { e.target.value = riDays; toast("Stop the current read before changing the period"); return; } riDays = +e.target.value; if (riRes) runImpact(); });
 
   let riReused = false;
+  let riAcc = null;   // the accumulator of the bucket read in flight / last completed
   async function runImpact(force) {
+    const runKey = logReadKey(riDays);
     if (riBusy) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
-    riBusy = true; riCapped = false; riPartial = null; riProg.begin();
+    riBusy = true; riCapped = false; riPartial = null; riPartialAt = 0; riProg.begin();
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
-    const onPartial = (recs, done, total) => {
-      if (!riBusy) return;   // a late day from a stopped read
+    // ROW PATH (Entra log, demo, or a hunting engine that refused the summary):
+    // the records are read whole and built in the worker, as before
+    const onPartial = async (recs, done, total, note) => {
+      if (!riBusy || runKey !== logReadKey(riDays)) return;   // a late day from a stopped read
       // at most one rebuild every 3 seconds — a build over 100k records is
       // a few hundred milliseconds and the reader needs time to look
       const now = Date.now();
-      riPartial = { done, total, recs };
+      riPartial = { done, total, recs, note };
       if (now - riPartialAt < 3000 && done !== total) return;
       riPartialAt = now;
-      riRes = ReportImpact.build(recs, riTenantRo());
+      const partialResult = await AnalysisJobs.run("impact", { records: recs, policies: riTenantRo() }, { signal: riProg.signal });
+      riProg.check();
+      if (runKey !== logReadKey(riDays)) return;
+      riRes = partialResult;
       renderImpact();
     };
+    // BUCKET PATH (25380): nothing is held — every slice is folded into the
+    // accumulator as it lands and the screen is rebuilt from it, at once for
+    // what the device held, then at most every 3 seconds
+    let heldShown = false, folded = 0;
+    const acc = ReportImpact.accumulator(riTenantRo());
+    const sink = { onRows: async (recs, note) => {
+      if (!riBusy || runKey !== logReadKey(riDays)) return;
+      acc.add(recs); folded += recs.length;
+      const now = Date.now();
+      riPartial = { note, folded, acc };
+      if (note === "held" && heldShown && now - riPartialAt < 1500) return;
+      if (note !== "held" && now - riPartialAt < 3000) return;
+      riPartialAt = now; if (note === "held") heldShown = true;
+      riRes = acc.finish(); renderImpact();
+      await new Promise((r) => setTimeout(r, 0));   // let the frame paint before the next fold
+    } };
     try {
-      let records, reused = false;
+      let reused = false, viaBuckets = false;
       if (isDemo) {
-        records = demoSignIns();
+        const records = demoSignIns();
+        riRes = await AnalysisJobs.run("impact", { records, policies: riTenantRo() }, { signal: riProg.signal });
+      } else if (!isGraphLogSource(logSource) && roBucketsOk) {
+        let w;
+        try { w = await readRoBuckets(riDays, riProg, force, sink); }
+        catch (e) {
+          if (e && (e.stopped || !isRoRefusal(e))) throw e;
+          // the engine refused the summarised query: say so, read rows for the rest of the session
+          console.warn("report-only impact: bucket query refused, reading rows", e.message);
+          roBucketsOk = false; riPartial = null; riPartialAt = 0;
+          toast("This tenant's hunting engine refused the summarised query — reading the sign-in rows instead");
+          $("riBody").innerHTML = riBusyPanel();
+          const rw = await readSignInWindow(riDays, riProg, force, onPartial);
+          riCapped = rw.capped; reused = rw.reused;
+          riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
+        }
+        if (w) {
+          viaBuckets = true;
+          // a cache entry without its accumulator (a run that ended between
+          // the read and this line) is no use: read again rather than show nothing
+          if (w.reused && !(roCache && roCache.acc)) { roCache = null; w = await readRoBuckets(riDays, riProg, true, sink); }
+          riCapped = w.capped; reused = w.reused;
+          if (reused) riRes = roCache.acc.finish();
+          else { riRes = acc.finish(); if (roCache && roCache.key === w.key) roCache.acc = acc; riAcc = acc; }
+        }
       } else {
-        const w = await readSignInWindow(riDays, riProg, force, onPartial);
-        records = w.records; riCapped = w.capped; reused = w.reused;
+        const rw = await readSignInWindow(riDays, riProg, force, onPartial);
+        riCapped = rw.capped; reused = rw.reused;
+        riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
       }
       riReused = reused; riPartial = null;
-      riRes = ReportImpact.build(records, riTenantRo());
+      riProg.check();
+      if (runKey !== logReadKey(riDays)) throw new Error("Read discarded: selected range, source or tenant changed");
       riReadAt = Date.now(); riReadTenant = tenantId || tenantName;
       riOpen.clear(); riFilter = "all";
       riBusy = false;
       $("riRescan").style.display = "";
       renderImpact();
       if (!riRes.policies.length) toast("No report-only policy was evaluated in this window");
+      void viaBuckets;
     } catch (e) {
       riBusy = false;
-      if (e && e.stopped && riPartial && riPartial.recs && riPartial.recs.length) {
+      const pt = riPartial;
+      if (e && e.stopped && pt && ((pt.recs && pt.recs.length) || (pt.acc && pt.folded))) {
         // Stopped by the reader: what was read is a real, partial window —
         // shown as such, never cached as the whole one.
-        const pt = riPartial; riPartial = { ...pt, stopped: true };
-        riReused = false; riCapped = true;
-        riRes = ReportImpact.build(pt.recs, riTenantRo());
+        riPartial = { ...pt, stopped: true };
+        riReused = false; riCapped = true; roCache = null;
+        riRes = pt.acc ? pt.acc.finish() : await AnalysisJobs.run("impact", { records: pt.recs, policies: riTenantRo() });
         riOpen.clear(); riFilter = "all";
         $("riRescan").style.display = "";
         renderImpact();
@@ -13427,7 +14250,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("riBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">Could not read the sign-in log: ${esc(e.message || e)}<br>
         <span class="muted">This needs AuditLog.Read.All and a reader role such as Reports Reader, Security Reader or Security Administrator. The sign-in log also needs an Entra ID P1/P2 licence.</span></p>
         <div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-rirun>Try again</button></div>`;
-    } finally { riBusy = false; }
+    } finally { riBusy = false; riProg.stop(); }
   }
 
   const RI_V = {
@@ -13445,8 +14268,10 @@ This is a directory write. Nothing else changes.`)) return;
 
   const riPartialStrip = () => {
     const pt = riPartial; if (!pt) return "";
+    if (pt.acc && pt.note !== "held") return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — ${(pt.folded || 0).toLocaleString()} summary rows folded in so far. The numbers below grow as the days and policies land; the verdicts are not final until the bar is.`)}</div>`;
     const where = pt.total ? `${pt.done} of ${pt.total} day${pt.total === 1 ? "" : "s"}` : `${pt.recs.length.toLocaleString()} sign-ins`;
     if (pt.stopped) return `<div class="wo-callout" style="margin:0 0 10px"><b>Stopped by you</b> — this is ${where}${pt.total ? " of the window" : ""}, ${pt.recs.length.toLocaleString()} sign-ins. A verdict on a partial window is a verdict on a partial window: a policy that looks safe here may have its denials in the days not read. ⟳ Rescan reads it whole.</div>`;
+    if (pt.note === "held") return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>From this device</b> — the forecast below is what this browser already held for the window (💾). Microsoft is being asked for the days it lacks and for today; the numbers update as they land.`)}</div>`;
     return `<div class="list-card" style="margin:0 0 10px;padding:10px 16px">${riProg.panel(`<b>Still reading</b> — showing ${where} so far, ${pt.recs.length.toLocaleString()} sign-ins. The numbers below grow as days land; the verdicts are not final until the bar is.`)}</div>`;
   };
   function renderImpact() {
@@ -13456,7 +14281,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${toolHead("toolImpact")}
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
-        <p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins read from <b>${esc(logSourceLabel())}</b>${riCapped ? `, <span style="color:var(--off)">truncated${logSource === "entra" ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
+        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}${roCache.parts > 1 ? ` (one per policy per day)` : ""}` : ""}${riCapped ? `, <span style="color:var(--off)">truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>
@@ -15031,7 +15856,7 @@ This is a directory write. Nothing else changes.`)) return;
       } else {
         [rcPols, rcLocs] = await Promise.all([
           Graph.ggetAll("/identity/conditionalAccess/deletedItems/policies"),
-          Graph.ggetAll("/identity/conditionalAccess/deletedItems/namedLocations").catch(() => []),
+          Graph.ggetAll("/identity/conditionalAccess/deletedItems/namedLocations"),
         ]);
       }
       renderRecycle();
@@ -15587,7 +16412,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (R.sr) {
       const verd = R.users.map((u, i) => {
         const r = R.sr.perUser[i];
-        return `<div class="wi-verdict ${r.blocked ? "block" : "grant"}" style="margin-bottom:6px">${r.blocked ? "⛔" : "✅"} <b>${esc(u.name)}</b> — ${r.blocked ? "access would be <b>blocked</b>" : `${r.applied.length} ${r.applied.length === 1 ? "policy applies" : "policies apply"}`}</div>`;
+        return `<div class="wi-verdict ${r.complete === false ? "unknown" : r.blocked ? "block" : "grant"}" style="margin-bottom:6px">${r.complete === false ? "?" : r.blocked ? "⛔" : "✅"} <b>${esc(u.name)}</b> — ${r.complete === false ? "scenario incomplete — no definite verdict" : r.blocked ? "access would be <b>blocked</b>" : `${r.applied.length} ${r.applied.length === 1 ? "policy applies" : "policies apply"}`}</div>`;
       }).join("");
       scHtml = `<div class="list-card wi-res"><h4 class="wi-h">What-If scenario <span class="mini muted">${R.scLine}</span></h4>
         ${verd}${Comparer.scenarioTable(R.sr, R.users, diffOnly)}
@@ -15668,7 +16493,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("woUser").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runWhoIs(); } });
   $("woRun").addEventListener("click", () => runWhoIs());
   $("woRescan").addEventListener("click", () => runWhoIs(true));
-  $("woDays").addEventListener("change", (e) => { woDays = +e.target.value; if (woRes) runWhoIs(); });
+  $("woDays").addEventListener("change", (e) => { if (woBusy) { e.target.value = woDays; toast("Stop the current read before changing the period"); return; } woDays = +e.target.value; if (woRes) runWhoIs(); });
 
   // Which of the baseline's deploy / persona groups the tenant actually has —
   // so "not in" and "the tenant does not have this group" stay different
@@ -15744,6 +16569,7 @@ This is a directory write. Nothing else changes.`)) return;
   // longer than the sign-in window on purpose, because a user is "at risk"
   // for as long as nobody remediates, however old the detection.
   async function woReadRisk(u) {
+    await requireProduct("p2");
     const say = (e) => /licen|premium|P2/i.test(String(e && e.message || "")) ? "needs Entra ID P2 (Identity Protection) — not read" : /403|Forbidden|Authorization/i.test(String(e && e.message || "")) ? "not allowed — needs IdentityRiskyUser.Read.All + IdentityRiskEvent.Read.All (Security Reader)" : `not read — ${String(e && e.message || e).slice(0, 120)}`;
     let rec = null;
     try { rec = await Graph.gget(`/identityProtection/riskyUsers/${u.id}`); }
@@ -15787,13 +16613,14 @@ This is a directory write. Nothing else changes.`)) return;
     if (isDemo) return (demoSignIns()).filter((r) => r.userId === u.id);
     if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { woLogSkipped = "AuditLog.Read.All was not granted"; return null; }
     if (!force && logCacheUsable(woDays) && !logCache.capped) return logCache.records.filter((r) => r.userId === u.id);
-    if (logSource !== "entra") {
+    if (!isGraphLogSource(logSource)) {
       if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) { woLogSkipped = "ThreatHunting.Read.All was not granted"; return null; }
       try { const h = await readSignInsHunting(woDays, woProg, { userId: u.id }); if (h.capped) woLogSkipped = "a day hit the hunting row cap"; return h.records; }
       catch (e) { console.warn("whois: hunting read failed", e.message); woLogSkipped = `could not run the hunting query (${e.message || e})`; return null; }
     }
     const since = new Date(Date.now() - woDays * 86400000).toISOString();
-    const url = `/auditLogs/signIns?$filter=${encodeURIComponent(`userId eq '${u.id}' and createdDateTime ge ${since}`)}&$orderby=createdDateTime desc&$top=999`;
+    const eventFilter = logSource === "entraall" ? " and signInEventTypes/any(t:t eq 'interactiveUser' or t eq 'nonInteractiveUser')" : "";
+    const url = `/${logSource === "entraall" ? "beta" : "v1.0"}/auditLogs/signIns?$filter=${encodeURIComponent(`userId eq '${u.id}' and createdDateTime ge ${since}${eventFilter}`)}&$orderby=createdDateTime desc&$top=999`;
     try { return await woProg.fetchAll(url, 5000, "sign-ins"); }
     catch (e) {
       console.warn("whois: sign-in read failed", e.message);
@@ -15803,6 +16630,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   async function runWhoIs(force) {
+    const runKey = logReadKey(woDays);
     if (woBusy) return;
     const term = $("woUser").value.trim();
     if (!term) { toast("Type a UPN or a name first"); $("woUser").focus(); return; }
@@ -15824,6 +16652,9 @@ This is a directory write. Nothing else changes.`)) return;
       const dgPresent = await woGroupsPresent(names);
       $("woBody").innerHTML = woProg.panel(`Reading <b>${esc(u.name)}</b>'s sign-ins…`);
       const records = await woSignIns(u, force);
+      if (runKey !== logReadKey(woDays)) throw new Error("Read discarded: selected range, source or tenant changed");
+      woProg.check();
+      if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
       woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays });
       Object.assign(woRes, { records, cat, dgPresent });   // kept so the optional risk read can re-derive without re-reading
       woBusy = false;
@@ -15833,7 +16664,7 @@ This is a directory write. Nothing else changes.`)) return;
       console.error("Who is … to CA failed:", e);
       woBusy = false;
       $("woBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e.message || e)}</p>`;
-    } finally { woBusy = false; }
+    } finally { woBusy = false; woProg.stop(); }
   }
 
   function renderWhoIs() {
@@ -15869,6 +16700,8 @@ This is a directory write. Nothing else changes.`)) return;
       const b = e.target.closest("[data-wo-risk]"); b.disabled = true; b.textContent = "reading…";
       await woReadRisk(R.user);
       // the risk half of the result is derived, so re-derive it
+      woProg.check();
+      if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
       woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays });
       if (R.user.risk && R.user.risk.err) toast(`Identity risk: <span>${esc(R.user.risk.err)}</span>`);
       renderWhoIs();
@@ -15898,7 +16731,7 @@ This is a directory write. Nothing else changes.`)) return;
   // re-render. Held here, read by the renderer, it survives all of them.
   let wvMemFull = false;
   const wvProg = makeProgress("wv"); wvProg.by = "🌊 Who is the wave to CA"; wvProg.stoppable = true;
-  const WV_MEMBER_CAP = 500;
+  const WV_MEMBER_CAP = 25000; // memory budget, separate from the 100 visible rows; larger groups are explicitly partial
 
   // every group id the policies name in an include or exclude
   const wvRefd = () => { const s = new Set(); policies.forEach((p) => { const c = ((p.raw || {}).conditions || {}).users || {}; [...(c.includeGroups || []), ...(c.excludeGroups || [])].forEach((g) => s.add(g)); }); return s; };
@@ -15907,7 +16740,7 @@ This is a directory write. Nothing else changes.`)) return;
   function wvHeadHtml() {
     return `${toolHead("toolWave")}<details class="tool-about"><summary>About this tool · scope and permissions</summary>
       <p style="margin-bottom:6px">The 🕵 Who is Anna to CA picture for a whole <b>deployment group</b>: who is in the wave and how they got there, which policies target the group, what the sign-in log did to its members, and whether the next report-only policy can go live <b>for this wave</b> without locking somebody out.</p>
-      <p class="mini muted" style="margin:0">Members are read transitively (first ${WV_MEMBER_CAP}); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p></details>`;
+      <p class="mini muted" style="margin:0">Members are read transitively (up to ${WV_MEMBER_CAP.toLocaleString()}, with a lower limit for larger policy sets); every member is resolved against every policy with the same rule 🕵 Who is Anna to CA uses. The sign-in half asks for <b>AuditLog.Read.All</b> once and reuses the window 🚦 Sign-in failures and 🎚 Report-only impact already read. Read-only.</p></details>`;
   }
   async function openWave() {
     crumb("🕵 Who is … to CA");
@@ -15953,15 +16786,16 @@ This is a directory write. Nothing else changes.`)) return;
     $("wvPicker").value = wvPick || "";
   }
   $("wvPicker").addEventListener("change", (e) => {
+    if (wvBusy) { e.target.value = wvPick || ""; toast("Stop the current read before changing the group"); return; }
     wvPick = e.target.value || null;
     if (!wvPick) return;
     $("wvTerm").value = "";
     runWave();
   });
-  $("wvTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); wvPick = null; renderWvPicker(); runWave(); } });
-  $("wvRun").addEventListener("click", () => { if ($("wvTerm").value.trim()) wvPick = null; renderWvPicker(); runWave(); });
+  $("wvTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); if (wvBusy) return; wvPick = null; renderWvPicker(); runWave(); } });
+  $("wvRun").addEventListener("click", () => { if (wvBusy) return; if ($("wvTerm").value.trim()) wvPick = null; renderWvPicker(); runWave(); });
   $("wvRescan").addEventListener("click", () => runWave(true));
-  $("wvDays").addEventListener("change", (e) => { wvDays = +e.target.value; if (wvRes) runWave(); });
+  $("wvDays").addEventListener("change", (e) => { if (wvBusy) { e.target.value = wvDays; toast("Stop the current read before changing the period"); return; } wvDays = +e.target.value; if (wvRes) runWave(); });
   let wvSugTimer = null;
   $("wvTerm").addEventListener("input", (e) => {
     const v = e.target.value; clearTimeout(wvSugTimer);
@@ -15997,34 +16831,31 @@ This is a directory write. Nothing else changes.`)) return;
   // member-id sets for a list of group ids, one $batch (first 999 each —
   // the wave itself is read fully and capped separately)
   async function wvMemberSets(ids) {
-    const out = new Map(), names = {};
+    const out = new Map(), names = {}, truncated = [], errors = [];
     if (isDemo) {
-      ids.forEach((id) => { const n = id.replace(/^g-/, ""); const m = (DEMO_DATA.scopeGroups || {})[n]; if (m) { out.set(id, new Set(m)); names[id] = n; } });
-      return { out, names, truncated: [] };
+      ids.forEach(id => { const n = id.replace(/^g-/, ""); const m = (DEMO_DATA.scopeGroups || {})[n]; if (m) { out.set(id, new Set(m)); names[id] = n; } });
+      return { out, names, truncated, errors };
     }
-    const truncated = [];
-    for (let i = 0; i < ids.length; i += 40) {
+    let done = 0;
+    await Graph.mapLimit(ids, 4, async id => {
       wvProg.check();
-      const part = ids.slice(i, i + 40);
-      const res = await Graph.gbatch(part.flatMap((id, k) => [
-        { id: `m${k}`, url: `/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` },
-        { id: `n${k}`, url: `/groups/${id}?$select=id,displayName` },
-      ]));
-      part.forEach((id, k) => {
-        const m = res[`m${k}`], n = res[`n${k}`];
-        if (m && m.body) { out.set(id, new Set((m.body.value || []).map((x) => x.id))); if (m.body["@odata.nextLink"]) truncated.push(id); }
-        if (n && n.body && n.body.displayName) names[id] = n.body.displayName;
-      });
-      wvProg.tick(Math.min(i + 40, ids.length), Math.min(i + 40, ids.length));
-    }
-    return { out, names, truncated };
+      try {
+        const members = await Graph.ggetAll(`/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: wvProg.signal });
+        out.set(id, new Set(members.map(m => m.id)));
+        try { names[id] = (await Graph.gget(`/groups/${id}?$select=displayName`)).displayName; } catch { names[id] = id; }
+      } catch (e) { if (e.stopped || e.name === "AbortError") throw e; errors.push(id); }
+      wvProg.tick(++done, done);
+    });
+    return { out, names, truncated, errors };
   }
 
   async function runWave(force) {
+    const runKey = logReadKey(wvDays), selectedTerm = $("wvTerm").value.trim(), selectedPick = wvPick;
     if (wvBusy) return;
     const term = $("wvTerm").value.trim();
     if (!wvPick && !term) { toast("Pick a deployment group or type a group name first"); return; }
     wvBusy = true; wvRes = null; wvProg.begin();
+    const waveLimit = Math.min(WV_MEMBER_CAP, Math.max(500, Math.floor(2000000 / Math.max(1, policies.length))));
     $("wvRescan").style.display = "none"; $("wvMd").style.display = "none"; $("wvCsv").style.display = "none";
     $("wvBody").innerHTML = wvProg.panel("Reading the group…");
     try {
@@ -16032,14 +16863,14 @@ This is a directory write. Nothing else changes.`)) return;
       const group = wvPick ? (isDemo ? await wvResolveGroup(wvPick.replace(/^g-/, "")) : await Graph.gget(`/groups/${wvPick}?$select=id,displayName,description,groupTypes,membershipRule,isAssignableToRole,createdDateTime`)) : await wvResolveGroup(term);
       const gid = group.id;
       // members (transitive, capped), direct users, child groups, parents
-      let members, direct = null, children = [], parents = new Set(), capped = false;
+      let members, direct = null, children = [], parents = new Set(), capped = false, parentsComplete = true, rolesComplete = true;
       if (isDemo) {
         const ids = (DEMO_DATA.scopeGroups || {})[gid.replace(/^g-/, "")] || [];
         members = ids.map((id) => (DEMO_DATA.analyzeUsers || []).find((u) => u.id === id)).filter(Boolean);
         direct = new Set(ids);
       } else {
         $("wvBody").innerHTML = wvProg.panel(`Reading the members of <b>${esc(group.displayName)}</b>…`);
-        members = await wvProg.fetchAll(`/groups/${gid}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,userType,accountEnabled,assignedLicenses,assignedPlans&$top=999`, WV_MEMBER_CAP, "members");
+        members = await wvProg.fetchAll(`/groups/${gid}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,userType,accountEnabled,assignedLicenses,assignedPlans&$top=999`, waveLimit, "members");
         capped = !!wvProg.st.capped;
         try {
           const dm = await Graph.ggetAll(`/groups/${gid}/members?$select=id,displayName,membershipRule`);
@@ -16051,7 +16882,7 @@ This is a directory write. Nothing else changes.`)) return;
           }
         } catch (e) { console.warn("wave: direct members not read", e.message); direct = null; }
         wvProg.check();
-        try { (await Graph.ggetAll(`/groups/${gid}/transitiveMemberOf?$select=id`)).forEach((o) => { if (!/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")) parents.add(o.id); }); } catch {}
+        try { (await Graph.ggetAll(`/groups/${gid}/transitiveMemberOf?$select=id`)).forEach((o) => { if (!/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")) parents.add(o.id); }); } catch { parentsComplete = false; }
       }
       // licence verdict per member, same as 🎫 Licence gap
       let live = null;
@@ -16064,7 +16895,7 @@ This is a directory write. Nothing else changes.`)) return;
       dgGroups.forEach((g) => refd.add(g.id));
       refd.delete(gid);
       wvProg.start(refd.size, "groups", "group");
-      const { out: groupMembers, names, truncated } = await wvMemberSets([...refd]);
+      const { out: groupMembers, names, truncated, errors: unreadGroups } = await wvMemberSets([...refd]);
       dgGroups.forEach((g) => { names[g.id] = names[g.id] || g.name; });
       names[gid] = group.displayName;
       // directory roles → member ids
@@ -16074,9 +16905,20 @@ This is a directory write. Nothing else changes.`)) return;
         wvProg.check();
         try {
           const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
-          const res = await Graph.gbatch(roles.map((r, i) => ({ id: i, url: `/directoryRoles/${r.id}/members?$select=id` })));
-          roles.forEach((r, i) => { const v = res[i] && res[i].body && res[i].body.value; if (r.roleTemplateId) { roleMembers.set(r.roleTemplateId, new Set((v || []).map((x) => x.id))); names[r.roleTemplateId] = r.displayName; } });
-        } catch (e) { console.warn("wave: roles not read", e.message); }
+          await Graph.mapLimit(roles, 4, async r => {
+            try {
+              const members = await Graph.ggetAll(`/directoryRoles/${r.id}/members?$select=id`, { signal: wvProg.signal });
+              const ids = new Set();
+              for (const m of members) {
+                if (/group$/i.test(m["@odata.type"] || "")) {
+                  const users = await Graph.ggetAll(`/groups/${m.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: wvProg.signal });
+                  users.forEach(u => ids.add(u.id));
+                } else if (/user$/i.test(m["@odata.type"] || "")) ids.add(m.id);
+              }
+              if (r.roleTemplateId) { roleMembers.set(r.roleTemplateId, ids); names[r.roleTemplateId] = r.displayName; }
+            } catch (e) { rolesComplete = false; }
+          });
+        } catch (e) { rolesComplete = false; console.warn("wave: roles not read", e.message); }
       }
       // sign-ins: the shared window, filtered to the members
       let records = null; wvLogSkipped = "";
@@ -16091,8 +16933,13 @@ This is a directory write. Nothing else changes.`)) return;
         try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window capped at ${SI_MAX.toLocaleString()} sign-ins`; }
         catch (e) { if (e && e.stopped) wvLogSkipped = "stopped by you during the sign-in read — the group half is complete, the log half is not"; else { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; } }
       }
-      wvRes = Wave.analyze({ group, members, direct, children, parents, groupMembers, roleMembers, names, vms: policies, records, cat, dgGroups, memberCap: WV_MEMBER_CAP, capped, days: wvDays });
-      wvRes.truncated = truncated;
+      if (runKey !== logReadKey(wvDays) || selectedTerm !== $("wvTerm").value.trim() || selectedPick !== wvPick) throw new Error("Read discarded: selected range, source or tenant changed");
+      wvProg.detail(`Evaluating ${members.length.toLocaleString()} members across ${policies.length} policies`);
+      const result = await AnalysisJobs.run("wave", { group, members, direct, children, parents, groupMembers, roleMembers, names, vms: policies.map(p => ({ raw: p.raw, name: p.name, grant: p.grant, session: p.session })), records, cat: null, dgGroups, groupsComplete: !unreadGroups.length && parentsComplete, rolesComplete, memberCap: waveLimit, capped, logsComplete: !wvLogSkipped, days: wvDays }, { signal: wvProg.signal });
+      wvProg.check();
+      if (runKey !== logReadKey(wvDays) || selectedTerm !== $("wvTerm").value.trim() || selectedPick !== wvPick) throw new Error("Read selection changed");
+      wvRes = result;
+      wvRes.truncated = [...truncated, ...unreadGroups];
       wvRes.memberIds = members.map((m) => m.id);
       wvBusy = false;
       $("wvRescan").style.display = ""; $("wvMd").style.display = ""; $("wvCsv").style.display = "";
@@ -16157,6 +17004,7 @@ This is a directory write. Nothing else changes.`)) return;
   // the members already carry from the shared window (no second log read).
   let wvRiskBusy = false;
   async function wvReadRisk(btn) {
+    try { await requireProduct("p2"); } catch (e) { toast(esc(e.message)); return; }
     const R = wvRes; if (!R || wvRiskBusy) return;
     wvRiskBusy = true;
     if (btn) { btn.disabled = true; btn.textContent = "🛡 Reading…"; }
@@ -16224,7 +17072,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("scBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-scrun>▶ Read Defender activity</button><p class="mini muted">${pre.tiles.appcontrol} polic${pre.tiles.appcontrol === 1 ? "y carries" : "ies carry"} Conditional Access App Control, ${pre.tiles.other} carry other session controls. Nothing is written.</p></div>`;
   }
   $("scRescan").addEventListener("click", () => runSessionCtl(true));
-  $("scDays").addEventListener("change", (e) => { scDays = +e.target.value; if (scRes) runSessionCtl(); });
+  $("scDays").addEventListener("change", (e) => { if (scBusy) { e.target.value = scDays; toast("Stop the current read before changing the period"); return; } scDays = +e.target.value; if (scRes) runSessionCtl(); });
   let scQTimer = null;
   $("scSearch").addEventListener("input", (e) => { clearTimeout(scQTimer); scQTimer = setTimeout(() => { scQ = e.target.value; if (scRes) renderSessionCtl(); }, 200); });
 
@@ -16269,6 +17117,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   async function runSessionCtl(force) {
+    const runKey = logReadKey(scDays);
     if (scBusy) return;
     scBusy = true; scRes = null; scProg.begin();
     $("scRescan").style.display = "none"; $("scMd").style.display = "none"; $("scCsv").style.display = "none";
@@ -16299,6 +17148,7 @@ This is a directory write. Nothing else changes.`)) return;
           catch (e) { if (e && e.stopped) notes.push("stopped by you during the sign-in read — Defender activity is complete, routing to a CA policy is not"); else { console.warn("session controls: sign-in read failed", e.message); notes.push(`sign-in log not read (${e.message || e})`); logFailed = true; } }
         } else notes.push("AuditLog.Read.All was not granted — routing not checked");
       }
+      if (runKey !== logReadKey(scDays)) throw new Error("Read discarded: selected range, source or tenant changed");
       scRes = SessionCtl.analyze({ vms: policies, events, records, days: scDays, schemaFallback: fallback, capped });
       scRes.notes = notes;
       // kept for ↻ read the sign-in window again: the Defender half is
@@ -16366,6 +17216,11 @@ This is a directory write. Nothing else changes.`)) return;
   // sign-in window, read only on request. Reads only; the CSV is the list
   // for whoever registers the apps, by hand, on purpose.
   let sgRes = null, sgBusy = false, sgFilter = "all", sgQ = "", sgRecords = null;
+  // Folded rows (0.3): sgOpen holds the apps toggled BY HAND, sgAllOpen is
+  // the default the bar sets — a hand toggle is an exception to the default,
+  // so "Expand all" then one click closes just that one, and "Collapse all"
+  // clears the exceptions. A rescan keeps the state: same apps, same reading.
+  let sgOpen = new Set(), sgAllOpen = false;
   const sgProg = makeProgress("sg"); sgProg.by = "🫥 Apps with no service principal";
 
   function openSpGap() {
@@ -16380,7 +17235,15 @@ This is a directory write. Nothing else changes.`)) return;
     $("sgBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-sgrun>▶ Read the 30-day app summary</button><p class="mini muted">One call for the summary, one paged read of the service principals. Nothing is written.</p></div>`;
   }
   $("toolSpGap").addEventListener("click", () => openSpGap());
-  $("sgBody").addEventListener("click", (e) => { if (e.target.closest("[data-sgrun]")) runSpGap(); });
+  $("sgBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-sgrun]")) { runSpGap(); return; }
+    // the policy name opens its card — before the row toggle, or the click folds the row instead
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const all = e.target.closest("[data-sg-all]");
+    if (all) { sgAllOpen = all.dataset.sgAll === "open"; sgOpen = new Set(); if (sgRes) renderSpGap(); return; }
+    const t = e.target.closest("[data-sg-toggle]");
+    if (t) { const k = String(t.dataset.sgToggle).toLowerCase(); sgOpen.has(k) ? sgOpen.delete(k) : sgOpen.add(k); if (sgRes) renderSpGap(); }
+  });
   $("sgRescan").addEventListener("click", () => runSpGap());
   $("sgEvidence").addEventListener("click", () => readSpGapEvidence());
   let sgQTimer = null;
@@ -16412,7 +17275,7 @@ This is a directory write. Nothing else changes.`)) return;
       ["sgRescan", "sgMd", "sgCsv"].forEach((id) => { $(id).style.display = ""; });
       $("sgEvidence").style.display = sgRes.hasEvidence ? "none" : "";
       renderSpGap();
-      if (!sgRes.apps.length) toast("Every app that signed in has a service principal here");
+      if (!sgRes.apps.length) toast(summary.length >= 1000 ? "No missing service principals found in the partial app summary" : "Every app in the retrieved summary has a service principal here");
     } catch (e) {
       console.error("Apps with no service principal failed:", e);
       sgBusy = false;
@@ -16440,7 +17303,7 @@ This is a directory write. Nothing else changes.`)) return;
     const t = R.tiles;
     const chip = (k, label, n) => `<button class="fchip${sgFilter === k ? " active" : ""}" data-sgf="${k}">${esc(label)}${n != null ? ` <span class="pill zero">${n}</span>` : ""}</button>`;
     $("sgChips").innerHTML = chip("all", "All", t.total) + chip("uncovered", "No Conditional Access", t.uncovered) + chip("maybe", "Depends", t.maybe) + chip("enforced", "Enforced", t.enforced) + chip("blocked", "Blocked", t.blocked) + chip("phantom", "Phantom exclusions", t.phantom);
-    $("sgBody").innerHTML = SpGap.renderTiles(R) + `<div style="margin-top:14px">${SpGap.renderTable(R, sgFilter, sgQ)}</div>`;
+    $("sgBody").innerHTML = SpGap.renderTiles(R) + `<div style="margin-top:14px">${SpGap.renderTable(R, sgFilter, sgQ, sgOpen, sgAllOpen)}</div>`;
   }
   $("sgMd").addEventListener("click", () => { const R = sgRes; if (!R) return; showReport("🫥 Apps with no service principal", "CA-AppsNoServicePrincipal", SpGap.toMd(R, tenantName)); });
   $("sgCsv").addEventListener("click", () => { const R = sgRes; if (!R) return; downloadText("CA-AppsNoServicePrincipal", "csv", "text/csv", SpGap.toCsv(R)); });
@@ -16687,7 +17550,7 @@ This is a directory write. Nothing else changes.`)) return;
       try {
         const j = await Graph.gpost("/directoryObjects/getByIds", { ids: ids.slice(i, i + 900), types: ["group"] });
         (j.value || []).forEach((g) => found.set(String(g.id).toLowerCase(), g));
-      } catch (e) { console.warn("User or Group analyzer: getByIds failed", e.message); }
+      } catch (e) { throw new Error(`Referenced groups could not be read: ${e.message}. No missing-group conclusion is available.`); }
     }
     return ids.map((id) => {
       const g = found.get(id);
@@ -16928,6 +17791,7 @@ This is a directory write. Nothing else changes.`)) return;
         <p class="mini muted" style="margin:8px 0 0">Click a row to open that group's references — read straight from this sweep, no second scan.</p>
       </div>
       ${guNotReadCard(res)}`;
+    SearchSuggest.bind($("guSweepSearch"), () => searchFields(guTotals, ["name"]), () => `${tenantId}:${isDemo}:${policiesReadAt}`);
     wireSearchClears();
     applyFolds("guBody");
     syncStickyTops();
@@ -17075,7 +17939,13 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("guMatchText").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runGroupUse(); } });
   $("guBody").addEventListener("input", (e) => {
-    if (e.target.id === "guSweepSearch") { guQuery = e.target.value; renderGuSweep(); $("guSweepSearch").focus(); }
+    if (e.target.id === "guSweepSearch") {
+      const picked = SearchSuggest.picked(e);
+      const start = e.target.selectionStart, end = e.target.selectionEnd;
+      guQuery = e.target.value; renderGuSweep();
+      const input = $("guSweepSearch"); input.focus(); input.setSelectionRange(start, end);
+      if (picked) SearchSuggest.clear(input);
+    }
   });
   $("guBody").addEventListener("change", (e) => {
     if (e.target.id === "guUnused") { guUnusedOnly = e.target.checked; renderGuSweep(); }
@@ -17695,8 +18565,8 @@ This is a directory write. Nothing else changes.`)) return;
         ciCtx.groupNames = DEMO_DATA.names || {};
       } else {
         const [strengths, locations, skus] = await Promise.all([
-          Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []),
-          Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []),
+          Graph.ggetAll("/policies/authenticationStrengthPolicies"),
+          Graph.ggetAll("/identity/conditionalAccess/namedLocations"),
           Graph.ggetAll("/subscribedSkus").catch(() => null),
         ]);
         strengths.forEach(s => ciCtx.strengths.set(s.id, s));
@@ -18170,8 +19040,10 @@ This is a directory write. Nothing else changes.`)) return;
       "The bar runs during the counted phases: group expansion and role resolution.");
     const anT0 = Date.now();
     const status = (m, done, total) => {
+      anProg.check();
       $("anStatus").textContent = m;
       const t = $("anPgTxt"), bar = $("anPgBar");
+      anProg.detail(m);
       const sec = Math.round((Date.now() - anT0) / 1000);
       const el = sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`;
       if (t) t.textContent = `${m} · ${el}`;
@@ -18183,10 +19055,12 @@ This is a directory write. Nothing else changes.`)) return;
         : await Analyzer.collect(vms, scope, status, scope === "named" ? {
             users: anNamed.filter((x) => x.kind === "user"),
             groups: anNamed.filter((x) => x.kind === "group"),
-          } : null);
+          } : null, { signal: anProg.signal });
       status(`Evaluating ${users.length} users × ${lookup.length} policies…`);
       await new Promise(r => setTimeout(r, 30)); // let the status paint
-      anReport = Analyzer.evaluate(lookup, users, ctx);
+      const result = await AnalysisJobs.run("analyze", { lookup, users, ctx }, { signal: anProg.signal, onProgress: p => anProg.detail(`${p.done.toLocaleString()} of ${p.total.toLocaleString()} ${p.label}`) });
+      anProg.check();
+      anReport = result;
       anCov = null;                       // belongs to the run that just ended
       // The licence half of the coverage flow. Both reads are already covered
       // by the permissions this tool holds — assignedLicenses rides along on
@@ -18227,6 +19101,7 @@ This is a directory write. Nothing else changes.`)) return;
         for (const r of anReport) r.lic = null;
         anLicRead = false;
       }
+      anProg.check();
       anPols = Analyzer.policyMeta(lookup);
       anMaps = Analyzer.buildMatrixMaps(anReport);
       anGroups = scopeGroups || []; anGroupSel = "";
@@ -18242,7 +19117,7 @@ This is a directory write. Nothing else changes.`)) return;
       console.error("Analysis failed:", e);
       anReport = null; anCov = null;
       status(`Analysis incomplete: ${e.message || e}`);
-    } finally { $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
+    } finally { anProg.stop(); $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
   });
 
   function refreshGroupSelect() {
@@ -18746,10 +19621,10 @@ This is a directory write. Nothing else changes.`)) return;
       svFilter = "";
     } catch (e) {
       $("svBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the authentication method policies failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-svrun>▶ Try again</button></div></div>`;
-      svBusy = false;
+      svProg.stop(); svBusy = false;
       return;
     }
-    svBusy = false;
+    svProg.stop(); svBusy = false;
     renderSmsVoice();
   }
 
@@ -19186,10 +20061,10 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) {
       console.error("memberOf scan failed:", e);
       $("moBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant's dynamic groups failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-morun>▶ Try again</button></div></div>`;
-      moBusy = false;
+      moProg.stop(); moBusy = false;
       return;
     }
-    moBusy = false;
+    moProg.stop(); moBusy = false;
     renderMemberOf();
   }
 
@@ -19558,10 +20433,10 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) {
       console.error(e);
       $("tdBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-tdrun>▶ Try again</button></div></div>`;
-      tdBusy = false;
+      tdProg.stop(); tdBusy = false;
       return;
     }
-    tdBusy = false;
+    tdProg.stop(); tdBusy = false;
     renderTeamsDev();
   }
 
@@ -19922,7 +20797,25 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- boot ----------
   // Keep the user informed during a throttle back-off instead of looking hung.
   buildToolNav();
-  Graph.setThrottleHandler((ms) => toast(`Microsoft Graph is throttling — waiting <span>${Math.ceil(ms / 1000)}s</span> then continuing…`));
+  Graph.setPolicyGuard(async (url, body, method) => {
+    if (isDemo || (method === "PATCH" && body.state === "disabled" && Object.keys(body).length === 1)) return;
+    const context = `${tenantId}:${policiesReadAt}`;
+    const evidence = await readCapabilities(true);
+    let raw = body;
+    if (method === "POST" && /\/restore$/.test(url)) raw = await Graph.gget(url.replace(/\/restore$/, ""));
+    if (method === "PATCH") {
+      const existing = await Graph.gget(url);
+      raw = { ...existing, ...body, conditions: { ...(existing.conditions || {}), ...(body.conditions || {}) } };
+    }
+    const requirement = Capabilities.check(raw, evidence);
+    if (!requirement.ok) throw new Error(`Policy write stopped: ${requirement.reason}. No premium conditions were removed.`);
+    if (method === "POST") {
+      const current = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id");
+      if (current.length >= 240) throw new Error("No free Conditional Access policy slot (240 maximum). Existing policies were retained.");
+    }
+    if (context !== `${tenantId}:${policiesReadAt}`) throw new Error("Policy write stopped: tenant or policy snapshot changed");
+  });
+  Graph.setThrottleHandler((ms) => { Object.values(PROG_REG).forEach(p => { if (p.st.active) p.st.throttleUntil = Date.now() + ms; }); });
   // The version badge is on the home tile; it belongs on the tool's own header
   // too, which is where somebody actually is when they wonder what changed.
   // ---------- the two heads that are static HTML (build 25352) ----------
@@ -19940,6 +20833,44 @@ This is a directory write. Nothing else changes.`)) return;
   document.querySelectorAll("[data-tool-head]").forEach((el) => {
     el.innerHTML = toolHeadInner(el.dataset.toolHead);
   });
+
+  // Local filters suggest only fields their matching logic can find. Source
+  // generators avoid copying large result sets; the shared helper yields and
+  // discards stale work when the query or tenant changes.
+  function* searchFields(rows, fields) {
+    for (const row of rows || []) for (const field of fields) yield row[field];
+  }
+  const localSearchSources = {
+    searchBox: function* () { yield* searchFields(policies, ["name"]); },
+    anSearch: () => searchFields(anReport, ["user", "upn"]),
+    auSearch: function* () {
+      for (const r of auRes?.rows || []) {
+        yield r.target; yield r.actor?.name; yield r.actor?.upn; yield r.member; yield r.activity;
+        yield* searchFields(r.changes, ["path"]);
+      }
+    },
+    cgSearch: function* () {
+      for (const r of cgRes?.rows || []) { yield r.name; yield r.id; yield* searchFields(r.members, ["name", "upn"]); }
+    },
+    exSearch: function* () {
+      if (exTab === "users") yield* searchFields(exUsers, ["name", "upn"]);
+      else if (exTab === "risk") yield* searchFields(exModel ? Exclusions.risk(exModel).rows : [], ["name"]);
+      else yield* searchFields(exModel?.entities, ["name", "id"]);
+    },
+    blSearch: function* () { for (const r of blResult?.rows || []) { yield r.num; yield r.baseline?.name; yield r.tenant?.name; } },
+    vaSearch: function* () { for (const p of vaResult?.personas || []) for (const g of p.groups || []) yield g.name; },
+    sgSearch: function* () {
+      for (const r of sgRes?.apps || []) { yield r.name; yield r.appId; yield* searchFields(r.impact?.will, ["name"]); yield* searchFields(r.phantomIn, ["name"]); }
+    },
+    loSearch: () => searchFields(loList, ["displayName"]),
+    acSearch: () => searchFields(acList, ["id", "displayName", "description"]),
+    asSearch: () => searchFields(asList, ["displayName", "description"]),
+    tuSearch: () => searchFields(tuList, ["displayName"]),
+    rcSearch: function* () { yield* searchFields(rcPols, ["displayName"]); yield* searchFields(rcLocs, ["displayName"]); },
+    ruSearch: () => searchFields(ruList, ["displayName", "description"]),
+    lgUserSearch: () => searchFields((lgModalKey === "p2" ? lgRes?.p2 : lgRes?.p1)?.gapUsers, ["name", "upn"]),
+  };
+  Object.entries(localSearchSources).forEach(([id, source]) => SearchSuggest.bind($(id), source, () => `${tenantId}:${isDemo}:${policiesReadAt}:${exTab}:${lgModalKey}`));
 
   Graph.init().then((resumed) => {
     if (new URLSearchParams(location.search).get("demo")) { loadDemo(); return; }

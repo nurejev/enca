@@ -217,6 +217,21 @@ BASELINE_JOEY.predefined = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccoun
 // group, and expecting every tenant to have a group by that name would report
 // a missing group nobody should create.
 BASELINE_JOEY.groups = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "one <policy name> - Exclude group per policy"];
+// The group files of this release (Config/Groups) whose name is not
+// "<a policy in this list> - Exclude": CA403 and CA404 name the persona
+// "Guests" where the policies say "GuestUsers", and CA005/CA006 ship an
+// exclusion group for a policy file the next commit added. They are HIS
+// groups under the names his repository gives them, so 👥 CA groups counts a
+// tenant group by one of these names as the baseline's (never as expected —
+// 📥 Import creates the policy's own name instead). The live read carries
+// its release's full listing in bundle.groups.
+BASELINE_JOEY.groupFiles = [
+  "CA005-Global-DataProtection-Office365-AnyPlatform-Unmanaged-RequireAppProtection - Exclude",
+  "CA005-Global-DataProtection-Office365-iOSenAndroid-ClientApps-Unmanaged-RequireAppProtection - Exclude",
+  "CA006-Global-DataProtection-Office365-iOSenAndroid-RequireAppProtection - Exclude",
+  "CA403-Guests-IdentityProtection-AllApps-AnyPlatform-PersistentBrowser - Exclude",
+  "CA404-Guests-AttackSurfaceReduction-SelectedApps-AnyPlatform-BLOCK - Exclude",
+];
 BASELINE_JOEY.EXCLUDE_SUFFIX = " - Exclude";
 
 (function joeyContract(J) {

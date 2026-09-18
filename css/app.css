@@ -233,6 +233,8 @@ footer{position:sticky;top:100vh}
 .toolbar > *{order:5}
 .toolbar > .search{order:1;flex:0 0 auto;width:clamp(200px,26%,320px);min-width:0}
 .toolbar > .seg,.toolbar > .tb-scope{order:2}
+/* 💾 Keep on this device (R58) belongs to the sign-in source segment it follows, so it shares the segment's slot */
+.toolbar > .sistore{order:2;align-self:center;white-space:nowrap}
 .toolbar > .chip-filter{order:3}
 .toolbar > .tb-win{order:4}
 .toolbar > .tb-actions{order:6}
@@ -335,6 +337,44 @@ table.plist tr:hover td{background:var(--hover)}
 .cg-table .tag{font-size:10px;padding:1px 6px}
 .cg-mem{white-space:nowrap}
 .btn.sm{padding:3px 10px;font-size:11px;border-radius:8px}
+/* 🫥 Apps with no service principal — the list table (0.2). Seven columns
+   with fixed widths, so the box scrolls sideways on a narrow window instead
+   of squeezing the App column; policy pills are one per line and wrap inside
+   their column; the app id under the name is monospace and stays whole. */
+.sg-wrap{margin-top:0;overflow:auto}
+.sg-table{min-width:1300px;table-layout:fixed}
+.sg-table thead th{white-space:normal;vertical-align:bottom}
+.sg-table th:nth-child(1){width:290px}.sg-table th:nth-child(2){width:90px}.sg-table th:nth-child(3){width:180px}
+.sg-table th:nth-child(4){width:220px}.sg-table th:nth-child(5){width:250px}.sg-table th:nth-child(6){width:150px}
+/* The verdict chip is uppercase and nowrap by default; NO CONDITIONAL ACCESS is
+   wider than any sane column, so inside this table it may wrap, and a cell
+   never lets its content run into the next column. */
+.sg-table td{overflow:hidden}
+.sg-table td .sev{white-space:normal;text-align:left;line-height:1.35;max-width:100%}
+.sg-table th.num,.sg-table td.num{text-align:right}
+.sg-table td.sg-app b{overflow-wrap:anywhere}
+.sg-table .sg-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;margin-top:2px;overflow-wrap:anywhere}
+.sg-table .sg-pill{display:block;width:fit-content;max-width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.35;margin:2px 0}
+.sg-table .tag{font-size:10px;padding:1px 6px;vertical-align:middle}
+.sg-table td{line-height:1.45}
+/* 0.3 — folded rows: one line per app that opens on click (au-sumrow /
+   au-sumdet, the 🚦 per-policy pattern); the summary spans the four detail
+   columns, the detail row lays the same four out as a grid. */
+.sg-table.sg-folded{min-width:760px}
+.sg-table.sg-folded th:nth-child(4){width:auto}
+.sg-foldbar{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin:0 0 6px}
+.sg-foldbar .fchip[disabled]{opacity:.45;cursor:default}
+.sg-row .sg-chev{display:inline-block;width:12px;color:var(--muted);font-size:12px}
+.sg-row .sg-sum{white-space:normal;color:var(--muted)}
+.sg-row.open td{background:var(--hover)}
+.sg-det td{background:var(--soft);padding:10px 14px 12px 34px}
+.sg-detgrid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:10px 18px}
+.sg-dk{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px}
+@media (max-width:900px){.sg-detgrid{grid-template-columns:1fr 1fr}}
+/* 🚦 / 🕵 — the second factor was asked for and never came */
+.si-authgap{color:var(--off)}
+.au-diff div.si-steps{display:block;padding:0 0 4px 92px;line-height:1.5}
+.si-steps .muted{opacity:.85}
 /* persona quick-pick in the assign wizard */
 .persona-row{display:flex;flex-wrap:wrap;gap:6px}
 .persona-chip{background:var(--soft);border-color:var(--border)}
@@ -436,7 +476,9 @@ table.plist tr:hover td{background:var(--hover)}
 /* the five condition dropdowns share the row evenly and wrap gracefully */
 
 /* rendered Markdown report inside the viewer overlay */
-.md-view{max-height:72vh;overflow:auto;padding-right:6px;font-size:13.5px;line-height:1.65}
+.md-view{max-height:72vh;overflow:auto;overflow-wrap:anywhere;padding-right:6px;font-size:13.5px;line-height:1.65}
+.md-table-scroll{max-width:100%;overflow-x:auto;overflow-wrap:normal}
+.md-table-scroll:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
 .md-view h1{font-size:18px;margin:0 0 10px}
 .md-view h2{font-size:15px;margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);color:var(--green)}
 .md-view h3{font-size:13.5px;margin:14px 0 6px}
@@ -1251,7 +1293,7 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .tool-tile h3{padding-right:104px}
 .tool-tile:hover .tool-ver{border-color:var(--accent2);color:var(--green)}
 /* the same stamp, on the tool's own header card */
-.tool-ver-head{margin-left:9px;font-size:10.5px;letter-spacing:.04em;font-weight:400;vertical-align:middle;
+.tool-ver-head{display:inline-block;white-space:nowrap;margin-left:9px;font-size:10.5px;letter-spacing:.04em;font-weight:400;vertical-align:middle;
   font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:var(--soft);
   border:1px solid var(--border);border-radius:999px;padding:2px 8px;cursor:help}
 
@@ -2077,3 +2119,53 @@ body.cgg-modal-open{overflow:hidden}
 .pr-barwrap .cgg-bulk{width:100%}
 .pr-barwrap .cgg-bulk .btn.primary[disabled]{opacity:.5}
 @media (max-width:860px){.pr-settings-grid{grid-template-columns:1fr}}
+
+/* Housekeeping pairs stay readable at narrow widths and with long policy names. */
+#hkModal .modal{max-width:800px}
+#hkList .hk-choice{margin:0;align-items:flex-start}
+#hkList .hk-choice input{flex-shrink:0;margin-top:3px}
+#hkList .hk-details{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}
+#hkList .hk-compare{margin:10px 0 2px 24px}
+#hkCompareModal .modal{max-width:1180px}
+#hkCompareModal{z-index:1001}
+.hk-compare-scroll{overflow:auto;margin-top:14px;border:1px solid var(--border);border-radius:8px}
+.hk-compare-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}
+.hk-compare-table th,.hk-compare-table td{padding:12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border);overflow-wrap:anywhere}
+.hk-compare-table thead th{background:var(--soft);width:38%}
+.hk-compare-table thead th:first-child{width:24%}
+.hk-compare-table tbody th .mini{display:block;margin-top:6px}
+.hk-compare-table .hk-changed th{box-shadow:inset 3px 0 var(--report)}
+.hk-values{margin:0;padding-left:16px}
+.hk-values li+li{margin-top:6px}
+.hk-value-changed{background:var(--warn-bg2);border-radius:4px;padding:3px}
+.hk-value{white-space:pre-wrap}
+@media(max-width:600px){.hk-compare-table{min-width:640px}}
+
+/* ---------- 👯 duplicates (T01, build 25387) ---------- */
+/* One set per card: the copies as rows with the keep radio, what can be
+   brought across underneath, and the outcome on the foot. Same grammar as
+   the CA-groups rows, so a policy row reads the same in both tools. */
+.dup-set{border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.dup-head{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:var(--soft2);border-bottom:1px solid var(--line)}
+.dup-head b{font-size:13.5px}
+.dup-verdict{margin-left:auto;white-space:nowrap}
+.dup-row{display:flex;gap:12px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid var(--line)}
+.dup-row.keep{background:var(--hl)}
+.dup-row input[type=radio]{margin-top:3px}
+.dup-meta{flex:1;min-width:0}
+.dup-name{font-weight:700;word-break:break-word}
+.dup-seq{color:var(--muted);font-weight:600;font-size:12px}
+.dup-assign{min-width:250px;max-width:320px;font-size:12.5px}
+.dup-assign .ex{color:var(--off)}
+.dup-opts{padding:11px 14px}
+.dup-opts .chk{margin:6px 0;align-items:flex-start;color:var(--ink)}
+.dup-opts .chk.off{color:var(--muted)}
+.dup-opts .why{color:var(--muted)}
+.dup-bad{background:var(--bad-bg2);border:1px solid var(--bad-bd);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
+.dup-foot{padding:10px 14px;background:var(--soft2);border-top:1px solid var(--line);font-size:12.5px}
+.dup-foot .arrow{color:var(--accent2);font-weight:700}
+.dup-plan{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:10px 0}
+.dup-plan > div{padding:9px 13px;border-bottom:1px solid var(--line);font-size:12.5px}
+.dup-plan > div:last-child{border-bottom:0}
+.dup-plan .del{color:var(--off)}
+@media (max-width:700px){.dup-row{flex-wrap:wrap}.dup-assign{min-width:0;max-width:none}}

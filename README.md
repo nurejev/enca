@@ -374,7 +374,7 @@ The **MS Learn checks** tool (`js/mslearn.js`) is an independent vanilla-JS impl
 
 The **Best-practice & bypass checks** tool (`js/gapcheck.js`) is likewise an independent reimplementation of that project's analyzer check set. The underlying data and research: Conditional Access bypasses by Fabian Bader & Dirk-jan Mollema ([cloudbrothers.info](https://cloudbrothers.info/en/conditional-access-bypasses/), [entrascopes.com](https://entrascopes.com)), the FOCI family research by Secureworks, and the Zero Trust persona framework by Claus Jespersen (Microsoft).
 
-## Workspace and verification (build 312)
+## Beta workspace and verification (build 25357)
 
 The guided rollout connects scope, plan, observed report-only impact and policy-state review. It uses existing tools and confirmations. Manual acknowledgements are not automatic safety checks. The Checks evidence desk shows configuration findings alongside the assessment, recommendation and data limitations.
 
@@ -390,4 +390,4 @@ node tools/check-toolbar-order.js
 node tools/check-plain-text.js
 ```
 
-GitHub CI runs these checks before building the container. Live-tenant write and consent checks are listed per item in the beta channel's promotion queue; offline fixtures do not replace those checks.
+GitHub CI runs these checks before building the container. Live-tenant write and consent checks are listed in promotion items 191–194; offline fixtures do not replace those checks.

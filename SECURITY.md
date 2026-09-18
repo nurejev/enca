@@ -28,6 +28,19 @@ data, sign-in logs, group memberships — everything the tool reads — exists
 stored, proxied, cached or logged anywhere else, and the operator has no
 technical means to see any tenant's data: there is no server that could.
 
+There is one deliberate, opt-in exception, and it is on the reader's side of
+the line, not the site's: **💾 Keep on this device** (roadmap R58, beta 25378).
+Switched on per tenant, after a dialog that names the data, the browser keeps
+the report-only verdict summaries the Defender hunting sources return — per
+day, policy, verdict and user, with the apps hit, the device facts and one
+sample sign-in per user and policy that would be denied, so user principal
+names, IP addresses, locations and device state of real sign-ins —
+in its own IndexedDB, on that device, for the number of days chosen (3–30,
+default 8). It never leaves the device, the site cannot read it from anywhere
+else, and anyone using that browser profile can. Tokens are never in it, nor
+are the rows of the Entra-log source. **Forget** deletes it at once. Off by
+default; the hosted site itself still stores nothing anywhere.
+
 Because there is no build step, the JavaScript that runs in the browser is the
 JavaScript in this repository — human-readable, diff-able per release, with a
 visible build number (footer and sign-in screen) that maps to a commit. A
@@ -218,7 +231,7 @@ Advisories** on this repository ("Report a vulnerability") rather than a
 public issue. Reports get a response, a fix in the beta channel, and credit
 if wanted; the changelog discloses security-relevant fixes.
 
-## Build 312: evidence and mutation integrity
+## Beta build 25357: evidence and mutation integrity
 
 Graph access tokens are restricted to the Graph host. Optional Azure RBAC inspection obtains a separate ARM token for `management.azure.com`; it never reuses a Graph token. Branding settings can be written through their own existing confirmation flow. Public baseline catalog caches are distinct from tenant data in memory. Downloaded exports remain on the user's device.
 

@@ -27,7 +27,11 @@ COPY . /usr/share/nginx/html/
 # web root - remove that one, because nothing served to a browser should be
 # a shell script.
 RUN rm -f /usr/share/nginx/html/CNAME \
- && rm -f /usr/share/nginx/html/selfhost/docker-entrypoint.sh
+ && rm -f /usr/share/nginx/html/selfhost/docker-entrypoint.sh \
+ # COPY preserves local permissions, including owner-only editor files.
+ # nginx workers must be able to traverse and read the published site.
+ && find /usr/share/nginx/html -type d -exec chmod 755 {} + \
+ && find /usr/share/nginx/html -type f -exec chmod 644 {} +
 
 # Point the copy at YOUR OWN app registration without forking or rebuilding:
 #   -e ENCA_CLIENT_ID=<guid> [-e ENCA_TENANT_ID=<guid>]

@@ -57,22 +57,47 @@ const CaGroups = (() => {
   // How many of a catalog's policy names this tenant actually carries — the
   // signal that a tenant deploys a baseline other than the active one.
   const OTHER_MIN_MATCH = 3;
-  function policyHits(cat, raws) {
-    const theirs = new Set((cat.policies || []).map((p) => String(p.name).toLowerCase()));
-    return (raws || []).filter((p) => theirs.has(String(p.name || p.displayName || "")
-      .replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase())).length;
+  const cleanPolicy = (n) => String(n || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase();
+  // `skip`: names that are no sign of the other catalog (see otherBaseline)
+  function policyHits(cat, raws, skip) {
+    const theirs = new Set((cat.policies || []).map((p) => cleanPolicy(p.name)).filter((n) => !(skip && skip.has(n))));
+    return (raws || []).filter((p) => theirs.has(cleanPolicy(p.name || p.displayName || ""))).length;
   }
   // The other catalog this tenant looks deployed against, if any.
+  // 25386: a name the ACTIVE baseline expects as well is no sign of the other
+  // one. The six E-Admins policies are CloudFellows names that every baseline
+  // expects (Baseline.sharedPolicies), and on Courseware they raised "6 of
+  // this tenant's policies carry names from the CloudFellows baseline" under
+  // Joey Verlinden's catalog, on a tenant with nothing else of CloudFellows'.
   function otherBaseline(raws) {
     if (typeof Baseline === "undefined" || !Baseline.catalogs) return null;
     const act = activeCat();
+    const mine = new Set();
+    if (act) {
+      for (const p of act.policies || []) mine.add(cleanPolicy(p.name));
+      try { for (const p of (Baseline.sharedPolicies ? Baseline.sharedPolicies(act) : []) || []) mine.add(cleanPolicy(p.name)); } catch { /* no shared list */ }
+    }
     for (const cat of Baseline.catalogs()) {
       if (act && cat.id === act.id) continue;
-      const hits = policyHits(cat, raws);
+      const hits = policyHits(cat, raws, mine);
       if (hits >= OTHER_MIN_MATCH) return { catalog: cat, hits };
     }
     return null;
   }
+
+  // ---- groups every baseline shares (25386) -------------------------------
+  // The 🚨 E-Admins groups and the 🚀 CAD-SEC-U-DG deploy groups belong to no
+  // single catalog (Baseline.sharedGroups says why), so they are the
+  // baseline's under whichever one is active. On Courseware, with Joey
+  // Verlinden's catalog active, the deploy groups the import staged on were
+  // listed as "not in the baseline", and so were the E-Admins groups.
+  const sharedGroupsOf = (cat) => {
+    try { return (typeof Baseline !== "undefined" && Baseline.sharedGroups) ? (Baseline.sharedGroups(cat) || []) : []; } catch { return []; }
+  };
+  const sharedFamilyOf = (name) => {
+    try { return (typeof Baseline !== "undefined" && Baseline.sharedFamily) ? Baseline.sharedFamily(name) : null; } catch { return null; }
+  };
+  const isCloudFellows = (cat) => !cat || cat.id === "limonit";
 
   function catalogGroupNames(raws) {
     const out = new Set();
@@ -85,6 +110,9 @@ const CaGroups = (() => {
       // Joey's catalog names its groups directly rather than per policy
       for (const g of cat.groups || []) if (!/^one /i.test(g)) out.add(g);
       if (cat.breakGlassGroup) out.add(cat.breakGlassGroup);
+      // the shared groups this catalog EXPECTS — under a community catalog,
+      // the Emergency_Access pair the shared E-Admins policies name
+      if (cat.id) for (const sg of sharedGroupsOf(cat)) if (sg.expected) out.add(sg.name);
     }
     return out;
   }
@@ -95,7 +123,72 @@ const CaGroups = (() => {
     const list = c && typeof c.templates === "function" ? c.templates()
       : (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []);
     (list || []).forEach((t) => m.set(t.displayName, t));
+    // A shared group this catalog expects but does not template itself (the
+    // Emergency_Access pair under Joey Verlinden's) takes the CloudFellows
+    // template, so ② Create can make it like any other missing group.
+    if (c && !isCloudFellows(c) && typeof GROUP_TEMPLATES !== "undefined") {
+      const have = new Set([...m.keys()].map((k) => String(k).toLowerCase()));
+      for (const sg of sharedGroupsOf(c)) {
+        if (!sg.expected || have.has(sg.name.toLowerCase())) continue;
+        const t = GROUP_TEMPLATES.find((x) => String(x.displayName).toLowerCase() === sg.name.toLowerCase());
+        if (t) { m.set(t.displayName, t); have.add(sg.name.toLowerCase()); }
+      }
+    }
     return m;
+  }
+
+  // Every name that makes a group the BASELINE'S in this tenant — wider than
+  // what is expected (the names that can be reported missing). Lowercased
+  // name -> basis:
+  //   template / catalog — the active catalog's own groups (its predefined
+  //                        names included: APP_Microsoft365_E5 is Joey's
+  //                        example include group, never expected, still his)
+  //   repository         — the name the repository's own group file gives
+  //                        (CA403-Guests-… - Exclude for the CA403-GuestUsers
+  //                        policy): the bundled release's groupFiles, or the
+  //                        live read's full Config/Groups listing
+  //   eadmins / deploy   — the groups every baseline shares
+  //   convention         — the exclusion group the active baseline's naming
+  //                        rule gives a policy this tenant HAS, when the
+  //                        catalog does not list that policy (an older
+  //                        release's name, the tenant's own numbering)
+  // Under a community catalog the shared groups are entered first, so a row
+  // can say why a group its catalog does not define still counts.
+  function knownNames(raws) {
+    const out = new Map();
+    const add = (n, basis) => { const k = String(n || "").trim().toLowerCase(); if (k && !out.has(k)) out.set(k, basis); };
+    const c = activeCat();
+    const shared = sharedGroupsOf(c);
+    if (!isCloudFellows(c)) shared.forEach((sg) => add(sg.name, sg.family));
+    templateNames().forEach((_, n) => add(n, "template"));
+    catalogGroupNames(raws).forEach((n) => add(n, "catalog"));
+    for (const n of (c && c.predefined) || []) add(n, "catalog");
+    for (const n of (c && c.groupFiles) || []) add(n, "repository");
+    for (const g of (c && c.bundle && c.bundle.groups) || []) add(g && g.displayName, "repository");
+    shared.forEach((sg) => add(sg.name, sg.family));
+    if (c && typeof c.exclusionGroupFor === "function") {
+      for (const p of raws || []) {
+        let e = null;
+        try { e = c.exclusionGroupFor(String((p && (p.name || p.displayName)) || "")); } catch { e = null; }
+        if (e && e.name) add(e.name, e.source === "catalog" ? "catalog" : "convention");
+      }
+    }
+    return out;
+  }
+
+  // Groups an E-Admins policy in this tenant INCLUDES — the emergency
+  // accounts, under whatever name the tenant gave their group.
+  function eAdminTargets(raws) {
+    const ids = new Set();
+    if (typeof Baseline === "undefined" || !Baseline.personaKey) return ids;
+    for (const p of raws || []) {
+      let key = null;
+      try { key = Baseline.personaKey(cleanPolicy(p.name || p.displayName || "")); } catch { key = null; }
+      if (key !== "eadmin") continue;
+      const u = (p.raw || p).conditions?.users || {};
+      for (const id of u.includeGroups || []) if (isGuid(id)) ids.add(id);
+    }
+    return ids;
   }
 
   // Group ids referenced by the tenant's own policies, with the policies that
@@ -170,9 +263,16 @@ const CaGroups = (() => {
     const tpl = templateNames();
     const cat = catalogGroupNames(raws);
     const refs = policyRefs(raws);
-    // names the baseline/templates know about — used to classify a referenced
-    // group as a baseline group or an ad-hoc one, in either scope
-    const known = new Set([...tpl.keys(), ...cat].map((n) => String(n).toLowerCase()));
+    // names that make a group the baseline's — used to classify a referenced
+    // (or, in the tenant scope, any) group as a baseline group or an ad-hoc
+    // one. 25386: wider than the expected names, see knownNames().
+    const known = knownNames(raws);
+    const eadmin = eAdminTargets(raws);
+    const basisOf = (g) => {
+      if (!g) return null;
+      const n = String(g.displayName || "").trim().toLowerCase();
+      return known.get(n) || sharedFamilyOf(g.displayName) || (eadmin.has(g.id) ? "eadmins-target" : null);
+    };
 
     // Every expected name, with where the expectation comes from. A name in
     // more than one source is one row, not three.
@@ -230,21 +330,22 @@ const CaGroups = (() => {
         sources: [...e.sources],
         status: g ? "present" : "missing",
         refs: g ? refs.get(g.id) : null,
+        basis: known.get(e.name.toLowerCase()) || (e.sources.has("template") ? "template" : "catalog"),
       }));
     }
     // referenced groups that are not part of the expected set
     for (const [id, ref] of refs) {
       if (claimed.has(id)) continue;
       const g = byId.get(id) || null;
-      const isKnown = g && known.has(String(g.displayName).toLowerCase());
+      const basis = basisOf(g);
       rows.push(row({
         name: g ? g.displayName : id, group: g,
         template: g ? (tpl.get(g.displayName) || null) : null,
         sources: ["policy"],
         // referenced by a policy but not resolvable = the dangling case;
-        // resolvable and named in the baseline = a baseline group in use
-        status: g ? (isKnown ? "present" : "extra") : "dangling",
-        refs: ref,
+        // resolvable and the baseline's = a baseline group in use
+        status: g ? (basis ? "present" : "extra") : "dangling",
+        refs: ref, basis,
       }));
     }
 
@@ -259,7 +360,10 @@ const CaGroups = (() => {
         for (const g of all) {
           if (seen.has(g.id)) continue;
           seen.add(g.id);
-          rows.push(row({ name: g.displayName, group: g, template: tpl.get(g.displayName) || null, sources: ["tenant"], status: "extra", refs: null }));
+          // a baseline group no policy references is still the baseline's —
+          // an unused deploy group, an E-Admins group, a predefined name
+          const basis = basisOf(g);
+          rows.push(row({ name: g.displayName, group: g, template: tpl.get(g.displayName) || null, sources: ["tenant"], status: basis ? "present" : "extra", refs: null, basis }));
         }
       } catch (e) { console.warn("CaGroups: tenant read failed", e.message); }
     }
@@ -283,6 +387,9 @@ const CaGroups = (() => {
     const nRef = r.refs ? (r.refs.include.length + r.refs.exclude.length) : 0;
     return {
       name: r.name, status: r.status, sources: r.sources, template: r.template,
+      // why the group counts as the baseline's (knownNames), null for "extra"
+      // and "dangling"
+      basis: r.status === "extra" || r.status === "dangling" ? null : (r.basis || null),
       id: g ? g.id : null,
       description: g ? g.description || "" : (r.template?.description || ""),
       roleAssignable: g ? !!g.isAssignableToRole : null,
@@ -659,7 +766,7 @@ const CaGroups = (() => {
         const ms = await Graph.ggetAll(`/groups/${r.id}/transitiveMembers/microsoft.graph.user`
           + `?$select=id,displayName,userPrincipalName,accountEnabled&$top=999`);
         r.memberTotal = ms.length;
-        r.members = ms.slice(0, MEMBER_CAP).map((m) => ({
+        r.members = ms.map((m) => ({
           id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "",
           disabled: m.accountEnabled === false,
         }));
@@ -790,7 +897,7 @@ const CaGroups = (() => {
         // per-row Create for a missing group that has a template — so a single
         // missing group can be fixed without going to the Create tab.
         const mem = r.memberError ? '<span class="cg-err" title="scan failed">error</span>'
-          : r.members ? `<b>${r.memberTotal}</b>${r.memberTotal > MEMBER_CAP ? ` <span class="mini">(first ${MEMBER_CAP})</span>` : ""}`
+          : r.members ? `<b>${r.memberTotal}</b>`
           : r.id ? `<button class="btn sm cg-scan" data-cgscan="${esc(r.name)}">Scan</button>`
           : r.status === "missing" && r.template ? `<button class="btn sm primary" data-cgcreateone="${esc(r.name)}">Create</button>`
           : '<span class="mini muted">—</span>';
@@ -860,13 +967,13 @@ const CaGroups = (() => {
     // The same grid every matrix view uses (.matrix-wrap + .mtable): card
     // surface, sticky header row, sticky first column, vertical policy-style
     // headers. The old tablewrap / stick / vert classes never had CSS.
-    return `<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
+    return `${users.length > 100 ? `<p class="mini muted">Showing the first 100 of ${users.length.toLocaleString()} matching members. Search to find any member; exports include every loaded member.</p>` : ""}<div class="matrix-wrap cg-mwrap"><table class="mtable cg-matrix${nesting ? " cg-nesting" : ""}">
       <thead><tr>
         <th class="ucol">Member (${users.length})</th>
         ${cols.map((c) => { const an = nesting && allNested(c); return `<th class="pcol${an ? " cg-allnested" : ""}"><div class="ph" title="${esc(c.name)}${c.memberTotal != null ? ` — ${c.memberTotal} member${c.memberTotal === 1 ? "" : "s"}` : ""}${c.children ? ` — ${c.children.length} nested group${c.children.length === 1 ? "" : "s"}` : ""}${an ? " — every member came in through a nested group; nothing here is removable from this group" : ""}">${an ? "◐ " : ""}${esc(c.name)}</div></th>`; }).join("")}
         <th class="pcol cg-incol" title="How many of the loaded groups this member is in">In</th><th class="cg-fill"></th>
       </tr></thead>
-      <tbody>${users.map((u) => `<tr>
+      <tbody>${users.slice(0, 100).map((u) => `<tr>
         <td class="ucol"><span class="uname">${esc(u.name)}${u.disabled ? ' <span class="tag block">disabled</span>' : ""}</span><div class="uupn">${esc(u.upn || "")}</div></td>
         ${cols.map((c) => cell(u, c)).join("")}
         <td class="cellv cg-incol"><b>${u.groups.size}</b></td><td class="cg-fill"></td>
@@ -947,6 +1054,14 @@ const CaGroups = (() => {
 
   // ---- markdown -----------------------------------------------------------
   const mdEsc = (s) => String(s ?? "").replace(/\|/g, "\\|");
+  // why a row counts as the baseline's when its catalog does not define it
+  const BASIS_MD = {
+    eadmins: "E-Admins group, every baseline",
+    "eadmins-target": "targeted by an E-Admins policy",
+    deploy: "deploy group, every baseline",
+    convention: "the baseline's naming rule",
+    repository: "the repository's group name",
+  };
   function toMd(res, tenant, withMembers) {
     const L = [];
     L.push(`# Conditional Access groups — ${mdEsc(tenant || "tenant")}`);
@@ -964,7 +1079,8 @@ const CaGroups = (() => {
       const type = r.status === "missing"
         ? (r.template ? (r.template.membershipRule ? "dynamic (template)" : "role-assignable (template)") : "no template")
         : r.dynamic ? "dynamic" : r.roleAssignable ? "role-assignable" : "assigned";
-      L.push(`| ${STATUS[r.status].icon} | ${mdEsc(r.name)} | ${type} | ${r.refCount || "—"} | ${r.sources.join(", ")} | ${r.members ? r.memberTotal : "—"} |`);
+      const why = BASIS_MD[r.basis] ? ` (${BASIS_MD[r.basis]})` : "";
+      L.push(`| ${STATUS[r.status].icon} | ${mdEsc(r.name)} | ${type} | ${r.refCount || "—"} | ${r.sources.join(", ")}${why} | ${r.members ? r.memberTotal : "—"} |`);
     }
     const dangling = res.rows.filter((r) => r.status === "dangling");
     if (dangling.length) {
@@ -1348,7 +1464,7 @@ const CaGroups = (() => {
     NESTING, NEST_WRITE_SCOPES, nestingState, nestingPlan, nestingReport, adminList,
     NESTING_GA, NEST_V1, nestingUnsupported, nestingSupported, noteNestingUnsupported, NESTING_UNSUPPORTED_TEXT,
     ARCHIVE_SUFFIX, findArchived,
-    catalogGroupNames, templateNames, policyRefs, convertPlan, runConvert,
+    catalogGroupNames, templateNames, knownNames, eAdminTargets, policyRefs, convertPlan, runConvert,
     MIGRATE_SCOPES, heldRoles, migratePlan, migrateReport, migratedName,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
     rmauCandidates, rmauReport,

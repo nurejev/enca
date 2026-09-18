@@ -86,7 +86,7 @@ const Exclusions = (() => {
 
   // ---- 2. resolve display names + expand group membership ----
   async function resolve(model, opts = {}) {
-    const { onStatus, demo } = opts;
+    const { onStatus, demo, signal } = opts;
     const byKind = (k) => model.entities.filter((e) => e.kind === k);
 
     // well-known sentinels that are not directory objects
@@ -176,13 +176,13 @@ const Exclusions = (() => {
       const g = groups[i];
       onStatus?.(`Expanding group ${i + 1}/${groups.length}…`, i + 1, groups.length);
       try {
-        const members = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,accountEnabled&$top=999`);
+        const members = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id,displayName,userPrincipalName,accountEnabled&$top=999`, { signal });
         g.memberTotal = members.length;
-        g.members = members.slice(0, MEMBER_CAP).map((m) => ({ id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "", disabled: m.accountEnabled === false }));
+        g.members = members.map((m) => ({ id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "", disabled: m.accountEnabled === false }));
         g.disabledMembers = g.members.filter((m) => m.disabled).length;
       } catch (e) {
         console.warn(`Exclusions: members of ${g.name || g.id} failed`, e.message);
-        g.members = []; g.memberTotal = null;
+        throw new Error(`Exclusion membership incomplete for ${g.name || g.id}: ${e.message}. No complete user totals are available.`);
       }
     }
     // Nesting — HOW each member got in. One $batch over the excluded groups'

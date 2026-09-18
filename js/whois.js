@@ -234,19 +234,55 @@ const WhoIs = (() => {
   // requirement but not the steps, and are counted as "not known").
   const MFA_CTRL = /mfa|auth(entication)?.?strength/i;
   const isClaim = (t) => /claim in the token|satisfied by claim|already satisfied|previously satisfied/i.test(String(t || ""));
+  // The password step carries the requirement too ("Phishing-resistant
+  // MFA" on the Correct-password row, exactly as the portal prints it), so
+  // a step counts as the second factor by its METHOD, never by its
+  // requirement column alone. Asked and never given is "missing" (1.4) —
+  // it used to read as fresh, which is the opposite of what happened.
+  const PRIMARY_STEP = /^password|primary/i;
   const mfaStepOf = (rec) => {
     const steps = rec.authenticationDetails;
     if (!Array.isArray(steps)) return "unknown";
-    const mfa = steps.filter((st) => /multi|mfa|second/i.test(String(st.authenticationStepRequirement || "")) || /mfa|authenticator|passkey|fido|hello|phone|sms|oath|text message|voice/i.test(String(st.authenticationMethod || "")));
+    const mfa = steps.filter((st) => !PRIMARY_STEP.test(String(st.authenticationMethod || "")) && (/multi|mfa|second|strength|resistant/i.test(String(st.authenticationStepRequirement || "")) || /mfa|authenticator|passkey|fido|hello|phone|sms|oath|text message|voice|certificate|token|previously satisfied/i.test(String(st.authenticationMethod || ""))));
     if (!mfa.length) return "unknown";
-    if (mfa.some((st) => isClaim(st.authenticationStepResultDetail))) return "claim";
+    if (mfa.some((st) => isClaim(st.authenticationStepResultDetail) || isClaim(st.authenticationMethod))) return "claim";
     if (mfa.some((st) => st.succeeded === true || /completed|success|verified/i.test(String(st.authenticationStepResultDetail || "")))) return "fresh";
-    return "unknown";
+    return "missing";
   };
+  // WHAT SHE SIGNED IN WITH (1.4, 25381). The MFA card said how often a
+  // second factor was asked and whether it was fresh; it never said which
+  // method she used — and "required phishing-resistant MFA, signed in with a
+  // password" is the whole answer to a stopped sign-in. One tally over all
+  // her records: methods that succeeded (per Signins.authOf), the sign-ins
+  // where a factor was asked and never came (gap), the strengths she was
+  // held to, and whether any phishing-resistant method ever appears.
+  function methodsOf(recs) {
+    const out = { known: 0, unknown: 0, methods: new Map(), gap: 0, gapApps: new Map(), gapNeeds: new Map(), strengths: new Map(), phishResistant: 0, claim: 0, single: 0, sample: null };
+    if (typeof Signins === "undefined" || !Signins.authOf) return out;
+    recs.forEach((r) => {
+      const a = Signins.authOf(r);
+      if (!a.known) { out.unknown++; return; }
+      out.known++;
+      a.used.forEach((m) => out.methods.set(m, (out.methods.get(m) || 0) + 1));
+      if (a.claim) out.claim++;
+      if (!a.mfaAsked) out.single++;
+      if (a.strength) out.strengths.set(a.strength, (out.strengths.get(a.strength) || 0) + 1);
+      if (a.phishResistant) out.phishResistant++;
+      if (a.gap) {
+        out.gap++;
+        const app = r.appDisplayName || r.resourceDisplayName || "(app)";
+        out.gapApps.set(app, (out.gapApps.get(app) || 0) + 1);
+        out.gapNeeds.set(a.need, (out.gapNeeds.get(a.need) || 0) + 1);
+        if (!out.sample || String(r.createdDateTime || "") > String(out.sample.when || "")) out.sample = { when: r.createdDateTime || "", app, summary: a.summary };
+      }
+    });
+    const sorted = (m) => [...m.entries()].sort((x, y) => y[1] - x[1]);
+    return { ...out, methods: sorted(out.methods), gapApps: sorted(out.gapApps), gapNeeds: sorted(out.gapNeeds), strengths: sorted(out.strengths) };
+  }
   function mfaOf(recs, lookup) {
     const byId = new Map((lookup || []).map((P) => [P.id, P]));
     const apps = new Map();
-    const tot = { total: recs.length, required: 0, fresh: 0, claim: 0, unknown: 0, devices: new Set(), freshDevices: new Set(), policies: new Map() };
+    const tot = { total: recs.length, required: 0, fresh: 0, claim: 0, unknown: 0, missing: 0, devices: new Set(), freshDevices: new Set(), policies: new Map(), methods: methodsOf(recs) };
     recs.forEach((r) => {
       if (r.authenticationRequirement !== "multiFactorAuthentication") return;
       tot.required++;
@@ -256,9 +292,11 @@ const WhoIs = (() => {
       const dev = dd.displayName || dd.deviceId || `${dd.operatingSystem || ""}|${dd.browser || ""}`;
       tot.devices.add(dev);
       if (how === "fresh") tot.freshDevices.add(dev);
-      const demanded = (r.appliedConditionalAccessPolicies || []).filter((p) => p.result === "success" && [...(p.enforcedGrantControls || [])].some((c) => MFA_CTRL.test(String(c))));
+      // success AND failure: a policy that stopped the sign-in for want of
+      // the factor demanded it just as much as one that got it
+      const demanded = (r.appliedConditionalAccessPolicies || []).filter((p) => (p.result === "success" || p.result === "failure") && [...(p.enforcedGrantControls || [])].some((c) => MFA_CTRL.test(String(c))));
       const app = r.appDisplayName || r.resourceDisplayName || "(app)";
-      const a = apps.get(app) || apps.set(app, { app, required: 0, fresh: 0, claim: 0, unknown: 0, policies: new Map(), devices: new Set(), freshDevices: new Set(), lastFresh: "", last: "" }).get(app);
+      const a = apps.get(app) || apps.set(app, { app, required: 0, fresh: 0, claim: 0, unknown: 0, missing: 0, policies: new Map(), devices: new Set(), freshDevices: new Set(), lastFresh: "", last: "" }).get(app);
       a.required++; a[how]++;
       a.devices.add(dev); if (how === "fresh") { a.freshDevices.add(dev); if (String(r.createdDateTime || "") > a.lastFresh) a.lastFresh = r.createdDateTime || ""; }
       if (String(r.createdDateTime || "") > a.last) a.last = r.createdDateTime || "";
@@ -652,20 +690,28 @@ const WhoIs = (() => {
       if (mf.fresh && sessionRows.length) why.push(`Session controls reaching her: ${sessionRows.map((r) => `${polLink(r)} <span class="muted">(${esc((r.session || []).join(", "))})</span>`).join(", ")} — a sign-in frequency re-prompts on its own clock, and a non-persistent browser session forgets the claim when the browser closes.`);
       if (mf.required && !mf.fresh && known) why.push(`Every MFA requirement in the window was satisfied by a claim already in the token — no fresh prompt was recorded. A prompt she sees that is not here is not Conditional Access: per-user MFA, security defaults, the app's own step-up, or a self-service registration flow.`);
       if (mf.unknown && !known) why.push(`Fresh vs reused cannot be told apart from the hunting source — switch the sign-in source to the Entra sign-in log to see which prompts were real.`);
+      // what she used — the portal's Authentication Details tab, tallied
+      const mt = mf.methods || { known: 0, unknown: 0, methods: [], gap: 0, gapApps: [], gapNeeds: [], strengths: [], phishResistant: 0, claim: 0 };
+      const needsPr = mt.strengths.filter(([n]) => /resistant|passkey|fido|certificate|hello/i.test(n));
+      const usedHtml = mt.known
+        ? `<p class="mini" style="margin:0 0 8px"><b>🔑 What she signed in with</b> (${mt.known} sign-in${mt.known === 1 ? "" : "s"} with step detail${mt.unknown ? `, ${mt.unknown} without` : ""}): ${mt.methods.length ? mt.methods.map(([m, n]) => `<span class="wo-res ${Signins.PHISH_RESISTANT.test(m) ? "ok" : /^password/i.test(m) ? "" : "int"}" title="${esc(m)}">${esc(m)}</span> ×${n}`).join(" · ") : "no succeeded method recorded"}${mt.claim ? ` · <span class="muted">MFA by a claim already in the token ×${mt.claim}</span>` : ""}${mt.strengths.length ? `<br>Held to an authentication strength: ${mt.strengths.map(([n, c]) => `<b>${esc(n)}</b> ×${c}`).join(", ")}` : ""}</p>`
+        : `<p class="mini muted" style="margin:0 0 8px">🔑 What she signed in with: not in this source — the hunting tables carry the requirement, not the steps. Switch to the Entra sign-in log to see the methods.</p>`;
+      const gapHtml = mt.gap ? `<div class="wo-callout bad"><b>${mt.gap} sign-in${mt.gap === 1 ? "" : "s"} asked for ${mt.gapNeeds.map(([n]) => esc(n)).join(" / ")} and got ${mt.methods.some(([m]) => /^password/i.test(m)) ? "a password only" : "no second factor"}</b> — on ${mt.gapApps.slice(0, 3).map(([a, n]) => `${esc(a)} ×${n}`).join(", ")}${mt.gapApps.length > 3 ? ` +${mt.gapApps.length - 3}` : ""}. ${needsPr.length && !mt.phishResistant ? `She was held to <b>${esc(needsPr[0][0])}</b> and never used a passkey, FIDO2 key, Windows Hello or certificate in this window — either she has no phishing-resistant method registered${u.methods ? ` (registered: ${u.methods.length ? esc(u.methods.join(", ")) : "none read"})` : ""}, or that device cannot present one. Those sign-ins are the Blocked and Interrupted rows below, and no policy change fixes them: the method does.` : `The prompt was shown and not completed, or the device has no method that meets it. These are the Blocked and Interrupted rows below.`}${mt.sample ? `<div class="mini muted">newest: ${esc(fmtWhen(mt.sample.when))} · ${esc(mt.sample.app)} · ${esc(mt.sample.summary)}</div>` : ""}</div>` : "";
       mfaHtml = `<div class="list-card wo-card">
-        <h3 class="wo-h" data-wo-fold="mfa">🔐 MFA on her sign-ins · ${esc(rangeLabel)} <span class="mini muted">— ${mf.required} of ${mf.total} required it</span></h3>
+        <h3 class="wo-h" data-wo-fold="mfa">🔐 MFA on her sign-ins · ${esc(rangeLabel)} <span class="mini muted">— ${mf.required} of ${mf.total} required it${mt.gap ? ` · <span style="color:var(--off)">${mt.gap} without the factor asked</span>` : ""}</span></h3>
+        ${usedHtml}${gapHtml}
         ${mf.required ? `<div class="wo-verdicts wo-3" style="margin:0 0 10px">
           <div class="wo-vt ${mf.fresh ? "warn" : "ok"}"><span class="k">Fresh prompts</span><span class="v">${mf.fresh}</span><span class="s">${pct(mf.fresh, known)} of the ${known} known — she had to pick up the phone</span></div>
           <div class="wo-vt ok"><span class="k">Satisfied by the token</span><span class="v">${mf.claim}</span><span class="s">an MFA claim already in the session — no prompt</span></div>
-          <div class="wo-vt"><span class="k">Not known</span><span class="v">${mf.unknown}</span><span class="s">${mf.unknown ? "hunting rows carry no step detail" : "—"}</span></div>
+          <div class="wo-vt${mf.missing ? " bad" : ""}"><span class="k">${mf.missing ? "Asked, not given" : "Not known"}</span><span class="v">${mf.missing || mf.unknown}</span><span class="s">${mf.missing ? `no second factor came — the Blocked rows${mf.unknown ? ` · ${mf.unknown} not known` : ""}` : mf.unknown ? "hunting rows carry no step detail" : "—"}</span></div>
         </div>
         ${why.map((w) => `<div class="wo-callout${/different devices|Session controls/.test(w) ? "" : " ok"}">${w}</div>`).join("")}
         <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>App</th><th>Policies that demanded MFA</th><th class="num">Required</th><th class="num">Fresh</th><th class="num">By token</th><th class="num">Devices</th><th>Last fresh prompt</th></tr></thead><tbody>
           ${mf.apps.slice(0, 20).map((a) => `<tr><td><b>${esc(a.app)}</b></td>
             <td>${a.policies.length ? a.policies.map((p) => `${polLink(p)} <span class="mini muted">${esc(p.controls.join(", "))} · ${p.n}${p.fresh ? ` · <b>${p.fresh} fresh</b>` : ""}</span>`).join("<br>") : '<span class="muted">no applied policy carried an MFA grant — the requirement came from outside Conditional Access</span>'}</td>
-            <td class="num">${a.required}</td><td class="num">${a.fresh ? `<b>${a.fresh}</b>` : ""}</td><td class="num">${a.claim || ""}</td><td class="num">${a.devices}${a.freshDevices ? ` <span class="mini muted">(${a.freshDevices} fresh)</span>` : ""}</td><td class="num">${a.lastFresh ? esc(fmtWhen(a.lastFresh)) : "—"}</td></tr>`).join("")}
+            <td class="num">${a.required}${a.missing ? ` <span class="mini" style="color:var(--off)" title="asked for a second factor and got none">(${a.missing} not given)</span>` : ""}</td><td class="num">${a.fresh ? `<b>${a.fresh}</b>` : ""}</td><td class="num">${a.claim || ""}</td><td class="num">${a.devices}${a.freshDevices ? ` <span class="mini muted">(${a.freshDevices} fresh)</span>` : ""}</td><td class="num">${a.lastFresh ? esc(fmtWhen(a.lastFresh)) : "—"}</td></tr>`).join("")}
         </tbody></table></div>${mf.apps.length > 20 ? `<p class="mini muted" style="margin-top:6px">${mf.apps.length - 20} more apps.</p>` : ""}
-        <p class="mini muted" style="margin-top:8px">Required = the sign-in's authenticationRequirement was multi-factor. Fresh = the record's authentication steps show the MFA being performed; by token = the step says the requirement was satisfied by a claim in the token. Policies are the applied policies with result success that carried an MFA or authentication-strength grant — the ones that made the sign-in need it. A row with fresh prompts and no policy is per-user MFA or security defaults.</p>`
+        <p class="mini muted" style="margin-top:8px">Required = the sign-in's authenticationRequirement was multi-factor. Fresh = the record's authentication steps show the MFA being performed; by token = the step says the requirement was satisfied by a claim in the token. Asked, not given = a second factor was demanded and no step for it succeeded — a password where MFA or a strength was required. Policies are the applied policies with result success or failure that carried an MFA or authentication-strength grant — the ones that made the sign-in need it. A row with fresh prompts and no policy is per-user MFA or security defaults.</p>`
           : `<p class="mini muted">No sign-in in the window required MFA.</p>`}
       </div>`;
     }
@@ -677,7 +723,7 @@ const WhoIs = (() => {
         ${log.rows.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>App · client</th><th>Policy</th><th>Result</th><th></th></tr></thead><tbody>
           ${rows.map((r) => `<tr><td class="num">${esc(fmtWhen(r.when))}</td><td>${esc(r.app)}<div class="mini muted">${esc([r.browser || r.client, r.os, r.compliant ? "compliant" : r.managed ? "managed" : r.os ? "unmanaged" : "", [r.city, r.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))}</div></td>
             <td>${r.policies.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${(p.controls || []).length ? `<div class="mini" style="color:var(--on)">demanded ${esc(p.controls.join(", "))}</div>` : ""}`).join("<br>")}</td>
-            <td><span class="wo-res ${r.interrupted ? "int" : "blk"}">${r.interrupted ? "Interrupted" : "Blocked"}</span><div class="mini muted">${esc(r.failureReason || (typeof Signins !== "undefined" && Signins.codeText ? Signins.codeText(r.errorCode) : "") || "")}${r.errorCode != null ? ` <span class="muted">(${esc(r.errorCode)})</span>` : ""}</div></td>
+            <td><span class="wo-res ${r.interrupted ? "int" : "blk"}">${r.interrupted ? "Interrupted" : "Blocked"}</span><div class="mini muted">${esc(r.failureReason || (typeof Signins !== "undefined" && Signins.codeText ? Signins.codeText(r.errorCode) : "") || "")}${r.errorCode != null ? ` <span class="muted">(${esc(r.errorCode)})</span>` : ""}</div>${r.auth ? `<div class="mini${r.auth.gap ? "" : " muted"}" style="${r.auth.gap ? "color:var(--off)" : ""}" title="${esc(r.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 ${esc(r.auth.summary)}</div>` : ""}</td>
             <td><button class="fchip" data-wo-replay="${esc(r.id)}" title="Prefill 🧪 What-If from this sign-in">🧪 Replay</button></td></tr>`).join("")}
         </tbody></table></div>${log.rows.length > rows.length ? `<p class="mini muted" style="margin-top:6px">${log.rows.length - rows.length} more — export CSV for all.</p>` : ""}`
           : `<p class="mini muted">Nothing stopped her: ${log.total} sign-in${log.total === 1 ? "" : "s"} in the window, ${log.passed} passed every enforced policy.</p>`}
@@ -770,12 +816,16 @@ const WhoIs = (() => {
         L.push("| Device | OS · browser | State | Sign-ins | Stopped | Last seen |", "| --- | --- | --- | --- | --- | --- |");
         dv.rows.forEach((d) => L.push(`| ${e(d.name || d.id || (d.os ? `${d.os} device` : "Unknown device"))} | ${e([d.os, d.browser].filter(Boolean).join(" · "))}${d.trustType ? ` (${e(d.trustType)})` : ""} | ${DEV_STATE[d.state].label} | ${d.count} | ${d.stopped} | ${e(d.last)} |`));
       }
-      if (log.mfa && log.mfa.required) {
-        const mf = log.mfa;
+      if (log.mfa && (log.mfa.required || (log.mfa.methods && log.mfa.methods.known))) {
+        const mf = log.mfa, mt = mf.methods;
         L.push("", `## MFA on her sign-ins (${e(meta.rangeLabel || "window")})`, "");
-        L.push(`${mf.required} of ${mf.total} sign-ins required MFA: ${mf.fresh} fresh prompts, ${mf.claim} satisfied by the token, ${mf.unknown} not known. Fresh prompts came from ${mf.freshDevices} device(s).`, "");
-        L.push("| App | Policies that demanded MFA | Required | Fresh | By token | Devices | Last fresh prompt |", "| --- | --- | --- | --- | --- | --- | --- |");
-        mf.apps.forEach((a) => L.push(`| ${e(a.app)} | ${a.policies.map((p) => `${e(p.seq || p.name)} (${e(p.controls.join(", "))}) ×${p.n}${p.fresh ? `, ${p.fresh} fresh` : ""}`).join("; ") || "none — outside Conditional Access"} | ${a.required} | ${a.fresh} | ${a.claim} | ${a.devices} | ${e(a.lastFresh)} |`));
+        if (mt && mt.known) {
+          L.push(`**What she signed in with** (${mt.known} sign-ins with step detail${mt.unknown ? `, ${mt.unknown} without` : ""}): ${mt.methods.map(([m, n]) => `${e(m)} ×${n}`).join(", ") || "no succeeded method recorded"}${mt.claim ? `; MFA by a claim already in the token ×${mt.claim}` : ""}${mt.strengths.length ? `. Held to: ${mt.strengths.map(([n, c]) => `${e(n)} ×${c}`).join(", ")}` : ""}`, "");
+          if (mt.gap) L.push(`**${mt.gap} sign-in(s) asked for ${mt.gapNeeds.map(([n]) => e(n)).join(" / ")} and got no second factor** — ${mt.gapApps.slice(0, 5).map(([a, n]) => `${e(a)} ×${n}`).join(", ")}.${mt.strengths.some(([n]) => /resistant/i.test(n)) && !mt.phishResistant ? " She never used a phishing-resistant method in this window — check her registered methods; no policy change fixes this." : ""}`, "");
+        } else if (mt) L.push("_What she signed in with: not in this source (hunting rows carry the requirement, not the steps)._", "");
+        if (mf.required) L.push(`${mf.required} of ${mf.total} sign-ins required MFA: ${mf.fresh} fresh prompts, ${mf.claim} satisfied by the token, ${mf.missing} asked and not given, ${mf.unknown} not known. Fresh prompts came from ${mf.freshDevices} device(s).`, "");
+        if (mf.required) L.push("| App | Policies that demanded MFA | Required | Fresh | By token | Devices | Last fresh prompt |", "| --- | --- | --- | --- | --- | --- | --- |");
+        if (mf.required) mf.apps.forEach((a) => L.push(`| ${e(a.app)} | ${a.policies.map((p) => `${e(p.seq || p.name)} (${e(p.controls.join(", "))}) ×${p.n}${p.fresh ? `, ${p.fresh} fresh` : ""}`).join("; ") || "none — outside Conditional Access"} | ${a.required} | ${a.fresh} | ${a.claim} | ${a.devices} | ${e(a.lastFresh)} |`));
       }
       if (res.retired && res.retired.policies.length) {
         const rt = res.retired;
@@ -787,8 +837,8 @@ const WhoIs = (() => {
       L.push("", `## Sign-ins Conditional Access stopped (${e(meta.rangeLabel || "window")})`, "");
       if (!log.rows.length) L.push(`None — ${log.total} sign-ins, ${log.passed} passed.`);
       else {
-        L.push("| When | App | Client | Policy | Result | Reason |", "| --- | --- | --- | --- | --- | --- |");
-        log.rows.forEach((r) => L.push(`| ${e(r.when)} | ${e(r.app)} | ${e([r.browser || r.client, r.os, [r.city, r.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} | ${r.policies.map((p) => e(p.name)).join("; ")} | ${r.interrupted ? "interrupted" : "BLOCKED"} | ${e(r.failureReason)}${r.errorCode != null ? ` (${r.errorCode})` : ""} |`));
+        L.push("| When | App | Client | Policy | Result | Reason | Signed in with |", "| --- | --- | --- | --- | --- | --- | --- |");
+        log.rows.forEach((r) => L.push(`| ${e(r.when)} | ${e(r.app)} | ${e([r.browser || r.client, r.os, [r.city, r.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} | ${r.policies.map((p) => e(p.name)).join("; ")} | ${r.interrupted ? "interrupted" : "BLOCKED"} | ${e(r.failureReason)}${r.errorCode != null ? ` (${r.errorCode})` : ""} | ${r.auth ? e(r.auth.summary) : "—"} |`));
       }
       L.push("", "## If everything in report-only went live", "");
       if (fc && fc.block.length) fc.block.forEach((p) => L.push(`- **LOCKED OUT** — ${e(p.name)} would deny ${p.failure} sign-in(s)${(p.denyWhy || []).length ? `: ${p.denyWhy.map((d) => `${e(d.what)} ×${d.n}`).join("; ")}` : ""}`));

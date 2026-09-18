@@ -67,6 +67,57 @@ const Signins = (() => {
   const codeText = (code) => CODE_TEXT[Number(code)] || "";
   const isInterrupt = (rec) => INTERRUPT.has((rec.status || {}).errorCode);
 
+  // ---- HOW the user signed in (T17 2.6 / T36 1.4, 25381) ---------------
+  // The record's authenticationDetails are the portal's Authentication
+  // Details tab: one step per method — "Password · Password in the cloud ·
+  // succeeded · Correct password · Primary authentication" — and then the
+  // second factor, or the step that was ASKED FOR and never came ("MFA
+  // required in Azure AD", requirement "Phishing-resistant MFA"). That is
+  // the difference between "the policy failed her" and "she signed in with
+  // a password where a passkey was required": the same failure row, a very
+  // different fix. authenticationRequirement says whether a second factor
+  // was demanded at all; a step whose requirement names a strength says
+  // which one. Hunting rows carry the requirement and none of the steps.
+  const MFA_METHOD = /authenticator|passkey|fido|security key|windows hello|hello for business|certificate|phone|sms|text message|voice|oath|hardware token|software token|temporary access|previously satisfied|claim/i;
+  const PHISH_RESISTANT = /passkey|fido|security key|windows hello|hello for business|certificate/i;
+  const PRIMARY_METHOD = /^password|primary/i;
+  const CLAIM = /claim in the token|satisfied by claim|already satisfied|previously satisfied/i;
+  const FACTOR_REQ = /multi|mfa|second|strength|resistant/i;
+  function authOf(rec) {
+    const requirement = String(rec.authenticationRequirement || "");
+    const policies = (rec.authenticationRequirementPolicies || []).map((p) => ({ provider: String(p.requirementProvider || ""), detail: String(p.detail || "") }));
+    const raw = rec.authenticationDetails;
+    const known = Array.isArray(raw);
+    const steps = known ? raw.map((st) => ({
+      method: String(st.authenticationMethod || ""), detail: String(st.authenticationMethodDetail || ""), ok: st.succeeded === true,
+      result: String(st.authenticationStepResultDetail || ""), req: String(st.authenticationStepRequirement || ""), when: String(st.authenticationStepDateTime || ""),
+    })) : [];
+    // An authentication strength writes its own name into the step
+    // requirement ("Phishing-resistant MFA") where plain MFA writes
+    // "Multi-factor authentication" — the name is what the person has to meet.
+    const strength = steps.map((st) => st.req).find((r) => r && FACTOR_REQ.test(r) && !/^multi-?factor authentication$/i.test(r)) || "";
+    const used = [...new Set(steps.filter((st) => st.ok && st.method).map((st) => st.method))];
+    const claim = steps.some((st) => CLAIM.test(st.result) || CLAIM.test(st.method));
+    // A satisfied factor is a succeeded step whose METHOD is a second factor
+    // — the portal writes the requirement ("Phishing-resistant MFA") on the
+    // password row as well, so the requirement column alone proves nothing.
+    const mfaOk = claim || steps.some((st) => st.ok && !PRIMARY_METHOD.test(st.method) && (MFA_METHOD.test(st.method) || /mfa|multi|strong|satisfied|completed/i.test(st.result)));
+    const asked = steps.find((st) => !st.ok && (FACTOR_REQ.test(st.req) || /mfa required|strong authentication|additional/i.test(st.result)));
+    const mfaAsked = requirement === "multiFactorAuthentication" || !!strength || !!asked;
+    const gap = known && mfaAsked && !mfaOk;
+    const passwordOnly = known && used.length > 0 && used.every((m) => PRIMARY_METHOD.test(m));
+    const phishResistant = used.some((m) => PHISH_RESISTANT.test(m));
+    const need = strength || (mfaAsked ? "MFA" : "");
+    let summary;
+    if (!known) summary = requirement === "multiFactorAuthentication" ? "MFA was required — the methods are not in the hunting source"
+      : requirement ? "single factor — the methods are not in the hunting source" : "methods not recorded";
+    else if (!steps.length) summary = "no authentication step recorded";
+    else if (gap) summary = `${used.length ? used.join(" + ") : "nothing completed"} — ${need} required, not provided${asked && asked.result ? ` (${asked.result})` : ""}`;
+    else if (mfaAsked) summary = `${used.join(" + ") || "MFA"}${claim ? " — MFA by a claim already in the token" : ""} — ${need} satisfied`;
+    else summary = `${used.join(" + ") || steps.map((st) => st.method).filter(Boolean).join(" + ") || "—"} — single factor`;
+    return { known, requirement, policies, strength, steps, used, claim, mfaAsked, mfaOk, gap, passwordOnly, phishResistant, need, summary };
+  }
+
   // The error code narrows WHICH control stopped the sign-in — a 50097 next
   // to an MFA policy and a sign-in-frequency policy belongs to the latter:
   // enforcing SIF in a browser means authenticating the DEVICE to read the
@@ -88,7 +139,7 @@ const Signins = (() => {
     const since = new Date(Date.now() - (days || 7) * 864e5).toISOString();
     const parts = [`createdDateTime ge ${since}`];
     if (mode !== "reportonly") parts.push(`conditionalAccessStatus eq 'failure'`);
-    return `/auditLogs/signIns?$filter=${encodeURIComponent(parts.join(" and "))}&$orderby=createdDateTime desc&$top=999`;
+    return `/v1.0/auditLogs/signIns?$filter=${encodeURIComponent(parts.join(" and "))}&$orderby=createdDateTime desc&$top=999`;
   }
 
   // Companion fetch for enforced mode: the interrupted sign-ins. Graph can't
@@ -97,7 +148,7 @@ const Signins = (() => {
   function interruptQuery(days) {
     const since = new Date(Date.now() - (days || 7) * 864e5).toISOString();
     const codes = [...INTERRUPT].map((c) => `status/errorCode eq ${c}`).join(" or ");
-    return `/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and (${codes})`)}&$orderby=createdDateTime desc&$top=999`;
+    return `/v1.0/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and (${codes})`)}&$orderby=createdDateTime desc&$top=999`;
   }
 
   // ---- Defender advanced hunting as a second source --------------------
@@ -195,6 +246,102 @@ ${slim === false ? "" : SLIM}
       };
     });
   }
+  // ---- Report-only verdicts as BUCKETS (T26 2.0, 25377; reshaped 25380) --
+  // Report-only impact never reads a sign-in as a sign-in: it counts, per
+  // policy × verdict × user, remembers first and last, collects the controls,
+  // lists the apps and keeps a sample of a denial. That is a summarize, so
+  // the query asks Microsoft for the answer instead of the rows.
+  //
+  // WHAT THE ROWS ARE — and why the shape is what it is. 25377 grouped by
+  // hour × user × app × client × OS × trust × … with a sample sign-in on
+  // every row; on a large tenant that was millions of rows a week and the
+  // tab died twice (25378/25379). The dimensions that multiply rows without
+  // changing a verdict are gone from the user rows: the day is the only time
+  // bin, the app is a SET on the row (make_set) with the per-app counts in
+  // their own small rows, and the sample sign-ins are their own rows too —
+  // one per user × policy, only for the denials, which are the rare thing.
+  // What stays exact per user × policy × verdict × day: the count, first and
+  // last, device compliance, management, the MFA requirement and both risk
+  // levels — everything the "why it would say no" line is judged on.
+  //
+  // The query is run PER POLICY (part = one policy id) so that a day of a
+  // large tenant stays under the engine's 100,000-row cap without time
+  // slicing — slicing a day into hours multiplies the day rows by the number
+  // of slices, which is what made 25379 heavy. Five kinds of row, one union:
+  //   n   — sign-ins per day (the denominator; part 0 only, withTotals)
+  //   na  — reportOnlyNotApplied per day × policy (the "never in scope" count)
+  //   a   — sign-ins per day × policy × app for the evaluated verdicts (the
+  //         policy's app list with real counts)
+  //   ro  — the user rows: count, first, last, controls, app set, by day ×
+  //         policy × verdict × user × compliance × management × MFA × risks
+  //   s   — one sample sign-in per user × policy that WOULD BE DENIED
+  //         (arg_max on Timestamp: the latest denial, a real sign-in)
+  // fromRoBuckets shapes them into slim records ReportImpact's accumulator
+  // reads; a record's n is how many sign-ins it stands for. Numeric and word
+  // forms of result are both matched — the hunting schema has carried either.
+  const RO_WORDS = ["reportOnlySuccess", "reportOnlyFailure", "reportOnlyInterrupted", "6", "7", "9"];
+  const RO_NA = ["reportOnlyNotApplied", "8"];
+  const RO_FAIL = ["reportOnlyFailure", "7"];
+  const RO_CAP = 90000;   // rows: the engine stops at 100,000 and 50 MB; slim rows keep 90,000 well under the size
+  const kql = (list) => list.map((s) => `"${String(s).replace(/"/g, "")}"`).join(", ");
+  function roBucketQuery({ from, to, table, interactiveOnly, cap, policyId, withTotals = true }) {
+    const T = table || "EntraIdSignInEvents";
+    const D = "bin(Timestamp, 1d)";
+    return `let W = ${T}
+| where Timestamp between (datetime(${from}) .. datetime(${to}))${interactiveOnly ? '\n| where LogonType !has "non"' : ""};
+let P = W
+| extend _P = todynamic(ConditionalAccessPolicies)
+| mv-expand _X = _P
+| extend PolicyId = tostring(_X.id), PolicyName = tostring(_X.displayName), Result = tostring(_X.result)
+| where Result in~ (${kql([...RO_WORDS, ...RO_NA])})${policyId ? `\n| where PolicyId =~ ${kql([policyId])}` : ""};
+union${withTotals ? `
+  (W | summarize N = count() by Bin = ${D} | extend Kind = "n"),` : ""}
+  (P | where Result in~ (${kql(RO_NA)}) | summarize N = count(), First = min(Timestamp), Last = max(Timestamp) by Bin = ${D}, PolicyId, PolicyName | extend Kind = "na"),
+  (P | where Result !in~ (${kql(RO_NA)}) | summarize N = count() by Bin = ${D}, PolicyId, PolicyName, Application | extend Kind = "a"),
+  (P | where Result !in~ (${kql(RO_NA)})
+     | summarize N = count(), First = min(Timestamp), Last = max(Timestamp), Apps = make_set(Application, 32),
+         Grant = take_any(tostring(_X.enforcedGrantControls)), Session = take_any(tostring(_X.enforcedSessionControls))
+       by Bin = ${D}, PolicyId, PolicyName, Result, AccountObjectId, AccountUpn, AccountDisplayName, IsCompliant, IsManaged, AuthenticationRequirement, RiskLevelDuringSignIn, RiskLevelAggregated
+     | extend Kind = "ro"),
+  (P | where Result in~ (${kql(RO_FAIL)})
+     | summarize arg_max(Timestamp, RequestId, Application, ResourceDisplayName, ClientAppUsed, OSPlatform, Browser, IPAddress, City, Country, IsCompliant, IsManaged, DeviceTrustType, ErrorCode)
+       by PolicyId, AccountObjectId
+     | extend Kind = "s")
+| take ${cap || RO_CAP}`;
+  }
+  const parseList = (s) => { try { const v = typeof s === "string" ? JSON.parse(s || "[]") : (s || []); return Array.isArray(v) ? v.filter(Boolean).map(String) : []; } catch { return []; } };
+  const roResult = (v) => /^\d+$/.test(String(v)) ? (RESULT_N[Number(v)] || String(v)) : String(v || "");
+  const riskOfN = (v) => typeof v === "number" ? (RISK_N[v] || "none") : String(v || "none").toLowerCase();
+  const isOn = (v) => Number(v) === 1 || v === true || String(v).toLowerCase() === "true";
+  // Slim records — only the fields ReportImpact reads. Samples and app
+  // counts come first in the output so the accumulator holds them before
+  // the user rows that refer to them arrive.
+  function fromRoBuckets(rows) {
+    const first = [], rest = [];
+    for (const r of rows || []) {
+      const n = Number(r.N) || 0;
+      switch (r.Kind) {
+        case "n": rest.push({ kind: "n", signIns: n, bin: r.Bin, createdDateTime: r.Bin, bucket: true }); break;
+        case "a": first.push({ kind: "a", n, bin: r.Bin, policyId: r.PolicyId || "", policyName: r.PolicyName || "", app: r.Application || "(app)", bucket: true }); break;
+        case "s": first.push({ kind: "s", policyId: r.PolicyId || "", userId: r.AccountObjectId || "", bucket: true,
+          sample: { id: r.RequestId || "", when: r.Timestamp || "", app: r.Application || r.ResourceDisplayName || "(app)", client: r.ClientAppUsed || "", os: r.OSPlatform || "", browser: r.Browser || "",
+            ip: r.IPAddress || "", city: r.City || "", country: r.Country || "", compliant: isOn(r.IsCompliant), managed: isOn(r.IsManaged),
+            trustType: { workplace: "Workplace", azuread: "AzureAd", serverad: "ServerAd" }[String(r.DeviceTrustType || "").toLowerCase()] || (r.DeviceTrustType || ""),
+            errorCode: Number(r.ErrorCode) || 0, failureReason: "", controls: [] } }); break;
+        case "na": rest.push({ kind: "na", n, bin: r.Bin, createdDateTime: r.Last || r.Bin, firstDateTime: r.First || r.Bin, bucket: true,
+          appliedConditionalAccessPolicies: [{ id: r.PolicyId || "", displayName: r.PolicyName || "", result: "reportOnlyNotApplied", enforcedGrantControls: [], enforcedSessionControls: [] }] }); break;
+        default: rest.push({ kind: "ro", n, bin: r.Bin, createdDateTime: r.Last || r.Bin, firstDateTime: r.First || r.Bin, bucket: true,
+          userId: r.AccountObjectId || "", userPrincipalName: r.AccountUpn || "", userDisplayName: r.AccountDisplayName || "",
+          apps: parseList(r.Apps),
+          deviceDetail: { isCompliant: r.IsCompliant == null || r.IsCompliant === "" ? undefined : isOn(r.IsCompliant), isManaged: r.IsManaged == null || r.IsManaged === "" ? undefined : isOn(r.IsManaged) },
+          authenticationRequirement: /multi/i.test(String(r.AuthenticationRequirement || "")) ? "multiFactorAuthentication" : (r.AuthenticationRequirement ? "singleFactorAuthentication" : ""),
+          riskLevelDuringSignIn: riskOfN(r.RiskLevelDuringSignIn), riskLevelAggregated: riskOfN(r.RiskLevelAggregated),
+          appliedConditionalAccessPolicies: [{ id: r.PolicyId || "", displayName: r.PolicyName || "", result: roResult(r.Result), enforcedGrantControls: parseList(r.Grant), enforcedSessionControls: parseList(r.Session) }] });
+      }
+    }
+    return first.concat(rest);
+  }
+
   // interactive unless the record says otherwise (the Graph list ENCA reads is interactive-only)
   const isInteractive = (rec) => rec.interactive != null ? !!rec.interactive : !((rec.signInEventTypes || []).some((t) => /noninteractive/i.test(String(t))));
 
@@ -258,6 +405,7 @@ ${slim === false ? "" : SLIM}
       interrupted: fails.some((p) => p.result === "interrupted"),
       interactive: isInteractive(rec),
       policies: fails,
+      auth: authOf(rec),
     };
   }
 
@@ -273,12 +421,13 @@ ${slim === false ? "" : SLIM}
         const key = p.id || p.name;
         let e = byPolicy.get(key);
         if (!e) {
-          e = { key, id: p.id, name: p.name, count: 0, ints: 0, users: new Map(), apps: new Map(),
+          e = { key, id: p.id, name: p.name, count: 0, ints: 0, gap: 0, users: new Map(), apps: new Map(),
             controls: new Set(), first: r.when, last: r.when, rows: [] };
           byPolicy.set(key, e);
         }
         e.count++;
         if (p.result === "interrupted") e.ints++;
+        if (r.auth && r.auth.gap) e.gap++;
         const uk = r.upn || r.user;
         e.users.set(uk, (e.users.get(uk) || 0) + 1);
         e.apps.set(r.app, (e.apps.get(r.app) || 0) + 1);
@@ -302,6 +451,10 @@ ${slim === false ? "" : SLIM}
       rows,
       total: rows.length,
       interrupted: rows.filter((r) => r.interrupted).length,
+      // the second factor was asked for and never came — a password where
+      // MFA or a strength was required
+      authGap: rows.filter((r) => r.auth && r.auth.gap).length,
+      authKnown: rows.filter((r) => r.auth && r.auth.known).length,
       nonInteractive, recTotal: (records || []).length, recNonInteractive,
       policies,
       users: Object.entries(by((r) => r.upn || r.user)).sort((a, b) => b[1] - a[1]),
@@ -317,7 +470,7 @@ ${slim === false ? "" : SLIM}
   const CSV_HEAD = ["when", "userDisplayName", "userPrincipalName", "appDisplayName", "appId",
     "policyName", "policyId", "result", "enforcedControls", "ipAddress", "city", "country",
     "clientAppUsed", "operatingSystem", "browser", "deviceCompliant", "deviceTrustType",
-    "signInRisk", "errorCode", "failureReason", "signInId"];
+    "signInRisk", "authRequired", "authUsed", "authGap", "errorCode", "failureReason", "signInId"];
   const csvCell = (v) => {
     const s = String(v ?? "");
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -329,11 +482,12 @@ ${slim === false ? "" : SLIM}
         L.push([r.when, r.user, r.upn, r.app, r.appId,
           p.name, p.id, p.result, p.controls.join("|"), r.ip, r.city, r.country,
           r.client, r.os, r.browser, r.compliant ? "yes" : "no", r.trustType,
-          r.signInRisk, r.errorCode ?? "", r.failureReason, r.id].map(csvCell).join(","));
+          r.signInRisk, r.auth ? (r.auth.need || (r.auth.requirement ? "single factor" : "")) : "", r.auth ? r.auth.used.join("|") : "", r.auth && r.auth.gap ? "yes" : "",
+          r.errorCode ?? "", r.failureReason, r.id].map(csvCell).join(","));
       }
     }
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, RO_CAP, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText, authOf, PHISH_RESISTANT };
 })();
