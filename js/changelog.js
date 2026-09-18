@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 314, date: "2026-09-18", title: "Every Azure call was failing on one wrong variable name",
+    items: [
+      { kind: "fixed", tool: "User or Group analyzer", text: "ITS AZURE HALF NEVER ANSWERED. Every call into Azure goes through one ARM helper, and that helper tested the wrong name — it read opts.method where its parameter is called init — so a ReferenceError was thrown on the line after the first request and before any answer could be read. Subscriptions, management groups and role assignments all came back as the same message, opts is not defined, whatever the account was allowed to see. Nothing was wrong with the permissions, the token or the query, which is what made it hard to place: the tool asked for Azure consent, got it, and then failed anyway. The Graph half of the tool, which is most of it, was never affected." },
+      { kind: "fixed", tool: "All tools", text: "A self-hosted instance can save its own branding again. Save to this deployment writes ENCA_BRANDING onto the container app serving the page, through that same ARM helper, so it refused with that same message: the look was designed in the gear and the button would not take it, leaving the Azure portal as the only way to set the variable. Copy for container, Download and Apply in this browser were never affected, because none of them touches Azure." },
+    ],
+  },
+  {
     build: 313, date: "2026-09-14", title: "\ud83e\udee5 The only-here chip comes off",
     items: [
       { kind: "fixed", tool: "Apps with no service principal", text: "The tile still carried the only-here chip — the one that says a tool runs on the beta site and not in production — one build after the tool went into production. Off now; the BETA chip stays while the tool proves itself on real tenants. Nothing else changes in this build." },

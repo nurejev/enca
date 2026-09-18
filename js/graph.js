@@ -264,7 +264,7 @@ const Graph = (() => {
     let r = await send(await token(ARM_SCOPES));
     // A gateway failure may arrive after a write was committed. Retrying a
     // create could duplicate it; only reads retry ambiguous 5xx responses.
-    const isRead = !opts.method || ["GET", "HEAD"].includes(opts.method.toUpperCase());
+    const isRead = !init?.method || ["GET", "HEAD"].includes(init.method.toUpperCase());
     for (let attempt = 0; (r.status === 429 || (isRead && [502, 503, 504].includes(r.status))) && attempt < MAX_RETRIES; attempt++) {
       const ra = parseInt(r.headers.get("Retry-After"), 10);
       const waitMs = Number.isFinite(ra) ? ra * 1000 : Math.min(2 ** attempt * 1000, 20000);
