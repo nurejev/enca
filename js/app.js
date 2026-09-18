@@ -2891,7 +2891,10 @@
   let dupPicks = new Set();      // "<other policy id>:<field>" ticked to bring across
   let dupOn = new Set();         // set keys ticked to merge
   let dupStep = "list";          // list | plan
+  let dupReviewed = new Set();   // set keys released by hand (verdict "review")
   let dupResults = null;
+  let dupListTop = 0;            // where the list was, across a re-render
+  let dupFocusKey = "";          // the set a 🔍 Compare was opened from
   const dupFind = () => { try { return Importer.duplicates(policies); } catch (e) { console.warn("duplicates:", e.message || e); return []; } };
   function syncDupBtn() {
     const n = dupFind().length;
@@ -2904,14 +2907,16 @@
     dupSets = dupFind();
     dupKeep = new Map(dupSets.map((s) => [s.key, s.keepId]));
     dupPicks = new Set();
+    dupReviewed = new Set();
     dupOn = new Set(dupSets.filter((s) => Importer.mergePlan(s, s.keepId, []).canRun).map((s) => s.key));
-    dupStep = "list"; dupResults = null;
+    dupStep = "list"; dupResults = null; dupListTop = 0; dupFocusKey = "";
     $("dupLedger").innerHTML = "";
     renderDup();
     $("dupModal").classList.add("open");
   }
-  const dupPlans = () => (dupSets || []).filter((s) => dupOn.has(s.key))
-    .map((s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, [...dupPicks]));
+  const dupOpts = (s) => ({ reviewed: dupReviewed.has(s.key) });
+  const dupPlanFor = (s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, [...dupPicks], dupOpts(s));
+  const dupPlans = () => (dupSets || []).filter((s) => dupOn.has(s.key)).map(dupPlanFor);
   // "17 Sep 2026, 16:48" in the reader's own timezone. The DAY alone does not
   // tell two runs of the same import apart — both copies read 2026-09-17.
   const dupWhen = (iso) => {
@@ -2934,8 +2939,8 @@
     review: ['<span class="tag block">needs review</span>', "they differ beyond who they reach"],
   };
   function dupSetHtml(s) {
-    const keepId = dupKeep.get(s.key) || s.keepId;
-    const plan = Importer.mergePlan(s, keepId, [...dupPicks]);
+    const plan = dupPlanFor(s);
+    const reviewed = dupReviewed.has(s.key);
     const [chip, why] = DUP_VERDICT[s.verdict] || DUP_VERDICT.review;
     const keepAll = ((plan.keep.raw?.conditions?.users?.includeUsers) || []).includes("All");
     const assign = (p) => `${Render.stateChip(p.state)}<div>${esc(p.users.inc.slice(0, 3).join(", "))}${p.users.inc.length > 3 ? ` +${p.users.inc.length - 3}` : ""}</div>`
@@ -2951,7 +2956,7 @@
       </div>`;
     }).join("");
     const opts = plan.adds.map((a) => {
-      const disabled = s.verdict === "review";
+      const disabled = s.verdict === "review" && !reviewed;
       const note = a.field === "state"
         ? `the kept policy becomes <b>${esc(a.word)}</b>${a.state !== "enabled" && (plan.keep.raw?.state) === "enabled" ? " — it would stop enforcing" : a.state === "enabled" ? " — it would start enforcing" : ""}`
         : a.widens
@@ -2962,19 +2967,28 @@
         <span>${what} <span class="why">— from ${esc(a.fromSeq)}, ${note}</span></span></label>`;
     }).join("");
     const refusal = plan.refusals.length
-      ? `<div class="dup-bad">⚠ ${esc(plan.refusals.map((r) => r.why).join(" "))}${s.verdict === "review" ? " Compare the copies, fix the one you keep in ✏️ Edit, and this set becomes mergeable." : ""}</div>`
+      ? `<div class="dup-bad">⚠ ${esc(plan.refusals.map((r) => r.why).join(" "))}</div>`
       : "";
-    return `<div class="dup-set">
+    // A set the tool will not decide FOR you is not a set you may not merge:
+    // it differs beyond who it reaches, so keeping one copy is a security
+    // decision. Tick Reviewed and it joins the run like any other — the
+    // report records that it was released by hand, and the refusal that the
+    // copy being deleted is the only enforcing one still stands.
+    const review = s.verdict !== "review" ? "" : `<label class="chk dup-review">
+      <input type="checkbox" data-dup-reviewed="${esc(s.key)}"${reviewed ? " checked" : ""}>
+      <span><b>Reviewed</b> — ${esc(reviewed ? "released by hand: this set can be selected and merged." : "I compared the copies and want to merge this set anyway.")}
+      <span class="why">${esc(s.reasons.join(" "))}</span></span></label>`;
+    return `<div class="dup-set${reviewed ? " reviewed" : ""}" data-dup-card="${esc(s.key)}">
       <div class="dup-head">
         <label class="chk" style="margin:0"><input type="checkbox" data-dup-set="${esc(s.key)}"${dupOn.has(s.key) ? " checked" : ""}${plan.canRun ? "" : " disabled"}></label>
-        <div><b>${esc(s.name)}</b><div class="mini">${s.members.length} copies · same name · ${esc(why)}</div></div>
+        <div><b>${esc(s.name)}</b><div class="mini">${s.members.length} copies · same name · ${esc(why)}${reviewed ? " · reviewed by you" : ""}</div></div>
         <span class="dup-verdict">${chip}</span>
       </div>
       ${rows}
       <div class="dup-opts">
         <div class="mini" style="display:flex;gap:8px;align-items:center"><span>${plan.adds.length ? "Bring across to the kept policy" : "Nothing to bring across — the copies are the same policy, written twice"}</span>
           <button type="button" class="btn sm" data-dup-compare="${esc(s.key)}" style="margin-left:auto">🔍 Compare the two</button></div>
-        ${opts}${refusal}
+        ${opts}${review}${refusal}
       </div>
       <div class="dup-foot"><span class="arrow">→</span> ${plan.canRun
         ? `Keep <b>${esc(plan.keep.seq)}</b>${plan.patch ? " (updated)" : " (unchanged)"} · delete <b>${esc(plan.deletes.map((d) => d.seq).join(", "))}</b>`
@@ -2986,7 +3000,7 @@
     const dels = plans.reduce((n, p) => n + p.deletes.length, 0);
     const patches = plans.filter((p) => p.patch).length;
     return `<p class="mini" style="margin-bottom:10px"><b>${plans.length} set${plans.length === 1 ? "" : "s"}</b> · ${patches} polic${patches === 1 ? "y" : "ies"} changed, ${dels} deleted, in this order. A deleted policy is restorable for 30 days in ♻️ Recycle bin.</p>
-      <div class="dup-plan">${plans.map((p) => `<div><b>Keep ${esc(p.keep.seq)}</b> ${esc(p.keep.name)} ${Render.stateChip(p.keep.state)}
+      <div class="dup-plan">${plans.map((p) => `<div><b>Keep ${esc(p.keep.seq)}</b> ${esc(p.keep.name)} ${Render.stateChip(p.keep.state)}${p.reviewed ? ' <span class="tag new">reviewed by you</span>' : ""}
           <div class="mini">${p.patch ? esc([...p.lists.map((a) => `${Importer.countLabel(a.ids.length, a.label)} from ${a.fromSeq}`), ...(p.state ? [`state ${p.state.word} from ${p.state.fromSeq}`] : [])].join(" · ")) : "unchanged — nothing ticked to bring across"}</div></div>
         ${p.deletes.map((d) => `<div class="del"><b>Delete ${esc(d.seq)}</b> ${esc(d.name)} ${Render.stateChip(d.state)}
           <div class="mini">${d.state === "off" ? "Off, so no sign-in is affected" : "Report-only — it stops evaluating sign-ins"}</div></div>`).join("")}`).join("")}</div>
@@ -2996,13 +3010,19 @@
   }
   function renderDup() {
     const sets = dupSets || [];
-    const mergeable = sets.filter((s) => Importer.mergePlan(s, dupKeep.get(s.key) || s.keepId, []).canRun).length;
-    $("dupDesc").textContent = dupStep === "plan"
-      ? `Review before anything is written in ${tenantName || "this tenant"}.`
-      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${tenantName || "this tenant"}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first. Includes policies outside the current search filter.`;
+    const host = $("dupList");
+    // Re-rendering replaces the list, and a list of 27 sets that jumps back
+    // to the top on every tick is unusable. Remember where it was whenever
+    // the list is the thing on screen (the plan step starts at the top).
+    if (host && host.querySelector(".dup-set")) dupListTop = host.scrollTop;
+    const mergeable = sets.filter((s) => dupPlanFor(s).canRun).length;
+    $("dupDesc").innerHTML = dupStep === "plan"
+      ? `Review before anything is written in ${esc(tenantName || "this tenant")}.`
+      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${esc(tenantName || "this tenant")}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first — tick <b>Reviewed</b> on one to release it. Includes policies outside the current search filter.`;
     $("dupNote").style.display = dupStep === "plan" ? "none" : "";
     $("dupList").innerHTML = dupStep === "plan" ? dupPlanHtml() : sets.map(dupSetHtml).join("")
       || '<p class="mini muted">No duplicates in the loaded inventory.</p>';
+    if (host) host.scrollTop = dupStep === "plan" ? 0 : dupListTop;
     $("dupBack").style.display = dupStep === "plan" ? "" : "none";
     $("dupNext").style.display = dupStep === "plan" ? "none" : "";
     $("dupGo").style.display = dupStep === "plan" ? "" : "none";
@@ -3071,6 +3091,14 @@
   $("dupBack").addEventListener("click", () => { dupStep = "list"; renderDup(); });
   $("dupNext").addEventListener("click", () => { dupStep = "plan"; renderDup(); });
   $("dupGo").addEventListener("click", dupRun);
+  // Coming back from the comparison lands on the set it was opened from,
+  // wherever that is in a list of 27.
+  $("hkCompareClose").addEventListener("click", () => {
+    if (!dupFocusKey || !$("dupModal").classList.contains("open")) return;
+    const card = [...$("dupList").querySelectorAll("[data-dup-card]")].find((el) => el.dataset.dupCard === dupFocusKey);
+    dupFocusKey = "";
+    if (card && card.scrollIntoView) { try { card.scrollIntoView({ block: "nearest" }); } catch { /* jsdom */ } }
+  });
   $("dupList").addEventListener("change", (e) => {
     const t = e.target;
     if (t.matches("[data-dup-keep]")) {
@@ -3081,6 +3109,12 @@
     }
     if (t.matches("[data-dup-opt]")) { t.checked ? dupPicks.add(t.dataset.dupOpt) : dupPicks.delete(t.dataset.dupOpt); renderDup(); return; }
     if (t.matches("[data-dup-set]")) { t.checked ? dupOn.add(t.dataset.dupSet) : dupOn.delete(t.dataset.dupSet); renderDup(); return; }
+    if (t.matches("[data-dup-reviewed]")) {
+      const k = t.dataset.dupReviewed;
+      // reviewing a set is what selects it; unticking takes it back out
+      if (t.checked) { dupReviewed.add(k); dupOn.add(k); } else { dupReviewed.delete(k); dupOn.delete(k); }
+      renderDup(); return;
+    }
     if (t.id === "dupConfirm") syncDupGo();
   });
   $("dupList").addEventListener("input", (e) => { if (e.target.id === "dupConfirm") syncDupGo(); });
@@ -3090,6 +3124,7 @@
     if (!s) { openDuplicates(); toast("Policy inventory changed. Review the updated list."); return; }
     const keepId = dupKeep.get(s.key) || s.keepId;
     const keep = s.members.find((p) => p.id === keepId), other = s.members.find((p) => p.id !== keepId);
+    dupFocusKey = s.key;
     hkComparison = PolicyCompare.compare(other, keep);
     $("hkCompareOnly").checked = true;
     renderHkComparison();

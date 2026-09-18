@@ -874,11 +874,19 @@ const Importer = (() => {
   // What merging ONE set would do. Pure: the UI renders it, the run executes
   // it, and both read the same object.
   //   keepId — the copy to keep; picks — the "bring across" keys it ticked
-  //   ("<other policy id>:<field>", or "<id>:state").
+  //   ("<other policy id>:<field>", or "<id>:state");
+  //   opts.reviewed — the reader ticked Reviewed on a set whose copies differ
+  //   beyond who they reach. That lifts THAT refusal and nothing else: the
+  //   tool refuses to decide a security question, not to be overruled on one
+  //   somebody has looked at. The plan carries the flag so the report says
+  //   the set was released by hand, with what differed.
   // A patch carries the FULL users block of the kept policy with the ticked
   // lists extended, because a PATCH replaces conditions.users wholesale (the
   // same shape 🔧 re-attach writes).
-  function mergePlan(set, keepId, picks) {
+  function mergePlan(set, keepId, picks, opts) {
+    // Only a set that WAS held back can be released: ticking Reviewed on one
+    // that never needed it must not put "released by hand" in the report.
+    const reviewed = !!(opts && opts.reviewed) && set.verdict === "review";
     const chosen = new Set(picks || []);
     const keep = (set.members || []).find((p) => p.id === keepId) || (set.members || [])[0];
     const others = (set.members || []).filter((p) => p !== keep);
@@ -923,8 +931,9 @@ const Importer = (() => {
         refusals.push({ id: o.id, why: `${o.seq} is On and the copy you keep (${keep.seq}) is not — deleting it would stop that enforcement. Keep ${o.seq} instead, or switch ${keep.seq} On first.` });
       }
     }
-    if (set.verdict === "review") refusals.push({ id: null, why: set.reasons[0] || "the copies differ beyond who they reach" });
-    return { key: set.key, name: set.name, verdict: set.verdict, keep, deletes: others, adds, lists, state, patch, refusals, canRun: !refusals.length };
+    if (set.verdict === "review" && !reviewed) refusals.push({ id: null, why: set.reasons[0] || "the copies differ beyond who they reach" });
+    return { key: set.key, name: set.name, verdict: set.verdict, reviewed, reasons: (set.reasons || []).slice(),
+      keep, deletes: others, adds, lists, state, patch, refusals, canRun: !refusals.length };
   }
 
   // Run the merges: per set, PATCH the kept policy (verified by a read-back,
@@ -993,6 +1002,7 @@ const Importer = (() => {
       const r = res.get(plan.key) || {};
       L.push(`## ${plan.name}`, "");
       L.push(`- **Kept:** ${plan.keep.seq} ${plan.keep.name} (${STATE_WORD[rawState(plan.keep)] || "unknown"})${r.patched ? " — updated" : " — unchanged"}`);
+      if (plan.reviewed) L.push(`- **Released by hand after review:** ${(plan.reasons || []).join(" ") || "the copies differ beyond who they reach"}`);
       for (const a of plan.lists || []) L.push(`- **Brought across** from ${a.fromSeq}: ${countLabel(a.ids.length, a.label)}${a.widens ? " (widens who the policy reaches)" : ""}`);
       if (plan.state) L.push(`- **State** taken from ${plan.state.fromSeq}: ${plan.state.word}`);
       for (const x of r.deleted || []) L.push(`- **${x.ok ? "Deleted" : "NOT deleted"}:** ${x.seq} ${x.name}${x.ok ? "" : ` — ${x.error}`}`);
