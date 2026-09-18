@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25394, date: "2026-09-18", title: "Production is 318",
+    items: [
+      { kind: "improved", tool: "Help", text: "Production is build 318. Queue item 225 is out: a branded self-hosted instance names itself in the browser tab and in the sign-in heading, instead of naming the publisher there. 🚚 Waiting for production holds 224, the per-tenant 📐 CIS Benchmark guard, and 34, the CIS Help section that travels with it." },
+    ],
+  },
+  {
     build: 25393, date: "2026-09-18", title: "A branded instance names itself in the browser tab",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "A SELF-HOSTED INSTANCE WITH ITS OWN BRANDING STILL SAID LIMON-IT IN THE BROWSER TAB, and there was nothing the branding gear could do about it. The tab and the login heading are chrome, but both borrowed the NEUTRAL product strings — the ones that exist so an export carries the product credit whoever is signed in, and which deliberately ignore an override. So the title read the publisher\u2019s name in every tab, every bookmark and every screenshot somebody shared, and the login heading fell back to the publisher\u2019s title unless the Login title box was filled in by hand, however carefully the Product name and Long name had been set. Both now read the active look. The export credit is untouched and still neutral, which is the whole point of an override only changing chrome: a deployment brands its own chrome and never claims authorship of the tool. Nothing changes on a copy with no branding set." },

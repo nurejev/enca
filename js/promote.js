@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.317",
+  productionBuild: "v1.0.318",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -118,24 +118,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 225,
-      title: "⚙ Self-hosting — a branded instance names itself in the browser tab (and in the login heading)",
-      tools: ["Self-hosting"],
-      builds: [25393],
-      risk: "medium",
-      what: "js/branding.js: Brand.pageTitle now reads Brand.current rather than the base BRANDING, and a new Brand.chromeTitle is the same shape as Brand.title read from the active look. js/app.js paints brandLoginTitle from B.loginTitle || Brand.chromeTitle instead of the neutral Brand.title. Brand.title, Brand.credit and generatedBy() are untouched and still read BRANDING, so exports keep the neutral product credit.",
-      why: "Dovilo, 18 Sep: a fully branded Azure Container Apps instance still had ENCA · Conditional Access Baseline Tools · Limon-IT as its browser title, so the publisher's name travelled in every bookmark and every shared screenshot of a customer's own deployment. The same root cause made the login heading fall back to the publisher's title, so a deployment that set Product name and Long name saw neither until it also filled in Login title by hand. The file's own note says the neutral getters are deliberately not overridden because exports must stay neutral; two chrome call sites were reading them anyway.",
-      test: [
-        "node tools/brand-chrome-title.test.cjs — 8 tests. Five of them fail on 25392 and pass here; the three that pass either way are the export guarantees, which must never start failing.",
-        "A self-hosted instance with ENCA_BRANDING setting name, longName and org: the browser tab reads that name, not the publisher's, before and after sign-in. Check the bookmark it produces, not only the tab strip.",
-        "The same instance with Login title left EMPTY: the sign-in heading reads name — longName, where before it read the publisher's title.",
-        "Export a Markdown report from that instance: the footer still reads the neutral ENCA credit with enca.limon-it.nl, unchanged. This is the half that must NOT move.",
-        "enca.limon-it.nl itself, and any copy with no branding set: title and heading are exactly what they were — no override, so Brand.current is BRANDING.",
-        "Set a branding in the gear with 💾 Apply in this browser, then ✖ Remove local branding: the tab title follows both ways without a reload.",
-      ],
-      files: ["js/branding.js", "js/app.js", "tools/brand-chrome-title.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
-    },
     {
       n: 224,
       title: "📐 CIS Benchmark (T21) — beta AND the CloudFellows tenant only; production 316 removes it from that build",
