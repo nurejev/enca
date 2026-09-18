@@ -28,6 +28,12 @@
 // Newest release first.
 // ======================================================================
 const CHANGELOG = [
+  {
+    build: 25389, date: "2026-09-18", title: "Production is 315",
+    items: [
+      { kind: "improved", tool: "Help", text: "Production is build 315. Everything this channel gathered since 312 has been ported: the twenty-two queue items 200 to 221, from the P1 reliability work packages through the sign-in store, the streaming report-only forecast, Housekeeping duplicates, the Joey Verlinden import by name, the CA groups baseline counting and the group analyzer sources. 🚚 Waiting for production now holds one item, 34, the CIS Help section, which stays behind with the beta-only CIS tab it describes. R58 Keep sign-ins on this device moves to Now on the roadmap, reading live · beta 25378 · production 315." },
+    ],
+  },
 {
   build: 25388,
   date: "2026-09-18",
