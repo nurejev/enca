@@ -592,12 +592,31 @@ test('overview: the tenant band counts states, recent change and labels exclusio
   policies:[{name:'A',state:'enabled',modified:'2026-09-19T00:00:00Z'},{name:'B',state:'enabledForReportingButNotEnforced',modified:'2026-06-01T00:00:00Z'},{name:'C',state:'disabled',modified:null}],
   baseline:{label:'Joey 3.2',missing:4,outdated:1,conflict:0,coverage:81},
   exclusions:{entities:14,byKind:{user:3,group:5,app:1},policies:11}});
- assert.match(html,/1 untouched for 30\+ days/);
+ assert.match(html,/1 last modified 30\+ days ago/);
+ assert.match(html,/date unavailable for 1/);
  assert.match(html,/last: A, 2 days ago/);
  assert.match(html,/4 missing · 1 outdated · 0 in conflict · 81% covered/);
- assert.match(html,/3 users · 5 groups · 1 app — configured, not effective/);
- assert.match(html,/memberOf retirement in <b>43 days<\/b>/);
+ assert.match(html,/3 users · 5 groups · 1 app in 11 policies — configured, not effective/);
+ assert.match(html,/rules that still use it stop updating: in <b>43 days<\/b> \(3 Nov 2026\)/);
+ assert.match(html,/most users, internal guests included: in <b>133 days<\/b> \(1 Feb 2027\)/);
+ assert.match(html,/Global Administrators and external users: in <b>283 days<\/b> \(1 Jul 2027\)/);
+ assert.match(html,/checked 2026-09-21/);assert.match(html,/concept-sms-voice-retirement/);
+ assert.equal((html.match(/not assessed/g)||[]).length,2);
  assert.match(html,/data-ovtool="toolExclusions"/);
+});
+test('overview: exclusion kinds add up to the total, locations and platforms included; unknown kinds are named as other',()=>{
+ assert.equal(Overview.exclusionKinds({user:3,group:5,guest:1,location:3,platform:2}),'3 users · 5 groups · 1 external clause · 3 named locations · 2 device platforms');
+ assert.equal(Overview.exclusionKinds({app:1,zzz:4}),'1 app · 4 other references');
+ assert.equal(Overview.exclusionKinds({}),'');
+});
+test('overview: an advisory shows the tenant impact once the tool has run, and no dated policy is not the same as no change',()=>{
+ const now=Date.parse('2026-09-21T12:00:00Z');
+ const html=Overview.tenant({now,policies:[{name:'A',state:'enabled',modified:null},{name:'B',state:'enabledForReportingButNotEnforced',modified:null}],baseline:null,exclusions:null,
+  impact:{toolSmsVoice:{text:'12 users still on SMS/voice (3 blocking)'}}});
+ assert.match(html,/tenant impact: <b>12 users still on SMS\/voice \(3 blocking\)<\/b>/);
+ assert.match(html,/>Open</);assert.match(html,/>Assess</);
+ assert.match(html,/date unavailable for 2/);assert.doesNotMatch(html,/no dated policy modified/);
+ assert.match(html,/date unavailable for 1/);
 });
 test('overview: run cards say never, stale or fresh',()=>{
  const html=Overview.runs([
@@ -617,19 +636,19 @@ test('overview: worth renders ranked lines with severity, tool and subtab, and t
   {sev:'critical',icon:'s',toolLabel:'Checks',tool:'toolGapCheck',tab:'checks:bypass',text:'No MFA policy covers all users',sub:'tenant-wide'},
   {sev:'high',icon:'d',toolLabel:'Exclusions',tool:'toolExclusions',text:'2 app exclusions with no equivalent coverage established',sub:'1 reached by no other enforcing policy'},
   {sev:'info',icon:'c',toolLabel:'CIS',tool:'toolGapCheck',tab:'checks:cis',text:'CIS 5.2.2 not assessed this session'},
- ],provisional:'First pass over the loaded policies only.',zt:{overall:42}});
+ ],provisional:'First pass over the loaded policies only.',zt:{overall:42,at:'10:42'}});
  assert.equal((html.match(/class="db-worth sev-/g)||[]).length,3);
  assert.match(html,/sev-critical[\s\S]*sev-high[\s\S]*sev-info/);
  assert.match(html,/data-ovtool="toolGapCheck" data-ovtab="checks:bypass"/);
  assert.match(html,/data-ovtool="toolExclusions">/);
- assert.match(html,/Zero Trust 42\/100 \(configuration findings, not effective protection\)/);
+ assert.match(html,/configuration score 42\/100 from the 🛡 run at 10:42 — findings, not effective protection/);
  assert.match(html,/db-worth-note[^>]*>First pass over the loaded policies only\./);
  assert.match(html,/1 reached by no other enforcing policy/);
 });
 test('overview: worth with nothing to show says so, and no note when the run was full',()=>{
  const html=Overview.worth({items:[],provisional:null,zt:null});
  assert.match(html,/Nothing critical or high in the loaded policy set — /);
- assert.doesNotMatch(html,/on a first pass/);assert.doesNotMatch(html,/db-worth-note/);assert.doesNotMatch(html,/Zero Trust/);
+ assert.doesNotMatch(html,/on a first pass/);assert.doesNotMatch(html,/db-worth-note/);assert.match(html,/configuration checks — partial/);
  const html2=Overview.worth({items:[],provisional:'x',zt:null});
  assert.match(html2,/on a first pass/);
 });

@@ -22,11 +22,22 @@ const Overview = (() => {
   const n = (v) => (v == null ? "—" : Number(v).toLocaleString());
   const DAY = 86400000;
 
-  // The dated retirements the temporary tools exist for. A date is a fact;
-  // the tool behind each one reads what the tenant still has in play.
+  // The dated retirements the temporary tools exist for. A published date is
+  // a fact about Microsoft, not about this tenant: each advisory carries its
+  // source and the day it was checked, and the tenant impact stays "not
+  // assessed" until the tool behind it has run (25421).
   const DEADLINES = [
-    { tool: "toolSmsVoice", icon: "📵", label: "SMS & voice retirement", at: "2027-02-01T00:00:00Z", note: "auto-enable for passkeys has been on since 1 September 2026" },
-    { tool: "toolMemberOf", icon: "🧷", label: "memberOf retirement", at: "2026-11-03T00:00:00Z", note: "rules that still use it stop updating on that day" },
+    { tool: "toolSmsVoice", icon: "📵", label: "Microsoft-provided SMS & voice delivery",
+      cohorts: [
+        { who: "most users, internal guests included", at: "2027-02-01T00:00:00Z" },
+        { who: "Global Administrators and external users", at: "2027-07-01T00:00:00Z" },
+      ],
+      note: "passkeys auto-enabled for SMS/voice users since 1 September 2026",
+      source: "https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement", verified: "2026-09-21" },
+    { tool: "toolMemberOf", icon: "🧷", label: "memberOf in dynamic membership rules",
+      cohorts: [{ who: "rules that still use it stop updating", at: "2026-11-03T00:00:00Z" }],
+      note: "",
+      source: "https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of", verified: "2026-09-21" },
   ];
 
   const daysUntil = (iso, now) => Math.ceil((new Date(iso).getTime() - now) / DAY);
@@ -47,34 +58,68 @@ const Overview = (() => {
     pols.forEach((p) => { if (p.state === "enabled") st.on++; else if (p.state === "enabledForReportingButNotEnforced") st.ro++; else st.off++; });
     const changed = pols.filter((p) => p.modified && now - new Date(p.modified).getTime() <= 30 * DAY)
       .sort((a, b) => new Date(b.modified) - new Date(a.modified));
-    // "Older than 30 days" is measured on the last modification — the app
-    // does not know when a policy ENTERED report-only, only when it was last
-    // touched, and the tile says exactly that.
-    const roStale = pols.filter((p) => p.state === "enabledForReportingButNotEnforced" && p.modified && now - new Date(p.modified).getTime() > 30 * DAY).length;
+    // A policy without a date is not evidence of no change: it is counted
+    // apart, never folded into "nothing modified" (25421).
+    const undated = pols.filter((p) => !p.modified).length;
+    // "30+ days" is measured on the last modification — the app does not
+    // know when a policy ENTERED report-only, only when it was last touched,
+    // and the tile says exactly that.
+    const ro = pols.filter((p) => p.state === "enabledForReportingButNotEnforced");
+    const roStale = ro.filter((p) => p.modified && now - new Date(p.modified).getTime() > 30 * DAY).length;
+    const roUndated = ro.filter((p) => !p.modified).length;
     const tile = (cls, num, label, sub, tool) => `<div class="db-tile${cls ? " " + cls : ""}${tool ? " clickable" : ""}"${tool ? ` data-ovtool="${esc(tool)}" role="button" tabindex="0"` : ""}><div class="n" title="${esc(String(num).replace(/<[^>]+>/g, ""))}">${num}</div><div class="l">${esc(label)}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`;
     // The policy counts themselves live in the workspace's Current snapshot
     // panel beside this band; these tiles say what that panel does not.
     const tiles = [
-      tile(st.ro ? "warn" : "", n(st.ro), "report-only", st.ro ? (roStale ? `${roStale} untouched for 30+ days` : "all touched within 30 days") : "nothing staged", "toolSignins"),
-      tile("", n(changed.length), "changed in 30 days", changed.length ? `last: ${esc(changed[0].name)}, ${ago(changed[0].modified, now)}` : "no policy modified in 30 days", "toolAudit"),
+      tile(st.ro ? "warn" : "", n(st.ro), "report-only", st.ro
+        ? [roStale ? `${roStale} last modified 30+ days ago` : "", roUndated ? `date unavailable for ${roUndated}` : "", !roStale && !roUndated ? "all modified within 30 days" : ""].filter(Boolean).join(" · ")
+        : "nothing staged", "toolSignins"),
+      tile("", n(changed.length), "modified in 30 days", [
+        changed.length ? `last: ${esc(changed[0].name)}, ${ago(changed[0].modified, now)}` : (undated < pols.length ? "no dated policy modified in 30 days" : ""),
+        undated ? `date unavailable for ${undated}` : "",
+      ].filter(Boolean).join(" · ") || "no dates available", "toolAudit"),
       d.baseline
         ? tile(d.baseline.missing || d.baseline.outdated || d.baseline.conflict ? "warn" : "ok", esc(d.baseline.label), "baseline match",
             `${n(d.baseline.missing)} missing · ${n(d.baseline.outdated)} outdated · ${n(d.baseline.conflict)} in conflict · ${n(d.baseline.coverage)}% covered`, "toolBaseline")
         : tile("", "—", "baseline match", "no catalog matched", "toolBaseline"),
       d.exclusions
-        ? tile("", n(d.exclusions.entities), "configured exclusions",
-            `${[["user", "user"], ["group", "group"], ["role", "role"], ["guest", "external clause"], ["app", "app"]].filter(([k]) => d.exclusions.byKind[k]).map(([k, w]) => `${d.exclusions.byKind[k]} ${w}${d.exclusions.byKind[k] === 1 ? "" : "s"}`).join(" · ") || "none"} — configured, not effective`, "toolExclusions")
+        ? tile("", n(d.exclusions.entities), "unique exclusion references",
+            `${exclusionKinds(d.exclusions.byKind) || "none"}${d.exclusions.policies ? ` in ${n(d.exclusions.policies)} polic${d.exclusions.policies === 1 ? "y" : "ies"}` : ""} — configured, not effective`, "toolExclusions")
         : "",
     ].join("");
-    const deadlines = DEADLINES.map((x) => {
-      const days = daysUntil(x.at, now);
-      const when = days > 0 ? `in <b>${days} day${days === 1 ? "" : "s"}</b>` : days === 0 ? "<b>today</b>" : `<b>${-days} day${days === -1 ? "" : "s"} ago</b>`;
-      return `<button type="button" class="db-dead${days <= 60 ? " soon" : ""}" data-ovtool="${esc(x.tool)}">${x.icon} ${esc(x.label)} ${when} <span class="mini muted">— ${esc(x.note)}</span></button>`;
-    }).join("");
+    const deadlines = DEADLINES.map((x) => advisory(x, (d.impact || {})[x.tool], now)).join("");
     return `<div class="db-band">
       <h3>Tenant <span class="mini muted">${esc(d.isDemo ? "Demo tenant" : d.tenantName || "")}${d.snapshot ? ` · policies read ${esc(new Date(d.snapshot).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}` : ""}</span></h3>
       <div class="db-tiles">${tiles}</div>
       <div class="db-deads">${deadlines}</div>
+    </div>`;
+  }
+
+  // Every kind Exclusions.collect can produce, so the breakdown adds up to
+  // the tile's number (25421: locations and platforms were left out and the
+  // subtitle summed to less than the total).
+  const KIND_WORD = [["user", "user"], ["group", "group"], ["role", "role"], ["guest", "external clause"], ["app", "app"], ["location", "named location"], ["platform", "device platform"]];
+  function exclusionKinds(byKind) {
+    byKind = byKind || {};
+    const known = KIND_WORD.filter(([k]) => byKind[k]).map(([k, w]) => `${byKind[k]} ${w}${byKind[k] === 1 ? "" : "s"}`);
+    const other = Object.keys(byKind).filter((k) => !KIND_WORD.some(([kk]) => kk === k)).reduce((a, k) => a + byKind[k], 0);
+    if (other) known.push(`${other} other reference${other === 1 ? "" : "s"}`);
+    return known.join(" · ");
+  }
+  // One advisory: the published cohorts and dates, the source and when it
+  // was checked, and what THIS tenant shows — "not assessed" until the tool
+  // has run. `impact` = { text } from the app, or nothing.
+  function advisory(x, impact, now) {
+    const when = (iso) => {
+      const days = daysUntil(iso, now);
+      const date = new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      return days > 0 ? `in <b>${days} day${days === 1 ? "" : "s"}</b> (${esc(date)})` : days === 0 ? `<b>today</b> (${esc(date)})` : `<b>${-days} day${days === -1 ? "" : "s"} ago</b> (${esc(date)})`;
+    };
+    const soon = x.cohorts.some((c) => daysUntil(c.at, now) <= 60);
+    return `<div class="db-adv${soon ? " soon" : ""}">
+      <div class="db-adv-h">${x.icon} <b>${esc(x.label)}</b> <span class="mini muted">published advisory · <a href="${esc(x.source)}" target="_blank" rel="noopener">Microsoft</a>, checked ${esc(x.verified)}</span></div>
+      <div class="db-adv-c">${x.cohorts.map((c) => `<span>${esc(c.who)}: ${when(c.at)}</span>`).join("")}${x.note ? `<span class="mini muted">${esc(x.note)}</span>` : ""}</div>
+      <div class="db-adv-i">tenant impact: ${impact && impact.text ? `<b>${esc(impact.text)}</b>` : `<span class="db-na">not assessed</span>`} <button type="button" class="fchip" data-ovtool="${esc(x.tool)}">${impact && impact.text ? "Open" : "Assess"}</button></div>
     </div>`;
   }
 
@@ -94,7 +139,8 @@ const Overview = (() => {
 
   // ---- Worth a look first (25420) ----
   // w = { items: [{ sev, icon, text, sub, tool, tab }], provisional: string|null,
-  //       zt: {overall}|null }
+  //       zt: {overall, at}|null — only from a 🛡 run whose context was read;
+  //       a provisional pass shows "partial", never a number (25421) }
   // The items are RANKED by the app (severity, then tool) and capped there;
   // this only draws them. Every line is a button into the tool that owns the
   // finding, and the band never says more than the finding does.
@@ -108,12 +154,12 @@ const Overview = (() => {
     </button>`;
     const empty = `<div class="db-worth-empty mini muted">Nothing critical or high in the loaded policy set${w.provisional ? " on a first pass" : ""} — the tools below go deeper than this band can.</div>`;
     return `<div class="db-band">
-      <h3>Worth a look first <span class="mini muted">— the highest-severity findings the loaded policies show${w.zt ? ` · Zero Trust ${esc(w.zt.overall)}/100 (configuration findings, not effective protection)` : ""}</span></h3>
+      <h3>Worth a look first <span class="mini muted">— the highest-severity findings the loaded policies show · ${w.zt ? `configuration score ${esc(w.zt.overall)}/100 from the 🛡 run${w.zt.at ? ` at ${esc(w.zt.at)}` : ""} — findings, not effective protection` : `<span class="db-na">configuration checks — partial</span>`}</span></h3>
       <div class="db-worths">${items.length ? items.map(line).join("") : empty}</div>
       ${w.provisional ? `<div class="db-worth-note mini muted">${esc(w.provisional)}</div>` : ""}
     </div>`;
   }
 
-  return { tenant, runs, worth, DEADLINES };
+  return { tenant, runs, worth, DEADLINES, exclusionKinds };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = { Overview };

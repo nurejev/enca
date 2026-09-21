@@ -119,6 +119,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 243,
+      title: "\ud83c\udfe0 Overview says only what it knows: reconciled exclusions, Unknown never zero, no provisional score, dated advisories",
+      tools: ["Home"],
+      builds: [25421],
+      risk: "medium",
+      what: "js/overview.js: exclusionKinds() covers every kind Exclusions.collect produces (plus other references) and the tile reads unique exclusion references in N policies; undated policies are counted apart on both date tiles; DEADLINES carry cohorts, source and verified date and render through advisory() with a tenant-impact line; the worth heading shows configuration checks \u2014 partial unless a full-context score is passed. js/app.js: the Licences and Exclusions headlines return Unknown when a measure was not read; the score is passed only from a fresh \ud83d\udee1 run with no incomplete context; svRes/moRes summaries feed the impact line. css/app.css: .db-adv*, .db-na. index.html: Help.",
+      why: "MEDIUM \u2014 five ways the 25419/25420 home page could be read as saying more than it knew, found by the 21 September dashboard review: a breakdown summing below its total, a zero standing in for an unread measure, a numeric score from an incomplete pass, no change where the date was missing, and one retirement date where Microsoft publishes two cohorts. No new read.",
+      test: [
+        "Demo: the exclusions tile reads unique exclusion references and its kinds add up to the number (locations and platforms listed).",
+        "Before \ud83d\udee1 has run, the Worth-a-look heading says configuration checks \u2014 partial and no number; run \ud83d\udee1 and return: the configuration score with the run time appears.",
+        "The advisories show both SMS/voice cohorts with dates and day counts, the memberOf date, a Microsoft link and checked 2026-09-21; tenant impact reads not assessed with an Assess button; run \ud83d\udcf5 and return: the impact line shows the count found and the button reads Open.",
+        "A Licences result with unread measures shows Unknown \u00b7 incomplete read on its card, never 0.",
+        "Policies without modifiedDateTime/createdDateTime: the tiles say date unavailable for N.",
+        "Regression: tools/regression.test.cjs passes (67).",
+      ],
+      files: ["js/overview.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 242,
       title: "\ud83c\udfe0 Overview: the Worth-a-look-first band",
       tools: ["Home"],

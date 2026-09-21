@@ -616,10 +616,14 @@ tr.grouprow:hover td{background:var(--line)}
 .db-tile .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .db-tile .s{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
 .db-tile.warn .n{color:var(--report)}.db-tile.bad .n{color:var(--off)}.db-tile.ok .n{color:var(--on)}
-.db-deads{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-.db-dead{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:8px 12px;font:inherit;font-size:12.5px;color:var(--ink);cursor:pointer;text-align:left}
-.db-dead.soon{border-color:var(--warn-bd);background:var(--warn-bg2)}
-.db-dead:hover{border-color:var(--accent2)}
+.db-deads{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;margin-top:10px}
+/* a published advisory (25421): cohorts and dates, the source, and what this tenant shows */
+.db-adv{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:8px 12px;font-size:12.5px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.db-adv.soon{border-color:var(--warn-bd);background:var(--warn-bg2)}
+.db-adv-h{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.db-adv-c{display:flex;flex-direction:column;gap:2px;line-height:1.4}
+.db-adv-i{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+.db-na{display:inline-block;background:var(--warn-bg);color:var(--warn-fg);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600}
 .db-runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,280px));gap:12px}
 .db-run{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
 .db-run .t{font-weight:600;font-size:13px}.db-run .h{font-size:20px;font-weight:700}.db-run .m{font-size:11.5px;color:var(--muted)}

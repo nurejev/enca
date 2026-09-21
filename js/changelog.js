@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25421, date: "2026-09-21", title: "What the home page says is what it knows",
+    items: [
+      { kind: "fix", tool: "Home", text: "The exclusions tile now adds up: it counts UNIQUE EXCLUSION REFERENCES and lists every kind \u2014 named locations and device platforms included \u2014 in how many policies. The subtitle used to sum to less than the number because two kinds were left out." },
+      { kind: "fix", tool: "Home", text: "Unknown is never zero. A Licences result whose measures were not all read says Unknown \u00b7 incomplete read instead of 0 P1 shortfall; an exclusion result without a state count says the bypass count is not established instead of showing the length of a list." },
+      { kind: "fix", tool: "Home", text: "No score from a provisional pass. Worth a look first says configuration checks \u2014 partial until \ud83d\udee1 Checks has run with its context read in full; only then does the configuration score appear, with the run time, and it is a count of findings, not effective protection." },
+      { kind: "fix", tool: "Home", text: "A policy without a modification date is counted apart \u2014 date unavailable for N \u2014 never folded into no change; report-only reads last modified 30+ days ago, which is what the app knows." },
+      { kind: "fix", tool: "Home", text: "The retirements are published advisories, shown as such: Microsoft-provided SMS and voice delivery retires for most users (internal guests included) on 1 February 2027 and for Global Administrators and external users on 1 July 2027; memberOf on 3 November 2026. Each carries its Microsoft source and the day it was checked, and the tenant impact reads not assessed until \ud83d\udcf5 or \ud83e\uddf7 has run \u2014 then it shows what that run found. Note: \ud83d\udcf5 itself still evaluates every user against the February date." },
+    ],
+  },
+  {
     build: 25420, date: "2026-09-21", title: "Worth a look first",
     items: [
       { kind: "new", tool: "Home", text: "A WORTH A LOOK FIRST band between Tenant and Your runs: the highest-severity findings the loaded policy set shows, ranked by severity and then tool, at most six, each a button into the tool that owns it. The \ud83d\udee1 gap checks run over the loaded policies the moment the home page draws \u2014 they are pure over the policy set once their context is in hand. Without a \ud83d\udee1 run this session they run provisionally, with authentication strengths, named locations and the Conditional Access settings unread; the band says so, and the checks that need those reads stay silent or understate rather than invent. A \ud83d\udee1 or \ud83d\udcd0 result from before the last policy reload is not built on." },

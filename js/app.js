@@ -19513,7 +19513,8 @@ This is a directory write. Nothing else changes.`)) return;
     const cards = [
       { tool: "toolExclusions", icon: "🚪", label: "Exclusion analyzer", run: "ex", runLabel: "Rescan",
         never: !exModel, meta: exRunMeta, stale: stale(exRunMeta),
-        headline: exModel ? { n: (exModel.userStates || {}).bypass ?? exUsers.length, unit: "effective bypasses" } : null },
+        // a missing state count is an incomplete result, never a list length (25421)
+        headline: exModel ? ((exModel.userStates || {}).bypass != null ? { n: exModel.userStates.bypass, unit: "effective bypasses" } : { n: "Unknown", unit: "bypass count not established" }) : null },
       { tool: "toolAnalyze", icon: "🔍", label: "Gap analyse", run: "an", runLabel: "Run again",
         never: !anReport, meta: anRunMeta, stale: stale(anRunMeta),
         headline: anReport ? (() => { const s = Analyzer.summary(anReport); return { n: s.risky, unit: `risky bypass${s.risky === 1 ? "" : "es"}${s.unknown ? ` · ${s.unknown} unresolved` : ""}` }; })() : null },
@@ -19521,14 +19522,20 @@ This is a directory write. Nothing else changes.`)) return;
         never: !lgRes, meta: lgRunMeta, stale: stale(lgRunMeta),
         headline: lgRes ? (lgRes.p1.gap != null && lgRes.p1.gap > 0 ? { n: `${lgRes.p1.approx ? "≈" : ""}${lgRes.p1.gap.toLocaleString()}`, unit: "P1 seats short" }
           : lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null && lgRes.p1.targeted - lgRes.p1.assignedInScope > 0 ? { n: (lgRes.p1.targeted - lgRes.p1.assignedInScope).toLocaleString(), unit: "to assign, no purchase" }
-          : { n: "0", unit: "P1 shortfall" }) : null },
+          // every measure read → a real zero; anything unread → Unknown, never zero (25421)
+          : lgRes.p1.gap != null || (lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null) ? { n: "0", unit: "P1 shortfall" }
+          : { n: "Unknown", unit: "incomplete read" }) : null },
     ];
     let worth = null;
     try { worth = worthItems(raws); } catch (e) { console.warn("overview worth:", e); }
     host.hidden = false;
+    // what the two retirement tools found in THIS tenant, once they have run
+    const impact = {};
+    if (svRes && svRes.summary) { const x = svRes.summary; impact.toolSmsVoice = { text: `${x.blocking + x.migrate} user${x.blocking + x.migrate === 1 ? "" : "s"} still on SMS/voice (${x.blocking} blocking)${svRes.usersPartial ? " — partial read" : ""}` }; }
+    if (moRes && moRes.summary) { const x = moRes.summary; impact.toolMemberOf = { text: `${x.groups} group${x.groups === 1 ? "" : "s"} still using memberOf${x.caPolicies ? `, ${x.caPolicies} in Conditional Access` : ""}${moRes.allSurfaces ? "" : " — not every surface read"}` }; }
     host.innerHTML = Overview.tenant({ tenantName, isDemo, snapshot: policiesReadAt || null,
       policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
-      baseline, exclusions, now: Date.now() })
+      baseline, exclusions, impact, now: Date.now() })
       + (worth ? Overview.worth(worth) : "")
       + Overview.runs(cards);
   }
@@ -19560,7 +19567,11 @@ This is a directory write. Nothing else changes.`)) return;
       gap = GapCheck.run(scope.raws, { strengths: new Map(), namedLocations: [], names: {}, caSettings: caSettingsCache || null }, { includeDisabled: scope.includeDisabled });
       provisional = "First pass over the loaded policies only — authentication strengths, named locations and the Conditional Access settings are read when you run 🛡 Checks, and the findings that need them are left out here.";
     }
-    zt = gap.zt && gap.zt.overall != null ? { overall: gap.zt.overall } : null;
+    // a number only from a 🛡 run that read its context in full; a
+    // provisional pass, or a run that reported incomplete context, is
+    // "partial" and shows no score (25421)
+    zt = gc && !provisional && !(gcCtx && gcCtx.incomplete) && gap.zt && gap.zt.overall != null
+      ? { overall: gap.zt.overall, at: new Date(gcRunAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } : null;
     const byTitle = new Map();
     (gap.findings || []).filter((f) => f.severity === "critical" || f.severity === "high").forEach((f) => {
       const k = `${f.severity}|${f.title}`;
