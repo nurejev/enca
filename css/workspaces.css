@@ -109,3 +109,5 @@ body.workspaces-shell:not(.with-side) .fwrap{margin:0 auto;max-width:1180px}
 body.workspaces-shell:not(.with-side){padding-bottom:0}
 body.workspaces-shell:not(.with-side) #themeBtn{margin-left:auto}
 body.workspaces-shell #permOverview,body.workspaces-shell .workspace-about{margin-top:28px;border-radius:10px;box-shadow:none}
+
+.wc-tool-group{margin:0 0 24px}.wc-tool-group>summary{cursor:pointer;font-size:15px;font-weight:600;padding:12px 0;color:var(--ink)}.wc-tool-group>summary>span{font-size:12px;font-weight:400;color:var(--muted);margin-left:8px}.wc-connection{display:grid;gap:5px;padding:10px;border-block:1px solid var(--border);font-size:12px;line-height:1.45}.wc-connection-id{overflow-wrap:anywhere;font-size:11px;color:var(--muted)}body.workspaces-shell #acctMenu{max-height:calc(100dvh - 150px);overflow-y:auto}#screen-permissions #permOverview{overflow-x:auto}

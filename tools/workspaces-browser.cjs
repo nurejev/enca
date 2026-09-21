@@ -19,6 +19,15 @@ const report={date:new Date().toISOString(),baseBuild:build,errors:[],navigation
   }
   const p=await pageFor(1440,'light');
   assert.equal(await p.locator('#wcBrandName').innerText(),'ENCA');
+  const homeTools=await p.locator('#wcOverviewTools [data-wc-tool]').count();
+  assert.equal(homeTools,24);
+  for(const id of ['toolDeploy','toolAudit','toolPermissions'])assert.equal(await p.locator('#wcOverviewTools [data-wc-tool="'+id+'"]').isVisible(),true);
+  await p.locator('#wcToggleGroups').click();assert.equal(await p.locator('#wcOverviewTools details[open]').count(),0);
+  await p.locator('#wcToggleGroups').click();assert.ok(await p.locator('#wcOverviewTools details[open]').count()>0);
+  await p.locator('#wcOverviewTools [data-wc-tool="toolPermissions"]').click();assert.equal(await p.locator('#permOverview').isVisible(),true);
+  await p.locator('#wcHomeButton').click();assert.equal(await p.locator('#permOverview').isVisible(),false);
+  await p.locator('#acctBtn').click();assert.match(await p.locator('#themeBtn').innerText(),/Theme/);assert.match(await p.locator('#wcConnection').innerText(),/no app connection/);await p.keyboard.press('Escape');
+
   assert.equal(await p.locator('#logoHome #brandLogo').isVisible(),true);
   assert.equal(await p.locator('#toolNav [data-navhome]').isVisible(),true);
   assert.equal(await p.locator('#brandOrg').isVisible(),false);

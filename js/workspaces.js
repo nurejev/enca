@@ -38,6 +38,7 @@
     toolMemberOf: 'Find memberOf rules and their dependent services.',
     toolChangelog: 'Read the release history.',
     toolRoadmap: 'See what is planned and what has shipped.',
+    toolPermissions: 'View session permissions, consent and revocation guidance.',
     toolHelp: 'Find guidance, permissions and release information.',
   };
   const recent = [];
@@ -186,8 +187,22 @@
     // Account settings remain available, without adding controls to the
     // mockup's uncluttered top bar. The existing theme handler is retained.
     const theme=$('themeBtn');theme.setAttribute('role','menuitem');
-    const themeLabel=document.createElement('span');themeLabel.textContent=' Appearance';theme.append(themeLabel);
+    const themeLabel=document.createElement('span');themeLabel.textContent=' Theme';theme.append(themeLabel);
     const menu=$('acctMenu');menu.insertBefore(theme,$('signOutBtn'));
+    const connection=document.createElement('div');connection.id='wcConnection';connection.className='wc-connection';
+    menu.insertBefore(connection,$('copyTenantBtn'));
+    let connectionRequest=0;
+    $('acctBtn').addEventListener('click',async()=>{
+      if(menu.hidden)return;
+      const request=++connectionRequest,key=sessionKey;
+      if(Workspace.context?.demo){connection.textContent='Demo · no app connection';return;}
+      connection.innerHTML='<span class="wc-eyebrow">Connected app</span><span>Loading registration…</span>';
+      const info=await Graph.connectionInfo();
+      if(request!==connectionRequest||key!==sessionKey)return;
+      const own=info.ownerTenantId&&info.ownerTenantId.toLowerCase()===String(Workspace.context?.key||'').toLowerCase();
+      const type=info.ownerTenantId?(own?'App registration in this tenant':(/^AzureADMultipleOrgs$|^AzureADandPersonalMicrosoftAccount$/.test(info.audience)?'Multitenant app in another tenant':'App registration in another tenant')):'App owner unavailable';
+      connection.innerHTML=`<span class="wc-eyebrow">Connected app</span><strong>${esc(info.name||'Application')}</strong><span class="wc-connection-id">${esc(info.clientId)}</span><span>${esc(type)}</span>${info.ownerTenantId?`<span>Owner tenant: ${own?esc(Workspace.context.tenant)+' · ':''}<span class="wc-connection-id">${esc(info.ownerTenantId)}</span></span>`:'<span>Registration details could not be read with this session.</span>'}`;
+    });
     const closeAll=document.createElement('button');closeAll.type='button';closeAll.id='wcCloseAll';closeAll.setAttribute('role','menuitem');closeAll.textContent='Close all workspaces';
     closeAll.addEventListener('click',()=>{
       const all=$('toolNav').querySelector('[data-navcloseall]');
@@ -196,9 +211,13 @@
     menu.insertBefore(closeAll,$('signOutBtn'));
     const note=document.createElement('p');note.className='wc-account-note';note.id='wcSessionNote';menu.append(note);
     const home=document.createElement('div');home.id='wcHome';
-    const featured=['toolPolicies','toolAnalyze','toolSignins','toolGapCheck','toolBaseline','toolCaGroups','toolLocations','toolUserImpact'];
-    home.innerHTML=`<div class="wc-home-heading"><div><div class="wc-eyebrow" id="wcTenant"></div><h1>Your Conditional Access workspace.</h1><p>Open a tool. Keep your place. Continue where you left off.</p></div><span class="wc-demo"><span></span>Demo · sample data</span></div><div class="wc-home-layout"><aside class="wc-recent-panel"><h2>Recent tools</h2><div id="wcRecent"></div><div class="wc-session"><span class="wc-eyebrow">Current snapshot</span><div id="wcSnapshot"></div><p>ENCA’s existing demo policies.<br>Changes in this session are simulated.</p></div></aside><section class="wc-library"><div class="wc-section-heading"><h2>Open a tool</h2><button type="button" class="wc-text-button" data-wc-library>All ${tools.length} tools <span aria-hidden="true">↗</span></button></div><div class="wc-tool-grid">${featured.map(id=>tools.find(t=>t.id===id)).filter(Boolean).map(card).join('')}</div><div class="wc-bottom-links"><button type="button" data-wc-tool="toolImport">📥 Import</button><button type="button" data-wc-tool="toolDeploy">↗ Guided rollout</button><button type="button" data-wc-tool="toolAudit">🕓 Changes</button></div></section></div><div class="wc-home-foot"><span>Open tools stay in the tabs above your workspace.</span><button type="button" class="wc-text-button" data-wc-tool="toolHelp">ENCA help →</button></div>`;
+    home.innerHTML=`<div class="wc-home-heading"><div><div class="wc-eyebrow" id="wcTenant"></div><h1>Your Conditional Access workspace.</h1><p>Open a tool. Keep your place. Continue where you left off.</p></div><span class="wc-demo"><span></span>Demo · sample data</span></div><div class="wc-home-layout"><aside class="wc-recent-panel"><h2>Recent tools</h2><div id="wcRecent"></div><div class="wc-session"><span class="wc-eyebrow">Current snapshot</span><div id="wcSnapshot"></div><p>ENCA’s existing demo policies.<br>Changes in this session are simulated.</p></div></aside><section class="wc-library"><div class="wc-section-heading"><h2>All ${tools.length} tools</h2><button type="button" id="wcToggleGroups" class="wc-text-button">Collapse all</button></div><div id="wcOverviewTools">${[...new Set(tools.map(t=>t.group))].map(group=>`<details class="wc-tool-group" open><summary>${esc(group)} <span>${tools.filter(t=>t.group===group).length} tools</span></summary><div class="wc-tool-grid">${tools.filter(t=>t.group===group).map(card).join('')}</div></details>`).join('')}</div></section></div><div class="wc-home-foot"><span>Open tools stay in the tabs above your workspace.</span><button type="button" class="wc-text-button" data-wc-tool="toolHelp">ENCA help →</button></div>`;
     $('screen-home').prepend(home);
+    const toggleGroups=$('wcToggleGroups');
+    const groups=[...home.querySelectorAll('.wc-tool-group')];
+    const syncGroups=()=>{toggleGroups.textContent=groups.some(g=>g.open)?'Collapse all':'Expand all';};
+    groups.forEach(g=>g.addEventListener('toggle',syncGroups));
+    toggleGroups.addEventListener('click',()=>{const open=!groups.some(g=>g.open);groups.forEach(g=>g.open=open);syncGroups();});
     home.querySelector('.wc-demo').innerHTML='<span></span><span id="wcEnvironment"></span>';
     home.querySelector('.wc-session p').id='wcSnapshotNote';
     // Counts are copied from the app's own live-rendered policy summary.

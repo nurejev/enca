@@ -28,6 +28,10 @@
 // Newest release first.
 // ======================================================================
 const CHANGELOG = [
+  {build:25402,date:"2026-09-21",title:"All tools on Overview and connection identity",items:[
+    {kind:"improved",tool:"Navigation",text:"Overview lists every tool in expandable groups, including Guided rollout and Changes as full tool cards. Permissions in this session opens as its own workspace. Appearance is now labelled Theme."},
+    {kind:"improved",tool:"Connection",text:"The account menu shows the configured app client ID and, when readable, its name, owner tenant ID and whether the registration is in this tenant or another tenant. Multitenant status comes from registration metadata. Metadata lookup is silent and read-only; unavailable information is labelled explicitly."}
+  ]},
   {
     build: 25401, date: "2026-09-21", title: "Workspaces: one layout across the tools",
     items: [

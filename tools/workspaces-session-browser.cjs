@@ -30,11 +30,24 @@ const report={baseBuild:build,date:new Date().toISOString(),errors:[],checks:[],
   await p.reload();await p.locator('#wcHome').waitFor();
   assert.equal(await p.locator('#wcAccountLabel').textContent(),'Same-name tenant');
   assert.equal(await p.locator('#wcEnvironment').textContent(),'Tenant · policy snapshot');
+  assert.equal(await p.locator('#permOverview').isVisible(),false);
+  await p.locator('#wcOverviewTools [data-wc-tool="toolPermissions"]').click();
   assert.equal(await p.locator('#permOverview').isVisible(),true);
+  await p.locator('#wcHomeButton').click();
   assert.match(await p.title(),/SELF-HOSTED|BETA/);
+  for(const [owner,audience,expected] of [['fixture-a','AzureADMyOrg','App registration in this tenant'],['external-owner','AzureADMultipleOrgs','Multitenant app in another tenant'],[null,null,'App owner unavailable']]){
+    await p.evaluate(({owner,audience})=>{Graph.connectionInfo=async()=>({clientId:'fixture-app',name:'Fixture application',ownerTenantId:owner,audience});},{owner,audience});
+    await p.locator('#acctBtn').click();await p.waitForFunction(text=>document.querySelector('#wcConnection').textContent.includes(text),expected);
+    assert.match(await p.locator('#wcConnection').innerText(),/fixture-app/);
+    if(owner)assert.ok((await p.locator('#wcConnection').innerText()).includes(owner));
+    if(owner==='external-owner'){await p.screenshot({path:path.join(out,'connection-external.png')});await p.setViewportSize({width:320,height:800});assert.ok(await p.locator('#wcConnection').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await p.setViewportSize({width:1440,height:1000});}
+    await p.keyboard.press('Escape');
+  }
+  report.checks.push('Connected-app menu distinguishes own tenant, external multitenant and unavailable owner, and shows configured app and owner IDs. UI cases use fixtures.');
+
   await p.locator('#wcRail [data-wc-tool="toolSignins"]').click();
   await p.locator('#wcRail [data-wc-tool="toolPolicies"]').click();
-  await p.locator('#wcHomeButton').click();assert.equal(await p.locator('#wcRecent [data-wc-tool]').count(),2);
+  await p.locator('#wcHomeButton').click();assert.equal(await p.locator('#wcRecent [data-wc-tool]').count(),3);
   await p.locator('#wcRail [data-wc-tool="toolPolicies"]').click();
   await p.evaluate(()=>window.fixtureTenant='fixture-b');await p.locator('#refreshBtn').click();
   await p.waitForFunction(()=>Workspace.context.key==='fixture-b');

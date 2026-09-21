@@ -1,0 +1,12 @@
+{
+  "baseBuild": 25402,
+  "date": "2026-09-21T09:57:13.858Z",
+  "errors": [],
+  "checks": [
+    "Plain beta URL keeps the original sign-in and connection controls; no forced demo or workspace navigation.",
+    "Connected-app menu distinguishes own tenant, external multitenant and unavailable owner, and shows configured app and owner IDs. UI cases use fixtures.",
+    "Simulated Graph session has truthful non-demo labels, visible permissions and beta identity; changing tenant ID resets recent tools even with an identical tenant name.",
+    "Sign-out hides all workspace navigation, clears recent tools and restores theme control; entering demo uses sample labels again."
+  ],
+  "liveTenant": false
+}

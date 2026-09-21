@@ -679,5 +679,20 @@ const Graph = (() => {
     }
   }
 
-  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
+  // Connection metadata is informational: silent token only, no extra consent.
+  async function connectionInfo() {
+    const clientId=AUTH_CONFIG.clientId;
+    try {
+      if (!/^[0-9a-f-]{36}$/i.test(clientId)) throw new Error('Invalid client ID');
+      const result=await msalApp.acquireTokenSilent({scopes:AUTH_CONFIG.scopes,account});
+      const response=await fetch(safeGraphUrl(`/servicePrincipals(appId='${clientId}')?$select=displayName,appOwnerOrganizationId,signInAudience`),{
+        headers:{Authorization:'Bearer '+result.accessToken},signal:AbortSignal.timeout(10000)
+      });
+      if(!response.ok)throw new Error('Registration unavailable');
+      const sp=await response.json();
+      return {clientId,name:sp.displayName,ownerTenantId:sp.appOwnerOrganizationId,audience:sp.signInAudience};
+    } catch { return {clientId,name:'',ownerTenantId:null,audience:null}; }
+  }
+
+  return { connectionInfo, init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
 })();
