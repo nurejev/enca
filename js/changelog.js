@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25413, date: "2026-09-21", title: "Cohorts, and a grid that shows the odd one out",
+    items: [
+      { kind: "new", tool: "Gap analyse", text: "A COHORTS tab. Users whose state is identical across every policy in the run are one row \u2014 the same collapsing the Exclusion analyzer has always done for exclusion patterns. A tenant of thousands reads as a handful of cohorts plus its outliers, a cohort of one sorts to the top because that is the row worth reading, and opening a cohort lists the people in it. Paging a table nobody can read is a slower way of showing the same thing; this changes what the screen is for." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "The list is the default view now, and the matrix is the expert one. A grid is a poor inventory \u2014 on the demo tenant it is 96 cells with 16 marks, and five of the eight exclusions appear in exactly one policy, which is a list item wearing a grid costume. What a grid does that nothing else can is show the exception, so it does that outright: where most policies carry an exclusion the shared pattern is muted and the policies that do NOT carry it are marked, with a line naming them." },
+      { kind: "fixed", tool: "Gap analyse", text: "The users table stopped looking every rendered row up in the whole report. Each row called indexOf to recover its own position, which makes the render quadratic in the number of users \u2014 on a 50,000-user probe that is billions of comparisons before a single cell is drawn. The filter already knew the indices; it passes them through." },
+    ],
+  },
+  {
     build: 25412, date: "2026-09-21", title: "A result remembers which run made it",
     items: [
       { kind: "fixed", tool: "All tools", text: "Refresh left stale results standing. Reloading the policies cleared \ud83d\udd0d Gap analyse and left \ud83d\udeaa Exclusion analyzer, its user list, the \ud83c\udfab Licences result and its context exactly where they were \u2014 so the screen showed the previous snapshot under a freshly reloaded tenant, and Export CSV wrote the old policies out while the tool itself said no policies were loaded. A reload, a tenant change or a demo switch now drops every result computed from the previous snapshot." },

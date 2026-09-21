@@ -514,9 +514,13 @@ const Analyzer = (() => {
     return idx;
   }
   function userRows(report, filter, query, memberSet, utype) {
-    const rows = filterRows(report, filter, query, memberSet, utype).map(i => report[i]);
-    return rows.map((r) => {
-      const idx = report.indexOf(r);
+    // filterRows already returns the ORIGINAL indices; looking each row up
+    // again with report.indexOf() made the render quadratic in the number of
+    // users, which on a 50,000-row tenant is 2.5 billion comparisons before a
+    // single cell is drawn.
+    const idxs = filterRows(report, filter, query, memberSet, utype);
+    return idxs.map((idx) => {
+      const r = report[idx];
       return `<tr class="urow" data-user="${idx}">
         <td><span class="caret">▶</span> <span class="uname">${esc(r.user)}</span>${r.guest ? ' <span class="tag new">guest</span>' : ""}${r.enabled ? "" : ' <span class="tag block">disabled</span>'}<div class="uupn">${esc(r.upn)}</div>${r.unknown?.length ? `<div class="mini">${r.unknown.length} policy scopes unresolved</div>` : ""}</td>
         <td class="num">${pill(r.applied.length, "green")}</td>
@@ -590,6 +594,77 @@ const Analyzer = (() => {
         }).join("") + "</tr>";
     }).join("") || `<tr><td class="mini" style="padding:18px">No users match.</td></tr>`;
     return { head, body, pages, page };
+  }
+
+  // ---------- cohorts ----------
+  // The users × policies grid renders one row per user, and on a real tenant
+  // most of those rows are identical to each other: same policies, same
+  // states, nothing to look at. A 50,000-user probe produced 23.6 MB of HTML
+  // before the browser had parsed anything, and paging it is only a slower way
+  // of showing the same thing.
+  //
+  // T09 has always collapsed identical exclusion patterns into one row
+  // (mergeRows); this is the same idea for users. A cohort is a set of users
+  // whose state is identical across every policy in the run — so what is left
+  // on screen is the shape of the tenant and its outliers, which is the thing
+  // worth reading.
+  function cohorts(report, maps, pols, rowIdx) {
+    const groups = new Map();
+    const idxs = rowIdx || report.map((_, i) => i);
+    for (const i of idxs) {
+      const m = (maps[i] || {}).m || {};
+      const sig = pols.map((p) => m[p.id] || "na").join("|");
+      let g = groups.get(sig);
+      if (!g) g = { sig, idx: [], states: pols.map((p) => m[p.id] || "na") }, groups.set(sig, g);
+      g.idx.push(i);
+    }
+    const list = [...groups.values()];
+    list.forEach((g) => {
+      const rows = g.idx.map((i) => report[i]);
+      g.users = g.idx.length;
+      g.risky = rows[0] ? rows[0].riskyCount : 0;
+      g.bypassing = rows[0] ? rows[0].bypassing.length : 0;
+      g.unknown = rows[0] ? (rows[0].unknown || []).length : 0;
+      g.enforced = rows[0] ? rows[0].enforcedCount : 0;
+      g.applied = rows[0] ? rows[0].applied.length : 0;
+      g.mfa = rows[0] ? rows[0].mfaTargeted : null;
+      g.sample = rows.slice(0, 40).map((r) => ({ id: r.id, user: r.user, upn: r.upn, guest: r.guest, enabled: r.enabled }));
+      // What this cohort IS, in the words the rest of the tool uses.
+      g.finding = g.unknown ? "scope unresolved"
+        : g.risky ? `${g.risky} risky bypass${g.risky === 1 ? "" : "es"}`
+        : g.bypassing ? `${g.bypassing} bypass${g.bypassing === 1 ? "" : "es"}, all covered`
+        : !g.applied ? "no policy targets them"
+        : !g.enforced ? "targeted only by report-only policies"
+        : "nothing to look at";
+      g.rank = g.unknown ? 1 : g.risky ? 0 : !g.applied ? 2 : !g.enforced ? 3 : 5;
+    });
+    // Findings first, then the big quiet cohorts; a cohort of one is an
+    // outlier and deliberately sorts above a crowd with nothing in it.
+    return list.sort((a, b) => a.rank - b.rank || b.users - a.users);
+  }
+
+  function cohortsHtml(report, maps, pols, rowIdx, open) {
+    const list = cohorts(report, maps, pols, rowIdx);
+    if (!list.length) return '<p class="mini" style="padding:18px">No users match.</p>';
+    const total = list.reduce((n, g) => n + g.users, 0);
+    const chip = (g) => g.unknown ? '<span class="tag new">unknown</span>'
+      : g.risky ? '<span class="tag block">risky</span>'
+      : g.bypassing ? '<span class="tag">covered bypasses</span>'
+      : !g.applied ? '<span class="tag block">untargeted</span>'
+      : !g.enforced ? '<span class="tag new">report-only</span>' : '<span class="tag ok">clean</span>';
+    const rows = list.map((g, i) => {
+      const isOpen = String(open) === String(i);
+      return `<tr class="urow${isOpen ? " open" : ""}" data-cohort="${i}">
+        <td><span class="caret">▶</span> <span class="uname">${esc(g.finding)}</span> ${chip(g)}
+          <div class="mini">${g.applied} polic${g.applied === 1 ? "y" : "ies"} targeting · ${g.enforced} enabled · MFA ${g.mfa === null ? "unknown" : g.mfa ? "targeted" : "none"}</div></td>
+        <td class="num">${pill(g.users, g.rank <= 1 ? "red" : "green")}</td>
+        <td class="mini">${esc(g.sample.slice(0, 3).map((u) => u.user).join(", "))}${g.users > 3 ? ` +${g.users - 3}` : ""}</td>
+      </tr>` + (isOpen ? `<tr class="detail"><td colspan="3"><ul class="plist2">${
+        g.sample.map((u) => `<li>${esc(u.user)} <span class="uupn">${esc(u.upn)}</span>${u.guest ? ' <span class="tag new">guest</span>' : ""}${u.enabled ? "" : ' <span class="tag block">disabled</span>'}</li>`).join("")
+      }${g.users > g.sample.length ? `<li class="mini">…and ${g.users - g.sample.length} more with the identical state. Use the Users tab and its filters to work through them.</li>` : ""}</ul></td></tr>` : "");
+    }).join("");
+    return `<p class="mini muted" style="margin:0 0 8px"><b>${list.length} cohort${list.length === 1 ? "" : "s"}</b> across ${total.toLocaleString()} user${total === 1 ? "" : "s"} — users whose state is identical across every policy in this run are one row. The outliers are what is worth reading; a cohort of one is an outlier and sorts high.</p>
+      <table class="plist an-table"><thead><tr><th>Cohort</th><th class="num">Users</th><th>Who</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // ---------- standalone shareable HTML export (neutral branding) ----------
@@ -743,5 +818,6 @@ draw();
   }
 
   return { collect, collectNamed, collectDemo, evaluate, summary, coverage, coverageHtml,
-    filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup };
+    filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup,
+    cohorts, cohortsHtml };
 })();

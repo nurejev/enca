@@ -714,6 +714,11 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .colgrip:hover,.colgrip.drag{background:linear-gradient(90deg,transparent,var(--accent2))}
 .mtable thead th.ucol{position:sticky;padding-right:14px}
 .mtable tbody tr:hover td{background:var(--hover)}
+/* the odd one out (25413): where most policies carry an exclusion, the few
+   that do not are the finding — so the pattern is muted and the gap is loud */
+.mtable td.cellv.dom .cell.dom{color:var(--faint)}
+.mtable td.cellv.dev{background:var(--warn-bg)}
+.mtable td.cellv.dev .cell.dev{color:var(--warn-fg);font-weight:700}
 /* ---------- near-fullscreen matrix popout ---------- */
 .fs-bg{display:none;position:fixed;inset:0;background:rgba(18,51,31,.45);z-index:200;padding:2vh 1vw}
 .fs-bg.show{display:block}

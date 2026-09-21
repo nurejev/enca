@@ -705,7 +705,20 @@ const Exclusions = (() => {
     const collapsed = matched.length - rows.length;
     const head = `<th class="ucol" style="position:relative">Exclusion (${rows.length}${collapsed ? ` of ${matched.length}` : ""})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
       `<th class="pcol clickable${focusPol && focusPol.id === p.id ? " focused" : ""}" data-expol="${esc(p.id)}"><div class="ph" title="Click to show only exclusions in scope for: ${esc(p.name)}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
+    // What a grid does that a list cannot: show the ODD ONE OUT. When most of
+    // the policies on screen carry an exclusion, the few that do not are the
+    // finding — a baseline everybody trusts except one policy. The dominant
+    // pattern is drawn muted and the deviation carries the colour.
+    const DEV_MIN = 0.6;
+    const devOf = (r) => {
+      const inScope = pols.filter((p) => r.policyIds.has(p.id)).length;
+      if (!pols.length || inScope < 2) return null;
+      const share = inScope / pols.length;
+      if (share < DEV_MIN || share === 1) return null;
+      return { inScope, missing: pols.length - inScope };
+    };
     const body = rows.map((r) => {
+      const dev = devOf(r);
       const rowKey = r.items.length === 1 ? r.items[0].key : "";
       const clickable = rowKey ? " clickable" : "";
       const focused = rowKey && focus.row === rowKey ? " focused" : "";
@@ -722,10 +735,14 @@ const Exclusions = (() => {
           })();
       return `<tr><td class="ucol${r.merged ? " merged" : ""}${clickable}${focused}"${rowKey ? ` data-exrow="${esc(rowKey)}"` : ""}>${label}</td>` +
         pols.map((p) => r.policyIds.has(p.id)
-          ? `<td class="cellv no" title="${esc(r.name)} excluded from ${esc(p.name)}"><span class="cell no">✗</span></td>`
-          : `<td class="cellv"><span class="cell na">·</span></td>`).join("") + "</tr>";
+          ? `<td class="cellv${dev ? " dom" : " no"}" title="${esc(r.name)} excluded from ${esc(p.name)}"><span class="cell ${dev ? "dom" : "no"}">✗</span></td>`
+          : dev
+            ? `<td class="cellv dev" title="${esc(p.name)} does NOT exclude ${esc(r.name)} — ${dev.inScope} of ${pols.length} policies do. The odd one out is the finding here."><span class="cell dev">⚠</span></td>`
+            : `<td class="cellv"><span class="cell na">·</span></td>`).join("") + "</tr>";
     }).join("");
-    const note = collapsed ? `<p class="mini" style="padding:8px 2px 0">${collapsed} exclusion${collapsed === 1 ? "" : "s"} merged into shared rows — entries of the same type excluded from exactly the same policies are shown together.</p>` : "";
+    const devRows = rows.filter((r) => devOf(r));
+    const note = `${collapsed ? `<p class="mini" style="padding:8px 2px 0">${collapsed} exclusion${collapsed === 1 ? "" : "s"} merged into shared rows — entries of the same type excluded from exactly the same policies are shown together.</p>` : ""}
+      ${devRows.length ? `<p class="mini" style="padding:6px 2px 0"><b>⚠ marks the odd one out</b> — ${devRows.map((r) => `${esc(r.name)} is excluded from ${devOf(r).inScope} of ${pols.length} policies, not from ${devOf(r).missing}`).join("; ")}. A grid is the only view that shows a gap in a pattern; the Exclusions list is the better inventory.</p>` : ""}`;
     return `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${note}`;
   }
 

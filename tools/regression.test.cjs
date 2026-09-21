@@ -474,3 +474,49 @@ test('runmeta: two runs get different ids and the descriptor keeps its own snaps
  assert.notEqual(a.id,b.id);
  assert.equal(a.snapshot,1);assert.equal(b.snapshot,2);
 });
+
+// ---- 25413: cohorts, and the render that stopped being quadratic ----
+test('cohorts: identical users collapse into one row, outliers sort first',async()=>{
+ const many=Array.from({length:12},(_,i)=>({id:'u'+i,displayName:'User '+i,userType:'Member',accountEnabled:true}));
+ const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?many:[],gpost:async()=>({value:[]})});
+ const p1=policy();p1.id='p1';p1.displayName='All users MFA';
+ const p2=policy({users:{includeUsers:['All'],excludeUsers:['u0']}});p2.id='p2';p2.displayName='Excludes one';
+ p2.grantControls={operator:'AND',builtInControls:['mfa','compliantDevice']};
+ const c=await a.collect([asVm(p1),asVm(p2)],'all',()=>{});
+ const r=a.evaluate(c.lookup,c.users,c.ctx);
+ const maps=a.buildMatrixMaps(r),pols=a.policyMeta(c.lookup);
+ const co=a.cohorts(r,maps,pols);
+ assert.equal(co.length,2,'twelve users, two distinct states');
+ assert.equal(co[0].users,1,'the outlier sorts first');
+ assert.match(co[0].finding,/risky bypass/);
+ assert.equal(co[1].users,11);
+ assert.equal(co[1].finding,'nothing to look at');
+ const html=a.cohortsHtml(r,maps,pols,null,null);
+ assert.match(html,/2 cohorts<\/b> across 12 users/);
+ assert.match(html,/data-cohort="0"/);
+});
+test('user rows keep their original indices without a quadratic lookup',async()=>{
+ const many=Array.from({length:30},(_,i)=>({id:'u'+i,displayName:'User '+i,userPrincipalName:'u'+i+'@x',userType:'Member',accountEnabled:true}));
+ const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?many:[],gpost:async()=>({value:[]})});
+ const c=await a.collect([asVm(policy())],'all',()=>{});
+ const r=a.evaluate(c.lookup,c.users,c.ctx);
+ const idxs=a.filterRows(r,'all','u2',null,'');
+ const html=a.userRows(r,'all','u2',null,'');
+ for(const i of idxs)assert.match(html,new RegExp('data-user="'+i+'"'));
+ assert.equal((html.match(/data-user=/g)||[]).length,idxs.length);
+});
+
+test('exclusions matrix: the policy that does NOT carry the shared exclusion is marked',()=>{
+ const E=exModule({});
+ // four policies exclude the break-glass group, one does not
+ const pols=[1,2,3,4].map(i=>expol('p'+i,'Policy '+i,{excGroups:['g-break']}));
+ pols.push(expol('p5','The odd one out',{excUsers:['someone-else']}));
+ const m=E.collect(pols);
+ const html=E.renderMatrix(m,'all','',true,{});
+ assert.match(html,/cellv dev/,'the missing cell is marked');
+ assert.match(html,/odd one out/i);
+ assert.match(html,/excluded from 4 of 5 policies/);
+ // and with no dominant pattern nothing is marked
+ const flat=E.collect([expol('a','A',{excGroups:['g1']}),expol('b','B',{excGroups:['g2']})]);
+ assert.doesNotMatch(E.renderMatrix(flat,'all','',true,{}),/cellv dev/);
+});

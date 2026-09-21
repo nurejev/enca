@@ -70,6 +70,7 @@
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
+  let anCohortOpen = null;   // which cohort row is expanded (beta 25413)
   // Coverage flow (T03): the computed funnel, and whether the licence half
   // was read at all. Held separately from anReport because "not read" is a
   // finding in its own right and must not be inferred from empty rows.
@@ -9265,7 +9266,12 @@ This is a directory write. Nothing else changes.`)) return;
   });
 
   // ---------- CA Exclusion analyzer ----------
-  let exModel = null, exUsers = [], exTab = "matrix", exKind = "all", exQuery = "", exPage = 0;
+  // The DEFAULT tab is the list, not the grid (beta 25413). The matrix is the
+  // only view that shows the exception — the policy that does NOT carry the
+  // exclusion every other policy carries — and it is a poor inventory: on the
+  // demo tenant it is 96 cells with 16 marks, and five of the eight exclusions
+  // appear in exactly one policy, which is a list item wearing a grid costume.
+  let exModel = null, exUsers = [], exTab = "entities", exKind = "all", exQuery = "", exPage = 0;
   // Beta 25412 — every published result carries the descriptor of the run that
   // made it (js/runmeta.js), and a policy reload, a tenant change or a sign-out
   // drops the results that belonged to the old snapshot. Before this, Refresh
@@ -9309,8 +9315,8 @@ This is a directory write. Nothing else changes.`)) return;
     $("exRescan").style.display = "";
     $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel("Collecting exclusions…");
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
-    exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
-    Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "matrix"));
+    exTab = "entities"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
+    Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "entities"));
     // Nothing is published until the whole run succeeds. exModel used to be
     // assigned before resolution finished while exUsers still held the PREVIOUS
     // run's rows, so reopening the tool during a slow rescan rendered a partial
@@ -19369,10 +19375,16 @@ This is a directory write. Nothing else changes.`)) return;
       ["noenforce", s.noEnforce, "No enforcing policy", "gap"],
     ].map(([f, n, l, cls]) => `<div class="an-card ${cls} ${anFilter === f ? "active" : ""}" data-f="${f}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
     $("anUsersWrap").style.display = anTab === "users" ? "block" : "none";
+    $("anCohortsWrap").style.display = anTab === "cohorts" ? "block" : "none";
     $("anMatrixWrap").style.display = anTab === "matrix" ? "block" : "none";
     $("anFull").style.display = anTab === "matrix" ? "" : "none";
     $("anTabUsers").classList.toggle("active", anTab === "users");
+    $("anTabCohorts").classList.toggle("active", anTab === "cohorts");
     $("anTabMatrix").classList.toggle("active", anTab === "matrix");
+    if (anTab === "cohorts") {
+      $("anCohortsWrap").innerHTML = Analyzer.cohortsHtml(anReport, anMaps, anPols,
+        Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet(), anType), anCohortOpen);
+    }
     if (anTab === "users") {
       $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery, groupMemberSet(), anType);
     } else {
@@ -19424,6 +19436,13 @@ This is a directory write. Nothing else changes.`)) return;
   $("anSearch").addEventListener("input", (e) => { anQuery = e.target.value.toLowerCase(); anPage = 0; renderAnalysis(); });
   $("anTabUsers").addEventListener("click", () => { anTab = "users"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
   $("anTabMatrix").addEventListener("click", () => { anTab = "matrix"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
+  $("anTabCohorts").addEventListener("click", () => { anTab = "cohorts"; anCohortOpen = null; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
+  // A cohort opens to the users behind it — the outlier is usually one person.
+  $("anCohortsWrap").addEventListener("click", (e) => {
+    const tr = e.target.closest("[data-cohort]"); if (!tr) return;
+    anCohortOpen = anCohortOpen === tr.dataset.cohort ? null : tr.dataset.cohort;
+    renderAnalysis();
+  });
   $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
   $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
   $("anGroup").addEventListener("change", (e) => { anGroupSel = e.target.value; anPage = 0; renderAnalysis(); });

@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 237,
+      title: "\ud83d\udd0d Cohorts, \ud83d\udeaa list-first with an odd-one-out grid, and the quadratic row render",
+      tools: ["Gap analyse", "Exclusion analyzer"],
+      builds: [25413],
+      risk: "medium",
+      what: "js/analyze.js: cohorts(report, maps, pols, rowIdx) groups users by their signature across the run\u2019s policies and ranks findings first (risky, unknown, untargeted, report-only, then the quiet crowd); cohortsHtml renders them with an expandable member list; userRows takes the indices filterRows already computed instead of calling report.indexOf per row. index.html + js/app.js: the Cohorts tab, its container, its click handler and anCohortOpen. js/exclusions.js: renderMatrix mutes the dominant pattern and marks the policies that do NOT carry an exclusion carried by at least 60 percent of the columns, with a sentence naming them; the default tab is the Exclusions list. css/app.css: the muted and deviation cells.",
+      why: "MEDIUM \u2014 nothing is wrong today, but the grid is the default view of a tool whose grid is mostly empty space, and the users table renders every row at once with a per-row indexOf. The cohort view is the part worth having: it turns a screen nobody can read on a large tenant into a handful of rows where the outlier is at the top. No Graph change, no permission change, no new read.",
+      test: [
+        "Run \ud83d\udd0d on a tenant with more than a few hundred users and open Cohorts: the row count collapses, the top row is a finding (risky, unknown or untargeted) rather than the biggest crowd, and the user counts add up to the number of rows the Users tab shows under the same filters.",
+        "Click a cohort: the users behind it are listed; click again to close.",
+        "Apply a search or group filter and switch to Cohorts: the cohorts are computed over the filtered set, and the header count matches.",
+        "A tenant where one user is excluded from a policy everybody else is in: that user is a cohort of one, at the top, labelled with the bypass.",
+        "Open \ud83d\udeaa: the Exclusions list is the tab that opens, not the matrix.",
+        "\ud83d\udeaa Matrix on a tenant where a break-glass group is excluded from most policies but not from one: the shared pattern is muted, the missing cell carries the warning mark, and the line under the grid names the policy that does not carry it.",
+        "An exclusion in only one or two policies is NOT marked as a deviation (the rule needs a dominant pattern to deviate from).",
+        "Large-tenant render: the Users tab still renders and its rows open their detail correctly \u2014 the indices come from the filter now.",
+        "Regression: tools/regression.test.cjs (56) passes.",
+      ],
+      files: ["js/analyze.js", "js/exclusions.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 236,
       title: "\ud83e\uddfe Results bound to their run: invalidation on refresh, an evidence strip, atomic publish",
       tools: ["Exclusion analyzer", "Gap analyse", "Licences"],
