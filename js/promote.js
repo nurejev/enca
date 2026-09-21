@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v1.0.320",
+  productionBuild: "v1.0.321",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -119,21 +119,7 @@ const PROMOTE = {
 
   items: [
     {
-      n: 231,
-      title: "Shared list/detail tools and flat interface icons",
-      tools: ["Policies", "Sign-ins", "Changes", "Policy building blocks", "Exclusions", "User/Group analyzer", "Navigation"],
-      builds: [25406], risk: "medium",
-      what: "Shared resizable list/detail presentation with wide and mobile detail modes; policy settings tabs preserve native full-detail actions. Exclusions gets an entity view; User/Group references and sweep groups keep completeness evidence outside the detail panel. Flat local SVG icons replace leading interface markers without changing stored or exported data.",
-      why: "A consistent reading layout reduces repeated expand/collapse actions. Medium risk because existing delegated actions now live inside detail panels across several tools. No Graph requests, permissions or write confirmations are added by the presentation layer.",
-      test: [
-        "Passed locally: 204 offline tests; populated browser fixtures for Policies, audit, sign-ins, building blocks, exclusions and User/Group results, including incomplete-read evidence and 320/390/1440 layouts.",
-        "Passed locally: 66 tool screen visits, 44 subtabs, wide policy settings, nested dependencies, focus restoration, and light/dark branded layouts. CIS is unavailable in demo and was not bypassed.",
-        "Before promotion, verify in a connected tenant that filters, bulk selections, native edit/restore dialogs, exports and sign-in replay retain the selected object. Review long real names and large result sets. No live-tenant acceptance or write execution was performed for this build.",
-      ],
-      files: ["js/list-detail.js", "css/list-detail.css", "js/flat-icons.js", "css/flat-icons.css", "js/workspace.js", "js/workspaces.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 230,
+      n: 232,
       title: "\ud83d\udd75 Policies scoped to external-user types resolve, and the fourth state is visible",
       tools: ["Who is … to CA", "CA validator", "Compare users", "Analyze"],
       builds: [25405],
@@ -151,6 +137,20 @@ const PROMOTE = {
         "\ud83d\udcca Analyze over the tenant: no user row carries an unknown verdict for an external-user-typed policy, and the demo tenant still runs.",
       ],
       files: ["js/cascope.js", "js/whois.js", "js/analyze.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
+      n: 231,
+      title: "Shared list/detail tools and flat interface icons",
+      tools: ["Policies", "Sign-ins", "Changes", "Policy building blocks", "Exclusions", "User/Group analyzer", "Navigation"],
+      builds: [25406], risk: "medium",
+      what: "Shared resizable list/detail presentation with wide and mobile detail modes; policy settings tabs preserve native full-detail actions. Exclusions gets an entity view; User/Group references and sweep groups keep completeness evidence outside the detail panel. Flat local SVG icons replace leading interface markers without changing stored or exported data.",
+      why: "A consistent reading layout reduces repeated expand/collapse actions. Medium risk because existing delegated actions now live inside detail panels across several tools. No Graph requests, permissions or write confirmations are added by the presentation layer.",
+      test: [
+        "Passed locally: 204 offline tests; populated browser fixtures for Policies, audit, sign-ins, building blocks, exclusions and User/Group results, including incomplete-read evidence and 320/390/1440 layouts.",
+        "Passed locally: 66 tool screen visits, 44 subtabs, wide policy settings, nested dependencies, focus restoration, and light/dark branded layouts. CIS is unavailable in demo and was not bypassed.",
+        "Before promotion, verify in a connected tenant that filters, bulk selections, native edit/restore dialogs, exports and sign-in replay retain the selected object. Review long real names and large result sets. No live-tenant acceptance or write execution was performed for this build.",
+      ],
+      files: ["js/list-detail.js", "css/list-detail.css", "js/flat-icons.js", "css/flat-icons.css", "js/workspace.js", "js/workspaces.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
     },
     {
       n: 230,
@@ -171,44 +171,6 @@ const PROMOTE = {
         "On a real tenant, confirm the permission overview and native incremental-consent flow remain reachable. Switch between two tenants (including equal display names): recent tools reset and the account names the current tenant. CIS must retain its existing tenant gate; verify it in the authorised tenant before production.",
       ],
       files: ["index.html", "js/graph.js", "js/render.js", "js/whois.js", "js/wave.js", "js/compare.js", "js/workspaces.js", "css/workspaces.css", "js/tool-layout.js", "css/tool-layout.css", "js/workspace.js", "js/app.js", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 229,
-      title: "\u2699 The beta host's own single-tenant app registration \u2014 NEVER PROMOTE",
-      tools: ["Sign-in"],
-      builds: [25400],
-      risk: "low",
-      what: "js/authConfig.js gains AUTH_HOSTS, a hostname-keyed default merged between the shipped values and window.ENCA_AUTH. One entry: BRANDING.betaHost signs in with a single-tenant registration in the publisher's own directory. Every other host \u2014 production, a container, localhost, a fork \u2014 misses the key and is unaffected.",
-      why: "Mihai, 21 Sep: beta should default to the registration he had just created. Beta is where a registration change is tried first, and trying it on the application every customer signs in with is not trying it. Single-tenant also means the app cannot be reached from any other directory, which is the right blast radius for a test site on a public github.io address.",
-      carveout: "DO NOT PORT AUTH_HOSTS TO main. It names the publisher's own tenant and registration and would ship in the production build and in the :latest image, where the key can never match and the block is nothing but a tenant ID in somebody else's copy. When porting js/authConfig.js, take the header comment and the js/connection.js precedence note and leave AUTH_HOSTS behind; main keeps the plain two-argument Object.assign.",
-      test: [
-        "The beta site: the sign-in card reads Single-tenant, the \u2699 panel's Default entry names the beta client ID and tenant, and signing in reaches the publisher's tenant without an account picker.",
-        "The beta site, signed in: the \u2753 Permissions panel and the PowerShell consent snippet quote the BETA client ID, not the shared one \u2014 they read AUTH_CONFIG like everything else.",
-        "enca.limon-it.nl on the same build (were it ever served there) and a container from the :beta image on any other hostname: the card reads Multi-tenant and the shipped client ID, proving the key is host-scoped and not branch-scoped.",
-        "A saved \u2699 connection on the beta host still wins over the host default, and Default restores the BETA registration there \u2014 not the shipped one.",
-        "The beta site's URL is registered as a SPA redirect URI on the beta registration, or every sign-in there is AADSTS50011. Check before the first push, not after.",
-      ],
-      files: ["js/authConfig.js", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 228,
-      title: "\u2699 The sign-in card chooses the tenant and the app registration",
-      tools: ["Sign-in"],
-      builds: [25399],
-      risk: "medium",
-      what: "NEW js/connection.js \u2014 a connection store in localStorage (enca-connections: { v, active, list:[{id,name,clientId,authority,at}] }) applied to AUTH_CONFIG at script-parse time, between js/authConfig.js and js/graph.js, plus the \u2699 panel it mounts into the sign-in card. index.html: the <details id=\"loginConn\"> markup under the pop-up link, the script tag, and a sentence in the Security block of Help. css/app.css: .login-conn and the .conn-* rules. js/app.js: the AADSTS50011 and AADSTS700016 hints point at the chosen registration, and showSignInError names the active connection. Only clientId and authority are settable \u2014 scopes and graphBase deliberately are not. A switch clears MSAL\u2019s sessionStorage keys and reloads, because a PublicClientApplication cannot be repointed at another client ID once constructed.",
-      why: "Mihai, 21 Sep: he had just created a single-tenant registration and wanted to sign in with it, and to switch tenants, without editing a file. Until now both were deployment-time acts (js/authConfig.js, or js/authConfig.local.js served beside it) \u2014 right for an organisation standing up its own copy, wrong for an MSP moving between customer directories. MEDIUM, not low: this is the sign-in path on every host, and a fault here is not a broken tool but a site nobody can get into. The default path is untouched \u2014 with no stored connection, AUTH_CONFIG is exactly what the file says \u2014 which is what makes it promotable at all.",
-      test: [
-        "Production host, no connection ever saved: the card looks as it did, the audience line still reads Multi-tenant, and sign-in works. Confirm localStorage has no enca-connections key \u2014 the default path must not write one.",
-        "Add a connection with only a tenant (your own tenant ID, client ID left empty): the page reloads, the summary names it, the card reads Single-tenant, and sign-in goes straight to that directory without an account picker across tenants.",
-        "Add a connection with the new single-tenant client ID and its tenant ID: the Microsoft consent screen names THAT application in THAT tenant. Then Default: the next sign-in is the shipped registration again \u2014 no token from the previous one is reused (check sessionStorage holds no msal.* keys for the old client ID after the switch).",
-        "Wrong on purpose: a client ID that is not a GUID is refused in the form, with the reason, before any sign-in. A well-formed client ID that is not an app in the named tenant fails with AADSTS700016 and the error box names the connection used.",
-        "A registration WITHOUT this origin as a SPA redirect URI fails with AADSTS50011, and the panel's redirect line shows the exact string that is missing.",
-        "Private window / site data blocked: the panel still renders, saving reports that the browser will not store the choice, and the sign-in card keeps working on the shipped registration.",
-        "A self-hosted copy with js/authConfig.local.js: with no connection selected the file still wins; with one selected the connection wins and the self-hosted notice and the audience line both describe the connection, not the file.",
-        "Beta and production both: the \u2699 panel is NOT host-gated on purpose \u2014 confirm it appears on enca.limon-it.nl too, and that Default is preselected there.",
-      ],
-      files: ["js/connection.js", "index.html", "css/app.css", "js/app.js", "js/version.js", "js/changelog.js", "js/promote.js", "SINGLE-TENANT.md"],
     },
     {
       n: 224,
@@ -249,6 +211,10 @@ const PROMOTE = {
   // difference between the channels and belongs in neither list: it goes in
   // js/changelog.js and nowhere else. This section is the diff, not a history.
   staying: [
+    {
+      title: "\u2699 The beta host's own single-tenant app registration (AUTH_HOSTS)",
+      why: "Beta-only by design, and permanently \u2014 it was queue item 229 until build 25407, which is the wrong list for something that can never be ticked. AUTH_HOSTS in js/authConfig.js names the PUBLISHER'S OWN tenant and registration and is keyed on this site's hostname. In a production build, or in the :latest image, the key can never match and the block is nothing but somebody else's tenant ID shipped to every copy. When js/authConfig.js is ported, take the header comment and the js/connection.js precedence note and leave AUTH_HOSTS behind; main keeps the plain two-argument Object.assign. The \u2699 connection picker it defaults FROM (item 228) is in production since build 321.",
+    },
     {
       title: "🚚 This promotion queue",
       why: "Beta-only by design — js/promote.js and the Help section that renders it exist to describe the gap, so they have no meaning in production.",

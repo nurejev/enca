@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25407, date: "2026-09-21", title: "Production is 321",
+    items: [
+      { kind: "improved", tool: "Help", text: "Production is build 321. Queue item 228 is out: the \u2699 control on the sign-in card, so a customer tenant or your own app registration can be signed in with from the card itself instead of from a file. Item 229 stays on this channel FOR GOOD \u2014 it is the per-host default that makes this beta site sign in with the publisher's own single-tenant registration, and a production build carrying it would be shipping somebody else's tenant ID to every copy. \ud83d\ude9a Waiting for production now holds 224 and 34, the \ud83d\udcd0 CIS Benchmark guard and its Help section, and 230, 231 and 232. Item 229 moves to Staying on this channel, where a thing that can never be ticked belongs \u2014 it was sitting in the queue offering itself for promotion on every export." },
+      { kind: "fixed", tool: "Help", text: "Two queue items had both been numbered 230 \u2014 the Workspaces layout batch, which claimed it first, and the external-user-types scope fix added alongside it. Promotions are asked for by number, so a number that means two things means neither: the scope fix is item 232 now and the Workspaces batch keeps 230. Nothing already exported changes meaning." },
+    ],
+  },
+  {
     build: 25406, date: "2026-09-21", title: "Lists and details share one workspace",
     items: [
       { kind: "improved", tool: "Policies", text: "List opens full policy settings beside the results, with Settings, Assignments, Conditions, Controls and Definition tabs. Original policy names remain intact. Open wide retains the existing actions and returns to the selected policy." },
