@@ -123,7 +123,11 @@ const Analyzer = (() => {
   // ---------- per-user inclusion state ----------
   function stateFor(P, uid, ctx) {
     const r = CaScope.of(P.raw, {
-      kind: "user", id: uid, guest: ctx.guests.has(uid),
+      // upn is here for the scope check, not for display: CaScope reads the
+      // #EXT# marker in it to tell an internal account from a B2B one, which
+      // is what lets a policy scoped to specific external-user types be
+      // resolved instead of returning "unknown" (build 25405).
+      kind: "user", id: uid, guest: ctx.guests.has(uid), upn: (ctx.upns && ctx.upns.get(uid)) || null,
       groupIds: new Set([...ctx.groups].filter(([,members]) => members.has(uid)).map(([id]) => id)),
       roleIds: new Set([...ctx.roles].filter(([,members]) => members.has(uid)).map(([id]) => id)),
       names: ctx.names,
@@ -247,7 +251,8 @@ const Analyzer = (() => {
     const scopeGroups = await resolveScopeGroups(groups, onStatus);
 
     const guests = new Set(users.filter(u => u.userType === "Guest").map(u => u.id));
-    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, names } };
+    const upns = new Map(users.map((u) => [u.id, u.userPrincipalName || ""]));
+    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, upns, names } };
   }
 
   // Demo-mode collection: uses DEMO_DATA instead of Graph.
@@ -258,7 +263,8 @@ const Analyzer = (() => {
     const users = DEMO_DATA.analyzeUsers || [];
     const guests = new Set(users.filter(u => u.userType === "Guest").map(u => u.id));
     const scopeGroups = Object.entries(DEMO_DATA.scopeGroups || {}).map(([label, ids]) => ({ label, category: "Demo", users: new Set(ids) }));
-    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, names: DEMO_DATA.names } };
+    const upns = new Map(users.map((u) => [u.id, u.userPrincipalName || ""]));
+    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, upns, names: DEMO_DATA.names } };
   }
 
   // ---------- evaluation ----------

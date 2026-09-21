@@ -120,6 +120,26 @@ const PROMOTE = {
   items: [
     {
       n: 230,
+      title: "\ud83d\udd75 Policies scoped to external-user types resolve, and the fourth state is visible",
+      tools: ["Who is … to CA", "CA validator", "Compare users", "Analyze"],
+      builds: [25405],
+      risk: "medium",
+      what: "js/cascope.js: externalTypeOf(subject) derives Entra's external-user type from userType and the #EXT# marker in the UPN (or externalUserState where the caller read it), and guestMatch uses it instead of a field nobody ever set. An internal account returns false against a restricted guest rule rather than null \u2014 serviceProvider and b2bDirectConnectUser hold no user object in the tenant, so a principal resolved here cannot be either. Where userType or the UPN is absent the answer is still null and the state is still unknown. js/whois.js: counts.unknown, an amber Unknown scope chip rendered only when non-zero, the filter arm for it, unknown ranked above na in the row sort, the count on the policies tile, and a callout. js/analyze.js: ctx.upns, passed into the per-user subject.",
+      why: "Mihai, 21 Sep, on the Perfetti tenant: a user who should be getting CA111 was missing from \ud83d\udd75. CA057 excludes Guests & external users: Service provider users; guestMatch read subject.guestOrExternalUserType, which is set by nobody, returned null, and of() promoted that to unknown \u2014 a state with no filter chip, so the row existed only under All. Confirmed by arithmetic on his screen: 16 + 7 + 111 = 134 against All 136. MEDIUM: this is the shared scope check under four tools, and a wrong answer here is a policy reported as reaching somebody it does not, or the reverse. It is bounded by being decided from the account's own userType and UPN, both already read, with no new Graph call and no new permission.",
+      test: [
+        "Perfetti, the user this started with: CA057 is in Reaches her, via All users, and the three chips plus any Unknown chip add up to All. This is the falsifiable one \u2014 it was 134 of 136 before.",
+        "A tenant WITH a CSP / GDAP partner: sign in as a normal member and confirm no policy excluding Service provider users reads unknown any more; then check the same policy against a real B2B guest (UPN with #EXT#) and confirm it still reaches them.",
+        "A guest who IS a service provider cannot be tested from \ud83d\udd75 \u2014 a GDAP partner administrator holds no user object in the tenant, so there is nobody to look up. That is the premise of the fix rather than a gap in it; the unit check covers a subject that declares the type outright and confirms it is still excluded.",
+        "Regression on the plain rule: a policy excluding all Guests and external users still excludes a guest and still reaches a member. A policy INCLUDING Guests and external users still reaches a guest and not a member.",
+        "The kept unknown: find or make a policy with an enumerated externalTenants list and check a guest whose home tenant is not knowable \u2014 the row reads Unknown scope, the amber chip appears with a count, the callout names which half could not be decided, and the row sorts above Not targeted.",
+        "The chip disappears when the count is zero, and on a tenant with no such policy the chip row looks exactly as it did.",
+        "\u26a1 CA validator and \u2696 Compare users on the same user agree with \ud83d\udd75 about the same policy \u2014 one scope check, so a disagreement means something else is wrong.",
+        "\ud83d\udcca Analyze over the tenant: no user row carries an unknown verdict for an external-user-typed policy, and the demo tenant still runs.",
+      ],
+      files: ["js/cascope.js", "js/whois.js", "js/analyze.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
+      n: 230,
       title: "Workspaces layout, centred policy details and branded header",
       tools: ["Navigation", "Policies", "Several tools"],
       builds: [25401, 25402, 25403, 25404],

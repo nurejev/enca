@@ -404,12 +404,20 @@ const WhoIs = (() => {
       if (fc && fc.nodata && log.roEval && log.roEval.get(P.id) && log.roEval.get(P.id).notApplied) fc = { ...fc, nodata: false, scoped: true, notApplied: log.roEval.get(P.id).notApplied, evaluated: log.roEval.get(P.id).total };
       return { ...P, ...st, log: cnt, forecast: fc };
     }).sort((a, b) => {
-      const o = { inc: 0, exc: 1, na: 2 };
+      // "unknown" needs a rank of its own: without one o[a.s] is undefined,
+      // every comparison against it is NaN, and the row lands wherever the
+      // sort happens to leave it. Above "not targeted", because an unresolved
+      // policy is something to look at and an untargeted one is not.
+      const o = { inc: 0, exc: 1, unknown: 2, na: 3 };
       return (o[a.s] - o[b.s]) || (a.seq || "").localeCompare(b.seq || "") || a.name.localeCompare(b.name);
     });
     const reach = rows.filter((r) => r.s === "inc");
     const counts = {
       total: rows.length, reach: reach.length, excluded: rows.filter((r) => r.s === "exc").length, na: rows.filter((r) => r.s === "na").length,
+      // The fourth state. It was counted nowhere, so reach + excluded + na did
+      // not add up to total and the difference was the only sign that a policy
+      // had gone missing from the table (build 25405).
+      unknown: rows.filter((r) => r.s === "unknown").length,
       on: reach.filter((r) => r.state === "on").length, ro: reach.filter((r) => r.state === "ro").length, off: reach.filter((r) => r.state === "off").length,
     };
     // Where she is in the rollout: the highest deploy rung she is in, in the
@@ -499,7 +507,7 @@ const WhoIs = (() => {
       : stage.kind === "persona"
         ? `<div class="wo-vt"><span class="k">Persona group</span><span class="v">${esc(stage.groups.map((g) => (g.label || g.name).replace(/^\S+\s/, "")).join(" + "))}</span><span class="s">${esc(stage.groups.map((g) => `${g.name} · ${g.how}`).join(" · "))}</span></div>`
         : `<div class="wo-vt ${res.ladder.hasDg ? "warn" : ""}"><span class="k">Deployment stage</span><span class="v">${res.ladder.hasDg ? "Not in a wave" : "No waves"}</span><span class="s">${res.ladder.hasDg ? "in none of the deploy groups — only what targets All users reaches her" : "the active baseline has no deployment groups"}</span></div>`;
-    const polTile = `<div class="wo-vt"><span class="k">Policies reaching her</span><span class="v">${c.reach} <span class="of">/ ${c.total}</span></span><span class="s">${c.on} enforced · ${c.ro} report-only · ${c.off} off${c.excluded ? ` · <span class="wo-res wb">${c.excluded} excluded</span>` : ""}</span></div>`;
+    const polTile = `<div class="wo-vt"><span class="k">Policies reaching her</span><span class="v">${c.reach} <span class="of">/ ${c.total}</span></span><span class="s">${c.on} enforced · ${c.ro} report-only · ${c.off} off${c.excluded ? ` · <span class="wo-res wb">${c.excluded} excluded</span>` : ""}${c.unknown ? ` · <span class="wo-res int">${c.unknown} unresolved</span>` : ""}</span></div>`;
     const logTile = log
       ? `<div class="wo-vt ${log.rows.length ? "bad" : "ok"}"><span class="k">Sign-ins CA stopped · ${esc(rangeLabel)}</span><span class="v">${log.rows.length}</span><span class="s">${log.blocked} blocked · ${log.interrupted} interrupted · ${log.total} sign-ins read</span></div>`
       : `<div class="wo-vt"><span class="k">Sign-ins CA stopped</span><span class="v muted">—</span><span class="s">sign-in log not read</span></div>`;
@@ -574,13 +582,21 @@ const WhoIs = (() => {
     </div>`;
 
     // ---- policies table
+    // FOUR states, not three. Until build 25405 the chips offered inc / exc /
+    // na and an "unknown" row matched none of them: it was in the table only
+    // under All, so a policy nobody could resolve looked like a policy that
+    // did not exist. The chip appears only when there is something in it —
+    // the invariant that matters is that the chips shown always sum to All,
+    // and a permanent zero chip for a rare state is noise on every other run.
     const chips = [
-      ["reach", `Reaches her ${pill(c.reach, "green")}`], ["exc", `Excluded ${pill(c.excluded, "red")}`], ["na", `Not targeted ${pill(c.na, "zero")}`], ["all", `All ${pill(c.total, "zero")}`],
+      ["reach", `Reaches her ${pill(c.reach, "green")}`], ["exc", `Excluded ${pill(c.excluded, "red")}`],
+      ...(c.unknown ? [["unk", `Unknown scope ${pill(c.unknown, "amber")}`]] : []),
+      ["na", `Not targeted ${pill(c.na, "zero")}`], ["all", `All ${pill(c.total, "zero")}`],
     ].map(([k, l]) => `<button class="fchip${filter === k ? " active" : ""}" data-wo-filter="${k}">${l}</button>`).join("");
     // Second chip row: the policy STATE. The two rows compose (reaches her ×
     // enforced), and the counts on the state chips follow the first row so
     // they say how many of what you are looking at are in each state.
-    const byAssign = res.rows.filter((r) => filter === "all" || (filter === "reach" ? r.s === "inc" : filter === "exc" ? r.s === "exc" : r.s === "na"));
+    const byAssign = res.rows.filter((r) => filter === "all" || (filter === "reach" ? r.s === "inc" : filter === "exc" ? r.s === "exc" : filter === "unk" ? r.s === "unknown" : r.s === "na"));
     const sfilter = opts.stateFilter || "any";
     const sCount = (st) => byAssign.filter((r) => r.state === st).length;
     const stateChips = [
@@ -601,6 +617,7 @@ const WhoIs = (() => {
         ${shown.map((r) => `<tr class="${r.s === "exc" ? "wo-exrow" : r.state === "off" ? "wo-dim" : ""}"><td>${polLink(r)}</td><td>${stateHtml(r.state)}</td><td class="wo-via">${via(r)}</td><td>${controlsHtml(r)}</td><td class="wo-cnt">${logCell(r)}</td><td>${r.state === "ro" && r.s === "inc" ? forecastHtml(r.forecast) : r.state === "off" && r.s === "inc" ? '<span class="mini muted">becomes real when switched On</span>' : '<span class="mini muted">—</span>'}</td></tr>`).join("")
           || `<tr><td colspan="6" class="mini muted" style="padding:14px">Nothing in this filter.</td></tr>`}
       </tbody></table></div>
+      ${c.unknown ? `<div class="wo-callout"><b>${c.unknown} ${c.unknown === 1 ? "policy could" : "policies could"} not be resolved for her.</b> Her scope depends on something this read does not hold — an external-user type or a home tenant the policy names, or a membership list that came back incomplete. ${c.unknown === 1 ? "It is" : "They are"} neither reaching her nor excluding her here; ${c.unknown === 1 ? "it is" : "they are"} <b>unanswered</b>, and the row says which half could not be decided. Microsoft's own What If in the Entra portal is the check that settles it.</div>` : ""}
       <p class="mini muted" style="margin-top:8px">Same include/exclude resolution as ⚖ Compare users — groups expanded transitively, directory roles, guest type. Log and Forecast are this user's own rows from 🚦 Sign-in failures and 🎚 Report-only impact. Policy names open the policy card.</p>
     </div>`;
 

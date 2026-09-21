@@ -28,6 +28,14 @@
 // Newest release first.
 // ======================================================================
 const CHANGELOG = [
+  {
+    build: 25405, date: "2026-09-21", title: "A policy can no longer go missing from her list",
+    items: [
+      { kind: "fixed", tool: "Who is … to CA", text: "A policy that reaches her was missing from \ud83d\udd75 altogether. If its guest scope names specific external-user types \u2014 Guests & external users: Service provider users, which is what a tenant with a CSP partner has \u2014 the scope check needed an external-user type nobody ever gave it, so it answered that it could not tell. That answer is a fourth state, and the filter chips only knew three: the row was in the table under All and under nothing else, missing from Reaches her, Excluded and Not targeted alike. The giveaway was arithmetic \u2014 the three counts did not add up to All. The type is worked out now from the account itself, so these policies resolve: a principal who holds an account in this tenant cannot be a service provider user or a direct-connect user, because neither of those has one." },
+      { kind: "improved", tool: "Who is … to CA", text: "When scope genuinely cannot be decided \u2014 an external-user type or home tenant that is not knowable from here, or a membership list that came back incomplete \u2014 the state is kept rather than guessed, and it is now visible: an amber Unknown scope chip that appears when there is something in it, a count on the policies tile, a place in the sort above Not targeted, and a callout saying which half could not be decided and that Microsoft's own What If settles it. The chips shown always add up to All." },
+      { kind: "fixed", tool: "All tools", text: "The same scope check answers \u26a1 CA validator, \ud83c\udf0a the wave, \u2696 Compare users and \ud83d\udcca Analyze, so all four stop reporting unknown scope on policies that name external-user types, and all four agree about the same person." },
+    ],
+  },
   {build:25404,date:"2026-09-21",title:"Original policy names in T36",items:[{kind:"improved",tool:"Who is … to CA",text:"Policy references show the full original name, including its own CA number. Removes the number-only labels from the previous build and omits an additional ENCA sequence prefix. The policy detail heading also uses the original name without that prefix. T36 remains in the navigation rail."}]},
   {build:25403,date:"2026-09-21",title:"T36 in the navigation rail",items:[{kind:"improved",tool:"Who is … to CA",text:"T36 has a shortcut in the navigation rail. Policy links in its user, group and comparison views display the CA policy number; policies without a CA number retain their name. Links still open the original policy details."}]},
   {build:25402,date:"2026-09-21",title:"All tools on Overview and connection identity",items:[
