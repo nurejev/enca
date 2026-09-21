@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25423, date: "2026-09-21", title: "A finding opens its evidence",
+    items: [
+      { kind: "new", tool: "Home", text: "Every finding on the home page is now a record with a stable id, its severity, the policies it names, an EVIDENCE STATE and the run or snapshot it came from. Press one and it opens in place: what was observed, the policies with their original names, scope, grant logic (AND / OR spelled out \u2014 OR means any one control satisfies the policy), exclusions and modification date, the suggested next step, a button into the owning tool, and Show these policies, which opens \ud83d\uddc2 Policies filtered to exactly those policies. The filter shows there as a chip and comes off with one press; it stays while you go Home and back." },
+      { kind: "new", tool: "Home", text: "The evidence state says how far to trust a line: Policy snapshot (computed from the loaded policies, with the time), Partial context (a read the check needed was not made \u2014 understated, never invented), Run needed, or Previous snapshot (the result predates the last reload). A CIS result from before a reload now says so instead of vanishing. Three findings show; View all keeps the rest one press away." },
+      { kind: "change", tool: "Home", text: "A policy count opens the policies it counts: the report-only tile opens \ud83d\uddc2 Policies filtered to report-only, the modified tile the list, with validate with sign-ins and who changed what as separate links. Configured but not enforced replaces one switch from passing on the CIS line \u2014 a report-only policy needs its sign-in impact reviewed, and the home page no longer reads as rollout advice." },
+    ],
+  },
+  {
     build: 25422, date: "2026-09-21", title: "A snapshot header, and one paint per snapshot",
     items: [
       { kind: "new", tool: "Home", text: "The page opens with the tenant, when the policies were read, and POLICIES LOADED / ENABLED / REPORT-ONLY / OFF \u2014 four counts that stay on every screen size, each opening \ud83d\uddc2 Policies filtered to that state. The tall welcome and the duplicate Current snapshot panel are gone; the tool library sits below the Overview, closed until asked for, and remembers the choice." },

@@ -646,20 +646,42 @@ test('overview: the header keeps four counts and says loading, failed or empty o
  assert.equal(Overview.lead({snapshot:null}),'');
 });
 
-// ---- 25420: Worth a look first draws ranked findings, says when provisional ----
-test('overview: worth renders ranked lines with severity, tool and subtab, and the provisional note',()=>{
- const html=Overview.worth({items:[
-  {sev:'critical',icon:'s',toolLabel:'Checks',tool:'toolGapCheck',tab:'checks:bypass',text:'No MFA policy covers all users',sub:'tenant-wide'},
-  {sev:'high',icon:'d',toolLabel:'Exclusions',tool:'toolExclusions',text:'2 app exclusions with no equivalent coverage established',sub:'1 reached by no other enforcing policy'},
-  {sev:'info',icon:'c',toolLabel:'CIS',tool:'toolGapCheck',tab:'checks:cis',text:'CIS 5.2.2 not assessed this session'},
- ],provisional:'First pass over the loaded policies only.',zt:{overall:42,at:'10:42'}});
+// ---- 25420/25423: Worth a look first draws ranked findings with their evidence ----
+const F=(o)=>({id:'gap:x:'+o.text.toLowerCase().replace(/\W+/g,'-'),source:'gap',icon:'s',toolLabel:'Checks',tool:'toolGapCheck',tab:'checks:bypass',policyIds:[],evidence:{state:'snapshot',label:'Policy snapshot',at:Date.parse('2026-09-21T10:42:00Z'),note:'run'},detail:{observed:'obs '+o.text,next:'next'},action:{label:'Open in Checks'},...o});
+test('overview: worth renders ranked lines with severity, evidence chip and tool, three by default, and the provisional note',()=>{
+ const items=[F({sev:'critical',text:'No MFA policy covers all users',sub:'tenant-wide'}),F({sev:'high',text:'Two',sub:'x'}),F({sev:'medium',text:'Three'}),F({sev:'low',text:'Four'})];
+ const html=Overview.worth({items,provisional:'First pass over the loaded policies only.',zt:{overall:42,at:'10:42'}});
  assert.equal((html.match(/class="db-worth sev-/g)||[]).length,3);
- assert.match(html,/sev-critical[\s\S]*sev-high[\s\S]*sev-info/);
- assert.match(html,/data-ovtool="toolGapCheck" data-ovtab="checks:bypass"/);
- assert.match(html,/data-ovtool="toolExclusions">/);
+ assert.match(html,/sev-critical[\s\S]*sev-high[\s\S]*sev-medium/);assert.doesNotMatch(html,/sev-low/);
+ assert.match(html,/data-ovshowall>View all 4 findings/);
+ assert.match(html,/db-ev ok[^>]*>Policy snapshot · /);
  assert.match(html,/configuration score 42\/100 from the 🛡 run at 10:42 — findings, not effective protection/);
  assert.match(html,/db-worth-note[^>]*>First pass over the loaded policies only\./);
- assert.match(html,/1 reached by no other enforcing policy/);
+ const all=Overview.worth({items,provisional:null,zt:null},{showAll:true});
+ assert.equal((all.match(/class="db-worth sev-/g)||[]).length,4);assert.match(all,/Show the top three/);
+});
+test('overview: an open finding shows its evidence — observed, evidence state, the policies with scope and grant logic, next step, and the carried filter',()=>{
+ const pol={id:'p1',name:'CA200-GRANT-Internals-AllApps-MFA-or-Compliant',state:'on',modified:'2026-08-01',users:{inc:['All users'],exc:['Break-glass (group)']},apps:{inc:['All resources'],exc:['Windows Azure Service Management API']},net:{inc:['Any network or location'],exc:[]},cond:{platforms:[],platformsExc:[]},grant:{mode:'grant',controls:['Require MFA','Require compliant device'],op:'OR'},session:['Sign-in frequency 12 hours']};
+ const it=F({sev:'high',text:'MFA is one of two allowed controls',policyIds:['p1','gone'],evidence:{state:'partial',label:'Partial context',at:1,note:'strengths unread'}});
+ const html=Overview.worth({items:[it]},{open:it.id,policyOf:(id)=>id==='p1'?pol:null});
+ assert.match(html,/db-worth-wrap open/);assert.match(html,/aria-expanded="true"/);
+ assert.match(html,/Observed<\/span><span>obs MFA is one of two allowed controls/);
+ assert.match(html,/db-ev warn[^>]*>Partial context/);assert.match(html,/understated, never invented/);
+ assert.match(html,/CA200-GRANT-Internals-AllApps-MFA-or-Compliant/);assert.match(html,/excluding Break-glass \(group\)/);
+ assert.match(html,/Require MFA, Require compliant device <span class="db-op">OR<\/span> <span class="mini muted">— any one control satisfies it/);
+ assert.match(html,/Sign-in frequency 12 hours/);
+ assert.match(html,/<b>gone<\/b> <span class="mini muted">— not in the loaded snapshot/);
+ assert.match(html,/data-ovpolicies="p1,gone">Show these 2 policies/);
+ assert.match(html,/data-ovtool="toolGapCheck" data-ovtab="checks:bypass">Open in Checks/);
+ assert.match(html,/Next step<\/span><span>next/);
+ const closed=Overview.worth({items:[it]},{open:null});assert.doesNotMatch(closed,/db-evid/);
+});
+test('overview: evidence states — run needed and previous snapshot read as such, tenant-wide findings say so',()=>{
+ const needed=F({sev:'info',text:'CIS not assessed',evidence:{state:'needed',label:'Run needed',at:null,note:''}});
+ const prev=F({sev:'info',text:'CIS old',evidence:{state:'previous',label:'Previous snapshot',at:1,note:'reloaded'}});
+ const html=Overview.worth({items:[needed,prev]},{open:needed.id});
+ assert.match(html,/db-ev na[^>]*>Run needed<\/span>/);assert.match(html,/db-ev warn[^>]*>Previous snapshot · /);
+ assert.match(html,/tenant-wide — no single policy carries this finding/);
 });
 test('overview: worth with nothing to show says so, and no note when the run was full',()=>{
  const html=Overview.worth({items:[],provisional:null,zt:null});

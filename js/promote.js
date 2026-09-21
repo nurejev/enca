@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 245,
+      title: "\ud83c\udfe0 Overview: findings with evidence state, an evidence panel, and a policy filter carried into \ud83d\uddc2 Policies",
+      tools: ["Home", "Policies"],
+      builds: [25423],
+      risk: "medium",
+      what: "js/app.js: worthItems() builds finding records {id, source, sev, policyIds, evidence:{state,label,at,note}, detail:{observed,next}, action}; gap findings collapse by title with their policy ids, CIS carries snapshot / needed / previous states, the app-coverage line names the policies; ovShowAll / ovOpen with redrawWorth() redraw only the band; the Overview handler takes data-ovfind, data-ovshowall and data-ovpolicies; NEW idFilter (a Set of ids) with policyPool() feeding visible(), refreshViews() and listRows, a From the Overview chip with data-idclear, cleared by the header state tiles and dropped when no id matches. js/overview.js: worth(w, opts) shows three with View all, evidence(x, opts) renders the panel from view models (users/resources/conditions with exclusions, grant with the operator, session), evidence chips; tile() takes state: targets and a secondary action. css: .db-evid*, .db-pol*, .db-ev, .db-more, .db-also.",
+      why: "MEDIUM \u2014 the 21 September review: a line that only navigated to a broad tool did not let the reader see which policies, what logic, or how complete the evidence was; a green-looking result could hide a check that never ran. No new read; the panel is built from the view models sign-in already resolved.",
+      test: [
+        "Demo: three findings show with an evidence chip each (Partial context before \ud83d\udee1 has run); View all shows the rest, Show the top three folds them back.",
+        "Press a finding: it opens in place with Observed, Evidence, Policies (original names, scope, grant with OR/AND, exclusions, modified date), Next step; press again to close; the rest of the page does not move.",
+        "Press Show these policies: \ud83d\uddc2 Policies opens with only those policies and a From the Overview chip; the state chips count only them; press \u2715 and the full list is back; go Home and back to Policies: the filter is still on.",
+        "Press Open in \ud83d\udee1 Checks: the Checks tool opens on the Bypass tab. Run it and return: the chips read Policy snapshot with the run time.",
+        "Refresh after a \ud83d\udcd0 run (CIS tenant): the CIS line reads result is from before the policy reload with a Previous snapshot chip.",
+        "Report-only tile opens Policies filtered to report-only; its validate with sign-ins link opens Sign-ins; the modified tile\u2019s who changed what opens Changes.",
+        "Keyboard: Tab reaches each finding, Enter opens it, Tab continues into the panel's buttons.",
+        "Regression: tools/regression.test.cjs passes (70).",
+      ],
+      files: ["js/overview.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 244,
       title: "\ud83c\udfe0 Overview: snapshot header, check rows, three load states, one paint per snapshot",
       tools: ["Home"],

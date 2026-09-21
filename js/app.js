@@ -67,6 +67,7 @@
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
   let stateFilter = "all", query = "", viewMode = "list", fmt = "png";
+  let idFilter = null;   // a Set of policy ids carried in from the Overview (25423), or null
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
@@ -1741,18 +1742,27 @@
     try { label = Render.caGroup(p.name).label || ""; } catch { /* unnumbered */ }
     return `${p.name} ${label}`.toLowerCase();
   }
+  // the pool every view draws from: all policies, or the ones a finding named
+  function policyPool() {
+    if (!idFilter) return policies;
+    const pool = policies.filter((p) => idFilter.has(p.id));
+    if (!pool.length) idFilter = null;   // the ids are from another snapshot — drop the filter rather than show nothing
+    return idFilter ? pool : policies;
+  }
   function visible() {
-    return policies.filter(p => (stateFilter === "all" || p.state === stateFilter)
+    return policyPool().filter(p => (stateFilter === "all" || p.state === stateFilter)
       && (!query || policyHaystack(p).includes(query)));
   }
 
   // ---------- views ----------
   function refreshViews() {
+    const pool = policyPool();
     const vis = visible();
-    $("stateChips").innerHTML = Render.stateChips(policies, stateFilter);
+    $("stateChips").innerHTML = Render.stateChips(pool, stateFilter)
+      + (idFilter ? `<button class="fchip active" data-idclear title="Policies named by the Overview finding you came from">From the Overview: ${pool.length} polic${pool.length === 1 ? "y" : "ies"} ✕</button>` : "");
     $("cardsView").innerHTML = Render.groupedCards(vis, selected, collapsedGroups)
       || '<p class="mini" style="padding:20px">No policies match the current filter.</p>';
-    document.querySelector("#ptable tbody").innerHTML = Render.listRows(policies, selected, stateFilter, query, collapsedGroups);
+    document.querySelector("#ptable tbody").innerHTML = Render.listRows(pool, selected, stateFilter, query, collapsedGroups);
     $("mtable").innerHTML = Render.matrix(vis.length ? vis : policies);
     // group checkboxes: indeterminate when only part of the group is selected
     document.querySelectorAll("[data-gsel]").forEach(cb => {
@@ -19147,6 +19157,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   $("searchBox").addEventListener("input", (e) => { query = e.target.value.toLowerCase(); refreshViews(); });
   $("stateChips").addEventListener("click", (e) => {
+    if (e.target.closest("[data-idclear]")) { idFilter = null; refreshViews(); return; }
     const b = e.target.closest("[data-state]"); if (!b) return;
     stateFilter = b.dataset.state; refreshViews();
   });
@@ -19577,7 +19588,7 @@ This is a directory write. Nothing else changes.`)) return;
       const slot = $("ovWorth"); if (!slot) return;
       let worth = null;
       try { worth = worthItems(policies.map((p) => p.raw)); } catch (e) { console.warn("overview worth:", e); }
-      if (worth) slot.outerHTML = Overview.worth(worth);
+      if (worth) slot.outerHTML = Overview.worth(worth, worthOpts());
       else slot.innerHTML = '<h3>Worth a look first</h3><div class="mini muted">The configuration checks could not run over this policy set.</div>';
     }, 0));
   }
@@ -19623,6 +19634,8 @@ This is a directory write. Nothing else changes.`)) return;
     const gc = fresh(gcRunAt) ? gcResult : null, ci = fresh(ciRunAt) ? ciResult : null;
     if (worthMemo && worthMemo.key === key && worthMemo.gc === gc && worthMemo.ci === ci) return worthMemo.w;
     const items = [];
+    const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const slug = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
     let provisional = null, zt = null;
     // 🛡 Bypass & Swiss cheese
     let gap = gc;
@@ -19635,31 +19648,55 @@ This is a directory write. Nothing else changes.`)) return;
     // provisional pass, or a run that reported incomplete context, is
     // "partial" and shows no score (25421)
     zt = gc && !provisional && !(gcCtx && gcCtx.incomplete) && gap.zt && gap.zt.overall != null
-      ? { overall: gap.zt.overall, at: new Date(gcRunAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } : null;
+      ? { overall: gap.zt.overall, at: hhmm(gcRunAt) } : null;
+    // Every finding carries its evidence state (25423): what it was computed
+    // from, and how complete that was. The snapshot time is the observation.
+    const gapEvidence = provisional
+      ? { state: "partial", label: "Partial context", at: policiesReadAt, note: "authentication strengths, named locations and the CA settings unread" }
+      : gcCtx && gcCtx.incomplete
+        ? { state: "partial", label: "Partial context", at: gcRunAt, note: gcCtx.incomplete }
+        : { state: "snapshot", label: "Policy snapshot", at: gcRunAt, note: `🛡 run at ${hhmm(gcRunAt)}` };
     const byTitle = new Map();
     (gap.findings || []).filter((f) => f.severity === "critical" || f.severity === "high").forEach((f) => {
       const k = `${f.severity}|${f.title}`;
-      const e = byTitle.get(k) || { sev: f.severity, title: f.title, pols: [] };
-      if (f.policyName && f.policyName !== "Tenant-wide") e.pols.push(f.policyName);
+      const e = byTitle.get(k) || { sev: f.severity, title: f.title, category: f.category, description: f.description, recommendation: f.recommendation, pols: [], ids: [] };
+      if (f.policyId) { e.ids.push(f.policyId); e.pols.push(f.policyName); }
       byTitle.set(k, e);
     });
-    [...byTitle.values()].sort((a, b) => SEV_RANK[a.sev] - SEV_RANK[b.sev]).slice(0, 4).forEach((e) => {
-      items.push({ sev: e.sev, icon: "🛡", toolLabel: "Checks", tool: "toolGapCheck", tab: "checks:bypass", text: e.title,
-        sub: e.pols.length === 1 ? e.pols[0] : e.pols.length > 1 ? `${e.pols.length} policies` : "tenant-wide" });
+    [...byTitle.values()].sort((a, b) => SEV_RANK[a.sev] - SEV_RANK[b.sev]).forEach((e) => {
+      items.push({ id: `gap:${slug(e.category)}:${slug(e.title)}`, source: "gap", sev: e.sev, icon: "🛡", toolLabel: "Checks", tool: "toolGapCheck", tab: "checks:bypass", text: e.title,
+        sub: e.ids.length === 1 ? e.pols[0] : e.ids.length > 1 ? `${e.ids.length} policies` : "tenant-wide",
+        policyIds: e.ids, evidence: gapEvidence,
+        detail: { observed: e.description, next: e.recommendation, category: e.category },
+        action: { label: "Open in 🛡 Checks" } });
     });
     // 📐 CIS — only where the tab exists for this tenant
     const cisTab = (TAB_HOSTS.checks.tabs.find((t) => t.key === "cis"));
     if (cisTab && tabShown(cisTab)) {
       if (ci) {
         const s = ci.score || {};
-        const l1 = (ci.results || []).filter((r) => r.level === 1 && r.status === "fail").length;
-        if (s.fail) items.push({ sev: l1 ? "high" : "medium", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+        const failing = (ci.results || []).filter((r) => r.status === "fail");
+        const l1 = failing.filter((r) => r.level === 1).length;
+        const ev = { state: "snapshot", label: "Policy snapshot", at: ciRunAt, note: `📐 run at ${hhmm(ciRunAt)}` };
+        if (s.fail) items.push({ id: "cis:failing", source: "cis", sev: l1 ? "high" : "medium", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
           text: `${s.fail} CIS control${s.fail === 1 ? "" : "s"} failing${l1 ? ` (${l1} Level 1)` : ""}`,
-          sub: (s.reportonly || s.configured) ? `${(s.reportonly || 0) + (s.configured || 0)} more one switch from passing` : `of ${s.total} assessed` });
-        else if (s.reportonly || s.configured) items.push({ sev: "low", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
-          text: `${(s.reportonly || 0) + (s.configured || 0)} CIS control${(s.reportonly || 0) + (s.configured || 0) === 1 ? "" : "s"} one switch from passing`, sub: "report-only or Off" });
+          sub: `of ${s.total} assessed${(s.reportonly || s.configured) ? ` · ${(s.reportonly || 0) + (s.configured || 0)} configured but not enforced` : ""}`,
+          policyIds: [], evidence: ev,
+          detail: { observed: `Failing: ${failing.slice(0, 6).map((r) => `${r.id} ${r.title}`).join("; ")}${failing.length > 6 ? ` and ${failing.length - 6} more` : ""}.`,
+            next: "Open the CIS tab for each control's criteria, the policies that came close, and the note on what a report-only or Off policy still lacks. Enforcing a report-only policy needs its sign-in impact reviewed first." },
+          action: { label: "Open the 📐 CIS tab" } });
+        else if (s.reportonly || s.configured) items.push({ id: "cis:staged", source: "cis", sev: "low", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+          text: `${(s.reportonly || 0) + (s.configured || 0)} CIS control${(s.reportonly || 0) + (s.configured || 0) === 1 ? "" : "s"} configured but not enforced`, sub: "report-only or Off — the benchmark counts them as failing",
+          policyIds: [], evidence: ev,
+          detail: { observed: "A policy meeting the control's criteria exists in report-only or Off.", next: "Review the policy's sign-in impact before enforcing; report-only is a staging state, not a rollout that is ready." },
+          action: { label: "Open the 📐 CIS tab" } });
       } else {
-        items.push({ sev: "info", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis", text: "CIS 5.2.2 not assessed this session", sub: "reads strengths, locations and licence SKUs" });
+        const prev = ciResult && !ci;
+        items.push({ id: "cis:not-assessed", source: "cis", sev: "info", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+          text: prev ? "CIS 5.2.2 result is from before the policy reload" : "CIS 5.2.2 not assessed this session", sub: "reads strengths, locations and licence SKUs",
+          policyIds: [], evidence: prev ? { state: "previous", label: "Previous snapshot", at: ciRunAt, note: `📐 run at ${hhmm(ciRunAt)}, policies reloaded since` } : { state: "needed", label: "Run needed", at: null, note: "" },
+          detail: { observed: prev ? "The benchmark was assessed against an earlier policy snapshot." : "The benchmark's trusted-location and licence controls need their reads; without them a fail would be invented.", next: "Run the assessment on the CIS tab." },
+          action: { label: prev ? "Run 📐 CIS again" : "Assess against 📐 CIS" } });
       }
     }
     // 🚪 app exclusions with no equivalent coverage established
@@ -19668,23 +19705,51 @@ This is a directory write. Nothing else changes.`)) return;
       const apps = m.entities.filter((e) => e.kind === "app" && e.uncoveredIn && e.uncoveredIn.length);
       if (apps.length) {
         const none = apps.filter((e) => Object.values(e.verdicts || {}).some((v) => v.state === "none")).length;
-        items.push({ sev: none ? "high" : "medium", icon: "🚪", toolLabel: "Exclusions", tool: "toolExclusions",
+        const ids = [...new Set(apps.flatMap((e) => e.uncoveredIn))];
+        items.push({ id: "ex:app-coverage", source: "ex", sev: none ? "high" : "medium", icon: "🚪", toolLabel: "Exclusions", tool: "toolExclusions",
           text: `${apps.length} app exclusion${apps.length === 1 ? "" : "s"} with no equivalent coverage established`,
-          sub: none ? `${none} reached by no other enforcing policy` : "partial or unresolved by this analysis" });
+          sub: none ? `${none} reached by no other enforcing policy` : "partial or unresolved by this analysis",
+          policyIds: ids, evidence: { state: "snapshot", label: "Policy snapshot", at: policiesReadAt, note: "compared over the loaded policies; memberships not expanded" },
+          detail: { observed: apps.slice(0, 6).map((e) => `${e.name}: ${e.uncoveredIn.map((pid) => CaCoverage.text(e.verdicts[pid])).join("; ")}`).join(" · ") + (apps.length > 6 ? ` · and ${apps.length - 6} more` : ""),
+            next: "Open the Exclusion analyzer's Apps view for each app's comparison, or run the scan to see who reaches those apps through the gap." },
+          action: { label: "Open 🚪 Exclusions" } });
       }
     } catch (e) { console.warn("overview app coverage:", e); }
     const TOOL_RANK = { toolGapCheck: 0, toolExclusions: 1 };
     items.sort((a, b) => (SEV_RANK[a.sev] - SEV_RANK[b.sev]) || ((TOOL_RANK[a.tool] ?? 9) - (TOOL_RANK[b.tool] ?? 9)));
-    const w = { items: items.slice(0, 6), provisional, zt };
+    const w = { items, provisional, zt, snapshotAt: policiesReadAt };
     worthMemo = { key, gc, ci, w };
     return w;
+  }
+  // The worth band is redrawn on its own when a finding is opened or the
+  // list expanded: the rest of the page does not move.
+  let ovShowAll = false, ovOpen = null;
+  function worthOpts() {
+    return { showAll: ovShowAll, open: ovOpen, policyOf: (id) => policies.find((p) => p.id === id) || null };
+  }
+  function redrawWorth() {
+    const slot = $("ovWorth"); if (!slot || !worthMemo) return;
+    // the redraw replaces the focused button; put focus back on its successor
+    const had = document.activeElement && slot.contains(document.activeElement) ? document.activeElement.getAttribute("data-ovfind") || (document.activeElement.hasAttribute("data-ovshowall") ? "*" : null) : null;
+    slot.outerHTML = Overview.worth(worthMemo.w, worthOpts());
+    if (had) { const el = had === "*" ? document.querySelector("#ovWorth [data-ovshowall]") : document.querySelector(`#ovWorth [data-ovfind="${CSS.escape(had)}"]`); if (el) el.focus(); }
   }
   // The workspace home is built after the app has already drawn once; when it
   // appears, the Overview moves into it.
   document.addEventListener("enca:wchome", () => { try { renderOverview({ force: true }); } catch (e) { console.warn("overview:", e); } });
   $("overview") && $("overview").addEventListener("click", (e) => {
+    // a tile's secondary link wins over the tile it sits on
+    const also = e.target.closest(".db-also");
+    if (also) { const el = $(also.dataset.ovtool); if (el) el.click(); return; }
     const st = e.target.closest("[data-ovstate]");
-    if (st) { stateFilter = st.dataset.ovstate; $("toolPolicies").click(); refreshViews(); return; }
+    if (st) { stateFilter = st.dataset.ovstate; idFilter = null; $("toolPolicies").click(); refreshViews(); return; }
+    // a finding opens its evidence in place; the list expands in place (25423)
+    const f = e.target.closest("[data-ovfind]");
+    if (f) { ovOpen = ovOpen === f.dataset.ovfind ? null : f.dataset.ovfind; redrawWorth(); return; }
+    if (e.target.closest("[data-ovshowall]")) { ovShowAll = !ovShowAll; redrawWorth(); return; }
+    // "show these policies": the list, filtered to the finding's policies
+    const pf = e.target.closest("[data-ovpolicies]");
+    if (pf) { idFilter = new Set(pf.dataset.ovpolicies.split(",").filter(Boolean)); stateFilter = "all"; $("toolPolicies").click(); refreshViews(); return; }
     if (e.target.closest("[data-ovrefresh]")) { const r = $("refreshBtn"); if (r) r.click(); return; }
     const t = e.target.closest("[data-ovtool]");
     if (t) {
@@ -19704,7 +19769,7 @@ This is a directory write. Nothing else changes.`)) return;
     else if (which === "lg") { openLicGap(); if (!lgBusy) lgRun(); }
   });
   $("overview") && $("overview").addEventListener("keydown", (e) => {
-    if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ovtool][role=button]")) { e.preventDefault(); e.target.click(); }
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ovtool][role=button],[data-ovstate][role=button]")) { e.preventDefault(); e.target.click(); }
   });
 
   // One place that drops every tool result bound to the previous snapshot.

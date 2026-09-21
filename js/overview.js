@@ -15,7 +15,8 @@
 //   Overview.lead(d)     the one-line lead under the page title (25422)
 //   Overview.tenant(d)   what the policy set shows: report-only age, recent
 //                        change, baseline match, exclusion references, advisories
-//   Overview.worth(w)    the ranked findings the loaded policy set shows (25420)
+//   Overview.worth(w, o) the ranked findings the loaded policy set shows (25420),
+//                        each opening its evidence in place (25423)
 //   Overview.checks(rows) one compact row per on-demand tool (25422 — the
 //                        25419 cards, folded to a line each)
 //
@@ -71,17 +72,23 @@ const Overview = (() => {
     const ro = pols.filter((p) => p.state === "enabledForReportingButNotEnforced");
     const roStale = ro.filter((p) => p.modified && now - new Date(p.modified).getTime() > 30 * DAY).length;
     const roUndated = ro.filter((p) => !p.modified).length;
-    const tile = (cls, num, label, sub, tool) => `<div class="db-tile${cls ? " " + cls : ""}${tool ? " clickable" : ""}"${tool ? ` data-ovtool="${esc(tool)}" role="button" tabindex="0"` : ""}><div class="n" title="${esc(String(num).replace(/<[^>]+>/g, ""))}">${num}</div><div class="l">${esc(label)}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`;
+    // `tool` is a tool id, or "state:report" for the policy list filtered to
+    // that state (25423: a policy count opens the policies it counts);
+    // `also` = { tool, label } is a second, smaller action on the tile
+    const tile = (cls, num, label, sub, tool, also) => {
+      const target = !tool ? "" : tool.startsWith("state:") ? ` data-ovstate="${esc(tool.slice(6))}"` : ` data-ovtool="${esc(tool)}"`;
+      return `<div class="db-tile${cls ? " " + cls : ""}${tool ? " clickable" : ""}"${tool ? `${target} role="button" tabindex="0"` : ""}><div class="n" title="${esc(String(num).replace(/<[^>]+>/g, ""))}">${num}</div><div class="l">${esc(label)}</div>${sub ? `<div class="s">${sub}</div>` : ""}${also ? `<button type="button" class="db-also" data-ovtool="${esc(also.tool)}">${esc(also.label)} ›</button>` : ""}</div>`;
+    };
     // The policy counts themselves live in the workspace's Current snapshot
     // panel beside this band; these tiles say what that panel does not.
     const tiles = [
       tile(st.ro ? "warn" : "", n(st.ro), "report-only", st.ro
         ? [roStale ? `${roStale} last modified 30+ days ago` : "", roUndated ? `date unavailable for ${roUndated}` : "", !roStale && !roUndated ? "all modified within 30 days" : ""].filter(Boolean).join(" · ")
-        : "nothing staged", "toolSignins"),
+        : "nothing staged", "state:report", { tool: "toolSignins", label: "validate with sign-ins" }),
       tile("", n(changed.length), "modified in 30 days", [
         changed.length ? `last: ${esc(changed[0].name)}, ${ago(changed[0].modified, now)}` : (undated < pols.length ? "no dated policy modified in 30 days" : ""),
         undated ? `date unavailable for ${undated}` : "",
-      ].filter(Boolean).join(" · ") || "no dates available", "toolAudit"),
+      ].filter(Boolean).join(" · ") || "no dates available", "state:all", { tool: "toolAudit", label: "who changed what" }),
       d.baseline
         ? tile(d.baseline.missing || d.baseline.outdated || d.baseline.conflict ? "warn" : "ok", esc(d.baseline.label), "baseline match",
             `${n(d.baseline.missing)} missing · ${n(d.baseline.outdated)} outdated · ${n(d.baseline.conflict)} in conflict · ${n(d.baseline.coverage)}% covered`, "toolBaseline")
@@ -177,29 +184,77 @@ const Overview = (() => {
     </div>`;
   }
 
-  // ---- Worth a look first (25420) ----
-  // w = { items: [{ sev, icon, text, sub, tool, tab }], provisional: string|null,
-  //       zt: {overall, at}|null — only from a 🛡 run whose context was read;
-  //       a provisional pass shows "partial", never a number (25421) }
-  // The items are RANKED by the app (severity, then tool) and capped there;
-  // this only draws them. Every line is a button into the tool that owns the
-  // finding, and the band never says more than the finding does.
+  // ---- Worth a look first (25420; findings with evidence 25423) ----
+  // w = { items: [finding], provisional: string|null, zt: {overall, at}|null, snapshotAt }
+  // finding = { id, source, sev, icon, toolLabel, tool, tab, text, sub,
+  //             policyIds: [], evidence: {state, label, at, note},
+  //             detail: {observed, next}, action: {label} }
+  // opts = { showAll, open: finding id | null, policyOf(id) → view model | null }
+  // The items are RANKED by the app (severity, then tool). Three show by
+  // default; View all keeps the rest one press away. A line is a button
+  // that opens the finding's evidence in place: what was observed, the
+  // policies it names with their scope, grant logic and exclusions, the
+  // evidence state and the observation time, and the action into the tool.
   const SEV = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
-  function worth(w) {
+  const SHOW = 3;
+  const EV_CLASS = { snapshot: "ok", partial: "warn", needed: "na", previous: "warn", failed: "bad" };
+  const hhmm = (t) => t ? new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  function evidenceChip(ev) {
+    if (!ev) return "";
+    return `<span class="db-ev ${EV_CLASS[ev.state] || "na"}" title="${esc(ev.note || "")}">${esc(ev.label)}${ev.at ? ` · ${esc(hhmm(ev.at))}` : ""}</span>`;
+  }
+  function worth(w, opts = {}) {
     const items = w.items || [];
-    const line = (x) => `<button type="button" class="db-worth sev-${esc(x.sev)}" data-ovtool="${esc(x.tool)}"${x.tab ? ` data-ovtab="${esc(x.tab)}"` : ""}>
+    const shown = opts.showAll ? items : items.slice(0, SHOW);
+    const line = (x) => {
+      const open = opts.open === x.id;
+      return `<div class="db-worth-wrap${open ? " open" : ""}"><button type="button" class="db-worth sev-${esc(x.sev)}" data-ovfind="${esc(x.id)}" aria-expanded="${open}">
       <span class="sv">${esc(SEV[x.sev] || x.sev)}</span>
       <span class="tx">${esc(x.text)}${x.sub ? ` <span class="mini muted">— ${esc(x.sub)}</span>` : ""}</span>
-      <span class="to mini">${x.icon || ""} ${esc(x.toolLabel || "")} ›</span>
-    </button>`;
+      ${evidenceChip(x.evidence)}
+      <span class="to mini">${x.icon || ""} ${esc(x.toolLabel || "")} ${open ? "▴" : "▾"}</span>
+    </button>${open ? evidence(x, opts) : ""}</div>`;
+    };
     const empty = `<div class="db-worth-empty mini muted">Nothing critical or high in the loaded policy set${w.provisional ? " on a first pass" : ""} — the tools below go deeper than this band can.</div>`;
-    return `<div class="db-band">
+    const more = items.length > SHOW ? `<button type="button" class="db-more" data-ovshowall>${opts.showAll ? "Show the top three" : `View all ${items.length} findings`}</button>` : "";
+    return `<div id="ovWorth" class="db-band">
       <h3>Worth a look first <span class="mini muted">— the highest-severity findings the loaded policies show · ${w.zt ? `configuration score ${esc(w.zt.overall)}/100 from the 🛡 run${w.zt.at ? ` at ${esc(w.zt.at)}` : ""} — findings, not effective protection` : `<span class="db-na">configuration checks — partial</span>`}</span></h3>
-      <div class="db-worths">${items.length ? items.map(line).join("") : empty}</div>
+      <div class="db-worths">${shown.length ? shown.map(line).join("") : empty}</div>
+      ${more}
       ${w.provisional ? `<div class="db-worth-note mini muted">${esc(w.provisional)}</div>` : ""}
     </div>`;
   }
+  // The evidence panel for one finding. Policy facts come from the view
+  // models the app resolves (original names, scope, grant logic, exclusions);
+  // a policy the snapshot no longer holds is said to be missing, not skipped.
+  function evidence(x, opts) {
+    const pols = (x.policyIds || []).map((id) => ({ id, p: opts.policyOf ? opts.policyOf(id) : null }));
+    const list = (arr, max = 4) => { arr = arr || []; return arr.length ? esc(arr.slice(0, max).join(", ")) + (arr.length > max ? ` <span class="muted">+${arr.length - max}</span>` : "") : "<span class=\"muted\">none</span>"; };
+    const stateWord = { on: "On", report: "Report-only", off: "Off" };
+    const pol = ({ id, p }) => !p
+      ? `<div class="db-pol missing"><b>${esc(id)}</b> <span class="mini muted">— not in the loaded snapshot</span></div>`
+      : `<div class="db-pol">
+          <div class="db-pol-h"><b>${esc(p.name)}</b> <span class="tag ${p.state === "on" ? "ok" : p.state === "report" ? "" : "block"}">${esc(stateWord[p.state] || p.state)}</span> <span class="mini muted">modified ${esc(p.modified)}</span></div>
+          <dl class="db-pol-f">
+            <dt>Users</dt><dd>${list(p.users.inc)}${p.users.exc && p.users.exc.length ? ` <span class="db-exc">excluding ${list(p.users.exc, 3)}</span>` : ""}</dd>
+            <dt>Resources</dt><dd>${list(p.apps.inc)}${p.apps.exc && p.apps.exc.length ? ` <span class="db-exc">excluding ${list(p.apps.exc, 3)}</span>` : ""}</dd>
+            ${(p.cond.platforms && p.cond.platforms.length) || (p.net.exc && p.net.exc.length) || (p.cond.platformsExc && p.cond.platformsExc.length) ? `<dt>Conditions</dt><dd>${[p.cond.platforms && p.cond.platforms.length ? `platforms: ${list(p.cond.platforms)}` : "", p.cond.platformsExc && p.cond.platformsExc.length ? `<span class="db-exc">excluding platforms ${list(p.cond.platformsExc)}</span>` : "", p.net.inc && p.net.inc[0] !== "Any network or location" ? `locations: ${list(p.net.inc)}` : "", p.net.exc && p.net.exc.length ? `<span class="db-exc">excluding locations ${list(p.net.exc)}</span>` : ""].filter(Boolean).join(" · ")}</dd>` : ""}
+            <dt>Grant</dt><dd>${p.grant.mode === "block" ? "<b>Block</b>" : `${list(p.grant.controls, 6)}${p.grant.controls.length > 1 && p.grant.op ? ` <span class="db-op">${esc(String(p.grant.op).toUpperCase())}</span>${String(p.grant.op).toUpperCase() === "OR" ? ' <span class="mini muted">— any one control satisfies it</span>' : ""}` : ""}`}</dd>
+            ${p.session && p.session.length ? `<dt>Session</dt><dd>${list(p.session)}</dd>` : ""}
+          </dl>
+        </div>`;
+    return `<div class="db-evid">
+      <div class="db-evid-row"><span class="l">Observed</span><span>${esc(x.detail && x.detail.observed || x.text)}</span></div>
+      <div class="db-evid-row"><span class="l">Evidence</span><span>${evidenceChip(x.evidence)} ${x.evidence && x.evidence.note ? `<span class="mini muted">${esc(x.evidence.note)}</span>` : ""}${x.evidence && x.evidence.state === "partial" ? ' <span class="mini muted">— a finding on partial context can be understated, never invented</span>' : ""}</span></div>
+      ${pols.length ? `<div class="db-evid-row"><span class="l">Policies</span><span class="db-pols">${pols.map(pol).join("")}</span></div>` : `<div class="db-evid-row"><span class="l">Policies</span><span class="mini muted">${x.source === "gap" ? "tenant-wide — no single policy carries this finding" : "named in the tool"}</span></div>`}
+      ${x.detail && x.detail.next ? `<div class="db-evid-row"><span class="l">Next step</span><span>${esc(x.detail.next)}</span></div>` : ""}
+      <div class="db-evid-act">
+        <button type="button" class="fchip active" data-ovtool="${esc(x.tool)}"${x.tab ? ` data-ovtab="${esc(x.tab)}"` : ""}>${esc(x.action && x.action.label || "Open the tool")}</button>
+        ${pols.length ? `<button type="button" class="fchip" data-ovpolicies="${esc(pols.map((q) => q.id).join(","))}">Show ${pols.length === 1 ? "this policy" : `these ${pols.length} policies`}</button>` : ""}
+      </div>
+    </div>`;
+  }
 
-  return { header, lead, tenant, checks, worth, DEADLINES, exclusionKinds };
+  return { header, lead, tenant, checks, worth, evidence, DEADLINES, exclusionKinds };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = { Overview };

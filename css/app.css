@@ -659,6 +659,22 @@ tr.grouprow:hover td{background:var(--line)}
 .db-worth .tx{flex:1 1 auto;min-width:0;line-height:1.35}
 .db-worth .to{flex:none;color:var(--muted);white-space:nowrap}
 .db-worth-empty,.db-worth-note{padding:6px 2px;line-height:1.4}
+/* 25423: a finding opens its evidence in place */
+.db-worth-wrap{border-radius:10px}.db-worth-wrap.open .db-worth{border-bottom-left-radius:0;border-bottom-right-radius:0;border-color:var(--accent2)}
+.db-ev{flex:none;font-size:10.5px;font-weight:600;border-radius:6px;padding:2px 7px;white-space:nowrap;background:var(--soft);color:var(--muted)}
+.db-ev.ok{background:var(--ok-bg);color:var(--on)}.db-ev.warn{background:var(--warn-bg);color:var(--warn-fg)}.db-ev.na{background:var(--soft);color:var(--muted)}.db-ev.bad{background:var(--bad-bg);color:var(--off)}
+.db-evid{border:1px solid var(--accent2);border-top:0;border-radius:0 0 10px 10px;background:var(--soft2,var(--soft));padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:12.5px;line-height:1.45}
+.db-evid-row{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px}
+.db-evid-row .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-top:2px}
+.db-pols{display:flex;flex-direction:column;gap:6px}
+.db-pol{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px}.db-pol.missing{opacity:.8}
+.db-pol-h{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;margin-bottom:4px}
+.db-pol-f{display:grid;grid-template-columns:78px minmax(0,1fr);gap:2px 8px;margin:0}.db-pol-f dt{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.db-pol-f dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.db-exc{color:var(--warn-fg)}.db-op{display:inline-block;font-size:10px;font-weight:700;border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-left:2px}
+.db-evid-act{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.db-more{border:0;background:transparent;color:var(--green);font:inherit;font-size:12.5px;font-weight:600;padding:6px 2px;cursor:pointer;text-align:left}.db-more:hover{text-decoration:underline}
+.db-also{display:block;margin-top:4px;border:0;background:transparent;color:var(--green);font:inherit;font-size:11.5px;padding:0;cursor:pointer;text-align:left}.db-also:hover{text-decoration:underline}
+@media (max-width:600px){.db-worth .db-ev{order:3}.db-evid-row{grid-template-columns:minmax(0,1fr)}.db-pol-f{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:600px){.db-worth{flex-wrap:wrap}.db-worth .to{width:100%;text-align:right}}
 /* ---------- run evidence strip (js/runmeta.js, 25412) ----------
    What a result was computed FROM, above the result itself: tenant, policy
