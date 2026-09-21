@@ -2163,6 +2163,7 @@
     // dropped you into 🗂 List Policies. Remember where the read was pressed
     // and go back there; T12 re-scans, because its rows carry the policies.
     const from = isRefresh && HISTORY_SCREENS.has(shownScreen) ? shownScreen : null;
+    ovLoading = true; ovReadError = null;
     show("screen-loading");
     let phase = "loading the Conditional Access policies from your tenant";
     try {
@@ -2212,9 +2213,12 @@
       SigninStore.purge().catch(() => {}).then(() => paintStoreButtons());
       setAccountBox(account?.username || "", account?.name || "");
       showSideNav();
-      try { renderOverview(); } catch (e) { console.warn("overview:", e); }
       selected = new Set();
       policiesReadAt = Date.now();
+      // the one Overview paint for this snapshot — after the identity and the
+      // read time are settled, so the paint is computed from them (25422)
+      ovLoading = false;
+      try { renderOverview(); } catch (e) { console.warn("overview:", e); }
       refreshViews();
       renderPermissions();
       // The read is async: if another tool was opened while it ran (shownScreen
@@ -2231,6 +2235,8 @@
       return true;
     } catch (e) {
       console.error("Failed while " + phase + ":", e); // full details for diagnostics
+      ovLoading = false;
+      if (isRefresh && policies.length) ovReadError = { at: Date.now(), message: e.message || String(e) };
       alert(`Something went wrong while ${phase}.\n\nError: ${e.message || e}\n\n` +
         (phase.startsWith("loading")
           ? "If this mentions 401/403: admin consent for this app may not be granted in your tenant yet."
@@ -2241,6 +2247,7 @@
   }
 
   function loadDemo() {
+    ovLoading = true; ovReadError = null;
     tenantName = DEMO_DATA.tenantName;
     tenantDomains = [];
     // Demo has no domain. Left over from a signed-in session it would keep
@@ -2266,6 +2273,7 @@
     loadLogSource();
     setAccountBox("demo@contoso.onmicrosoft.com", "Demo Mode");
     showSideNav();
+    ovLoading = false;
     try { renderOverview(); } catch (e) { console.warn("overview:", e); }
     refreshViews();
     renderPermissions();
@@ -19482,43 +19490,111 @@ This is a directory write. Nothing else changes.`)) return;
       ...extra,
     };
   }
-  // ---- the Overview (25419) ----
-  // The home page once a tenant is loaded: what is cheaply known from the
-  // policy set, and the last result of every on-demand tool with the run it
-  // came from. Pure renderers live in js/overview.js; this builds their input
-  // from app state and reads NOTHING from the tenant.
-  function renderOverview() {
+  // ---- the Overview (25419; render path reworked 25422) ----
+  // The home page once a tenant is loaded. Pure renderers live in
+  // js/overview.js; this builds their input from app state and reads NOTHING
+  // from the tenant. Three rules keep it off the sign-in path:
+  //   1. one paint per snapshot — a fingerprint of what the page is computed
+  //      from is compared first, and an unchanged page is not redrawn;
+  //   2. the derived summary (baseline comparison, exclusion collection) is
+  //      cached on the policy snapshot and the active catalog;
+  //   3. the header, tiles and check rows paint first; the configuration
+  //      checks run after that paint and are dropped if the snapshot moved.
+  let ovLoading = false;      // a policy read is in flight
+  let ovReadError = null;     // { at, message } — a failed re-read while an older snapshot is still loaded
+  let ovPaintKey = "";        // what the last paint was computed from
+  let ovDerived = null;       // { key, baseline, exclusions }
+  let ovSeq = 0;              // the deferred pass belongs to one paint
+  function ovSnapshotKey() {
+    let cat = ""; try { cat = Baseline.activeCatalogId() || ""; } catch {}
+    // states and dates catch a local edit that did not go through a reload
+    return [isDemo ? "demo" : tenantId, policiesReadAt, policies.length, policies.map((p) => p.raw.state + (p.raw.modifiedDateTime || "")).join(","), cat].join("|");
+  }
+  function ovPaintKeyOf(snap) {
+    return [snap, exRunMeta && exRunMeta.id, anRunMeta && anRunMeta.id, lgRunMeta && lgRunMeta.id, gcRunAt, ciRunAt,
+      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at].join("|");
+  }
+  function deriveSummary(key) {
+    if (ovDerived && ovDerived.key === key) return ovDerived;
+    let baseline = null, exclusions = null;
+    if (policies.length) {
+      try {
+        const cmp = Baseline.compare(policies, Baseline.activeCatalogId());
+        const c = cmp.counts || {};
+        baseline = { label: (Baseline.active() || {}).label || Baseline.activeCatalogId(), missing: c.missing || 0, outdated: c.outdated || 0, conflict: c.conflict || 0, coverage: cmp.coverage };
+      } catch (e) { console.warn("overview baseline:", e); }
+      try {
+        const m = Exclusions.collect(policies.map((p) => p.raw));
+        const byKind = {}; m.entities.forEach((e) => { byKind[e.kind] = (byKind[e.kind] || 0) + 1; });
+        exclusions = { entities: m.entities.length, byKind, policies: m.policies.filter((p) => p.exclusionCount > 0).length };
+      } catch (e) { console.warn("overview exclusions:", e); }
+    }
+    ovDerived = { key, baseline, exclusions };
+    return ovDerived;
+  }
+  function renderOverview(opts = {}) {
     const host = $("overview"); if (!host) return;
     // The workspace home (js/workspaces.js) prepends its own layout to the
     // screen and hides the legacy tiles; the Overview goes between its
     // heading and its two-column layout, once, the first time it renders.
     const wc = $("wcHome");
     if (wc && host.parentElement !== wc) { const lay = wc.querySelector(".wc-home-layout"); if (lay) wc.insertBefore(host, lay); }
-    if (!policies || !policies.length) { host.innerHTML = ""; host.hidden = true; return; }
-    const raws = policies.map((p) => p.raw);
-    let baseline = null;
-    try {
-      const cmp = Baseline.compare(policies, Baseline.activeCatalogId());
-      const c = cmp.counts || {};
-      baseline = { label: (Baseline.active() || {}).label || Baseline.activeCatalogId(), missing: c.missing || 0, outdated: c.outdated || 0, conflict: c.conflict || 0, coverage: cmp.coverage };
-    } catch (e) { console.warn("overview baseline:", e); }
-    let exclusions = null;
-    try {
-      const m = Exclusions.collect(raws);
-      const byKind = {}; m.entities.forEach((e) => { byKind[e.kind] = (byKind[e.kind] || 0) + 1; });
-      exclusions = { entities: m.entities.length, byKind, policies: m.policies.filter((p) => p.exclusionCount > 0).length };
-    } catch (e) { console.warn("overview exclusions:", e); }
+    const leadEl = $("wcHomeLead");
+    // nothing loaded, nothing loading: no Overview at all (the sign-in state)
+    if (!policiesReadAt && !ovLoading) { host.innerHTML = ""; host.hidden = true; ovPaintKey = ""; if (leadEl) leadEl.textContent = ""; return; }
+    const snap = ovSnapshotKey();
+    const key = ovPaintKeyOf(snap);
+    if (!opts.force && key === ovPaintKey && host.innerHTML) return;
+    ovPaintKey = key;
+    const seq = ++ovSeq;
+    const d = deriveSummary(snap);
+    const counts = { total: policies.length, on: 0, report: 0, off: 0 };
+    policies.forEach((p) => { counts[p.state] = (counts[p.state] || 0) + 1; });
+    const status = ovLoading ? { kind: "loading", since: policiesReadAt }
+      : ovReadError ? { kind: "failed", at: ovReadError.at, message: ovReadError.message, since: policiesReadAt }
+      : !policies.length ? { kind: "empty" } : { kind: "loaded" };
+    const base = { tenantName, isDemo, snapshot: policiesReadAt || null };
+    if (leadEl) leadEl.textContent = Overview.lead(base);
+    host.hidden = false;
+    let html = Overview.header({ ...base, counts, status });
+    if (policies.length) {
+      // what the two retirement tools found in THIS tenant, once they have run
+      const impact = {};
+      if (svRes && svRes.summary) { const x = svRes.summary; impact.toolSmsVoice = { text: `${x.blocking + x.migrate} user${x.blocking + x.migrate === 1 ? "" : "s"} still on SMS/voice (${x.blocking} blocking)${svRes.usersPartial ? " — partial read" : ""}` }; }
+      if (moRes && moRes.summary) { const x = moRes.summary; impact.toolMemberOf = { text: `${x.groups} group${x.groups === 1 ? "" : "s"} still using memberOf${x.caPolicies ? `, ${x.caPolicies} in Conditional Access` : ""}${moRes.allSurfaces ? "" : " — not every surface read"}` }; }
+      html += Overview.tenant({ ...base,
+        policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
+        baseline: d.baseline, exclusions: d.exclusions, impact, now: Date.now() })
+        + `<div id="ovWorth" class="db-band"><h3>Worth a look first <span class="mini muted">— running the configuration checks over the loaded policies…</span></h3></div>`
+        + Overview.checks(checkRows());
+    }
+    host.innerHTML = html;
+    if (!policies.length) return;
+    // the configuration checks after this paint; a paint that came after
+    // this one owns the slot, so a superseded pass draws nothing
+    (window.requestAnimationFrame || setTimeout)(() => setTimeout(() => {
+      if (seq !== ovSeq) return;
+      const slot = $("ovWorth"); if (!slot) return;
+      let worth = null;
+      try { worth = worthItems(policies.map((p) => p.raw)); } catch (e) { console.warn("overview worth:", e); }
+      if (worth) slot.outerHTML = Overview.worth(worth);
+      else slot.innerHTML = '<h3>Worth a look first</h3><div class="mini muted">The configuration checks could not run over this policy set.</div>';
+    }, 0));
+  }
+  // One row per on-demand tool: the last result with the run it came from,
+  // or the fact that it has not run. A missing measure is Unknown, never zero.
+  function checkRows() {
     const ctx = runContext();
     const stale = (m) => !!m && RunMeta.stale(m, ctx);
-    const cards = [
-      { tool: "toolExclusions", icon: "🚪", label: "Exclusion analyzer", run: "ex", runLabel: "Rescan",
+    return [
+      { tool: "toolExclusions", icon: "🚪", label: "Exclusion analyzer", what: "expand memberships, compare the policies an exclusion leaves", run: "ex", runLabel: "Rescan",
         never: !exModel, meta: exRunMeta, stale: stale(exRunMeta),
         // a missing state count is an incomplete result, never a list length (25421)
         headline: exModel ? ((exModel.userStates || {}).bypass != null ? { n: exModel.userStates.bypass, unit: "effective bypasses" } : { n: "Unknown", unit: "bypass count not established" }) : null },
-      { tool: "toolAnalyze", icon: "🔍", label: "Gap analyse", run: "an", runLabel: "Run again",
+      { tool: "toolAnalyze", icon: "🔍", label: "Gap analyse", what: "every user against every policy, gaps and risky bypasses", run: "an", runLabel: "Run again",
         never: !anReport, meta: anRunMeta, stale: stale(anRunMeta),
         headline: anReport ? (() => { const s = Analyzer.summary(anReport); return { n: s.risky, unit: `risky bypass${s.risky === 1 ? "" : "es"}${s.unknown ? ` · ${s.unknown} unresolved` : ""}` }; })() : null },
-      { tool: "toolLicGap", icon: "🎫", label: "Licences", run: "lg", runLabel: "Rescan",
+      { tool: "toolLicGap", icon: "🎫", label: "Licences", what: "P1/P2 demand against seats purchased and assigned", run: "lg", runLabel: "Rescan",
         never: !lgRes, meta: lgRunMeta, stale: stale(lgRunMeta),
         headline: lgRes ? (lgRes.p1.gap != null && lgRes.p1.gap > 0 ? { n: `${lgRes.p1.approx ? "≈" : ""}${lgRes.p1.gap.toLocaleString()}`, unit: "P1 seats short" }
           : lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null && lgRes.p1.targeted - lgRes.p1.assignedInScope > 0 ? { n: (lgRes.p1.targeted - lgRes.p1.assignedInScope).toLocaleString(), unit: "to assign, no purchase" }
@@ -19526,18 +19602,6 @@ This is a directory write. Nothing else changes.`)) return;
           : lgRes.p1.gap != null || (lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null) ? { n: "0", unit: "P1 shortfall" }
           : { n: "Unknown", unit: "incomplete read" }) : null },
     ];
-    let worth = null;
-    try { worth = worthItems(raws); } catch (e) { console.warn("overview worth:", e); }
-    host.hidden = false;
-    // what the two retirement tools found in THIS tenant, once they have run
-    const impact = {};
-    if (svRes && svRes.summary) { const x = svRes.summary; impact.toolSmsVoice = { text: `${x.blocking + x.migrate} user${x.blocking + x.migrate === 1 ? "" : "s"} still on SMS/voice (${x.blocking} blocking)${svRes.usersPartial ? " — partial read" : ""}` }; }
-    if (moRes && moRes.summary) { const x = moRes.summary; impact.toolMemberOf = { text: `${x.groups} group${x.groups === 1 ? "" : "s"} still using memberOf${x.caPolicies ? `, ${x.caPolicies} in Conditional Access` : ""}${moRes.allSurfaces ? "" : " — not every surface read"}` }; }
-    host.innerHTML = Overview.tenant({ tenantName, isDemo, snapshot: policiesReadAt || null,
-      policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
-      baseline, exclusions, impact, now: Date.now() })
-      + (worth ? Overview.worth(worth) : "")
-      + Overview.runs(cards);
   }
   // ---- Worth a look first (25420) ----
   // The gap checks, the CIS assessment and the exclusion app-coverage
@@ -19617,8 +19681,11 @@ This is a directory write. Nothing else changes.`)) return;
   }
   // The workspace home is built after the app has already drawn once; when it
   // appears, the Overview moves into it.
-  document.addEventListener("enca:wchome", () => { try { renderOverview(); } catch (e) { console.warn("overview:", e); } });
+  document.addEventListener("enca:wchome", () => { try { renderOverview({ force: true }); } catch (e) { console.warn("overview:", e); } });
   $("overview") && $("overview").addEventListener("click", (e) => {
+    const st = e.target.closest("[data-ovstate]");
+    if (st) { stateFilter = st.dataset.ovstate; $("toolPolicies").click(); refreshViews(); return; }
+    if (e.target.closest("[data-ovrefresh]")) { const r = $("refreshBtn"); if (r) r.click(); return; }
     const t = e.target.closest("[data-ovtool]");
     if (t) {
       // a finding that lives on a subtab opens that tab directly
@@ -19649,7 +19716,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       if ($("exBody")) renderExclusions();
       if ($("lgBody")) renderLicGap();
-      renderOverview();
+      if (!ovLoading) renderOverview();
     } catch (e) { console.warn("result invalidation:", why, e.message || e); }
   }
 

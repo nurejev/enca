@@ -10,10 +10,14 @@
 // which is where this app has always kept it; a home page that reads the
 // tenant fourteen times before it shows anything is a different product.
 //
-//   Overview.tenant(d)   the tenant band: policy states, recent change,
-//                        baseline match, configured exclusions, deadlines
-//   Overview.runs(cards) one card per on-demand tool: headline, run, freshness
+//   Overview.header(d)   the snapshot header: the four state counts, and the
+//                        loading / failed / empty status when there is one (25422)
+//   Overview.lead(d)     the one-line lead under the page title (25422)
+//   Overview.tenant(d)   what the policy set shows: report-only age, recent
+//                        change, baseline match, exclusion references, advisories
 //   Overview.worth(w)    the ranked findings the loaded policy set shows (25420)
+//   Overview.checks(rows) one compact row per on-demand tool (25422 — the
+//                        25419 cards, folded to a line each)
 //
 // Pure over their arguments: the app builds `d` and `cards` from its state.
 // ======================================================================
@@ -27,14 +31,14 @@ const Overview = (() => {
   // source and the day it was checked, and the tenant impact stays "not
   // assessed" until the tool behind it has run (25421).
   const DEADLINES = [
-    { tool: "toolSmsVoice", icon: "📵", label: "Microsoft-provided SMS & voice delivery",
+    { tool: "toolSmsVoice", icon: "📵", label: "Microsoft-provided SMS & voice delivery", short: "SMS/voice",
       cohorts: [
         { who: "most users, internal guests included", at: "2027-02-01T00:00:00Z" },
         { who: "Global Administrators and external users", at: "2027-07-01T00:00:00Z" },
       ],
       note: "passkeys auto-enabled for SMS/voice users since 1 September 2026",
       source: "https://learn.microsoft.com/entra/identity/authentication/concept-sms-voice-retirement", verified: "2026-09-21" },
-    { tool: "toolMemberOf", icon: "🧷", label: "memberOf in dynamic membership rules",
+    { tool: "toolMemberOf", icon: "🧷", label: "memberOf in dynamic membership rules", short: "memberOf",
       cohorts: [{ who: "rules that still use it stop updating", at: "2026-11-03T00:00:00Z" }],
       note: "",
       source: "https://learn.microsoft.com/entra/identity/users/groups-dynamic-rule-member-of", verified: "2026-09-21" },
@@ -88,10 +92,11 @@ const Overview = (() => {
         : "",
     ].join("");
     const deadlines = DEADLINES.map((x) => advisory(x, (d.impact || {})[x.tool], now)).join("");
+    const advSummary = DEADLINES.map((x) => `${x.icon} ${esc(x.short || x.label)} ${x.cohorts.map((c) => esc(new Date(c.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))).join(" / ")}`).join(" · ");
     return `<div class="db-band">
-      <h3>Tenant <span class="mini muted">${esc(d.isDemo ? "Demo tenant" : d.tenantName || "")}${d.snapshot ? ` · policies read ${esc(new Date(d.snapshot).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}` : ""}</span></h3>
+      <h3>What the policy set shows <span class="mini muted">— configuration, read from the loaded policies; nothing here is a measure of who is protected</span></h3>
       <div class="db-tiles">${tiles}</div>
-      <div class="db-deads">${deadlines}</div>
+      <details class="db-advs"${d.advisoriesOpen ? " open" : ""}><summary>Upcoming changes <span class="mini muted">· ${advSummary}</span></summary><div class="db-deads">${deadlines}</div></details>
     </div>`;
   }
 
@@ -123,17 +128,52 @@ const Overview = (() => {
     </div>`;
   }
 
-  // cards = [{ tool, icon, label, headline: {n, unit} | null, meta, stale, never, open, run, runLabel }]
-  function runs(cards) {
-    const card = (c) => `<div class="db-run${c.stale ? " stale" : ""}${c.never ? " never" : ""}">
-      <div class="t">${c.icon} ${esc(c.label)}</div>
-      <div class="h">${c.never ? "—" : `${esc(c.headline.n)} <span class="mini muted">${esc(c.headline.unit)}</span>`}</div>
-      <div class="m">${c.never ? "not run this session" : c.stale ? `⚠ policies reloaded after run #${esc(c.meta.id)}` : `run #${esc(c.meta.id)} · ${esc(new Date(c.meta.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))} · ${esc(c.meta.completeness)}`}</div>
-      <div class="a">${c.never ? "" : `<button type="button" class="fchip" data-ovtool="${esc(c.tool)}">Open</button>`}<button type="button" class="fchip${c.stale ? " active" : ""}" data-ovrun="${esc(c.run)}">${esc(c.never ? "Run" : c.stale ? "Run again" : c.runLabel || "Rescan")}</button></div>
+  // ---- the snapshot header (25422) ----
+  // d = { tenantName, isDemo, snapshot, counts: {total, on, report, off},
+  //       status: { kind: loading|failed|empty|loaded, at, message, since } }
+  // The four counts are the one thing every viewport keeps; each opens the
+  // policy list filtered to that state. The status line exists only when
+  // there is something to say beyond "loaded".
+  function header(d) {
+    const c = d.counts || { total: 0, on: 0, report: 0, off: 0 };
+    const tile = (k, num, label, sub) => `<button type="button" class="db-count" data-ovstate="${k}"><b>${n(num)}</b><span>${esc(label)}</span><small>${esc(sub)}</small></button>`;
+    const st = d.status || { kind: "loaded" };
+    const t = (v) => v ? esc(new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) : "";
+    let status = "";
+    if (st.kind === "loading") status = `<div class="db-status loading" role="status">Reading policies…${st.since ? ` The snapshot from ${t(st.since)} stays until the read completes.` : ""}</div>`;
+    else if (st.kind === "failed") status = `<div class="db-status failed" role="alert">Policies could not be re-read at ${t(st.at)}${st.message ? ` — ${esc(st.message)}` : ""}.${st.since ? ` Showing the snapshot read at ${t(st.since)}.` : ""} <button type="button" class="fchip" data-ovrefresh>Retry</button></div>`;
+    else if (st.kind === "empty") status = `<div class="db-status empty" role="status">0 policies loaded${d.tenantName ? ` from ${esc(d.tenantName)}` : ""}${d.snapshot ? ` at ${t(d.snapshot)}` : ""} — the tenant has no Conditional Access policies, or this account cannot read them. <button type="button" class="fchip" data-ovrefresh>Read again</button> <button type="button" class="fchip" data-ovtool="toolBaseline">Start from a baseline</button> <button type="button" class="fchip" data-ovtool="toolImport">Import</button></div>`;
+    return `<div class="db-head">
+      <div class="db-counts">${tile("all", c.total, "Policies loaded", "current snapshot")}${tile("on", c.on, "Enabled", "configured to enforce")}${tile("report", c.report, "Report-only", "evaluation only")}${tile("off", c.off, "Off", "not enforcing")}</div>
+      ${status}
     </div>`;
+  }
+  // The one-line lead under the page title: what was read and when, and that
+  // detail comes from each check's own run.
+  function lead(d) {
+    if (!d.snapshot) return "";
+    const when = new Date(d.snapshot).toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    return `Policies read ${when}${d.isDemo ? " (demo data)" : ""} · details come from each check’s own run.`;
+  }
+
+  // ---- Your checks (25422): one compact row per on-demand tool ----
+  // rows = [{ tool, icon, label, what, headline: {n, unit} | null, meta, stale, never, run, runLabel }]
+  function checks(rows) {
+    const t = (v) => esc(new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    const row = (c) => {
+      let state, cls = "";
+      if (c.never) state = "Not run this session";
+      else if (c.stale) { state = `Previous snapshot · run #${esc(c.meta.id)} at ${t(c.meta.at)} — policies reloaded since`; cls = " stale"; }
+      else { state = `<b>${esc(c.headline.n)}</b> ${esc(c.headline.unit)} · run #${esc(c.meta.id)} at ${t(c.meta.at)} · ${esc(c.meta.completeness)}`; if (/partial|incomplete|stopped/i.test(c.meta.completeness || "")) cls = " partial"; }
+      return `<div class="db-check${cls}${c.never ? " never" : ""}">
+        <div class="t">${c.icon} ${esc(c.label)}<small>${esc(c.what || "")}</small></div>
+        <div class="s">${state}</div>
+        <div class="a">${c.never ? "" : `<button type="button" class="fchip" data-ovtool="${esc(c.tool)}">Open</button>`}<button type="button" class="fchip${c.stale ? " active" : ""}" data-ovrun="${esc(c.run)}">${esc(c.never ? "Run check" : c.stale ? "Run again" : c.runLabel || "Run again")}</button></div>
+      </div>`;
+    };
     return `<div class="db-band">
-      <h3>Your runs <span class="mini muted">— the on-demand tools, with the run each result came from</span></h3>
-      <div class="db-runs">${cards.map(card).join("")}</div>
+      <h3>Your checks <span class="mini muted">— on demand; each result carries the run it came from</span></h3>
+      <div class="db-checks">${rows.map(row).join("")}</div>
     </div>`;
   }
 
@@ -160,6 +200,6 @@ const Overview = (() => {
     </div>`;
   }
 
-  return { tenant, runs, worth, DEADLINES, exclusionKinds };
+  return { header, lead, tenant, checks, worth, DEADLINES, exclusionKinds };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = { Overview };

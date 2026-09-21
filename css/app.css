@@ -605,6 +605,29 @@ tr.grouprow:hover td{background:var(--line)}
 .sect code{background:var(--soft);padding:1px 5px;border-radius:5px;font-size:11px}
 .tag{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;color:var(--green);margin:1px 2px 1px 0}
 .overview{margin:0 0 26px}
+/* 25422: the snapshot header — four state counts, then a status line only when there is one */
+.db-head{margin-bottom:18px}
+.db-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.db-count{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;text-align:left;font:inherit;color:var(--ink);cursor:pointer;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)}
+.db-count:hover{border-color:var(--accent2)}.db-count:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.db-count b{font-size:24px;font-weight:700;line-height:1.1}.db-count span{font-size:12.5px}.db-count small{font-size:11px;color:var(--muted)}
+.db-status{margin-top:10px;border-radius:10px;padding:8px 12px;font-size:12.5px;line-height:1.5;border:1px solid var(--border);background:var(--soft)}
+.db-status.failed{border-color:var(--warn-bd);background:var(--warn-bg);color:var(--warn-fg)}
+.db-status.empty{border-color:var(--warn-bd);background:var(--warn-bg2)}
+.db-status .fchip{margin-left:4px}
+@media (max-width:600px){.db-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.db-count b{font-size:20px}}
+/* the advisories fold under the tiles */
+.db-advs{margin-top:10px}.db-advs>summary{cursor:pointer;font-size:12.5px;font-weight:600;padding:4px 0}.db-advs>summary .mini{font-weight:400}
+/* Your checks: one row per tool */
+.db-checks{display:flex;flex-direction:column;gap:6px}
+.db-check{display:grid;grid-template-columns:minmax(180px,1fr) minmax(0,2fr) auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;box-shadow:var(--shadow)}
+.db-check .t{font-weight:600;font-size:13px}.db-check .t small{display:block;font-weight:400;font-size:11px;color:var(--muted);margin-top:1px}
+.db-check .s{font-size:12.5px;color:var(--muted);min-width:0}.db-check .s b{color:var(--ink);font-size:14px}
+.db-check.stale{border-color:var(--warn-bd);background:var(--warn-bg2)}.db-check.stale .s{color:var(--warn-fg)}
+.db-check.partial .s{color:var(--warn-fg)}
+.db-check .a{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:700px){.db-check{grid-template-columns:minmax(0,1fr)}.db-check .a{justify-content:flex-start}}
 .db-band{margin-bottom:18px}
 .db-band > h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .db-band > h3 .mini{text-transform:none;letter-spacing:0}
@@ -624,11 +647,6 @@ tr.grouprow:hover td{background:var(--line)}
 .db-adv-c{display:flex;flex-direction:column;gap:2px;line-height:1.4}
 .db-adv-i{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
 .db-na{display:inline-block;background:var(--warn-bg);color:var(--warn-fg);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600}
-.db-runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,280px));gap:12px}
-.db-run{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
-.db-run .t{font-weight:600;font-size:13px}.db-run .h{font-size:20px;font-weight:700}.db-run .m{font-size:11.5px;color:var(--muted)}
-.db-run.stale{border-color:var(--warn-bd);background:var(--warn-bg2)}.db-run.never{opacity:.8}
-.db-run .a{margin-top:auto;display:flex;gap:6px;flex-wrap:wrap}
 /* Worth a look first (25420): one button per ranked finding */
 .db-worths{display:flex;flex-direction:column;gap:6px}
 .db-worth{display:flex;align-items:baseline;gap:10px;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;

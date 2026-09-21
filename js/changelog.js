@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25422, date: "2026-09-21", title: "A snapshot header, and one paint per snapshot",
+    items: [
+      { kind: "new", tool: "Home", text: "The page opens with the tenant, when the policies were read, and POLICIES LOADED / ENABLED / REPORT-ONLY / OFF \u2014 four counts that stay on every screen size, each opening \ud83d\uddc2 Policies filtered to that state. The tall welcome and the duplicate Current snapshot panel are gone; the tool library sits below the Overview, closed until asked for, and remembers the choice." },
+      { kind: "new", tool: "Home", text: "Three states that used to look the same: Reading policies\u2026 while a read is in flight; 0 policies loaded as a real answer with Read again, Start from a baseline and Import; and could not be re-read with the failure named and the earlier snapshot still shown. An empty tenant is no longer a missing dashboard." },
+      { kind: "change", tool: "Home", text: "Your runs became Your checks: one compact row per tool \u2014 Not run this session, Previous snapshot, or the headline with its run number, time and completeness (a partial read is marked) \u2014 instead of three tall cards. The two advisories fold under the tiles." },
+      { kind: "change", tool: "Home", text: "Off the sign-in path: the Overview paints once per snapshot, after the read time is settled, and an unchanged page is not redrawn (it was drawn four times per sign-in, once before the read time existed); the baseline comparison and the exclusion collection are cached on the snapshot and the active catalog; the configuration checks run after the first paint and are dropped if the snapshot moved under them. No Graph call, as before." },
+    ],
+  },
+  {
     build: 25421, date: "2026-09-21", title: "What the home page says is what it knows",
     items: [
       { kind: "fix", tool: "Home", text: "The exclusions tile now adds up: it counts UNIQUE EXCLUSION REFERENCES and lists every kind \u2014 named locations and device platforms included \u2014 in how many policies. The subtitle used to sum to less than the number because two kinds were left out." },

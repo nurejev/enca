@@ -57,6 +57,17 @@ body.workspaces-shell #toolNav .toolnav-btn.home.active{background:var(--soft);c
 .wc-demo{display:inline-flex;align-items:center;gap:7px;padding:6px 0;font-size:11px;color:var(--muted);white-space:nowrap}
 .wc-demo>span:first-child{width:6px;height:6px;background:var(--accent2);border-radius:50%}
 .wc-home-layout{display:grid;grid-template-columns:235px minmax(0,1fr);gap:32px}
+/* 25422: the Overview carries the snapshot counts, so the Current snapshot
+   panel would say them twice; with the library closed the home is one column */
+.wc-session{display:none}
+.wc-home-layout.lib-closed{grid-template-columns:minmax(0,1fr);gap:18px}
+.wc-home-layout.lib-closed .wc-recent-panel{border:0;padding:0}
+.wc-home-layout.lib-closed #wcRecent{display:flex;flex-wrap:wrap;gap:8px 18px}
+.wc-home-layout.lib-closed .wc-recent{width:auto;border:0;padding:6px 0}
+.wc-home-layout.lib-closed .wc-empty{padding:4px 0 10px}.wc-home-layout.lib-closed .wc-empty>span,.wc-home-layout.lib-closed .wc-empty h3{display:none}.wc-home-layout.lib-closed .wc-empty p{margin-bottom:6px}
+.wc-home-layout.lib-closed .wc-recent-panel>h2{margin-bottom:8px}
+.wc-section-actions{display:flex;gap:16px}
+.wc-home-heading{margin-bottom:22px}.wc-home-heading h1{margin:8px 0 6px}
 .wc-recent-panel{padding-right:28px;border-right:1px solid var(--border)}
 .wc-recent-panel h2,.wc-section-heading h2{font-size:15px;font-weight:600;letter-spacing:-.02em}
 .wc-recent-panel>h2{margin-bottom:18px}

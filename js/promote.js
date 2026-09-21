@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 244,
+      title: "\ud83c\udfe0 Overview: snapshot header, check rows, three load states, one paint per snapshot",
+      tools: ["Home"],
+      builds: [25422],
+      risk: "medium",
+      what: "js/overview.js: NEW header(d) (four state counts as data-ovstate buttons; loading / failed / empty status line), lead(d), checks(rows) replacing runs(); the tenant band folds the advisories under a details. js/app.js: renderOverview() reworked \u2014 ovSnapshotKey() / ovPaintKeyOf() fingerprints skip an unchanged paint, deriveSummary() caches baseline + exclusions on the snapshot, the worth band renders after the first paint under a sequence guard; ovLoading / ovReadError set around loadFromGraph and loadDemo, the single paint moved after policiesReadAt, invalidateToolResults skips the paint mid-read; data-ovstate opens Policies with stateFilter set, data-ovrefresh presses Refresh. js/workspaces.js: heading is Conditional Access overview with #wcHomeLead; the library is hidden behind Show/Hide (localStorage enca.wcLibraryOpen) and the layout collapses to one column. css: .db-head/.db-counts/.db-status/.db-checks/.db-advs; .wc-session hidden.",
+      why: "MEDIUM \u2014 the 21 September review found the four policy counts below the fold and hidden under 700px, the tool library starting 960px (desktop) / 2040px (mobile) down, three tall not-run cards, an empty tenant hiding the whole Overview, and four renders per sign-in with one before the read time existed. Layout and render-path work; no new read.",
+      test: [
+        "Demo: the page opens with the four counts (they match \ud83d\uddc2 Policies\u2019 chips); press Report-only: Policies opens filtered to report-only.",
+        "At 390px all four counts are visible; no horizontal scroll at 320px.",
+        "The tool library is closed under the Overview; Show opens it, the choice survives a reload; the rail and header All tools still open the launcher.",
+        "Sign in to a tenant with no policies (or empty DEMO_DATA.policies locally): the header shows 0 with the empty line and its three buttons, not a blank page.",
+        "Instrument renderOverview: one paint per sign-in (was four), and returning Home without a change does not redraw (the innerHTML is untouched).",
+        "Run \ud83d\udeaa and return Home: its row shows the headline with run number and time; press Refresh and return: the row reads Previous snapshot / Not run as appropriate.",
+        "Network: no Graph request while the home page draws.",
+        "Regression: tools/regression.test.cjs passes (68).",
+      ],
+      files: ["js/overview.js", "js/app.js", "js/workspaces.js", "css/app.css", "css/workspaces.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 243,
       title: "\ud83c\udfe0 Overview says only what it knows: reconciled exclusions, Unknown never zero, no provisional score, dated advisories",
       tools: ["Home"],

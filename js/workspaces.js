@@ -200,11 +200,21 @@
     menu.insertBefore(closeAll,$('signOutBtn'));
     const note=document.createElement('p');note.className='wc-account-note';note.id='wcSessionNote';menu.append(note);
     const home=document.createElement('div');home.id='wcHome';
-    home.innerHTML=`<div class="wc-home-heading"><div><div class="wc-eyebrow" id="wcTenant"></div><h1>Your Conditional Access workspace.</h1><p>Open a tool. Keep your place. Continue where you left off.</p></div><span class="wc-demo"><span></span>Demo · sample data</span></div><div class="wc-home-layout"><aside class="wc-recent-panel"><h2>Recent tools</h2><div id="wcRecent"></div><div class="wc-session"><span class="wc-eyebrow">Current snapshot</span><div id="wcSnapshot"></div><p>ENCA’s existing demo policies.<br>Changes in this session are simulated.</p></div></aside><section class="wc-library"><div class="wc-section-heading"><h2>All ${tools.length} tools</h2><button type="button" id="wcToggleGroups" class="wc-text-button">Collapse all</button></div><div id="wcOverviewTools">${[...new Set(tools.map(t=>t.group))].map(group=>`<details class="wc-tool-group" open><summary>${esc(group)} <span>${tools.filter(t=>t.group===group).length} tools</span></summary><div class="wc-tool-grid">${tools.filter(t=>t.group===group).map(card).join('')}</div></details>`).join('')}</div></section></div><div class="wc-home-foot"><span>Open tools stay in the tabs above your workspace.</span><button type="button" class="wc-text-button" data-wc-tool="toolHelp">ENCA help →</button></div>`;
+    home.innerHTML=`<div class="wc-home-heading"><div><div class="wc-eyebrow" id="wcTenant"></div><h1>Conditional Access overview</h1><p id="wcHomeLead"></p></div><span class="wc-demo"><span></span>Demo · sample data</span></div><div class="wc-home-layout"><aside class="wc-recent-panel"><h2>Recent tools</h2><div id="wcRecent"></div><div class="wc-session"><span class="wc-eyebrow">Current snapshot</span><div id="wcSnapshot"></div><p>ENCA’s existing demo policies.<br>Changes in this session are simulated.</p></div></aside><section class="wc-library"><div class="wc-section-heading"><h2>All ${tools.length} tools</h2><span class="wc-section-actions"><button type="button" id="wcToggleLibrary" class="wc-text-button" aria-expanded="false" aria-controls="wcOverviewTools">Show</button><button type="button" id="wcToggleGroups" class="wc-text-button" hidden>Collapse all</button></span></div><div id="wcOverviewTools" hidden>${[...new Set(tools.map(t=>t.group))].map(group=>`<details class="wc-tool-group" open><summary>${esc(group)} <span>${tools.filter(t=>t.group===group).length} tools</span></summary><div class="wc-tool-grid">${tools.filter(t=>t.group===group).map(card).join('')}</div></details>`).join('')}</div></section></div><div class="wc-home-foot"><span>Open tools stay in the tabs above your workspace.</span><button type="button" class="wc-text-button" data-wc-tool="toolHelp">ENCA help →</button></div>`;
     $('screen-home').prepend(home);
     // The Overview (js/overview.js, 25419) renders into the home once this
     // layout exists — say so, rather than have it poll for us.
     document.dispatchEvent(new CustomEvent('enca:wchome'));
+    // The library sits under the Overview, closed until asked for (25422):
+    // the rail and the header keep All tools one press away, and a home page
+    // that starts with forty cards buries what it just learned. The choice is
+    // remembered per browser.
+    const LIB_KEY='enca.wcLibraryOpen';
+    const libToggle=$('wcToggleLibrary'),lib=$('wcOverviewTools'),layout=home.querySelector('.wc-home-layout');
+    const setLib=(open)=>{lib.hidden=!open;libToggle.textContent=open?'Hide':'Show';libToggle.setAttribute('aria-expanded',String(open));$('wcToggleGroups').hidden=!open;layout.classList.toggle('lib-closed',!open);try{localStorage.setItem(LIB_KEY,open?'1':'0');}catch{}};
+    let libOpen=false;try{libOpen=localStorage.getItem(LIB_KEY)==='1';}catch{}
+    setLib(libOpen);
+    libToggle.addEventListener('click',()=>setLib(lib.hidden));
     const toggleGroups=$('wcToggleGroups');
     const groups=[...home.querySelectorAll('.wc-tool-group')];
     const syncGroups=()=>{toggleGroups.textContent=groups.some(g=>g.open)?'Collapse all':'Expand all';};

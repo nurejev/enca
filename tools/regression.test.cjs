@@ -618,16 +618,32 @@ test('overview: an advisory shows the tenant impact once the tool has run, and n
  assert.match(html,/date unavailable for 2/);assert.doesNotMatch(html,/no dated policy modified/);
  assert.match(html,/date unavailable for 1/);
 });
-test('overview: run cards say never, stale or fresh',()=>{
- const html=Overview.runs([
-  {tool:'toolExclusions',icon:'x',label:'Exclusions',run:'ex',never:false,stale:false,meta:{id:'001',at:Date.now(),completeness:'exact'},headline:{n:5,unit:'effective bypasses'}},
-  {tool:'toolAnalyze',icon:'y',label:'Gap',run:'an',never:false,stale:true,meta:{id:'002',at:Date.now(),completeness:'exact'},headline:{n:3,unit:'risky'}},
-  {tool:'toolLicGap',icon:'z',label:'Licences',run:'lg',never:true,meta:null,headline:null},
+test('overview: check rows say not run, previous snapshot, or the headline with its run (25422)',()=>{
+ const html=Overview.checks([
+  {tool:'toolExclusions',icon:'x',label:'Exclusions',what:'w1',run:'ex',never:false,stale:false,meta:{id:'001',at:Date.now(),completeness:'exact'},headline:{n:5,unit:'effective bypasses'}},
+  {tool:'toolAnalyze',icon:'y',label:'Gap',what:'w2',run:'an',never:false,stale:true,meta:{id:'002',at:Date.now(),completeness:'exact'},headline:{n:3,unit:'risky'}},
+  {tool:'toolLicGap',icon:'z',label:'Licences',what:'w3',run:'lg',never:true,meta:null,headline:null},
+  {tool:'toolLicGap',icon:'z',label:'Licences',what:'w3',run:'lg',never:false,stale:false,meta:{id:'003',at:Date.now(),completeness:'partial — SKU read failed'},headline:{n:'Unknown',unit:'incomplete read'}},
  ]);
- assert.match(html,/run #001 · .* · exact/);
- assert.match(html,/db-run stale/);assert.match(html,/policies reloaded after run #002/);assert.match(html,/Run again/);
- assert.match(html,/db-run never/);assert.match(html,/not run this session/);
- assert.equal((html.match(/data-ovrun=/g)||[]).length,3);
+ assert.match(html,/<b>5<\/b> effective bypasses · run #001 at .* · exact/);
+ assert.match(html,/db-check stale/);assert.match(html,/Previous snapshot · run #002 at .* — policies reloaded since/);assert.match(html,/Run again/);
+ assert.match(html,/db-check never/);assert.match(html,/Not run this session/);assert.match(html,/Run check/);
+ assert.match(html,/db-check partial/);assert.match(html,/<b>Unknown<\/b> incomplete read/);
+ assert.equal((html.match(/data-ovrun=/g)||[]).length,4);
+});
+test('overview: the header keeps four counts and says loading, failed or empty only when it is',()=>{
+ const counts={total:48,on:36,report:9,off:3};
+ const loaded=Overview.header({tenantName:'Contoso',snapshot:Date.now(),counts,status:{kind:'loaded'}});
+ assert.equal((loaded.match(/data-ovstate=/g)||[]).length,4);
+ assert.match(loaded,/<b>48<\/b><span>Policies loaded<\/span>/);assert.match(loaded,/<b>9<\/b><span>Report-only<\/span>/);
+ assert.doesNotMatch(loaded,/db-status/);
+ assert.match(Overview.header({counts,status:{kind:'loading',since:Date.now()}}),/db-status loading[^>]*>Reading policies…/);
+ const failed=Overview.header({counts,status:{kind:'failed',at:Date.now(),message:'403 Forbidden',since:Date.now()}});
+ assert.match(failed,/db-status failed/);assert.match(failed,/403 Forbidden/);assert.match(failed,/data-ovrefresh>Retry/);
+ const empty=Overview.header({tenantName:'Contoso',snapshot:Date.now(),counts:{total:0,on:0,report:0,off:0},status:{kind:'empty'}});
+ assert.match(empty,/0 policies loaded from Contoso at/);assert.match(empty,/data-ovtool="toolBaseline"/);assert.match(empty,/<b>0<\/b><span>Policies loaded/);
+ assert.match(Overview.lead({snapshot:Date.parse('2026-09-21T10:42:00Z')}),/^Policies read .*2026.* · details come from each check’s own run\.$/);
+ assert.equal(Overview.lead({snapshot:null}),'');
 });
 
 // ---- 25420: Worth a look first draws ranked findings, says when provisional ----
