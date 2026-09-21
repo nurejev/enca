@@ -166,7 +166,7 @@
     initialized=true;
     document.body.classList.add('workspaces-shell');
     const rail=document.createElement('nav');rail.id='wcRail';rail.setAttribute('aria-label','Workspace navigation');
-    const shortcuts=[['toolPolicies','🗂','Policies'],['toolSignins','🚦','Sign-ins'],['toolBaseline','🧬','Baseline'],['toolCaGroups','👥','CA groups']];
+    const shortcuts=[['toolPolicies','🗂','Policies'],['toolSignins','🚦','Sign-ins'],['toolWhoIs','🕵','Who is…'],['toolBaseline','🧬','Baseline'],['toolCaGroups','👥','CA groups']];
     rail.innerHTML=`<button type="button" id="wcHomeButton" data-wc-home><span aria-hidden="true">⌂</span><small>Home</small></button>${shortcuts.map(([id,icon,label])=>`<button type="button" data-wc-tool="${id}" aria-label="${esc(tools.find(t=>t.id===id)?.name || label)}"><span aria-hidden="true">${icon}</span><small>${label}</small></button>`).join('')}<span class="wc-rail-divider"></span><button type="button" data-wc-library><span aria-hidden="true">⊞</span><small>All tools</small></button><button type="button" data-wc-tool="toolHelp"><span aria-hidden="true">?</span><small>Help</small></button><span class="wc-rail-caption">WORKSPACES<br>01</span>`;
     document.body.append(rail);
     const brand=document.createElement('span');brand.className='wc-brand';

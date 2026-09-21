@@ -130,7 +130,7 @@ const Comparer = (() => {
   function assignmentTable(rows, users, diffOnly) {
     const use = diffOnly ? rows.filter((r) => r.differs) : rows;
     const body = use.map((r) => `<tr${r.differs ? ' class="cmp-diff"' : ""}>
-      <td class="ucol"><span class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</span>${r.enforced ? "" : ' <span class="tag">report-only</span>'}${diffTag(r.differs)}
+      <td class="ucol"><span class="pol-link" data-polid="${esc(r.id)}">${esc(String(r.name || "").match(/\bCA\d{3,4}[A-Za-z]?\b/i)?.[0] || r.name)}</span>${r.enforced ? "" : ' <span class="tag">report-only</span>'}${diffTag(r.differs)}
         <div class="uupn">${esc(r.controls)}</div></td>` +
       r.states.map((st) => `<td class="cellv ${CLS[st.s]}"${st.why ? ` title="${esc(st.why)}"` : ""}><span class="cell ${CLS[st.s]}">${SYM[st.s]}</span></td>`).join("") + "</tr>").join("");
     return `<div class="mwrap"><table class="mtable"><thead><tr><th class="ucol">Policy (${use.length})</th>${userHead(users)}</tr></thead>
@@ -150,7 +150,7 @@ const Comparer = (() => {
   function scenarioTable(sr, users, diffOnly) {
     const use = diffOnly ? sr.rows.filter((r) => r.differs) : sr.rows;
     const body = use.map((r) => `<tr${r.differs ? ' class="cmp-diff"' : ""}>
-      <td class="ucol"><span class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</span>${diffTag(r.differs)}</td>` +
+      <td class="ucol"><span class="pol-link" data-polid="${esc(r.id)}">${esc(String(r.name || "").match(/\bCA\d{3,4}[A-Za-z]?\b/i)?.[0] || r.name)}</span>${diffTag(r.differs)}</td>` +
       r.cells.map((c) => `<td class="cellv ${CLS[c.s]}"${c.why ? ` title="${esc(c.why)}"` : ""}><span class="cell ${CLS[c.s]}">${SYM[c.s]}</span></td>`).join("") + "</tr>").join("");
     return `<div class="mwrap"><table class="mtable"><thead><tr><th class="ucol">Policy (${use.length})</th>${userHead(users)}</tr></thead>
       <tbody>${body || `<tr><td class="mini" style="padding:16px" colspan="${users.length + 1}">${diffOnly ? "No differences — this sign-in hits the same policies for every user." : "No policies evaluated."}</td></tr>`}</tbody></table></div>`;
