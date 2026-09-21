@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25400, date: "2026-09-21", title: "The beta site signs in with its own single-tenant registration",
+    items: [
+      { kind: "improved", tool: "Sign-in", text: "This pre-production site now signs in, by default, with a single-tenant app registration in the publisher's own directory rather than with the multi-tenant application the hosted site uses. Beta is where a registration change is tried first, and trying it on the application every tenant signs in with is not trying it. Nothing changes on the hosted site or on a self-hosted copy: the default is keyed on this host's name alone, and everywhere else falls through to the registration the copy ships with. The \u2699 connection control still outranks it, so another tenant or another registration is one choice away." },
+    ],
+  },
+  {
     build: 25399, date: "2026-09-21", title: "The sign-in card chooses the tenant and the app registration",
     items: [
       { kind: "new", tool: "Sign-in", text: "You can now sign in to another tenant, or with your own app registration, from the sign-in card itself \u2014 the \u2699 control under the Sign in button. A connection is a name, an optional Application (client) ID and a tenant (a tenant ID, a verified domain, or organizations for any work or school tenant); leave the client ID empty to keep the registration this copy ships with and change only the directory you sign in to, which is what a customer tenant needs. Connections are saved in this browser, switched from a list, and Default always restores what the copy was served with. Until now the only way to change either was to edit js/authConfig.js or serve a js/authConfig.local.js beside it \u2014 a deployment-time act that changes the file every visitor gets; that file still works and is still the right thing for an organisation standing up its own copy." },

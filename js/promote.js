@@ -119,6 +119,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 229,
+      title: "\u2699 The beta host's own single-tenant app registration \u2014 NEVER PROMOTE",
+      tools: ["Sign-in"],
+      builds: [25400],
+      risk: "low",
+      what: "js/authConfig.js gains AUTH_HOSTS, a hostname-keyed default merged between the shipped values and window.ENCA_AUTH. One entry: BRANDING.betaHost signs in with a single-tenant registration in the publisher's own directory. Every other host \u2014 production, a container, localhost, a fork \u2014 misses the key and is unaffected.",
+      why: "Mihai, 21 Sep: beta should default to the registration he had just created. Beta is where a registration change is tried first, and trying it on the application every customer signs in with is not trying it. Single-tenant also means the app cannot be reached from any other directory, which is the right blast radius for a test site on a public github.io address.",
+      carveout: "DO NOT PORT AUTH_HOSTS TO main. It names the publisher's own tenant and registration and would ship in the production build and in the :latest image, where the key can never match and the block is nothing but a tenant ID in somebody else's copy. When porting js/authConfig.js, take the header comment and the js/connection.js precedence note and leave AUTH_HOSTS behind; main keeps the plain two-argument Object.assign.",
+      test: [
+        "The beta site: the sign-in card reads Single-tenant, the \u2699 panel's Default entry names the beta client ID and tenant, and signing in reaches the publisher's tenant without an account picker.",
+        "The beta site, signed in: the \u2753 Permissions panel and the PowerShell consent snippet quote the BETA client ID, not the shared one \u2014 they read AUTH_CONFIG like everything else.",
+        "enca.limon-it.nl on the same build (were it ever served there) and a container from the :beta image on any other hostname: the card reads Multi-tenant and the shipped client ID, proving the key is host-scoped and not branch-scoped.",
+        "A saved \u2699 connection on the beta host still wins over the host default, and Default restores the BETA registration there \u2014 not the shipped one.",
+        "The beta site's URL is registered as a SPA redirect URI on the beta registration, or every sign-in there is AADSTS50011. Check before the first push, not after.",
+      ],
+      files: ["js/authConfig.js", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 228,
       title: "\u2699 The sign-in card chooses the tenant and the app registration",
       tools: ["Sign-in"],
