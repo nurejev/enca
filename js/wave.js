@@ -231,7 +231,7 @@ const Wave = (() => {
   const dot = (cls) => `<span class="wo-dot ${cls}"></span>`;
   const stateHtml = (st) => `<span class="wo-state ${st}">${dot(st)}${STATE_LABEL[st]}</span>`;
   const pill = (n, cls) => `<span class="pill ${n ? cls : "zero"}">${n}</span>`;
-  const policyLabel = (r) => r.seq || String(r.name || "").match(/\bCA\d{3,4}[A-Za-z]?\b/i)?.[0] || r.name || r.id;
+  const policyLabel = (r) => r.name || r.id;
   const polLink = (r) => `<span class="pol-link" data-polid="${esc(r.id)}" title="${esc(r.name)}">${esc(policyLabel(r))}</span>`;
   const controlsHtml = (r) => {
     const c = (r.controls || []).map((x) => `<span class="ctrl${/^block/i.test(String(x)) ? " block" : ""}">${esc(x)}</span>`);
@@ -365,7 +365,7 @@ const Wave = (() => {
           <div class="wo-verdicts wo-3" style="margin:0 0 10px">
             <div class="wo-vt ${rk.atRisk.length ? "bad" : "ok"}"><span class="k">Members at risk</span><span class="v">${rk.atRisk.length}</span><span class="s">${rk.atRisk.length ? ["high", "medium", "low"].map((l) => [l, rk.atRisk.filter((m) => lc(m.risk.level) === l).length]).filter(([, n]) => n).map(([l, n]) => `${n} ${l}`).join(" · ") : "Identity Protection flags nobody in the wave"}</span></div>
             <div class="wo-vt ${rk.risky.length ? "warn" : "ok"}"><span class="k">Risky sign-ins · ${esc(rangeLabel)}</span><span class="v">${rk.risky.length}</span><span class="s">member${rk.risky.length === 1 ? "" : "s"} with a risky sign-in in the window</span></div>
-            <div class="wo-vt ${rk.fires.length ? "bad" : "ok"}"><span class="k">Risk policies firing now</span><span class="v">${rk.fires.length}</span><span class="s">${rk.fires.length ? rk.fires.map((P) => `${esc(P.seq || P.name)} on ${P.members.length}`).join(" · ") : `${res.riskPolicies.length} risk-based polic${res.riskPolicies.length === 1 ? "y aims" : "ies aim"} at the wave, none fires on anyone as they stand`}</span></div>
+            <div class="wo-vt ${rk.fires.length ? "bad" : "ok"}"><span class="k">Risk policies firing now</span><span class="v">${rk.fires.length}</span><span class="s">${rk.fires.length ? rk.fires.map((P) => `${esc(P.name)} on ${P.members.length}`).join(" · ") : `${res.riskPolicies.length} risk-based polic${res.riskPolicies.length === 1 ? "y aims" : "ies aim"} at the wave, none fires on anyone as they stand`}</span></div>
           </div>
           ${res.riskPolicies.length ? `<p class="mini" style="margin:0 0 8px">Risk-based policies aimed at the wave: ${res.riskPolicies.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${esc(policyLabel(P))}</span>${P.state === "ro" ? " (report-only)" : ""} <span class="muted">— ${[P.userRisk.length ? `user risk ${P.userRisk.join("/")}` : "", P.signInRisk.length ? `sign-in risk ${P.signInRisk.join("/")}` : "", P.insiderRisk.length ? `insider risk ${P.insiderRisk.join("/")}` : ""].filter(Boolean).join(", ")} · reaches ${P.reach}</span>`).join("<br>")}</p>` : '<p class="mini muted" style="margin:0 0 8px">No risk-based policy reaches this wave.</p>'}
           ${listed.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Member</th><th>User risk</th><th>Since</th><th>Risky sign-ins</th><th>Fires</th></tr></thead><tbody>
@@ -373,7 +373,7 @@ const Wave = (() => {
               <td>${m.risk && m.risk.err ? `<span class="muted">not read — ${esc(m.risk.err)}</span>` : `<span class="wo-res ${m.risk && m.risk.atRisk ? (lc(m.risk.level) === "high" ? "blk" : "int") : "nc"}">${RS_LABEL[(m.risk || {}).state] || esc((m.risk || {}).state || "No risk")}</span>${m.risk && m.risk.atRisk ? ` <span class="mini">${esc(m.risk.level)}</span>` : ""}${m.risk && m.risk.detail && m.risk.detail !== "none" ? `<div class="mini muted">${esc(m.risk.detail)}</div>` : ""}`}</td>
               <td class="mini">${m.risk && m.risk.updated ? esc(String(m.risk.updated).slice(0, 10)) : "—"}</td>
               <td>${rsum(m)}</td>
-              <td class="mini">${m.risk && m.risk.fires && m.risk.fires.length ? m.risk.fires.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${esc(P.seq || P.name)}</span>`).join(", ") : '<span class="muted">—</span>'}</td></tr>`).join("")}
+              <td class="mini">${m.risk && m.risk.fires && m.risk.fires.length ? m.risk.fires.map((P) => `<span class="pol-link" data-polid="${esc(P.id)}">${esc(P.name)}</span>`).join(", ") : '<span class="muted">—</span>'}</td></tr>`).join("")}
           </tbody></table></div>${listed.length > 60 ? `<p class="mini muted" style="margin-top:6px">${listed.length - 60} more — export CSV for all.</p>` : ""}` : '<p class="mini muted">Nobody in the wave is flagged, remediated or has a risky sign-in in the window.</p>'}
           <p class="mini muted" style="margin-top:8px">User risk is Identity Protection's (needs Entra ID P2 to be populated); risky sign-ins are the members' own records in the shared window. Click a member for her full picture in 🕵 Who is Anna to CA. Nothing here changes the tenant.</p>
         </div>`;

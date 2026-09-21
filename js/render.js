@@ -181,7 +181,7 @@ const Render = (() => {
     return `<div class="pcard${opts.export ? " neutral" : ""}" data-card="${esc(p.id)}">
       <div class="pcard-head">
         ${headLogo}
-        <div style="flex:1"><h3>${p.seq} — ${esc(p.name)}</h3>
+        <div style="flex:1"><h3>${esc(p.name)}</h3>
           <div class="meta">Modified ${p.modified}${tenantName ? " · " + esc(tenantName) : ""}</div></div>
         ${stateChip(p.state)}
       </div>

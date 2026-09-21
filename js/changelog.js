@@ -28,6 +28,7 @@
 // Newest release first.
 // ======================================================================
 const CHANGELOG = [
+  {build:25404,date:"2026-09-21",title:"Original policy names in T36",items:[{kind:"improved",tool:"Who is … to CA",text:"Policy references show the full original name, including its own CA number. Removes the number-only labels from the previous build and omits an additional ENCA sequence prefix. The policy detail heading also uses the original name without that prefix. T36 remains in the navigation rail."}]},
   {build:25403,date:"2026-09-21",title:"T36 in the navigation rail",items:[{kind:"improved",tool:"Who is … to CA",text:"T36 has a shortcut in the navigation rail. Policy links in its user, group and comparison views display the CA policy number; policies without a CA number retain their name. Links still open the original policy details."}]},
   {build:25402,date:"2026-09-21",title:"All tools on Overview and connection identity",items:[
     {kind:"improved",tool:"Navigation",text:"Overview lists every tool in expandable groups, including Guided rollout and Changes as full tool cards. Permissions in this session opens as its own workspace. Appearance is now labelled Theme."},
