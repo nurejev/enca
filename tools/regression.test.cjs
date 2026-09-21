@@ -569,3 +569,17 @@ test('exclusions evidence: the cell card says the same thing the title used to, 
  assert.equal(odd.excluded,true);
  assert.equal(E.evidence(m,users,'nobody','p2','users'),null);
 });
+
+// ---- 25418: the pins are chips, the banner is only the policy strip ----
+test('exclusions: pins render as removable chips and the banner names only the policy',()=>{
+ const E=exModule({});
+ const m=E.collect([expol('p1','All users',{excUsers:['u1']}),expol('p2','Second',{excUsers:['u1']})]);
+ m.entities.forEach(e=>{e.name='User one';});
+ const chips=E.focusChips(m,[],{row:'user:u1',col:'p2'});
+ assert.match(chips,/data-exunpin="row"[^>]*>🔎 User one ✕/);
+ assert.match(chips,/data-exunpin="col"[^>]*>📄 Second ✕/);
+ const html=E.renderMatrix(m,'all','',false,{col:'p2'});
+ assert.match(html,/class="ex-focus"/);assert.match(html,/Open policy/);
+ assert.doesNotMatch(html,/Filtered to|data-exclearfocus/);
+ assert.doesNotMatch(E.renderMatrix(m,'all','',false,{row:'user:u1'}),/class="ex-focus"/);
+});

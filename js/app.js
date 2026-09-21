@@ -9380,6 +9380,7 @@ This is a directory write. Nothing else changes.`)) return;
     wrap.style.maxHeight = Math.max(280, Math.round(window.innerHeight - chrome - 28)) + "px";
   }
   window.addEventListener("resize", syncExFocusTop);
+  window.addEventListener("resize", () => { if (exModel && !exBusy && exTab === "matrix" && window.innerWidth <= 700) { exTab = "entities"; Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === exTab)); renderExclusions(); } });
   function renderExclusions() {
     if (exBusy) return;           // the busy panel owns the screen
     if (!exModel) { exIdle(); return; }
@@ -9387,14 +9388,19 @@ This is a directory write. Nothing else changes.`)) return;
       + RunMeta.strip(exRunMeta, runContext(), { staleHint: "The policies were reloaded after this scan — rescan to see them." });
     const counts = {};
     exModel.entities.forEach(e => counts[e.kind] = (counts[e.kind] || 0) + 1);
-    $("exChips").innerHTML = exTab !== "users"
+    // Below ~700px the grids are not offered: the list carries the same facts.
+    if (exTab === "matrix" && window.innerWidth <= 700) exTab = "entities";
+    const focus = { row: exFocusRow, col: exFocusCol };
+    $("exChips").innerHTML = (exTab !== "users"
       ? [["all", `All (${exModel.entities.length})`], ...Object.entries(counts).sort((a, b) => Exclusions.KIND[a[0]].order - Exclusions.KIND[b[0]].order)
           .map(([k, n]) => [k, `${Exclusions.KIND[k].icon} ${Exclusions.KIND[k].label} (${n})`])]
           .map(([k, l]) => `<button class="fchip ${exKind === k ? "active" : ""}" data-exk="${k}">${l}</button>`).join("")
-      : "";
+      : "")
+      // What is narrowing the view, as removable chips (25418) — the row and
+      // column pins used to announce themselves in a banner above the grid.
+      + ((exTab === "matrix" || exTab === "users") ? Exclusions.focusChips(exModel, exUsers, focus) : "");
     $("exExpand").style.display = "";
     const full = Fs.isOpen();
-    const focus = { row: exFocusRow, col: exFocusCol };
     if (exTab === "entities") {
       $("exPager").style.display="none";$("exHint").style.display="none";$("exExpand").style.display="none";
       const q=exQuery.toLowerCase();
@@ -9412,6 +9418,16 @@ This is a directory write. Nothing else changes.`)) return;
       $("exPager").style.display = "none"; $("exHint").style.display = "none";
       $("exExpand").style.display = "none"; $("exChips").innerHTML = "";
       $("exBody").innerHTML = Exclusions.renderRisk(Exclusions.risk(exModel), exQuery);
+      return;
+    }
+    if ((exTab === "matrix" || exTab === "users") && exFocusRow && exFocusCol) {
+      // One row and one policy pinned is a question about one pair, and a grid
+      // with a single mark in it is a poor way to answer it. Draw the answer.
+      $("exPager").style.display = "none"; $("exHint").style.display = "none";
+      const ev = Exclusions.evidence(exModel, exUsers, exFocusRow, exFocusCol, exTab);
+      $("exBody").innerHTML = ev
+        ? `<div class="list-card ex-pair">${exEvidenceHtml(ev, exFocusRow, exFocusCol, { card: true })}</div>`
+        : '<p class="mini" style="padding:20px">That pair is not on this tab — remove one of the chips above.</p>';
       return;
     }
     if (exTab === "matrix") {
@@ -9434,6 +9450,8 @@ This is a directory write. Nothing else changes.`)) return;
     });
   }
   $("exChips").addEventListener("click", (e) => {
+    const un = e.target.closest("[data-exunpin]");
+    if (un) { if (un.dataset.exunpin === "row") exFocusRow = null; else exFocusCol = null; exPage = 0; renderExclusions(); return; }
     const b = e.target.closest("[data-exk]"); if (!b) return;
     // a pinned row may not exist under the new kind filter — drop it
     exKind = b.dataset.exk; exFocusRow = null; renderExclusions();
@@ -9510,18 +9528,14 @@ This is a directory write. Nothing else changes.`)) return;
     if (refocus && exPopAnchor && exPopAnchor.isConnected) exPopAnchor.focus();
     exPopAnchor = null;
   }
-  function openExPop(btn) {
-    const [rowKey, pid] = String(btn.dataset.excell).split("|");
-    const ev = Exclusions.evidence(exModel, exUsers, rowKey, pid, exTab);
-    if (!ev) return;
-    const pop = exPopEl();
+  function exEvidenceHtml(ev, rowKey, pid, opts = {}) {
     // The matrix has user ROWS too (a directly excluded account), so the
     // branch is the tab's shape, not the row's kind.
     const stateChip = ev.excluded === undefined
       ? (ev.state === "bypass" ? '<span class="vd none">✖ Effective bypass</span>' : ev.state === "configured" ? '<span class="vd unk">○ Configured only</span>' : ev.state === "unknown" ? '<span class="vd unk">? Not established</span>' : '<span class="tag">not excluded</span>')
       : (ev.excluded ? '<span class="tag block">✗ excluded</span>' : '<span class="tag new">⚠ odd one out</span>');
     const polState = ev.policy.state === "enabled" ? '<span class="tag block">On</span>' : ev.policy.state === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
-    pop.innerHTML = `<div class="ex-pop-h"><b>${esc(ev.title)}</b><span class="mini muted">${esc(ev.sub || "")}</span><button type="button" class="ex-pop-x" data-expopclose="1" aria-label="Close">✕</button></div>
+    return `<div class="ex-pop-h"><b>${esc(ev.title)}</b><span class="mini muted">${esc(ev.sub || "")}</span>${opts.card ? "" : '<button type="button" class="ex-pop-x" data-expopclose="1" aria-label="Close">✕</button>'}</div>
       <div class="ex-pop-b">
         <div class="mini"><b class="pol-link" data-polid="${esc(ev.policy.id)}">${esc(ev.policy.name)}</b> ${polState} <span class="muted">· ${ev.policy.exclusionCount} exclusion${ev.policy.exclusionCount === 1 ? "" : "s"}</span></div>
         <div style="margin:6px 0">${stateChip}${ev.coverage ? " " + CaCoverage.chip(ev.coverage.state) : ""}</div>
@@ -9532,9 +9546,16 @@ This is a directory write. Nothing else changes.`)) return;
       <div class="ex-pop-a">
         <button type="button" class="fchip pol-link" data-polid="${esc(ev.policy.id)}">Open policy</button>
         ${ev.actions.map((a) => a.kind === "members" ? `<button type="button" class="fchip" data-exmembers="${esc(a.key)}">${esc(a.label)}</button>` : "").join("")}
-        <button type="button" class="fchip" data-expin="row|${esc(rowKey)}">Only this row</button>
-        <button type="button" class="fchip" data-expin="col|${esc(pid)}">Only this policy</button>
+        ${opts.card ? "" : `<button type="button" class="fchip" data-expin="row|${esc(rowKey)}">Only this row</button>
+        <button type="button" class="fchip" data-expin="col|${esc(pid)}">Only this policy</button>`}
       </div>`;
+  }
+  function openExPop(btn) {
+    const [rowKey, pid] = String(btn.dataset.excell).split("|");
+    const ev = Exclusions.evidence(exModel, exUsers, rowKey, pid, exTab);
+    if (!ev) return;
+    const pop = exPopEl();
+    pop.innerHTML = exEvidenceHtml(ev, rowKey, pid);
     pop.hidden = false;
     exPopAnchor = btn;
     // Place it under the cell, kept inside the viewport.

@@ -802,6 +802,11 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .ex-grid td.cellv button.cell:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
 .ex-grid td.cellv .cell.cfg{color:var(--na);opacity:.85}
 .ex-legend{margin:0 2px 8px}
+/* one row and one policy pinned: the answer, as a card (25418) */
+.ex-pair{padding:14px 16px;max-width:720px}
+.ex-pair .ex-pop-h b{font-size:16px}
+/* the grids are not offered on narrow screens — the list carries the same facts */
+@media(max-width:700px){#exTabMatrix{display:none}}
 /* the evidence popover */
 .ex-pop{position:fixed;z-index:420;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
   padding:10px 12px 12px;font-size:13px;color:var(--ink);max-width:calc(100vw - 16px)}

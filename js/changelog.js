@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25418, date: "2026-09-21", title: "What narrows the grid is a chip, not a side effect",
+    items: [
+      { kind: "improved", tool: "Exclusion analyzer", text: "Pinning a row or a policy used to change the grid silently and announce itself in a banner that appeared out of nowhere. It puts a removable chip in the toolbar now, beside the type chips \u2014 one place owns what is narrowing the view, and clicking the chip removes it. The banner above the grid is only the selected-policy strip: the full name, state, controls and exclusion count of the picked column." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "Pinning one row AND one policy draws the answer instead of a grid. That is a question about one pair, and a full-width grid with twelve headers and a single mark in it was a poor way to answer it. The evidence card for the pair is shown instead, with Open policy and View members on it; remove either chip to get the grid back." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "Below 700 pixels the Matrix tab is not offered. The Exclusions list carries the same facts, ranked, and a rotated-header grid on a phone was never readable." },
+    ],
+  },
+  {
     build: 25417, date: "2026-09-21", title: "The grids work by touch and by keyboard",
     items: [
       { kind: "new", tool: "Exclusion analyzer", text: "Every marked cell in the Matrix and Effective users grids is a button that opens an EVIDENCE card: who, why (named directly, member of which excluded group, through which nested group or a route that could not be read), the policy\u2019s state, and the verdict \u2014 effective bypass, configured only or not established for a user; the coverage verdict for an excluded app; the odd-one-out sentence for a gap. The card offers Open policy, View members, Only this row and Only this policy. The same words used to be a hover title, which a finger never sees and a keyboard never reaches." },

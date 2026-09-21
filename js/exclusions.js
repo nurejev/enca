@@ -674,16 +674,28 @@ const Exclusions = (() => {
   // The banner is also the SELECTED-POLICY STRIP (25417): with the column
   // headers capped, the full policy name, its state, what it enforces and how
   // many exclusions it carries live here rather than in 237px of rotated text.
+  // Since 25418 the FILTER lives in the toolbar as removable chips — one place
+  // owns what is narrowing the view. What stays above the grid is the
+  // selected-policy strip: the full name, state, controls and exclusion count
+  // the capped header no longer has room for.
   function focusBanner(rowLabel, colPol) {
-    if (!rowLabel && !colPol) return "";
-    const bits = [];
-    if (rowLabel) bits.push(`<b>${esc(rowLabel)}</b>`);
-    if (colPol) {
-      const g = (colPol.raw && colPol.raw.grantControls) || {};
-      const ctl = [...(g.builtInControls || []), ...(g.authenticationStrength ? ["auth strength"] : [])].join(g.operator === "OR" ? " or " : " + ") || "no grant control";
-      bits.push(`policy <b>${esc(colPol.name)}</b> ${stateTagOf(colPol.state)} <span class="mini muted">${esc(ctl)} · ${colPol.exclusionCount} exclusion${colPol.exclusionCount === 1 ? "" : "s"}</span> <button type="button" class="fchip pol-link" data-polid="${esc(colPol.id)}">Open policy</button>`);
+    if (!colPol) return "";
+    const g = (colPol.raw && colPol.raw.grantControls) || {};
+    const ctl = [...(g.builtInControls || []), ...(g.authenticationStrength ? ["auth strength"] : [])].join(g.operator === "OR" ? " or " : " + ") || "no grant control";
+    return `<div class="ex-focus"><span class="mini muted">Policy</span> <b>${esc(colPol.name)}</b> ${stateTagOf(colPol.state)} <span class="mini muted">${esc(ctl)} · ${colPol.exclusionCount} exclusion${colPol.exclusionCount === 1 ? "" : "s"}</span> <button type="button" class="fchip pol-link" data-polid="${esc(colPol.id)}">Open policy</button></div>`;
+  }
+  // The chips that say what is narrowing the view, drawn in the toolbar.
+  function focusChips(model, users, focus) {
+    const out = [];
+    if (focus.row) {
+      const e = model.entities.find((x) => x.key === focus.row) || (users || []).find((x) => x.id === focus.row);
+      if (e) out.push(`<button type="button" class="fchip active" data-exunpin="row" title="Showing only the policies for this row — click to remove">🔎 ${esc(e.name)} ✕</button>`);
     }
-    return `<div class="ex-focus">🔎 Filtered to ${bits.join(" × ")} — only in-scope ${rowLabel && !colPol ? "policies" : colPol && !rowLabel ? "exclusions" : "cells"} shown.<button class="fchip" data-exclearfocus="1">✕ Clear filter</button></div>`;
+    if (focus.col) {
+      const p = model.policies.find((x) => x.id === focus.col);
+      if (p) out.push(`<button type="button" class="fchip active" data-exunpin="col" title="Showing only the rows in scope for this policy — click to remove">📄 ${esc(p.name)} ✕</button>`);
+    }
+    return out.join("");
   }
   // What clicking does, said above the grid instead of left to be discovered.
   const gridLegend = (tab) => `<p class="mini muted ex-legend">${tab === "users"
@@ -1093,5 +1105,5 @@ const Exclusions = (() => {
     return L.join("\n");
   }
 
-  return { collect, resolve, appCoverage, effectiveUsers, risk, summary, renderSummary, renderGroups, renderMatrix, renderUsers, renderRisk, toCsv, toMd, evidence, KIND };
+  return { collect, resolve, appCoverage, effectiveUsers, risk, summary, renderSummary, renderGroups, renderMatrix, renderUsers, renderRisk, toCsv, toMd, evidence, focusChips, KIND };
 })();

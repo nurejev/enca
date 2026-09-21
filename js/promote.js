@@ -119,6 +119,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 240,
+      title: "\ud83d\udeaa Filters as chips, the pair card, no Matrix on narrow screens",
+      tools: ["Exclusion analyzer"],
+      builds: [25418],
+      risk: "medium",
+      what: "js/exclusions.js: focusBanner renders only the selected-policy strip (no Filtered-to wording, no clear button); NEW focusChips(model, users, focus) renders the row and column pins as removable fchips. js/app.js: renderExclusions draws the chips beside the type chips on both grid tabs, handles data-exunpin, and when both a row and a column are pinned renders the evidence card (exEvidenceHtml, shared with the cell popover) instead of a grid; on a viewport at or under 700px the matrix tab falls back to the Exclusions list, on open and on resize. css/app.css: .ex-pair and the media rule hiding #exTabMatrix.",
+      why: "MEDIUM \u2014 this is the one build of the three that changes how the tool is used: the filter stops being an invisible mode toggled by clicking a label. Nothing is lost \u2014 every pin is still one click, now visible and removable where the other filters live. The pair card replaces the least useful screen the tool had.",
+      test: [
+        "Matrix: click a row label. A chip with the row\u2019s name appears beside the type chips, the grid narrows to that row\u2019s policies, and no banner is drawn. Click the chip: the grid is whole again.",
+        "Click a policy header: a chip with the policy name appears, and the strip above the grid names the policy with its state, controls and exclusion count. Both chips can be active at once.",
+        "With both a row and a policy pinned, the body is the evidence card for that pair \u2014 not a grid \u2014 and removing either chip brings the grid back. Falsifiable: on 25417 that state drew a full grid with one mark.",
+        "Effective users: the same three checks, with the user\u2019s name on the row chip.",
+        "Resize the window under 700px with Matrix open: the tool switches to the Exclusions list and the Matrix tab button is hidden; widen it again and the button returns.",
+        "The cell popover\u2019s Only this row / Only this policy buttons produce the same chips.",
+        "Regression: tools/regression.test.cjs passes.",
+      ],
+      files: ["js/exclusions.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 239,
       title: "\ud83d\udeaa Cell evidence on click, a keyboard grid, capped headers",
       tools: ["Exclusion analyzer"],
