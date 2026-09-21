@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 228,
+      title: "\u2699 The sign-in card chooses the tenant and the app registration",
+      tools: ["Sign-in"],
+      builds: [25399],
+      risk: "medium",
+      what: "NEW js/connection.js \u2014 a connection store in localStorage (enca-connections: { v, active, list:[{id,name,clientId,authority,at}] }) applied to AUTH_CONFIG at script-parse time, between js/authConfig.js and js/graph.js, plus the \u2699 panel it mounts into the sign-in card. index.html: the <details id=\"loginConn\"> markup under the pop-up link, the script tag, and a sentence in the Security block of Help. css/app.css: .login-conn and the .conn-* rules. js/app.js: the AADSTS50011 and AADSTS700016 hints point at the chosen registration, and showSignInError names the active connection. Only clientId and authority are settable \u2014 scopes and graphBase deliberately are not. A switch clears MSAL\u2019s sessionStorage keys and reloads, because a PublicClientApplication cannot be repointed at another client ID once constructed.",
+      why: "Mihai, 21 Sep: he had just created a single-tenant registration and wanted to sign in with it, and to switch tenants, without editing a file. Until now both were deployment-time acts (js/authConfig.js, or js/authConfig.local.js served beside it) \u2014 right for an organisation standing up its own copy, wrong for an MSP moving between customer directories. MEDIUM, not low: this is the sign-in path on every host, and a fault here is not a broken tool but a site nobody can get into. The default path is untouched \u2014 with no stored connection, AUTH_CONFIG is exactly what the file says \u2014 which is what makes it promotable at all.",
+      test: [
+        "Production host, no connection ever saved: the card looks as it did, the audience line still reads Multi-tenant, and sign-in works. Confirm localStorage has no enca-connections key \u2014 the default path must not write one.",
+        "Add a connection with only a tenant (your own tenant ID, client ID left empty): the page reloads, the summary names it, the card reads Single-tenant, and sign-in goes straight to that directory without an account picker across tenants.",
+        "Add a connection with the new single-tenant client ID and its tenant ID: the Microsoft consent screen names THAT application in THAT tenant. Then Default: the next sign-in is the shipped registration again \u2014 no token from the previous one is reused (check sessionStorage holds no msal.* keys for the old client ID after the switch).",
+        "Wrong on purpose: a client ID that is not a GUID is refused in the form, with the reason, before any sign-in. A well-formed client ID that is not an app in the named tenant fails with AADSTS700016 and the error box names the connection used.",
+        "A registration WITHOUT this origin as a SPA redirect URI fails with AADSTS50011, and the panel's redirect line shows the exact string that is missing.",
+        "Private window / site data blocked: the panel still renders, saving reports that the browser will not store the choice, and the sign-in card keeps working on the shipped registration.",
+        "A self-hosted copy with js/authConfig.local.js: with no connection selected the file still wins; with one selected the connection wins and the self-hosted notice and the audience line both describe the connection, not the file.",
+        "Beta and production both: the \u2699 panel is NOT host-gated on purpose \u2014 confirm it appears on enca.limon-it.nl too, and that Default is preselected there.",
+      ],
+      files: ["js/connection.js", "index.html", "css/app.css", "js/app.js", "js/version.js", "js/changelog.js", "js/promote.js", "SINGLE-TENANT.md"],
+    },
+    {
       n: 224,
       title: "📐 CIS Benchmark (T21) — beta AND the CloudFellows tenant only; production 316 removes it from that build",
       tools: ["CIS Benchmark"],

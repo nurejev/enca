@@ -26,21 +26,21 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25398"></script>
+<script src="js/popup-guard.js?v=25399"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25398" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25398">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25399" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25399">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25398"></script>
+<script src="js/selfhost-boot.js?v=25399"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25398"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25398"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25398">
+<script src="js/counter.js?v=25399"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25399"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25399">
 </head>
 <body>
 
@@ -48,7 +48,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25398" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25399" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -100,7 +100,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25398" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25399" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -112,6 +112,43 @@
            on, not something you dismiss. -->
       <div class="login-err" id="loginErr" style="display:none"></div>
       <p class="login-alt"><a href="#" id="noPopupLink">Pop-up not working? Sign in without one →</a></p>
+      <!-- ⚙ CONNECTION — which app registration, and which tenant (build 25399).
+           The registration used to be a deployment-time fact: edit js/authConfig.js,
+           or serve a js/authConfig.local.js beside it. That is right for an
+           organisation standing up its own copy and wrong for the two things done
+           daily — signing in to ANOTHER tenant (a customer's directory; an
+           authority change that needs no new registration at all), and trying a
+           registration you have just created before committing it to a file.
+           Filled and wired by js/connection.js; the choice lives in THIS BROWSER
+           and never reaches the site, a server or any tenant. -->
+      <details class="login-conn" id="loginConn">
+        <summary id="connSummary">⚙ Sign in to another tenant, or with your own app registration</summary>
+        <div class="conn-body">
+          <div class="conn-row"><label for="connPick">Connection</label><select id="connPick"></select></div>
+          <div class="conn-cur" id="connCur"></div>
+          <div class="conn-actions">
+            <button type="button" class="btn sm" id="connAdd">＋ Add</button>
+            <button type="button" class="btn sm" id="connEdit" style="display:none">✎ Edit</button>
+            <button type="button" class="btn sm" id="connForget" style="display:none">✕ Forget</button>
+          </div>
+          <form class="conn-form" id="connForm" style="display:none">
+            <label for="connName">Name</label>
+            <input id="connName" type="text" autocomplete="off" maxlength="60" placeholder="Contoso — own registration">
+            <label for="connClient">Application (client) ID</label>
+            <input id="connClient" type="text" autocomplete="off" spellcheck="false" placeholder="00000000-1111-2222-3333-444444444444">
+            <p class="conn-hint">Leave empty to keep the registration this copy ships with and change only the tenant.</p>
+            <label for="connTenant">Tenant</label>
+            <input id="connTenant" type="text" autocomplete="off" spellcheck="false" placeholder="contoso.onmicrosoft.com, a tenant ID, or organizations">
+            <p class="conn-hint">A tenant ID or verified domain signs in to that directory only — which is what a single-tenant registration needs. <code>organizations</code> is the shared endpoint: any work or school tenant.</p>
+            <div class="conn-err" id="connErr" style="display:none"></div>
+            <div class="conn-actions">
+              <button type="submit" class="btn primary sm">Save &amp; use</button>
+              <button type="button" class="btn sm" id="connCancel">Cancel</button>
+            </div>
+          </form>
+          <p class="conn-hint conn-redirect" id="connRedirect"></p>
+        </div>
+      </details>
       <!-- Filled in by markSelfHostedLogin() in js/app.js, and ONLY on a host
            that is neither BRANDING.host nor BRANDING.betaHost. The ribbon at
            the top of the page is a glance; this is the same fact stated where
@@ -323,6 +360,8 @@
       <h4>Security</h4>
       <p>Everything runs in your browser — there is no backend and tenant data stays in browser memory and is exchanged directly with the relevant Microsoft API; downloaded exports are files you keep.
         Sign-in uses Microsoft Entra (MSAL, authorization code flow with PKCE, no client secret); tokens live in session storage and are gone when the tab closes.
+        The <b>⚙ connection</b> control on the sign-in card chooses <i>which app registration and which tenant</i> that sign-in uses — the registration this copy ships with, or one of your own, named by its client ID.
+        It sets only those two things (never the permissions asked for, nor which Graph endpoint is called), the choice is kept in this browser and sent nowhere, and whichever registration you name must carry this page's address as a SPA redirect URI.
         Graph tokens are attached only to <code>graph.microsoft.com</code>; optional Azure RBAC reads use a separate token for <code>management.azure.com</code> (both hostname-validated), a strict Content-Security-Policy is enforced,
         and all JavaScript libraries are self-hosted — nothing loads from third-party CDNs at runtime.
         Exports are generated locally on your machine and carry your tenant's branding, not this tool's.</p>
@@ -3085,76 +3124,77 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25398"></script>
-<script src="js/selfhost.js?v=25398"></script>
-<script src="js/version.js?v=25398"></script>
-<script src="js/verdict.js?v=25398"></script>
-<script src="js/fork.js?v=25398"></script>
-<script src="js/promote.js?v=25398"></script>
-<script src="js/authConfig.js?v=25398"></script>
-<script src="js/labels.js?v=25398"></script>
-<script src="js/capabilities.js?v=25398"></script>
-<script src="js/graph.js?v=25398"></script>
-<script src="js/model.js?v=25398"></script>
-<script src="js/render.js?v=25398"></script>
-<script src="js/analyze.js?v=25398"></script>
-<script src="js/whatif.js?v=25398"></script>
-<script src="js/mslearn.js?v=25398"></script>
-<script src="js/gapcheck.js?v=25398"></script>
-<script src="js/cisdata.js?v=25398"></script>
-<script src="js/cischeck.js?v=25398"></script>
-<script src="js/exclusions.js?v=25398"></script>
-<script src="js/cascope.js?v=25398"></script>
-<script src="js/validator.js?v=25398"></script>
-<script src="js/whatifeval.js?v=25398"></script>
-<script src="js/compare.js?v=25398"></script>
-<script src="js/whois.js?v=25398"></script>
-<script src="js/wave.js?v=25398"></script>
-<script src="js/sessionctl.js?v=25398"></script>
-<script src="js/spgap.js?v=25398"></script>
-<script src="js/groupuse.js?v=25398"></script>
-<script src="js/iso3166.js?v=25398"></script>
-<script src="js/causes.js?v=25398"></script>
-<script src="js/locations.js?v=25398"></script>
-<script src="js/authcontexts.js?v=25398"></script>
-<script src="js/authstrengths.js?v=25398"></script>
-<script src="js/recycle.js?v=25398"></script>
-<script src="js/rmau.js?v=25398"></script>
-<script src="js/camap.js?v=25398"></script>
-<script src="js/rmaudoc.js?v=25398"></script>
-<script src="js/termsofuse.js?v=25398"></script>
-<script src="js/audit.js?v=25398"></script>
-<script src="js/drift.js?v=25398"></script>
-<script src="js/guide.js?v=25398"></script>
-<script src="js/userimpact.js?v=25398"></script>
-<script src="js/smsvoice.js?v=25398"></script>
-<script src="js/memberof.js?v=25398"></script>
-<script src="js/devcheck.js?v=25398"></script>
-<script src="js/licgap.js?v=25398"></script>
-<script src="js/teamsdev.js?v=25398"></script>
-<script src="js/signinstore.js?v=25398"></script>
-<script src="js/signins.js?v=25398"></script>
-<script src="js/reportimpact.js?v=25398"></script>
-<script src="js/changelog.js?v=25398"></script>
-<script src="js/baselineData.js?v=25398"></script>
-<script src="js/baselineJoeyData.js?v=25398"></script>
-<script src="js/baselineLive.js?v=25398"></script>
-<script src="js/baseline.js?v=25398"></script>
-<script src="js/baselineCleanup.js?v=25398"></script>
-<script src="js/groupTemplates.js?v=25398"></script>
-<script src="js/assign.js?v=25398"></script>
-<script src="js/cagroups.js?v=25398"></script>
-<script src="js/groupsview.js?v=25398"></script>
-<script src="js/runledger.js?v=25398"></script>
-<script src="js/protect.js?v=25398"></script>
-<script src="js/policy-compare.js?v=25398"></script>
-<script src="js/import.js?v=25398"></script>
-<script src="js/export.js?v=25398"></script>
-<script src="js/demo.js?v=25398"></script>
-<script src="js/workspace.js?v=25398"></script>
-<script src="js/analysis-jobs.js?v=25398"></script>
-<script src="js/search-suggest.js?v=25398"></script>
-<script src="js/app.js?v=25398"></script>
-<script src="js/accessibility.js?v=25398"></script>
+<script src="js/branding.js?v=25399"></script>
+<script src="js/selfhost.js?v=25399"></script>
+<script src="js/version.js?v=25399"></script>
+<script src="js/verdict.js?v=25399"></script>
+<script src="js/fork.js?v=25399"></script>
+<script src="js/promote.js?v=25399"></script>
+<script src="js/authConfig.js?v=25399"></script>
+<script src="js/connection.js?v=25399"></script>
+<script src="js/labels.js?v=25399"></script>
+<script src="js/capabilities.js?v=25399"></script>
+<script src="js/graph.js?v=25399"></script>
+<script src="js/model.js?v=25399"></script>
+<script src="js/render.js?v=25399"></script>
+<script src="js/analyze.js?v=25399"></script>
+<script src="js/whatif.js?v=25399"></script>
+<script src="js/mslearn.js?v=25399"></script>
+<script src="js/gapcheck.js?v=25399"></script>
+<script src="js/cisdata.js?v=25399"></script>
+<script src="js/cischeck.js?v=25399"></script>
+<script src="js/exclusions.js?v=25399"></script>
+<script src="js/cascope.js?v=25399"></script>
+<script src="js/validator.js?v=25399"></script>
+<script src="js/whatifeval.js?v=25399"></script>
+<script src="js/compare.js?v=25399"></script>
+<script src="js/whois.js?v=25399"></script>
+<script src="js/wave.js?v=25399"></script>
+<script src="js/sessionctl.js?v=25399"></script>
+<script src="js/spgap.js?v=25399"></script>
+<script src="js/groupuse.js?v=25399"></script>
+<script src="js/iso3166.js?v=25399"></script>
+<script src="js/causes.js?v=25399"></script>
+<script src="js/locations.js?v=25399"></script>
+<script src="js/authcontexts.js?v=25399"></script>
+<script src="js/authstrengths.js?v=25399"></script>
+<script src="js/recycle.js?v=25399"></script>
+<script src="js/rmau.js?v=25399"></script>
+<script src="js/camap.js?v=25399"></script>
+<script src="js/rmaudoc.js?v=25399"></script>
+<script src="js/termsofuse.js?v=25399"></script>
+<script src="js/audit.js?v=25399"></script>
+<script src="js/drift.js?v=25399"></script>
+<script src="js/guide.js?v=25399"></script>
+<script src="js/userimpact.js?v=25399"></script>
+<script src="js/smsvoice.js?v=25399"></script>
+<script src="js/memberof.js?v=25399"></script>
+<script src="js/devcheck.js?v=25399"></script>
+<script src="js/licgap.js?v=25399"></script>
+<script src="js/teamsdev.js?v=25399"></script>
+<script src="js/signinstore.js?v=25399"></script>
+<script src="js/signins.js?v=25399"></script>
+<script src="js/reportimpact.js?v=25399"></script>
+<script src="js/changelog.js?v=25399"></script>
+<script src="js/baselineData.js?v=25399"></script>
+<script src="js/baselineJoeyData.js?v=25399"></script>
+<script src="js/baselineLive.js?v=25399"></script>
+<script src="js/baseline.js?v=25399"></script>
+<script src="js/baselineCleanup.js?v=25399"></script>
+<script src="js/groupTemplates.js?v=25399"></script>
+<script src="js/assign.js?v=25399"></script>
+<script src="js/cagroups.js?v=25399"></script>
+<script src="js/groupsview.js?v=25399"></script>
+<script src="js/runledger.js?v=25399"></script>
+<script src="js/protect.js?v=25399"></script>
+<script src="js/policy-compare.js?v=25399"></script>
+<script src="js/import.js?v=25399"></script>
+<script src="js/export.js?v=25399"></script>
+<script src="js/demo.js?v=25399"></script>
+<script src="js/workspace.js?v=25399"></script>
+<script src="js/analysis-jobs.js?v=25399"></script>
+<script src="js/search-suggest.js?v=25399"></script>
+<script src="js/app.js?v=25399"></script>
+<script src="js/accessibility.js?v=25399"></script>
 </body>
 </html>

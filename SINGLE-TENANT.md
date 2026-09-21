@@ -119,6 +119,29 @@ When it finishes it prints the two values you need. Keep the window open.
 
 ## Step 3 — Point your copy at your registration
 
+### The quick route: the ⚙ control on the sign-in card
+
+From build 25399 you do not have to edit a file to *try* your registration.
+Open ENCA, and under the **Sign in with Microsoft** button open **⚙ Sign in to
+another tenant, or with your own app registration**. Add a connection with a
+name, the **Application (client) ID** the script printed, and your **tenant ID**
+(or a verified domain). The page reloads and signs in with that registration;
+**Default** restores whatever the copy was served with.
+
+That choice lives in **that browser profile only** — it is not written to the
+site, so it does not configure a deployment for anybody else, and a colleague
+opening the same URL still gets the shipped registration. Use it to verify the
+registration before you deploy anything, to move between customer directories,
+or to change only the *tenant* while keeping the shipped client ID (leave the
+client ID empty). For a copy your organisation serves to other people, the file
+below is still the answer.
+
+The same rule applies either way: the origin you open ENCA from must be a
+**SPA redirect URI** on that registration, or sign-in fails with `AADSTS50011`.
+The panel prints the exact string to register.
+
+### The deployment route: `js/authConfig.local.js`
+
 Create **`js/authConfig.local.js`** with the block the script printed:
 
 ```javascript
