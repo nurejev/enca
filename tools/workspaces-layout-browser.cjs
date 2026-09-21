@@ -56,7 +56,7 @@ const hosts=['toolSignins','toolAudit','toolAnalyze','toolWhoIs','toolWhatIf','t
    report.unavailable.push({width,theme,screens:all.filter(id=>!seen.has(id)),reason:'CIS is tenant-gated and unavailable in demo; no gate bypassed.'});
    assert.deepEqual(all.filter(id=>!seen.has(id)),['screen-cis']);
    await click('#toolPolicies');await click('#viewList');
-   await p.locator('#ptable .pname').first().click();await p.locator('#detailModal.open').waitFor();
+   if(await p.locator('#workspaceInspector').isVisible())await p.locator('[data-inspector-close]').click();await p.locator('#ptable .pname').first().click();await p.locator('[data-inspector-detail]').click();await p.locator('#detailModal.open').waitFor();
    const box=await p.locator('#detailBody').boundingBox();
    const backdrop=await p.locator('#detailModal').boundingBox();
    assert.ok(Math.abs(box.x+box.width/2-(backdrop.x+backdrop.width/2))<2);assert.ok(box.height<=980);
@@ -70,12 +70,12 @@ const hosts=['toolSignins','toolAudit','toolAnalyze','toolWhoIs','toolWhatIf','t
    assert.equal(await p.locator('#detailModal').isVisible(),true);
    await p.locator('#detailBody [data-pact="document"]').click();await p.locator('#exportModal.open').waitFor();
    await p.locator('#expCancel').click();
-   await p.locator('#ptable .pname').first().click();await p.locator('#detailModal.open').waitFor();
+   if(await p.locator('#workspaceInspector').isVisible())await p.locator('[data-inspector-close]').click();await p.locator('#ptable .pname').first().click();await p.locator('[data-inspector-detail]').click();await p.locator('#detailModal.open').waitFor();
    await p.keyboard.press('Escape');await p.locator('#detailModal').waitFor({state:'hidden'});
-   assert.equal(await p.locator('#ptable .pname').first().evaluate(el=>el===document.activeElement),true);
-   await p.locator('#ptable .pname').first().click();await p.locator('#detailModal.open').waitFor();
+   assert.equal(await p.locator('[data-inspector-detail]').evaluate(el=>el===document.activeElement),true);
+   if(await p.locator('#workspaceInspector').isVisible())await p.locator('[data-inspector-close]').click();await p.locator('#ptable .pname').first().click();await p.locator('[data-inspector-detail]').click();await p.locator('#detailModal.open').waitFor();
    await p.locator('#detailBody .wc-detail-top button').click();await p.locator('#detailModal').waitFor({state:'hidden'});
-   await p.locator('#ptable .pname').first().click();await p.locator('#detailModal.open').waitFor();
+   if(await p.locator('#workspaceInspector').isVisible())await p.locator('[data-inspector-close]').click();await p.locator('#ptable .pname').first().click();await p.locator('[data-inspector-detail]').click();await p.locator('#detailModal.open').waitFor();
    await p.locator('#detailModal').click({position:{x:2,y:2}});await p.locator('#detailModal').waitFor({state:'hidden'});
    await click('#viewCards');await p.locator('#cardsView [data-open]').first().click();await p.locator('#detailModal.open').waitFor();
    assert.equal(await p.locator('#detailBody .wc-detail-top').count(),1);await p.keyboard.press('Escape');

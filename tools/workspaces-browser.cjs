@@ -56,10 +56,10 @@ const report={date:new Date().toISOString(),baseBuild:build,errors:[],navigation
   await p.locator('#wcRail [data-wc-tool="toolSignins"]').click();
   await p.locator('#toolNav [data-nav="toolPolicies"]').click();
   assert.equal(await p.locator('#searchBox').inputValue(),'CA200-GRANT');assert.equal(await p.locator('#selCount').textContent(),'1');
-  await p.locator('#ptable .pname').click();
+  await p.locator('#ptable .pname').click();await p.locator('[data-inspector-detail]').click();
   await p.locator('#detailModal.open').waitFor();
   assert.ok((await p.locator('#detailBody .pcard-head h3').textContent()).includes(name));
-  assert.equal(await p.locator('#workspaceInspector').isVisible(),false);
+  assert.equal(await p.locator('#workspaceInspector').isVisible(),true); // retained behind the wide modal for return
   assert.equal(await p.locator('#detailBody .sect').count(),6);
   assert.equal(await p.locator('#detailBody .wc-policy-definition').count(),1);
   const modal=await p.locator('#detailBody').boundingBox();

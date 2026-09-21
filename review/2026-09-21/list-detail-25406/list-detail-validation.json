@@ -1,0 +1,17 @@
+{
+  "checks": [
+    "Policy list/detail tabs, wide native modal, original name and return",
+    "toolAudit populated results, evidence, stable selection and wide/return",
+    "toolSignins populated results, evidence, stable selection and wide/return",
+    "toolLocations inventory list/detail",
+    "toolAuthCtx inventory list/detail",
+    "toolAuthStr inventory list/detail",
+    "toolTou inventory list/detail",
+    "toolRecycle inventory list/detail",
+    "Exclusion entities have detail and matrix remains available",
+    "User/Group reference and sweep panels preserve policy names and Not read evidence",
+    "Flat rail icons; 1440/390/320 populated detail layouts"
+  ],
+  "errors": [],
+  "liveTenant": false
+}

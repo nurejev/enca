@@ -3,18 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const icon = key => {
-    const paths = {
-      overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
-      toolPolicies:'<path d="M8 3h9l4 4v14H8zM17 3v5h4M4 7H3v14h1"/>',
-      toolSignins:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
-      toolBaseline:'<path d="m12 3 10 5-10 5L2 8zM2 12l10 5 10-5M2 16l10 5 10-5"/>',
-      toolGapCheck:'<path d="m12 3 8 3v6c0 5-8 9-8 9S4 17 4 12V6zM8 12l3 3 5-6"/>',
-      toolAnalyze:'<circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/>',
-      toolCaGroups:'<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M19 21v-3a6 6 0 0 0-2-4"/>',
-    };
-    return `<svg class="wc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.overview}</svg>`;
-  };
+  const icon = key => FlatIcons.tool(key);
   const blurbs = {
     toolPolicies: 'View policies as a list, cards or settings matrix.',
     toolAnalyze: 'See which policies apply to users and where coverage is missing.',
@@ -63,7 +52,7 @@
     if ($('wcLauncher').open) $('wcLauncher').close();
     original.click(); // The existing app owns the route, subtab and state.
   }
-  const card = t => `<button type="button" class="wc-tool" data-wc-tool="${esc(t.id)}"><span class="wc-tool-icon" aria-hidden="true">${esc(t.icon)}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || t.group)}</small></button>`;
+  const card = t => `<button type="button" class="wc-tool" data-wc-tool="${esc(t.id)}"><span class="wc-tool-icon" aria-hidden="true">${icon(t.id)}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || t.group)}</small></button>`;
   function readTools() {
     let group = '';
     return [...document.querySelectorAll('#screen-home .tool-sec, #screen-home .tools > .tool[id]')].flatMap(el => {
@@ -82,7 +71,7 @@
   function renderRecent() {
     $('wcRecent').innerHTML = recent.length ? recent.map(id => {
       const t=tools.find(t=>t.id===id); if(!t)return '';
-      return `<button type="button" class="wc-recent" data-wc-tool="${esc(id)}"><span aria-hidden="true">${esc(t.icon)}</span><span><strong>${esc(t.name)}</strong><small>Opened this session</small></span><span aria-hidden="true">↗</span></button>`;
+      return `<button type="button" class="wc-recent" data-wc-tool="${esc(id)}"><span aria-hidden="true">${icon(t.id)}</span><span><strong>${esc(t.name)}</strong><small>Opened this session</small></span><span aria-hidden="true">↗</span></button>`;
     }).join('') : '<div class="wc-empty"><span aria-hidden="true">↗</span><h3>Your next session starts here.</h3><p>Tools you open appear here for a quick return.</p><button type="button" class="wc-text-button" data-wc-tool="toolPolicies">Open Policies →</button></div>';
   }
   function synchronize() {
@@ -91,7 +80,7 @@
     const context = Workspace.context;
     const key = signedIn && context ? `${context.demo}:${context.key}` : '';
     if (key !== sessionKey) {
-      sessionKey = key; recent.length = 0; lastActive = null; renderRecent();
+      sessionKey = key; ListDetail.reset(); recent.length = 0; lastActive = null; renderRecent();
     }
     const theme = $('themeBtn');
     if (signedIn && theme.parentElement !== $('acctMenu')) {
@@ -167,7 +156,7 @@
     document.body.classList.add('workspaces-shell');
     const rail=document.createElement('nav');rail.id='wcRail';rail.setAttribute('aria-label','Workspace navigation');
     const shortcuts=[['toolPolicies','🗂','Policies'],['toolSignins','🚦','Sign-ins'],['toolWhoIs','🕵','Who is…'],['toolBaseline','🧬','Baseline'],['toolCaGroups','👥','CA groups']];
-    rail.innerHTML=`<button type="button" id="wcHomeButton" data-wc-home><span aria-hidden="true">⌂</span><small>Home</small></button>${shortcuts.map(([id,icon,label])=>`<button type="button" data-wc-tool="${id}" aria-label="${esc(tools.find(t=>t.id===id)?.name || label)}"><span aria-hidden="true">${icon}</span><small>${label}</small></button>`).join('')}<span class="wc-rail-divider"></span><button type="button" data-wc-library><span aria-hidden="true">⊞</span><small>All tools</small></button><button type="button" data-wc-tool="toolHelp"><span aria-hidden="true">?</span><small>Help</small></button><span class="wc-rail-caption">WORKSPACES<br>01</span>`;
+    rail.innerHTML=`<button type="button" id="wcHomeButton" data-wc-home><span aria-hidden="true">${FlatIcons.tool("home")}</span><small>Home</small></button>${shortcuts.map(([id,icon,label])=>`<button type="button" data-wc-tool="${id}" aria-label="${esc(tools.find(t=>t.id===id)?.name || label)}"><span aria-hidden="true">${FlatIcons.tool(id)}</span><small>${label}</small></button>`).join('')}<span class="wc-rail-divider"></span><button type="button" data-wc-library><span aria-hidden="true">${FlatIcons.tool("overview")}</span><small>All tools</small></button><button type="button" data-wc-tool="toolHelp"><span aria-hidden="true">${FlatIcons.tool("toolHelp")}</span><small>Help</small></button><span class="wc-rail-caption">WORKSPACES<br>01</span>`;
     document.body.append(rail);
     const brand=document.createElement('span');brand.className='wc-brand';
     brand.innerHTML='<span id="wcBrandName">ENCA</span>';
@@ -249,4 +238,5 @@
   const ready=new MutationObserver(()=>{initialize();if(initialized)ready.disconnect();});
   ready.observe($('sideNav'),{childList:true});
   initialize();
+  FlatIcons.start();
 })();

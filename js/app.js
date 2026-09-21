@@ -1866,7 +1866,8 @@
     if (n) setTimeout(() => toast(`⚠ ${n} object name(s) could not be resolved — exports will show raw IDs for these`), 3500);
   }
 
-  function showDetail(id) {
+  function showDetail(id, full = false) {
+    if (!full && viewMode === "list" && $("screen-list").classList.contains("active")) { Workspace.inspect(id); return; }
     const p = policies.find(x => x.id === id); if (!p) return;
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
@@ -2724,7 +2725,7 @@
   // here. Their open functions (openExport, runBackup, openStateModal) are
   // unchanged and still reached from the bar, the per-policy card actions and
   // the deep links other tools use.
-  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); unmountToolTabs("gap"); });
+  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "list" : viewMode); show("screen-list"); unmountToolTabs("gap"); });
   $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); mountToolTabs("gap", "coverage"); });
   $("toolGapCheck").addEventListener("click", () => openGapCheck());
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
@@ -9326,6 +9327,19 @@ This is a directory write. Nothing else changes.`)) return;
     $("exExpand").style.display = "";
     const full = Fs.isOpen();
     const focus = { row: exFocusRow, col: exFocusCol };
+    if (exTab === "entities") {
+      $("exPager").style.display="none";$("exHint").style.display="none";$("exExpand").style.display="none";
+      const q=exQuery.toLowerCase();
+      const items=exModel.entities.filter(e=>(exKind==='all'||e.kind===exKind)&&(!q||`${e.name} ${e.id}`.toLowerCase().includes(q))).map(e=>({
+        key:e.key,title:e.name,meta:`${Exclusions.KIND[e.kind]?.label||e.kind} · ${e.policyIds.size} policies`,
+        node:()=>{const n=document.createElement('div');const ps=exModel.policies.filter(p=>e.policyIds.has(p.id));
+          n.innerHTML=`<p class="mini">${esc(Exclusions.KIND[e.kind]?.label||e.kind)} · ${esc(e.id)}</p>
+          ${e.kind==='group'?`<button class="btn" data-exmembers="${esc(e.key)}">View membership evidence</button>`:''}
+          <h3>Excluded from policies</h3><ul>${ps.map(p=>`<li><button class="btn pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</button> <span class="mini">${esc(p.state)}</span></li>`).join('')}</ul>`;return n;}
+      }));
+      if(items.length)ListDetail.mount($("exBody"),items,{key:'exclusion-entities'});else $("exBody").innerHTML='<p class="mini">No exclusions match these filters.</p>';
+      return;
+    }
     if (exTab === "risk") {
       $("exPager").style.display = "none"; $("exHint").style.display = "none";
       $("exExpand").style.display = "none"; $("exChips").innerHTML = "";
@@ -9527,7 +9541,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));
   $("gcFull").addEventListener("click", () => { const d = $("gcMatrix").querySelector("details"); if (d) d.open = true; Fs.open("Persona × control coverage", { body: $("gcMatrix") }); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
-  const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers", risk: "exTabRisk" };
+  const EX_TABS = { entities:"exTabEntities", matrix: "exTabMatrix", users: "exTabUsers", risk: "exTabRisk" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
     $(id).addEventListener("click", () => {
       // matrix rows are keyed by entity, users rows by user id — a pin from one
@@ -11624,7 +11638,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         ${toolHead("toolAudit")}
-        <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — expand one to see the exact fields that moved.</p>
+        <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — select one to see the exact fields that moved beside the list.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>
       <div style="text-align:right">
@@ -11655,7 +11669,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("auBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
         <thead><tr><th>Resource</th><th style="width:150px">Changes</th><th style="width:120px">People moved</th><th>Changed by</th><th style="width:110px">Last change</th></tr></thead>
         <tbody>${sum.map((s) => {
-          const open = auOpen.has("s:" + s.key);
+          const open = true;
           const K = Audit.KIND[s.kind] || {};
           const detail = open ? `<tr class="au-sumdet"><td colspan="5">
             ${s.kind === "membership" && s.usedBy.length ? `<div class="au-why" style="margin:0 0 8px">This group is used as an <b>${esc(s.usedAs)}</b> on ${s.usedBy.length} polic${s.usedBy.length === 1 ? "y" : "ies"}: ${esc(s.usedBy.slice(0, 6).join(", "))}${s.usedBy.length > 6 ? ` +${s.usedBy.length - 6} more` : ""}</div>` : ""}
@@ -11675,6 +11689,7 @@ This is a directory write. Nothing else changes.`)) return;
         }).join("")}</tbody></table></div>
         <p class="mini muted" style="margin-top:8px">${sum.length} resource${sum.length === 1 ? "" : "s"} touched across ${rows.length} change${rows.length === 1 ? "" : "s"} — click a row for the individual events.</p>
         ${auAgedHtml()}`;
+      ListDetail.pairs('auBody','.au-sumrow','data-ausum','audit-summary');
       return;
     }
 
@@ -11684,7 +11699,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("auBody").innerHTML = (rows.length > CAP
       ? `<p class="mini muted" style="margin-bottom:8px">Showing the ${CAP} most recent of ${rows.length} changes — narrow with the filters or use Summary.</p>` : "")
       + shown.map((x) => {
-      const open = auOpen.has(x.id);
+      const open = true; // full evidence is presented in the selected side panel
       const diff = x.changes.length ? `<div class="au-diff">${x.changes.slice(0, 60).map((c) => `<div>
           <span class="au-op ${c.op}">${c.op}</span>
           <span class="au-path">${esc(c.path || "(value)")}</span>
@@ -11711,6 +11726,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${open ? diff : ""}
       </div>`;
     }).join("") + auAgedHtml();
+    ListDetail.cards('auBody', ':scope > .au-card', {key:'audit-timeline',title:'.au-h b',meta:'.au-sub',identity:'[data-auid]'});
   }
 
   $("auMd").addEventListener("click", () => {
@@ -14070,7 +14086,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
-          const open = siOpen.has("p:" + p.key);
+          const open = true;
           const detail = open ? `<tr class="au-sumdet"><td colspan="6">
             <div class="si-dethead">🚦 <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b><span class="mini muted">${p.rows.length} sign-in${p.rows.length === 1 ? "" : "s"}${siMode === "reportonly" ? " · report-only" : ""}${p.controls.length ? ` · ${esc(p.controls.join(", "))}` : ""}</span><button class="fchip" data-sisum="${esc(p.key)}" title="Collapse this policy">✕</button></div>
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
@@ -14091,6 +14107,7 @@ This is a directory write. Nothing else changes.`)) return;
           </tr>${detail}`;
         }).join("")}</tbody></table></div>
         <p class="mini muted" style="margin-top:8px">${pols.length} polic${pols.length === 1 ? "y" : "ies"} across ${rows.length} failed sign-in${rows.length === 1 ? "" : "s"} — click a row for the individual sign-ins, 🧪 to replay one in What-If.</p>`;
+      ListDetail.pairs('siBody','.au-sumrow','data-sisum','signins-policies');
       return;
     }
 
@@ -14100,7 +14117,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("siBody").innerHTML = (rows.length > CAP
       ? `<p class="mini muted" style="margin-bottom:8px">Showing the ${CAP} most recent of ${rows.length} sign-ins — narrow with the filters or use Per policy.</p>` : "")
       + shown.map((x) => {
-      const open = siOpen.has(x.id);
+      const open = true;
       const detail = open ? `<div class="au-diff">
           ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
@@ -14121,6 +14138,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${detail}
       </div>`;
     }).join("");
+    ListDetail.cards('siBody', ':scope > .au-card', {key:'signins-events',title:'.au-h b',meta:'.au-sub',identity:'[data-siid]'});
   }
 
   $("siCsv").addEventListener("click", () => {
@@ -14734,13 +14752,14 @@ This is a directory write. Nothing else changes.`)) return;
         </div>
         <div class="mini lo-d">${esc(Locations.detail(l))}</div>
         <div class="lo-u">${used.length ? [
-            direct.length ? `Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}: ${list(direct.slice(0, 2))}${direct.length > 2 ? ` <span class="muted">+${direct.length - 2} more</span>` : ""}` : "",
-            implicit.length ? `<span class="lo-imp">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”</span>` : "",
+            direct.length ? `Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}: ${list(direct)}` : "",
+            implicit.length ? `<span class="lo-imp">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”: ${list(implicit)}</span>` : "",
           ].filter(Boolean).join("<br>") + ` <span class="lo-more" data-lodet="${esc(l.id)}">details →</span>`
           : '<span class="mini muted">Not referenced by any policy</span>'}</div>
         <div class="lo-act">${actions(l, canEdit)}</div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('loBody', '.lo-grid > .lo-card', {identity:'[data-lodet]'});
   }
   // ---- the findings panel (R37) ----
   // Rendered as markup rather than built node by node, like every other panel
@@ -15240,7 +15259,7 @@ This is a directory write. Nothing else changes.`)) return;
         </div>
         ${c.description ? `<div class="mini lo-d">${esc(c.description)}</div>` : ""}
         <div class="lo-u">${used.length
-          ? `Enforced by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          ? `Enforced by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">No Conditional Access policy enforces this context — callers requesting it get no step-up</span>'}</div>
         <div class="lo-act">
           <button class="btn sm" data-acedit="${esc(c.id)}">✎ Edit</button>
@@ -15250,6 +15269,7 @@ This is a directory write. Nothing else changes.`)) return;
       </div>`;
     }).join("") + `</div>
     <p class="mini muted" style="margin-top:10px">${s.free} free slot${s.free === 1 ? "" : "s"} (of c1–c${AuthContexts.SLOT_MAX}).</p>`;
+    ListDetail.cards('acBody', '.lo-grid > .lo-card', {identity:'[data-acedit]'});
   }
   $("acChips").addEventListener("click", (e) => { const b = e.target.closest("[data-acf]"); if (!b) return; acFilter = b.dataset.acf; renderAuthCtx(); });
   $("acSearch").addEventListener("input", (e) => { acQuery = e.target.value; renderAuthCtx(); });
@@ -15441,10 +15461,10 @@ This is a directory write. Nothing else changes.`)) return;
           ${classTag(AuthStrengths.strengthClass(p))}
         </div>
         ${p.description ? `<div class="mini lo-d">${esc(p.description)}</div>` : ""}
-        <div class="mini" style="margin:6px 0 0">${combos.slice(0, 6).map((c) => `<span class="tag" title="${esc(AuthStrengths.CLASS_LABEL[AuthStrengths.classify(c)])}">${esc(AuthStrengths.comboLabel(c))}</span>`).join(" ")}${combos.length > 6 ? ` <span class="mini muted">+${combos.length - 6} more</span>` : ""}</div>
+        <div class="mini" style="margin:6px 0 0">${combos.map((c) => `<span class="tag" title="${esc(AuthStrengths.CLASS_LABEL[AuthStrengths.classify(c)])}">${esc(AuthStrengths.comboLabel(c))}</span>`).join(" ")}</div>
         ${AuthStrengths.ccSummary(p.combinationConfigurations).map((x) => `<div class="mini" style="margin:4px 0 0">🔧 ${esc(x)}</div>`).join("")}
         <div class="lo-u">${used.length
-          ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">Not granted by any policy</span>'}</div>
         <div class="lo-act">${builtin
           ? '<span class="mini muted">Microsoft-managed</span>'
@@ -15452,6 +15472,7 @@ This is a directory write. Nothing else changes.`)) return;
              <button class="btn sm danger" data-asdel="${esc(p.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>`}</div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('astBody', '.lo-grid > .lo-card', {identity:'[data-asedit]'});
   }
   $("asChips").addEventListener("click", (e) => { const b = e.target.closest("[data-asf]"); if (!b) return; asFilter = b.dataset.asf; renderAuthStr(); });
   $("asSearch").addEventListener("input", (e) => { asQuery = e.target.value; renderAuthStr(); });
@@ -15713,7 +15734,7 @@ This is a directory write. Nothing else changes.`)) return;
         </div>
         <div class="mini lo-d">${files.length ? files.map((f, i) => `${esc(f.language || "?")}: ${esc(f.fileName || "file")}${f.fileData?.data ? ` <button class="btn sm" data-tupdf="${esc(a.id)}:${i}" style="font-size:11px;padding:1px 8px">⭳ PDF</button>` : ""}`).join(" · ") : "no files"}</div>
         <div class="lo-u">${used.length
-          ? `Required by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          ? `Required by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">Not required by any policy</span>'}</div>
         <div class="lo-act">
           <button class="btn sm" data-tuedit="${esc(a.id)}">✎ Edit</button>
@@ -15723,6 +15744,7 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="mini" id="tuAcc-${esc(a.id)}" style="margin-top:6px"></div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('tuBody', '.lo-grid > .lo-card', {identity:'[data-tuedit]'});
   }
   $("tuChips").addEventListener("click", (e) => { const b = e.target.closest("[data-tuf]"); if (!b) return; tuFilter = b.dataset.tuf; renderTou(); });
   $("tuSearch").addEventListener("input", (e) => { tuQuery = e.target.value; renderTou(); });
@@ -15977,6 +15999,7 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="lo-act"><button class="btn sm lemon" data-rcres="${esc(it.id)}" data-rckind="${kind}">♻ Restore</button></div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('rcBody', '.lo-grid > .lo-card', {identity:'[data-rcres]'});
   }
   $("rcChips").addEventListener("click", (e) => { const b = e.target.closest("[data-rcf]"); if (!b) return; rcFilter = b.dataset.rcf; renderRecycle(); });
   $("rcSearch").addEventListener("input", (e) => { rcQuery = e.target.value; renderRecycle(); });
@@ -17738,19 +17761,6 @@ This is a directory write. Nothing else changes.`)) return;
     if (meta.children.length) rel.push(`<span class="wo-fact">contains <b>${meta.children.map((x) => esc(x.name)).join(", ")}</b></span>`);
     if (meta.roles.length) rel.push(`<span class="wo-fact warn">holds <b>${meta.roles.map((x) => esc(x.name)).join(", ")}</b></span>`);
 
-    const areaCards = GroupUse.AREAS.map((a) => {
-      if (!guAreas.has(a.id)) return "";
-      const rows = per.get(a.id) || [];
-      const groupsOf = GroupUse.grouped(rows);
-      const empty = res.ran.filter((r) => r.area === a.id && !r.count);
-      return `<div class="list-card wo-card" id="guArea-${a.id}">
-        <h4 class="wo-h" data-wo-fold="area-${a.id}">${a.icon} ${esc(a.label)}
-          <span class="mini muted">${plural(rows.length, "reference")}</span></h4>
-        ${groupsOf.length ? groupsOf.map((g) => guSourceBlock(g, meta.via)).join("")
-          : `<p class="mini muted" style="margin:0">No references found.</p>`}
-        ${empty.length ? `<p class="mini muted" style="margin:10px 0 0">Read and clean: ${empty.map((e) => esc(e.label)).join(", ")}.</p>` : ""}</div>`;
-    }).join("");
-
     // The counts double as jump links, and on an account with hundreds of
     // references they are the only way to navigate — so they ride along in a
     // sticky strip rather than scrolling away with the header. The strip sits
@@ -17769,10 +17779,21 @@ This is a directory write. Nothing else changes.`)) return;
         <h4 class="wo-h" data-wo-fold="about">About this ${esc(meta.principalType)}</h4>
         <p class="mini muted" style="margin:0">Object ID <code>${esc(meta.principalId)}</code></p>
         ${rel.length ? `<div class="wo-facts">${rel.join("")}</div>` : ""}</div>
-      ${areaCards}
+      <div id="guReferenceWorkspace"></div>
       ${guNotReadCard(res)}`;
+    renderGuReferences();
     applyFolds("guBody");
     syncStickyTops();
+  }
+
+  function renderGuReferences(area) {
+    const host=$('guReferenceWorkspace');if(!host||!guRes)return;
+    const rows=guRes.rows.filter(r=>!area||GroupUse.sourceById(r.source)?.area===area);
+    const items=rows.map((r,i)=>({key:`${r.source}:${r.id}:${r.pid}:${r.how}:${i}`,title:r.name,
+      meta:`${GroupUse.sourceById(r.source)?.label||r.source} · ${r.how}`,
+      node:()=>{const n=document.createElement('div');n.innerHTML=guSourceBlock({source:GroupUse.sourceById(r.source)||{label:r.source},rows:[r]},guMeta.via);return n;}}));
+    const reset=document.createElement('button');reset.className='btn sm';reset.textContent='All references';reset.addEventListener('click',()=>renderGuReferences());
+    if(items.length)ListDetail.mount(host,items,{key:'groupuse-references',before:area?[reset]:[]});else host.innerHTML='<p class="mini">No references in this area of the completed read.</p>';
   }
 
   // Shown only when a finished sweep is parked behind this single-group view.
@@ -17850,6 +17871,16 @@ This is a directory write. Nothing else changes.`)) return;
         <p class="mini muted" style="margin:8px 0 0">Click a row to open that group's references — read straight from this sweep, no second scan.</p>
       </div>
       ${guNotReadCard(res)}`;
+    const resultCard=$('guBody').querySelector('.wi-res');
+    if(resultCard&&vis.length){
+      const host=document.createElement('div');if(guShowServices){const services=document.createElement('div');services.innerHTML=guServicesPanel(res);resultCard.before(services);}resultCard.replaceWith(host);
+      ListDetail.mount(host,vis.map(t=>({key:t.id,title:t.name,meta:`${t.total} references · Entra ${t.entra} · Intune ${t.intune} · M365 ${t.m365} · Azure ${t.azure}`,
+        node:()=>{const n=document.createElement('div');const rows=GroupUse.rowsFor(guRes.rows,t.id);const via=new Map([[String(t.id).toLowerCase(),'this group']]);
+          n.innerHTML=`${t.missing?'<p class="mini">Not found in the directory; referenced by '+esc(t.caPolicies.join(', '))+'</p>':''}<button class="btn" data-gugroup="${esc(t.id)}">Open full report & actions</button>`
+            +GroupUse.grouped(rows).map(g=>guSourceBlock(g,via)).join('')
+            +'<p class="mini muted">Sweep evidence only. Use Deep analyze in the full report for inherited references. Check Not read before concluding this group is unused.</p>';return n;}
+      })),{key:'groupuse-sweep'});
+    }
     SearchSuggest.bind($("guSweepSearch"), () => searchFields(guTotals, ["name"]), () => `${tenantId}:${isDemo}:${policiesReadAt}`);
     wireSearchClears();
     applyFolds("guBody");
@@ -17973,6 +18004,7 @@ This is a directory write. Nothing else changes.`)) return;
     // summary chips are filters and jumps, not decoration
     const jump = e.target.closest("[data-gujump]");
     if (jump) {
+      if(jump.dataset.gujump.startsWith("guArea-") && $("guReferenceWorkspace")){renderGuReferences(jump.dataset.gujump.slice(7));$("guReferenceWorkspace").scrollIntoView({block:"start"});return;}
       const el = $(jump.dataset.gujump);
       if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("gu-flash"); setTimeout(() => el.classList.remove("gu-flash"), 1200); }
       return;
@@ -20837,7 +20869,8 @@ This is a directory write. Nothing else changes.`)) return;
   function openRollout() { crumb("↗ Guided rollout"); show("screen-rollout"); syncWorkspace(); Workspace.openRollout(); }
   $("toolDeploy").addEventListener("click", openRollout);
   Workspace.init({
-    detail: id => showDetail(id),
+    detail: id => showDetail(id, true),
+    dependency: (type,id,label) => openDepView(type,id,label),
     fetchJoey: async onStatus => {
       const status = await BaselineLive.fetchLatest({ force: true, onStatus });
       return { status, bundle: BaselineLive.bundle() };

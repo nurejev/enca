@@ -3,7 +3,7 @@
 const Workspace = (() => {
   const $ = id => document.getElementById(id);
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let api, current, inspected = null, reviewIndex = 0, step = 0, checks = new Set();
+  let api, current, inspected = null, inspectorTab = "Settings", reviewIndex = 0, step = 0, checks = new Set();
   let sourceBusy = false, sourceMessage = '', tenantRevision = 0;
   const state = s => ({on:"On",report:"Report-only",off:"Off"}[s] || s);
   function init(callbacks) {
@@ -23,7 +23,9 @@ const Workspace = (() => {
       if (e.target.closest('button')) { document.body.classList.remove('workspace-nav-open'); $('workspaceMenu').setAttribute('aria-expanded','false'); }
     });
     $('workspaceInspector').addEventListener('click', e => {
-      if(e.target.closest('[data-inspector-close]')) { inspected=null; renderInspector(); }
+      const tab=e.target.closest('[data-inspector-tab]');if(tab){inspectorTab=tab.dataset.inspectorTab;renderInspector();$('workspaceInspector').querySelector('[aria-selected=true]')?.focus();return;}
+      const dep=e.target.closest('.dep-link');if(dep){api.dependency?.(dep.dataset.dept,dep.dataset.depid,dep.dataset.deplabel);return;}
+      if(e.target.closest('[data-inspector-close]')) { const id=inspected;inspected=null;renderInspector();[...document.querySelectorAll('#ptable [data-open]')].find(b=>b.dataset.open===id)?.focus(); }
       if(e.target.closest('[data-inspector-detail]') && inspected) api.detail(inspected);
     });
     $('rolloutSteps').addEventListener('click', e => {
@@ -47,7 +49,7 @@ const Workspace = (() => {
     document.querySelectorAll('[data-workspace-tool]').forEach(b=>b.addEventListener('click',()=>api.action(b.dataset.workspaceTool)));
   }
   function update(data) {
-    if(current && (current.tenant!==data.tenant || current.demo!==data.demo)){checks.clear();inspected=null;step=0;sourceMessage='';tenantRevision++;}
+    if(current && (current.tenantKey!==data.tenantKey || current.tenant!==data.tenant || current.demo!==data.demo)){checks.clear();inspected=null;step=0;sourceMessage='';tenantRevision++;if(typeof ListDetail!=='undefined')ListDetail.reset();}
     if(current && (current.readAt!==data.readAt || [...current.selected].join()!==[...data.selected].join()))checks.clear();
     current={...data,selected:new Set(data.selected)};
     $('workspaceContext').textContent=data.tenant?`${data.tenant} · ${data.demo?'Demo · sample data':APP_BUILD.isBeta?'Beta':'Live'}`:'';
@@ -66,17 +68,20 @@ const Workspace = (() => {
     if($('screen-rollout').classList.contains('active'))renderRollout();
     document.dispatchEvent(new Event('enca:workspace-updated'));
   }
-  function inspect(id) { inspected=id;renderInspector(); }
+  function inspect(id) { inspected=id;renderInspector();if(typeof matchMedia!=='undefined'&&matchMedia('(max-width:900px)').matches){$('workspaceInspector').scrollIntoView({block:'start'});$('workspaceInspector').querySelector('button')?.focus();} }
   function renderInspector() {
     const host=$('workspaceInspector');
-    const p=current?.policies.find(p=>p.id===inspected);
+    const p=current?.visible.find(p=>p.id===inspected);
     host.hidden=!p || current.view!=='list';
     $('policyWorkspace').classList.toggle('with-inspector',!!p&&current.view==='list');
     if(!p)return;
-    host.innerHTML=`<div class="workspace-panel-head"><span>POLICY DETAILS</span><button class="btn sm" data-inspector-close aria-label="Close policy details">✕</button></div>
+    host.dataset.section=inspectorTab;
+    host.innerHTML=`<div class="workspace-panel-head"><button class="btn sm" data-inspector-close>Back to results</button><button class="btn sm" data-inspector-detail>Open wide & actions</button></div>
       <h2>${esc(p.name)}</h2><span class="state ${esc(p.state)}">${state(p.state)}</span>
-      <dl>${[['Includes',p.users.inc],['Excludes',p.users.exc],['Resources',p.apps.inc],['Grant controls',p.grant.controls]].map(([l,v])=>`<dt>${l}</dt><dd>${esc(v.join(' · ')||'None configured')}</dd>`).join('')}<dt>Operator</dt><dd>${esc(p.raw.grantControls?.operator||'Not configured')}</dd><dt>Modified</dt><dd>${esc(p.modified||'Not available')}</dd></dl>
-      <button class="btn primary" data-inspector-detail>Open full policy & actions →</button><details><summary>Original definition</summary><pre>${esc(JSON.stringify(p.raw,null,2))}</pre></details>`;
+      <div class="wp-tabs" role="tablist" aria-label="Policy settings">${['Settings','Assignments','Conditions','Controls','Definition'].map(t=>`<button role="tab" id="wp-tab-${t}" aria-controls="wp-content" aria-selected="${inspectorTab===t}" data-inspector-tab="${t}">${t}</button>`).join('')}</div>
+      <div id="wp-content" role="tabpanel" aria-labelledby="wp-tab-${inspectorTab}">${typeof Render!=='undefined'?Render.card(p,current.tenant):''}
+      <pre ${inspectorTab==='Definition'?'':'hidden'}>${esc(JSON.stringify(p.raw,null,2))}</pre></div>`;
+
   }
   function review(result,filter,categories,meta={}) {
     const order={critical:0,high:1,medium:2,low:3,info:4};

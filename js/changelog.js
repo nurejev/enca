@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25406, date: "2026-09-21", title: "Lists and details share one workspace",
+    items: [
+      { kind: "improved", tool: "Policies", text: "List opens full policy settings beside the results, with Settings, Assignments, Conditions, Controls and Definition tabs. Original policy names remain intact. Open wide retains the existing actions and returns to the selected policy." },
+      { kind: "improved", tool: "Several tools", text: "Sign-ins, Changes and Policy building blocks use a resizable results list with a detail panel. Exclusion analyzer adds an Exclusions list alongside its matrix. User/Group references and sweep results use the same layout, keeping incomplete-read evidence visible. Small screens show details with Back to results." },
+      { kind: "improved", tool: "Interface", text: "Navigation, tool tiles, headings and action markers use matching flat line icons in the active theme. Existing matrices, confirmations and exports remain available." },
+    ],
+  },
+  {
     build: 25405, date: "2026-09-21", title: "A policy can no longer go missing from her list",
     items: [
       { kind: "fixed", tool: "Who is … to CA", text: "A policy that reaches her was missing from \ud83d\udd75 altogether. If its guest scope names specific external-user types \u2014 Guests & external users: Service provider users, which is what a tenant with a CSP partner has \u2014 the scope check needed an external-user type nobody ever gave it, so it answered that it could not tell. That answer is a fourth state, and the filter chips only knew three: the row was in the table under All and under nothing else, missing from Reaches her, Excluded and Not targeted alike. The giveaway was arithmetic \u2014 the three counts did not add up to All. The type is worked out now from the account itself, so these policies resolve: a principal who holds an account in this tenant cannot be a service provider user or a direct-connect user, because neither of those has one." },

@@ -119,6 +119,20 @@ const PROMOTE = {
 
   items: [
     {
+      n: 231,
+      title: "Shared list/detail tools and flat interface icons",
+      tools: ["Policies", "Sign-ins", "Changes", "Policy building blocks", "Exclusions", "User/Group analyzer", "Navigation"],
+      builds: [25406], risk: "medium",
+      what: "Shared resizable list/detail presentation with wide and mobile detail modes; policy settings tabs preserve native full-detail actions. Exclusions gets an entity view; User/Group references and sweep groups keep completeness evidence outside the detail panel. Flat local SVG icons replace leading interface markers without changing stored or exported data.",
+      why: "A consistent reading layout reduces repeated expand/collapse actions. Medium risk because existing delegated actions now live inside detail panels across several tools. No Graph requests, permissions or write confirmations are added by the presentation layer.",
+      test: [
+        "Passed locally: 204 offline tests; populated browser fixtures for Policies, audit, sign-ins, building blocks, exclusions and User/Group results, including incomplete-read evidence and 320/390/1440 layouts.",
+        "Passed locally: 66 tool screen visits, 44 subtabs, wide policy settings, nested dependencies, focus restoration, and light/dark branded layouts. CIS is unavailable in demo and was not bypassed.",
+        "Before promotion, verify in a connected tenant that filters, bulk selections, native edit/restore dialogs, exports and sign-in replay retain the selected object. Review long real names and large result sets. No live-tenant acceptance or write execution was performed for this build.",
+      ],
+      files: ["js/list-detail.js", "css/list-detail.css", "js/flat-icons.js", "css/flat-icons.css", "js/workspace.js", "js/workspaces.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 230,
       title: "\ud83d\udd75 Policies scoped to external-user types resolve, and the fourth state is visible",
       tools: ["Who is … to CA", "CA validator", "Compare users", "Analyze"],
