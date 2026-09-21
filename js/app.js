@@ -9299,7 +9299,12 @@ This is a directory write. Nothing else changes.`)) return;
       await Exclusions.resolve(exModel, { demo: isDemo, signal: exProg.signal, onStatus: (m, done, total) => { exProg.detail(m); if (total) { exProg.st.cap = total; exProg.st.stepLabel = "group"; exProg.tick(done, done); } $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel(esc(m)); } });
       const result = await AnalysisJobs.run("exclusions", { model: exModel }, { signal: exProg.signal });
       exProg.check();
-      exUsers = result;
+      // The worker holds a clone of the model, so the per-user state counts and
+      // the not-expanded populations come back beside the rows and are put on
+      // this side's model here.
+      exUsers = result.users || result;
+      exModel.userStates = result.states || null;
+      exModel.unexpanded = result.unexpanded || null;
       renderExclusions();
     } catch (e) {
       console.error("Exclusion analyzer failed:", e);

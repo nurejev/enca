@@ -38,15 +38,33 @@ const Exclusions = (() => {
       e.policyIds.add(p.id);
     };
     for (const p of raws) {
+      let guestClause = null;   // the whole external-user clause, for the risk review
       const u = p.conditions?.users || {}, a = p.conditions?.applications || {};
       const l = p.conditions?.locations || {}, pl = p.conditions?.platforms || {};
       (u.excludeUsers || []).forEach((id) => add("user", id, p));
       (u.excludeGroups || []).forEach((id) => add("group", id, p));
       (u.excludeRoles || []).forEach((id) => add("role", id, p));
       if (u.excludeGuestsOrExternalUsers) {
-        const t = u.excludeGuestsOrExternalUsers.guestOrExternalUserTypes || "";
-        const label = t.split(",").map((x) => GUEST_TYPE_LABEL[x.trim()] || x.trim()).filter(Boolean).join(", ") || "All guest/external";
-        add("guest", t || "all", p, label);
+        // The WHOLE clause, not just the types. An exclusion of B2B guests
+        // from two named partner tenants is not an exclusion of every
+        // external user, and keeping only guestOrExternalUserTypes made those
+        // two identical: same key, same entity, same "all guests" risk flag.
+        const g = u.excludeGuestsOrExternalUsers;
+        const t = g.guestOrExternalUserTypes || "";
+        const types = t.split(",").map((x) => x.trim()).filter(Boolean);
+        const et = g.externalTenants || {};
+        const kind = et.membershipKind || "all";
+        const tenants = (et.members || []).slice();
+        const typeLabel = types.map((x) => GUEST_TYPE_LABEL[x] || x).join(", ") || "All guest/external";
+        const tenantLabel = kind === "all" || !tenants.length ? "all external tenants"
+          : `${tenants.length} named tenant${tenants.length === 1 ? "" : "s"}`;
+        const label = `${typeLabel} — ${tenantLabel}`;
+        // The key carries the clause, so two different clauses are two rows.
+        add("guest", `${t || "all"}|${kind}|${tenants.join("+")}`, p, label);
+        const e = entities.get(`guest:${t || "all"}|${kind}|${tenants.join("+")}`);
+        guestClause = { types, allTypes: !types.length || types.length >= Object.keys(GUEST_TYPE_LABEL).length,
+          tenantKind: kind, tenants, allTenants: kind === "all" || !tenants.length, name: label };
+        if (e) e.clause = guestClause;
       }
       (a.excludeApplications || []).forEach((id) => add("app", id, p));
       (l.excludeLocations || []).forEach((id) => add("location", id, p));
@@ -76,6 +94,14 @@ const Exclusions = (() => {
           groups: (u.excludeGroups || []),
           roles: (u.excludeRoles || []),
           guests: !!u.excludeGuestsOrExternalUsers || (u.excludeUsers || []).includes("GuestsOrExternalUsers"),
+          // The clause behind that boolean. The legacy token in excludeUsers
+          // carries no detail, so it IS the all-guests case; a modern clause
+          // may be far narrower, and the risk review reads this rather than
+          // the boolean.
+          guestClauses: guestClause ? [guestClause]
+            : (u.excludeUsers || []).includes("GuestsOrExternalUsers")
+              ? [{ types: [], allTypes: true, tenantKind: "all", tenants: [], allTenants: true, name: "All guests and external users (legacy token)" }]
+              : [],
           apps: (a.excludeApplications || []),
           locations: (l.excludeLocations || []),
           platforms: (pl.excludePlatforms || []),
@@ -255,37 +281,124 @@ const Exclusions = (() => {
   }
 
   const NEST_CAP = 40;
+  // Provenance — direct or through which nested group — is read separately from
+  // membership, and the two have different completeness. Effective membership
+  // can be exact while the PATH is unknown, and saying "nested" because a name
+  // was missing from an incomplete direct-member page is an invented route:
+  // before beta 25410 the direct read consumed one $batch page and never
+  // followed @odata.nextLink, so every direct member on page two was reported
+  // as coming in through nesting. Member.direct is now true, false or NULL
+  // (path not resolved), and the group carries pathComplete.
   async function readNesting(groups, onStatus) {
     const gs = groups.filter((g) => g.members && g.members.length);
     if (!gs.length) return;
     onStatus?.("Reading nesting…");
     const direct = await Graph.gbatch(gs.map((g, i) => ({ id: i, url: `/groups/${g.id}/members?$select=id,displayName,groupTypes&$top=999` })));
     const nestedAll = [];
+    const more = [];
     gs.forEach((g, i) => {
-      const v = direct[i], rows = (v && v.body && v.body.value) || null;
-      if (!rows) { g.nested = null; return; }
+      const v = direct[i], body = v && v.body, rows = (body && body.value) || null;
+      if (!rows) { g.nested = null; g.pathComplete = false; return; }
+      g.__rows = rows.slice();
+      g.__next = body["@odata.nextLink"] || null;
+      if (g.__next) more.push(g);
+    });
+    // Follow the continuations rather than treating page one as the whole list.
+    for (const g of more) {
+      onStatus?.(`Reading the rest of ${g.name || "a group"}'s direct members…`);
+      try {
+        const all = await Graph.ggetAll(`/groups/${g.id}/members?$select=id,displayName,groupTypes&$top=999`);
+        g.__rows = all; g.__next = null;
+      } catch (e) {
+        console.warn("Exclusions: direct-member continuation failed", g.id, e.message);
+        g.__pathPartial = true;
+      }
+    }
+    gs.forEach((g) => {
+      const rows = g.__rows;
+      if (!rows) return;
       const dIds = new Set(rows.filter((m) => !/group$/i.test(m["@odata.type"] || "")).map((m) => m.id));
       g.nested = rows.filter((m) => /group$/i.test(m["@odata.type"] || "")).map((m) => ({ id: m.id, name: m.displayName || m.id, dynamic: (m.groupTypes || []).includes("DynamicMembership"), memberIds: null }));
-      g.members.forEach((m) => { m.direct = dIds.has(m.id); m.via = []; });
-      g.directCount = g.members.filter((m) => m.direct).length;
-      g.nestedCount = g.members.length - g.directCount;
+      // Incomplete direct list: a member we did not see is UNKNOWN, not nested.
+      g.members.forEach((m) => { m.direct = dIds.has(m.id) ? true : g.__pathPartial ? null : false; m.via = []; });
+      g.directCount = g.members.filter((m) => m.direct === true).length;
+      g.nestedCount = g.members.filter((m) => m.direct === false).length;
+      g.unknownPathCount = g.members.filter((m) => m.direct === null).length;
+      g.pathComplete = !g.__pathPartial;
       g.nested.forEach((n) => nestedAll.push({ g, n }));
+      delete g.__rows; delete g.__next; delete g.__pathPartial;
     });
     const todo = nestedAll.slice(0, NEST_CAP);
+    const capped = nestedAll.slice(NEST_CAP);
+    capped.forEach((x) => { x.g.pathComplete = false; x.g.nestingCapped = (x.g.nestingCapped || 0) + 1; });
     if (todo.length) {
       const res = await Graph.gbatch(todo.map((x, i) => ({ id: i, url: `/groups/${x.n.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` })));
+      const follow = [];
       todo.forEach((x, i) => {
-        const v = res[i], rows = (v && v.body && v.body.value) || null;
-        if (!rows) return;
+        const v = res[i], body = v && v.body, rows = (body && body.value) || null;
+        if (!rows) { x.g.pathComplete = false; return; }
         x.n.memberIds = new Set(rows.map((u) => u.id));
-        x.g.members.forEach((m) => { if (!m.direct && x.n.memberIds.has(m.id)) m.via.push(x.n.name); });
+        if (body["@odata.nextLink"]) follow.push(x);
+      });
+      for (const x of follow) {
+        try {
+          const all = await Graph.ggetAll(`/groups/${x.n.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`);
+          x.n.memberIds = new Set(all.map((u) => u.id));
+        } catch (e) { x.g.pathComplete = false; console.warn("Exclusions: nested continuation failed", x.n.id, e.message); }
+      }
+      todo.forEach((x) => {
+        if (!x.n.memberIds) return;
+        x.g.members.forEach((m) => { if (m.direct === false && x.n.memberIds.has(m.id)) m.via.push(x.n.name); });
       });
     }
+    // A member that is not direct and matched no resolved nested group has a
+    // route nobody read. Say so instead of leaving it looking resolved.
+    gs.forEach((g) => {
+      if (!g.members) return;
+      g.members.forEach((m) => { if (m.direct === false && !m.via.length && !g.pathComplete) m.pathUnknown = true; });
+    });
   }
 
-  // ---- 3. effective per-user exclusions (direct + via group) ----
+  // ---- 3. per-user exclusions: CONFIGURED versus EFFECTIVE ----
+  // Two different facts, kept apart since beta 25410.
+  //
+  //   configured — this user is named in the policy's exclusion list, or is a
+  //                member of a group that is.
+  //   effective  — the policy would otherwise have INCLUDED them, so the
+  //                exclusion is a real bypass.
+  //
+  // Before this, every configured exclusion was counted as a bypass. A policy
+  // that includes only the Finance group and excludes the break-glass account
+  // never addressed that account: the shared scope check (CaScope) has always
+  // called that "not addressed", and T09 disagreed with it, inflating the
+  // bypass count with rows that bypass nothing.
+  //
+  // What can be decided here is bounded by what was read. This tool expands
+  // the EXCLUSION side, not the include side, so when a policy includes a
+  // group or role whose membership was never read the answer is UNKNOWN —
+  // never a quiet "not in scope", which would hide a real bypass.
+  const INCL = { bypass: "bypass", configured: "configured", unknown: "unknown" };
+  function inclusionOf(p, userId, known) {
+    const inc = p.inc || {};
+    if (inc.allUsers) return INCL.bypass;
+    if ((inc.users || []).includes(userId)) return INCL.bypass;
+    for (const gid of inc.groups || []) {
+      const m = known.get(gid);
+      if (m && m.has(userId)) return INCL.bypass;
+    }
+    const unresolved = (inc.groups || []).some((g) => !known.has(g))
+      || (inc.roles || []).length > 0
+      || !!(p.raw && p.raw.conditions && p.raw.conditions.users && p.raw.conditions.users.includeGuestsOrExternalUsers);
+    return unresolved ? INCL.unknown : INCL.configured;
+  }
+
   function effectiveUsers(model) {
-    const users = new Map(); // userId -> { name, upn, byPolicy: Map(policyId -> [reasons]) }
+    const users = new Map(); // userId -> { name, upn, byPolicy: Map(policyId -> {state, reasons}) }
+    // Every group membership this scan actually resolved — the only evidence
+    // available for the include side.
+    const known = new Map();
+    model.entities.forEach((e) => { if (e.kind === "group" && e.members) known.set(e.id, new Set(e.members.map((m) => m.id))); });
+    const byPolId = new Map(model.policies.map((p) => [p.id, p]));
     const touch = (id, name, upn) => {
       let u = users.get(id);
       if (!u) { u = { id, name: name || id, upn: upn || "", byPolicy: new Map() }; users.set(id, u); }
@@ -294,8 +407,14 @@ const Exclusions = (() => {
       return u;
     };
     const addReason = (u, pid, reason) => {
-      if (!u.byPolicy.has(pid)) u.byPolicy.set(pid, []);
-      u.byPolicy.get(pid).push(reason);
+      let cell = u.byPolicy.get(pid);
+      if (!cell) {
+        const p = byPolId.get(pid);
+        cell = { state: p ? inclusionOf(p, u.id, known) : INCL.unknown, reasons: [] };
+        u.byPolicy.set(pid, cell);
+      }
+      cell.reasons.push(reason);
+      return cell;
     };
     // "All"/"None"/"GuestsOrExternalUsers" are sentinels, not real principals
     const SENTINEL_IDS = new Set(["All", "None", "GuestsOrExternalUsers"]);
@@ -306,11 +425,31 @@ const Exclusions = (() => {
       } else if (e.kind === "group" && e.members) {
         for (const m of e.members) {
           const u = touch(m.id, m.name, m.upn);
-          e.policyIds.forEach((pid) => addReason(u, pid, { via: "group", group: e.name, nested: m.direct === false, through: m.via || [] }));
+          e.policyIds.forEach((pid) => addReason(u, pid, { via: "group", group: e.name, nested: m.direct === false, pathUnknown: m.direct === null || !!m.pathUnknown, through: m.via || [] }));
         }
       }
     }
-    return [...users.values()].sort((a, b) => b.byPolicy.size - a.byPolicy.size || a.name.localeCompare(b.name));
+    const list = [...users.values()];
+    // Populations this list does NOT contain, stated rather than implied:
+    // an excluded directory role is not expanded to its members, so those
+    // people are excluded and absent from every count here.
+    const roles = model.entities.filter((e) => e.kind === "role");
+    model.unexpanded = {
+      roles: roles.map((e) => ({ id: e.id, name: e.name, policies: [...e.policyIds] })),
+      guests: model.entities.filter((e) => e.kind === "guest").map((e) => ({ id: e.id, name: e.name, policies: [...e.policyIds] })),
+    };
+    const count = (st) => list.reduce((acc, u) => acc + ([...u.byPolicy.values()].some((c) => c.state === st) ? 1 : 0), 0);
+    model.userStates = { bypass: count(INCL.bypass), configured: count(INCL.configured), unknown: count(INCL.unknown) };
+    // Effective bypasses first — that is the finding; configured-only rows are
+    // inventory and sort below them.
+    const rank = (u) => ([...u.byPolicy.values()].some((c) => c.state === INCL.bypass) ? 0
+      : [...u.byPolicy.values()].some((c) => c.state === INCL.unknown) ? 1 : 2);
+    list.sort((a, b) => rank(a) - rank(b) || b.byPolicy.size - a.byPolicy.size || a.name.localeCompare(b.name));
+    // The aggregates travel WITH the rows. This runs in the analysis worker,
+    // which is handed a structured clone of the model — anything written back
+    // onto that copy never reaches the screen, and extra properties on the
+    // returned array do not survive the clone either.
+    return { users: list, states: model.userStates, unexpanded: model.unexpanded };
   }
 
   // ---- 4. risk review -----------------------------------------------------
@@ -351,9 +490,19 @@ const Exclusions = (() => {
       if (priv.length) add("high", `High-privilege role excluded: ${priv.join(", ")}`,
         "Privileged roles should rarely be excluded from MFA or compliance policies. If this is a break-glass path, make sure it is alerted on.");
 
-      // High — every guest/external principal removed from scope
-      if (x.guests) add("high", "All guests and external users are excluded",
-        "External collaborators fall outside this policy entirely. Prefer a dedicated guest policy over excluding them here.");
+      // High — every guest/external principal removed from scope. A clause
+      // naming two partner tenants is NOT that, and saying so was the point of
+      // keeping the whole clause (beta 25410).
+      if (x.guests) {
+        const clauses = (x.guestClauses || []).length ? x.guestClauses
+          : [{ allTypes: true, allTenants: true, name: "All guests and external users" }];
+        const broad = clauses.filter((c) => c.allTypes && c.allTenants);
+        const scoped = clauses.filter((c) => !(c.allTypes && c.allTenants));
+        if (broad.length) add("high", "All guests and external users are excluded",
+          "External collaborators fall outside this policy entirely. Prefer a dedicated guest policy over excluding them here.");
+        if (scoped.length) add("medium", `Scoped external exclusion: ${scoped.map((c) => c.name).join(" · ")}`,
+          "Only the named external types and tenants are excluded, so this is narrower than an all-guests exclusion — review that the scope is still the one intended, and that no partner tenant has been added since.");
+      }
 
       // Medium — direct user exclusions have no lifecycle
       const directUsers = (x.users || []);
@@ -438,9 +587,15 @@ const Exclusions = (() => {
     model.entities.forEach((e) => { counts[e.kind] = (counts[e.kind] || 0) + 1; });
     const nestedGroups = model.entities.filter((e) => e.kind === "group" && e.nested && e.nested.length);
     const nestedUsers = new Set(); nestedGroups.forEach((e) => e.members.forEach((m) => { if (m.direct === false) nestedUsers.add(m.id); }));
+    const pathPartial = model.entities.filter((e) => e.kind === "group" && e.members && e.members.length && e.pathComplete === false).length;
+    const pathUnknownUsers = new Set();
+    model.entities.forEach((e) => { if (e.kind === "group" && e.members) e.members.forEach((m) => { if (m.direct === null || m.pathUnknown) pathUnknownUsers.add(m.id); }); });
     const phantomApps = model.entities.filter((e) => e.kind === "app" && e.noSp).length;
     const uncoveredApps = model.entities.filter((e) => e.kind === "app" && e.uncoveredIn && e.uncoveredIn.length).length;
-    return { phantomApps, uncoveredApps, policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts, nestedGroups: nestedGroups.length, nestedUsers: nestedUsers.size, allNested: nestedGroups.filter((e) => e.directCount === 0).length };
+    return { phantomApps, uncoveredApps, policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts, nestedGroups: nestedGroups.length, nestedUsers: nestedUsers.size, allNested: nestedGroups.filter((e) => e.directCount === 0).length,
+      pathPartial, pathUnknownUsers: pathUnknownUsers.size,
+      states: model.userStates || { bypass: 0, configured: 0, unknown: 0 },
+      unexpandedRoles: (model.unexpanded && model.unexpanded.roles.length) || 0 };
   }
 
   // ---- rendering ----
@@ -453,7 +608,7 @@ const Exclusions = (() => {
       <div style="flex:1;min-width:260px">
         ${toolHead("toolExclusions")}
         <p style="margin-bottom:8px">Every exclusion configured across your Conditional Access policies — users, groups (with their members), directory roles, guest types, applications, named locations and device platforms — mapped against the policies that exclude them.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy where no other enabled policy was shown to give the same users the same protection">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no equivalent coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy where no other enabled policy was shown to give the same users the same protection">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no equivalent coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}${s.states && (s.states.bypass || s.states.configured || s.states.unknown) ? ` <span class="tag block" title="A user listed in an exclusion is not necessarily taken out of anything: the policy has to include them first. Effective bypass counts only the users a policy would otherwise have reached.">✗ ${s.states.bypass} effective bypass${s.states.bypass === 1 ? "" : "es"}${s.states.configured ? ` · ○ ${s.states.configured} configured only` : ""}${s.states.unknown ? ` · ? ${s.states.unknown} not established` : ""}</span>` : ""}${s.unexpandedRoles ? ` <span class="tag new" title="An excluded directory role is not expanded to its members, so those users are excluded and are not counted above">🛡 ${s.unexpandedRoles} excluded role${s.unexpandedRoles === 1 ? "" : "s"} not expanded</span>` : ""}${s.pathPartial ? ` <span class="tag new" title="Effective membership is complete; the route (direct or through which nested group) could not be fully resolved for these groups">↪ ${s.pathPartial} group${s.pathPartial === 1 ? "" : "s"} with an unresolved path${s.pathUnknownUsers ? ` · ${s.pathUnknownUsers} user${s.pathUnknownUsers === 1 ? "" : "s"}` : ""}</span>` : ""}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${s.entities}<span class="mini" style="font-weight:400"> exclusions</span></div>
@@ -483,9 +638,14 @@ const Exclusions = (() => {
       || b.items.length - a.items.length || String(a.name).localeCompare(String(b.name)));
   }
 
-  const nestSub = (e) => (e.nested && e.nested.length
-    ? ` · ↪ ${e.nestedCount === e.memberTotal ? "all" : e.nestedCount} through ${e.nested.length} nested group${e.nested.length === 1 ? "" : "s"}`
-    : "");
+  const nestSub = (e) => {
+    const bits = [];
+    if (e.nested && e.nested.length) bits.push(`↪ ${e.nestedCount === e.memberTotal ? "all" : e.nestedCount} through ${e.nested.length} nested group${e.nested.length === 1 ? "" : "s"}`);
+    if (e.unknownPathCount) bits.push(`${e.unknownPathCount} path not resolved`);
+    else if (e.pathComplete === false) bits.push("path partly unresolved");
+    if (e.nestingCapped) bits.push(`${e.nestingCapped} nested group${e.nestingCapped === 1 ? "" : "s"} beyond the read cap`);
+    return bits.length ? ` · ${bits.join(" · ")}` : "";
+  };
   const appSub = (e) => {
     const bits = [];
     if (e.noSp) bits.push("⚠ no service principal in this tenant");
@@ -639,18 +799,28 @@ const Exclusions = (() => {
     page = Math.min(Math.max(0, page), pages - 1);
     const slice = list.slice(page * pageSize, (page + 1) * pageSize);
     const head = `<th class="ucol" style="position:relative">Excluded user (${list.length})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
-      `<th class="pcol clickable${focusPol && focusPol.id === p.id ? " focused" : ""}" data-expol="${esc(p.id)}"><div class="ph" title="Click to show only users excluded from: ${esc(p.name)}">${esc(p.name)}</div></th>`).join("");
+      `<th class="pcol clickable${focusPol && focusPol.id === p.id ? " focused" : ""}" data-expol="${esc(p.id)}"><div class="ph" title="Click to show only users excluded from: ${esc(p.name)} — ${esc(p.state === "enabled" ? "On" : p.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off")}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
     const body = slice.map((u) => `<tr><td class="ucol clickable${focus.row === u.id ? " focused" : ""}" data-exrow="${esc(u.id)}"><span class="uname" title="Click to show only the policies excluding: ${esc(u.name)}">${esc(u.name)}</span><div class="uupn" title="${esc(u.upn)}">${esc(u.upn)}</div></td>` +
       pols.map((p) => {
-        const r = u.byPolicy.get(p.id);
-        if (!r) return `<td class="cellv"><span class="cell na">·</span></td>`;
+        const cell = u.byPolicy.get(p.id);
+        if (!cell) return `<td class="cellv"><span class="cell na">·</span></td>`;
+        const r = cell.reasons;
         const direct = r.some((x) => x.via === "direct");
-        const groups = [...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` ↪ ${x.through.length ? x.through.join(" / ") : "a nested group"}` : "")))];
-        const nestedOnly = !direct && r.every((x) => x.nested);
-        const tip = direct ? "excluded directly" : `excluded via ${groups.join(", ")}${nestedOnly ? " — through nesting only" : ""}`;
-        return `<td class="cellv no" title="${esc(u.name)}: ${esc(tip)}"><span class="cell ${direct ? "no" : nestedOnly ? "ro nest" : "ro"}">${direct ? "✗" : nestedOnly ? "↪" : "◐"}</span></td>`;
+        const groups = [...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` ↪ ${x.through.length ? x.through.join(" / ") : "a nested group"}` : x.pathUnknown ? " ↪ path not resolved" : "")))];
+        const nestedOnly = !direct && r.length > 0 && r.every((x) => x.nested);
+        const how = direct ? "excluded directly" : `excluded via ${groups.join(", ")}${nestedOnly ? " — through nesting only" : ""}`;
+        // Configured-only and unknown rows are deliberately NOT drawn like a
+        // bypass: the exclusion exists, but it takes nothing out of scope.
+        if (cell.state === "configured") return `<td class="cellv" title="${esc(u.name)}: ${esc(how)}, but this policy does not include them in the first place — configured, not a bypass"><span class="cell na" style="opacity:.75">○</span></td>`;
+        if (cell.state === "unknown") return `<td class="cellv ro" title="${esc(u.name)}: ${esc(how)}. Whether this policy includes them could not be decided here — its include side names a group or role this scan did not read."><span class="cell ro">?</span></td>`;
+        return `<td class="cellv no" title="${esc(u.name)}: ${esc(how)}"><span class="cell ${direct ? "no" : nestedOnly ? "ro nest" : "ro"}">${direct ? "✗" : nestedOnly ? "↪" : "◐"}</span></td>`;
       }).join("") + "</tr>").join("");
-    return { html: `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`, pages, page };
+    const st = model.userStates || {};
+    const legend = `<p class="mini muted" style="margin:8px 2px 0">✗ direct bypass · ◐ via a group · ↪ through nesting only · ○ listed in an exclusion but the policy never includes them (not a bypass) · ? include side not read, so it could not be decided · &nbsp;&middot;&nbsp; not excluded.
+      ${st.bypass || 0} user${st.bypass === 1 ? "" : "s"} effectively bypass a policy; ${st.configured || 0} ${st.configured === 1 ? "is" : "are"} configured only; ${st.unknown || 0} could not be decided.
+      ${(model.unexpanded && model.unexpanded.roles.length) ? `${model.unexpanded.roles.length} excluded directory role${model.unexpanded.roles.length === 1 ? " is" : "s are"} NOT expanded to members — those users are excluded and are not rows here.` : ""}
+      ${(model.unexpanded && model.unexpanded.guests.length) ? `${model.unexpanded.guests.length} guest/external clause${model.unexpanded.guests.length === 1 ? "" : "s"} cover people who hold no listed membership here.` : ""}</p>`;
+    return { html: `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${legend}`, pages, page };
   }
 
   // risk review: policies worth looking at, worst first
@@ -688,12 +858,16 @@ const Exclusions = (() => {
         ...pols.map((p) => q(e.policyIds.has(p.id) ? "excluded" : ""))].join(","));
     });
     lines.push("");
-    lines.push([q("Effectively excluded user"), q("UPN"), ...pols.map((p) => q(p.name))].join(","));
+    lines.push([q("Excluded user"), q("UPN"), ...pols.map((p) => q(`${p.name} [${p.state === "enabled" ? "On" : p.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}]`))].join(","));
     users.forEach((u) => {
       lines.push([q(u.name), q(u.upn), ...pols.map((p) => {
-        const r = u.byPolicy.get(p.id);
-        if (!r) return q("");
-        return q(r.some((x) => x.via === "direct") ? "direct" : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` > ${x.through.join("+") || "nested"}` : "")))].join(" / ")}`);
+        const cell = u.byPolicy.get(p.id);
+        if (!cell) return q("");
+        const r = cell.reasons;
+        const how = r.some((x) => x.via === "direct") ? "direct"
+          : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` > ${x.through.join("+") || "nested"}` : x.pathUnknown ? " > path not resolved" : "")))].join(" / ")}`;
+        const label = cell.state === "bypass" ? "effective bypass" : cell.state === "configured" ? "configured only (policy does not include them)" : "not established (include side not read)";
+        return q(`${label}: ${how}`);
       })].join(","));
     });
     return lines.join("\n");
@@ -803,12 +977,14 @@ const Exclusions = (() => {
       for (const u of users) {
         const parts = [];
         for (const p of pols) {
-          const r = u.byPolicy.get(p.id);
-          if (!r) continue;
+          const cell = u.byPolicy.get(p.id);
+          if (!cell) continue;
+          const r = cell.reasons;
           const how = r.some((x) => x.via === "direct")
             ? "direct"
-            : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` ↪ ${x.through.join(" + ") || "nested"}` : "")))].map(mdEsc).join(" / ")}`;
-          parts.push(`${mdEsc(p.name)} (${how})`);
+            : `via ${[...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` ↪ ${x.through.join(" + ") || "nested"}` : x.pathUnknown ? " ↪ path not resolved" : "")))].map(mdEsc).join(" / ")}`;
+          const label = cell.state === "bypass" ? how : cell.state === "configured" ? `${how} — configured only, the policy does not include them` : `${how} — not established, the include side was not read`;
+          parts.push(`${mdEsc(p.name)} (${label})`);
         }
         L.push(`| ${mdEsc(u.name)} | ${mdEsc(u.upn)} | ${parts.length} | ${parts.join("<br>") || "—"} |`);
       }

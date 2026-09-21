@@ -313,3 +313,77 @@ test('exclusion analyzer: a resource collection is not established rather than s
  assert.equal(app.verdicts.all.state,'unestablished');
  assert.match(app.verdicts.all.unresolved[0],/resource collection/);
 });
+
+// ---- 25410: configured versus effective, the whole external clause, paged provenance ----
+const exModule=(Graph)=>load('exclusions.js','Exclusions',{CaScope,CaCoverage,Graph});
+const expol=(id,name,over={})=>({id,displayName:name,state:over.state||'enabled',
+ conditions:{users:{includeUsers:over.inc||['All'],
+  ...(over.incGroups?{includeGroups:over.incGroups}:{}),
+  ...(over.excUsers?{excludeUsers:over.excUsers}:{}),
+  ...(over.excGroups?{excludeGroups:over.excGroups}:{}),
+  ...(over.excGuests?{excludeGuestsOrExternalUsers:over.excGuests}:{})},
+  applications:{includeApplications:['All']}},
+ grantControls:{operator:'AND',builtInControls:['mfa']}});
+
+test('exclusions: a user the policy never includes is configured, not a bypass',()=>{
+ const E=exModule({});
+ const scoped=expol('p1','Scoped to a group',{inc:[],incGroups:['gUnread'],excUsers:['u1']});
+ const named=expol('p2','Named users',{inc:['u2'],excUsers:['u1']});
+ const all=expol('p3','All users',{excUsers:['u1']});
+ const m=E.collect([scoped,named,all]);
+ const {users,states}=E.effectiveUsers(m);
+ const cells=Object.fromEntries([...users[0].byPolicy].map(([k,v])=>[k,v.state]));
+ assert.equal(cells.p3,'bypass');      // All users, then excluded — a real bypass
+ assert.equal(cells.p2,'configured');  // includes only u2; u1 was never in scope
+ assert.equal(cells.p1,'unknown');     // include side is a group this scan never read
+ assert.equal(states.bypass,1);assert.equal(states.configured,1);assert.equal(states.unknown,1);
+});
+test('exclusions: excluded directory roles are named as not expanded, never as zero',()=>{
+ const E=exModule({});
+ const p=expol('p1','Role exclusion');p.conditions.users.excludeRoles=['62e90394-69f5-4237-9190-012177145e10'];
+ const m=E.collect([p]);
+ const {users,unexpanded}=E.effectiveUsers(m);
+ assert.equal(users.length,0);
+ assert.equal(unexpanded.roles.length,1);
+ assert.equal(E.summary(m,users).unexpandedRoles,1);
+});
+test('exclusions: two external clauses stay two exclusions, and only all-guests is High',()=>{
+ const E=exModule({});
+ const partner=expol('g1','Partner',{excGuests:{guestOrExternalUserTypes:'b2bCollaborationGuest',externalTenants:{membershipKind:'enumerated',members:['t1','t2']}}});
+ const everyone=expol('g2','All external',{excGuests:{guestOrExternalUserTypes:'b2bCollaborationGuest,internalGuest,b2bCollaborationMember,b2bDirectConnectUser,otherExternalUser,serviceProvider'}});
+ const m=E.collect([partner,everyone]);
+ const guests=m.entities.filter(e=>e.kind==='guest');
+ assert.equal(guests.length,2,'two different clauses are two entities');
+ assert.match(guests.find(e=>e.clause.tenants.length).name,/2 named tenants/);
+ const rk=E.risk(m);
+ const flagsOf=(n)=>rk.rows.find(r=>r.name===n).flags.map(f=>f.level+':'+f.text).join(' ');
+ assert.match(flagsOf('All external'),/high:All guests and external users are excluded/);
+ assert.doesNotMatch(flagsOf('Partner'),/high:All guests/);
+ assert.match(flagsOf('Partner'),/medium:Scoped external exclusion/);
+});
+test('exclusions: a direct member on page two stays direct',async()=>{
+ // transitive members: u1 and u2. The direct-member read returns u1 plus a
+ // continuation; before 25410 u2 was reported as coming in through nesting
+ // although no nested group resolved at all.
+ let batchCalls=0;
+ const Graph={
+  async gpost(){return {value:[{id:'g1',displayName:'CA-Exclude'}]};},
+  async ggetAll(url){
+   if(url.includes('/transitiveMembers'))return [{id:'u1'},{id:'u2'}];
+   if(url.includes('/members'))return [{id:'u1',displayName:'User one'},{id:'u2',displayName:'User two'}];
+   return [];
+  },
+  async gbatch(reqs){
+   batchCalls++;
+   return reqs.map(()=>({body:{value:[{id:'u1',displayName:'User one'}],'@odata.nextLink':'https://graph/next'}}));
+  },
+ };
+ const E=exModule(Graph);
+ const m=await E.resolve(E.collect([expol('p1','All users',{excGroups:['g1']})]));
+ const g=m.entities.find(e=>e.kind==='group');
+ assert.equal(g.memberTotal,2);
+ assert.equal(g.directCount,2,'both members are direct once the continuation is followed');
+ assert.equal(g.nestedCount,0);
+ assert.equal(g.pathComplete,true);
+ assert.ok(batchCalls>0);
+});

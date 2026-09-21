@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25410, date: "2026-09-21", title: "Listed in an exclusion is not the same as bypassing",
+    items: [
+      { kind: "fixed", tool: "Exclusion analyzer", text: "Effective users counted everybody named in an exclusion, whether or not the policy targeted them. A policy scoped to the Finance group that also excludes the break-glass account never addressed that account \u2014 the shared scope check has always called that NOT ADDRESSED, and this tool disagreed with it. Every cell is now one of three: an effective bypass (the policy would otherwise have included them), CONFIGURED ONLY (listed, but never in scope), or NOT ESTABLISHED, which is what an include side naming a group or role this scan never read honestly is. The head counts all three." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "Excluded directory roles are counted as NOT EXPANDED rather than contributing nothing. A role exclusion takes real people out of a policy; expanding role members is a separate read, so the tool says how many roles it did not expand instead of leaving a silent zero that reads like an empty exclusion." },
+      { kind: "fixed", tool: "Exclusion analyzer", text: "An external-user exclusion keeps its whole clause. Two policies excluding B2B collaboration guests from two DIFFERENT partner tenants used to collapse into one row and both raised the all-guests-and-external-users flag. The types, the tenant kind and the named tenants are kept, a narrower clause is its own exclusion with its own Medium flag, and High is reserved for a clause that really does exclude every external user." },
+      { kind: "fixed", tool: "Exclusion analyzer", text: "Nesting provenance follows its continuation links. The direct-member read consumed one batch page, so on a group with more than one page of members every direct member on page two was reported as coming in through a nested group \u2014 sometimes while zero nested groups had resolved. Membership completeness and PATH completeness are now tracked apart: a route that could not be read says PATH NOT RESOLVED instead of a made-up nesting route, and a group beyond the 40 nested-group cap says so." },
+    ],
+  },
+  {
     build: 25409, date: "2026-09-21", title: "One answer to \u201cis this covered?\u201d",
     items: [
       { kind: "improved", tool: "Gap analyse", text: "A bypass is called COVERED only when another enabled policy gives that person the same protection. Until now one shared grant control was enough: a user excluded from a policy requiring MFA AND a compliant device was reported as covered by a policy requiring MFA alone. Expanding a user now shows one of four answers per bypassed policy \u2014 equivalent coverage, partial coverage with the missing requirement named, no equivalent coverage, or not established \u2014 and anything short of established equivalence still counts as risky, because \u201ccould not tell\u201d is not a reason to stop showing a bypass." },

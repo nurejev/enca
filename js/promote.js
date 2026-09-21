@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 234,
+      title: "\ud83d\udeaa Configured versus effective exclusions, the whole external clause, and paged provenance",
+      tools: ["Exclusion analyzer"],
+      builds: [25410],
+      risk: "high",
+      what: "js/exclusions.js: effectiveUsers() decides, per user and policy, whether the policy INCLUDES that user before calling the exclusion a bypass \u2014 three states (bypass, configured, unknown) where the include side can only be judged from the group memberships this scan actually read; it returns {users, states, unexpanded} so the aggregates survive the worker\u2019s structured clone, and js/app.js puts them back on the model. Excluded directory roles and guest clauses are reported as not-expanded populations. collect() keeps the full excludeGuestsOrExternalUsers clause (types, membershipKind, tenant ids) in the entity key, the entity label and p.exc.guestClauses, and risk() reads the clause instead of a boolean. readNesting() follows @odata.nextLink on both the direct-member read and each nested group\u2019s transitive read, tracks pathComplete apart from membership, marks members whose route was never read, and records groups beyond the nested-group cap.",
+      why: "HIGH \u2014 the effective-users number is the one an operator quotes as the size of the bypass, and it was inflated by rows that bypass nothing while a role exclusion contributed a silent zero. The guest collapse is a wrong risk verdict on a real tenant: a partner-scoped exemption was rendered as an all-guests exclusion. The provenance bug invents a nesting route on any exclusion group with more than one page of members, which is exactly the group a large tenant has. All read-only, no new permission, and the states are bounded by what was read \u2014 anything undecidable says so.",
+      test: [
+        "A tenant with a policy scoped to ONE group that also excludes the break-glass account: that account appears with a hollow circle (configured only), is not in the effective-bypass count, and the head says so. Falsifiable: it was counted as a bypass before 25410.",
+        "A policy on All users excluding the same account: it is an effective bypass, exactly as before.",
+        "A policy whose include side is a group this scan did not read: the cell is a question mark, the tooltip says the include side was not read, and the count of not-established cells is on the head.",
+        "A policy excluding a directory role: the head shows the role as NOT EXPANDED and no user row silently appears or disappears.",
+        "Two policies excluding B2B collaboration guests from different named tenants: two separate exclusion rows, each naming its tenant count, neither flagged High; a policy excluding every external type is still flagged High.",
+        "An exclusion group with more than 999 direct members (or a stubbed continuation): the members on the second page are DIRECT, the nested count is not inflated, and the group does not claim a nesting route it never read.",
+        "A group beyond the 40 nested-group cap: the row says how many nested groups were not read, rather than showing a complete-looking path.",
+        "CSV and Markdown carry the three states in words, and the policy state (On / Report-only / Off) is in the column header.",
+        "Regression: tools/regression.test.cjs and tools/workpackages.test.cjs pass; a tenant with no exclusions renders as before.",
+      ],
+      files: ["js/exclusions.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs", "tools/workpackages.test.cjs"],
+    },
+    {
       n: 233,
       title: "\ud83d\udeaa + \ud83d\udd0d One coverage comparison for both tools, and policy IDs through the results",
       tools: ["Exclusion analyzer", "Gap analyse"],
