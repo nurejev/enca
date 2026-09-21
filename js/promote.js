@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 233,
+      title: "\ud83d\udeaa + \ud83d\udd0d One coverage comparison for both tools, and policy IDs through the results",
+      tools: ["Exclusion analyzer", "Gap analyse"],
+      builds: [25409],
+      risk: "high",
+      what: "NEW js/coverage.js (CaCoverage): one comparison answering \u201cdoes this policy replace that one?\u201d with four states \u2014 equivalent, partial with the missing requirements named, none, not established \u2014 over effective user scope (the replacement\u2019s own exclusions subtracted), applications, platforms, locations, client apps, sign-in and user risk, built-in controls, the AND/OR operator, block and authentication-strength identity. A registry of dimensions it does NOT model (device filter, authentication context, authentication flows, application filter, user actions, insider risk, workload identity risk, time window, terms of use, custom controls, session controls) turns a clean answer into NOT ESTABLISHED instead of a silent pass. js/analyze.js: the old shortfall/dimCovered/listCovered block is gone and evaluate() calls CaCoverage.bestOf; bypass rows carry verdict, coveredBy, coveredByIds, partial and unresolved; applied, bypassing and unknown entries carry the policy id; buildMatrixMaps, policyMeta and matrixTable are keyed by id; mfaCovered is mfaTargeted; funnel stages renamed. js/exclusions.js: policies keep their raw object and appCoverage delegates to CaCoverage with gate:false; resource collections get an explicit unresolved verdict. js/app.js: openPolicyRef opens by id with the name as fallback. css/app.css: the .vd chip.",
+      why: "HIGH \u2014 both tools currently print a GREEN answer they have not established, and an operator acts on it. T03 accepted a replacement sharing ONE grant control, so a user excluded from an MFA-plus-compliant-device policy read as covered by an MFA-only policy. T09 accepted any enabled policy with any grant control whose include side looked broad enough: its own exclusions were never subtracted, its conditions and controls never compared. Both claims are the kind that close a finding nobody then looks at again. The ID change is the same class of defect: results keyed by display name collapsed two policies sharing a name into one matrix cell, so an included policy and an excluded one rendered as one excluded column. Bounded: read-only, no new Graph call, no new permission, and the comparison is pure over its arguments.",
+      test: [
+        "Demo tenant, \ud83d\udd0d Gap analyse: expand a user with a bypass. Every bypassed policy shows one of the four verdict chips, and a partial one names the missing requirement rather than saying covered.",
+        "A tenant with a policy requiring MFA AND a compliant device, and a second policy requiring only MFA over the same users: the bypass reads PARTIAL and names the compliant device. Before 25409 it read covered. This is the falsifiable one.",
+        "A replacement policy that EXCLUDES the bypassing user: the verdict is partial and says the principal is excluded from the replacement, never equivalent.",
+        "A policy carrying a device filter or an authentication context: the verdict is NOT ESTABLISHED and names the condition, and the row still counts as risky.",
+        "\ud83d\udeaa Exclusion analyzer on a tenant where an app is excluded from an All-resources MFA policy and covered by a narrower policy: the row says partial with the reasons, the risk review says no equivalent coverage established, and the Markdown export carries the same words.",
+        "An app excluded from a policy targeting Office 365: the verdict is not established and names the resource collection instead of being silently skipped.",
+        "Two policies with the same display name, one including a user and one excluding them: \ud83d\udd0d Matrix shows two independent cells, each column header carries a short ID, and clicking each header opens the right policy card.",
+        "Export HTML report from \ud83d\udd0d: open the downloaded file, expand a user and confirm the same verdict wording, and that the matrix columns match the in-app ones.",
+        "Regression: the offline suite (tools/regression.test.cjs) passes, and a tenant with no exclusions at all renders exactly as before.",
+      ],
+      files: ["js/coverage.js", "js/analyze.js", "js/exclusions.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 232,
       title: "\ud83d\udd75 Policies scoped to external-user types resolve, and the fourth state is visible",
       tools: ["Who is … to CA", "CA validator", "Compare users", "Analyze"],

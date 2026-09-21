@@ -73,7 +73,8 @@ test('OR alternatives do not establish mandatory MFA',()=>{
  assert.equal(CaScope.requiresMfa({authenticationStrength:{id:'custom',displayName:'MFA'}}),false);
  assert.equal(CaScope.requiresMfa({authenticationStrength:{id:'00000000-0000-0000-0000-000000000004'}}),true);
 });
-function analyzer(Graph){return load('analyze.js','Analyzer',{CaScope,Graph});}
+const CaCoverage=load('coverage.js','CaCoverage',{CaScope});
+function analyzer(Graph){return load('analyze.js','Analyzer',{CaScope,CaCoverage,Graph});}
 const users=[{id:'u1',displayName:'Review user',userType:'Member',accountEnabled:true}];
 test('unread exclusion group aborts coverage instead of showing safe',async()=>{
  const a=analyzer({ggetAll:async url=>{if(url.startsWith('/groups/'))throw Error('403');return url.startsWith('/users?')?users:[];},gpost:async()=>({value:[]})});
@@ -86,7 +87,7 @@ test('unread role members abort coverage',async()=>{
 test('analyzer reports OR MFA optional, AND MFA mandatory',async()=>{
  const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
  for(const operator of ['OR','AND']){
-  const p=policy();p.grantControls={operator,builtInControls:['mfa','compliantDevice']};const c=await a.collect([asVm(p)],'all',()=>{});const r=a.evaluate(c.lookup,c.users,c.ctx);assert.equal(r[0].mfaCovered,operator==='AND');
+  const p=policy();p.grantControls={operator,builtInControls:['mfa','compliantDevice']};const c=await a.collect([asVm(p)],'all',()=>{});const r=a.evaluate(c.lookup,c.users,c.ctx);assert.equal(r[0].mfaTargeted,operator==='AND');
  }
 });
 test('replacement with unresolved break-glass exclusion makes no writes',async()=>{
@@ -162,8 +163,8 @@ test('unresolved external scope stays unknown in coverage, matrix and exported r
  const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
  const p=policy({users:{includeUsers:['All'],excludeGuestsOrExternalUsers:{guestOrExternalUserTypes:'serviceProvider'}}});p.grantControls={builtInControls:['mfa'],operator:'OR'};
  const c=await a.collect([asVm(p)],'all',()=>{});const r=a.evaluate(c.lookup,c.users,c.ctx);
- assert.equal(r[0].mfaCovered,null);assert.equal(r[0].unknown.length,1);assert.equal(a.summary(r).noMfa,0);assert.equal(a.coverage(r,false).unknown,1);assert.equal(a.coverage(r,false).total,0);
- assert.equal(a.buildMatrixMaps(r)[0].m[p.displayName],'unknown');
+ assert.equal(r[0].mfaTargeted,null);assert.equal(r[0].unknown.length,1);assert.equal(a.summary(r).noMfa,0);assert.equal(a.coverage(r,false).unknown,1);assert.equal(a.coverage(r,false).total,0);
+ assert.equal(a.buildMatrixMaps(r)[0].m[p.id],'unknown');
  const html=a.exportHtml({tenant:'Fixture',date:'2026-09-14'},r,a.policyMeta(c.lookup),[],false);
  assert.match(html,/unresolved policy scope/);for(const [,code]of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(code);
 });
@@ -228,4 +229,87 @@ test('shared log-source selectors target existing toolbars',()=>{
   assert.ok(element,`log source toolbar ${id} exists`);
   assert.match(element[0],/class="[^"]*\btoolbar\b/,`${id} is a toolbar`);
  }
+});
+
+// ---- 25409: the shared coverage comparison (js/coverage.js) ----
+// These were the review's behaviour probes P01/P02/P08; they assert the
+// CORRECTED behaviour, so a regression here is a tool telling somebody an
+// exclusion is closed when it is not.
+const vpol=(over={})=>({id:over.id||'q1',displayName:over.name||'Q',state:'enabled',
+ conditions:{users:{includeUsers:['All'],...(over.excludeUsers?{excludeUsers:over.excludeUsers}:{})},
+  applications:{includeApplications:over.apps||['All']},
+  ...(over.platforms?{platforms:{includePlatforms:over.platforms}}:{}),
+  ...(over.deviceFilter?{devices:{deviceFilter:{mode:'include',rule:'device.trustType -eq "AzureAD"'}}}:{})},
+ grantControls:{operator:over.op||'AND',builtInControls:over.controls||['mfa']}});
+
+test('verdict: MFA plus compliant device is not covered by an MFA-only policy',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa','compliantDevice']});
+ const Q=vpol({id:'q',name:'Q',controls:['mfa']});
+ const v=CaCoverage.compare(P,Q);
+ assert.equal(v.state,'partial');
+ assert.ok(v.missing.some(m=>/compliant device/.test(m)),v.missing.join('|'));
+ assert.equal(CaCoverage.bestOf(P,[Q]).state,'partial');
+});
+test('verdict: a replacement that excludes the user, or narrows the platform, is not equivalent',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa']});
+ const excl=CaCoverage.compare(P,vpol({id:'q',name:'Q',controls:['mfa'],excludeUsers:['u1']}));
+ assert.equal(excl.state,'partial');
+ assert.ok(excl.missing.some(m=>/excluded from the replacement/.test(m)));
+ const plat=CaCoverage.compare(P,vpol({id:'q2',name:'Q2',controls:['mfa'],platforms:['windows']}));
+ assert.equal(plat.state,'partial');
+ assert.ok(plat.missing.includes('device platforms'));
+});
+test('verdict: an identical policy is equivalent, and an unmodelled condition is never green',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa']});
+ assert.equal(CaCoverage.compare(P,vpol({id:'q',name:'Q',controls:['mfa']})).state,'equivalent');
+ const u=CaCoverage.compare(P,vpol({id:'q',name:'Q',controls:['mfa'],deviceFilter:true}));
+ assert.equal(u.state,'unestablished');
+ assert.ok(u.unresolved.some(x=>/device filter/.test(x)));
+ assert.equal(CaCoverage.bestOf(P,[vpol({id:'q',name:'Q',controls:['mfa'],deviceFilter:true})]).state,'unestablished');
+});
+test('verdict: an OR grant with several controls does not guarantee the one that matters',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa']});
+ const Q=vpol({id:'q',name:'Q',controls:['mfa','compliantDevice'],op:'OR'});
+ const v=CaCoverage.compare(P,Q);
+ assert.equal(v.state,'partial');
+ assert.ok(v.missing.some(m=>/alternative grant controls/.test(m)));
+});
+test('verdict: a bypass with no equivalent replacement stays risky, and unestablished does too',async()=>{
+ const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
+ const bypassed=policy({users:{includeUsers:['All'],excludeUsers:['u1']}});
+ bypassed.id='bypassed';bypassed.displayName='Bypassed';bypassed.grantControls={operator:'AND',builtInControls:['mfa','compliantDevice']};
+ const weaker={...vpol({id:'weaker',name:'Weaker',controls:['mfa']})};
+ const c=await a.collect([asVm(bypassed),asVm(weaker)],'all',()=>{});
+ const r=a.evaluate(c.lookup,c.users,c.ctx);
+ const b=r[0].bypassing.find(x=>x.policyId==='bypassed');
+ assert.equal(b.verdict,'partial');
+ assert.equal(b.covered,false);
+ assert.equal(b.risky,true);
+ assert.ok(b.partial[0].shortfall.some(m=>/compliant device/.test(m)),JSON.stringify(b.partial));
+ assert.equal(b.policyId,'bypassed');
+});
+test('exclusion analyzer: app coverage uses the same comparison and the same words',()=>{
+ const Exclusions=load('exclusions.js','Exclusions',{CaScope,CaCoverage,Graph:{}});
+ const all=policy({users:{includeUsers:['All']},applications:{includeApplications:['All'],excludeApplications:['appX']}});
+ all.id='all';all.displayName='Baseline MFA';all.grantControls={operator:'AND',builtInControls:['mfa']};
+ const narrow=vpol({id:'narrow',name:'App X policy',apps:['appX'],controls:['compliantDevice'],platforms:['windows'],excludeUsers:['u1']});
+ const model=Exclusions.appCoverage(Exclusions.collect([all,narrow]));
+ const app=model.entities.find(e=>e.kind==='app'&&e.id==='appX');
+ assert.ok(app,'the excluded app is an entity');
+ assert.equal(app.verdicts.all.state,'partial');
+ assert.equal(app.coverage.all.length,0);
+ assert.ok(app.uncoveredIn.includes('all'));
+ const missing=app.verdicts.all.partial[0].missing.join(' | ');
+ assert.match(missing,/excluded from the replacement/);
+ assert.match(missing,/device platforms/);
+ assert.match(missing,/MFA is not mandatory/);
+});
+test('exclusion analyzer: a resource collection is not established rather than skipped',()=>{
+ const Exclusions=load('exclusions.js','Exclusions',{CaScope,CaCoverage,Graph:{}});
+ const all=policy({users:{includeUsers:['All']},applications:{includeApplications:['All'],excludeApplications:['Office365']}});
+ all.id='all';all.grantControls={operator:'AND',builtInControls:['mfa']};
+ const model=Exclusions.appCoverage(Exclusions.collect([all]));
+ const app=model.entities.find(e=>e.kind==='app');
+ assert.equal(app.verdicts.all.state,'unestablished');
+ assert.match(app.verdicts.all.unresolved[0],/resource collection/);
 });

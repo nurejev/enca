@@ -19274,7 +19274,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("anCards").innerHTML = [
       ["all", s.users, "Users", ""],
       ["risky", s.risky, "Risky bypasses", "risk"],
-      ["nomfa", s.noMfa, "No MFA from CA", "gap"],
+      ["nomfa", s.noMfa, "No MFA policy targets them", "gap"],
       ["noenforce", s.noEnforce, "No enforcing policy", "gap"],
     ].map(([f, n, l, cls]) => `<div class="an-card ${cls} ${anFilter === f ? "active" : ""}" data-f="${f}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
     $("anUsersWrap").style.display = anTab === "users" ? "block" : "none";
@@ -19420,15 +19420,20 @@ This is a directory write. Nothing else changes.`)) return;
       toast(`Group <span>${g.label}</span> added (${g.users.size} members)`);
     } finally { $("anGroupAdd").disabled = false; }
   });
-  // policy names in analysis (detail lists + matrix column headers) open the policy card
-  function openPolicyByName(name) {
-    const p = policies.find(x => x.name === name);
+  // Policy references in analysis (detail lists + matrix column headers) open
+  // the policy card. Keyed by the immutable ID since beta 25409 — with two
+  // policies sharing a display name the name lookup opened whichever came
+  // first, which could be the one the row was not about. The name stays as a
+  // fallback for anything rendered before the ID travelled.
+  function openPolicyRef(el) {
+    const id = el && el.dataset ? el.dataset.polid : "";
+    const p = (id && policies.find((x) => x.id === id)) || policies.find((x) => x.name === (el && el.dataset ? el.dataset.pol : ""));
     if (p) showDetail(p.id);
   }
 
   $("anBody").addEventListener("click", (e) => {
     const pl = e.target.closest(".pol-link");
-    if (pl) { openPolicyByName(pl.dataset.pol); return; }
+    if (pl) { openPolicyRef(pl); return; }
     const tr = e.target.closest(".urow"); if (!tr) return;
     const next = tr.nextElementSibling;
     if (next && next.classList.contains("detail")) { next.remove(); tr.classList.remove("open"); return; }
@@ -19437,7 +19442,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("anMHead").addEventListener("click", (e) => {
     const pl = e.target.closest(".pol-link");
-    if (pl) openPolicyByName(pl.dataset.pol);
+    if (pl) openPolicyRef(pl);
   });
 
   $("anExport").addEventListener("click", () => {

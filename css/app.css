@@ -604,6 +604,15 @@ tr.grouprow:hover td{background:var(--line)}
 .sect li.na{color:var(--faint);font-style:italic}
 .sect code{background:var(--soft);padding:1px 5px;border-radius:5px;font-size:11px}
 .tag{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;color:var(--green);margin:1px 2px 1px 0}
+/* ---------- shared coverage verdict (js/verdict.js, 25409) ----------
+   One vocabulary in both tools: T09's app coverage and T03's bypass rows read
+   the same four states, so "covered" cannot mean two different things on two
+   screens. Colour follows the tokens, so dark mode needs no second rule. */
+.vd{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 10px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap;margin:1px 2px 1px 0}
+.vd.eq{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--on)}
+.vd.part{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn-fg)}
+.vd.none{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
+.vd.unk{background:var(--soft);border-color:var(--border);color:var(--muted)}
 .tag.grant{background:var(--ok-bg);border-color:var(--ok-bd)}
 .tag.block{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
 .tag.new{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn-fg)}

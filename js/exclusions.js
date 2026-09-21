@@ -59,6 +59,7 @@ const Exclusions = (() => {
       const g = p.grantControls || {};
       policies.push({
         id: p.id, name: p.displayName || "(unnamed policy)", state: p.state, seq: null, exclusionCount: n,
+        raw: p,   // the shared comparison (js/coverage.js) reads the whole policy
         // the include side + whether the policy enforces anything, for the
         // "is this excluded app covered by another policy" question
         inc: {
@@ -200,34 +201,54 @@ const Exclusions = (() => {
 
   // ---- 2b. is an app excluded from an All-resources policy covered elsewhere? ----
   // Microsoft's guidance is a baseline policy on all users and all resources
-  // WITHOUT resource exclusions; an app excluded from it needs its own policy
-  // or it has no Conditional Access at all. A covering policy must be ENABLED,
-  // enforce a grant control, reach the app (named, or All resources without
-  // excluding it) and reach at least the same users — a policy scoped to one
-  // pilot group does not cover an exclusion on an All-users policy. Report-only
-  // and Off policies never count: they enforce nothing.
+  // WITHOUT resource exclusions; an app excluded from it needs its own policy.
+  // The question is whether that other policy gives the SAME protection to the
+  // SAME people — which is one comparison, shared with T03 Gap analyse and
+  // living in js/coverage.js since beta 25409.
+  //
+  // What this used to do, and why it was too kind: a candidate qualified if it
+  // was enabled, carried ANY grant control and its INCLUDE side looked at
+  // least as broad. Its own user exclusions were never subtracted, its
+  // conditions never compared, its controls never compared. A policy scoped to
+  // Windows, excluding the one user who mattered and requiring only a
+  // compliant device closed an MFA gap on paper. Now it comes back as PARTIAL
+  // with the three reasons named, and an app nothing reaches reads "no
+  // equivalent coverage established by this analysis" rather than the much
+  // stronger claim that it has no Conditional Access at all.
   function appCoverage(model) {
-    const SENT = new Set(["all", "none", "office365", "microsoftadminportals"]);
+    const SENT = new Set(["all", "none"]);
+    // Resource COLLECTIONS are not expanded by this analysis. Silently
+    // skipping them read as "nothing to say"; they get an explicit unresolved
+    // verdict instead.
+    const COLLECTION = { office365: "Office 365", microsoftadminportals: "Microsoft Admin Portals" };
     const byPol = new Map(model.policies.map((p) => [p.id, p]));
     const live = model.policies.filter((p) => p.state === "enabled" && p.enforces && p.inc);
-    const subset = (a, b) => a.every((x) => b.includes(x));
-    const reaches = (q, p) => q.inc.allUsers
-      || (!p.inc.allUsers && subset(p.inc.users, q.inc.users) && subset(p.inc.groups, q.inc.groups) && subset(p.inc.roles, q.inc.roles));
     for (const e of model.entities) {
       if (e.kind !== "app") continue;
       const id = String(e.id).toLowerCase();
       if (SENT.has(id)) continue;
-      e.coverage = {};      // policyId → [covering policy names]  (only for enabled, enforcing, All-resources excluders)
-      e.uncoveredIn = [];   // policyIds where nothing else covers the app
+      e.coverage = {};      // policyId → [names that establish EQUIVALENT coverage]
+      e.verdicts = {};      // policyId → the full comparison result
+      e.uncoveredIn = [];   // policyIds where equivalence was not established
       for (const pid of e.policyIds) {
         const p = byPol.get(pid);
         if (!p || p.state !== "enabled" || !p.enforces || !p.inc?.allApps) continue;
-        const covering = live.filter((q) => q.id !== p.id
+        if (COLLECTION[id]) {
+          e.verdicts[pid] = { state: "unestablished", by: [], partial: [],
+            unresolved: [`${COLLECTION[id]} is a resource collection and is not expanded by this analysis`] };
+          e.coverage[pid] = [];
+          e.uncoveredIn.push(pid);
+          continue;
+        }
+        const candidates = live.filter((q) => q.id !== p.id
           && !(q.exc.apps || []).some((x) => String(x).toLowerCase() === id)
-          && (q.inc.allApps || q.inc.apps.includes(id))
-          && reaches(q, p)).map((q) => q.name);
-        e.coverage[pid] = covering;
-        if (!covering.length) e.uncoveredIn.push(pid);
+          && (q.inc.allApps || q.inc.apps.includes(id)));
+        // gate:false — these candidates already reach the app, and one that
+        // requires the WRONG control is the finding, not noise.
+        const v = CaCoverage.bestOf(p.raw, candidates.map((q) => q.raw), { gate: false });
+        e.verdicts[pid] = v;
+        e.coverage[pid] = v.by.map((x) => x.name);
+        if (v.state !== "equivalent") e.uncoveredIn.push(pid);
       }
     }
     return model;
@@ -374,10 +395,10 @@ const Exclusions = (() => {
       const appEnts = (x.apps || []).map((id) => ent("app", id)).filter((e) => e && e.coverage && p.id in e.coverage);
       const uncovered = appEnts.filter((e) => e.uncoveredIn.includes(p.id));
       const covered = appEnts.filter((e) => !e.uncoveredIn.includes(p.id));
-      if (uncovered.length) add("high", `${uncovered.length} excluded app${uncovered.length === 1 ? "" : "s"} with no other Conditional Access coverage: ${uncovered.map((e) => e.name).join(", ")}`,
+      if (uncovered.length) add("high", `${uncovered.length} excluded app${uncovered.length === 1 ? "" : "s"} with no equivalent coverage established: ${uncovered.map((e) => e.name).join(", ")}`,
         "This policy targets All resources, and no other ENABLED policy with a grant control reaches these apps for the same users — they have no Conditional Access at all. Microsoft's guidance is a baseline policy on all users and all resources without resource exclusions: give each app its own targeted policy, or remove the exclusion.");
       if (covered.length) add("info", `${covered.length} excluded app${covered.length === 1 ? "" : "s"} covered by another policy`,
-        covered.map((e) => `${e.name} — ${e.coverage[p.id].join(", ")}`).join(" · ") + ". The exclusion is closed by a targeted policy; keep the two in step when either changes.");
+        covered.map((e) => `${e.name} — ${e.coverage[p.id].join(", ")}`).join(" · ") + ". Equivalent coverage was established: same users, same conditions, same controls. Keep the two in step when either changes.");
 
       // Medium — an excluded app id with no service principal in this tenant:
       // the exclusion protects nothing today and goes live on consent.
@@ -432,7 +453,7 @@ const Exclusions = (() => {
       <div style="flex:1;min-width:260px">
         ${toolHead("toolExclusions")}
         <p style="margin-bottom:8px">Every exclusion configured across your Conditional Access policies — users, groups (with their members), directory roles, guest types, applications, named locations and device platforms — mapped against the policies that exclude them.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy that no other enabled, enforcing policy reaches for the same users">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no other coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy where no other enabled policy was shown to give the same users the same protection">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no equivalent coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${s.entities}<span class="mini" style="font-weight:400"> exclusions</span></div>
@@ -468,7 +489,16 @@ const Exclusions = (() => {
   const appSub = (e) => {
     const bits = [];
     if (e.noSp) bits.push("⚠ no service principal in this tenant");
-    if (e.uncoveredIn && e.uncoveredIn.length) bits.push(`⚠ no other coverage in ${e.uncoveredIn.length} polic${e.uncoveredIn.length === 1 ? "y" : "ies"}`);
+    if (e.uncoveredIn && e.uncoveredIn.length) {
+      const st = e.uncoveredIn.map((pid) => (e.verdicts && e.verdicts[pid] && e.verdicts[pid].state) || "none");
+      const part = st.filter((x) => x === "partial").length, unk = st.filter((x) => x === "unestablished").length;
+      const none = st.length - part - unk;
+      const bit = [];
+      if (none) bit.push(`no equivalent coverage in ${none}`);
+      if (part) bit.push(`partial in ${part}`);
+      if (unk) bit.push(`not established in ${unk}`);
+      bits.push(`⚠ ${bit.join(" · ")} polic${st.length === 1 ? "y" : "ies"}`);
+    }
     return bits.join(" · ");
   };
   const rowSub = (e) => (e.kind === "group"
@@ -695,7 +725,7 @@ const Exclusions = (() => {
       ? ` (${Object.entries(s.counts).sort((a, b) => KIND[a[0]].order - KIND[b[0]].order).map(([k, n]) => `${n} ${KIND[k].label.toLowerCase()}${n === 1 ? "" : "s"}`).join(", ")})`
       : ""));
     L.push(`- Users effectively excluded from at least one policy (directly or through a group): **${s.users}**`);
-    if (s.uncoveredApps) L.push(`- **${s.uncoveredApps}** app${s.uncoveredApps === 1 ? "" : "s"} excluded from an All-resources policy with **no other Conditional Access coverage** (no enabled, enforcing policy reaches them for the same users).`);
+    if (s.uncoveredApps) L.push(`- **${s.uncoveredApps}** app${s.uncoveredApps === 1 ? "" : "s"} excluded from an All-resources policy with **no equivalent coverage established** — no enabled policy was shown to give the same users the same protection. This is what the comparison could establish, not proof that nothing else protects them.`);
     if (s.phantomApps) L.push(`- **${s.phantomApps}** phantom app exclusion${s.phantomApps === 1 ? "" : "s"}: excluded app ids with no service principal in this tenant — the exclusion matches nothing today and goes live on consent.`);
     L.push("");
 
