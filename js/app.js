@@ -9483,7 +9483,105 @@ This is a directory write. Nothing else changes.`)) return;
     toast("Member list <span>downloaded</span>");
   });
 
+  // ---- the evidence popover (25417) ----
+  // One card for one row × policy pair, opened from the cell itself. The
+  // reason used to be a hover title: invisible on touch, unreachable by
+  // keyboard, impossible to copy. The card says the same thing and offers the
+  // two actions a person wants next — open the policy, view the members.
+  let exPop = null, exPopAnchor = null;
+  function exPopEl() {
+    if (exPop) return exPop;
+    exPop = document.createElement("div");
+    exPop.id = "exPop"; exPop.className = "ex-pop"; exPop.setAttribute("role", "dialog"); exPop.setAttribute("aria-label", "Cell evidence");
+    exPop.hidden = true;
+    document.body.appendChild(exPop);
+    exPop.addEventListener("click", (e) => {
+      if (e.target.closest("[data-expopclose]")) { closeExPop(true); return; }
+      const m = e.target.closest("[data-exmembers]"); if (m) { closeExPop(); openExMembers(m.dataset.exmembers); return; }
+      const pl = e.target.closest(".pol-link"); if (pl) { closeExPop(); showDetail(pl.dataset.polid); return; }
+      const pin = e.target.closest("[data-expin]");
+      if (pin) { const [what, key] = pin.dataset.expin.split("|"); closeExPop(); if (what === "row") exFocusRow = key; else exFocusCol = key; exPage = 0; renderExclusions(); }
+    });
+    return exPop;
+  }
+  function closeExPop(refocus) {
+    if (!exPop || exPop.hidden) return;
+    exPop.hidden = true;
+    if (refocus && exPopAnchor && exPopAnchor.isConnected) exPopAnchor.focus();
+    exPopAnchor = null;
+  }
+  function openExPop(btn) {
+    const [rowKey, pid] = String(btn.dataset.excell).split("|");
+    const ev = Exclusions.evidence(exModel, exUsers, rowKey, pid, exTab);
+    if (!ev) return;
+    const pop = exPopEl();
+    // The matrix has user ROWS too (a directly excluded account), so the
+    // branch is the tab's shape, not the row's kind.
+    const stateChip = ev.excluded === undefined
+      ? (ev.state === "bypass" ? '<span class="vd none">✖ Effective bypass</span>' : ev.state === "configured" ? '<span class="vd unk">○ Configured only</span>' : ev.state === "unknown" ? '<span class="vd unk">? Not established</span>' : '<span class="tag">not excluded</span>')
+      : (ev.excluded ? '<span class="tag block">✗ excluded</span>' : '<span class="tag new">⚠ odd one out</span>');
+    const polState = ev.policy.state === "enabled" ? '<span class="tag block">On</span>' : ev.policy.state === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
+    pop.innerHTML = `<div class="ex-pop-h"><b>${esc(ev.title)}</b><span class="mini muted">${esc(ev.sub || "")}</span><button type="button" class="ex-pop-x" data-expopclose="1" aria-label="Close">✕</button></div>
+      <div class="ex-pop-b">
+        <div class="mini"><b class="pol-link" data-polid="${esc(ev.policy.id)}">${esc(ev.policy.name)}</b> ${polState} <span class="muted">· ${ev.policy.exclusionCount} exclusion${ev.policy.exclusionCount === 1 ? "" : "s"}</span></div>
+        <div style="margin:6px 0">${stateChip}${ev.coverage ? " " + CaCoverage.chip(ev.coverage.state) : ""}</div>
+        ${ev.lines.map((l) => `<div class="mini">${esc(l)}</div>`).join("")}
+        ${ev.verdict ? `<div class="mini" style="margin-top:6px"><b>${esc(ev.verdict)}</b></div>` : ""}
+        ${ev.coverage && ev.coverage.partial && ev.coverage.partial[0] ? `<div class="mini muted">${esc(ev.coverage.partial[0].name)} does not carry: ${esc(ev.coverage.partial[0].missing.join(", "))}</div>` : ""}
+      </div>
+      <div class="ex-pop-a">
+        <button type="button" class="fchip pol-link" data-polid="${esc(ev.policy.id)}">Open policy</button>
+        ${ev.actions.map((a) => a.kind === "members" ? `<button type="button" class="fchip" data-exmembers="${esc(a.key)}">${esc(a.label)}</button>` : "").join("")}
+        <button type="button" class="fchip" data-expin="row|${esc(rowKey)}">Only this row</button>
+        <button type="button" class="fchip" data-expin="col|${esc(pid)}">Only this policy</button>
+      </div>`;
+    pop.hidden = false;
+    exPopAnchor = btn;
+    // Place it under the cell, kept inside the viewport.
+    const r = btn.getBoundingClientRect(), pw = Math.min(360, window.innerWidth - 16);
+    pop.style.width = pw + "px";
+    let left = Math.max(8, Math.min(r.left + r.width / 2 - pw / 2, window.innerWidth - pw - 8));
+    let top = r.bottom + 6;
+    const ph = pop.offsetHeight;
+    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+    pop.style.left = left + "px"; pop.style.top = top + "px";
+    (pop.querySelector("[data-expopclose]") || pop).focus();
+  }
+  document.addEventListener("click", (e) => { if (exPop && !exPop.hidden && !exPop.contains(e.target) && !e.target.closest("[data-excell]")) closeExPop(); }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && exPop && !exPop.hidden) { e.stopPropagation(); closeExPop(true); } }, true);
+  document.addEventListener("scroll", () => closeExPop(), true);
+
+  // ---- the keyboard grid (25417) ----
+  // Every reactive thing in both grids is a button with a grid position
+  // (data-r, data-c). One of them carries tabindex 0 (the roving one); the
+  // arrow keys walk to the nearest button in that direction.
+  $("exBody").addEventListener("focusin", (e) => {
+    const el = e.target.closest("[data-r][data-c]"); if (!el) return;
+    $("exBody").querySelectorAll('[data-r][data-c][tabindex="0"]').forEach((x) => { if (x !== el) x.setAttribute("tabindex", "-1"); });
+    el.setAttribute("tabindex", "0");
+  });
+  $("exBody").addEventListener("keydown", (e) => {
+    const el = e.target.closest("[data-r][data-c]"); if (!el) return;
+    const dir = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0], Home: [0, -Infinity], End: [0, Infinity] }[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    const r = +el.dataset.r, c = +el.dataset.c;
+    const all = [...$("exBody").querySelectorAll("[data-r][data-c]")];
+    let best = null, bestD = Infinity;
+    for (const x of all) {
+      const xr = +x.dataset.r, xc = +x.dataset.c;
+      const dr = xr - r, dc = xc - c;
+      const ok = dir[0] ? (Math.sign(dr) === Math.sign(dir[0]) && dr !== 0 && xc === c) : (Math.sign(dc) === Math.sign(dir[1]) && dc !== 0 && xr === r);
+      if (!ok) continue;
+      const d = Number.isFinite(dir[1]) && Number.isFinite(dir[0]) ? Math.abs(dr) + Math.abs(dc) : -Math.abs(dc);   // Home/End: farthest
+      if (d < bestD) { bestD = d; best = x; }
+    }
+    if (best) best.focus();
+  });
+
   $("exBody").addEventListener("click", (e) => {
+    const cell = e.target.closest("[data-excell]");
+    if (cell) { e.stopPropagation(); openExPop(cell); return; }
     const mem = e.target.closest("[data-exmembers]");
     if (mem) { e.stopPropagation(); openExMembers(mem.dataset.exmembers); return; }
     if (e.target.closest("[data-exrun]")) { runExclusionScan(); return; }

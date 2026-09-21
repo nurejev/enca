@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25417, date: "2026-09-21", title: "The grids work by touch and by keyboard",
+    items: [
+      { kind: "new", tool: "Exclusion analyzer", text: "Every marked cell in the Matrix and Effective users grids is a button that opens an EVIDENCE card: who, why (named directly, member of which excluded group, through which nested group or a route that could not be read), the policy\u2019s state, and the verdict \u2014 effective bypass, configured only or not established for a user; the coverage verdict for an excluded app; the odd-one-out sentence for a gap. The card offers Open policy, View members, Only this row and Only this policy. The same words used to be a hover title, which a finger never sees and a keyboard never reaches." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "Row labels and column headers are real buttons, and the arrow keys walk the grid. One cell holds the tab stop at a time, so a large grid is not two thousand presses of Tab; Home and End jump to the ends of a row. Measured before this build: 26 clickable things in the matrix and 17 in Effective users, of which one and zero could be reached by keyboard." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "Column headers are capped at 110 pixels instead of 237 pixels of rotated text. When a column is picked, the strip above the grid carries the full policy name, its On / Report-only / Off state, the controls it requires, its exclusion count and an Open policy button \u2014 the header no longer has to. A legend above each grid says what clicking a row, a header and a cell does, not only what the symbols mean." },
+    ],
+  },
+  {
     build: 25416, date: "2026-09-21", title: "Two controls that did not work as controls",
     items: [
       { kind: "fixed", tool: "Exclusion analyzer", text: "The group member button in the matrix could not be clicked. It was a 13-pixel line inside the row\u2019s one-line, clipped sublabel, so a normal click landed on the row\u2019s filter target instead and the member dialog only ever opened from the Exclusions list. It is now its own button on its own line under the group name, sized to be hit with a pointer or a finger." },

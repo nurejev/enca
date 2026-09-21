@@ -535,3 +535,37 @@ test('exclusions matrix: the member button is not inside the clipped sublabel',(
  assert.ok(i>0&&j>i);
  assert.ok(html.slice(i,j).includes('</div>'),'sublabel closed before the button');
 });
+
+// ---- 25417: every reactive thing in the grids is a button, and a cell has evidence ----
+test('exclusions grids: rows, columns and marked cells are buttons with grid positions',()=>{
+ const E=exModule({});
+ const m=E.collect([expol('p1','All users',{excUsers:['u1']}),expol('p2','Second',{excUsers:['u1','u2']})]);
+ m.entities.forEach(e=>{e.name=e.id;});
+ const html=E.renderMatrix(m,'all','',false,{});
+ assert.match(html,/<button type="button" class="ph" data-expol="p1" data-r="0" data-c="1" tabindex="0"/);
+ assert.match(html,/<button type="button" class="uname ex-rowbtn" data-exrow="user:u1" data-r="1" data-c="0"/);
+ assert.match(html,/<button type="button" class="cell no" data-excell="user:u1\|p1"/);
+ assert.doesNotMatch(html,/<td class="ucol[^>]*data-exrow=/,'the td no longer carries the row action');
+ assert.match(html,/ex-legend/);
+ const {users}=E.effectiveUsers(m);
+ const r=E.renderUsers(m,users,'',0,50,{});
+ assert.match(r.html,/data-excell="u1\|p2"/);
+ assert.match(r.html,/class="ph" data-expol="p2" data-r="0" data-c="2" tabindex="-1"/);
+});
+test('exclusions evidence: the cell card says the same thing the title used to, plus the verdict',()=>{
+ const E=exModule({});
+ const scoped=expol('p1','Scoped',{inc:['u2'],excUsers:['u1']});
+ const all=expol('p2','All users',{excUsers:['u1']});
+ const m=E.collect([scoped,all]);
+ m.entities.forEach(e=>{e.name='User one';e.upn='u1@x';});
+ const {users}=E.effectiveUsers(m);
+ const evb=E.evidence(m,users,'u1','p2','users');
+ assert.equal(evb.state,'bypass');assert.match(evb.verdict,/effective bypass/);
+ const evc=E.evidence(m,users,'u1','p1','users');
+ assert.equal(evc.state,'configured');assert.match(evc.verdict,/never includes them/);
+ const evm=E.evidence(m,users,'user:u1','p2','matrix');
+ assert.equal(evm.excluded,true);assert.equal(evm.policy.name,'All users');
+ const odd=E.evidence(m,users,'user:u1','p1','matrix');
+ assert.equal(odd.excluded,true);
+ assert.equal(E.evidence(m,users,'nobody','p2','users'),null);
+});

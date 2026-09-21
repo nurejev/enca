@@ -669,13 +669,26 @@ const Exclusions = (() => {
 
   // Focus banner — shown above a matrix when a row and/or column is pinned, so
   // it is clear the grid is filtered and there is a one-click way back.
-  function focusBanner(rowLabel, colLabel) {
-    if (!rowLabel && !colLabel) return "";
+  const stateTagOf = (st) => st === "enabled" ? '<span class="tag block">On</span>'
+    : st === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
+  // The banner is also the SELECTED-POLICY STRIP (25417): with the column
+  // headers capped, the full policy name, its state, what it enforces and how
+  // many exclusions it carries live here rather than in 237px of rotated text.
+  function focusBanner(rowLabel, colPol) {
+    if (!rowLabel && !colPol) return "";
     const bits = [];
     if (rowLabel) bits.push(`<b>${esc(rowLabel)}</b>`);
-    if (colLabel) bits.push(`policy <b>${esc(colLabel)}</b>`);
-    return `<div class="ex-focus">🔎 Filtered to ${bits.join(" × ")} — only in-scope ${rowLabel && !colLabel ? "policies" : colLabel && !rowLabel ? "exclusions" : "cells"} shown.<button class="fchip" data-exclearfocus="1">✕ Clear filter</button></div>`;
+    if (colPol) {
+      const g = (colPol.raw && colPol.raw.grantControls) || {};
+      const ctl = [...(g.builtInControls || []), ...(g.authenticationStrength ? ["auth strength"] : [])].join(g.operator === "OR" ? " or " : " + ") || "no grant control";
+      bits.push(`policy <b>${esc(colPol.name)}</b> ${stateTagOf(colPol.state)} <span class="mini muted">${esc(ctl)} · ${colPol.exclusionCount} exclusion${colPol.exclusionCount === 1 ? "" : "s"}</span> <button type="button" class="fchip pol-link" data-polid="${esc(colPol.id)}">Open policy</button>`);
+    }
+    return `<div class="ex-focus">🔎 Filtered to ${bits.join(" × ")} — only in-scope ${rowLabel && !colPol ? "policies" : colPol && !rowLabel ? "exclusions" : "cells"} shown.<button class="fchip" data-exclearfocus="1">✕ Clear filter</button></div>`;
   }
+  // What clicking does, said above the grid instead of left to be discovered.
+  const gridLegend = (tab) => `<p class="mini muted ex-legend">${tab === "users"
+    ? "<b>Click</b> a user to see only the policies excluding them, a policy header to see only its users, a marked cell for the evidence. <b>✗</b> direct bypass · <b>◐</b> via a group · <b>↪</b> through nesting only · <b>○</b> configured only, not a bypass · <b>?</b> include side not read · <b>·</b> not excluded"
+    : "<b>Click</b> an exclusion to see only the policies carrying it, a policy header to see only its exclusions, a marked cell for the evidence. <b>✗</b> excluded · <b>⚠</b> the odd one out — a policy that does NOT carry an exclusion most others do · <b>·</b> not excluded"}</p>`;
 
   // matrix: exclusions (rows) × policies (columns)
   // focus = { row: entityKey|null, col: policyId|null } — clicking a row hides
@@ -697,14 +710,17 @@ const Exclusions = (() => {
     if (focusEnt) pols = pols.filter((p) => focusEnt.policyIds.has(p.id));           // hide the entity's out-of-scope columns
     if (focusPol) matched = matched.filter((e) => e.policyIds.has(focusPol.id));      // hide out-of-scope rows for the pinned policy
 
-    const banner = focusBanner(focusEnt ? focusEnt.name : null, focusPol ? focusPol.name : null);
+    const banner = focusBanner(focusEnt ? focusEnt.name : null, focusPol || null) + gridLegend("matrix");
     if (!matched.length) return `${banner}<p class="mini" style="padding:20px">No exclusions match the current filter.</p>`;
     if (!pols.length) return `${banner}<p class="mini" style="padding:20px">The pinned exclusion is not in scope for any policy.</p>`;
 
     const rows = merge ? mergeRows(matched) : matched.map((e) => ({ kind: e.kind, policyIds: e.policyIds, items: [e], name: e.name, merged: false }));
     const collapsed = matched.length - rows.length;
-    const head = `<th class="ucol" style="position:relative">Exclusion (${rows.length}${collapsed ? ` of ${matched.length}` : ""})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
-      `<th class="pcol clickable${focusPol && focusPol.id === p.id ? " focused" : ""}" data-expol="${esc(p.id)}"><div class="ph" title="Click to show only exclusions in scope for: ${esc(p.name)}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
+    // Every reactive thing is a BUTTON with a grid position (data-r / data-c),
+    // so the keyboard can walk it with the arrow keys (25417). The first
+    // button carries tabindex 0; the rest join the roving order on focus.
+    const head = `<th class="ucol" style="position:relative">Exclusion (${rows.length}${collapsed ? ` of ${matched.length}` : ""})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p, j) =>
+      `<th class="pcol${focusPol && focusPol.id === p.id ? " focused" : ""}"><button type="button" class="ph" data-expol="${esc(p.id)}" data-r="0" data-c="${j + 1}" tabindex="${j === 0 ? 0 : -1}" title="${esc(p.name)} — ${esc(p.state === "enabled" ? "On" : p.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off")}. Click to show only exclusions in scope for it.">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</button></th>`).join("");
     // What a grid does that a list cannot: show the ODD ONE OUT. When most of
     // the policies on screen carry an exclusion, the few that do not are the
     // finding — a baseline everybody trusts except one policy. The dominant
@@ -717,11 +733,12 @@ const Exclusions = (() => {
       if (share < DEV_MIN || share === 1) return null;
       return { inScope, missing: pols.length - inScope };
     };
-    const body = rows.map((r) => {
+    const body = rows.map((r, i) => {
       const dev = devOf(r);
       const rowKey = r.items.length === 1 ? r.items[0].key : "";
       const clickable = rowKey ? " clickable" : "";
       const focused = rowKey && focus.row === rowKey ? " focused" : "";
+      const rr = i + 1;
       const label = r.merged
         ? `<span class="uname" title="${esc(r.items.map((i) => i.name).join(", "))}">${KIND[r.kind].icon} ${esc(r.name)}</span><div class="uupn" title="${esc(r.items.map((i) => i.name).join(", "))}">${esc(r.items.map((i) => i.name).join(" · "))}</div>`
         : (() => {
@@ -735,19 +752,22 @@ const Exclusions = (() => {
             const act = canList
               ? `<button type="button" class="ex-rowact" data-exmembers="${esc(e0.key)}" title="Show the members of ${esc(e0.name)}">👥 View ${e0.memberTotal ?? e0.members.length} member${(e0.memberTotal ?? e0.members.length) === 1 ? "" : "s"}</button>`
               : "";
-            return `<span class="uname" title="Click to show only the policies excluding: ${esc(e0.name)}">${KIND[r.kind].icon} ${esc(e0.name)}</span><div class="uupn" title="${esc(e0.id)}">${esc(KIND[r.kind].label)}${subHtml}</div>${act}`;
+            return `<button type="button" class="uname ex-rowbtn" data-exrow="${esc(e0.key)}" data-r="${rr}" data-c="0" tabindex="-1" title="Click to show only the policies excluding: ${esc(e0.name)}">${KIND[r.kind].icon} ${esc(e0.name)}</button><div class="uupn" title="${esc(e0.id)}">${esc(KIND[r.kind].label)}${subHtml}</div>${act}`;
           })();
-      return `<tr><td class="ucol${r.merged ? " merged" : ""}${clickable}${focused}"${rowKey ? ` data-exrow="${esc(rowKey)}"` : ""}>${label}</td>` +
-        pols.map((p) => r.policyIds.has(p.id)
-          ? `<td class="cellv${dev ? " dom" : " no"}" title="${esc(r.name)} excluded from ${esc(p.name)}"><span class="cell ${dev ? "dom" : "no"}">✗</span></td>`
+      // A marked cell is a button that opens the evidence for that pair —
+      // the reason used to be a hover title, which a finger never sees.
+      const cellBtn = (p, j, cls, glyph, label) => `<td class="cellv ${cls}"><button type="button" class="cell ${cls}" data-excell="${esc(rowKey || r.name)}|${esc(p.id)}" data-r="${rr}" data-c="${j + 1}" tabindex="-1" aria-label="${esc(label)}" title="${esc(label)}">${glyph}</button></td>`;
+      return `<tr><td class="ucol${r.merged ? " merged" : ""}${clickable}${focused}">${label}</td>` +
+        pols.map((p, j) => r.policyIds.has(p.id)
+          ? cellBtn(p, j, dev ? "dom" : "no", "✗", `${r.name} excluded from ${p.name} — click for the evidence`)
           : dev
-            ? `<td class="cellv dev" title="${esc(p.name)} does NOT exclude ${esc(r.name)} — ${dev.inScope} of ${pols.length} policies do. The odd one out is the finding here."><span class="cell dev">⚠</span></td>`
+            ? cellBtn(p, j, "dev", "⚠", `${p.name} does NOT exclude ${r.name} — ${dev.inScope} of ${pols.length} policies do. The odd one out is the finding here.`)
             : `<td class="cellv"><span class="cell na">·</span></td>`).join("") + "</tr>";
     }).join("");
     const devRows = rows.filter((r) => devOf(r));
     const note = `${collapsed ? `<p class="mini" style="padding:8px 2px 0">${collapsed} exclusion${collapsed === 1 ? "" : "s"} merged into shared rows — entries of the same type excluded from exactly the same policies are shown together.</p>` : ""}
       ${devRows.length ? `<p class="mini" style="padding:6px 2px 0"><b>⚠ marks the odd one out</b> — ${devRows.map((r) => `${esc(r.name)} is excluded from ${devOf(r).inScope} of ${pols.length} policies, not from ${devOf(r).missing}`).join("; ")}. A grid is the only view that shows a gap in a pattern; the Exclusions list is the better inventory.</p>` : ""}`;
-    return `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${note}`;
+    return `${banner}<div class="mwrap-x"><table class="mtable ex-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${note}`;
   }
 
   // Grouped view — the readable default. One card per distinct exclusion set:
@@ -813,18 +833,19 @@ const Exclusions = (() => {
     if (focusUser) pols = pols.filter((p) => focusUser.byPolicy.has(p.id));            // hide the user's out-of-scope columns
     if (focusPol) list = list.filter((u) => u.byPolicy.has(focusPol.id));              // hide users not excluded from the pinned policy
 
-    const banner = focusBanner(focusUser ? focusUser.name : null, focusPol ? focusPol.name : null);
+    const banner = focusBanner(focusUser ? focusUser.name : null, focusPol || null) + gridLegend("users");
     if (!list.length) return { html: `${banner}<p class="mini" style="padding:20px">No excluded users match the current filter.</p>`, pages: 1, page: 0 };
     if (!pols.length) return { html: `${banner}<p class="mini" style="padding:20px">The pinned user is not excluded from any policy.</p>`, pages: 1, page: 0 };
     const pages = Math.max(1, Math.ceil(list.length / pageSize));
     page = Math.min(Math.max(0, page), pages - 1);
     const slice = list.slice(page * pageSize, (page + 1) * pageSize);
-    const head = `<th class="ucol" style="position:relative">Excluded user (${list.length})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p) =>
-      `<th class="pcol clickable${focusPol && focusPol.id === p.id ? " focused" : ""}" data-expol="${esc(p.id)}"><div class="ph" title="Click to show only users excluded from: ${esc(p.name)} — ${esc(p.state === "enabled" ? "On" : p.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off")}">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</div></th>`).join("");
-    const body = slice.map((u) => `<tr><td class="ucol clickable${focus.row === u.id ? " focused" : ""}" data-exrow="${esc(u.id)}"><span class="uname" title="Click to show only the policies excluding: ${esc(u.name)}">${esc(u.name)}</span><div class="uupn" title="${esc(u.upn)}">${esc(u.upn)}</div></td>` +
-      pols.map((p) => {
+    const head = `<th class="ucol" style="position:relative">Excluded user (${list.length})<span class="colgrip" data-colgrip="1" title="Drag to resize"></span></th>` + pols.map((p, j) =>
+      `<th class="pcol${focusPol && focusPol.id === p.id ? " focused" : ""}"><button type="button" class="ph" data-expol="${esc(p.id)}" data-r="0" data-c="${j + 1}" tabindex="${j === 0 ? 0 : -1}" title="${esc(p.name)} — ${esc(p.state === "enabled" ? "On" : p.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off")}. Click to show only users excluded from it.">${esc(p.name)}${p.state === "disabled" ? " [Off]" : p.state === "enabledForReportingButNotEnforced" ? " [RO]" : ""}</button></th>`).join("");
+    const body = slice.map((u, i) => `<tr><td class="ucol clickable${focus.row === u.id ? " focused" : ""}"><button type="button" class="uname ex-rowbtn" data-exrow="${esc(u.id)}" data-r="${i + 1}" data-c="0" tabindex="-1" title="Click to show only the policies excluding: ${esc(u.name)}">${esc(u.name)}</button><div class="uupn" title="${esc(u.upn)}">${esc(u.upn)}</div></td>` +
+      pols.map((p, j) => {
         const cell = u.byPolicy.get(p.id);
         if (!cell) return `<td class="cellv"><span class="cell na">·</span></td>`;
+        const btn = (cls, glyph, label, tdCls) => `<td class="cellv ${tdCls || cls}"><button type="button" class="cell ${cls}" data-excell="${esc(u.id)}|${esc(p.id)}" data-r="${i + 1}" data-c="${j + 1}" tabindex="-1" aria-label="${esc(label)}" title="${esc(label)}">${glyph}</button></td>`;
         const r = cell.reasons;
         const direct = r.some((x) => x.via === "direct");
         const groups = [...new Set(r.filter((x) => x.via === "group").map((x) => x.group + (x.nested ? ` ↪ ${x.through.length ? x.through.join(" / ") : "a nested group"}` : x.pathUnknown ? " ↪ path not resolved" : "")))];
@@ -832,16 +853,67 @@ const Exclusions = (() => {
         const how = direct ? "excluded directly" : `excluded via ${groups.join(", ")}${nestedOnly ? " — through nesting only" : ""}`;
         // Configured-only and unknown rows are deliberately NOT drawn like a
         // bypass: the exclusion exists, but it takes nothing out of scope.
-        if (cell.state === "configured") return `<td class="cellv" title="${esc(u.name)}: ${esc(how)}, but this policy does not include them in the first place — configured, not a bypass"><span class="cell na" style="opacity:.75">○</span></td>`;
-        if (cell.state === "unknown") return `<td class="cellv ro" title="${esc(u.name)}: ${esc(how)}. Whether this policy includes them could not be decided here — its include side names a group or role this scan did not read."><span class="cell ro">?</span></td>`;
-        return `<td class="cellv no" title="${esc(u.name)}: ${esc(how)}"><span class="cell ${direct ? "no" : nestedOnly ? "ro nest" : "ro"}">${direct ? "✗" : nestedOnly ? "↪" : "◐"}</span></td>`;
+        if (cell.state === "configured") return btn("na cfg", "○", `${u.name}: ${how}, but this policy does not include them in the first place — configured, not a bypass. Click for the evidence.`, "");
+        if (cell.state === "unknown") return btn("ro", "?", `${u.name}: ${how}. Whether this policy includes them could not be decided here — its include side names a group or role this scan did not read. Click for the evidence.`);
+        return btn(direct ? "no" : nestedOnly ? "ro nest" : "ro", direct ? "✗" : nestedOnly ? "↪" : "◐", `${u.name}: ${how}. Click for the evidence.`, "no");
       }).join("") + "</tr>").join("");
     const st = model.userStates || {};
-    const legend = `<p class="mini muted" style="margin:8px 2px 0">✗ direct bypass · ◐ via a group · ↪ through nesting only · ○ listed in an exclusion but the policy never includes them (not a bypass) · ? include side not read, so it could not be decided · &nbsp;&middot;&nbsp; not excluded.
-      ${st.bypass || 0} user${st.bypass === 1 ? "" : "s"} effectively bypass a policy; ${st.configured || 0} ${st.configured === 1 ? "is" : "are"} configured only; ${st.unknown || 0} could not be decided.
+    const legend = `<p class="mini muted" style="margin:8px 2px 0">${st.bypass || 0} user${st.bypass === 1 ? "" : "s"} effectively bypass a policy; ${st.configured || 0} ${st.configured === 1 ? "is" : "are"} configured only; ${st.unknown || 0} could not be decided.
       ${(model.unexpanded && model.unexpanded.roles.length) ? `${model.unexpanded.roles.length} excluded directory role${model.unexpanded.roles.length === 1 ? " is" : "s are"} NOT expanded to members — those users are excluded and are not rows here.` : ""}
       ${(model.unexpanded && model.unexpanded.guests.length) ? `${model.unexpanded.guests.length} guest/external clause${model.unexpanded.guests.length === 1 ? "" : "s"} cover people who hold no listed membership here.` : ""}</p>`;
-    return { html: `${banner}<div class="mwrap-x"><table class="mtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${legend}`, pages, page };
+    return { html: `${banner}<div class="mwrap-x"><table class="mtable ex-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${legend}`, pages, page };
+  }
+
+  // ---- the evidence behind one cell (25417) ----
+  // Everything a person could want to know about one row × policy pair, as
+  // data. The app draws it in a popover; the words that used to be a hover
+  // title are the same words, now reachable by click, tap and keyboard.
+  function evidence(model, users, rowKey, policyId, tab) {
+    const p = model.policies.find((x) => x.id === policyId);
+    if (!p) return null;
+    const ev = { policy: { id: p.id, name: p.name, state: p.state, exclusionCount: p.exclusionCount }, lines: [], chips: [], actions: [] };
+    if (tab === "users") {
+      const u = (users || []).find((x) => x.id === rowKey);
+      if (!u) return null;
+      ev.title = u.name; ev.sub = u.upn || u.id; ev.kind = "user";
+      const cell = u.byPolicy.get(policyId);
+      if (!cell) { ev.state = "na"; ev.lines.push("Not excluded from this policy."); return ev; }
+      ev.state = cell.state;
+      const r = cell.reasons;
+      if (r.some((x) => x.via === "direct")) ev.lines.push("Named directly in the policy's exclusion list.");
+      r.filter((x) => x.via === "group").forEach((x) => ev.lines.push(`Member of excluded group ${x.group}${x.nested ? ` — through nested group ${x.through.length ? x.through.join(" / ") : "(unnamed)"}` : x.pathUnknown ? " — route not resolved" : " (direct member)"}.`));
+      if (cell.state === "bypass") ev.verdict = "The policy would otherwise have included them: this is an effective bypass.";
+      else if (cell.state === "configured") ev.verdict = "The policy never includes them in the first place — listed in an exclusion, but nothing is taken out of scope.";
+      else ev.verdict = "Whether the policy includes them could not be decided: its include side names a group or role this scan did not read.";
+      return ev;
+    }
+    const e = model.entities.find((x) => x.key === rowKey);
+    if (!e) return null;
+    ev.title = e.name; ev.sub = `${KIND[e.kind].label} · ${e.id}`; ev.kind = e.kind;
+    ev.excluded = e.policyIds.has(policyId);
+    ev.state = ev.excluded ? "excluded" : "not";
+    if (!ev.excluded) {
+      const carriers = model.policies.filter((x) => x.exclusionCount > 0 && e.policyIds.has(x.id)).length;
+      ev.lines.push(`This policy does NOT exclude ${e.name}; ${carriers} other polic${carriers === 1 ? "y does" : "ies do"}.`);
+      ev.verdict = "The odd one out — if the exclusion is deliberate everywhere else, this policy is the one to check.";
+      return ev;
+    }
+    if (e.kind === "group") {
+      ev.lines.push(`${e.memberTotal ?? (e.members || []).length} transitive member${(e.memberTotal ?? 0) === 1 ? "" : "s"}${e.nested && e.nested.length ? ` · ${e.directCount} direct · ${e.nestedCount} through ${e.nested.length} nested group${e.nested.length === 1 ? "" : "s"}` : ""}${e.unknownPathCount ? ` · ${e.unknownPathCount} path not resolved` : ""}.`);
+      if (e.disabled) ev.lines.push("The group's members include disabled accounts.");
+      ev.actions.push({ kind: "members", key: e.key, label: "View members" });
+    } else if (e.kind === "app") {
+      const v = e.verdicts && e.verdicts[policyId];
+      if (v) { ev.coverage = v; ev.verdict = (typeof CaCoverage !== "undefined" && CaCoverage.text) ? CaCoverage.text(v) : v.state; }
+      if (e.noSp) ev.lines.push("No service principal in this tenant — the exclusion matches nothing today.");
+    } else if (e.kind === "guest" && e.clause) {
+      ev.lines.push(`${e.clause.allTypes ? "All external types" : e.clause.types.join(", ")} · ${e.clause.allTenants ? "all external tenants" : `${e.clause.tenants.length} named tenant${e.clause.tenants.length === 1 ? "" : "s"}`}.`);
+    } else if (e.kind === "role") {
+      ev.lines.push("Role members are not expanded by this scan — everyone holding the role is excluded and is not a row in Effective users.");
+    } else if (e.kind === "user" && e.disabled) {
+      ev.lines.push("This account is disabled and still sits in the exclusion list.");
+    }
+    return ev;
   }
 
   // risk review: policies worth looking at, worst first
@@ -1021,5 +1093,5 @@ const Exclusions = (() => {
     return L.join("\n");
   }
 
-  return { collect, resolve, appCoverage, effectiveUsers, risk, summary, renderSummary, renderGroups, renderMatrix, renderUsers, renderRisk, toCsv, toMd, KIND };
+  return { collect, resolve, appCoverage, effectiveUsers, risk, summary, renderSummary, renderGroups, renderMatrix, renderUsers, renderRisk, toCsv, toMd, evidence, KIND };
 })();

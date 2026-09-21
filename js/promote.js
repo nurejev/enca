@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 239,
+      title: "\ud83d\udeaa Cell evidence on click, a keyboard grid, capped headers",
+      tools: ["Exclusion analyzer"],
+      builds: [25417],
+      risk: "medium",
+      what: "js/exclusions.js: renderMatrix and renderUsers render column headers, row labels and marked cells as buttons carrying data-r / data-c grid positions (first header tabindex 0, the rest -1); focusBanner takes the policy object and renders the selected-policy strip (name, state tag, controls, exclusion count, Open policy); gridLegend(tab) above each grid; NEW evidence(model, users, rowKey, policyId, tab) returns the card\u2019s data. js/app.js: openExPop draws the card in a fixed-position #ex-pop next to the cell (Escape, outside click and scroll close it; focus returns to the cell), its actions route to showDetail, openExMembers and the row/column pins; a focusin handler keeps one roving tabindex; a keydown handler moves focus with the arrow keys, Home and End. css/app.css: the .ex-grid button resets, the 110px header cap, the .cfg cell, the popover. index.html: the duplicate legend leaves the pager.",
+      why: "MEDIUM \u2014 nothing was lying, but the grids were unusable for anyone not using a mouse and a large screen: 168 cells whose only explanation was a hover title, and 26 clickable things of which one had keyboard access. This is the review\u2019s finding 22 (accessibility) and the second half of finding 7. Rendering and interaction only; no data path changes.",
+      test: [
+        "Matrix, any \u2717 cell: click opens a card naming the exclusion, the policy with its state, and the reason; Escape closes it and focus is back on the cell. Falsifiable: on 25416 a cell click did nothing.",
+        "Effective users: a \u25d0 cell\u2019s card names the excluded group and the nested group where there is one; a \u25cb cell\u2019s card says the policy never includes the user; a ? cell\u2019s card says the include side was not read.",
+        "An excluded app\u2019s cell shows the coverage verdict chip and, for a partial one, what the replacement does not carry.",
+        "Keyboard only: Tab into the grid lands on the first policy header; ArrowRight / ArrowDown / ArrowLeft / ArrowUp move between headers, row labels and marked cells; Enter on a cell opens the card; Tab does not stop on every cell.",
+        "Pick a column: the strip above the grid shows the full policy name, its state tag, its controls and its exclusion count, and Open policy opens the card. The rotated header is no taller than about 110px.",
+        "Touch (or the browser\u2019s device emulation): a tap on a cell opens the card \u2014 no hover needed.",
+        "The card\u2019s Only this row / Only this policy buttons pin exactly as clicking the row or header does.",
+        "Regression: tools/regression.test.cjs (60) passes.",
+      ],
+      files: ["js/exclusions.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 238,
       title: "\ud83d\udeaa Member button on its own line; full screen takes the pager",
       tools: ["Exclusion analyzer"],

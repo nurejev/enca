@@ -784,6 +784,33 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .ex-memlink{border:0;background:none;padding:0;font:inherit;color:var(--green);cursor:pointer;
   text-decoration:underline;text-underline-offset:2px}
 .ex-memlink:hover{color:var(--accent2)}
+/* ---------- the T09 grids as keyboard grids (25417) ----------
+   Header buttons, row buttons and cell buttons reset to look like the text
+   they replace; the header is capped because the full policy name lives in
+   the selected-policy strip once a column is picked. */
+.ex-grid thead th.pcol button.ph{border:0;background:none;color:inherit;font:inherit;font-weight:600;font-size:11px;cursor:pointer;
+  writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;max-height:110px;overflow:hidden;text-overflow:ellipsis;padding:0;display:block;white-space:nowrap}
+.ex-grid thead th.pcol button.ph:hover{color:var(--lemon)}
+.ex-grid thead th.pcol button.ph:focus-visible{outline:2px solid var(--lemon);outline-offset:-2px;border-radius:4px}
+.ex-grid td.ucol button.ex-rowbtn{border:0;background:none;color:inherit;font:inherit;font-weight:600;cursor:pointer;padding:0;text-align:left;
+  display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ex-grid td.ucol button.ex-rowbtn:hover{color:var(--accent2)}
+.ex-grid td.ucol button.ex-rowbtn:focus-visible{outline:2px solid var(--green);outline-offset:1px;border-radius:4px}
+.ex-grid td.cellv{padding:0}
+.ex-grid td.cellv button.cell{display:block;width:100%;min-height:34px;border:0;background:none;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:5px 6px}
+.ex-grid td.cellv button.cell:hover{background-image:linear-gradient(var(--hl2),var(--hl2))}
+.ex-grid td.cellv button.cell:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
+.ex-grid td.cellv .cell.cfg{color:var(--na);opacity:.85}
+.ex-legend{margin:0 2px 8px}
+/* the evidence popover */
+.ex-pop{position:fixed;z-index:420;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
+  padding:10px 12px 12px;font-size:13px;color:var(--ink);max-width:calc(100vw - 16px)}
+.ex-pop-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding-right:26px;position:relative}
+.ex-pop-h b{font-size:14px}
+.ex-pop-x{position:absolute;right:-4px;top:-4px;border:0;background:none;color:var(--muted);font-size:15px;cursor:pointer;padding:4px 6px;border-radius:6px}
+.ex-pop-x:hover{background:var(--soft);color:var(--ink)}
+.ex-pop-b{margin-top:6px;line-height:1.45}
+.ex-pop-a{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 /* a row's own action (25416): its own line, its own height, never inside the
    clipped sublabel — so a finger or a pointer lands on it, not on the row */
 .mtable td.ucol .ex-rowact{display:inline-flex;align-items:center;min-height:28px;margin-top:4px;padding:0 10px;
