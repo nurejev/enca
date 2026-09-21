@@ -610,3 +610,26 @@ test('overview: run cards say never, stale or fresh',()=>{
  assert.match(html,/db-run never/);assert.match(html,/not run this session/);
  assert.equal((html.match(/data-ovrun=/g)||[]).length,3);
 });
+
+// ---- 25420: Worth a look first draws ranked findings, says when provisional ----
+test('overview: worth renders ranked lines with severity, tool and subtab, and the provisional note',()=>{
+ const html=Overview.worth({items:[
+  {sev:'critical',icon:'s',toolLabel:'Checks',tool:'toolGapCheck',tab:'checks:bypass',text:'No MFA policy covers all users',sub:'tenant-wide'},
+  {sev:'high',icon:'d',toolLabel:'Exclusions',tool:'toolExclusions',text:'2 app exclusions with no equivalent coverage established',sub:'1 reached by no other enforcing policy'},
+  {sev:'info',icon:'c',toolLabel:'CIS',tool:'toolGapCheck',tab:'checks:cis',text:'CIS 5.2.2 not assessed this session'},
+ ],provisional:'First pass over the loaded policies only.',zt:{overall:42}});
+ assert.equal((html.match(/class="db-worth sev-/g)||[]).length,3);
+ assert.match(html,/sev-critical[\s\S]*sev-high[\s\S]*sev-info/);
+ assert.match(html,/data-ovtool="toolGapCheck" data-ovtab="checks:bypass"/);
+ assert.match(html,/data-ovtool="toolExclusions">/);
+ assert.match(html,/Zero Trust 42\/100 \(configuration findings, not effective protection\)/);
+ assert.match(html,/db-worth-note[^>]*>First pass over the loaded policies only\./);
+ assert.match(html,/1 reached by no other enforcing policy/);
+});
+test('overview: worth with nothing to show says so, and no note when the run was full',()=>{
+ const html=Overview.worth({items:[],provisional:null,zt:null});
+ assert.match(html,/Nothing critical or high in the loaded policy set — /);
+ assert.doesNotMatch(html,/on a first pass/);assert.doesNotMatch(html,/db-worth-note/);assert.doesNotMatch(html,/Zero Trust/);
+ const html2=Overview.worth({items:[],provisional:'x',zt:null});
+ assert.match(html2,/on a first pass/);
+});

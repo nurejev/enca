@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25420, date: "2026-09-21", title: "Worth a look first",
+    items: [
+      { kind: "new", tool: "Home", text: "A WORTH A LOOK FIRST band between Tenant and Your runs: the highest-severity findings the loaded policy set shows, ranked by severity and then tool, at most six, each a button into the tool that owns it. The \ud83d\udee1 gap checks run over the loaded policies the moment the home page draws \u2014 they are pure over the policy set once their context is in hand. Without a \ud83d\udee1 run this session they run provisionally, with authentication strengths, named locations and the Conditional Access settings unread; the band says so, and the checks that need those reads stay silent or understate rather than invent. A \ud83d\udee1 or \ud83d\udcd0 result from before the last policy reload is not built on." },
+      { kind: "new", tool: "Home", text: "\ud83d\udcd0 CIS is not guessed at: its trusted-location and licence controls fail without their reads, so without a run this session the band only offers the run; with one it says how many controls fail (Level 1 called out) and how many are one switch from passing. The \ud83d\udeaa app-exclusion comparison runs over the policy set too: apps excluded from an All-resources policy that no other enforcing policy reaches with equivalent coverage. The Zero Trust number sits in the band heading, labelled a configuration score, not effective protection." },
+    ],
+  },
+  {
     build: 25419, date: "2026-09-21", title: "The home page says what it already knows",
     items: [
       { kind: "new", tool: "Home", text: "An OVERVIEW above the tool tiles once a tenant is loaded. It reads nothing beyond what sign-in already read: a Tenant band with the policy states, report-only policies untouched for more than 30 days, what changed in the last 30 days, the baseline match with what is missing, outdated or in conflict, and the CONFIGURED exclusions \u2014 labelled configured, never effective, because who a policy reaches is a read that belongs behind a Run button. The two dated retirements count down beside it. Every tile opens the tool that owns it." },

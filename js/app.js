@@ -18714,7 +18714,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
 
   // ---------- gap analysis (best-practice & bypass checks) ----------
-  let gcResult = null, gcFilter = "all", gcCtx = null, gcMeta = null;
+  let gcResult = null, gcFilter = "all", gcCtx = null, gcMeta = null, gcRunAt = 0;
   let gcCats = null; // category filter set by clicking a scorecard signal/pillar (array or null)
   const gcExpanded = new Set();
   function openGapCheck() {
@@ -18778,6 +18778,7 @@ This is a directory write. Nothing else changes.`)) return;
   function runGapCheck() {
     const scope = checkScope($("gcDisabled").checked);
     gcResult = GapCheck.run(scope.raws, gcCtx, { includeDisabled: scope.includeDisabled });
+    gcRunAt = Date.now();
     gcMeta = { tenantName, incomplete: gcCtx?.incomplete || null, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
     gcFilter = "all"; gcCats = null; gcExpanded.clear();
     renderGapCheck();
@@ -18850,7 +18851,7 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- CIS Benchmark alignment ----------
   // Scan on demand (▶ button), result persists across tab switches until an
   // explicit rescan — same lifecycle as Sign-in failures and Protect.
-  let ciResult = null, ciCtx = null, ciMeta = null;
+  let ciResult = null, ciCtx = null, ciMeta = null, ciRunAt = 0;
   let ciFilter = { level: "all", status: "all" };
   const ciExpanded = new Set();
   const CI_IDLE_HEAD = toolHead("toolCis") + '<p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
@@ -18904,6 +18905,7 @@ This is a directory write. Nothing else changes.`)) return;
       }
     } catch (e) { console.warn("CIS benchmark context fetch failed:", e.message); }
     ciResult = CisCheck.run(raws, ciCtx);
+    ciRunAt = Date.now();
     ciMeta = { tenantName, policyCount: raws.filter(p => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced").length };
     ciFilter = { level: "all", status: "all" }; ciExpanded.clear();
     renderCis();
@@ -19521,18 +19523,101 @@ This is a directory write. Nothing else changes.`)) return;
           : lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null && lgRes.p1.targeted - lgRes.p1.assignedInScope > 0 ? { n: (lgRes.p1.targeted - lgRes.p1.assignedInScope).toLocaleString(), unit: "to assign, no purchase" }
           : { n: "0", unit: "P1 shortfall" }) : null },
     ];
+    let worth = null;
+    try { worth = worthItems(raws); } catch (e) { console.warn("overview worth:", e); }
     host.hidden = false;
     host.innerHTML = Overview.tenant({ tenantName, isDemo, snapshot: policiesReadAt || null,
       policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
       baseline, exclusions, now: Date.now() })
+      + (worth ? Overview.worth(worth) : "")
       + Overview.runs(cards);
+  }
+  // ---- Worth a look first (25420) ----
+  // The gap checks, the CIS assessment and the exclusion app-coverage
+  // comparison are all pure over the policy set once their context is in
+  // hand. Here they run over the loaded set with NO tenant read: a full 🛡
+  // result from this session is used as-is; without one, the gap checks run
+  // provisionally (authentication strengths, named locations and the CA
+  // settings unread — the checks that need them stay silent or understate,
+  // never invent) and the band says so. CIS is not guessed at: its
+  // trusted-location and licence controls fail without their reads, so
+  // without a run it only offers the run. Memoised on the policy snapshot.
+  let worthMemo = null;
+  const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  function worthItems(raws) {
+    const key = [policiesReadAt, raws.length].join("|");
+    // a 🛡 or 📐 result older than the loaded snapshot is that tool's to keep
+    // (its screen says so); this band does not build on it
+    const fresh = (t) => !!t && (!policiesReadAt || t >= new Date(policiesReadAt).getTime());
+    const gc = fresh(gcRunAt) ? gcResult : null, ci = fresh(ciRunAt) ? ciResult : null;
+    if (worthMemo && worthMemo.key === key && worthMemo.gc === gc && worthMemo.ci === ci) return worthMemo.w;
+    const items = [];
+    let provisional = null, zt = null;
+    // 🛡 Bypass & Swiss cheese
+    let gap = gc;
+    if (!gap) {
+      const scope = checkScope(isBaselineTenant());
+      gap = GapCheck.run(scope.raws, { strengths: new Map(), namedLocations: [], names: {}, caSettings: caSettingsCache || null }, { includeDisabled: scope.includeDisabled });
+      provisional = "First pass over the loaded policies only — authentication strengths, named locations and the Conditional Access settings are read when you run 🛡 Checks, and the findings that need them are left out here.";
+    }
+    zt = gap.zt && gap.zt.overall != null ? { overall: gap.zt.overall } : null;
+    const byTitle = new Map();
+    (gap.findings || []).filter((f) => f.severity === "critical" || f.severity === "high").forEach((f) => {
+      const k = `${f.severity}|${f.title}`;
+      const e = byTitle.get(k) || { sev: f.severity, title: f.title, pols: [] };
+      if (f.policyName && f.policyName !== "Tenant-wide") e.pols.push(f.policyName);
+      byTitle.set(k, e);
+    });
+    [...byTitle.values()].sort((a, b) => SEV_RANK[a.sev] - SEV_RANK[b.sev]).slice(0, 4).forEach((e) => {
+      items.push({ sev: e.sev, icon: "🛡", toolLabel: "Checks", tool: "toolGapCheck", tab: "checks:bypass", text: e.title,
+        sub: e.pols.length === 1 ? e.pols[0] : e.pols.length > 1 ? `${e.pols.length} policies` : "tenant-wide" });
+    });
+    // 📐 CIS — only where the tab exists for this tenant
+    const cisTab = (TAB_HOSTS.checks.tabs.find((t) => t.key === "cis"));
+    if (cisTab && tabShown(cisTab)) {
+      if (ci) {
+        const s = ci.score || {};
+        const l1 = (ci.results || []).filter((r) => r.level === 1 && r.status === "fail").length;
+        if (s.fail) items.push({ sev: l1 ? "high" : "medium", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+          text: `${s.fail} CIS control${s.fail === 1 ? "" : "s"} failing${l1 ? ` (${l1} Level 1)` : ""}`,
+          sub: (s.reportonly || s.configured) ? `${(s.reportonly || 0) + (s.configured || 0)} more one switch from passing` : `of ${s.total} assessed` });
+        else if (s.reportonly || s.configured) items.push({ sev: "low", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+          text: `${(s.reportonly || 0) + (s.configured || 0)} CIS control${(s.reportonly || 0) + (s.configured || 0) === 1 ? "" : "s"} one switch from passing`, sub: "report-only or Off" });
+      } else {
+        items.push({ sev: "info", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis", text: "CIS 5.2.2 not assessed this session", sub: "reads strengths, locations and licence SKUs" });
+      }
+    }
+    // 🚪 app exclusions with no equivalent coverage established
+    try {
+      const m = Exclusions.appCoverage(Exclusions.collect(raws));
+      const apps = m.entities.filter((e) => e.kind === "app" && e.uncoveredIn && e.uncoveredIn.length);
+      if (apps.length) {
+        const none = apps.filter((e) => Object.values(e.verdicts || {}).some((v) => v.state === "none")).length;
+        items.push({ sev: none ? "high" : "medium", icon: "🚪", toolLabel: "Exclusions", tool: "toolExclusions",
+          text: `${apps.length} app exclusion${apps.length === 1 ? "" : "s"} with no equivalent coverage established`,
+          sub: none ? `${none} reached by no other enforcing policy` : "partial or unresolved by this analysis" });
+      }
+    } catch (e) { console.warn("overview app coverage:", e); }
+    const TOOL_RANK = { toolGapCheck: 0, toolExclusions: 1 };
+    items.sort((a, b) => (SEV_RANK[a.sev] - SEV_RANK[b.sev]) || ((TOOL_RANK[a.tool] ?? 9) - (TOOL_RANK[b.tool] ?? 9)));
+    const w = { items: items.slice(0, 6), provisional, zt };
+    worthMemo = { key, gc, ci, w };
+    return w;
   }
   // The workspace home is built after the app has already drawn once; when it
   // appears, the Overview moves into it.
   document.addEventListener("enca:wchome", () => { try { renderOverview(); } catch (e) { console.warn("overview:", e); } });
   $("overview") && $("overview").addEventListener("click", (e) => {
     const t = e.target.closest("[data-ovtool]");
-    if (t) { const el = $(t.dataset.ovtool); if (el) el.click(); return; }
+    if (t) {
+      // a finding that lives on a subtab opens that tab directly
+      if (t.dataset.ovtab) {
+        const [hk, tk] = t.dataset.ovtab.split(":");
+        const tab = TAB_HOSTS[hk] && TAB_HOSTS[hk].tabs.find((x) => x.key === tk);
+        if (tab && tabShown(tab)) { tab.open(); return; }
+      }
+      const el = $(t.dataset.ovtool); if (el) el.click(); return;
+    }
     const r = e.target.closest("[data-ovrun]");
     if (!r) return;
     const which = r.dataset.ovrun;

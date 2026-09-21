@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 242,
+      title: "\ud83c\udfe0 Overview: the Worth-a-look-first band",
+      tools: ["Home"],
+      builds: [25420],
+      risk: "medium",
+      what: "js/overview.js: NEW Overview.worth(w) \u2014 renders ranked finding buttons with a severity badge, the owning tool and an optional provisional note. js/app.js: worthItems(raws) runs GapCheck.run over the loaded set (a fresh gcResult from this session is used instead; gcRunAt / ciRunAt record when each ran so a result older than the policy snapshot is ignored), takes the critical and high findings collapsed by title, adds the CIS line only where the tab is shown (counts from a fresh ciResult, otherwise the offer to run), and the app-exclusion line from Exclusions.appCoverage; ranked by severity then tool, capped at six, memoised on the snapshot and the two results. The Overview click handler honours data-ovtab and opens the subtab directly. css/app.css: .db-worth* rules. index.html: Help bullet.",
+      why: "MEDIUM \u2014 the Overview said what the tenant has, not what to look at. The gap checks and the exclusion comparison are pure over the policy set, so running them at home costs nothing and reads nothing. The risk is a provisional finding read as final: the note under the band, the Help text and the choice to leave CIS unguessed are the guard.",
+      test: [
+        "Load the demo: a Worth-a-look-first band sits between Tenant and Your runs with ranked lines (Critical before High), each naming its tool; the provisional note reads under it and the heading carries the Zero Trust number.",
+        "Press a \ud83d\udee1 line: the Checks tool opens on the Bypass tab. Press the \ud83d\udcd0 line (CIS tenant only): the CIS tab opens directly. Press the \ud83d\udeaa line: the Exclusion analyzer opens.",
+        "Run \ud83d\udee1 Checks and return Home: the provisional note is gone and the lines match the top of the Checks findings list (same titles, same severities).",
+        "Run \ud83d\udcd0 CIS (CIS tenant) and return Home: the CIS line says how many controls fail with the Level 1 count; the not-assessed line is gone.",
+        "Press Refresh and return Home: the band is provisional again (the \ud83d\udee1 and \ud83d\udcd0 results predate the snapshot).",
+        "A tenant with no critical or high finding shows the empty line, not an empty box.",
+        "The band never reads the tenant: the network panel shows no Graph call when the home page draws.",
+        "Regression: tools/regression.test.cjs passes.",
+      ],
+      files: ["js/overview.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 241,
       title: "\ud83c\udfe0 Overview on the home page: the Tenant band and Your runs",
       tools: ["Home"],

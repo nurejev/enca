@@ -625,6 +625,19 @@ tr.grouprow:hover td{background:var(--line)}
 .db-run .t{font-weight:600;font-size:13px}.db-run .h{font-size:20px;font-weight:700}.db-run .m{font-size:11.5px;color:var(--muted)}
 .db-run.stale{border-color:var(--warn-bd);background:var(--warn-bg2)}.db-run.never{opacity:.8}
 .db-run .a{margin-top:auto;display:flex;gap:6px;flex-wrap:wrap}
+/* Worth a look first (25420): one button per ranked finding */
+.db-worths{display:flex;flex-direction:column;gap:6px}
+.db-worth{display:flex;align-items:baseline;gap:10px;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;box-shadow:var(--shadow)}
+.db-worth:hover{border-color:var(--accent2)}.db-worth:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.db-worth .sv{flex:none;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-radius:6px;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.db-worth.sev-critical .sv{background:var(--crit-bg);color:var(--crit-fg)}
+.db-worth.sev-high .sv{background:var(--high-bg);color:var(--high-fg)}
+.db-worth.sev-medium .sv{background:var(--warn-bg);color:var(--warn-fg)}
+.db-worth .tx{flex:1 1 auto;min-width:0;line-height:1.35}
+.db-worth .to{flex:none;color:var(--muted);white-space:nowrap}
+.db-worth-empty,.db-worth-note{padding:6px 2px;line-height:1.4}
+@media (max-width:600px){.db-worth{flex-wrap:wrap}.db-worth .to{width:100%;text-align:right}}
 /* ---------- run evidence strip (js/runmeta.js, 25412) ----------
    What a result was computed FROM, above the result itself: tenant, policy
    snapshot, states, population, completeness and a run id. Turns amber when

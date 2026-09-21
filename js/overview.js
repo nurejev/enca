@@ -13,6 +13,7 @@
 //   Overview.tenant(d)   the tenant band: policy states, recent change,
 //                        baseline match, configured exclusions, deadlines
 //   Overview.runs(cards) one card per on-demand tool: headline, run, freshness
+//   Overview.worth(w)    the ranked findings the loaded policy set shows (25420)
 //
 // Pure over their arguments: the app builds `d` and `cards` from its state.
 // ======================================================================
@@ -91,6 +92,28 @@ const Overview = (() => {
     </div>`;
   }
 
-  return { tenant, runs, DEADLINES };
+  // ---- Worth a look first (25420) ----
+  // w = { items: [{ sev, icon, text, sub, tool, tab }], provisional: string|null,
+  //       zt: {overall}|null }
+  // The items are RANKED by the app (severity, then tool) and capped there;
+  // this only draws them. Every line is a button into the tool that owns the
+  // finding, and the band never says more than the finding does.
+  const SEV = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
+  function worth(w) {
+    const items = w.items || [];
+    const line = (x) => `<button type="button" class="db-worth sev-${esc(x.sev)}" data-ovtool="${esc(x.tool)}"${x.tab ? ` data-ovtab="${esc(x.tab)}"` : ""}>
+      <span class="sv">${esc(SEV[x.sev] || x.sev)}</span>
+      <span class="tx">${esc(x.text)}${x.sub ? ` <span class="mini muted">— ${esc(x.sub)}</span>` : ""}</span>
+      <span class="to mini">${x.icon || ""} ${esc(x.toolLabel || "")} ›</span>
+    </button>`;
+    const empty = `<div class="db-worth-empty mini muted">Nothing critical or high in the loaded policy set${w.provisional ? " on a first pass" : ""} — the tools below go deeper than this band can.</div>`;
+    return `<div class="db-band">
+      <h3>Worth a look first <span class="mini muted">— the highest-severity findings the loaded policies show${w.zt ? ` · Zero Trust ${esc(w.zt.overall)}/100 (configuration findings, not effective protection)` : ""}</span></h3>
+      <div class="db-worths">${items.length ? items.map(line).join("") : empty}</div>
+      ${w.provisional ? `<div class="db-worth-note mini muted">${esc(w.provisional)}</div>` : ""}
+    </div>`;
+  }
+
+  return { tenant, runs, worth, DEADLINES };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = { Overview };
