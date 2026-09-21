@@ -4,7 +4,7 @@ const ListDetail = (() => {
   const el=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n;};
   function mount(host,items,{key=host.id,before=[],after=[]}={}) {
     if(!items.length)return;
-    const old=states.get(key)||{selected:null,wide:false,mobile:false,ratio:54,tab:'Overview'};
+    const old=states.get(key)||{selected:null,wide:false,mobile:false,ratio:54,tab:'Overview',painted:null};
     if(!items.some(x=>x.key===old.selected)){old.selected=items[0].key;old.wide=false;old.mobile=false;}
     states.set(key,old);
     const shell=el('div','ld-shell'),list=el('div','ld-list'),panel=el('section','ld-panel');panel.setAttribute('aria-label','Selected item details');
@@ -18,6 +18,12 @@ const ListDetail = (() => {
     }
     function paint(){
       const item=items.find(x=>x.key===old.selected)||items[0];shell.classList.toggle('ld-wide',old.wide);shell.classList.toggle('ld-mobile-detail',old.mobile);shell.style.setProperty('--ld-list',old.ratio+'%');
+      // The panel scrolls on its own (build 25408), so a new selection has to
+      // start at the top of its own pane: left where the last one ended, a
+      // short detail opens blank and a long one opens halfway down a section
+      // nobody chose. Only on a CHANGE — a tab switch inside one item keeps
+      // its place, which is what makes the tabs usable at all.
+      if(old.painted!==item.key){old.painted=item.key;panel.scrollTop=0;}
       wide.textContent=old.wide?'Restore split view':'Open wide';title.textContent=item.title;
       for(const [id,b] of buttons)b.setAttribute('aria-pressed',String(id===item.key));
       body.replaceChildren(typeof item.node==='function'?item.node():item.node);tabs.replaceChildren();

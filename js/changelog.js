@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25408, date: "2026-09-21", title: "The preview scrolls on its own",
+    items: [
+      { kind: "improved", tool: "All tools", text: "In every tool with a results list beside a detail panel \u2014 \ud83d\udd53 Changes, \ud83d\udea6 Sign-in failures, \ud83c\udf10 Named locations with the four tools folded under it, \ud83d\udeaa Exclusion analyzer, \ud83d\udd17 User or Group analyzer and \ud83d\udcc4 Policies \u2014 THE TWO SIDES NOW SCROLL SEPARATELY. Reading to the bottom of a long detail used to scroll the whole page, so the results went off the top and picking the next one meant scrolling all the way back up; twenty change events with a full diff each made the page thousands of pixels tall and the list unreachable from most of it. Each side is its own scrollbar now, both pinned directly under the screen's own toolbar, so the list stays on screen however far into a detail you read \u2014 and the toolbar, the search and the filters stay where they are." },
+      { kind: "improved", tool: "Policies", text: "The policy detail panel beside the table scrolls the same way: the table keeps its place while a six-section policy is read through, and the panel starts at the top of each policy you open instead of wherever the last one was left. Switching between the panel's own sections keeps your place in that section, which is what makes them worth switching between." },
+      { kind: "fixed", tool: "All tools", text: "A flick past the end of a panel no longer carries the page with it, and the panes are measured against the screen's visible height rather than its full height \u2014 so on a phone, where the browser's address bar comes and goes, the bottom of a pane is not left underneath it. Below 900 pixels nothing changes: the list and the detail are still one column and one scrollbar, because a second scrollbar inside a phone screen is a trap rather than a convenience." },
+    ],
+  },
+  {
     build: 25407, date: "2026-09-21", title: "Production is 321",
     items: [
       { kind: "improved", tool: "Help", text: "Production is build 321. Queue item 228 is out: the \u2699 control on the sign-in card, so a customer tenant or your own app registration can be signed in with from the card itself instead of from a file. Item 229 stays on this channel FOR GOOD \u2014 it is the per-host default that makes this beta site sign in with the publisher's own single-tenant registration, and a production build carrying it would be shipping somebody else's tenant ID to every copy. \ud83d\ude9a Waiting for production now holds 224 and 34, the \ud83d\udcd0 CIS Benchmark guard and its Help section, and 230, 231 and 232. Item 229 moves to Staying on this channel, where a thing that can never be ticked belongs \u2014 it was sitting in the queue offering itself for promotion on every export." },

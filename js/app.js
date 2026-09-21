@@ -123,6 +123,18 @@
     const gus = document.querySelector("section.screen.active .gu-sticky");
     document.documentElement.style.setProperty("--gu-strip",
       (gus ? Math.round(gus.getBoundingClientRect().height) : 0) + "px");
+    // And the other end of the page. A list/detail pane is capped at the
+    // screen's height (build 25408) so it can scroll on its own — but a
+    // sticky box cannot hold its offset past the bottom of its own box, so
+    // whatever the page can still scroll AFTER the panes have pinned drags
+    // them up under the toolbar. The footer is the whole of that remainder
+    // once main's bottom padding is taken off these screens, so the pane
+    // height reserves it and the page runs out of scroll exactly as the
+    // panes arrive. Measured because the footer wraps to two and three rows
+    // on a narrow window, which is where the drift was worst.
+    const ft = document.querySelector("footer");
+    document.documentElement.style.setProperty("--ld-foot",
+      (ft ? Math.round(ft.getBoundingClientRect().height) : 48) + "px");
   }
   const stickyNavTop = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sticky-nav")) || 106;
   window.addEventListener("resize", syncStickyTops);
