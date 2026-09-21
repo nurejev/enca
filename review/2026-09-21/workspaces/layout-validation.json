@@ -1,0 +1,965 @@
+{
+  "date": "2026-09-21T09:40:59.530Z",
+  "baseBuild": 25401,
+  "errors": [],
+  "screens": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-smsvoice",
+      "tool": true,
+      "title": "📵 SMS & voice retirement BETA ⏳ temporary toolT33 · v1.7",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-memberof",
+      "tool": true,
+      "title": "🧷 memberOf retirement BETA ⏳ temporary tool reads onlyT34 · v1.1",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-userimpact",
+      "tool": true,
+      "title": "🗣 User impact briefT32 · v1.2",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-list",
+      "tool": true,
+      "title": "Policies",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-whatif",
+      "tool": true,
+      "title": "🧪 What-IfT14 · v1.5.1",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-whois",
+      "tool": true,
+      "title": "🕵 Who is Anna to CA BETAT36 · v1.4.0",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-spgap",
+      "tool": true,
+      "title": "🫥 Apps with no service principal BETAT39 · v0.3.0",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-groupuse",
+      "tool": true,
+      "title": "🔗 User or Group analyzerT19 · v1.4.0",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-exclusions",
+      "tool": true,
+      "title": "🚪 CA Exclusion analyzerT09 · v1.10.1",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-audit",
+      "tool": true,
+      "title": "🕓 Change audit UPDATEDT16 · v1.8.2",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-signins",
+      "tool": true,
+      "title": "🚦 Sign-in failuresT17 · v2.6.0",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-gapcheck",
+      "tool": true,
+      "title": "🛡 Best-practice & bypass checksT08 · v2.1.1",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-baseline",
+      "tool": true,
+      "title": "🧬 CloudFellows baseline — R26.6 (v3.x) rev 2026-08-20T10 · v2.7.4",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-cagroups",
+      "tool": true,
+      "title": "👥 Conditional Access groups — Contoso B.V. (demo)T12 · v5.13.0",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-protect",
+      "tool": true,
+      "title": "🔒 Protect exclusions UPDATED writes to tenantT20 · v3.0.4",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-locations",
+      "tool": true,
+      "title": "🌐 Named locations writes to tenantT15 · v1.8.2",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-rmau",
+      "tool": true,
+      "title": "🛡 Restricted AUs writes to tenantT27 · v1.8.4",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-rollout",
+      "tool": true,
+      "title": "Guided rollout",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-impact",
+      "tool": true,
+      "title": "🎚 Report-only impactT26 · v2.2.0",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-sessionctl",
+      "tool": true,
+      "title": "🛂 Session controls BETAT38 · v0.6.4",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-drift",
+      "tool": true,
+      "title": "📉 Drift watchT28 · v1.0.3",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-licgap",
+      "tool": true,
+      "title": "🎫 Licence gapT31 · v1.0.5",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-wave",
+      "tool": true,
+      "title": "🌊 Who is the wave to CA BETAT37 · v0.8.5",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-compare",
+      "tool": true,
+      "title": "⚖ Compare usersT18 · v1.0.5",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-validator",
+      "tool": true,
+      "title": "⚡ CA validator NEWT13 · v1.8.2",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-mslearn",
+      "tool": true,
+      "title": "📘 MS Learn: documented exclusion checksT07 · v2.6.2",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-devcheck",
+      "tool": true,
+      "title": "🖥 Compliant-device reality check NEWT30 · v1.1.3",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-authstr",
+      "tool": true,
+      "title": "💪 Authentication strengths writes to tenantT23 · v1.0.4",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-authctx",
+      "tool": true,
+      "title": "🎫 Authentication contexts writes to tenantT22 · v1.0.3",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-tou",
+      "tool": true,
+      "title": "📜 Terms of use BETA writes to tenantT25 · v1.0.3",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-recycle",
+      "tool": true,
+      "title": "♻ Recycle bin writes to tenantT24 · v1.0.4",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-guide",
+      "tool": true,
+      "title": "📖 Baseline usage guide BETAT29 · v0.3.3",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "id": "screen-teamsdev",
+      "tool": true,
+      "title": "📞 Teams devices BETA writes to tenantT35 · v0.4.2",
+      "font": "29px",
+      "viewport": 1440,
+      "scroll": 1425
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-smsvoice",
+      "tool": true,
+      "title": "📵 SMS & voice retirement BETA ⏳ temporary toolT33 · v1.7",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-memberof",
+      "tool": true,
+      "title": "🧷 memberOf retirement BETA ⏳ temporary tool reads onlyT34 · v1.1",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-userimpact",
+      "tool": true,
+      "title": "🗣 User impact briefT32 · v1.2",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-list",
+      "tool": true,
+      "title": "Policies",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-whatif",
+      "tool": true,
+      "title": "🧪 What-IfT14 · v1.5.1",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-whois",
+      "tool": true,
+      "title": "🕵 Who is Anna to CA BETAT36 · v1.4.0",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-spgap",
+      "tool": true,
+      "title": "🫥 Apps with no service principal BETAT39 · v0.3.0",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-groupuse",
+      "tool": true,
+      "title": "🔗 User or Group analyzerT19 · v1.4.0",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-exclusions",
+      "tool": true,
+      "title": "🚪 CA Exclusion analyzerT09 · v1.10.1",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-audit",
+      "tool": true,
+      "title": "🕓 Change audit UPDATEDT16 · v1.8.2",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-signins",
+      "tool": true,
+      "title": "🚦 Sign-in failuresT17 · v2.6.0",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-gapcheck",
+      "tool": true,
+      "title": "🛡 Best-practice & bypass checksT08 · v2.1.1",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-baseline",
+      "tool": true,
+      "title": "🧬 CloudFellows baseline — R26.6 (v3.x) rev 2026-08-20T10 · v2.7.4",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-cagroups",
+      "tool": true,
+      "title": "👥 Conditional Access groups — Contoso B.V. (demo)T12 · v5.13.0",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-protect",
+      "tool": true,
+      "title": "🔒 Protect exclusions UPDATED writes to tenantT20 · v3.0.4",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-locations",
+      "tool": true,
+      "title": "🌐 Named locations writes to tenantT15 · v1.8.2",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-rmau",
+      "tool": true,
+      "title": "🛡 Restricted AUs writes to tenantT27 · v1.8.4",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-rollout",
+      "tool": true,
+      "title": "Guided rollout",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-impact",
+      "tool": true,
+      "title": "🎚 Report-only impactT26 · v2.2.0",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-sessionctl",
+      "tool": true,
+      "title": "🛂 Session controls BETAT38 · v0.6.4",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-drift",
+      "tool": true,
+      "title": "📉 Drift watchT28 · v1.0.3",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-licgap",
+      "tool": true,
+      "title": "🎫 Licence gapT31 · v1.0.5",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-wave",
+      "tool": true,
+      "title": "🌊 Who is the wave to CA BETAT37 · v0.8.5",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-compare",
+      "tool": true,
+      "title": "⚖ Compare usersT18 · v1.0.5",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-validator",
+      "tool": true,
+      "title": "⚡ CA validator NEWT13 · v1.8.2",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-mslearn",
+      "tool": true,
+      "title": "📘 MS Learn: documented exclusion checksT07 · v2.6.2",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-devcheck",
+      "tool": true,
+      "title": "🖥 Compliant-device reality check NEWT30 · v1.1.3",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-authstr",
+      "tool": true,
+      "title": "💪 Authentication strengths writes to tenantT23 · v1.0.4",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-authctx",
+      "tool": true,
+      "title": "🎫 Authentication contexts writes to tenantT22 · v1.0.3",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-tou",
+      "tool": true,
+      "title": "📜 Terms of use BETA writes to tenantT25 · v1.0.3",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-recycle",
+      "tool": true,
+      "title": "♻ Recycle bin writes to tenantT24 · v1.0.4",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-guide",
+      "tool": true,
+      "title": "📖 Baseline usage guide BETAT29 · v0.3.3",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "id": "screen-teamsdev",
+      "tool": true,
+      "title": "📞 Teams devices BETA writes to tenantT35 · v0.4.2",
+      "font": "23px",
+      "viewport": 390,
+      "scroll": 375
+    }
+  ],
+  "subtabs": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "signins:failures"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "signins:impact"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "signins:session"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "changes:audit"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "changes:snapshot"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "gap:coverage"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "gap:licences"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "whois:user"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "whois:group"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "whois:compare"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "whatif:one"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "whatif:every"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "checks:bypass"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "checks:mslearn"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "checks:intune"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "blocks:locations"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "blocks:strengths"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "blocks:contexts"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "blocks:terms"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "blocks:deleted"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "baseline:baseline"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "baseline:guide"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "signins:failures"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "signins:impact"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "signins:session"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "changes:audit"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "changes:snapshot"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "gap:coverage"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "gap:licences"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "whois:user"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "whois:group"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "whois:compare"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "whatif:one"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "whatif:every"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "checks:bypass"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "checks:mslearn"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "checks:intune"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "blocks:locations"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "blocks:strengths"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "blocks:contexts"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "blocks:terms"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "blocks:deleted"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "baseline:baseline"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "baseline:guide"
+    }
+  ],
+  "details": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "centered": true,
+      "sixSettingsSections": true,
+      "nestedDependency": true,
+      "documentationAction": true,
+      "focusRestored": true,
+      "escapeCloseBackdrop": true,
+      "cards": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "centered": true,
+      "sixSettingsSections": true,
+      "nestedDependency": true,
+      "documentationAction": true,
+      "focusRestored": true,
+      "escapeCloseBackdrop": true,
+      "cards": true
+    }
+  ],
+  "branding": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "logo": true,
+      "palette": true,
+      "noOverlap": true,
+      "liveApply": true
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "logo": true,
+      "palette": true,
+      "noOverlap": true,
+      "liveApply": false
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "logo": true,
+      "palette": true,
+      "noOverlap": true,
+      "liveApply": false
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "logo": true,
+      "palette": true,
+      "noOverlap": true,
+      "liveApply": false
+    }
+  ],
+  "unavailable": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "screens": [
+        "screen-cis"
+      ],
+      "reason": "CIS is tenant-gated and unavailable in demo; no gate bypassed."
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "screens": [
+        "screen-cis"
+      ],
+      "reason": "CIS is tenant-gated and unavailable in demo; no gate bypassed."
+    }
+  ]
+}

@@ -64,6 +64,7 @@ const Workspace = (() => {
     $('policyWorkspace').classList.toggle('with-inspector',data.view==='list'&&!!inspected);
     renderInspector();
     if($('screen-rollout').classList.contains('active'))renderRollout();
+    document.dispatchEvent(new Event('enca:workspace-updated'));
   }
   function inspect(id) { inspected=id;renderInspector(); }
   function renderInspector() {
@@ -130,5 +131,7 @@ const Workspace = (() => {
     $('rolloutBody').innerHTML=head+`<div class="rollout-content">${content}${step<2?sources:''}${step<3?`<div class="rollout-next">${action('next','Continue →')}</div>`:''}</div>`;
     if(focusCheck)$('rolloutBody').querySelector(`[data-rollout-check="${focusCheck}"]`)?.focus();
   }
-  return {init,update,inspect,review,pickReview,openRollout};
+  return {init,update,inspect,review,pickReview,openRollout,
+    get context(){return current?{tenant:current.tenant,demo:current.demo,key:current.tenantKey||current.tenant,readAt:current.readAt}:null;}
+  };
 })();

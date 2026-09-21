@@ -1865,12 +1865,13 @@
     if (n) setTimeout(() => toast(`⚠ ${n} object name(s) could not be resolved — exports will show raw IDs for these`), 3500);
   }
 
-  function showDetail(id, full = false) {
-    if (!full && viewMode === "list" && $("screen-list").classList.contains("active")) { Workspace.inspect(id); return; }
+  function showDetail(id) {
     const p = policies.find(x => x.id === id); if (!p) return;
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
-    $("detailBody").innerHTML = Render.card(p, tenantName)
+    $("detailBody").innerHTML = `<div class="wc-detail-top"><span class="wc-eyebrow">Policy details</span><button type="button" class="btn sm" data-detail-close aria-label="Close policy details">Close</button></div>`
+      + Render.card(p, tenantName)
+      + `<details class="wc-policy-definition"><summary>Original definition</summary><pre>${esc(JSON.stringify(p.raw,null,2))}</pre></details>`
       + `<div class="pcard-actions">
            <button class="btn" data-wf="${p.id}">⑃ What-if flow</button>
            <span class="pa-sep"></span>
@@ -19070,6 +19071,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   // detail modal: backdrop closes, dependency chips open settings, Save PNG exports
   $("detailModal").addEventListener("click", (e) => {
+    if (e.target.closest('[data-detail-close]')) { $("detailModal").classList.remove("open"); return; }
     if (e.target.id === "detailModal") { $("detailModal").classList.remove("open"); return; }
     const dl = e.target.closest(".dep-link");
     if (dl) { openDepView(dl.dataset.dept, dl.dataset.depid, dl.dataset.deplabel); return; }
@@ -20828,12 +20830,12 @@ This is a directory write. Nothing else changes.`)) return;
   });
 
   function syncWorkspace() {
-    Workspace.update({ policies, visible: visible(), selected, view: viewMode, tenant: tenantName, demo: isDemo, readAt: policiesReadAt });
+    Workspace.update({ policies, visible: visible(), selected, view: viewMode, tenant: tenantName, tenantKey: tenantId || tenantName, demo: isDemo, readAt: policiesReadAt });
   }
   function openRollout() { crumb("↗ Guided rollout"); show("screen-rollout"); syncWorkspace(); Workspace.openRollout(); }
   $("toolDeploy").addEventListener("click", openRollout);
   Workspace.init({
-    detail: id => showDetail(id, true),
+    detail: id => showDetail(id),
     fetchJoey: async onStatus => {
       const status = await BaselineLive.fetchLatest({ force: true, onStatus });
       return { status, bundle: BaselineLive.bundle() };

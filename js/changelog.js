@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25401, date: "2026-09-21", title: "Workspaces: one layout across the tools",
+    items: [
+      { kind: "improved", tool: "Navigation", text: "The Workspaces layout brings a compact navigation rail, persistent Overview and tool tabs, recent tools for this session and a searchable All tools library. The header uses the active logo, product name and theme colours. Tenant identity and the demo label follow the actual session; signing out clears recent tools and hides workspace navigation. The existing permission overview, branding settings, theme control and sign-in connection choices remain available." },
+      { kind: "improved", tool: "Policies", text: "Click a policy to open its full details in a wide, centred window: users, target resources, network, conditions, grant controls and sessions, with the original definition available below. Existing documentation, backup, assignment, policy-state and What-if actions keep their own confirmation flows. Search and selection stay in place when the window closes." },
+      { kind: "improved", tool: "Several tools", text: "Tool headings, tabs, filters, action bars, result panels and dialogs share the same visual style. Matrices, comparisons and forms retain their useful layouts. The settings stack into one column on mobile; the Teams devices prefix field fits narrow screens." },
+    ],
+  },
+  {
     build: 25400, date: "2026-09-21", title: "The beta site signs in with its own single-tenant registration",
     items: [
       { kind: "improved", tool: "Sign-in", text: "This pre-production site now signs in, by default, with a single-tenant app registration in the publisher's own directory rather than with the multi-tenant application the hosted site uses. Beta is where a registration change is tried first, and trying it on the application every tenant signs in with is not trying it. Nothing changes on the hosted site or on a self-hosted copy: the default is keyed on this host's name alone, and everywhere else falls through to the registration the copy ships with. The \u2699 connection control still outranks it, so another tenant or another registration is one choice away." },
