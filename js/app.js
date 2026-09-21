@@ -2177,7 +2177,7 @@
     show("screen-loading");
     let phase = "loading the Conditional Access policies from your tenant";
     try {
-      const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
+      const { policies: raw, org, logo, resolve, account, context, names } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
@@ -2200,6 +2200,7 @@
       }
       tenantLogo = logo || null;
       isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined;
+      signinContext = { tenantId: account?.tenantId || "", at: Date.now(), demo: false, names: names || {}, ...(context || {}) };
       // Results belong to the snapshot they were computed from.
       invalidateToolResults("policies reloaded");
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
@@ -2267,6 +2268,14 @@
     tenantDomain = "";
     tenantLogo = null;
     isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined;
+    {
+      const at = Date.now();
+      const strengths = Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
+      signinContext = { tenantId: "", at, demo: true, names: DEMO_DATA.names || {},
+        namedLocations: { items: DEMO_DATA.namedLocations || [], at, ok: true, error: null },
+        authContexts: { items: [], at, ok: true, error: null },
+        authStrengths: { items: strengths, at, ok: true, error: null } };
+    }
     invalidateToolResults("demo loaded");
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
     // The demo gets its own drawer for the group → persona mapping, so playing
@@ -19122,7 +19131,7 @@ This is a directory write. Nothing else changes.`)) return;
     hideSideNav();
     policies = []; selected.clear();
     // the Overview and the previous snapshot belong to that sign-in (25424)
-    policiesReadAt = null; ovPrev = null; ovDiff = null; ovReadError = null; ovLoading = false; idFilter = null;
+    policiesReadAt = null; ovPrev = null; ovDiff = null; ovReadError = null; ovLoading = false; idFilter = null; signinContext = null;
     try { renderOverview(); } catch {}
     // Back to the neutral look — the next person at this browser may not be
     // the same audience.
@@ -19528,7 +19537,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function ovPaintKeyOf(snap) {
     return [snap, exRunMeta && exRunMeta.id, anRunMeta && anRunMeta.id, lgRunMeta && lgRunMeta.id, gcRunAt, ciRunAt,
-      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f"].join("|");
+      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f", signinContext && signinContext.at].join("|");
   }
   function deriveSummary(key) {
     if (ovDerived && ovDerived.key === key) return ovDerived;
@@ -19564,6 +19573,13 @@ This is a directory write. Nothing else changes.`)) return;
   // definitions keyed by id, so a refresh can say what moved. Cleared on
   // sign-out and replaced on a tenant, account or demo/live change.
   let ovPrev = null;    // { key, at, items: Map(id → {name, norm}) }
+  // ---- what sign-in already read beyond the policies (25425) ----
+  // { tenantId, at, demo, names: {id → name},
+  //   namedLocations | authContexts | authStrengths: { items, at, ok, error } | null }
+  // Set at both load sites, cleared at sign-out; the home page's provisional
+  // checks build on the reads that completed and name the ones that did not.
+  let signinContext = null;
+  function contextOf(key) { return signinContext && signinContext[key] && signinContext[key].ok ? signinContext[key] : null; }
   let ovDiff = null;    // { prevAt, added, removed, modified } | null (no earlier snapshot)
   function noteSnapshot() {
     const key = isDemo ? "demo" : (tenantId || tenantName || "");
@@ -19590,8 +19606,19 @@ This is a directory write. Nothing else changes.`)) return;
   // what sign-in already read beyond the policies — filled in by 25425; until
   // then the two settings the tools read on demand
   function signinContextRows() {
+    const hh = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const row = (label, key, unit) => {
+      const c = signinContext && signinContext[key];
+      if (!c) return { label, text: "not read", state: "none" };
+      if (!c.ok) return { label, text: `read failed at sign-in — ${c.error || "error"}`, state: "none" };
+      return { label, text: `${c.items.length} ${unit}${c.items.length === 1 ? "" : "s"} read at ${hh(c.at)}${signinContext.demo ? " (demo)" : ""}`, state: "read" };
+    };
     return [
+      row("Named locations", "namedLocations", "location"),
+      row("Authentication strengths", "authStrengths", "strength"),
+      row("Authentication contexts", "authContexts", "context"),
       { label: "Conditional Access settings", text: caSettingsCache === undefined ? "not read — 🛡 Checks reads them" : caSettingsCache ? "read" : "read failed", state: caSettingsCache ? "read" : "none" },
+      { label: "Licence SKUs", text: lgRes ? `read by 🎫 (run #${lgRunMeta && lgRunMeta.id || "?"})` : "not read — 🎫 Licences and 📐 CIS read them", state: lgRes ? "read" : "none" },
     ];
   }
   function renderOverview(opts = {}) {
@@ -19679,7 +19706,7 @@ This is a directory write. Nothing else changes.`)) return;
   let worthMemo = null;
   const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   function worthItems(raws) {
-    const key = [policiesReadAt, raws.length].join("|");
+    const key = [policiesReadAt, raws.length, signinContext && signinContext.at, caSettingsCache ? "cs" : ""].join("|");
     // a 🛡 or 📐 result older than the loaded snapshot is that tool's to keep
     // (its screen says so); this band does not build on it
     const fresh = (t) => !!t && (!policiesReadAt || t >= new Date(policiesReadAt).getTime());
@@ -19691,10 +19718,22 @@ This is a directory write. Nothing else changes.`)) return;
     let provisional = null, zt = null;
     // 🛡 Bypass & Swiss cheese
     let gap = gc;
+    // what sign-in read is used; what it did not read is named (25425)
+    const strengthsCtx = contextOf("authStrengths"), locationsCtx = contextOf("namedLocations");
+    const unread = [];
+    if (!strengthsCtx) unread.push(signinContext && signinContext.authStrengths && !signinContext.authStrengths.ok ? "authentication strengths (read failed at sign-in)" : "authentication strengths");
+    if (!locationsCtx) unread.push(signinContext && signinContext.namedLocations && !signinContext.namedLocations.ok ? "named locations (read failed at sign-in)" : "named locations");
+    if (!caSettingsCache) unread.push("the Conditional Access settings");
     if (!gap) {
       const scope = checkScope(isBaselineTenant());
-      gap = GapCheck.run(scope.raws, { strengths: new Map(), namedLocations: [], names: {}, caSettings: caSettingsCache || null }, { includeDisabled: scope.includeDisabled });
-      provisional = "First pass over the loaded policies only — authentication strengths, named locations and the Conditional Access settings are read when you run 🛡 Checks, and the findings that need them are left out here.";
+      const ctx = {
+        strengths: new Map((strengthsCtx ? strengthsCtx.items : []).map((x) => [x.id, x])),
+        namedLocations: locationsCtx ? locationsCtx.items : [],
+        names: signinContext && signinContext.names || {},
+        caSettings: caSettingsCache || null,
+      };
+      gap = GapCheck.run(scope.raws, ctx, { includeDisabled: scope.includeDisabled });
+      provisional = `Over the loaded policies${strengthsCtx || locationsCtx ? `, with ${[strengthsCtx ? "the authentication strengths" : "", locationsCtx ? "the named locations" : ""].filter(Boolean).join(" and ")} read at sign-in` : ""}. Still unread: ${unread.join(", ")} — 🛡 Checks reads what is missing, and the findings that need it are left out here.`;
     }
     // a number only from a 🛡 run that read its context in full; a
     // provisional pass, or a run that reported incomplete context, is
@@ -19704,7 +19743,7 @@ This is a directory write. Nothing else changes.`)) return;
     // Every finding carries its evidence state (25423): what it was computed
     // from, and how complete that was. The snapshot time is the observation.
     const gapEvidence = provisional
-      ? { state: "partial", label: "Partial context", at: policiesReadAt, note: "authentication strengths, named locations and the CA settings unread" }
+      ? { state: "partial", label: "Partial context", at: policiesReadAt, note: `${unread.join(", ")} unread` }
       : gcCtx && gcCtx.incomplete
         ? { state: "partial", label: "Partial context", at: gcRunAt, note: gcCtx.incomplete }
         : { state: "snapshot", label: "Policy snapshot", at: gcRunAt, note: `🛡 run at ${hhmm(gcRunAt)}` };
@@ -19742,6 +19781,23 @@ This is a directory write. Nothing else changes.`)) return;
           policyIds: [], evidence: ev,
           detail: { observed: "A policy meeting the control's criteria exists in report-only or Off.", next: "Review the policy's sign-in impact before enforcing; report-only is a staging state, not a rollout that is ready." },
           action: { label: "Open the 📐 CIS tab" } });
+      } else if (strengthsCtx && locationsCtx && !(ciResult && !ci)) {
+        // the two reads the controls need happened at sign-in; only the
+        // licence SKUs are unread, and CisCheck assesses P2 controls as
+        // applicable when p2 is null — the chip says so
+        let pc = null;
+        try { pc = CisCheck.run(raws, { strengths: new Map(strengthsCtx.items.map((x) => [x.id, x])), namedLocations: locationsCtx.items, p2: null, groupNames: signinContext.names || {} }); } catch (e) { console.warn("overview cis:", e); }
+        if (pc) {
+          const s = pc.score || {};
+          const failing = (pc.results || []).filter((r) => r.status === "fail");
+          const l1 = failing.filter((r) => r.level === 1).length;
+          const ev = { state: "partial", label: "Partial context", at: signinContext.at, note: "licence SKUs unread — P2-only controls assessed as applicable; strengths and locations from sign-in" };
+          if (s.fail) items.push({ id: "cis:failing", source: "cis", sev: l1 ? "high" : "medium", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+            text: `${s.fail} CIS control${s.fail === 1 ? "" : "s"} failing${l1 ? ` (${l1} Level 1)` : ""}`, sub: `of ${s.total} assessed on partial context`,
+            policyIds: [], evidence: ev,
+            detail: { observed: `Failing: ${failing.slice(0, 6).map((r) => `${r.id} ${r.title}`).join("; ")}${failing.length > 6 ? ` and ${failing.length - 6} more` : ""}.`, next: "Run the assessment on the CIS tab for the licence read and each control's evidence." },
+            action: { label: "Assess against 📐 CIS" } });
+        }
       } else {
         const prev = ciResult && !ci;
         items.push({ id: "cis:not-assessed", source: "cis", sev: "info", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",

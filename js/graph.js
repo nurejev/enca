@@ -520,17 +520,28 @@ const Graph = (() => {
   // ---------- resolve all GUIDs referenced by the policies into names ----------
   async function buildResolver(policies, onStatus) {
     const names = {}; // guid -> display name
+    // The three reads below used to be reduced to names and thrown away;
+    // since 25425 the responses are KEPT, each with when it was read and
+    // whether it completed, so the home page can build on a read that
+    // already happened instead of calling it unread. A failed read stays
+    // failed here — nothing retries, nothing widens the sign-in scope.
+    const context = { namedLocations: null, authContexts: null, authStrengths: null };
+    const keep = async (key, path) => {
+      const at = Date.now();
+      try { const items = await ggetAll(path); context[key] = { items, at, ok: true, error: null }; return items; }
+      catch (e) { context[key] = { items: null, at, ok: false, error: e && e.message || String(e) }; return []; }
+    };
 
     onStatus?.("Resolving directory roles…");
     try { (await ggetAll("/directoryRoleTemplates")).forEach(r => names[r.id] = r.displayName); } catch {}
 
     onStatus?.("Resolving named locations…");
-    try { (await ggetAll("/identity/conditionalAccess/namedLocations")).forEach(l => names[l.id] = l.displayName); } catch {}
+    (await keep("namedLocations", "/identity/conditionalAccess/namedLocations")).forEach(l => names[l.id] = l.displayName);
 
     onStatus?.("Resolving authentication contexts…");
-    try { (await ggetAll("/identity/conditionalAccess/authenticationContextClassReferences")).forEach(c => names[c.id] = c.displayName); } catch {}
+    (await keep("authContexts", "/identity/conditionalAccess/authenticationContextClassReferences")).forEach(c => names[c.id] = c.displayName);
 
-    try { (await ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => names[s.id] = s.displayName); } catch {}
+    (await keep("authStrengths", "/policies/authenticationStrengthPolicies")).forEach(s => names[s.id] = s.displayName);
 
     // terms of use names (needs Agreement.Read.All; shown as GUID if not granted)
     try { (await ggetAll("/identityGovernance/termsOfUse/agreements")).forEach(a => names[a.id] = a.displayName); } catch {}
@@ -570,7 +581,11 @@ const Graph = (() => {
     // display name, then the first-party fallback map for an id with no
     // service principal here, then the id itself.
     const firstParty = (id) => (typeof firstPartyAppName === "function" ? firstPartyAppName(id) : null);
-    return (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || firstParty(id) || id;
+    const resolve = (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || firstParty(id) || id;
+    // carried on the resolver so every existing caller keeps its signature
+    resolve.context = context;
+    resolve.names = names;
+    return resolve;
   }
 
   async function loadTenant(onStatus) {
@@ -593,7 +608,7 @@ const Graph = (() => {
       } catch {}
     }
     const resolve = await buildResolver(policies, onStatus);
-    return { policies, org, logo, resolve, account };
+    return { policies, org, logo, resolve, account, context: resolve.context, names: resolve.names };
   }
 
   // ---- consent / popup handling -------------------------------------------

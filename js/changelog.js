@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25425, date: "2026-09-21", title: "What sign-in read is kept, and used",
+    items: [
+      { kind: "change", tool: "Home", text: "Sign-in has always read the named locations, authentication strengths and authentication contexts to resolve names, then thrown the responses away \u2014 and the home page called them unread. They are KEPT now, each with when it was read and whether it completed, and the provisional \ud83d\udee1 pass builds on them: the break-glass account is named instead of an id, phishing-resistant strengths are recognised, location hygiene is checked. The note under the band names only what is still unread \u2014 the Conditional Access settings, and any read that failed at sign-in. A failed read stays failed: nothing retries, nothing widens the sign-in scope, and the licence SKUs stay a separate, on-demand read." },
+      { kind: "change", tool: "Home", text: "\ud83d\udcd0 CIS runs provisionally where both reads completed, marked Partial context with the licence read named as unread (P2-only controls assessed as applicable, as the tool does when the SKU read fails); otherwise it still only offers the run. The Snapshot context in the configuration map lists each read with its time or its failure. The context is cleared at sign-out and replaced on a tenant, account or demo/live change; the derived findings are invalidated with it." },
+    ],
+  },
+  {
     build: 25424, date: "2026-09-21", title: "The configuration map",
     items: [
       { kind: "new", tool: "Home", text: "A CONFIGURATION MAP folds under the checks, from what is already in memory: the report-only review queue, oldest modification first (a review prompt, not proof of a forgotten rollout); recently modified policies with names and dates (who changed what is audit data); controls referenced by policies \u2014 MFA or strength, device, block, legacy-client, risk, location, session, workload identities \u2014 by Enabled / Report-only / Off, policy counts that overlap and count no protected people; and the snapshot context: the selected baseline with release, source and how it came to be active (chosen, matched, or the default), requirements matched / missing / outdated / in conflict, exclusion references as unique, occurrences and policies, and effective user impact, not checked until \ud83d\udeaa has run." },

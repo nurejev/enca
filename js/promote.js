@@ -119,6 +119,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 247,
+      title: "\ud83c\udfe0 Overview builds on the sign-in reads it already had",
+      tools: ["Home"],
+      builds: [25425],
+      risk: "low",
+      what: "js/graph.js: buildResolver keeps the namedLocations / authContexts / authStrengths responses as {items, at, ok, error} on resolve.context (and the name map on resolve.names); loadTenant returns context and names; every existing caller keeps its signature. js/app.js: signinContext set at both load sites (the demo from DEMO_DATA), cleared at sign-out; worthItems() feeds the completed reads and the name map to the provisional GapCheck.run, names what is unread in the note and the evidence chip, runs CisCheck provisionally when both reads completed (p2 null, Partial context); the worth memo and the paint key include the context; signinContextRows() lists each read in the map.",
+      why: "LOW \u2014 no new request, no new scope: responses that were already returned are retained instead of discarded. The gain is a truer provisional pass; the risk is a stale context, which the tenant/account/demo keys and sign-out clearing cover.",
+      test: [
+        "Sign in: the Snapshot context lists named locations, strengths and contexts with counts and the sign-in time; CA settings and licence SKUs read not read until their tools run.",
+        "The note under Worth a look first names only the Conditional Access settings as unread; the break-glass finding names the account, not an id.",
+        "Make one of the three reads fail (revoke Policy.Read.All in a test tenant, or stub ggetAll locally): the row reads read failed at sign-in with the error, the note names that read as unread, no retry is made.",
+        "Network: sign-in makes the same requests as before (no added call); the home page makes none.",
+        "Sign out and into another tenant: the context rows show the new tenant's counts and time.",
+        "Regression: tools/regression.test.cjs passes.",
+      ],
+      files: ["js/graph.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 246,
       title: "\ud83c\udfe0 Overview: the configuration map and the diff since the previous refresh",
       tools: ["Home"],
