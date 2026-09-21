@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 235,
+      title: "\ud83c\udfab Licences: demand, purchased capacity and assigned entitlement as three measures",
+      tools: ["Licences", "Gap analyse"],
+      builds: [25411],
+      risk: "high",
+      what: "js/licgap.js: memberSet(ctx) is the one eligible population and sizeOf() intersects the exclusion set with it before subtracting from a member count; analyze() adds assignedInScope per plan (entitlement held by the targeted identities, counted over the same id set the gap list uses); the Markdown table becomes demand / seats purchased / assigned in scope / purchasing shortfall; a zero gap over an approximate read renders as no gap found in the resolved scope; the mailbox lines report the read outcome instead of a purpose. js/app.js: lgBar takes assignedInScope and draws purchased capacity against demand with an assignment marker, the tiles are renamed to the three measures, the no-gap line separates purchasing from assignment, LG_CATS say what was read, and the head states the population. js/analyze.js: needsP2 counts insider risk, which \ud83c\udfab already did. css/app.css: the bar marker.",
+      why: "HIGH \u2014 these numbers are quoted in purchasing conversations. The bar could show No P1 gap while the list under it named hundreds of identities with no entitlement assigned, because it drew inventory and labelled it coverage. The guest subtraction is a plain arithmetic error across two populations, visible on any tenant whose exclusion groups contain guests. The mailbox wording told an operator to exclude accounts from Conditional Access on the strength of an access-denied error. Read-only, no new permission.",
+      test: [
+        "A tenant with unassigned P1 seats: the bar reads purchased capacity versus estimated demand, the marker sits at the assigned count, and the tiles show demand, purchased and assigned in scope as three numbers. Falsifiable: it said N of N targeted users licensed before.",
+        "Where seats cover demand but some targeted identities hold no entitlement, the verdict line says no purchasing shortfall AND names the assignment remediation.",
+        "A tenant whose exclusion groups contain guests: per-policy users-in-scope no longer drops below the member count it should have, and no policy reports fewer users in scope than it has gap users.",
+        "A run where a group or role could not be read and the gap list comes back empty: the export says no gap found in the resolved scope and calls the result incomplete.",
+        "\ud83c\udff7 Check mailbox types on a tenant where the delegated read is denied: the category reads mailbox read denied \u2014 unverified, the hint points at the Exchange admin center, and nothing says never licensed or suggests excluding the account.",
+        "A mailbox where Graph DOES return userPurpose shared: the row names it as returned by Graph with the feature-dependent note, and sign-in stays blocked as advice.",
+        "A policy carrying insider risk: \ud83d\udd0d Gap analyse counts that user as needing P2, matching \ud83c\udfab.",
+        "The head states population and policy states, and matches what a scoped Coverage run says about itself.",
+        "Regression: tools/regression.test.cjs (52) and tools/workpackages.test.cjs pass.",
+      ],
+      files: ["js/licgap.js", "js/app.js", "js/analyze.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 234,
       title: "\ud83d\udeaa Configured versus effective exclusions, the whole external clause, and paged provenance",
       tools: ["Exclusion analyzer"],

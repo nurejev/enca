@@ -1747,7 +1747,10 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 .run-track > span { display:block; height:100%; background:var(--accent); transition:width .2s; }
 
 /* Licence gap — the seats-vs-targeted coverage bar */
-.lg-bar{height:14px;border-radius:7px;background:var(--soft);border:1px solid var(--border);overflow:hidden;margin-top:4px}
+.lg-bar{height:14px;border-radius:7px;background:var(--soft);border:1px solid var(--border);overflow:hidden;margin-top:4px;position:relative}
+/* the assignment marker (25411): where ASSIGNED entitlement sits on the same
+   axis as purchased capacity, so the two measures cannot be read as one */
+.lg-bar>u{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.65}
 .lg-bar>div{height:100%;border-radius:7px 0 0 7px;transition:width .3s}
 
 /* ---- side navigation shell (ported from TUNO, builds 10380/10387/10389/10391) ----

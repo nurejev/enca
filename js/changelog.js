@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25411, date: "2026-09-21", title: "Seats owned is not the same as people licensed",
+    items: [
+      { kind: "fixed", tool: "Licences", text: "The bar drew seats PURCHASED and called it targeted users licensed. Every one of those seats can be unassigned, or assigned to somebody outside the scope, so the screen could read 500 of 500 licensed directly above a named list of unlicensed users. Three measures now, each named: estimated demand, seats purchased, and the entitlement actually ASSIGNED to the targeted identities \u2014 with a purchasing shortfall and an assignment remediation stated as the two different actions they are." },
+      { kind: "fixed", tool: "Licences", text: "An excluded guest could take a member out of scope. For an All-users policy the size is member count minus the resolved exclusions, and those exclusions come from groups and roles that also hold guests and service principals \u2014 subtracting them from a MEMBER count is arithmetic across two different populations. A one-member tenant excluding one guest reported 0 users in scope and 1 gap user for the same policy. Numerator and denominator are the same eligible population now." },
+      { kind: "improved", tool: "Licences", text: "A zero gap over an incomplete read no longer says everyone is licensed. Where a group, role or user read did not complete, the export says NO GAP FOUND IN THE RESOLVED SCOPE and calls the result incomplete \u2014 the opposite finding from nobody being in the gap." },
+      { kind: "fixed", tool: "Licences", text: "Mailbox states say what was read. Access denied on a mailbox read was being turned into likely shared or resource, and shared mailboxes were labelled NEVER LICENSED with advice to disable or exclude the account. A denied read is now MAILBOX READ DENIED, purpose not established, with a pointer to the Exchange admin center; a userPurpose returned by Graph is named as such, with the note that shared mailboxes can need licensing for size, archive or hold and should stay sign-in blocked. No mailbox classification recommends removing Conditional Access from an account." },
+      { kind: "improved", tool: "Licences", text: "The tab states the population it counted \u2014 member users, tenant-wide, guests excluded, policies On and Report-only \u2014 so the difference from a scoped Coverage run is visible rather than puzzling. Insider risk counts as a P2 condition in both tabs; Coverage used to leave it out." },
+    ],
+  },
+  {
     build: 25410, date: "2026-09-21", title: "Listed in an exclusion is not the same as bypassing",
     items: [
       { kind: "fixed", tool: "Exclusion analyzer", text: "Effective users counted everybody named in an exclusion, whether or not the policy targeted them. A policy scoped to the Finance group that also excludes the break-glass account never addressed that account \u2014 the shared scope check has always called that NOT ADDRESSED, and this tool disagreed with it. Every cell is now one of three: an effective bypass (the policy would otherwise have included them), CONFIGURED ONLY (listed, but never in scope), or NOT ESTABLISHED, which is what an include side naming a group or role this scan never read honestly is. The head counts all three." },

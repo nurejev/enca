@@ -289,7 +289,11 @@ const Analyzer = (() => {
         // for everyone it targets; everything else requires P1. Report-only
         // counts, because the licensing terms are about targeting rather than
         // enforcement, so this reads `applied` and not `enforcedIncluded`.
-        needsP2: applied.some((P) => P.userRisk.length > 0 || P.signInRisk.length > 0),
+        // Insider risk rides on P2 as well, and 🎫 Licences has always counted
+        // it — the two tabs disagreed about which users need P2 until beta
+        // 25411. The same three conditions decide it in both places now.
+        needsP2: applied.some((P) => P.userRisk.length > 0 || P.signInRisk.length > 0
+          || !!(P.raw && P.raw.conditions && P.raw.conditions.insiderRiskLevels)),
         // Filled by the caller from LicGap.licenceOf once the SKU list is
         // known; null means "not read for this user", never "unlicensed".
         lic: null,

@@ -12738,12 +12738,16 @@ This is a directory write. Nothing else changes.`)) return;
     if (u.lic0) return "nolic";
     return "license";
   }
+  // Beta 25411: these say what was READ. "Access denied" is a read outcome,
+  // not a mailbox purpose, and a mailbox type has never been a reason to drop
+  // Conditional Access from an account — shared mailboxes can need licensing
+  // for size, archive or hold, and should stay sign-in blocked either way.
   const LG_CATS = {
-    license: { label: "to license", pill: "red", hint: "Enabled real users — license these (or exclude them deliberately)" },
+    license: { label: "no premium entitlement", pill: "red", hint: "Enabled member users targeted by a policy with no Entra ID P1/P2 assigned. They may hold other licences — this is the premium entitlement, not a claim that the account is unlicensed." },
     disabled: { label: "disabled — cleanup", pill: "amber", hint: "Disabled accounts — cleanup candidates, not purchases" },
-    nolic: { label: "no licences at all — service account?", pill: "amber", hint: "Enabled accounts holding NO licences at all — usually service accounts or sync artifacts. Exclude or license deliberately." },
-    resource: { label: "shared/resource — never licensed", pill: "green", hint: "Shared / room / equipment mailbox accounts — never licensed; disable or exclude them" },
-    likely: { label: "likely shared/resource", pill: "amber", hint: "A mailbox exists but the account has no licence — almost always shared/room/equipment. Verify in the Exchange admin center." },
+    nolic: { label: "no licences at all — service account?", pill: "amber", hint: "Enabled accounts holding NO licences of any kind — usually service accounts or sync artifacts. Exclude or license deliberately." },
+    resource: { label: "shared/room/equipment mailbox", pill: "green", hint: "userPurpose returned by Graph. Whether it needs a licence depends on the mailbox features in use (size, archive, litigation hold); keep sign-in blocked either way." },
+    likely: { label: "mailbox read denied — unverified", pill: "amber", hint: "A mailbox exists but its purpose could NOT be read (the delegated read was denied). Verify in the Exchange admin center before treating it as a resource account — this is a read outcome, not a classification." },
   };
   const lgProg = makeProgress("lg");
   const LG_GROUP_CAP = 100;    // groups expanded per run
@@ -12962,21 +12966,29 @@ This is a directory write. Nothing else changes.`)) return;
   const lgN = (v, approx) => v == null ? "—" : `${approx ? "≈" : ""}${v.toLocaleString()}`;
   const lgStateTag = (s) => s === "enabled" ? '<span class="tag block">On</span>'
     : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
-  // The one visual that carries the verdict: how much of the targeted
-  // population the seats cover. Green at 100%, amber close, red wide open.
-  function lgBar(targeted, seats) {
+  // The one visual that carries the verdict — and it carries THREE measures
+  // since beta 25411, because it used to draw one and label it another.
+  // Seats PURCHASED is inventory; entitlement ASSIGNED to the targeted users
+  // is what covers them; demand is what the policies oblige. All the seats can
+  // be unassigned, or assigned to people outside the scope, so the old
+  // "500 of 500 targeted users licensed (100%)" could sit directly above a
+  // named list of unlicensed users.
+  function lgBar(targeted, seats, assignedInScope, approx) {
     if (targeted == null || seats == null || !targeted) return "";
     const pct = Math.min(100, seats / targeted * 100);
     const col = pct >= 100 ? "var(--on)" : pct >= 75 ? "var(--report)" : "var(--off)";
-    return `<div class="lg-bar" title="${Math.round(pct)}% of the targeted users are licensed"><div style="width:${pct}%;background:${col}"></div></div>
-      <p class="mini muted" style="margin:2px 0 0">${seats.toLocaleString()} of ${targeted.toLocaleString()} targeted users licensed (${Math.round(pct)}%)</p>`;
+    const aPct = assignedInScope == null ? null : Math.min(100, assignedInScope / targeted * 100);
+    const mark = aPct == null ? "" : `<u style="left:${aPct}%" title="${assignedInScope.toLocaleString()} targeted identities hold the entitlement"></u>`;
+    return `<div class="lg-bar" title="Purchased capacity against estimated demand"><div style="width:${pct}%;background:${col}"></div>${mark}</div>
+      <p class="mini muted" style="margin:2px 0 0">Purchased capacity versus estimated demand — ${seats.toLocaleString()} seats against ${approx ? "≈" : ""}${targeted.toLocaleString()} targeted identities (${Math.round(pct)}%).${assignedInScope == null ? " Assigned entitlement was not read." : ` <b>${assignedInScope.toLocaleString()}</b> of those identities hold it today${targeted - assignedInScope > 0 ? ` — ${(targeted - assignedInScope).toLocaleString()} do not` : ""}.`}</p>`;
   }
 
   function renderLicGap() {
     $("lgRun").style.display = lgRes && !lgBusy ? "" : "none";
     $("lgHead").innerHTML = `${toolHead("toolLicGap")}
       <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
-      <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
+      <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>
+      <p class="mini muted" style="margin:6px 0 0"><b>Population:</b> member users, tenant-wide, guests excluded (their licensing follows different rules) · <b>policies:</b> On and Report-only, since the obligation follows targeting rather than enforcement · insider risk counts as a P2 condition here. The Coverage tab can be scoped to named principals and can leave report-only out, so the two tabs answer the same question about different populations on purpose.</p>`;
     if (lgBusy) return;   // the run panel owns lgBody until the read finishes
 
     if (!lgRes) {
@@ -12997,27 +13009,29 @@ This is a directory write. Nothing else changes.`)) return;
 
     const tiles = `<div class="an-cards" style="margin-bottom:12px">
       ${tile(lgN(r.totals.members), "member users")}
-      ${tile(lgN(r.p1.targeted, r.p1.approx), "targeted → need P1")}
-      ${tile(lgN(r.p1.seats), "P1 seats owned")}
+      ${tile(lgN(r.p1.targeted, r.p1.approx), "estimated P1 demand")}
+      ${tile(lgN(r.p1.seats), "P1 seats purchased")}
+      ${tile(r.p1.assignedInScope == null ? "—" : r.p1.assignedInScope.toLocaleString(), "P1 assigned in scope")}
       ${gapCard("P1 gap", r.p1, r.p1.gap != null && r.p1.gap <= 0 ? "covered" : "")}
       ${r.p2.riskCount || (r.p2.seats || 0) > 0 ? `
-        ${tile(lgN(r.p2.targeted, r.p2.approx), "targeted → need P2")}
-        ${tile(lgN(r.p2.seats), "P2 seats owned")}
+        ${tile(lgN(r.p2.targeted, r.p2.approx), "estimated P2 demand")}
+        ${tile(lgN(r.p2.seats), "P2 seats purchased")}
+        ${tile(r.p2.assignedInScope == null ? "—" : r.p2.assignedInScope.toLocaleString(), "P2 assigned in scope")}
         ${gapCard("P2 gap", r.p2, r.p2.gap != null && r.p2.gap <= 0 ? "covered" : "")}` : ""}
     </div>`;
 
     const bars = `<div class="list-card" style="padding:14px 16px">
       ${r.adminExclude ? `<p class="mini" style="margin:0 0 8px"><span class="tag grant">👑 ${r.adminExclude.count.toLocaleString()} admin account${r.adminExclude.count === 1 ? "" : "s"} excluded via ${esc(r.adminExclude.name)}</span> <span class="muted">— a second internal account of a licensed person needs no second licence; document the mapping.</span></p>` : ""}
       <p class="mini" style="margin:0 0 2px"><b>Entra ID P1</b> — any active Conditional Access policy${r.broadest ? ` · broadest: <b class="pol-link" data-polid="${esc(r.broadest.id || "")}" title="Open the policy card">${esc(r.broadest.name)}</b> (${lgN(r.broadest.size, r.broadest.approx)} users)` : ""}</p>
-      ${lgBar(r.p1.targeted, r.p1.seats)}
+      ${lgBar(r.p1.targeted, r.p1.seats, r.p1.assignedInScope, r.p1.approx)}
       <p class="mini" style="margin:12px 0 2px"><b>Entra ID P2</b> — ${r.p2.riskCount ? `${r.p2.riskCount} risk-based polic${r.p2.riskCount === 1 ? "y" : "ies"} (sign-in, user or insider risk)` : "no active risk-based policy"}</p>
       ${r.p2.riskCount
-        ? (lgBar(r.p2.targeted, r.p2.seats) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`)
+        ? (lgBar(r.p2.targeted, r.p2.seats, r.p2.assignedInScope, r.p2.approx) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`)
         : `<p class="mini muted" style="margin:2px 0 0">Nothing creates a P2 obligation today${r.p2.seats ? ` — the ${r.p2.seats.toLocaleString()} P2 seat${r.p2.seats === 1 ? "" : "s"} owned ${r.p2.seats === 1 ? "is" : "are"} not required by Conditional Access` : ""}.${r.disabledRisk ? ` <span style="color:var(--report)">${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would create one the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.</span>` : ""}</p>`}
       ${r.p1.gap != null && r.p1.gap > 0
         ? `<p class="mini" style="color:var(--off);margin:10px 0 0"><b>Licence gap: ${r.p1.gap.toLocaleString()} users</b> are targeted by Conditional Access without a P1 licence to cover them. The usage blade will not necessarily warn about this — it measures last month's sign-ins, not the targeting.</p>`
         : r.p1.gap != null
-        ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 gap</b> — the seats cover everyone your policies target.</p>` : ""}
+        ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 purchasing shortfall</b> — the seats owned cover the estimated demand.${r.p1.assignedInScope != null && r.p1.targeted != null && r.p1.targeted - r.p1.assignedInScope > 0 ? ` <span style="color:var(--report)">${(r.p1.targeted - r.p1.assignedInScope).toLocaleString()} targeted identit${r.p1.targeted - r.p1.assignedInScope === 1 ? "y does" : "ies do"} not hold the entitlement</span> — an assignment to make, not a purchase.` : ""}</p>` : ""}
       ${r.p2.gap != null && r.p2.gap > 0 ? `<p class="mini" style="color:var(--off);margin:4px 0 0"><b>P2 gap: ${r.p2.gap.toLocaleString()} users</b> targeted by risk-based policies without a P2 licence.</p>` : ""}
       ${r.totals.usersCapped && lgCtx && lgCtx.usersNext ? `<p class="mini" style="margin:10px 0 0"><span class="tag new">partial</span> The named lists cover the first ${(r.totals.usersRead || 0).toLocaleString()} of ${(r.totals.members || 0).toLocaleString()} member users — the gap tiles are exact, the lists are not yet. <button class="btn sm" data-lgmore${lgMoreBusy ? " disabled" : ""}>${lgMoreBusy ? "⏬ Reading…" : `⏬ Read the remaining ~${Math.max(0, (r.totals.members || 0) - (r.totals.usersRead || 0)).toLocaleString()} users`}</button></p>` : ""}
     </div>`;
