@@ -145,6 +145,45 @@ footer{position:sticky;top:100vh}
   padding:11px 13px;font-size:12px;line-height:1.6;color:var(--ink)}
 .login-selfhost code{background:transparent;padding:0;font-size:11.5px;
   font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;user-select:all}
+/* ⚙ connection picker (build 321) — which app registration, which tenant.
+   Folded shut by default: on the canonical site the shipped registration is
+   the right answer for almost everyone, and a sign-in card that opens with a
+   form asking for a GUID reads as though one were required. js/connection.js
+   opens it whenever a non-default connection is selected, because a choice
+   made last week must never be invisible this week. Left-aligned inside a
+   centred card: these are labelled fields and an identifier to check, and
+   centred text makes both harder to read than they already are. */
+.login-conn{margin-top:14px;text-align:left;border:1px solid var(--border);border-radius:10px;
+  background:var(--soft);font-size:12.5px;line-height:1.55}
+.login-conn>summary{cursor:pointer;padding:9px 12px;color:var(--ink);font-weight:600;list-style:none;
+  display:flex;align-items:center;gap:6px;border-radius:10px}
+.login-conn>summary::-webkit-details-marker{display:none}
+.login-conn>summary:hover{color:var(--accent2)}
+.login-conn[open]>summary{border-bottom:1px solid var(--border);border-radius:10px 10px 0 0}
+.conn-body{padding:12px}
+.conn-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.conn-row label{font-weight:600;white-space:nowrap}
+.conn-row select{flex:1;min-width:0;border:1px solid var(--border);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:6px 8px;font-size:12.5px;font-family:inherit}
+.conn-cur{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:9px 11px;
+  font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+.conn-cur code{background:transparent;padding:0;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;user-select:all}
+.conn-k{display:inline-block;min-width:46px;color:var(--muted);font-weight:600}
+.conn-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.conn-form{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
+.conn-form label{display:block;font-weight:600;margin:8px 0 4px}
+.conn-form input{width:100%;box-sizing:border-box;border:1px solid var(--border);background:var(--surface);
+  color:var(--ink);border-radius:8px;padding:7px 9px;font-size:12.5px;font-family:ui-monospace,Consolas,monospace}
+.conn-form input:focus{outline:none;border-color:var(--accent2)}
+.login-card .conn-hint{margin:5px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
+.login-card .conn-redirect{margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+.conn-hint code{background:var(--surface);border:1px solid var(--border);border-radius:5px;
+  padding:1px 5px;font-size:11px;overflow-wrap:anywhere;user-select:all}
+/* Same red as .login-err, and for the same reason: this one IS a mistake — a
+   client ID that is not a GUID cannot be anything but a typo, and saying so
+   here costs a keystroke instead of a sign-in that fails on an AADSTS code. */
+.conn-err{margin-top:10px;border:1px solid var(--bad-bd);border-left:3px solid var(--off);border-radius:8px;
+  background:var(--bad-bg2);padding:8px 10px;font-size:12px;line-height:1.5;color:var(--ink)}
 .spinner{width:44px;height:44px;border:4px solid var(--soft);border-top-color:var(--accent2);border-radius:50%;margin:0 auto 18px;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 

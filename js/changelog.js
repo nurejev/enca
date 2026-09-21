@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 321, date: "2026-09-21", title: "The sign-in card chooses the tenant and the app registration",
+    items: [
+      { kind: "new", tool: "Sign-in", text: "You can now sign in to another tenant, or with your own app registration, from the sign-in card itself \u2014 the \u2699 control under the Sign in button. A connection is a name, an optional Application (client) ID and a tenant (a tenant ID, a verified domain, or organizations for any work or school tenant); leave the client ID empty to keep the registration this copy ships with and change only the directory you sign in to, which is what a customer tenant needs. Connections are saved in this browser, switched from a list, and Default always restores what the copy was served with. Until now the only way to change either was to edit js/authConfig.js or serve a js/authConfig.local.js beside it \u2014 a deployment-time act that changes the file every visitor gets; that file still works and is still the right thing for an organisation standing up its own copy." },
+      { kind: "improved", tool: "Sign-in", text: "The card says which registration it is about to use, and a failed sign-in names the connection it was attempted with \u2014 a failure against your own app and one against the shipped app used to read identically, which sent people to check the registration in the file rather than the one actually used. The redirect-URI error also points at the right registration, and the panel states the exact SPA redirect URI to register, selectable." },
+      { kind: "improved", tool: "Sign-in", text: "The Multi-tenant / Single-tenant line and the self-hosted notice follow the chosen connection, so the card cannot describe one registration while signing in with another. What a connection may set is deliberately only those two things: never the permissions asked for, and never which Graph endpoint is called." },
+    ],
+  },
+  {
     build: 320, date: "2026-09-18", title: "A baseline policy the tenant already has is no longer reported as new",
     items: [
       { kind: "fixed", tool: "Baseline", text: "\ud83e\uddec Baseline no longer reports a policy as new when the tenant already has it. Joey Verlinden's repository numbers more than one policy CA005 \u2014 the AnyPlatform copy and the iOS/Android one, and CA006 the same way \u2014 and the comparison stopped looking at that number as soon as the first of them had matched. The second row read not present in this tenant with its own policy two lines above it, and \ud83d\udce5 Import counted it among the policies to create. Each baseline policy is now paired with a tenant policy of its own; the row whose exact name is in the tenant claims first, so the result does not depend on the order Graph returns; and the warning that two policies share a CA number is kept for the copies the catalog does not account for." },

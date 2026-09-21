@@ -18594,8 +18594,8 @@ This is a directory write. Nothing else changes.`)) return;
     [/AADSTS50076|AADSTS50079|AADSTS50072/i, "This sign-in needs <b>multi-factor authentication</b>, and the pop-up closed before it completed. Try again and finish the prompt, or sign in to portal.azure.com first so the session already carries MFA."],
     [/AADSTS50005|AADSTS530003|device/i, "A <b>device policy</b> is blocking the sign-in — typically a Conditional Access rule requiring a managed or compliant device."],
     [/AADSTS65001|AADSTS900971|consent/i, "This tenant has <b>not consented</b> to the app yet. A Global Administrator or Privileged Role Administrator must grant admin consent once — see the consent URL in the README."],
-    [/AADSTS700016|application.*not found/i, "The app is <b>not present in this tenant</b> — nobody has consented to it here yet. An administrator needs to run the admin-consent URL once."],
-    [/AADSTS50011|redirect_uri/i, `<b>Redirect URI mismatch.</b> The app registration needs this exact SPA redirect URI: <code>${window.location.origin + window.location.pathname}</code>`],
+    [/AADSTS700016|application.*not found/i, "The app is <b>not present in this tenant</b> — nobody has consented to it here yet. An administrator needs to run the admin-consent URL once. On a <b>single-tenant</b> registration it also means the client ID and the tenant do not belong together: check both under ⚙ on the sign-in card."],
+    [/AADSTS50011|redirect_uri/i, `<b>Redirect URI mismatch.</b> The app registration needs this exact SPA redirect URI: <code>${window.location.origin + window.location.pathname}</code>. If you picked your own registration under ⚙ on the sign-in card, that is the registration to add it to.`],
     [/AADSTS50020|AADSTS50128|AADSTS50034/i, "That account does not exist in a tenant this app can sign in to — check you used the <b>work account</b>, not a personal one."],
     [/AADSTS90094|admin.*consent/i, "The permissions need <b>admin consent</b>; a normal user cannot grant them."],
   ];
@@ -18623,7 +18623,17 @@ This is a directory write. Nothing else changes.`)) return;
     const diag = [code && `code: ${code}`, `at: ${new Date().toISOString()}`,
       msg && msg !== code ? `detail: ${msg}` : ""].filter(Boolean).join(" · ");
 
-    el.innerHTML = `<p><b>${esc(lead)}</b></p><p>${hint}</p>`
+    // WHICH registration failed. Once the sign-in card can be pointed at
+    // another app or another tenant (build 321), an error that does not say
+    // which one it came from sends people to check the wrong registration —
+    // usually the one in the file, which was not the one used.
+    let conn = "";
+    try {
+      const c = (typeof EncaConn !== "undefined") && EncaConn.active();
+      if (c) conn = `<p class="mini">Attempted with the connection <b>${esc(c.name)}</b> — app <code>${esc(AUTH_CONFIG.clientId)}</code>, tenant <code>${esc(EncaConn.tail(AUTH_CONFIG.authority))}</code>. Change it under ⚙ below.</p>`;
+    } catch { /* cosmetic only */ }
+
+    el.innerHTML = `<p><b>${esc(lead)}</b></p><p>${hint}</p>${conn}`
       + `<div class="diag">${esc(diag)}</div>`;
     el.style.display = "";
   }

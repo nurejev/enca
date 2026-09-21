@@ -29,6 +29,13 @@
 //
 // and add it to index.html immediately before this script. Anything it sets
 // wins; anything it omits falls back to the defaults here.
+//
+// 3. NEITHER, FOR ONE SIGN-IN. Since build 321 the sign-in card carries a
+//    ⚙ connection control (js/connection.js): a client ID and a tenant kept
+//    in ONE BROWSER, outranking everything in this file. It configures a
+//    person, not a deployment — use it to try a registration before
+//    committing it here, or to sign in to another directory. SINGLE-TENANT.md
+//    covers both routes and when each is the right one.
 // ======================================================================
 const AUTH_CONFIG = Object.assign({
   clientId: "4437195a-f35c-417f-8c69-58036fbe2137", // <-- REPLACE for your own registration
