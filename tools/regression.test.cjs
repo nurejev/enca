@@ -520,3 +520,18 @@ test('exclusions matrix: the policy that does NOT carry the shared exclusion is 
  const flat=E.collect([expol('a','A',{excGroups:['g1']}),expol('b','B',{excGroups:['g2']})]);
  assert.doesNotMatch(E.renderMatrix(flat,'all','',true,{}),/cellv dev/);
 });
+
+// ---- 25416: the member button is a real control on its own line ----
+test('exclusions matrix: the member button is not inside the clipped sublabel',()=>{
+ const E=exModule({});
+ const m=E.collect([expol('p1','All users',{excGroups:['g1']})]);
+ const g=m.entities.find(e=>e.kind==='group');
+ g.name='CA-Exclude';g.members=[{id:'u1',name:'One',upn:'one@x',direct:true,via:[]},{id:'u2',name:'Two',upn:'two@x',direct:false,via:['Child']}];g.memberTotal=2;g.nested=[{id:'c',name:'Child'}];g.directCount=1;g.nestedCount=1;
+ const html=E.renderMatrix(m,'all','',false,{});
+ assert.match(html,/class="ex-rowact" data-exmembers=/);
+ assert.doesNotMatch(html,/ex-memlink/);
+ // the button follows the sublabel div, it does not sit inside it
+ const i=html.indexOf('class="uupn"'),j=html.indexOf('class="ex-rowact"');
+ assert.ok(i>0&&j>i);
+ assert.ok(html.slice(i,j).includes('</div>'),'sublabel closed before the button');
+});

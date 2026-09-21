@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25416, date: "2026-09-21", title: "Two controls that did not work as controls",
+    items: [
+      { kind: "fixed", tool: "Exclusion analyzer", text: "The group member button in the matrix could not be clicked. It was a 13-pixel line inside the row\u2019s one-line, clipped sublabel, so a normal click landed on the row\u2019s filter target instead and the member dialog only ever opened from the Exclusions list. It is now its own button on its own line under the group name, sized to be hit with a pointer or a finger." },
+      { kind: "fixed", tool: "Exclusion analyzer", text: "Full screen kept the pager outside the modal. The toolbar, the chips and the grid moved in; the page controls stayed behind the overlay, so a long Effective users list showed its first page with no way to reach the second. The pager moves in with everything else." },
+    ],
+  },
+  {
     build: 25415, date: "2026-09-21", title: "What a member count means, said in the tool",
     items: [
       { kind: "improved", tool: "Exclusion analyzer", text: "Two questions that were answered in one Help bullet are now two. WHO is excluded: every excluded group is expanded to its TRANSITIVE members, so a user who is only in a group nested inside the excluded group is counted \u2014 exactly the set Conditional Access evaluates \u2014 read in full with no cap, users only, and a group whose membership cannot be read stops the scan instead of publishing a smaller number that looks clean. HOW each person got there is a separate read with its own completeness: the first 40 nested groups per run are resolved by name and anything else says PATH NOT RESOLVED, so a large group can honestly read membership exact, some paths unresolved. The two populations that are deliberately NOT expanded \u2014 excluded directory roles and guest or external clauses \u2014 are named rather than left as a silent zero." },

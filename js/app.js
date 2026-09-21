@@ -9569,10 +9569,14 @@ This is a directory write. Nothing else changes.`)) return;
     }
     return {
       isOpen: () => open,
-      open(title, { controls, body, onChange } = {}) {
+      open(title, { controls, extras, body, onChange } = {}) {
         if (open) this.close();
         $("fsTitle").textContent = title;
         park(controls, $("fsControls"));
+        // Anything else that belongs to the view — a pager, a legend — parks
+        // beside the controls. T09's pager used to stay behind the modal, so
+        // full screen showed page 1 with no way to reach page 2 (25416).
+        (extras || []).forEach((el) => park(el, $("fsControls")));
         park(body, $("fsBody"));
         $("fsModal").classList.add("show");
         document.body.style.overflow = "hidden";
@@ -9612,7 +9616,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   $("exExpand").addEventListener("click", () => {
     Fs.open(exTab === "matrix" ? "Exclusion × policy matrix" : "Effectively excluded users × policy",
-      { controls: $("exToolbar"), body: $("exBody"), onChange: () => renderExclusions() });
+      { controls: $("exToolbar"), extras: [$("exPager")], body: $("exBody"), onChange: () => renderExclusions() });
   });
   $("plFull").addEventListener("click", () => Fs.open("Policy settings matrix", { body: $("matrixView") }));
   $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));

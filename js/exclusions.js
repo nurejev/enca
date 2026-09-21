@@ -726,12 +726,16 @@ const Exclusions = (() => {
         ? `<span class="uname" title="${esc(r.items.map((i) => i.name).join(", "))}">${KIND[r.kind].icon} ${esc(r.name)}</span><div class="uupn" title="${esc(r.items.map((i) => i.name).join(", "))}">${esc(r.items.map((i) => i.name).join(" · "))}</div>`
         : (() => {
             const e0 = r.items[0], sub = rowSub(e0);
-            // a group's member count opens the member list rather than filtering
+            // A group's member list opens from its OWN button on its own line.
+            // It used to sit inside the one-line, overflow-hidden sublabel: a
+            // 13px-tall control clipped by its parent, where a normal click
+            // landed on the row's filter target instead (beta 25416).
             const canList = r.kind === "group" && e0.members && e0.members.length;
-            const subHtml = sub ? " · " + (canList
-              ? `<button class="ex-memlink" data-exmembers="${esc(e0.key)}" title="Show the members of ${esc(e0.name)}">${esc(sub)}</button>`
-              : esc(sub)) : "";
-            return `<span class="uname" title="Click to show only the policies excluding: ${esc(e0.name)}">${KIND[r.kind].icon} ${esc(e0.name)}</span><div class="uupn" title="${esc(e0.id)}">${esc(KIND[r.kind].label)}${subHtml}</div>`;
+            const subHtml = sub ? ` · ${esc(sub)}` : "";
+            const act = canList
+              ? `<button type="button" class="ex-rowact" data-exmembers="${esc(e0.key)}" title="Show the members of ${esc(e0.name)}">👥 View ${e0.memberTotal ?? e0.members.length} member${(e0.memberTotal ?? e0.members.length) === 1 ? "" : "s"}</button>`
+              : "";
+            return `<span class="uname" title="Click to show only the policies excluding: ${esc(e0.name)}">${KIND[r.kind].icon} ${esc(e0.name)}</span><div class="uupn" title="${esc(e0.id)}">${esc(KIND[r.kind].label)}${subHtml}</div>${act}`;
           })();
       return `<tr><td class="ucol${r.merged ? " merged" : ""}${clickable}${focused}"${rowKey ? ` data-exrow="${esc(rowKey)}"` : ""}>${label}</td>` +
         pols.map((p) => r.policyIds.has(p.id)

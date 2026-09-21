@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 238,
+      title: "\ud83d\udeaa Member button on its own line; full screen takes the pager",
+      tools: ["Exclusion analyzer"],
+      builds: [25416],
+      risk: "medium",
+      what: "js/exclusions.js: the group row renders a real button (.ex-rowact, min-height 28px) on its own line under the name instead of an inline .ex-memlink inside the overflow-hidden .uupn sublabel. css/app.css: the .ex-rowact rule. js/app.js: Fs.open takes an extras[] of elements parked beside the controls, and the T09 full-screen call passes the pager.",
+      why: "MEDIUM \u2014 measured on 25415: the member button was 252 by 13 px, elementFromPoint at its centre returned nothing, and a real pointer click timed out. The one control that opens the member evidence from the grid did not work from the grid. Full screen with a stranded pager is the review\u2019s finding 7 second half. Rendering and layout only, no data change.",
+      test: [
+        "Matrix tab, any group row with members: a View N members button sits under the group name on its own line, and a plain click on it opens the member dialog (it timed out before 25416).",
+        "The same click does not also pin the row: after closing the dialog no filter banner appears.",
+        "Effective users with more than one page: press Full screen, and the Page x / y controls are inside the modal and work; close it and they are back in place.",
+        "Keyboard: Tab reaches the member button and Enter opens the dialog.",
+        "Regression: tools/regression.test.cjs passes.",
+      ],
+      files: ["js/exclusions.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 237,
       title: "\ud83d\udd0d Cohorts, \ud83d\udeaa list-first with an odd-one-out grid, and the quadratic row render",
       tools: ["Gap analyse", "Exclusion analyzer"],
