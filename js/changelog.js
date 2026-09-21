@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25419, date: "2026-09-21", title: "The home page says what it already knows",
+    items: [
+      { kind: "new", tool: "Home", text: "An OVERVIEW above the tool tiles once a tenant is loaded. It reads nothing beyond what sign-in already read: a Tenant band with the policy states, report-only policies untouched for more than 30 days, what changed in the last 30 days, the baseline match with what is missing, outdated or in conflict, and the CONFIGURED exclusions \u2014 labelled configured, never effective, because who a policy reaches is a read that belongs behind a Run button. The two dated retirements count down beside it. Every tile opens the tool that owns it." },
+      { kind: "new", tool: "Home", text: "A Your-runs band under it: one card per on-demand tool \u2014 \ud83d\udeaa Exclusion analyzer, \ud83d\udd0d Gap analyse, \ud83c\udfab Licences \u2014 with the headline number, the run it came from, when, and how complete the read was. A card turns amber when the policies were reloaded after its run; a tool not run this session says so and offers Run. This is the run descriptor from build 25412 doing its job on the front page." },
+    ],
+  },
+  {
     build: 25418, date: "2026-09-21", title: "What narrows the grid is a chip, not a side effect",
     items: [
       { kind: "improved", tool: "Exclusion analyzer", text: "Pinning a row or a policy used to change the grid silently and announce itself in a banner that appeared out of nowhere. It puts a removable chip in the toolbar now, beside the type chips \u2014 one place owns what is narrowing the view, and clicking the chip removes it. The banner above the grid is only the selected-policy strip: the full name, state, controls and exclusion count of the picked column." },

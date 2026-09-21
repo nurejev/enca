@@ -583,3 +583,30 @@ test('exclusions: pins render as removable chips and the banner names only the p
  assert.doesNotMatch(html,/Filtered to|data-exclearfocus/);
  assert.doesNotMatch(E.renderMatrix(m,'all','',false,{row:'user:u1'}),/class="ex-focus"/);
 });
+
+// ---- 25419: the Overview draws only from what is already loaded ----
+const Overview=load('overview.js','Overview',{});
+test('overview: the tenant band counts states, recent change and labels exclusions as configured',()=>{
+ const now=Date.parse('2026-09-21T12:00:00Z');
+ const html=Overview.tenant({tenantName:'Contoso',snapshot:now,now,
+  policies:[{name:'A',state:'enabled',modified:'2026-09-19T00:00:00Z'},{name:'B',state:'enabledForReportingButNotEnforced',modified:'2026-06-01T00:00:00Z'},{name:'C',state:'disabled',modified:null}],
+  baseline:{label:'Joey 3.2',missing:4,outdated:1,conflict:0,coverage:81},
+  exclusions:{entities:14,byKind:{user:3,group:5,app:1},policies:11}});
+ assert.match(html,/1 untouched for 30\+ days/);
+ assert.match(html,/last: A, 2 days ago/);
+ assert.match(html,/4 missing · 1 outdated · 0 in conflict · 81% covered/);
+ assert.match(html,/3 users · 5 groups · 1 app — configured, not effective/);
+ assert.match(html,/memberOf retirement in <b>43 days<\/b>/);
+ assert.match(html,/data-ovtool="toolExclusions"/);
+});
+test('overview: run cards say never, stale or fresh',()=>{
+ const html=Overview.runs([
+  {tool:'toolExclusions',icon:'x',label:'Exclusions',run:'ex',never:false,stale:false,meta:{id:'001',at:Date.now(),completeness:'exact'},headline:{n:5,unit:'effective bypasses'}},
+  {tool:'toolAnalyze',icon:'y',label:'Gap',run:'an',never:false,stale:true,meta:{id:'002',at:Date.now(),completeness:'exact'},headline:{n:3,unit:'risky'}},
+  {tool:'toolLicGap',icon:'z',label:'Licences',run:'lg',never:true,meta:null,headline:null},
+ ]);
+ assert.match(html,/run #001 · .* · exact/);
+ assert.match(html,/db-run stale/);assert.match(html,/policies reloaded after run #002/);assert.match(html,/Run again/);
+ assert.match(html,/db-run never/);assert.match(html,/not run this session/);
+ assert.equal((html.match(/data-ovrun=/g)||[]).length,3);
+});

@@ -205,6 +205,7 @@
     } catch { /* counting is best-effort */ }
   }
   function show(id) {
+    if (id === "screen-home") { try { renderOverview(); } catch (e) { console.warn("overview:", e); } }
     const transition = shownScreen === id ? screenTransition : ++screenTransition;
     const tabTop = tabViewportTop;
     if (shownScreen && shownScreen !== id) screenScroll[shownScreen] = window.scrollY;
@@ -2211,6 +2212,7 @@
       SigninStore.purge().catch(() => {}).then(() => paintStoreButtons());
       setAccountBox(account?.username || "", account?.name || "");
       showSideNav();
+      try { renderOverview(); } catch (e) { console.warn("overview:", e); }
       selected = new Set();
       policiesReadAt = Date.now();
       refreshViews();
@@ -2264,6 +2266,7 @@
     loadLogSource();
     setAccountBox("demo@contoso.onmicrosoft.com", "Demo Mode");
     showSideNav();
+    try { renderOverview(); } catch (e) { console.warn("overview:", e); }
     refreshViews();
     renderPermissions();
     show("screen-home");
@@ -19477,6 +19480,70 @@ This is a directory write. Nothing else changes.`)) return;
       ...extra,
     };
   }
+  // ---- the Overview (25419) ----
+  // The home page once a tenant is loaded: what is cheaply known from the
+  // policy set, and the last result of every on-demand tool with the run it
+  // came from. Pure renderers live in js/overview.js; this builds their input
+  // from app state and reads NOTHING from the tenant.
+  function renderOverview() {
+    const host = $("overview"); if (!host) return;
+    // The workspace home (js/workspaces.js) prepends its own layout to the
+    // screen and hides the legacy tiles; the Overview goes between its
+    // heading and its two-column layout, once, the first time it renders.
+    const wc = $("wcHome");
+    if (wc && host.parentElement !== wc) { const lay = wc.querySelector(".wc-home-layout"); if (lay) wc.insertBefore(host, lay); }
+    if (!policies || !policies.length) { host.innerHTML = ""; host.hidden = true; return; }
+    const raws = policies.map((p) => p.raw);
+    let baseline = null;
+    try {
+      const cmp = Baseline.compare(policies, Baseline.activeCatalogId());
+      const c = cmp.counts || {};
+      baseline = { label: (Baseline.active() || {}).label || Baseline.activeCatalogId(), missing: c.missing || 0, outdated: c.outdated || 0, conflict: c.conflict || 0, coverage: cmp.coverage };
+    } catch (e) { console.warn("overview baseline:", e); }
+    let exclusions = null;
+    try {
+      const m = Exclusions.collect(raws);
+      const byKind = {}; m.entities.forEach((e) => { byKind[e.kind] = (byKind[e.kind] || 0) + 1; });
+      exclusions = { entities: m.entities.length, byKind, policies: m.policies.filter((p) => p.exclusionCount > 0).length };
+    } catch (e) { console.warn("overview exclusions:", e); }
+    const ctx = runContext();
+    const stale = (m) => !!m && RunMeta.stale(m, ctx);
+    const cards = [
+      { tool: "toolExclusions", icon: "🚪", label: "Exclusion analyzer", run: "ex", runLabel: "Rescan",
+        never: !exModel, meta: exRunMeta, stale: stale(exRunMeta),
+        headline: exModel ? { n: (exModel.userStates || {}).bypass ?? exUsers.length, unit: "effective bypasses" } : null },
+      { tool: "toolAnalyze", icon: "🔍", label: "Gap analyse", run: "an", runLabel: "Run again",
+        never: !anReport, meta: anRunMeta, stale: stale(anRunMeta),
+        headline: anReport ? (() => { const s = Analyzer.summary(anReport); return { n: s.risky, unit: `risky bypass${s.risky === 1 ? "" : "es"}${s.unknown ? ` · ${s.unknown} unresolved` : ""}` }; })() : null },
+      { tool: "toolLicGap", icon: "🎫", label: "Licences", run: "lg", runLabel: "Rescan",
+        never: !lgRes, meta: lgRunMeta, stale: stale(lgRunMeta),
+        headline: lgRes ? (lgRes.p1.gap != null && lgRes.p1.gap > 0 ? { n: `${lgRes.p1.approx ? "≈" : ""}${lgRes.p1.gap.toLocaleString()}`, unit: "P1 seats short" }
+          : lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null && lgRes.p1.targeted - lgRes.p1.assignedInScope > 0 ? { n: (lgRes.p1.targeted - lgRes.p1.assignedInScope).toLocaleString(), unit: "to assign, no purchase" }
+          : { n: "0", unit: "P1 shortfall" }) : null },
+    ];
+    host.hidden = false;
+    host.innerHTML = Overview.tenant({ tenantName, isDemo, snapshot: policiesReadAt || null,
+      policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
+      baseline, exclusions, now: Date.now() })
+      + Overview.runs(cards);
+  }
+  // The workspace home is built after the app has already drawn once; when it
+  // appears, the Overview moves into it.
+  document.addEventListener("enca:wchome", () => { try { renderOverview(); } catch (e) { console.warn("overview:", e); } });
+  $("overview") && $("overview").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-ovtool]");
+    if (t) { const el = $(t.dataset.ovtool); if (el) el.click(); return; }
+    const r = e.target.closest("[data-ovrun]");
+    if (!r) return;
+    const which = r.dataset.ovrun;
+    if (which === "ex") { $("toolExclusions").click(); if (!exBusy) runExclusionScan(); }
+    else if (which === "an") { $("toolAnalyze").click(); (window.requestAnimationFrame || setTimeout)(() => $("anRun").click()); }
+    else if (which === "lg") { openLicGap(); if (!lgBusy) lgRun(); }
+  });
+  $("overview") && $("overview").addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ovtool][role=button]")) { e.preventDefault(); e.target.click(); }
+  });
+
   // One place that drops every tool result bound to the previous snapshot.
   function invalidateToolResults(why) {
     anReport = null; anCov = null; anRunMeta = null;
@@ -19486,6 +19553,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("anResults").style.display = "none"; $("anStatus").textContent = "";
       if ($("exBody")) renderExclusions();
       if ($("lgBody")) renderLicGap();
+      renderOverview();
     } catch (e) { console.warn("result invalidation:", why, e.message || e); }
   }
 

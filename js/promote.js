@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 241,
+      title: "\ud83c\udfe0 Overview on the home page: the Tenant band and Your runs",
+      tools: ["Home"],
+      builds: [25419],
+      risk: "medium",
+      what: "NEW js/overview.js (Overview.tenant, Overview.runs, DEADLINES) \u2014 pure renderers. js/app.js: renderOverview() builds their input from state (policy states and modifiedDateTime, Baseline.compare on the active catalog, Exclusions.collect for configured counts, the three RunMeta descriptors with a headline each) and reads nothing from the tenant; it runs when the home screen is shown, after either load, and after invalidateToolResults; a delegated handler opens the owning tool from a tile and starts a run from a card. index.html: the #overview container between the intro and the tool tiles, the script tag, a Help section. css/app.css: the .db-* rules.",
+      why: "MEDIUM \u2014 the home page was a tile catalogue; a signed-in tenant got no answer to \u201cwhat does this tenant look like\u201d without opening something. Nothing here can be wrong in a new way: every number is either pure over the loaded policies, the catalog comparison that already ran at sign-in, or a result a tool already published. No new Graph read, no new permission.",
+      test: [
+        "Sign in (or load the demo): an Overview appears above the tool tiles with the Tenant tiles and the Your-runs cards; before any tool has run all three cards say not run this session and offer Run.",
+        "The policies tile counts match \ud83d\uddc2 Policies (on / report-only / off), and the baseline tile matches the \ud83e\uddec Baseline card\u2019s missing / outdated / conflict counts.",
+        "The configured-exclusions tile says configured, not effective, and its count matches the \ud83d\udeaa head after a scan (entities, not users).",
+        "Run \ud83d\udeaa and return Home: its card shows the effective-bypass count with the run number and completeness; press Rescan on the card and the tool opens and runs.",
+        "Press Refresh, return Home: the three cards are back to not run (results were invalidated), the Tenant tiles reflect the reloaded snapshot.",
+        "The two retirement countdowns show the right number of days and open their tools.",
+        "Sign out or before a tenant is loaded: no Overview is drawn.",
+        "Keyboard: the tiles are reachable with Tab and open with Enter.",
+        "Regression: tools/regression.test.cjs passes.",
+      ],
+      files: ["js/overview.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 240,
       title: "\ud83d\udeaa Filters as chips, the pair card, no Matrix on narrow screens",
       tools: ["Exclusion analyzer"],
