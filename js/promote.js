@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 236,
+      title: "\ud83e\uddfe Results bound to their run: invalidation on refresh, an evidence strip, atomic publish",
+      tools: ["Exclusion analyzer", "Gap analyse", "Licences"],
+      builds: [25412],
+      risk: "high",
+      what: "NEW js/runmeta.js (RunMeta): a descriptor per run \u2014 tenant, policy snapshot time, policy count and states, population, options, completeness, run id \u2014 with stale(m, ctx) comparing tenant plus snapshot, and strip() rendering the evidence bar and its stale banner. js/app.js: runContext() describes the live context; invalidateToolResults() drops anReport/anCov, exModel/exUsers, lgRes/lgCtx/lgPurpose/lgAdmin and their descriptors, and is called from the Graph load and the demo load; exIdle() puts \ud83d\udeaa back to its run prompt; the exclusion scan builds a draft and publishes model, users and descriptor together; \ud83d\udd0d gets an anBusyNow guard at handler entry and a catch that reports stopped without re-entering the progress guard; the \ud83d\udd0d export header is built from the descriptor. css/app.css: the strip.",
+      why: "HIGH \u2014 a stale result under a refreshed tenant is the failure mode where somebody reads last tenant\u2019s exclusions as this one\u2019s. Reproduced on the demo source: run both tools, replace the policy source with zero policies, press Refresh \u2014 \ud83c\udfab still listed the old policies and gap, \ud83d\udeaa said no policies loaded while Export CSV still downloaded the old data. The same missing ownership is what would carry a result across a tenant switch. Read-only, no new permission; the descriptor is metadata about a run, not tenant data.",
+      test: [
+        "Run \ud83d\udeaa and \ud83c\udfab, then press Refresh: both tools return to their run prompt, the exports are gone with them, and nothing from the previous snapshot is on screen. Falsifiable \u2014 before 25412 both kept their results and \ud83d\udeaa exported them.",
+        "Sign in to a tenant, run a tool, switch to Demo mode: no result from the tenant remains visible.",
+        "Each result shows a strip naming tenant, policies-read time, On/Report-only/Off counts, population, completeness and a run number.",
+        "With a result on screen, press Refresh from another tab of the same tool: the strip is amber and says the snapshot was replaced (this is the case where the result is still meaningful but no longer current).",
+        "Start a \ud83d\udeaa rescan on a slow tenant and switch away and back while it runs: the tool shows the busy panel, not a half-built model with the previous user total, and no export button works until it finishes.",
+        "Start a \ud83d\udd0d run and press Stop: the status reads Stopped and no uncaught error appears in the console.",
+        "During a \ud83d\udd0d run, change the scope selector: a second run cannot be started.",
+        "Run \ud83d\udd0d with All users, then change the scope to Guests WITHOUT rerunning and export: the header names the run that produced the file and its snapshot time, not the new form values.",
+        "Regression: tools/regression.test.cjs (54) passes.",
+      ],
+      files: ["js/runmeta.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 235,
       title: "\ud83c\udfab Licences: demand, purchased capacity and assigned entitlement as three measures",
       tools: ["Licences", "Gap analyse"],

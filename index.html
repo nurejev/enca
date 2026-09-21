@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25411"></script>
+<script src="js/popup-guard.js?v=25412"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25411" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25411">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25412" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25412">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25411"></script>
+<script src="js/selfhost-boot.js?v=25412"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25411"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25411"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25411">
-<link rel="stylesheet" href="css/workspaces.css?v=25411">
-<link rel="stylesheet" href="css/tool-layout.css?v=25411">
-<link rel="stylesheet" href="css/list-detail.css?v=25411">
-<link rel="stylesheet" href="css/flat-icons.css?v=25411">
+<script src="js/counter.js?v=25412"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25412"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25412">
+<link rel="stylesheet" href="css/workspaces.css?v=25412">
+<link rel="stylesheet" href="css/tool-layout.css?v=25412">
+<link rel="stylesheet" href="css/list-detail.css?v=25412">
+<link rel="stylesheet" href="css/flat-icons.css?v=25412">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25411" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25412" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -104,7 +104,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25411" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25412" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1801,6 +1801,7 @@
         <li><b>Every bypass carries a verdict</b> <span class="tag upd">UPDATED</span> — expanding a user shows, per bypassed policy, whether another enabled policy gives that person the same protection: <span class="vd eq">✔ Equivalent coverage</span>, <span class="vd part">◐ Partial coverage</span> with the missing requirement named, <span class="vd none">✖ No equivalent coverage</span>, or <span class="vd unk">? Not established</span>. Sharing one grant control is no longer enough to call a bypass closed — a policy requiring MFA <b>and</b> a compliant device is not replaced by one requiring MFA alone, and the row says which half is missing. Anything short of established equivalence counts as risky, because “could not tell” is not a reason to stop showing a bypass.</li>
         <li><b>The drops are the finding, not the totals.</b> A tenant with 900 targeted users and 40 covered by an enforced policy has a report-only backlog, not a coverage problem — and those two look identical in any single number. Users reached by <b>no active policy at all</b> and users targeted <b>only</b> by report-only policies are called out by name in the notes under the funnel, because for the first group Conditional Access is not weak, it is absent.</li>
         <li><b>Click a row to list exactly who did not get that far</b>, and click it again to clear. These are deliberately <b>not</b> the same sets as the summary cards below: “No MFA policy targets them” counts everyone no MFA policy targets including the users no policy reaches, while the funnel’s MFA drop counts only those a policy <i>does</i> reach and still does not ask. A row with no drop is not clickable rather than being a link that does nothing.</li>
+        <li><b>The run strip and the exported header</b> <span class="tag upd">UPDATED</span> — the result carries the run that made it: tenant, policy snapshot time, states, population and options. The exported HTML report takes its header from that descriptor, so changing the scope without rerunning no longer rewrites the description of a file whose contents have not changed; stopping a run says <i>Stopped</i>, and a second run cannot start over the first.</li>
         <li><b>The licence stage reads its own data</b> — the assigned licences ride along on the user read the tool was doing anyway, and the subscribed SKUs are one more call, both covered by permissions it already holds. It does not depend on 🎫 Licence gap having run, and it uses that tool's own verdict function, so the two cannot disagree about whether a user is licensed. P2 is required where a risk-based policy targets them, P1 otherwise; report-only counts, because the obligation follows targeting rather than enforcement.</li>
         <li><b>Not read is not zero.</b> If the licence read is refused or fails, the stage says <i>not read</i> and every other stage is unaffected — “we did not look” and “nobody is licensed” are opposite findings. Targeted users with no licence record at all (guests, or a capped read) are left out of the stage and counted separately, never rounded up to licensed.</li>
         <li><b>Group filters</b> — narrow the matrix columns to the policies that target chosen groups.</li>
@@ -2174,6 +2175,7 @@
         <li><b>Coverage verdict</b> <span class="tag upd">UPDATED</span> — an app excluded from an All-resources policy is compared against every enabled policy that reaches it, and the answer is one of four: <span class="vd eq">✔ Equivalent coverage</span> every compared requirement met; <span class="vd part">◐ Partial coverage</span> with the missing requirements named (the replacement excludes somebody, is scoped to one platform, or requires a different control); <span class="vd none">✖ No equivalent coverage</span>; <span class="vd unk">? Not established</span> when a condition sits outside what the comparison models — a device filter, an authentication context, a resource collection such as Office 365. It is the same comparison 🔍 Gap analyse uses for bypasses (<code>js/coverage.js</code>), so the two tools cannot disagree about what “covered” means. An app nothing reaches reads <i>no equivalent coverage established by this analysis</i> rather than the stronger claim that it has no Conditional Access at all.</li>
         <li><b>Type chips</b> — All, User, Group, Directory role, Guest/external, Application, Named location, Device platform.</li>
         <li><b>Click to filter</b> — click a user/group row to show only the policies excluding it, or a policy column to show only the exclusions in scope for it. The out-of-scope “·” cells drop away; a banner shows the filter with a one-click clear.</li>
+        <li><b>The run strip</b> <span class="tag upd">UPDATED</span> — above every result: which tenant, when the policies were read, how many and in which states, the population, how complete the read was, and a run number. Reloading the policies <b>drops</b> the result rather than leaving it on screen under a new snapshot (it used to survive a Refresh, exports included), and a snapshot that moves while a result is open turns the strip amber.</li>
         <li><b>Export</b> — CSV or Markdown; full-screen for wide grids.</li>
       </ul>
       <p class="help-x">Read-only.</p>
@@ -3143,82 +3145,83 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25411"></script>
-<script src="js/selfhost.js?v=25411"></script>
-<script src="js/version.js?v=25411"></script>
-<script src="js/verdict.js?v=25411"></script>
-<script src="js/fork.js?v=25411"></script>
-<script src="js/promote.js?v=25411"></script>
-<script src="js/authConfig.js?v=25411"></script>
-<script src="js/connection.js?v=25411"></script>
-<script src="js/labels.js?v=25411"></script>
-<script src="js/capabilities.js?v=25411"></script>
-<script src="js/graph.js?v=25411"></script>
-<script src="js/model.js?v=25411"></script>
-<script src="js/render.js?v=25411"></script>
-<script src="js/analyze.js?v=25411"></script>
-<script src="js/whatif.js?v=25411"></script>
-<script src="js/mslearn.js?v=25411"></script>
-<script src="js/gapcheck.js?v=25411"></script>
-<script src="js/cisdata.js?v=25411"></script>
-<script src="js/cischeck.js?v=25411"></script>
-<script src="js/exclusions.js?v=25411"></script>
-<script src="js/cascope.js?v=25411"></script>
-<script src="js/coverage.js?v=25411"></script>
-<script src="js/validator.js?v=25411"></script>
-<script src="js/whatifeval.js?v=25411"></script>
-<script src="js/compare.js?v=25411"></script>
-<script src="js/whois.js?v=25411"></script>
-<script src="js/wave.js?v=25411"></script>
-<script src="js/sessionctl.js?v=25411"></script>
-<script src="js/spgap.js?v=25411"></script>
-<script src="js/groupuse.js?v=25411"></script>
-<script src="js/iso3166.js?v=25411"></script>
-<script src="js/causes.js?v=25411"></script>
-<script src="js/locations.js?v=25411"></script>
-<script src="js/authcontexts.js?v=25411"></script>
-<script src="js/authstrengths.js?v=25411"></script>
-<script src="js/recycle.js?v=25411"></script>
-<script src="js/rmau.js?v=25411"></script>
-<script src="js/camap.js?v=25411"></script>
-<script src="js/rmaudoc.js?v=25411"></script>
-<script src="js/termsofuse.js?v=25411"></script>
-<script src="js/audit.js?v=25411"></script>
-<script src="js/drift.js?v=25411"></script>
-<script src="js/guide.js?v=25411"></script>
-<script src="js/userimpact.js?v=25411"></script>
-<script src="js/smsvoice.js?v=25411"></script>
-<script src="js/memberof.js?v=25411"></script>
-<script src="js/devcheck.js?v=25411"></script>
-<script src="js/licgap.js?v=25411"></script>
-<script src="js/teamsdev.js?v=25411"></script>
-<script src="js/signinstore.js?v=25411"></script>
-<script src="js/signins.js?v=25411"></script>
-<script src="js/reportimpact.js?v=25411"></script>
-<script src="js/changelog.js?v=25411"></script>
-<script src="js/baselineData.js?v=25411"></script>
-<script src="js/baselineJoeyData.js?v=25411"></script>
-<script src="js/baselineLive.js?v=25411"></script>
-<script src="js/baseline.js?v=25411"></script>
-<script src="js/baselineCleanup.js?v=25411"></script>
-<script src="js/groupTemplates.js?v=25411"></script>
-<script src="js/assign.js?v=25411"></script>
-<script src="js/cagroups.js?v=25411"></script>
-<script src="js/groupsview.js?v=25411"></script>
-<script src="js/runledger.js?v=25411"></script>
-<script src="js/protect.js?v=25411"></script>
-<script src="js/policy-compare.js?v=25411"></script>
-<script src="js/import.js?v=25411"></script>
-<script src="js/export.js?v=25411"></script>
-<script src="js/demo.js?v=25411"></script>
-<script src="js/list-detail.js?v=25411"></script>
-<script src="js/flat-icons.js?v=25411"></script>
-<script src="js/workspace.js?v=25411"></script>
-<script src="js/analysis-jobs.js?v=25411"></script>
-<script src="js/search-suggest.js?v=25411"></script>
-<script src="js/app.js?v=25411"></script>
-<script src="js/accessibility.js?v=25411"></script>
-<script src="js/workspaces.js?v=25411"></script>
-<script src="js/tool-layout.js?v=25411"></script>
+<script src="js/branding.js?v=25412"></script>
+<script src="js/selfhost.js?v=25412"></script>
+<script src="js/version.js?v=25412"></script>
+<script src="js/verdict.js?v=25412"></script>
+<script src="js/fork.js?v=25412"></script>
+<script src="js/promote.js?v=25412"></script>
+<script src="js/authConfig.js?v=25412"></script>
+<script src="js/connection.js?v=25412"></script>
+<script src="js/labels.js?v=25412"></script>
+<script src="js/capabilities.js?v=25412"></script>
+<script src="js/graph.js?v=25412"></script>
+<script src="js/model.js?v=25412"></script>
+<script src="js/render.js?v=25412"></script>
+<script src="js/analyze.js?v=25412"></script>
+<script src="js/whatif.js?v=25412"></script>
+<script src="js/mslearn.js?v=25412"></script>
+<script src="js/gapcheck.js?v=25412"></script>
+<script src="js/cisdata.js?v=25412"></script>
+<script src="js/cischeck.js?v=25412"></script>
+<script src="js/exclusions.js?v=25412"></script>
+<script src="js/cascope.js?v=25412"></script>
+<script src="js/coverage.js?v=25412"></script>
+<script src="js/runmeta.js?v=25412"></script>
+<script src="js/validator.js?v=25412"></script>
+<script src="js/whatifeval.js?v=25412"></script>
+<script src="js/compare.js?v=25412"></script>
+<script src="js/whois.js?v=25412"></script>
+<script src="js/wave.js?v=25412"></script>
+<script src="js/sessionctl.js?v=25412"></script>
+<script src="js/spgap.js?v=25412"></script>
+<script src="js/groupuse.js?v=25412"></script>
+<script src="js/iso3166.js?v=25412"></script>
+<script src="js/causes.js?v=25412"></script>
+<script src="js/locations.js?v=25412"></script>
+<script src="js/authcontexts.js?v=25412"></script>
+<script src="js/authstrengths.js?v=25412"></script>
+<script src="js/recycle.js?v=25412"></script>
+<script src="js/rmau.js?v=25412"></script>
+<script src="js/camap.js?v=25412"></script>
+<script src="js/rmaudoc.js?v=25412"></script>
+<script src="js/termsofuse.js?v=25412"></script>
+<script src="js/audit.js?v=25412"></script>
+<script src="js/drift.js?v=25412"></script>
+<script src="js/guide.js?v=25412"></script>
+<script src="js/userimpact.js?v=25412"></script>
+<script src="js/smsvoice.js?v=25412"></script>
+<script src="js/memberof.js?v=25412"></script>
+<script src="js/devcheck.js?v=25412"></script>
+<script src="js/licgap.js?v=25412"></script>
+<script src="js/teamsdev.js?v=25412"></script>
+<script src="js/signinstore.js?v=25412"></script>
+<script src="js/signins.js?v=25412"></script>
+<script src="js/reportimpact.js?v=25412"></script>
+<script src="js/changelog.js?v=25412"></script>
+<script src="js/baselineData.js?v=25412"></script>
+<script src="js/baselineJoeyData.js?v=25412"></script>
+<script src="js/baselineLive.js?v=25412"></script>
+<script src="js/baseline.js?v=25412"></script>
+<script src="js/baselineCleanup.js?v=25412"></script>
+<script src="js/groupTemplates.js?v=25412"></script>
+<script src="js/assign.js?v=25412"></script>
+<script src="js/cagroups.js?v=25412"></script>
+<script src="js/groupsview.js?v=25412"></script>
+<script src="js/runledger.js?v=25412"></script>
+<script src="js/protect.js?v=25412"></script>
+<script src="js/policy-compare.js?v=25412"></script>
+<script src="js/import.js?v=25412"></script>
+<script src="js/export.js?v=25412"></script>
+<script src="js/demo.js?v=25412"></script>
+<script src="js/list-detail.js?v=25412"></script>
+<script src="js/flat-icons.js?v=25412"></script>
+<script src="js/workspace.js?v=25412"></script>
+<script src="js/analysis-jobs.js?v=25412"></script>
+<script src="js/search-suggest.js?v=25412"></script>
+<script src="js/app.js?v=25412"></script>
+<script src="js/accessibility.js?v=25412"></script>
+<script src="js/workspaces.js?v=25412"></script>
+<script src="js/tool-layout.js?v=25412"></script>
 </body>
 </html>

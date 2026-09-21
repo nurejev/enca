@@ -2186,8 +2186,9 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
-      $("anResults").style.display = "none"; $("anStatus").textContent = "";
+      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined;
+      // Results belong to the snapshot they were computed from.
+      invalidateToolResults("policies reloaded");
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policyResolve = resolve;
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
@@ -2244,7 +2245,9 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
+    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined;
+    invalidateToolResults("demo loaded");
+    $("anResults").style.display = "none"; $("anStatus").textContent = "";
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
     try { Baseline.use("demo"); } catch {}
@@ -9263,6 +9266,14 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- CA Exclusion analyzer ----------
   let exModel = null, exUsers = [], exTab = "matrix", exKind = "all", exQuery = "", exPage = 0;
+  // Beta 25412 — every published result carries the descriptor of the run that
+  // made it (js/runmeta.js), and a policy reload, a tenant change or a sign-out
+  // drops the results that belonged to the old snapshot. Before this, Refresh
+  // cleared T03's report and left T09's model, T09's users, the licence result
+  // and its context standing: the screen showed the old snapshot under the new
+  // tenant, and Export CSV wrote the old policies out while the screen said
+  // there were none.
+  let exRunMeta = null, anRunMeta = null, lgRunMeta = null;
   let exFocusRow = null, exFocusCol = null;  // pinned exclusion/user row and/or policy column
   const EX_PAGE = 50;
   // Opening the tool does NOT rescan — the scan (which expands group membership
@@ -9279,6 +9290,13 @@ This is a directory write. Nothing else changes.`)) return;
       return;
     }
     // idle — wait for the user to start the scan
+    exIdle();
+  }
+  // The idle screen, as its own function: invalidating a result (a policy
+  // reload, a tenant change) has to be able to put the tool back to it.
+  function exIdle() {
+    if (!$("exHead")) return;
+    $("exRescan").style.display = "none";
     $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Every exclusion across all policies — users, groups (expanded to their members), roles, guest types, apps and locations.</p>';
     $("exChips").innerHTML = ""; $("exPager").style.display = "none"; $("exHint").style.display = "none";
     $("exBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-exrun>▶ Run exclusion scan</button><p class="mini muted">Expands group memberships via Microsoft Graph. The result stays until you rescan.</p></div>';
@@ -9293,12 +9311,19 @@ This is a directory write. Nothing else changes.`)) return;
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
     exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
     Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "matrix"));
+    // Nothing is published until the whole run succeeds. exModel used to be
+    // assigned before resolution finished while exUsers still held the PREVIOUS
+    // run's rows, so reopening the tool during a slow rescan rendered a partial
+    // model with the old user total and working export buttons.
+    exModel = null; exUsers = []; exRunMeta = null;
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
-      exModel = Exclusions.collect(policies.map(p => p.raw));
-      await Exclusions.resolve(exModel, { demo: isDemo, signal: exProg.signal, onStatus: (m, done, total) => { exProg.detail(m); if (total) { exProg.st.cap = total; exProg.st.stepLabel = "group"; exProg.tick(done, done); } $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel(esc(m)); } });
-      const result = await AnalysisJobs.run("exclusions", { model: exModel }, { signal: exProg.signal });
+      const draft = Exclusions.collect(policies.map(p => p.raw));
+      await Exclusions.resolve(draft, { demo: isDemo, signal: exProg.signal, onStatus: (m, done, total) => { exProg.detail(m); if (total) { exProg.st.cap = total; exProg.st.stepLabel = "group"; exProg.tick(done, done); } $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel(esc(m)); } });
+      const result = await AnalysisJobs.run("exclusions", { model: draft }, { signal: exProg.signal });
       exProg.check();
+      exModel = draft;
+      exRunMeta = RunMeta.of(runContext({ tool: "T09", population: "Every policy in the tenant", completeness: draft.entities.some((e) => e.kind === "group" && e.pathComplete === false) ? "membership exact, some paths unresolved" : "exact" }));
       // The worker holds a clone of the model, so the per-user state counts and
       // the not-expanded populations come back beside the rows and are put on
       // this side's model here.
@@ -9308,7 +9333,7 @@ This is a directory write. Nothing else changes.`)) return;
       renderExclusions();
     } catch (e) {
       console.error("Exclusion analyzer failed:", e);
-      exModel = null;
+      exModel = null; exUsers = []; exRunMeta = null;
       $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
     } finally { exBusy = false; exProg.stop(); }
   }
@@ -9332,8 +9357,9 @@ This is a directory write. Nothing else changes.`)) return;
   }
   window.addEventListener("resize", syncExFocusTop);
   function renderExclusions() {
-    if (!exModel) return;
-    $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers));
+    if (!exModel) { exIdle(); return; }
+    $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers))
+      + RunMeta.strip(exRunMeta, runContext(), { staleHint: "The policies were reloaded after this scan — rescan to see them." });
     const counts = {};
     exModel.entities.forEach(e => counts[e.kind] = (counts[e.kind] || 0) + 1);
     $("exChips").innerHTML = exTab !== "users"
@@ -12954,6 +12980,11 @@ This is a directory write. Nothing else changes.`)) return;
       if (lgAdmin.length) ctx.adminExclude = lgAdmin;
       lgCtx = ctx;
       lgRes = LicGap.analyze(ctx);
+      lgRunMeta = RunMeta.of(runContext({ tool: "T31",
+        population: "Member users, tenant-wide (guests excluded)",
+        options: ["On + Report-only policies", ...(lgAdmin.length ? [`${lgAdmin.length} admin group${lgAdmin.length === 1 ? "" : "s"} excluded`] : [])],
+        policyCount: (ctx.policies || []).length, states: RunMeta.statesOf(ctx.policies || []),
+        completeness: lgRes.p1.approx || lgRes.p2.approx || ctx.usersCapped ? "approximate — something could not be read in full" : "exact" }));
     } catch (e) {
       $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-lgrun>▶ Try again</button></div></div>`;
       lgProg.stop(); lgBusy = false;
@@ -13000,6 +13031,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
 
     const r = lgRes;
+    const lgStrip = RunMeta.strip(lgRunMeta, runContext(), { staleHint: "The policies were reloaded after this count — rescan before quoting these numbers." });
     const gapCard = (label, o, sub) => {
       const cls = o.gap == null ? "" : o.gap > 0 ? "risk" : "";
       const val = o.gap == null ? "—" : o.gap > 0 ? o.gap.toLocaleString() : "0";
@@ -13119,7 +13151,7 @@ This is a directory write. Nothing else changes.`)) return;
     </div>`;
 
     const caveats = `<p class="mini muted" style="margin:12px 0 0">${r.caveats.map(esc).join(" · ")}</p>`;
-    $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
+    $("lgBody").innerHTML = lgStrip + tiles + bars + who + lic + table + why + fix + caveats;
   }
 
   // ---- finish the user read on a big tenant ----
@@ -19155,7 +19187,13 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- impact analysis (on demand only) ----------
   $("selActAnalyze").addEventListener("click", () => setView("analyze"));
 
+  let anBusyNow = false;
   $("anRun").addEventListener("click", async () => {
+    // The button being enabled is not a busy state: a scope change re-renders
+    // the picks and could enable it mid-run, and a second job then overwrote
+    // the first one's report and progress registry.
+    if (anBusyNow) return;
+    anBusyNow = true;
     const scope = $("anScope").value;
     const includeRO = $("anReportOnly").checked;
     const vms = policies.filter(p => p.raw.state === "enabled" || (includeRO && p.raw.state === "enabledForReportingButNotEnforced"));
@@ -19195,6 +19233,10 @@ This is a directory write. Nothing else changes.`)) return;
       anProg.check();
       anReport = result;
       anCov = null;                       // belongs to the run that just ended
+      anRunMeta = RunMeta.of(runContext({ tool: "T03",
+        population: scope === "named" ? `${anNamed.length} named principal${anNamed.length === 1 ? "" : "s"}` : scope === "guest" ? "Guests only" : scope === "member" ? "Members only" : "All users",
+        options: [includeRO ? "report-only included" : "report-only excluded"],
+        policyCount: vms.length, states: RunMeta.statesOf(vms.map((v) => v.raw)) }));
       // The licence half of the coverage flow. Both reads are already covered
       // by the permissions this tool holds — assignedLicenses rides along on
       // the /users select it was going to do anyway, and /subscribedSkus is one
@@ -19248,9 +19290,15 @@ This is a directory write. Nothing else changes.`)) return;
       status(`Done — ${users.length} users, ${lookup.length} policies.`);
     } catch (e) {
       console.error("Analysis failed:", e);
-      anReport = null; anCov = null;
-      status(`Analysis incomplete: ${e.message || e}`);
-    } finally { anProg.stop(); $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
+      anReport = null; anCov = null; anRunMeta = null;
+      // NOT status(): that calls the same cancellation guard that just threw,
+      // so stopping a run raised a second, uncaught "Read stopped" error and
+      // left the status reading "Evaluating…" instead of saying it stopped.
+      const stopped = /stopped/i.test(e.message || "");
+      $("anStatus").textContent = stopped
+        ? "Stopped — no partial result was published."
+        : `Analysis incomplete: ${e.message || e}`;
+    } finally { anBusyNow = false; anProg.stop(); $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
   });
 
   function refreshGroupSelect() {
@@ -19261,6 +19309,29 @@ This is a directory write. Nothing else changes.`)) return;
   function groupMemberSet() {
     return anGroupSel === "" ? null : anGroups[+anGroupSel]?.users || null;
   }
+  // The context a result is judged against: who we are signed in to and which
+  // policy snapshot is loaded right now.
+  function runContext(extra = {}) {
+    return {
+      tenantId, tenantName, isDemo,
+      snapshot: policiesReadAt || null,
+      policyCount: (policies || []).length,
+      states: RunMeta.statesOf((policies || []).map((p) => p.raw || p)),
+      ...extra,
+    };
+  }
+  // One place that drops every tool result bound to the previous snapshot.
+  function invalidateToolResults(why) {
+    anReport = null; anCov = null; anRunMeta = null;
+    exModel = null; exUsers = []; exRunMeta = null;
+    lgRes = null; lgCtx = null; lgRunMeta = null; lgPurpose = null; lgAdmin = [];
+    try {
+      $("anResults").style.display = "none"; $("anStatus").textContent = "";
+      if ($("exBody")) renderExclusions();
+      if ($("lgBody")) renderLicGap();
+    } catch (e) { console.warn("result invalidation:", why, e.message || e); }
+  }
+
   function renderAnalysis() {
     if (!anReport) return;
     const s = Analyzer.summary(anReport);
@@ -19289,7 +19360,8 @@ This is a directory write. Nothing else changes.`)) return;
     // −7 and the list shows 2. Rather than silently recompute the funnel
     // against a different population, say that the list is further narrowed.
     const narrowed = !!(anQuery || anType || anGroupSel !== "");
-    if (cfHost) cfHost.innerHTML = Analyzer.coverageHtml(anCov, anFilter, narrowed);
+    if (cfHost) cfHost.innerHTML = RunMeta.strip(anRunMeta, runContext(), { staleHint: "The policies were reloaded after this run — run again to analyse the current snapshot." })
+      + Analyzer.coverageHtml(anCov, anFilter, narrowed);
     $("anCards").innerHTML = [
       ["all", s.users, "Users", ""],
       ["risky", s.risky, "Risky bypasses", "risk"],
@@ -19489,12 +19561,18 @@ This is a directory write. Nothing else changes.`)) return;
     };
     if (anFilter !== "all") filterBits.push(FILTER_LABEL[anFilter] || anFilter);
     if (anQuery) filterBits.push(`search: "${anQuery}"`);
+    // The header describes the RUN, read from its descriptor — not the form.
+    // Changing All users to Guests and ticking report-only without rerunning
+    // used to rewrite this line while the file still held the original users
+    // and the original policies.
+    const rm = anRunMeta;
     const meta = {
-      tenant: tenantName || "tenant",
+      tenant: (rm && (rm.isDemo ? "Demo tenant" : rm.tenantName)) || tenantName || "tenant",
       date: new Date().toISOString().slice(0, 10),
       policies: anPols.length,
-      scope: (anScopedTo ? `only ${anScopedTo.join(", ")}` : `${$("anScope").value} users`)
-        + ($("anReportOnly").checked ? ", incl. report-only" : "")
+      scope: (anScopedTo ? `only ${anScopedTo.join(", ")}` : (rm && rm.population) || `${$("anScope").value} users`)
+        + (rm && rm.options.length ? `, ${rm.options.join(", ")}` : "")
+        + (rm ? ` | run #${rm.id}, policies read ${new Date(rm.snapshot || rm.at).toLocaleString()}` : "")
         + (filterBits.length ? ` | filtered: ${filterBits.join(", ")} (${subset.length} of ${anReport.length} users)` : ""),
     };
     // The funnel describes the RUN, not the current filter: computing it from

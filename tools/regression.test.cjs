@@ -452,3 +452,25 @@ test('licences and coverage agree that insider risk is a P2 condition',async()=>
  assert.equal(r[0].needsP2,true);
  assert.equal(JSON.stringify(LicGap.riskKindsOf?LicGap.riskKindsOf(p):['insider risk']),JSON.stringify(['insider risk']));
 });
+
+// ---- 25412: results are bound to the run that made them ----
+const RunMeta=load('runmeta.js','RunMeta',{});
+test('runmeta: a policy reload makes a result stale, a rerender does not',()=>{
+ const ctx={tenantId:'t1',tenantName:'Contoso',snapshot:1000,policies:[{state:'enabled'},{state:'disabled'}]};
+ const m=RunMeta.of({...ctx,tool:'T09',population:'Every policy in the tenant'});
+ assert.equal(m.states.on,1);assert.equal(m.states.off,1);
+ assert.equal(RunMeta.stale(m,ctx),false,'same snapshot, same tenant');
+ assert.equal(RunMeta.stale(m,{...ctx,snapshot:2000}),true,'policies reloaded');
+ assert.equal(RunMeta.stale(m,{...ctx,tenantId:'t2'}),true,'different tenant');
+ const html=RunMeta.strip(m,{...ctx,snapshot:2000},{staleHint:'rescan'});
+ assert.match(html,/runstrip stale/);
+ assert.match(html,/Policy snapshot replaced/);
+ assert.match(html,/#'?\w+/);
+ assert.doesNotMatch(RunMeta.strip(m,ctx),/stale/);
+});
+test('runmeta: two runs get different ids and the descriptor keeps its own snapshot',()=>{
+ const a=RunMeta.of({tenantId:'t1',snapshot:1,policies:[]});
+ const b=RunMeta.of({tenantId:'t1',snapshot:2,policies:[]});
+ assert.notEqual(a.id,b.id);
+ assert.equal(a.snapshot,1);assert.equal(b.snapshot,2);
+});

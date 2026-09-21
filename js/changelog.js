@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25412, date: "2026-09-21", title: "A result remembers which run made it",
+    items: [
+      { kind: "fixed", tool: "All tools", text: "Refresh left stale results standing. Reloading the policies cleared \ud83d\udd0d Gap analyse and left \ud83d\udeaa Exclusion analyzer, its user list, the \ud83c\udfab Licences result and its context exactly where they were \u2014 so the screen showed the previous snapshot under a freshly reloaded tenant, and Export CSV wrote the old policies out while the tool itself said no policies were loaded. A reload, a tenant change or a demo switch now drops every result computed from the previous snapshot." },
+      { kind: "new", tool: "All tools", text: "Every result carries a strip saying what it was computed FROM: tenant, the time the policies were read, how many policies and in which states, the population, how complete the read was, and a run number. If the policies are reloaded while a result is on screen, the strip turns amber and says so rather than letting the numbers quietly age." },
+      { kind: "fixed", tool: "Exclusion analyzer", text: "A rescan publishes nothing until it finishes. The model was assigned before group resolution completed while the PREVIOUS run\u2019s user rows were still in place, so reopening the tool during a slow rescan showed a half-built result with the old user total \u2014 and its export buttons worked." },
+      { kind: "fixed", tool: "Gap analyse", text: "Stopping a run says STOPPED. The error handler called the status helper, which called the same cancellation guard that had just failed, so the stop raised a second uncaught error and left the status reading Evaluating. Two jobs could also be started at once, because the Run button being enabled was treated as the busy state and a scope change re-enabled it mid-run." },
+      { kind: "fixed", tool: "Gap analyse", text: "The exported report describes the run it contains. Its header came from the form, so changing All users to Guests and ticking report-only without rerunning rewrote the description of a file still holding the original users and the original policies. It reads the run descriptor now, and names the run and the snapshot time." },
+    ],
+  },
+  {
     build: 25411, date: "2026-09-21", title: "Seats owned is not the same as people licensed",
     items: [
       { kind: "fixed", tool: "Licences", text: "The bar drew seats PURCHASED and called it targeted users licensed. Every one of those seats can be unassigned, or assigned to somebody outside the scope, so the screen could read 500 of 500 licensed directly above a named list of unlicensed users. Three measures now, each named: estimated demand, seats purchased, and the entitlement actually ASSIGNED to the targeted identities \u2014 with a purchasing shortfall and an assignment remediation stated as the two different actions they are." },
