@@ -9450,10 +9450,19 @@ This is a directory write. Nothing else changes.`)) return;
     const shown = ent.members || [], total = ent.memberTotal;
     $("exMemTitle").textContent = `👥 ${ent.name}`;
     const nested = ent.nested && ent.nested.length ? ent.nested : null;
+    // The question this dialog gets asked most: does this include people who
+    // are only in a group nested inside it? It does — the membership read is
+    // transitive, the same set Entra evaluates — and the PATH is a separate
+    // read with its own completeness, which is what the second line says.
+    const pathPartial = ent.pathComplete === false || ent.unknownPathCount;
     $("exMemSub").innerHTML = `${total == null ? shown.length : total} member${(total ?? shown.length) === 1 ? "" : "s"}`
       + (total != null && total > shown.length ? ` — showing the first ${shown.length}` : "")
       + (nested ? ` · <b>${ent.directCount} direct · ${ent.nestedCount} through ${nested.length} nested group${nested.length === 1 ? "" : "s"}</b>` : "")
-      + ` · excluded from ${ent.policyIds.size} polic${ent.policyIds.size === 1 ? "y" : "ies"}`;
+      + (ent.unknownPathCount ? ` · <span style="color:var(--report)">${ent.unknownPathCount} path not resolved</span>` : "")
+      + ` · excluded from ${ent.policyIds.size} polic${ent.policyIds.size === 1 ? "y" : "ies"}`
+      + `<div class="mini muted" style="margin-top:4px">Transitive membership — everyone Entra evaluates as being in this group, including users who are only members of a group nested inside it. ${pathPartial
+        ? "The count is complete; the route for some of them could not be read (past the 40 nested-group cap, or a read that failed), so they show as <b>path not resolved</b> rather than being guessed at."
+        : "Direct or nested is how each person got in; the count itself is the same either way."}</div>`;
     // direct members first, then the ones who arrive through a nested group,
     // each with the group they came through — that is the gap to see
     const sorted = shown.slice().sort((x, y) => ((y.direct === false ? 0 : 1) - (x.direct === false ? 0 : 1)) || x.name.localeCompare(y.name));

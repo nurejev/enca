@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25415, date: "2026-09-21", title: "What a member count means, said in the tool",
+    items: [
+      { kind: "improved", tool: "Exclusion analyzer", text: "Two questions that were answered in one Help bullet are now two. WHO is excluded: every excluded group is expanded to its TRANSITIVE members, so a user who is only in a group nested inside the excluded group is counted \u2014 exactly the set Conditional Access evaluates \u2014 read in full with no cap, users only, and a group whose membership cannot be read stops the scan instead of publishing a smaller number that looks clean. HOW each person got there is a separate read with its own completeness: the first 40 nested groups per run are resolved by name and anything else says PATH NOT RESOLVED, so a large group can honestly read membership exact, some paths unresolved. The two populations that are deliberately NOT expanded \u2014 excluded directory roles and guest or external clauses \u2014 are named rather than left as a silent zero." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "The group member dialog says the same thing where the question actually comes up: a line under the counts states that the list is transitive membership including users who are only in a nested group, and, where the route could not be read, that the count is still complete while those paths are not." },
+    ],
+  },
+  {
     build: 25414, date: "2026-09-21", title: "A scan in flight owns the screen",
     items: [
       { kind: "fixed", tool: "Exclusion analyzer", text: "Reopening the tool while a scan was running painted the RUN EXCLUSION SCAN prompt underneath the busy panel, with the toolbar and its export buttons beside it. Since build 25412 the tool publishes nothing until the read finishes \u2014 which is what stops a half-built result being shown \u2014 so every re-entry during the read found no result and fell back to the idle screen. The idle screen and the result renderer now stand aside while a read is running, and the toolbar is hidden for its duration: search, the tab picker, full screen and both exports act on a published result, and during a read there is not one yet." },
