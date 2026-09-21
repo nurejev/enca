@@ -2225,6 +2225,7 @@
       showSideNav();
       selected = new Set();
       policiesReadAt = Date.now();
+      noteSnapshot();
       // the one Overview paint for this snapshot — after the identity and the
       // read time are settled, so the paint is computed from them (25422)
       ovLoading = false;
@@ -2283,6 +2284,7 @@
     loadLogSource();
     setAccountBox("demo@contoso.onmicrosoft.com", "Demo Mode");
     showSideNav();
+    noteSnapshot();
     ovLoading = false;
     try { renderOverview(); } catch (e) { console.warn("overview:", e); }
     refreshViews();
@@ -19119,6 +19121,9 @@ This is a directory write. Nothing else changes.`)) return;
     $("toolNav").style.display = "none";
     hideSideNav();
     policies = []; selected.clear();
+    // the Overview and the previous snapshot belong to that sign-in (25424)
+    policiesReadAt = null; ovPrev = null; ovDiff = null; ovReadError = null; ovLoading = false; idFilter = null;
+    try { renderOverview(); } catch {}
     // Back to the neutral look — the next person at this browser may not be
     // the same audience.
     try { sessionStorage.removeItem(BRAND_STORE); } catch {}
@@ -19523,25 +19528,71 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function ovPaintKeyOf(snap) {
     return [snap, exRunMeta && exRunMeta.id, anRunMeta && anRunMeta.id, lgRunMeta && lgRunMeta.id, gcRunAt, ciRunAt,
-      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at].join("|");
+      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f"].join("|");
   }
   function deriveSummary(key) {
     if (ovDerived && ovDerived.key === key) return ovDerived;
-    let baseline = null, exclusions = null;
+    let baseline = null, exclusions = null, controls = [];
     if (policies.length) {
       try {
-        const cmp = Baseline.compare(policies, Baseline.activeCatalogId());
+        const catId = Baseline.activeCatalogId();
+        const cmp = Baseline.compare(policies, catId);
         const c = cmp.counts || {};
-        baseline = { label: (Baseline.active() || {}).label || Baseline.activeCatalogId(), missing: c.missing || 0, outdated: c.outdated || 0, conflict: c.conflict || 0, coverage: cmp.coverage };
+        const cat = Baseline.active() || {};
+        // how the catalog came to be active: chosen for this tenant, matched
+        // from what the tenant holds, or simply the default (25424)
+        let basis = "the default";
+        try { if (Baseline.stored && Baseline.stored()) basis = "chosen for this tenant"; else if (Baseline.isAutoPicked && Baseline.isAutoPicked(catId)) basis = "matched from the tenant's policies"; } catch {}
+        baseline = { label: cat.label || catId, source: cat.source || "", release: cat.release || "", released: cat.released || null, author: cat.author || "", basis,
+          missing: c.missing || 0, outdated: c.outdated || 0, conflict: c.conflict || 0, coverage: cmp.coverage, matched: cmp.covered, total: cmp.baselineTotal };
       } catch (e) { console.warn("overview baseline:", e); }
       try {
         const m = Exclusions.collect(policies.map((p) => p.raw));
         const byKind = {}; m.entities.forEach((e) => { byKind[e.kind] = (byKind[e.kind] || 0) + 1; });
-        exclusions = { entities: m.entities.length, byKind, policies: m.policies.filter((p) => p.exclusionCount > 0).length };
+        // unique references, their occurrences across policies, and the
+        // policies carrying any — three different numbers, named apart
+        const occurrences = m.entities.reduce((a, e) => a + (e.policyIds ? e.policyIds.size || e.policyIds.length || 0 : 0), 0);
+        exclusions = { entities: m.entities.length, byKind, occurrences, policies: m.policies.filter((p) => p.exclusionCount > 0).length };
       } catch (e) { console.warn("overview exclusions:", e); }
+      try { controls = Overview.controls(policies.map((p) => p.raw)); } catch (e) { console.warn("overview controls:", e); }
     }
-    ovDerived = { key, baseline, exclusions };
+    ovDerived = { key, baseline, exclusions, controls };
     return ovDerived;
+  }
+  // ---- the previous snapshot (25424) ----
+  // One earlier read is kept per tenant for the session, as normalised
+  // definitions keyed by id, so a refresh can say what moved. Cleared on
+  // sign-out and replaced on a tenant, account or demo/live change.
+  let ovPrev = null;    // { key, at, items: Map(id → {name, norm}) }
+  let ovDiff = null;    // { prevAt, added, removed, modified } | null (no earlier snapshot)
+  function noteSnapshot() {
+    const key = isDemo ? "demo" : (tenantId || tenantName || "");
+    const items = new Map(policies.map((p) => [p.id, { name: p.name, norm: Overview.normalize(p.raw) }]));
+    ovDiff = ovPrev && ovPrev.key === key ? { prevAt: ovPrev.at, ...Overview.diff(ovPrev.items, items) } : null;
+    ovPrev = { key, at: policiesReadAt, items };
+  }
+  let ovMapOpen = false; try { ovMapOpen = localStorage.getItem("enca.ovMapOpen") === "1"; } catch {}
+  function mapInput(d) {
+    const now = Date.now();
+    const dated = (p) => p.raw.modifiedDateTime || p.raw.createdDateTime || null;
+    const ro = policies.filter((p) => p.raw.state === "enabledForReportingButNotEnforced");
+    const roRows = ro.map((p) => ({ id: p.id, name: p.name, modified: dated(p) })).sort((a, b) => (a.modified ? new Date(a.modified).getTime() : -1) - (b.modified ? new Date(b.modified).getTime() : -1));
+    const recent = policies.map((p) => ({ id: p.id, name: p.name, modified: dated(p) })).filter((r) => r.modified && now - new Date(r.modified).getTime() <= 30 * 86400000).sort((a, b) => new Date(b.modified) - new Date(a.modified));
+    const undated = policies.filter((p) => !dated(p)).length;
+    return {
+      reviewQueue: { rows: roRows.slice(0, 6), total: ro.length },
+      recent: { rows: recent.slice(0, 6), undated },
+      exclusions: d.exclusions ? { ...d.exclusions, effective: exModel && exModel.userStates && exModel.userStates.bypass != null ? `${exModel.userStates.bypass} effective bypass${exModel.userStates.bypass === 1 ? "" : "es"} (🚪 run #${exRunMeta && exRunMeta.id || "?"})` : "not checked — needs the 🚪 run" } : null,
+      baseline: d.baseline, controls: d.controls, diff: ovDiff, snapshotAt: policiesReadAt,
+      context: signinContextRows(), open: ovMapOpen, now,
+    };
+  }
+  // what sign-in already read beyond the policies — filled in by 25425; until
+  // then the two settings the tools read on demand
+  function signinContextRows() {
+    return [
+      { label: "Conditional Access settings", text: caSettingsCache === undefined ? "not read — 🛡 Checks reads them" : caSettingsCache ? "read" : "read failed", state: caSettingsCache ? "read" : "none" },
+    ];
   }
   function renderOverview(opts = {}) {
     const host = $("overview"); if (!host) return;
@@ -19577,7 +19628,8 @@ This is a directory write. Nothing else changes.`)) return;
         policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
         baseline: d.baseline, exclusions: d.exclusions, impact, now: Date.now() })
         + `<div id="ovWorth" class="db-band"><h3>Worth a look first <span class="mini muted">— running the configuration checks over the loaded policies…</span></h3></div>`
-        + Overview.checks(checkRows());
+        + Overview.checks(checkRows())
+        + Overview.map(mapInput(d));
     }
     host.innerHTML = html;
     if (!policies.length) return;
@@ -19768,6 +19820,9 @@ This is a directory write. Nothing else changes.`)) return;
     else if (which === "an") { $("toolAnalyze").click(); (window.requestAnimationFrame || setTimeout)(() => $("anRun").click()); }
     else if (which === "lg") { openLicGap(); if (!lgBusy) lgRun(); }
   });
+  $("overview") && $("overview").addEventListener("toggle", (e) => {
+    if (e.target && e.target.id === "ovMap") { ovMapOpen = e.target.open; try { localStorage.setItem("enca.ovMapOpen", ovMapOpen ? "1" : "0"); } catch {} }
+  }, true);
   $("overview") && $("overview").addEventListener("keydown", (e) => {
     if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ovtool][role=button],[data-ovstate][role=button]")) { e.preventDefault(); e.target.click(); }
   });

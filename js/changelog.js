@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25424, date: "2026-09-21", title: "The configuration map",
+    items: [
+      { kind: "new", tool: "Home", text: "A CONFIGURATION MAP folds under the checks, from what is already in memory: the report-only review queue, oldest modification first (a review prompt, not proof of a forgotten rollout); recently modified policies with names and dates (who changed what is audit data); controls referenced by policies \u2014 MFA or strength, device, block, legacy-client, risk, location, session, workload identities \u2014 by Enabled / Report-only / Off, policy counts that overlap and count no protected people; and the snapshot context: the selected baseline with release, source and how it came to be active (chosen, matched, or the default), requirements matched / missing / outdated / in conflict, exclusion references as unique, occurrences and policies, and effective user impact, not checked until \ud83d\udeaa has run." },
+      { kind: "new", tool: "Home", text: "SINCE YOUR PREVIOUS REFRESH: the second read of a session says what moved \u2014 added, modified and removed policy definitions, compared by id and normalised definition with modification dates left out, so a touched-but-unchanged policy is not a change. The first read says No earlier snapshot; the memory is cleared on sign-out and replaced on a tenant, account or demo/live change. Show the changed policies opens them in \ud83d\uddc2 Policies. Audit history is still needed to say who." },
+      { kind: "fix", tool: "Home", text: "Signing out now drops the Overview with the session it belonged to; it used to keep the last tenant\u2019s numbers on the page until the next sign-in painted over them." },
+    ],
+  },
+  {
     build: 25423, date: "2026-09-21", title: "A finding opens its evidence",
     items: [
       { kind: "new", tool: "Home", text: "Every finding on the home page is now a record with a stable id, its severity, the policies it names, an EVIDENCE STATE and the run or snapshot it came from. Press one and it opens in place: what was observed, the policies with their original names, scope, grant logic (AND / OR spelled out \u2014 OR means any one control satisfies the policy), exclusions and modification date, the suggested next step, a button into the owning tool, and Show these policies, which opens \ud83d\uddc2 Policies filtered to exactly those policies. The filter shows there as a chip and comes off with one press; it stays while you go Home and back." },

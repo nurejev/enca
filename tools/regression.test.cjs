@@ -690,3 +690,34 @@ test('overview: worth with nothing to show says so, and no note when the run was
  const html2=Overview.worth({items:[],provisional:'x',zt:null});
  assert.match(html2,/on a first pass/);
 });
+
+// ---- 25424: the configuration map — pure helpers ----
+test('overview: normalize ignores volatile metadata and key order; diff compares by id and definition',()=>{
+ const a={id:'1',displayName:'A',state:'enabled',conditions:{users:{includeUsers:['All']},applications:{includeApplications:['All']}},modifiedDateTime:'2026-09-01T00:00:00Z','@odata.etag':'x'};
+ const b={'@odata.etag':'y',modifiedDateTime:'2026-09-21T00:00:00Z',conditions:{applications:{includeApplications:['All']},users:{includeUsers:['All']}},state:'enabled',displayName:'A',id:'1'};
+ assert.equal(Overview.normalize(a),Overview.normalize(b));
+ const c={...b,state:'disabled'};assert.notEqual(Overview.normalize(a),Overview.normalize(c));
+ const prev=new Map([['1',{name:'A',norm:Overview.normalize(a)}],['2',{name:'Gone',norm:'x'}]]);
+ const cur=new Map([['1',{name:'A',norm:Overview.normalize(c)}],['3',{name:'New',norm:'y'}]]);
+ const d=Overview.diff(prev,cur);
+ assert.equal(JSON.stringify([d.added.map(x=>x.name),d.removed.map(x=>x.name),d.modified.map(x=>x.name)]),'[["New"],["Gone"],["A"]]');
+});
+test('overview: controls are counted per state and overlap',()=>{
+ const raws=[
+  {state:'enabled',grantControls:{builtInControls:['mfa','compliantDevice'],operator:'OR'},conditions:{},sessionControls:{signInFrequency:{isEnabled:true}}},
+  {state:'enabledForReportingButNotEnforced',grantControls:{builtInControls:['block']},conditions:{clientAppTypes:['exchangeActiveSync','other']}},
+  {state:'disabled',grantControls:{authenticationStrength:{id:'s'}},conditions:{signInRiskLevels:['high'],locations:{includeLocations:['All'],excludeLocations:['x']}}},
+ ];
+ const rows=Object.fromEntries(Overview.controls(raws).map(r=>[r.key,r]));
+ assert.equal(JSON.stringify([rows.mfa.on,rows.mfa.report,rows.mfa.off,rows.device.on,rows.block.report,rows.legacy.report,rows.risk.off,rows.location.off,rows.session.on]),'[1,0,1,1,1,1,1,1,1]');
+});
+test('overview: the map says No earlier snapshot first, then the diff; a missing baseline reads none matched',()=>{
+ const base={reviewQueue:{rows:[{id:'r1',name:'RO one',modified:'2026-06-01T00:00:00Z'}],total:4},recent:{rows:[],undated:2},exclusions:{entities:14,occurrences:19,policies:12,byKind:{}},baseline:null,controls:Overview.controls([]),diff:null,snapshotAt:Date.now(),context:[{label:'Named locations',text:'read at 10:42',state:'read'}],now:Date.parse('2026-09-21T12:00:00Z')};
+ const html=Overview.map(base);
+ assert.match(html,/No earlier snapshot in this session/);assert.match(html,/RO one/);assert.match(html,/112 days ago/);assert.match(html,/and 3 more/);
+ assert.match(html,/Date unavailable for 2 policies/);assert.match(html,/14 unique · 19 occurrences · 12 policies/);assert.match(html,/none matched/);
+ assert.match(html,/Named locations<\/span><b class="ok">read at 10:42/);assert.match(html,/Effective user impact<\/span><b class="na">not checked/);
+ const withDiff=Overview.map({...base,diff:{prevAt:Date.now()-60000,added:[{id:'a',name:'Added'}],removed:[],modified:[{id:'m',name:'Mod'}]},baseline:{label:'CloudFellows',release:'2026.6.1',source:'bundled',author:'CloudFellows',basis:'matched from the tenant’s policies',matched:30,total:36,missing:3,outdated:2,conflict:1}});
+ assert.match(withDiff,/<b>1<\/b> added/);assert.match(withDiff,/<b>1<\/b> modified/);assert.match(withDiff,/data-ovpolicies="a,m">Show the changed policies/);
+ assert.match(withDiff,/CloudFellows 2026\.6\.1/);assert.match(withDiff,/bundled \(CloudFellows\) · matched from the tenant’s policies/);assert.match(withDiff,/30 of 36/);assert.match(withDiff,/3 \/ 2 \/ 1/);
+});

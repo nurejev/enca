@@ -617,6 +617,23 @@ tr.grouprow:hover td{background:var(--line)}
 .db-status.empty{border-color:var(--warn-bd);background:var(--warn-bg2)}
 .db-status .fchip{margin-left:4px}
 @media (max-width:600px){.db-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.db-count b{font-size:20px}}
+/* 25424: the configuration map, folded */
+.db-map>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px}.db-map>summary::-webkit-details-marker{display:none}
+.db-map>summary::before{content:"▸";color:var(--muted);font-size:12px}.db-map[open]>summary::before{content:"▾"}
+.db-map>summary h3{margin:0;display:inline-flex;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);gap:10px;flex-wrap:wrap;align-items:baseline}.db-map>summary h3 .mini{text-transform:none;letter-spacing:0}
+.db-map-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px;margin-top:10px}
+@media (max-width:420px){.db-map-grid{grid-template-columns:minmax(0,1fr)}}
+.db-map-sec{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;min-width:0;font-size:12.5px;line-height:1.45}
+.db-map-sec h4{margin:0;font-size:13px;font-weight:600}.db-map-sec h4 .mini{font-weight:400}
+.db-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.db-list li{display:flex;justify-content:space-between;gap:4px 10px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:3px 0}.db-list .nm{min-width:0;overflow-wrap:anywhere}.db-list li>.mini{flex:none;white-space:nowrap;margin-left:auto}
+.db-ctl{width:100%;border-collapse:collapse;font-size:12.5px}.db-ctl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:2px 6px 4px 0;border-bottom:1px solid var(--border)}.db-ctl th:not(:first-child),.db-ctl td:not(:first-child){text-align:right;width:70px}
+.db-ctl td{padding:5px 6px 5px 0;border-bottom:1px solid var(--line)}
+.db-n{display:inline-block;min-width:26px;text-align:center;border-radius:6px;padding:1px 6px;font-weight:600}.db-n.on{background:var(--ok-bg);color:var(--on)}.db-n.rep{background:var(--warn-bg);color:var(--warn-fg)}
+.db-kv{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:4px 0}.db-kv b{text-align:right}.db-kv b.na{font-weight:600;color:var(--warn-fg)}.db-kv b.ok{color:var(--on)}.db-kv b.warn{color:var(--warn-fg)}
+.db-diff{display:flex;gap:16px;font-size:12.5px}.db-diff b{font-size:18px;margin-right:4px}
+.db-map-act{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.db-map-note{margin-top:10px;background:var(--warn-bg2);border:1px solid var(--warn-bd);border-radius:10px;padding:8px 12px;font-size:12.5px;color:var(--warn-fg)}
 /* the advisories fold under the tiles */
 .db-advs{margin-top:10px}.db-advs>summary{cursor:pointer;font-size:12.5px;font-weight:600;padding:4px 0}.db-advs>summary .mini{font-weight:400}
 /* Your checks: one row per tool */

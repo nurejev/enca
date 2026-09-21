@@ -119,6 +119,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 246,
+      title: "\ud83c\udfe0 Overview: the configuration map and the diff since the previous refresh",
+      tools: ["Home"],
+      builds: [25424],
+      risk: "low",
+      what: "js/overview.js: NEW normalize(raw) (volatile metadata out, keys sorted), diff(prev, cur) by id and definition, controls(raws) over CONTROL_ROWS by state, map(m) rendering the five sections in a folded details#ovMap. js/app.js: deriveSummary() adds the baseline basis (stored / auto-picked / default), release and source, exclusion occurrences and the controls table; noteSnapshot() keeps one previous read per tenant key (ovPrev) and computes ovDiff at both load sites; mapInput() builds the map's input; sign-out resets policiesReadAt, ovPrev, ovDiff and the id filter; the map's open state is remembered in localStorage enca.ovMapOpen. css: .db-map*, .db-list, .db-ctl, .db-kv, .db-diff.",
+      why: "LOW \u2014 summaries over data already loaded, each with its unit and limit named; nothing here reads the tenant or changes a tool. The diff is the one new memory (one normalised snapshot per tenant, per session).",
+      test: [
+        "Demo: the Configuration map is folded under Your checks; open it, reload the page: it stays open.",
+        "Report-only review queue lists the report-only policies oldest first with days ago; Open the report-only list filters \ud83d\uddc2 Policies.",
+        "Controls table: a policy requiring MFA OR compliant device counts in both rows; the Enabled / Report-only / Off columns match the header counts per row when summed across states for a single-control tenant.",
+        "Snapshot context: the baseline line names the catalog, its release and how it is active; the exclusion line reads unique / occurrences / policies and matches the tile; effective user impact reads not checked, then the \ud83d\udeaa count after a run.",
+        "Since your previous refresh reads No earlier snapshot on the first read; press Refresh: 0 added / 0 modified / 0 removed; change a policy in the tenant (or DEMO_DATA locally) and refresh: it is listed as modified and Show the changed policies opens it.",
+        "Sign out: the Overview is gone from the home page; sign in again: No earlier snapshot.",
+        "Regression: tools/regression.test.cjs passes (73).",
+      ],
+      files: ["js/overview.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+    },
+    {
       n: 245,
       title: "\ud83c\udfe0 Overview: findings with evidence state, an evidence panel, and a policy filter carried into \ud83d\uddc2 Policies",
       tools: ["Home", "Policies"],

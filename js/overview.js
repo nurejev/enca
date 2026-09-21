@@ -19,6 +19,9 @@
 //                        each opening its evidence in place (25423)
 //   Overview.checks(rows) one compact row per on-demand tool (25422 — the
 //                        25419 cards, folded to a line each)
+//   Overview.map(m)      the configuration map, folded: review queue, recent
+//                        change, controls by state, snapshot context, the diff
+//                        since the previous refresh (25424)
 //
 // Pure over their arguments: the app builds `d` and `cards` from its state.
 // ======================================================================
@@ -255,6 +258,105 @@ const Overview = (() => {
     </div>`;
   }
 
-  return { header, lead, tenant, checks, worth, evidence, DEADLINES, exclusionKinds };
+  // ---- the configuration map (25424) ----
+  // Summaries from what is already in memory, each with its unit and its
+  // limit spelled out. Pure helpers first, so the offline suite can hold them.
+
+  // A policy definition with the volatile metadata removed, keys sorted, so
+  // two reads of an unchanged policy normalise to the same string.
+  const VOLATILE = new Set(["modifiedDateTime", "createdDateTime", "@odata.context", "@odata.etag", "@odata.type"]);
+  function normalize(raw) {
+    const sort = (v) => {
+      if (Array.isArray(v)) return v.map(sort);
+      if (v && typeof v === "object") return Object.keys(v).filter((k) => !VOLATILE.has(k) && !k.startsWith("@odata")).sort().reduce((o, k) => { o[k] = sort(v[k]); return o; }, {});
+      return v;
+    };
+    return JSON.stringify(sort(raw || {}));
+  }
+  // prev, cur: Map(id → {name, norm}). Compared by id and normalised
+  // definition; who made a change is not inferred — that is audit data.
+  function diff(prev, cur) {
+    const added = [], removed = [], modified = [];
+    for (const [id, c] of cur) {
+      const p = prev.get(id);
+      if (!p) added.push({ id, name: c.name });
+      else if (p.norm !== c.norm) modified.push({ id, name: c.name, was: p.name });
+    }
+    for (const [id, p] of prev) if (!cur.has(id)) removed.push({ id, name: p.name });
+    return { added, removed, modified };
+  }
+  // Which controls and conditions the policies reference, split by state.
+  // Counts overlap (one policy can sit in several rows) and say nothing
+  // about who is protected: a definition, not an effect.
+  const CONTROL_ROWS = [
+    { key: "mfa", label: "MFA or authentication strength", test: (p) => { const g = p.grantControls || {}; return (g.builtInControls || []).includes("mfa") || !!g.authenticationStrength; } },
+    { key: "device", label: "Compliant or hybrid-joined device", test: (p) => { const b = (p.grantControls || {}).builtInControls || []; return b.includes("compliantDevice") || b.includes("domainJoinedDevice"); } },
+    { key: "block", label: "Block access", test: (p) => ((p.grantControls || {}).builtInControls || []).includes("block") },
+    { key: "legacy", label: "Legacy-client condition", test: (p) => ((p.conditions || {}).clientAppTypes || []).some((t) => t === "exchangeActiveSync" || t === "other") },
+    { key: "risk", label: "User or sign-in risk", test: (p) => { const c = p.conditions || {}; return (c.userRiskLevels || []).length > 0 || (c.signInRiskLevels || []).length > 0 || !!c.agentIdRiskLevels; } },
+    { key: "location", label: "Named location condition", test: (p) => { const l = (p.conditions || {}).locations; return !!l && ((l.includeLocations || []).length > 0 || (l.excludeLocations || []).length > 0); } },
+    { key: "session", label: "Session controls", test: (p) => Object.values(p.sessionControls || {}).some((v) => v && typeof v === "object" && (v.isEnabled !== false)) },
+    { key: "workload", label: "Workload identities or agents", test: (p) => { const ca = (p.conditions || {}).clientApplications; return !!ca && ((ca.includeServicePrincipals || []).length > 0 || !!ca.servicePrincipalFilter); } },
+  ];
+  const STATE_COL = { enabled: "on", enabledForReportingButNotEnforced: "report", disabled: "off" };
+  function controls(raws) {
+    return CONTROL_ROWS.map((r) => {
+      const row = { key: r.key, label: r.label, on: 0, report: 0, off: 0 };
+      for (const p of raws || []) { let hit = false; try { hit = !!r.test(p); } catch {} if (hit) row[STATE_COL[p.state] || "off"]++; }
+      return row;
+    });
+  }
+  // m = { reviewQueue: {rows: [{id,name,modified,days}], total},
+  //       recent: {rows: [{id,name,modified}], undated},
+  //       exclusions: {entities, occurrences, policies, byKind} | null,
+  //       baseline: {label, source, release, released, author, basis, matched, missing, outdated, conflict, total, coverage} | null,
+  //       controls: [...], diff: {prevAt, added, removed, modified} | null,
+  //       context: [{label, text, state: read|partial|none}], open, now }
+  function map(m) {
+    const now = m.now || Date.now();
+    const days = (iso) => Math.floor((now - new Date(iso).getTime()) / DAY);
+    const date = (iso) => iso ? esc(new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })) : "date unavailable";
+    const ids = (rows) => esc(rows.map((r) => r.id).filter(Boolean).join(","));
+    const q = m.reviewQueue || { rows: [], total: 0 };
+    const rc = m.recent || { rows: [], undated: 0 };
+    const review = `<section class="db-map-sec"><h4>Report-only review queue <span class="mini muted">· ${n(q.total)} in report-only</span></h4>
+      ${q.rows.length ? `<ul class="db-list">${q.rows.map((r) => `<li><span class="nm">${esc(r.name)}</span><span class="mini muted">${r.modified ? `last modified ${date(r.modified)} · ${days(r.modified)} days ago` : "date unavailable"}</span></li>`).join("")}</ul>${q.total > q.rows.length ? `<div class="mini muted">and ${q.total - q.rows.length} more</div>` : ""}` : `<div class="mini muted">Nothing in report-only.</div>`}
+      <div class="mini muted">Oldest modification first. An old modification is a review prompt, not proof of a forgotten rollout; time spent in report-only is not known.</div>
+      <div class="db-map-act"><button type="button" class="fchip" data-ovstate="report">Open the report-only list</button><button type="button" class="fchip" data-ovtool="toolSignins">Validate with sign-ins</button></div></section>`;
+    const recent = `<section class="db-map-sec"><h4>Recently modified <span class="mini muted">· 30 days</span></h4>
+      ${rc.rows.length ? `<ul class="db-list">${rc.rows.map((r) => `<li><span class="nm">${esc(r.name)}</span><span class="mini muted">${date(r.modified)} · ${days(r.modified) === 0 ? "today" : `${days(r.modified)} days ago`}</span></li>`).join("")}</ul>` : `<div class="mini muted">No dated policy modified in the last 30 days.</div>`}
+      ${rc.undated ? `<div class="mini muted">Date unavailable for ${n(rc.undated)} polic${rc.undated === 1 ? "y" : "ies"}.</div>` : ""}
+      <div class="mini muted">Names and dates from the policy read; who changed what is audit data.</div>
+      <div class="db-map-act">${rc.rows.length ? `<button type="button" class="fchip" data-ovpolicies="${ids(rc.rows)}">Show these policies</button>` : ""}<button type="button" class="fchip" data-ovtool="toolAudit">Who changed what</button></div></section>`;
+    const ctl = `<section class="db-map-sec"><h4>Controls referenced by policies <span class="mini muted">· policy counts, categories overlap</span></h4>
+      <table class="db-ctl"><thead><tr><th>Control or condition</th><th>Enabled</th><th>Report-only</th><th>Off</th></tr></thead><tbody>${(m.controls || []).map((r) => `<tr><td>${esc(r.label)}</td><td><span class="db-n on">${n(r.on)}</span></td><td><span class="db-n rep">${n(r.report)}</span></td><td>${n(r.off)}</td></tr>`).join("")}</tbody></table>
+      <div class="mini muted">Counts describe configuration. Conditions, exclusions and AND / OR logic decide applicability; none of this counts protected people.</div>
+      <div class="db-map-act"><button type="button" class="fchip" data-ovstate="all">Inspect policies and grant logic</button></div></section>`;
+    const b = m.baseline, ex = m.exclusions;
+    const ctxRows = (m.context || []).map((c) => `<div class="db-kv"><span>${esc(c.label)}</span><b class="${c.state === "read" ? "ok" : c.state === "partial" ? "warn" : "na"}">${esc(c.text)}</b></div>`).join("");
+    const snap = `<section class="db-map-sec"><h4>Snapshot context</h4>
+      ${b ? `<div class="db-kv"><span>Selected baseline</span><b>${esc(b.label)}${b.release ? ` ${esc(b.release)}` : ""}</b></div>
+      <div class="db-kv"><span>Source · basis</span><b>${esc(b.source || "")}${b.author ? ` (${esc(b.author)})` : ""} · ${esc(b.basis)}</b></div>
+      <div class="db-kv"><span>Requirements matched</span><b>${n(b.matched)} of ${n(b.total)}</b></div>
+      <div class="db-kv"><span>Missing / outdated / conflict</span><b>${n(b.missing)} / ${n(b.outdated)} / ${n(b.conflict)}</b></div>` : `<div class="db-kv"><span>Selected baseline</span><b class="na">none matched</b></div>`}
+      ${ex ? `<div class="db-kv"><span>Exclusion references</span><b>${n(ex.entities)} unique · ${n(ex.occurrences)} occurrence${ex.occurrences === 1 ? "" : "s"} · ${n(ex.policies)} polic${ex.policies === 1 ? "y" : "ies"}</b></div>
+      <div class="db-kv"><span>Effective user impact</span><b class="na">${ex.effective || "not checked"}</b></div>` : ""}
+      ${ctxRows}
+      <div class="mini muted">The catalog comparison is a configuration review; user coverage needs a scoped analysis.</div>
+      <div class="db-map-act"><button type="button" class="fchip" data-ovtool="toolBaseline">Open the baseline</button><button type="button" class="fchip" data-ovtool="toolExclusions">Open exclusions</button></div></section>`;
+    const df = m.diff;
+    const since = `<section class="db-map-sec"><h4>Since your previous refresh${df ? ` <span class="mini muted">· this session · ${esc(hhmm(df.prevAt))} → ${esc(hhmm(m.snapshotAt))}</span>` : ""}</h4>
+      ${df ? `<div class="db-diff"><span><b>${n(df.added.length)}</b> added</span><span><b>${n(df.modified.length)}</b> modified</span><span><b>${n(df.removed.length)}</b> removed</span></div>
+        ${df.added.length + df.modified.length + df.removed.length ? `<ul class="db-list">${[...df.added.map((r) => ({ ...r, w: "added" })), ...df.modified.map((r) => ({ ...r, w: "modified" })), ...df.removed.map((r) => ({ ...r, w: "removed" }))].slice(0, 8).map((r) => `<li><span class="nm">${esc(r.name)}</span><span class="mini muted">${r.w}</span></li>`).join("")}</ul>` : `<div class="mini muted">No definition changed between the two reads.</div>`}
+        <div class="mini muted">Compared by policy id and normalised definition, modification dates left out. Audit history is needed to identify who made a change.</div>
+        <div class="db-map-act">${df.added.length + df.modified.length ? `<button type="button" class="fchip" data-ovpolicies="${ids([...df.added, ...df.modified])}">Show the changed policies</button>` : ""}<button type="button" class="fchip" data-ovtool="toolAudit">Audit history</button></div>`
+      : `<div class="mini muted">No earlier snapshot in this session. Refresh the policies and this shows what changed between the two reads.</div>`}</section>`;
+    return `<details id="ovMap" class="db-band db-map"${m.open ? " open" : ""}><summary><h3>Configuration map <span class="mini muted">— counts by control and state, what is under review, and what moved since your previous refresh</span></h3></summary>
+      <div class="db-map-grid">${review}${recent}${ctl}${snap}${since}</div>
+      <div class="db-map-note">Not established by this map: affected users, successful MFA, effective bypasses or actual sign-in impact.</div>
+    </details>`;
+  }
+
+  return { header, lead, tenant, checks, worth, evidence, map, normalize, diff, controls, CONTROL_ROWS, DEADLINES, exclusionKinds };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = { Overview };
