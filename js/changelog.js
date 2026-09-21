@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25414, date: "2026-09-21", title: "A scan in flight owns the screen",
+    items: [
+      { kind: "fixed", tool: "Exclusion analyzer", text: "Reopening the tool while a scan was running painted the RUN EXCLUSION SCAN prompt underneath the busy panel, with the toolbar and its export buttons beside it. Since build 25412 the tool publishes nothing until the read finishes \u2014 which is what stops a half-built result being shown \u2014 so every re-entry during the read found no result and fell back to the idle screen. The idle screen and the result renderer now stand aside while a read is running, and the toolbar is hidden for its duration: search, the tab picker, full screen and both exports act on a published result, and during a read there is not one yet." },
+    ],
+  },
+  {
     build: 25413, date: "2026-09-21", title: "Cohorts, and a grid that shows the odd one out",
     items: [
       { kind: "new", tool: "Gap analyse", text: "A COHORTS tab. Users whose state is identical across every policy in the run are one row \u2014 the same collapsing the Exclusion analyzer has always done for exclusion patterns. A tenant of thousands reads as a handful of cohorts plus its outliers, a cohort of one sorts to the top because that is the row worth reading, and opening a cohort lists the people in it. Paging a table nobody can read is a slower way of showing the same thing; this changes what the screen is for." },

@@ -9287,6 +9287,13 @@ This is a directory write. Nothing else changes.`)) return;
   // switching tabs and coming back keeps the screen intact.
   function openExclusions() {
     show("screen-exclusions");
+    // A scan in flight owns the screen. Reopening the tool while it runs used
+    // to repaint the idle run prompt UNDER the busy panel (beta 25413 on a
+    // 111-group tenant): since 25412 nothing is published until the run
+    // finishes, so exModel is null for the whole read and every re-entry fell
+    // into the idle branch. Publishing early is what that change fixed — the
+    // screen just has to respect the busy state instead.
+    if (exBusy) return;
     $("exRescan").style.display = exModel ? "" : "none";
     if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
     if (exModel) {   // cached — restore the previous screen, no rescan
@@ -9301,16 +9308,23 @@ This is a directory write. Nothing else changes.`)) return;
   // The idle screen, as its own function: invalidating a result (a policy
   // reload, a tenant change) has to be able to put the tool back to it.
   function exIdle() {
-    if (!$("exHead")) return;
+    if (!$("exHead") || exBusy) return;
     $("exRescan").style.display = "none";
     $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Every exclusion across all policies — users, groups (expanded to their members), roles, guest types, apps and locations.</p>';
     $("exChips").innerHTML = ""; $("exPager").style.display = "none"; $("exHint").style.display = "none";
     $("exBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-exrun>▶ Run exclusion scan</button><p class="mini muted">Expands group memberships via Microsoft Graph. The result stays until you rescan.</p></div>';
   }
   let exBusy = false;
+  // Export, search, the tab picker and Full screen all act on a published
+  // result. While a read is running there is none, so the toolbar goes away
+  // rather than offering to export the run before it.
+  function exChrome(busy) {
+    const tb = $("exToolbar"); if (tb) tb.style.display = busy ? "none" : "";
+  }
   async function runExclusionScan() {
     if (exBusy) return;
     exBusy = true;
+    exChrome(true);
     const exProg = makeProgress("ex"); exProg.begin();
     $("exRescan").style.display = "";
     $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel("Collecting exclusions…");
@@ -9336,12 +9350,16 @@ This is a directory write. Nothing else changes.`)) return;
       exUsers = result.users || result;
       exModel.userStates = result.states || null;
       exModel.unexpanded = result.unexpanded || null;
+      // Published. The screen stops being busy BEFORE it is drawn — the render
+      // and the idle screen both stand aside while a read is in flight, so
+      // rendering from inside the busy window would draw nothing at all.
+      exBusy = false; exChrome(false);
       renderExclusions();
     } catch (e) {
       console.error("Exclusion analyzer failed:", e);
       exModel = null; exUsers = []; exRunMeta = null;
       $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
-    } finally { exBusy = false; exProg.stop(); }
+    } finally { exBusy = false; exChrome(false); exProg.stop(); }
   }
   $("exRescan").addEventListener("click", runExclusionScan);
   // The filter banner sticks directly under the (sticky) toolbar. The toolbar
@@ -9363,6 +9381,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   window.addEventListener("resize", syncExFocusTop);
   function renderExclusions() {
+    if (exBusy) return;           // the busy panel owns the screen
     if (!exModel) { exIdle(); return; }
     $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers))
       + RunMeta.strip(exRunMeta, runContext(), { staleHint: "The policies were reloaded after this scan — rescan to see them." });
