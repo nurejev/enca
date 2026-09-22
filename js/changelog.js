@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25468, date: "2026-09-22", title: "Baseline catalog: CA000 and CA400 split the externals",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "🧱 A third catalog revision from CloudFellows.dev today, two policies. CA000 (Require MFA for all users) now excludes every guest and external user type, and CA400 (Require MFA for guests) swaps the Multifactor authentication STRENGTH for the Require multifactor authentication control — the same swap 📘 MS Learn checks recommends, because the control also reaches guests who sign in with a one-time passcode, Google, a SAML/WS-Fed provider or a Microsoft account, where a strength does not. Both move to v1.0.3. Worth knowing: with CA000 no longer reaching externals, B2B direct connect and other external users are covered by no MFA policy in the catalog — CA400 does not name them. The catalog records what CloudFellows publishes; the note in the catalog says so." },
+    ],
+  },
+  {
     build: 25467, date: "2026-09-22", title: "Update the catalog: the cards laid out properly",
     items: [
       { kind: "fixed", tool: "Baseline", text: "🧱 In Update the catalog, each policy's card ended in a jumble: the Take into the catalog tick, the box for a hold reason and the Hold button were stacked with no spacing, the reason box was cut short so its hint read only a few words, it looked like a button rather than somewhere to type, and when you clicked into it its highlight ran across the label above. They are one row now — the tick, or, a proper text box that takes the rest of the width, then Hold — and they wrap cleanly on a narrow window. Long policy and group names break inside the card instead of pushing it wider than the page." },
