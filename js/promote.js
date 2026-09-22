@@ -119,6 +119,30 @@ const PROMOTE = {
 
   items: [
     {
+      n: 255,
+      title: "Checks: guests and external users, judged against what they can actually satisfy",
+      tools: ["Checks"],
+      builds: [25433],
+      risk: "medium",
+      what: "\ud83d\udcd8 MS Learn checks gains six checks and a matrix for guests and external users. The checks: an authentication strength whose every combination needs a home-tenant-only method (FIDO2 / passkey, Windows Hello, CBA, Authenticator phone sign-in, OATH hardware); a strength that does not reach email OTP, SAML/WS-Fed, Google or MSA externals at all; approved client app / app protection / password change with any external type in scope; compliant or hybrid device without inbound trust; a user-risk policy that can never be remediated for a guest; and the five session controls unsupported for B2B direct connect. The matrix (MSLearn.guestMatrix) crosses the external types the policies reach with the controls they demand, four verdicts, worst-wins per cell, a cell click opening those policies in Policies. 30 checks, up from 24.",
+      why: "Mihai asked for it, and picked the matrix from a mockup of two presentations. Three of the six checks already existed but only fired for service provider (CSP) admins, and only in a tenant with a partner configured \u2014 the same policy breaking an ordinary B2B guest was never reported. Everything here was read off the two Microsoft tables for external users during this build, not recalled.",
+      test: [
+        "On a tenant with a phishing-resistant or passwordless auth strength aimed at guests: the finding fires, names the home-tenant-only methods, and says whether inbound MFA trust is configured, not configured, or could not be read. Check each of the three wordings against the tenant's real cross-tenant access settings.",
+        "A strength with at least one combination completable in the resource tenant (password + SMS, say) must NOT fire.",
+        "VERIFY AGAINST A REAL TENANT: sign a B2B guest into a resource behind a phishing-resistant strength and confirm the failure the check predicts. This is the claim the whole build rests on.",
+        "A policy requiring app protection with B2B guests in scope is reported; the same policy with an OR'd MFA alternative is not.",
+        "A policy whose only external type is Service provider users must still be reported by the sp-* checks and NOT double-reported by the guest ones.",
+        "Local guest users (internalGuest) must never appear in a guest finding and must read ok across the whole matrix \u2014 they are accounts in this directory.",
+        "An exclusion naming specific external tenants does not silence a finding; the detail says it only reaches the named tenants.",
+        "The matrix: only controls the tenant's policies actually demand get a column; a control nothing asks of a type is blank, not green. Click a blocked cell and confirm Policies opens filtered to exactly those policies.",
+        "With cross-tenant access settings unreadable (no permission), the matrix header says every trust answer is unverified and no cell claims 'not configured'.",
+        "Light and dark, 1440 and 390 \u2014 the matrix scrolls sideways inside its card rather than widening the page.",
+        "Offline: node --test tools/*.test.cjs \u2014 289 tests, including the 18 in tools/mslearn-guests.test.cjs.",
+        "See the local review/2026-09-22/BETA-25433.md validation report \u2014 the UI has NOT been run in a browser and nothing has been checked against a live tenant.",
+      ],
+      files: ["js/mslearn.js", "js/app.js", "index.html", "css/app.css", "js/version.js", "js/changelog.js", "js/promote.js", "tools/mslearn-guests.test.cjs"],
+    },
+    {
       n: 254,
       title: "Navigation: a sidebar shortcut for Checks",
       tools: ["Navigation", "Checks"],

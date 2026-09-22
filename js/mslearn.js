@@ -225,6 +225,91 @@ const MSLearn = (() => {
     return true;
   }
 
+  // ---- what an external identity can actually do here (25433) ----------
+  // Microsoft publishes two tables for external users, and every check below
+  // reads from them rather than from inference:
+  //
+  // 1. The CONTROL table — which grant and session controls are supported for
+  //    B2B collaboration and for B2B direct connect.
+  //    learn.microsoft.com/entra/external-id/authentication-conditional-access
+  // 2. The METHOD table — which authentication methods can fulfil an
+  //    authentication strength, split by the tenant the user completes MFA in.
+  //    Home-tenant methods are reachable ONLY when inbound MFA trust is on.
+  //
+  // The five non-service-provider types are what these checks look at: a
+  // policy whose only external type is serviceProvider is already covered by
+  // the sp-* checks above, which know about the partner list and say more.
+  const EXT_TYPES = ["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "internalGuest", "serviceProvider", "otherExternalUser"];
+  const DIRECT_CONNECT = "b2bDirectConnectUser";
+  // A local guest is an account in THIS directory with UserType Guest. It has
+  // this tenant's credentials and can be managed here, so none of the
+  // cross-tenant limits apply to it — treating it as an external identity is
+  // the mistake that makes a guest finding wrong.
+  const LOCAL_GUEST = "internalGuest";
+
+  // Methods that can only be completed in the user's HOME tenant. The names
+  // are the authenticationMethodModes Graph uses in allowedCombinations.
+  const HOME_ONLY_METHODS = {
+    fido2: "FIDO2 security key / passkey",
+    windowsHelloForBusiness: "Windows Hello for Business",
+    x509CertificateSingleFactor: "Certificate-based authentication",
+    x509CertificateMultiFactor: "Certificate-based authentication",
+    deviceBasedPush: "Microsoft Authenticator phone sign-in",
+    hardwareOath: "OATH hardware token",
+  };
+  // …and the ones an external user CAN complete in the resource tenant.
+  const RESOURCE_OK_METHODS = ["sms", "voice", "push", "softwareOath", "temporaryAccessPass", "password"];
+  // A combination is satisfiable in the resource tenant when every method in
+  // it is. allowedCombinations are compound ("fido2", "password,sms").
+  const comboMethods = (c) => String(c || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const comboIsHomeOnly = (c) => comboMethods(c).some((m) => HOME_ONLY_METHODS[m]);
+  // Controls documented as NOT SUPPORTED for external users at all.
+  const EXT_UNSUPPORTED_GRANT = {
+    approvedApplication: "Require approved client app",
+    compliantApplication: "Require app protection policy",
+    passwordChange: "Require password change",
+  };
+  // Supported for B2B collaboration, NOT for B2B direct connect.
+  const DC_UNSUPPORTED = {
+    termsOfUse: "Terms of use",
+    signInFrequency: "Sign-in frequency",
+    persistentBrowser: "Persistent browser session",
+    applicationEnforcedRestrictions: "App enforced restrictions",
+    cloudAppSecurity: "Conditional Access App Control",
+  };
+
+  // WHICH external types this policy reaches, after its own exclusions.
+  // Returns null when none — the same shape spScope uses, generalised.
+  // `want` narrows it to the types a check cares about.
+  function extScope(p, want) {
+    const inc = incExt(p), exc = excExt(p);
+    let types = null, via = null;
+    if (allUsers(p)) { types = EXT_TYPES.slice(); via = "All users"; }
+    else if (legacyIncExt(p)) { types = EXT_TYPES.slice(); via = "Guests and external users (the legacy all-types selection)"; }
+    else if (inc && inc.types.length) { types = inc.types.slice(); via = `${inc.types.map(extLabel).join(", ")}`; }
+    if (!types) return null;
+    if (legacyExcExt(p)) return null;                                   // all six carved out
+    // An exclusion naming specific tenants does NOT take the type out of
+    // scope — it only reaches the partners it names, so the rest stay in.
+    if (exc && exc.allTenants) types = types.filter((t) => !exc.types.includes(t));
+    const hit = want ? types.filter((t) => want.includes(t)) : types;
+    if (!hit.length) return null;
+    return { types: hit, via, partial: exc && !exc.allTenants ? exc : null };
+  }
+  // The types these checks own: everything but the local guests (managed
+  // here, so unaffected) and the service providers (their own checks).
+  const CROSS_TENANT_TYPES = EXT_TYPES.filter((t) => t !== LOCAL_GUEST && t !== SP);
+  // Is inbound MFA trust configured with every partner we know of? null when
+  // the cross-tenant settings were not read, so nothing is claimed.
+  function trustGap(ctx, key) {
+    const list = spPartners(ctx);
+    if (!list) return null;
+    return list.filter((x) => !(x.inboundTrust && x.inboundTrust[key] === true));
+  }
+  const partialNote = (sc) => sc.partial
+    ? ` The policy does carve out ${sc.partial.types.map(extLabel).join(", ")}, but only for ${sc.partial.tenants.length} named tenant${sc.partial.tenants.length === 1 ? "" : "s"} — identities from any other tenant stay in scope.`
+    : "";
+
   // Which service provider partners are configured in cross-tenant access
   // settings, and do they carry the inbound trust a device control needs?
   // ctx.partners is { ok, list } when the read succeeded, or absent/ok:false
@@ -775,6 +860,170 @@ const MSLearn = (() => {
         };
       },
     },
+    // ── Guests and external users (25433) ─────────────────────────────
+    // Everything here is read off the two Microsoft tables quoted above the
+    // helpers. The service-provider checks below say more about a CSP, so
+    // these skip a policy whose only external type is serviceProvider.
+    {
+      id: "guest-auth-strength-unsatisfiable",
+      title: "Authentication strength guests cannot complete in this tenant",
+      appliesWhen: "Policy requires an authentication strength whose methods are home-tenant only, with guests or external users in scope",
+      requirement: "An external user completes MFA either in their home tenant or in yours. FIDO2 / passkey, Windows Hello for Business, certificate-based authentication, Authenticator phone sign-in and OATH hardware tokens are accepted ONLY when completed in the home tenant, and only when your cross-tenant access settings trust MFA claims from it. In your own tenant an external user can complete SMS, voice call, Authenticator push and OATH software tokens — nothing else. A strength built only from home-tenant methods (the built-in Phishing-resistant MFA and Passwordless MFA strengths are) therefore cannot be satisfied by a guest unless inbound MFA trust is on AND their home tenant has deployed that method.",
+      severity: "high",
+      docUrl: "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strength-external-users",
+      remediation: "Exclude the guest and external user types from this policy and give them their own with the Multifactor authentication strength, which they can satisfy here. Or turn on inbound MFA trust for the partner tenants — having confirmed with them that the method is actually deployed, since trust alone does not create a credential.",
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        const ref = G(p).authenticationStrength;
+        if (!ref?.id || !ctx?.strengths) return null;
+        const asp = ctx.strengths.get(ref.id);
+        if (!asp) return null;
+        const combos = asp.allowedCombinations || [];
+        if (!combos.length) return null;
+        // Satisfiable here if ANY combination is free of home-only methods.
+        const usable = combos.filter((c) => !comboIsHomeOnly(c));
+        if (usable.length) return null;
+        const sc = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc) return null;
+        const methods = [...new Set(combos.flatMap(comboMethods).map((m) => HOME_ONLY_METHODS[m]).filter(Boolean))];
+        const gap = trustGap(ctx, "isMfaAccepted");
+        const trust = gap === null
+          ? "Cross-tenant access settings could not be read, so inbound MFA trust was not verified."
+          : gap.length
+            ? `Inbound MFA trust is not configured for: ${gap.map((x) => x.name || x.tenantId).join(", ")}.`
+            : "Inbound MFA trust IS configured for the partners listed in cross-tenant access settings — confirm those tenants have actually deployed the method before relying on it.";
+        return {
+          detail: `Policy "${p.displayName}" requires the authentication strength "${esc(asp.displayName || ref.displayName || ref.id)}" and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). Every combination that strength allows needs ${methods.join(" or ")}, which an external user can only complete in their home tenant. ${trust}${partialNote(sc)}`,
+          impactedResources: [
+            ...sc.types.map(extLabel),
+            `Strength "${asp.displayName || ref.id}": ${combos.length} combination${combos.length === 1 ? "" : "s"}, all home-tenant only`,
+            ...methods.map((m) => `Home tenant only: ${m}`),
+          ],
+        };
+      },
+    },
+    {
+      id: "guest-auth-strength-not-universal",
+      title: "Authentication strength does not reach every external identity",
+      appliesWhen: "Policy requires an authentication strength with guests or external users in scope",
+      requirement: "Authentication strength policies apply only to external users who authenticate with Microsoft Entra ID. For email one-time passcode, SAML/WS-Fed federated, Google-federated and Microsoft personal account users the strength does not apply at all — Microsoft's guidance is to use the Require multifactor authentication grant control for those identities instead.",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength",
+      remediation: "Keep this policy for Entra-authenticated externals, and add a second policy using the plain Require multifactor authentication grant control covering the same external types — that one reaches email one-time passcode, SAML/WS-Fed, Google and MSA users.",
+      detect: (p) => {
+        if (!isActive(p) || !G(p).authenticationStrength) return null;
+        if (grants(p).includes("mfa")) return null;      // the grant control is there as well
+        const sc = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc) return null;
+        return {
+          detail: `Policy "${p.displayName}" enforces its MFA requirement through an authentication strength, and its scope reaches ${sc.types.map(extLabel).join(", ")}. Guests who sign in with an email one-time passcode, a SAML/WS-Fed identity provider, a Google account or a Microsoft account are not covered by an authentication strength at all — for them this policy imposes no MFA requirement.`,
+          impactedResources: ["Email one-time passcode guests", "SAML / WS-Fed federated guests", "Google-federated guests", "Microsoft account (MSA) guests"],
+        };
+      },
+    },
+    {
+      id: "guest-unsupported-grant",
+      title: "Grant control guests cannot satisfy is in scope of external users",
+      appliesWhen: "Policy requires an approved client app, an app protection policy or a password change, with guests or external users in scope",
+      requirement: "Require approved client app, Require app protection policy and Require password change are documented as not supported for B2B collaboration and B2B direct connect users. The first two need the device registered in THIS tenant, and a device is managed only by its owner's home tenant; the third cannot complete because an external user has no password to change in your directory. The control cannot be met, so access is denied rather than challenged.",
+      severity: "high",
+      docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#conditional-access-for-external-users",
+      remediation: "Exclude the guest and external user types from this policy and cover your own users with it. These controls are for identities managed in this tenant.",
+      detect: (p) => {
+        if (!isActive(p)) return null;
+        const hit = grants(p).filter((g) => EXT_UNSUPPORTED_GRANT[g]);
+        if (!hit.length) return null;
+        if (G(p).operator === "OR" && grants(p).length > hit.length) return null;   // something else can satisfy it
+        const sc = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc) return null;
+        return {
+          detail: `Policy "${p.displayName}" requires ${hit.map((g) => `"${EXT_UNSUPPORTED_GRANT[g]}"`).join(" and ")} and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). External identities cannot satisfy ${hit.length === 1 ? "that control" : "those controls"} at all.${partialNote(sc)}`,
+          impactedResources: [...sc.types.map(extLabel), ...hit.map((g) => `Not supported for external users: ${EXT_UNSUPPORTED_GRANT[g]}`)],
+        };
+      },
+    },
+    {
+      id: "guest-device-grant-needs-trust",
+      title: "Device control in scope of guests without inbound device trust",
+      appliesWhen: "Policy requires a compliant or Microsoft Entra hybrid joined device and its scope reaches guests or external users, with no alternative control",
+      requirement: "A device can only be managed by its owner's home tenant, so an external user cannot register one with your organization. The control works for them only when your cross-tenant access settings trust device claims from their tenant. Microsoft: unless you are willing to trust claims about device compliance or hybrid joined status from an external user's home tenant, applying policies that require external users to use managed devices is not recommended.",
+      severity: "high",
+      docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#device-compliance-and-microsoft-entra-hybrid-joined-device-policies",
+      remediation: "Either trust compliant-device and hybrid-join claims from the partner tenants in cross-tenant access settings, or exclude the guest and external user types, or add an alternative control with the OR operator so MFA satisfies the policy instead.",
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        const wantsCompliant = hasCompliance(p), wantsHybrid = grants(p).includes("domainJoinedDevice");
+        if (!wantsCompliant && !wantsHybrid) return null;
+        if (G(p).operator === "OR" && grants(p).length > (wantsCompliant && wantsHybrid ? 2 : 1)) return null;
+        const sc = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc) return null;
+        const noCompliant = wantsCompliant ? trustGap(ctx, "isCompliantDeviceAccepted") : [];
+        const noHybrid = wantsHybrid ? trustGap(ctx, "isHybridAzureADJoinedDeviceAccepted") : [];
+        if (noCompliant !== null && noHybrid !== null && !noCompliant.length && !noHybrid.length) return null;
+        const untrusted = [...new Set([...(noCompliant || []), ...(noHybrid || [])].map((x) => x.name || x.tenantId))];
+        const control = wantsCompliant && wantsHybrid ? "a compliant or Microsoft Entra hybrid joined device"
+          : wantsCompliant ? "a compliant device" : "a Microsoft Entra hybrid joined device";
+        return {
+          detail: `Policy "${p.displayName}" requires ${control} and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). Their devices are managed in their own tenant, so the requirement can only be met if this tenant trusts device claims from theirs.`
+            + (untrusted.length ? ` Inbound device trust is not configured for: ${untrusted.join(", ")}.`
+              : " Cross-tenant access settings could not be read, so the trust configuration was not verified.")
+            + partialNote(sc),
+          impactedResources: [...sc.types.map(extLabel), ...untrusted.map((n) => `No device trust from: ${n}`), "AADSTS530004 — AcceptCompliantDevice not configured"],
+        };
+      },
+    },
+    {
+      id: "guest-user-risk-blocked",
+      title: "User-risk policy blocks guests it can never remediate",
+      appliesWhen: "Policy has a user-risk condition and its scope reaches guests or external users",
+      requirement: "A user-risk policy cannot be resolved in the resource tenant. An external user's identity lives in their home directory, so a policy forcing a password change blocks them outright — they cannot reset a password here — and your risky-users report does not reflect them, nor can your admins dismiss or remediate their risk. Microsoft's guidance is to exclude external users from user-risk and sign-in-risk policies and require MFA of them always instead.",
+      severity: "high",
+      docUrl: "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-b2b",
+      remediation: "Exclude the guest and external user types from this policy, and cover them with an always-on MFA policy instead of a risk-based one.",
+      detect: (p) => {
+        if (!isActive(p)) return null;
+        const risky = (p.conditions?.userRiskLevels || []).length > 0;
+        if (!risky) return null;
+        const sc = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc) return null;
+        const forcesPassword = grants(p).includes("passwordChange");
+        return {
+          detail: `Policy "${p.displayName}" acts on user risk and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). `
+            + (forcesPassword
+              ? "It requires a password change, which an external user cannot perform in this directory — they are blocked, with no way out that your administrators can open."
+              : "User risk is evaluated in the external user's home directory, and your administrators cannot dismiss or remediate it there, so a raised risk on a guest is a condition nobody here can clear.")
+            + partialNote(sc),
+          impactedResources: [...sc.types.map(extLabel), "Risky users report does not cover external identities", ...(forcesPassword ? ["Password reset is impossible in the resource directory"] : [])],
+        };
+      },
+    },
+    {
+      id: "dc-unsupported-control",
+      title: "Control unsupported for B2B direct connect is in their scope",
+      appliesWhen: "Policy uses terms of use, sign-in frequency, persistent browser, app enforced restrictions or Conditional Access App Control, with B2B direct connect users in scope",
+      requirement: "Terms of use, sign-in frequency, persistent browser session, app enforced restrictions and Conditional Access App Control are all documented as supported for B2B collaboration users and NOT supported for B2B direct connect users — the Teams shared-channel identities that hold no account in your directory. A policy relying on one of them does not do for those users what it does for everyone else.",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#conditional-access-for-external-users",
+      remediation: "Decide deliberately: exclude B2B direct connect users from this policy if the control is the point of it, or accept that they are covered by whatever else the policy requires. Either way it should not be an accident.",
+      detect: (p) => {
+        if (!isActive(p)) return null;
+        const sess = S(p), g = G(p);
+        const used = [];
+        if ((g.termsOfUse || []).length) used.push("termsOfUse");
+        if (sess.signInFrequency?.isEnabled) used.push("signInFrequency");
+        if (sess.persistentBrowser?.isEnabled) used.push("persistentBrowser");
+        if (sess.applicationEnforcedRestrictions?.isEnabled) used.push("applicationEnforcedRestrictions");
+        if (sess.cloudAppSecurity?.isEnabled) used.push("cloudAppSecurity");
+        if (!used.length) return null;
+        const sc = extScope(p, [DIRECT_CONNECT]);
+        if (!sc) return null;
+        return {
+          detail: `Policy "${p.displayName}" relies on ${used.map((k) => `"${DC_UNSUPPORTED[k]}"`).join(", ")} and its scope reaches B2B direct connect users (via ${sc.via}). Those controls are not supported for direct connect identities, so for them the policy behaves differently from the way it reads.${partialNote(sc)}`,
+          impactedResources: ["B2B direct connect users", "Teams Connect shared channels", ...used.map((k) => `Not supported for direct connect: ${DC_UNSUPPORTED[k]}`)],
+        };
+      },
+    },
+
     // ── Service providers (CSP / GDAP partner admins) ─────────────────
     // A partner reaching this tenant through delegated admin privileges is
     // matched by the "Service provider users" external user type and by
@@ -970,6 +1219,161 @@ const MSLearn = (() => {
     return findings;
   }
   const suppressedCount = () => LAST_SUPPRESSED;
+
+  // ---- the guest reality matrix (25433) --------------------------------
+  // The six external user types against the controls THIS tenant's policies
+  // actually demand. Derived from the policies already loaded plus the
+  // cross-tenant access settings the service-provider checks already read —
+  // no extra tenant read, no extra permission.
+  //
+  // A cell is a summary of several policies, so it must never claim more than
+  // it knows. Four verdicts and nothing in between:
+  //   ok      — satisfiable as configured
+  //   trust   — satisfiable ONLY with inbound cross-tenant trust, which is
+  //             not configured (or could not be read, and then it says so)
+  //   blocked — documented as not supported for this type: an exclusion is
+  //             the only remedy
+  //   na      — the control does not reach this type at all
+  // A control no policy demands of a type gets no verdict: an empty cell is
+  // "nothing asks this of them", which is not the same as "fine".
+  const MATRIX_CONTROLS = [
+    { key: "mfa", label: "MFA" },
+    { key: "strength", label: "Auth strength" },
+    { key: "compliantDevice", label: "Compliant device" },
+    { key: "domainJoinedDevice", label: "Hybrid joined" },
+    { key: "appProtection", label: "App protection / approved app" },
+    { key: "passwordChange", label: "Password change" },
+    { key: "termsOfUse", label: "Terms of use" },
+    { key: "signInFrequency", label: "Sign-in frequency" },
+    { key: "persistentBrowser", label: "Persistent browser" },
+    { key: "appEnforced", label: "App enforced restrictions" },
+    { key: "cloudAppSecurity", label: "CA App Control" },
+  ];
+  const RANK = { blocked: 3, trust: 2, na: 1, ok: 0 };
+
+  // What a policy demands, as matrix control keys.
+  function demandsOf(p) {
+    const g = G(p), sess = S(p), b = grants(p), out = [];
+    if (b.includes("mfa")) out.push("mfa");
+    if (g.authenticationStrength) out.push("strength");
+    if (b.includes("compliantDevice")) out.push("compliantDevice");
+    if (b.includes("domainJoinedDevice")) out.push("domainJoinedDevice");
+    if (b.includes("approvedApplication") || b.includes("compliantApplication")) out.push("appProtection");
+    if (b.includes("passwordChange")) out.push("passwordChange");
+    if ((g.termsOfUse || []).length) out.push("termsOfUse");
+    if (sess.signInFrequency?.isEnabled) out.push("signInFrequency");
+    if (sess.persistentBrowser?.isEnabled) out.push("persistentBrowser");
+    if (sess.applicationEnforcedRestrictions?.isEnabled) out.push("appEnforced");
+    if (sess.cloudAppSecurity?.isEnabled) out.push("cloudAppSecurity");
+    return out;
+  }
+
+  // The verdict for one type × one control on one policy.
+  function verdict(type, control, p, ctx) {
+    // A local guest holds this tenant's own credentials and can be managed
+    // here — none of the cross-tenant limits apply.
+    if (type === LOCAL_GUEST) return { v: "ok" };
+    const dc = type === DIRECT_CONNECT;
+    switch (control) {
+      case "mfa":
+        return dc && trustGapEmpty(ctx, "isMfaAccepted") !== true
+          ? { v: "trust", why: "B2B direct connect needs inbound MFA trust" } : { v: "ok" };
+      case "strength": {
+        // Not an Entra identity, no authentication strength.
+        if (type === "otherExternalUser") return { v: "na", why: "authentication strength applies only to Entra-authenticated externals" };
+        const ref = G(p).authenticationStrength;
+        const asp = ref?.id && ctx?.strengths ? ctx.strengths.get(ref.id) : null;
+        if (!asp) return { v: "ok" };
+        const combos = asp.allowedCombinations || [];
+        if (!combos.length || combos.some((c) => !comboIsHomeOnly(c))) return { v: "ok" };
+        const t = trustGapEmpty(ctx, "isMfaAccepted");
+        return t === true
+          ? { v: "trust", why: `"${asp.displayName || ref.id}" is home-tenant methods only; MFA trust is on, so it depends on the home tenant deploying them` }
+          : { v: "blocked", why: `"${asp.displayName || ref.id}" allows only home-tenant methods and inbound MFA trust is ${t === null ? "unverified" : "not configured"}` };
+      }
+      case "compliantDevice":
+        return trustGapEmpty(ctx, "isCompliantDeviceAccepted") === true
+          ? { v: "ok" } : { v: "trust", why: "a device is managed only by its home tenant" };
+      case "domainJoinedDevice":
+        return trustGapEmpty(ctx, "isHybridAzureADJoinedDeviceAccepted") === true
+          ? { v: "ok" } : { v: "trust", why: "a device is managed only by its home tenant" };
+      case "appProtection": case "passwordChange":
+        return { v: "blocked", why: "documented as not supported for external users" };
+      case "termsOfUse": case "signInFrequency": case "persistentBrowser":
+      case "appEnforced": case "cloudAppSecurity":
+        return dc ? { v: "blocked", why: "not supported for B2B direct connect" } : { v: "ok" };
+      default: return { v: "ok" };
+    }
+  }
+  // true = trust configured with every known partner; false = a gap;
+  // null = the settings were not read, so nothing is known.
+  function trustGapEmpty(ctx, key) {
+    const gap = trustGap(ctx, key);
+    if (gap === null) return null;
+    return gap.length === 0;
+  }
+
+  // rawPolicies + the same ctx run() takes. opts.includeDisabled as there.
+  function guestMatrix(rawPolicies, strengths, opts = {}) {
+    INCLUDE_DISABLED = !!opts.includeDisabled;
+    const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, ...(opts.groups || {}) };
+    const cells = new Map();          // `${type}|${control}` -> { v, why, policies:[] }
+    const controlsSeen = new Set();
+    for (const p of rawPolicies) {
+      if (!isActive(p)) continue;
+      const demands = demandsOf(p);
+      if (!demands.length) continue;
+      const sc = extScope(p, null);
+      if (!sc) continue;
+      for (const type of sc.types) {
+        for (const control of demands) {
+          controlsSeen.add(control);
+          const r = verdict(type, control, p, ctx);
+          const k = `${type}|${control}`;
+          let cell = cells.get(k);
+          if (!cell) { cell = { v: r.v, why: r.why || "", policies: [] }; cells.set(k, cell); }
+          if (RANK[r.v] > RANK[cell.v]) { cell.v = r.v; cell.why = r.why || ""; }
+          cell.policies.push({ id: p.id, name: p.displayName || "(unnamed policy)", state: p.state });
+        }
+      }
+    }
+    const controls = MATRIX_CONTROLS.filter((c) => controlsSeen.has(c.key));
+    const types = EXT_TYPES.filter((t) => controls.some((c) => cells.has(`${t}|${c.key}`)));
+    const trustRead = !!(ctx.partners && ctx.partners.ok);
+    return { types, controls, cells, trustRead, partners: (ctx.partners && ctx.partners.list) || [] };
+  }
+
+  const V_LABEL = { ok: "ok", trust: "trust", blocked: "blocked", na: "n/a" };
+  function renderGuestMatrix(m) {
+    if (!m || !m.types.length || !m.controls.length) return "";
+    const counts = { blocked: 0, trust: 0 };
+    for (const c of m.cells.values()) if (counts[c.v] != null) counts[c.v]++;
+    const head = m.controls.map((c) => `<th class="gm-c">${esc(c.label)}</th>`).join("");
+    const rows = m.types.map((t) => {
+      const tds = m.controls.map((c) => {
+        const cell = m.cells.get(`${t}|${c.key}`);
+        if (!cell) return `<td class="gm-cell gm-none" title="No policy in scope of this type asks for it">·</td>`;
+        const n = cell.policies.length;
+        return `<td class="gm-cell gm-${cell.v}"><button type="button" data-gmcell="${esc(t)}|${esc(c.key)}" title="${esc(cell.why || "")} — ${n} polic${n === 1 ? "y" : "ies"}">${V_LABEL[cell.v]}</button></td>`;
+      }).join("");
+      return `<tr><th class="gm-t" scope="row">${esc(extLabel(t))}</th>${tds}</tr>`;
+    }).join("");
+    return `<div class="list-card gm-card"><div class="fx-body">
+      <div class="gm-head">
+        <h5>Guests against the controls this tenant demands</h5>
+        <span class="mini muted">from the loaded policies — no extra read${m.trustRead ? "" : " · cross-tenant access settings were not read, so every trust answer here is unverified"}</span>
+      </div>
+      <div class="gm-scroll"><table class="gm"><thead><tr><th class="gm-t"></th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="mini gm-legend">
+        <b class="gm-k gm-ok">ok</b> satisfiable as configured ·
+        <b class="gm-k gm-trust">trust</b> only with inbound cross-tenant trust ·
+        <b class="gm-k gm-blocked">blocked</b> documented as unsatisfiable — exclusion required ·
+        <b class="gm-k gm-na">n/a</b> the control does not reach this type ·
+        <b>·</b> nothing in scope asks it of them
+      </p>
+      ${counts.blocked || counts.trust ? `<p class="mini" style="margin:6px 0 0">${counts.blocked ? `<b>${counts.blocked}</b> combination${counts.blocked === 1 ? "" : "s"} cannot be satisfied at all. ` : ""}${counts.trust ? `<b>${counts.trust}</b> depend${counts.trust === 1 ? "s" : ""} on cross-tenant trust that is not in place. ` : ""}A cell opens the policies behind it.</p>` : ""}
+    </div></div>`;
+  }
 
   // group findings per check so one issue hitting many policies is one card
   function group(findings) {
@@ -1354,5 +1758,5 @@ const MSLearn = (() => {
       Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, suppressedCount, group, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

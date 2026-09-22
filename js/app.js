@@ -18563,6 +18563,10 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- MS Learn documented exclusion checks ----------
   let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";
+  // The guest reality matrix (25433) — six external user types against the
+  // controls the loaded policies demand. Built from the same inputs as the
+  // findings, so it costs no extra read.
+  let mlMatrix = null;
   const mlExpanded = new Set();
   async function openMsLearn() {
     crumb("🛡 Checks");
@@ -18571,7 +18575,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
     $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
-    mlTab = "findings"; mlFixes = null;
+    mlTab = "findings"; mlFixes = null; mlMatrix = null;
     // baseline tenant → include Off + persona-only; note the scope
     const baseline = isBaselineTenant();
     $("mlDisabled").checked = baseline;
@@ -18640,6 +18644,8 @@ This is a directory write. Nothing else changes.`)) return;
     ctx.authMethods = await readAuthMethods();
     const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
     mlGroups = MSLearn.group(findings);
+    // The guest matrix reads the same inputs — no extra tenant call.
+    mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
 
@@ -18677,14 +18683,15 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlApply").style.display = "none";
     if (!mlGroups.length) {
       $("mlChips").innerHTML = "";
-      $("mlBody").innerHTML = MSLearn.renderEmpty();
+      $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + MSLearn.renderEmpty();
       return;
     }
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
-    $("mlBody").innerHTML = MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
+    $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "")
+      + MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
   }
   $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
   $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
@@ -18733,6 +18740,22 @@ This is a directory write. Nothing else changes.`)) return;
 
   // a finding card's Fix button jumps to the generated policy
   $("mlBody").addEventListener("click", (e) => {
+    const gm = e.target.closest("[data-gmcell]");
+    if (gm && mlMatrix) {
+      const [type, control] = gm.dataset.gmcell.split("|");
+      const cell = mlMatrix.cells.get(`${type}|${control}`);
+      if (cell) {
+        const ctl = (mlMatrix.controls.find((c) => c.key === control) || {}).label || control;
+        // The policies behind one cell, by name — the same ids the rest of the
+        // tool deep-links with, so 🗂 Policies can be filtered to them.
+        idFilter = new Set(cell.policies.map((x) => x.id));
+        stateFilter = "all";
+        toast(`${esc(MSLearn.extLabel(type))} × ${esc(ctl)} — <span>${cell.policies.length}</span> polic${cell.policies.length === 1 ? "y" : "ies"}, opened in Policies`);
+        $("toolPolicies").click();
+        refreshViews();
+      }
+      return;
+    }
     if (e.target.closest("[data-mlfix]")) { mlTab = "fixes"; renderMsLearn(); return; }
     const dl = e.target.closest("[data-fxjson]");
     if (!dl || !mlFixes) return;

@@ -2374,3 +2374,30 @@ html:has(#dupModal.open){overflow:hidden;scrollbar-gutter:stable}
 .persona-filter .chip-filter{flex:1 1 auto}
 .persona-filter .fchip{padding:5px 11px;font-size:12px}
 @media(max-width:560px){.persona-filter{padding:9px 10px}.persona-filter-lead{padding:0}}
+
+/* Guest reality matrix — T07 / 🛡 Checks, Microsoft Learn tab (build 25433).
+   Six external user types against the controls the loaded policies demand.
+   The four verdicts reuse the app's existing ok / warn / bad token pairs so
+   a cell means the same thing here as a state badge does elsewhere. */
+.gm-card .gm-head{display:flex;gap:14px;align-items:baseline;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+.gm-card .gm-head h5{margin:0}
+.gm-scroll{overflow-x:auto}
+table.gm{border-collapse:collapse;font-size:12px;min-width:100%}
+table.gm th.gm-c{padding:6px 8px;border-bottom:2px solid var(--border);font-weight:700;text-align:center;vertical-align:bottom;white-space:normal;max-width:96px;line-height:1.25}
+table.gm th.gm-t{padding:7px 10px 7px 0;text-align:left;font-weight:600;white-space:nowrap}
+table.gm tbody tr:not(:last-child) td,table.gm tbody tr:not(:last-child) th{border-bottom:1px solid var(--soft)}
+td.gm-cell{padding:3px;text-align:center}
+td.gm-cell button{width:100%;border:0;border-radius:6px;padding:6px 4px;font:inherit;font-size:11px;font-weight:700;cursor:pointer;color:inherit;background:transparent}
+td.gm-cell button:hover{outline:2px solid var(--ink);outline-offset:-2px}
+td.gm-ok button{background:var(--ok-bg2);color:var(--on)}
+td.gm-trust button{background:var(--warn-bg);color:var(--warn-fg)}
+td.gm-blocked button{background:var(--bad-bg);color:var(--off)}
+td.gm-na button{background:var(--soft);color:var(--muted)}
+td.gm-none{color:var(--muted);font-weight:700}
+.gm-legend{margin:10px 0 0;line-height:1.9}
+.gm-k{border-radius:5px;padding:1px 7px;margin-right:2px}
+.gm-k.gm-ok{background:var(--ok-bg2);color:var(--on)}
+.gm-k.gm-trust{background:var(--warn-bg);color:var(--warn-fg)}
+.gm-k.gm-blocked{background:var(--bad-bg);color:var(--off)}
+.gm-k.gm-na{background:var(--soft);color:var(--muted)}
+@media(max-width:700px){table.gm th.gm-t{white-space:normal;max-width:120px}}

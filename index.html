@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25432"></script>
+<script src="js/popup-guard.js?v=25433"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25432" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25432">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25433" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25433">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25432"></script>
+<script src="js/selfhost-boot.js?v=25433"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25432"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25432"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25432">
-<link rel="stylesheet" href="css/workspaces.css?v=25432">
-<link rel="stylesheet" href="css/tool-layout.css?v=25432">
-<link rel="stylesheet" href="css/list-detail.css?v=25432">
-<link rel="stylesheet" href="css/flat-icons.css?v=25432">
+<script src="js/counter.js?v=25433"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25433"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25433">
+<link rel="stylesheet" href="css/workspaces.css?v=25433">
+<link rel="stylesheet" href="css/tool-layout.css?v=25433">
+<link rel="stylesheet" href="css/list-detail.css?v=25433">
+<link rel="stylesheet" href="css/flat-icons.css?v=25433">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25432" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25433" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -104,7 +104,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25432" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25433" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1880,6 +1880,9 @@
         <li><b>Findings</b> tab lists what conflicts with the docs; <b>Refresh</b> re-runs after you fix something.</li>
         <li><b>Service provider (CSP / GDAP) exclusions</b> — five checks covering the partner who administers this tenant on your behalf. They are matched by the <b>Service provider users</b> external user type and by nothing else: a partner admin arriving through delegated privileges holds no account, no group membership and no device here, so a group exclusion or a named break-glass account never reaches them. The checks find an external-user exclusion that lists the other five types but not this one; a Block policy their sign-in falls into; a compliant or hybrid-joined device requirement they cannot meet unless cross-tenant access settings trust device claims from their tenant; grant controls documented as unsupported for external users (approved client app, app protection policy, password change); and a guest MFA policy that leaves out the one external identity holding admin roles here. Exclusions naming specific tenants are read as such — an exclusion for two partner tenants does not cover a third.</li>
         <li><b>Read once, judged against your tenant.</b> Cross-tenant access settings are read to see which partners are flagged as service providers and whether this tenant accepts their MFA and device claims. A partner whose compliant-device claims you already trust does not raise a device finding, and a tenant with no partner at all has the five checks skipped rather than answered — the summary says so. If the settings cannot be read the checks still run and say the trust configuration was not verified, which is not the same as saying there is nothing there.</li>
+        <li><b>Guests &amp; external users <span class="tag new">NEW</span></b> (build 25433) — six checks and a matrix, from Microsoft's own two tables for external identities. <b>What a guest cannot satisfy at all:</b> Require approved client app, Require app protection policy and Require password change are documented as not supported for B2B collaboration and B2B direct connect — the first two need a device registered in <i>this</i> tenant, and a guest has no password here. <b>What needs cross-tenant trust:</b> compliant device and hybrid joined device, because a device is managed only by its owner's home tenant. <b>The authentication-strength trap:</b> FIDO2 / passkeys, Windows Hello for Business, certificate-based authentication, Authenticator phone sign-in and OATH hardware tokens can only be completed in the guest's <b>home</b> tenant — in yours they have SMS, voice, Authenticator push and OATH software tokens and nothing else. So the built-in <b>Phishing-resistant MFA</b> and <b>Passwordless MFA</b> strengths are unsatisfiable for a guest unless inbound MFA trust is on <i>and</i> their home tenant has deployed the method; the check says which of the two you are missing, and never confuses "not configured" with "not read". Also: an authentication strength does not reach email one-time passcode, SAML/WS-Fed, Google or MSA guests at all, so for them the policy imposes no MFA requirement; a user-risk policy blocks guests it can never remediate, since the password reset it demands is impossible in your directory; and terms of use, sign-in frequency, persistent browser, app enforced restrictions and Conditional Access App Control are unsupported for <b>B2B direct connect</b> while working normally for collaboration guests.
+          <br><b>Local guest users are deliberately left out of all of it</b> — that type is an account in your own directory with UserType Guest, so it has your credentials and your management, and none of the cross-tenant limits apply.</li>
+        <li><b>The guest matrix <span class="tag new">NEW</span></b> (build 25433) — above the findings: the external user types this tenant's policies actually reach, against the controls those policies actually demand. Each cell is <b>ok</b> (satisfiable as configured), <b>trust</b> (only with inbound cross-tenant trust, which is not in place), <b>blocked</b> (documented as unsatisfiable — an exclusion is the remedy) or <b>n/a</b> (the control does not reach that type); a control nothing asks of a type is left blank, because "nobody demands it" is not the same as "fine". Click a cell to open the policies behind it in 🗂 Policies. Built from the policies already loaded and the cross-tenant settings the service provider checks already read — no extra permission and no extra call; when those settings could not be read the band says every trust answer is unverified rather than guessing.</li>
         <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
       </ul>
       <p class="help-x">Checks are read-only; applying a fix writes, and produces a change report.</p>
@@ -3186,84 +3189,84 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25432"></script>
-<script src="js/selfhost.js?v=25432"></script>
-<script src="js/version.js?v=25432"></script>
-<script src="js/verdict.js?v=25432"></script>
-<script src="js/fork.js?v=25432"></script>
-<script src="js/promote.js?v=25432"></script>
-<script src="js/authConfig.js?v=25432"></script>
-<script src="js/connection.js?v=25432"></script>
-<script src="js/labels.js?v=25432"></script>
-<script src="js/capabilities.js?v=25432"></script>
-<script src="js/graph.js?v=25432"></script>
-<script src="js/model.js?v=25432"></script>
-<script src="js/render.js?v=25432"></script>
-<script src="js/analyze.js?v=25432"></script>
-<script src="js/whatif.js?v=25432"></script>
-<script src="js/mslearn.js?v=25432"></script>
-<script src="js/gapcheck.js?v=25432"></script>
-<script src="js/cisdata.js?v=25432"></script>
-<script src="js/cischeck.js?v=25432"></script>
-<script src="js/exclusions.js?v=25432"></script>
-<script src="js/cascope.js?v=25432"></script>
-<script src="js/coverage.js?v=25432"></script>
-<script src="js/runmeta.js?v=25432"></script>
-<script src="js/overview.js?v=25432"></script>
-<script src="js/validator.js?v=25432"></script>
-<script src="js/whatifeval.js?v=25432"></script>
-<script src="js/compare.js?v=25432"></script>
-<script src="js/whois.js?v=25432"></script>
-<script src="js/wave.js?v=25432"></script>
-<script src="js/sessionctl.js?v=25432"></script>
-<script src="js/spgap.js?v=25432"></script>
-<script src="js/groupuse.js?v=25432"></script>
-<script src="js/iso3166.js?v=25432"></script>
-<script src="js/causes.js?v=25432"></script>
-<script src="js/locations.js?v=25432"></script>
-<script src="js/authcontexts.js?v=25432"></script>
-<script src="js/authstrengths.js?v=25432"></script>
-<script src="js/recycle.js?v=25432"></script>
-<script src="js/rmau.js?v=25432"></script>
-<script src="js/camap.js?v=25432"></script>
-<script src="js/rmaudoc.js?v=25432"></script>
-<script src="js/termsofuse.js?v=25432"></script>
-<script src="js/audit.js?v=25432"></script>
-<script src="js/drift.js?v=25432"></script>
-<script src="js/guide.js?v=25432"></script>
-<script src="js/userimpact.js?v=25432"></script>
-<script src="js/smsvoice.js?v=25432"></script>
-<script src="js/memberof.js?v=25432"></script>
-<script src="js/devcheck.js?v=25432"></script>
-<script src="js/licgap.js?v=25432"></script>
-<script src="js/teamsdev.js?v=25432"></script>
-<script src="js/signinstore.js?v=25432"></script>
-<script src="js/signins.js?v=25432"></script>
-<script src="js/reportimpact.js?v=25432"></script>
-<script src="js/changelog.js?v=25432"></script>
-<script src="js/baselineData.js?v=25432"></script>
-<script src="js/baselineJoeyData.js?v=25432"></script>
-<script src="js/baselineLive.js?v=25432"></script>
-<script src="js/baseline.js?v=25432"></script>
-<script src="js/baselineCleanup.js?v=25432"></script>
-<script src="js/groupTemplates.js?v=25432"></script>
-<script src="js/assign.js?v=25432"></script>
-<script src="js/cagroups.js?v=25432"></script>
-<script src="js/groupsview.js?v=25432"></script>
-<script src="js/runledger.js?v=25432"></script>
-<script src="js/protect.js?v=25432"></script>
-<script src="js/policy-compare.js?v=25432"></script>
-<script src="js/import.js?v=25432"></script>
-<script src="js/export.js?v=25432"></script>
-<script src="js/demo.js?v=25432"></script>
-<script src="js/list-detail.js?v=25432"></script>
-<script src="js/flat-icons.js?v=25432"></script>
-<script src="js/workspace.js?v=25432"></script>
-<script src="js/analysis-jobs.js?v=25432"></script>
-<script src="js/search-suggest.js?v=25432"></script>
-<script src="js/app.js?v=25432"></script>
-<script src="js/accessibility.js?v=25432"></script>
-<script src="js/workspaces.js?v=25432"></script>
-<script src="js/tool-layout.js?v=25432"></script>
+<script src="js/branding.js?v=25433"></script>
+<script src="js/selfhost.js?v=25433"></script>
+<script src="js/version.js?v=25433"></script>
+<script src="js/verdict.js?v=25433"></script>
+<script src="js/fork.js?v=25433"></script>
+<script src="js/promote.js?v=25433"></script>
+<script src="js/authConfig.js?v=25433"></script>
+<script src="js/connection.js?v=25433"></script>
+<script src="js/labels.js?v=25433"></script>
+<script src="js/capabilities.js?v=25433"></script>
+<script src="js/graph.js?v=25433"></script>
+<script src="js/model.js?v=25433"></script>
+<script src="js/render.js?v=25433"></script>
+<script src="js/analyze.js?v=25433"></script>
+<script src="js/whatif.js?v=25433"></script>
+<script src="js/mslearn.js?v=25433"></script>
+<script src="js/gapcheck.js?v=25433"></script>
+<script src="js/cisdata.js?v=25433"></script>
+<script src="js/cischeck.js?v=25433"></script>
+<script src="js/exclusions.js?v=25433"></script>
+<script src="js/cascope.js?v=25433"></script>
+<script src="js/coverage.js?v=25433"></script>
+<script src="js/runmeta.js?v=25433"></script>
+<script src="js/overview.js?v=25433"></script>
+<script src="js/validator.js?v=25433"></script>
+<script src="js/whatifeval.js?v=25433"></script>
+<script src="js/compare.js?v=25433"></script>
+<script src="js/whois.js?v=25433"></script>
+<script src="js/wave.js?v=25433"></script>
+<script src="js/sessionctl.js?v=25433"></script>
+<script src="js/spgap.js?v=25433"></script>
+<script src="js/groupuse.js?v=25433"></script>
+<script src="js/iso3166.js?v=25433"></script>
+<script src="js/causes.js?v=25433"></script>
+<script src="js/locations.js?v=25433"></script>
+<script src="js/authcontexts.js?v=25433"></script>
+<script src="js/authstrengths.js?v=25433"></script>
+<script src="js/recycle.js?v=25433"></script>
+<script src="js/rmau.js?v=25433"></script>
+<script src="js/camap.js?v=25433"></script>
+<script src="js/rmaudoc.js?v=25433"></script>
+<script src="js/termsofuse.js?v=25433"></script>
+<script src="js/audit.js?v=25433"></script>
+<script src="js/drift.js?v=25433"></script>
+<script src="js/guide.js?v=25433"></script>
+<script src="js/userimpact.js?v=25433"></script>
+<script src="js/smsvoice.js?v=25433"></script>
+<script src="js/memberof.js?v=25433"></script>
+<script src="js/devcheck.js?v=25433"></script>
+<script src="js/licgap.js?v=25433"></script>
+<script src="js/teamsdev.js?v=25433"></script>
+<script src="js/signinstore.js?v=25433"></script>
+<script src="js/signins.js?v=25433"></script>
+<script src="js/reportimpact.js?v=25433"></script>
+<script src="js/changelog.js?v=25433"></script>
+<script src="js/baselineData.js?v=25433"></script>
+<script src="js/baselineJoeyData.js?v=25433"></script>
+<script src="js/baselineLive.js?v=25433"></script>
+<script src="js/baseline.js?v=25433"></script>
+<script src="js/baselineCleanup.js?v=25433"></script>
+<script src="js/groupTemplates.js?v=25433"></script>
+<script src="js/assign.js?v=25433"></script>
+<script src="js/cagroups.js?v=25433"></script>
+<script src="js/groupsview.js?v=25433"></script>
+<script src="js/runledger.js?v=25433"></script>
+<script src="js/protect.js?v=25433"></script>
+<script src="js/policy-compare.js?v=25433"></script>
+<script src="js/import.js?v=25433"></script>
+<script src="js/export.js?v=25433"></script>
+<script src="js/demo.js?v=25433"></script>
+<script src="js/list-detail.js?v=25433"></script>
+<script src="js/flat-icons.js?v=25433"></script>
+<script src="js/workspace.js?v=25433"></script>
+<script src="js/analysis-jobs.js?v=25433"></script>
+<script src="js/search-suggest.js?v=25433"></script>
+<script src="js/app.js?v=25433"></script>
+<script src="js/accessibility.js?v=25433"></script>
+<script src="js/workspaces.js?v=25433"></script>
+<script src="js/tool-layout.js?v=25433"></script>
 </body>
 </html>
