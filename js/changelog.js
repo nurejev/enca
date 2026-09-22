@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25451, date: "2026-09-22", title: "The tool head folds",
+    items: [
+      { kind: "new", tool: "Navigation", text: "Every tool's head — the title and the paragraph under it — has a ▾ at the end of the title. Press it and the description folds away; the title, its chips and any meta beside it stay, and the tabs and the toolbar move up with it. The choice is remembered per tool, so a tool you have read once stays short. ▸ brings the text back." },
+    ],
+  },
+  {
     build: 25450, date: "2026-09-22", title: "Catalog revised from CloudFellows.dev — and the 19 that were not changes",
     items: [
       { kind: "fixed", tool: "Baseline", text: "🧱 Update the catalog offered 26 policies on the reference tenant; 19 of them were not changes. Their platform line was the same policy in two spellings — the catalog's “Android, iOS (excl. Windows)” against the tool's “Android · iOS · − Windows” — and the tenant's (NEW)/(UP) staging prefix had leaked into the proposed name. The tool now writes the catalog's own spelling, compares either spelling and any list order as equal, and never carries a staging prefix into an entry." },

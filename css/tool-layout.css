@@ -96,3 +96,12 @@ body.workspaces-shell #detailBody .pcard-actions{position:sticky;bottom:0;z-inde
   body.workspaces-shell #detailBody .dep-bar,body.workspaces-shell #detailBody .pcard-foot,.wc-policy-definition{padding:14px 16px}
   body.workspaces-shell #detailBody .pcard-actions{position:static;padding:14px 16px}
 }
+
+/* The head folds (25451): the title line stays, the prose goes. The fold
+   button sits at the end of the title; a meta block beside the title (the
+   builder's mode line, a tool's counts) is not prose and stays. */
+.wc-head-fold{margin-left:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:6px;width:24px;height:24px;line-height:22px;font-size:12px;padding:0;vertical-align:middle;cursor:pointer}
+.wc-head-fold:hover{color:var(--ink);border-color:var(--ink)}
+.wc-tool-head.wc-head-folded p,.wc-tool-head.wc-head-folded ul,.wc-tool-head.wc-head-folded details,.wc-tool-head.wc-head-folded .mini.muted:not(.wc-page-title *){display:none}
+.wc-tool-head.wc-head-folded .pb-mode,.wc-tool-head.wc-head-folded .pb-mode *{display:initial}
+.wc-tool-head.wc-head-folded .wc-page-title{margin-bottom:0}
