@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25463, date: "2026-09-22", title: "Export the baseline from the baseline page",
+    items: [
+      { kind: "new", tool: "Baseline", text: "⬇ Export baseline — on the reference tenant, on the page where the baseline is actually worked on. It is the same export 🗄 Backup gives on the Policies screen, not a second one: the policy JSON, and the dependencies those policies reference — groups, authentication strengths, named locations, authentication contexts and terms of use, in per-category folders with the migration table. What is new is that you pick PER PERSONA. Only the personas this tenant holds are offered, each with its count, and the policy and dependency totals move as you tick. Dependencies are ticked when it opens, because taking a baseline to another tenant without them is not taking it." },
+      { kind: "fixed", tool: "Baseline", text: "🗄 With every persona unticked the panel kept the previous count and left Download live, so it would have exported the last set rather than the empty one. It shows zero and disables the button. Opened from the Policies screen, where there is no persona chooser, the old behaviour is unchanged." },
+    ],
+  },
+  {
     build: 25462, date: "2026-09-22", title: "A note about the baseline that was wrong",
     items: [
       { kind: "fixed", tool: "Baseline", text: "🧱 Build 25461 left a note in the catalog, and a line in its own changelog entry, saying CloudFellows had not finished carving B2B direct connect users out of the session policies — twenty-nine of them appeared to lack the exclusion. That counted the wrong thing. A B2B direct connect user has no account in your directory, so there is no object to put in a group, so a policy scoped to a persona group can never reach one and an exclusion there would be decoration. Only a policy that includes All users, or names the external types, reaches one: ten do, and every one of them now either excludes the type or has dropped it from what it includes. The sweep is complete, and the note and the entry say so. A false note in a data file is worse than no note — the next revision would have been read as a regression." },

@@ -119,6 +119,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 263,
+      title: "Export the baseline from the baseline page, per persona",
+      tools: ["Baseline"],
+      builds: [25463],
+      risk: "low",
+      what: "index.html: blExport on the baseline action row (gated isBaselineTenant() and not demo, beside blCatalogUpdate) and bkPersonas inside the EXISTING backup modal. js/app.js: runBackup(pool, opts) — the body became paintBackup(), so the persona chooser repaints in place instead of reopening; bkPersonaKeys(pool) offers only the personas present, with counts, plus a no-CA-number row; bkInPersona filters after backupScope; the title and the go button relabel. The zip, backupDependencyIds, DEP_ENDPOINTS and the MigrationTable are untouched — one export, one implementation. bkGroups is ticked on open. FIX: the empty-scope early return bailed before painting, so unticking every persona left the previous count with Download live; it now paints zero and disables, and only when the chooser is off does the old toast stand.",
+      why: "Mihai: when in the baseline page on the baseline tenant, I want to select export baseline, options per persona and Dependencies — and, on the shape of it: just like the backup from the policies section, but now also make available from the baseline page. The baseline is built and taken one persona at a time, and the page where that work happens had no way to take it.",
+      test: [
+        "On the reference tenant, the Baseline page shows ⬇ Export baseline; on any other tenant and in demo it does not.",
+        "Open it: the title reads Export baseline (JSON), the baseline-tenant band is shown, Dependencies is already ticked, and the persona rows list only the personas this tenant holds with their counts.",
+        "Untick a persona — the policy count and the dependency line both drop; tick it back and they return. Untick all: zero policies, zero dependencies, Download disabled. ☑ All restores.",
+        "Download with two personas: the zip holds only those policies, and the dependency folders hold only what THEY reference (not the whole tenant's), with MigrationTable.json.",
+        "Open 🗄 Backup from the Policies screen: no persona row, title Backup (JSON), button Download backup — unchanged.",
+        "The whole suite, the plain-text check, and the jsdom drive-through of the panel.",
+      ],
+      files: ["index.html", "js/app.js", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 262,
       title: "Baseline catalog revised from CloudFellows.dev (2026-09-22)",
       tools: ["Baseline"],

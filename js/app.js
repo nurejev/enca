@@ -2530,12 +2530,53 @@
     const inScope = ps.filter(isPersonaBaseline);
     return { policies: inScope, baseline: true, skipped: ps.length - inScope.length };
   }
-  function runBackup() {
-    const picked = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
+  // pool: ids to consider, defaulting to the Policies screen's selection (or
+  // everything in view). opts.personas turns on the per-persona chooser — the
+  // baseline screen opens it that way, because the baseline is built and taken
+  // one persona at a time. Everything below this is the SAME export: one
+  // implementation, one zip, one dependency read (25463).
+  let bkPersonaPick = null;          // Set of persona keys, or null when off
+  let bkPool = null;                 // the ids the chooser filters
+  function runBackup(pool, opts = {}) {
+    bkPool = pool || null;
+    bkPersonaPick = opts.personas ? new Set(bkPersonaKeys(pool).map((p) => p.key)) : null;
+    $("bkPersonas").style.display = opts.personas ? "" : "none";
+    document.querySelector("#backupModal h3").textContent = opts.personas ? "⬇ Export baseline (JSON)" : "Backup (JSON)";
+    $("bkGo").textContent = opts.personas ? "Download export" : "Download backup";
+    paintBackup();
+  }
+  // The personas actually present in the pool, with their counts — never the
+  // nine in the registry, so a chooser can not offer an empty box.
+  function bkPersonaKeys(pool) {
+    const ids = pool || (selected.size ? [...selected] : visible().map(p => p.id));
+    const ps = backupScope(ids.map(id => policies.find(p => p.id === id)).filter(Boolean)).policies;
+    const out = [];
+    for (const per of Builder.personas(pbCat())) {
+      const n = ps.filter((p) => { const num = Builder.caNum(p.raw.displayName); return num != null && num >= per.lo && num <= per.hi; }).length;
+      if (n) out.push({ ...per, n });
+    }
+    const un = ps.filter((p) => Builder.caNum(p.raw.displayName) == null).length;
+    if (un) out.push({ key: "__none", label: "— no CA number", lo: -1, hi: -1, n: un });
+    return out;
+  }
+  const bkInPersona = (p, keys) => {
+    const num = Builder.caNum(p.raw.displayName);
+    if (num == null) return keys.has("__none");
+    return Builder.personas(pbCat()).some((per) => keys.has(per.key) && num >= per.lo && num <= per.hi);
+  };
+  function paintBackup() {
+    const picked = exportOrder(((bkPool || (selected.size ? [...selected] : visible().map(p => p.id)))).map(id => policies.find(p => p.id === id)).filter(Boolean));
     if (!picked.length) { toast("Nothing to back up"); return; }
     const scope = backupScope(picked);
-    const ps = scope.policies;
-    if (!ps.length) {
+    const ps = bkPersonaPick ? scope.policies.filter((p) => bkInPersona(p, bkPersonaPick)) : scope.policies;
+    // With the persona chooser open this is not an error and must not bail:
+    // unticking every persona is a thing somebody does on the way to picking
+    // one, and an early return here left the panel showing the PREVIOUS
+    // count with Download still live — it would have exported the last set
+    // rather than the empty one. Paint zero and disable the button instead.
+    // Without the chooser the old behaviour stands: the caller chose a set
+    // that holds no baseline policy, and a toast is the right answer.
+    if (!ps.length && !bkPersonaPick) {
       toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${picked.length} selected polic${picked.length === 1 ? "y is" : "ies are"} a persona baseline policy`);
       return;
     }
@@ -2551,6 +2592,12 @@
         + (scope.skipped ? ` and skipping <b>${scope.skipped}</b> of this tenant's own polic${scope.skipped === 1 ? "y" : "ies"}` : "")
         + `. Dependencies are taken from the baseline policies only — nothing this tenant uses for itself is included.`;
     }
+    if (bkPersonaPick) {
+      $("bkPersonaList").innerHTML = bkPersonaKeys(bkPool).map((per) =>
+        `<label class="chk" style="margin:0"><input type="checkbox" data-bkper="${esc(per.key)}"${bkPersonaPick.has(per.key) ? " checked" : ""}> ${esc(per.label)} <span class="mini muted">${per.n}</span></label>`).join("")
+        || '<span class="mini muted">No persona policies in this tenant.</span>';
+      $("bkGo").disabled = !ps.length;
+    } else $("bkGo").disabled = false;
     $("bkDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} — referencing ${nDeps} dependencies `
       + `(${dep.groups.length} groups, ${dep.authStrengths.length} auth strengths, ${dep.namedLocations.length} named locations, ${dep.authContexts.length} auth contexts, ${dep.termsOfUse.length} terms of use).`;
     $("backupModal").classList.add("open");
@@ -2588,6 +2635,15 @@
   };
   // terms-of-use agreements need Agreement.Read.All — requested on demand
   const DEP_SCOPES = { termsOfUse: [...AUTH_CONFIG.scopes, "Agreement.Read.All"] };
+  // the persona chooser — repaint rather than reopen: the counts, the
+  // dependency line and the disabled state all move together
+  $("bkPersonaList").addEventListener("change", (e) => {
+    const b = e.target.closest("[data-bkper]"); if (!b || !bkPersonaPick) return;
+    if (b.checked) bkPersonaPick.add(b.dataset.bkper); else bkPersonaPick.delete(b.dataset.bkper);
+    paintBackup();
+  });
+  $("bkPersonaAll").addEventListener("click", () => { if (!bkPersonaPick) return; bkPersonaKeys(bkPool).forEach((p) => bkPersonaPick.add(p.key)); paintBackup(); });
+  $("bkPersonaNone").addEventListener("click", () => { if (!bkPersonaPick) return; bkPersonaPick.clear(); paintBackup(); });
   $("bkCancel").addEventListener("click", () => $("backupModal").classList.remove("open"));
   $("bkGo").addEventListener("click", async () => {
     $("backupModal").classList.remove("open");
@@ -9208,6 +9264,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
     // Regenerating the catalog is only meaningful where the catalog is BUILT.
     $("blCatalogUpdate").style.display = isBaselineTenant() && !isDemo ? "" : "none";
+    $("blExport").style.display = isBaselineTenant() && !isDemo ? "" : "none";
     if (blCatOpen) renderCatalogUpdate();
   }
 
@@ -9292,6 +9349,18 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   $("blCatalogUpdate").addEventListener("click", () => { blCatOpen = !blCatOpen; blTake.clear(); renderCatalogUpdate(); });
+  // ⬇ Export baseline (25463) — the SAME export 🗄 Backup gives on the
+  // Policies screen, opened from where the baseline is actually worked on and
+  // with the persona chooser on. Mihai: "just like the backup from the
+  // policies section, but now also make available from the baseline page …
+  // options per persona and Dependencies". It hands the whole policy set in:
+  // backupScope() narrows it to the persona baseline here, and the chooser
+  // narrows that. Nothing about the zip, the dependency read or the migration
+  // table changes.
+  $("blExport").addEventListener("click", () => {
+    $("bkGroups").checked = true;        // the dependencies are the point of taking a baseline elsewhere
+    runBackup(policies.map((p) => p.id), { personas: true });
+  });
   $("blCatalogPanel").addEventListener("click", (e) => {
     if (e.target.id === "blCatClose") { blCatOpen = false; renderCatalogUpdate(); return; }
     if (e.target.id === "blTakeAll") { [...(blReview.changed || []), ...(blReview.added || [])].forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
