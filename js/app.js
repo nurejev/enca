@@ -449,13 +449,16 @@
     blocks: {
       tile: "toolLocations", label: "🧩 Policy building blocks",
       tabs: [
+        // 🏗 first (25452, Mihai: "builder should be first"): the policy the
+        // other five tabs are blocks OF. The tile still lands on Locations —
+        // the deep links from the roadmap and the Help mean the named
+        // locations — and the strip remembers the last tab opened.
+        { key: "builder",   icon: "🏗", name: "Builder",     toolbar: "pbToolbar", open: () => openBuilder(), beta: true },
         { key: "locations", icon: "🌐", name: "Locations",   toolbar: "loToolbar", open: () => openLocations() },
         { key: "strengths", icon: "💪", name: "Strengths",   toolbar: "asToolbar", open: () => openAuthStr() },
         { key: "contexts",  icon: "🎫", name: "Contexts",    toolbar: "acToolbar", open: () => openAuthCtx() },
         { key: "terms",     icon: "📜", name: "Terms of use", toolbar: "tuToolbar", open: () => openTou(), beta: true },
         { key: "deleted",   icon: "♻", name: "Deleted",     toolbar: "rcToolbar", open: () => openRecycle() },
-        // 🏗 the sixth tab: the policy the other five are blocks OF (T41, build 25437)
-        { key: "builder",   icon: "🏗", name: "Builder",     toolbar: "pbToolbar", open: () => openBuilder(), beta: true },
       ],
     },
     baseline: {
@@ -9171,7 +9174,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("blChips").innerHTML = ""; $("blBody").innerHTML = "";
       return;
     }
-    blResult = Baseline.compare(policies, blCat);
+    blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
     if (!keepView) {
       blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
     }
@@ -9316,7 +9319,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("blCatalog").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;
-    blResult = Baseline.compare(policies, blCat);
+    blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
     blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); renderBaseline();
     if (blCat === "joey") blLiveEnsure();
   });
@@ -9571,7 +9574,7 @@ This is a directory write. Nothing else changes.`)) return;
     // the match is re-decided on the fresh catalog (a release that renamed
     // policies can move the coverage either way); a saved choice is untouched
     try { Baseline.autoPick(policies); } catch {}
-    if (blResult && blCat === "joey" && $("screen-baseline").classList.contains("active")) { blResult = Baseline.compare(policies, blCat); renderBaseline(); }
+    if (blResult && blCat === "joey" && $("screen-baseline").classList.contains("active")) { blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() }); renderBaseline(); }
     if (Baseline.activeCatalogId() === "joey") baselineChanged();
   });
   // R36 — the active baseline changed: every cached scan that was taken
@@ -20646,7 +20649,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (policies.length) {
       try {
         const catId = Baseline.activeCatalogId();
-        const cmp = Baseline.compare(policies, catId);
+        const cmp = Baseline.compare(policies, catId, { byDefinition: isBaselineTenant() });
         const c = cmp.counts || {};
         const cat = Baseline.active() || {};
         // how the catalog came to be active: chosen for this tenant, matched

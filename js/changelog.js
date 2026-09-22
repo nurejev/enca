@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25452, date: "2026-09-22", title: "Number and version decide outside the baseline tenant",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "Judging a same-version policy on its definition — edited in place, renamed — is the reference tenant's question, the one the catalog is generated from. In any other tenant the key is the CA number and the version, as it always was: Up to date means the number is there at the baseline's version, and a definition that differs at that version is marked on the row and counted in the summary line, never as Newer than baseline." },
+      { kind: "improved", tool: "Policy building blocks", text: "🏗 Builder is the first tab of the strip. The tile and the deep links from the roadmap and Help still land on Locations, and the strip remembers the tab you had open." },
+    ],
+  },
+  {
     build: 25451, date: "2026-09-22", title: "The tool head folds",
     items: [
       { kind: "new", tool: "Navigation", text: "Every tool's head — the title and the paragraph under it — has a ▾ at the end of the title. Press it and the description folds away; the title, its chips and any meta beside it stay, and the tabs and the toolbar move up with it. The choice is remembered per tool, so a tool you have read once stays short. ▸ brings the text back." },

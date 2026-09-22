@@ -476,7 +476,15 @@ const Baseline = (() => {
 
   // ---- compare tenant policies against the catalog ----
   // vms: the app's view models ({ id, name, state, raw }).
-  function compare(vms, catId) {
+  // opts.byDefinition — judge a same-version policy on its DEFINITION as well
+  // (edited in place, renamed → Newer than baseline). That is the REFERENCE
+  // tenant's question, the one the catalog is generated from. Any other
+  // tenant is judged on CA NUMBER AND VERSION alone (Mihai, 2026-09-22: "the
+  // key is the CA number and version; changes may be shown") — a definition
+  // that differs there is marked on the row and counted in the summary, and
+  // never moves the status.
+  function compare(vms, catId, opts) {
+    const byDefinition = !!(opts && opts.byDefinition);
     const cat = catalog(catId);
     const shared = sharedPolicies(cat);
     const byNum = new Map();
@@ -563,7 +571,11 @@ const Baseline = (() => {
       if (best.status === "ok" && b.version) {
         try {
           const rv = reviewRow(b, best.p);
-          if (rv.diff.length) { best.status = "ahead"; best.edited = rv.edited; best.renamed = rv.renamed && !rv.edited; best.why = rv.edited ? "same version as the catalog, definition differs — edited in place" : "same version as the catalog, renamed"; }
+          if (rv.diff.length) {
+            best.edited = rv.edited; best.renamed = rv.renamed && !rv.edited; best.differs = true;
+            if (byDefinition) { best.status = "ahead"; best.why = rv.edited ? "same version as the catalog, definition differs — edited in place" : "same version as the catalog, renamed"; }
+            else best.why = rv.edited ? "definition differs from the catalog's at this version — shown, not counted: other tenants are judged by number and version" : "renamed at this version — shown, not counted";
+          }
         } catch { /* a view model this catalog cannot render — stays as the name says */ }
       }
       claimed.add(best.p);
@@ -573,7 +585,7 @@ const Baseline = (() => {
       const spare = hits.length > (defined.get(b.num) || 1);
       rows.push({
         num: b.num, baseline: b, tenant: best.p, tenantVersion: best.tv,
-        status: best.status, why: best.why || null, edited: !!best.edited, renamed: !!best.renamed,
+        status: best.status, why: best.why || null, edited: !!best.edited, renamed: !!best.renamed, differs: !!best.differs,
         duplicates: spare ? hits.length : 0, shared: b.shared || null,
       });
     }
@@ -591,7 +603,7 @@ const Baseline = (() => {
     const total = cat.policies.length + shared.length;
     const gap = (r) => ["missing", "outdated", "conflict"].includes(r.status);
     return {
-      rows, counts,
+      rows, counts, byDefinition,
       catalog: cat,
       baselineTotal: total,
       shared: shared.length,
@@ -643,8 +655,12 @@ const Baseline = (() => {
     }
     if (n("ahead")) {
       const edited = res.rows.filter((r) => r.status === "ahead" && r.edited).length, renamed = res.rows.filter((r) => r.status === "ahead" && r.renamed).length, byVer = n("ahead") - edited - renamed;
-      parts.push(`<b>${n("ahead")} newer than the baseline lists</b> — ${[byVer ? `${byVer} by a newer version in the name` : "", edited ? `${edited} edited in place at the same version` : "", renamed ? `${renamed} renamed at the same version` : ""].filter(Boolean).join(", ")}; 🧱 Update the catalog takes them into the catalog.`);
+      parts.push(`<b>${n("ahead")} newer than the baseline lists</b> — ${[byVer ? `${byVer} by a newer version in the name` : "", edited ? `${edited} edited in place at the same version` : "", renamed ? `${renamed} renamed at the same version` : ""].filter(Boolean).join(", ")}${res.byDefinition ? "; 🧱 Update the catalog takes them into the catalog" : ""}.`);
     }
+    // a customer tenant: number and version decide; a definition that differs
+    // at the same version is SHOWN, not counted
+    const shown = res.rows.filter((r) => r.status === "ok" && r.differs).length;
+    if (shown && !res.byDefinition) parts.push(`${shown} of the up-to-date ones differ from the catalog's definition at that version — marked on the row, not counted: outside the baseline tenant the key is the CA number and the version.`);
     if (n("unversioned")) parts.push(`${n("unversioned")} with a version on one side only.`);
     if (n("extra")) {
       const who = tally(res.rows.filter((r) => r.status === "extra"));
@@ -1118,7 +1134,7 @@ const Baseline = (() => {
       const tag = r.baseline?.tag ? `<span class="tag new">${esc(r.baseline.tag)}</span>` : "";
       const tenant = r.tenant
         ? `<span class="pname" data-blpol="${esc(r.tenant.id)}">${esc(r.tenant.name)}</span>
-           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}${r.why ? ` · <b>${esc(r.why)}</b>` : ""}</div>`
+           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}${r.why ? ` · <b>${esc(r.why)}</b>` : ""}${r.status === "ok" && r.differs ? ' · <span class="tag" title="Same number and version as the catalog, but the definition differs — shown for reading, not counted as newer">definition differs</span>' : ""}</div>`
         : '<span class="mini">not present in this tenant</span>';
       const ver = r.status === "outdated"
         ? `<span class="bl-ver warn">${esc(r.tenantVersion)} → ${esc(r.baseline.version)}</span>`
