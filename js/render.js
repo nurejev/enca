@@ -78,6 +78,35 @@ const Render = (() => {
     }).join("");
   }
 
+  // The persona filter's chips (T01, build 25431). Pure, like stateChips: it
+  // is handed the pool the OTHER filters already left, so a chip says how many
+  // you would get by ticking it rather than how many exist in the tenant.
+  //
+  // Only the personas this tenant actually has get a chip — thirteen chips for
+  // eight personas is noise, and a chip that can only read (0) promises rows
+  // the tenant does not have. A persona that is ticked keeps its chip even at
+  // zero, so the filter you just applied never vanishes under its own result.
+  // Returns "" when there is nothing to filter BY: one persona is not a bar.
+  function personaChips(pool, active) {
+    const on = active instanceof Set ? active : new Set(active || []);
+    const counts = new Map(), labels = new Map();
+    for (const p of pool || []) {
+      const g = caGroup(p.name), k = String(g.key);
+      counts.set(k, (counts.get(k) || 0) + 1);
+      if (!labels.has(k)) labels.set(k, g.label);
+    }
+    for (const k of on) if (!counts.has(k)) { counts.set(k, 0); labels.set(k, labels.get(k) || personaLabel(k)); }
+    const keys = [...counts.keys()].sort((a, b) => +a - +b);
+    if (keys.length < 2) return "";
+    const total = (pool || []).length;
+    return `<button class="fchip ${on.size ? "" : "active"}" data-persona="all" aria-pressed="${!on.size}" title="Clear the persona filter">All personas (${total})</button>`
+      + keys.map((k) => `<button class="fchip ${on.has(k) ? "active" : ""}" data-persona="${k}" aria-pressed="${on.has(k)}">${esc(labels.get(k))} (${counts.get(k)})</button>`).join("");
+  }
+  // A persona's label with no policy left to read it from.
+  const personaLabel = (key) => String(key) === "99999"
+    ? "Other / unnumbered"
+    : caGroup(`CA${String(+key).padStart(3, "0")}`).label;
+
   function stateChips(policies, active) {
     const counts = { all: policies.length, on: 0, report: 0, off: 0 };
     policies.forEach(p => counts[p.state]++);
@@ -251,5 +280,5 @@ const Render = (() => {
     return html + "</tbody>";
   }
 
-  return { listRows, stateChips, card, summaryCard, groupedCards, caGroup, matrix, stateChip };
+  return { listRows, stateChips, personaChips, personaLabel, card, summaryCard, groupedCards, caGroup, matrix, stateChip };
 })();

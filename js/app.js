@@ -67,6 +67,12 @@
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
   let stateFilter = "all", query = "", viewMode = "list", fmt = "png";
+  // T01 persona filter (25431). The CA-range personas currently ticked, by
+  // Render.caGroup key (0, 100, … and 99999 for the unnumbered). Empty means
+  // no persona filter at all, which is what "All personas" clears back to.
+  // A SET, not a single value: "Admins and E-Admins" is a real question, and
+  // the chips show which are on.
+  const personaFilter = new Set();
   let idFilter = null;   // a Set of policy ids carried in from the Overview (25423), or null
   let currentExport = [];
   let isDemo = false;
@@ -1749,9 +1755,30 @@
     if (!pool.length) idFilter = null;   // the ids are from another snapshot — drop the filter rather than show nothing
     return idFilter ? pool : policies;
   }
+  const personaKey = (p) => { try { return String(Render.caGroup(p.name).key); } catch { return "99999"; } };
+  const personaMatch = (p) => !personaFilter.size || personaFilter.has(personaKey(p));
   function visible() {
     return policyPool().filter(p => (stateFilter === "all" || p.state === stateFilter)
+      && personaMatch(p)
       && (!query || policyHaystack(p).includes(query)));
+  }
+  // What the persona chips count: everything the OTHER filters leave, so a
+  // chip says how many you would get by ticking it — not how many exist in
+  // the tenant, which would promise rows the state filter has already removed.
+  function personaPool() {
+    return policyPool().filter(p => (stateFilter === "all" || p.state === stateFilter)
+      && (!query || policyHaystack(p).includes(query)));
+  }
+  // The chips themselves are Render.personaChips — pure, like the state chips,
+  // and tested in tools/persona-filter.test.cjs. Here we only mount them and
+  // decide whether the bar exists at all.
+  function renderPersonaChips() {
+    const bar = $("personaFilter"); if (!bar) return;
+    const html = Render.personaChips(personaPool(), personaFilter);
+    if (!html) { bar.dataset.has = "0"; bar.style.display = "none"; personaFilter.clear(); return; }
+    bar.dataset.has = "1";
+    if (viewMode !== "analyze") bar.style.display = "";
+    $("personaChips").innerHTML = html;
   }
 
   // ---------- views ----------
@@ -1760,9 +1787,13 @@
     const vis = visible();
     $("stateChips").innerHTML = Render.stateChips(pool, stateFilter)
       + (idFilter ? `<button class="fchip active" data-idclear title="Policies named by the Overview finding you came from">From the Overview: ${pool.length} polic${pool.length === 1 ? "y" : "ies"} ✕</button>` : "");
+    renderPersonaChips();
     $("cardsView").innerHTML = Render.groupedCards(vis, selected, collapsedGroups)
       || '<p class="mini" style="padding:20px">No policies match the current filter.</p>';
-    document.querySelector("#ptable tbody").innerHTML = Render.listRows(pool, selected, stateFilter, query, collapsedGroups);
+    // listRows re-applies state + search to the POOL itself, so it has to be
+    // handed an already-persona-filtered pool or the List view would quietly
+    // ignore the chips while Cards and Matrix honoured them.
+    document.querySelector("#ptable tbody").innerHTML = Render.listRows(pool.filter(personaMatch), selected, stateFilter, query, collapsedGroups);
     $("mtable").innerHTML = Render.matrix(vis.length ? vis : policies);
     // group checkboxes: indeterminate when only part of the group is selected
     document.querySelectorAll("[data-gsel]").forEach(cb => {
@@ -1818,6 +1849,8 @@
     const pSearch = document.querySelector("#screen-list .toolbar .search");
     if (pSearch) pSearch.style.display = isAn ? "none" : "";
     $("stateChips").style.display = isAn ? "none" : "";
+    const pBar = $("personaFilter");
+    if (pBar) pBar.style.display = isAn || pBar.dataset.has !== "1" ? "none" : "";
     $("selAllWrap").style.display = isAn ? "none" : "";
     // The view picker belongs to the policy views, not to this one. Left up it
     // switches AWAY from Gap analyse with nothing highlighted, which reads as a
@@ -19386,6 +19419,17 @@ This is a directory write. Nothing else changes.`)) return;
   wireSearchClears();
 
   $("searchBox").addEventListener("input", (e) => { query = e.target.value.toLowerCase(); refreshViews(); });
+  // Several personas can be on at once; "All personas" is the clear, not a
+  // thirteenth persona. Clicking the only ticked chip unticks it, which is the
+  // way back to everything without reaching for All.
+  $("personaChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-persona]"); if (!b) return;
+    const k = b.dataset.persona;
+    if (k === "all") personaFilter.clear();
+    else if (personaFilter.has(k)) personaFilter.delete(k);
+    else personaFilter.add(k);
+    refreshViews();
+  });
   $("stateChips").addEventListener("click", (e) => {
     if (e.target.closest("[data-idclear]")) { idFilter = null; refreshViews(); return; }
     const b = e.target.closest("[data-state]"); if (!b) return;

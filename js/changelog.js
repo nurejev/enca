@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25431, date: "2026-09-22", title: "Filter the policy list by persona",
+    items: [
+      { kind: "new", tool: "Policies", text: "A persona filter under the toolbar \u2014 one chip per persona this tenant actually has: Global, Admins, Internals, Externals, Guest users, Guest admins, the service-account ranges, and Other / unnumbered for names carrying no CA number. Several can be on at once, a chip you click again turns off, and All personas clears them. The counts follow the state filter and the search, so a chip says how many you would get by ticking it rather than how many exist in the tenant \u2014 and a persona you have ticked keeps its chip even at zero, so the filter never disappears under its own empty result." },
+      { kind: "improved", tool: "Policies", text: "The persona filter narrows what the action bar acts on. Documentation, Backup and Gap analyse fall back to everything in view and Select all ticks what is in view, so filtering to Guest admins is now also the way to scope those to Guest admins \u2014 which is what the grouped list has always implied and never offered." },
+    ],
+  },
+  {
     build: 25430, date: "2026-09-22", title: "Assign guests and external users, not just groups and roles",
     items: [
       { kind: "new", tool: "Policies", text: "\ud83d\udc65 Assign groups or roles can now aim at guests and external users too \u2014 the portal's third Include choice and its matching Exclude tick. Pick the types (local guests, B2B collaboration guests and members, B2B direct connect, other external users, service provider CSP/GDAP users) and the tenants they come from: all external tenants, or a list of tenant IDs. Aimed at a selection or at every policy in the tenant, like the other two. The panel shows what the policies in scope carry today, so the choice is made against the real starting point." },

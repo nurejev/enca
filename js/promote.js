@@ -119,6 +119,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 253,
+      title: "Policies: a persona filter bar",
+      tools: ["Policies"],
+      builds: [25431],
+      risk: "low",
+      what: "A chip row under the \ud83d\uddc2 Policies toolbar, one per persona present in the tenant, multi-select, with All personas as the clear. Render.personaChips(pool, activeSet) builds the HTML purely, like stateChips; app.js holds the Set and folds it into visible(). listRows is handed an already-filtered pool so the List view honours it too. New css/app.css .persona-filter block. No read, no write, no permission.",
+      why: "136 policies in eight personas, and the only way to see one persona was to scroll the grouped list or search for a naming convention. It also gives the action bar a scope it never had: Documentation, Backup and Gap analyse fall back to everything in view.",
+      test: [
+        "The bar appears under the toolbar with one chip per persona in the tenant, in CA-number order, unnumbered last, and All personas carrying the total.",
+        "Tick Guest admins: the Cards, List and Matrix views all narrow \u2014 List especially, it takes a different code path.",
+        "Tick a second persona: both are on and the counts add up. Click a ticked chip: it turns off. All personas clears everything.",
+        "Change the state filter or type in the search: every persona count changes with it, and a chip whose count drops to zero disappears \u2014 unless it is ticked, in which case it stays, reading (0).",
+        "With a persona ticked, Select all ticks only that persona, and the action-bar line reads the filtered number. Documentation and Backup with nothing selected cover only that persona.",
+        "Open Gap analyse: the bar hides with the rest of the policy chrome, and comes back on the way out.",
+        "A tenant with one persona (or an unnumbered-only tenant) shows no bar at all.",
+        "Light and dark, 1440 and 390 \u2014 the bar wraps rather than scrolling the page sideways.",
+        "Offline: node --test tools/*.test.cjs \u2014 271 tests, including the 9 in tools/persona-filter.test.cjs.",
+        "See the local review/2026-09-22/BETA-25431.md validation report \u2014 the UI has NOT been run in a browser.",
+      ],
+      files: ["js/render.js", "js/app.js", "index.html", "css/app.css", "js/version.js", "js/changelog.js", "js/promote.js", "tools/persona-filter.test.cjs"],
+    },
+    {
       n: 252,
       title: "Assign: guests & external users as a third target, and a role edit that stopped eating the guest clause",
       tools: ["Policies"],

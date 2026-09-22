@@ -2360,3 +2360,17 @@ html:has(#dupModal.open){overflow:hidden;scrollbar-gutter:stable}
 .dup-set.reviewed{border-color:var(--warn-bd)}
 .dup-set.reviewed .dup-head{background:var(--warn-bg2)}
 .dup-review{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+
+/* Persona filter row (T01, build 25431). Sits under the policy toolbar and
+   above the action bar: the toolbar already wraps on a laptop, and a tenant
+   can carry a dozen personas. Same surface as the toolbar so the two read as
+   one control area rather than as a stray strip of buttons. */
+.persona-filter{
+  display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--wc-panel-radius,10px);
+  padding:10px 12px;margin:10px 0 0;
+}
+.persona-filter-lead{flex:0 0 auto;padding:6px 0;letter-spacing:.06em;text-transform:uppercase;font-size:10px;font-weight:700}
+.persona-filter .chip-filter{flex:1 1 auto}
+.persona-filter .fchip{padding:5px 11px;font-size:12px}
+@media(max-width:560px){.persona-filter{padding:9px 10px}.persona-filter-lead{padding:0}}
