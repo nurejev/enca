@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25471, date: "2026-09-22", title: "Token protection: only the devices it cannot support are excluded",
+    items: [
+      { kind: "fixed", tool: "Checks", text: "📘 The token-protection fix excluded every Cloud PC, Azure Virtual Desktop host and Azure VM from the policy. Only the Entra-JOINED ones are unsupported; hybrid-joined ones are protected. The rule it builds now excludes the Entra-joined ones only (and Entra-joined Power Automate hosted machines, which were missing), and a filter already in your tenant that excludes them whatever their join type is reported as over-broad." },
+    ],
+  },
+  {
     build: 25470, date: "2026-09-22", title: "Bypass & Swiss cheese checks: six that said more than they knew",
     items: [
       { kind: "fixed", tool: "Checks", text: "🛡 MFA for all users now has to cover All resources — a policy asking all users for MFA on one app no longer clears the check, and is reported as MFA for selected resources only. Legacy authentication counts as blocked only when the block reaches everyone, All resources and both legacy client types; a narrower block is reported with what it misses." },

@@ -119,6 +119,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 266,
+      title: "Token protection device filter — Entra-joined only",
+      tools: ["Checks"],
+      builds: [25471],
+      risk: "medium",
+      what: "js/mslearn.js: TOKEN_PROT_DEVICE_RULE pairs CloudPC, AzureVirtualDesktop, MicrosoftPowerAutomate and SecureVM each with device.trustType -eq \"AzureAD\" in parentheses; TOKEN_PROT_DEVICE_FALLBACKS starts with the pre-25471 rule, then SecureVM alone; token-prot-devices reports a label rule without trustType as over-broad; remediation and remediationParts rewritten; fix note says Autopilot self-deploying needs its enrollment profile name.",
+      why: "Learn's known limitations and example filters name only Entra-joined devices; the old rule removed supported hybrid-joined Cloud PCs and session hosts from token protection. Open item of the 25469 audit.",
+      test: [
+        "📘 on a tenant with a token-protection policy and no device filter: the Fix builds a filter whose rule contains trustType -eq \"AzureAD\" four times. Apply it (baseline tenant) or import the JSON: Entra accepts it — if it refuses, the result says which fallback landed.",
+        "A token-protection policy whose filter is the old rule (labels without trustType) shows Token protection: unsupported device types must be excluded with the over-broad text.",
+        "A hybrid-joined Cloud PC signs in to Outlook under the new policy and the sign-in log shows the token-protection session control applied (not excluded by the filter).",
+      ],
+      files: ["js/mslearn.js", "tools/mslearn-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 265,
       title: "Bypass & Swiss cheese checks audit — MFA and legacy scope, OR verdicts, guest strength, human recommendations",
       tools: ["Checks"],

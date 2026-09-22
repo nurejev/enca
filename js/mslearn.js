@@ -82,11 +82,24 @@ const MSLearn = (() => {
   //     profileType) is rejected outright.
   // Because the accepted systemLabels values are not contractual, the apply
   // step falls back through simpler rules if Entra refuses this one.
-  const TOKEN_PROT_DEVICE_RULE = 'device.systemLabels -contains "CloudPC" '
-    + '-or device.systemLabels -contains "AzureVirtualDesktop" '
-    + '-or device.profileType -eq "SecureVM"';
-  // progressively safer fallbacks, tried in order when a create is rejected
+  // 25471: ONLY THE ENTRA-JOINED ONES. Learn's known-limitations list is
+  // Entra-joined Cloud PCs, Entra-joined AVD session hosts, Entra-joined Power
+  // Automate hosted machines and Entra-joined Azure VMs; its own example rules
+  // pair each label with trustType -eq "AzureAD". The rule before 25471 left
+  // the trustType out, so it also excluded HYBRID-joined Cloud PCs and session
+  // hosts — devices token protection does support — and took them out of the
+  // protection for nothing. systemLabels stays on -contains (multi-valued);
+  // the pairs are parenthesised so -and binds inside each one.
+  const TP_AAD = 'device.trustType -eq "AzureAD"';
+  const TOKEN_PROT_DEVICE_RULE =
+    `(device.systemLabels -contains "CloudPC" -and ${TP_AAD})`
+    + ` -or (device.systemLabels -contains "AzureVirtualDesktop" -and ${TP_AAD})`
+    + ` -or (device.systemLabels -contains "MicrosoftPowerAutomate" -and ${TP_AAD})`
+    + ` -or (device.profileType -eq "SecureVM" -and ${TP_AAD})`;
+  // progressively simpler, tried in order when Entra rejects a create: the
+  // pre-25471 rule (broader, but known to be accepted), then SecureVM alone
   const TOKEN_PROT_DEVICE_FALLBACKS = [
+    'device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "SecureVM"',
     'device.profileType -eq "SecureVM"',
   ];
 
@@ -640,14 +653,19 @@ const MSLearn = (() => {
       requirement: "Unsupported registration types must be excluded via device filters: Surface Hub, Teams Rooms, Entra-joined AVD hosts and Cloud PCs, Autopilot self-deploying, bulk-enrolled devices and Azure VMs.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows#known-limitations",
-      remediation: 'Add a device filter in EXCLUDE mode whose rule matches the unsupported types, e.g. device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "SecureVM". Two gotchas: systemLabels is multi-valued so it takes -contains (not -eq/-ne), and profileType is an enum limited to RegisteredDevice / SecureVM / Printer / Shared / IoT — Autopilot self-deploying is not a profileType, exclude those devices another way.',
+      remediation: 'Add a device filter in EXCLUDE mode that matches only the Entra-JOINED Cloud PCs, AVD session hosts, Power Automate hosted machines and Azure VMs — hybrid-joined ones are supported and should stay protected. For example: (device.systemLabels -contains "CloudPC" -and device.trustType -eq "AzureAD") -or (device.systemLabels -contains "AzureVirtualDesktop" -and device.trustType -eq "AzureAD") -or (device.systemLabels -contains "MicrosoftPowerAutomate" -and device.trustType -eq "AzureAD") -or (device.profileType -eq "SecureVM" -and device.trustType -eq "AzureAD"). Autopilot self-deploying devices cannot be matched by type: filter on the enrollmentProfileName of their Intune profile. Surface Hub and Teams Rooms on Windows cannot be excluded by a device filter — exclude their resource accounts.',
+      remediationParts: [
+        ["Change", "On this policy: Conditions → Filter for devices → Exclude filtered devices, with the rule in the Fix (it pairs each device type with trustType AzureAD). The Fix button builds it."],
+        ["Only Entra-joined", "Learn lists Entra-JOINED Cloud PCs, AVD hosts, Power Automate hosted machines and Azure VMs as unsupported. The same devices hybrid-joined are supported, so a rule without the trustType takes them out of the protection for nothing."],
+        ["By hand", "Autopilot self-deploying devices: add -or device.enrollmentProfileName -eq \"<your self-deploying profile name>\". Surface Hub and Teams Rooms on Windows: exclude their resource accounts (the shared-device group) — no filter can name them."],
+      ],
       fix: (d) => {
         const dev = d.conditions.devices || (d.conditions.devices = {});
         dev.deviceFilter = { mode: "exclude", rule: TOKEN_PROT_DEVICE_RULE };
         // Note only names what the rule can actually express. Autopilot
         // self-deploying is NOT a profileType value, so it cannot be matched
         // here — the check's remediation text says how to handle those.
-        return ['Device filter set to exclude the unsupported device types — mode "exclude" matching Cloud PC, Azure Virtual Desktop and Azure VM (SecureVM). Autopilot self-deploying devices are not expressible in a device filter — exclude them another way.'];
+        return ['Device filter set to exclude the unsupported device types — mode "exclude" matching Entra-JOINED Cloud PCs, Azure Virtual Desktop hosts, Power Automate hosted machines and Azure VMs; hybrid-joined ones stay protected. Autopilot self-deploying devices need their enrollment profile name added by hand.'];
       },
       detect: (p) => {
         if (!isActive(p) || !hasTokenProtection(p)) return null;
@@ -671,6 +689,15 @@ const MSLearn = (() => {
           { pat: "securevm", label: "Azure VMs (SecureVM)" },
         ];
         const missing = known.filter((k) => !rule.includes(k.pat));
+        // 25471: the other direction — a rule that excludes the VM / Cloud PC
+        // labels without trustType also removes hybrid-joined devices, which
+        // ARE supported.
+        if (filter.mode === "exclude" && !missing.length && !rule.includes("trusttype")) {
+          return {
+            detail: "The device filter excludes Cloud PCs, AVD hosts and Azure VMs whatever their join type. Only the Entra-JOINED ones are unsupported — the rule also takes hybrid-joined Cloud PCs and session hosts out of token protection, where they would have been protected.",
+            impactedResources: ["Hybrid-joined Cloud PCs", "Hybrid-joined AVD session hosts"],
+          };
+        }
         if (missing.length && filter.mode === "exclude") {
           return {
             detail: `The device filter may not cover every device type a filter can exclude — potentially missing: ${missing.map((m) => m.label).join(", ")}. (Surface Hub, Teams Rooms and Autopilot self-deploying cannot be excluded by a device filter and are flagged separately.)`,

@@ -108,3 +108,25 @@ test("severity Low sorts, labels and counts like the others", () => {
   const html = M.renderSummary(groups, 30, false);
   assert.match(html, /1 Low/);
 });
+
+// ---- 25471: token protection excludes only the Entra-JOINED devices ----
+const TP = (filter) => pol("CA-TP-dev", { users: { includeUsers: ["All"] }, applications: { includeApplications: ["00000002-0000-0ff1-ce00-000000000000"] },
+  platforms: { includePlatforms: ["windows"] }, clientAppTypes: ["mobileAppsAndDesktopClients"], devices: filter ? { deviceFilter: filter } : undefined },
+  null, { secureSignInSession: { isEnabled: true } });
+
+test("the token-protection fix pairs every excluded device type with trustType AzureAD", () => {
+  const findings = run([TP(null)]);
+  const res = M.buildFixes(findings, [TP(null)], {});
+  const rule = res.fixes[0].draft.conditions.devices.deviceFilter.rule;
+  for (const label of ["CloudPC", "AzureVirtualDesktop", "MicrosoftPowerAutomate", "SecureVM"]) assert.ok(rule.includes(label), label);
+  assert.equal((rule.match(/trustType -eq "AzureAD"/g) || []).length, 4);
+});
+
+test("a filter that excludes Cloud PCs whatever their join type is reported as over-broad", () => {
+  const broad = TP({ mode: "exclude", rule: 'device.systemLabels -contains "CloudPC" -or device.systemLabels -contains "AzureVirtualDesktop" -or device.profileType -eq "SecureVM"' });
+  const f = find(run([broad]), "token-prot-devices");
+  assert.equal(f.length, 1);
+  assert.match(f[0].result.detail, /hybrid-joined/);
+  const right = TP({ mode: "exclude", rule: '(device.systemLabels -contains "CloudPC" -and device.trustType -eq "AzureAD") -or (device.systemLabels -contains "AzureVirtualDesktop" -and device.trustType -eq "AzureAD") -or (device.profileType -eq "SecureVM" -and device.trustType -eq "AzureAD")' });
+  assert.equal(find(run([right]), "token-prot-devices").length, 0);
+});
