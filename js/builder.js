@@ -361,6 +361,13 @@ const Builder = (() => {
     if (a.target === "actions" && !a.userActions.length) bad.push("No user action is selected.");
     if (a.target === "contexts" && !a.authContexts.length) bad.push("No authentication context is selected.");
     if (g.mode === "grant" && !g.controls.length && !g.strength && !g.termsOfUse.length && !sessionCount(d)) bad.push("Nothing is enforced — choose a grant control, a strength, terms of use, a session control, or Block.");
+    // The portal will not let you select both — ticking one greys the other
+    // and says so. Nothing here stopped it, and the pair is only refused at
+    // the end, by Graph, as a bare 400 naming no field (25464). Refuse it
+    // where the choice is made, in Entra's own words.
+    if (g.mode === "grant" && g.strength && g.controls.includes("mfa")) {
+      bad.push("“Require authentication strength” cannot be used with “Require multifactor authentication” — Entra allows one or the other. The built-in Multifactor authentication strength is the same set of combinations as the control, so pick the strength, or pick the control and set the strength to none.");
+    }
     if (g.controls.includes("approvedApplication")) bad.push("“Require approved client app” was retired on 30 June 2026 and Entra refuses to write it — use “Require app protection policy”.");
     if (g.mode === "grant" && (g.controls.length + (g.strength ? 1 : 0) + g.termsOfUse.length) > 1 && !["AND", "OR"].includes(g.operator)) bad.push("With more than one control, choose AND or OR.");
     if (d.number == null && !d.customName) bad.push("The policy has no CA number — pick a persona, or type a name.");

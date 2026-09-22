@@ -148,7 +148,10 @@ test("validation refuses what Graph would refuse, and warns about the rest", () 
   d.number = 216; d.users.includeGroups = ["g-int"]; d.grant.controls = ["approvedApplication"];
   v = Builder.validate(d);
   assert.ok(v.bad.some((b) => /retired on 30 June 2026/.test(b)));
-  d.grant.controls = ["mfa"]; d.grant.strength = "s-pr"; d.grant.operator = "XOR";
+  // two built-in controls, not mfa + a strength: since 25465 that pair is
+  // itself invalid (Entra refuses it, and the portal will not even offer it),
+  // so it can no longer stand in for "more than one control"
+  d.grant.controls = ["mfa", "compliantDevice"]; d.grant.strength = null; d.grant.operator = "XOR";
   assert.ok(Builder.validate(d).bad.some((b) => /AND or OR/.test(b)));
   d.grant.operator = "AND"; assert.equal(Builder.validate(d).ok, true);
   d.users.includeAll = true; d.users.excludeGroups = [];
@@ -296,4 +299,38 @@ test("annotations from the read never travel into the write", () => {
   const c = B.guestClause({ guestOrExternalUserTypes: "b2bCollaborationGuest", "@odata.context": "x", externalTenants: { "@odata.context": "y", membershipKind: "all" } });
   eq(Object.keys(c).sort(), ["externalTenants", "guestOrExternalUserTypes"]);
   eq(Object.keys(c.externalTenants).sort(), ["@odata.type", "membershipKind"]);
+});
+
+// ---- the pair Entra refuses (25465) --------------------------------------
+// Mihai, from the portal: "in the entra portal, its not possible when
+// selecting. its one or the other." The portal greys the other control and
+// says why; ENCA let you tick both and only found out at the save, as a bare
+// 400 naming no field. Refuse it where the choice is made.
+
+test("a strength together with Require multifactor authentication is refused before the save", () => {
+  const raw = withStrength("s-mfa");
+  const d = B.fromRaw(raw, null);
+  d.grant.controls = ["mfa"];              // strength still selected
+  const v = B.validate(d);
+  assert.equal(v.ok, false, "Save must be blocked");
+  assert.ok(v.bad.some((m) => /cannot be used with/i.test(m)), "and say so in Entra's words: " + v.bad.join(" | "));
+});
+
+test("either one alone is fine", () => {
+  const raw = withStrength("s-mfa");
+  const onlyStrength = B.fromRaw(raw, null);
+  onlyStrength.grant.controls = [];
+  assert.ok(!B.validate(onlyStrength).bad.some((m) => /cannot be used with/i.test(m)), "strength alone");
+  const onlyMfa = B.fromRaw(raw, null);
+  onlyMfa.grant.strength = null;
+  onlyMfa.grant.controls = ["mfa"];
+  assert.ok(!B.validate(onlyMfa).bad.some((m) => /cannot be used with/i.test(m)), "control alone");
+});
+
+test("a block policy is not caught by the rule", () => {
+  const raw = withStrength("s-mfa");
+  const d = B.fromRaw(raw, null);
+  d.grant.mode = "block";
+  d.grant.controls = ["mfa"];
+  assert.ok(!B.validate(d).bad.some((m) => /cannot be used with/i.test(m)));
 });

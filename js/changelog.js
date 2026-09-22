@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25465, date: "2026-09-22", title: "One or the other, said before the save",
+    items: [
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 An authentication strength and Require multifactor authentication cannot both be set — Entra refuses the pair, and the portal greys one out the moment you pick the other. Nothing here stopped you ticking both, and you found out at the save, as a 400 that named no field. Save is now blocked while both are set, in Entra's own words, with the way out: pick the strength, or pick the control and set the strength to none. Block policies are unaffected." },
+    ],
+  },
+  {
     build: 25464, date: "2026-09-22", title: "Swapping an authentication strength for Require MFA now saves",
     items: [
       { kind: "fixed", tool: "Policy building blocks", text: "🏗 Changing a policy from an authentication strength to Require multifactor authentication — pick No strength, tick the control, Save — failed with Graph 400 BadRequest and nothing to say why. Leaving a strength off has to be written as an explicit null: a save that simply omits it leaves the old strength in place, and the policy is then asked for a strength AND the MFA control at once, which Entra refuses. The save now clears it properly, and only when the policy actually had one. This is the swap the 📘 MS Learn check recommends for guest policies, so the tool was failing at exactly the step its own advice leads to. The same fix covers ✎ Edit on the policy card, which saves through the same code." },
