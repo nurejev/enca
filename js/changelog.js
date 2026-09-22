@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25449, date: "2026-09-22", title: "One judgement, three kinds — the chip and the panel agree by construction",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "The Newer than baseline chip and 🧱 Update the catalog judged a policy in two places — the chip on definitions, the panel on definitions AND names — so 27 met 77. There is one judgement now (Baseline.reviewRow), used by both, and names are compared clean: a (NEW) prefix, whitespace or a capital is not a rename. Every policy that differs from the catalog is one of three kinds and the panel says which — 🆙 a newer version in the name, ✏️ edited in place at the same version, 🏷 renamed at the same version (definition unchanged; the card shows both names) — each with its own Select button, and the chip's number is the sum of the three." },
+    ],
+  },
+  {
     build: 25448, date: "2026-09-22", title: "Edit a policy on its card",
     items: [
       { kind: "new", tool: "Policies", text: "✎ Edit on the policy card. The six boxes — users, target resources, network, conditions, grant, session — become forms in the layout the policy was just read in, and the name is a field under the title. Nothing to navigate: change the thing you were looking at. A bar under the boxes counts the settings that change against the policy in the tenant, marks the boxes they are in, holds the state (switching to On needs a typed ON), and offers ± View diff and 🧪 Preflight before Save. Users are edited inline for this one policy; 👥 Assign groups or roles stays the tool for many at once." },

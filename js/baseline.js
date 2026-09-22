@@ -562,7 +562,8 @@ const Baseline = (() => {
       // agree (Mihai, 2026-09-22: "shouldn't the 6 then also be more?").
       if (best.status === "ok" && b.version) {
         try {
-          if (entryDiff(b, vmToEntry(best.p, b)).length) { best.status = "ahead"; best.edited = true; best.why = "same version as the catalog, definition differs — edited in place"; }
+          const rv = reviewRow(b, best.p);
+          if (rv.diff.length) { best.status = "ahead"; best.edited = rv.edited; best.renamed = rv.renamed && !rv.edited; best.why = rv.edited ? "same version as the catalog, definition differs — edited in place" : "same version as the catalog, renamed"; }
         } catch { /* a view model this catalog cannot render — stays as the name says */ }
       }
       claimed.add(best.p);
@@ -572,7 +573,7 @@ const Baseline = (() => {
       const spare = hits.length > (defined.get(b.num) || 1);
       rows.push({
         num: b.num, baseline: b, tenant: best.p, tenantVersion: best.tv,
-        status: best.status, why: best.why || null, edited: !!best.edited,
+        status: best.status, why: best.why || null, edited: !!best.edited, renamed: !!best.renamed,
         duplicates: spare ? hits.length : 0, shared: b.shared || null,
       });
     }
@@ -641,8 +642,8 @@ const Baseline = (() => {
       parts.push(`<b>${n("conflict")} number clash</b> — the CA number is taken by a different policy${who ? ` (${esc(who)}, by its naming)` : ""}, so it counts as absent; an import deploys ${esc(cat.label)}'s alongside and never replaces the other.`);
     }
     if (n("ahead")) {
-      const edited = res.rows.filter((r) => r.status === "ahead" && r.edited).length, byVer = n("ahead") - edited;
-      parts.push(`<b>${n("ahead")} newer than the baseline lists</b> — ${byVer ? `${byVer} by a newer version in the name` : ""}${byVer && edited ? ", " : ""}${edited ? `${edited} edited in place at the same version` : ""}; 🧱 Update the catalog takes them into the catalog.`);
+      const edited = res.rows.filter((r) => r.status === "ahead" && r.edited).length, renamed = res.rows.filter((r) => r.status === "ahead" && r.renamed).length, byVer = n("ahead") - edited - renamed;
+      parts.push(`<b>${n("ahead")} newer than the baseline lists</b> — ${[byVer ? `${byVer} by a newer version in the name` : "", edited ? `${edited} edited in place at the same version` : "", renamed ? `${renamed} renamed at the same version` : ""].filter(Boolean).join(", ")}; 🧱 Update the catalog takes them into the catalog.`);
     }
     if (n("unversioned")) parts.push(`${n("unversioned")} with a version on one side only.`);
     if (n("extra")) {
@@ -991,6 +992,24 @@ const Baseline = (() => {
 
   // res: the compare() result. holds: { "<num>": { reason, sig, at } }.
   // Returns every row the catalog regeneration cares about.
+  // ONE judgement of a tenant policy against its catalog entry, used by the
+  // compare (the chips) and by the catalog review (the panel) — so the two
+  // cannot disagree again (25442 counted definitions in one place and names
+  // in the other: 27 on the chip, 77 in the panel). Names are compared CLEAN:
+  // staging prefix off, whitespace trimmed, case folded — a (NEW) prefix or a
+  // capital is not a rename. kind: version (a newer version in the name),
+  // edited (definition differs, version not newer), renamed (only the name).
+  function reviewRow(cat, vm) {
+    const ten = vmToEntry(vm, cat);
+    const diff = entryDiff(cat, ten);
+    const renamed = cleanName(ten.name) !== cleanName(cat.name);
+    if (renamed) diff.push({ field: "name", label: "name and version", cat: String(cat.name || "—"), ten: String(ten.name || "—") });
+    const tv = version(ten.name), cv = cat.version;
+    const newer = !!(tv && cv && cmpVersion(tv, cv) > 0);
+    const edited = diff.some((d) => d.field !== "name");
+    const kind = newer ? "version" : edited ? "edited" : renamed ? "renamed" : "same";
+    return { ten, diff, renamed, edited, newer, kind };
+  }
   function catalogReview(res, holds = {}) {
     const changed = [], added = [], gone = [], unchanged = [], held = [];
     for (const r of res.rows || []) {
@@ -1003,14 +1022,7 @@ const Baseline = (() => {
         if (r.tenant && !r.baseline) added.push({ num: caNum(r.tenant.name), name: r.tenant.name, ten: vmToEntry(r.tenant, null) });
         continue;
       }
-      const ten = vmToEntry(r.tenant, r.baseline);
-      const diff = entryDiff(r.baseline, ten);
-      // The NAME is part of the entry: a version bumped with no other change
-      // (the sixth "newer" of 2026-09-22) left the catalog saying v1.0.2 for a
-      // policy running v1.0.3, and the review called it unchanged. A differing
-      // name is a difference to take — the generated entry carries the
-      // tenant's name and version.
-      if (String(ten.name || "") !== String(r.baseline.name || "")) diff.push({ field: "name", label: "name and version", cat: String(r.baseline.name || "—"), ten: String(ten.name || "—") });
+      const rv = reviewRow(r.baseline, r.tenant), ten = rv.ten, diff = rv.diff;
       if (!diff.length) { unchanged.push({ num: r.num, cat: r.baseline, ten }); continue; }
       const h = holds[String(r.num)];
       const sig = diffSig(diff);
@@ -1018,7 +1030,7 @@ const Baseline = (() => {
       // status is the NAME comparison (ok / outdated / ahead / unversioned) — carried so the
       // review can say how the two counts relate: "26 changed in definition, 6 of them
       // also newer by version" is one fact; "6 newer" and "26 changed" side by side read as two
-      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, status: r.status, edited: !!r.edited, reopened: !!(h && h.sig !== sig) });
+      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, status: r.status, kind: rv.kind, edited: rv.edited, renamed: rv.renamed, reopened: !!(h && h.sig !== sig) });
     }
     // Every unchanged policy is a free test of the serialiser.
     const drift = unchanged.filter((u) => JSON.stringify(u.cat) !== JSON.stringify({ ...u.ten, num: u.cat.num, version: u.cat.version, tag: u.cat.tag, name: u.cat.name }));
@@ -1167,7 +1179,7 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, vmToEntry, entryDiff, catalogReview, catalogSource, diffSig, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
+  return { catalogs, catalog, compare, vmToEntry, entryDiff, reviewRow, catalogReview, catalogSource, diffSig, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
     // R36
     use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, previewSwitch, renderPreview, DEFAULT_ID,
     // R36.1 — matched, not chosen
