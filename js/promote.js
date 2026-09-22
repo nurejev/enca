@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 257,
+      title: "Policies: Clear clears the view, not just the selection",
+      tools: ["Policies"],
+      builds: [25435],
+      risk: "low",
+      what: "clearSelBtn clears the selection, idFilter, personaFilter, stateFilter and the search together; it returns early when nothing is narrowing the view, and updateSelbar disables it and titles it with exactly what it would remove.",
+      why: "It was selected.clear() and nothing else. On a bar reading \u201c2 policies in view \u00b7 Nothing selected\u201d it did nothing, while the Overview filter narrowing the view sat in the chip row above. Mihai reported it as the clear filter not working.",
+      test: [
+        "Arrive in \ud83d\uddc2 Policies from an Overview finding (the From the Overview chip is showing), select nothing, press Clear: every policy is back and the chip is gone.",
+        "Tick a persona, type in the search, pick a state, select two policies, press Clear: all five go at once and the count returns to the tenant total.",
+        "With nothing selected and no filter, Clear is greyed out and its tooltip reads \u201cNothing to clear \u2014 every policy is in view\u201d.",
+        "Hover Clear with a selection and a filter active: the tooltip names both.",
+        "The chip\u2019s own \u2715 still clears just the Overview filter, leaving a selection alone.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 256,
       title: "Checks: the MS Learn tab keeps its result across a tab switch",
       tools: ["Checks"],

@@ -1911,6 +1911,19 @@
       : n === 1
         ? "One policy exports as PNG, multiple as a combined PDF"
         : "Multiple selected — will export as a combined PDF";
+    // Name what Clear would actually take away, so it is never a mystery
+    // button — and grey it out when the view is already everything.
+    const clear = $("clearSelBtn");
+    if (clear) {
+      const parts = [];
+      if (n) parts.push(`the selection (${n})`);
+      if (idFilter) parts.push("the Overview filter");
+      if (personaFilter.size) parts.push(personaFilter.size === 1 ? "the persona filter" : `${personaFilter.size} persona filters`);
+      if (query) parts.push("the search");
+      if (stateFilter !== "all") parts.push(`the ${stateFilter === "on" ? "On" : stateFilter === "report" ? "Report-only" : "Off"} filter`);
+      clear.disabled = !parts.length;
+      clear.title = parts.length ? `Clear ${parts.join(", ")}` : "Nothing to clear — every policy is in view";
+    }
   }
   // #10: warn when directory lookups partially failed and raw GUIDs remain
   function warnUnresolved() {
@@ -19492,7 +19505,26 @@ This is a directory write. Nothing else changes.`)) return;
   $("viewList").addEventListener("click", () => setView("list"));
   $("viewMatrix").addEventListener("click", () => setView("matrix"));
   $("anBack").addEventListener("click", () => setView(viewBeforeAnalyze === "analyze" ? "cards" : (viewBeforeAnalyze || "cards")));
-  $("clearSelBtn").addEventListener("click", () => { selected.clear(); refreshViews(); });
+  // WHAT "CLEAR" CLEARS (25435). It only ever did selected.clear(), so on a
+  // bar reading "2 policies in view · Nothing selected" it did exactly
+  // nothing — while the thing actually narrowing the view (an Overview id
+  // filter, a persona, a search, a state) sat right above it, untouched. A
+  // button that does nothing is not a no-op, it is broken.
+  // It now clears everything narrowing the view, and disables itself when
+  // there is nothing left to clear, so it can never look dead again.
+  function viewNarrowed() {
+    return selected.size > 0 || !!idFilter || personaFilter.size > 0 || !!query || stateFilter !== "all";
+  }
+  $("clearSelBtn").addEventListener("click", () => {
+    if (!viewNarrowed()) return;
+    selected.clear();
+    idFilter = null;
+    personaFilter.clear();
+    stateFilter = "all";
+    query = "";
+    const box = $("searchBox"); if (box) box.value = "";
+    refreshViews();
+  });
 
   // list view: name opens detail, checkbox selects, group header collapses/selects group
   document.querySelector("#ptable tbody").addEventListener("click", (e) => {

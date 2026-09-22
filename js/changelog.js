@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25435, date: "2026-09-22", title: "Clear actually clears",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "The Clear button on the action bar only ever cleared the SELECTION, so with nothing selected it did nothing at all \u2014 while the thing actually narrowing your view sat right above it. It now clears everything that narrows the view: the selection, an Overview filter you arrived through, the persona chips, the search box and the state filter. When there is genuinely nothing to clear it greys out, and hovering it says what it would take away \u2014 so it can never look broken again." },
+    ],
+  },
+  {
     build: 25434, date: "2026-09-22", title: "Checks keeps its findings when you switch tabs",
     items: [
       { kind: "fixed", tool: "Checks", text: "Leaving \ud83d\udcd8 MS Learn checks for another tab and coming back re-ran everything \u2014 the authentication strengths, the cross-tenant access settings, the CA settings and authentication methods all read again, then thirty checks over every policy and the suggested fixes rebuilt. The severity filter, whichever findings you had open and the Suggested fixes tab went with it. The other three tabs in \ud83d\udee1 Checks already kept their result; this one now does too, so coming back shows exactly the screen you left." },
