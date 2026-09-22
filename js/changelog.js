@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25475, date: "2026-09-22", title: "MS Learn checks: TAP is not a guest method, and a block counts as coverage",
+    items: [
+      { kind: "fixed", tool: "Checks", text: "📘 A strength that allows a Temporary Access Pass was treated as one guests can meet. A TAP does not work for guests, so a guest-admin policy on Phishing-resistant MFA + TAP is now reported as unsatisfiable, with what trust would and would not change. The same strength is no longer mistaken for plain Require MFA, which could have suggested weakening it." },
+      { kind: "fixed", tool: "Checks", text: "📘 External user types that no MFA policy reaches: a type that an unconditional block on All resources shuts out is no longer reported — it cannot sign in at all — and the finding names the block." },
+    ],
+  },
+  {
     build: 25474, date: "2026-09-22", title: "CA groups: the member sheet no longer hides under the side rail",
     items: [
       { kind: "fixed", tool: "CA groups", text: "👥 The Members / Compare sheet slid under the side rail, so its title, the Members tab and the start of the add-member box were cut off — and on a phone it ran under the bottom navigation. It now opens beside the rail and above the bottom bar, in both sizes." },

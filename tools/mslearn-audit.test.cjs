@@ -163,3 +163,32 @@ test("the summary says when some groups' guest membership could not be read", ()
   const groups = M.group(run([p], GG([], true)));
   assert.match(M.renderSummary(groups, 30, false), /could not be read/);
 });
+
+// ---- 25475: a TAP is not a guest method; a block is coverage ----
+test("a phishing-resistant + TAP strength is unsatisfiable for guests, and never read as Require MFA", () => {
+  const st = new Map([["pt", { id: "pt", displayName: "Phishing-resistant MFA + TAP", allowedCombinations: ["windowsHelloForBusiness", "fido2", "temporaryAccessPassOneTime", "temporaryAccessPassMultiUse"] }]]);
+  const p = pol("CA503", { users: { includeUsers: [], includeGuestsOrExternalUsers: GUESTS("b2bCollaborationGuest") } }, { operator: "OR", builtInControls: [], authenticationStrength: { id: "pt" } });
+  const r = run([p], { strengths: st, ...CT({}) });
+  const f = find(r, "guest-auth-strength-unsatisfiable");
+  assert.equal(f.length, 1);
+  assert.match(f[0].result.detail, /TAP does not work for guest users/);
+  assert.equal(find(r, "guest-auth-strength-swap-for-mfa").length, 0, "PR + TAP is not the MFA strength");
+  const m = M.guestMatrix([p], st, CT({}));
+  assert.equal(m.cells.get("b2bCollaborationGuest|strength").v, "blocked");
+});
+
+test("a TAP-only strength cannot be met by a guest even with MFA trust on", () => {
+  const st = new Map([["t", { id: "t", displayName: "TAP only", allowedCombinations: ["temporaryAccessPassOneTime"] }]]);
+  const p = pol("CA-tap", { users: { includeUsers: ["All"] } }, { operator: "OR", builtInControls: [], authenticationStrength: { id: "t" } });
+  const f = find(run([p], { strengths: st, ...CT({ isMfaAccepted: true }) }), "guest-auth-strength-unsatisfiable")[0];
+  assert.match(f.result.detail, /not here and not through trust/);
+});
+
+test("types an unconditional All-resources block shuts out are not an MFA gap", () => {
+  const CA099 = pol("CA099-BLOCK-Global-Block-Non-persona", { users: { includeUsers: ["All"], excludeGroups: ["g1", "g2", "g3"] },
+    applications: { includeApplications: ["All"], excludeApplications: ["a0e84e36-b067-4d5c-ab4a-3db38e598ae2"] } }, { operator: "OR", builtInControls: ["block"] });
+  assert.equal(find(run([CA000, CA400, CA099], CT({})), "ext-type-no-mfa").length, 0);
+  // a conditional block (country) lets part of the type through — still a gap
+  const geo = { ...CA099, conditions: { ...CA099.conditions, locations: { includeLocations: ["All"], excludeLocations: ["nl"] } } };
+  assert.equal(find(run([CA000, CA400, geo], CT({})), "ext-type-no-mfa").length, 1);
+});

@@ -277,11 +277,22 @@ const MSLearn = (() => {
     hardwareOath: "OATH hardware token",
   };
   // …and the ones an external user CAN complete in the resource tenant.
-  const RESOURCE_OK_METHODS = ["sms", "voice", "push", "softwareOath", "temporaryAccessPass", "password"];
+  const RESOURCE_OK_METHODS = ["sms", "voice", "push", "softwareOath", "password"];
+  // 25475: A TEMPORARY ACCESS PASS IS NEITHER. Microsoft's external-users
+  // table lists it in neither column, and the security-info registration
+  // template says it outright: a Temporary Access Pass does not work for
+  // guest users. Until 25475 it sat on the resource-tenant list above, so a
+  // strength like "Phishing-resistant MFA + TAP" looked satisfiable by any
+  // guest and the guest checks stayed silent on the guest-admin policies
+  // that use it.
+  const isNeverForGuests = (m) => /^temporaryAccessPass/i.test(m);
   // A combination is satisfiable in the resource tenant when every method in
   // it is. allowedCombinations are compound ("fido2", "password,sms").
   const comboMethods = (c) => String(c || "").split(",").map((x) => x.trim()).filter(Boolean);
   const comboIsHomeOnly = (c) => comboMethods(c).some((m) => HOME_ONLY_METHODS[m]);
+  // can a guest complete this combination in THIS tenant? at home (trust on)?
+  const comboUsableHere = (c) => { const m = comboMethods(c); return m.length > 0 && !m.some((x) => HOME_ONLY_METHODS[x] || isNeverForGuests(x)); };
+  const comboUsableAtHome = (c) => { const m = comboMethods(c); return m.length > 0 && !m.some(isNeverForGuests); };
   // IS THIS STRENGTH JUST "REQUIRE MFA" WEARING A DIFFERENT HAT?
   // Microsoft's built-in strengths table says of the MFA strength: "The same
   // set of combinations that can be used to satisfy the Require multifactor
@@ -300,7 +311,10 @@ const MSLearn = (() => {
     const m = comboMethods(c);
     if (m.length > 1 && m.includes("password")) return true;          // password + something you have
     if (m.some((x) => /^federated(SingleFactor|MultiFactor)$/i.test(x))) return true;
-    if (m.some((x) => /^temporaryAccessPass/i.test(x))) return true;
+    // 25475: NOT a TAP. It is in the built-in MFA strength, but it is just as
+    // often the escape hatch of a custom phishing-resistant strength
+    // ("Phishing-resistant MFA + TAP"), and reading it as the MFA signature
+    // told such a policy to swap to Require MFA — a downgrade.
     return false;
   };
   const isMfaEquivalent = (asp) => (asp && asp.allowedCombinations || []).some(MFA_EQUIV_SIGNATURE);
@@ -501,19 +515,41 @@ const MSLearn = (() => {
     return ((ctx && ctx.raws) || []).some((q) => q.id !== exceptId && isActive(q) && hasMfa(q) && !grants(q).includes("block")
       && appsInc(q).includes("All") && extScope(q, [type], true));
   }
+  // 25475: A BLOCK IS COVERAGE TOO. A type that an unconditional block on All
+  // resources shuts out (the CloudFellows CA099 "block everyone outside a
+  // persona") cannot sign in at all, so there is no MFA gap for it — the
+  // 25469 check named Other external users on CA400 while CA099 blocks them.
+  // Unconditional means no location, platform, client-app, risk, device or
+  // authentication-flow condition: any of those lets part of the type through.
+  function fullBlock(q) {
+    if (!isActive(q) || !grants(q).includes("block") || !appsInc(q).includes("All")) return false;
+    const c = q.conditions || {};
+    const loc = c.locations || {}, pl = c.platforms || {}, cat = c.clientAppTypes || [];
+    if ((loc.includeLocations || []).length || (loc.excludeLocations || []).length) return false;
+    if ((pl.includePlatforms || []).length || (pl.excludePlatforms || []).length) return false;
+    if (cat.length && !cat.includes("all")) return false;
+    if ((c.signInRiskLevels || []).length || (c.userRiskLevels || []).length || (c.servicePrincipalRiskLevels || []).length) return false;
+    if (c.devices?.deviceFilter || c.authenticationFlows?.transferMethods || (c.insiderRiskLevels && String(c.insiderRiskLevels) !== "")) return false;
+    return true;
+  }
+  function blockedBy(type, ctx) {
+    return ((ctx && ctx.raws) || []).find((q) => fullBlock(q) && extScope(q, [type], true)) || null;
+  }
   function extMfaGap(p, ctx) {
-    const none = { types: [], allUsersExcl: [], dcSkipped: false };
+    const none = { types: [], allUsersExcl: [], dcSkipped: false, blocked: [] };
     if (!hasMfa(p) || grants(p).includes("block") || allUsers(p) || legacyIncExt(p)) return none;
     if (!appsInc(p).includes("All")) return none;
     const inc = incExt(p);
     if (!inc || !inc.types.length) return none;
     let types = EXT_TYPES.filter((t) => t !== SP && !inc.types.includes(t) && !mfaReaches(t, ctx, p.id));
+    const blocked = [];
+    types = types.filter((t) => { const b = blockedBy(t, ctx); if (b) blocked.push({ type: t, by: b.displayName || "(unnamed policy)" }); return !b; });
     let dcSkipped = false;
     if (types.includes(DIRECT_CONNECT) && dcInboundOpen(ctx) === false) { types = types.filter((t) => t !== DIRECT_CONNECT); dcSkipped = true; }
     const allUsersExcl = ((ctx && ctx.raws) || [])
       .filter((q) => isActive(q) && allUsers(q) && hasMfa(q) && appsInc(q).includes("All") && (legacyExcExt(q) || (excExt(q) && excExt(q).allTenants)))
       .map((q) => q.displayName || "(unnamed policy)");
-    return { types, allUsersExcl, dcSkipped };
+    return { types, allUsersExcl, dcSkipped, blocked };
   }
 
   // ---- checks database ----
@@ -1105,21 +1141,25 @@ const MSLearn = (() => {
         if (!asp) return null;
         const combos = asp.allowedCombinations || [];
         if (!combos.length) return null;
-        // Satisfiable here if ANY combination is free of home-only methods.
-        const usable = combos.filter((c) => !comboIsHomeOnly(c));
-        if (usable.length) return null;
+        // Satisfiable here if ANY combination a guest can complete here.
+        if (combos.some(comboUsableHere)) return null;
         const sc = extScope(p, CROSS_TENANT_TYPES);
         if (!sc) return null;
         const methods = [...new Set(combos.flatMap(comboMethods).map((m) => HOME_ONLY_METHODS[m]).filter(Boolean))];
+        const tap = combos.some((c) => comboMethods(c).some(isNeverForGuests));
+        const atHome = combos.some(comboUsableAtHome) && methods.length;
         const gt = guestTrust(ctx, "isMfaAccepted");
-        const trust = gt.ok === true
-          ? gt.text + " So a guest CAN meet it — but only if their own organisation has deployed one of these methods; trust passes a claim through, it does not create a credential."
-          : gt.text;
+        const trust = !atHome
+          ? "No combination of it can be met by a guest at all — not here and not through trust."
+          : gt.ok === true
+            ? gt.text + " So a guest CAN meet it — but only if their own organisation has deployed one of these methods; trust passes a claim through, it does not create a credential."
+            : gt.text;
+        const tapNote = tap ? " The strength also allows a Temporary Access Pass, but a TAP does not work for guest users — it helps your own accounts only." : "";
         return {
-          detail: `Policy "${p.displayName}" requires the authentication strength "${esc(asp.displayName || ref.displayName || ref.id)}" and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). Every combination that strength allows needs ${methods.join(" or ")}, which an external user can only complete in their home tenant. ${trust}${partialNote(sc)}`,
+          detail: `Policy "${p.displayName}" requires the authentication strength "${esc(asp.displayName || ref.displayName || ref.id)}" and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). Every combination that strength allows needs ${methods.join(" or ")}, which an external user can only complete in their home tenant.${tapNote} ${trust}${partialNote(sc)}`,
           impactedResources: [
             ...sc.types.map(extLabel),
-            `Strength "${asp.displayName || ref.id}": ${combos.length} combination${combos.length === 1 ? "" : "s"}, all home-tenant only`,
+            `Strength "${asp.displayName || ref.id}": ${combos.length} combination${combos.length === 1 ? "" : "s"}, none a guest can complete here`,
             ...methods.map((m) => `Home tenant only: ${m}`),
           ],
         };
@@ -1539,6 +1579,7 @@ const MSLearn = (() => {
           detail: `Policy "${p.displayName}" requires MFA of ${incExt(p).types.map(extLabel).join(", ")}, but not of ${g.types.map(extLabel).join(", ")} — and no other enabled or report-only policy requires MFA of ${g.types.length === 1 ? "that type" : "those types"} on All resources${g.allUsersExcl.length ? ` (${g.allUsersExcl.map((q) => `"${q}"`).join(", ")} require${g.allUsersExcl.length === 1 ? "s" : ""} MFA of All users but exclude${g.allUsersExcl.length === 1 ? "s" : ""} them)` : ""}. They reach your resources asking nothing of them here.`
             + (g.types.includes(DIRECT_CONNECT) ? ` B2B direct connect is enabled inbound in this tenant, so direct connect users do arrive — and they can only meet MFA through inbound MFA trust.` : "")
             + (g.dcSkipped ? " B2B direct connect is left out of this finding: it is blocked inbound in cross-tenant access settings, so no direct connect user can arrive today." : "")
+            + (g.blocked.length ? ` Left out as well, because an unconditional block stops them signing in at all: ${g.blocked.map((x) => `${extLabel(x.type)} ("${x.by}")`).join(", ")}.` : "")
             + " Guests who are ALSO members of a group an MFA policy includes are covered by that policy; the rest are not.",
           impactedResources: g.types.map(extLabel),
           addTypes: g.types.slice(),
@@ -1648,7 +1689,8 @@ const MSLearn = (() => {
         const asp = ref?.id && ctx?.strengths ? ctx.strengths.get(ref.id) : null;
         if (!asp) return { v: "ok" };
         const combos = asp.allowedCombinations || [];
-        if (!combos.length || combos.some((c) => !comboIsHomeOnly(c))) return { v: "ok" };
+        if (!combos.length || combos.some(comboUsableHere)) return { v: "ok" };
+        if (!combos.some(comboUsableAtHome)) return { v: "blocked", why: `"${asp.displayName || ref.id}" has no combination a guest can complete, here or at home` };
         const t = guestTrust(ctx, "isMfaAccepted").ok;
         return t === true
           ? { v: "trust", why: `"${asp.displayName || ref.id}" is home-tenant methods only; MFA trust is on, so it depends on the home tenant deploying them` }

@@ -119,6 +119,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 269,
+      title: "Guest checks — TAP is not a guest method; an unconditional block counts as MFA coverage",
+      tools: ["Checks"],
+      builds: [25475],
+      risk: "high",
+      what: "js/mslearn.js: RESOURCE_OK_METHODS without temporaryAccessPass; isNeverForGuests, comboUsableHere, comboUsableAtHome; guest-auth-strength-unsatisfiable and the matrix strength verdict use them, with a TAP note and a not-even-through-trust branch; MFA_EQUIV_SIGNATURE drops the TAP clause; fullBlock / blockedBy feed extMfaGap.blocked and the ext-type-no-mfa detail.",
+      why: "Running the checks over Mihai's CloudFellows baseline export: the guest-admin policies (PR + TAP) and CA508 were silent, and the no-MFA finding on CA400 was moot because CA099 blocks those types.",
+      test: [
+        "CloudFellows baseline tenant with a B2B guest in CAB-SEC-U-Persona-GuestAdmins: 📘 shows Authentication strength guests cannot complete for CA502, CA503, CA506, CA507 and CA508, each saying a TAP does not work for guest users.",
+        "No policy on the Phishing-resistant MFA + TAP strength appears under This strength is Require MFA already.",
+        "With CA099 in scope (Include Off ticked), External user types that no MFA policy reaches does not fire on CA400. Untick CA099's state or add a country condition to a copy: it fires again.",
+      ],
+      files: ["js/mslearn.js", "tools/mslearn-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 268,
       title: "Bypass checks — security info registration, device code flow, sign-in frequency column",
       tools: ["Checks"],
