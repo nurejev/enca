@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25466, date: "2026-09-22", title: "The policy you opened stays marked in the list",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "🗂 Picking a policy in the list opened it on the right and left nothing on the left to say which row that was — so after a scroll, or a tick in a checkbox, you had lost your place. The open policy's row is now marked with an accent bar and a tint, and keeps that mark while you work: ticking a checkbox, changing a filter, searching or switching a state chip all redraw the list, and the mark comes back each time. Picking another row moves it; Back to results clears it." },
+    ],
+  },
+  {
     build: 25465, date: "2026-09-22", title: "One or the other, said before the save",
     items: [
       { kind: "fixed", tool: "Policy building blocks", text: "🏗 An authentication strength and Require multifactor authentication cannot both be set — Entra refuses the pair, and the portal greys one out the moment you pick the other. Nothing here stopped you ticking both, and you found out at the save, as a 400 that named no field. Save is now blocked while both are set, in Entra's own words, with the way out: pick the strength, or pick the control and set the strength to none. Block policies are unaffected." },

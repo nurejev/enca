@@ -69,11 +69,28 @@ const Workspace = (() => {
     document.dispatchEvent(new Event('enca:workspace-updated'));
   }
   function inspect(id) { inspected=id;renderInspector();if(typeof matchMedia!=='undefined'&&matchMedia('(max-width:900px)').matches){$('workspaceInspector').scrollIntoView({block:'start'});$('workspaceInspector').querySelector('button')?.focus();} }
+  // THE ROW WHOSE POLICY IS OPEN ON THE RIGHT STAYS MARKED ON THE LEFT
+  // (25466, Mihai: "when selecting a policy, it should stay highlighted").
+  // The list is redrawn on every refresh — a tick in a checkbox, a filter,
+  // a search, a state chip — so a class added on the click would be wiped by
+  // the very next redraw. It is re-applied from `inspected` here instead,
+  // and this runs after every redraw because refreshViews writes the table
+  // and only then calls Workspace.update → renderInspector. aria-current
+  // carries the same fact to a screen reader. Back to results clears it,
+  // since that sets inspected to null and comes back through here.
+  function markInspectedRow() {
+    document.querySelectorAll('#ptable tr.is-inspected').forEach(r=>{r.classList.remove('is-inspected');r.removeAttribute('aria-current');});
+    if(!inspected||!current||current.view!=='list')return;
+    const b=[...document.querySelectorAll('#ptable [data-open]')].find(x=>x.dataset.open===inspected);
+    const tr=b&&b.closest('tr');
+    if(tr){tr.classList.add('is-inspected');tr.setAttribute('aria-current','true');}
+  }
   function renderInspector() {
     const host=$('workspaceInspector');
     const p=current?.visible.find(p=>p.id===inspected);
     host.hidden=!p || current.view!=='list';
     $('policyWorkspace').classList.toggle('with-inspector',!!p&&current.view==='list');
+    markInspectedRow();
     if(!p)return;
     host.dataset.section=inspectorTab;
     host.innerHTML=`<div class="workspace-panel-head"><button class="btn sm" data-inspector-close>Back to results</button><button class="btn sm" data-inspector-detail>Open wide & actions</button></div>
