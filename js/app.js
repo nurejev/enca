@@ -20018,6 +20018,9 @@ This is a directory write. Nothing else changes.`)) return;
         ]);
         strengths.forEach(s => gcCtx.strengths.set(s.id, s));
         gcCtx.namedLocations = locations;
+        // 25475: the group names the tenant load already resolved — the
+        // duplicate-name and allow-list checks name groups, not GUIDs.
+        gcCtx.names = { ...((policyResolve && policyResolve.names) || {}), ...gcCtx.names };
         // Customize behavior names a placeholder app: resolve its name for the finding.
         const bs = GapCheck.baselineScopes(gcCtx.caSettings);
         if (bs.mode === "custom") {

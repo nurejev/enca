@@ -119,6 +119,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 270,
+      title: "Bypass checks — duplicate group names and allow-list block completeness",
+      tools: ["Checks"],
+      builds: [25476],
+      risk: "medium",
+      what: "js/gapcheck.js tenantChecks: checkDuplicateGroupNames (ids referenced by active policies grouped by trimmed lower-case display name from ctx.names) and checkAllowListBlocks (hasBlock + All users + All resources + unconditional + 3 or more excludeGroups; missed include groups, groups excluded by 2 or more other All-users policies, ungroupable external types). Scorecard link. js/app.js runGapCheckScan: gcCtx.names seeded from policyResolve.names.",
+      why: "The review of the CloudFellows baseline export found the duplicate Externals group and three holes in CA099 by hand; no check could see any of them.",
+      test: [
+        "CloudFellows baseline tenant, 🛡 with Include Off ticked: Group Hygiene names two groups called CAB-SEC-U-Persona-Externals and lists CA300/CA301/CA304/CA310 on one and CA302–CA308 on the other.",
+        "Same run: Allow-List Block on CA099 names CAD-SEC-U-DG-INT (included by CA200), CAB-SEC-U-TeamsSharedDevices (excluded by 7 policies) and the service provider / direct connect / other external types.",
+        "After fixing all three in the tenant and ⟳ Refresh: both findings are gone.",
+        "Group names read as names, not GUIDs, on a real tenant (not only in the demo).",
+      ],
+      files: ["js/gapcheck.js", "js/app.js", "tools/gapcheck-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 269,
       title: "Guest checks — TAP is not a guest method; an unconditional block counts as MFA coverage",
       tools: ["Checks"],

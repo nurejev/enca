@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25476, date: "2026-09-22", title: "Bypass checks: groups that share a name, and allow-list blocks with gaps",
+    items: [
+      { kind: "new", tool: "Checks", text: "🛡 Two groups with the same display name look like one everywhere — so one policy can include one and another exclude the other without anyone noticing. Every such pair your policies use is now reported, with the policies on each side." },
+      { kind: "new", tool: "Checks", text: "🛡 A block on everyone except a list of groups (block non-persona) is checked against the rest of the policy set: a group another policy includes, or the shared-device accounts the other policies exclude, would be blocked from everything the moment it is switched on. It also says when it blocks service provider (GDAP), B2B direct connect and other external users, who can never be in a group." },
+    ],
+  },
+  {
     build: 25475, date: "2026-09-22", title: "MS Learn checks: TAP is not a guest method, and a block counts as coverage",
     items: [
       { kind: "fixed", tool: "Checks", text: "📘 A strength that allows a Temporary Access Pass was treated as one guests can meet. A TAP does not work for guests, so a guest-admin policy on Phishing-resistant MFA + TAP is now reported as unsatisfiable, with what trust would and would not change. The same strength is no longer mistaken for plain Require MFA, which could have suggested weakening it." },

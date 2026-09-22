@@ -102,3 +102,30 @@ test("the Sign-in frequency column counts sign-in frequency only — never persi
   const withSif = { ...adminPb, sessionControls: { signInFrequency: { isEnabled: true, value: 4, type: "hours" } } };
   assert.ok(!run([MFA_ALL, LEGACY_ALL, withSif]).findings.some((f) => f.title === "Admins: missing Sign-in frequency"));
 });
+
+// ---- 25475: duplicate group names and allow-list blocks ----
+test("two groups with one display name are reported, naming both ids and their policies", () => {
+  const a = pol("CA300 MFA", { users: { includeGroups: ["ext-1"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const b = pol("CA302 Session", { users: { includeGroups: ["ext-2"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const r = run([MFA_ALL, LEGACY_ALL, a, b], { names: { "ext-1": "CAB-SEC-U-Persona-Externals", "ext-2": "CAB-SEC-U-Persona-Externals" } });
+  const f = cat(r, "Group Hygiene");
+  assert.equal(f.length, 1);
+  assert.match(f[0].description, /ext-1 — used by CA300 MFA; ext-2 — used by CA302 Session/);
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, a, b], { names: { "ext-1": "A", "ext-2": "B" } }), "Group Hygiene").length, 0);
+});
+
+test("an allow-list block that misses an included group, a commonly excluded group, and the ungroupable types", () => {
+  const allow = pol("CA099 Block non-persona", { users: { includeUsers: ["All"], excludeGroups: ["bg", "int", "adm"] } }, { operator: "OR", builtInControls: ["block"] });
+  const int = pol("CA200", { users: { includeGroups: ["int", "dg-int"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const x1 = pol("CA000", { users: { includeUsers: ["All"], excludeGroups: ["bg", "rooms"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const x2 = pol("CA007", { users: { includeUsers: ["All"], excludeGroups: ["bg", "rooms"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const f = cat(run([LEGACY_ALL, allow, int, x1, x2], { names: { "dg-int": "CAD-SEC-U-DG-INT", rooms: "CAB-SEC-U-TeamsSharedDevices" } }), "Allow-List Block");
+  assert.equal(f.length, 1);
+  assert.equal(f[0].severity, "high");
+  assert.match(f[0].description, /CAD-SEC-U-DG-INT" \(included by CA200\)/);
+  assert.match(f[0].description, /CAB-SEC-U-TeamsSharedDevices" \(excluded by 2 policies\)/);
+  assert.match(f[0].description, /service provider \(GDAP\) admins/);
+  // a country block with the same exclusions is not an allow-list
+  const geo = { ...allow, conditions: { ...allow.conditions, locations: { includeLocations: ["All"], excludeLocations: ["nl"] } } };
+  assert.equal(cat(run([LEGACY_ALL, geo, int, x1, x2]), "Allow-List Block").length, 0);
+});

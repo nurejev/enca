@@ -450,6 +450,82 @@ const GapCheck = (() => {
         "Create: Users → All users (exclude break-glass, and the resource accounts of Teams Android devices that still use it), Target resources → All resources, Conditions → Authentication flows → Device code flow, Grant → Block access. Run it report-only first and look at who still uses the flow. Why: blocking the flow removes device-code phishing outright; the few legitimate uses are known and can be excluded by name.");
     })();
 
+    // 11 (25475): two groups, one name. Every screen, export and catalog shows
+    // groups by display name, so two groups sharing one look like one — and a
+    // policy set that uses one here and the other there splits a persona in
+    // two without anybody seeing it (the CloudFellows baseline had two
+    // CAB-SEC-U-Persona-Externals: the MFA policy on one, CA000's exclusion
+    // on the other, so members of the second got no MFA from either).
+    (function checkDuplicateGroupNames() {
+      const names = ctx.names || {};
+      const uses = new Map();   // id -> Set(policy names)
+      for (const p of raws.filter(isActive)) {
+        for (const id of [...(U(p).includeGroups || []), ...(U(p).excludeGroups || [])]) {
+          if (!uses.has(id)) uses.set(id, new Set());
+          uses.get(id).add(p.displayName || "(unnamed policy)");
+        }
+      }
+      const byName = new Map();
+      for (const id of uses.keys()) {
+        const n = names[id];
+        if (!n || n === id) continue;
+        const k = String(n).trim().toLowerCase();
+        if (!byName.has(k)) byName.set(k, { name: n, ids: [] });
+        byName.get(k).ids.push(id);
+      }
+      for (const { name, ids } of byName.values()) {
+        if (ids.length < 2) continue;
+        const lines = ids.map((id) => `${id} — used by ${[...uses.get(id)].slice(0, 6).join(", ")}${uses.get(id).size > 6 ? ` and ${uses.get(id).size - 6} more` : ""}`);
+        F(out, "high", "Group Hygiene", `${ids.length} different groups are all called "${name}"`, null,
+          `Conditional Access points at ${ids.length} separate groups that share the display name "${name}": ${lines.join("; ")}. Everything that shows a group by name shows them as one, so a policy that includes one and a policy that excludes the other look consistent while they are not — a member of one group is treated by one set of policies and a member of the other by another.`,
+          `Pick the group to keep. Move the members of the other into it, point every policy listed above at the one you keep (include and exclude alike), then delete or rename the other so the name is unique again. Why: a persona is a group; two groups under one name is two personas nobody can tell apart.`);
+      }
+    })();
+
+    // 12 (25475): an ALLOW-LIST block — block All users on All resources,
+    // unconditionally, excluding the groups that are allowed in (CloudFellows
+    // CA099 "block non-persona"). It is only safe when it excludes every group
+    // another policy was written for. Two ways to miss one: a group another
+    // policy INCLUDES, or a group the other All-users policies all agree to
+    // exclude (the shared-device accounts) — both get blocked outright.
+    (function checkAllowListBlocks() {
+      const names = ctx.names || {};
+      const nm = (id) => names[id] && names[id] !== id ? `"${names[id]}"` : id;
+      const uncond = (p) => {
+        const c = p.conditions || {}, loc = c.locations || {}, pl = c.platforms || {}, cat = c.clientAppTypes || [];
+        return !(loc.includeLocations || []).length && !(loc.excludeLocations || []).length
+          && !(pl.includePlatforms || []).length && !(cat.length && !cat.includes("all"))
+          && !(c.signInRiskLevels || []).length && !(c.userRiskLevels || []).length
+          && !c.devices?.deviceFilter && !c.authenticationFlows?.transferMethods;
+      };
+      const lists = raws.filter((p) => isActive(p) && hasBlock(p) && allUsers(p) && allApps(p) && uncond(p) && (U(p).excludeGroups || []).length >= 3);
+      for (const b of lists) {
+        const allowed = new Set(U(b).excludeGroups || []);
+        const others = raws.filter((p) => p.id !== b.id && isActive(p));
+        const missedInc = new Map();
+        for (const p of others) for (const id of U(p).includeGroups || []) {
+          if (allowed.has(id)) continue;
+          if (!missedInc.has(id)) missedInc.set(id, []);
+          missedInc.get(id).push(p.displayName || "(unnamed policy)");
+        }
+        const exclCount = new Map();
+        for (const p of others.filter(allUsers)) for (const id of U(p).excludeGroups || []) exclCount.set(id, (exclCount.get(id) || 0) + 1);
+        const missedExc = [...exclCount].filter(([id, n]) => n >= 2 && !allowed.has(id) && !missedInc.has(id));
+        const ext = U(b).excludeGuestsOrExternalUsers;
+        const extTypes = ext ? String(ext.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()) : [];
+        const blockedTypes = ["serviceProvider", "b2bDirectConnectUser", "otherExternalUser"].filter((t) => !extTypes.includes(t) && !(U(b).excludeUsers || []).includes("GuestsOrExternalUsers"));
+        const TL = { serviceProvider: "service provider (GDAP) admins", b2bDirectConnectUser: "B2B direct connect users", otherExternalUser: "other external users" };
+        if (!missedInc.size && !missedExc.length && !blockedTypes.length) continue;
+        const parts = [];
+        if (missedInc.size) parts.push(`groups other policies INCLUDE but this block does not exclude — their members are blocked from everything: ${[...missedInc].map(([id, ps]) => `${nm(id)} (included by ${ps.slice(0, 3).join(", ")}${ps.length > 3 ? "…" : ""})`).join("; ")}`);
+        if (missedExc.length) parts.push(`groups the other All-users policies exclude but this one does not: ${missedExc.map(([id, n]) => `${nm(id)} (excluded by ${n} policies)`).join("; ")}`);
+        if (blockedTypes.length) parts.push(`identities that can never be in a group, and so are blocked by it: ${blockedTypes.map((t) => TL[t]).join(", ")}`);
+        F(out, missedInc.size || missedExc.length ? "high" : "medium", "Allow-List Block", "Allow-list block does not let in everyone the other policies expect", b,
+          `This policy blocks All users on All resources except ${allowed.size} excluded groups — an allow-list. Anyone outside those groups is shut out the moment it is On. It misses: ${parts.join(". ")}.`,
+          `Where: this policy → Users → Exclude. Change: add ${[...(missedInc.size ? ["each group listed as included elsewhere (or take it out of the policy that includes it, if it only belongs to a rollout)"] : []), ...(missedExc.length ? ["the groups the other All-users policies exclude (typically the shared-device resource accounts)"] : []), ...(blockedTypes.length ? ["Guest or external users → the types listed, if you want them in (service provider users are how a CSP partner administers this tenant)"] : [])].join("; ")}. Why: an allow-list is only as good as its list — whatever is not on it is blocked from every resource.`);
+      }
+    })();
+
     // 8. Platform conditions without an unknown-platform block (user-agent spoofing)
     (function checkPlatformBypass() {
       const plat = (p) => p.conditions?.platforms || {};
@@ -907,7 +983,7 @@ const GapCheck = (() => {
       ? active.reduce((n, p) => n + (U(p).excludeUsers || []).length + (U(p).excludeGroups || []).length, 0) / active.length : 0;
 
     const least = [
-      ["No privileged/bypass exclusions flagged", 3, cap(100 - roleExcl * 25), ["Known CA Bypass Apps", "FOCI Token Sharing", "Resource Exclusion Bypass"]],
+      ["No privileged/bypass exclusions flagged", 3, cap(100 - roleExcl * 25), ["Known CA Bypass Apps", "FOCI Token Sharing", "Resource Exclusion Bypass", "Group Hygiene", "Allow-List Block"]],
       ["Guests covered by MFA or block", 2, guestCovered ? 100 : 0, ["Guest Authentication Strength", "Persona Coverage"]],
       ["Step-up (authentication context) in use", 1, stepUp ? 100 : 0, ["Protected Actions"]],
       ["Exclusion volume per policy", 2, cap(100 - Math.max(0, avgExc - 2) * 20), ["Swiss Cheese Model", "Break-Glass Coverage"]],
