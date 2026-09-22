@@ -1,10 +1,9 @@
 // ======================================================================
 // Overview — the home page, once a tenant is loaded. Beta 25419, queue 241.
 //
-// The constraint that shapes it: at sign-in ENCA holds the policy set and
-// nothing else. So everything here is one of three things — pure over the
-// loaded policies (free, instant, honest as long as it says "configured"),
-// the catalog comparison that already runs at sign-in, or the LAST RESULT of
+// The overview reuses the policy set and context already read at sign-in.
+// It presents local calculations, the existing catalog comparison, or the
+// last result of
 // an on-demand tool carrying the run it came from (js/runmeta.js). Anything
 // that needs a tenant-wide membership read stays behind its Run button,
 // which is where this app has always kept it; a home page that reads the
@@ -29,6 +28,7 @@ const Overview = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const n = (v) => (v == null ? "—" : Number(v).toLocaleString());
   const DAY = 86400000;
+  const icon = (tool, fallback) => typeof FlatIcons !== "undefined" ? FlatIcons.tool(tool) : esc(fallback || "");
 
   // The dated retirements the temporary tools exist for. A published date is
   // a fact about Microsoft, not about this tenant: each advisory carries its
@@ -80,34 +80,39 @@ const Overview = (() => {
     // `also` = { tool, label } is a second, smaller action on the tile
     const tile = (cls, num, label, sub, tool, also) => {
       const target = !tool ? "" : tool.startsWith("state:") ? ` data-ovstate="${esc(tool.slice(6))}"` : ` data-ovtool="${esc(tool)}"`;
-      return `<div class="db-tile${cls ? " " + cls : ""}${tool ? " clickable" : ""}"${tool ? `${target} role="button" tabindex="0"` : ""}><div class="n" title="${esc(String(num).replace(/<[^>]+>/g, ""))}">${num}</div><div class="l">${esc(label)}</div>${sub ? `<div class="s">${sub}</div>` : ""}${also ? `<button type="button" class="db-also" data-ovtool="${esc(also.tool)}">${esc(also.label)} ›</button>` : ""}</div>`;
+      const tag = tool ? "button" : "div";
+      return `<div class="db-tile${cls ? " " + cls : ""}"><${tag} class="db-tile-main"${tool ? ` type="button"${target}` : ""}><span class="n">${num}</span><span class="l">${esc(label)}</span>${sub ? `<span class="s">${sub}</span>` : ""}</${tag}>${also ? `<button type="button" class="db-also" data-ovtool="${esc(also.tool)}">${esc(also.label)} ›</button>` : ""}</div>`;
     };
-    // The policy counts themselves live in the workspace's Current snapshot
-    // panel beside this band; these tiles say what that panel does not.
+    // State totals live in the snapshot strip. These rows add context.
     const tiles = [
-      tile(st.ro ? "warn" : "", n(st.ro), "report-only", st.ro
+      tile(st.ro ? "warn" : "", n(st.ro), "Report-only", st.ro
         ? [roStale ? `${roStale} last modified 30+ days ago` : "", roUndated ? `date unavailable for ${roUndated}` : "", !roStale && !roUndated ? "all modified within 30 days" : ""].filter(Boolean).join(" · ")
         : "nothing staged", "state:report", { tool: "toolSignins", label: "validate with sign-ins" }),
-      tile("", n(changed.length), "modified in 30 days", [
+      tile("", n(changed.length), "Modified in 30 days", [
         changed.length ? `last: ${esc(changed[0].name)}, ${ago(changed[0].modified, now)}` : (undated < pols.length ? "no dated policy modified in 30 days" : ""),
         undated ? `date unavailable for ${undated}` : "",
       ].filter(Boolean).join(" · ") || "no dates available", "state:all", { tool: "toolAudit", label: "who changed what" }),
       d.baseline
-        ? tile(d.baseline.missing || d.baseline.outdated || d.baseline.conflict ? "warn" : "ok", esc(d.baseline.label), "baseline match",
-            `${n(d.baseline.missing)} missing · ${n(d.baseline.outdated)} outdated · ${n(d.baseline.conflict)} in conflict · ${n(d.baseline.coverage)}% covered`, "toolBaseline")
-        : tile("", "—", "baseline match", "no catalog matched", "toolBaseline"),
+        ? tile(d.baseline.missing || d.baseline.outdated || d.baseline.conflict ? "warn" : "ok", esc(d.baseline.label), "Baseline match",
+            `${n(d.baseline.missing)} missing · ${n(d.baseline.outdated)} outdated · ${n(d.baseline.conflict)} in conflict · ${n(d.baseline.coverage)}% of catalog matched`, "toolBaseline")
+        : tile("", "—", "Baseline match", "no catalog matched", "toolBaseline"),
       d.exclusions
-        ? tile("", n(d.exclusions.entities), "unique exclusion references",
+        ? tile("", n(d.exclusions.entities), "Unique exclusion references",
             `${exclusionKinds(d.exclusions.byKind) || "none"}${d.exclusions.policies ? ` in ${n(d.exclusions.policies)} polic${d.exclusions.policies === 1 ? "y" : "ies"}` : ""} — configured, not effective`, "toolExclusions")
         : "",
     ].join("");
-    const deadlines = DEADLINES.map((x) => advisory(x, (d.impact || {})[x.tool], now)).join("");
-    const advSummary = DEADLINES.map((x) => `${x.icon} ${esc(x.short || x.label)} ${x.cohorts.map((c) => esc(new Date(c.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))).join(" / ")}`).join(" · ");
-    return `<div class="db-band">
-      <h3>What the policy set shows <span class="mini muted">— configuration, read from the loaded policies; nothing here is a measure of who is protected</span></h3>
+    return `<aside id="ovContext" class="db-band db-context" aria-labelledby="ovContextHeading">
+      <h3 id="ovContextHeading">Policy context</h3>
       <div class="db-tiles">${tiles}</div>
-      <details class="db-advs"${d.advisoriesOpen ? " open" : ""}><summary>Upcoming changes <span class="mini muted">· ${advSummary}</span></summary><div class="db-deads">${deadlines}</div></details>
-    </div>`;
+      <p class="db-context-note mini muted">Configuration from the loaded snapshot. Effective user impact needs a check.</p>
+    </aside>${d.showAdvisories === false ? "" : advisories(d)}`;
+  }
+
+  // Published dates remain available without interrupting the review queue.
+  function advisories(d = {}) {
+    const deadlines = DEADLINES.map((x) => advisory(x, (d.impact || {})[x.tool], d.now || Date.now())).join("");
+    const advSummary = DEADLINES.map((x) => `${esc(x.short || x.label)} ${x.cohorts.map((c) => esc(new Date(c.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))).join(" / ")}`).join(" · ");
+    return `<details class="db-advs"${d.advisoriesOpen ? " open" : ""}><summary>Upcoming changes <span class="mini muted">· ${advSummary}</span></summary><div class="db-deads">${deadlines}</div></details>`;
   }
 
   // Every kind Exclusions.collect can produce, so the breakdown adds up to
@@ -132,7 +137,7 @@ const Overview = (() => {
     };
     const soon = x.cohorts.some((c) => daysUntil(c.at, now) <= 60);
     return `<div class="db-adv${soon ? " soon" : ""}">
-      <div class="db-adv-h">${x.icon} <b>${esc(x.label)}</b> <span class="mini muted">published advisory · <a href="${esc(x.source)}" target="_blank" rel="noopener">Microsoft</a>, checked ${esc(x.verified)}</span></div>
+      <div class="db-adv-h">${icon(x.tool, x.icon)} <b>${esc(x.label)}</b> <span class="mini muted">published advisory · <a href="${esc(x.source)}" target="_blank" rel="noopener">Microsoft</a>, checked ${esc(x.verified)}</span></div>
       <div class="db-adv-c">${x.cohorts.map((c) => `<span>${esc(c.who)}: ${when(c.at)}</span>`).join("")}${x.note ? `<span class="mini muted">${esc(x.note)}</span>` : ""}</div>
       <div class="db-adv-i">tenant impact: ${impact && impact.text ? `<b>${esc(impact.text)}</b>` : `<span class="db-na">not assessed</span>`} <button type="button" class="fchip" data-ovtool="${esc(x.tool)}">${impact && impact.text ? "Open" : "Assess"}</button></div>
     </div>`;
@@ -176,15 +181,15 @@ const Overview = (() => {
       else if (c.stale) { state = `Previous snapshot · run #${esc(c.meta.id)} at ${t(c.meta.at)} — policies reloaded since`; cls = " stale"; }
       else { state = `<b>${esc(c.headline.n)}</b> ${esc(c.headline.unit)} · run #${esc(c.meta.id)} at ${t(c.meta.at)} · ${esc(c.meta.completeness)}`; if (/partial|incomplete|stopped/i.test(c.meta.completeness || "")) cls = " partial"; }
       return `<div class="db-check${cls}${c.never ? " never" : ""}">
-        <div class="t">${c.icon} ${esc(c.label)}<small>${esc(c.what || "")}</small></div>
+        <div class="t">${icon(c.tool, c.icon)} ${esc(c.label)}<small>${esc(c.what || "")}</small></div>
         <div class="s">${state}</div>
         <div class="a">${c.never ? "" : `<button type="button" class="fchip" data-ovtool="${esc(c.tool)}">Open</button>`}<button type="button" class="fchip${c.stale ? " active" : ""}" data-ovrun="${esc(c.run)}">${esc(c.never ? "Run check" : c.stale ? "Run again" : c.runLabel || "Run again")}</button></div>
       </div>`;
     };
-    return `<div class="db-band">
-      <h3>Your checks <span class="mini muted">— on demand; each result carries the run it came from</span></h3>
+    return `<section class="db-band db-check-section" aria-labelledby="ovChecksHeading">
+      <h3 id="ovChecksHeading">Your checks <span class="mini muted">Run when needed</span></h3>
       <div class="db-checks">${rows.map(row).join("")}</div>
-    </div>`;
+    </section>`;
   }
 
   // ---- Worth a look first (25420; findings with evidence 25423) ----
@@ -215,17 +220,18 @@ const Overview = (() => {
       <span class="sv">${esc(SEV[x.sev] || x.sev)}</span>
       <span class="tx">${esc(x.text)}${x.sub ? ` <span class="mini muted">— ${esc(x.sub)}</span>` : ""}</span>
       ${evidenceChip(x.evidence)}
-      <span class="to mini">${x.icon || ""} ${esc(x.toolLabel || "")} ${open ? "▴" : "▾"}</span>
+      <span class="to mini">${icon(x.tool, x.icon)} ${esc(x.toolLabel || "")} ${open ? "▴" : "▾"}</span>
     </button>${open ? evidence(x, opts) : ""}</div>`;
     };
     const empty = `<div class="db-worth-empty mini muted">Nothing critical or high in the loaded policy set${w.provisional ? " on a first pass" : ""} — the tools below go deeper than this band can.</div>`;
     const more = items.length > SHOW ? `<button type="button" class="db-more" data-ovshowall>${opts.showAll ? "Show the top three" : `View all ${items.length} findings`}</button>` : "";
-    return `<div id="ovWorth" class="db-band">
-      <h3>Worth a look first <span class="mini muted">— the highest-severity findings the loaded policies show · ${w.zt ? `configuration score ${esc(w.zt.overall)}/100 from the 🛡 run${w.zt.at ? ` at ${esc(w.zt.at)}` : ""} — findings, not effective protection` : `<span class="db-na">configuration checks — partial</span>`}</span></h3>
+    return `<section id="ovWorth" class="db-band db-findings" aria-labelledby="ovWorthHeading">
+      <h3 id="ovWorthHeading">Worth a look first</h3>
+      <p class="db-assessment mini muted">${w.zt ? `configuration score ${esc(w.zt.overall)}/100 from the 🛡 run${w.zt.at ? ` at ${esc(w.zt.at)}` : ""} — findings, not effective protection` : `<span class="db-na">configuration checks — partial</span>`}</p>
       <div class="db-worths">${shown.length ? shown.map(line).join("") : empty}</div>
       ${more}
-      ${w.provisional ? `<div class="db-worth-note mini muted">${esc(w.provisional)}</div>` : ""}
-    </div>`;
+      ${w.provisional ? `<details class="db-assessment-detail"><summary>About this assessment</summary><div class="db-worth-note mini muted">${esc(w.provisional)}</div></details>` : ""}
+    </section>`;
   }
   // The evidence panel for one finding. Policy facts come from the view
   // models the app resolves (original names, scope, grant logic, exclusions);
@@ -357,6 +363,6 @@ const Overview = (() => {
     </details>`;
   }
 
-  return { header, lead, tenant, checks, worth, evidence, map, normalize, diff, controls, CONTROL_ROWS, DEADLINES, exclusionKinds };
+  return { header, lead, tenant, advisories, checks, worth, evidence, map, normalize, diff, controls, CONTROL_ROWS, DEADLINES, exclusionKinds };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = { Overview };

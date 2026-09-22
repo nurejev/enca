@@ -19651,12 +19651,14 @@ This is a directory write. Nothing else changes.`)) return;
       const impact = {};
       if (svRes && svRes.summary) { const x = svRes.summary; impact.toolSmsVoice = { text: `${x.blocking + x.migrate} user${x.blocking + x.migrate === 1 ? "" : "s"} still on SMS/voice (${x.blocking} blocking)${svRes.usersPartial ? " — partial read" : ""}` }; }
       if (moRes && moRes.summary) { const x = moRes.summary; impact.toolMemberOf = { text: `${x.groups} group${x.groups === 1 ? "" : "s"} still using memberOf${x.caPolicies ? `, ${x.caPolicies} in Conditional Access` : ""}${moRes.allSurfaces ? "" : " — not every surface read"}` }; }
-      html += Overview.tenant({ ...base,
+      html += `<div class="db-primary"><section id="ovWorth" class="db-band db-findings" aria-labelledby="ovWorthHeading"><h3 id="ovWorthHeading">Worth a look first</h3><p class="mini muted" role="status">Reviewing the loaded policies…</p></section>`
+        + Overview.tenant({ ...base,
         policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
-        baseline: d.baseline, exclusions: d.exclusions, impact, now: Date.now() })
-        + `<div id="ovWorth" class="db-band"><h3>Worth a look first <span class="mini muted">— running the configuration checks over the loaded policies…</span></h3></div>`
+        baseline: d.baseline, exclusions: d.exclusions, showAdvisories: false, now: Date.now() })
+        + `</div>`
         + Overview.checks(checkRows())
-        + Overview.map(mapInput(d));
+        + Overview.map(mapInput(d))
+        + Overview.advisories({ impact, now: Date.now() });
     }
     host.innerHTML = html;
     if (!policies.length) return;

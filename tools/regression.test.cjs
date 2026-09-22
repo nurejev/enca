@@ -595,7 +595,7 @@ test('overview: the tenant band counts states, recent change and labels exclusio
  assert.match(html,/1 last modified 30\+ days ago/);
  assert.match(html,/date unavailable for 1/);
  assert.match(html,/last: A, 2 days ago/);
- assert.match(html,/4 missing · 1 outdated · 0 in conflict · 81% covered/);
+ assert.match(html,/4 missing · 1 outdated · 0 in conflict · 81% of catalog matched/);
  assert.match(html,/3 users · 5 groups · 1 app in 11 policies — configured, not effective/);
  assert.match(html,/rules that still use it stop updating: in <b>43 days<\/b> \(3 Nov 2026\)/);
  assert.match(html,/most users, internal guests included: in <b>133 days<\/b> \(1 Feb 2027\)/);

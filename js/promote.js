@@ -119,6 +119,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 248,
+      title: "Overview: flat dashboard and clear reading order",
+      tools: ["Home"],
+      builds: [25426],
+      risk: "low",
+      what: "Replaces the raised dashboard cards with a single statistics strip, a findings/context split, ruled check rows and flat expandable details. Overview.advisories renders the existing advisories below the map; context actions use native buttons with separate secondary actions. Dashboard labels use the existing FlatIcons renderer. All existing data collection and deferred analysis remain in place.",
+      why: "The earlier dashboard retained rounded cards and shadows instead of the requested flat design. This is a presentation and accessibility change with no new Graph requests, permissions or tenant writes.",
+      test: [
+        "Inspect light and dark Home at desktop and mobile widths: four counts remain visible, dashboard surfaces have no shadows, and expanded evidence, map and advisories do not overflow.",
+        "Use the keyboard to open and close a finding, expand all findings and follow policy filters. Secondary sign-in and audit actions must remain separate from the context row action.",
+        "Confirm the existing check buttons and tool navigation still work, with no dashboard requests made to Graph. Live sign-in timing remains an environment-dependent acceptance check.",
+        "Run tools/dashboard-flat-browser.cjs, the offline suites, toolbar-order, plain-text and syntax checks. See review/2026-09-22/BETA-25426.md for actual outcomes.",
+      ],
+      files: ["js/overview.js", "js/app.js", "js/flat-icons.js", "css/app.css", "css/workspaces.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs", "tools/dashboard-flat-browser.cjs"],
+    },
+    {
       n: 247,
       title: "\ud83c\udfe0 Overview builds on the sign-in reads it already had",
       tools: ["Home"],

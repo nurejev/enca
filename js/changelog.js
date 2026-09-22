@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25426, date: "2026-09-22", title: "A flat dashboard with a clearer reading order",
+    items: [
+      { kind: "improved", tool: "Home", text: "The dashboard now has one flat statistics strip, findings beside a compact policy-context column, and checks separated by simple lines. Raised cards and shadows are removed; line icons match the workspace. The same information stacks on mobile, with the configuration map and advisories expandable below." },
+      { kind: "improved", tool: "Home", text: "Findings still open their evidence in place. Supporting assessment details are expandable, context actions use separate native buttons, and baseline percentages explicitly describe the catalog match. This presentation change reuses the existing data and deferred checks; it adds no tenant requests or consent." },
+    ],
+  },
+  {
     build: 25425, date: "2026-09-21", title: "What sign-in read is kept, and used",
     items: [
       { kind: "change", tool: "Home", text: "Sign-in has always read the named locations, authentication strengths and authentication contexts to resolve names, then thrown the responses away \u2014 and the home page called them unread. They are KEPT now, each with when it was read and whether it completed, and the provisional \ud83d\udee1 pass builds on them: the break-glass account is named instead of an id, phishing-resistant strengths are recognised, location hygiene is checked. The note under the band names only what is still unread \u2014 the Conditional Access settings, and any read that failed at sign-in. A failed read stays failed: nothing retries, nothing widens the sign-in scope, and the licence SKUs stay a separate, on-demand read." },

@@ -122,3 +122,11 @@ body.workspaces-shell:not(.with-side) #themeBtn{margin-left:auto}
 body.workspaces-shell #permOverview,body.workspaces-shell .workspace-about{margin-top:28px;border-radius:10px;box-shadow:none}
 
 .wc-tool-group{margin:0 0 24px}.wc-tool-group>summary{cursor:pointer;font-size:15px;font-weight:600;padding:12px 0;color:var(--ink)}.wc-tool-group>summary>span{font-size:12px;font-weight:400;color:var(--muted);margin-left:8px}.wc-connection{display:grid;gap:5px;padding:10px;border-block:1px solid var(--border);font-size:12px;line-height:1.45}.wc-connection-id{overflow-wrap:anywhere;font-size:11px;color:var(--muted)}body.workspaces-shell #acctMenu{max-height:calc(100dvh - 150px);overflow-y:auto}#screen-permissions #permOverview{overflow-x:auto}
+
+/* 25426: the home page follows the flat dashboard, with a quieter heading. */
+#wcHome .wc-home-heading{margin:0 0 22px;gap:12px}
+#wcHome .wc-home-heading h1{font-size:clamp(26px,2.4vw,32px);margin:8px 0;letter-spacing:-.035em}
+#wcHome .wc-home-heading p{font-size:12.5px;line-height:1.6;margin:0}
+#wcHome .wc-home-foot{margin-top:22px}
+#wcHome .wc-tool{box-shadow:none;border-radius:5px}
+body.workspaces-shell #screen-home>.workspace-about{background:transparent;border:0;border-top:1px solid var(--border);border-radius:0;padding-inline:0;box-shadow:none}
