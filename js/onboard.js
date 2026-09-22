@@ -14,10 +14,14 @@
 // and the docker -e lines to copy. SINGLE-TENANT.md stays the long form and
 // the pipeline route.
 //
-// WHERE IT SHOWS. Before sign-in: a line on the sign-in card ("First time on
-// this copy?") on every host but the publisher's own (BRANDING.host), which
-// signs in with the shipped registration once and opens the wizard when the
-// tenant has loaded. After sign-in: a band on the home page, and a row in the
+// WHERE IT SHOWS. Before sign-in: inside the ⚙ connection panel on the sign-in
+// card, under "No registration of your own yet?" (25455) — one card for the one
+// question of which registration signs you in. It is offered as a route only
+// where the active registration can reach another directory (paintRoute in
+// js/connection.js reads the AUTHORITY, not the hostname); where it cannot, the
+// same block says so and names ＋ Add and New-EncaAppRegistration.ps1 instead.
+// Clicking it signs in with the shipped registration once and opens the wizard
+// when the tenant has loaded. After sign-in: a band on the home page, and a row in the
 // account menu, for a signed-in user who holds a role that can do this
 // (Global, Privileged Role, Application or Cloud Application Administrator)
 // while the copy still signs in through an app another directory owns.
@@ -271,8 +275,15 @@ const Onboard = (() => {
       }
     });
     bg.addEventListener("change", (e) => { if (e.target.id === "obOk") { const b = $("obGo"); if (b) b.disabled = !e.target.checked; } });
-    const start = $("onboardStart");
-    if (start) start.addEventListener("click", (e) => {
+    // The start link lives INSIDE the ⚙ connection panel since 25455 and is
+    // painted by js/connection.js — which also decides whether it is offered
+    // at all, from the active authority. So the listener goes on the container
+    // that stays put; binding it to the anchor would tie it to markup that is
+    // rewritten underneath us, and only paint order would decide whether the
+    // link worked.
+    const route = $("loginOnboard");
+    if (route) route.addEventListener("click", (e) => {
+      if (!e.target.closest("#onboardStart")) return;
       e.preventDefault();
       try { sessionStorage.setItem(PENDING, "1"); } catch { /* the wizard is a click away after sign-in anyway */ }
       const b = $("signInBtn"); if (b) b.click();

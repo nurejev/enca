@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25455, date: "2026-09-22", title: "One sign-in card, and an onboarding route that cannot lie",
+    items: [
+      { kind: "fixed", tool: "Sign-in", text: "🪪 Register ENCA in your own tenant used to be a line of its own under the ⚙ connection panel, and on a copy served with a single-tenant registration the two contradicted each other — the panel said THAT DIRECTORY ONLY and the line below it offered to sign you in to yours. Clicking it started a sign-in that could only end in AADSTS50020, because the wizard has to be signed in to YOUR tenant before it can write anything there, and a registration pinned to somebody else's directory can never get it there. The route is inside the panel now, as the third answer to the one question that panel asks, and what it offers is decided by the registration in use rather than by which host you are on: a registration that reaches any work or school tenant carries the wizard; one pinned to a single directory says so and names the two routes that do work — add a registration you already have, or create one with New-EncaAppRegistration.ps1 -SingleTenant and add that. It is no longer hidden on the hosted site either, which was the registration that could carry it all along." },
+    ],
+  },
+  {
     build: 25454, date: "2026-09-22", title: "Builder: the split handle works",
     items: [
       { kind: "fixed", tool: "Policy building blocks", text: "🏗 The vertical slider between the steps and the preview is the split handle every list/detail tool has — drag it to give either side more width. In the builder it did nothing; it does now, and it says what it is on hover." },

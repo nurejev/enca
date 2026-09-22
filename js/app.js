@@ -885,10 +885,14 @@
   // The client ID is shown in full. Truncating an identifier somebody is meant
   // to check against their own tenant makes it un-checkable, which is worse
   // than not showing it: it looks like verification without being any.
-  // 🪪 the onboarding line on the sign-in card (R59) — every host but the
-  // publisher's own: the hosted site's whole point is the shared registration,
-  // and an administrator there still finds the wizard on the home page.
-  (function markOnboardLogin() { const el = $("loginOnboard"); if (el && isProdHost()) el.style.display = "none"; })();
+  // 🪪 the onboarding route (R59) is NOT gated here any more (25455). It used
+  // to be hidden on the publisher's own host, which was a hostname answering a
+  // question about the AUTHORITY: the hosted site's shared registration is the
+  // one that CAN carry the wizard, and the beta host's single-tenant one is the
+  // one that cannot — so the test hid it exactly where it worked and showed it
+  // where it could not. paintRoute() in js/connection.js decides, from the
+  // registration actually in use, and the route now sits inside the ⚙ panel
+  // rather than as a line of its own on the card.
   (function markSelfHostedLogin() {
     try {
       if (deploymentKind() !== "selfhosted") return;

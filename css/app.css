@@ -2460,7 +2460,23 @@ td.gm-none{color:var(--muted);font-weight:700}
 .pb-pickrow .pb-row{margin-top:4px}
 
 /* ---------- 🪪 Own registration — onboarding (R59, build 25438) ---------- */
-.login-onboard{text-align:center}
+/* The route inside the ⚙ connection panel (25455). Separated from the
+   connection above it by a rule, the way .conn-redirect is, because it is a
+   different answer to the same question rather than more of the same one.
+   .blocked marks the form that cannot carry the wizard — the red edge is the
+   same one .login-err and .conn-err use, and for the same reason: this is a
+   thing that will not work, stated before somebody spends a sign-in on it. */
+.conn-route{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
+.conn-route h4{margin:0 0 4px;font-size:12.5px;font-weight:700;color:var(--ink)}
+.conn-route p{margin:0 0 6px;font-size:11.5px;line-height:1.55;color:var(--muted)}
+.conn-route p:last-child{margin-bottom:0}
+.conn-route a{font-weight:600}
+.conn-route ol{margin:6px 0 6px;padding-left:18px;font-size:11.5px;line-height:1.6;color:var(--muted)}
+.conn-route li{margin-bottom:4px}
+.conn-route code{background:var(--surface);border:1px solid var(--border);border-radius:5px;
+  padding:1px 5px;font-size:11px;overflow-wrap:anywhere;user-select:all}
+.conn-route.blocked{border-left:2px solid #c0392b;padding-left:10px;margin-left:-12px}
+:root[data-theme="dark"] .conn-route.blocked{border-left-color:#ff8a80}
 .ob-band{display:flex;gap:14px;align-items:flex-start;margin:14px 0 18px;padding:14px 16px;border:1px solid var(--border);border-left:4px solid var(--accent2);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
 .ob-ic{font-size:26px;line-height:1;flex:none}
 .ob-txt{flex:1;min-width:0;font-size:13px;line-height:1.5}
