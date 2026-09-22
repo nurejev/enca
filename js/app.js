@@ -18568,19 +18568,38 @@ This is a directory write. Nothing else changes.`)) return;
   // findings, so it costs no extra read.
   let mlMatrix = null;
   const mlExpanded = new Set();
+  // WHAT THE RESULT ON SCREEN BELONGS TO (25434). 🛡 Checks' other three tabs
+  // all keep their result across a tab switch — `if (gcResult) { render();
+  // return; }`. This one did not, so leaving 📘 MS Learn and coming back threw
+  // the findings away and ran the whole thing again: a read of the
+  // authentication strengths, of the cross-tenant access settings, of the CA
+  // settings and the authentication methods, then 30 checks over every policy
+  // and the fixes rebuilt — and the severity filter, the expanded findings and
+  // the Suggested fixes tab lost with it. That is the "refresh" Mihai saw.
+  //
+  // A bare `if (mlGroups)` is not enough here: unlike its siblings this tab
+  // runs by ITSELF on open rather than waiting for a button, so a result from
+  // another tenant, another policy snapshot or the other scope must not be
+  // shown as this one's. The key is the same shape the sign-in reads use.
+  let mlKey = null;
+  const mlReadKey = () => JSON.stringify([tenantId, isDemo, policiesReadAt, !!$("mlDisabled").checked]);
   async function openMsLearn() {
     crumb("🛡 Checks");
     show("screen-mslearn");
     mountToolTabs("checks", "mslearn");
-    if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
-    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
-    $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
-    mlTab = "findings"; mlFixes = null; mlMatrix = null;
-    // baseline tenant → include Off + persona-only; note the scope
+    if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; mlKey = null; return; }
+    // baseline tenant → include Off + persona-only; note the scope.
+    // Before the cache check, because the scope is part of what the result
+    // belongs to — and setting it is idempotent.
     const baseline = isBaselineTenant();
     $("mlDisabled").checked = baseline;
     $("mlDisabled").disabled = baseline;
     $("mlDisabledNote").textContent = scopeNote(checkScope(baseline), policies.filter(p => p.raw.state === "disabled").length);
+    // cached — keep the previous screen, filter, open findings and tab
+    if (mlGroups && mlKey === mlReadKey()) { renderMsLearn(); return; }
+    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
+    mlTab = "findings"; mlFixes = null; mlMatrix = null;
     // authentication strengths are needed to detect external authentication
     // methods (EAM) inside strength policies — one read, Policy.Read.All
     mlStrengths = new Map();
@@ -18646,6 +18665,9 @@ This is a directory write. Nothing else changes.`)) return;
     mlGroups = MSLearn.group(findings);
     // The guest matrix reads the same inputs — no extra tenant call.
     mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
+    // Stamp what this result belongs to: from here a tab switch renders it
+    // again instead of re-running the whole pass.
+    mlKey = mlReadKey();
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
 

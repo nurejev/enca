@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25434, date: "2026-09-22", title: "Checks keeps its findings when you switch tabs",
+    items: [
+      { kind: "fixed", tool: "Checks", text: "Leaving \ud83d\udcd8 MS Learn checks for another tab and coming back re-ran everything \u2014 the authentication strengths, the cross-tenant access settings, the CA settings and authentication methods all read again, then thirty checks over every policy and the suggested fixes rebuilt. The severity filter, whichever findings you had open and the Suggested fixes tab went with it. The other three tabs in \ud83d\udee1 Checks already kept their result; this one now does too, so coming back shows exactly the screen you left." },
+      { kind: "improved", tool: "Checks", text: "It still re-runs when it should. Switching tenant, refreshing the policies, or changing Include Off all produce a different result, so the tab notices and runs again rather than showing you the previous answer \u2014 this tab starts its own run on open, unlike its siblings, so it cannot simply trust whatever it last computed." },
+    ],
+  },
+  {
     build: 25433, date: "2026-09-22", title: "Which guests your policies lock out, and why",
     items: [
       { kind: "new", tool: "Checks", text: "\ud83d\udcd8 MS Learn checks now judge your policies against what a guest can actually do. The one that started it: FIDO2 passkeys, Windows Hello for Business, certificate-based authentication, Authenticator phone sign-in and OATH hardware tokens can only be completed in a guest's HOME tenant \u2014 in yours they have SMS, voice, Authenticator push and OATH software tokens and nothing else. So a policy requiring the built-in Phishing-resistant or Passwordless MFA strength cannot be satisfied by a guest unless inbound MFA trust is on and their home tenant has actually deployed the method. The check says which of the two is missing, and never confuses not configured with not read." },

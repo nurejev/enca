@@ -119,6 +119,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 256,
+      title: "Checks: the MS Learn tab keeps its result across a tab switch",
+      tools: ["Checks"],
+      builds: [25434],
+      risk: "low",
+      what: "openMsLearn gains the cache guard its three sibling tabs already had, keyed on [tenantId, isDemo, policiesReadAt, Include Off] rather than on presence alone \u2014 this tab auto-runs on open, so it must not show another tenant\u2019s or another scope\u2019s findings. runMsLearn stamps the key; an empty tenant clears it. tools/checks-tab-cache.test.cjs asserts the guard structurally on all four tabs.",
+      why: "Reopening the tab re-read the authentication strengths, the cross-tenant access settings, the CA settings and the authentication methods, re-ran 30 checks over every policy, rebuilt the fixes and re-resolved the app ids \u2014 and threw away the severity filter, the expanded findings and the Suggested fixes tab. Mihai reported it as the page doing a sort of refresh.",
+      test: [
+        "Run \ud83d\udcd8 MS Learn checks, expand a finding, set a severity filter, switch to Bypass & Swiss cheese and back: the same screen, same filter, same open finding, no Running checks flash, and NO new requests in the browser network tab.",
+        "Switch to the Suggested fixes tab, leave, come back: still on Suggested fixes.",
+        "\u27f3 Refresh re-runs and rebuilds the findings.",
+        "Toggle Include Off (disabled) policies on a non-baseline tenant: re-runs, and the counts change.",
+        "Switch tenant (or in and out of demo) and reopen the tab: it runs again \u2014 the previous tenant\u2019s findings must never appear.",
+        "With no policies loaded the tab says so, and running a policy read then opening it runs the checks properly.",
+        "Offline: node --test tools/*.test.cjs \u2014 294 tests, including the 5 in tools/checks-tab-cache.test.cjs.",
+      ],
+      files: ["js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/checks-tab-cache.test.cjs"],
+    },
+    {
       n: 255,
       title: "Checks: guests and external users, judged against what they can actually satisfy",
       tools: ["Checks"],
