@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25453, date: "2026-09-22", title: "A tenant's own exclusions are never a difference from the baseline",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "Outside the baseline tenant the assignments are the tenant's own — the exclusion groups it adds, the persona or deploy groups it includes — so they are not compared at all: they never make a policy Newer than baseline, and they no longer earn the differs tag either. What that tag now names is substance only — resources, conditions, grant or session controls that differ from the catalog at the same number and version — shown for reading, not counted." },
+    ],
+  },
+  {
     build: 25452, date: "2026-09-22", title: "Number and version decide outside the baseline tenant",
     items: [
       { kind: "fixed", tool: "Baseline", text: "Judging a same-version policy on its definition — edited in place, renamed — is the reference tenant's question, the one the catalog is generated from. In any other tenant the key is the CA number and the version, as it always was: Up to date means the number is there at the baseline's version, and a definition that differs at that version is marked on the row and counted in the summary line, never as Newer than baseline." },
