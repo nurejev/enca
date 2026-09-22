@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25479, date: "2026-09-22", title: "Require one (OR) is judged while you edit, and on strengths and terms of use",
+    items: [
+      { kind: "improved", tool: "Policy building blocks", text: "🏗 Choosing Require one (OR) in the builder or on a policy card now says what Checks will say about it: MFA or a managed device is Microsoft's template (and what switching to AND costs), MFA or app protection lets a password plus the right app in, and anything or terms of use lets a click stand in for MFA. The card edit shows the builder's other hints too, under the box they are about." },
+      { kind: "fixed", tool: "Checks", text: "🛡 The OR check only looked at the built-in grant controls, so a policy with an authentication strength OR a compliant device was never judged, and MFA OR terms of use was never reported. Both are now — the second as High." },
+    ],
+  },
+  {
     build: 25478, date: "2026-09-22", title: "Editing a policy: back where you were, and guest exclusions for chosen tenants",
     items: [
       { kind: "fixed", tool: "Policies", text: "✎ Saving a policy from the builder used to drop you on a list of just that one policy, with your persona filter gone — every edit meant clearing the filter, picking the persona again and finding the next policy. The list now comes back exactly as you left it, with the saved policy open beside it." },

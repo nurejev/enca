@@ -129,3 +129,13 @@ test("an allow-list block that misses an included group, a commonly excluded gro
   const geo = { ...allow, conditions: { ...allow.conditions, locations: { includeLocations: ["All"], excludeLocations: ["nl"] } } };
   assert.equal(cat(run([LEGACY_ALL, geo, int, x1, x2]), "Allow-List Block").length, 0);
 });
+
+test("25479: OR with an authentication strength or a terms of use is judged too", () => {
+  const sOr = pol("Strength or device", {}, { operator: "OR", builtInControls: ["compliantDevice"], authenticationStrength: { id: "m", displayName: "Multifactor authentication" } });
+  const f1 = run([MFA_ALL, LEGACY_ALL, sOr]).findings.find((x) => x.category === "Swiss Cheese Model" && x.policyId === sOr.id);
+  assert.equal(f1.severity, "low");
+  const tou = pol("MFA or ToU", {}, { operator: "OR", builtInControls: ["mfa"], termsOfUse: ["t1"] });
+  const f2 = run([MFA_ALL, LEGACY_ALL, tou]).findings.find((x) => x.category === "Swiss Cheese Model" && x.policyId === tou.id);
+  assert.equal(f2.severity, "high");
+  assert.match(f2.description, /terms of use is a click/);
+});

@@ -17556,8 +17556,14 @@ This is a directory write. Nothing else changes.`)) return;
     const four = pbSectHtml(4, d), cut = four.indexOf('<h4 class="wi-h" style="margin-top:16px">💻 Device platforms</h4>');
     const net = cut >= 0 ? four.slice(0, cut) : four, cond = cut >= 0 ? four.slice(cut) : "";
     const grid = body.querySelector(".pcard-grid");
-    grid.innerHTML = box("👤", "Users", pbSectHtml(2, d)) + box("📦", "Target resources", pbSectHtml(3, d)) + box("🌐", "Network", net)
-      + box("⚙", "Conditions", cond) + box("✓", "Grant", pbSectHtml(5, d)) + box("🕐", "Session", pbSectHtml(6, d));
+    // 25479: the builder's hints, each under the box it is about — the card
+    // edit showed none, so an OR that skips MFA (or a break-glass group left
+    // out) passed without a word here while the builder flagged it.
+    let hs = [];
+    try { hs = pbCtx().hints || []; } catch (e) { console.warn("card edit hints:", e); }
+    const hintsFor = (step) => { const h = hs.filter((x) => x.step === step); return h.length ? `<div class="ce-hints">${Builder.hintsHtml(h)}</div>` : ""; };
+    grid.innerHTML = box("👤", "Users", pbSectHtml(2, d) + hintsFor(2)) + box("📦", "Target resources", pbSectHtml(3, d) + hintsFor(3)) + box("🌐", "Network", net)
+      + box("⚙", "Conditions", cond + hintsFor(4)) + box("✓", "Grant", pbSectHtml(5, d) + hintsFor(5)) + box("🕐", "Session", pbSectHtml(6, d) + hintsFor(6));
     let bar = $("cardEditBar");
     if (!bar) {
       grid.insertAdjacentHTML("afterend", `<div class="ed-bar" id="cardEditBar"><span class="ce-count"></span><span style="flex:1"></span>

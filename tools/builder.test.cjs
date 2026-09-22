@@ -345,3 +345,21 @@ test("an enumerated guest clause is written with its tenants, and an empty one i
   d.users.excludeGuests.externalTenants.members = [];
   assert.ok(Builder.validate(d).bad.some((x) => /none is chosen/.test(x)));
 });
+
+// ---- 25479: the OR judgement from 🛡 Checks, as a builder hint ----
+test("Require one (OR) gets the same verdict as Checks: template info, app-protection warn, AND silent", () => {
+  const d = Builder.fromRaw(raws.find((r) => r.id === "p200"));
+  const orHint = () => Builder.hints(d, { raws }).filter((h) => h.step === 5 && /Require one \(OR\)/.test(h.text));
+  d.grant.operator = "OR"; d.grant.controls = ["mfa", "compliantDevice"];
+  let h = orHint(); assert.equal(h.length, 1); assert.equal(h[0].level, "info"); assert.match(h[0].text, /Microsoft's template/);
+  d.grant.controls = ["mfa", "compliantApplication"];
+  h = orHint(); assert.equal(h[0].level, "warn"); assert.match(h[0].text, /without a second factor/);
+  d.grant.controls = ["mfa"]; d.grant.termsOfUse = ["tou-1"];
+  h = orHint(); assert.equal(h[0].level, "warn"); assert.match(h[0].text, /terms of use/); assert.match(h[0].text, /High/);
+  d.grant.termsOfUse = []; d.grant.controls = ["compliantDevice", "compliantApplication"];
+  h = orHint(); assert.equal(h[0].level, "info"); assert.match(h[0].text, /same tier/);
+  d.grant.operator = "AND"; d.grant.controls = ["mfa", "compliantApplication"];
+  assert.equal(orHint().length, 0);
+  d.grant.operator = "OR"; d.grant.controls = ["mfa"];
+  assert.equal(orHint().length, 0, "one control has no OR to judge");
+});

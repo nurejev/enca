@@ -423,6 +423,32 @@ const Builder = (() => {
     if (d.grant.mode === "grant" && d.grant.controls.includes("mfa") && d.grant.strength) push(5, "info", "MFA and an authentication strength together: the strength already implies MFA. One of the two is enough, and the strength says which methods.");
     if (d.grant.mode === "grant" && d.grant.controls.includes("compliantDevice") && (d.users.includeGuests || d.persona === "guestusers" || d.persona === "externals")) push(5, "warn", "Requiring a compliant device of external users needs inbound device trust with their home tenant (cross-tenant access settings) — without it the policy is a block. 📘 MS Learn checks lists the exact rule.");
     if (d.grant.mode === "grant" && d.grant.strength && (d.persona === "guestusers" || d.persona === "externals" || d.users.includeGuests)) push(5, "warn", "A phishing-resistant or passwordless strength is unsatisfiable for a B2B guest unless inbound MFA trust is on and their home tenant deployed the method. Check 📘 MS Learn checks → guests before enforcing.");
+    // 5 · Require one (OR) — the same judgement as 🛡 Checks → Bypass &
+    // Swiss cheese (gapcheck.js checkOr, 25470), shown while the choice is
+    // being made instead of only after a Checks run (25479, Mihai: "the checks
+    // used to check also on OR — where is that now?").
+    if (d.grant.mode === "grant" && d.grant.operator === "OR") {
+      const ctl = d.grant.controls.filter((x) => x !== "block");
+      const n = ctl.length + (d.grant.strength ? 1 : 0) + (d.grant.termsOfUse || []).length;
+      if (n > 1) {
+        const DEVICE = ["compliantDevice", "domainJoinedDevice"], APP = ["compliantApplication", "approvedApplication"];
+        const auth = ctl.includes("mfa") || !!d.grant.strength;
+        const authWord = d.grant.strength ? "the authentication strength" : "MFA";
+        const others = ctl.filter((x) => x !== "mfa");
+        const tou = (d.grant.termsOfUse || []).length > 0;
+        const label = (x) => (GRANTS.find((g) => g[0] === x) || [x, x])[1];
+        if (!auth && !tou && others.every((x) => DEVICE.includes(x) || APP.includes(x))) {
+          push(5, "info", `Require one (OR) between ${others.map(label).join(" / ")}: all management controls of the same tier — a managed device meets one side, app protection on a BYOD phone the other. Microsoft's own pattern; there is nothing weaker to fall back to. Put MFA in its own policy, not in this OR.`);
+        } else if (auth && !tou && others.length && others.every((x) => DEVICE.includes(x))) {
+          push(5, "info", `Require one (OR) between ${authWord} and ${others.map(label).join(" / ")}: Microsoft's template — a sign-in passes with ${authWord}, or from a managed device WITHOUT ${authWord}. A stolen password alone meets neither. If your standard is ${authWord} on managed devices too, choose Require all (AND) — and pilot it, because every unmanaged device is then blocked.`);
+        } else if (auth) {
+          const weak = [...others.filter((x) => APP.includes(x) || x === "passwordChange").map(label), ...(tou ? ["terms of use"] : [])];
+          push(5, "warn", `Require one (OR) lets a sign-in skip ${authWord}: ${weak.length ? `${weak.join(" / ")} can be met without a second factor — a stolen password plus ${[weak.some((w) => w !== "terms of use") ? "the right app" : "", tou ? "a click on the terms" : ""].filter(Boolean).join(", or ")} gets in` : "meeting the easiest of the controls is enough"}. Choose Require all (AND), or keep ${authWord} in its own policy so it is never one of several ways in. 🛡 Checks reports this as ${weak.some((w) => w === "terms of use") || !weak.length ? "High" : "Medium"}.`);
+        } else {
+          push(5, "warn", `Require one (OR) across ${[...others.map(label), ...(tou ? ["terms of use"] : [])].join(" / ")} — none of them is a second factor, so a password plus the easiest of them gets in. Choose Require all (AND), or make sure an MFA policy on All resources reaches the same users.`);
+        }
+      }
+    }
     // 7 · overlap — same persona group(s), same resource, enabled
     const incG = new Set(d.users.includeGroups);
     if (incG.size || d.users.includeAll) {

@@ -196,7 +196,7 @@ const GapCheck = (() => {
   const CONTROL_LABEL = {
     mfa: "Require MFA", compliantDevice: "Require compliant device",
     domainJoinedDevice: "Require hybrid joined device", approvedApplication: "Require approved client app",
-    compliantApplication: "Require app protection policy", passwordChange: "Require password change",
+    compliantApplication: "Require app protection policy", passwordChange: "Require password change", termsOfUse: "Accept terms of use",
     riskRemediation: "Require risk remediation",
   };
 
@@ -600,10 +600,16 @@ const GapCheck = (() => {
     (function checkOr() {
       const g = G(p);
       if (g.operator !== "OR") return;
+      // 25479: an authentication strength and a terms-of-use are grant
+      // options too. Read from builtInControls alone, "MFA strength OR
+      // compliant device" had one control and was never judged, and "MFA OR
+      // terms of use" — accept the terms, skip MFA — was invisible.
       const controls = grants(p).filter((c) => c !== "block");
+      if (g.authenticationStrength && !controls.includes("mfa")) controls.push("mfa");
+      if ((g.termsOfUse || []).length) controls.push("termsOfUse");
       if (controls.length <= 1) return;
       const groupsOf = new Set(controls.map((c) => EQUIV_GROUP[c] || `unique:${c}`));
-      const labels = controls.map((c) => CONTROL_LABEL[c] || c);
+      const labels = controls.map((c) => c === "mfa" && g.authenticationStrength ? `Require authentication strength "${g.authenticationStrength.displayName || "…"}"` : CONTROL_LABEL[c] || c);
       // Accepted when EVERY control is a management control: one group (compliant
       // OR hybrid-joined) or the device-trust + app-protection pair — Microsoft's
       // MDM-or-MAM pattern for BYOD, where a managed device satisfies the
@@ -635,8 +641,8 @@ const GapCheck = (() => {
         return;
       }
       const soft = controls.filter((c) => EQUIV_GROUP[c] === "app-protection" || c === "passwordChange");
-      F(out, soft.length && ids.has("mfa") ? "medium" : "high", "Swiss Cheese Model", 'Grant "OR" lets a sign-in skip MFA', p,
-        `Requires ${labels.join(" OR ")}. With OR, meeting any ONE of them is enough — ${soft.length ? `${soft.map((c) => CONTROL_LABEL[c] || c).join(" / ")} can be met without a second factor, so a stolen password plus the right app gets in without MFA` : "the easiest of them decides what an attacker has to beat"}.`,
+      F(out, soft.length && ids.has("mfa") && !ids.has("termsOfUse") ? "medium" : "high", "Swiss Cheese Model", 'Grant "OR" lets a sign-in skip MFA', p,
+        `Requires ${labels.join(" OR ")}. With OR, meeting any ONE of them is enough — ${ids.has("termsOfUse") ? "accepting the terms of use is a click, not a second factor, so a stolen password plus that click gets in without MFA" : soft.length ? `${soft.map((c) => CONTROL_LABEL[c] || c).join(" / ")} can be met without a second factor, so a stolen password plus the right app gets in without MFA` : "the easiest of them decides what an attacker has to beat"}.`,
         'Where: this policy\'s grant. Change: "For multiple controls" → "Require all the selected controls", or move the MFA requirement to its own policy so it is never an alternative. Why: MFA should be required on its own, not offered as one of several ways in.');
     })();
 
