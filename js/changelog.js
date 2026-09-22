@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25447, date: "2026-09-22", title: "Reading a policy continues past the pane",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "In the list/detail views the policy pane scrolled to its own end and stopped, with the rest of the policy hidden below the fold until the PAGE was scrolled with the pointer somewhere else — the pane refused to hand its scroll to the page. It hands over now: the pane scrolls to its end, the page takes over, the pane pins under the toolbar and the tail is on screen. The same for the list pane and for every tool on the shared list/detail frame." },
+    ],
+  },
+  {
     build: 25446, date: "2026-09-22", title: "Builder: an edit looks like an edit",
     items: [
       { kind: "fixed", tool: "Policy building blocks", text: "🏗 Editing a policy read like creating a new one — persona chips, a next free number, a start-from segment. Now: the toolbar shows Editing <policy> with Discard, the head says nothing is written until Save, every step reads as filled in from the policy, step 1 is the name (the CA number, words and version only when the name follows the convention; a name outside it is edited as it is; the persona stays — Clone is for a new number), and step 7 is State and save: it says how many settings change against the policy in the tenant and keeps Save disabled while nothing does." },

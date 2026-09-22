@@ -13,8 +13,14 @@ body.workspaces-shell #policyWorkspace.with-inspector{grid-template-columns:minm
    screen's tab strip + its toolbar, MEASURED by syncStickyTops (js/app.js)
    and re-measured by its ResizeObserver, so a wrapped toolbar or a second
    row of tool tabs moves the panes with it instead of sliding under them.
-   overscroll-behavior:contain stops a flick at the end of the panel taking
-   the page with it, which is the whole point of a pane that scrolls apart.
+   The panes CHAIN to the page (no overscroll-behavior:contain since 25447):
+   at the top of the page a pane's lower part sits below the fold, and with
+   containment the wheel scrolled the pane to its end and then stopped — the
+   rest of the policy stayed hidden until the PAGE was scrolled with the
+   pointer somewhere else. Chaining is what makes reading continue: the
+   pane scrolls to its end, the page takes over, the pane pins, the tail
+   is on screen. A flick at the end of a pane moving the page is the price,
+   and it is the browser's own behaviour everywhere else.
    dvh, not vh: on a phone browser with a retracting URL bar, vh is the tall
    measurement and the bottom of the pane sits under the chrome. */
 /* --ld-foot is the footer, measured by the same function. It is subtracted
@@ -32,7 +38,7 @@ body.workspaces-shell #policyWorkspace.with-inspector{grid-template-columns:minm
   body:has(section.screen.active #policyWorkspace.with-inspector) main{padding-bottom:0}
 }
 .ld-shell>.ld-list,.ld-shell>.ld-panel{align-self:start;position:sticky;top:var(--ld-top);
-  max-height:var(--ld-max);overflow-y:auto;overscroll-behavior:contain}
+  max-height:var(--ld-max);overflow-y:auto;overscroll-behavior:auto}
 /* The width slider goes with them — it is the handle between two panes that
    now stay on screen, so it cannot be the one thing that scrolls away. */
 .ld-shell>.ld-divider{align-self:start;position:sticky;top:calc(var(--ld-top) + 46px)}
@@ -42,7 +48,7 @@ body.workspaces-shell #policyWorkspace.with-inspector{grid-template-columns:minm
    breathe; it breathes inside its own scrollbar instead. */
 body.workspaces-shell #policyWorkspace.with-inspector>#listView,
 #workspaceInspector{align-self:start;position:sticky;top:var(--ld-top);
-  max-height:var(--ld-max);overflow:auto;overscroll-behavior:contain}
+  max-height:var(--ld-max);overflow:auto;overscroll-behavior:auto}
 
 /* One column, one scrollbar. On a phone the pane IS the page — a second
    scrollbar inside a 390px screen is a trap, not a convenience, and the
