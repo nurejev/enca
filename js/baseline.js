@@ -987,6 +987,12 @@ const Baseline = (() => {
       }
       const ten = vmToEntry(r.tenant, r.baseline);
       const diff = entryDiff(r.baseline, ten);
+      // The NAME is part of the entry: a version bumped with no other change
+      // (the sixth "newer" of 2026-09-22) left the catalog saying v1.0.2 for a
+      // policy running v1.0.3, and the review called it unchanged. A differing
+      // name is a difference to take — the generated entry carries the
+      // tenant's name and version.
+      if (String(ten.name || "") !== String(r.baseline.name || "")) diff.push({ field: "name", label: "name and version", cat: String(r.baseline.name || "—"), ten: String(ten.name || "—") });
       if (!diff.length) { unchanged.push({ num: r.num, cat: r.baseline, ten }); continue; }
       const h = holds[String(r.num)];
       const sig = diffSig(diff);

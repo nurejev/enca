@@ -9205,7 +9205,7 @@ This is a directory write. Nothing else changes.`)) return;
           <span class="tag ${kind === "added" ? "grant" : kind === "held" ? "" : "block"}">${kind === "added" ? "NEW HERE" : kind === "held" ? "HELD" : "CHANGED"}</span>
           <b>${esc(num)}</b> <span class="mini">${esc((x.ten && x.ten.name) || (x.cat && x.cat.name) || "")}</span>
           ${x.reopened ? '<span class="tag new" title="It was held, but the difference is not the one that was held">REOPENED</span>' : ""}
-          ${kind === "changed" ? (x.status === "ahead" ? '<span class="tag" title="The version in the policy name is newer than the catalog\'s — this one the summary line counts as newer">newer version in name</span>' : x.status === "outdated" ? '<span class="tag" title="The version in the name is OLDER than the catalog\'s, yet the definition differs">older version in name</span>' : x.status === "ok" ? '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows">same version — edited in place</span>' : "") : ""}
+          ${kind === "changed" ? (x.status === "ahead" ? (x.diff.length === 1 && x.diff[0].field === "name" ? '<span class="tag" title="Only the version in the name moved; the definition is the catalog\'s — taking it updates the entry\'s name and version">newer version only</span>' : '<span class="tag" title="The version in the policy name is newer than the catalog\'s — the chip counts this one">newer version in name</span>') : x.status === "outdated" ? '<span class="tag" title="The version in the name is OLDER than the catalog\'s, yet the definition differs">older version in name</span>' : x.status === "ok" ? (x.diff.some((d) => d.field === "name") ? '<span class="tag" title="Renamed without a version bump">renamed, same version</span>' : '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows">same version — edited in place</span>') : "") : ""}
         </div>
         ${diff ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0 0">${diff}</ul>` : ""}
         ${x.hold ? `<p class="mini" style="margin:8px 0 0">Held: <i>${esc(x.hold.reason)}</i>${x.hold.at ? ` · ${esc(String(x.hold.at).slice(0, 10))}` : ""}</p>` : ""}
@@ -9225,18 +9225,27 @@ This is a directory write. Nothing else changes.`)) return;
         <button class="btn sm" id="blCatClose">Close</button>
       </div>
       <p class="mini" style="margin:8px 0 0">Compared on <b>definition</b>, not on the version in the policy name — so a policy edited without a version bump is caught, and group order, condition order and markdown are not mistaken for changes. Nothing here writes to the tenant or to the repository: it proposes source for you to read and commit.</p>
-      <p class="mini" style="margin:6px 0 0"><b>${r.changed.length}</b> changed in definition · <b>${r.added.length}</b> new here · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
-      ${(() => { const ahead = r.changed.filter((x) => x.status === "ahead").length, same = r.changed.length - ahead; return r.changed.length ? `<p class="mini muted" style="margin:4px 0 0">Two measures, two numbers: the summary above counts versions in NAMES (<b>${ahead}</b> of these ${r.changed.length} carry a newer version than the catalog); this panel compares DEFINITIONS, and <b>${same}</b> changed without a version bump — the ones the name alone would never show.</p>` : ""; })()}
+      ${(() => {
+        const newer = r.changed.filter((x) => x.status === "ahead"), inPlace = r.changed.filter((x) => x.status !== "ahead");
+        const nameOnly = newer.filter((x) => x.diff.length === 1 && x.diff[0].field === "name").length;
+        const total = r.changed.length + r.added.length;
+        return `<p class="mini" style="margin:6px 0 0"><b>${total}</b> to take · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
+      <p class="mini muted" style="margin:4px 0 0">The same <b>${newer.length}</b> the Newer than baseline chip counts — a newer version in the NAME${nameOnly ? ` (${nameOnly} of them the version alone, definition unchanged)` : ""} — plus <b>${inPlace.length}</b> whose DEFINITION differs with no version bump, which the name alone never shows${r.added.length ? `, and <b>${r.added.length}</b> the catalog does not know at all` : ""}.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <button class="btn sm" id="blTakeAll" ${r.changed.length + r.added.length ? "" : "disabled"}>☑ Select all (${r.changed.length + r.added.length})</button>
+        <button class="btn sm" id="blTakeNewer" ${newer.length ? "" : "disabled"} title="The policies whose version in the name is newer than the catalog's — the ones the chip counts">☑ Select the ${newer.length} newer</button>
+        <button class="btn sm" id="blTakeInPlace" ${inPlace.length ? "" : "disabled"} title="Definition differs, version not bumped">☑ Select the ${inPlace.length} edited in place</button>
+        <button class="btn sm" id="blTakeAll" ${total ? "" : "disabled"}>☑ Select all (${total})</button>
         <button class="btn sm" id="blTakeNone" ${blTake.size ? "" : "disabled"}>☐ Deselect all</button>
         <span class="mini muted">${blTake.size} selected to take</span>
-      </div>
+      </div>`; })()}
       ${drift ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">⚠ <b>Serialiser drift on ${drift} of the ${r.unchanged.length} unchanged policies.</b> Their definitions match, but the entry this tool would write differs in wording from the catalog's existing prose — the catalog's strings were produced by a generator that is not in this repository. The comparison is unaffected; the entries you take will simply read a little differently from their neighbours. Worth an eye on the first one you paste.</p>` : ""}
       ${r.gone.length ? `<p class="mini" style="margin:8px 0 0">Gone from the tenant: ${r.gone.map((g) => `CA${String(g.num).padStart(3, "0")}`).join(", ")} — <b>not</b> removed from the catalog here. Deleting a baseline policy is a decision this tool will not make for you.</p>` : ""}
     </div></div>
-    ${r.changed.map((x) => row(x, "changed")).join("")}
-    ${r.added.map((x) => row(x, "added")).join("")}
+    ${(() => { const newer = r.changed.filter((x) => x.status === "ahead"), inPlace = r.changed.filter((x) => x.status !== "ahead");
+      const head = (txt, n) => n ? `<h4 class="mini" style="margin:14px 0 2px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">${txt} (${n})</h4>` : "";
+      return head("🆙 Newer version in the name — what the chip counts", newer.length) + newer.map((x) => row(x, "changed")).join("")
+        + head("✏️ Edited in place — definition differs, version not bumped", inPlace.length) + inPlace.map((x) => row(x, "changed")).join("")
+        + head("🆕 New here — not in the catalog", r.added.length) + r.added.map((x) => row(x, "added")).join(""); })()}
     ${r.held.map((x) => row(x, "held")).join("")}
     <div class="list-card"><div class="fx-body">
       <button class="btn primary" id="blCatGen" ${blTake.size ? "" : "disabled"}>📄 Generate the catalog source (${blTake.size})</button>
@@ -9248,6 +9257,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("blCatalogPanel").addEventListener("click", (e) => {
     if (e.target.id === "blCatClose") { blCatOpen = false; renderCatalogUpdate(); return; }
     if (e.target.id === "blTakeAll") { [...(blReview.changed || []), ...(blReview.added || [])].forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeNewer") { (blReview.changed || []).filter((x) => x.status === "ahead").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeInPlace") { (blReview.changed || []).filter((x) => x.status !== "ahead").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
     if (e.target.id === "blTakeNone") { blTake.clear(); renderCatalogUpdate(); return; }
     const hold = e.target.closest("[data-blhold]");
     if (hold) {
