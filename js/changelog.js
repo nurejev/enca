@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25472, date: "2026-09-22", title: "MS Learn checks: guests reached through a group are checked too",
+    items: [
+      { kind: "improved", tool: "Checks", text: "📘 The guest findings and the guest matrix only saw guests a policy named by user type. A policy scoped to a GROUP that holds guests — guest admins, a partner group — reaches them just the same and was invisible to every guest check. The checks now read how many members with userType Guest each included group has and treat those policies as reaching B2B collaboration guests, naming the group and the count in the finding. The summary says how many groups were followed, and says so when some could not be read." },
+    ],
+  },
+  {
     build: 25471, date: "2026-09-22", title: "Token protection: only the devices it cannot support are excluded",
     items: [
       { kind: "fixed", tool: "Checks", text: "📘 The token-protection fix excluded every Cloud PC, Azure Virtual Desktop host and Azure VM from the policy. Only the Entra-JOINED ones are unsupported; hybrid-joined ones are protected. The rule it builds now excludes the Entra-joined ones only (and Entra-joined Power Automate hosted machines, which were missing), and a filter already in your tenant that excludes them whatever their join type is reported as over-broad." },

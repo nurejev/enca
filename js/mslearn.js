@@ -366,13 +366,38 @@ const MSLearn = (() => {
   // WHICH external types this policy reaches, after its own exclusions.
   // Returns null when none — the same shape spScope uses, generalised.
   // `want` narrows it to the types a check cares about.
-  function extScope(p, want) {
+  // 25472: GUESTS REACHED THROUGH A GROUP. A B2B guest is a directory object
+  // and can be a member of any group, so a policy that includes a group of
+  // guests reaches them exactly as if it named the type — and until 25472
+  // every guest check skipped such a policy, because it only read the user
+  // TYPE selection. GUEST_GROUPS (set per run from the app's read) maps group
+  // id -> { name, guests }: the transitive members with userType Guest. That
+  // count cannot tell a B2B guest from a local guest created as userType
+  // Guest, so the reach is reported as "members with userType Guest".
+  // `noGroups` asks the question without it — a group of guests is not ALL
+  // guests, so it can never be what covers the type tenant-wide.
+  let GUEST_GROUPS = null;
+  function guestGroupsOf(p) {
+    if (!GUEST_GROUPS || !GUEST_GROUPS.ok) return [];
+    const excl = new Set(U(p).excludeGroups || []);
+    return (U(p).includeGroups || []).filter((id) => !excl.has(id))
+      .map((id) => ({ id, ...(GUEST_GROUPS.groups.get(id) || {}) })).filter((g) => g.guests > 0);
+  }
+  function extScope(p, want, noGroups) {
     const inc = incExt(p), exc = excExt(p);
     let types = null, via = null;
     if (allUsers(p)) { types = EXT_TYPES.slice(); via = "All users"; }
     else if (legacyIncExt(p)) { types = EXT_TYPES.slice(); via = "Guests and external users (the legacy all-types selection)"; }
     else if (inc && inc.types.length) { types = inc.types.slice(); via = `${inc.types.map(extLabel).join(", ")}`; }
-    if (!types) return null;
+    if (!allUsers(p) && !legacyIncExt(p) && !noGroups) {
+      const gg = guestGroupsOf(p);
+      if (gg.length) {
+        const gv = gg.map((g) => `group "${g.name || g.id}" (${g.guests} member${g.guests === 1 ? "" : "s"} with userType Guest)`).join(", ");
+        if (!types) { types = []; via = gv; } else via = `${via}; and ${gv}`;
+        if (!types.includes("b2bCollaborationGuest")) types.push("b2bCollaborationGuest");
+      }
+    }
+    if (!types || !types.length) return null;
     if (legacyExcExt(p)) return null;                                   // all six carved out
     // An exclusion naming specific tenants does NOT take the type out of
     // scope — it only reaches the partners it names, so the rest stay in.
@@ -474,7 +499,7 @@ const MSLearn = (() => {
   // providers are the sp-* checks' case and stay out.
   function mfaReaches(type, ctx, exceptId) {
     return ((ctx && ctx.raws) || []).some((q) => q.id !== exceptId && isActive(q) && hasMfa(q) && !grants(q).includes("block")
-      && appsInc(q).includes("All") && extScope(q, [type]));
+      && appsInc(q).includes("All") && extScope(q, [type], true));
   }
   function extMfaGap(p, ctx) {
     const none = { types: [], allUsersExcl: [], dcSkipped: false };
@@ -1514,7 +1539,7 @@ const MSLearn = (() => {
           detail: `Policy "${p.displayName}" requires MFA of ${incExt(p).types.map(extLabel).join(", ")}, but not of ${g.types.map(extLabel).join(", ")} — and no other enabled or report-only policy requires MFA of ${g.types.length === 1 ? "that type" : "those types"} on All resources${g.allUsersExcl.length ? ` (${g.allUsersExcl.map((q) => `"${q}"`).join(", ")} require${g.allUsersExcl.length === 1 ? "s" : ""} MFA of All users but exclude${g.allUsersExcl.length === 1 ? "s" : ""} them)` : ""}. They reach your resources asking nothing of them here.`
             + (g.types.includes(DIRECT_CONNECT) ? ` B2B direct connect is enabled inbound in this tenant, so direct connect users do arrive — and they can only meet MFA through inbound MFA trust.` : "")
             + (g.dcSkipped ? " B2B direct connect is left out of this finding: it is blocked inbound in cross-tenant access settings, so no direct connect user can arrive today." : "")
-            + " This check cannot see group membership: a guest who is also a member of a group an MFA policy includes is covered by that policy.",
+            + " Guests who are ALSO members of a group an MFA policy includes are covered by that policy; the rest are not.",
           impactedResources: g.types.map(extLabel),
           addTypes: g.types.slice(),
         };
@@ -1536,6 +1561,7 @@ const MSLearn = (() => {
   let LAST_SUPPRESSED = 0, LAST_NO_SP = 0;
   function run(rawPolicies, strengths, opts = {}) {
     INCLUDE_DISABLED = !!opts.includeDisabled;
+    GUEST_GROUPS = opts.guestGroups || null;
     const findings = [];
     const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, crossTenant: opts.crossTenant || null, raws: rawPolicies, ...(opts.groups || {}) };
     const spl = spPartners(ctx);
@@ -1645,6 +1671,7 @@ const MSLearn = (() => {
   // rawPolicies + the same ctx run() takes. opts.includeDisabled as there.
   function guestMatrix(rawPolicies, strengths, opts = {}) {
     INCLUDE_DISABLED = !!opts.includeDisabled;
+    GUEST_GROUPS = opts.guestGroups || null;
     const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, crossTenant: opts.crossTenant || null, ...(opts.groups || {}) };
     const cells = new Map();          // `${type}|${control}` -> { v, why, policies:[] }
     const controlsSeen = new Set();
@@ -1733,7 +1760,7 @@ const MSLearn = (() => {
         ${toolHead("toolMsLearn")}
         <p style="margin-bottom:0">Your policies, checked against exclusions, limitations and upcoming behavior changes documented on learn.microsoft.com —
         missing break-glass exclusions, token protection limits, Teams Rooms / Surface Hub impact, service provider (CSP / GDAP) exclusions, required app exclusions and control retirements.
-        ${checksTotal - LAST_NO_SP} checks ran against your ${scope} policies.${LAST_NO_SP ? ` The ${LAST_NO_SP} service provider checks were skipped: cross-tenant access settings list no CSP or delegated-administration partner for this tenant.` : ""}</p>
+        ${checksTotal - LAST_NO_SP} checks ran against your ${scope} policies.${GUEST_GROUPS && GUEST_GROUPS.partial ? " The guest membership of some included groups could not be read, so guests reached only through those groups are not evaluated." : ""}${GUEST_GROUPS && GUEST_GROUPS.ok && GUEST_GROUPS.groups.size ? ` Guests are also followed through ${GUEST_GROUPS.groups.size} included group${GUEST_GROUPS.groups.size === 1 ? "" : "s"} that hold${GUEST_GROUPS.groups.size === 1 ? "s" : ""} members with userType Guest.` : ""}${LAST_NO_SP ? ` The ${LAST_NO_SP} service provider checks were skipped: cross-tenant access settings list no CSP or delegated-administration partner for this tenant.` : ""}</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${groups.length}<span class="mini" style="font-weight:400"> finding${groups.length === 1 ? "" : "s"}</span></div>
@@ -2155,5 +2182,17 @@ const MSLearn = (() => {
       ${nComp ? `${nComp} of them ${nComp === 1 ? "is a companion: it goes BESIDE" : "are companions: they go BESIDE"} the policy ${nComp === 1 ? "it was" : "they were"} derived from, which stays exactly as it is. The rest replace theirs. ` : ""}Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  // 25472: the include groups whose guest membership the guest checks need —
+  // groups of policies that do not already reach every user.
+  function guestGroupIds(rawPolicies, includeDisabled) {
+    const ids = new Set();
+    for (const p of rawPolicies || []) {
+      const on = p.state === "enabled" || p.state === "enabledForReportingButNotEnforced" || (includeDisabled && p.state === "disabled");
+      if (!on || allUsers(p) || legacyIncExt(p)) continue;
+      for (const id of U(p).includeGroups || []) ids.add(id);
+    }
+    return [...ids];
+  }
+
+  return { guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 267,
+      title: "Guest checks follow guests through included groups",
+      tools: ["Checks"],
+      builds: [25472],
+      risk: "medium",
+      what: "js/app.js: readGuestGroups(ids) — per group, GET /groups/{id}/transitiveMembers/microsoft.graph.user?$count=true&$filter=userType eq 'Guest'&$top=1 (ConsistencyLevel eventual via gget), displayName when the count is above zero, mapLimit 4, cap 80, partial flag; passed as opts.guestGroups to MSLearn.run and guestMatrix. js/mslearn.js: GUEST_GROUPS, guestGroupsOf, extScope(p, want, noGroups) adds b2bCollaborationGuest via the group; mfaReaches uses noGroups; guestGroupIds exported; summary sentence.",
+      why: "Open item of the 25469 audit: a guest-admin persona scoped by group with a phishing-resistant strength — the textbook guest lockout — produced no finding.",
+      test: [
+        "On the baseline tenant, a CA5xx guest-admin policy on the Phishing-resistant MFA strength, scoped to CAB-SEC-U-Persona-GuestAdmins with at least one B2B guest in it: 📘 shows Authentication strength guests cannot complete in this tenant, naming the group and the member count. On 25471 it showed nothing.",
+        "The 📘 summary line says Guests are also followed through N included groups; N matches the number of included groups that actually hold guests.",
+        "Guest matrix: B2B collaboration guests has cells for the controls that group-scoped policy demands.",
+        "A group with no guest members adds nothing; excluding the same group on the policy removes the finding.",
+        "Check the network tab: one $count request per included group, and none for policies on All users.",
+      ],
+      files: ["js/app.js", "js/mslearn.js", "tools/mslearn-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 266,
       title: "Token protection device filter — Entra-joined only",
       tools: ["Checks"],

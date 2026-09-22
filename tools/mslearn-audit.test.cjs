@@ -130,3 +130,36 @@ test("a filter that excludes Cloud PCs whatever their join type is reported as o
   const right = TP({ mode: "exclude", rule: '(device.systemLabels -contains "CloudPC" -and device.trustType -eq "AzureAD") -or (device.systemLabels -contains "AzureVirtualDesktop" -and device.trustType -eq "AzureAD") -or (device.profileType -eq "SecureVM" -and device.trustType -eq "AzureAD")' });
   assert.equal(find(run([right]), "token-prot-devices").length, 0);
 });
+
+// ---- 25472: guests reached through an included group ----
+const GG = (entries, partial) => ({ guestGroups: { ok: true, partial: !!partial, groups: new Map(entries) } });
+
+test("a group of guests on a phishing-resistant policy is now seen by the guest checks", () => {
+  const st = new Map([["pr", { id: "pr", displayName: "Phishing-resistant MFA", allowedCombinations: ["fido2", "windowsHelloForBusiness"] }]]);
+  const p = pol("CA500 GuestAdmins", { users: { includeGroups: ["g-ga"] } }, { operator: "OR", builtInControls: [], authenticationStrength: { id: "pr" } });
+  assert.equal(find(run([p], { strengths: st, ...CT({}) }), "guest-auth-strength-unsatisfiable").length, 0, "without the read it cannot know");
+  const f = find(run([p], { strengths: st, ...CT({}), ...GG([["g-ga", { name: "CAB-SEC-U-Persona-GuestAdmins", guests: 3 }]]) }), "guest-auth-strength-unsatisfiable");
+  assert.equal(f.length, 1);
+  assert.match(f[0].result.detail, /CAB-SEC-U-Persona-GuestAdmins" \(3 members with userType Guest\)/);
+});
+
+test("a group of guests that is also excluded does not count, and a group with no guests never counts", () => {
+  const st = new Map([["pr", { id: "pr", displayName: "PR", allowedCombinations: ["fido2"] }]]);
+  const ex = pol("CA-x", { users: { includeGroups: ["g1"], excludeGroups: ["g1"] } }, { operator: "OR", builtInControls: [], authenticationStrength: { id: "pr" } });
+  const none = pol("CA-y", { users: { includeGroups: ["g2"] } }, { operator: "OR", builtInControls: [], authenticationStrength: { id: "pr" } });
+  const r = run([ex, none], { strengths: st, ...CT({}), ...GG([["g1", { name: "G1", guests: 2 }]]) });
+  assert.equal(find(r, "guest-auth-strength-unsatisfiable").length, 0);
+});
+
+test("an MFA policy on a group of guests does not cover ALL guests in the no-MFA gap check", () => {
+  const grp = pol("CA-grp-mfa", { users: { includeGroups: ["g1"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const CA400b = pol("CA400b", { users: { includeUsers: [], includeGuestsOrExternalUsers: GUESTS("internalGuest", "b2bCollaborationMember", "serviceProvider") } }, { operator: "OR", builtInControls: ["mfa"] });
+  const f = find(run([CA000, CA400b, grp], { ...CT({}), ...GG([["g1", { name: "G1", guests: 5 }]]) }), "ext-type-no-mfa")[0];
+  assert.ok(f.result.addTypes.includes("b2bCollaborationGuest"), "five guests in a group are not every guest");
+});
+
+test("the summary says when some groups' guest membership could not be read", () => {
+  const p = pol("CA-z", { users: { includeGroups: ["g1"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const groups = M.group(run([p], GG([], true)));
+  assert.match(M.renderSummary(groups, 30, false), /could not be read/);
+});

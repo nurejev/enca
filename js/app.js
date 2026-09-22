@@ -19527,6 +19527,38 @@ This is a directory write. Nothing else changes.`)) return;
     return null;
   }
 
+  // 25472: how many members with userType Guest each included group holds —
+  // the guest checks otherwise only saw guests named by user TYPE, and a
+  // policy scoped to a group of guests (guest admins, a partner group) was
+  // invisible to all of them. One $count per group, 4 at a time, capped:
+  // past the cap the read says it is partial rather than guessing.
+  const GUEST_GROUP_CAP = 80;
+  async function readGuestGroups(ids) {
+    const groups = new Map();
+    if (isDemo) {
+      for (const id of ids) {
+        const n = String(id).replace(/^g-/, "");
+        const m = (DEMO_DATA.scopeGroups || {})[n];
+        if (m && /guest/i.test(n)) groups.set(id, { name: n, guests: m.length });
+      }
+      return { ok: true, groups, partial: false };
+    }
+    const todo = ids.slice(0, GUEST_GROUP_CAP);
+    let failed = 0;
+    await Graph.mapLimit(todo, 4, async (id) => {
+      try {
+        const j = await Graph.gget(`/groups/${id}/transitiveMembers/microsoft.graph.user?$count=true&$filter=userType eq 'Guest'&$select=id&$top=1`);
+        const n = Number(j["@odata.count"] || 0);
+        if (n > 0) {
+          let name = id;
+          try { name = (await Graph.gget(`/groups/${id}?$select=displayName`)).displayName || id; } catch { /* keep the id */ }
+          groups.set(id, { name, guests: n });
+        }
+      } catch { failed++; }
+    });
+    return { ok: true, groups, partial: failed > 0 || ids.length > todo.length };
+  }
+
   async function runMsLearn() {
     const scope = checkScope($("mlDisabled").checked);
 
@@ -19567,10 +19599,11 @@ This is a directory write. Nothing else changes.`)) return;
 
     ctx.caSettings = await readCaSettings();
     ctx.authMethods = await readAuthMethods();
-    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant });
+    const guestGroups = await readGuestGroups(MSLearn.guestGroupIds(scope.raws, scope.includeDisabled));
+    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
     mlGroups = MSLearn.group(findings);
     // The guest matrix reads the same inputs — no extra tenant call.
-    mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant });
+    mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
     // Stamp what this result belongs to: from here a tab switch renders it
     // again instead of re-running the whole pass.
     mlKey = mlReadKey();
