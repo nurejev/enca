@@ -119,6 +119,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 260,
+      title: "Register ENCA in your own tenant from the browser — the default sign-in (R59)",
+      tools: ["Sign-in", "Home"],
+      builds: [25438],
+      risk: "medium",
+      what: "js/onboard.js (Onboard): the browser version of New-EncaAppRegistration.ps1 -SingleTenant. Front door on the sign-in card (loginOnboard, hidden on BRANDING.host): sets a session flag, clicks Sign in, and afterSignIn opens the wizard once the tenant loaded. After sign-in: a band before #overview (re-painted on enca:wchome) and an account-menu row, only when /me/memberOf holds Global, Privileged Role, Application or Cloud Application Administrator AND Graph.connectionInfo() says the current registration is owned by another directory; dismissable per tenant in localStorage. Wizard: what changes (the SINGLE-TENANT.md table, app name, the exact SPA redirect URI, localhost, assignment, org-wide consent) → the plan with impact and recovery → the run (Graph.ensureScopes for Application.ReadWrite.All + DelegatedPermissionGrant.ReadWrite.All (+ AppRoleAssignment.ReadWrite.All), the Graph SP's oauth2PermissionScopes for the ids, POST or PATCH /applications by displayName, readSettled, the SP, appRoleAssignedTo me THEN appRoleAssignmentRequired, the AllPrincipals oauth2PermissionGrant, EncaConn.save selected) → default sign-in (this browser done; on an azurecontainerapps.io host a button sets ENCA_CLIENT_ID + ENCA_TENANT_ID via Resource Graph + GET-template-then-PATCH-whole under ARM_SCOPES, dropping ENCA_AUTHORITY; copy buttons for authConfig.local.js, docker -e and template parameters; Sign in again = EncaConn.use). Demo simulates every step. The scope list is asserted equal to the script's $DelegatedScopes by tools/onboard.test.cjs.",
+      why: "Mihai: a web-based onboarding single-tenant flow, before login as the front door and after login as an option, and make it the default login. R14 shipped the PowerShell route in 273; this is the same registration made from the page, so a customer standing up a self-hosted copy — or a customer on a hosted multitenant copy who wants their own consent record — does not need PowerShell.",
+      test: [
+        "On a self-hosted or beta host the sign-in card shows the 🪪 line; on enca.limon-it.nl it does not (isProdHost).",
+        "Click the line → sign in with the shipped registration as a Global Administrator → the wizard opens by itself on the home page once the tenant loaded.",
+        "Step 1: the app name defaults to ENCA — <tenant>, the redirect URI is exactly the origin + path this copy is served from (compare with the ⚙ panel's string).",
+        "Step 2: the op list, then Create: ONE consent popup naming Application.ReadWrite.All, DelegatedPermissionGrant.ReadWrite.All and AppRoleAssignment.ReadWrite.All against the SHIPPED registration, for you only.",
+        "Step 3 on a REAL tenant: the run creates the application (App registrations shows it, single-tenant, SPA with that redirect URI, 18 delegated permissions, implicit grant off), the service principal, the assignment (Users and groups lists you, Assignment required = Yes), and the consent (Enterprise applications → Permissions shows the admin consent); re-running with the same name UPDATES the same app (the object id must not change).",
+        "Step 4: the ⚙ panel on the sign-in card shows the new connection selected; Sign in again → the consent screen names YOUR app in YOUR tenant, and the 🔒 Permissions panel lists the consented scopes.",
+        "On an Azure Container App with Contributor rights: Set ENCA_CLIENT_ID and ENCA_TENANT_ID → a new revision; a private window signs in with the new registration; other env variables (ENCA_BRANDING) untouched. Without rights: ARM's 403 is shown as a sentence, the copy buttons still work.",
+        "Sign in as a Conditional Access Administrator only: no band, no menu row, and the sign-in line still works but the run fails at the first write with Graph's own message.",
+        "Sign in to a tenant whose registration is already its own (ENCA_CLIENT_ID set): no band, no menu row.",
+        "Not now hides the band for that tenant only; the account menu row stays; another tenant still shows the band.",
+        "node --test tools/onboard.test.cjs — 7 tests; the whole suite; the plain-text check.",
+      ],
+      files: ["js/onboard.js", "js/app.js", "index.html", "css/app.css", "js/version.js", "js/changelog.js", "js/promote.js", "SINGLE-TENANT.md", "tools/onboard.test.cjs"],
+    },
+    {
       n: 259,
       title: "Policy builder (T41): one guided screen for a policy, on 🧩 Policy building blocks",
       tools: ["Policy building blocks", "Policies"],

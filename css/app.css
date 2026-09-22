@@ -2458,3 +2458,38 @@ td.gm-none{color:var(--muted);font-weight:700}
 .pb-picklist .ld-row{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);text-align:left;cursor:pointer}
 .pb-pickrow{cursor:default}
 .pb-pickrow .pb-row{margin-top:4px}
+
+/* ---------- 🪪 Own registration — onboarding (R59, build 25438) ---------- */
+.login-onboard{text-align:center}
+.ob-band{display:flex;gap:14px;align-items:flex-start;margin:14px 0 18px;padding:14px 16px;border:1px solid var(--border);border-left:4px solid var(--accent2);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
+.ob-ic{font-size:26px;line-height:1;flex:none}
+.ob-txt{flex:1;min-width:0;font-size:13px;line-height:1.5}
+.ob-txt code{font-size:12px}
+.ob-act{display:flex;flex-direction:column;gap:6px;flex:none;align-items:stretch}
+.ob-modal{max-width:820px}
+.ob-modal h3{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ob-steps{display:flex;margin:8px 0 16px;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:12.5px}
+.ob-steps span{flex:1;padding:8px 10px;text-align:center;color:var(--muted);border-right:1px solid var(--border)}
+.ob-steps span:last-child{border-right:0}
+.ob-steps span.now{background:var(--accent2);color:#fff;font-weight:700}
+.ob-steps span.done{color:var(--on);font-weight:600}
+.ob-tbl{width:100%;border-collapse:collapse;font-size:12.5px;margin:10px 0 14px}
+.ob-tbl th,.ob-tbl td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.ob-tbl th{color:var(--muted);font-weight:600}
+.ob-tbl td.y{background:color-mix(in srgb,var(--on) 9%,var(--surface))}
+.ob-f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);margin-top:10px}
+.ob-f input[type=text]{height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13px}
+.ob-f code.ro{display:inline-block;padding:8px 10px;border:1px dashed var(--border);border-radius:8px;background:var(--soft);font-size:12.5px;user-select:all}
+.ob-row{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px;line-height:1.45}
+.ob-row input{margin-top:3px;flex:none}
+.ob-h{margin:16px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ob-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;align-items:center}
+.ob-kv code{user-select:all;overflow-wrap:anywhere}
+.ob-def{display:grid;gap:10px;margin-top:6px}
+.ob-defrow{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;line-height:1.45}
+.ob-defrow .ic{font-size:18px;flex:none;width:24px;text-align:center}
+.ob-defrow.ok{border-color:var(--on);background:color-mix(in srgb,var(--on) 7%,var(--surface))}
+.ob-defrow .mini{display:block}
+.ob-defrow .btn{margin:2px 6px 2px 0}
+.ob-note{padding:8px 10px;border-radius:8px;background:var(--soft);font-size:12px;line-height:1.45;margin-top:8px}
+.ob-modal .modal-foot{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:18px;flex-wrap:wrap}

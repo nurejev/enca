@@ -119,6 +119,23 @@ When it finishes it prints the two values you need. Keep the window open.
 
 ## Step 3 — Point your copy at your registration
 
+### The quicker route: the wizard on the sign-in card (build 25438)
+
+From build 25438 the registration itself can be made from the page: **🪪 First
+time on this copy? Register ENCA in your own tenant** on the sign-in card (every
+host but the publisher's own) signs you in once with the registration the copy
+ships with and walks a Global, Privileged Role, Application or Cloud Application
+Administrator through what the script in Step 2 does — the single-tenant SPA
+registration with the same delegated permissions, its service principal,
+optionally *assignment required* with you assigned first, optionally admin
+consent for the organisation — each step read back, impact and recovery stated
+before the write. The result is saved as the ⚙ connection below and selected;
+on an Azure Container App one button also writes `ENCA_CLIENT_ID` and
+`ENCA_TENANT_ID` onto the container app, and any other host gets the
+`js/authConfig.local.js` block and the `docker -e` lines to copy. The script
+stays the route for pipelines and for tenants where the person registering is
+not the person deploying.
+
 ### The quick route: the ⚙ control on the sign-in card
 
 From build 25399 you do not have to edit a file to *try* your registration.

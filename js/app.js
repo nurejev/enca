@@ -882,6 +882,10 @@
   // The client ID is shown in full. Truncating an identifier somebody is meant
   // to check against their own tenant makes it un-checkable, which is worse
   // than not showing it: it looks like verification without being any.
+  // 🪪 the onboarding line on the sign-in card (R59) — every host but the
+  // publisher's own: the hosted site's whole point is the shared registration,
+  // and an administrator there still finds the wizard on the home page.
+  (function markOnboardLogin() { const el = $("loginOnboard"); if (el && isProdHost()) el.style.display = "none"; })();
   (function markSelfHostedLogin() {
     try {
       if (deploymentKind() !== "selfhosted") return;
@@ -2284,6 +2288,9 @@
       try { renderOverview(); } catch (e) { console.warn("overview:", e); }
       refreshViews();
       renderPermissions();
+      // 🪪 own registration (R59): the band, the menu row, and the wizard when
+      // the sign-in card asked for it — after the identity is settled
+      try { Onboard.afterSignIn({ tenantId, tenantName, demo: false, account: Graph.account }); } catch (e) { console.warn("onboard:", e); }
       // The read is async: if another tool was opened while it ran (shownScreen
       // is no longer the loading screen), stay there — a refresh must never
       // pull you back to the tool that asked for it. T12 still re-scans, quietly.
@@ -2349,6 +2356,7 @@
     try { renderOverview(); } catch (e) { console.warn("overview:", e); }
     refreshViews();
     renderPermissions();
+    try { Onboard.afterSignIn({ tenantId: "", tenantName, demo: true, account: null }); } catch (e) { console.warn("onboard:", e); }
     show("screen-home");
     toast(`Demo mode — <span>${policies.length}</span> sample policies loaded`);
     maybeShowWhatsNew();
@@ -20777,6 +20785,7 @@ This is a directory write. Nothing else changes.`)) return;
   // The workspace home is built after the app has already drawn once; when it
   // appears, the Overview moves into it.
   document.addEventListener("enca:wchome", () => { try { renderOverview({ force: true }); } catch (e) { console.warn("overview:", e); } });
+  document.addEventListener("enca:wchome", () => { try { Onboard.paintBand(); } catch (e) { console.warn("onboard:", e); } });
   $("overview") && $("overview").addEventListener("click", (e) => {
     // a tile's secondary link wins over the tile it sits on
     const also = e.target.closest(".db-also");
