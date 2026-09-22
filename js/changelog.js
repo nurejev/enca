@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25444, date: "2026-09-22", title: "Add my own app registration — a row in the account menu",
+    items: [
+      { kind: "fixed", tool: "Sign-in", text: "🪪 The wizard's entry in the account menu is a row of its own, right under the Connected app panel — Add my own app registration…, or when the registration this copy signs in with is already this tenant's: App registration: check this one, or add my own… A row is always there once signed in; the button that 25443 attached to the panel depended on the registration read and could be missed." },
+      { kind: "new", tool: "Sign-in", text: "When the copy already signs in with a registration in this tenant, the wizard's first step offers ＋ Add a separate registration instead — a new single-tenant app named for this copy — beside completing the existing one." },
+    ],
+  },
+  {
     build: 25443, date: "2026-09-22", title: "The registration wizard knows whose app it is",
     items: [
       { kind: "fixed", tool: "Sign-in", text: "🪪 The wizard opened from the sign-in card said the app was the publisher's even when the registration this copy signs in with is in YOUR tenant — the app's display name was put in the owner column. Ownership is now judged by the owner tenant, as the Connected app panel does: an app of this tenant opens the wizard as a check — it completes the redirect URI and the permission list of that registration, by application ID, keeping the redirect URIs other hosts registered — and an app of another directory opens it as before, naming that directory's tenant ID." },

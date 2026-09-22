@@ -155,7 +155,12 @@ const Onboard = (() => {
     S.pendingOpen = false;
     document.dispatchEvent(new CustomEvent("enca:onboard-closed"));
   }
-  function paintMenu() { /* since 25443 the Connected app block in the account menu carries the wizard's button (js/workspaces.js) */ }
+  // The account-menu row is static markup, so it is always there once signed
+  // in; this only sets its words to what the wizard will do.
+  function paintMenu() {
+    const row = $("onboardBtn"); if (!row) return;
+    row.textContent = S.own ? "🪪 App registration: check this one, or add my own…" : "🪪 Add my own app registration…";
+  }
   function dismissed() { try { return localStorage.getItem(DISMISS(S.tenantId)) === "1"; } catch { return false; } }
   function paintBand() {
     const old = $("onboardBand"); if (old) old.remove();
@@ -175,10 +180,14 @@ const Onboard = (() => {
   }
 
   // ---- the wizard --------------------------------------------------------------------
-  function open() {
+  // opts.mode: "check" (the registration this copy signs in with, when it is
+  // this tenant's) or "new" (a separate registration in this tenant). Default:
+  // check when it is ours, new otherwise.
+  function open(opts) {
+    const o = opts && typeof opts === "object" ? opts : {};
     step = 1; result = null; busy = false;
-    form = form && form.tenantId === S.tenantId ? form : { tenantId: S.tenantId, name: S.own && S.owner && S.owner.name ? S.owner.name : defaultName(S.tenantName), localhost: false, assign: true, consent: true, exists: false, own: !!S.own, ok: false };
-    form.own = !!S.own;
+    const mode = o.mode || (S.own ? "check" : "new");
+    form = { tenantId: S.tenantId, name: mode === "check" && S.owner && S.owner.name ? S.owner.name : defaultName(S.tenantName), localhost: false, assign: true, consent: true, exists: false, own: mode === "check" && !!S.own, ok: false };
     render();
     $("obModal").classList.add("open");
   }
@@ -189,7 +198,7 @@ const Onboard = (() => {
     const c = typeof EncaConn !== "undefined" ? EncaConn.shipped : { clientId: "", authority: "" };
     const multi = S.owner && /^AzureADMultipleOrgs$|^AzureADandPersonalMicrosoftAccount$/.test(S.owner.audience || "");
     const ownerTenant = S.own ? (S.tenantName || S.tenantId) : (S.owner && S.owner.ownerTenantId ? `tenant ${S.owner.ownerTenantId}` : "another directory");
-    if (step === 1 && S.own) m.innerHTML = `<h3>🪪 This copy already signs in with a registration in ${esc(S.tenantName || "this tenant")} <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}
+    if (step === 1 && form.own) m.innerHTML = `<h3>🪪 This copy already signs in with a registration in ${esc(S.tenantName || "this tenant")} <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}
       <table class="ob-tbl"><tr><th></th><th>Today</th></tr>
         <tr><td>Application</td><td><b>${esc(S.owner.name || "Application")}</b> · <code>${esc(S.clientId)}</code></td></tr>
         <tr><td>Application owner</td><td class="y"><b>${esc(S.tenantName || S.tenantId)}</b> — this tenant</td></tr>
@@ -202,7 +211,7 @@ const Onboard = (() => {
       <div class="ob-row"><input type="checkbox" id="obAssign"${form.assign ? " checked" : ""}><span><b>Restrict to assigned users</b> — <i>Assignment required</i>, with <b>you assigned first</b>.</span></div>
       <div class="ob-row"><input type="checkbox" id="obConsent"${form.consent ? " checked" : ""}><span><b>Grant admin consent for the whole organisation</b> for the ${SCOPES.length} delegated permissions.</span></div>
       <div class="ob-err mini" id="obErr" style="display:none;color:var(--off);margin-top:8px"></div>
-      <div class="modal-foot"><button type="button" class="btn" id="obCancel">Cancel</button><button type="button" class="btn primary" id="obNext">Next: the plan →</button></div>`;
+      <div class="modal-foot"><button type="button" class="btn" id="obNewInstead" title="Create a separate registration in this tenant — for example one named for this copy — instead of completing the one it signs in with">＋ Add a separate registration instead</button><span style="flex:1"></span><button type="button" class="btn" id="obCancel">Cancel</button><button type="button" class="btn primary" id="obNext">Next: the plan →</button></div>`;
     else if (step === 1) m.innerHTML = `<h3>🪪 Your own app registration <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}
       <table class="ob-tbl"><tr><th></th><th>Today — ${multi ? "shared, multi-tenant" : "another directory's"}</th><th>After — yours, single-tenant</th></tr>
         <tr><td>Application</td><td>${esc(S.owner && S.owner.name || "Application")} · <code>${esc(c.clientId || "—")}</code>${multi ? ", shared by every tenant" : ""}</td><td class="y">a new one, yours alone · <code>AzureADMyOrg</code></td></tr>
@@ -236,7 +245,7 @@ const Onboard = (() => {
         <div class="ob-defrow${r.saved ? " ok" : ""}"><span class="ic">${r.saved ? "✓" : "✗"}</span><span><b>This browser</b> — ${r.saved ? `connection <b>${esc(r.connName)}</b> is saved and selected. The next sign-in uses it; ⚙ on the sign-in card shows it, and <b>Default</b> there restores the shipped one.` : "the connection could not be stored (private window?) — add it under ⚙ on the sign-in card."}</span></div>
         ${IS_ACA ? `<div class="ob-defrow" id="obAcaRow"><span class="ic">☁</span><span><b>This deployment</b> — an Azure Container App serves this page. <button type="button" class="btn sm primary" id="obAca">Set ENCA_CLIENT_ID and ENCA_TENANT_ID on it</button><span class="mini muted">Uses your own Azure rights (Contributor on the container app), the same way Branding settings does. Azure rolls a new revision; every visitor then signs in with your registration, and it survives image updates. Nothing is stored by ENCA.</span><span class="mini" id="obAcaOut"></span></span></div>` : ""}
         <div class="ob-defrow"><span class="ic">📋</span><span><b>Any other host</b> — <button type="button" class="btn sm" data-obcopy="local">Copy js/authConfig.local.js</button> <button type="button" class="btn sm" data-obcopy="docker">Copy docker -e lines</button> <button type="button" class="btn sm" data-obcopy="params">Copy Azure template parameters</button><span class="mini muted">For a copy you serve to other people: the file beside js/authConfig.js, or the two container variables — SINGLE-TENANT.md step 3.</span></span></div></div>` : `<p class="mini" style="color:var(--off)">The registration was not created — see the run above. Nothing else was changed.</p>`}
-      <div class="modal-foot"><span class="mini muted" style="margin-right:auto">${r.appId ? `The consent screen will now name <b>${esc(form.name)}</b>, in ${esc(S.tenantName || "your tenant")}.` : ""}</span><button type="button" class="btn" id="obClose">Close</button>${r.saved && !S.demo ? `<button type="button" class="btn primary" id="obRelogin">Sign in again with your own registration →</button>` : ""}</div>`;
+      <div class="modal-foot"><span class="mini muted" style="margin-right:auto">${r.appId ? `The consent screen will now name <b>${esc(form.name)}</b>, in ${esc(S.tenantName || "your tenant")}.` : ""}</span><button type="button" class="btn" id="obClose">Close</button>${r.saved && !S.demo && !form.own ? `<button type="button" class="btn primary" id="obRelogin">Sign in again with your own registration →</button>` : ""}</div>`;
       if (result && result.ledgerHtml) { const l = $("obLedger"); if (l) l.innerHTML = result.ledgerHtml; }
     }
     if (typeof FlatIcons !== "undefined") FlatIcons.apply(m);
@@ -251,6 +260,7 @@ const Onboard = (() => {
       if (t.id === "obCancel" || t.id === "obClose" || (t === bg && !busy)) { if (!busy) close(); return; }
       if (t.id === "obNext") { readForm(); const bad = validateName(form.name); const err = $("obErr"); if (bad) { err.textContent = bad; err.style.display = ""; return; } step = 2; render(); return; }
       if (t.id === "obBack") { step = 1; render(); return; }
+      if (t.id === "obNewInstead") { open({ mode: "new" }); return; }
       if (t.id === "obGo") { run(); return; }
       if (t.id === "obRelogin" && result && result.connId) { EncaConn.use(result.connId); return; }
       if (t.id === "obAca") { setOnAca(); return; }
@@ -298,12 +308,12 @@ const Onboard = (() => {
         const scopeIds = {}; (graphSp.oauth2PermissionScopes || []).forEach((p) => scopeIds[p.value] = p.id);
         const missing = SCOPES.filter((s) => !scopeIds[s]);
         const body = appBody(form, scopeIds);
-        const existing = S.own && S.clientId
+        const existing = form.own && S.clientId
           ? (((await Graph.gget(`/applications?$filter=appId eq '${S.clientId}'&$select=id,appId,displayName,spa`)) || {}).value || [])
           : (((await Graph.gget(`/applications?$filter=displayName eq '${form.name.replace(/'/g, "''")}'&$select=id,appId,displayName,spa`)) || {}).value || []);
         let app;
         if (existing.length > 1) throw new Error(`${existing.length} applications are called ${form.name} — rename one in the portal first, or choose another name.`);
-        if (S.own && !existing.length) throw new Error(`The registration this copy signs in with (${S.clientId}) was not found among this tenant's applications — this account may not read it.`);
+        if (form.own && !existing.length) throw new Error(`The registration this copy signs in with (${S.clientId}) was not found among this tenant's applications — this account may not read it.`);
         if (existing.length === 1) { await Graph.gpatch(`/applications/${existing[0].id}`, updateBody(existing[0], form, scopeIds)); app = await settled(`/applications/${existing[0].id}`, (a) => a && a.spa && (a.spa.redirectUris || []).includes(redirectUri())); L.done(i, "updated " + app.appId); }
         else { const created = await Graph.gpost("/applications", body); app = await settled(`/applications/${created.id}`, (a) => a && a.appId); L.done(i, app.appId); }
         R.appId = app.appId; R.appObjectId = app.id; i++;
@@ -329,7 +339,7 @@ const Onboard = (() => {
           L.done(i, `${scope.split(" ").length} scopes`); i++;
         }
         L.start(i);
-        if (S.own) { R.saved = true; R.connName = S.owner.name || "this registration"; L.skip(i, "already the registration this copy signs in with"); }
+        if (form.own) { R.saved = true; R.connName = S.owner.name || "this registration"; L.skip(i, "already the registration this copy signs in with"); }
         else {
           R.connName = `${S.tenantName || S.tenantId} — own registration`;
           const saved = EncaConn.save({ name: R.connName, clientId: app.appId, tenant: S.tenantId });
