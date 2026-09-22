@@ -1,5 +1,5 @@
 /* Application chrome and home share ENCA's active branding palette. */
-body.workspaces-shell{--wc-rail-width:88px;--wc-brand:var(--green-deep);--wc-brand-ink:#fff;--wc-brand-muted:color-mix(in srgb,var(--wc-brand-ink) 80%,var(--wc-brand))}
+body.workspaces-shell{--wc-rail-width:88px;--wc-brand:var(--green-deep);--wc-brand-ink:#fff;--wc-brand-muted:color-mix(in srgb,var(--wc-brand-ink) 80%,var(--wc-brand));--wc-active-bg:var(--ink);--wc-active-ink:var(--surface)}
 body.workspaces-shell header{background:var(--wc-brand);color:var(--wc-brand-ink);border-color:color-mix(in srgb,var(--wc-brand-ink) 20%,var(--wc-brand))}
 body.workspaces-shell .hwrap{max-width:none;padding:15px 22px;gap:25px;min-height:63px}
 body.workspaces-shell:has(#betaRibbon)>header{padding-top:28px}
@@ -38,16 +38,17 @@ body.workspaces-shell #toolNav .toolnav-btn.home svg{width:16px;height:16px}
 body.workspaces-shell #toolNav [data-navadd],body.workspaces-shell #toolNav [data-navhelp],body.workspaces-shell #toolNav [data-navcloseall]{display:none}
 body.workspaces-shell #toolNav .toolnav-x{padding:6px 7px 6px 0;opacity:0;font-size:13px}
 body.workspaces-shell #toolNav .toolnav-tab:hover .toolnav-x,body.workspaces-shell #toolNav .toolnav-tab:focus-within .toolnav-x{opacity:1}
-body.workspaces-shell .toolnav-tab.active{background:var(--soft);border-color:var(--border)}
-body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-btn,body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-x{color:var(--green)}
-body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-btn:hover,body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-x:hover{background:var(--soft2);color:var(--ink)}
-body.workspaces-shell #toolNav .toolnav-btn.home.active{background:var(--soft);color:var(--green);border-color:var(--border)}
+/* Invert the theme's text/surface pair so the current location stays distinct. */
+body.workspaces-shell .toolnav-tab.active{background:var(--wc-active-bg);border-color:var(--wc-active-bg)}
+body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-btn,body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-x{color:var(--wc-active-ink)}
+body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-btn:hover,body.workspaces-shell #toolNav .toolnav-tab.active .toolnav-x:hover{background:transparent;color:var(--wc-active-ink)}
+body.workspaces-shell #toolNav .toolnav-btn.home.active{background:var(--wc-active-bg);color:var(--wc-active-ink);border-color:var(--wc-active-bg)}
 #wcRail{position:fixed;top:var(--sticky-header,66px);bottom:0;left:0;width:var(--wc-rail-width);padding:16px 8px;display:flex;flex-direction:column;gap:7px;z-index:46;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto}
 #wcRail button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:0;border-radius:8px;background:transparent;color:var(--muted);padding:11px 4px;min-height:61px;flex-shrink:0}
 #wcRail button>span{font-size:19px;line-height:1.1}
 #wcRail button>small{font-size:11px;font-weight:500}
 #wcRail button:hover{background:var(--soft);color:var(--ink)}
-#wcRail button.active{background:var(--lemon);color:var(--wc-accent-ink,#173522)}
+#wcRail button.active{background:var(--wc-active-bg);color:var(--wc-active-ink)}
 .wc-rail-divider{border-top:1px solid var(--border);margin:7px}
 .wc-rail-caption{margin-top:auto;padding-top:26px;text-align:center;color:var(--muted);font-size:9px;line-height:1.7;letter-spacing:.08em}
 .wc-home-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin:6px 0 36px}

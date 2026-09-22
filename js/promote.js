@@ -119,6 +119,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 249,
+      title: "Navigation: contrasting active tool and tab",
+      tools: ["Navigation"],
+      builds: [25427],
+      risk: "low",
+      what: "Uses the theme's text and surface colours in reverse for the active workspace, Overview, tool subtab and matching sidebar shortcut. Active text, icons and close controls keep their contrast on hover. CSS only; existing navigation and data collection are unchanged.",
+      why: "The pale active backgrounds made it difficult to identify the current tool. A solid dark selection in light mode and light selection in dark mode makes the current location clear.",
+      test: [
+        "In light and dark themes, select Sign-in log and each of its tabs. The active tool and subtab have contrasting solid fills; inactive neighbours remain unfilled.",
+        "Hover and keyboard-focus the selected tool, close control, Overview and sidebar shortcut. Text and icons stay legible, and keyboard focus remains visible.",
+        "Switch between tools and Overview, then change the theme without reloading. Check desktop and mobile layouts, including system dark mode.",
+        "See the local review/2026-09-22/BETA-25427.md validation report for browser results and pending deployment acceptance.",
+      ],
+      files: ["css/workspaces.css", "css/tool-layout.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 248,
       title: "Overview: flat dashboard and clear reading order",
       tools: ["Home"],

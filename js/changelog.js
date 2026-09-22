@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25427, date: "2026-09-22", title: "A clear active tool in both themes",
+    items: [
+      { kind: "improved", tool: "Navigation", text: "The active tool, its selected tab and the matching sidebar shortcut now use a solid dark fill in the light theme and a light fill in the dark theme, with contrasting text and icons. The selection stays visible while hovering and follows the current theme and branding." },
+    ],
+  },
+  {
     build: 25426, date: "2026-09-22", title: "A flat dashboard with a clearer reading order",
     items: [
       { kind: "improved", tool: "Home", text: "The dashboard now has one flat statistics strip, findings beside a compact policy-context column, and checks separated by simple lines. Raised cards and shadows are removed; line icons match the workspace. The same information stacks on mobile, with the configuration map and advisories expandable below." },

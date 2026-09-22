@@ -22,7 +22,7 @@ body.workspaces-shell .tool-tabs-bar .tool-tabs{background:transparent;border:0;
 body.workspaces-shell .tool-tabs-bar .tool-tabs button{
   border:1px solid transparent;border-radius:6px;padding:9px 12px;font-size:12px;font-weight:500;
 }
-body.workspaces-shell .tool-tabs-bar .tool-tabs button.active{background:var(--surface);color:var(--green);border-color:var(--border)}
+body.workspaces-shell .tool-tabs-bar .tool-tabs button.active{background:var(--wc-active-bg);color:var(--wc-active-ink);border-color:var(--wc-active-bg)}
 body.workspaces-shell .screen.tool > .toolbar{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--wc-panel-radius);
   padding:12px;margin:16px 0 0;gap:10px;box-shadow:0 4px 12px -10px #0004;
