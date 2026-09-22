@@ -66,9 +66,20 @@ const BASELINE = {
   // browser and app-enforced restrictions are documented as not supported for
   // B2B direct connect, so aiming them at those users only produced a session
   // nobody could satisfy. Taken whole — 11 policies, names and versions with
-  // them. NOT a complete rollout on their side: about thirty other session
-  // policies in this catalog still do not carry the carve-out, and inventing
-  // it for them would be publishing a baseline CloudFellows has not.
+  // them.
+  //
+  // THE SWEEP IS COMPLETE, which a count of this file makes look otherwise
+  // (build 25462 corrects an earlier note here that said it was not).
+  // Twenty-nine other session policies carry no direct-connect carve-out and
+  // none of them needs one: a B2B DIRECT CONNECT USER HAS NO ACCOUNT IN THE
+  // DIRECTORY — there is no guest object to put in a group — so a policy
+  // scoped to CAB-SEC-U-Persona-Admins, -Internals, -Externals, -GuestAdmins,
+  // -DevOps or -BreakGlass can never reach one, and excluding a type that
+  // cannot arrive is decoration. Only All users, or a clause naming the
+  // external types, reaches a direct connect user; ten session policies here
+  // do, and after this revision every one of them either excludes the type or
+  // has dropped it from what it includes (CA402 did it from the include
+  // side). Count what a policy can REACH, not how its exclusion list reads.
   revised: "2026-09-22",
   policies: [
     {"num":0,"name":"CA000-GRANT-Global-IP-AnyApp-AnyPlatform-MFA-v1.0.2","version":"1.0.2","tag":"","include":["All users"],"exclude":["CAB-SEC-U-Persona-GuestAdmins (group)","CAB-SEC-U-Persona-GuestUsers (group)","CAB-SEC-U-Persona-Internals (group)","CAB-SEC-U-Persona-Externals (group)","CAB-SEC-U-TeamsSharedDevices (group)","CAB-SEC-U-BreakGlass (group)","CAB-SEC-U-Persona-Admins (group)","CAB-SEC-U-Persona-DevOps (group)","CAB-SEC-U-Persona-Microsoft365ServiceAccounts (group)"],"resources":"All resources · − Azure Windows VM Sign-In","network":"Any network or location","conditions":["Client apps: Any client app"],"grant":"Authentication strength: Multifactor authentication","block":false,"session":""},

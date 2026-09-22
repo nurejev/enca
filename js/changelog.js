@@ -29,9 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25462, date: "2026-09-22", title: "A note about the baseline that was wrong",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "🧱 Build 25461 left a note in the catalog, and a line in its own changelog entry, saying CloudFellows had not finished carving B2B direct connect users out of the session policies — twenty-nine of them appeared to lack the exclusion. That counted the wrong thing. A B2B direct connect user has no account in your directory, so there is no object to put in a group, so a policy scoped to a persona group can never reach one and an exclusion there would be decoration. Only a policy that includes All users, or names the external types, reaches one: ten do, and every one of them now either excludes the type or has dropped it from what it includes. The sweep is complete, and the note and the entry say so. A false note in a data file is worse than no note — the next revision would have been read as a regression." },
+    ],
+  },
+  {
     build: 25461, date: "2026-09-22", title: "Baseline catalog: B2B direct connect out of the session policies",
     items: [
-      { kind: "improved", tool: "Baseline", text: "🧱 Eleven policies taken into the catalog from CloudFellows.dev, all of them one deliberate change: B2B direct connect users come out of the session policies. CA005, CA007, CA008, CA009, CA011, CA016 and CA403 gain the exclusion CA405 already had; CA400 and CA402 drop the type from the guests they include; CA014 and CA111 widen their exclusion to every external type. It follows the controls: sign-in frequency, persistent browser and app-enforced restrictions are documented as not supported for B2B direct connect, so pointing them at those users only produced a requirement they could not meet. Names and versions came with the change. Note that CloudFellows has not finished the sweep — around thirty other session policies in the catalog still do not carry the carve-out, and ENCA will not invent it for them: the catalog says what they publish, not what would be consistent." },
+      { kind: "improved", tool: "Baseline", text: "🧱 Eleven policies taken into the catalog from CloudFellows.dev, all of them one deliberate change: B2B direct connect users come out of the session policies. CA005, CA007, CA008, CA009, CA011, CA016 and CA403 gain the exclusion CA405 already had; CA400 and CA402 drop the type from the guests they include; CA014 and CA111 widen their exclusion to every external type. It follows the controls: sign-in frequency, persistent browser and app-enforced restrictions are documented as not supported for B2B direct connect, so pointing them at those users only produced a requirement they could not meet. Names and versions came with the change. The sweep is complete, though a count of the catalog makes it look otherwise: the twenty-nine session policies carrying no such exclusion are all scoped to a persona group, and a B2B direct connect user has no account in the directory to be a member of one. Only a policy that includes All users, or names the external types, can reach one at all." },
     ],
   },
   {
