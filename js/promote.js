@@ -119,6 +119,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 258,
+      title: "Baseline: update the catalog from its own tenant",
+      tools: ["Baseline"],
+      builds: [25436],
+      risk: "medium",
+      what: "\ud83e\uddf1 Update the catalog from this tenant, in baseline tenants only (never demo). Baseline.catalogReview compares each policy against its catalog entry on DEFINITION \u2014 vmToEntry renders the tenant view model into catalog shape, entryDiff normalises both sides so group order, condition order, the bullet and minus decoration, line-break markup and markdown emphasis are not differences. Take or hold per policy; holds are keyed by the signature of the difference and kept per tenant in localStorage. catalogSource emits the entries plus a revision note with every hold and its reason. Output is a report: no write to the tenant, no write to the repo.",
+      why: "Mihai asked for changed \u2192 export \u2192 import. Mocked against this and he chose this: Import writes to a tenant, baselineData.js is a source file, and an export carries none of num/version/tag nor any of the judgement. Separately, Baseline.compare judged on the version string in the policy name and never on content \u2014 a policy edited without a version bump read as ok.",
+      test: [
+        "ON THE REAL BASELINE TENANT, the number that matters: how many of the ~105 come back CHANGED. Three or a handful means the normalisation is right. Dozens means it is reporting rendering as change \u2014 stop and read the false ones before trusting anything else.",
+        "Check the drift line: it names how many UNCHANGED policies would serialise differently from the catalog's existing prose. Cosmetic, but it tells you how close the generated entries will read to their neighbours.",
+        "Edit one policy in the tenant WITHOUT bumping its version; re-run: it must appear as changed with the right field named. That is the case the old comparison could not see.",
+        "Reorder a policy's exclusion groups in the portal and re-run: it must NOT appear as changed.",
+        "Hold a policy with a reason; re-run: it is in Held, out of the run, and the reason shows with its date.",
+        "Then change that same policy in a DIFFERENT way and re-run: it must come back as changed and marked REOPENED.",
+        "Take two policies and generate: the report carries both entries as valid JSON keeping their num, version and tag, the revision note lists what was taken and every hold, and the js/userimpact.js reminder is there.",
+        "The button is absent in a non-baseline tenant and in demo.",
+        "Offline: node --test tools/*.test.cjs \u2014 312 tests, including the 18 in tools/baseline-catalog.test.cjs.",
+        "See review/2026-09-22/BETA-25436.md \u2014 the UI has NOT been run in a browser and this has never been run against the real tenant.",
+      ],
+      files: ["js/baseline.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/baseline-catalog.test.cjs"],
+    },
+    {
       n: 257,
       title: "Policies: Clear clears the view, not just the selection",
       tools: ["Policies"],

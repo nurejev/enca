@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25436, date: "2026-09-22", title: "Update the baseline catalog from its own tenant",
+    items: [
+      { kind: "new", tool: "Baseline", text: "\ud83e\uddf1 Update the catalog from this tenant \u2014 in the baseline tenant only. It compares every policy against the catalog on its DEFINITION rather than on the version in its name, so a policy you edited and saved without bumping the version is finally caught; until now that read as up to date. Each difference is shown field by field, catalog on one side and tenant on the other." },
+      { kind: "new", tool: "Baseline", text: "It knows what is not a change. Group order, condition order and the catalog's own markup are ignored \u2014 that pile of false differences is most of what made the last hand-regeneration slow. And it knows what is not YOUR change: a policy the tenant has and the catalog does not is offered as new, while one the catalog has and the tenant no longer does is reported and never removed. Deleting a baseline policy is not a decision this makes for you." },
+      { kind: "new", tool: "Baseline", text: "Tick what to take, or hold it with a reason. The reason is kept, and travels into the generated revision note the way the catalog's own header records its departures \u2014 so the 58 policies you held last time stay held instead of being re-decided from scratch. A hold is tied to the difference it was made about: if that policy later changes in some OTHER way, it reopens and is marked, because nobody has looked at that one yet." },
+      { kind: "new", tool: "Baseline", text: "The output is the catalog source: the entries you took in the file's own shape, keeping their number, version and tag, plus a revision note listing what was taken and what was held, and the reminder to re-check the user impact brief's rules. It opens as a report to download and read \u2014 nothing is written to your tenant, and nothing to the repository." },
+    ],
+  },
+  {
     build: 25435, date: "2026-09-22", title: "Clear actually clears",
     items: [
       { kind: "fixed", tool: "Policies", text: "The Clear button on the action bar only ever cleared the SELECTION, so with nothing selected it did nothing at all \u2014 while the thing actually narrowing your view sat right above it. It now clears everything that narrows the view: the selection, an Overview filter you arrived through, the persona chips, the search box and the state filter. When there is genuinely nothing to clear it greys out, and hovering it says what it would take away \u2014 so it can never look broken again." },

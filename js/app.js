@@ -9156,7 +9156,105 @@ This is a directory write. Nothing else changes.`)) return;
     $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
     const n = blResult.toImport.length;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
+    // Regenerating the catalog is only meaningful where the catalog is BUILT.
+    $("blCatalogUpdate").style.display = isBaselineTenant() && !isDemo ? "" : "none";
+    if (blCatOpen) renderCatalogUpdate();
   }
+
+  // ---------- Update the catalog from this tenant (25436) ----------------
+  // The baseline tenant is where the catalog is authored, so this is the one
+  // place the comparison runs the other way round: not "is the tenant behind
+  // the catalog" but "what has the catalog not caught up with".
+  //
+  // Holds live per tenant and are keyed by the SIGNATURE of the difference
+  // they were made about, so the 58 dropped exclusion groups stay held while a
+  // later, different change on one of those policies reopens by itself.
+  let blCatOpen = false, blReview = null, blTake = new Set();
+  const HOLD_KEY = () => `enca-baseline-holds:${tenantId || "unknown"}:${blCat}`;
+  const loadHolds = () => { try { return JSON.parse(localStorage.getItem(HOLD_KEY()) || "{}") || {}; } catch { return {}; } };
+  const saveHolds = (h) => { try { localStorage.setItem(HOLD_KEY(), JSON.stringify(h)); } catch { /* private mode */ } };
+
+  function renderCatalogUpdate() {
+    const panel = $("blCatalogPanel");
+    if (!blCatOpen || !blResult) { panel.style.display = "none"; return; }
+    panel.style.display = "";
+    const holds = loadHolds();
+    blReview = Baseline.catalogReview(blResult, holds);
+    const r = blReview;
+    const row = (x, kind) => {
+      const num = `CA${String(x.num).padStart(3, "0")}`;
+      const diff = (x.diff || []).map((d) => `<li><b>${esc(d.label)}</b><div class="mini muted">catalog: ${esc(d.cat)}</div><div class="mini">tenant: ${esc(d.ten)}</div></li>`).join("");
+      const on = blTake.has(x.num);
+      return `<div class="list-card" style="margin:8px 0"><div class="fx-body">
+        <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+          <span class="tag ${kind === "added" ? "grant" : kind === "held" ? "" : "block"}">${kind === "added" ? "NEW HERE" : kind === "held" ? "HELD" : "CHANGED"}</span>
+          <b>${esc(num)}</b> <span class="mini">${esc((x.ten && x.ten.name) || (x.cat && x.cat.name) || "")}</span>
+          ${x.reopened ? '<span class="tag new" title="It was held, but the difference is not the one that was held">REOPENED</span>' : ""}
+        </div>
+        ${diff ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0 0">${diff}</ul>` : ""}
+        ${x.hold ? `<p class="mini" style="margin:8px 0 0">Held: <i>${esc(x.hold.reason)}</i>${x.hold.at ? ` · ${esc(String(x.hold.at).slice(0, 10))}` : ""}</p>` : ""}
+        <div class="row" style="justify-content:flex-start;margin-top:10px;gap:8px;flex-wrap:wrap">
+          ${kind === "held"
+            ? `<button class="btn sm" data-blunhold="${x.num}">Reopen this decision</button>`
+            : `<label class="chk" style="margin:0"><input type="checkbox" data-bltake="${x.num}" ${on ? "checked" : ""}> Take into the catalog</label>
+               <input class="btn" style="flex:1;min-width:220px;cursor:text" data-blwhy="${x.num}" placeholder="…or hold it, and say why — the reason is kept with the catalog">
+               <button class="btn sm" data-blhold="${x.num}">Hold</button>`}
+        </div>
+      </div></div>`;
+    };
+    const drift = r.drift.length;
+    panel.innerHTML = `<div class="list-card readme"><div class="fx-body">
+      <div style="display:flex;gap:16px;align-items:baseline;justify-content:space-between;flex-wrap:wrap">
+        <h4 style="margin:0">🧱 Update the catalog from this tenant</h4>
+        <button class="btn sm" id="blCatClose">Close</button>
+      </div>
+      <p class="mini" style="margin:8px 0 0">Compared on <b>definition</b>, not on the version in the policy name — so a policy edited without a version bump is caught, and group order, condition order and markdown are not mistaken for changes. Nothing here writes to the tenant or to the repository: it proposes source for you to read and commit.</p>
+      <p class="mini" style="margin:6px 0 0"><b>${r.changed.length}</b> changed · <b>${r.added.length}</b> new here · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
+      ${drift ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">⚠ <b>Serialiser drift on ${drift} of the ${r.unchanged.length} unchanged policies.</b> Their definitions match, but the entry this tool would write differs in wording from the catalog's existing prose — the catalog's strings were produced by a generator that is not in this repository. The comparison is unaffected; the entries you take will simply read a little differently from their neighbours. Worth an eye on the first one you paste.</p>` : ""}
+      ${r.gone.length ? `<p class="mini" style="margin:8px 0 0">Gone from the tenant: ${r.gone.map((g) => `CA${String(g.num).padStart(3, "0")}`).join(", ")} — <b>not</b> removed from the catalog here. Deleting a baseline policy is a decision this tool will not make for you.</p>` : ""}
+    </div></div>
+    ${r.changed.map((x) => row(x, "changed")).join("")}
+    ${r.added.map((x) => row(x, "added")).join("")}
+    ${r.held.map((x) => row(x, "held")).join("")}
+    <div class="list-card"><div class="fx-body">
+      <button class="btn primary" id="blCatGen" ${blTake.size ? "" : "disabled"}>📄 Generate the catalog source (${blTake.size})</button>
+      <span class="mini muted" style="margin-left:8px">opens as a report — download it, read it, then edit js/baselineData.js by hand</span>
+    </div></div>`;
+  }
+
+  $("blCatalogUpdate").addEventListener("click", () => { blCatOpen = !blCatOpen; blTake.clear(); renderCatalogUpdate(); });
+  $("blCatalogPanel").addEventListener("click", (e) => {
+    if (e.target.id === "blCatClose") { blCatOpen = false; renderCatalogUpdate(); return; }
+    const hold = e.target.closest("[data-blhold]");
+    if (hold) {
+      const num = +hold.dataset.blhold;
+      const box = $("blCatalogPanel").querySelector(`[data-blwhy="${num}"]`);
+      const reason = (box && box.value.trim()) || "";
+      if (!reason) { toast("Say why it is held — <span>the reason is the point</span>"); if (box) box.focus(); return; }
+      const x = (blReview.changed || []).find((c) => c.num === num);
+      if (!x) return;
+      const holds = loadHolds();
+      holds[String(num)] = { reason, sig: x.sig, at: new Date().toISOString() };
+      saveHolds(holds); blTake.delete(num); renderCatalogUpdate();
+      toast(`CA${String(num).padStart(3, "0")} <span>held</span> — the reason travels with the catalog note`);
+      return;
+    }
+    const un = e.target.closest("[data-blunhold]");
+    if (un) {
+      const holds = loadHolds(); delete holds[String(+un.dataset.blunhold)]; saveHolds(holds); renderCatalogUpdate();
+      return;
+    }
+    if (e.target.id === "blCatGen") {
+      const taken = [...(blReview.changed || []), ...(blReview.added || [])].filter((x) => blTake.has(x.num))
+        .map((x) => ({ num: x.num, ten: x.ten, diff: x.diff || [{ label: "new in this tenant" }] }));
+      const md = "```js\n" + Baseline.catalogSource(blReview, taken, loadHolds(), { tenant: tenantName || tenantId }) + "\n```";
+      showReport("🧱 Proposed baseline catalog", "ENCA-baseline-catalog", md);
+    }
+  });
+  $("blCatalogPanel").addEventListener("change", (e) => {
+    const t = e.target.closest("[data-bltake]");
+    if (t) { const n = +t.dataset.bltake; if (t.checked) blTake.add(n); else blTake.delete(n); renderCatalogUpdate(); }
+  });
   $("blCatalog").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;

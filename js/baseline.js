@@ -868,6 +868,167 @@ const Baseline = (() => {
     return out;
   }
 
+  // ==================================================================
+  // REGENERATING THE CATALOG FROM ITS REFERENCE TENANT (25436)
+  //
+  // js/baselineData.js was last rebuilt BY HAND on 2026-08-20, and its
+  // header records what that cost: three real changes, buried in a pile of
+  // differences that were not changes at all ("the guest-type wording moved
+  // because ENCA itself renders it more precisely now, and group order varies
+  // per read"), plus 59 real differences deliberately NOT taken, so the
+  // catalog stays a baseline rather than a copy of one tenant.
+  //
+  // TWO RULES THIS IS BUILT ON.
+  //
+  // 1. COMPARE STRUCTURE, GENERATE PROSE — never the reverse. The catalog's
+  //    strings ("All resources · − Azure Windows VM Sign-In", a grant joined
+  //    with <br> and closed by "_Require all of the selected controls_") were
+  //    written by a one-off generator that is not in this repo. If the diff
+  //    string-compared against prose we re-derive here, one comma out of
+  //    place would report all 105 policies as changed. So the COMPARISON
+  //    normalises both sides into fields and ignores order and decoration;
+  //    the serialiser is used only for what comes OUT.
+  // 2. SAY WHEN THE SERIALISER HAS DRIFTED. Every policy the diff calls
+  //    unchanged is a free test of the serialiser: its entry should come back
+  //    byte-identical to the catalog's. drift() counts the ones that do not.
+  //    A high count means the generated entries will read differently from
+  //    their neighbours — cosmetic, not wrong, but you should know before
+  //    pasting 105 of them into the file.
+  //
+  // Nothing here writes: not the tenant, not the repo. It proposes source.
+  // ==================================================================
+
+  // Catalog prose, rebuilt from a tenant view model. `prev` is the entry this
+  // one replaces — num, version, tag and shared belong to the CATALOG, not to
+  // the tenant, so they are carried across rather than re-derived.
+  const joinDot = (inc, exc) => [...(inc || []), ...(exc || []).map((x) => "− " + x)].join(" · ");
+  function vmToEntry(vm, prev) {
+    const cond = [];
+    const c = vm.cond || {};
+    if ((c.platforms || []).length || (c.platformsExc || []).length) {
+      cond.push("Platforms: " + joinDot(c.platforms, c.platformsExc));
+    }
+    if ((c.clientApps || []).length) cond.push("Client apps: " + c.clientApps.join(", "));
+    if (c.devFilter && c.devFilter.rule) cond.push(`Device filter (${c.devFilter.mode === "exclude" ? "exclude" : "include"}): \`${c.devFilter.rule}\``);
+    if ((c.insider || []).length) cond.push("Insider risk: " + c.insider.join(", "));
+    if ((c.authFlows || []).length) cond.push("Auth flows: " + c.authFlows.join(", "));
+    (c.risks || []).forEach((r) => cond.push(r));
+    const isBlock = vm.grant && vm.grant.mode === "block";
+    const controls = (vm.grant && vm.grant.controls) || [];
+    let grant;
+    if (isBlock) grant = "Block access";
+    else {
+      grant = controls.join("<br>");
+      if (vm.grant && vm.grant.op && controls.length > 1) {
+        grant += `<br>_Require ${String(vm.grant.op).toUpperCase() === "OR" ? "one" : "all"} of the selected controls_`;
+      }
+    }
+    return {
+      num: prev ? prev.num : caNum(vm.name),
+      name: vm.name,
+      version: version(vm.name) || (prev ? prev.version : ""),
+      tag: prev ? prev.tag : "NEW",
+      include: ((vm.users && vm.users.inc) || []).slice(),
+      exclude: ((vm.users && vm.users.exc) || []).slice(),
+      resources: joinDot((vm.apps && vm.apps.inc) || [], (vm.apps && vm.apps.exc) || []),
+      network: joinDot((vm.net && vm.net.inc) || [], (vm.net && vm.net.exc) || []),
+      conditions: cond,
+      grant,
+      block: !!isBlock,
+      session: ((vm.session) || []).map((x) => x.t || x).join("<br>"),
+      ...(prev && prev.shared ? { shared: prev.shared } : {}),
+    };
+  }
+
+  // ---- comparison, on structure ----
+  // Decoration the catalog's prose carries and a tenant read does not
+  // reliably reproduce: the bullet, the minus, markdown emphasis, <br>, and
+  // ORDER, which "varies per read" per the file's own header.
+  const bits = (s) => String(s || "")
+    .replace(/<br\s*\/?>/gi, " · ")
+    .split("·").map((x) => x.replace(/[_`*]/g, "").replace(/\s+/g, " ").trim().toLowerCase())
+    .filter(Boolean).sort().join(" · ");
+  const sameList = (a, b) => {
+    const A = (a || []).map((x) => String(x).replace(/\s+/g, " ").trim().toLowerCase()).sort();
+    const B = (b || []).map((x) => String(x).replace(/\s+/g, " ").trim().toLowerCase()).sort();
+    return A.length === B.length && A.every((x, i) => x === B[i]);
+  };
+  // What differs between the catalog entry and the tenant's, field by field.
+  function entryDiff(cat, ten) {
+    const out = [];
+    const listField = (k, label) => { if (!sameList(cat[k], ten[k])) out.push({ field: k, label, cat: (cat[k] || []).join(" · "), ten: (ten[k] || []).join(" · ") }); };
+    const textField = (k, label) => { if (bits(cat[k]) !== bits(ten[k])) out.push({ field: k, label, cat: String(cat[k] || "—"), ten: String(ten[k] || "—") }); };
+    listField("include", "assignment — include");
+    listField("exclude", "assignment — exclude");
+    textField("resources", "target resources");
+    textField("network", "network");
+    listField("conditions", "conditions");
+    if (!!cat.block !== !!ten.block) out.push({ field: "block", label: "grant mode", cat: cat.block ? "Block" : "Grant", ten: ten.block ? "Block" : "Grant" });
+    textField("grant", "grant controls");
+    textField("session", "session controls");
+    return out;
+  }
+
+  // A stable signature of ONE policy's differences, so a hold can be tied to
+  // the change it was made about. A later, different change reopens it — a
+  // hold must never silently swallow something nobody looked at.
+  const diffSig = (diff) => diff.map((d) => `${d.field}:${bits(d.ten)}`).sort().join("|");
+
+  // res: the compare() result. holds: { "<num>": { reason, sig, at } }.
+  // Returns every row the catalog regeneration cares about.
+  function catalogReview(res, holds = {}) {
+    const changed = [], added = [], gone = [], unchanged = [], held = [];
+    for (const r of res.rows || []) {
+      if (r.status === "missing") { gone.push({ num: r.num, cat: r.baseline }); continue; }
+      if (!r.tenant || !r.baseline) {
+        // a tenant policy the catalog does not define at all
+        if (r.tenant && !r.baseline) added.push({ num: caNum(r.tenant.name), name: r.tenant.name, ten: vmToEntry(r.tenant, null) });
+        continue;
+      }
+      const ten = vmToEntry(r.tenant, r.baseline);
+      const diff = entryDiff(r.baseline, ten);
+      if (!diff.length) { unchanged.push({ num: r.num, cat: r.baseline, ten }); continue; }
+      const h = holds[String(r.num)];
+      const sig = diffSig(diff);
+      if (h && h.sig === sig) { held.push({ num: r.num, cat: r.baseline, ten, diff, hold: h }); continue; }
+      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, reopened: !!(h && h.sig !== sig) });
+    }
+    // Every unchanged policy is a free test of the serialiser.
+    const drift = unchanged.filter((u) => JSON.stringify(u.cat) !== JSON.stringify({ ...u.ten, num: u.cat.num, version: u.cat.version, tag: u.cat.tag, name: u.cat.name }));
+    const sort = (a, b) => (a.num ?? 0) - (b.num ?? 0);
+    return { changed: changed.sort(sort), added: added.sort(sort), gone: gone.sort(sort), unchanged, held: held.sort(sort), drift };
+  }
+
+  // The proposed catalog source: only what was taken, in the file's own shape.
+  // `taken` is a list of review rows; `holds` the decisions, so the header
+  // note can carry them the way the 2026-08-20 revision note does.
+  function catalogSource(review, taken, holds, meta = {}) {
+    const today = new Date().toISOString().slice(0, 10);
+    const L = [];
+    L.push(`// Revision ${today}: regenerated from ${meta.tenant || "the reference tenant"} with ENCA.`);
+    if (taken.length) {
+      L.push(`// ${taken.length} polic${taken.length === 1 ? "y" : "ies"} taken into the catalog:`);
+      taken.forEach((t) => L.push(`//   * CA${String(t.num).padStart(3, "0")} — ${t.diff.map((d) => d.label).join(", ")}`));
+    } else {
+      L.push("// No policy change was taken in this pass.");
+    }
+    const holdList = Object.entries(holds || {}).filter(([, h]) => h && h.reason);
+    if (holdList.length) {
+      L.push("//");
+      L.push(`// DELIBERATE DEPARTURES, so the catalog stays a baseline rather than a copy`);
+      L.push(`// of one tenant — ${holdList.length} held:`);
+      holdList.forEach(([num, h]) => L.push(`//   * CA${String(num).padStart(3, "0")} — ${h.reason}`));
+    }
+    L.push("//");
+    L.push("// WHEN YOU BUMP `revised`, RE-CHECK js/userimpact.js — its RULES match on");
+    L.push("// POLICY SHAPE and carry a RULES_CHECKED_AGAINST date.");
+    L.push("");
+    L.push(`  revised: "${today}",`);
+    L.push("");
+    taken.forEach((t) => L.push("    " + JSON.stringify(t.ten) + ","));
+    return L.join("\n");
+  }
+
   function renderTable(res, filter, query, collapsed) {
     const q = (query || "").toLowerCase();
     const isCollapsed = (g) => collapsed && collapsed.has(g);
@@ -979,7 +1140,7 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
+  return { catalogs, catalog, compare, vmToEntry, entryDiff, catalogReview, catalogSource, diffSig, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
     // R36
     use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, previewSwitch, renderPreview, DEFAULT_ID,
     // R36.1 — matched, not chosen
