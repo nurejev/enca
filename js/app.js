@@ -13773,6 +13773,18 @@ This is a directory write. Nothing else changes.`)) return;
   const HUNT_MIN_CAP = 1000;
   const HUNT_WORKERS = 4;
   const HUNT_DAY_MS = 86400000;
+  // WHAT THE TAB CAN HOLD (25428). HUNT_CAP is a cap per QUERY — 20,000 rows,
+  // and a slice that reaches it is halved and both halves read, so a single
+  // day can legitimately come back as 96 slices of 20,000. Nothing bounded
+  // the TOTAL. On Hunting + non-interactive the enforced read is dominated by
+  // legacy-protocol blocks of service accounts retrying every few seconds:
+  // the window is hundreds of thousands of rows, every one of them shaped
+  // into a record and kept, and the tab dies — the same death T26 1.6/2.x had
+  // (25379) before its read became a stream. This is the ceiling on the rows
+  // a read may KEEP. It does not apply to a streaming read (opts.onRows),
+  // which holds nothing. Reaching it stops the read and reports the window as
+  // truncated — a labelled partial answer instead of a dead tab.
+  const HUNT_ROW_MAX = 50000;
   const HUNT_STRIDE_KEY = (source, kind) => `enca-huntstride:${tenantId || "demo"}:${source}:${kind}`;
   const loadStride = (source, kind) => { try { const v = +localStorage.getItem(HUNT_STRIDE_KEY(source, kind)); return v >= HUNT_MIN_SLICE_MS && v <= HUNT_DAY_MS ? v : HUNT_DAY_MS; } catch { return HUNT_DAY_MS; } };
   const saveStride = (source, kind, v) => { try { localStorage.setItem(HUNT_STRIDE_KEY(source, kind), String(Math.round(v))); } catch { /* private mode */ } };
@@ -13809,7 +13821,10 @@ This is a directory write. Nothing else changes.`)) return;
     const cap0 = opts.cap || Signins.HUNT_CAP;
     const shape = opts.shape || Signins.fromHunting;
     const buildQuery = opts.query || ((from, to, cap, part) => Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim }));
-    let out = [], count = 0, capped = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
+    // The ceiling only matters for a read that KEEPS its rows; a streaming
+    // read (opts.onRows) lets every slice go and is bounded already.
+    const rowMax = opts.onRows ? Infinity : (opts.max || HUNT_ROW_MAX);
+    let out = [], count = 0, capped = false, ceiling = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
     // Priming: with several workers every day would start its own descent
     // from 24 hours before the first one had learnt anything. When no stride
     // is known yet, the first worker reads alone until one slice has come
@@ -13835,6 +13850,7 @@ This is a directory write. Nothing else changes.`)) return;
       await readSlice(from, mid, undefined, part); await readSlice(mid, to, undefined, part);
     };
     const readSlice = async (from, to, cap, part) => {
+      if (ceiling) return;
       if (prog.check) prog.check();
       cap = cap || cap0; curPart = part;
       const q = buildQuery(from, to, cap, part);
@@ -13849,7 +13865,7 @@ This is a directory write. Nothing else changes.`)) return;
         if (!opts.query && huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
           console.warn("hunting: slim query refused, reading full rows", e.message);
           huntSlim = false;
-          return readSlice(from, to, cap);
+          return readSlice(from, to, cap, part);
         }
         if (isSizeError(e)) {
           if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to, part);
@@ -13870,7 +13886,15 @@ This is a directory write. Nothing else changes.`)) return;
       const recs = shape(rows);
       count += recs.length;
       if (opts.onRows) { await opts.onRows(recs, { from, to, part, done, total: slices.length, capped: sliceCapped }); }
-      else out = out.concat(recs);
+      else {
+        // push in a loop, never concat or spread: concat reallocates the
+        // whole array on every slice (quadratic on a long read) and
+        // push(...recs) blows Safari's argument limit (25379).
+        for (const rec of recs) {
+          if (out.length >= rowMax) { ceiling = true; capped = true; break; }
+          out.push(rec);
+        }
+      }
       covered += to - from;
       prog.st.n = count;
       say(from, to, `${rows.length.toLocaleString()} rows`);
@@ -13880,7 +13904,7 @@ This is a directory write. Nothing else changes.`)) return;
     // readSlice) or grow (three easy slices) while the walk is under way;
     // the walk simply continues from where the last slice ended.
     const readDay = async (from, to, part) => {
-      for (let t = from; t < to;) { const end = Math.min(t + stride, to); await readSlice(t, end, undefined, part); t = end; }
+      for (let t = from; t < to && !ceiling;) { const end = Math.min(t + stride, to); await readSlice(t, end, undefined, part); t = end; }
     };
     // Several days at a time (two since 25328, four since 25375). Each
     // hunting query is a round trip of seconds to a minute that the browser
@@ -13892,7 +13916,7 @@ This is a directory write. Nothing else changes.`)) return;
     let next = 0, done = 0;
     const worker = async (w) => {
       if (w && primed) await primed;
-      while (next < slices.length) {
+      while (next < slices.length && !ceiling) {
         const i = next++;
         if (prog.check) prog.check();
         try { await readDay(slices[i][0], slices[i][1], slices[i][2]); } finally { prime(); }
@@ -13909,7 +13933,8 @@ This is a directory write. Nothing else changes.`)) return;
     const bad = settled.find((r) => r.status === "rejected");
     if (bad) throw bad.reason;
     prog.detail("");
-    return { records: out, count, capped, splits, queries };
+    if (ceiling) console.warn(`hunting: stopped at ${rowMax.toLocaleString()} sign-ins kept in the tab`);
+    return { records: out, count, capped, ceiling, splits, queries };
   }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
@@ -13936,24 +13961,37 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
     const run = (async () => {
-      let records, capped;
+      let records, capped, ceiling;
       if (isGraphLogSource(source)) {
         records = await prog.fetchAll(ReportImpact.query(days, source === "entraall"), SI_MAX, "sign-ins", partial ? (rows, state) => partial(rows.slice(), state.pages, null) : null);
         capped = !!prog.st.capped;
       } else {
         await requireProduct("p2");
         if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the P1 Entra log remains available");
-        ({ records, capped } = await readSignInsHunting(days, prog, { source, onPartial: partial }));
+        ({ records, capped, ceiling } = await readSignInsHunting(days, prog, { source, onPartial: partial }));
       }
       check();
-      const times = records.map(r => r.createdDateTime).filter(Boolean).sort();
-      const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest: times[0] || null, newest: times.at(-1) || null };
+      // One pass, no second array: the window can be tens of thousands of
+      // records and map + sort over it was a copy nobody read twice.
+      let oldest = null, newest = null;
+      for (const r of records) { const t = r.createdDateTime; if (!t) continue; if (oldest === null || t < oldest) oldest = t; if (newest === null || t > newest) newest = t; }
+      const result = { key, days, source, records, capped, ceiling: !!ceiling, complete: !capped, at: Date.now(), oldest, newest };
       logCache = result; return result;
     })();
     logInflight = { key, days, source, promise: run, prog };
     try { return { ...await run, reused: false }; }
     finally { if (logInflight?.promise === run) logInflight = null; }
   }
+  // Why a window is short, said in the words that match the reason. A Graph
+  // read stops at its own cap; a hunting read stops either because one slice
+  // could not be read whole (the row cap) or because the tab will not hold
+  // more (HUNT_ROW_MAX) — and those two ask for different things of the
+  // reader, so they are not one sentence.
+  const cappedNote = (ceiling, source = logSource) => isGraphLogSource(source)
+    ? `truncated at ${SI_MAX.toLocaleString()} sign-ins`
+    : ceiling
+      ? `stopped at ${HUNT_ROW_MAX.toLocaleString()} sign-ins — more than this window holds in the browser. Read a shorter period, or switch the source off non-interactive.`
+      : "truncated — a day hit the hunting row cap";
   function coverageHtml(c, count) {
     if (!c) return "";
     const time = v => v ? new Date(v).toLocaleString() : "no events";
@@ -14111,7 +14149,7 @@ This is a directory write. Nothing else changes.`)) return;
       } catch (err) { console.warn("sign-ins: suggest failed", err.message); }
     }, 250);
   });
-  let siBusy = false, siCapped = false;
+  let siBusy = false, siCapped = false, siCeiling = false;
   const siOpen = new Set();
   const siProg = makeProgress("si"); siProg.by = "🚦 Sign-in failures";
   const siBusyPanel = () => siProg.panel(
@@ -14155,7 +14193,7 @@ This is a directory write. Nothing else changes.`)) return;
     const runKey = logReadKey(siDays);
     if (siBusy) return;                       // already reading — don't start a second pass
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
-    siBusy = true; siCapped = false;
+    siBusy = true; siCapped = false; siCeiling = false;
     $("siRescan").style.display = "none";
     $("siBody").innerHTML = siBusyPanel();
     try {
@@ -14171,10 +14209,10 @@ This is a directory write. Nothing else changes.`)) return;
         if (!isGraphLogSource(logSource) && siMode !== "reportonly" && !(!force && logCacheUsable(siDays))) {
           if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
           const h = await readSignInsHunting(siDays, siProg, { enforcedOnly: true });
-          records = h.records; siCapped = h.capped;
+          records = h.records; siCapped = h.capped; siCeiling = !!h.ceiling;
         } else {
           const w = await readSignInWindow(siDays, siProg, force);
-          records = w.records; siCapped = w.capped; reused = w.reused;
+          records = w.records; siCapped = w.capped; siCeiling = !!w.ceiling; reused = w.reused;
         }
         if (siMode !== "reportonly") records = records.filter((r) => r.conditionalAccessStatus === "failure" || Signins.isInterrupt(r));
       } else {
@@ -14307,7 +14345,7 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}${r.authGap ? ` · <span style="color:var(--off)" title="The second factor was asked for and never came — a password where MFA or an authentication strength was required">${r.authGap} without the MFA asked</span>` : ""}</div>
         <div class="mini muted">source: ${esc(logSourceLabel())}${r.nonInteractive ? ` · <button class="fchip ${siFilter === "kind:int" ? "active" : ""}" data-sif="kind:int" style="padding:1px 8px;font-size:11px">${r.total - r.nonInteractive} interactive</button> <button class="fchip ${siFilter === "kind:non" ? "active" : ""}" data-sif="kind:non" style="padding:1px 8px;font-size:11px">${r.nonInteractive} non-interactive</button>` : ""}</div>
         ${logCoverageHtml(siDays)}
-        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()} sign-ins` : " — a day hit the hunting row cap"}</div>` : ""}
+        ${siCapped ? `<div class="mini" style="color:var(--off)">window ${cappedNote(siCeiling)}</div>` : ""}
       </div></div>`;
 
     const chips = [["all", `All (${r.total})`],
@@ -14428,7 +14466,7 @@ This is a directory write. Nothing else changes.`)) return;
   // verdicts (success/interrupted/failure/notApplied), because the safe
   // answer needs the denominator, not just the failures.
   let riRes = null, riDays = 7, riView = "policies", riQuery = "", riFilter = "all";
-  let riBusy = false, riCapped = false;
+  let riBusy = false, riCapped = false, riCeiling = false;
   let riReadAt = null, riReadTenant = "";
   const riOpen = new Set();
   // Same shared fetch-progress visual as Sign-in failures and Change audit.
@@ -14482,7 +14520,7 @@ This is a directory write. Nothing else changes.`)) return;
     const runKey = logReadKey(riDays);
     if (riBusy) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
-    riBusy = true; riCapped = false; riPartial = null; riPartialAt = 0; riProg.begin();
+    riBusy = true; riCapped = false; riCeiling = false; riPartial = null; riPartialAt = 0; riProg.begin();
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
     // ROW PATH (Entra log, demo, or a hunting engine that refused the summary):
@@ -14533,7 +14571,7 @@ This is a directory write. Nothing else changes.`)) return;
           toast("This tenant's hunting engine refused the summarised query — reading the sign-in rows instead");
           $("riBody").innerHTML = riBusyPanel();
           const rw = await readSignInWindow(riDays, riProg, force, onPartial);
-          riCapped = rw.capped; reused = rw.reused;
+          riCapped = rw.capped; riCeiling = !!rw.ceiling; reused = rw.reused;
           riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
         }
         if (w) {
@@ -14547,7 +14585,7 @@ This is a directory write. Nothing else changes.`)) return;
         }
       } else {
         const rw = await readSignInWindow(riDays, riProg, force, onPartial);
-        riCapped = rw.capped; reused = rw.reused;
+        riCapped = rw.capped; riCeiling = !!rw.ceiling; reused = rw.reused;
         riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
       }
       riReused = reused; riPartial = null;
@@ -14610,7 +14648,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${toolHead("toolImpact")}
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
-        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}${roCache.parts > 1 ? ` (one per policy per day)` : ""}` : ""}${riCapped ? `, <span style="color:var(--off)">truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
+        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}${roCache.parts > 1 ? ` (one per policy per day)` : ""}` : ""}${riCapped ? `, <span style="color:var(--off)">${cappedNote(riCeiling)}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>
@@ -16949,7 +16987,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (!force && logCacheUsable(woDays) && !logCache.capped) return logCache.records.filter((r) => r.userId === u.id);
     if (!isGraphLogSource(logSource)) {
       if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) { woLogSkipped = "ThreatHunting.Read.All was not granted"; return null; }
-      try { const h = await readSignInsHunting(woDays, woProg, { userId: u.id }); if (h.capped) woLogSkipped = "a day hit the hunting row cap"; return h.records; }
+      try { const h = await readSignInsHunting(woDays, woProg, { userId: u.id }); if (h.capped) woLogSkipped = cappedNote(h.ceiling); return h.records; }
       catch (e) { console.warn("whois: hunting read failed", e.message); woLogSkipped = `could not run the hunting query (${e.message || e})`; return null; }
     }
     const since = new Date(Date.now() - woDays * 86400000).toISOString();
@@ -17264,7 +17302,7 @@ This is a directory write. Nothing else changes.`)) return;
         // A stop here keeps what the group half found: the members, the
         // exclusions, the other waves. Only the sign-in half is missing,
         // and the note says so.
-        try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window capped at ${SI_MAX.toLocaleString()} sign-ins`; }
+        try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window ${cappedNote(w.ceiling)}`; }
         catch (e) { if (e && e.stopped) wvLogSkipped = "stopped by you during the sign-in read — the group half is complete, the log half is not"; else { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; } }
       }
       if (runKey !== logReadKey(wvDays) || selectedTerm !== $("wvTerm").value.trim() || selectedPick !== wvPick) throw new Error("Read discarded: selected range, source or tenant changed");

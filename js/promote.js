@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 250,
+      title: "Sign-in log: a ceiling on what the tab keeps, so Hunting + non-interactive stops crashing",
+      tools: ["Sign-in log", "Report-only impact", "Who is \u2026 to CA", "Who is the wave to CA", "Session controls"],
+      builds: [25428],
+      risk: "medium",
+      what: "The shared hunting reader keeps at most 50,000 sign-ins and stops there, reporting the window as truncated with its own reason line; a streaming read (Report-only impact's buckets) is exempt because it keeps nothing. Rows are appended in a loop instead of concat/spread (measured 6 ms against 165 ms for 400,000 in 500 slices, and without the throwaway copies), the window's first and last instants are found in one pass, and the result sort compares ISO timestamps directly instead of through a collator (a smaller saving, 15 ms against 19 ms for 50,000). No query, permission, verdict or export changed.",
+      why: "Reading the sign-in log on Hunting + non-interactive killed the browser tab on a large tenant. HUNT_CAP caps a single query at 20,000 rows and a full slice is halved and re-read, so one day can legitimately be 96 slices of 20,000 \u2014 nothing bounded the total, and an enforced read there is mostly legacy-protocol blocks of service accounts retrying every few seconds. A labelled partial window is an answer; a dead tab is not.",
+      test: [
+        "On a large tenant, \ud83d\udea6 Sign-in log \u2192 Enforced \u2192 Hunting + non-interactive \u2192 30 days. The tab survives. The read stops and the header reads \u201cwindow stopped at 50,000 sign-ins \u2014 more than this window holds in the browser\u201d.",
+        "Same tool, a window that fits (1 day, Defender hunting): no truncation line, the counts match what the Entra source reports for the same period.",
+        "A day that hits the hunting ROW cap still says \u201cwindow truncated \u2014 a day hit the hunting row cap\u201d, not the new sentence \u2014 the two reasons must not be confused.",
+        "\ud83c\udf9a Report-only impact on Hunting + non-interactive over the same window: still completes, still summarised by Microsoft, and is NOT cut off at 50,000 (its coverage line shows the full sign-in count).",
+        "\ud83d\udd75 Who is \u2026 to CA, \ud83c\udf0a the wave and \ud83d\udec2 Session controls on a hunting source: a truncated window names its reason in the same words.",
+        "The newest sign-in is still first in the list and in the CSV and Markdown exports, and the non-interactive chip counts still add up to the total.",
+        "Offline: node --test tools/*.test.cjs \u2014 244 tests, including the four new ceiling tests in tools/hunting-stride.test.cjs.",
+        "See the local review/2026-09-22/BETA-25428.md validation report for what was measured and what still needs a live tenant.",
+      ],
+      files: ["js/app.js", "js/signins.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/hunting-stride.test.cjs", "tools/signin-ordering.test.cjs", "tools/report-impact-store.test.cjs"],
+    },
+    {
       n: 249,
       title: "Navigation: contrasting active tool and tab",
       tools: ["Navigation"],

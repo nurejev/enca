@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25428, date: "2026-09-22", title: "The sign-in log no longer kills the tab on Hunting + non-interactive",
+    items: [
+      { kind: "fixed", tool: "Sign-in log", text: "Reading the sign-in log on Hunting + non-interactive could kill the browser tab. The hunting sources have no server-side window cap, and on a large tenant an enforced read there is mostly legacy-protocol blocks of service accounts retrying every few seconds \u2014 hundreds of thousands of sign-ins in a week, every one of them held in the tab. A read that keeps its sign-ins now stops at 50,000 and says so: \u201cwindow stopped at 50,000 sign-ins \u2014 more than this window holds in the browser. Read a shorter period, or switch the source off non-interactive.\u201d A partial window that says it is partial, instead of a lost tab." },
+      { kind: "improved", tool: "Sign-in log", text: "The read stops copying itself. Every slice that came back was joined to the result by rebuilding the whole array \u2014 on a long read that is hundreds of full copies, made at exactly the moment the tab is already holding everything read so far. The slices are appended instead: 400,000 sign-ins now accumulate in 6 ms rather than 165 ms, and without the throwaway copies in between. The result sort also no longer runs timestamps through a language-aware comparison meant for names (a smaller saving \u2014 about 4 ms in 50,000 \u2014 but the right comparison for an instant)." },
+      { kind: "improved", tool: "Report-only impact", text: "Unaffected by the new ceiling on the hunting sources: its verdicts are summarised by Microsoft and folded in as they land, so nothing of the window is held in the tab. The ceiling applies only where the sign-ins themselves are kept \u2014 \ud83d\udea6 Sign-in log, \ud83d\udd75 Who is \u2026 to CA, \ud83c\udf0a the wave and \ud83d\udec2 Session controls \u2014 and each of them now names the reason a window was cut short." },
+    ],
+  },
+  {
     build: 25427, date: "2026-09-22", title: "A clear active tool in both themes",
     items: [
       { kind: "improved", tool: "Navigation", text: "The active tool, its selected tab and the matching sidebar shortcut now use a solid dark fill in the light theme and a light fill in the dark theme, with contrasting text and icons. The selection stays visible while hovering and follows the current theme and branding." },

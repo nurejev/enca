@@ -9,7 +9,7 @@ const fs = require("node:fs"), vm = require("node:vm"), path = require("node:pat
 const root = path.resolve(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 const cut = (from, to) => { const a = app.indexOf(from), b = app.indexOf(to, a); assert.ok(a > 0 && b > a, from); return app.slice(a, b + to.length); };
-const HUNT = cut("  const HUNT_MIN_SLICE_MS =", "    return { records: out, count, capped, splits, queries };\n  }\n");
+const HUNT = cut("  const HUNT_MIN_SLICE_MS =", "    return { records: out, count, capped, ceiling, splits, queries };\n  }\n");
 const RO = cut("  let roCache = null;", "    roCache = result; return { ...result, reused: false };\n  }\n");
 const STORE = fs.readFileSync(path.join(root, "js/signinstore.js"), "utf8");
 const H = 3600000, DAY = 24 * H;
