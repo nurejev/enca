@@ -1959,10 +1959,19 @@
     const p = policies.find(x => x.id === id); if (!p) return;
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
-    $("detailBody").innerHTML = `<div class="wc-detail-top"><span class="wc-eyebrow">Policy details</span><button type="button" class="btn sm" data-detail-close aria-label="Close policy details">Close</button><button type="button" class="btn sm" data-cedit="edit" title="Edit this policy in place — every box becomes a form, Save writes the changed sections (R17)">✎ Edit</button></div>`
+    $("detailBody").innerHTML = `<div class="wc-detail-top"><span class="wc-eyebrow">Policy details</span><button type="button" class="btn sm" data-detail-close aria-label="Close policy details">Close</button></div>`
       + Render.card(p, tenantName)
       + `<details class="wc-policy-definition"><summary>Original definition</summary><pre>${esc(JSON.stringify(p.raw,null,2))}</pre></details>`
       + `<div class="pcard-actions">
+           <!-- ✎ Edit led the top strip until 25456, beside Close, while every
+                other verb on this card was down here — so it read as chrome and
+                was missed (Mihai: "the edit button was all the way on top,
+                that's why I missed it"). It is the card's own write verb, so it
+                belongs at the head of the card's own actions, and it is marked
+                primary because on a policy card editing is the thing you came
+                to do. -->
+           <button class="btn primary" data-cedit="edit" title="Edit this policy in place — every box becomes a form, a bar counts what changes, Save writes only the changed sections (R17)">✎ Edit this policy</button>
+           <span class="pa-sep"></span>
            <button class="btn" data-wf="${p.id}">⑃ What-if flow</button>
            <span class="pa-sep"></span>
            <button class="btn" data-pact="document">📄 Documentation</button>
@@ -17047,7 +17056,15 @@ This is a directory write. Nothing else changes.`)) return;
       (e) => { const b = e.target.closest("[data-pbtpl]"); if (!b) return false; openBuilder({ template: list.find((p) => String(p.num) === b.dataset.pbtpl) }); return true; });
   }
   function pbOpenPolicyPicker() {
-    pbModal(`🗂 Start from a policy in this tenant`, `<p class="mini muted" style="margin:0 0 8px">Clone makes a new policy from that one, with the next free number in its range. To change a policy itself, open its card and press ✎ Edit.</p><div class="pb-picklist">${policies.map((p) => `<div class="ld-row pb-pickrow"><strong>${esc(p.raw.displayName)}</strong><span class="mini muted">${esc(p.state)}</span><span class="pb-row"><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone into a new policy</button></span></div>`).join("")}</div>`,
+    // TWO VERBS PER ROW (25456). From 25448 this picker offered Clone alone —
+    // so picking the policy you wanted to CHANGE handed you a new one with the
+    // next free number, which is not what anybody means by starting from a
+    // policy (Mihai: "editing a policy should be edit and not replace with a
+    // clone"). The builder's edit mode never went anywhere — mode, pbBefore,
+    // the diff view and the whole-section PATCH are all still here; only this
+    // entry point was taken away. ✎ Edit changes THAT policy, keeping its
+    // number, name and state; ⧉ Clone is the other thing, said next to it.
+    pbModal(`🗂 Start from a policy in this tenant`, `<p class="mini muted" style="margin:0 0 8px">✎ Edit changes that policy itself — same number, same name, and Save writes only the sections that differ. ⧉ Clone leaves it alone and makes a new policy from it, with the next free number in its range, in report-only. The same edit is on the policy's own card.</p><div class="pb-picklist">${policies.map((p) => `<div class="ld-row pb-pickrow"><strong>${esc(p.raw.displayName)}</strong><span class="mini muted">${esc(p.state)}</span><span class="pb-row"><button type="button" class="btn sm primary" data-pbfrom="${esc(p.id)}" data-as="edit">✎ Edit this policy</button><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone into a new policy</button></span></div>`).join("")}</div>`,
       (e) => { const b = e.target.closest("[data-pbfrom]"); if (!b) return false; openBuilder({ from: b.dataset.pbfrom, as: b.dataset.as }); return true; });
   }
   function pbModal(title, body, onClick) {

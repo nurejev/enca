@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25456, date: "2026-09-22", title: "Editing a policy is edit — and it is where the other actions are",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "✎ Edit was in the card's top strip beside Close, the one strip on the card that carries no verbs, while What-if flow, Documentation, Backup, Assign, Policy state and Clone in builder all sat in the row at the bottom — so the card's own write verb read as chrome and got missed, and the only thing that looked like a builder action said Clone. It is the FIRST button of the action row now, reading Edit this policy, and marked as the main verb because on a policy card that is what you came to do. The edit itself is unchanged." },
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 The builder's Start from a policy in this tenant offered Clone and nothing else, so picking the policy you meant to change handed you a new one with the next free number. Every row offers ✎ Edit this policy as well: that policy itself, its number, name and state kept, and Save writes only the sections that differ. The line above the list says which verb does what. Only the way in came back — the builder has been able to edit since it was built." },
+    ],
+  },
+  {
     build: 25455, date: "2026-09-22", title: "One sign-in card, and an onboarding route that cannot lie",
     items: [
       { kind: "fixed", tool: "Sign-in", text: "🪪 Register ENCA in your own tenant used to be a line of its own under the ⚙ connection panel, and on a copy served with a single-tenant registration the two contradicted each other — the panel said THAT DIRECTORY ONLY and the line below it offered to sign you in to yours. Clicking it started a sign-in that could only end in AADSTS50020, because the wizard has to be signed in to YOUR tenant before it can write anything there, and a registration pinned to somebody else's directory can never get it there. The route is inside the panel now, as the third answer to the one question that panel asks, and what it offers is decided by the registration in use rather than by which host you are on: a registration that reaches any work or school tenant carries the wizard; one pinned to a single directory says so and names the two routes that do work — add a registration you already have, or create one with New-EncaAppRegistration.ps1 -SingleTenant and add that. It is no longer hidden on the hosted site either, which was the registration that could carry it all along." },
