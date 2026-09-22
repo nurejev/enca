@@ -194,6 +194,10 @@
       const own=info.ownerTenantId&&info.ownerTenantId.toLowerCase()===String(Workspace.context?.key||'').toLowerCase();
       const type=info.ownerTenantId?(own?'App registration in this tenant':(/^AzureADMultipleOrgs$|^AzureADandPersonalMicrosoftAccount$/.test(info.audience)?'Multitenant app in another tenant':'App registration in another tenant')):'App owner unavailable';
       connection.innerHTML=`<span class="wc-eyebrow">Connected app</span><strong>${esc(info.name||'Application')}</strong><span class="wc-connection-id">${esc(info.clientId)}</span><span>${esc(type)}</span>${info.ownerTenantId?`<span>Owner tenant: ${own?esc(Workspace.context.tenant)+' · ':''}<span class="wc-connection-id">${esc(info.ownerTenantId)}</span></span>`:'<span>Registration details could not be read with this session.</span>'}`;
+      // 🪪 the onboarding wizard, from where the registration is described (25443):
+      // register ENCA in this tenant when the app is another directory's, or
+      // check and complete this one when it is already ours
+      if(typeof Onboard!=='undefined'){const b=document.createElement('button');b.type='button';b.className='btn sm';b.id='wcOnboard';b.style.marginTop='6px';b.textContent=own?'🪪 Check this registration…':'🪪 Register ENCA in this tenant…';b.title=own?'Complete the redirect URI, permissions, assignment and consent of the registration this copy signs in with':'Create a single-tenant registration in this tenant and make it the default sign-in';b.addEventListener('click',()=>{menu.hidden=true;Onboard.open();});connection.appendChild(b);}
     });
     const closeAll=document.createElement('button');closeAll.type='button';closeAll.id='wcCloseAll';closeAll.setAttribute('role','menuitem');closeAll.textContent='Close all workspaces';
     closeAll.addEventListener('click',()=>{

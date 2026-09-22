@@ -76,3 +76,18 @@ test("names: a default from the tenant, and the refusals", () => {
   assert.match(O.validateName("<script>"), /cannot contain/);
   assert.equal(O.validateName("ENCA — Contoso"), "");
 });
+
+test("an update keeps the redirect URIs other hosts registered and leaves the name and audience alone", () => {
+  const ids = {}; O.SCOPES.forEach((s, i) => ids[s] = `id-${i}`);
+  const existing = { id: "obj", appId: "app", displayName: "ENCA [LIMON-IT]", spa: { redirectUris: ["https://nurejev.github.io/enca-beta/", "http://localhost:8080"] } };
+  const b = O.updateBody(existing, { name: "ENCA [LIMON-IT]", localhost: false }, ids);
+  assert.deepEqual(plain(b.spa.redirectUris), ["https://nurejev.github.io/enca-beta/", "http://localhost:8080", "https://enca.contoso.example/"]);
+  assert.equal("displayName" in b, false); assert.equal("signInAudience" in b, false);
+  assert.equal(b.requiredResourceAccess[0].resourceAccess.length, O.SCOPES.length);
+});
+
+test("the plan for an own registration is an UPDATE of the app this copy signs in with", () => {
+  const ops = O.plan({ name: "ENCA [LIMON-IT]", own: true, assign: false, consent: false }, {});
+  assert.equal(ops[0].op, "UPDATE"); assert.match(ops[0].what, /already signs in with/);
+  assert.equal(O.plan({ name: "x", own: false }, {})[0].op, "CREATE");
+});

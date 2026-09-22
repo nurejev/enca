@@ -86,9 +86,19 @@ const Onboard = (() => {
     };
   }
   const uniq = (a) => [...new Set((a || []).filter(Boolean))];
+  // The body for UPDATING an application that exists: its redirect URIs are
+  // kept and ours added (the beta site and a customer's host can share one
+  // registration — replacing the list would sign the other one out), the
+  // audience and the name are left as they are.
+  function updateBody(existing, f, scopeIds) {
+    const b = appBody(f, scopeIds);
+    const have = (existing && existing.spa && existing.spa.redirectUris) || [];
+    return { spa: { redirectUris: uniq([...have, ...b.spa.redirectUris]) }, requiredResourceAccess: b.requiredResourceAccess, web: b.web };
+  }
   function plan(f, s) {
     const ops = [];
-    ops.push({ op: "CREATE", what: `application ${f.name}`, sub: `single-tenant (AzureADMyOrg) · SPA platform · implicit grant off · no secret${f.exists ? " — an application of this name exists: it is UPDATED, not duplicated" : ""}` });
+    if (f.own) ops.push({ op: "UPDATE", what: `application ${f.name} — the one this copy already signs in with`, sub: "redirect URIs completed (existing ones kept) and the permission list completed; audience, platform and secrets untouched" });
+    else ops.push({ op: "CREATE", what: `application ${f.name}`, sub: `single-tenant (AzureADMyOrg) · SPA platform · implicit grant off · no secret${f.exists ? " — an application of this name exists: it is UPDATED, not duplicated" : ""}` });
     ops.push({ op: "SET", what: `${f.localhost ? 2 : 1} SPA redirect URI${f.localhost ? "s" : ""}`, sub: redirectUri() + (f.localhost ? " · http://localhost:8080" : "") });
     ops.push({ op: "SET", what: `${SCOPES.length} delegated Microsoft Graph permissions`, sub: `${SCOPES.slice(0, 4).join(", ")} … — the same list New-EncaAppRegistration.ps1 requests` });
     ops.push({ op: "CREATE", what: "service principal", sub: "the enterprise application" });
@@ -130,7 +140,8 @@ const Onboard = (() => {
       catch (e) { S.roles = null; S.reason = e && e.message || String(e); }
       try { S.owner = await Graph.connectionInfo(); } catch { S.owner = null; }
     }
-    const own = !S.demo && S.owner && S.owner.ownerTenantId && S.tenantId && String(S.owner.ownerTenantId).toLowerCase() === String(S.tenantId).toLowerCase();
+    const own = !!(!S.demo && S.owner && S.owner.ownerTenantId && S.tenantId && String(S.owner.ownerTenantId).toLowerCase() === String(S.tenantId).toLowerCase());
+    S.own = own; S.clientId = (S.owner && S.owner.clientId) || (typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.clientId) || "";
     S.eligible = eligibleRoles(S.roles) && !own;
     paintMenu(true);
     paintBand();
@@ -144,20 +155,17 @@ const Onboard = (() => {
     S.pendingOpen = false;
     document.dispatchEvent(new CustomEvent("enca:onboard-closed"));
   }
-  function paintMenu(ready) {
-    const row = $("onboardBtn"); if (!row) return;
-    row.style.display = ready && (S.eligible || S.demo) ? "" : "none";
-  }
+  function paintMenu() { /* since 25443 the Connected app block in the account menu carries the wizard's button (js/workspaces.js) */ }
   function dismissed() { try { return localStorage.getItem(DISMISS(S.tenantId)) === "1"; } catch { return false; } }
   function paintBand() {
     const old = $("onboardBand"); if (old) old.remove();
     if (!S.eligible || dismissed()) return;
     const ov = $("overview"); if (!ov) return;
     const roles = roleNames(S.roles);
-    const owner = S.owner && S.owner.name ? S.owner.name : "an app registered elsewhere";
+    const owner = S.owner && S.owner.name ? S.owner.name : "an application";
     const html = `<div class="ob-band" id="onboardBand" role="region" aria-label="Own registration">
       <div class="ob-ic">🪪</div>
-      <div class="ob-txt"><b>This copy signs in through an app registered outside ${esc(S.tenantName || "this tenant")}</b> — <code>${esc(owner)}</code>${S.owner && S.owner.audience === "AzureADMultipleOrgs" ? ", multi-tenant" : ""}, owned by another directory, holding a delegated grant on your Conditional Access configuration.
+      <div class="ob-txt"><b>This copy signs in through an app registered outside ${esc(S.tenantName || "this tenant")}</b> — <code>${esc(owner)}</code>${S.owner && S.owner.audience === "AzureADMultipleOrgs" ? ", multi-tenant" : ""}, owned by ${S.owner && S.owner.ownerTenantId ? `tenant <code>${esc(S.owner.ownerTenantId)}</code>` : "another directory"}, holding a delegated grant on your Conditional Access configuration.
         <div class="mini muted" style="margin-top:4px">You are <b>${esc(roles[0] || "an administrator")}</b> here, so you can register ENCA in ${esc(S.tenantName || "this tenant")} from this page in about a minute: your own application ID, your own consent record, revocable by you alone. It becomes the default sign-in for <b>this browser</b> at once${IS_ACA ? ", and for <b>this deployment</b> if you hold rights on its container app" : ""}. The PowerShell route in SINGLE-TENANT.md stays for pipelines.</div></div>
       <div class="ob-act"><button type="button" class="btn primary sm" id="onboardOpen">🪪 Set up your own registration →</button><button type="button" class="btn sm" id="onboardLater" title="Hidden for this tenant; the account menu keeps a row for it">Not now</button></div></div>`;
     ov.insertAdjacentHTML("beforebegin", html);
@@ -169,7 +177,8 @@ const Onboard = (() => {
   // ---- the wizard --------------------------------------------------------------------
   function open() {
     step = 1; result = null; busy = false;
-    form = form && form.tenantId === S.tenantId ? form : { tenantId: S.tenantId, name: defaultName(S.tenantName), localhost: false, assign: true, consent: true, exists: false, ok: false };
+    form = form && form.tenantId === S.tenantId ? form : { tenantId: S.tenantId, name: S.own && S.owner && S.owner.name ? S.owner.name : defaultName(S.tenantName), localhost: false, assign: true, consent: true, exists: false, own: !!S.own, ok: false };
+    form.own = !!S.own;
     render();
     $("obModal").classList.add("open");
   }
@@ -178,11 +187,27 @@ const Onboard = (() => {
   function render() {
     const m = $("obModalBody"); if (!m) return;
     const c = typeof EncaConn !== "undefined" ? EncaConn.shipped : { clientId: "", authority: "" };
-    if (step === 1) m.innerHTML = `<h3>🪪 Your own app registration <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}
-      <table class="ob-tbl"><tr><th></th><th>Today — shared</th><th>After — yours, single-tenant</th></tr>
-        <tr><td>Application owner</td><td>${esc(S.owner && S.owner.name || "the publisher")}</td><td class="y"><b>${esc(S.tenantName || "your tenant")}</b></td></tr>
-        <tr><td>Application ID</td><td><code>${esc(c.clientId || "—")}</code>${S.owner && S.owner.audience === "AzureADMultipleOrgs" ? ", shared by every tenant" : ""}</td><td class="y">a new one, yours alone · <code>AzureADMyOrg</code></td></tr>
-        <tr><td>Consent record</td><td>to an external app; its owner can retire the app</td><td class="y">to an app in your directory; only you can revoke or retire it</td></tr>
+    const multi = S.owner && /^AzureADMultipleOrgs$|^AzureADandPersonalMicrosoftAccount$/.test(S.owner.audience || "");
+    const ownerTenant = S.own ? (S.tenantName || S.tenantId) : (S.owner && S.owner.ownerTenantId ? `tenant ${S.owner.ownerTenantId}` : "another directory");
+    if (step === 1 && S.own) m.innerHTML = `<h3>🪪 This copy already signs in with a registration in ${esc(S.tenantName || "this tenant")} <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}
+      <table class="ob-tbl"><tr><th></th><th>Today</th></tr>
+        <tr><td>Application</td><td><b>${esc(S.owner.name || "Application")}</b> · <code>${esc(S.clientId)}</code></td></tr>
+        <tr><td>Application owner</td><td class="y"><b>${esc(S.tenantName || S.tenantId)}</b> — this tenant</td></tr>
+        <tr><td>Audience</td><td>${multi ? "multi-tenant — other directories can consent to it too" : "single-tenant — this directory only"}</td></tr>
+        <tr><td>Sign-in mechanism</td><td>SPA · code + PKCE · no secret</td></tr></table>
+      <p class="mini" style="margin:0 0 6px">There is nothing to onboard: the trust decision is already yours. Running the steps <b>checks and completes this registration</b> — the SPA redirect URI for the origin this copy is served from, the ${SCOPES.length} delegated permissions ENCA uses (existing redirect URIs and permissions are kept), the service principal, and optionally assignment and organisation-wide consent. Name, audience and secrets are not touched.</p>
+      <label class="ob-f">Application name <input type="text" id="obName" value="${esc(form.name)}" maxlength="120" readonly><span class="mini">The registration this copy signs in with — found by its application ID, not by name.</span></label>
+      <label class="ob-f">SPA redirect URI — the origin this copy is served from, added if missing <code class="ro">${esc(redirectUri())}</code></label>
+      <div class="ob-row"><input type="checkbox" id="obLocal"${form.localhost ? " checked" : ""}><span>Also register <code>http://localhost:8080</code> for running a copy locally</span></div>
+      <div class="ob-row"><input type="checkbox" id="obAssign"${form.assign ? " checked" : ""}><span><b>Restrict to assigned users</b> — <i>Assignment required</i>, with <b>you assigned first</b>.</span></div>
+      <div class="ob-row"><input type="checkbox" id="obConsent"${form.consent ? " checked" : ""}><span><b>Grant admin consent for the whole organisation</b> for the ${SCOPES.length} delegated permissions.</span></div>
+      <div class="ob-err mini" id="obErr" style="display:none;color:var(--off);margin-top:8px"></div>
+      <div class="modal-foot"><button type="button" class="btn" id="obCancel">Cancel</button><button type="button" class="btn primary" id="obNext">Next: the plan →</button></div>`;
+    else if (step === 1) m.innerHTML = `<h3>🪪 Your own app registration <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}
+      <table class="ob-tbl"><tr><th></th><th>Today — ${multi ? "shared, multi-tenant" : "another directory's"}</th><th>After — yours, single-tenant</th></tr>
+        <tr><td>Application</td><td>${esc(S.owner && S.owner.name || "Application")} · <code>${esc(c.clientId || "—")}</code>${multi ? ", shared by every tenant" : ""}</td><td class="y">a new one, yours alone · <code>AzureADMyOrg</code></td></tr>
+        <tr><td>Application owner</td><td>${esc(ownerTenant)}</td><td class="y"><b>${esc(S.tenantName || "your tenant")}</b></td></tr>
+        <tr><td>Consent record</td><td>to an app another directory owns; its owner can retire the app</td><td class="y">to an app in your directory; only you can revoke or retire it</td></tr>
         <tr><td>Sign-in mechanism</td><td>SPA · code + PKCE · no secret</td><td class="y"><b>identical</b> — ownership changes, not the flow</td></tr></table>
       <label class="ob-f">Application name <input type="text" id="obName" value="${esc(form.name)}" maxlength="120"><span class="mini">Listed among your enterprise applications. Running this again with the same name updates it; a different name makes a second app.</span></label>
       <label class="ob-f">SPA redirect URI — the origin this copy is served from, registered exactly <code class="ro">${esc(redirectUri())}</code></label>
@@ -273,10 +298,13 @@ const Onboard = (() => {
         const scopeIds = {}; (graphSp.oauth2PermissionScopes || []).forEach((p) => scopeIds[p.value] = p.id);
         const missing = SCOPES.filter((s) => !scopeIds[s]);
         const body = appBody(form, scopeIds);
-        const existing = (((await Graph.gget(`/applications?$filter=displayName eq '${form.name.replace(/'/g, "''")}'&$select=id,appId,displayName`)) || {}).value || []);
+        const existing = S.own && S.clientId
+          ? (((await Graph.gget(`/applications?$filter=appId eq '${S.clientId}'&$select=id,appId,displayName,spa`)) || {}).value || [])
+          : (((await Graph.gget(`/applications?$filter=displayName eq '${form.name.replace(/'/g, "''")}'&$select=id,appId,displayName,spa`)) || {}).value || []);
         let app;
         if (existing.length > 1) throw new Error(`${existing.length} applications are called ${form.name} — rename one in the portal first, or choose another name.`);
-        if (existing.length === 1) { await Graph.gpatch(`/applications/${existing[0].id}`, body); app = await settled(`/applications/${existing[0].id}`, (a) => a && a.spa && (a.spa.redirectUris || []).includes(redirectUri())); L.done(i, "updated " + app.appId); }
+        if (S.own && !existing.length) throw new Error(`The registration this copy signs in with (${S.clientId}) was not found among this tenant's applications — this account may not read it.`);
+        if (existing.length === 1) { await Graph.gpatch(`/applications/${existing[0].id}`, updateBody(existing[0], form, scopeIds)); app = await settled(`/applications/${existing[0].id}`, (a) => a && a.spa && (a.spa.redirectUris || []).includes(redirectUri())); L.done(i, "updated " + app.appId); }
         else { const created = await Graph.gpost("/applications", body); app = await settled(`/applications/${created.id}`, (a) => a && a.appId); L.done(i, app.appId); }
         R.appId = app.appId; R.appObjectId = app.id; i++;
         L.start(i); if (missing.length) L.part(i, `${missing.length} permission${missing.length === 1 ? "" : "s"} not offered by Graph here and left out: ${missing.join(", ")}`); else L.done(i, `${SCOPES.length} scopes`); i++;
@@ -301,9 +329,12 @@ const Onboard = (() => {
           L.done(i, `${scope.split(" ").length} scopes`); i++;
         }
         L.start(i);
-        R.connName = `${S.tenantName || S.tenantId} — own registration`;
-        const saved = EncaConn.save({ name: R.connName, clientId: app.appId, tenant: S.tenantId });
-        if (saved.ok) { R.saved = true; R.connId = saved.rec.id; L.done(i, "selected"); } else L.fail(i, saved.error);
+        if (S.own) { R.saved = true; R.connName = S.owner.name || "this registration"; L.skip(i, "already the registration this copy signs in with"); }
+        else {
+          R.connName = `${S.tenantName || S.tenantId} — own registration`;
+          const saved = EncaConn.save({ name: R.connName, clientId: app.appId, tenant: S.tenantId });
+          if (saved.ok) { R.saved = true; R.connId = saved.rec.id; L.done(i, "selected"); } else L.fail(i, saved.error);
+        }
         R.ok = true;
       }
       L.finish();
@@ -346,5 +377,5 @@ const Onboard = (() => {
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
-  return { SCOPES, ROLES, NEED, NEED_ASSIGN, defaultName, validateName, appBody, plan, acaEnv, localJs, dockerLines, templateParams, roleNames, eligibleRoles, afterSignIn, open, close, pending, paintBand, state: () => S, _setState: (s) => { S = { ...S, ...s }; } };
+  return { SCOPES, ROLES, NEED, NEED_ASSIGN, defaultName, validateName, appBody, plan, acaEnv, localJs, dockerLines, templateParams, roleNames, eligibleRoles, afterSignIn, open, close, pending, paintBand, updateBody, state: () => S, _setState: (s) => { S = { ...S, ...s }; } };
 })();

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25443, date: "2026-09-22", title: "The registration wizard knows whose app it is",
+    items: [
+      { kind: "fixed", tool: "Sign-in", text: "🪪 The wizard opened from the sign-in card said the app was the publisher's even when the registration this copy signs in with is in YOUR tenant — the app's display name was put in the owner column. Ownership is now judged by the owner tenant, as the Connected app panel does: an app of this tenant opens the wizard as a check — it completes the redirect URI and the permission list of that registration, by application ID, keeping the redirect URIs other hosts registered — and an app of another directory opens it as before, naming that directory's tenant ID." },
+      { kind: "new", tool: "Sign-in", text: "The account menu's Connected app panel carries the wizard's button: Register ENCA in this tenant… when the app is another directory's, Check this registration… when it is yours. The separate Own registration… row is gone." },
+    ],
+  },
+  {
     build: 25442, date: "2026-09-22", title: "Newer than baseline means newer than the baseline",
     items: [
       { kind: "fixed", tool: "Baseline", text: "A policy edited in the portal without a version bump is newer than what the baseline holds, whatever its name says — the catalog lists a definition the tenant no longer runs. Until now it counted as Up to date because only the version in the name was compared, so the chip said 6 newer while 🧱 Update the catalog found 27. Newer than baseline now includes them, marked edited in place in the table and in the panel; Up to date means the same version AND the same definition. The chip, the summary line and the panel count the same policies." },
