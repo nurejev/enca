@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25460, date: "2026-09-22", title: "Guest findings say which way the policy is wrong",
+    items: [
+      { kind: "improved", tool: "MS Learn checks", text: "📘 Four of the external-identity findings tell you to exclude the guest and external user types, and two tell you to exclude nothing. Side by side with no explanation that reads as a contradiction, and it is not one: they are opposite failures. Where the control CANNOT BE SATISFIED by an identity this tenant does not manage, those users are denied access — the policy is too strict, and the remedy takes them out of its scope. Where the control is NOT APPLIED to them, the policy asks them for nothing at all — too loose, and the remedy brings a requirement that reaches them, because excluding people a policy already asks nothing of would change nothing. Every such finding now carries that verdict as a badge — Blocks them, or Misses them — and one line under it saying what it means for the people in scope. A finding that is genuinely neither of the two carries no badge rather than a guessed one." },
+    ],
+  },
+  {
     build: 25459, date: "2026-09-22", title: "A strength that is already Require MFA needs a swap, not a second policy",
     items: [
       { kind: "fixed", tool: "MS Learn checks", text: "📘 The finding that an authentication strength does not reach every external identity gave one answer for every strength — keep it, and add a second policy with the plain control. That is right for a strength that asks MORE than Require multifactor authentication, and wrong for one that does not. Microsoft's own table of the built-in strengths describes the Multifactor authentication strength as the same set of combinations that satisfies the Require multifactor authentication setting, and says the two controls cannot be used in one policy precisely because they are equivalent. So on a policy using that strength the second policy is work for nothing: swapping the control on the policy you already have closes the gap and takes nothing away from anyone. The tool now tells the two cases apart and gives each its own answer — a swap, or a companion — by reading the strength's own allowed combinations rather than its name. If the strengths could not be read it says nothing about them rather than guessing." },

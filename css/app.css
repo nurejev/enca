@@ -2463,6 +2463,21 @@ td.gm-none{color:var(--muted);font-weight:700}
    One paragraph was read as one instruction, and the check whose advice is
    "change nothing here, add a policy there" needs both halves to be visible
    as separate answers or the reader goes looking for the exclusion. */
+/* Which way the policy is wrong (25460) — too strict, or too loose. Four
+   external findings say "exclude the types" and two say "exclude nothing";
+   without this they read as contradicting each other. Red is a denial, amber
+   is a gap, and they are never the same colour as the severity badge beside
+   them, which answers a different question. */
+.ml-eff{display:inline-block;border-radius:20px;padding:1px 9px;font-size:10.5px;font-weight:700;
+  letter-spacing:.03em;white-space:nowrap;border:1px solid}
+.ml-eff.eff-denies{background:rgba(217,83,79,.13);color:#c0392b;border-color:rgba(217,83,79,.35)}
+.ml-eff.eff-misses{background:rgba(223,179,43,.15);color:#8a6d0b;border-color:rgba(223,179,43,.4)}
+.ml-effect{margin:0 0 12px;padding:9px 11px;border-radius:8px;font-size:12.5px;line-height:1.6;
+  border:1px solid var(--border);border-left-width:3px;background:var(--soft)}
+.ml-effect.eff-denies{border-left-color:#c0392b}
+.ml-effect.eff-misses{border-left-color:#dfb32b}
+:root[data-theme="dark"] .ml-eff.eff-denies{color:#ff8a80}
+:root[data-theme="dark"] .ml-eff.eff-misses{color:#f7d65a}
 .ml-rem{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:4px 0 0;font-size:12.5px;line-height:1.6}
 .ml-rem dt{font-weight:700;color:var(--ink);white-space:nowrap}
 .ml-rem dd{margin:0;color:var(--muted)}

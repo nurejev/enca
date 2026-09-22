@@ -286,6 +286,48 @@ const MSLearn = (() => {
   };
   const isMfaEquivalent = (asp) => (asp && asp.allowedCombinations || []).some(MFA_EQUIV_SIGNATURE);
 
+  // WHICH WAY IS THE POLICY WRONG? (25460)
+  //
+  // Mihai: "but the check clearly says to exclude these users. i am
+  // confused." Four external-identity findings open with "Exclude the guest
+  // and external user types" and two now say "Exclude nothing" — read as six
+  // instructions about guests they contradict each other, and nothing on the
+  // screen said which was which.
+  //
+  // They are two different failures. A control the identity CANNOT SATISFY
+  // denies them access: the policy is too strict, and the fix takes them out
+  // of scope and covers them with something they can meet. A control that is
+  // NOT APPLIED to them lets them straight through: the policy is too loose,
+  // and the fix brings a requirement that reaches them — excluding people a
+  // policy already asks nothing of changes nothing at all.
+  //
+  // Kept as one table rather than a field on each check, so the two families
+  // can be read in one place and a new check cannot quietly join neither.
+  // A check that is NOT here renders no badge, deliberately: dc-unsupported-
+  // control ends in "decide deliberately" and sp-exclusion-incomplete is
+  // neither — it covers identities you meant to exclude, which is a third
+  // thing. Claiming a verdict we cannot support is the one thing this file
+  // does not do.
+  const EFFECT = {
+    // too strict — the control cannot be met, so access is denied
+    "guest-auth-strength-unsatisfiable": "denies",
+    "guest-unsupported-grant": "denies",
+    "guest-device-grant-needs-trust": "denies",
+    "guest-user-risk-blocked": "denies",
+    "sp-blocked": "denies",
+    "sp-device-grant-needs-trust": "denies",
+    "sp-unsupported-grant": "denies",
+    "eam-external-user-impact": "denies",
+    // too loose — the control is not applied, so nothing is asked of them
+    "guest-auth-strength-not-universal": "misses",
+    "guest-auth-strength-swap-for-mfa": "misses",
+    "sp-not-in-external-mfa": "misses",
+  };
+  const EFFECT_TEXT = {
+    denies: ["🚫", "Blocks them", "These identities are DENIED access — the control cannot be met by an identity this tenant does not manage. The fix takes them out of this policy's scope and covers them with something they can satisfy."],
+    misses: ["🕳", "Misses them", "These identities are neither blocked nor challenged — the control is not applied to them, so this policy asks them for nothing. The fix brings a requirement that does reach them; excluding them would change nothing, because the policy already asks them for nothing."],
+  };
+
   // Controls documented as NOT SUPPORTED for external users at all.
   const EXT_UNSUPPORTED_GRANT = {
     approvedApplication: "Require approved client app",
@@ -938,7 +980,7 @@ const MSLearn = (() => {
       // 25458: "not clear what to exclude and what to create") — and that
       // carve-out cannot be written.
       remediationParts: [
-        ["Exclude", "Nothing. Leave this policy as it is. Conditional Access has no condition for the identity provider a guest used — the six external user types do not separate an Entra-authenticated guest from a Google-federated one — so these four identities cannot be taken out of its scope. They also do not need to be: the strength is not applied to them, it does not block them."],
+        ["Exclude", "Nothing — and this is one of the two external findings here that does NOT ask for an exclusion, because it is one of the two where the policy is too loose rather than too strict. Leave this policy as it is. Conditional Access has no condition for the identity provider a guest used — the six external user types do not separate an Entra-authenticated guest from a Google-federated one — so these four identities cannot be taken out of its scope. They also do not need to be: the strength is not applied to them, it does not block them."],
         ["Create", "One policy beside this one, at the next free CA number in the same range: the same users, the same external user types, the same resources and conditions, and the grant control Require multifactor authentication instead of the authentication strength. Born report-only."],
         ["Why two", "Microsoft does not allow Require multifactor authentication and Require authentication strength in the same policy, so the plain requirement has to live in its own. Every policy that applies must be satisfied, so both reach every guest: an Entra-authenticated external meets the strength, which already implies MFA, and an email one-time passcode, SAML/WS-Fed, Google or Microsoft account external meets the plain requirement — the only one of the two that reaches them."],
       ],
@@ -1536,10 +1578,12 @@ const MSLearn = (() => {
         <button class="ml-head ${open ? "open" : ""}" data-mltoggle="${esc(c.id)}">
           <span class="caret">▶</span>
           ${sevBadge(c.severity)}
+          ${EFFECT[c.id] ? `<span class="ml-eff eff-${EFFECT[c.id]}">${EFFECT_TEXT[EFFECT[c.id]][0]} ${esc(EFFECT_TEXT[EFFECT[c.id]][1])}</span>` : ""}
           <span class="ml-title">${esc(c.title)}</span>
           <span class="mini">${n === 1 ? esc(g.policies[0].name) : `${n} policies affected`}</span>
         </button>
         ${open ? `<div class="ml-detail">
+          ${EFFECT[c.id] ? `<p class="ml-effect eff-${EFFECT[c.id]}"><b>${EFFECT_TEXT[EFFECT[c.id]][0]} ${esc(EFFECT_TEXT[EFFECT[c.id]][1])}.</b> ${esc(EFFECT_TEXT[EFFECT[c.id]][2])}</p>` : ""}
           ${uniform ? `<h5>Assessment</h5><p>${esc(g.policies[0].result.detail)}</p>` : ""}
           <h5>🛡 Affected ${n === 1 ? "policy" : `policies (${n})`}</h5>
           <ul class="plist2 ml-pols">${g.policies.map((p) => `<li><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="state report">Report-only</span>' : ""}${!uniform ? `<div class="mini" style="margin-top:3px">${esc(p.result.detail)}</div>` : ""}</li>`).join("")}</ul>
@@ -1924,5 +1968,5 @@ const MSLearn = (() => {
       ${nComp ? `${nComp} of them ${nComp === 1 ? "is a companion: it goes BESIDE" : "are companions: they go BESIDE"} the policy ${nComp === 1 ? "it was" : "they were"} derived from, which stays exactly as it is. The rest replace theirs. ` : ""}Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

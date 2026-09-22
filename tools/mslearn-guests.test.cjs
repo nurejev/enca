@@ -369,3 +369,54 @@ test("with the strengths unread the swap check says nothing rather than guessing
   assert.ok(!f.includes("guest-auth-strength-swap-for-mfa"), "no strength definition, no verdict about its combinations");
   assert.ok(f.includes("guest-auth-strength-not-universal"), "the conservative finding still stands");
 });
+
+// ---- which way the policy is wrong (25460) -------------------------------
+// Mihai: "but the check clearly says to exclude these users. i am confused."
+// Four external findings open with "Exclude the guest and external user
+// types" and two say "Exclude nothing". Both are right, for opposite
+// failures. These tests hold the classification to the remediation each
+// check actually gives, so the badge can never drift from the advice.
+
+test("every classified external finding is denies or misses, and nothing else", () => {
+  const vals = new Set(Object.values(M.EFFECT));
+  assert.deepEqual([...vals].sort(), ["denies", "misses"]);
+  for (const k of Object.keys(M.EFFECT)) assert.ok(M.EFFECT_TEXT[M.EFFECT[k]], `${k} has text`);
+});
+
+test("a finding whose remedy is to exclude the types is classified denies", () => {
+  for (const id of ["guest-auth-strength-unsatisfiable", "guest-unsupported-grant",
+    "guest-device-grant-needs-trust", "guest-user-risk-blocked",
+    "sp-blocked", "sp-unsupported-grant", "sp-device-grant-needs-trust"]) {
+    assert.equal(M.EFFECT[id], "denies", id);
+  }
+});
+
+test("a finding whose remedy is to add or swap a control is classified misses", () => {
+  for (const id of ["guest-auth-strength-not-universal", "guest-auth-strength-swap-for-mfa",
+    "sp-not-in-external-mfa"]) {
+    assert.equal(M.EFFECT[id], "misses", id);
+  }
+});
+
+test("the two checks that are neither carry no verdict rather than a guessed one", () => {
+  // dc-unsupported-control ends in "decide deliberately"; sp-exclusion-incomplete
+  // covers identities you meant to exclude, which is a third thing.
+  assert.equal(M.EFFECT["dc-unsupported-control"], undefined);
+  assert.equal(M.EFFECT["sp-exclusion-incomplete"], undefined);
+});
+
+test("the classification agrees with the remediation text of every classified check", () => {
+  // the whole point: a badge that says "blocks them" over advice to add a
+  // policy, or "misses them" over advice to exclude, would be worse than none
+  const say = (id) => {
+    const p = strengthPolicy("CA400-x", PHISH_STRENGTH);
+    const all = run([p], { strengths: new Map([[PHISH_STRENGTH.id, PHISH_STRENGTH]]) });
+    const f = all.find((x) => x.check.id === id);
+    return f ? f.check : null;
+  };
+  // sampled on one that fires here; the rest are asserted by their EFFECT above
+  const c = say("guest-auth-strength-not-universal");
+  assert.ok(c, "the finding fires");
+  assert.equal(M.EFFECT[c.id], "misses");
+  assert.match(c.remediation, /^Exclude nothing/, "misses means the advice does NOT start with an exclusion");
+});
