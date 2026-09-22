@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25446, date: "2026-09-22", title: "Builder: an edit looks like an edit",
+    items: [
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 Editing a policy read like creating a new one — persona chips, a next free number, a start-from segment. Now: the toolbar shows Editing <policy> with Discard, the head says nothing is written until Save, every step reads as filled in from the policy, step 1 is the name (the CA number, words and version only when the name follows the convention; a name outside it is edited as it is; the persona stays — Clone is for a new number), and step 7 is State and save: it says how many settings change against the policy in the tenant and keeps Save disabled while nothing does." },
+    ],
+  },
+  {
     build: 25445, date: "2026-09-22", title: "Edit in builder, from the policy card",
     items: [
       { kind: "new", tool: "Policies", text: "The policy card's action row has 🏗 Edit in builder and ⧉ Clone in builder beside What-if flow, Documentation, Backup, Assign and Policy state — the card is where a policy is read, so it is where an edit starts. Edit opens the builder on that policy with the ± Diff view; Clone makes a new one with the next free number in its range, in report-only." },

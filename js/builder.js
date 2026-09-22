@@ -526,14 +526,23 @@ const Builder = (() => {
         if (s.cae) parts.push("CAE " + s.cae); if (s.tokenProtection) parts.push("token protection"); if (s.mdca) parts.push("Defender for Cloud Apps " + s.mdca); if (s.resilience) parts.push("resilience defaults off");
         return parts.join(" · ") || "nothing set — sign-in frequency, persistent browser, CAE, token protection";
       }
-      case 7: return `${(STATES.find((s) => s[0] === d.state) || ["", d.state])[1]}${d.state === "enabled" ? " · needs a typed ON" : d.state === "enabledForReportingButNotEnforced" ? " (default)" : ""}${d.mode === "edit" ? " · PATCH of the selected policy" : ""}`;
+      case 7: {
+        const st = (STATES.find((s) => s[0] === d.state) || ["", d.state])[1];
+        if (d.mode === "edit") return `${st} · Save writes the changed sections of this policy — nothing until then`;
+        return `${st}${d.state === "enabled" ? " · needs a typed ON" : d.state === "enabledForReportingButNotEnforced" ? " (default)" : ""}`;
+      }
     }
     return "";
   }
   const STEPS = [[1, "Name & persona"], [2, "Who"], [3, "What"], [4, "When — conditions"], [5, "Then — grant or block"], [6, "Session"], [7, "State & go"]];
   function stepsHtml(d, active, ctx, formHtml) {
+    const edit = d.mode === "edit";
     return STEPS.map(([n, label]) => {
-      const cls = n === active ? "now" : n < active ? "done" : "todo";
+      if (edit && n === 7) label = "State & save";
+      if (edit && n === 1) label = "Name";
+      // an edit starts with every step filled in from the policy, so nothing
+      // is "to do" — only the open step is highlighted
+      const cls = n === active ? "now" : (edit || n < active) ? "done" : "todo";
       const h = (ctx && ctx.hints || []).filter((x) => x.step === n && x.level === "warn").length;
       return `<button class="ld-row pb-step ${cls}" type="button" data-pbstep="${n}" aria-pressed="${n === active}"><strong><span class="pb-n">${cls === "done" ? "✓" : n}</span>${n} · ${esc(label)}${h ? ` <span class="sev medium pb-hn" title="${h} thing${h === 1 ? "" : "s"} worth reading in this step">${h}</span>` : ""}</strong><span class="mini muted">${summary(d, n, ctx)}</span></button>`
         + (n === active ? `<div class="list-card pb-form" data-pbform="${n}">${formHtml || ""}</div>` : "");

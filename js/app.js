@@ -16703,6 +16703,16 @@ This is a directory write. Nothing else changes.`)) return;
     const nav = (prev, next) => `<div class="pb-row pb-nav">${prev ? `<button class="btn sm" type="button" data-pbgo="${prev}">← ${prev} · ${Builder.STEPS[prev - 1][1]}</button>` : ""}${next ? `<button class="btn primary sm" type="button" data-pbgo="${next}">Next: ${next} · ${Builder.STEPS[next - 1][1]} →</button>` : ""}<span class="mini muted">${d.mode === "edit" ? "editing the selected policy — nothing is written until Save" : "the draft is kept while you use other tools"}</span></div>`;
     switch (step) {
       case 1: {
+        if (d.mode === "edit") {
+          const conv = !d.customName;
+          return `<h4 class="wi-h">Name</h4>
+            ${conv ? `<div class="wi-grid"><label class="wi-f">CA number<input type="number" data-pb="number" value="${d.number == null ? "" : d.number}" min="0" max="1299"></label><label class="wi-f">Descriptive words<input type="text" data-pb="words" value="${esc(d.words)}"></label><label class="wi-f">Version<input type="text" data-pb="version" value="${esc(d.version)}"></label></div>
+            <p class="mini" style="margin:10px 0 0">The name reads <b class="pb-name">${esc(Builder.nameOf(d, cat))}</b>${d.prefix ? ` — the ${esc(d.prefix.trim())} staging prefix stays` : ""}. Persona: ${esc((P || {}).label || "—")} — a policy keeps its persona and range when edited; use Clone for a new number.</p>`
+            : `<label class="wi-f">Policy name<input type="text" data-pb="customName" value="${esc(d.customName)}" style="width:100%"></label><p class="mini muted" style="margin:6px 0 0">This name does not follow the CAnnn-KIND-Persona convention, so it is edited as it is; the persona and number fields apply to convention names only.</p>`}
+            ${d.customName === "" && !conv ? "" : ""}
+            <div class="pb-hint">💡 <span>Renaming changes how 🧬 Baseline and the group rules recognise this policy — the definition is what Save is usually for.</span></div>
+            ${hints}${nav(null, 2)}`;
+        }
         const nn = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId);
         return `<h4 class="wi-h">Persona <span class="mini muted">— decides the CA-number range and the persona word in the name</span></h4>
           <div class="chip-filter pb-personas">${Builder.personas(cat).map((p) => `<button type="button" class="fchip${p.key === d.persona ? " active" : ""}" data-pbpersona="${p.key}" title="CA${String(p.lo).padStart(3, "0")}–CA${String(p.hi).padStart(3, "0")}">${esc(p.label)}</button>`).join("")}</div>
@@ -16791,13 +16801,16 @@ This is a directory write. Nothing else changes.`)) return;
       case 7: {
         const v = Builder.validate(d), ops = Builder.willDo(d, ctx);
         const goLabel = d.mode === "edit" ? "✎ Save changes to the policy" : `＋ Create ${d.state === "enabledForReportingButNotEnforced" ? "in report-only" : d.state === "disabled" ? "Off" : "ON"}`;
+        const nDiff = d.mode === "edit" && pbBefore ? Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(Builder.toRaw(d, cat))).length : 0;
+        const editNote = d.mode === "edit" ? `<div class="pb-hint">${nDiff ? `✎ <span><b>${nDiff} setting${nDiff === 1 ? "" : "s"} change${nDiff === 1 ? "s" : ""}</b> against the policy in the tenant — the ± Diff view lists them. Save sends the sections they are in, whole, and reads the policy back.</span>` : `✓ <span><b>Nothing changes yet</b> — the draft equals the policy in the tenant. Change something in steps 1–6, or Discard.</span>`}</div>` : "";
         return `<h4 class="wi-h">State</h4>
           <div class="pb-row">${Builder.STATES.map(([val, l]) => `<label class="pb-ck"><input type="radio" name="pbState" data-pb="state" value="${val}"${d.state === val ? " checked" : ""}> ${l}${val === "enabledForReportingButNotEnforced" ? ' <span class="mini muted">(default)</span>' : ""}</label>`).join("")}</div>
           ${d.state === "enabled" && (d.mode !== "edit" || (pbBefore && pbBefore.state !== "enabled")) ? `<div class="pb-row"><span class="mini">Type <b>ON</b> to confirm enforcing at once</span><input type="text" data-pb="typedOn" value="${esc(d.typedOn || "")}" placeholder="ON" style="width:90px" autocomplete="off"></div>` : ""}
+          ${editNote}
           <h4 class="wi-h" style="margin-top:14px">What will happen</h4>${Builder.willHtml(ops)}
           ${v.bad.length ? `<div class="pb-hint warn">✗ <span>${v.bad.map(esc).join("<br>")}</span></div>` : ""}${v.warn.map((w) => `<div class="pb-hint warn">⚠ <span>${esc(w)}</span></div>`).join("")}
           ${hints}
-          <div class="pb-row pb-nav"><button class="btn sm" type="button" data-pbgo="6">← 6 · Session</button><button class="btn primary sm" type="button" id="pbGoStep" ${v.ok && (d.state !== "enabled" || d.mode === "edit" && pbBefore && pbBefore.state === "enabled" || d.typedOn === "ON") ? "" : "disabled"}>${goLabel}</button><span class="mini muted">Recovery: a policy created here is restorable for 30 days from ♻ Deleted; an edit can be reverted from its 🕓 Changes entry.</span></div>
+          <div class="pb-row pb-nav"><button class="btn sm" type="button" data-pbgo="6">← 6 · Session</button><button class="btn primary sm" type="button" id="pbGoStep" ${v.ok && (d.mode !== "edit" || nDiff) && (d.state !== "enabled" || d.mode === "edit" && pbBefore && pbBefore.state === "enabled" || d.typedOn === "ON") ? "" : "disabled"}>${goLabel}</button><span class="mini muted">Recovery: a policy created here is restorable for 30 days from ♻ Deleted; an edit can be reverted from its 🕓 Changes entry.</span></div>
           <div id="pbLedger"></div>`;
       }
     }
@@ -16821,7 +16834,12 @@ This is a directory write. Nothing else changes.`)) return;
     const modeLine = d.mode === "edit" ? `<b>Editing</b> ${esc(d.sourceName)}` : d.mode === "clone" ? `<b>New policy</b> · cloned from ${esc(d.sourceName)}` : d.template ? `<b>New policy</b> · started from template CA${String(d.template.num).padStart(3, "0")}` : `<b>New policy</b>`;
     $("pbHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:260px">${toolHead("toolBuilder")}
       <p class="mini" style="margin:6px 0 0">One guided screen for a policy: start blank, from a baseline template, or from a policy selected anywhere else in ENCA. Every choice is a building block from the tabs beside it, the result is preflighted in What-If before it is written, and a new policy is born in report-only unless you say otherwise.</p></div>
-      <div class="pb-mode">${modeLine} · ${esc(tenantName || "this tenant")}<br>${P ? `next free number in ${esc(P.label)}: <b>${(() => { const n = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId).num; return n == null ? "none" : "CA" + String(n).padStart(3, "0"); })()}</b>` : ""}</div></div>`;
+      <div class="pb-mode">${modeLine} · ${esc(tenantName || "this tenant")}<br>${d.mode === "edit" ? `every step is filled from the policy · <b>nothing is written until Save</b> · ± Diff shows what changes` : P ? `next free number in ${esc(P.label)}: <b>${(() => { const n = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId).num; return n == null ? "none" : "CA" + String(n).padStart(3, "0"); })()}</b>` : ""}</div></div>`;
+    // the toolbar: a draft chooses where it starts; an edit has started — it
+    // shows what it edits and a way out, never a "start from" that would drop it
+    $("pbStart").style.display = d.mode === "edit" ? "none" : "";
+    $("pbEditing").style.display = d.mode === "edit" ? "" : "none";
+    if (d.mode === "edit") $("pbEditing").innerHTML = `<span class="pb-from" title="${esc(d.sourceId || "")}">✎ Editing <b>${esc(d.sourceName)}</b></span> <button type="button" class="btn sm" id="pbDiscard" title="Drop the edit — nothing was written">✕ Discard</button>`;
     $("pbStart").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.pbstart === (d.mode === "edit" || d.mode === "clone" ? "policy" : d.template ? "template" : "blank")));
     $("pbGo").textContent = d.mode === "edit" ? "✎ Save changes" : "＋ Create in report-only";
     $("pbGo").disabled = pbBusy || !Builder.validate(d).ok || (d.mode !== "edit" && d.state !== "enabledForReportingButNotEnforced");
@@ -16958,6 +16976,7 @@ This is a directory write. Nothing else changes.`)) return;
     else if (b.dataset.pbstart === "template") pbOpenTemplatePicker();
     else if (b.dataset.pbstart === "policy") pbOpenPolicyPicker();
   });
+  $("pbEditing").addEventListener("click", (e) => { if (e.target.closest("#pbDiscard")) { if (!confirm("Discard this edit? Nothing was written to the policy.")) return; pbDraft = null; pbBefore = null; openBuilder({ fresh: true }); } });
   $("pbPreflight").addEventListener("click", () => { pbView = "preflight"; renderBuilder(); });
   $("pbJson").addEventListener("click", () => { if (!pbDraft) return; const cat = pbCat(); downloadText((Builder.nameOf(pbDraft, cat) || "policy").replace(/[^\w.\- ]+/g, "").slice(0, 80), "json", "application/json", JSON.stringify(Builder.toRaw(pbDraft, cat), null, 2)); toast("Draft <span>JSON</span> downloaded — 📥 Import can load it"); });
   $("pbPlan").addEventListener("click", () => {

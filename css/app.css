@@ -2494,3 +2494,7 @@ td.gm-none{color:var(--muted);font-weight:700}
 .ob-defrow .btn{margin:2px 6px 2px 0}
 .ob-note{padding:8px 10px;border-radius:8px;background:var(--soft);font-size:12px;line-height:1.45;margin-top:8px}
 .ob-modal .modal-foot{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:18px;flex-wrap:wrap}
+
+#pbEditing{display:flex}
+#pbEditing[style*='display: none']{display:none}
+.pb-from{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:8px;background:var(--soft);font-size:12.5px}
