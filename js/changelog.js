@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25430, date: "2026-09-22", title: "Assign guests and external users, not just groups and roles",
+    items: [
+      { kind: "new", tool: "Policies", text: "\ud83d\udc65 Assign groups or roles can now aim at guests and external users too \u2014 the portal's third Include choice and its matching Exclude tick. Pick the types (local guests, B2B collaboration guests and members, B2B direct connect, other external users, service provider CSP/GDAP users) and the tenants they come from: all external tenants, or a list of tenant IDs. Aimed at a selection or at every policy in the tenant, like the other two. The panel shows what the policies in scope carry today, so the choice is made against the real starting point." },
+      { kind: "new", tool: "Policies", text: "A guest clause is one object per side, not a list, so the actions mean something particular and the wizard says which. Set replaces the clause. ADD unions the types \u2014 but the tenant scope is a single value that cannot merge, so a policy already scoped to different external tenants is LEFT UNTOUCHED, with the reason, rather than quietly rescoped; re-run those with Set if that is what you meant. REMOVE subtracts types, and a policy left with none loses the clause, because an empty type list is not valid. A REMOVE offers only the types the selected policies actually carry, pre-ticked." },
+      { kind: "fixed", tool: "Policies", text: "A directory-role edit could silently delete a policy's guest exclusion. The whole conditions.users block is written on any change, and the roles path did not carry the guest and external-user clause through \u2014 so assigning a role to a policy that excluded, say, service provider users removed that exclusion without saying anything, and the policy started applying to them. The clause now rides along, as it already did on the groups path." },
+    ],
+  },
+  {
     build: 25429, date: "2026-09-22", title: "Policy building blocks in the sidebar",
     items: [
       { kind: "improved", tool: "Navigation", text: "\ud83e\udde9 Policy building blocks now has a sidebar shortcut, next to Policies, Sign-ins, Who is \u2026, Baseline and CA groups. It also has an icon of its own \u2014 it was still carrying the globe from when it was Named locations, and on the home tile it was falling back to the same four-square mark that means All tools. Three blocks now, everywhere it appears." },

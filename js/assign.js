@@ -44,7 +44,67 @@ const Assign = (() => {
     "REMOVE from EXCLUDE roles (keep the rest)",
     null,   // the CAxxx-Exclusion convention is about groups; roles have none
   ];
-  const actionsFor = (target) => (target === "roles" ? ROLE_ACTIONS : ACTIONS);
+  // And aimed at the guest / external-user clause — the portal's third
+  // Include choice and its matching Exclude tick. This one is NOT a list of
+  // ids like the other two: a policy holds ONE block per side,
+  //   { guestOrExternalUserTypes: "b2bCollaborationGuest,serviceProvider",
+  //     externalTenants: { membershipKind: "all" } }
+  // so "add" unions the types and "remove" subtracts them, while the tenant
+  // scope is a single value that cannot be merged. See newGuestsBlock.
+  const GUEST_ACTIONS = [
+    "Set INCLUDE guests & external users (replace the current include clause)",
+    "Set EXCLUDE guests & external users (replace the current exclude clause)",
+    "ADD to INCLUDE guest types (keep existing, add selected)",
+    "ADD to EXCLUDE guest types (keep existing, add selected)",
+    null,
+    "REMOVE from INCLUDE guest types (keep the rest)",
+    "REMOVE from EXCLUDE guest types (keep the rest)",
+    null,
+  ];
+  // Entra's own list, in the portal's order. Labels match 🚪 Exclusion
+  // analyzer's so the same clause reads the same in both tools.
+  const GUEST_TYPES = [
+    ["internalGuest", "Local guests", "Accounts created in this tenant and marked as guests"],
+    ["b2bCollaborationGuest", "B2B collaboration guests", "Invited external users with UserType Guest"],
+    ["b2bCollaborationMember", "B2B collaboration members", "Invited external users given UserType Member"],
+    ["b2bDirectConnectUser", "B2B direct connect users", "Teams Connect shared channels — no guest object in this tenant"],
+    ["otherExternalUser", "Other external users", "External identities that fit none of the above"],
+    ["serviceProvider", "Service provider users", "CSP / GDAP partner admins signing in to your tenant"],
+  ];
+  const GUEST_TYPE_LABEL = Object.fromEntries(GUEST_TYPES.map(([k, l]) => [k, l]));
+  const guestTypesOf = (block) => String(block?.guestOrExternalUserTypes || "")
+    .split(",").map((x) => x.trim()).filter(Boolean);
+
+  // The two concrete subtypes of conditionalAccessExternalTenants. The
+  // @odata.type is NOT decoration: externalTenants is an abstract type on the
+  // resource, and a PATCH that omits it on the enumerated form is rejected.
+  const allTenants = () => ({ "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" });
+  const someTenants = (ids) => ({ "@odata.type": "#microsoft.graph.conditionalAccessEnumeratedExternalTenants", membershipKind: "enumerated", members: [...ids] });
+  const tenantsPayload = (sel) => (sel.tenantKind === "enumerated" && sel.tenantIds?.length ? someTenants(sel.tenantIds) : allTenants());
+  // Is the scope a policy already carries the same one being asked for? Only
+  // then may an ADD leave it alone; anything else is the conflict below.
+  const sameTenants = (existing, sel) => {
+    const kind = existing?.membershipKind || "all";
+    const want = sel.tenantKind === "enumerated" && sel.tenantIds?.length ? "enumerated" : "all";
+    if (kind !== want) return false;
+    if (want === "all") return true;
+    const a = new Set((existing.members || []).map((x) => String(x).toLowerCase()));
+    const b = new Set(sel.tenantIds.map((x) => String(x).toLowerCase()));
+    return a.size === b.size && [...a].every((x) => b.has(x));
+  };
+  const tenantLabel = (block) => {
+    const et = block?.externalTenants;
+    if (!et || et.membershipKind === "all") return "all external tenants";
+    const n = (et.members || []).length;
+    return `${n} named tenant${n === 1 ? "" : "s"}`;
+  };
+  const guestClauseLabel = (block) => {
+    if (!block) return "none";
+    const t = guestTypesOf(block);
+    return `${t.map((x) => GUEST_TYPE_LABEL[x] || x).join(", ") || "all guest/external types"} — ${tenantLabel(block)}`;
+  };
+
+  const actionsFor = (target) => (target === "roles" ? ROLE_ACTIONS : target === "guests" ? GUEST_ACTIONS : ACTIONS);
 
   // Microsoft's minimum set for "require MFA for administrators"
   // (learn.microsoft.com/entra/identity/conditional-access/policy-old-require-mfa-admin).
@@ -395,6 +455,7 @@ const Assign = (() => {
   // Same semantics as the PowerShell script's action switch.
   function newUsersBlock(raw, action, groupIds, target) {
     if (target === "roles") return newRolesBlock(raw, action, groupIds);
+    if (target === "guests") return newGuestsBlock(raw, action, groupIds);
     const u = raw.conditions?.users || {};
     const cur = {
       includeUsers: u.includeUsers || [], excludeUsers: u.excludeUsers || [],
@@ -495,14 +556,87 @@ const Assign = (() => {
       case 5: { const drop = new Set(roleIds); includeRoles = cur.includeRoles.filter((r) => !drop.has(r)); break; }
       case 6: { const drop = new Set(roleIds); excludeRoles = cur.excludeRoles.filter((r) => !drop.has(r)); break; }
     }
-    return {
-      users: {
-        includeUsers, excludeUsers: cur.excludeUsers,
-        includeGroups: cur.includeGroups, excludeGroups: cur.excludeGroups,
-        includeRoles, excludeRoles,
-      },
-      notes,
+    // The guest / external-user clause rides along, for the same reason it
+    // does in newUsersBlock: conditions.users is PATCHed as a whole, so a
+    // block left out of the object is a block deleted from the policy. It was
+    // missing here until 25430 — a role edit on a policy carrying "exclude
+    // service provider users" silently dropped that exclusion.
+    const users = {
+      includeUsers, excludeUsers: cur.excludeUsers,
+      includeGroups: cur.includeGroups, excludeGroups: cur.excludeGroups,
+      includeRoles, excludeRoles,
     };
+    if (u.includeGuestsOrExternalUsers) users.includeGuestsOrExternalUsers = u.includeGuestsOrExternalUsers;
+    if (u.excludeGuestsOrExternalUsers) users.excludeGuestsOrExternalUsers = u.excludeGuestsOrExternalUsers;
+    return { users, notes };
+  }
+
+  // ---------- the guest / external-user clause ---------------------------
+  // Unlike groups and roles this is not a list of ids but ONE block per side,
+  // so the actions mean something slightly different:
+  //   Set    — write the chosen types and tenant scope, replacing what is there
+  //   ADD    — union the types; the tenant scope is a single value and CANNOT
+  //            be merged, so a policy already scoped to something else is
+  //            SKIPPED with its reason rather than silently rescoped. Re-run
+  //            those with Set if that is what you meant.
+  //   REMOVE — subtract types; when none are left the whole block goes, because
+  //            an empty guestOrExternalUserTypes is not a valid clause.
+  // Returns { users, notes, skip } — skip is a reason string, and apply()
+  // reports that policy as unchanged with the reason rather than writing it.
+  function newGuestsBlock(raw, action, sel) {
+    const u = raw.conditions?.users || {};
+    const cur = {
+      includeUsers: u.includeUsers || [], excludeUsers: u.excludeUsers || [],
+      includeGroups: u.includeGroups || [], excludeGroups: u.excludeGroups || [],
+      includeRoles: u.includeRoles || [], excludeRoles: u.excludeRoles || [],
+    };
+    const types = (sel && sel.types) || [];
+    const onInclude = action === 0 || action === 2 || action === 5;
+    const existing = onInclude ? u.includeGuestsOrExternalUsers : u.excludeGuestsOrExternalUsers;
+    let includeUsers = cur.includeUsers;
+    let block = existing || null;
+    const notes = [];
+    let skip = null;
+
+    switch (action) {
+      case 0: case 1:   // replace the clause outright
+        block = { guestOrExternalUserTypes: types.join(","), externalTenants: tenantsPayload(sel) };
+        break;
+      case 2: case 3: { // add types, keeping what is there
+        if (existing && !sameTenants(existing.externalTenants, sel)) {
+          skip = `already scoped to ${tenantLabel(existing)} (${guestClauseLabel(existing)}); this run would replace that scope, so it was left alone — re-run it with "Set" if that is what you meant`;
+          break;
+        }
+        const merged = [...new Set([...guestTypesOf(existing), ...types])];
+        block = { guestOrExternalUserTypes: merged.join(","), externalTenants: existing?.externalTenants || tenantsPayload(sel) };
+        break;
+      }
+      case 5: case 6: { // take types out; an empty clause is no clause
+        if (!existing) { block = null; break; }
+        const drop = new Set(types);
+        const kept = guestTypesOf(existing).filter((t) => !drop.has(t));
+        block = kept.length ? { guestOrExternalUserTypes: kept.join(","), externalTenants: existing.externalTenants } : null;
+        if (!kept.length) notes.push("removes the whole guest / external-user clause (no types left)");
+        break;
+      }
+    }
+    // Include is a choice in the portal — All users, a selection, or guests —
+    // so putting guests on the include side clears "All users", exactly as a
+    // role selection does. Saying so matters: it changes who the policy covers.
+    if (onInclude && block && includeUsers.includes("All")) {
+      includeUsers = ["None"];
+      notes.push("clears 'All users' from include (the guest selection takes over)");
+    }
+    // Both blocks are written explicitly, null included: conditions.users is
+    // PATCHed whole, and null is how Graph is told to drop a clause.
+    const users = {
+      includeUsers, excludeUsers: cur.excludeUsers,
+      includeGroups: cur.includeGroups, excludeGroups: cur.excludeGroups,
+      includeRoles: cur.includeRoles, excludeRoles: cur.excludeRoles,
+      includeGuestsOrExternalUsers: onInclude ? block : (u.includeGuestsOrExternalUsers || null),
+      excludeGuestsOrExternalUsers: onInclude ? (u.excludeGuestsOrExternalUsers || null) : block,
+    };
+    return { users, notes, skip };
   }
 
   // Apply to each policy: GET a fresh copy, compute the new users block, PATCH.
@@ -516,11 +650,18 @@ const Assign = (() => {
   function groupsChanged(raw, users) {
     const u = raw.conditions?.users || {};
     const same = (a, b) => { const A = new Set(a || []), B = new Set(b || []); return A.size === B.size && [...A].every((x) => B.has(x)); };
+    // The guest clause is one object, not a list: compare it as the normalised
+    // "types | tenant kind | tenant ids" string the tool reasons in. Without
+    // this a guests-only edit compares equal on every list field and is
+    // skipped as "no change" — the silent no-op the roles line above warns of.
+    const clause = (b) => (b ? `${guestTypesOf(b).slice().sort().join(",")}|${b.externalTenants?.membershipKind || "all"}|${(b.externalTenants?.members || []).slice().sort().join(",")}` : "");
     return !same(u.includeGroups, users.includeGroups)
       || !same(u.excludeGroups, users.excludeGroups)
       || !same(u.includeRoles, users.includeRoles)
       || !same(u.excludeRoles, users.excludeRoles)
-      || !same(u.includeUsers, users.includeUsers);
+      || !same(u.includeUsers, users.includeUsers)
+      || ("includeGuestsOrExternalUsers" in users && clause(u.includeGuestsOrExternalUsers) !== clause(users.includeGuestsOrExternalUsers))
+      || ("excludeGuestsOrExternalUsers" in users && clause(u.excludeGuestsOrExternalUsers) !== clause(users.excludeGuestsOrExternalUsers));
   }
 
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -538,7 +679,11 @@ const Assign = (() => {
         const fresh = await Graph.gget(`/identity/conditionalAccess/policies/${policyIds[i]}`);
         name = fresh.displayName || name;
         onStatus?.(`Updating ${name} (${i + 1}/${policyIds.length})…`);
-        const { users } = newUsersBlock(fresh, action, groupIds, target);
+        const { users, skip } = newUsersBlock(fresh, action, groupIds, target);
+        // A guest ADD onto a policy already scoped to different external
+        // tenants: nothing is written and the reason travels to the ledger
+        // and the report, rather than the scope being quietly replaced.
+        if (skip) { results.push({ name, ok: true, changed: false, skipped: skip }); onItem?.(i, "end", results[results.length - 1]); continue; }
         if (!groupsChanged(fresh, users)) { results.push({ name, ok: true, changed: false }); onItem?.(i, "end", results[results.length - 1]); continue; }
         await Graph.gpatch(`/identity/conditionalAccess/policies/${policyIds[i]}`, { conditions: { users } });
         results.push({ name, ok: true, changed: true });
@@ -564,6 +709,6 @@ const Assign = (() => {
     return results;
   }
 
-  return { ACTIONS, ROLE_ACTIONS, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, MAPPED_ACTIONS,
+  return { ACTIONS, ROLE_ACTIONS, GUEST_ACTIONS, GUEST_TYPES, GUEST_TYPE_LABEL, guestTypesOf, guestClauseLabel, tenantLabel, sameTenants, newGuestsBlock, actionsFor, ADMIN_ROLE_NAMES, roleTemplates, isAdminRole, NEEDS_GROUPS, REMOVE_ACTIONS, MAPPED_ACTIONS,
     conventionExclusionFor, conventionPlan, planCounts, groupsByPrefix, applyMapped, get PERSONAS() { return personas(); }, personasWithGroup, templateFor, get PREDEFINED() { return predefined(); }, findGroup, searchGroups, resolveGroups, newUsersBlock, apply, buildGroupPayload, createGroup, confirmNesting, NEST_SCOPES, templates };
 })();

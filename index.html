@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25429"></script>
+<script src="js/popup-guard.js?v=25430"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25429" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25429">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25430" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25430">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25429"></script>
+<script src="js/selfhost-boot.js?v=25430"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25429"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25429"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25429">
-<link rel="stylesheet" href="css/workspaces.css?v=25429">
-<link rel="stylesheet" href="css/tool-layout.css?v=25429">
-<link rel="stylesheet" href="css/list-detail.css?v=25429">
-<link rel="stylesheet" href="css/flat-icons.css?v=25429">
+<script src="js/counter.js?v=25430"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25430"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25430">
+<link rel="stylesheet" href="css/workspaces.css?v=25430">
+<link rel="stylesheet" href="css/tool-layout.css?v=25430">
+<link rel="stylesheet" href="css/list-detail.css?v=25430">
+<link rel="stylesheet" href="css/flat-icons.css?v=25430">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25429" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25430" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -104,7 +104,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25429" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25430" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -2270,6 +2270,9 @@
         Step 2 is a <b>drift report</b> rather than a list to tick: how many policies are already correct, how many have lost the reference, and how many name a group that does not exist in the tenant at all. Only the ones needing repair arrive ticked. Scope it to your selection for a repair, or to <b>all policies in this tenant</b> for the <b>sweep</b> — the same question asked of everything, which is how you find out how far an estate has drifted.<br>
         The group name comes from the <b>baseline catalog</b> where the catalog has that CA number (definitive — and 14 of the 99 policies legitimately have no exclusion group, so those are reported as nothing to do rather than invented). A policy carrying a CA number the catalog does not have gets the convention applied by inference, labelled <span class="tag">derived</span> so it can be checked before it is ticked. Groups that do not exist yet can be <b>created first</b> from their baseline templates in the same run.<br>
         <b>Additive only</b> — the group is added to whatever the policy already excludes; nothing is replaced and nothing is removed. But an exclusion <b>widens</b> a policy: anyone already in one of these groups stops being covered by the policy it is added to, so a tenant-wide sweep asks for the typed <b>ALL</b> like every other tenant-wide write, and the change report records the policy → group pairing rather than one group list.</li>
+        <li><b>Assign guests &amp; external users <span class="tag new">NEW</span></b> (build 25430) — the wizard's third target, the portal's <b>Guests or external users</b> choice under Include and its matching tick under Exclude. Pick the types — <b>local guests</b>, <b>B2B collaboration guests</b>, <b>B2B collaboration members</b>, <b>B2B direct connect users</b>, <b>other external users</b>, <b>service provider (CSP/GDAP) users</b> — and the tenants they come from: <b>all external tenants</b>, or a list of tenant IDs. Aimed at a selection or at <b>every policy in the tenant</b>, like the other two.
+          <br><b>It is one clause, not a list of ids</b>, and that changes what the actions mean. <b>Set</b> writes the types and the tenant scope, replacing whatever the clause held. <b>ADD</b> unions the types — but the tenant scope is a <i>single value</i> that cannot merge, so a policy already scoped to different external tenants is <b>left untouched</b> and says why, rather than being quietly rescoped; re-run those with Set if replacing the scope is what you meant. <b>REMOVE</b> subtracts types, and a policy left with none loses the clause entirely, because an empty type list is not a valid clause. The step-1 panel lists what the policies in scope carry today, and a REMOVE offers only the types they actually have, pre-ticked — the question there is which ones to keep.
+          <br>On the <b>include</b> side this is a choice like any other: a policy currently on All users switches to covering only these guest types, and the wizard says so before it writes. On the <b>exclude</b> side it <b>widens</b> the policy — whoever those types cover stops being subject to it. Every outcome reaches the run ledger and the change report, including <i>left untouched</i> with its reason.</li>
         <li><b>Assign directory roles <span class="tag new">NEW</span></b> — the wizard can target a policy’s <b>Directory roles</b> include/exclude, the same assignment the portal offers, not only groups. Choose <b>Directory roles</b> at the top and the same actions apply to them (bar “All users”, which has no role equivalent). Quick picks give <b>Microsoft’s privileged set</b> — the fourteen roles Microsoft names as the minimum to require MFA on, resolved against this tenant’s own role templates rather than hard-coded IDs — or every built-in role. <b>Conditional Access enforces built-in roles only:</b> custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way, which the wizard says at the point of choosing, in the review and in the change report.</li>
         <li><b>🚫 Disable group nesting <span class="tag new">BETA</span></b> — on any present, non-dynamic group in <b>① Check</b>. <b>Not generally available:</b> Microsoft documents the permission (<i>Group-NestingSupport.ReadWrite.All</i>) but publishes <code>disableNesting</code> on neither the v1.0 nor the beta <code>group</code> resource, and a tenant that lacks it answers <code>400 Request_BadRequest — “Unexpected request made to property ‘disableNesting’”</code>. ENCA sends this one request to <b>v1.0</b> (the only version whose docs name it), and when the directory refuses it says so, stops offering the action for the rest of the session, and does <b>not</b> fall through to the recreate — that route sets the property at creation, which is the request that was just refused, so it would destroy and rebuild a group to reach the same error. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group and a policy's scope widens without the policy being touched, and the extra members never show up in a review of the policy itself. Entra's beta <code>disableNesting</code> property closes that side door — with it set, no group can be added as a member.<br>
         Two things make this awkward, and the tool is explicit about both. <b>Reading it is not free</b>: a plain read does not return the property at all, so ENCA asks for it separately and reports three states — disabled, allowed, or <i>not reported</i> (which honestly means "this tenant does not surface it yet", not "allowed"). <b>Writing it is undocumented</b>: Microsoft lists a dedicated permission for updating it but does not list the property as updatable, and in the field it currently only takes at creation. So ENCA <b>tries the in-place change first</b> — and verifies it by reading the value back, because Entra will accept a PATCH and silently ignore a property it does not know. Only if that genuinely fails does it offer to <b>recreate</b> the group: rename the current one aside, create it again with nesting disabled, move the user members and repoint every Conditional Access assignment. That path is behind its own typed confirmation, never the first one. When Microsoft finishes shipping this, the recreate simply stops being offered.<br>
@@ -3171,84 +3174,84 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25429"></script>
-<script src="js/selfhost.js?v=25429"></script>
-<script src="js/version.js?v=25429"></script>
-<script src="js/verdict.js?v=25429"></script>
-<script src="js/fork.js?v=25429"></script>
-<script src="js/promote.js?v=25429"></script>
-<script src="js/authConfig.js?v=25429"></script>
-<script src="js/connection.js?v=25429"></script>
-<script src="js/labels.js?v=25429"></script>
-<script src="js/capabilities.js?v=25429"></script>
-<script src="js/graph.js?v=25429"></script>
-<script src="js/model.js?v=25429"></script>
-<script src="js/render.js?v=25429"></script>
-<script src="js/analyze.js?v=25429"></script>
-<script src="js/whatif.js?v=25429"></script>
-<script src="js/mslearn.js?v=25429"></script>
-<script src="js/gapcheck.js?v=25429"></script>
-<script src="js/cisdata.js?v=25429"></script>
-<script src="js/cischeck.js?v=25429"></script>
-<script src="js/exclusions.js?v=25429"></script>
-<script src="js/cascope.js?v=25429"></script>
-<script src="js/coverage.js?v=25429"></script>
-<script src="js/runmeta.js?v=25429"></script>
-<script src="js/overview.js?v=25429"></script>
-<script src="js/validator.js?v=25429"></script>
-<script src="js/whatifeval.js?v=25429"></script>
-<script src="js/compare.js?v=25429"></script>
-<script src="js/whois.js?v=25429"></script>
-<script src="js/wave.js?v=25429"></script>
-<script src="js/sessionctl.js?v=25429"></script>
-<script src="js/spgap.js?v=25429"></script>
-<script src="js/groupuse.js?v=25429"></script>
-<script src="js/iso3166.js?v=25429"></script>
-<script src="js/causes.js?v=25429"></script>
-<script src="js/locations.js?v=25429"></script>
-<script src="js/authcontexts.js?v=25429"></script>
-<script src="js/authstrengths.js?v=25429"></script>
-<script src="js/recycle.js?v=25429"></script>
-<script src="js/rmau.js?v=25429"></script>
-<script src="js/camap.js?v=25429"></script>
-<script src="js/rmaudoc.js?v=25429"></script>
-<script src="js/termsofuse.js?v=25429"></script>
-<script src="js/audit.js?v=25429"></script>
-<script src="js/drift.js?v=25429"></script>
-<script src="js/guide.js?v=25429"></script>
-<script src="js/userimpact.js?v=25429"></script>
-<script src="js/smsvoice.js?v=25429"></script>
-<script src="js/memberof.js?v=25429"></script>
-<script src="js/devcheck.js?v=25429"></script>
-<script src="js/licgap.js?v=25429"></script>
-<script src="js/teamsdev.js?v=25429"></script>
-<script src="js/signinstore.js?v=25429"></script>
-<script src="js/signins.js?v=25429"></script>
-<script src="js/reportimpact.js?v=25429"></script>
-<script src="js/changelog.js?v=25429"></script>
-<script src="js/baselineData.js?v=25429"></script>
-<script src="js/baselineJoeyData.js?v=25429"></script>
-<script src="js/baselineLive.js?v=25429"></script>
-<script src="js/baseline.js?v=25429"></script>
-<script src="js/baselineCleanup.js?v=25429"></script>
-<script src="js/groupTemplates.js?v=25429"></script>
-<script src="js/assign.js?v=25429"></script>
-<script src="js/cagroups.js?v=25429"></script>
-<script src="js/groupsview.js?v=25429"></script>
-<script src="js/runledger.js?v=25429"></script>
-<script src="js/protect.js?v=25429"></script>
-<script src="js/policy-compare.js?v=25429"></script>
-<script src="js/import.js?v=25429"></script>
-<script src="js/export.js?v=25429"></script>
-<script src="js/demo.js?v=25429"></script>
-<script src="js/list-detail.js?v=25429"></script>
-<script src="js/flat-icons.js?v=25429"></script>
-<script src="js/workspace.js?v=25429"></script>
-<script src="js/analysis-jobs.js?v=25429"></script>
-<script src="js/search-suggest.js?v=25429"></script>
-<script src="js/app.js?v=25429"></script>
-<script src="js/accessibility.js?v=25429"></script>
-<script src="js/workspaces.js?v=25429"></script>
-<script src="js/tool-layout.js?v=25429"></script>
+<script src="js/branding.js?v=25430"></script>
+<script src="js/selfhost.js?v=25430"></script>
+<script src="js/version.js?v=25430"></script>
+<script src="js/verdict.js?v=25430"></script>
+<script src="js/fork.js?v=25430"></script>
+<script src="js/promote.js?v=25430"></script>
+<script src="js/authConfig.js?v=25430"></script>
+<script src="js/connection.js?v=25430"></script>
+<script src="js/labels.js?v=25430"></script>
+<script src="js/capabilities.js?v=25430"></script>
+<script src="js/graph.js?v=25430"></script>
+<script src="js/model.js?v=25430"></script>
+<script src="js/render.js?v=25430"></script>
+<script src="js/analyze.js?v=25430"></script>
+<script src="js/whatif.js?v=25430"></script>
+<script src="js/mslearn.js?v=25430"></script>
+<script src="js/gapcheck.js?v=25430"></script>
+<script src="js/cisdata.js?v=25430"></script>
+<script src="js/cischeck.js?v=25430"></script>
+<script src="js/exclusions.js?v=25430"></script>
+<script src="js/cascope.js?v=25430"></script>
+<script src="js/coverage.js?v=25430"></script>
+<script src="js/runmeta.js?v=25430"></script>
+<script src="js/overview.js?v=25430"></script>
+<script src="js/validator.js?v=25430"></script>
+<script src="js/whatifeval.js?v=25430"></script>
+<script src="js/compare.js?v=25430"></script>
+<script src="js/whois.js?v=25430"></script>
+<script src="js/wave.js?v=25430"></script>
+<script src="js/sessionctl.js?v=25430"></script>
+<script src="js/spgap.js?v=25430"></script>
+<script src="js/groupuse.js?v=25430"></script>
+<script src="js/iso3166.js?v=25430"></script>
+<script src="js/causes.js?v=25430"></script>
+<script src="js/locations.js?v=25430"></script>
+<script src="js/authcontexts.js?v=25430"></script>
+<script src="js/authstrengths.js?v=25430"></script>
+<script src="js/recycle.js?v=25430"></script>
+<script src="js/rmau.js?v=25430"></script>
+<script src="js/camap.js?v=25430"></script>
+<script src="js/rmaudoc.js?v=25430"></script>
+<script src="js/termsofuse.js?v=25430"></script>
+<script src="js/audit.js?v=25430"></script>
+<script src="js/drift.js?v=25430"></script>
+<script src="js/guide.js?v=25430"></script>
+<script src="js/userimpact.js?v=25430"></script>
+<script src="js/smsvoice.js?v=25430"></script>
+<script src="js/memberof.js?v=25430"></script>
+<script src="js/devcheck.js?v=25430"></script>
+<script src="js/licgap.js?v=25430"></script>
+<script src="js/teamsdev.js?v=25430"></script>
+<script src="js/signinstore.js?v=25430"></script>
+<script src="js/signins.js?v=25430"></script>
+<script src="js/reportimpact.js?v=25430"></script>
+<script src="js/changelog.js?v=25430"></script>
+<script src="js/baselineData.js?v=25430"></script>
+<script src="js/baselineJoeyData.js?v=25430"></script>
+<script src="js/baselineLive.js?v=25430"></script>
+<script src="js/baseline.js?v=25430"></script>
+<script src="js/baselineCleanup.js?v=25430"></script>
+<script src="js/groupTemplates.js?v=25430"></script>
+<script src="js/assign.js?v=25430"></script>
+<script src="js/cagroups.js?v=25430"></script>
+<script src="js/groupsview.js?v=25430"></script>
+<script src="js/runledger.js?v=25430"></script>
+<script src="js/protect.js?v=25430"></script>
+<script src="js/policy-compare.js?v=25430"></script>
+<script src="js/import.js?v=25430"></script>
+<script src="js/export.js?v=25430"></script>
+<script src="js/demo.js?v=25430"></script>
+<script src="js/list-detail.js?v=25430"></script>
+<script src="js/flat-icons.js?v=25430"></script>
+<script src="js/workspace.js?v=25430"></script>
+<script src="js/analysis-jobs.js?v=25430"></script>
+<script src="js/search-suggest.js?v=25430"></script>
+<script src="js/app.js?v=25430"></script>
+<script src="js/accessibility.js?v=25430"></script>
+<script src="js/workspaces.js?v=25430"></script>
+<script src="js/tool-layout.js?v=25430"></script>
 </body>
 </html>

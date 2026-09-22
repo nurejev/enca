@@ -119,6 +119,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 252,
+      title: "Assign: guests & external users as a third target, and a role edit that stopped eating the guest clause",
+      tools: ["Policies"],
+      builds: [25430],
+      risk: "high",
+      what: "\ud83d\udc65 Assign groups or roles gains a third ASSIGN target: guests & external users. Types plus tenant scope (all external tenants, or named tenant IDs), with the same Set / ADD / REMOVE actions aimed at conditions.users.include|excludeGuestsOrExternalUsers. ADD unions the types; the tenant scope cannot merge, so a policy scoped to different external tenants is skipped with its reason \u2014 a new result state, left untouched, distinct from failed and from already set. REMOVE drops the whole clause when no types remain. Separately: newRolesBlock now carries the guest clause through, and groupsChanged compares it.",
+      why: "Mihai asked for it. The fixed part was found while building it: conditions.users is PATCHed whole, and the roles path omitted the guest blocks \u2014 so a directory-role assignment silently deleted a policy's guest/external exclusion and the policy started applying to those users.",
+      test: [
+        "REGRESSION FIRST \u2014 on a policy that excludes service provider users, run an ADD to EXCLUDE roles. Re-read the policy: the guest exclusion must still be there. On 25429 and earlier it is gone.",
+        "Select one policy, Guests & external users, ADD to EXCLUDE, tick Service provider users, all external tenants. The policy gains the clause; the portal shows Guests or external users \u2192 Service provider users under Exclude.",
+        "Run the same action again: reported as already set, no write.",
+        "On a policy whose exclude clause names specific external tenants, ADD to EXCLUDE with all external tenants: reported LEFT UNTOUCHED with the reason, and the policy is byte-for-byte unchanged in the portal. Then Set the same thing and confirm it does replace the scope.",
+        "Named tenants: Set EXCLUDE with two tenant IDs, confirm Graph accepts it and the portal lists both. A non-GUID in the box is refused before the run, not by Graph.",
+        "REMOVE from EXCLUDE the only type a policy has: the whole guest clause disappears from the policy (verify in the portal, not just in ENCA).",
+        "INCLUDE side on a policy set to All users: the wizard warns, and after the run the policy includes only the guest types.",
+        "Tenant-wide Set asks for the typed ALL; tenant-wide ADD does not.",
+        "The change report lists a Left untouched section with reasons, and the run ledger shows those rows as skipped rather than green.",
+        "Offline: node --test tools/*.test.cjs \u2014 262 tests, including the 15 in tools/assign-guests.test.cjs.",
+        "See the local review/2026-09-22/BETA-25430.md validation report \u2014 NONE of the above has been run against a live tenant yet.",
+      ],
+      files: ["js/assign.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/assign-guests.test.cjs"],
+    },
+    {
       n: 251,
       title: "Navigation: a sidebar shortcut and an icon of its own for Policy building blocks",
       tools: ["Navigation", "Policy building blocks"],

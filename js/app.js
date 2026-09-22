@@ -8145,8 +8145,33 @@ This is a directory write. Nothing else changes.`)) return;
   // What the cached asGroups list was built for. Going Back and picking a
   // different action has to rebuild it: the two modes hold different rows.
   let asGroupsMode = null;
-  // "groups" | "roles" — the portal's two ways of naming who a policy covers.
+  // "groups" | "roles" | "guests" — the portal's three ways of naming who a
+  // policy covers. The third is one clause per side, not a list of ids.
   let asTarget = "groups", asRoles = [], asRoleQuery = "", asRoleAdminOnly = true;
+  let asGuestTypes = new Set(), asGuestTenantKind = "all", asGuestTenantIds = "";
+  // The tenant ids as the box has them, split and de-duplicated. Anything that
+  // is not a GUID is handed back so the panel can say which line is wrong
+  // rather than sending it to Graph and reporting a 400 per policy.
+  const asGuestTenantParse = () => {
+    const raw = asGuestTenantIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    const ok = [], bad = [];
+    for (const x of raw) (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x) ? ok : bad).push(x);
+    return { ids: [...new Set(ok.map((x) => x.toLowerCase()))], bad };
+  };
+  const asGuestSel = () => ({ types: [...asGuestTypes], tenantKind: asGuestTenantKind, tenantIds: asGuestTenantParse().ids });
+  // For a REMOVE the catalog of all six types is the wrong list: ticking a
+  // type the policies never name does nothing. Show what they ACTUALLY carry
+  // in the bucket being removed from — derived from the policies already
+  // loaded, so no extra read — and pre-tick it, the way the group remove
+  // panel does: the question is which ones to keep.
+  const asGuestPresent = (onInclude) => {
+    const seen = new Set();
+    for (const p of asPolicies) {
+      const u = p.raw?.conditions?.users || {};
+      Assign.guestTypesOf(onInclude ? u.includeGuestsOrExternalUsers : u.excludeGuestsOrExternalUsers).forEach((t) => seen.add(t));
+    }
+    return [...seen];
+  };
   // "selection" = the policies ticked in the list; "all" = every policy loaded
   // from the tenant. Tenant-wide is what you want for a break-glass or
   // service-account exclusion that must never miss a policy.
@@ -8163,6 +8188,7 @@ This is a directory write. Nothing else changes.`)) return;
     asPolicies = asScopePolicies();
     asStep = 0; asAction = null; asGroups = []; asGroupsMode = null; asResults = null; asFound = [];
     asTarget = "groups"; asRoles = []; asRoleQuery = ""; asRoleAdminOnly = true;
+    asGuestTypes = new Set(); asGuestTenantKind = "all"; asGuestTenantIds = "";
     asPlan = []; asPlanCreate = false;
     renderAssign();
     $("assignModal").classList.add("open");
@@ -8310,8 +8336,9 @@ This is a directory write. Nothing else changes.`)) return;
     const asT = $("asTitle");
     // Step 0 is where the target is still being chosen, so name both; after
     // that the title says which one you are actually working on.
-    if (asT) asT.textContent = asStep === 0 ? "Assign groups or roles"
-      : asTarget === "roles" ? "Assign directory roles" : "Assign groups";
+    if (asT) asT.textContent = asStep === 0 ? "Assign groups, roles or guests"
+      : asTarget === "roles" ? "Assign directory roles"
+      : asTarget === "guests" ? "Assign guests & external users" : "Assign groups";
     next.style.display = "inline-flex";
     if (asStep === 0) {
       next.textContent = "Next";
@@ -8322,6 +8349,7 @@ This is a directory write. Nothing else changes.`)) return;
         <h4 class="mini" style="margin:16px 0 8px">ASSIGN</h4>
         <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="groups" ${asTarget === "groups" ? "checked" : ""}> Groups</label>
         <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="roles" ${asTarget === "roles" ? "checked" : ""}> <b>Directory roles</b> <span class="mini muted">— the portal's “Directory roles” under Include/Exclude</span></label>
+        <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="guests" ${asTarget === "guests" ? "checked" : ""}> <b>Guests &amp; external users</b> <span class="mini muted">— B2B guests, direct connect, service provider (CSP/GDAP) users, and which external tenants they come from</span></label>
         <h4 class="mini" style="margin:16px 0 8px">ACTION</h4>` + Assign.actionsFor(asTarget).map((a, i) =>
         a ? `<label class="chk" style="margin:6px 0"><input type="radio" name="asAct" value="${i}" ${asAction === i ? "checked" : ""}> ${assignEsc(a)}</label>` : "").join("");
     } else if (asStep === 1 && asTarget === "roles") {
@@ -8363,6 +8391,56 @@ This is a directory write. Nothing else changes.`)) return;
         <div style="max-height:34vh;overflow:auto">` +
         (vis.map((r) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asrole="${esc(r.id)}" ${r.checked ? "checked" : ""}> ${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</label>`).join("")
           || '<p class="mini muted">No role matches that search.</p>') + `</div>`;
+
+    } else if (asStep === 1 && asTarget === "guests") {
+      next.textContent = "Next";
+      const removing = Assign.REMOVE_ACTIONS.has(asAction);
+      const onInclude = asAction === 0 || asAction === 2 || asAction === 5;
+      const present = removing ? asGuestPresent(onInclude) : null;
+      // First time into a remove, tick everything the policies actually have.
+      const mode = `guests:${asAction}:${asScope}:${asPolicies.length}`;
+      if (asGroupsMode !== mode) {
+        asGroupsMode = mode;
+        asGuestTypes = new Set(removing ? present : []);
+      }
+      const pool = removing ? present : Assign.GUEST_TYPES.map(([k]) => k);
+      const byKey = Object.fromEntries(Assign.GUEST_TYPES.map(([k, l, d]) => [k, [l, d]]));
+      const { ids, bad } = asGuestTenantParse();
+      // What the policies in scope carry today, so the choice is made against
+      // the real starting point rather than in the abstract.
+      const clauses = new Map();
+      for (const p of asPolicies) {
+        const u = p.raw?.conditions?.users || {};
+        const b = onInclude ? u.includeGuestsOrExternalUsers : u.excludeGuestsOrExternalUsers;
+        if (!b) continue;
+        const k = Assign.guestClauseLabel(b);
+        clauses.set(k, (clauses.get(k) || 0) + 1);
+      }
+      const none = asPolicies.length - [...clauses.values()].reduce((a, b) => a + b, 0);
+      b.innerHTML = `<h4 class="mini" style="margin-bottom:6px">GUEST / EXTERNAL USER TYPES <span class="muted">(${asGuestTypes.size} selected)</span></h4>
+        <p class="mini muted" style="margin:0 0 8px">${removing
+          ? (present.length
+            ? `The types the ${asPolicies.length === 1 ? "selected policy carries" : "selected policies carry"} on the ${onInclude ? "include" : "exclude"} side, pre-ticked. Untick what should stay. A policy left with no types at all loses the whole clause \u2014 an empty type list is not a valid clause in Graph.`
+            : `None of the ${asPolicies.length === 1 ? "selected policy has" : "selected policies have"} a guest / external-user clause on the ${onInclude ? "include" : "exclude"} side, so there is nothing to remove.`)
+          : "Entra's own list. A clause names one or more of these, and the tenant scope below applies to all of them together."}</p>
+        ${pool.map((k) => {
+          const [label, desc] = byKey[k] || [k, ""];
+          return `<label class="chk" style="margin:5px 0;align-items:flex-start"><input type="checkbox" data-asguest="${esc(k)}" ${asGuestTypes.has(k) ? "checked" : ""}> <span><b>${assignEsc(label)}</b><span class="mini muted" style="display:block">${assignEsc(desc)}</span></span></label>`;
+        }).join("") || '<p class="mini muted">Nothing to show.</p>'}
+        ${removing ? "" : `
+        <h4 class="mini" style="margin:16px 0 6px">FROM WHICH EXTERNAL TENANTS</h4>
+        <label class="chk" style="margin:5px 0"><input type="radio" name="asGuestTenant" value="all" ${asGuestTenantKind === "all" ? "checked" : ""}> <b>All external tenants</b> <span class="mini muted">\u2014 the usual answer</span></label>
+        <label class="chk" style="margin:5px 0"><input type="radio" name="asGuestTenant" value="enumerated" ${asGuestTenantKind === "enumerated" ? "checked" : ""}> Only these tenants <span class="mini muted">\u2014 tenant IDs, one per line</span></label>
+        ${asGuestTenantKind === "enumerated" ? `
+          <textarea id="asGuestTenantIds" class="btn" style="width:100%;min-height:76px;cursor:text;font-family:var(--mono,monospace);font-size:12px" placeholder="72f988bf-86f1-41af-91ab-2d7cd011db47&#10;\u2026one tenant ID per line">${esc(asGuestTenantIds)}</textarea>
+          <p class="mini ${bad.length ? "" : "muted"}" style="margin:6px 0 0${bad.length ? ";color:var(--off)" : ""}">${bad.length
+            ? `Not a tenant ID: ${bad.slice(0, 4).map(assignEsc).join(", ")}${bad.length > 4 ? ` and ${bad.length - 4} more` : ""} \u2014 these must be directory (tenant) GUIDs, not domain names.`
+            : `${ids.length} tenant ID${ids.length === 1 ? "" : "s"}. A tenant ID is a GUID \u2014 the partner's directory ID, not their domain.`}</p>` : ""}
+        <p class="mini" style="margin:10px 0 0;color:var(--report)">\u26a0 The tenant scope is a single value on the clause, not a list that merges. On an <b>ADD</b>, a policy already scoped to something different is <b>left untouched</b> and says so in the result \u2014 re-run those with <b>Set</b> if replacing the scope is what you meant.</p>`}
+        <h4 class="mini" style="margin:16px 0 6px">WHAT THESE POLICIES HAVE NOW <span class="muted">(${onInclude ? "include" : "exclude"} side)</span></h4>
+        ${clauses.size
+          ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${[...clauses].map(([k, n]) => `<li>${assignEsc(k)} <span class="mini muted">\u00d7 ${n}</span></li>`).join("")}${none ? `<li class="mini muted">no clause \u00d7 ${none}</li>` : ""}</ul>`
+          : `<p class="mini muted">None of the ${asPolicies.length} polic${asPolicies.length === 1 ? "y has" : "ies have"} a clause on this side yet.</p>`}`;
 
     } else if (asStep === 1 && Assign.MAPPED_ACTIONS.has(asAction)) {
       next.textContent = "Next";
@@ -8454,9 +8532,10 @@ This is a directory write. Nothing else changes.`)) return;
       next.textContent = "Review →";
       const gsel = asGroups.filter(g => g.checked);
       const rsel = asRoles.filter((r) => r.checked);
-      const isRoles = asTarget === "roles";
-      const notes = (asAction === 2 || (isRoles && asAction === 0)) && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
-        ? `<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected ${isRoles ? "roles" : "groups"}.</p>` : "";
+      const isRoles = asTarget === "roles", isGuests = asTarget === "guests";
+      const onInclude = isGuests && (asAction === 0 || asAction === 2 || asAction === 5);
+      const notes = (asAction === 2 || ((isRoles || isGuests) && asAction === 0)) && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
+        ? `<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected ${isRoles ? "roles" : isGuests ? "guest types" : "groups"}.</p>` : "";
       // Replace (0,1) and All-Users (4) rewrite existing assignment, so tenant-
       // wide they get a typed confirmation. Additive (2,3) and REMOVE (5,6) only
       // touch the named groups, so they are safe to run across everything.
@@ -8476,7 +8555,19 @@ This is a directory write. Nothing else changes.`)) return;
         <p style="margin:8px 0"><b>Policies (${asPolicies.length}):</b></p>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px">${asPolicies.map(p => `<li>${assignEsc(p.name)}</li>`).join("")}</ul>
         ${asAction === 4 ? '<p><b>Target:</b> All users (include groups will be cleared)</p>'
-          : isRoles
+          : isGuests
+            ? (() => {
+                const sel = asGuestSel();
+                const labels = sel.types.map((t) => Assign.GUEST_TYPE_LABEL[t] || t);
+                const removing = Assign.REMOVE_ACTIONS.has(asAction);
+                return `<p style="margin:8px 0"><b>Guest / external user type${labels.length === 1 ? "" : "s"} (${labels.length}):</b></p>
+                  <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${labels.map((l) => `<li>${assignEsc(l)}</li>`).join("")}</ul>
+                  ${removing
+                    ? `<p class="mini muted" style="margin:6px 0 0">Taken off the <b>${onInclude ? "include" : "exclude"}</b> side. A policy left with no types loses the clause entirely; the tenant scope of whatever remains is not touched.</p>`
+                    : `<p style="margin:8px 0"><b>External tenants:</b> ${sel.tenantKind === "enumerated" && sel.tenantIds.length ? `${sel.tenantIds.length} named tenant${sel.tenantIds.length === 1 ? "" : "s"}` : "all external tenants"}</p>
+                       <p class="mini muted" style="margin:6px 0 0">Written to the <b>${onInclude ? "include" : "exclude"}</b> side.${asAction === 2 || asAction === 3 ? " Policies already scoped to different external tenants are left untouched and reported as such." : ""}</p>`}`;
+              })()
+            : isRoles
             ? `<p style="margin:8px 0"><b>Directory roles (${rsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${rsel.map(r => `<li>${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</li>`).join("")}</ul>
                <p class="mini muted" style="margin:6px 0 0">Built-in roles only — Conditional Access does not enforce custom or administrative-unit-scoped roles.</p>`
             : `<p style="margin:8px 0"><b>Groups (${gsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${gsel.map(g => `<li>${assignEsc(g.name)} <span class="mini">${assignEsc(g.id)}</span></li>`).join("")}</ul>`}
@@ -8487,20 +8578,23 @@ This is a directory write. Nothing else changes.`)) return;
       back.style.display = "none";
       const nFail = asResults.filter(r => !r.ok).length;
       const nUp = asResults.filter(r => r.ok && r.changed !== false).length;
-      const nSet = asResults.length - nUp - nFail;
+      const nSkip = asResults.filter(r => r.ok && r.skipped).length;
+      const nSet = asResults.length - nUp - nFail - nSkip;
       // "unchanged" here means the group was already where you asked it to be —
       // for an add/remove that IS the intended end state, so it reads green
       // ("already set") not neutral. Only a real failure is red.
       b.innerHTML = `<h4 class="mini">RESULT</h4>
-        <p class="mini">${nUp} updated · ${nSet} already set · ${nFail} failed</p>
+        <p class="mini">${nUp} updated · ${nSet} already set${nSkip ? ` · ${nSkip} left untouched` : ""} · ${nFail} failed</p>
         <div class="row" style="justify-content:flex-start;margin:8px 0 12px">
           <button class="btn" id="asReport">📄 View change report</button>
         </div>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
         asResults.map(r => `<li>${r.ok
-          ? (r.changed === false ? '<span class="tag grant">already set</span>' : '<span class="tag grant">updated</span>')
+          ? (r.skipped ? '<span class="tag">left untouched</span>'
+            : r.changed === false ? '<span class="tag grant">already set</span>' : '<span class="tag grant">updated</span>')
           : '<span class="tag block">failed</span>'} ${assignEsc(r.name)}${
           r.group ? `<div class="mini muted">+ ${assignEsc(r.group)}</div>` : ""}${
+          r.skipped ? `<div class="mini">${assignEsc(r.skipped)}</div>` : ""}${
           r.error ? `<div class="mini">${assignEsc(r.error)}</div>` : ""}</li>`).join("") + "</ul>";
     }
   }
@@ -8511,6 +8605,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (t) { asTarget = t.value; asAction = null; renderAssign(); return; }   // actions differ per target
     const r = e.target.closest('[name="asAct"]'); if (r) { asAction = +r.value; return; }
     if (e.target.id === "asRoleAdminOnly") { asRoleAdminOnly = e.target.checked; renderAssign(); return; }
+    const gt = e.target.closest("[data-asguest]");
+    if (gt) { if (gt.checked) asGuestTypes.add(gt.dataset.asguest); else asGuestTypes.delete(gt.dataset.asguest); renderAssign(); return; }
+    const gtn = e.target.closest('[name="asGuestTenant"]');
+    if (gtn) { asGuestTenantKind = gtn.value; renderAssign(); return; }
     const rr = e.target.closest("[data-asrole]");
     if (rr) { const role = asRoles.find((x) => x.id === rr.dataset.asrole); if (role) role.checked = rr.checked; renderAssign(); return; }
     if (e.target.id === "asPlanCreate") { asPlanCreate = e.target.checked; renderAssign(); return; }
@@ -8527,6 +8625,21 @@ This is a directory write. Nothing else changes.`)) return;
     renderAssign();
   }
   $("asBody").addEventListener("input", (e) => {
+    if (e.target.id === "asGuestTenantIds") {
+      // No re-render: this box is a textarea and rebuilding it under the
+      // typist loses the caret. The hint line is refreshed in place instead.
+      asGuestTenantIds = e.target.value;
+      const { ids, bad } = asGuestTenantParse();
+      const hint = e.target.nextElementSibling;
+      if (hint) {
+        hint.style.color = bad.length ? "var(--off)" : "";
+        hint.classList.toggle("muted", !bad.length);
+        hint.textContent = bad.length
+          ? `Not a tenant ID: ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? ` and ${bad.length - 4} more` : ""} — these must be directory (tenant) GUIDs, not domain names.`
+          : `${ids.length} tenant ID${ids.length === 1 ? "" : "s"}. A tenant ID is a GUID — the partner's directory ID, not their domain.`;
+      }
+      return;
+    }
     if (e.target.id === "asRoleSearch") {
       asRoleQuery = e.target.value; renderAssign();
       const el = $("asRoleSearch"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
@@ -8657,6 +8770,13 @@ This is a directory write. Nothing else changes.`)) return;
         if (!asPlanActionable().length) { toast("Nothing ticked — <span>nothing to restore</span>"); return; }
       } else if (asTarget === "roles") {
         if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
+      } else if (asTarget === "guests") {
+        if (!asGuestTypes.size) { toast("Select at least one <span>guest or external user type</span>"); return; }
+        const { ids, bad } = asGuestTenantParse();
+        if (!Assign.REMOVE_ACTIONS.has(asAction) && asGuestTenantKind === "enumerated") {
+          if (bad.length) { toast(`<span>${esc(bad[0])}</span> is not a tenant ID — these must be directory GUIDs`); return; }
+          if (!ids.length) { toast("Add at least one <span>tenant ID</span>, or choose all external tenants"); return; }
+        }
       } else if (!asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       asStep = 2; renderAssign();
     } else if (asStep === 2) {
@@ -8669,6 +8789,8 @@ This is a directory write. Nothing else changes.`)) return;
         if (!asPlanActionable().length) { toast("Nothing ticked — <span>nothing to restore</span>"); return; }
       } else if (asTarget === "roles") {
         if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
+      } else if (asTarget === "guests") {
+        if (!asGuestTypes.size) { toast("Select at least one <span>guest or external user type</span>"); return; }
       } else if (asAction !== 4 && !asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       openAssignConfirm();
     } else {
@@ -8691,12 +8813,38 @@ This is a directory write. Nothing else changes.`)) return;
     const rsel = asRoles.filter((r) => r.checked);
     const verb = (asTarget === "roles"
       ? (AS_VERB[asAction] || "").replace(/groups/g, "roles")
-      : AS_VERB[asAction]) || Assign.actionsFor(asTarget)[asAction];
+      : asTarget === "guests"
+        ? (AS_VERB[asAction] || "").replace(/include groups/g, "included guests & external users").replace(/exclude groups/g, "excluded guests & external users")
+        : AS_VERB[asAction]) || Assign.actionsFor(asTarget)[asAction];
     const lines = [];
     lines.push(`**${verb}** ${scope}.`);
     lines.push("");
     if (asAction === 4) {
       lines.push("The include assignment becomes **All users** and any include groups are cleared.");
+    } else if (asTarget === "guests") {
+      const sel = asGuestSel();
+      const onInclude = asAction === 0 || asAction === 2 || asAction === 5;
+      const removing = Assign.REMOVE_ACTIONS.has(asAction);
+      lines.push(`Guest / external user type${sel.types.length === 1 ? "" : "s"}, on the **${onInclude ? "include" : "exclude"}** side:`);
+      sel.types.forEach((t) => lines.push(`- ${Assign.GUEST_TYPE_LABEL[t] || t}`));
+      lines.push("");
+      if (removing) {
+        lines.push("A policy left with **no types** loses the guest clause entirely — an empty type list is not a valid clause.");
+      } else {
+        lines.push(`External tenants: **${sel.tenantKind === "enumerated" && sel.tenantIds.length ? `${sel.tenantIds.length} named tenant${sel.tenantIds.length === 1 ? "" : "s"}` : "all external tenants"}**.`);
+        if (asAction === 2 || asAction === 3) {
+          lines.push("");
+          lines.push("_The tenant scope is one value, not a list that merges — policies already scoped to different external tenants are **left untouched** and reported as such._");
+        }
+      }
+      if (!onInclude) {
+        lines.push("");
+        lines.push("⚠ An exclusion **widens** a policy: whoever these types cover stops being subject to it.");
+      }
+      if (onInclude && asPolicies.some((p) => (p.raw.conditions?.users?.includeUsers || []).includes("All"))) {
+        lines.push("");
+        lines.push("⚠ Policies currently including **All users** will switch to covering only these guest types.");
+      }
     } else if (asTarget === "roles") {
       lines.push(`Directory role${rsel.length === 1 ? "" : "s"}:`);
       rsel.forEach((r) => lines.push(`- ${r.name}${r.recommended ? " *(privileged)*" : ""}`));
@@ -8781,7 +8929,15 @@ This is a directory write. Nothing else changes.`)) return;
     const rowsFor = mapped ? asPlanActionable().map((r) => ({ label: r.policy, sub: r.group })) : asPolicies.map((p) => ({ label: p.name }));
     const host = document.createElement("div"); $("asConfirmBody").innerHTML = ""; $("asConfirmBody").appendChild(host);
     const L = RunLedger.create(host, { unit: "policies", items: rowsFor });
-    const onItem = (i, phase, r) => { if (phase === "start") L.start(i); else if (r.ok) L.done(i, r.changed === false ? "already set" : "", r.changed === false ? "unchanged" : "updated"); else if (r.stopped) L.skip(i, "stopped"); else L.fail(i, r.error || "failed"); };
+    const onItem = (i, phase, r) => {
+      if (phase === "start") return L.start(i);
+      // A guest ADD that would have rescoped the policy is NOT "already set" —
+      // nothing was written and the reason is the point.
+      if (r.ok && r.skipped) return L.skip(i, r.skipped);
+      if (r.ok) return L.done(i, r.changed === false ? "already set" : "", r.changed === false ? "unchanged" : "updated");
+      if (r.stopped) return L.skip(i, "stopped");
+      L.fail(i, r.error || "failed");
+    };
     try {
       if (isDemo) {
         asResults = [];
@@ -8791,7 +8947,9 @@ This is a directory write. Nothing else changes.`)) return;
       } else if (mapped) {
         asResults = await runRestore(onItem, () => L.stopped);
       } else {
-        const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id) : gids;
+        const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id)
+          : asTarget === "guests" ? asGuestSel()
+          : gids;
         asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, null, asTarget, onItem, () => L.stopped);
       }
       L.finish({ report: () => showReport("👥 Group assignment report", "CA-Assign-Report", assignReportMd(asRun)) });
@@ -8801,6 +8959,7 @@ This is a directory write. Nothing else changes.`)) return;
         plan: mapped ? asPlanActionable().map((r) => ({ ...r })) : null,
         groups: asGroups.filter(g => g.checked).map(g => ({ ...g })),
         roles: asRoles.filter(r => r.checked).map(r => ({ ...r })),
+        guests: asTarget === "guests" ? asGuestSel() : null,
         results: asResults, when: new Date() };
       asStep = 3; renderAssign();
       const failed = asResults.filter(r => !r.ok).length;
@@ -8829,9 +8988,12 @@ This is a directory write. Nothing else changes.`)) return;
     const md = (s) => String(s ?? "").replace(/\|/g, "\\|");
     const r = run.results || [];
     const up = r.filter(x => x.ok && x.changed !== false);
-    const unch = r.filter(x => x.ok && x.changed === false);
+    const skipped = r.filter(x => x.ok && x.skipped);
+    const unch = r.filter(x => x.ok && x.changed === false && !x.skipped);
     const fail = r.filter(x => !x.ok);
-    const verb = (run.target === "roles" ? (AS_VERB[run.action] || "").replace(/groups/g, "roles") : AS_VERB[run.action])
+    const verb = (run.target === "roles" ? (AS_VERB[run.action] || "").replace(/groups/g, "roles")
+      : run.target === "guests" ? (AS_VERB[run.action] || "").replace(/include groups/g, "included guests & external users").replace(/exclude groups/g, "excluded guests & external users")
+      : AS_VERB[run.action])
       || Assign.actionsFor(run.target)[run.action];
     const L = [];
     L.push(`# Conditional Access — group assignment report`);
@@ -8845,11 +9007,19 @@ This is a directory write. Nothing else changes.`)) return;
       const created = run.plan.filter((r) => r.state === "nogroup");
       L.push(`- **Mapping:** one group per policy, added to the existing exclusions${created.length ? ` · ${created.length} group(s) created first` : ""}`);
     } else if (run.action !== 4) {
-      L.push(run.target === "roles"
-        ? `- **Directory role(s):** ${(run.roles || []).map(r => `${md(r.name)}${r.recommended ? " *(privileged)*" : ""}`).join(", ") || "—"}`
-        : `- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
+      if (run.target === "roles") {
+        L.push(`- **Directory role(s):** ${(run.roles || []).map(r => `${md(r.name)}${r.recommended ? " *(privileged)*" : ""}`).join(", ") || "—"}`);
+      } else if (run.target === "guests" && run.guests) {
+        const g = run.guests;
+        L.push(`- **Guest / external user type(s):** ${g.types.map(t => md(Assign.GUEST_TYPE_LABEL[t] || t)).join(", ") || "—"}`);
+        if (!Assign.REMOVE_ACTIONS.has(run.action)) {
+          L.push(`- **External tenants:** ${g.tenantKind === "enumerated" && g.tenantIds.length ? g.tenantIds.map(x => `\`${md(x)}\``).join(", ") : "all external tenants"}`);
+        }
+      } else {
+        L.push(`- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
+      }
     }
-    L.push(`- **Result:** ${up.length} updated · ${unch.length} already set · ${fail.length} failed`);
+    L.push(`- **Result:** ${up.length} updated · ${unch.length} already set${skipped.length ? ` · ${skipped.length} left untouched` : ""} · ${fail.length} failed`);
     if (isDemo) L.push(`- _Demo mode — simulated, nothing was written._`);
     L.push("");
     if (fail.length) {
@@ -8858,12 +9028,20 @@ This is a directory write. Nothing else changes.`)) return;
       fail.forEach(x => L.push(`- ❌ **${md(x.name)}** — ${md(x.error || "unknown error")}`));
       L.push("");
     }
+    // Not a failure and not a no-op: the run deliberately declined to write
+    // these, and the reason is the whole value of the row.
+    if (skipped.length) {
+      L.push("## Left untouched");
+      L.push("");
+      skipped.forEach(x => L.push(`- ⏭ **${md(x.name)}** — ${md(x.skipped)}`));
+      L.push("");
+    }
     L.push("## Every policy");
     L.push("");
     L.push(run.plan ? "| Result | Policy | Group added |" : "| Result | Policy |");
     L.push(run.plan ? "|---|---|---|" : "|---|---|");
     for (const x of r) {
-      const tag = !x.ok ? "❌ failed" : x.changed === false ? "✅ already set" : "✅ updated";
+      const tag = !x.ok ? "❌ failed" : x.skipped ? "⏭ left untouched" : x.changed === false ? "✅ already set" : "✅ updated";
       L.push(run.plan ? `| ${tag} | ${md(x.name)} | ${md(x.group || "—")} |` : `| ${tag} | ${md(x.name)} |`);
     }
     L.push("");
