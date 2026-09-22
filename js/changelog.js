@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25448, date: "2026-09-22", title: "Edit a policy on its card",
+    items: [
+      { kind: "new", tool: "Policies", text: "✎ Edit on the policy card. The six boxes — users, target resources, network, conditions, grant, session — become forms in the layout the policy was just read in, and the name is a field under the title. Nothing to navigate: change the thing you were looking at. A bar under the boxes counts the settings that change against the policy in the tenant, marks the boxes they are in, holds the state (switching to On needs a typed ON), and offers ± View diff and 🧪 Preflight before Save. Users are edited inline for this one policy; 👥 Assign groups or roles stays the tool for many at once." },
+      { kind: "new", tool: "Policies", text: "Save sends the changed sections whole — conditions, grant controls, session controls, name, state — and only those, reads the policy back, re-reads the set and reopens the card; 🕓 Changes shows the same rows. Cancel discards. Closing the card ends the edit, and an edit never leaks into the 🏗 builder, whose own draft comes back untouched." },
+      { kind: "improved", tool: "Policies", text: "The builder is for new policies: the card's action row and the selection bar offer ⧉ Clone in builder (a new policy from this one, next free number, report-only); Edit in builder is gone, and so is the choice dialog on the selection bar." },
+    ],
+  },
+  {
     build: 25447, date: "2026-09-22", title: "Reading a policy continues past the pane",
     items: [
       { kind: "fixed", tool: "Policies", text: "In the list/detail views the policy pane scrolled to its own end and stopped, with the rest of the policy hidden below the fold until the PAGE was scrolled with the pointer somewhere else — the pane refused to hand its scroll to the page. It hands over now: the pane scrolls to its end, the page takes over, the pane pins under the toolbar and the tail is on screen. The same for the list pane and for every tool on the shared list/detail frame." },

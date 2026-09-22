@@ -1946,11 +1946,13 @@
   }
 
   function showDetail(id, full = false) {
+    if (cardEdit && cardEdit.id !== id) endCardEdit(false);
+    if (cardEdit && cardEdit.id === id && !$("detailModal").classList.contains("open")) endCardEdit(false);
     if (!full && viewMode === "list" && $("screen-list").classList.contains("active")) { Workspace.inspect(id); return; }
     const p = policies.find(x => x.id === id); if (!p) return;
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
-    $("detailBody").innerHTML = `<div class="wc-detail-top"><span class="wc-eyebrow">Policy details</span><button type="button" class="btn sm" data-detail-close aria-label="Close policy details">Close</button></div>`
+    $("detailBody").innerHTML = `<div class="wc-detail-top"><span class="wc-eyebrow">Policy details</span><button type="button" class="btn sm" data-detail-close aria-label="Close policy details">Close</button><button type="button" class="btn sm" data-cedit="edit" title="Edit this policy in place — every box becomes a form, Save writes the changed sections (R17)">✎ Edit</button></div>`
       + Render.card(p, tenantName)
       + `<details class="wc-policy-definition"><summary>Original definition</summary><pre>${esc(JSON.stringify(p.raw,null,2))}</pre></details>`
       + `<div class="pcard-actions">
@@ -1961,14 +1963,15 @@
            <button class="btn" data-pact="assign">👥 Assign groups or roles</button>
            <button class="btn" data-pact="state">🎚 Policy state</button>
            <span class="pa-sep"></span>
-           <button class="btn" data-pbdetail="edit" title="Open this policy in the 🏗 Policy builder — a ± Diff shows exactly what changes; the PATCH sends whole sections, only the changed ones (T41)">🏗 Edit in builder</button>
-           <button class="btn" data-pbdetail="clone" title="A new policy from this one, with the next free number in its range, in report-only">⧉ Clone in builder</button>
+           <button class="btn" data-pbdetail="clone" title="A new policy from this one, with the next free number in its range, in report-only — the 🏗 Policy builder">⧉ Clone in builder</button>
          </div>
          <div class="wf-panel" id="wfPanel" style="display:none"></div>`;
     detailPolicyId = p.id;
     $("detailModal").classList.add("open");
   }
   let detailPolicyId = null;
+  // closing the card ends an edit on it (the builder's own draft comes back)
+  function closeDetail() { $("detailModal").classList.remove("open"); if (typeof cardEdit !== "undefined" && cardEdit) endCardEdit(false); }
 
   // Persona apply flow — a popout of what CA does to a sign-in for this persona,
   // including the Global policies that apply to everyone.
@@ -1993,9 +1996,19 @@
       else { panel.style.display = "none"; b.textContent = "⑃ What-if flow"; }
       return;
     }
-    // 🏗 the builder, from the card (25445): edit in place, or clone
+    // ✎ edit in place (25448) — the card's own verbs
+    const ce = e.target.closest("[data-cedit]");
+    if (ce) {
+      const k = ce.dataset.cedit;
+      if (k === "edit") { startCardEdit(); return; }
+      if (!cardEdit) return;
+      if (k === "cancel") { if (cardDiffRows().length && !confirm("Discard the changes on this card? Nothing was written.")) return; endCardEdit(); return; }
+      if (k === "save") { pbWrite(); return; }
+      if (k === "diff" || k === "preflight") { cardEdit.view = cardEdit.view === k ? "" : k; cardEditBar(); return; }
+    }
+    // ⧉ the builder, from the card (25445): a new policy from this one
     const pb = e.target.closest("[data-pbdetail]");
-    if (pb && detailPolicyId) { $("detailModal").classList.remove("open"); openBuilder({ from: detailPolicyId, as: pb.dataset.pbdetail }); return; }
+    if (pb && detailPolicyId) { closeDetail(); openBuilder({ from: detailPolicyId, as: "clone" }); return; }
     // Per-policy action: act on just this policy. Set the selection to it, close
     // the detail, and run the same tool the selection bar would.
     const act = e.target.closest("[data-pact]");
@@ -2003,7 +2016,7 @@
       const mode = act.dataset.pact;
       selected = new Set([detailPolicyId]);
       refreshViews();
-      $("detailModal").classList.remove("open");
+      closeDetail();
       setToolMode(mode);
       runToolMode(mode);
     }
@@ -16650,6 +16663,7 @@ This is a directory write. Nothing else changes.`)) return;
   // opts: { from: raw | id, as: "edit" | "clone", with: { kind, id, name }, template: entry, fresh: true }
   function openBuilder(opts) {
     const o = opts || {};
+    if (cardEdit) endCardEdit(false); // an edit on a card stays on the card
     crumb("🧩 Policy building blocks");
     mountToolTabs("blocks", "builder");
     show("screen-builder");
@@ -16697,10 +16711,13 @@ This is a directory write. Nothing else changes.`)) return;
   // a search box whose results are chips to click; kind decides the read
   const pbPick = (kind, path, placeholder) => `<div class="pb-pick" data-pbpick="${kind}" data-path="${esc(path)}"><input type="search" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false"><div class="pb-pickres mini muted"></div></div>`;
 
-  function pbFormHtml(step) {
-    const d = pbDraft, cat = pbCat(), nm = pbNameFn(), ctx = pbCtx(), P = Builder.personaOf(d.persona, cat);
-    const hints = Builder.hintsHtml(ctx.hints.filter((h) => h.step === step));
-    const nav = (prev, next) => `<div class="pb-row pb-nav">${prev ? `<button class="btn sm" type="button" data-pbgo="${prev}">← ${prev} · ${Builder.STEPS[prev - 1][1]}</button>` : ""}${next ? `<button class="btn primary sm" type="button" data-pbgo="${next}">Next: ${next} · ${Builder.STEPS[next - 1][1]} →</button>` : ""}<span class="mini muted">${d.mode === "edit" ? "editing the selected policy — nothing is written until Save" : "the draft is kept while you use other tools"}</span></div>`;
+  // The section forms, by step, for a given draft — the builder composes them
+  // with hints and navigation; the policy card (✎ Edit, 25448) lays the six
+  // out at once. `hints` and `nav` are empty strings here; only steps 1 and 7
+  // (name, state and go) belong to the builder alone.
+  function pbSectHtml(step, d) {
+    const cat = pbCat(), nm = pbNameFn(), ctx = pbCtx(), P = Builder.personaOf(d.persona, cat);
+    const hints = "", nav = () => "";
     switch (step) {
       case 1: {
         if (d.mode === "edit") {
@@ -16817,6 +16834,13 @@ This is a directory write. Nothing else changes.`)) return;
     return "";
   }
 
+  function pbFormHtml(step) {
+    const d = pbDraft, ctx = pbCtx();
+    const hints = Builder.hintsHtml(ctx.hints.filter((h) => h.step === step));
+    const nav = (prev, next) => `<div class="pb-row pb-nav">${prev ? `<button class="btn sm" type="button" data-pbgo="${prev}">← ${prev} · ${Builder.STEPS[prev - 1][1]}</button>` : ""}${next ? `<button class="btn primary sm" type="button" data-pbgo="${next}">Next: ${next} · ${Builder.STEPS[next - 1][1]} →</button>` : ""}<span class="mini muted">${d.mode === "edit" ? "editing the selected policy — nothing is written until Save" : "the draft is kept while you use other tools"}</span></div>`;
+    const navFor = { 1: [null, 2], 2: [1, 3], 3: [2, 4], 4: [3, 5], 5: [4, 6], 6: [5, 7] }[step];
+    return pbSectHtml(step, d) + (step === 7 ? "" : hints + nav(navFor[0], navFor[1]));
+  }
   function pbPreviewHtml() {
     const d = pbDraft, cat = pbCat(), ctx = pbCtx(), raw = Builder.toRaw(d, cat);
     if (pbView === "json") return `<pre class="pb-json">${esc(JSON.stringify(d.mode === "edit" && pbBefore ? Builder.patchBody(pbBefore, d, cat) : raw, null, 2))}</pre><p class="mini muted">${d.mode === "edit" ? "The PATCH body — whole sections, only the ones that changed." : "The exact body that will be POSTed."}</p>`;
@@ -16865,25 +16889,25 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const list = pbGet(path) || []; pbSet(path, on ? [...new Set([...list, val])] : list.filter((x) => x !== val));
   }
-  $("pbBody").addEventListener("click", (e) => {
+  const pbOnClick = (e) => {
     if (!pbDraft) return;
-    const st = e.target.closest("[data-pbstep]"); if (st) { pbStep = +st.dataset.pbstep; renderBuilder(); return; }
-    const go = e.target.closest("[data-pbgo]"); if (go) { pbStep = +go.dataset.pbgo; renderBuilder(); window.scrollTo({ top: 0 }); return; }
-    const v = e.target.closest("[data-pbview]"); if (v) { pbView = v.dataset.pbview; renderBuilder(); return; }
-    const per = e.target.closest("[data-pbpersona]"); if (per) { pbDraft.persona = per.dataset.pbpersona; if (pbDraft.mode !== "edit") pbDraft.number = Builder.nextNumber(pbDraft.persona, pbRaws(), pbCat()).num; renderBuilder(); return; }
-    const rm = e.target.closest("[data-pbrm]"); if (rm) { pbToggle(rm.dataset.pbrm, rm.dataset.id, false); renderBuilder(); return; }
-    const ag = e.target.closest("[data-pbaddgroup]"); if (ag) { pbDraft.names[ag.dataset.pbaddgroup] = ag.dataset.name; pbToggle(ag.dataset.path, ag.dataset.pbaddgroup, true); renderBuilder(); return; }
-    const aa = e.target.closest("[data-pbaddapp]"); if (aa) { pbDraft.names[aa.dataset.pbaddapp] = aa.dataset.name; pbToggle(aa.dataset.path, aa.dataset.pbaddapp, true); renderBuilder(); return; }
+    const st = e.target.closest("[data-pbstep]"); if (st) { pbStep = +st.dataset.pbstep; pbRepaint(); return; }
+    const go = e.target.closest("[data-pbgo]"); if (go) { pbStep = +go.dataset.pbgo; pbRepaint(); window.scrollTo({ top: 0 }); return; }
+    const v = e.target.closest("[data-pbview]"); if (v) { pbView = v.dataset.pbview; pbRepaint(); return; }
+    const per = e.target.closest("[data-pbpersona]"); if (per) { pbDraft.persona = per.dataset.pbpersona; if (pbDraft.mode !== "edit") pbDraft.number = Builder.nextNumber(pbDraft.persona, pbRaws(), pbCat()).num; pbRepaint(); return; }
+    const rm = e.target.closest("[data-pbrm]"); if (rm) { pbToggle(rm.dataset.pbrm, rm.dataset.id, false); pbRepaint(); return; }
+    const ag = e.target.closest("[data-pbaddgroup]"); if (ag) { pbDraft.names[ag.dataset.pbaddgroup] = ag.dataset.name; pbToggle(ag.dataset.path, ag.dataset.pbaddgroup, true); pbRepaint(); return; }
+    const aa = e.target.closest("[data-pbaddapp]"); if (aa) { pbDraft.names[aa.dataset.pbaddapp] = aa.dataset.name; pbToggle(aa.dataset.path, aa.dataset.pbaddapp, true); pbRepaint(); return; }
     const pg = e.target.closest("[data-pbpersonagroup]"); if (pg) { pbAddPersonaGroup(pg.dataset.pbpersonagroup); return; }
-    const pick = e.target.closest("[data-pbpickid]"); if (pick) { const box = pick.closest(".pb-pick"); pbDraft.names[pick.dataset.pbpickid] = pick.dataset.name; pbToggle(box.dataset.path, pick.dataset.pbpickid, true); renderBuilder(); return; }
+    const pick = e.target.closest("[data-pbpickid]"); if (pick) { const box = pick.closest(".pb-pick"); pbDraft.names[pick.dataset.pbpickid] = pick.dataset.name; pbToggle(box.dataset.path, pick.dataset.pbpickid, true); pbRepaint(); return; }
     const act = e.target.closest("[data-pbact]"); if (act && act.dataset.pbact === "tou") { act.disabled = true; pbLoadTou().then(renderBuilder); return; }
     if (e.target.closest("#pbGoStep")) { pbWrite(); return; }
     const tab = e.target.closest("a[data-tabgo]"); if (tab) { e.preventDefault(); }
-  });
-  $("pbBody").addEventListener("change", (e) => {
+  };
+  const pbOnChange = (e) => {
     if (!pbDraft) return;
     const t = e.target;
-    if (t.dataset.pbl) { pbToggle(t.dataset.pbl, t.value, t.checked); renderBuilder(); return; }
+    if (t.dataset.pbl) { pbToggle(t.dataset.pbl, t.value, t.checked); pbRepaint(); return; }
     if (t.dataset.pbflag) {
       const f = t.dataset.pbflag;
       if (f === "includeAll") pbDraft.users.includeAll = t.value === "all";
@@ -16893,7 +16917,7 @@ This is a directory write. Nothing else changes.`)) return;
       else if (f === "appEnforced") pbDraft.session.appEnforced = t.checked;
       else if (f === "tokenProtection") pbDraft.session.tokenProtection = t.checked;
       else if (f === "resilience") pbDraft.session.resilience = t.checked;
-      renderBuilder(); return;
+      pbRepaint(); return;
     }
     if (t.dataset.pb) {
       const p = t.dataset.pb, val = t.value;
@@ -16907,21 +16931,29 @@ This is a directory write. Nothing else changes.`)) return;
       else if (p === "session.persistent" || p === "session.cae" || p === "session.mdca") pbSet(p, val || null);
       else if (p === "grant.mode") { pbDraft.grant.mode = val; }
       else pbSet(p, val);
-      if (p === "apps.target" || p === "grant.mode" || p === "cond.locations.mode" || p === "cond.platforms.mode" || p === "state" || p === "session.sifMode" || p === "typedOn") renderBuilder();
+      if (p === "apps.target" || p === "grant.mode" || p === "cond.locations.mode" || p === "cond.platforms.mode" || p === "state" || p === "session.sifMode" || p === "typedOn") pbRepaint();
       else pbRepaintPreview();
     }
-  });
+  };
   // typing in a text field repaints the preview only, so the caret stays
-  $("pbBody").addEventListener("input", (e) => {
+  const pbOnInput = (e) => {
     const t = e.target; if (!pbDraft) return;
     if (t.closest(".pb-pick")) { pbSearch(t.closest(".pb-pick")); return; }
     if (!t.dataset.pb) return;
     if (["words", "version", "customName", "cond.deviceFilter.rule", "typedOn"].includes(t.dataset.pb)) {
-      if (t.dataset.pb === "typedOn") { pbDraft.typedOn = t.value.trim(); const b = $("pbGoStep"); if (b) b.disabled = !(Builder.validate(pbDraft).ok && pbDraft.typedOn === "ON"); return; }
+      if (t.dataset.pb === "typedOn") { pbDraft.typedOn = t.value.trim(); if (pbSurface === "card") { cardEditBar(); return; } const b = $("pbGoStep"); if (b) b.disabled = !(Builder.validate(pbDraft).ok && pbDraft.typedOn === "ON"); return; }
       pbSet(t.dataset.pb, t.value); pbRepaintPreview();
     }
-  });
+  };
+  // one set of handlers, two surfaces: the builder's body and the policy card
+  let pbSurface = "builder";
+  function pbRepaint() { if (pbSurface === "card") renderCardEdit(); else renderBuilder(); }
+  $("pbBody").addEventListener("click", pbOnClick); $("pbBody").addEventListener("change", pbOnChange); $("pbBody").addEventListener("input", pbOnInput);
+  $("detailBody").addEventListener("click", (e) => { if (pbSurface === "card") pbOnClick(e); });
+  $("detailBody").addEventListener("change", (e) => { if (pbSurface === "card") pbOnChange(e); });
+  $("detailBody").addEventListener("input", (e) => { if (pbSurface === "card") pbOnInput(e); });
   function pbRepaintPreview() {
+    if (pbSurface === "card") { cardEditBar(); return; }
     const panel = $("pbBody").querySelector(".ld-panel"); if (!panel) return;
     panel.querySelector(".ld-title").textContent = Builder.nameOf(pbDraft, pbCat());
     panel.querySelector(".ld-content").innerHTML = pbPreviewHtml();
@@ -17001,7 +17033,7 @@ This is a directory write. Nothing else changes.`)) return;
       (e) => { const b = e.target.closest("[data-pbtpl]"); if (!b) return false; openBuilder({ template: list.find((p) => String(p.num) === b.dataset.pbtpl) }); return true; });
   }
   function pbOpenPolicyPicker() {
-    pbModal(`🗂 Start from a policy in this tenant`, `<p class="mini muted" style="margin:0 0 8px">Edit changes that policy; Clone makes a new one with the next free number in its range.</p><div class="pb-picklist">${policies.map((p) => `<div class="ld-row pb-pickrow"><strong>${esc(p.raw.displayName)}</strong><span class="mini muted">${esc(p.state)}</span><span class="pb-row"><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="edit">✎ Edit</button><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone</button></span></div>`).join("")}</div>`,
+    pbModal(`🗂 Start from a policy in this tenant`, `<p class="mini muted" style="margin:0 0 8px">Clone makes a new policy from that one, with the next free number in its range. To change a policy itself, open its card and press ✎ Edit.</p><div class="pb-picklist">${policies.map((p) => `<div class="ld-row pb-pickrow"><strong>${esc(p.raw.displayName)}</strong><span class="mini muted">${esc(p.state)}</span><span class="pb-row"><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone into a new policy</button></span></div>`).join("")}</div>`,
       (e) => { const b = e.target.closest("[data-pbfrom]"); if (!b) return false; openBuilder({ from: b.dataset.pbfrom, as: b.dataset.as }); return true; });
   }
   function pbModal(title, body, onClick) {
@@ -17016,12 +17048,12 @@ This is a directory write. Nothing else changes.`)) return;
   async function pbWrite() {
     const d = pbDraft; if (!d || pbBusy) return;
     const cat = pbCat(), v = Builder.validate(d);
-    if (!v.ok) { pbStep = 7; renderBuilder(); toast(`<span>Not written</span> — ${esc(v.bad[0])}`); return; }
-    if (d.state === "enabled" && !(d.mode === "edit" && pbBefore && pbBefore.state === "enabled") && d.typedOn !== "ON") { pbStep = 7; renderBuilder(); toast("Creating it <span>ON</span> needs the typed ON in step 7"); return; }
+    if (!v.ok) { pbStep = 7; pbRepaint(); toast(`<span>Not written</span> — ${esc(v.bad[0])}`); return; }
+    if (d.state === "enabled" && !(d.mode === "edit" && pbBefore && pbBefore.state === "enabled") && d.typedOn !== "ON") { pbStep = 7; pbRepaint(); toast(pbSurface === "card" ? "Switching it <span>ON</span> needs the typed ON in the edit bar" : "Creating it <span>ON</span> needs the typed ON in step 7"); return; }
     const wantGroup = d.mode !== "edit" && d.createExclusionGroup && Builder.exclusionGroupName(d, cat) && !pbGroups().some((g) => String(g.name).toLowerCase() === Builder.exclusionGroupName(d, cat).toLowerCase());
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...PB_WRITE, ...(wantGroup ? ["Group.ReadWrite.All"] : [])])) return;
-    pbBusy = true; pbStep = 7; renderBuilder();
-    const host = $("pbLedger"); if (host) host.scrollIntoView({ block: "nearest" });
+    pbBusy = true; pbStep = 7; pbRepaint();
+    const host = pbSurface === "card" ? $("cardEditLedger") : $("pbLedger"); if (host) host.scrollIntoView({ block: "nearest" });
     const items = [...(wantGroup ? [{ label: `Create group ${Builder.exclusionGroupName(d, cat)}` }] : []), { label: d.mode === "edit" ? `Save ${d.sourceName}` : `Create ${Builder.nameOf(d, cat)}`, sub: d.mode === "edit" ? "PATCH, whole sections" : (Builder.STATES.find((s) => s[0] === d.state) || [])[1] }, { label: "Read it back" }, { label: "Re-read the policy set" }];
     const L = RunLedger.create(host, { title: d.mode === "edit" ? "Saving the policy" : "Creating the policy", items });
     let i = 0, createdId = null;
@@ -17046,7 +17078,7 @@ This is a directory write. Nothing else changes.`)) return;
           L.start(i); const back = await Importer.readSettled(`/identity/conditionalAccess/policies/${d.sourceId}`, (s) => s && Object.keys(body).every((k) => JSON.stringify(Builder.canon(s[k])) === JSON.stringify(Builder.canon(body[k]))));
           const agree = back && Object.keys(body).every((k) => JSON.stringify(Builder.canon(back[k])) === JSON.stringify(Builder.canon(body[k])));
           if (agree) L.done(i, "matches the draft"); else L.part(i, "read back differs from the draft — Graph may have normalised a value; compare in 🕓 Changes"); i++;
-          L.start(i); await loadFromGraph(true); L.done(i); 
+          L.start(i); if (pbSurface === "card") closeDetail(); await loadFromGraph(true); L.done(i);
         }
       } else {
         const res = await Graph.gpost("/identity/conditionalAccess/policies", body, [...AUTH_CONFIG.scopes, ...PB_WRITE]); createdId = res && res.id; L.done(i, createdId || ""); i++;
@@ -17055,7 +17087,8 @@ This is a directory write. Nothing else changes.`)) return;
       }
       L.finish();
       toast(`<span>${esc(Builder.nameOf(d, cat))}</span> ${d.mode === "edit" ? "saved" : "created"}${isDemo ? " (simulated)" : ""}`);
-      if (createdId && !isDemo) { pbDraft = null; pbBefore = null; idFilter = new Set([createdId]); stateFilter = "all"; $("toolPolicies").click(); refreshViews(); }
+      if (pbSurface === "card") { const id = createdId || d.sourceId; endCardEdit(false); closeDetail(); if (id && policies.some((x) => x.id === id)) showDetail(id); }
+      else if (createdId && !isDemo) { pbDraft = null; pbBefore = null; idFilter = new Set([createdId]); stateFilter = "all"; $("toolPolicies").click(); refreshViews(); }
       else if (isDemo) { pbDraft = null; pbBefore = null; $("toolPolicies").click(); }
     } catch (e) {
       console.error("builder write:", e);
@@ -17063,13 +17096,101 @@ This is a directory write. Nothing else changes.`)) return;
       toast(`<span>Not written</span> — ${esc(e.message || e)}`);
     } finally { pbBusy = false; }
   }
+
+  // ======================================================================
+  // ✎ Edit a policy on its card (R17, build 25448).
+  //
+  // The card is where a policy is READ, so it is where an edit starts: ✎ Edit
+  // turns the six boxes — users, target resources, network, conditions, grant,
+  // session — into the builder's section forms, in the layout the policy was
+  // just read in, with the name editable under the title. A sticky bar counts
+  // the settings that change against the policy in the tenant, holds the
+  // state, shows the diff and the preflight, and saves: the same pbWrite as
+  // the builder — PATCH of whole sections, only the changed ones, read back,
+  // the set re-read, the card re-opened. The builder keeps creation and Clone.
+  // The builder's draft, if any, is stashed for the duration and restored.
+  // 👥 Assign groups or roles stays the bulk tool; the card edits users of ONE
+  // policy inline (Mihai, 2026-09-22).
+  // ======================================================================
+  let cardEdit = null;
+  function startCardEdit() {
+    const p = policies.find((x) => x.id === detailPolicyId); if (!p || cardEdit) return;
+    cardEdit = { id: p.id, stash: pbDraft, stashBefore: pbBefore, view: "" };
+    pbDraft = Builder.fromRaw(p.raw, pbCat()); pbDraft.mode = "edit";
+    pbDraft.customName = p.raw.displayName || ""; // the whole name is the field on the card
+    pbBefore = JSON.parse(JSON.stringify(p.raw));
+    pbSurface = "card";
+    renderCardEdit();
+    pbLoadContext().then(() => { if (cardEdit) renderCardEdit(); }).catch((e) => console.warn("card edit context:", e));
+  }
+  function endCardEdit(repaint = true) {
+    if (!cardEdit) return;
+    pbDraft = cardEdit.stash; pbBefore = cardEdit.stashBefore; pbSurface = "builder";
+    const id = cardEdit.id; cardEdit = null;
+    if (repaint && $("detailModal").classList.contains("open")) showDetail(id);
+  }
+  function cardDiffRows() {
+    return pbBefore ? Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(Builder.toRaw(pbDraft, pbCat()))) : [];
+  }
+  function cardEditBar() {
+    const bar = $("cardEditBar"); if (!bar || !pbDraft) return;
+    const d = pbDraft, rows = cardDiffRows(), v = Builder.validate(d), n = rows.length;
+    const turningOn = d.state === "enabled" && pbBefore && pbBefore.state !== "enabled";
+    const canSave = v.ok && n > 0 && (!turningOn || d.typedOn === "ON") && !pbBusy;
+    const changed = new Set(rows.map((r) => r.path.split(".")[0]));
+    bar.querySelector(".ce-count").innerHTML = `✎ Editing · <b>${n} setting${n === 1 ? "" : "s"} change${n === 1 ? "s" : ""}</b>${n ? ` <span class="mini muted">${[...changed].map((k) => ({ displayName: "name", state: "state", conditions: "conditions", grantControls: "grant", sessionControls: "session" }[k] || k)).join(" · ")}</span>` : ' <span class="mini muted">— the card equals the policy in the tenant</span>'}${v.bad.length ? ` <span class="mini" style="color:var(--off)">· ${esc(v.bad[0])}</span>` : ""}`;
+    const on = bar.querySelector(".ce-on"); on.style.display = turningOn ? "" : "none";
+    bar.querySelector("#cardEditSave").disabled = !canSave;
+    // section marks
+    const sects = $("detailBody").querySelectorAll(".sect.ed");
+    const keys = ["users", "apps", "net", "cond", "grant", "session"];
+    const touched = { users: rows.some((r) => /^conditions\.users/.test(r.path)), apps: rows.some((r) => /^conditions\.applications/.test(r.path)), net: rows.some((r) => /^conditions\.locations/.test(r.path)), cond: rows.some((r) => /^conditions\.(platforms|clientAppTypes|signInRiskLevels|userRiskLevels|insiderRiskLevels|devices|authenticationFlows)/.test(r.path)), grant: rows.some((r) => /^grantControls/.test(r.path)), session: rows.some((r) => /^sessionControls/.test(r.path)) };
+    sects.forEach((s, i) => { const k = keys[i]; s.classList.toggle("ed-changed", !!touched[k]); const tag = s.querySelector("h4 .ce-tag"); if (tag) tag.style.display = touched[k] ? "" : "none"; });
+    const nameChanged = rows.some((r) => r.path === "displayName"); const ttl = $("detailBody").querySelector(".ce-name"); if (ttl) ttl.classList.toggle("ed-changed", nameChanged);
+    const extra = $("cardEditExtra");
+    if (extra) extra.innerHTML = cardEdit.view === "diff" ? Builder.diffHtml(rows) : cardEdit.view === "preflight" ? Builder.preflightHtml(Builder.preflight(d, pbCtx())) : "";
+  }
+  function renderCardEdit() {
+    const body = $("detailBody"), d = pbDraft; if (!body || !d || !cardEdit) return;
+    const eyebrow = body.querySelector(".wc-detail-top .wc-eyebrow"); if (eyebrow) eyebrow.textContent = "Policy details · editing";
+    const editBtn = body.querySelector("[data-cedit=\"edit\"]"); if (editBtn) editBtn.style.display = "none";
+    const head = body.querySelector(".pcard-head");
+    if (head && !head.querySelector(".ce-name")) {
+      const h3 = head.querySelector("h3");
+      h3.insertAdjacentHTML("afterend", `<input class="ce-name" type="text" data-pb="customName" value="${esc(d.customName)}" maxlength="256" aria-label="Policy name">`);
+      h3.style.display = "none";
+      const chip = head.querySelector(".state"); if (chip) chip.style.display = "none";
+    }
+    const box = (icon, title, html) => `<div class="sect ed"><h4>${icon} ${esc(title)} <span class="tag ok ce-tag" style="display:none">changed</span></h4><div class="ce-body">${html.replace(/^\s*<h4 class="wi-h">(?:Target resources|Access|Session controls|🌐 Locations[^<]*(?:<span[^<]*<\/span>)?)<\/h4>/, "")}</div></div>`;
+    const four = pbSectHtml(4, d), cut = four.indexOf('<h4 class="wi-h" style="margin-top:16px">💻 Device platforms</h4>');
+    const net = cut >= 0 ? four.slice(0, cut) : four, cond = cut >= 0 ? four.slice(cut) : "";
+    const grid = body.querySelector(".pcard-grid");
+    grid.innerHTML = box("👤", "Users", pbSectHtml(2, d)) + box("📦", "Target resources", pbSectHtml(3, d)) + box("🌐", "Network", net)
+      + box("⚙", "Conditions", cond) + box("✓", "Grant", pbSectHtml(5, d)) + box("🕐", "Session", pbSectHtml(6, d));
+    let bar = $("cardEditBar");
+    if (!bar) {
+      grid.insertAdjacentHTML("afterend", `<div class="ed-bar" id="cardEditBar"><span class="ce-count"></span><span style="flex:1"></span>
+        <label class="pb-ck"><span class="mini muted">State</span><select data-pb="state">${Builder.STATES.map(([v, l]) => `<option value="${v}"${d.state === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+        <span class="ce-on" style="display:none"><span class="mini">type <b>ON</b> to confirm enforcing</span> <input type="text" data-pb="typedOn" placeholder="ON" style="width:70px" autocomplete="off"></span>
+        <button type="button" class="btn sm" data-cedit="diff">± View diff</button><button type="button" class="btn sm" data-cedit="preflight">🧪 Preflight</button>
+        <button type="button" class="btn sm" data-cedit="cancel">✕ Cancel</button><button type="button" class="btn primary sm" id="cardEditSave" data-cedit="save">✎ Save changes</button></div>
+        <div id="cardEditExtra"></div><div id="cardEditLedger"></div>
+        <p class="mini muted ce-note">Save sends the changed sections whole and reads the policy back; 🕓 Changes shows the same rows afterwards. 👥 Assign groups or roles remains the tool for many policies at once.</p>`);
+      bar = $("cardEditBar");
+      const act = body.querySelector("[data-pact]"); if (act) act.parentElement.style.display = "none";
+      body.querySelectorAll(".wf-panel, details").forEach((n) => n.style.display = "none");
+    } else {
+      const sel = bar.querySelector('select[data-pb="state"]'); if (sel && sel.value !== d.state) sel.value = d.state;
+    }
+    cardEditBar();
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply(grid);
+  }
   // the selection bar: one policy → edit or clone; more → the first, said so
   $("selActBuild").addEventListener("click", () => {
     const ids = [...selected]; if (!ids.length) { openBuilder({ fresh: !pbDraft }); return; }
     const p = policies.find((x) => x.id === ids[0]); if (!p) return;
     if (ids.length > 1) toast(`Opening <span>${esc(p.raw.displayName)}</span> — the first of ${ids.length} selected; the builder works on one policy at a time`);
-    pbModal(`🏗 ${esc(p.raw.displayName)}`, `<p class="mini muted" style="margin:0 0 10px">Edit changes this policy in the tenant (a diff shows exactly what); Clone makes a new one with the next free number in its range.</p><div class="pb-row"><button type="button" class="btn primary" data-pbfrom="${esc(p.id)}" data-as="edit">✎ Edit in builder</button><button type="button" class="btn" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone into a new policy</button></div>`,
-      (e) => { const b = e.target.closest("[data-pbfrom]"); if (!b) return false; openBuilder({ from: b.dataset.pbfrom, as: b.dataset.as }); return true; });
+    openBuilder({ from: p.id, as: "clone" });
   });
   // a block's detail pane: "New policy with this …"
   document.addEventListener("click", (e) => {
@@ -20237,7 +20358,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (!currentDepObj || !currentDepType) return;
     const name = currentDepObj.displayName || "";
     $("depModal").classList.remove("open");
-    $("detailModal").classList.remove("open");
+    closeDetail();
     // open the matching tool pre-filtered to this item
     if (currentDepType === "authStrength") { asQuery = name; $("asSearch").value = name; asFilter = "all"; openAuthStr(); }
     else if (currentDepType === "termsOfUse") { tuQuery = name; $("tuSearch").value = name; tuFilter = "all"; openTou(); }
@@ -20340,8 +20461,8 @@ This is a directory write. Nothing else changes.`)) return;
 
   // detail modal: backdrop closes, dependency chips open settings, Save PNG exports
   $("detailModal").addEventListener("click", (e) => {
-    if (e.target.closest('[data-detail-close]')) { $("detailModal").classList.remove("open"); return; }
-    if (e.target.id === "detailModal") { $("detailModal").classList.remove("open"); return; }
+    if (e.target.closest('[data-detail-close]')) { closeDetail(); return; }
+    if (e.target.id === "detailModal") { closeDetail(); return; }
     const dl = e.target.closest(".dep-link");
     if (dl) { openDepView(dl.dataset.dept, dl.dataset.depid, dl.dataset.deplabel); return; }
     const b = e.target.closest("[data-png]"); if (!b) return;

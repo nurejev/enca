@@ -119,6 +119,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 261,
+      title: "Edit a policy on its card (R17)",
+      tools: ["Policies"],
+      builds: [25448],
+      risk: "medium",
+      what: "✎ Edit on the policy card (data-cedit). startCardEdit stashes the builder's draft, builds one from the policy (Builder.fromRaw, customName = the whole name), and renderCardEdit lays the builder's section forms (pbSectHtml, split out of pbFormHtml — the builder composes the same pieces with hints and navigation) into the card's six boxes plus a name field; the same delegated handlers (pbOnClick / pbOnChange / pbOnInput) run on #detailBody when pbSurface is card, and pbRepaint routes to renderCardEdit. cardEditBar counts Builder.diff rows, marks changed boxes and the name, holds the state select and the typed ON, shows Builder.diffHtml / preflightHtml on demand. Save is pbWrite: PATCH whole changed sections, Importer.readSettled, loadFromGraph(true), the card reopened. Cancel / closing the card / opening the builder end the edit (closeDetail, endCardEdit) and restore the builder's draft. Clone in builder replaces Edit in builder on the card and on the selection bar. DEPENDS ON queue 259 (js/builder.js).",
+      why: "Mihai, after trying edits in the builder: editing a policy is not creating a new one, the workflow needs editing, it is not clear how. Mocked on the real card and approved with two answers: the name editable on the card; Assign stays the bulk tool and the card edits users inline as well. R17's own card always said edit from the card — the builder stepper was the wrong shape for changing one thing.",
+      test: [
+        "Open a policy card → ✎ Edit: six boxes become forms, the name is a field, the bar says 0 settings change and Save is disabled.",
+        "Tick a grant control: the Grant box is marked CHANGED, the bar says 1 setting changes · grant, Save enabled; ± View diff lists grantControls.builtInControls.",
+        "Edit the name: the bar adds name; the diff lists displayName. Untick the control again: back to 1.",
+        "Switch State to On on a report-only policy: Save disabled until ON is typed in the bar.",
+        "Save on a REAL tenant: the ledger shows PATCH → read back matches → re-read; the card reopens with the change; 🕓 Changes shows the same rows; the portal shows exactly the changed section and nothing else (a device filter or a guest clause the policy had must still be there).",
+        "Cancel with changes asks; Cancel without changes just leaves. Close the card mid-edit, open 🧩 → Builder: the builder shows its own draft (or a blank one), never the card's.",
+        "Users box: add a group by search, remove one with ✕, add a guest type under the fold — Save writes conditions.users whole (every list present in the PATCH body, JSON view in the builder is not involved).",
+        "The action row and the selection bar read ⧉ Clone in builder and open a NEW draft with the next free number; no Edit in builder anywhere.",
+        "node --test tools/*.test.cjs; the plain-text check; the toolbar-order check.",
+      ],
+      files: ["js/app.js", "index.html", "css/app.css", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 260,
       title: "Register ENCA in your own tenant from the browser — the default sign-in (R59)",
       tools: ["Sign-in", "Home"],

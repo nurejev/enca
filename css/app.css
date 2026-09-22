@@ -2498,3 +2498,20 @@ td.gm-none{color:var(--muted);font-weight:700}
 #pbEditing{display:flex}
 #pbEditing[style*='display: none']{display:none}
 .pb-from{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:8px;background:var(--soft);font-size:12.5px}
+
+/* ---------- ✎ edit a policy on its card (R17, build 25448) ---------- */
+.ed-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);position:sticky;bottom:0;box-shadow:var(--shadow);margin-top:12px;z-index:2}
+.ed-bar .ce-count{font-size:13px}
+.ed-bar select,.ed-bar input[type=text]{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);font-size:12.5px}
+.sect.ed{border-color:var(--accent2)!important;box-shadow:inset 3px 0 0 var(--accent2)}
+.sect.ed-changed{border-color:var(--on)!important;box-shadow:inset 3px 0 0 var(--on)}
+.sect.ed h4{display:flex;align-items:center;gap:8px}.sect.ed h4 .ce-tag{margin-left:auto}
+.sect.ed .ce-body{font-size:12.5px}
+.sect.ed .ce-body .wi-h{margin:8px 0 4px;font-size:12.5px}
+.sect.ed .ce-body .pb-blocks{grid-template-columns:1fr}
+.sect.ed .ce-body .pb-pick input{max-width:100%}
+.ce-name{width:100%;font:inherit;font-size:20px;font-weight:700;padding:6px 10px;border:1px solid var(--accent2);border-radius:8px;background:var(--surface);color:var(--ink);margin:4px 0}
+.ce-name.ed-changed{border-color:var(--on)}
+#cardEditExtra .pb-diff{margin-top:10px}
+#cardEditExtra .pb-pf{margin-top:10px}
+.ce-note{margin:8px 0 0}
