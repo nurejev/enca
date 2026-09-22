@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25461, date: "2026-09-22", title: "Baseline catalog: B2B direct connect out of the session policies",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "🧱 Eleven policies taken into the catalog from CloudFellows.dev, all of them one deliberate change: B2B direct connect users come out of the session policies. CA005, CA007, CA008, CA009, CA011, CA016 and CA403 gain the exclusion CA405 already had; CA400 and CA402 drop the type from the guests they include; CA014 and CA111 widen their exclusion to every external type. It follows the controls: sign-in frequency, persistent browser and app-enforced restrictions are documented as not supported for B2B direct connect, so pointing them at those users only produced a requirement they could not meet. Names and versions came with the change. Note that CloudFellows has not finished the sweep — around thirty other session policies in the catalog still do not carry the carve-out, and ENCA will not invent it for them: the catalog says what they publish, not what would be consistent." },
+    ],
+  },
+  {
     build: 25460, date: "2026-09-22", title: "Guest findings say which way the policy is wrong",
     items: [
       { kind: "improved", tool: "MS Learn checks", text: "📘 Four of the external-identity findings tell you to exclude the guest and external user types, and two tell you to exclude nothing. Side by side with no explanation that reads as a contradiction, and it is not one: they are opposite failures. Where the control CANNOT BE SATISFIED by an identity this tenant does not manage, those users are denied access — the policy is too strict, and the remedy takes them out of its scope. Where the control is NOT APPLIED to them, the policy asks them for nothing at all — too loose, and the remedy brings a requirement that reaches them, because excluding people a policy already asks nothing of would change nothing. Every such finding now carries that verdict as a badge — Blocks them, or Misses them — and one line under it saying what it means for the people in scope. A finding that is genuinely neither of the two carries no badge rather than a guessed one." },
