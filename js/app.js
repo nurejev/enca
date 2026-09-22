@@ -16698,7 +16698,7 @@ This is a directory write. Nothing else changes.`)) return;
       case 1: {
         const nn = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId);
         return `<h4 class="wi-h">Persona <span class="mini muted">— decides the CA-number range and the persona word in the name</span></h4>
-          <div class="chip-filter pb-personas">${Builder.personas(cat).map((p) => `<button type="button" class="chip${p.key === d.persona ? " active" : ""}" data-pbpersona="${p.key}" title="CA${String(p.lo).padStart(3, "0")}–CA${String(p.hi).padStart(3, "0")}">${esc(p.label)}</button>`).join("")}</div>
+          <div class="chip-filter pb-personas">${Builder.personas(cat).map((p) => `<button type="button" class="fchip${p.key === d.persona ? " active" : ""}" data-pbpersona="${p.key}" title="CA${String(p.lo).padStart(3, "0")}–CA${String(p.hi).padStart(3, "0")}">${esc(p.label)}</button>`).join("")}</div>
           <div class="wi-grid" style="margin-top:12px">
             <label class="wi-f">CA number <span class="mini">${P ? `range CA${String(P.lo).padStart(3, "0")}–CA${String(P.hi).padStart(3, "0")}` : ""} · next free: ${nn.num == null ? "none" : "CA" + String(nn.num).padStart(3, "0")}</span><input type="number" data-pb="number" value="${d.number == null ? "" : d.number}" min="0" max="1299" ${d.mode === "edit" ? "" : ""}></label>
             <label class="wi-f">Descriptive words <span class="mini">resource · platform · control, as the baseline names them</span><input type="text" data-pb="words" value="${esc(d.words)}" placeholder="${esc(Builder.suggestWords(d))}"></label>

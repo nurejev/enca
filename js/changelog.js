@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25441, date: "2026-09-22", title: "Builder: the persona chips look like the site's chips",
+    items: [
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 Policy builder, step 1: the persona choices rendered as bare bordered buttons with no visible selection. They are the same filter chips every toolbar uses now, the chosen persona in the site's active colour." },
+    ],
+  },
+  {
     build: 25440, date: "2026-09-22", title: "The catalog update counts what the chip counts",
     items: [
       { kind: "fixed", tool: "Baseline", text: "🧱 Update the catalog from this tenant offers everything that differs from the catalog, the NAME included: a policy whose version was bumped with no other change used to be called unchanged, so the catalog would have kept the old name and version — the sixth newer of the six the chip counted, missing from the panel's 26. The list is grouped the way the chip counts: 🆙 newer version in the name (the chip's number, exactly), ✏️ edited in place (definition differs, version not bumped), 🆕 new here — each group with its own Select button beside Select all and Deselect all. A card says which it is: newer version in name, newer version only, renamed same version, same version — edited in place, or older version in name." },
