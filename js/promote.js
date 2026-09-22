@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 251,
+      title: "Navigation: a sidebar shortcut and an icon of its own for Policy building blocks",
+      tools: ["Navigation", "Policy building blocks"],
+      builds: [25429],
+      risk: "low",
+      what: "\ud83e\udde9 Policy building blocks (T15, js/app.js toolLocations) joins the sidebar rail after CA groups. A new 'blocks' mark in js/flat-icons.js replaces the globe it inherited from Named locations, and the \ud83e\udde9 glyph gains a mapping \u2014 without one the home tile fell through to the four-square 'grid' mark that means All tools. Navigation and icon only; the tool itself is untouched.",
+      why: "The tool hosts named locations, authentication contexts, authentication strengths and terms of use, and it was reachable only through All tools. Its two icons also disagreed with each other and one of them meant something else.",
+      test: [
+        "The rail shows Building blocks after CA groups; clicking it opens \ud83e\udde9 Policy building blocks and the rail button takes the active fill (25427).",
+        "The rail icon, the home tile icon and the workspace tab icon are the same three-block mark \u2014 not a globe, not the four-square All tools mark.",
+        "All tools still shows the four-square mark and is still distinguishable from Building blocks at rail size.",
+        "At 390px the rail is not mounted; Building blocks is still reachable from All tools and from its home tile.",
+        "Named locations, Contexts, Strengths and Terms of use tabs all still open, and deep links into them still land.",
+      ],
+      files: ["js/workspaces.js", "js/flat-icons.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 250,
       title: "Sign-in log: a ceiling on what the tab keeps, so Hunting + non-interactive stops crashing",
       tools: ["Sign-in log", "Report-only impact", "Who is \u2026 to CA", "Who is the wave to CA", "Session controls"],

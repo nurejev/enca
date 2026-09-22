@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25429, date: "2026-09-22", title: "Policy building blocks in the sidebar",
+    items: [
+      { kind: "improved", tool: "Navigation", text: "\ud83e\udde9 Policy building blocks now has a sidebar shortcut, next to Policies, Sign-ins, Who is \u2026, Baseline and CA groups. It also has an icon of its own \u2014 it was still carrying the globe from when it was Named locations, and on the home tile it was falling back to the same four-square mark that means All tools. Three blocks now, everywhere it appears." },
+    ],
+  },
+  {
     build: 25428, date: "2026-09-22", title: "The sign-in log no longer kills the tab on Hunting + non-interactive",
     items: [
       { kind: "fixed", tool: "Sign-in log", text: "Reading the sign-in log on Hunting + non-interactive could kill the browser tab. The hunting sources have no server-side window cap, and on a large tenant an enforced read there is mostly legacy-protocol blocks of service accounts retrying every few seconds \u2014 hundreds of thousands of sign-ins in a week, every one of them held in the tab. A read that keeps its sign-ins now stops at 50,000 and says so: \u201cwindow stopped at 50,000 sign-ins \u2014 more than this window holds in the browser. Read a shorter period, or switch the source off non-interactive.\u201d A partial window that says it is partial, instead of a lost tab." },
