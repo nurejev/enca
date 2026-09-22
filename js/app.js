@@ -1960,6 +1960,9 @@
            <button class="btn" data-pact="backup">🗄 Backup</button>
            <button class="btn" data-pact="assign">👥 Assign groups or roles</button>
            <button class="btn" data-pact="state">🎚 Policy state</button>
+           <span class="pa-sep"></span>
+           <button class="btn" data-pbdetail="edit" title="Open this policy in the 🏗 Policy builder — a ± Diff shows exactly what changes; the PATCH sends whole sections, only the changed ones (T41)">🏗 Edit in builder</button>
+           <button class="btn" data-pbdetail="clone" title="A new policy from this one, with the next free number in its range, in report-only">⧉ Clone in builder</button>
          </div>
          <div class="wf-panel" id="wfPanel" style="display:none"></div>`;
     detailPolicyId = p.id;
@@ -1990,6 +1993,9 @@
       else { panel.style.display = "none"; b.textContent = "⑃ What-if flow"; }
       return;
     }
+    // 🏗 the builder, from the card (25445): edit in place, or clone
+    const pb = e.target.closest("[data-pbdetail]");
+    if (pb && detailPolicyId) { $("detailModal").classList.remove("open"); openBuilder({ from: detailPolicyId, as: pb.dataset.pbdetail }); return; }
     // Per-policy action: act on just this policy. Set the selection to it, close
     // the detail, and run the same tool the selection bar would.
     const act = e.target.closest("[data-pact]");

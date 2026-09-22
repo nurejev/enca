@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25445, date: "2026-09-22", title: "Edit in builder, from the policy card",
+    items: [
+      { kind: "new", tool: "Policies", text: "The policy card's action row has 🏗 Edit in builder and ⧉ Clone in builder beside What-if flow, Documentation, Backup, Assign and Policy state — the card is where a policy is read, so it is where an edit starts. Edit opens the builder on that policy with the ± Diff view; Clone makes a new one with the next free number in its range, in report-only." },
+    ],
+  },
+  {
     build: 25444, date: "2026-09-22", title: "Add my own app registration — a row in the account menu",
     items: [
       { kind: "fixed", tool: "Sign-in", text: "🪪 The wizard's entry in the account menu is a row of its own, right under the Connected app panel — Add my own app registration…, or when the registration this copy signs in with is already this tenant's: App registration: check this one, or add my own… A row is always there once signed in; the button that 25443 attached to the panel depended on the registration read and could be missed." },
