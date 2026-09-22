@@ -155,7 +155,10 @@
     initialized=true;
     document.body.classList.add('workspaces-shell');
     const rail=document.createElement('nav');rail.id='wcRail';rail.setAttribute('aria-label','Workspace navigation');
-    const shortcuts=[['toolPolicies','🗂','Policies'],['toolSignins','🚦','Sign-ins'],['toolWhoIs','🕵','Who is…'],['toolBaseline','🧬','Baseline'],['toolCaGroups','👥','CA groups'],['toolLocations','🧩','Building blocks']];
+    // Work order, not the order tools were added in: what exists (Policies,
+    // Sign-ins), who it reaches (Who is…), what is wrong with it (Checks),
+    // then what to change (Baseline, CA groups, Building blocks).
+    const shortcuts=[['toolPolicies','🗂','Policies'],['toolSignins','🚦','Sign-ins'],['toolWhoIs','🕵','Who is…'],['toolGapCheck','🛡','Checks'],['toolBaseline','🧬','Baseline'],['toolCaGroups','👥','CA groups'],['toolLocations','🧩','Building blocks']];
     rail.innerHTML=`<button type="button" id="wcHomeButton" data-wc-home><span aria-hidden="true">${FlatIcons.tool("home")}</span><small>Home</small></button>${shortcuts.map(([id,icon,label])=>`<button type="button" data-wc-tool="${id}" aria-label="${esc(tools.find(t=>t.id===id)?.name || label)}"><span aria-hidden="true">${FlatIcons.tool(id)}</span><small>${label}</small></button>`).join('')}<span class="wc-rail-divider"></span><button type="button" data-wc-library><span aria-hidden="true">${FlatIcons.tool("overview")}</span><small>All tools</small></button><button type="button" data-wc-tool="toolHelp"><span aria-hidden="true">${FlatIcons.tool("toolHelp")}</span><small>Help</small></button><span class="wc-rail-caption">WORKSPACES<br>01</span>`;
     document.body.append(rail);
     const brand=document.createElement('span');brand.className='wc-brand';

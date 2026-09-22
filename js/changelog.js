@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25432, date: "2026-09-22", title: "Checks in the sidebar",
+    items: [
+      { kind: "improved", tool: "Navigation", text: "\ud83d\udee1 Checks now has a sidebar shortcut, after Who is \u2026 rather than at the end. The rail reads in the order the work happens: what exists (Policies, Sign-ins), who it reaches (Who is \u2026), what is wrong with it (Checks), then what to change (Baseline, CA groups, Building blocks). Baseline, CA groups and Building blocks each move down one place." },
+    ],
+  },
+  {
     build: 25431, date: "2026-09-22", title: "Filter the policy list by persona",
     items: [
       { kind: "new", tool: "Policies", text: "A persona filter under the toolbar \u2014 one chip per persona this tenant actually has: Global, Admins, Internals, Externals, Guest users, Guest admins, the service-account ranges, and Other / unnumbered for names carrying no CA number. Several can be on at once, a chip you click again turns off, and All personas clears them. The counts follow the state filter and the search, so a chip says how many you would get by ticking it rather than how many exist in the tenant \u2014 and a persona you have ticked keeps its chip even at zero, so the filter never disappears under its own empty result." },

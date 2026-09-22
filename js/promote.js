@@ -119,6 +119,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 254,
+      title: "Navigation: a sidebar shortcut for Checks",
+      tools: ["Navigation", "Checks"],
+      builds: [25432],
+      risk: "low",
+      what: "\ud83d\udee1 Checks (T08, js/app.js toolGapCheck) joins the sidebar rail after Who is \u2026, not at the end \u2014 the rail is ordered by the work, so the three question-answering tools sit together and the three that change the tenant follow. Baseline, CA groups and Building blocks each shift down one. One line in js/workspaces.js; T08 already mapped to the shield icon, so nothing else changed.",
+      why: "Mihai asked for it, and picked this placement from a mockup of three. Checks was reachable only through All tools despite being the tool you open straight after a refresh.",
+      test: [
+        "The rail reads Home, Policies, Sign-ins, Who is \u2026, Checks, Baseline, CA groups, Building blocks, then the divider, All tools and Help.",
+        "Clicking Checks opens \ud83d\udee1 Checks on its Bypass & Swiss cheese tab, and the rail button takes the active fill (25427).",
+        "The rail icon matches the home tile's and the workspace tab's \u2014 all three are the shield.",
+        "The rail still fits without scrolling on a 13-inch screen; Help and the caption stay reachable.",
+        "At 390px the rail is not mounted; Checks is still reachable from All tools and its home tile.",
+        "Microsoft Learn, CIS and Intune reality tabs still open, and deep links into them still land.",
+      ],
+      files: ["js/workspaces.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 253,
       title: "Policies: a persona filter bar",
       tools: ["Policies"],
