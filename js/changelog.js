@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25482, date: "2026-09-22", title: "Baseline catalog: CA406 lets partners through, CA1007 versioned",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "🧱 Two more from CloudFellows.dev: CA406 now excludes service provider (CSP / GDAP) admins like CA401 and CA404, and CA1007 carries v1.0.3 for the token-protection filter it changed in the last revision — so a tenant still on the old filter reads Outdated instead of Up to date." },
+    ],
+  },
+  {
     build: 25481, date: "2026-09-22", title: "Baseline catalog: the review checklist, applied",
     items: [
       { kind: "improved", tool: "Baseline", text: "🧱 Thirty policies taken into the catalog from CloudFellows.dev — the baseline review worked through in the reference tenant. CA099 no longer blocks the Teams shared-device accounts or CSP partners and names the Externals persona group once; CA200 no longer includes a deployment group; CA401 and CA404 let service provider admins through; CA502 drops the Temporary Access Pass guests cannot use; CA003 requires plain MFA; CA101 no longer lists legacy clients; the token-protection policies CA209 and CA1007 exclude only Entra-joined virtual machines; and twenty names are tidied so their CA number and version read cleanly. The catalog's own note lists what the review asked for that is not in this revision yet." },
