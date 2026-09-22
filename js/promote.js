@@ -119,6 +119,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 268,
+      title: "Bypass checks — security info registration, device code flow, sign-in frequency column",
+      tools: ["Checks"],
+      builds: [25473],
+      risk: "medium",
+      what: "js/gapcheck.js tenantChecks: checkSecurityInfoRegistration (includeUserActions urn:user:registersecurityinfo with MFA or block; medium / low when only report-only or Off) and checkDeviceCodeFlow (block with authenticationFlows.transferMethods deviceCodeFlow on coversEveryone + All resources; medium / low when narrow or not On). makeDetectors session-sif counts signInFrequency only. Persona gap remediation per control. Scorecard category links.",
+      why: "Open items of the 25469 audit — what the checks had never looked for. The sign-in frequency column was found while building the admin-session check, which turned out to duplicate the matrix and was not shipped.",
+      test: [
+        "CloudFellows baseline tenant: if a catalog policy targets Register security information, no Security Info Registration finding; otherwise the finding appears with the template. Note which, so the catalog can be judged.",
+        "A tenant without a device code flow block: Authentication Flows — Device code flow is not blocked (medium). Add one scoped to a pilot group: it turns low, not for everyone. Scope it to All users and All resources: gone.",
+        "An admin-role policy with only Persistent browser session → Never persistent: the persona matrix shows ✗ Sign-in frequency for Admins and the finding names Session → Sign-in frequency → 4 hours. Add a 4-hour sign-in frequency: ✓.",
+        "The scorecard's Block policies deployed signal filters the findings to include Authentication Flows.",
+      ],
+      files: ["js/gapcheck.js", "tools/gapcheck-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 267,
       title: "Guest checks follow guests through included groups",
       tools: ["Checks"],

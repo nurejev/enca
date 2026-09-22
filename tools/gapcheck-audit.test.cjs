@@ -72,3 +72,33 @@ test("a guest-only policy is not asked to exclude the break-glass account", () =
   const r = run([MFA_ALL, LEGACY_ALL, guestOnly]);
   assert.ok(!r.findings.some((f) => f.category === "Break-Glass Coverage" && f.policyId === "g"));
 });
+
+// ---- 25473: three checks nothing did before ----
+const REG = pol("Reg sec info", { applications: { includeApplications: [], includeUserActions: ["urn:user:registersecurityinfo"] },
+  locations: { includeLocations: ["All"], excludeLocations: ["AllTrusted"] } }, { operator: "OR", builtInControls: ["mfa"] });
+const DCF = pol("Block device code", { authenticationFlows: { transferMethods: "deviceCodeFlow" } }, { operator: "OR", builtInControls: ["block"] });
+const cat = (r, c) => r.findings.filter((f) => f.category === c);
+
+test("security info registration: reported when nothing protects it, quiet when a policy does", () => {
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL]), "Security Info Registration")[0].title, "Nothing protects security info registration");
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, REG]), "Security Info Registration").length, 0);
+  const ro = { ...REG, state: "enabledForReportingButNotEnforced" };
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, ro]), "Security Info Registration")[0].severity, "low");
+});
+
+test("device code flow: medium when unblocked, low when blocked for part of the tenant, quiet when blocked for all", () => {
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL]), "Authentication Flows")[0].severity, "medium");
+  const narrow = { ...DCF, id: "n", conditions: { ...DCF.conditions, users: { includeGroups: ["pilot"] } } };
+  const f = cat(run([MFA_ALL, LEGACY_ALL, narrow]), "Authentication Flows")[0];
+  assert.equal(f.severity, "low"); assert.match(f.title, /not for everyone/);
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, DCF]), "Authentication Flows").length, 0);
+});
+
+test("the Sign-in frequency column counts sign-in frequency only — never persistent browser alone does not fill it", () => {
+  const adminPb = { ...pol("Admins MFA", { users: { includeRoles: ["62e90394-69f5-4237-9190-012177145e10"] } }, { operator: "OR", builtInControls: ["mfa"] }),
+    sessionControls: { persistentBrowser: { isEnabled: true, mode: "never" } } };
+  const r = run([MFA_ALL, LEGACY_ALL, adminPb]);
+  assert.ok(r.findings.some((f) => f.title === "Admins: missing Sign-in frequency"));
+  const withSif = { ...adminPb, sessionControls: { signInFrequency: { isEnabled: true, value: 4, type: "hours" } } };
+  assert.ok(!run([MFA_ALL, LEGACY_ALL, withSif]).findings.some((f) => f.title === "Admins: missing Sign-in frequency"));
+});

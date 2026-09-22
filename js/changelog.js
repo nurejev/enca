@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25473, date: "2026-09-22", title: "Bypass & Swiss cheese checks: security info registration, device code flow, and an honest sign-in frequency column",
+    items: [
+      { kind: "new", tool: "Checks", text: "🛡 Two baseline controls are now checked. Security info registration: when no policy protects the Register security information action, whoever has a user's password can register their own MFA method for that account from anywhere — the finding gives Microsoft's template, with a Temporary Access Pass for new users. Device code flow: when it is not blocked for everyone, device-code phishing lets an attacker have your user complete MFA for them — the finding gives the block and the Teams Android exception." },
+      { kind: "fixed", tool: "Checks", text: "🛡 In the persona matrix, the Sign-in frequency column also counted a policy that only made the browser session non-persistent, so a persona could read as having a session lifetime it does not have. It counts sign-in frequency only, and the gap says exactly what to set." },
+    ],
+  },
+  {
     build: 25472, date: "2026-09-22", title: "MS Learn checks: guests reached through a group are checked too",
     items: [
       { kind: "improved", tool: "Checks", text: "📘 The guest findings and the guest matrix only saw guests a policy named by user type. A policy scoped to a GROUP that holds guests — guest admins, a partner group — reaches them just the same and was invisible to every guest check. The checks now read how many members with userType Guest each included group has and treat those policies as reaching B2B collaboration guests, naming the group and the count in the finding. The summary says how many groups were followed, and says so when some could not be read." },

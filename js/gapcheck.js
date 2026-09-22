@@ -418,6 +418,38 @@ const GapCheck = (() => {
         "Review each managed policy against your own baseline — if your equivalent policy is stronger, the managed one is redundant but harmless; if you disabled one, make sure your own policy actually covers the same gap, because Microsoft disables theirs on the assumption that it does.");
     })();
 
+    // 9–10 (25473): two baseline controls nothing here looked for.
+    const REG_SEC = "urn:user:registersecurityinfo";
+    (function checkSecurityInfoRegistration() {
+      const acts = (p) => A(p).includeUserActions || [];
+      const guards = (p) => acts(p).includes(REG_SEC) && (hasMfa(p) || hasBlock(p));
+      if (enabled.some(guards)) return;
+      const ro = reportOnly.filter(guards).concat(off.filter(guards));
+      F(out, ro.length ? "low" : "medium", "Security Info Registration",
+        ro.length ? "Security info registration is protected only by a policy that is not On" : "Nothing protects security info registration", ro[0] || null,
+        ro.length
+          ? `${ro.map((p) => p.displayName).join(", ")} protect${ro.length === 1 ? "s" : ""} the Register security information action but ${ro.length === 1 ? "is" : "are"} not enforcing, so today anyone who has a user's password can register their own MFA method for that user from anywhere.`
+          : "No enabled policy targets the Register security information user action. Whoever knows a user's password — and has not been asked for MFA yet, as with every new account — can register their own authenticator for that account from anywhere, and from then on passes MFA as that user. Since 6 July 2026 the same action also covers Windows Hello for Business and macOS Platform SSO credential registration.",
+        "Create: Users → All users (exclude break-glass, and exclude guests — a Temporary Access Pass does not work for them), Target resources → User actions → Register security information, Conditions → Locations → include Any location, exclude All trusted locations, Grant → Require authentication strength (Multifactor authentication) — new users bootstrap with a Temporary Access Pass. Why: it closes the window in which the first person to sign in with a password decides which MFA method the account gets.");
+    })();
+
+    (function checkDeviceCodeFlow() {
+      const dcf = (p) => hasBlock(p) && /deviceCodeFlow/i.test(String(p.conditions?.authenticationFlows?.transferMethods || ""));
+      const wide = (p) => dcf(p) && coversEveryone(p) && allApps(p);
+      if (enabled.some(wide)) return;
+      const narrow = enabled.filter(dcf);
+      const staged = reportOnly.concat(off).filter(dcf);
+      const sev = narrow.length || staged.length ? "low" : "medium";
+      F(out, sev, "Authentication Flows",
+        narrow.length ? "Device code flow is blocked, but not for everyone"
+          : staged.length ? "Device code flow block exists but is not On" : "Device code flow is not blocked",
+        narrow[0] || staged[0] || null,
+        (narrow.length ? `${narrow.map((p) => p.displayName).join(", ")} block${narrow.length === 1 ? "s" : ""} the device code flow for part of the tenant only (not all users on All resources). `
+          : staged.length ? `${staged.map((p) => p.displayName).join(", ")} would block the device code flow but ${staged.length === 1 ? "is" : "are"} not enforcing. ` : "")
+        + "Device code sign-in lets a user approve a sign-in that started on ANOTHER device — which is exactly what device-code phishing abuses: the attacker starts the flow, sends the code, and the user completes MFA for them. Most tenants only need it for a few devices (Teams Rooms on Android, some CLIs).",
+        "Create: Users → All users (exclude break-glass, and the resource accounts of Teams Android devices that still use it), Target resources → All resources, Conditions → Authentication flows → Device code flow, Grant → Block access. Run it report-only first and look at who still uses the flow. Why: blocking the flow removes device-code phishing outright; the few legitimate uses are known and can be excluded by name.");
+    })();
+
     // 8. Platform conditions without an unknown-platform block (user-agent spoofing)
     (function checkPlatformBypass() {
       const plat = (p) => p.conditions?.platforms || {};
@@ -765,7 +797,12 @@ const GapCheck = (() => {
       "require-compliant-device": (p) => hasCompliance(p),
       "sign-in-risk": (p) => (p.conditions?.signInRiskLevels || []).length > 0 || !!p.conditions?.agentIdRiskLevels,
       "user-risk": (p) => (p.conditions?.userRiskLevels || []).length > 0,
-      "session-sif": (p) => !!(S(p).signInFrequency?.isEnabled || S(p).persistentBrowser?.isEnabled),
+      // 25473: the column says Sign-in frequency, so only sign-in frequency
+      // fills it. "Never persistent browser" used to count too — an admin
+      // persona with only that session control read as having a session
+      // lifetime it does not have. (Admin roles are already bucketed into
+      // this persona structurally, so the matrix is where this gap is told.)
+      "session-sif": (p) => !!S(p).signInFrequency?.isEnabled,
       "block-legacy-auth": (p) => targetsLegacy(p) && hasBlock(p),
       "block-countries": (p) => hasLoc(p) && hasBlock(p),
       "block-non-corp-network": (p) => {
@@ -815,7 +852,7 @@ const GapCheck = (() => {
         if (status === "missing") {
           F(out, severityForGap(id, cid), "Persona Coverage", `${persona}: missing ${clabel}`, null,
             `No enabled policy in the ${persona} persona implements "${clabel}". Personas are matched on policy naming conventions (Claus Jespersen's Zero Trust framework, CA-number blocks) plus structural signals (All-users, roles, guests).`,
-            "Where: the policies of this persona (the CA-number range). Change: add the missing control to the persona's existing policy, or create one for it — the 🧬 Baseline tool shows the catalog policy that provides it. If the persona is covered by a tenant-wide policy under another number, this cell can be read as covered.");
+            (cid === "session-sif" ? "Where: the MFA policy of this persona, or a session policy for the same users. Change: Session → Sign-in frequency → 4 hours (Every time for the admin portals), with Persistent browser session → Never persistent. Why: a short session limits what a stolen token is worth; CIS asks 4 hours or less for admins. " : "Where: the policies of this persona (the CA-number range). Change: add the missing control to the persona's existing policy, or create one for it — the 🧬 Baseline tool shows the catalog policy that provides it. If the persona is covered by a tenant-wide policy under another number, this cell can be read as covered."));
         } else if (status === "off") {
           F(out, "low", "Persona Coverage", `${persona}: ${clabel} deployed but Off`, null,
             `The ${persona} persona has ${offHit.length} policy(ies) implementing "${clabel}", but every one of them is in the Off (disabled) state, so the control is deployed yet not enforcing: ${offHit.slice(0, 5).map((p) => p.displayName).join(", ")}${offHit.length > 5 ? ` and ${offHit.length - 5} more` : ""}.`,
@@ -856,7 +893,7 @@ const GapCheck = (() => {
     // most closely related to — clicking the signal in the scorecard filters
     // the findings list to these. Empty = nothing to drill into.
     const verify = [
-      ["MFA or block on enabled user policies", 3, mfaPct, ["MFA Coverage", "Client App Coverage"]],
+      ["MFA or block on enabled user policies", 3, mfaPct, ["MFA Coverage", "Client App Coverage", "Security Info Registration"]],
       ["Phishing-resistant strength in use", 2, anyPR ? 100 : 0, ["MFA Coverage", "Guest Authentication Strength"]],
       ["Compliant/hybrid device required somewhere", 2, anyCompliant ? 100 : 0, ["Device Registration Bypass", "Persona Coverage"]],
       ["Risk signals used as conditions", 2, anyRisk ? 100 : 0, ["Risk-Based Access"]],
@@ -894,9 +931,9 @@ const GapCheck = (() => {
     const assume = [
       ["Break-glass identified and excluded everywhere", 3, bgOk ? 100 : bgMissing ? 0 : 50, ["Break-Glass Coverage"]],
       ["Legacy authentication blocked", 3, legacyFull ? 100 : legacyEnabled ? 70 : legacyRO ? 50 : 0, ["Legacy Authentication"]],
-      ["Sign-in frequency in use", 1, anySif ? 100 : 0, []],
+      ["Sign-in frequency in use", 1, anySif ? 100 : 0, ["Persona Coverage"]],
       ["Resilience defaults intact", 1, resilienceOk ? 100 : 0, ["Resilience Defaults"]],
-      ["Block policies deployed", 1, anyBlock ? 100 : 0, ["Platform Bypass", "Legacy Authentication", "Named Locations"]],
+      ["Block policies deployed", 1, anyBlock ? 100 : 0, ["Platform Bypass", "Legacy Authentication", "Named Locations", "Authentication Flows"]],
     ];
 
     const pillar = (label, icon, signals) => {
