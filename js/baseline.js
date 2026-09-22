@@ -355,7 +355,7 @@ const Baseline = (() => {
   const STATUS = {
     ok: { icon: "✓", label: "Up to date", cls: "ok", order: 3, desc: "in this tenant at the baseline's version" },
     outdated: { icon: "⬆", label: "Outdated", cls: "warn", order: 1, desc: "in this tenant, but at an older version than the baseline" },
-    ahead: { icon: "⬇", label: "Newer than baseline", cls: "info", order: 4, desc: "in this tenant at a newer version than the baseline lists" },
+    ahead: { icon: "⬇", label: "Newer than baseline", cls: "info", order: 4, desc: "in this tenant newer than the baseline lists — a newer version in the name, or the same version with a definition edited in place" },
     present: { icon: "✓", label: "Present", cls: "ok", order: 2, desc: "in this tenant under this baseline's name (this baseline does not version its names)" },
     unversioned: { icon: "?", label: "Version unknown", cls: "info", order: 5, desc: "in this tenant, but one side carries no version to compare" },
     missing: { icon: "✗", label: "Missing", cls: "bad", order: 0, desc: "no policy with this CA number in this tenant" },
@@ -553,6 +553,18 @@ const Baseline = (() => {
       // best status
       }).sort((a, b2) => (exactName(b2.p.name, b.name) - exactName(a.p.name, b.name)) || (STATUS[b2.status].order - STATUS[a.status].order));
       const best = scored[0];
+      // "Up to date" used to mean "same version in the name". A policy edited
+      // in the portal without a version bump is NEWER than what the baseline
+      // holds, whatever its name says — the catalog lists a definition the
+      // tenant no longer runs. So the same version with a differing definition
+      // is newer than the baseline, marked edited in place; 🧱 Update the
+      // catalog counts these the same way, which is why the chip and the panel
+      // agree (Mihai, 2026-09-22: "shouldn't the 6 then also be more?").
+      if (best.status === "ok" && b.version) {
+        try {
+          if (entryDiff(b, vmToEntry(best.p, b)).length) { best.status = "ahead"; best.edited = true; best.why = "same version as the catalog, definition differs — edited in place"; }
+        } catch { /* a view model this catalog cannot render — stays as the name says */ }
+      }
       claimed.add(best.p);
       // "2 policies share CA5" is a warning about a leftover COPY, not about
       // a catalog that deliberately numbers two policies the same: only count
@@ -560,7 +572,7 @@ const Baseline = (() => {
       const spare = hits.length > (defined.get(b.num) || 1);
       rows.push({
         num: b.num, baseline: b, tenant: best.p, tenantVersion: best.tv,
-        status: best.status, why: best.why || null,
+        status: best.status, why: best.why || null, edited: !!best.edited,
         duplicates: spare ? hits.length : 0, shared: b.shared || null,
       });
     }
@@ -628,7 +640,10 @@ const Baseline = (() => {
       const who = tally(res.rows.filter((r) => r.status === "conflict"));
       parts.push(`<b>${n("conflict")} number clash</b> — the CA number is taken by a different policy${who ? ` (${esc(who)}, by its naming)` : ""}, so it counts as absent; an import deploys ${esc(cat.label)}'s alongside and never replaces the other.`);
     }
-    if (n("ahead")) parts.push(`${n("ahead")} newer <b>by the version in the name</b> than the baseline lists — what changed inside a policy is 🧱 Update the catalog's question, not this line's.`);
+    if (n("ahead")) {
+      const edited = res.rows.filter((r) => r.status === "ahead" && r.edited).length, byVer = n("ahead") - edited;
+      parts.push(`<b>${n("ahead")} newer than the baseline lists</b> — ${byVer ? `${byVer} by a newer version in the name` : ""}${byVer && edited ? ", " : ""}${edited ? `${edited} edited in place at the same version` : ""}; 🧱 Update the catalog takes them into the catalog.`);
+    }
     if (n("unversioned")) parts.push(`${n("unversioned")} with a version on one side only.`);
     if (n("extra")) {
       const who = tally(res.rows.filter((r) => r.status === "extra"));
@@ -980,6 +995,9 @@ const Baseline = (() => {
     const changed = [], added = [], gone = [], unchanged = [], held = [];
     for (const r of res.rows || []) {
       if (r.status === "missing") { gone.push({ num: r.num, cat: r.baseline }); continue; }
+      // a number clash is a DIFFERENT policy on that number, not a change to
+      // this one — never offered to the catalog (it was in the 25436 list)
+      if (r.status === "conflict") continue;
       if (!r.tenant || !r.baseline) {
         // a tenant policy the catalog does not define at all
         if (r.tenant && !r.baseline) added.push({ num: caNum(r.tenant.name), name: r.tenant.name, ten: vmToEntry(r.tenant, null) });
@@ -1000,7 +1018,7 @@ const Baseline = (() => {
       // status is the NAME comparison (ok / outdated / ahead / unversioned) — carried so the
       // review can say how the two counts relate: "26 changed in definition, 6 of them
       // also newer by version" is one fact; "6 newer" and "26 changed" side by side read as two
-      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, status: r.status, reopened: !!(h && h.sig !== sig) });
+      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, status: r.status, edited: !!r.edited, reopened: !!(h && h.sig !== sig) });
     }
     // Every unchanged policy is a free test of the serialiser.
     const drift = unchanged.filter((u) => JSON.stringify(u.cat) !== JSON.stringify({ ...u.ten, num: u.cat.num, version: u.cat.version, tag: u.cat.tag, name: u.cat.name }));

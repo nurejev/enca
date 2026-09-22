@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25442, date: "2026-09-22", title: "Newer than baseline means newer than the baseline",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "A policy edited in the portal without a version bump is newer than what the baseline holds, whatever its name says — the catalog lists a definition the tenant no longer runs. Until now it counted as Up to date because only the version in the name was compared, so the chip said 6 newer while 🧱 Update the catalog found 27. Newer than baseline now includes them, marked edited in place in the table and in the panel; Up to date means the same version AND the same definition. The chip, the summary line and the panel count the same policies." },
+    ],
+  },
+  {
     build: 25441, date: "2026-09-22", title: "Builder: the persona chips look like the site's chips",
     items: [
       { kind: "fixed", tool: "Policy building blocks", text: "🏗 Policy builder, step 1: the persona choices rendered as bare bordered buttons with no visible selection. They are the same filter chips every toolbar uses now, the chosen persona in the site's active colour." },
