@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25474, date: "2026-09-22", title: "CA groups: the member sheet no longer hides under the side rail",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "👥 The Members / Compare sheet slid under the side rail, so its title, the Members tab and the start of the add-member box were cut off — and on a phone it ran under the bottom navigation. It now opens beside the rail and above the bottom bar, in both sizes." },
+    ],
+  },
+  {
     build: 25473, date: "2026-09-22", title: "Bypass & Swiss cheese checks: security info registration, device code flow, and an honest sign-in frequency column",
     items: [
       { kind: "new", tool: "Checks", text: "🛡 Two baseline controls are now checked. Security info registration: when no policy protects the Register security information action, whoever has a user's password can register their own MFA method for that account from anywhere — the finding gives Microsoft's template, with a Temporary Access Pass for new users. Device code flow: when it is not blocked for everyone, device-code phishing lets an attacker have your user complete MFA for them — the finding gives the block and the Teams Android exception." },
