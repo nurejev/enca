@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25464, date: "2026-09-22", title: "Swapping an authentication strength for Require MFA now saves",
+    items: [
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 Changing a policy from an authentication strength to Require multifactor authentication — pick No strength, tick the control, Save — failed with Graph 400 BadRequest and nothing to say why. Leaving a strength off has to be written as an explicit null: a save that simply omits it leaves the old strength in place, and the policy is then asked for a strength AND the MFA control at once, which Entra refuses. The save now clears it properly, and only when the policy actually had one. This is the swap the 📘 MS Learn check recommends for guest policies, so the tool was failing at exactly the step its own advice leads to. The same fix covers ✎ Edit on the policy card, which saves through the same code." },
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 The guest and external users clause was the one part of a policy carried through from the read rather than rebuilt, so whatever Graph returned was sent back word for word — including an external-tenants scope with no type named on it, which a write is entitled to reject. It is now stated properly on every save. A clause naming particular partner tenants stays that way even if the list is empty, rather than quietly becoming every tenant." },
+    ],
+  },
+  {
     build: 25463, date: "2026-09-22", title: "Export the baseline from the baseline page",
     items: [
       { kind: "new", tool: "Baseline", text: "⬇ Export baseline — on the reference tenant, on the page where the baseline is actually worked on. It is the same export 🗄 Backup gives on the Policies screen, not a second one: the policy JSON, and the dependencies those policies reference — groups, authentication strengths, named locations, authentication contexts and terms of use, in per-category folders with the migration table. What is new is that you pick PER PERSONA. Only the personas this tenant holds are offered, each with its count, and the policy and dependency totals move as you tick. Dependencies are ticked when it opens, because taking a baseline to another tenant without them is not taking it." },

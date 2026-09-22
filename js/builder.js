@@ -175,6 +175,18 @@ const Builder = (() => {
   }
 
   // ---- draft → Graph body ------------------------------------------------
+  const EXT_ALL = "#microsoft.graph.conditionalAccessAllExternalTenants";
+  const EXT_SOME = "#microsoft.graph.conditionalAccessEnumeratedExternalTenants";
+  function guestClause(g) {
+    if (!g || !g.guestOrExternalUserTypes) return null;
+    const t = g.externalTenants || {};
+    const kind = String(t.membershipKind || "all").toLowerCase();
+    const externalTenants = kind === "enumerated"
+      ? { "@odata.type": EXT_SOME, membershipKind: "enumerated", members: uniq(t.members || []) }
+      : { "@odata.type": EXT_ALL, membershipKind: "all" };
+    return { guestOrExternalUserTypes: String(g.guestOrExternalUserTypes), externalTenants };
+  }
+
   function toRaw(d, cat) {
     const u = d.users, a = d.apps, c = d.cond, g = d.grant, s = d.session;
     const users = {
@@ -186,8 +198,21 @@ const Builder = (() => {
       excludeRoles: uniq(u.excludeRoles),
     };
     // the guest clause: one object per side, carried whole (25430)
-    if (u.includeGuests && u.includeGuests.guestOrExternalUserTypes) users.includeGuestsOrExternalUsers = u.includeGuests;
-    if (u.excludeGuests && u.excludeGuests.guestOrExternalUserTypes) users.excludeGuestsOrExternalUsers = u.excludeGuests;
+    // THE GUEST CLAUSE IS THE ONE PART OF conditions CARRIED THROUGH FROM THE
+    // READ rather than rebuilt from the draft — so it is the one that can
+    // still hold whatever Graph returned. externalTenants is an ABSTRACT
+    // type: a write must name the derived one, and a GET does not always
+    // include it. PATCHing back what was read therefore fails with a bare
+    // 400 BadRequest — which is what CA400 did on save (Mihai, 25464), a
+    // policy nobody had mistyped. guestClause() states the type every time
+    // and drops any annotation a read added.
+    //
+    // An enumerated clause STAYS enumerated even with no members: falling
+    // back to "all" would silently widen a policy from three named partner
+    // tenants to every tenant on earth, which is a worse outcome than the
+    // rejection it would be papering over.
+    if (u.includeGuests && u.includeGuests.guestOrExternalUserTypes) users.includeGuestsOrExternalUsers = guestClause(u.includeGuests);
+    if (u.excludeGuests && u.excludeGuests.guestOrExternalUserTypes) users.excludeGuestsOrExternalUsers = guestClause(u.excludeGuests);
     const apps = { includeApplications: [], excludeApplications: [], includeUserActions: [], includeAuthenticationContextClassReferences: [] };
     if (a.target === "actions") apps.includeUserActions = uniq(a.userActions);
     else if (a.target === "contexts") apps.includeAuthenticationContextClassReferences = uniq(a.authContexts);
@@ -471,7 +496,24 @@ const Builder = (() => {
     if (after.displayName !== before.displayName) body.displayName = after.displayName;
     if (after.state !== before.state) body.state = after.state;
     if (!same(canon(after.conditions), canon(before.conditions))) body.conditions = after.conditions;
-    if (!same(canon(after.grantControls), canon(before.grantControls))) body.grantControls = after.grantControls;
+    if (!same(canon(after.grantControls), canon(before.grantControls))) {
+      body.grantControls = after.grantControls;
+      // TAKING AN AUTHENTICATION STRENGTH OFF NEEDS AN EXPLICIT NULL.
+      // toRaw simply omits the key when no strength is chosen, and a PATCH
+      // that omits it LEAVES THE STRENGTH IN PLACE. The policy is then asked
+      // to hold a strength AND Require multifactor authentication at once —
+      // a combination Entra refuses outright ("You can't use the Require
+      // multifactor authentication and Require authentication strength grant
+      // controls together in the same Conditional Access policy") — so the
+      // write comes back 400 BadRequest with nothing to say which field was
+      // wrong. Mihai hit it on CA400 (25464) doing exactly the swap the
+      // 25459 check recommends: No strength, tick Require multifactor
+      // authentication, Save.
+      if (body.grantControls && !body.grantControls.authenticationStrength
+        && before.grantControls && before.grantControls.authenticationStrength) {
+        body.grantControls.authenticationStrength = null;
+      }
+    }
     if (!same(canon(after.sessionControls), canon(before.sessionControls))) body.sessionControls = after.sessionControls;
     return body;
   }
@@ -565,6 +607,6 @@ const Builder = (() => {
 
   return { PERSONAS, PLATFORMS, CLIENT_APPS, RISK, INSIDER, FLOWS, USER_ACTIONS, GRANTS, APP_GROUPS, ROLES, STATES, STEPS, KINDS, BREAK_GLASS_RE,
     personas, personaOf, caNum, nextNumber, blank, kindOf, sessionCount, suggestWords, nameOf, exclusionGroupName,
-    toRaw, fromRaw, cloneOf, fromTemplate, validate, hints, preflight, willDo, diff, patchBody, canon,
+    toRaw, fromRaw, guestClause, cloneOf, fromTemplate, validate, hints, preflight, willDo, diff, patchBody, canon,
     summary, stepsHtml, hintsHtml, preflightHtml, willHtml, diffHtml };
 })();

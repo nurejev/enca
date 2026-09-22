@@ -225,3 +225,75 @@ test("summaries and step rows render without markup leaks", () => {
   assert.ok(Builder.summary(d, 4, CTX).includes("outside trusted locations"));
   assert.ok(!Builder.summary(d, 2, { ...CTX, names: () => "<b>x</b>" }).includes("<b>x</b>"));
 });
+
+const B = ctx.Builder;
+
+// ---- taking an authentication strength off (25464) -----------------------
+// Mihai on CA400: "No strength" + Require multifactor authentication, Save →
+// Graph 400 BadRequest, section "grant". toRaw omits authenticationStrength
+// when none is chosen, and a PATCH that omits it leaves the old one in place;
+// the policy then holds a strength AND the MFA control, which Entra refuses.
+// Exactly the swap the 25459 MS Learn check tells you to make.
+
+const withStrength = (id) => ({
+  displayName: "CA400-GRANT-GuestUsers-IP-AnyApp-AnyPlatform-MFA-v1.0.2",
+  state: "disabled",
+  conditions: { users: { includeUsers: ["None"], includeGuestsOrExternalUsers: { guestOrExternalUserTypes: "b2bCollaborationGuest", externalTenants: { membershipKind: "all" } } }, applications: { includeApplications: ["All"] }, clientAppTypes: ["all"] },
+  grantControls: { operator: "OR", builtInControls: [], authenticationStrength: { id, displayName: "Multifactor authentication", allowedCombinations: ["password,sms"] } },
+  sessionControls: null,
+});
+
+test("dropping the strength for the plain control sends an explicit null", () => {
+  const before = withStrength("s-mfa");
+  const d = B.fromRaw(before, null);
+  d.grant.strength = null;                 // "No strength"
+  d.grant.controls = ["mfa"];              // Require multifactor authentication
+  const body = B.patchBody(before, d, null);
+  assert.ok(body.grantControls, "the grant section is in the body");
+  eq(body.grantControls.builtInControls, ["mfa"]);
+  assert.ok("authenticationStrength" in body.grantControls, "the key must be PRESENT");
+  assert.equal(body.grantControls.authenticationStrength, null, "and explicitly null, or Graph keeps the old strength and refuses the pair");
+});
+
+test("a policy that never had a strength is not given a null for one", () => {
+  const before = withStrength("s-mfa");
+  delete before.grantControls.authenticationStrength;
+  before.grantControls.builtInControls = ["mfa"];
+  const d = B.fromRaw(before, null);
+  d.grant.controls = ["mfa", "compliantDevice"];
+  const body = B.patchBody(before, d, null);
+  assert.ok(!("authenticationStrength" in (body.grantControls || {})), "nothing to clear, nothing sent");
+});
+
+test("keeping a strength still writes it as a bare reference", () => {
+  const before = withStrength("s-mfa");
+  const d = B.fromRaw(before, null);
+  d.state = "enabledForReportingButNotEnforced";
+  d.grant.controls = [];                   // unchanged grant otherwise
+  const body = B.patchBody(before, d, null);
+  if (body.grantControls) {
+    eq(Object.keys(body.grantControls.authenticationStrength || {}), ["id"],
+      "a write takes the id only — never the expanded strength Graph returns on a read");
+  }
+});
+
+// ---- the guest clause is named, not echoed (25464 hardening) -------------
+test("a guest clause names its external-tenant type on every write", () => {
+  const c = B.guestClause({ guestOrExternalUserTypes: "b2bCollaborationGuest", externalTenants: { membershipKind: "all" } });
+  assert.equal(c.externalTenants["@odata.type"], "#microsoft.graph.conditionalAccessAllExternalTenants");
+});
+
+test("an enumerated guest clause stays enumerated and never silently widens", () => {
+  const c = B.guestClause({ guestOrExternalUserTypes: "serviceProvider", externalTenants: { membershipKind: "enumerated", members: ["t1", "t2"] } });
+  assert.equal(c.externalTenants["@odata.type"], "#microsoft.graph.conditionalAccessEnumeratedExternalTenants");
+  eq(c.externalTenants.members, ["t1", "t2"]);
+  const empty = B.guestClause({ guestOrExternalUserTypes: "serviceProvider", externalTenants: { membershipKind: "enumerated", members: [] } });
+  assert.equal(empty.externalTenants.membershipKind, "enumerated",
+    "an empty enumerated list must NOT fall back to all tenants — that would widen the policy to every tenant on earth");
+});
+
+test("annotations from the read never travel into the write", () => {
+  const c = B.guestClause({ guestOrExternalUserTypes: "b2bCollaborationGuest", "@odata.context": "x", externalTenants: { "@odata.context": "y", membershipKind: "all" } });
+  eq(Object.keys(c).sort(), ["externalTenants", "guestOrExternalUserTypes"]);
+  eq(Object.keys(c.externalTenants).sort(), ["@odata.type", "membershipKind"]);
+});
