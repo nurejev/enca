@@ -909,7 +909,16 @@ const MSLearn = (() => {
       requirement: "Authentication strength policies apply only to external users who authenticate with Microsoft Entra ID. For email one-time passcode, SAML/WS-Fed federated, Google-federated and Microsoft personal account users the strength does not apply at all — Microsoft's guidance is to use the Require multifactor authentication grant control for those identities instead.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength",
-      remediation: "Keep this policy for Entra-authenticated externals, and add a second policy using the plain Require multifactor authentication grant control covering the same external types — that one reaches email one-time passcode, SAML/WS-Fed, Google and MSA users.",
+      remediation: "Exclude nothing and add one policy beside this one. The four identities are not blocked by this policy, the strength is simply not applied to them — and no Conditional Access condition names the identity provider a guest signed in with, so they cannot be carved out of its scope even if you wanted to. The second policy carries the same scope and the plain Require multifactor authentication grant control; Entra refuses both controls in one policy, which is why it has to be its own.",
+      // Two answers, because the one-paragraph version was read as an
+      // instruction to carve the four identities out of this policy (Mihai,
+      // 25458: "not clear what to exclude and what to create") — and that
+      // carve-out cannot be written.
+      remediationParts: [
+        ["Exclude", "Nothing. Leave this policy as it is. Conditional Access has no condition for the identity provider a guest used — the six external user types do not separate an Entra-authenticated guest from a Google-federated one — so these four identities cannot be taken out of its scope. They also do not need to be: the strength is not applied to them, it does not block them."],
+        ["Create", "One policy beside this one, at the next free CA number in the same range: the same users, the same external user types, the same resources and conditions, and the grant control Require multifactor authentication instead of the authentication strength. Born report-only."],
+        ["Why two", "Microsoft does not allow Require multifactor authentication and Require authentication strength in the same policy, so the plain requirement has to live in its own. Every policy that applies must be satisfied, so both reach every guest: an Entra-authenticated external meets the strength, which already implies MFA, and an email one-time passcode, SAML/WS-Fed, Google or Microsoft account external meets the plain requirement — the only one of the two that reaches them."],
+      ],
       detect: (p) => {
         if (!isActive(p) || !G(p).authenticationStrength) return null;
         if (grants(p).includes("mfa")) return null;      // the grant control is there as well
@@ -918,6 +927,30 @@ const MSLearn = (() => {
         return {
           detail: `Policy "${p.displayName}" enforces its MFA requirement through an authentication strength, and its scope reaches ${sc.types.map(extLabel).join(", ")}. Guests who sign in with an email one-time passcode, a SAML/WS-Fed identity provider, a Google account or a Microsoft account are not covered by an authentication strength at all — for them this policy imposes no MFA requirement.`,
           impactedResources: ["Email one-time passcode guests", "SAML / WS-Fed federated guests", "Google-federated guests", "Microsoft account (MSA) guests"],
+        };
+      },
+      // A COMPANION, not an adjustment (see buildFixes). Every other fix edits
+      // the offending policy; this one must not touch it — taking the strength
+      // off would be the opposite of the advice. What is missing is a SECOND
+      // policy, so that is what this returns: the same scope, the plain
+      // control, its own number.
+      companion: (raw, ctx) => {
+        const d = draftFrom(raw);
+        // Only the MFA requirement moves. The original keeps its other grant
+        // and session controls and still applies to these users, so repeating
+        // them here would be a second opinion on settings nobody asked about.
+        d.grantControls = { operator: "OR", builtInControls: ["mfa"], customAuthenticationFactors: [], termsOfUse: [] };
+        d.sessionControls = null;
+        const num = nextFreeNumber(raw, (ctx && ctx.raws) || []);
+        return {
+          name: companionName(raw.displayName, num),
+          draft: d,
+          changes: [
+            "Grant control: Require multifactor authentication, in place of the authentication strength — the control Microsoft names for email one-time passcode, SAML/WS-Fed, Google and Microsoft account externals",
+            "Scope copied unchanged: the same users, external user types, resources and conditions as the original",
+            "The original policy is NOT modified — nothing is excluded from it, because no condition can name these identities",
+            num == null ? "No free number was found in the original's range, so the name says what it is instead" : `Numbered CA${String(num).padStart(3, "0")} — the next free number in the original's range, not a version bump: this policy lives beside the original rather than replacing it`,
+          ],
         };
       },
     },
@@ -1441,8 +1474,14 @@ const MSLearn = (() => {
           <ul class="plist2 ml-pols">${g.policies.map((p) => `<li><span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${p.state === "enabledForReportingButNotEnforced" ? ' <span class="state report">Report-only</span>' : ""}${!uniform ? `<div class="mini" style="margin-top:3px">${esc(p.result.detail)}</div>` : ""}</li>`).join("")}</ul>
           ${resources.length ? `<h5 class="ml-red">Impacted resources</h5><ul class="ml-res">${resources.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
           <h5 class="ml-blue">MS Learn requirement</h5><p>${esc(c.requirement)}</p>
-          <h5 class="ml-green">Remediation</h5><p>${esc(c.remediation)}</p>
-          ${typeof c.fix === "function" ? `<p style="margin-top:10px"><button class="btn lemon" data-mlfix="${esc(c.id)}">🧰 Fix — build the adjusted policy</button>
+          <h5 class="ml-green">Remediation</h5>
+          ${Array.isArray(c.remediationParts)
+            ? `<dl class="ml-rem">${c.remediationParts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`
+            : `<p>${esc(c.remediation)}</p>`}
+          ${typeof c.companion === "function"
+            ? `<p style="margin-top:10px"><button class="btn lemon" data-mlfix="${esc(c.id)}">🧰 Fix — build the companion policy</button>
+            <span class="mini" style="margin-left:8px">prepares the SECOND policy to download (state Off) — this policy is not touched and your tenant is not changed</span></p>`
+            : typeof c.fix === "function" ? `<p style="margin-top:10px"><button class="btn lemon" data-mlfix="${esc(c.id)}">🧰 Fix — build the adjusted policy</button>
             <span class="mini" style="margin-left:8px">creates a new policy (version bumped, state Off) to download — your tenant is not changed</span></p>` : ""}
           <a class="ml-doc" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">↗ View the Microsoft Learn documentation</a>
         </div>` : ""}
@@ -1468,6 +1507,36 @@ const MSLearn = (() => {
     if (parts.length < 3) parts.push(0);
     parts[parts.length - 1] += 1;
     return `${m[1]}${m[2]}${parts.join(".")}`;
+  }
+
+  // The next free CA number in the ORIGINAL's own hundred (CA400 -> 400..499),
+  // which is how the personas are ranged. A companion needs a number of its
+  // own: two policies on one number is a clash every other tool here reports,
+  // and a bumped version would read as a replacement — 🧹 Housekeeping treats
+  // a newer version of the same name as superseding the old one, and 👯
+  // Duplicates as a copy to merge. This policy is neither; it lives beside the
+  // original for good. Returns null when the range is full or the name carries
+  // no number, and the caller says so rather than inventing one.
+  function nextFreeNumber(raw, raws) {
+    const num = (n) => { const m = /CA(\d{1,4})/i.exec(String(n || "")); return m ? parseInt(m[1], 10) : NaN; };
+    const n = num(raw && raw.displayName);
+    if (isNaN(n)) return null;
+    const used = new Set((raws || []).map((p) => num(p.displayName)).filter((x) => !isNaN(x)));
+    const lo = Math.floor(n / 100) * 100;
+    for (let i = lo; i <= lo + 99; i++) if (!used.has(i)) return i;
+    return null;
+  }
+
+  // CA000-GRANT-Global-IP-AnyApp-AnyPlatform-MFA-v1.0.2
+  //   -> CA001-GRANT-Global-IP-AnyApp-AnyPlatform-MFA-NonEntraExternals-v1.0
+  // The version restarts at v1.0 because this is a new policy, not a revision
+  // of the one it was derived from. A name off the convention keeps itself and
+  // says in words what it is, rather than being forced into a shape it never had.
+  function companionName(name, num) {
+    const orig = String(name || "").trim();
+    const m = /^(\((?:NEW|UP)\)\s*)?CA(\d{1,4})-(GRANT|BLOCK|SESSION)-([^-]+)-(.*?)-v\d+(?:\.\d+)*\s*$/i.exec(orig);
+    if (!m || num == null) return `${orig || "policy"} — plain MFA for non-Entra externals`;
+    return `CA${String(num).padStart(3, "0")}-${m[3].toUpperCase()}-${m[4]}-${m[5]}-NonEntraExternals-v1.0`;
   }
 
   // ---- turning a policy read from Graph into something Graph will accept ----
@@ -1558,6 +1627,30 @@ const MSLearn = (() => {
       entry.checks.push(f.check);
     }
 
+    // COMPANIONS. A companion check does not edit the offending policy — it
+    // asks for a SECOND one beside it — so it gets its own entry built from
+    // the raw policy, never from the shared draft above. Sharing that draft
+    // would let this check undo an adjustment another one made to the same
+    // policy, in the one case where both must survive.
+    const companions = [];
+    for (const f of findings) {
+      if (typeof f.check.companion !== "function") continue;
+      const raw = rawById.get(f.policyId);
+      if (!raw) continue;
+      let c = null;
+      try { c = f.check.companion(raw, { ...ctx, raws }); } catch (e) { console.warn(`MS Learn companion ${f.check.id} failed:`, e); }
+      if (!c || !c.draft) { skipped.push({ policyName: raw.displayName || "(unnamed policy)", check: f.check, needs: f.check.needsGroup || null }); continue; }
+      tidy(c.draft);
+      c.draft.displayName = c.name;
+      c.draft.state = "disabled";
+      companions.push({
+        policyId: f.policyId, originalName: raw.displayName || "(unnamed policy)", originalState: raw.state,
+        originalApps: (raw.conditions?.applications?.includeApplications || []).slice(),
+        draft: c.draft, changes: c.changes || [], checks: [f.check],
+        companion: true, newName: c.name, json: JSON.stringify(c.draft, null, 2),
+      });
+    }
+
     const fixes = [];
     for (const e of byPolicy.values()) {
       if (!e.changes.length) continue;
@@ -1568,6 +1661,7 @@ const MSLearn = (() => {
       e.json = JSON.stringify(e.draft, null, 2);
       fixes.push(e);
     }
+    fixes.push(...companions);
     fixes.sort((a, b) => a.newName.localeCompare(b.newName));
     return { fixes, skipped };
   }
@@ -1720,14 +1814,14 @@ const MSLearn = (() => {
     const cards = res.fixes.map((f, i) => `<div class="list-card fx-card">
       <div class="fx-head">
         <div>
-          <div class="fx-new">${esc(f.newName)}</div>
-          <div class="mini">from <span class="pol-link" data-polid="${esc(f.policyId)}">${esc(f.originalName)}</span> · created as <b>Off</b></div>
+          <div class="fx-new">${esc(f.newName)}${f.companion ? ' <span class="tag">companion</span>' : ""}</div>
+          <div class="mini">${f.companion ? "beside" : "from"} <span class="pol-link" data-polid="${esc(f.policyId)}">${esc(f.originalName)}</span> · created as <b>Off</b>${f.companion ? " · the original is not changed" : ""}</div>
         </div>
         <div class="spacer"></div>
         <button class="btn" data-fxjson="${i}">⤓ Download JSON</button>
       </div>
       <div class="fx-body">
-        <h5 class="ml-green">Applied adjustments (${f.changes.length})</h5>
+        <h5 class="ml-green">${f.companion ? `What this policy adds (${f.changes.length})` : `Applied adjustments (${f.changes.length})`}</h5>
         <ul class="ml-res">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
         <h5 class="ml-blue">Based on</h5>
         <ul class="plist2">${f.checks.map((c) => `<li>${esc(c.title)} <a class="ml-doc" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">↗ MS Learn</a></li>`).join("")}</ul>
@@ -1754,9 +1848,10 @@ const MSLearn = (() => {
         </div></div>`;
       })()
       : "";
+    const nComp = res.fixes.filter((f) => f.companion).length;
     return `<p class="mini" style="margin:0 0 12px">${res.fixes.length} new polic${res.fixes.length === 1 ? "y" : "ies"} prepared from ${res.fixes.length === 1 ? "1 affected policy" : `${res.fixes.length} affected policies`}.
-      Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
+      ${nComp ? `${nComp} of them ${nComp === 1 ? "is a companion: it goes BESIDE" : "are companions: they go BESIDE"} the policy ${nComp === 1 ? "it was" : "they were"} derived from, which stays exactly as it is. The rest replace theirs. ` : ""}Nothing is written to your tenant — download the JSON, review it, then bring it in through the Import tool.</p>${missing}${cards}${note}`;
   }
 
-  return { run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

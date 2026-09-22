@@ -2459,6 +2459,15 @@ td.gm-none{color:var(--muted);font-weight:700}
 .pb-pickrow{cursor:default}
 .pb-pickrow .pb-row{margin-top:4px}
 
+/* A remediation with two answers — what to exclude, what to create (25458).
+   One paragraph was read as one instruction, and the check whose advice is
+   "change nothing here, add a policy there" needs both halves to be visible
+   as separate answers or the reader goes looking for the exclusion. */
+.ml-rem{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:4px 0 0;font-size:12.5px;line-height:1.6}
+.ml-rem dt{font-weight:700;color:var(--ink);white-space:nowrap}
+.ml-rem dd{margin:0;color:var(--muted)}
+@media (max-width:640px){.ml-rem{grid-template-columns:1fr;gap:2px}.ml-rem dd{margin-bottom:8px}}
+
 /* ---------- 🪪 Own registration — onboarding (R59, build 25438) ---------- */
 /* The route inside the ⚙ connection panel (25455). Separated from the
    connection above it by a rule, the way .conn-redirect is, because it is a

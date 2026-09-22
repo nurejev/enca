@@ -215,3 +215,81 @@ test("policy names reach the matrix HTML escaped", () => {
   const html = M.renderGuestMatrix(matrix([p], { partners: PARTNER() }));
   assert.ok(!html.includes("<script>bad"));
 });
+
+// ---- the companion policy (25458) ---------------------------------------
+// Mihai, on the guest auth-strength finding: "not clear what to exclude and
+// what to create". The answers are "nothing" and "one policy beside it", and
+// the second one is now built. These tests hold the two properties that make
+// it that rather than an adjustment: the original is untouched, and the new
+// policy carries a number of its own instead of a bumped version.
+
+const STRENGTH = { id: "s-mfa", displayName: "Multifactor authentication" };
+const guestStrengthPolicy = (name) => ({
+  id: name, displayName: name, state: "enabled",
+  conditions: {
+    users: { includeUsers: ["None"], includeGuestsOrExternalUsers: GUESTS("b2bCollaborationGuest", "b2bCollaborationMember") },
+    applications: { includeApplications: ["All"] },
+    clientAppTypes: ["all"],
+  },
+  grantControls: { operator: "OR", builtInControls: [], authenticationStrength: STRENGTH },
+  sessionControls: { signInFrequency: { isEnabled: true, value: 1, type: "hours" } },
+});
+
+const companionOf = (policies, findings) =>
+  M.buildFixes(findings, policies, { raws: policies }).fixes.find((f) => f.companion);
+
+test("the guest auth-strength finding builds a companion, not an adjustment", () => {
+  const p = guestStrengthPolicy("CA400-GRANT-GuestUsers-IP-AnyApp-AnyPlatform-MFA-v1.0.2");
+  const findings = run([p], { strengths: new Map([["s-mfa", STRENGTH]]) })
+    .filter((f) => f.check.id === "guest-auth-strength-not-universal");
+  assert.equal(findings.length, 1, "the check fires");
+  const c = companionOf([p], findings);
+  assert.ok(c, "a companion is prepared");
+  assert.equal(c.companion, true);
+  // the plain control replaces the strength — Entra refuses both in one policy
+  // (the draft is built inside the vm sandbox, so compare by value, not by
+  // prototype: deepStrictEqual fails cross-realm on structurally equal arrays)
+  assert.deepEqual([...c.draft.grantControls.builtInControls], ["mfa"]);
+  assert.equal(c.draft.grantControls.authenticationStrength, undefined);
+  // the scope is copied whole: nothing is excluded, because nothing can be
+  assert.equal(JSON.stringify(c.draft.conditions.users.includeGuestsOrExternalUsers),
+    JSON.stringify(p.conditions.users.includeGuestsOrExternalUsers));
+  assert.deepEqual([...c.draft.conditions.applications.includeApplications], ["All"]);
+  assert.equal(c.draft.state, "disabled", "never born enabled");
+  // and the ORIGINAL is untouched — the whole point of a companion
+  assert.equal(p.grantControls.authenticationStrength, STRENGTH);
+  assert.deepEqual(p.grantControls.builtInControls, []);
+});
+
+test("the companion takes the next free number in the original's range, not a bumped version", () => {
+  const p = guestStrengthPolicy("CA400-GRANT-GuestUsers-IP-AnyApp-AnyPlatform-MFA-v1.0.2");
+  const neighbours = ["CA401-GRANT-GuestUsers-X-v1.0", "CA402-BLOCK-GuestUsers-Y-v1.0"]
+    .map((n) => ({ id: n, displayName: n, state: "enabled", conditions: { users: {} }, grantControls: null }));
+  const all = [p, ...neighbours];
+  const findings = run(all, { strengths: new Map([["s-mfa", STRENGTH]]) })
+    .filter((f) => f.check.id === "guest-auth-strength-not-universal");
+  const c = companionOf(all, findings);
+  assert.equal(c.newName, "CA403-GRANT-GuestUsers-IP-AnyApp-AnyPlatform-MFA-NonEntraExternals-v1.0");
+  assert.notEqual(c.newName, M.bumpVersion(p.displayName), "a bumped version would read as a replacement");
+});
+
+test("nextFreeNumber stays inside the original's hundred and skips what is taken", () => {
+  const used = ["CA400 a", "CA401 b", "CA403 c"].map((n) => ({ displayName: n }));
+  assert.equal(M.nextFreeNumber({ displayName: "CA400 a" }, used), 402);
+  assert.equal(M.nextFreeNumber({ displayName: "CA000 global" }, [{ displayName: "CA000 global" }]), 1);
+  assert.equal(M.nextFreeNumber({ displayName: "no number here" }, used), null, "no number, no guess");
+});
+
+test("a policy off the naming convention gets a name in words, never a forced one", () => {
+  assert.equal(M.companionName("Require MFA for guests", 7), "Require MFA for guests — plain MFA for non-Entra externals");
+  assert.equal(M.companionName("CA400-GRANT-GuestUsers-X-v2.1", null), "CA400-GRANT-GuestUsers-X-v2.1 — plain MFA for non-Entra externals");
+});
+
+test("a staging prefix on the original does not travel into the companion's number", () => {
+  const p = guestStrengthPolicy("(UP)CA400-GRANT-GuestUsers-IP-AnyApp-AnyPlatform-MFA-v1.0.2");
+  const findings = run([p], { strengths: new Map([["s-mfa", STRENGTH]]) })
+    .filter((f) => f.check.id === "guest-auth-strength-not-universal");
+  const c = companionOf([p], findings);
+  assert.equal(c.newName, "CA401-GRANT-GuestUsers-IP-AnyApp-AnyPlatform-MFA-NonEntraExternals-v1.0");
+  assert.ok(!/\(UP\)/.test(c.newName), "the staging prefix is not carried into a brand-new policy");
+});
