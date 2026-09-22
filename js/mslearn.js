@@ -17,7 +17,13 @@ const MSLearn = (() => {
   const TEAMS_SERVICE = "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe";
   const AZURE_VIRTUAL_DESKTOP = "9cdead84-a844-4324-93f2-b2e6bb768d07";
   const WINDOWS_365 = "0af06dc6-e4b5-4f28-818e-e78e62d137a5";
-  const WINDOWS_CLOUD_LOGIN = "372140e0-b3b7-4226-8ef9-d57986796201";
+  // TWO DIFFERENT APPS, confused until 25469: 372140e0 is Azure Windows VM
+  // Sign-In (RDP to Entra-joined VMs); 270efc09 is Windows Cloud Login (SSO to
+  // Cloud PCs / AVD session hosts). The token-protection list named the first
+  // under the second's name, so a correct policy targeting Windows Cloud Login
+  // was flagged as unsupported and the fix wrote the VM sign-in app instead.
+  const AZURE_VM_SIGNIN = "372140e0-b3b7-4226-8ef9-d57986796201";
+  const WINDOWS_CLOUD_LOGIN = "270efc09-cd0d-444b-a71f-39af4910ec45";
   const DEFENDER_ATP_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";
   const DIRSYNC_ROLE = "d29b2b05-8046-44ba-8758-1e26182fcf32";
@@ -322,6 +328,7 @@ const MSLearn = (() => {
     "guest-auth-strength-not-universal": "misses",
     "guest-auth-strength-swap-for-mfa": "misses",
     "sp-not-in-external-mfa": "misses",
+    "ext-type-no-mfa": "misses",
   };
   const EFFECT_TEXT = {
     denies: ["🚫", "Blocks them", "These identities are DENIED access — the control cannot be met by an identity this tenant does not manage. The fix takes them out of this policy's scope and covers them with something they can satisfy."],
@@ -364,28 +371,111 @@ const MSLearn = (() => {
   // The types these checks own: everything but the local guests (managed
   // here, so unaffected) and the service providers (their own checks).
   const CROSS_TENANT_TYPES = EXT_TYPES.filter((t) => t !== LOCAL_GUEST && t !== SP);
-  // Is inbound MFA trust configured with every partner we know of? null when
-  // the cross-tenant settings were not read, so nothing is claimed.
-  function trustGap(ctx, key) {
-    const list = spPartners(ctx);
-    if (!list) return null;
-    return list.filter((x) => !(x.inboundTrust && x.inboundTrust[key] === true));
+  // ---- inbound cross-tenant trust (rebuilt 25469) ----------------------
+  //
+  // TRUST HAS TWO LAYERS. The DEFAULT inbound trust decides for every
+  // organisation without a configuration of its own; a partner row overrides
+  // it, and a partner whose inboundTrust (or a single flag in it) is null
+  // INHERITS the default. Until 25469 these checks read the partner list only
+  // — and that list was filtered to service providers — so in a tenant with
+  // no CSP the list was empty, "every partner trusts" was vacuously true, and
+  // a compliant-device policy reaching every B2B guest was reported as fine.
+  //
+  // ctx.crossTenant is Graph.crossTenantTrust(): { defaultOk, partnersOk,
+  // defaultTrust, dcInboundDefault, partners:[{tenantId, name,
+  // isServiceProvider, inboundTrust, dcInbound}] }. ctx.partners ({ok, list}
+  // of service providers) is still accepted on its own — older callers and
+  // the tests — and then the default is simply UNKNOWN, never assumed.
+  function ctView(ctx) {
+    const ct = ctx && ctx.crossTenant;
+    if (ct) return { legacy: false, defaultOk: !!ct.defaultOk, partnersOk: !!ct.partnersOk,
+      def: ct.defaultTrust || {}, dcDefault: ct.dcInboundDefault || null, partners: ct.partners || [] };
+    const p = ctx && ctx.partners;
+    return { legacy: true, defaultOk: false, partnersOk: !!(p && p.ok), def: {}, dcDefault: null,
+      partners: p && p.ok ? (p.list || []).map((x) => ({ ...x, isServiceProvider: x.isServiceProvider !== false })) : [] };
+  }
+  // What the tenant trusts for one claim. byDefault: true | false | null (not
+  // read). Each partner is judged by its EFFECTIVE setting.
+  function inboundTrust(ctx, key, onlySp) {
+    const v = ctView(ctx);
+    const byDefault = v.defaultOk ? v.def[key] === true : null;
+    const trusted = [], untrusted = [], unknown = [];
+    for (const x of v.partners) {
+      if (onlySp && !x.isServiceProvider) continue;
+      const own = x.inboundTrust ? x.inboundTrust[key] : null;
+      // legacy input has no default to inherit from: a missing flag was
+      // always read as off there, and the tests pin that
+      const eff = own === true || own === false ? own : v.legacy ? false : byDefault;
+      const name = x.name || x.tenantId;
+      (eff === true ? trusted : eff === false ? untrusted : unknown).push(name);
+    }
+    return { v, byDefault, trusted, untrusted, unknown };
+  }
+  const TRUST_WORD = { isMfaAccepted: "MFA", isCompliantDeviceAccepted: "compliant-device", isHybridAzureADJoinedDeviceAccepted: "hybrid-joined-device" };
+  // For a guest from ANY organisation: true = every tenant's claim is
+  // trusted, false = at least some organisations' claims are not, null = not
+  // known. The sentence says which, in the reader's terms.
+  function guestTrust(ctx, key) {
+    const t = inboundTrust(ctx, key, false), w = TRUST_WORD[key] || key, v = t.v;
+    const names = (a) => a.slice(0, 6).join(", ") + (a.length > 6 ? ` and ${a.length - 6} more` : "");
+    if (!v.defaultOk && !v.partnersOk) return { ok: null, text: "Cross-tenant access settings could not be read, so inbound " + w + " trust was not verified." };
+    if (v.legacy || !v.defaultOk) {
+      // only the partner list is known
+      if (t.untrusted.length) return { ok: false, text: `Inbound ${w} trust is not configured for: ${names(t.untrusted)}.` };
+      return { ok: null, text: `Inbound ${w} trust IS configured for the partners listed in cross-tenant access settings, but the DEFAULT setting — which decides for every other organisation — was not read.` };
+    }
+    if (t.byDefault === false) {
+      return { ok: false, text: `Inbound ${w} trust is OFF in the default cross-tenant access settings, so a guest from any organisation without its own configuration cannot bring the claim from home.`
+        + (t.trusted.length ? ` It is switched on for ${names(t.trusted)} only.` : " No partner organisation has it switched on either.") };
+    }
+    if (t.untrusted.length) return { ok: false, text: `Inbound ${w} trust is on by default, but switched OFF for: ${names(t.untrusted)}.` };
+    return { ok: true, text: `Inbound ${w} trust is on by default and not switched off for any partner.` };
+  }
+  // Service providers are a known list, so the question is simply whether
+  // each of them trusts. null = cannot tell.
+  function spWithoutTrust(ctx, key) {
+    const t = inboundTrust(ctx, key, true);
+    if (!t.v.partnersOk) return null;
+    if (t.unknown.length) return null;
+    return t.untrusted.map((name) => ({ name }));
+  }
+  const spPartners = (ctx) => { const v = ctView(ctx); return v.partnersOk ? v.partners.filter((x) => x.isServiceProvider) : null; };
+  const spNames = (ctx) => (spPartners(ctx) || []).map((x) => x.name || x.tenantId);
+  // Is B2B direct connect switched on inbound at all? false only when the
+  // default blocks it AND no partner allows it — then no direct connect user
+  // can arrive, and a gap for that type is theoretical today.
+  function dcInboundOpen(ctx) {
+    const v = ctView(ctx);
+    if (v.legacy || !v.defaultOk || !v.partnersOk) return null;
+    if (v.dcDefault === "allowed") return true;
+    if (v.partners.some((x) => x.dcInbound === "allowed")) return true;
+    return v.dcDefault === "blocked" ? false : null;
   }
   const partialNote = (sc) => sc.partial
     ? ` The policy does carve out ${sc.partial.types.map(extLabel).join(", ")}, but only for ${sc.partial.tenants.length} named tenant${sc.partial.tenants.length === 1 ? "" : "s"} — identities from any other tenant stay in scope.`
     : "";
 
-  // Which service provider partners are configured in cross-tenant access
-  // settings, and do they carry the inbound trust a device control needs?
-  // ctx.partners is { ok, list } when the read succeeded, or absent/ok:false
-  // when it did not — in which case nothing is assumed and the checks run.
-  const spPartners = (ctx) => (ctx && ctx.partners && ctx.partners.ok ? ctx.partners.list || [] : null);
-  const spNames = (ctx) => (spPartners(ctx) || []).map((x) => x.name || x.tenantId);
-  // partners that do NOT accept the given inbound trust claim
-  function spWithoutTrust(ctx, key) {
-    const list = spPartners(ctx);
-    if (!list) return null;                       // unknown — cannot rule anything out
-    return list.filter((x) => !(x.inboundTrust && x.inboundTrust[key] === true));
+  // ---- which external types does a guest MFA policy leave uncovered? ----
+  // Types this include-clause MFA policy does not name AND no other active
+  // policy requiring MFA (or a strength) on All resources reaches. Service
+  // providers are the sp-* checks' case and stay out.
+  function mfaReaches(type, ctx, exceptId) {
+    return ((ctx && ctx.raws) || []).some((q) => q.id !== exceptId && isActive(q) && hasMfa(q) && !grants(q).includes("block")
+      && appsInc(q).includes("All") && extScope(q, [type]));
+  }
+  function extMfaGap(p, ctx) {
+    const none = { types: [], allUsersExcl: [], dcSkipped: false };
+    if (!hasMfa(p) || grants(p).includes("block") || allUsers(p) || legacyIncExt(p)) return none;
+    if (!appsInc(p).includes("All")) return none;
+    const inc = incExt(p);
+    if (!inc || !inc.types.length) return none;
+    let types = EXT_TYPES.filter((t) => t !== SP && !inc.types.includes(t) && !mfaReaches(t, ctx, p.id));
+    let dcSkipped = false;
+    if (types.includes(DIRECT_CONNECT) && dcInboundOpen(ctx) === false) { types = types.filter((t) => t !== DIRECT_CONNECT); dcSkipped = true; }
+    const allUsersExcl = ((ctx && ctx.raws) || [])
+      .filter((q) => isActive(q) && allUsers(q) && hasMfa(q) && appsInc(q).includes("All") && (legacyExcExt(q) || (excExt(q) && excExt(q).allTenants)))
+      .map((q) => q.displayName || "(unnamed policy)");
+    return { types, allUsersExcl, dcSkipped };
   }
 
   // ---- checks database ----
@@ -423,12 +513,18 @@ const MSLearn = (() => {
     },
     {
       id: "approved-client-app-retirement",
-      title: "Approved client app grant retiring — migrate to app protection policy",
-      appliesWhen: "Policy uses 'Require approved client app' without (OR) 'Require app protection policy'",
-      requirement: "Microsoft is retiring the 'Require approved client app' grant control in early March 2026. Policies must move to 'Require application protection policy', or use both controls with the OR operator during transition.",
-      severity: "critical",
+      title: "Policy frozen by the approved client app retirement — rebuild it on app protection",
+      appliesWhen: "Policy includes the retired grant control 'Require approved client app'",
+      requirement: "Require approved client app retired on 30 June 2026. Every policy that includes it is now READ-ONLY: it keeps being enforced while it is On, it can be switched off or deleted, and it can no longer be edited — not its users, not its apps, not its exclusions — and no new policy can use the control. The replacement is Require app protection policy, which only works for users who have an Intune app protection policy assigned; an app that does not support app protection is blocked by it.",
+      severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app",
-      remediation: "Replace 'Require approved client app' with 'Require application protection policy'. For a transition period use both controls with the OR operator; new policies should use app protection only.",
+      remediation: "This policy cannot be changed in place any more — Entra refuses every edit. Build a replacement with Require app protection policy instead of the retired control, keep everything else the same, run it report-only, switch it On, then switch the old one Off and delete it.",
+      remediationParts: [
+        ["Why not edit", "Entra has made this policy read-only since 30 June 2026 because it includes the retired control. It is still enforced while On — nothing is broken today — but you can no longer add an exclusion, a group or an app to it."],
+        ["Create", "A copy of this policy with Require app protection policy in place of Require approved client app (the Fix button builds it, state Off, version bumped). Same users, apps, platforms and conditions."],
+        ["Before you switch it on", "Check that the people it reaches have an Intune app protection policy ASSIGNED for the apps they use. Report-only cannot evaluate app protection — every sign-in shows Report-only: Failure there — so use a pilot group instead of reading the report-only results."],
+        ["Then", "Switch the new policy On, switch this one Off, and delete it once nobody signs in through it."],
+      ],
       fix: (d) => {
         const g = d.grantControls || (d.grantControls = {});
         const b = g.builtInControls || [];
@@ -436,24 +532,22 @@ const MSLearn = (() => {
         if (!b.includes("compliantApplication")) { b.push("compliantApplication"); ch.push('Added grant control "Require app protection policy"'); }
         if (b.includes("approvedApplication")) {
           g.builtInControls = b.filter((x) => x !== "approvedApplication");
-          ch.push('Removed the retired grant control "Require approved client app"');
+          ch.push('Removed the retired grant control "Require approved client app" — a policy that still carries it cannot be created any more');
         } else { g.builtInControls = b; }
-        if (g.builtInControls.length > 1 && g.operator !== "OR") { g.operator = "OR"; ch.push("Grant operator set to OR"); }
+        if (g.builtInControls.length > 1 && !g.operator) g.operator = "OR";
         return ch;
       },
       detect: (p) => {
         if (!isActive(p) || !grants(p).includes("approvedApplication")) return null;
         const hasAppProt = grants(p).includes("compliantApplication");
-        if (hasAppProt && G(p).operator === "OR") return null; // compliant migration path
-        if (hasAppProt) {
-          return {
-            detail: `Policy "${p.displayName}" combines 'Require approved client app' AND 'Require app protection policy'. After the retirement the approved-client-app control stops being enforced — change the operator to OR so app protection alone satisfies the policy.`,
-            impactedResources: ["Mobile users on iOS and Android", "M365 apps on mobile devices"],
-          };
-        }
+        const or = G(p).operator === "OR";
         return {
-          detail: `Policy "${p.displayName}" relies only on 'Require approved client app', which is retired in early March 2026. After that date the policy no longer enforces any app-level control on mobile devices.`,
-          impactedResources: ["Mobile users on iOS and Android", "M365 apps on mobile devices", "Unmanaged BYOD devices"],
+          detail: hasAppProt && or
+            ? `Policy "${p.displayName}" is on the transition pattern (approved client app OR app protection policy). That was the right move before 30 June 2026, but the policy still INCLUDES the retired control, so it is now read-only: enforced as it stands, and impossible to edit. Rebuild it with app protection only.`
+            : hasAppProt
+              ? `Policy "${p.displayName}" requires approved client app AND app protection policy. It is read-only since 30 June 2026 and cannot be edited; the replacement should require app protection only.`
+              : `Policy "${p.displayName}" relies on Require approved client app alone. It is still enforced while On, but it is read-only since 30 June 2026: no exclusion, no group and no app can be added to it any more, and when it is eventually switched off nothing replaces it unless you build the app protection version first.`,
+          impactedResources: ["Mobile users on iOS and Android", "Anyone who needs an exclusion or scope change on this policy", ...(hasAppProt ? [] : ["Unmanaged BYOD devices once the policy is replaced"])],
         };
       },
     },
@@ -499,9 +593,9 @@ const MSLearn = (() => {
     },
     {
       id: "token-prot-platform",
-      title: "Token protection: Windows (or MDM-managed Apple, preview) + desktop clients only",
+      title: "Token protection: supported platforms and desktop clients only",
       appliesWhen: "Policy uses the token protection session control",
-      requirement: "Token protection works on Windows, and in preview on macOS 14+ / iOS 16+ devices that are MDM-managed with the Microsoft Enterprise SSO plug-in. The policy must name those platforms explicitly and target only 'Mobile apps and desktop clients' — including Browser blocks MSAL.js apps such as Teams Web (browser support exists only as a preview for Azure Resource Manager web apps).",
+      requirement: "Token protection works for native apps on Windows, and on macOS 14+ and iOS / iPadOS 16+ devices that are MDM-managed with the Microsoft Enterprise SSO plug-in; Android is not supported, and Azure Virtual Desktop / Windows 365 are protected on Windows only. The policy must name its platforms and target only 'Mobile apps and desktop clients' — including Browser blocks MSAL.js apps such as Teams Web (browser support is a preview for Azure Resource Manager web apps only).",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#supported-resources",
       remediation: "Set Device platforms → Include → Windows (add macOS / iOS only for MDM-managed Apple devices with the Enterprise SSO plug-in, preview), and Client apps → Mobile apps and desktop clients only (leave Browser unchecked).",
@@ -527,7 +621,7 @@ const MSLearn = (() => {
         else {
           const other = inc.filter((x) => !SUPPORTED.includes(x));
           if (other.length) issues.push(`The policy targets ${other.join(", ")} — token protection is not supported there and those users are blocked.`);
-          if (inc.some((x) => x === "macos" || x === "ios")) issues.push("Apple platforms are included: token protection there is a PREVIEW and requires MDM-managed devices with the Microsoft Enterprise SSO plug-in — unmanaged Macs, iPhones and Apple's native Mail / Calendar are blocked.");
+          if (inc.some((x) => x === "macos" || x === "ios")) issues.push("Apple platforms are included: token protection there requires MDM-managed devices with the Microsoft Enterprise SSO plug-in (or Platform SSO on macOS) — unmanaged Macs and iPhones are blocked.");
         }
         const cat = p.conditions?.clientAppTypes || [];
         if (!cat.length || cat.includes("browser") || cat.includes("all"))
@@ -755,6 +849,20 @@ const MSLearn = (() => {
         if (!isActive(p) || !allUsers(p) || !allApps(p) || !hasBlock(p)) return null;
         const exc = appsExcLower(p);
         if (exc.includes(DEFENDER_ATP_XPLAT) && exc.includes(DEFENDER_TVM)) return null;
+        // 25469: only a block the Defender app can actually run into. It is a
+        // modern-auth mobile app, so a legacy-protocol block, a device-code /
+        // authentication-transfer block, or a block whose platforms leave out
+        // both Android and iOS never reaches it.
+        const cat = p.conditions?.clientAppTypes || [];
+        if (cat.length && !cat.includes("all") && !cat.includes("mobileAppsAndDesktopClients")) return null;
+        if (p.conditions?.authenticationFlows?.transferMethods) return null;
+        const pl = p.conditions?.platforms;
+        if (pl) {
+          const inc = (pl.includePlatforms || []).map((x) => String(x).toLowerCase());
+          const exl = (pl.excludePlatforms || []).map((x) => String(x).toLowerCase());
+          const mobile = (x) => (inc.includes("all") || inc.includes(x)) && !exl.includes(x);
+          if (inc.length && !mobile("android") && !mobile("ios")) return null;
+        }
         return {
           detail: "Restrictive block policy targets all resources without excluding the Microsoft Defender for Endpoint mobile apps — Defender can be prevented from reporting device posture, so devices appear non-compliant because Defender cannot reach its backend.",
           impactedResources: [`MicrosoftDefenderATP XPlat (${DEFENDER_ATP_XPLAT})`, `Defender for Mobile TVM (${DEFENDER_TVM})`, "Mobile device compliance reporting"],
@@ -765,24 +873,24 @@ const MSLearn = (() => {
       id: "azure-vm-signin-mfa",
       title: "Azure VM sign-in: MFA over RDP needs special client support",
       appliesWhen: "Policy requires MFA or device compliance for all users and all resources",
-      requirement: `The Microsoft Azure Windows Virtual Machine Sign-In app (${WINDOWS_CLOUD_LOGIN}) requires the RDP client to supply the MFA claim; without Windows Hello for Business or FIDO2 that is impossible, and Windows Server RDP clients cannot satisfy device compliance at all. Microsoft recommends excluding the app when WHfB is not deployed.`,
+      requirement: `The Microsoft Azure Windows Virtual Machine Sign-In app (${AZURE_VM_SIGNIN}) requires the RDP client to supply the MFA claim; without Windows Hello for Business or FIDO2 that is impossible, and Windows Server RDP clients cannot satisfy device compliance at all. Microsoft recommends excluding the app when WHfB is not deployed.`,
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/devices/howto-vm-sign-in-azure-ad-windows#mfa-sign-in-method-required",
-      remediation: `If Windows Hello for Business is not deployed, exclude the Azure Windows VM Sign-In app (${WINDOWS_CLOUD_LOGIN}) from MFA / compliance policies — or ensure all RDP clients support WHfB or FIDO2.`,
+      remediation: `If Windows Hello for Business is not deployed, exclude the Azure Windows VM Sign-In app (${AZURE_VM_SIGNIN}) from MFA / compliance policies — or ensure all RDP clients support WHfB or FIDO2.`,
       fix: (d) => {
         const a = d.conditions.applications || (d.conditions.applications = {});
         const exc = a.excludeApplications || (a.excludeApplications = []);
-        if (exc.some((x) => String(x).toLowerCase() === WINDOWS_CLOUD_LOGIN)) return [];
-        exc.push(WINDOWS_CLOUD_LOGIN);
-        return [`Excluded Azure Windows VM Sign-In (${WINDOWS_CLOUD_LOGIN})`];
+        if (exc.some((x) => String(x).toLowerCase() === AZURE_VM_SIGNIN)) return [];
+        exc.push(AZURE_VM_SIGNIN);
+        return [`Excluded Azure Windows VM Sign-In (${AZURE_VM_SIGNIN})`];
       },
       detect: (p) => {
         if (!isActive(p) || !allUsers(p) || !allApps(p)) return null;
         if (!hasMfa(p) && !hasCompliance(p)) return null;
-        if (appsExcLower(p).includes(WINDOWS_CLOUD_LOGIN)) return null;
+        if (appsExcLower(p).includes(AZURE_VM_SIGNIN)) return null;
         return {
           detail: "Policy requires MFA or device compliance for all users and all resources without excluding the Azure Windows VM Sign-In app — RDP connections to Azure VMs / Arc-enabled servers must supply the MFA claim from the connecting device, which fails without Windows Hello for Business or FIDO2; Windows Server RDP clients cannot satisfy device compliance.",
-          impactedResources: [`Azure Windows VM Sign-In (${WINDOWS_CLOUD_LOGIN})`, "RDP to Azure VMs", "RDP to Arc-enabled Windows Servers", "Windows Server RDP client devices"],
+          impactedResources: [`Azure Windows VM Sign-In (${AZURE_VM_SIGNIN})`, "RDP to Azure VMs", "RDP to Arc-enabled Windows Servers", "Windows Server RDP client devices"],
         };
       },
     },
@@ -951,12 +1059,10 @@ const MSLearn = (() => {
         const sc = extScope(p, CROSS_TENANT_TYPES);
         if (!sc) return null;
         const methods = [...new Set(combos.flatMap(comboMethods).map((m) => HOME_ONLY_METHODS[m]).filter(Boolean))];
-        const gap = trustGap(ctx, "isMfaAccepted");
-        const trust = gap === null
-          ? "Cross-tenant access settings could not be read, so inbound MFA trust was not verified."
-          : gap.length
-            ? `Inbound MFA trust is not configured for: ${gap.map((x) => x.name || x.tenantId).join(", ")}.`
-            : "Inbound MFA trust IS configured for the partners listed in cross-tenant access settings — confirm those tenants have actually deployed the method before relying on it.";
+        const gt = guestTrust(ctx, "isMfaAccepted");
+        const trust = gt.ok === true
+          ? gt.text + " So a guest CAN meet it — but only if their own organisation has deployed one of these methods; trust passes a claim through, it does not create a credential."
+          : gt.text;
         return {
           detail: `Policy "${p.displayName}" requires the authentication strength "${esc(asp.displayName || ref.displayName || ref.id)}" and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). Every combination that strength allows needs ${methods.join(" or ")}, which an external user can only complete in their home tenant. ${trust}${partialNote(sc)}`,
           impactedResources: [
@@ -1103,33 +1209,40 @@ const MSLearn = (() => {
         if (G(p).operator === "OR" && grants(p).length > (wantsCompliant && wantsHybrid ? 2 : 1)) return null;
         const sc = extScope(p, CROSS_TENANT_TYPES);
         if (!sc) return null;
-        const noCompliant = wantsCompliant ? trustGap(ctx, "isCompliantDeviceAccepted") : [];
-        const noHybrid = wantsHybrid ? trustGap(ctx, "isHybridAzureADJoinedDeviceAccepted") : [];
-        if (noCompliant !== null && noHybrid !== null && !noCompliant.length && !noHybrid.length) return null;
-        const untrusted = [...new Set([...(noCompliant || []), ...(noHybrid || [])].map((x) => x.name || x.tenantId))];
+        const tc = wantsCompliant ? guestTrust(ctx, "isCompliantDeviceAccepted") : { ok: true, text: "" };
+        const th = wantsHybrid ? guestTrust(ctx, "isHybridAzureADJoinedDeviceAccepted") : { ok: true, text: "" };
+        // With either claim on, OR'd device controls are met by it.
+        if (wantsCompliant && wantsHybrid && G(p).operator === "OR" ? (tc.ok === true || th.ok === true) : (tc.ok === true && th.ok === true)) return null;
+        const trustText = [tc, th].filter((x) => x.ok !== true && x.text).map((x) => x.text).join(" ");
         const control = wantsCompliant && wantsHybrid ? "a compliant or Microsoft Entra hybrid joined device"
           : wantsCompliant ? "a compliant device" : "a Microsoft Entra hybrid joined device";
         return {
-          detail: `Policy "${p.displayName}" requires ${control} and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). Their devices are managed in their own tenant, so the requirement can only be met if this tenant trusts device claims from theirs.`
-            + (untrusted.length ? ` Inbound device trust is not configured for: ${untrusted.join(", ")}.`
-              : " Cross-tenant access settings could not be read, so the trust configuration was not verified.")
+          detail: `Policy "${p.displayName}" requires ${control} and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). Their devices are managed in their own tenant, so the requirement can only be met if this tenant trusts device claims from theirs. ${trustText}`
             + partialNote(sc),
-          impactedResources: [...sc.types.map(extLabel), ...untrusted.map((n) => `No device trust from: ${n}`), "AADSTS530004 — AcceptCompliantDevice not configured"],
+          impactedResources: [...sc.types.map(extLabel), "AADSTS530004 — AcceptCompliantDevice not configured"],
         };
       },
     },
     {
       id: "guest-user-risk-blocked",
       title: "User-risk policy blocks guests it can never remediate",
-      appliesWhen: "Policy has a user-risk condition and its scope reaches guests or external users",
-      requirement: "A user-risk policy cannot be resolved in the resource tenant. An external user's identity lives in their home directory, so a policy forcing a password change blocks them outright — they cannot reset a password here — and your risky-users report does not reflect them, nor can your admins dismiss or remediate their risk. Microsoft's guidance is to exclude external users from user-risk and sign-in-risk policies and require MFA of them always instead.",
+      appliesWhen: "User-risk policy whose grant a guest cannot meet (password change, risk remediation or block), with guests or external users in scope",
+      requirement: "An external user's user risk is evaluated in their HOME directory, and nobody here can clear it. Require password change blocks them outright — they cannot reset a password in your directory — and Require risk remediation is documented as not supported for external and guest users. A Block on user risk shuts them out until their own organisation remediates. (A user-risk policy that only asks for MFA is not a lockout — they meet it — and is not reported here.) Microsoft's guidance is to exclude external users from risk-based policies and require MFA of them always instead.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-b2b",
-      remediation: "Exclude the guest and external user types from this policy, and cover them with an always-on MFA policy instead of a risk-based one.",
+      remediation: "Exclude the guest and external user types from this policy, and make sure an always-on MFA policy reaches them instead of a risk-based one.",
+      remediationParts: [
+        ["Exclude", "The guest and external user types (all six, all tenants) from this policy. Nothing else changes for your own users."],
+        ["Make sure", "An MFA policy that is always on reaches those types — for example the guest MFA policy — so they are not left with no requirement at all."],
+        ["Why", "Their risk lives in their home directory. Here nobody can dismiss it, they cannot change a password in your directory, and risk remediation is not supported for guests — so this policy can only ever block them."],
+      ],
       detect: (p) => {
         if (!isActive(p)) return null;
         const risky = (p.conditions?.userRiskLevels || []).length > 0;
         if (!risky) return null;
+        const g = grants(p);
+        const lockout = g.includes("passwordChange") || g.includes("riskRemediation") || g.includes("block");
+        if (!lockout) return null;   // MFA on user risk: a guest meets it
         const sc = extScope(p, CROSS_TENANT_TYPES);
         if (!sc) return null;
         const forcesPassword = grants(p).includes("passwordChange");
@@ -1137,7 +1250,9 @@ const MSLearn = (() => {
           detail: `Policy "${p.displayName}" acts on user risk and its scope reaches ${sc.types.map(extLabel).join(", ")} (via ${sc.via}). `
             + (forcesPassword
               ? "It requires a password change, which an external user cannot perform in this directory — they are blocked, with no way out that your administrators can open."
-              : "User risk is evaluated in the external user's home directory, and your administrators cannot dismiss or remediate it there, so a raised risk on a guest is a condition nobody here can clear.")
+              : g.includes("riskRemediation")
+                ? "It requires risk remediation, which Microsoft documents as not supported for external and guest users — they are blocked while the risk stands."
+                : "It blocks on user risk, and that risk is evaluated in their home directory where your administrators cannot dismiss it — they stay blocked until their own organisation clears it.")
             + partialNote(sc),
           impactedResources: [...sc.types.map(extLabel), "Risky users report does not cover external identities", ...(forcesPassword ? ["Password reset is impossible in the resource directory"] : [])],
         };
@@ -1330,6 +1445,54 @@ const MSLearn = (() => {
         };
       },
     },
+
+    // ── External types no MFA policy reaches (25469) ───────────────────
+    // What the catalog revision of 25468 exposed and no check could see: an
+    // All-users MFA policy that excludes every external type, a guest MFA
+    // policy that names only some of them, and the rest falling between the
+    // two with no MFA requirement anywhere. Every other check looks at ONE
+    // policy; this one asks the tenant-wide question for each type, and
+    // anchors the finding on the policy where the fix belongs.
+    {
+      id: "ext-type-no-mfa",
+      title: "External user types that no MFA policy reaches",
+      appliesWhen: "A guest MFA policy names some external user types, and the types it leaves out are reached by no other MFA policy on All resources",
+      requirement: "Microsoft's starting point for guest and external access is to require MFA of guests and external users always. A type left out of the guest MFA policy, and excluded from the All-users MFA policy as well, signs in with whatever its home organisation did and nothing more — no policy here asks it for MFA. B2B direct connect is a special case: it can only satisfy MFA through inbound MFA trust, so requiring MFA of it without that trust BLOCKS it, and it only arrives at all when B2B direct connect is enabled inbound (it is blocked by default).",
+      severity: "high",
+      docUrl: "https://learn.microsoft.com/security/zero-trust/zero-trust-identity-device-access-policies-guest-access",
+      remediation: "Add the missing types to this policy's guest and external user selection. For B2B direct connect, first decide whether you want those users at all: if yes, turn on inbound MFA trust for the organisations you share channels with, then add the type; if no, keep B2B direct connect blocked inbound in cross-tenant access settings, and this finding goes away.",
+      remediationParts: [
+        ["Change", "On this policy, add the types listed in the assessment to Users → Include → Guest or external users. The Fix button builds that version (state Off, version bumped)."],
+        ["Exclude", "Nothing. These types are not blocked by anything here; they are simply never asked for MFA."],
+        ["B2B direct connect", "Only if it is listed. Direct connect users can meet MFA ONLY through inbound MFA trust — without it, adding them here blocks them from Teams shared channels. Turn on inbound MFA trust for the partners you share channels with first, or keep direct connect blocked inbound (the default) and leave them out."],
+        ["Why here", "This is the policy that already requires MFA of your guests, so it is the one place where adding a type changes nothing else."],
+      ],
+      // the finding carries the types to add: the gap is a tenant-wide
+      // question, and the fix only sees one draft
+      fix: (d, ctx, res) => {
+        const sel = d.conditions?.users?.includeGuestsOrExternalUsers;
+        if (!sel) return null;
+        const add = (res && res.addTypes) || [];
+        if (!add.length) return [];
+        const types = String(sel.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()).filter(Boolean);
+        for (const t of add) if (!types.includes(t)) types.push(t);
+        sel.guestOrExternalUserTypes = types.join(",");
+        return [`Added ${add.map(extLabel).join(", ")} to the guest and external user types this policy requires MFA of`];
+      },
+      detect: (p, ctx) => {
+        if (!isActive(p)) return null;
+        const g = extMfaGap(p, ctx);
+        if (!g.types.length) return null;
+        return {
+          detail: `Policy "${p.displayName}" requires MFA of ${incExt(p).types.map(extLabel).join(", ")}, but not of ${g.types.map(extLabel).join(", ")} — and no other enabled or report-only policy requires MFA of ${g.types.length === 1 ? "that type" : "those types"} on All resources${g.allUsersExcl.length ? ` (${g.allUsersExcl.map((q) => `"${q}"`).join(", ")} require${g.allUsersExcl.length === 1 ? "s" : ""} MFA of All users but exclude${g.allUsersExcl.length === 1 ? "s" : ""} them)` : ""}. They reach your resources asking nothing of them here.`
+            + (g.types.includes(DIRECT_CONNECT) ? ` B2B direct connect is enabled inbound in this tenant, so direct connect users do arrive — and they can only meet MFA through inbound MFA trust.` : "")
+            + (g.dcSkipped ? " B2B direct connect is left out of this finding: it is blocked inbound in cross-tenant access settings, so no direct connect user can arrive today." : "")
+            + " This check cannot see group membership: a guest who is also a member of a group an MFA policy includes is covered by that policy.",
+          impactedResources: g.types.map(extLabel),
+          addTypes: g.types.slice(),
+        };
+      },
+    },
   ];
 
   // ---- run every check against every policy ----
@@ -1347,8 +1510,9 @@ const MSLearn = (() => {
   function run(rawPolicies, strengths, opts = {}) {
     INCLUDE_DISABLED = !!opts.includeDisabled;
     const findings = [];
-    const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, ...(opts.groups || {}) };
-    const noServiceProvider = !!(ctx.partners && ctx.partners.ok && !(ctx.partners.list || []).length);
+    const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, crossTenant: opts.crossTenant || null, raws: rawPolicies, ...(opts.groups || {}) };
+    const spl = spPartners(ctx);
+    const noServiceProvider = !!(spl && !spl.length);
     let suppressed = 0, skippedSp = 0;
     for (const p of rawPolicies) {
       for (const chk of CHECKS) {
@@ -1422,7 +1586,7 @@ const MSLearn = (() => {
     const dc = type === DIRECT_CONNECT;
     switch (control) {
       case "mfa":
-        return dc && trustGapEmpty(ctx, "isMfaAccepted") !== true
+        return dc && guestTrust(ctx, "isMfaAccepted").ok !== true
           ? { v: "trust", why: "B2B direct connect needs inbound MFA trust" } : { v: "ok" };
       case "strength": {
         // Not an Entra identity, no authentication strength.
@@ -1432,16 +1596,16 @@ const MSLearn = (() => {
         if (!asp) return { v: "ok" };
         const combos = asp.allowedCombinations || [];
         if (!combos.length || combos.some((c) => !comboIsHomeOnly(c))) return { v: "ok" };
-        const t = trustGapEmpty(ctx, "isMfaAccepted");
+        const t = guestTrust(ctx, "isMfaAccepted").ok;
         return t === true
           ? { v: "trust", why: `"${asp.displayName || ref.id}" is home-tenant methods only; MFA trust is on, so it depends on the home tenant deploying them` }
           : { v: "blocked", why: `"${asp.displayName || ref.id}" allows only home-tenant methods and inbound MFA trust is ${t === null ? "unverified" : "not configured"}` };
       }
       case "compliantDevice":
-        return trustGapEmpty(ctx, "isCompliantDeviceAccepted") === true
+        return guestTrust(ctx, "isCompliantDeviceAccepted").ok === true
           ? { v: "ok" } : { v: "trust", why: "a device is managed only by its home tenant" };
       case "domainJoinedDevice":
-        return trustGapEmpty(ctx, "isHybridAzureADJoinedDeviceAccepted") === true
+        return guestTrust(ctx, "isHybridAzureADJoinedDeviceAccepted").ok === true
           ? { v: "ok" } : { v: "trust", why: "a device is managed only by its home tenant" };
       case "appProtection": case "passwordChange":
         return { v: "blocked", why: "documented as not supported for external users" };
@@ -1451,18 +1615,10 @@ const MSLearn = (() => {
       default: return { v: "ok" };
     }
   }
-  // true = trust configured with every known partner; false = a gap;
-  // null = the settings were not read, so nothing is known.
-  function trustGapEmpty(ctx, key) {
-    const gap = trustGap(ctx, key);
-    if (gap === null) return null;
-    return gap.length === 0;
-  }
-
   // rawPolicies + the same ctx run() takes. opts.includeDisabled as there.
   function guestMatrix(rawPolicies, strengths, opts = {}) {
     INCLUDE_DISABLED = !!opts.includeDisabled;
-    const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, ...(opts.groups || {}) };
+    const ctx = { strengths: strengths || new Map(), partners: opts.partners || null, crossTenant: opts.crossTenant || null, ...(opts.groups || {}) };
     const cells = new Map();          // `${type}|${control}` -> { v, why, policies:[] }
     const controlsSeen = new Set();
     for (const p of rawPolicies) {
@@ -1485,8 +1641,9 @@ const MSLearn = (() => {
     }
     const controls = MATRIX_CONTROLS.filter((c) => controlsSeen.has(c.key));
     const types = EXT_TYPES.filter((t) => controls.some((c) => cells.has(`${t}|${c.key}`)));
-    const trustRead = !!(ctx.partners && ctx.partners.ok);
-    return { types, controls, cells, trustRead, partners: (ctx.partners && ctx.partners.list) || [] };
+    const v = ctView(ctx);
+    const trustRead = v.defaultOk && v.partnersOk;
+    return { types, controls, cells, trustRead, partners: v.partners };
   }
 
   const V_LABEL = { ok: "ok", trust: "trust", blocked: "blocked", na: "n/a" };
@@ -1528,18 +1685,20 @@ const MSLearn = (() => {
       if (!map.has(f.check.id)) map.set(f.check.id, { check: f.check, policies: [] });
       map.get(f.check.id).policies.push({ id: f.policyId, name: f.policyName, state: f.policyState, result: f.result });
     }
-    const order = { critical: 0, high: 1, medium: 2, info: 3 };
+    // "low" was missing (25469): the swap-for-MFA finding is low, and sorted as
+    // NaN, rendered an unlabelled badge and could not be filtered to.
+    const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
     return [...map.values()].sort((a, b) => order[a.check.severity] - order[b.check.severity] || b.policies.length - a.policies.length);
   }
 
-  const SEV_LABEL = { critical: "Critical", high: "High", medium: "Medium", info: "Info" };
+  const SEV_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
   const sevBadge = (s) => `<span class="sev ${s}">${SEV_LABEL[s] || s}</span>`;
 
   // ---- rendering ----
   function renderSummary(groups, checksTotal, includeDisabled) {
     const nPol = groups.reduce((s, g) => s + g.policies.length, 0);
     const bySev = (s) => groups.filter((g) => g.check.severity === s).length;
-    const chips = ["critical", "high", "medium", "info"].filter((s) => bySev(s))
+    const chips = ["critical", "high", "medium", "low", "info"].filter((s) => bySev(s))
       .map((s) => `<span class="sev ${s}">${bySev(s)} ${SEV_LABEL[s]}</span>`).join(" ");
     const scope = includeDisabled ? "enabled, report-only and Off (disabled)" : "enabled and report-only";
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
@@ -1732,7 +1891,7 @@ const MSLearn = (() => {
         byPolicy.set(f.policyId, entry);
       }
       let ch = null;
-      try { ch = f.check.fix(entry.draft, ctx); } catch (e) { console.warn(`MS Learn fix ${f.check.id} failed:`, e); }
+      try { ch = f.check.fix(entry.draft, ctx, f.result); } catch (e) { console.warn(`MS Learn fix ${f.check.id} failed:`, e); }
       if (ch === null) {
         skipped.push({ policyName: entry.originalName, check: f.check, needs: f.check.needsGroup || null });
         continue;
@@ -1794,6 +1953,7 @@ const MSLearn = (() => {
     [AZURE_VIRTUAL_DESKTOP]: "Azure Virtual Desktop",
     [WINDOWS_365]: "Windows 365",
     [WINDOWS_CLOUD_LOGIN]: "Windows Cloud Login",
+    [AZURE_VM_SIGNIN]: "Azure Windows VM Sign-In",
     [DEFENDER_ATP_XPLAT]: "MicrosoftDefenderATP XPlat",
     [DEFENDER_TVM]: "Defender for Mobile TVM",
   };

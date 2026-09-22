@@ -19552,16 +19552,25 @@ This is a directory write. Nothing else changes.`)) return;
     // a tenant that has no CSP relationship. { ok: false } means "not read" —
     // the checks then run and say the trust settings were not verified, which
     // is different from saying there is no partner.
-    let partners = { ok: false, list: [], error: "not read" };
-    if (isDemo) partners = { ok: true, list: DEMO_DATA.serviceProviders || [] };
-    else partners = await Graph.serviceProviderPartners();
+    // 25469: the DEFAULT inbound trust and EVERY partner, not only service
+    // providers — the default decides for every organisation without a row
+    // of its own, and reading the SP list alone let a tenant with no CSP
+    // look as if every guest's device and MFA claims were trusted.
+    const crossTenant = isDemo
+      ? { ok: true, defaultOk: true, partnersOk: true, defaultTrust: (DEMO_DATA.crossTenantDefault || {}).inboundTrust || {},
+          dcInboundDefault: (DEMO_DATA.crossTenantDefault || {}).dcInbound || "blocked",
+          partners: (DEMO_DATA.serviceProviders || []).map((x) => ({ ...x, isServiceProvider: true })) }
+      : await Graph.crossTenantTrust();
+    const partners = crossTenant.partnersOk
+      ? { ok: true, list: crossTenant.partners.filter((x) => x.isServiceProvider) }
+      : { ok: false, list: [], error: crossTenant.error || "not read" };
 
     ctx.caSettings = await readCaSettings();
     ctx.authMethods = await readAuthMethods();
-    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
+    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant });
     mlGroups = MSLearn.group(findings);
     // The guest matrix reads the same inputs — no extra tenant call.
-    mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
+    mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant });
     // Stamp what this result belongs to: from here a tab switch renders it
     // again instead of re-running the whole pass.
     mlKey = mlReadKey();
@@ -19606,7 +19615,7 @@ This is a directory write. Nothing else changes.`)) return;
       return;
     }
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
-    $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["info", "Info"]]
+    $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
     $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "")

@@ -27,6 +27,10 @@ const pol = (displayName, conditions, grantControls, sessionControls) => ({
 const strengths = (id, name, combos) => new Map([[id, { id, displayName: name, allowedCombinations: combos }]]);
 const PARTNER = (trust) => ({ ok: true, list: [{ tenantId: "t-partner", name: "Fabrikam", inboundTrust: trust || {} }] });
 const NOT_READ = { ok: false, list: [], error: "not read" };
+// 25469: the cross-tenant settings as the app now reads them — the DEFAULT
+// inbound trust plus EVERY partner, not only service providers.
+const CT = (defaultTrust, partners, extra) => ({ crossTenant: { ok: true, defaultOk: true, partnersOk: true,
+  defaultTrust: defaultTrust || {}, dcInboundDefault: "blocked", partners: partners || [], ...(extra || {}) } });
 
 const run = (policies, opts) => M.run(policies, (opts && opts.strengths) || new Map(), opts || {});
 const ids = (findings) => findings.map((f) => f.check.id);
@@ -54,15 +58,29 @@ test("the same strength is NOT reported when one combination works in the resour
   assert.ok(!find(run([p], { strengths: st, partners: PARTNER() }), "guest-auth-strength-unsatisfiable"));
 });
 
-test("with inbound MFA trust configured it is still raised, but as a trust dependency", () => {
+test("with inbound MFA trust on by default it is still raised, but as a dependency on the home tenant", () => {
   const st = strengths("s1", "Phishing-resistant MFA", ["fido2"]);
   const p = pol("CA210",
     { users: { includeUsers: ["All"] } },
     { authenticationStrength: { id: "s1" }, builtInControls: [], operator: "OR" });
-  const f = find(run([p], { strengths: st, partners: PARTNER({ isMfaAccepted: true }) }), "guest-auth-strength-unsatisfiable");
+  const f = find(run([p], { strengths: st, ...CT({ isMfaAccepted: true }) }), "guest-auth-strength-unsatisfiable");
   assert.ok(f);
-  assert.match(f.result.detail, /Inbound MFA trust IS configured/);
-  assert.match(f.result.detail, /confirm those tenants have actually deployed the method/);
+  assert.match(f.result.detail, /on by default/);
+  assert.match(f.result.detail, /their own organisation has deployed/);
+});
+
+test("25469: trusting ONE partner is not trust — the default decides for everybody else", () => {
+  // The bug: only (service-provider) partners were read, so one trusted
+  // partner — or none at all — read as "trust is configured".
+  const st = strengths("s1", "Phishing-resistant MFA", ["fido2"]);
+  const p = pol("CA210", { users: { includeUsers: ["All"] } },
+    { authenticationStrength: { id: "s1" }, builtInControls: [], operator: "OR" });
+  const f = find(run([p], { strengths: st, ...CT({ isMfaAccepted: false }, [{ tenantId: "t1", name: "Fabrikam", inboundTrust: { isMfaAccepted: true } }]) }), "guest-auth-strength-unsatisfiable");
+  assert.match(f.result.detail, /OFF in the default/);
+  assert.match(f.result.detail, /switched on for Fabrikam only/);
+  // partner list alone (default not read) never claims trust
+  const g = find(run([p], { strengths: st, partners: PARTNER({ isMfaAccepted: true }) }), "guest-auth-strength-unsatisfiable");
+  assert.match(g.result.detail, /DEFAULT setting .* was not read/);
 });
 
 test("an unread cross-tenant setting is called unverified, never 'not configured'", () => {
@@ -103,8 +121,24 @@ test("a compliant-device policy is reported only while device trust is missing",
   const p = pol("CA220 Compliant",
     { users: { includeUsers: ["None"], includeGuestsOrExternalUsers: GUESTS("b2bCollaborationGuest") } },
     { builtInControls: ["compliantDevice"], operator: "AND" });
-  assert.ok(find(run([p], { partners: PARTNER() }), "guest-device-grant-needs-trust"));
-  assert.ok(!find(run([p], { partners: PARTNER({ isCompliantDeviceAccepted: true }) }), "guest-device-grant-needs-trust"));
+  assert.ok(find(run([p], CT({ isCompliantDeviceAccepted: false })), "guest-device-grant-needs-trust"));
+  assert.ok(!find(run([p], CT({ isCompliantDeviceAccepted: true })), "guest-device-grant-needs-trust"));
+  // on by default but switched off for one partner: still reported, naming it
+  const off = find(run([p], CT({ isCompliantDeviceAccepted: true }, [{ tenantId: "t9", name: "Contoso", inboundTrust: { isCompliantDeviceAccepted: false } }])), "guest-device-grant-needs-trust");
+  assert.match(off.result.detail, /switched OFF for: Contoso/);
+  // a partner row with inboundTrust null INHERITS the default
+  assert.ok(!find(run([p], CT({ isCompliantDeviceAccepted: true }, [{ tenantId: "t9", name: "Contoso", inboundTrust: null }])), "guest-device-grant-needs-trust"));
+});
+
+test("25469: the reported bug — no CSP partner at all used to silence the device finding", () => {
+  const p = pol("CA205 Compliant", { users: { includeUsers: ["All"] } }, { builtInControls: ["compliantDevice"], operator: "AND" });
+  // the old input shape (service providers only, none configured) no longer
+  // reads as "every partner trusts": the default is unknown, so it reports
+  assert.ok(find(run([p], { partners: { ok: true, list: [] } }), "guest-device-grant-needs-trust"));
+  // the new read: default off, no partners → reported, and the matrix says trust
+  assert.ok(find(run([p], CT({})), "guest-device-grant-needs-trust"));
+  const m = M.guestMatrix([p], new Map(), CT({}));
+  assert.equal(m.cells.get("b2bCollaborationGuest|compliantDevice").v, "trust");
 });
 
 test("a user-risk password change blocks guests, and says why", () => {
@@ -199,7 +233,8 @@ test("a cell carries the policies behind it, and the worst verdict wins", () => 
 test("the matrix says when the trust answers are unverified", () => {
   const p = pol("CA100", { users: { includeUsers: ["All"] } }, { builtInControls: ["compliantDevice"], operator: "AND" });
   assert.equal(matrix([p], { partners: NOT_READ }).trustRead, false);
-  assert.equal(matrix([p], { partners: PARTNER() }).trustRead, true);
+  assert.equal(matrix([p], { partners: PARTNER() }).trustRead, false, "partners alone leave the default unknown");
+  assert.equal(matrix([p], CT({})).trustRead, true);
   const html = M.renderGuestMatrix(matrix([p], { partners: NOT_READ }));
   assert.match(html, /every trust answer here is unverified/);
 });

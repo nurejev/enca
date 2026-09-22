@@ -119,6 +119,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 264,
+      title: "MS Learn checks audit — cross-tenant trust from the default, Windows Cloud Login, approved app read-only, external types without MFA",
+      tools: ["Checks"],
+      builds: [25469],
+      risk: "high",
+      what: "js/graph.js: crossTenantTrust() reads /policies/crossTenantAccessPolicy/default (inboundTrust, b2bDirectConnectInbound) and EVERY partner (isServiceProvider kept as a flag); serviceProviderPartners() is built on it. js/mslearn.js: ctView / inboundTrust / guestTrust / spWithoutTrust / dcInboundOpen replace trustGap — a partner flag that is null inherits the default; guest-auth-strength-unsatisfiable, guest-device-grant-needs-trust and the matrix verdicts use guestTrust; AZURE_VM_SIGNIN 372140e0 split from WINDOWS_CLOUD_LOGIN 270efc09; approved-client-app-retirement rewritten for the 30 June 2026 read-only state (fires on the OR transition too, severity high, remediationParts); token-prot-platform wording for Apple; guest-user-risk-blocked only for password change / risk remediation / block; defender-mobile-exclusion skips legacy-only, auth-flow and non-mobile-platform blocks; severity low in SEV_LABEL, group order and the summary; new check ext-type-no-mfa with extMfaGap / mfaReaches and a fix that adds the missing types; buildFixes passes the finding result to a fix. js/app.js: runMsLearn passes crossTenant; the Low filter chip. js/demo.js: crossTenantDefault.",
+      why: "Mihai asked for T07 and T08 to be rock solid. The trust defect was a false all-clear: a tenant with no CSP partner read as trusting every guest's device and MFA claims. The new check catches the hole the 25468 catalog revision opened (Other external users reached by no MFA policy).",
+      test: [
+        "On a tenant whose DEFAULT inbound trust has compliant devices OFF and no service-provider partner: a policy requiring a compliant device of All users shows Device control in scope of guests without inbound device trust, saying OFF in the default; the matrix cell for B2B collaboration guests × Compliant device reads trust, not ok. On 25468 the same tenant showed neither.",
+        "Turn compliant-device trust ON in the default settings, re-run (⟳ Refresh first): the finding is gone and the cell reads ok. Add a partner with it switched off: the finding returns naming that partner.",
+        "A token-protection policy targeting Windows Cloud Login (270efc09) is not flagged by Token protection: only supported for specific apps.",
+        "A policy with Require approved client app OR Require app protection policy is listed under Policy frozen by the approved client app retirement; its Fix builds a copy with app protection only, state Off.",
+        "On the CloudFellows baseline tenant at catalog 25468: External user types that no MFA policy reaches sits on CA400 and names Other external users; with B2B direct connect blocked inbound it does not name direct connect and says why. The Fix adds otherExternalUser to CA400 only.",
+        "A user-risk policy granting Require MFA and reaching All users does not appear under User-risk policy blocks guests; one granting Require risk remediation does.",
+        "The legacy-auth block does not appear under Defender mobile apps must be excluded; a country block on All users and All resources still does.",
+        "The Low filter chip appears when the swap-for-MFA finding is present and filters to it.",
+      ],
+      files: ["js/graph.js", "js/mslearn.js", "js/app.js", "js/demo.js", "tools/mslearn-guests.test.cjs", "tools/mslearn-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 263,
       title: "Export the baseline from the baseline page, per persona",
       tools: ["Baseline"],

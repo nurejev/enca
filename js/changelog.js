@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25469, date: "2026-09-22", title: "MS Learn checks: trust read from the right place, and a gap no check could see",
+    items: [
+      { kind: "fixed", tool: "Checks", text: "📘 The guest findings and the guest matrix judged inbound cross-tenant trust from your service-provider partners only, never from the DEFAULT setting that decides for every other organisation. In a tenant with no CSP partner, a policy requiring a compliant device of every guest was reported as fine and the matrix said ok. The default and every partner are read now, a partner without its own setting follows the default, and each finding says in words which it is: off by default, on except for named partners, or not read." },
+      { kind: "fixed", tool: "Checks", text: "📘 Token protection: Windows Cloud Login is the single sign-on app for Cloud PCs and session hosts, not Azure Windows VM Sign-In. A correct policy on it is no longer flagged, and the fix no longer writes the wrong app." },
+      { kind: "fixed", tool: "Checks", text: "📘 Require approved client app retired on 30 June 2026 and every policy that includes it is now read-only — still enforced, but impossible to edit. The finding says so, covers the approved-app-OR-app-protection transition policies too, and walks you through rebuilding on app protection: why not edit, what to create, what to check first, then what to switch off." },
+      { kind: "fixed", tool: "Checks", text: "📘 A user-risk policy that only asks guests for MFA is no longer called a lockout — they can meet it. Password change, risk remediation and block are, and each now says why. The Defender mobile exclusion is no longer asked of legacy-auth, device-code or desktop-only blocks. Low findings sort, label and filter like the rest." },
+      { kind: "new", tool: "Checks", text: "📘 External user types that no MFA policy reaches: when the All-users MFA policy excludes guests and the guest MFA policy names only some types, the rest sign in without any MFA requirement here. The finding sits on the guest MFA policy and its fix adds exactly the missing types. B2B direct connect is left out while it is blocked inbound; when it is open, the remediation warns that requiring MFA of it without inbound MFA trust blocks those users." },
+    ],
+  },
+  {
     build: 25468, date: "2026-09-22", title: "Baseline catalog: CA000 and CA400 split the externals",
     items: [
       { kind: "improved", tool: "Baseline", text: "🧱 A third catalog revision from CloudFellows.dev today, two policies. CA000 (Require MFA for all users) now excludes every guest and external user type, and CA400 (Require MFA for guests) swaps the Multifactor authentication STRENGTH for the Require multifactor authentication control — the same swap 📘 MS Learn checks recommends, because the control also reaches guests who sign in with a one-time passcode, Google, a SAML/WS-Fed provider or a Microsoft account, where a strength does not. Both move to v1.0.3. Worth knowing: with CA000 no longer reaching externals, B2B direct connect and other external users are covered by no MFA policy in the catalog — CA400 does not name them. The catalog records what CloudFellows publishes; the note in the catalog says so." },
