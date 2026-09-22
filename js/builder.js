@@ -357,6 +357,15 @@ const Builder = (() => {
     const bad = [], warn = [];
     const u = d.users, a = d.apps, g = d.grant;
     if (!u.includeAll && !u.includeGroups.length && !u.includeUsers.length && !u.includeRoles.length && !(u.includeGuests && u.includeGuests.guestOrExternalUserTypes)) bad.push("Nobody is included — a policy needs at least one user, group, role, guest type, or All users.");
+    // 25478: "only the tenants I choose" with none chosen is not a narrower
+    // clause, it is an invalid one — Graph refuses an enumerated list that is
+    // empty, and silently widening it to all tenants is the one thing
+    // guestClause() promises never to do.
+    for (const [side, c] of [["include", u.includeGuests], ["exclude", u.excludeGuests]]) {
+      const et = c && c.guestOrExternalUserTypes && c.externalTenants;
+      if (et && String(et.membershipKind || "").toLowerCase() === "enumerated" && !(et.members || []).length)
+        bad.push(`The ${side} guests clause is limited to chosen tenants, but none is chosen — pick at least one tenant, or choose All external tenants.`);
+    }
     if (a.target === "selected" && !a.includeApplications.length) bad.push("No target resource is selected — pick apps, or All resources.");
     if (a.target === "actions" && !a.userActions.length) bad.push("No user action is selected.");
     if (a.target === "contexts" && !a.authContexts.length) bad.push("No authentication context is selected.");

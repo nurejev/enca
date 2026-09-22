@@ -17003,6 +17003,53 @@ This is a directory write. Nothing else changes.`)) return;
   // with hints and navigation; the policy card (✎ Edit, 25448) lays the six
   // out at once. `hints` and `nav` are empty strings here; only steps 1 and 7
   // (name, state and go) belong to the builder alone.
+  // ---- which external tenants a guest clause reaches (25478) --------------
+  // Mihai: "at service provider no option to only add one or more service
+  // providers". Graph carries ONE tenant list per clause (externalTenants:
+  // all, or enumerated with members), so the choice applies to every type
+  // ticked in that clause — the panel says so rather than letting it look
+  // per-type. The cross-tenant partners the tenant has configured are offered
+  // as one-click picks, service providers marked; any other tenant ID can be
+  // typed in.
+  let pbPartners = null, pbPartnersLoading = false;
+  function pbLoadPartners() {
+    if (pbPartners || pbPartnersLoading) return;
+    pbPartnersLoading = true;
+    (isDemo ? Promise.resolve({ partnersOk: true, partners: (DEMO_DATA.serviceProviders || []).map((x) => ({ ...x, isServiceProvider: true })) }) : Graph.crossTenantTrust())
+      .then((ct) => { pbPartners = ct.partnersOk ? ct.partners : []; })
+      .catch(() => { pbPartners = []; })
+      .finally(() => { pbPartnersLoading = false; if (pbDraft) pbRepaint(); });
+  }
+  const TENANT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function pbTenantsHtml(side, obj) {
+    if (!obj || !obj.guestOrExternalUserTypes) return `<p class="mini muted" style="margin:4px 0 0">Tick a type to choose which external tenants it covers. A clause with no type is not written at all.</p>`;
+    pbLoadPartners();
+    const et = obj.externalTenants || {};
+    const some = String(et.membershipKind || "all").toLowerCase() === "enumerated";
+    const members = et.members || [];
+    const nameOf = (id) => { const x = (pbPartners || []).find((p) => String(p.tenantId).toLowerCase() === String(id).toLowerCase()); return x ? `${x.name}${x.isServiceProvider ? " · service provider" : ""}` : id; };
+    const types = obj.guestOrExternalUserTypes.split(",").map((x) => x.trim()).filter(Boolean);
+    const picks = (pbPartners || []).filter((p) => !members.some((m) => String(m).toLowerCase() === String(p.tenantId).toLowerCase()))
+      .sort((a, b) => (b.isServiceProvider ? 1 : 0) - (a.isServiceProvider ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
+    return `<div class="pb-sub" style="margin-top:8px"><b>External tenants</b>
+      <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbExt-${side}" data-pbext="${side}" value="all"${some ? "" : " checked"}> All external tenants</label>
+        <label class="pb-ck"><input type="radio" name="pbExt-${side}" data-pbext="${side}" value="some"${some ? " checked" : ""}> Only the tenants I choose</label></div>
+      ${some ? `<div class="pb-chips">${members.map((m) => `<span class="fchip pb-chip" title="${esc(m)}">${esc(nameOf(m))} <button type="button" class="pb-x" data-pbtenantrm="${side}" data-id="${esc(m)}" aria-label="Remove">✕</button></span>`).join("") || '<span class="mini" style="color:var(--off)">No tenant chosen yet — pick at least one, or choose All external tenants.</span>'}</div>
+        ${picks.length ? `<div class="pb-row" style="margin-top:6px">${picks.map((p) => `<button type="button" class="btn sm" data-pbtenantadd="${side}" data-id="${esc(p.tenantId)}" title="${esc(p.tenantId)}">＋ ${esc(p.name)}${p.isServiceProvider ? " 🤝" : ""}</button>`).join("")}</div>` : (pbPartners === null ? '<p class="mini muted" style="margin:4px 0 0">Reading the partners in cross-tenant access settings…</p>' : "")}
+        <div class="pb-row" style="margin-top:6px"><input type="text" class="txt" data-pbtenantinput="${side}" placeholder="Tenant ID of another organisation" style="flex:1;min-width:260px"><button type="button" class="btn sm" data-pbtenanttyped="${side}">＋ Add</button></div>` : ""}
+      <p class="mini muted" style="margin:4px 0 0">${some ? `Applies to every type ticked here (${esc(types.join(", "))}) — Entra keeps one tenant list per clause.${types.length > 1 ? " If only Service provider users should be limited to named partners while the other types keep every tenant, they cannot share this side of the policy: untick the other types here and cover them in a separate policy." : ""} 🤝 marks a partner flagged as a service provider (CSP / GDAP) in cross-tenant access settings.` : "Every external tenant, for every type ticked here."}</p></div>`;
+  }
+  function pbSetTenants(side, fn) {
+    const key = side === "include" ? "includeGuests" : "excludeGuests";
+    const c = pbDraft.users[key]; if (!c) return;
+    const et = c.externalTenants || {};
+    const cur = String(et.membershipKind || "all").toLowerCase() === "enumerated" ? (et.members || []).slice() : [];
+    const next = fn(cur);
+    c.externalTenants = next === null
+      ? { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" }
+      : { "@odata.type": "#microsoft.graph.conditionalAccessEnumeratedExternalTenants", membershipKind: "enumerated", members: [...new Set(next.map((x) => String(x).toLowerCase()))] };
+  }
+
   function pbSectHtml(step, d) {
     const cat = pbCat(), nm = pbNameFn(), ctx = pbCtx(), P = Builder.personaOf(d.persona, cat);
     const hints = "", nav = () => "";
@@ -17037,7 +17084,7 @@ This is a directory write. Nothing else changes.`)) return;
         const guest = (side, obj) => pbDet(`guests:${side}`,
           `${side === "include" ? "Include" : "Exclude"} guests and external users ${obj && obj.guestOrExternalUserTypes ? `<span class="tag">${esc(obj.guestOrExternalUserTypes.split(",").length)} type${obj.guestOrExternalUserTypes.split(",").length === 1 ? "" : "s"}</span>` : ""}`,
           `<div class="pb-row">${["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "internalGuest", "serviceProvider", "otherExternalUser"].map((t) => pbCk(`users.${side}Guests.types`, t, obj && String(obj.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()).includes(t), esc(t))).join("")}</div>
-          <p class="mini muted" style="margin:4px 0 0">All external tenants. A clause with no type is not written at all.</p>`);
+          ${pbTenantsHtml(side, obj)}`);
         return `<h4 class="wi-h">Include</h4>
           <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="all"${u.includeAll ? " checked" : ""}> All users</label><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="some"${!u.includeAll ? " checked" : ""}> Selected users, groups and roles</label></div>
           ${u.includeAll ? "" : `<div class="pb-sub"><b>Groups</b> ${P && P.group ? `<button type="button" class="btn sm" data-pbpersonagroup="${esc(P.group)}" title="The baseline's persona group for ${esc(P.label)}">＋ ${esc(P.group)}</button>` : ""}${pbChips("users.includeGroups", u.includeGroups, nm)}${pbPick("groups", "users.includeGroups", "Search groups by name, or paste an object ID…")}</div>
@@ -17177,7 +17224,11 @@ This is a directory write. Nothing else changes.`)) return;
       const side = path.startsWith("users.include") ? "includeGuests" : "excludeGuests";
       const cur = pbDraft.users[side] && pbDraft.users[side].guestOrExternalUserTypes ? pbDraft.users[side].guestOrExternalUserTypes.split(",").map((x) => x.trim()).filter(Boolean) : [];
       const next = on ? [...new Set([...cur, val])] : cur.filter((x) => x !== val);
-      pbDraft.users[side] = next.length ? { guestOrExternalUserTypes: next.join(","), externalTenants: { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } } : null;
+      // 25478: keep the tenant choice. Every tick used to rewrite the clause
+      // with ALL external tenants, so a tenant list picked a moment earlier
+      // vanished the next time a type was ticked.
+      const prev = pbDraft.users[side] && pbDraft.users[side].externalTenants;
+      pbDraft.users[side] = next.length ? { guestOrExternalUserTypes: next.join(","), externalTenants: prev || { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } } : null;
       return;
     }
     const list = pbGet(path) || []; pbSet(path, on ? [...new Set([...list, val])] : list.filter((x) => x !== val));
@@ -17194,6 +17245,17 @@ This is a directory write. Nothing else changes.`)) return;
     const pg = e.target.closest("[data-pbpersonagroup]"); if (pg) { pbAddPersonaGroup(pg.dataset.pbpersonagroup); return; }
     const pick = e.target.closest("[data-pbpickid]"); if (pick) { const box = pick.closest(".pb-pick"); pbDraft.names[pick.dataset.pbpickid] = pick.dataset.name; pbToggle(box.dataset.path, pick.dataset.pbpickid, true); pbRepaint(); return; }
     const act = e.target.closest("[data-pbact]"); if (act && act.dataset.pbact === "tou") { act.disabled = true; pbLoadTou().then(renderBuilder); return; }
+    const ta = e.target.closest("[data-pbtenantadd]"); if (ta) { pbSetTenants(ta.dataset.pbtenantadd, (cur) => [...cur, ta.dataset.id]); pbRepaint(); return; }
+    const tr = e.target.closest("[data-pbtenantrm]"); if (tr) { pbSetTenants(tr.dataset.pbtenantrm, (cur) => cur.filter((x) => x.toLowerCase() !== tr.dataset.id.toLowerCase())); pbRepaint(); return; }
+    const tt = e.target.closest("[data-pbtenanttyped]"); if (tt) {
+      const side = tt.dataset.pbtenanttyped;
+      const inp = tt.parentElement.querySelector(`[data-pbtenantinput="${side}"]`);
+      const ids = String(inp && inp.value || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const bad = ids.filter((x) => !TENANT_RE.test(x));
+      if (!ids.length) return;
+      if (bad.length) { toast(`Not a tenant ID: <span>${esc(bad.join(", "))}</span> — a tenant ID is a GUID`); return; }
+      pbSetTenants(side, (cur) => [...cur, ...ids]); pbRepaint(); return;
+    }
     if (e.target.closest("#pbGoStep")) { pbWrite(); return; }
     const tab = e.target.closest("a[data-tabgo]"); if (tab) { e.preventDefault(); }
   };
@@ -17201,6 +17263,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (!pbDraft) return;
     const t = e.target;
     if (t.dataset.pbl) { pbToggle(t.dataset.pbl, t.value, t.checked); pbRepaint(); return; }
+    if (t.dataset.pbext) { pbSetTenants(t.dataset.pbext, (cur) => t.value === "all" ? null : cur); pbRepaint(); return; }
     if (t.dataset.pbflag) {
       const f = t.dataset.pbflag;
       if (f === "includeAll") pbDraft.users.includeAll = t.value === "all";
@@ -17400,8 +17463,24 @@ This is a directory write. Nothing else changes.`)) return;
       L.finish();
       toast(`<span>${esc(Builder.nameOf(d, cat))}</span> ${d.mode === "edit" ? "saved" : "created"}${isDemo ? " (simulated)" : ""}`);
       if (pbSurface === "card") { const id = createdId || d.sourceId; endCardEdit(false); closeDetail(); if (id && policies.some((x) => x.id === id)) showDetail(id); }
-      else if (createdId && !isDemo) { pbDraft = null; pbBefore = null; idFilter = new Set([createdId]); stateFilter = "all"; $("toolPolicies").click(); refreshViews(); }
-      else if (isDemo) { pbDraft = null; pbBefore = null; $("toolPolicies").click(); }
+      else {
+        // 25478, Mihai: "after save the screen returns to the one policy
+        // filtered — I have to clear the filter, filter the persona again,
+        // go to the policy to edit". Every save used to replace the list
+        // with an id filter of ONE policy and reset the state filter. Now
+        // the list comes back exactly as it was left — persona, state,
+        // search — with the saved policy open in the inspector. Only when
+        // those filters would HIDE the policy (a new one outside the persona
+        // you had picked) is it narrowed to that one, and the chip says so.
+        const id = createdId || d.sourceId;
+        pbDraft = null; pbBefore = null;
+        $("toolPolicies").click();
+        if (id && policies.some((x) => x.id === id)) {
+          if (!visible().some((x) => x.id === id)) idFilter = new Set([id]);
+          refreshViews();
+          showDetail(id);
+        } else refreshViews();
+      }
     } catch (e) {
       console.error("builder write:", e);
       L.fail(i, e.message || String(e)); L.finish();

@@ -334,3 +334,14 @@ test("a block policy is not caught by the rule", () => {
   d.grant.controls = ["mfa"];
   assert.ok(!B.validate(d).bad.some((m) => /cannot be used with/i.test(m)));
 });
+
+// ---- 25478: guest clauses limited to chosen tenants ----
+test("an enumerated guest clause is written with its tenants, and an empty one is refused", () => {
+  const d = Builder.fromRaw(raws.find((r) => r.id === "p300"));
+  d.users.excludeGuests = { guestOrExternalUserTypes: "serviceProvider", externalTenants: { membershipKind: "enumerated", members: ["7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009"] } };
+  const et = plain(Builder.toRaw(d)).conditions.users.excludeGuestsOrExternalUsers.externalTenants;
+  assert.equal(et["@odata.type"], "#microsoft.graph.conditionalAccessEnumeratedExternalTenants");
+  eq(et.members, ["7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009"]);
+  d.users.excludeGuests.externalTenants.members = [];
+  assert.ok(Builder.validate(d).bad.some((x) => /none is chosen/.test(x)));
+});

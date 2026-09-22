@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25478, date: "2026-09-22", title: "Editing a policy: back where you were, and guest exclusions for chosen tenants",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "✎ Saving a policy from the builder used to drop you on a list of just that one policy, with your persona filter gone — every edit meant clearing the filter, picking the persona again and finding the next policy. The list now comes back exactly as you left it, with the saved policy open beside it." },
+      { kind: "improved", tool: "Policy building blocks", text: "🏗 Guests and external users can be included or excluded for chosen tenants only — for example Service provider users from your CSP partner alone. The partners in your cross-tenant access settings are one click (service providers marked), any other tenant ID can be typed, and the panel says that the tenant choice covers every type ticked in that clause. Ticking another type no longer resets the choice to all tenants." },
+    ],
+  },
+  {
     build: 25477, date: "2026-09-22", title: "CA groups: merge groups that share a name",
     items: [
       { kind: "new", tool: "CA groups", text: "👥 🔀 Duplicate names: when two groups carry the same display name, pick the one to keep and the tool moves the other's members into it, points every Conditional Access policy at it — includes and exclusions alike — and then renames the other aside (or deletes it, if you ask). Nothing is removed until every member and every policy has moved. It refuses, and says why, when the kept group is dynamic and would lose people, or when a policy includes one of the two and excludes the other." },
