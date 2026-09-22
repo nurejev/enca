@@ -16725,6 +16725,16 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- rendering ----------
   const pbOpt = (list, val, label) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(val) ? " selected" : ""}>${esc(label ? label(l) : l)}</option>`).join("");
+  // A <details> the person opened must still be open after a repaint. Every
+  // tick inside one goes through pbOnChange → pbRepaint, which rewrites the
+  // whole step from the draft — and markup written without `open` comes back
+  // CLOSED, so ticking one guest type folded the panel and the second type
+  // meant opening it again (Mihai, 25457). The open set is what the person
+  // did, which is not in the draft and must not be: it is not part of the
+  // policy. Keyed by hand so a key survives the step being re-ordered, and
+  // kept for the session — a disclosure somebody likes open stays open.
+  const pbDets = new Set();
+  const pbDet = (key, summary, body) => `<details class="pb-det" data-det="${esc(key)}"${pbDets.has(key) ? " open" : ""}><summary>${summary}</summary>${body}</details>`;
   const pbCk = (path, val, checked, label, extra) => `<label class="pb-ck"><input type="checkbox" data-pbl="${esc(path)}" value="${esc(val)}"${checked ? " checked" : ""}${extra || ""}> ${label}</label>`;
   const pbChips = (path, ids, nm) => ids.length ? `<div class="pb-chips">${ids.map((id) => `<span class="fchip pb-chip" title="${esc(id)}">${esc(nm(id))} <button type="button" class="pb-x" data-pbrm="${esc(path)}" data-id="${esc(id)}" aria-label="Remove">✕</button></span>`).join("")}</div>` : `<span class="mini muted">none</span>`;
   // a search box whose results are chips to click; kind decides the read
@@ -16765,9 +16775,10 @@ This is a directory write. Nothing else changes.`)) return;
       }
       case 2: {
         const u = d.users, G = (g) => g ? `<code>${esc(g)}</code>` : "";
-        const guest = (side, obj) => `<details class="pb-det"><summary>${side === "include" ? "Include" : "Exclude"} guests and external users ${obj && obj.guestOrExternalUserTypes ? `<span class="tag">${esc(obj.guestOrExternalUserTypes.split(",").length)} type${obj.guestOrExternalUserTypes.split(",").length === 1 ? "" : "s"}</span>` : ""}</summary>
-          <div class="pb-row">${["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "internalGuest", "serviceProvider", "otherExternalUser"].map((t) => pbCk(`users.${side}Guests.types`, t, obj && String(obj.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()).includes(t), esc(t))).join("")}</div>
-          <p class="mini muted" style="margin:4px 0 0">All external tenants. A clause with no type is not written at all.</p></details>`;
+        const guest = (side, obj) => pbDet(`guests:${side}`,
+          `${side === "include" ? "Include" : "Exclude"} guests and external users ${obj && obj.guestOrExternalUserTypes ? `<span class="tag">${esc(obj.guestOrExternalUserTypes.split(",").length)} type${obj.guestOrExternalUserTypes.split(",").length === 1 ? "" : "s"}</span>` : ""}`,
+          `<div class="pb-row">${["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "internalGuest", "serviceProvider", "otherExternalUser"].map((t) => pbCk(`users.${side}Guests.types`, t, obj && String(obj.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()).includes(t), esc(t))).join("")}</div>
+          <p class="mini muted" style="margin:4px 0 0">All external tenants. A clause with no type is not written at all.</p>`);
         return `<h4 class="wi-h">Include</h4>
           <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="all"${u.includeAll ? " checked" : ""}> All users</label><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="some"${!u.includeAll ? " checked" : ""}> Selected users, groups and roles</label></div>
           ${u.includeAll ? "" : `<div class="pb-sub"><b>Groups</b> ${P && P.group ? `<button type="button" class="btn sm" data-pbpersonagroup="${esc(P.group)}" title="The baseline's persona group for ${esc(P.label)}">＋ ${esc(P.group)}</button>` : ""}${pbChips("users.includeGroups", u.includeGroups, nm)}${pbPick("groups", "users.includeGroups", "Search groups by name, or paste an object ID…")}</div>
@@ -16800,11 +16811,11 @@ This is a directory write. Nothing else changes.`)) return;
         return `<h4 class="wi-h">🌐 Locations <span class="mini muted">— the tenant's named locations, the 🌐 Locations tab's own list</span></h4>
           <div class="pb-row">${[["any", "Any location"], ["selected", "Selected locations"], ["trusted", "All trusted locations only"]].map(([v, l]) => `<label class="pb-ck"><input type="radio" name="pbLoc" data-pb="cond.locations.mode" value="${v}"${L.mode === v ? " checked" : ""}> ${l}</label>`).join("")}<span class="mini muted">·</span><label class="pb-ck"><input type="checkbox" data-pbflag="excludeTrusted"${L.excludeTrusted ? " checked" : ""}> Exclude all trusted locations</label></div>
           ${L.mode === "selected" ? `<div class="pb-blocks">${(pbLocs || []).map((l) => locBlock(l, "cond.locations.include", L.include.includes(l.id))).join("") || '<span class="mini muted">No named locations yet.</span>'}</div>` : ""}
-          <details class="pb-det"><summary>Exclude selected locations ${L.exclude.length ? `<span class="tag">${L.exclude.length}</span>` : ""}</summary><div class="pb-blocks">${(pbLocs || []).map((l) => locBlock(l, "cond.locations.exclude", L.exclude.includes(l.id))).join("")}</div></details>
+          ${pbDet("loc:exclude", `Exclude selected locations ${L.exclude.length ? `<span class="tag">${L.exclude.length}</span>` : ""}`, `<div class="pb-blocks">${(pbLocs || []).map((l) => locBlock(l, "cond.locations.exclude", L.exclude.includes(l.id))).join("")}</div>`)}
           <div class="pb-row"><a href="#" class="mini" data-tabgo="blocks:locations">＋ New location — opens the 🌐 Locations tab; the draft is kept</a></div>
           <h4 class="wi-h" style="margin-top:16px">💻 Device platforms</h4>
           <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbPl" data-pb="cond.platforms.mode" value="any"${c.platforms.mode === "any" ? " checked" : ""}> Any platform</label><label class="pb-ck"><input type="radio" name="pbPl" data-pb="cond.platforms.mode" value="selected"${c.platforms.mode === "selected" ? " checked" : ""}> Selected platforms</label></div>
-          ${c.platforms.mode === "selected" ? `<div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.include", v, c.platforms.include.includes(v), esc(l))).join("")}</div><details class="pb-det"><summary>Exclude platforms ${c.platforms.exclude.length ? `<span class="tag">${c.platforms.exclude.length}</span>` : ""}</summary><div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.exclude", v, c.platforms.exclude.includes(v), esc(l))).join("")}</div></details>` : ""}
+          ${c.platforms.mode === "selected" ? `<div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.include", v, c.platforms.include.includes(v), esc(l))).join("")}</div>${pbDet("plat:exclude", `Exclude platforms ${c.platforms.exclude.length ? `<span class="tag">${c.platforms.exclude.length}</span>` : ""}`, `<div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.exclude", v, c.platforms.exclude.includes(v), esc(l))).join("")}</div>`)}` : ""}
           <h4 class="wi-h" style="margin-top:16px">📲 Client apps</h4>
           <div class="pb-row">${Builder.CLIENT_APPS.map(([v, l]) => pbCk("cond.clientApps", v, c.clientApps.includes(v), esc(l))).join("")}</div>
           <h4 class="wi-h" style="margin-top:16px">🎲 Risk, flows and device filter</h4>
@@ -16971,6 +16982,17 @@ This is a directory write. Nothing else changes.`)) return;
   // one set of handlers, two surfaces: the builder's body and the policy card
   let pbSurface = "builder";
   function pbRepaint() { if (pbSurface === "card") renderCardEdit(); else renderBuilder(); }
+  // `toggle` does not bubble, so this listens in the CAPTURE phase — which
+  // catches the mouse, the keyboard and a programmatic open alike, where a
+  // click handler on the summary would have to guess the state it is about to
+  // become. Both surfaces: the builder's body and the policy card's edit.
+  const pbDetToggle = (e) => {
+    const d = e.target;
+    if (!d || !d.classList || !d.classList.contains("pb-det") || !d.dataset.det) return;
+    if (d.open) pbDets.add(d.dataset.det); else pbDets.delete(d.dataset.det);
+  };
+  $("pbBody").addEventListener("toggle", pbDetToggle, true);
+  $("detailBody").addEventListener("toggle", pbDetToggle, true);
   $("pbBody").addEventListener("click", pbOnClick); $("pbBody").addEventListener("change", pbOnChange); $("pbBody").addEventListener("input", pbOnInput);
   $("detailBody").addEventListener("click", (e) => { if (pbSurface === "card") pbOnClick(e); });
   $("detailBody").addEventListener("change", (e) => { if (pbSurface === "card") pbOnChange(e); });

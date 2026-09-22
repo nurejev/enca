@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25457, date: "2026-09-22", title: "Builder: a fold you opened stays open",
+    items: [
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 Ticking one guest or external user type closed the panel it was in, so selecting a second meant opening it again — and the same for the third, the fourth and the rest. Every tick redraws the step from the draft, and the fold was redrawn shut each time. The builder now remembers which folds you have open and reopens them, so six types are six clicks. It was four panels, not one: include guests, exclude guests, exclude selected locations and exclude platforms, each remembered on its own, so the include and exclude sides no longer open and close together. Closing a fold sticks in the same way. Same fix on the policy card's own edit, which uses the same sections." },
+    ],
+  },
+  {
     build: 25456, date: "2026-09-22", title: "Editing a policy is edit — and it is where the other actions are",
     items: [
       { kind: "fixed", tool: "Policies", text: "✎ Edit was in the card's top strip beside Close, the one strip on the card that carries no verbs, while What-if flow, Documentation, Backup, Assign, Policy state and Clone in builder all sat in the row at the bottom — so the card's own write verb read as chrome and got missed, and the only thing that looked like a builder action said Clone. It is the FIRST button of the action row now, reading Edit this policy, and marked as the main verb because on a policy card that is what you came to do. The edit itself is unchanged." },
