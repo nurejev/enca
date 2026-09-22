@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25467, date: "2026-09-22", title: "Update the catalog: the cards laid out properly",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "🧱 In Update the catalog, each policy's card ended in a jumble: the Take into the catalog tick, the box for a hold reason and the Hold button were stacked with no spacing, the reason box was cut short so its hint read only a few words, it looked like a button rather than somewhere to type, and when you clicked into it its highlight ran across the label above. They are one row now — the tick, or, a proper text box that takes the rest of the width, then Hold — and they wrap cleanly on a narrow window. Long policy and group names break inside the card instead of pushing it wider than the page." },
+    ],
+  },
+  {
     build: 25466, date: "2026-09-22", title: "The policy you opened stays marked in the list",
     items: [
       { kind: "fixed", tool: "Policies", text: "🗂 Picking a policy in the list opened it on the right and left nothing on the left to say which row that was — so after a scroll, or a tick in a checkbox, you had lost your place. The open policy's row is now marked with an accent bar and a tint, and keeps that mark while you work: ticking a checkbox, changing a filter, searching or switching a state chip all redraw the list, and the mark comes back each time. Picking another row moves it; Back to results clears it." },

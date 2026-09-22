@@ -9290,22 +9290,23 @@ This is a directory write. Nothing else changes.`)) return;
     const r = blReview;
     const row = (x, kind) => {
       const num = `CA${String(x.num).padStart(3, "0")}`;
-      const diff = (x.diff || []).map((d) => `<li><b>${esc(d.label)}</b><div class="mini muted">catalog: ${esc(d.cat)}</div><div class="mini">tenant: ${esc(d.ten)}</div></li>`).join("");
+      const diff = (x.diff || []).map((d) => `<li><b>${esc(d.label)}</b><div class="mini muted bl-diffv">catalog: ${esc(d.cat)}</div><div class="mini bl-diffv">tenant: ${esc(d.ten)}</div></li>`).join("");
       const on = blTake.has(x.num);
       return `<div class="list-card" style="margin:8px 0"><div class="fx-body">
-        <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+        <div class="bl-cardhead">
           <span class="tag ${kind === "added" ? "grant" : kind === "held" ? "" : "block"}">${kind === "added" ? "NEW HERE" : kind === "held" ? "HELD" : "CHANGED"}</span>
-          <b>${esc(num)}</b> <span class="mini">${esc((x.ten && x.ten.name) || (x.cat && x.cat.name) || "")}</span>
+          <b>${esc(num)}</b> <span class="mini bl-cardname">${esc((x.ten && x.ten.name) || (x.cat && x.cat.name) || "")}</span>
           ${x.reopened ? '<span class="tag new" title="It was held, but the difference is not the one that was held">REOPENED</span>' : ""}
           ${kind === "changed" ? (x.kind === "renamed" ? '<span class="tag" title="Only the name differs from the catalog; the definition is the same">renamed, same version</span>' : x.kind === "edited" && x.status === "ahead" ? '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows; the chip counts it as newer">same version — edited in place</span>' : x.status === "ahead" ? (x.diff.length === 1 && x.diff[0].field === "name" ? '<span class="tag" title="Only the version in the name moved; the definition is the catalog\'s — taking it updates the entry\'s name and version">newer version only</span>' : '<span class="tag" title="The version in the policy name is newer than the catalog\'s — the chip counts this one">newer version in name</span>') : x.status === "outdated" ? '<span class="tag" title="The version in the name is OLDER than the catalog\'s, yet the definition differs">older version in name</span>' : x.status === "ok" ? (x.diff.some((d) => d.field === "name") ? '<span class="tag" title="Renamed without a version bump">renamed, same version</span>' : '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows">same version — edited in place</span>') : "") : ""}
         </div>
         ${diff ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0 0">${diff}</ul>` : ""}
         ${x.hold ? `<p class="mini" style="margin:8px 0 0">Held: <i>${esc(x.hold.reason)}</i>${x.hold.at ? ` · ${esc(String(x.hold.at).slice(0, 10))}` : ""}</p>` : ""}
-        <div class="row" style="justify-content:flex-start;margin-top:10px;gap:8px;flex-wrap:wrap">
+        <div class="bl-cardact">
           ${kind === "held"
             ? `<button class="btn sm" data-blunhold="${x.num}">Reopen this decision</button>`
-            : `<label class="chk" style="margin:0"><input type="checkbox" data-bltake="${x.num}" ${on ? "checked" : ""}> Take into the catalog</label>
-               <input class="btn" style="flex:1;min-width:220px;cursor:text" data-blwhy="${x.num}" placeholder="…or hold it, and say why — the reason is kept with the catalog">
+            : `<label class="chk"><input type="checkbox" data-bltake="${x.num}" ${on ? "checked" : ""}> Take into the catalog</label>
+               <span class="bl-cardor mini muted">or</span>
+               <input type="text" class="bl-why" data-blwhy="${x.num}" aria-label="Reason for holding CA${String(x.num).padStart(3, "0")}" placeholder="hold it, and say why — the reason is kept with the catalog">
                <button class="btn sm" data-blhold="${x.num}">Hold</button>`}
         </div>
       </div></div>`;

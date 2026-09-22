@@ -1436,6 +1436,28 @@ button.bl-chip.active{box-shadow:0 0 0 2px currentColor inset}
 .fx-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--soft);border-bottom:1px solid var(--border);flex-wrap:wrap}
 .fx-new{font-weight:700;font-size:14px;color:var(--green);overflow-wrap:anywhere}
 .fx-body{padding:14px 18px}
+/* 🧱 Update the catalog — one card per policy (25467, Mihai: "t10 fix the box
+   layout"). Three faults, one card:
+   · the action row carried class="row", which has a rule ONLY inside .modal —
+     so out here it had justify-content, gap and flex-wrap inline and no
+     display:flex for any of it to apply to; the label, the text box and the
+     button fell into plain flow and collided;
+   · the reason field was an <input class="btn"> — a text box wearing a
+     button's padding and weight, so it read as a second button;
+   · the policy name in the header is a flex item, and a flex item's default
+     min-width is its longest unbreakable run: a CAnnn-…-v1.0.3 name held the
+     card wider than its column, and .list-card's overflow:hidden cut off the
+     right edge — the name, and every catalog/tenant line under it. */
+.bl-cardhead{display:flex;gap:6px 10px;align-items:baseline;flex-wrap:wrap}
+.bl-cardname{min-width:0;overflow-wrap:anywhere}
+.bl-diffv{overflow-wrap:anywhere}
+.bl-cardact{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin-top:12px}
+.bl-cardact .chk{flex:none;margin:0}
+.bl-cardor{flex:none}
+.bl-why{flex:1 1 240px;min-width:0;border:1px solid var(--border);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px}
+.bl-why::placeholder{color:var(--muted)}
+.bl-why:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 22%,transparent)}
 .fx-body h5{font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
 .fx-body h5 + ul{margin-bottom:12px}
 
