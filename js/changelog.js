@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25459, date: "2026-09-22", title: "A strength that is already Require MFA needs a swap, not a second policy",
+    items: [
+      { kind: "fixed", tool: "MS Learn checks", text: "📘 The finding that an authentication strength does not reach every external identity gave one answer for every strength — keep it, and add a second policy with the plain control. That is right for a strength that asks MORE than Require multifactor authentication, and wrong for one that does not. Microsoft's own table of the built-in strengths describes the Multifactor authentication strength as the same set of combinations that satisfies the Require multifactor authentication setting, and says the two controls cannot be used in one policy precisely because they are equivalent. So on a policy using that strength the second policy is work for nothing: swapping the control on the policy you already have closes the gap and takes nothing away from anyone. The tool now tells the two cases apart and gives each its own answer — a swap, or a companion — by reading the strength's own allowed combinations rather than its name. If the strengths could not be read it says nothing about them rather than guessing." },
+    ],
+  },
+  {
     build: 25458, date: "2026-09-22", title: "MS Learn: what to exclude, what to create — and the policy built for you",
     items: [
       { kind: "improved", tool: "MS Learn checks", text: "📘 The finding that an authentication strength does not reach every external identity told you to keep the policy for Entra-authenticated externals and add a second one for the rest. That reads as an instruction to carve those guests out of the policy, and there is no way to write it: no Conditional Access condition names the identity provider a guest signed in with, and the six external user types do not tell an Entra-authenticated guest apart from a Google-federated one. The remediation now gives two answers instead of one sentence. EXCLUDE: nothing — leave the policy alone; the strength is not applied to those identities, it does not block them. CREATE: one policy beside it, the same scope, with the plain Require multifactor authentication control. And WHY TWO: Microsoft does not allow that control and an authentication strength in the same policy, and every policy that applies must be satisfied, so both reach every guest." },

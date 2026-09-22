@@ -263,6 +263,29 @@ const MSLearn = (() => {
   // it is. allowedCombinations are compound ("fido2", "password,sms").
   const comboMethods = (c) => String(c || "").split(",").map((x) => x.trim()).filter(Boolean);
   const comboIsHomeOnly = (c) => comboMethods(c).some((m) => HOME_ONLY_METHODS[m]);
+  // IS THIS STRENGTH JUST "REQUIRE MFA" WEARING A DIFFERENT HAT?
+  // Microsoft's built-in strengths table says of the MFA strength: "The same
+  // set of combinations that can be used to satisfy the Require multifactor
+  // authentication setting", and the Limitations section says the two cannot
+  // be used in one policy BECAUSE they are equivalent. That equivalence is
+  // what decides the advice: where the strength already asks no more than the
+  // grant control does, swapping to the grant control costs nothing and
+  // reaches the externals the strength never applies to — one policy, not two.
+  //
+  // The signature is the rows Microsoft lists under MFA strength and under no
+  // other built-in: a password plus a second factor, the federated
+  // combinations, a Temporary Access Pass. Passwordless MFA and
+  // phishing-resistant MFA have none of them, and a custom strength that
+  // admits a password is, by the same table, no stronger than Require MFA.
+  const MFA_EQUIV_SIGNATURE = (c) => {
+    const m = comboMethods(c);
+    if (m.length > 1 && m.includes("password")) return true;          // password + something you have
+    if (m.some((x) => /^federated(SingleFactor|MultiFactor)$/i.test(x))) return true;
+    if (m.some((x) => /^temporaryAccessPass/i.test(x))) return true;
+    return false;
+  };
+  const isMfaEquivalent = (asp) => (asp && asp.allowedCombinations || []).some(MFA_EQUIV_SIGNATURE);
+
   // Controls documented as NOT SUPPORTED for external users at all.
   const EXT_UNSUPPORTED_GRANT = {
     approvedApplication: "Require approved client app",
@@ -919,13 +942,18 @@ const MSLearn = (() => {
         ["Create", "One policy beside this one, at the next free CA number in the same range: the same users, the same external user types, the same resources and conditions, and the grant control Require multifactor authentication instead of the authentication strength. Born report-only."],
         ["Why two", "Microsoft does not allow Require multifactor authentication and Require authentication strength in the same policy, so the plain requirement has to live in its own. Every policy that applies must be satisfied, so both reach every guest: an Entra-authenticated external meets the strength, which already implies MFA, and an email one-time passcode, SAML/WS-Fed, Google or Microsoft account external meets the plain requirement — the only one of the two that reaches them."],
       ],
-      detect: (p) => {
+      detect: (p, ctx) => {
         if (!isActive(p) || !G(p).authenticationStrength) return null;
         if (grants(p).includes("mfa")) return null;      // the grant control is there as well
+        // A strength no stronger than Require MFA is the OTHER check's case —
+        // there the answer is to swap this policy's control, not to add one.
+        const asp = ctx && ctx.strengths && ctx.strengths.get(G(p).authenticationStrength.id);
+        if (isMfaEquivalent(asp)) return null;
         const sc = extScope(p, CROSS_TENANT_TYPES);
         if (!sc) return null;
+        const nm = (asp && asp.displayName) || "an authentication strength";
         return {
-          detail: `Policy "${p.displayName}" enforces its MFA requirement through an authentication strength, and its scope reaches ${sc.types.map(extLabel).join(", ")}. Guests who sign in with an email one-time passcode, a SAML/WS-Fed identity provider, a Google account or a Microsoft account are not covered by an authentication strength at all — for them this policy imposes no MFA requirement.`,
+          detail: `Policy "${p.displayName}" enforces its MFA requirement through ${nm}, and its scope reaches ${sc.types.map(extLabel).join(", ")}. Guests who sign in with an email one-time passcode, a SAML/WS-Fed identity provider, a Google account or a Microsoft account are not covered by an authentication strength at all — for them this policy imposes no MFA requirement. This strength asks for more than Require multifactor authentication does, so swapping the control would weaken it for everybody else: the requirement has to be added beside it rather than exchanged.`,
           impactedResources: ["Email one-time passcode guests", "SAML / WS-Fed federated guests", "Google-federated guests", "Microsoft account (MSA) guests"],
         };
       },
@@ -952,6 +980,49 @@ const MSLearn = (() => {
             num == null ? "No free number was found in the original's range, so the name says what it is instead" : `Numbered CA${String(num).padStart(3, "0")} — the next free number in the original's range, not a version bump: this policy lives beside the original rather than replacing it`,
           ],
         };
+      },
+    },
+    {
+      // Mihai, 25459, looking at a policy on the built-in Multifactor
+      // authentication strength: "the strength is allowing more, so the
+      // conclusion of the check is wrong". It was: the old check gave one
+      // verdict for every strength, and told you to add a second policy even
+      // where the strength asks no more than the grant control does. There the
+      // answer is one swap, not two policies.
+      id: "guest-auth-strength-swap-for-mfa",
+      title: "This strength is Require MFA already, and it misses the non-Entra externals",
+      appliesWhen: "Policy requires an authentication strength no stronger than Require multifactor authentication, with guests or external users in scope",
+      requirement: "Microsoft's built-in strengths table describes the Multifactor authentication strength as the same set of combinations that satisfies the Require multifactor authentication setting, and the Limitations section says the two controls cannot be used in one policy because they are equivalent. A strength is not applied to externals who authenticate with an email one-time passcode, a SAML/WS-Fed provider, Google or a Microsoft account; the grant control is. So where the strength asks no more than the grant control, the grant control does the same job and reaches more identities.",
+      severity: "low",
+      docUrl: "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths#limitations",
+      remediation: "Change the grant control on this policy from the authentication strength to Require multifactor authentication. Nothing changes for the users it already reaches — Microsoft documents the two as equivalent — and the four identities a strength is never applied to come into scope of the requirement. One policy, one control, nothing added.",
+      remediationParts: [
+        ["Exclude", "Nothing. This policy's scope is right; only its control is the wrong one of two equivalent ones."],
+        ["Change", "On this policy, replace Require authentication strength with Require multifactor authentication. Keep everything else. It is the one case here where a second policy is not needed, because the strength is asking for nothing the grant control does not."],
+        ["What it costs", "For every user this policy already reaches, nothing: the strength's allowed combinations are the set that satisfies Require multifactor authentication. What changes is that email one-time passcode, SAML/WS-Fed, Google and Microsoft account externals now face the requirement too, where the strength was silently not applied to them."],
+      ],
+      detect: (p, ctx) => {
+        if (!isActive(p) || !G(p).authenticationStrength) return null;
+        if (grants(p).includes("mfa")) return null;
+        const asp = ctx && ctx.strengths && ctx.strengths.get(G(p).authenticationStrength.id);
+        if (!asp) return null;                            // strengths not read — say nothing rather than guess
+        if (!isMfaEquivalent(asp)) return null;           // a stricter strength is the other check's case
+        const sc = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc) return null;
+        return {
+          detail: `Policy "${p.displayName}" requires the ${asp.displayName} authentication strength, whose allowed combinations are the same set that satisfies Require multifactor authentication — Microsoft documents the two as equivalent, which is why they cannot both be used in one policy. Its scope reaches ${sc.types.map(extLabel).join(", ")}. A strength is only applied to externals who authenticate with Microsoft Entra ID, so for an email one-time passcode, SAML/WS-Fed, Google or Microsoft account guest this policy asks nothing — while the equivalent grant control would ask them for MFA. Swapping the control on this policy closes that gap and takes nothing away from anyone.`,
+          impactedResources: ["Email one-time passcode guests", "SAML / WS-Fed federated guests", "Google-federated guests", "Microsoft account (MSA) guests"],
+        };
+      },
+      // An ordinary adjustment: one policy in, one policy out. The equivalence
+      // is what makes it safe to do in place rather than beside.
+      fix: (d) => {
+        const g = d.grantControls; if (!g || !g.authenticationStrength) return null;
+        const name = g.authenticationStrength.displayName || "the authentication strength";
+        delete g.authenticationStrength;
+        g.builtInControls = [...new Set([...(g.builtInControls || []), "mfa"])];
+        if (!g.operator) g.operator = "OR";
+        return [`Grant control: Require multifactor authentication in place of ${name} — the same combinations, and it also reaches email one-time passcode, SAML/WS-Fed, Google and Microsoft account externals, which a strength is never applied to`];
       },
     },
     {

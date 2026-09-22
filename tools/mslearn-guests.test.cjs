@@ -293,3 +293,79 @@ test("a staging prefix on the original does not travel into the companion's numb
   assert.equal(c.newName, "CA401-GRANT-GuestUsers-IP-AnyApp-AnyPlatform-MFA-NonEntraExternals-v1.0");
   assert.ok(!/\(UP\)/.test(c.newName), "the staging prefix is not carried into a brand-new policy");
 });
+
+// ---- the two strength verdicts (25459) ----------------------------------
+// Mihai, on a policy using the built-in Multifactor authentication strength:
+// "the strength is allowing more, so the conclusion of the check is wrong."
+// It was. Microsoft's built-in table calls the MFA strength "the same set of
+// combinations that can be used to satisfy the Require multifactor
+// authentication setting", so telling somebody to keep it AND add a second
+// policy is advice for a strength that asks more than the grant control. Where
+// it does not, the answer is one swap.
+
+const MFA_STRENGTH = {
+  id: "s-mfa-builtin", displayName: "Multifactor authentication",
+  allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor",
+    "deviceBasedPush", "temporaryAccessPassOneTime", "password,microsoftAuthenticatorPush",
+    "password,sms", "password,voice", "federatedMultiFactor", "federatedSingleFactor,sms"],
+};
+const PHISH_STRENGTH = {
+  id: "s-phish", displayName: "Phishing-resistant MFA",
+  allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor"],
+};
+const strengthPolicy = (name, st) => ({
+  id: name, displayName: name, state: "enabled",
+  conditions: {
+    users: { includeUsers: ["None"], includeGuestsOrExternalUsers: GUESTS("b2bCollaborationGuest") },
+    applications: { includeApplications: ["All"] }, clientAppTypes: ["all"],
+  },
+  grantControls: { operator: "OR", builtInControls: [], authenticationStrength: st },
+  sessionControls: null,
+});
+
+test("a strength equal to Require MFA is the swap case, not the second-policy case", () => {
+  const p = strengthPolicy("CA400-GRANT-GuestUsers-MFA-v1.0", MFA_STRENGTH);
+  const f = ids(run([p], { strengths: new Map([[MFA_STRENGTH.id, MFA_STRENGTH]]) }));
+  assert.ok(f.includes("guest-auth-strength-swap-for-mfa"), "the swap finding fires");
+  assert.ok(!f.includes("guest-auth-strength-not-universal"), "and the add-a-policy finding does NOT");
+});
+
+test("a stricter strength is still the second-policy case", () => {
+  const p = strengthPolicy("CA400-GRANT-GuestUsers-PhishRes-v1.0", PHISH_STRENGTH);
+  const f = ids(run([p], { strengths: new Map([[PHISH_STRENGTH.id, PHISH_STRENGTH]]) }));
+  assert.ok(f.includes("guest-auth-strength-not-universal"), "the add-a-policy finding fires");
+  assert.ok(!f.includes("guest-auth-strength-swap-for-mfa"), "and the swap finding does NOT");
+});
+
+test("the two verdicts are mutually exclusive on every strength shape", () => {
+  const shapes = [MFA_STRENGTH, PHISH_STRENGTH,
+    { id: "s-pwless", displayName: "Passwordless MFA", allowedCombinations: ["fido2", "windowsHelloForBusiness", "deviceBasedPush", "x509CertificateMultiFactor"] },
+    { id: "s-custom-pw", displayName: "Custom with password", allowedCombinations: ["password,hardwareOath"] },
+  ];
+  for (const st of shapes) {
+    const p = strengthPolicy("CA400-x-" + st.id, st);
+    const f = ids(run([p], { strengths: new Map([[st.id, st]]) }))
+      .filter((x) => x === "guest-auth-strength-swap-for-mfa" || x === "guest-auth-strength-not-universal");
+    assert.equal(f.length, 1, `${st.displayName}: exactly one verdict, got ${f.join("+") || "none"}`);
+  }
+});
+
+test("the swap fix exchanges the control in place and adds no policy", () => {
+  const p = strengthPolicy("CA400-GRANT-GuestUsers-MFA-v1.0", MFA_STRENGTH);
+  const findings = run([p], { strengths: new Map([[MFA_STRENGTH.id, MFA_STRENGTH]]) })
+    .filter((f) => f.check.id === "guest-auth-strength-swap-for-mfa");
+  const res = M.buildFixes(findings, [p], { raws: [p] });
+  assert.equal(res.fixes.length, 1);
+  const fx = res.fixes[0];
+  assert.ok(!fx.companion, "an adjustment, not a companion — one policy in, one out");
+  assert.equal(fx.newName, M.bumpVersion(p.displayName), "the version bump is right HERE: it replaces the original");
+  assert.deepEqual([...fx.draft.grantControls.builtInControls], ["mfa"]);
+  assert.equal(fx.draft.grantControls.authenticationStrength, undefined);
+});
+
+test("with the strengths unread the swap check says nothing rather than guessing", () => {
+  const p = strengthPolicy("CA400-GRANT-GuestUsers-MFA-v1.0", MFA_STRENGTH);
+  const f = ids(run([p], { strengths: new Map() }));
+  assert.ok(!f.includes("guest-auth-strength-swap-for-mfa"), "no strength definition, no verdict about its combinations");
+  assert.ok(f.includes("guest-auth-strength-not-universal"), "the conservative finding still stands");
+});
