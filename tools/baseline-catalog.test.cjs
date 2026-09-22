@@ -197,3 +197,22 @@ test("the generated source carries the entries, the holds and the userimpact rem
 test("a pass that takes nothing says so rather than emitting an empty revision", () => {
   assert.match(String(B.catalogSource({}, [], {}, {})), /No policy change was taken/);
 });
+
+// 25450 — the serialiser faults the 2026-09-22 regeneration exposed
+test("platform lines compare equal in either spelling, and the entry is written in the catalog's", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "js/baseline.js"), "utf8");
+  const vm = require("node:vm"); const box = { console }; vm.createContext(box);
+  vm.runInContext("const LABELS={state:{},stateText:{}};const BASELINE={policies:[]};const BASELINE_JOEY={policies:[]};", box);
+  vm.runInContext(src, box, { filename: "baseline.js" }); vm.runInContext("globalThis.B=Baseline", box);
+  const B = box.B;
+  const cat = { num: 6, name: "CA006-GRANT-Global-DP-Office365-iOSenAndroid-RequireAppProtection-v1.0.1", version: "1.0.1", tag: "UP", include: ["All users"], exclude: ["CAB-SEC-U-BreakGlass (group)", "CAB-SEC-U-CA006-Exclusion (group)"], resources: "Office 365", network: "Any network or location", conditions: ["Platforms: Android, iOS (excl. Windows, macOS, Linux)", "Client apps: Any client app"], grant: "Require app protection policy", block: false, session: "" };
+  const ten = { ...cat, conditions: ["Platforms: Android · iOS · − Windows · − macOS · − Linux", "Client apps: Any client app"], exclude: ["CAB-SEC-U-CA006-Exclusion (group)", "CAB-SEC-U-BreakGlass (group)"] };
+  assert.equal(B.entryDiff(cat, ten).length, 0, "spelling and order are not differences");
+  assert.equal(B.entryDiff(cat, { ...ten, conditions: ["Platforms: Android (excl. Windows)", "Client apps: Any client app"] }).length, 1, "a different platform set is");
+  // the view model renders the catalog's spelling, and never the tenant's staging prefix
+  const vmodel = { name: "(UP)CA006-GRANT-Global-DP-Office365-iOSenAndroid-RequireAppProtection-v1.0.1", users: { inc: ["All users"], exc: cat.exclude }, apps: { inc: ["Office 365"], exc: [] }, net: { inc: ["Any network or location"], exc: [] }, cond: { platforms: ["Android", "iOS"], platformsExc: ["Windows", "macOS", "Linux"], clientApps: ["Any client app"] }, grant: { mode: "grant", controls: ["Require app protection policy"] }, session: [] };
+  const e = B.vmToEntry(vmodel, cat);
+  assert.equal(e.name, cat.name); assert.equal(e.tag, "UP");
+  assert.ok(e.conditions.includes("Platforms: Android, iOS (excl. Windows, macOS, Linux)"));
+  assert.equal(B.reviewRow(cat, vmodel).kind, "same");
+});

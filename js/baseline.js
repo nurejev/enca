@@ -918,11 +918,26 @@ const Baseline = (() => {
   // one replaces — num, version, tag and shared belong to the CATALOG, not to
   // the tenant, so they are carried across rather than re-derived.
   const joinDot = (inc, exc) => [...(inc || []), ...(exc || []).map((x) => "− " + x)].join(" · ");
+  // The catalog writes platforms as "Android, iOS (excl. Windows, macOS)";
+  // the tool wrote "Android · iOS · − Windows · − macOS" — the same policy in
+  // two spellings, which 25449's review reported as 19 changed policies on the
+  // reference tenant (2026-09-22). One spelling now (the catalog's), and one
+  // canonical key for comparing either spelling, old catalogs included.
+  const platformLine = (inc, exc) => "Platforms: " + ((inc || []).length ? inc.join(", ") : "Any device") + ((exc || []).length ? ` (excl. ${exc.join(", ")})` : "");
+  function platformKey(text) {
+    const t = String(text || "").replace(/^platforms:\s*/i, "").trim();
+    let inc = [], exc = [];
+    const m = /^(.*?)\s*\(excl\.\s*(.*?)\)\s*$/i.exec(t);
+    if (m) { inc = m[1].split(/\s*[,·]\s*/); exc = m[2].split(/\s*[,·]\s*/); }
+    else t.split(/\s*·\s*/).forEach((x) => { const y = x.trim(); if (!y) return; if (/^[−-]\s*/.test(y)) exc.push(y.replace(/^[−-]\s*/, "")); else inc.push(y); });
+    const norm = (a) => a.map((x) => x.replace(/\s+/g, " ").trim().toLowerCase()).filter((x) => x && x !== "any device").sort().join(",");
+    return `platforms: ${norm(inc)} excl ${norm(exc)}`;
+  }
   function vmToEntry(vm, prev) {
     const cond = [];
     const c = vm.cond || {};
     if ((c.platforms || []).length || (c.platformsExc || []).length) {
-      cond.push("Platforms: " + joinDot(c.platforms, c.platformsExc));
+      cond.push(platformLine(c.platforms, c.platformsExc));
     }
     if ((c.clientApps || []).length) cond.push("Client apps: " + c.clientApps.join(", "));
     if (c.devFilter && c.devFilter.rule) cond.push(`Device filter (${c.devFilter.mode === "exclude" ? "exclude" : "include"}): \`${c.devFilter.rule}\``);
@@ -941,7 +956,9 @@ const Baseline = (() => {
     }
     return {
       num: prev ? prev.num : caNum(vm.name),
-      name: vm.name,
+      // (NEW) / (UP) are the TENANT's staging marks; the catalog names the
+      // policy, not its stage (the 2026-09-22 regeneration carried them in)
+      name: String(vm.name || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim(),
       version: version(vm.name) || (prev ? prev.version : ""),
       tag: prev ? prev.tag : "NEW",
       include: ((vm.users && vm.users.inc) || []).slice(),
@@ -964,9 +981,10 @@ const Baseline = (() => {
     .replace(/<br\s*\/?>/gi, " · ")
     .split("·").map((x) => x.replace(/[_`*]/g, "").replace(/\s+/g, " ").trim().toLowerCase())
     .filter(Boolean).sort().join(" · ");
+  const listKey = (x) => /^platforms:/i.test(String(x).trim()) ? platformKey(x) : String(x).replace(/\s+/g, " ").trim().toLowerCase();
   const sameList = (a, b) => {
-    const A = (a || []).map((x) => String(x).replace(/\s+/g, " ").trim().toLowerCase()).sort();
-    const B = (b || []).map((x) => String(x).replace(/\s+/g, " ").trim().toLowerCase()).sort();
+    const A = (a || []).map(listKey).sort();
+    const B = (b || []).map(listKey).sort();
     return A.length === B.length && A.every((x, i) => x === B[i]);
   };
   // What differs between the catalog entry and the tenant's, field by field.

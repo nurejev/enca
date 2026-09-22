@@ -119,6 +119,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 262,
+      title: "Baseline catalog revised from CloudFellows.dev (2026-09-22)",
+      tools: ["Baseline"],
+      builds: [25450],
+      risk: "medium",
+      what: "js/baselineData.js: revised 2026-09-22 from Mihai's 🧱 Update the catalog output — 7 entries taken (CA100, CA101, CA111, CA405: guest and external exclusion types + version; CA212: Office 365, v3.0, AppProtections name; CA301: BLOCK in the name; CA302: SESSION v3.0.2), the catalog's own list order and release tags kept; the 19 the tool also offered were serialiser faults (fixed in 25450, see item 258) and were not taken. The header carries the revision note. js/userimpact.js RULES_CHECKED_AGAINST stays 2026-08-20, so the brief shows its warning until the rules are walked against this revision.",
+      why: "The catalog is what 🧬 Baseline, the group templates and the import compare against; the reference tenant moved on four guest-exclusion policies and on CA212 since 2026-08-20.",
+      test: [
+        "🧬 Baseline on CloudFellows.dev after this build: the seven read Up to date (same version AND same definition); the Newer than baseline chip drops by seven, the 🏷 renamed group is empty, and 🧱 Update the catalog reports no serialiser drift on the platform lines.",
+        "🧬 Baseline on a tenant still at CA100 v1.0.2: it reads Outdated, and 📥 Import proposes the v1.0.3 exclusion set.",
+        "🗣 User impact brief: the revision warning shows (2026-08-20 checked against 2026-09-22); walk the RULES against CA212 (Office 365 now) and CA301, then move RULES_CHECKED_AGAINST.",
+        "node --test tools/baseline-catalog.test.cjs — the 25450 case.",
+      ],
+      files: ["js/baselineData.js", "js/baseline.js", "js/version.js", "js/changelog.js", "js/promote.js", "tools/baseline-catalog.test.cjs"],
+    },
+    {
       n: 261,
       title: "Edit a policy on its card (R17)",
       tools: ["Policies"],
@@ -193,9 +209,9 @@ const PROMOTE = {
       n: 258,
       title: "Baseline: update the catalog from its own tenant",
       tools: ["Baseline"],
-      builds: [25436, 25437, 25440, 25442, 25449],
+      builds: [25436, 25437, 25440, 25442, 25449, 25450],
       risk: "medium",
-      what: "25449: Baseline.reviewRow is the one judgement (definition diff + CLEAN name compare → kind version / edited / renamed), used by compare() for the chip and by catalogReview() for the panel; the panel groups and selects by kind and the chip equals the panel's ahead count. 25442: a number-clash row is never offered by the panel (it is another policy on that number). Baseline.compare marks a same-version policy whose definition differs as ahead with edited: true (Up to date = same version AND same definition), so the Newer than baseline chip, the summary line and the panel count the same policies; the panel groups by-version / edited-in-place on that flag. 25440: a differing NAME is a difference (catalogReview pushes a name-and-version diff row), so a version bumped with no other change is offered and the generated entry carries the tenant's name and version; the panel groups newer-in-name (= the chip's count) / edited in place / new here with a Select button per group. 25437: Select all / Deselect all above the list; the changed count is related to the summary's newer count (versions in names vs definitions), and each changed card says newer version in name / same version — edited in place / older version in name. \ud83e\uddf1 Update the catalog from this tenant, in baseline tenants only (never demo). Baseline.catalogReview compares each policy against its catalog entry on DEFINITION \u2014 vmToEntry renders the tenant view model into catalog shape, entryDiff normalises both sides so group order, condition order, the bullet and minus decoration, line-break markup and markdown emphasis are not differences. Take or hold per policy; holds are keyed by the signature of the difference and kept per tenant in localStorage. catalogSource emits the entries plus a revision note with every hold and its reason. Output is a report: no write to the tenant, no write to the repo.",
+      what: "25450: vmToEntry writes platforms as the catalog does (platformLine) and strips the tenant's (NEW)/(UP) prefix from the name; sameList keys a Platforms line through platformKey so either spelling compares equal. 25449: Baseline.reviewRow is the one judgement (definition diff + CLEAN name compare → kind version / edited / renamed), used by compare() for the chip and by catalogReview() for the panel; the panel groups and selects by kind and the chip equals the panel's ahead count. 25442: a number-clash row is never offered by the panel (it is another policy on that number). Baseline.compare marks a same-version policy whose definition differs as ahead with edited: true (Up to date = same version AND same definition), so the Newer than baseline chip, the summary line and the panel count the same policies; the panel groups by-version / edited-in-place on that flag. 25440: a differing NAME is a difference (catalogReview pushes a name-and-version diff row), so a version bumped with no other change is offered and the generated entry carries the tenant's name and version; the panel groups newer-in-name (= the chip's count) / edited in place / new here with a Select button per group. 25437: Select all / Deselect all above the list; the changed count is related to the summary's newer count (versions in names vs definitions), and each changed card says newer version in name / same version — edited in place / older version in name. \ud83e\uddf1 Update the catalog from this tenant, in baseline tenants only (never demo). Baseline.catalogReview compares each policy against its catalog entry on DEFINITION \u2014 vmToEntry renders the tenant view model into catalog shape, entryDiff normalises both sides so group order, condition order, the bullet and minus decoration, line-break markup and markdown emphasis are not differences. Take or hold per policy; holds are keyed by the signature of the difference and kept per tenant in localStorage. catalogSource emits the entries plus a revision note with every hold and its reason. Output is a report: no write to the tenant, no write to the repo.",
       why: "Mihai asked for changed \u2192 export \u2192 import. Mocked against this and he chose this: Import writes to a tenant, baselineData.js is a source file, and an export carries none of num/version/tag nor any of the judgement. Separately, Baseline.compare judged on the version string in the policy name and never on content \u2014 a policy edited without a version bump read as ok.",
       test: [
         "25449: the chip's number equals newer + edited in place + renamed in the panel, exactly; a policy whose only difference is a (NEW) prefix or a capital in the name is Up to date, not renamed; a real rename shows both names on its card.",

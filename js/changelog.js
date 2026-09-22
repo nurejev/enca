@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25450, date: "2026-09-22", title: "Catalog revised from CloudFellows.dev — and the 19 that were not changes",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "🧱 Update the catalog offered 26 policies on the reference tenant; 19 of them were not changes. Their platform line was the same policy in two spellings — the catalog's “Android, iOS (excl. Windows)” against the tool's “Android · iOS · − Windows” — and the tenant's (NEW)/(UP) staging prefix had leaked into the proposed name. The tool now writes the catalog's own spelling, compares either spelling and any list order as equal, and never carries a staging prefix into an entry." },
+      { kind: "improved", tool: "Baseline", text: "The CloudFellows catalog is revised from CloudFellows.dev as of 2026-09-22 — the 7 real changes taken: CA100, CA101, CA111 and CA405 exclude every guest and external type where they excluded service providers alone (with their version bumps), CA212 targets Office 365 at v3.0 under its AppProtections name, CA301 is named BLOCK as its control is, CA302 is SESSION at v3.0.2. 🗣 User impact brief will say its rules were checked against the previous revision until they are walked again." },
+    ],
+  },
+  {
     build: 25449, date: "2026-09-22", title: "One judgement, three kinds — the chip and the panel agree by construction",
     items: [
       { kind: "fixed", tool: "Baseline", text: "The Newer than baseline chip and 🧱 Update the catalog judged a policy in two places — the chip on definitions, the panel on definitions AND names — so 27 met 77. There is one judgement now (Baseline.reviewRow), used by both, and names are compared clean: a (NEW) prefix, whitespace or a capital is not a rename. Every policy that differs from the catalog is one of three kinds and the panel says which — 🆙 a newer version in the name, ✏️ edited in place at the same version, 🏷 renamed at the same version (definition unchanged; the card shows both names) — each with its own Select button, and the chip's number is the sum of the three." },
