@@ -122,11 +122,12 @@ const PROMOTE = {
       n: 271,
       title: "🔀 Merge groups that share a display name",
       tools: ["CA groups"],
-      builds: [25477],
+      builds: [25477, 25480],
       risk: "high",
       what: "js/groupmerge.js (GroupMerge: duplicateSets, usersWithSwap, plan, run, report — pure, I/O injected). js/app.js: cgMergeDup button (syncMergeDupBtn after each scan), gmModal flow — member read per group (/groups/{id}/members), keep radio, per-name plan with refusals and the dynamic-rule warning, review step with rename-aside (default, typed MERGE) or delete (typed DELETE), JSON backup, RunLedger; deps POST members/$ref, GET + PATCH the policy, Importer.readSettled, PATCH displayName or DELETE the group. js/cagroups.js: ARCHIVE_SUFFIX and findArchived include merged. index.html: button, modal, script tag. Demo: a second CAB-SEC-U-Persona-Externals (g-demo-ext2).",
       why: "The CloudFellows baseline review found two groups called CAB-SEC-U-Persona-Externals, so members of one got no MFA; the fix by hand is members, then ten policies, then the group — in that order or a policy points at nothing. High risk because it writes group membership, up to every CA policy, and can delete a group.",
       test: [
+        "25480: on the CloudFellows baseline tenant the 🔀 card reads, for the retired group, named by 8 policies (7 include · 1 exclude); the foot says repoint the 8 policies that name cd9fb158…, notes that CA099 already names both, and says the kept group is named by 12 policies afterwards.",
         "CloudFellows baseline tenant → 👥 CA groups → Refresh: 🔀 Duplicate names (1) appears; the dialog lists both CAB-SEC-U-Persona-Externals ids with members, rule and the policies on each side.",
         "Select the dynamic group with 0 members as the one to keep while the other has members: the card refuses and says why; select the other: the plan runs.",
         "Review → Rename it aside → type MERGE → run with the backup ticked: the JSON downloads first, then members, then each policy; afterwards CA300/CA301/CA304/CA310 and CA302–CA308 all name the kept id, CA000 and CA099 exclude it once, and the other group reads (merged YYYY-MM-DD).",

@@ -6911,11 +6911,16 @@ max@contoso.com,"Global, DevOps"</pre>
       const keep = m.id === plan.keep.id;
       const mm = gmMembers.get(m.id);
       const count = mm ? (mm.ok ? `${mm.list.length} direct member${mm.list.length === 1 ? "" : "s"}` : `members not read — ${esc(mm.error)}`) : "…";
-      const refs = `${m.refs.include.length} include · ${m.refs.exclude.length} exclude`;
+      // 25480, Mihai: "the policy count is off — used by 4, repoint 8?". Both
+      // numbers were right and read as one: the row counts the policies that
+      // name THIS group, the foot the ones that name the group being retired.
+      // Say it as policies, per group, and let the foot say where they end up.
+      const nPol = new Set([...m.refs.include, ...m.refs.exclude].map((r) => typeof r === "string" ? r : r.id)).size;
+      const refs = `named by ${nPol} polic${nPol === 1 ? "y" : "ies"} (${m.refs.include.length} include · ${m.refs.exclude.length} exclude)`;
       return `<label class="dup-row${keep ? " keep" : ""}" style="cursor:pointer">
         <input type="radio" name="gmk-${esc(s.key)}" data-gm-keep="${esc(s.key)}" value="${esc(m.id)}"${keep ? " checked" : ""}>
         <div class="dup-meta"><span class="dup-name"><code>${esc(m.id)}</code></span>
-          <div class="mini">${m.dynamic ? "dynamic" : "assigned"}${m.roleAssignable ? " · role-assignable" : ""} · ${count} · used by ${refs} · <b>${keep ? "keep this one" : (gmRemove === "delete" ? "to be deleted" : "to be renamed aside")}</b></div>
+          <div class="mini">${m.dynamic ? "dynamic" : "assigned"}${m.roleAssignable ? " · role-assignable" : ""} · ${count} · ${refs} · <b>${keep ? "keep this one" : (gmRemove === "delete" ? "to be deleted" : "to be renamed aside")}</b></div>
           ${m.dynamic && m.membershipRule ? `<div class="mini muted" style="font-family:var(--mono,monospace)">${esc(m.membershipRule)}</div>` : ""}</div>
         <div class="dup-assign mini">${esc([...m.refs.include.map((r) => `+ ${typeof r === "string" ? r : r.name || r.id}`), ...m.refs.exclude.map((r) => `− ${typeof r === "string" ? r : r.name || r.id}`)].slice(0, 4).join(" · "))}${m.refCount > 4 ? " …" : ""}</div>
       </label>`;
@@ -6934,7 +6939,14 @@ max@contoso.com,"Global, DevOps"</pre>
       ${rows}
       <div class="dup-opts">${bad}${dyn}${rules}</div>
       <div class="dup-foot"><span class="arrow">→</span> ${plan.canRun
-        ? `Move <b>${plan.moves.length}</b> member${plan.moves.length === 1 ? "" : "s"} into the kept group · repoint <b>${plan.edits.length}</b> polic${plan.edits.length === 1 ? "y" : "ies"} · then ${gmRemove === "delete" ? "delete" : "rename aside"} <b>${plan.drops.length}</b> group${plan.drops.length === 1 ? "" : "s"}`
+        ? (() => {
+            const idOf = (r) => typeof r === "string" ? r : r.id;
+            const keepPols = new Set([...plan.keep.refs.include, ...plan.keep.refs.exclude].map(idOf));
+            const both = plan.edits.filter((e) => keepPols.has(e.id)).length;
+            const after = new Set([...keepPols, ...plan.edits.map((e) => e.id)]).size;
+            return `Move <b>${plan.moves.length}</b> member${plan.moves.length === 1 ? "" : "s"} into the kept group · repoint the <b>${plan.edits.length}</b> polic${plan.edits.length === 1 ? "y" : "ies"} that name <code>${esc(plan.dropIds.map((x) => x.slice(0, 8)).join(", "))}…</code>${both ? ` (${both} of them already name the kept group too — the duplicate reference is dropped)` : ""} · then ${gmRemove === "delete" ? "delete" : "rename aside"} <b>${plan.drops.length}</b> group${plan.drops.length === 1 ? "" : "s"}`
+              + `<div class="mini" style="margin-top:4px">Afterwards <code>${esc(plan.keep.id.slice(0, 8))}…</code> is named by <b>${after}</b> polic${after === 1 ? "y" : "ies"} — its ${keepPols.size} and the ${plan.edits.length} repointed${both ? `, ${both} counted once` : ""}.</div>`;
+          })()
         : '<span class="muted">nothing will be written for this name until the warning above is resolved</span>'}</div>
     </div>`;
   }

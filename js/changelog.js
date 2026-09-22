@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25480, date: "2026-09-22", title: "Merge duplicate groups: counts that say whose they are",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "👥 🔀 Duplicate names showed used by 4 on the group you keep and repoint 8 underneath, which read as a miscount. Both were right — 4 policies name the kept group, 8 name the one being retired and are the ones repointed. Each row now says which policies name that group, the summary says which group's policies are repointed, and a line underneath gives how many policies the kept group is named by afterwards." },
+    ],
+  },
+  {
     build: 25479, date: "2026-09-22", title: "Require one (OR) is judged while you edit, and on strengths and terms of use",
     items: [
       { kind: "improved", tool: "Policy building blocks", text: "🏗 Choosing Require one (OR) in the builder or on a policy card now says what Checks will say about it: MFA or a managed device is Microsoft's template (and what switching to AND costs), MFA or app protection lets a password plus the right app in, and anything or terms of use lets a click stand in for MFA. The card edit shows the builder's other hints too, under the box they are about." },
