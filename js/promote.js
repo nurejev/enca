@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 265,
+      title: "Bypass & Swiss cheese checks audit — MFA and legacy scope, OR verdicts, guest strength, human recommendations",
+      tools: ["Checks"],
+      builds: [25470],
+      risk: "medium",
+      what: "js/gapcheck.js: isMfaForAll requires allApps, partial MFA reported high; legacyTenantWide (everyone, All resources, both legacy types), narrow block reported high with reasons; checkOr — MFA OR device-trust low (Microsoft template), MFA OR app protection / password change medium, else high; checkGuestStrength only when every allowedCombination needs a home-tenant method; targetsUsers ignores GuestsOrExternalUsers; stable expansion key; recommendations rewritten where / change / why.",
+      why: "Part of the T07/T08 audit Mihai asked for. Two checks gave an all-clear they could not justify (MFA for all users on one app, a legacy block on one group); two raised findings that contradict Microsoft's own guidance (the MFA-or-device template as High, every guest MFA policy as a trust problem).",
+      test: [
+        "A tenant whose only all-users MFA policy targets Office 365: 🛡 shows MFA for all users exists only for selected resources, not a clean MFA Coverage.",
+        "A legacy block scoped to a pilot group: Legacy authentication is blocked, but not tenant-wide, naming the group scope. The CloudFellows CA002 legacy block (All users, All resources, both legacy types) produces no legacy finding, even with the narrower CA1104 beside it.",
+        "A policy MFA OR compliant device OR hybrid joined: one Low finding, Microsoft template. MFA OR app protection: Medium, saying it can be met without a second factor.",
+        "CA400 with Require MFA for guests: no Guest Authentication Strength finding. A guest policy on the Phishing-resistant MFA strength: one High finding.",
+        "Expand a finding, switch the severity filter away and back: it is still expanded.",
+      ],
+      files: ["js/gapcheck.js", "tools/gapcheck-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 264,
       title: "MS Learn checks audit — cross-tenant trust from the default, Windows Cloud Login, approved app read-only, external types without MFA",
       tools: ["Checks"],

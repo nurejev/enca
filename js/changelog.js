@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25470, date: "2026-09-22", title: "Bypass & Swiss cheese checks: six that said more than they knew",
+    items: [
+      { kind: "fixed", tool: "Checks", text: "🛡 MFA for all users now has to cover All resources — a policy asking all users for MFA on one app no longer clears the check, and is reported as MFA for selected resources only. Legacy authentication counts as blocked only when the block reaches everyone, All resources and both legacy client types; a narrower block is reported with what it misses." },
+      { kind: "fixed", tool: "Checks", text: "🛡 A grant of MFA OR a managed device is Microsoft's own template and now reads Low, with what it means for unmanaged devices. MFA OR app protection stays a finding, because app protection is met without a second factor. The guest strength finding no longer fires on every guest MFA policy — only on a strength guests genuinely cannot complete in your tenant — so it agrees with the MS Learn tab. Guest-only policies are not asked to exclude break-glass." },
+      { kind: "improved", tool: "Checks", text: "🛡 Recommendations say where to change it, what to change and why: legacy block, sign-in risk, user risk (now Require risk remediation, guests excluded), FOCI and bypass-app exclusions, device registration, grants without MFA and persona gaps. An opened finding stays open when you change the severity filter." },
+    ],
+  },
+  {
     build: 25469, date: "2026-09-22", title: "MS Learn checks: trust read from the right place, and a gap no check could see",
     items: [
       { kind: "fixed", tool: "Checks", text: "📘 The guest findings and the guest matrix judged inbound cross-tenant trust from your service-provider partners only, never from the DEFAULT setting that decides for every other organisation. In a tenant with no CSP partner, a policy requiring a compliant device of every guest was reported as fine and the matrix said ok. The default and every partner are read now, a partner without its own setting follows the default, and each finding says in words which it is: off by default, on except for named partners, or not read." },
