@@ -16630,7 +16630,7 @@ This is a directory write. Nothing else changes.`)) return;
   // references a group that failed to exist.
   // ======================================================================
   const PB_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
-  let pbDraft = null, pbBefore = null, pbStep = 1, pbView = "card", pbBusy = false;
+  let pbDraft = null, pbBefore = null, pbStep = 1, pbView = "card", pbBusy = false, pbRatio = 56;
   let pbLocs = null, pbStrengths = null, pbContexts = null, pbTou = null, pbRoles = null, pbPickTimer = null;
   const pbCat = () => { try { return Baseline.active(); } catch { return null; } };
   const pbRaws = () => policies.map((p) => p.raw);
@@ -16874,10 +16874,14 @@ This is a directory write. Nothing else changes.`)) return;
     $("pbGo").textContent = d.mode === "edit" ? "✎ Save changes" : "＋ Create in report-only";
     $("pbGo").disabled = pbBusy || !Builder.validate(d).ok || (d.mode !== "edit" && d.state !== "enabledForReportingButNotEnforced");
     $("pbGo").title = d.mode === "edit" ? "PATCH the selected policy with the draft — step 7 shows the diff and the plan" : d.state === "enabledForReportingButNotEnforced" ? "POST the policy in report-only, read it back, open it in Policies" : "Another state is chosen in step 7 — create it from there";
-    $("pbBody").innerHTML = `<div class="ld-shell pb-shell" style="--ld-list:56%"><div class="ld-list pb-steps">${Builder.stepsHtml(d, pbStep, ctx, pbFormHtml(pbStep))}</div>
-      <input class="ld-divider" type="range" min="40" max="65" value="56" aria-label="List width">
+    $("pbBody").innerHTML = `<div class="ld-shell pb-shell" style="--ld-list:${pbRatio}%"><div class="ld-list pb-steps">${Builder.stepsHtml(d, pbStep, ctx, pbFormHtml(pbStep))}</div>
+      <input class="ld-divider" type="range" min="40" max="65" value="${pbRatio}" aria-label="Width of the steps column" title="Drag to give the steps or the preview more width — the same handle every list/detail tool has">
       <section class="ld-panel" aria-label="Draft preview"><div class="ld-controls"><div class="seg pb-views">${[["card", "🗂 Card"], ["json", "{ } JSON"], ["preflight", "🧪 Preflight"], ["diff", "± Diff"]].map(([k, l]) => `<button type="button" data-pbview="${k}" class="${pbView === k ? "active" : ""}"${k === "diff" && d.mode !== "edit" ? ' title="A diff needs a policy selected elsewhere"' : ""}>${l}</button>`).join("")}</div><span class="mini muted">Preview</span></div>
       <h2 class="ld-title pb-name">${esc(Builder.nameOf(d, cat))}</h2><div class="ld-content">${pbPreviewHtml()}</div></section></div>`;
+    // the split handle (the shared frame's .ld-divider) was copied in but never
+    // wired here — a slider that did nothing (Mihai, 2026-09-22)
+    const div = $("pbBody").querySelector(".ld-divider");
+    if (div) div.addEventListener("input", () => { pbRatio = +div.value; div.closest(".ld-shell").style.setProperty("--ld-list", pbRatio + "%"); });
     if (typeof FlatIcons !== "undefined") FlatIcons.apply($("pbBody"));
     if (typeof syncStickyTops === "function") (window.requestAnimationFrame || setTimeout)(syncStickyTops);
   }

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25454, date: "2026-09-22", title: "Builder: the split handle works",
+    items: [
+      { kind: "fixed", tool: "Policy building blocks", text: "🏗 The vertical slider between the steps and the preview is the split handle every list/detail tool has — drag it to give either side more width. In the builder it did nothing; it does now, and it says what it is on hover." },
+    ],
+  },
+  {
     build: 25453, date: "2026-09-22", title: "A tenant's own exclusions are never a difference from the baseline",
     items: [
       { kind: "fixed", tool: "Baseline", text: "Outside the baseline tenant the assignments are the tenant's own — the exclusion groups it adds, the persona or deploy groups it includes — so they are not compared at all: they never make a policy Newer than baseline, and they no longer earn the differs tag either. What that tag now names is substance only — resources, conditions, grant or session controls that differ from the catalog at the same number and version — shown for reading, not counted." },
