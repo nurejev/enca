@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25477, date: "2026-09-22", title: "CA groups: merge groups that share a name",
+    items: [
+      { kind: "new", tool: "CA groups", text: "👥 🔀 Duplicate names: when two groups carry the same display name, pick the one to keep and the tool moves the other's members into it, points every Conditional Access policy at it — includes and exclusions alike — and then renames the other aside (or deletes it, if you ask). Nothing is removed until every member and every policy has moved. It refuses, and says why, when the kept group is dynamic and would lose people, or when a policy includes one of the two and excludes the other." },
+    ],
+  },
+  {
     build: 25476, date: "2026-09-22", title: "Bypass checks: groups that share a name, and allow-list blocks with gaps",
     items: [
       { kind: "new", tool: "Checks", text: "🛡 Two groups with the same display name look like one everywhere — so one policy can include one and another exclude the other without anyone noticing. Every such pair your policies use is now reported, with the policies on each side." },

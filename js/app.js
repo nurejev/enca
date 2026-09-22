@@ -4478,6 +4478,11 @@
       refs: { include: [], exclude: i % 3 === 1 && i % 5 !== 0 ? ["d1", "d2"].slice(0, (i % 2) + 1) : [] }, refCount: i % 3,
       members: null, memberTotal: null, memberError: null, drift: null,
     }));
+    // 25477: one group name carried by two groups, as the CloudFellows
+    // baseline had it — so 🔀 Duplicate names has something to show in demo.
+    const ext = rows.find((r) => /Persona-Externals$/.test(r.name) && r.id);
+    if (ext) rows.push({ ...ext, id: "g-demo-ext2", sources: ["policy"], dynamic: true, membershipRule: '(user.userType -eq "Member") and (user.companyName -eq "Partner")',
+      refs: { include: [{ id: "d-ca300", name: "CA300-GRANT-Externals-IP-AnyApp-AnyPlatform-MFA-v3.0.1" }], exclude: [] }, refCount: 1 });
     const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
     const expectedTotal = rows.length;
     return { rows, counts, expectedTotal, present: counts.present || 0, baseline: Baseline.activeCatalogId(), other: null,
@@ -4554,6 +4559,7 @@
     $("cgChips").style.display = "flex";
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
     $("cgArchived").style.display = "inline-flex";
+    syncMergeDupBtn();
     $("cgSearch").placeholder = cgTab === "members" ? "Search group, member or UPN…" : "Search group, object ID or member…";
     $("cgSearch").style.display = "";
 
@@ -6849,6 +6855,189 @@ max@contoso.com,"Global, DevOps"</pre>
   // with "X (legacy 2026-08-04)". This is that second visit.
   let arcRows = [];
   $("cgArchived").addEventListener("click", () => openArchived());
+  // ---- 🔀 Merge duplicate groups (25477) ----------------------------------
+  // Mihai: "create merge for duplicate groups and remove one". Pure planning
+  // and the run live in js/groupmerge.js; this is the dialog. The other group
+  // is RENAMED ASIDE by default — "(merged YYYY-MM-DD)", which 🧹 Archived
+  // groups finds and deletes once you are satisfied — or deleted outright
+  // when asked for, behind a typed DELETE.
+  let gmSets = [], gmKeep = new Map(), gmOn = new Set(), gmMembers = new Map(), gmStep = "list", gmRemove = "rename";
+  const gmFind = () => { try { return cgRes ? GroupMerge.duplicateSets(cgRes.rows) : []; } catch (e) { console.warn("group merge:", e.message || e); return []; } };
+  function syncMergeDupBtn() {
+    const b = $("cgMergeDup"); if (!b) return;
+    const n = gmFind().length;
+    b.style.display = n ? "inline-flex" : "none";
+    b.textContent = `🔀 Duplicate names (${n})`;
+  }
+  const gmRaws = () => policies.map((p) => p.raw);
+  const gmPlan = (s) => GroupMerge.plan(s, gmKeep.get(s.key) || s.keepId, gmRaws(), gmMembers, { remove: gmRemove });
+  const gmPlans = () => gmSets.filter((s) => gmOn.has(s.key)).map(gmPlan).filter((p) => p.canRun);
+  async function gmReadMembers(ids) {
+    for (const id of ids) {
+      if (gmMembers.has(id)) continue;
+      if (isDemo) {
+        const row = (cgRes.rows || []).find((r) => r.id === id) || {};
+        const list = id === "g-demo-ext2" ? [{ id: "u-partner-1", type: "user", name: "anna.partner@contoso.example" }] : ((DEMO_DATA.scopeGroups || {})[row.name] || []).map((u) => ({ id: u, type: "user", name: u }));
+        gmMembers.set(id, { ok: true, list });
+        continue;
+      }
+      try {
+        const list = await Graph.ggetAll(`/groups/${id}/members?$select=id,displayName,userPrincipalName&$top=999`);
+        gmMembers.set(id, { ok: true, list: list.map((m) => ({ id: m.id, type: String(m["@odata.type"] || "").replace("#microsoft.graph.", ""), name: m.userPrincipalName || m.displayName || m.id })) });
+      } catch (e) { gmMembers.set(id, { ok: false, error: e.message || String(e), list: [] }); }
+    }
+  }
+  async function openGroupMerge() {
+    gmSets = gmFind();
+    gmKeep = new Map(gmSets.map((s) => [s.key, s.keepId]));
+    gmMembers = new Map(); gmStep = "list"; gmRemove = "rename";
+    $("gmLedger").innerHTML = ""; $("gmConfirmWrap").style.display = "none"; $("gmConfirm").value = "";
+    $("gmSub").textContent = "Reading the members of each group…"; $("gmBody").innerHTML = "";
+    $("gmModal").classList.add("open");
+    await gmReadMembers(gmSets.flatMap((s) => s.members.map((m) => m.id)));
+    // Suggest a keep the merge can actually carry out: two dynamic groups can
+    // only merge into the one that already holds everybody, so the first
+    // candidate (most policies, most members) is tried, then the others.
+    for (const s of gmSets) {
+      const ok = s.members.find((m) => GroupMerge.plan(s, m.id, gmRaws(), gmMembers).canRun);
+      if (ok) gmKeep.set(s.key, ok.id);
+    }
+    gmOn = new Set(gmSets.filter((s) => gmPlan(s).canRun).map((s) => s.key));
+    renderGroupMerge();
+  }
+  function gmSetHtml(s) {
+    const plan = gmPlan(s);
+    const rows = s.members.map((m) => {
+      const keep = m.id === plan.keep.id;
+      const mm = gmMembers.get(m.id);
+      const count = mm ? (mm.ok ? `${mm.list.length} direct member${mm.list.length === 1 ? "" : "s"}` : `members not read — ${esc(mm.error)}`) : "…";
+      const refs = `${m.refs.include.length} include · ${m.refs.exclude.length} exclude`;
+      return `<label class="dup-row${keep ? " keep" : ""}" style="cursor:pointer">
+        <input type="radio" name="gmk-${esc(s.key)}" data-gm-keep="${esc(s.key)}" value="${esc(m.id)}"${keep ? " checked" : ""}>
+        <div class="dup-meta"><span class="dup-name"><code>${esc(m.id)}</code></span>
+          <div class="mini">${m.dynamic ? "dynamic" : "assigned"}${m.roleAssignable ? " · role-assignable" : ""} · ${count} · used by ${refs} · <b>${keep ? "keep this one" : (gmRemove === "delete" ? "to be deleted" : "to be renamed aside")}</b></div>
+          ${m.dynamic && m.membershipRule ? `<div class="mini muted" style="font-family:var(--mono,monospace)">${esc(m.membershipRule)}</div>` : ""}</div>
+        <div class="dup-assign mini">${esc([...m.refs.include.map((r) => `+ ${typeof r === "string" ? r : r.name || r.id}`), ...m.refs.exclude.map((r) => `− ${typeof r === "string" ? r : r.name || r.id}`)].slice(0, 4).join(" · "))}${m.refCount > 4 ? " …" : ""}</div>
+      </label>`;
+    }).join("");
+    const bad = plan.refusals.length ? `<div class="dup-bad">⚠ ${esc(plan.refusals.map((r) => r.why).join(" "))}</div>` : "";
+    const dyn = plan.fromDynamic.length && plan.moves.length ? `<div class="mini" style="margin-top:6px">Members come from a DYNAMIC group: they are copied into the kept group as fixed members — they stop following that rule.</div>` : "";
+    // A retired dynamic group whose rule differs from the kept one: whoever
+    // that rule would add from tomorrow is no longer reached by the policies.
+    const ruleGap = plan.drops.filter((d) => d.dynamic && d.membershipRule && d.membershipRule.trim() !== String(plan.keep.membershipRule || "").trim());
+    const rules = ruleGap.length ? `<div class="mini" style="margin-top:6px">⚠ The group being retired has its own rule (${esc(ruleGap.map((d) => d.membershipRule).join(" · "))}). People that rule would add from now on are NOT reached by these policies after the merge — ${plan.keep.dynamic ? "widen the kept group's rule to cover them first" : "add them to the kept group as they arrive, or keep the dynamic one instead"}.</div>` : "";
+    return `<div class="dup-set" data-gm-card="${esc(s.key)}">
+      <div class="dup-head">
+        <label class="chk" style="margin:0"><input type="checkbox" data-gm-set="${esc(s.key)}"${gmOn.has(s.key) ? " checked" : ""}${plan.canRun ? "" : " disabled"}></label>
+        <div><b>${esc(s.name)}</b><div class="mini">${s.members.length} groups, one name — pick the one to keep</div></div>
+      </div>
+      ${rows}
+      <div class="dup-opts">${bad}${dyn}${rules}</div>
+      <div class="dup-foot"><span class="arrow">→</span> ${plan.canRun
+        ? `Move <b>${plan.moves.length}</b> member${plan.moves.length === 1 ? "" : "s"} into the kept group · repoint <b>${plan.edits.length}</b> polic${plan.edits.length === 1 ? "y" : "ies"} · then ${gmRemove === "delete" ? "delete" : "rename aside"} <b>${plan.drops.length}</b> group${plan.drops.length === 1 ? "" : "s"}`
+        : '<span class="muted">nothing will be written for this name until the warning above is resolved</span>'}</div>
+    </div>`;
+  }
+  function gmPlanHtml() {
+    const plans = gmPlans();
+    return `<div class="dup-plan">${plans.map((p) => `<div><b>${esc(p.name)}</b> — keep <code>${esc(p.keep.id)}</code>
+        <div class="mini">1. add ${p.moves.length} member${p.moves.length === 1 ? "" : "s"} to it${p.moves.length ? `: ${esc(p.moves.slice(0, 5).map((m) => m.name).join(", "))}${p.moves.length > 5 ? " …" : ""}` : ""}</div>
+        <div class="mini">2. repoint ${p.edits.length} polic${p.edits.length === 1 ? "y" : "ies"}, each read fresh and read back: ${esc(p.edits.map((e) => `${e.name} (${[e.include ? "include" : "", e.exclude ? "exclude" : ""].filter(Boolean).join(" + ")})`).join("; ")) || "none"}</div>
+        <div class="mini">3. ${p.remove === "delete" ? "DELETE" : "rename aside"} ${esc(p.drops.map((d) => p.remove === "delete" ? d.id : `${d.id} → “${(p.archiveNames.find((a) => a.id === d.id) || {}).to}”`).join(", "))} — only if steps 1 and 2 all landed</div></div>`).join("")}</div>
+      <div style="margin-top:10px"><b class="mini">The other group</b>
+        <label class="chk"><input type="radio" name="gmRemove" value="rename"${gmRemove === "rename" ? " checked" : ""}> <span><b>Rename it aside</b> <span class="why">— “(merged ${new Date().toISOString().slice(0, 10)})”. Nothing is lost: 🧹 Archived groups lists it, checks what else still uses it outside Conditional Access, and deletes it when you are satisfied. Recommended.</span></span></label>
+        <label class="chk"><input type="radio" name="gmRemove" value="delete"${gmRemove === "delete" ? " checked" : ""}> <span><b>Delete it now</b> <span class="why">— an app assignment, licence, access package or Intune assignment outside Conditional Access that uses it breaks, and a deleted security group may not be restorable.</span></span></label></div>
+      <label class="chk"><input type="checkbox" id="gmBackup" checked> Download a JSON backup first — the groups, their members and every affected policy's users block as it is now</label>`;
+  }
+  function renderGroupMerge() {
+    const plans = gmPlans();
+    const blocked = gmSets.filter((s) => !gmPlan(s).canRun).length;
+    $("gmSub").innerHTML = gmStep === "plan"
+      ? `Review before anything is written in ${esc(tenantName || "this tenant")}. Members move first, then the policies; the other group is only touched when both landed.`
+      : `${gmSets.length} name${gmSets.length === 1 ? " is" : "s are"} carried by more than one group${blocked ? ` · ${blocked} need a decision first` : ""}. Keep one group per name: its members stay, the other's are added to it, every Conditional Access policy is pointed at it, and the other group is retired.`;
+    $("gmBody").innerHTML = gmStep === "plan" ? gmPlanHtml() : (gmSets.map(gmSetHtml).join("") || '<p class="mini muted">No group name is carried by more than one group.</p>');
+    $("gmBack").style.display = gmStep === "plan" ? "" : "none";
+    $("gmNext").style.display = gmStep === "plan" ? "none" : "";
+    $("gmGo").style.display = gmStep === "plan" ? "" : "none";
+    $("gmConfirmWrap").style.display = gmStep === "plan" ? "" : "none";
+    $("gmNext").disabled = !plans.length;
+    $("gmNext").textContent = plans.length ? `Review the merge (${plans.length}) →` : "Review the merge →";
+    const word = gmRemove === "delete" ? "DELETE" : "MERGE";
+    $("gmWord").textContent = word; $("gmConfirm").placeholder = word;
+    $("gmGo").textContent = gmRemove === "delete" ? "Merge & delete" : "Merge & rename aside";
+    gmSyncGo();
+  }
+  function gmSyncGo() {
+    const word = gmRemove === "delete" ? "DELETE" : "MERGE";
+    $("gmGo").disabled = gmStep !== "plan" || $("gmConfirm").value.trim().toUpperCase() !== word || !gmPlans().length;
+  }
+  async function gmRun() {
+    const plans = gmPlans();
+    if (!plans.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES, ...ML_WRITE])) return;
+    if ($("gmBackup") && $("gmBackup").checked) {
+      try {
+        const affected = new Set(plans.flatMap((p) => p.edits.map((e) => e.id)));
+        downloadText("CA-Group-Merge-Backup", "json", "application/json", JSON.stringify({
+          tenant: tenantName, exported: new Date().toISOString(),
+          groups: plans.flatMap((p) => [p.keep, ...p.drops].map((g) => ({ id: g.id, name: g.name, dynamic: g.dynamic, membershipRule: g.membershipRule, members: (gmMembers.get(g.id) || {}).list || [] }))),
+          policies: gmRaws().filter((r) => affected.has(r.id)).map((r) => ({ id: r.id, displayName: r.displayName, users: r.conditions?.users || {} })),
+        }, null, 2));
+      } catch (e) { console.error(e); toast("Backup download <span>failed</span> — nothing was merged"); return; }
+    }
+    $("gmGo").disabled = true; $("gmBack").style.display = "none"; $("gmCancel").disabled = true; $("gmConfirm").disabled = true;
+    $("gmBody").innerHTML = "";
+    const L = RunLedger.create($("gmLedger"), { unit: "duplicate names", title: "merge", items: plans.map((p) => ({
+      label: p.name, sub: `keep ${p.keep.id.slice(0, 8)}… · ${p.moves.length} member${p.moves.length === 1 ? "" : "s"} · ${p.edits.length} polic${p.edits.length === 1 ? "y" : "ies"}` })), onStop: () => {} });
+    const results = [];
+    for (let i = 0; i < plans.length; i++) {
+      const p = plans[i];
+      if (L.stopped) { L.skip(i, "stopped — nothing changed"); continue; }
+      L.start(i);
+      let r;
+      if (isDemo) {
+        r = { key: p.key, name: p.name, ok: true, steps: [] };
+        L.done(i, `merged (simulated) · ${p.remove === "delete" ? "deleted" : "renamed aside"} ${p.drops.length}`, "merged");
+      } else {
+        let doneN = 0; const total = p.moves.length + p.edits.length + p.drops.length;
+        r = await GroupMerge.run(p, {
+          addMember: (g, o) => Graph.gpost(`/groups/${g}/members/$ref`, { "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${o}` }),
+          getPolicy: (id) => Graph.gget(`/identity/conditionalAccess/policies/${id}`),
+          patchPolicy: (id, body) => Graph.gpatch(`/identity/conditionalAccess/policies/${id}`, body),
+          readSettled: (id, until) => Importer.readSettled(`/identity/conditionalAccess/policies/${id}`, until),
+          renameGroup: (id, name) => Graph.gpatch(`/groups/${id}`, { displayName: name }),
+          deleteGroup: (id) => Graph.gdelete(`/groups/${id}`),
+          shouldStop: () => L.stopped,
+          onStep: (key, phase, info) => { if (phase === "done" || phase === "fail") { doneN++; L.note(i, `${doneN} of ${total} · ${phase === "fail" ? "✗ " : ""}${info.label || key}${info.error ? ` — ${info.error}` : ""}`); } },
+        });
+        const any = r.steps.some((x) => x.phase === "done");
+        if (r.ok) L.done(i, `${p.moves.length} member${p.moves.length === 1 ? "" : "s"} moved · ${p.edits.length} polic${p.edits.length === 1 ? "y" : "ies"} repointed · ${p.remove === "delete" ? "deleted" : "renamed aside"}`, "merged");
+        else if (r.stopped) any ? L.part(i, r.error || "stopped", "partly done") : L.skip(i, "stopped — nothing changed");
+        else if (any) L.part(i, r.error, "partly done");
+        else L.fail(i, r.error || "refused", "refused");
+      }
+      results.push(r);
+    }
+    L.finish({ report: () => showReport("🔀 Group merge report", `CA-Group-Merge-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`,
+      GroupMerge.report({ tenant: tenantName }, plans, results)) });
+    $("gmCancel").disabled = false; $("gmConfirm").disabled = false;
+    $("gmGo").style.display = "none"; $("gmConfirmWrap").style.display = "none";
+    $("gmSub").textContent = `${results.filter((r) => r.ok).length} of ${plans.length} merged in ${tenantName || "this tenant"}${isDemo ? " (simulated)" : ""}.`;
+    if (!isDemo && results.some((r) => r.steps && r.steps.some((x) => x.phase === "done"))) { cgRes = null; await loadFromGraph(true); }
+  }
+  $("cgMergeDup").addEventListener("click", openGroupMerge);
+  $("gmCancel").addEventListener("click", () => $("gmModal").classList.remove("open"));
+  $("gmBack").addEventListener("click", () => { gmStep = "list"; renderGroupMerge(); });
+  $("gmNext").addEventListener("click", () => { gmStep = "plan"; $("gmConfirm").value = ""; renderGroupMerge(); });
+  $("gmGo").addEventListener("click", gmRun);
+  ["input", "keyup", "paste"].forEach((ev) => $("gmConfirm").addEventListener(ev, () => setTimeout(gmSyncGo, 0)));
+  $("gmBody").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset.gmKeep) { gmKeep.set(t.dataset.gmKeep, t.value); const s = gmSets.find((x) => x.key === t.dataset.gmKeep); if (s && gmPlan(s).canRun) gmOn.add(s.key); else gmOn.delete(t.dataset.gmKeep); renderGroupMerge(); }
+    else if (t.dataset.gmSet) { t.checked ? gmOn.add(t.dataset.gmSet) : gmOn.delete(t.dataset.gmSet); renderGroupMerge(); }
+    else if (t.name === "gmRemove") { gmRemove = t.value; $("gmConfirm").value = ""; renderGroupMerge(); }
+  });
+
   async function openArchived() {
     $("arcSub").textContent = "Looking for groups a recreate left behind…";
     $("arcBody").innerHTML = "";

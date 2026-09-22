@@ -119,6 +119,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 271,
+      title: "🔀 Merge groups that share a display name",
+      tools: ["CA groups"],
+      builds: [25477],
+      risk: "high",
+      what: "js/groupmerge.js (GroupMerge: duplicateSets, usersWithSwap, plan, run, report — pure, I/O injected). js/app.js: cgMergeDup button (syncMergeDupBtn after each scan), gmModal flow — member read per group (/groups/{id}/members), keep radio, per-name plan with refusals and the dynamic-rule warning, review step with rename-aside (default, typed MERGE) or delete (typed DELETE), JSON backup, RunLedger; deps POST members/$ref, GET + PATCH the policy, Importer.readSettled, PATCH displayName or DELETE the group. js/cagroups.js: ARCHIVE_SUFFIX and findArchived include merged. index.html: button, modal, script tag. Demo: a second CAB-SEC-U-Persona-Externals (g-demo-ext2).",
+      why: "The CloudFellows baseline review found two groups called CAB-SEC-U-Persona-Externals, so members of one got no MFA; the fix by hand is members, then ten policies, then the group — in that order or a policy points at nothing. High risk because it writes group membership, up to every CA policy, and can delete a group.",
+      test: [
+        "CloudFellows baseline tenant → 👥 CA groups → Refresh: 🔀 Duplicate names (1) appears; the dialog lists both CAB-SEC-U-Persona-Externals ids with members, rule and the policies on each side.",
+        "Select the dynamic group with 0 members as the one to keep while the other has members: the card refuses and says why; select the other: the plan runs.",
+        "Review → Rename it aside → type MERGE → run with the backup ticked: the JSON downloads first, then members, then each policy; afterwards CA300/CA301/CA304/CA310 and CA302–CA308 all name the kept id, CA000 and CA099 exclude it once, and the other group reads (merged YYYY-MM-DD).",
+        "🧹 Archived groups lists the renamed group with 0 policy references; its Check uses finds anything outside CA before you delete it there.",
+        "🛡 Checks → Bypass: the Group Hygiene finding for that name is gone.",
+        "Force a failure (a policy that refuses its PATCH, e.g. one still carrying the retired approved-app control): the run stops after the policies, reports partly done, and the other group is NOT renamed or deleted.",
+      ],
+      files: ["js/groupmerge.js", "js/app.js", "js/cagroups.js", "index.html", "tools/group-merge.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 270,
       title: "Bypass checks — duplicate group names and allow-list block completeness",
       tools: ["Checks"],
