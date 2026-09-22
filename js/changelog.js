@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25439, date: "2026-09-22", title: "One overlay at a time after sign-in",
+    items: [
+      { kind: "fixed", tool: "Sign-in", text: "Register ENCA in your own tenant from the sign-in card opened the wizard UNDER the What's-new overlay on a first visit to a new build — two overlays at once, the one you asked for not visible. What's new now waits until the wizard is closed, and the wizard always sits above every other overlay." },
+    ],
+  },
+  {
     build: 25438, date: "2026-09-22", title: "Register ENCA in your own tenant, from the browser",
     items: [
       { kind: "new", tool: "Sign-in", text: "🪪 First time on this copy? Register ENCA in your own tenant — a line on the sign-in card (every host but the publisher's own). It signs you in once with the registration this copy ships with, then a four-step wizard does what New-EncaAppRegistration.ps1 -SingleTenant does: a single-tenant SPA registration in YOUR directory with the same delegated Graph permissions, its service principal, optionally assignment-required with you assigned FIRST so it can never seal you out, and optionally admin consent for the whole organisation. Each step is read back before the next; a failure stops the run and says where." },

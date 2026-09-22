@@ -116,6 +116,11 @@ const Onboard = (() => {
   // row, and opens the wizard when the sign-in card asked for it.
   async function afterSignIn(state) {
     S = { ...S, ...(state || {}) };
+    // The sign-in card's flag is read and cleared HERE, synchronously, before
+    // the first await: js/app.js asks pending() right after this call to hold
+    // the What's-new overlay back — two overlays opening on the same sign-in
+    // was the 25438 bug (the wizard sat under What's new).
+    try { S.pendingOpen = sessionStorage.getItem(PENDING) === "1"; sessionStorage.removeItem(PENDING); } catch { S.pendingOpen = false; }
     paintMenu(false);
     if (S.demo) {
       S.roles = [{ roleTemplateId: "62e90394-69f5-4237-9190-012177145e10" }];
@@ -129,10 +134,15 @@ const Onboard = (() => {
     S.eligible = eligibleRoles(S.roles) && !own;
     paintMenu(true);
     paintBand();
-    let pending = false;
-    try { pending = sessionStorage.getItem(PENDING) === "1"; sessionStorage.removeItem(PENDING); } catch { /* private mode */ }
-    if (pending) open();
+    if (S.pendingOpen) open();
     return S;
+  }
+  const pending = () => !!S.pendingOpen;
+  // the wizard closing is what lets a held-back What's new show
+  function close() {
+    const bg = $("obModal"); if (bg) bg.classList.remove("open");
+    S.pendingOpen = false;
+    document.dispatchEvent(new CustomEvent("enca:onboard-closed"));
   }
   function paintMenu(ready) {
     const row = $("onboardBtn"); if (!row) return;
@@ -213,7 +223,7 @@ const Onboard = (() => {
     const bg = $("obModal"); if (!bg) return;
     bg.addEventListener("click", async (e) => {
       const t = e.target;
-      if (t.id === "obCancel" || t.id === "obClose" || (t === bg && !busy)) { if (!busy) bg.classList.remove("open"); return; }
+      if (t.id === "obCancel" || t.id === "obClose" || (t === bg && !busy)) { if (!busy) close(); return; }
       if (t.id === "obNext") { readForm(); const bad = validateName(form.name); const err = $("obErr"); if (bad) { err.textContent = bad; err.style.display = ""; return; } step = 2; render(); return; }
       if (t.id === "obBack") { step = 1; render(); return; }
       if (t.id === "obGo") { run(); return; }
@@ -336,5 +346,5 @@ const Onboard = (() => {
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
-  return { SCOPES, ROLES, NEED, NEED_ASSIGN, defaultName, validateName, appBody, plan, acaEnv, localJs, dockerLines, templateParams, roleNames, eligibleRoles, afterSignIn, open, paintBand, state: () => S, _setState: (s) => { S = { ...S, ...s }; } };
+  return { SCOPES, ROLES, NEED, NEED_ASSIGN, defaultName, validateName, appBody, plan, acaEnv, localJs, dockerLines, templateParams, roleNames, eligibleRoles, afterSignIn, open, close, pending, paintBand, state: () => S, _setState: (s) => { S = { ...S, ...s }; } };
 })();

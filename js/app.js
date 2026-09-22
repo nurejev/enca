@@ -2301,7 +2301,9 @@
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
       warnUnresolved();
-      if (!isRefresh) maybeShowWhatsNew();   // after sign-in, never over the login screen
+      // after sign-in, never over the login screen — and never over the 🪪
+      // wizard the sign-in card asked for: it shows when that closes (25439)
+      if (!isRefresh && !Onboard.pending()) maybeShowWhatsNew();
       return true;
     } catch (e) {
       console.error("Failed while " + phase + ":", e); // full details for diagnostics
@@ -2359,7 +2361,7 @@
     try { Onboard.afterSignIn({ tenantId: "", tenantName, demo: true, account: null }); } catch (e) { console.warn("onboard:", e); }
     show("screen-home");
     toast(`Demo mode — <span>${policies.length}</span> sample policies loaded`);
-    maybeShowWhatsNew();
+    if (!Onboard.pending()) maybeShowWhatsNew();
   }
 
   // ---------- permissions overview (home) ----------
@@ -20786,6 +20788,7 @@ This is a directory write. Nothing else changes.`)) return;
   // appears, the Overview moves into it.
   document.addEventListener("enca:wchome", () => { try { renderOverview({ force: true }); } catch (e) { console.warn("overview:", e); } });
   document.addEventListener("enca:wchome", () => { try { Onboard.paintBand(); } catch (e) { console.warn("onboard:", e); } });
+  document.addEventListener("enca:onboard-closed", () => { try { maybeShowWhatsNew(); } catch (e) { console.warn("what's new:", e); } });
   $("overview") && $("overview").addEventListener("click", (e) => {
     // a tile's secondary link wins over the tile it sits on
     const also = e.target.closest(".db-also");

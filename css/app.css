@@ -2466,6 +2466,7 @@ td.gm-none{color:var(--muted);font-weight:700}
 .ob-txt{flex:1;min-width:0;font-size:13px;line-height:1.5}
 .ob-txt code{font-size:12px}
 .ob-act{display:flex;flex-direction:column;gap:6px;flex:none;align-items:stretch}
+#obModal{z-index:335} /* above What's new (300) and the tool modals; below the popup guard (340) */
 .ob-modal{max-width:820px}
 .ob-modal h3{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .ob-steps{display:flex;margin:8px 0 16px;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:12.5px}
