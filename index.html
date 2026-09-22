@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25436"></script>
+<script src="js/popup-guard.js?v=25437"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25436" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25436">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=25437" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=25437">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25436"></script>
+<script src="js/selfhost-boot.js?v=25437"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25436"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25436"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25436">
-<link rel="stylesheet" href="css/workspaces.css?v=25436">
-<link rel="stylesheet" href="css/tool-layout.css?v=25436">
-<link rel="stylesheet" href="css/list-detail.css?v=25436">
-<link rel="stylesheet" href="css/flat-icons.css?v=25436">
+<script src="js/counter.js?v=25437"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25437"></script>
+<link rel="stylesheet" href="css/workspace.css?v=25437">
+<link rel="stylesheet" href="css/workspaces.css?v=25437">
+<link rel="stylesheet" href="css/tool-layout.css?v=25437">
+<link rel="stylesheet" href="css/list-detail.css?v=25437">
+<link rel="stylesheet" href="css/flat-icons.css?v=25437">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25436" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25437" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -104,7 +104,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25436" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25437" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -223,7 +223,7 @@
       </div>
       <div class="tool tool-tile" id="toolPolicies">
         <div class="tool-ic">🗂</div><h3>Policies <span class="tag upd">UPDATED</span></h3>
-        <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona. One screen, and the action bar does the rest: <b>📄 Create documentation</b> (Word, PDF, PNG or a PNG bundle, with auditor-ready pages for the restricted units protecting exclusion groups), <b>🗄 Backup (JSON)</b> to a zip with its dependencies, <b>🔍 Gap analyse</b>, <b>👥 Assign groups or roles</b> and <b>🎚 Set policy state</b> — the three reads falling back to every visible policy when nothing is selected, the two writes asking for an explicit pick. On a baseline tenant the document and the backup are scoped to the baseline catalog. <span class="tag block">writes to tenant</span></p>
+        <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona. One screen, and the action bar does the rest: <b>📄 Create documentation</b> (Word, PDF, PNG or a PNG bundle, with auditor-ready pages for the restricted units protecting exclusion groups), <b>🗄 Backup (JSON)</b> to a zip with its dependencies, <b>🔍 Gap analyse</b>, <b>👥 Assign groups or roles</b>, <b>🎚 Set policy state</b> and <b>🏗 Open in builder</b> — the three reads falling back to every visible policy when nothing is selected, the writes asking for an explicit pick. On a baseline tenant the document and the backup are scoped to the baseline catalog. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>🔍 Analyse &amp; simulate</h3><p>Work out what your policies actually do, and to whom.</p></div>
@@ -284,7 +284,7 @@
       </div>
       <div class="tool tool-tile" id="toolLocations">
         <div class="tool-ic">🧩</div><h3>Policy building blocks <span class="tag upd">UPDATED</span></h3>
-        <p>The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
+        <p><b>🏗 Builder</b> <span class="tag new">BETA</span> — one guided screen for a policy, blank, from a baseline template, or from a policy selected elsewhere, preflighted in What-If and born report-only. The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
@@ -425,6 +425,7 @@
         <button class="btn sm" id="selActDoc" title="Create documentation">📄 Documentation</button>
         <button class="btn sm" id="selActBackup" title="Download raw JSON definitions">🗄 Backup</button>
         <button class="btn sm" id="selActAnalyze" title="Users × policies impact matrix">🔍 Gap analyse</button>
+        <button class="btn sm" id="selActBuild" title="Open the selected policy in the 🏗 Policy builder — edit it in place with a diff, or clone it into a new one">🏗 Open in builder</button>
         <button class="btn sm" id="selActAssign" title="Change the group or directory-role assignment — writes to your tenant">👥 Assign groups or roles</button>
         <button class="btn sm" id="selActState" title="Switch On / report-only / Off — writes to your tenant">🎚 Policy state</button>
         <span class="sel-sep"></span>
@@ -1092,6 +1093,29 @@
     <div class="tool-body" id="loBody"></div>
   </section>
 
+  <!-- ============ 🏗 POLICY BUILDER (T41, build 25437) ============
+       The sixth tab of 🧩 Policy building blocks — R23 built on R17. The
+       head, toolbar and body are painted by renderBuilder() in js/app.js from
+       the draft (Builder.*, js/builder.js). Same frame as its five siblings:
+       head → tabs → toolbar → tool-body, list/detail inside the body. -->
+  <section id="screen-builder" class="screen tool">
+    <div class="list-card readme" id="pbHead"></div>
+    <div class="toolbar" id="pbToolbar">
+      <div class="seg" id="pbStart" title="Where the draft starts from">
+        <button data-pbstart="blank">✨ Blank</button>
+        <button data-pbstart="template">🧬 Baseline template</button>
+        <button data-pbstart="policy">🗂 Tenant policy</button>
+      </div>
+      <div class="tb-actions">
+        <button class="btn" id="pbPreflight" title="Evaluate the draft against synthetic sign-ins with What-If — no read, no write">🧪 Preflight</button>
+        <button class="btn" id="pbJson" title="Download the exact body that would be written — 📥 Import can load it">⭳ JSON</button>
+        <button class="btn" id="pbPlan" title="Export what this write would do as a reviewable Markdown file, hand it to a colleague, then apply it here (R22)">📋 Change plan</button>
+        <button class="btn lemon" id="pbGo">＋ Create in report-only</button>
+      </div>
+    </div>
+    <div class="tool-body" id="pbBody"></div>
+  </section>
+
   <!-- ============ AUTHENTICATION CONTEXTS (BETA) ============ -->
   <section id="screen-authctx" class="screen tool">
     <div class="list-card readme" id="acHead"></div>
@@ -1616,6 +1640,14 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> <a href="#" class="md-tool" data-tool="toolBuilder">🏗 Policy builder</a> <span class="tag ok">in beta today · beta 25437</span></h4>
+            <p class="mini" style="margin:0"><b>Shipped as T41, the sixth tab of 🧩 Policy building blocks</b> — the tenant's locations, strengths, contexts and terms as the pickers, hints computed over the loaded policies, a What-If preflight, a change-plan export, and a policy born in report-only. Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R17</span> ✏️ Editable Conditional Access policies <span class="tag ok">in beta today · beta 25437</span></h4>
+            <p class="mini" style="margin:0"><b>Shipped inside the 🏗 Policy builder</b> — Open in builder on 🗂 Policies' action bar edits the selected policy with a ± Diff of exactly what changes and a PATCH of whole sections, only the changed ones, read back after the write. Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
+          </div>
           
                     <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span> <span class="tag">CloudFellows tenant only</span></h4>
@@ -1666,11 +1698,7 @@
         </div>
         <div class="rm-era future far">
           <h3>Later <span class="rm-when">after the above</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R17</span> ✏️ Editable Conditional Access policies <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
-          </div>
-          <div class="list-card rm-card">
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R18</span> 🏢 Several tenants at once <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">For anyone who looks after more than one tenant: sign into each in turn and hold the results side by side — baseline coverage, CIS score, gap count, drift since last visit, one row per customer. One screen that answers “which of my tenants is worst off this month” without opening thirteen browser tabs. Pairs with Drift watch: a snapshot per tenant, reviewed on a schedule you keep rather than infrastructure you run.</p>
           </div>
@@ -1693,11 +1721,7 @@
         </div>
         <div class="rm-era future far">
           <h3>On the horizon <span class="rm-when">builds on policy editing</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> 🏗 Policy builder <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
-          </div>
-          <div class="list-card rm-card">
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R24</span> 🚀 Go-live checklist <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Report-only impact forecasts one policy at a time; a checklist tracks the whole report-only backlog toward enforcement — what is staged, what has enough traffic to judge, what is ready to switch on, with the forecast attached to each. The paperwork of a go-live, kept in the tool that produced the evidence.</p>
           </div>
@@ -1778,7 +1802,7 @@
         <li><b>Cards / List / Settings matrix</b> — Cards show each policy in full; List is a compact one-line-per-policy view; the Settings matrix is a policies × settings grid for spotting differences at a glance. The matrix has a <b>full-screen</b> button.</li>
         <li><b>Search</b> — filter by CA number, policy name or persona.</li>
         <li><b>Persona filter <span class="tag new">NEW</span></b> (build 25431) — the row of chips under the toolbar, one per persona this tenant actually has: <b>Global</b>, <b>Admins</b>, <b>Internals</b>, <b>Externals</b>, <b>Guest users</b>, <b>Guest admins</b>, the service-account ranges, and <b>Other / unnumbered</b> for policies whose name carries no CA number. Personas come from the CA number in the name, the same reading the grouped view and the search already use. <b>Several can be on at once</b> — Admins and E-Admins is a real question — and a chip you click again turns itself off; <b>All personas</b> clears them. Only the personas the tenant has get a chip, and the counts follow the state filter and the search, so a chip says how many you would get by ticking it rather than how many exist. A persona you have ticked keeps its chip even when the count falls to zero, so the filter never disappears under its own empty result. <b>It narrows what the action bar acts on:</b> Documentation, Backup and Gap analyse fall back to everything in view, and Select all ticks what is in view — so a persona filter is also a way to scope those to one persona.</li>
-        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups or roles</b>, <b>Set state</b> or <b>Delete</b>.</li>
+        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups or roles</b>, <b>Set state</b>, <b>Delete</b> — or <b>🏗 Open in builder</b> (build 25437): one selected policy opens in the Policy builder to <b>edit</b> it (a ± Diff of exactly what changes; the PATCH sends whole sections, only the changed ones) or to <b>clone</b> it into a new policy with the next free number in its range.</li>
         <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups or roles, and Policy state, scoped to that one policy.</li>
         <li><b>Clear</b> (build 25435) — takes away everything narrowing the view at once: the selection, an <i>From the Overview</i> filter you arrived through, the persona chips, the search box and the state filter. It greys out when there is nothing to clear, and hovering it names exactly what it would remove. Each filter still has its own control if you want to drop just one — the Overview chip's ✕, a second click on a persona chip, <b>All</b> on the state chips.</li>
         <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
@@ -2115,7 +2139,7 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T39</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T41</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
         <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number.</li>
@@ -2127,6 +2151,7 @@
             <li><code>T11</code> 🧩 Baseline (Joey Verlinden) → <b>🧬 Baseline</b>, catalog picker (build 25338)</li>
             <li><code>T26</code> 🎚 Report-only impact → <b>🚦 Sign-in log</b>, Report-only impact tab (build 25339)</li>
             <li><code>T38</code> 🛂 Session controls → <b>🚦 Sign-in log</b>, Session controls tab (build 25339)</li>
+            <li><code>T41</code> 🏗 Policy builder → <b>🧩 Policy building blocks</b>, Builder tab (build 25437 — born there, never a tile)</li>
             <li><code>T28</code> 📉 Drift watch → <b>🕓 Changes</b>, Snapshot file tab (build 25340)</li>
             <li><code>T29</code> 📖 Baseline guide → <b>🧬 Baseline</b>, Deployment guide tab (build 25340)</li>
             <li><code>T22</code> 🎫 Authentication contexts → <b>🧩 Policy building blocks</b>, Contexts tab (build 25341)</li>
@@ -2417,6 +2442,14 @@
         <li><b>Export MD</b> — the bin's contents with their deadlines.</li>
       </ul>
       <p class="help-x">Reads and restores need <code>Policy.ReadWrite.ConditionalAccess</code>, asked for on the click. Nothing here can delete anything — the only write is a restore.</p>
+          <h5>🏗 Policy builder <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span> <span class="help-fold">the sixth tab — build 25437, T41</span></h5>
+      <p><b>One guided screen for a policy.</b> Seven steps — name and persona, who, what, when, then, session, state — with the tenant's own building blocks as the pickers: the named locations of the 🌐 tab, the contexts of 🎫, the strengths of 💪 and the terms of 📜. The CA number is the next free one in the persona's range and the name follows the baseline convention (<code>CAnnn-GRANT|BLOCK|SESSION-Persona-words-vX.Y</code>) as you choose; the kind follows the controls. Hints on the way are computed from the loaded policies and blocks, never read from the tenant again: the break-glass group not excluded, legacy authentication already blocked tenant-wide, an IP location not marked trusted behind “All trusted locations”, an empty country location, an enabled policy that already targets the same people and resources.</p>
+      <ul>
+        <li><b>Three starts.</b> ✨ Blank. 🧬 A baseline template — when the tenant holds that CA number the builder starts from the tenant's policy (structured); otherwise from the template's number, persona, version, group names resolved against the tenant's groups, and its own sentences carried into step 1 as “the template says”. 🗂 A policy from this tenant — to <b>edit</b> or to <b>clone</b>; also reached from 🗂 Policies' action bar (<b>Open in builder</b>) and from every block's detail pane (<b>New policy with this location / strength / context / terms</b>).</li>
+        <li><b>Preview.</b> 🗂 Card is the policy card it will be; { } JSON the exact body Graph receives (a PATCH body when editing); 🧪 Preflight evaluates the draft with What-If against synthetic sign-ins — a member of what it includes from outside and from inside a trusted location, a member of what it excludes, a B2B guest — beside the loaded policies, so each row also names the other policies that apply; ± Diff compares the tenant's policy with the draft when editing. 📋 Change plan exports the op list, the step summaries, the hints and the body as Markdown, to hand to a reviewer before applying it here (R22).</li>
+        <li><b>The write.</b> Create POSTs the policy <b>report-only</b>, reads it back with the same settle schedule 📥 Import uses, re-reads the policy set and opens 🗂 Policies filtered to it. Off is allowed; On needs a typed <b>ON</b>. The policy's own exclusion group (the baseline's naming rule, <code>CAB-SEC-U-CAnnn-Exclusion</code> for CloudFellows) is created <i>first</i>, empty, so the policy never names a group that failed to exist — untick it to use existing groups only. An edit PATCHes <b>whole sections</b> — conditions, grant controls, session controls — and only the ones that changed, so a clause nobody was looking at (a guest exclusion, a device filter) cannot be dropped. A staging prefix such as <code>(NEW)</code> stays on an edit.</li>
+        <li><b>Recovery.</b> A created policy is restorable for 30 days from ♻ Deleted; a created group can be deleted in 👥 CA groups; an edit can be reverted from its 🕓 Changes entry.</li>
+      </ul>
     </section>
 
 
@@ -2499,6 +2532,13 @@
 </footer>
 
 <!-- ============ MS LEARN: APPLY FIXES (writes to the tenant) ============ -->
+<div class="modal-bg" id="pbModal">
+  <div class="modal" style="max-width:720px">
+    <h3 id="pbModalTitle">🏗</h3>
+    <div id="pbModalBody"></div>
+    <div class="modal-foot"><button class="btn" id="pbModalClose">Close</button></div>
+  </div>
+</div>
 <div class="modal-bg" id="mlApplyModal">
   <div class="modal">
     <h3>⚡ Apply suggested fixes in <span id="mlApplyTenant"></span></h3>
@@ -3197,84 +3237,85 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25436"></script>
-<script src="js/selfhost.js?v=25436"></script>
-<script src="js/version.js?v=25436"></script>
-<script src="js/verdict.js?v=25436"></script>
-<script src="js/fork.js?v=25436"></script>
-<script src="js/promote.js?v=25436"></script>
-<script src="js/authConfig.js?v=25436"></script>
-<script src="js/connection.js?v=25436"></script>
-<script src="js/labels.js?v=25436"></script>
-<script src="js/capabilities.js?v=25436"></script>
-<script src="js/graph.js?v=25436"></script>
-<script src="js/model.js?v=25436"></script>
-<script src="js/render.js?v=25436"></script>
-<script src="js/analyze.js?v=25436"></script>
-<script src="js/whatif.js?v=25436"></script>
-<script src="js/mslearn.js?v=25436"></script>
-<script src="js/gapcheck.js?v=25436"></script>
-<script src="js/cisdata.js?v=25436"></script>
-<script src="js/cischeck.js?v=25436"></script>
-<script src="js/exclusions.js?v=25436"></script>
-<script src="js/cascope.js?v=25436"></script>
-<script src="js/coverage.js?v=25436"></script>
-<script src="js/runmeta.js?v=25436"></script>
-<script src="js/overview.js?v=25436"></script>
-<script src="js/validator.js?v=25436"></script>
-<script src="js/whatifeval.js?v=25436"></script>
-<script src="js/compare.js?v=25436"></script>
-<script src="js/whois.js?v=25436"></script>
-<script src="js/wave.js?v=25436"></script>
-<script src="js/sessionctl.js?v=25436"></script>
-<script src="js/spgap.js?v=25436"></script>
-<script src="js/groupuse.js?v=25436"></script>
-<script src="js/iso3166.js?v=25436"></script>
-<script src="js/causes.js?v=25436"></script>
-<script src="js/locations.js?v=25436"></script>
-<script src="js/authcontexts.js?v=25436"></script>
-<script src="js/authstrengths.js?v=25436"></script>
-<script src="js/recycle.js?v=25436"></script>
-<script src="js/rmau.js?v=25436"></script>
-<script src="js/camap.js?v=25436"></script>
-<script src="js/rmaudoc.js?v=25436"></script>
-<script src="js/termsofuse.js?v=25436"></script>
-<script src="js/audit.js?v=25436"></script>
-<script src="js/drift.js?v=25436"></script>
-<script src="js/guide.js?v=25436"></script>
-<script src="js/userimpact.js?v=25436"></script>
-<script src="js/smsvoice.js?v=25436"></script>
-<script src="js/memberof.js?v=25436"></script>
-<script src="js/devcheck.js?v=25436"></script>
-<script src="js/licgap.js?v=25436"></script>
-<script src="js/teamsdev.js?v=25436"></script>
-<script src="js/signinstore.js?v=25436"></script>
-<script src="js/signins.js?v=25436"></script>
-<script src="js/reportimpact.js?v=25436"></script>
-<script src="js/changelog.js?v=25436"></script>
-<script src="js/baselineData.js?v=25436"></script>
-<script src="js/baselineJoeyData.js?v=25436"></script>
-<script src="js/baselineLive.js?v=25436"></script>
-<script src="js/baseline.js?v=25436"></script>
-<script src="js/baselineCleanup.js?v=25436"></script>
-<script src="js/groupTemplates.js?v=25436"></script>
-<script src="js/assign.js?v=25436"></script>
-<script src="js/cagroups.js?v=25436"></script>
-<script src="js/groupsview.js?v=25436"></script>
-<script src="js/runledger.js?v=25436"></script>
-<script src="js/protect.js?v=25436"></script>
-<script src="js/policy-compare.js?v=25436"></script>
-<script src="js/import.js?v=25436"></script>
-<script src="js/export.js?v=25436"></script>
-<script src="js/demo.js?v=25436"></script>
-<script src="js/list-detail.js?v=25436"></script>
-<script src="js/flat-icons.js?v=25436"></script>
-<script src="js/workspace.js?v=25436"></script>
-<script src="js/analysis-jobs.js?v=25436"></script>
-<script src="js/search-suggest.js?v=25436"></script>
-<script src="js/app.js?v=25436"></script>
-<script src="js/accessibility.js?v=25436"></script>
-<script src="js/workspaces.js?v=25436"></script>
-<script src="js/tool-layout.js?v=25436"></script>
+<script src="js/branding.js?v=25437"></script>
+<script src="js/selfhost.js?v=25437"></script>
+<script src="js/version.js?v=25437"></script>
+<script src="js/verdict.js?v=25437"></script>
+<script src="js/fork.js?v=25437"></script>
+<script src="js/promote.js?v=25437"></script>
+<script src="js/authConfig.js?v=25437"></script>
+<script src="js/connection.js?v=25437"></script>
+<script src="js/labels.js?v=25437"></script>
+<script src="js/capabilities.js?v=25437"></script>
+<script src="js/graph.js?v=25437"></script>
+<script src="js/model.js?v=25437"></script>
+<script src="js/render.js?v=25437"></script>
+<script src="js/analyze.js?v=25437"></script>
+<script src="js/whatif.js?v=25437"></script>
+<script src="js/mslearn.js?v=25437"></script>
+<script src="js/gapcheck.js?v=25437"></script>
+<script src="js/cisdata.js?v=25437"></script>
+<script src="js/cischeck.js?v=25437"></script>
+<script src="js/exclusions.js?v=25437"></script>
+<script src="js/cascope.js?v=25437"></script>
+<script src="js/coverage.js?v=25437"></script>
+<script src="js/runmeta.js?v=25437"></script>
+<script src="js/overview.js?v=25437"></script>
+<script src="js/validator.js?v=25437"></script>
+<script src="js/whatifeval.js?v=25437"></script>
+<script src="js/builder.js?v=25437"></script>
+<script src="js/compare.js?v=25437"></script>
+<script src="js/whois.js?v=25437"></script>
+<script src="js/wave.js?v=25437"></script>
+<script src="js/sessionctl.js?v=25437"></script>
+<script src="js/spgap.js?v=25437"></script>
+<script src="js/groupuse.js?v=25437"></script>
+<script src="js/iso3166.js?v=25437"></script>
+<script src="js/causes.js?v=25437"></script>
+<script src="js/locations.js?v=25437"></script>
+<script src="js/authcontexts.js?v=25437"></script>
+<script src="js/authstrengths.js?v=25437"></script>
+<script src="js/recycle.js?v=25437"></script>
+<script src="js/rmau.js?v=25437"></script>
+<script src="js/camap.js?v=25437"></script>
+<script src="js/rmaudoc.js?v=25437"></script>
+<script src="js/termsofuse.js?v=25437"></script>
+<script src="js/audit.js?v=25437"></script>
+<script src="js/drift.js?v=25437"></script>
+<script src="js/guide.js?v=25437"></script>
+<script src="js/userimpact.js?v=25437"></script>
+<script src="js/smsvoice.js?v=25437"></script>
+<script src="js/memberof.js?v=25437"></script>
+<script src="js/devcheck.js?v=25437"></script>
+<script src="js/licgap.js?v=25437"></script>
+<script src="js/teamsdev.js?v=25437"></script>
+<script src="js/signinstore.js?v=25437"></script>
+<script src="js/signins.js?v=25437"></script>
+<script src="js/reportimpact.js?v=25437"></script>
+<script src="js/changelog.js?v=25437"></script>
+<script src="js/baselineData.js?v=25437"></script>
+<script src="js/baselineJoeyData.js?v=25437"></script>
+<script src="js/baselineLive.js?v=25437"></script>
+<script src="js/baseline.js?v=25437"></script>
+<script src="js/baselineCleanup.js?v=25437"></script>
+<script src="js/groupTemplates.js?v=25437"></script>
+<script src="js/assign.js?v=25437"></script>
+<script src="js/cagroups.js?v=25437"></script>
+<script src="js/groupsview.js?v=25437"></script>
+<script src="js/runledger.js?v=25437"></script>
+<script src="js/protect.js?v=25437"></script>
+<script src="js/policy-compare.js?v=25437"></script>
+<script src="js/import.js?v=25437"></script>
+<script src="js/export.js?v=25437"></script>
+<script src="js/demo.js?v=25437"></script>
+<script src="js/list-detail.js?v=25437"></script>
+<script src="js/flat-icons.js?v=25437"></script>
+<script src="js/workspace.js?v=25437"></script>
+<script src="js/analysis-jobs.js?v=25437"></script>
+<script src="js/search-suggest.js?v=25437"></script>
+<script src="js/app.js?v=25437"></script>
+<script src="js/accessibility.js?v=25437"></script>
+<script src="js/workspaces.js?v=25437"></script>
+<script src="js/tool-layout.js?v=25437"></script>
 </body>
 </html>

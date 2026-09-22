@@ -183,7 +183,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
-    "screen-rollout", "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
+    "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -297,6 +297,8 @@
                         open: () => openAuthStr() },
     toolAuthCtx:      { into: "toolLocations", label: "🎫 Authentication contexts",    where: "the Contexts tab",           build: 25341,
                         open: () => openAuthCtx() },
+    toolBuilder:      { into: "toolLocations", label: "🏗 Policy builder",             where: "the Builder tab",            build: 25437,
+                        open: () => openBuilder() },
     toolTou:          { into: "toolLocations", label: "📜 Terms of use",               where: "the Terms of use tab",       build: 25341,
                         open: () => openTou() },
     toolRecycle:      { into: "toolLocations", label: "♻ Recycle bin",                where: "the Deleted tab",            build: 25341,
@@ -452,6 +454,8 @@
         { key: "contexts",  icon: "🎫", name: "Contexts",    toolbar: "acToolbar", open: () => openAuthCtx() },
         { key: "terms",     icon: "📜", name: "Terms of use", toolbar: "tuToolbar", open: () => openTou(), beta: true },
         { key: "deleted",   icon: "♻", name: "Deleted",     toolbar: "rcToolbar", open: () => openRecycle() },
+        // 🏗 the sixth tab: the policy the other five are blocks OF (T41, build 25437)
+        { key: "builder",   icon: "🏗", name: "Builder",     toolbar: "pbToolbar", open: () => openBuilder(), beta: true },
       ],
     },
     baseline: {
@@ -1901,6 +1905,7 @@
     // Assign groups stays available with an empty selection: its first step can
     // scope to the whole tenant, which is the point of a blanket exclusion.
     $("selActAssign").disabled = policies.length === 0;
+    $("selActBuild").disabled = policies.length === 0;
     $("selActState").disabled = n === 0;
     $("selActDelete").disabled = n === 0;
     $("selLead").innerHTML = n
@@ -9190,6 +9195,7 @@ This is a directory write. Nothing else changes.`)) return;
           <span class="tag ${kind === "added" ? "grant" : kind === "held" ? "" : "block"}">${kind === "added" ? "NEW HERE" : kind === "held" ? "HELD" : "CHANGED"}</span>
           <b>${esc(num)}</b> <span class="mini">${esc((x.ten && x.ten.name) || (x.cat && x.cat.name) || "")}</span>
           ${x.reopened ? '<span class="tag new" title="It was held, but the difference is not the one that was held">REOPENED</span>' : ""}
+          ${kind === "changed" ? (x.status === "ahead" ? '<span class="tag" title="The version in the policy name is newer than the catalog\'s — this one the summary line counts as newer">newer version in name</span>' : x.status === "outdated" ? '<span class="tag" title="The version in the name is OLDER than the catalog\'s, yet the definition differs">older version in name</span>' : x.status === "ok" ? '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows">same version — edited in place</span>' : "") : ""}
         </div>
         ${diff ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0 0">${diff}</ul>` : ""}
         ${x.hold ? `<p class="mini" style="margin:8px 0 0">Held: <i>${esc(x.hold.reason)}</i>${x.hold.at ? ` · ${esc(String(x.hold.at).slice(0, 10))}` : ""}</p>` : ""}
@@ -9209,7 +9215,13 @@ This is a directory write. Nothing else changes.`)) return;
         <button class="btn sm" id="blCatClose">Close</button>
       </div>
       <p class="mini" style="margin:8px 0 0">Compared on <b>definition</b>, not on the version in the policy name — so a policy edited without a version bump is caught, and group order, condition order and markdown are not mistaken for changes. Nothing here writes to the tenant or to the repository: it proposes source for you to read and commit.</p>
-      <p class="mini" style="margin:6px 0 0"><b>${r.changed.length}</b> changed · <b>${r.added.length}</b> new here · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
+      <p class="mini" style="margin:6px 0 0"><b>${r.changed.length}</b> changed in definition · <b>${r.added.length}</b> new here · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
+      ${(() => { const ahead = r.changed.filter((x) => x.status === "ahead").length, same = r.changed.length - ahead; return r.changed.length ? `<p class="mini muted" style="margin:4px 0 0">Two measures, two numbers: the summary above counts versions in NAMES (<b>${ahead}</b> of these ${r.changed.length} carry a newer version than the catalog); this panel compares DEFINITIONS, and <b>${same}</b> changed without a version bump — the ones the name alone would never show.</p>` : ""; })()}
+      <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn sm" id="blTakeAll" ${r.changed.length + r.added.length ? "" : "disabled"}>☑ Select all (${r.changed.length + r.added.length})</button>
+        <button class="btn sm" id="blTakeNone" ${blTake.size ? "" : "disabled"}>☐ Deselect all</button>
+        <span class="mini muted">${blTake.size} selected to take</span>
+      </div>
       ${drift ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">⚠ <b>Serialiser drift on ${drift} of the ${r.unchanged.length} unchanged policies.</b> Their definitions match, but the entry this tool would write differs in wording from the catalog's existing prose — the catalog's strings were produced by a generator that is not in this repository. The comparison is unaffected; the entries you take will simply read a little differently from their neighbours. Worth an eye on the first one you paste.</p>` : ""}
       ${r.gone.length ? `<p class="mini" style="margin:8px 0 0">Gone from the tenant: ${r.gone.map((g) => `CA${String(g.num).padStart(3, "0")}`).join(", ")} — <b>not</b> removed from the catalog here. Deleting a baseline policy is a decision this tool will not make for you.</p>` : ""}
     </div></div>
@@ -9225,6 +9237,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("blCatalogUpdate").addEventListener("click", () => { blCatOpen = !blCatOpen; blTake.clear(); renderCatalogUpdate(); });
   $("blCatalogPanel").addEventListener("click", (e) => {
     if (e.target.id === "blCatClose") { blCatOpen = false; renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeAll") { [...(blReview.changed || []), ...(blReview.added || [])].forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeNone") { blTake.clear(); renderCatalogUpdate(); return; }
     const hold = e.target.closest("[data-blhold]");
     if (hold) {
       const num = +hold.dataset.blhold;
@@ -15317,10 +15331,14 @@ This is a directory write. Nothing else changes.`)) return;
     const icon = (k) => k === "ip" ? "🖧" : k === "country" ? "🌍" : "🛡";
     const kindLabel = (k) => k === "ip" ? "IP ranges" : k === "country" ? "countries" : "network access";
     const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
-    const actions = (l, canEdit) => canEdit
-      ? `<button class="btn sm" data-loedit="${esc(l.id)}">✎ Edit</button>
+    // "New policy with this location" opens 🏗 the Builder with the
+    // location pre-picked in step 4 (T41) — the block hands itself to the
+    // policy, which is what a building block is for.
+    const build = (l) => `<button class="btn sm" data-pbwith="location" data-id="${esc(l.id)}" data-name="${esc(l.displayName)}" title="Open the Policy builder with this location selected in its conditions">🏗 New policy with this location</button>`;
+    const actions = (l, canEdit) => build(l) + (canEdit
+      ? ` <button class="btn sm" data-loedit="${esc(l.id)}">✎ Edit</button>
          <button class="btn sm danger" data-lodel="${esc(l.id)}">🗑 Delete</button>`
-      : '<span class="mini muted">service-managed</span>';
+      : ' <span class="mini muted">service-managed</span>');
 
     // One badge shape for both views, so the card and the row cannot disagree
     // about whether a location has something wrong with it.
@@ -15874,6 +15892,7 @@ This is a directory write. Nothing else changes.`)) return;
           ? `Enforced by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">No Conditional Access policy enforces this context — callers requesting it get no step-up</span>'}</div>
         <div class="lo-act">
+          <button class="btn sm" data-pbwith="context" data-id="${esc(c.id)}" data-name="${esc(c.displayName || c.id)}" title="Open the Policy builder targeting this authentication context">🏗 New policy with this context</button>
           <button class="btn sm" data-acedit="${esc(c.id)}">✎ Edit</button>
           <button class="btn sm" data-acpub="${esc(c.id)}">${c.isAvailable ? "⏸ Unpublish" : "▶ Publish"}</button>
           <button class="btn sm danger" data-acdel="${esc(c.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
@@ -16078,7 +16097,7 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="lo-u">${used.length
           ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">Not granted by any policy</span>'}</div>
-        <div class="lo-act">${builtin
+        <div class="lo-act"><button class="btn sm" data-pbwith="strength" data-id="${esc(p.id)}" data-name="${esc(p.displayName)}" title="Open the Policy builder granting this authentication strength">🏗 New policy with this strength</button>${builtin
           ? '<span class="mini muted">Microsoft-managed</span>'
           : `<button class="btn sm" data-asedit="${esc(p.id)}">✎ Edit</button>
              <button class="btn sm danger" data-asdel="${esc(p.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>`}</div>
@@ -16349,6 +16368,7 @@ This is a directory write. Nothing else changes.`)) return;
           ? `Required by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">Not required by any policy</span>'}</div>
         <div class="lo-act">
+          <button class="btn sm" data-pbwith="tou" data-id="${esc(a.id)}" data-name="${esc(a.displayName)}" title="Open the Policy builder requiring these terms">🏗 New policy with these terms</button>
           <button class="btn sm" data-tuedit="${esc(a.id)}">✎ Edit</button>
           <button class="btn sm" data-tuacc="${esc(a.id)}">👥 Acceptances</button>
           <button class="btn sm danger" data-tudel="${esc(a.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
@@ -16535,6 +16555,481 @@ This is a directory write. Nothing else changes.`)) return;
       ],
     };
   };
+
+  // ======================================================================
+  // 🏗 Policy builder (T41, build 25437) — R23 built on R17.
+  //
+  // The sixth tab of 🧩 Policy building blocks, because a policy IS the
+  // thing the other five tabs are blocks of: the picker in step 4 lists the
+  // tenant's named locations, step 3 its authentication contexts, step 5 its
+  // strengths and terms of use — read once per session from the sign-in
+  // context (25425) and never widened. The logic is js/builder.js
+  // (Builder.*, pure); this block owns the DOM, the tenant reads the pickers
+  // need, and the two writes.
+  //
+  // THREE STARTS, ONE DRAFT. ✨ Blank, 🧬 a baseline template, or 🗂 a policy
+  // selected elsewhere: the selection bar's "Open in builder" and the
+  // "New policy with this …" button on a block's detail pane both land in
+  // openBuilder(opts). A selected policy opens as EDIT (the draft PATCHes it,
+  // whole sections, read back) or as CLONE (a new policy with the next free
+  // number in its range). The draft survives a tab switch and is dropped on
+  // sign-out with everything else.
+  //
+  // WRITES: one POST or one PATCH, both under Policy.ReadWrite.ConditionalAccess
+  // consented on the click (preConsent), both read back with the settle
+  // schedule import.js uses, then the policy set is re-read so every tool
+  // sees the new policy. A new policy is born report-only; On needs a typed
+  // ON. The optional exclusion group is created FIRST, so the policy never
+  // references a group that failed to exist.
+  // ======================================================================
+  const PB_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let pbDraft = null, pbBefore = null, pbStep = 1, pbView = "card", pbBusy = false;
+  let pbLocs = null, pbStrengths = null, pbContexts = null, pbTou = null, pbRoles = null, pbPickTimer = null;
+  const pbCat = () => { try { return Baseline.active(); } catch { return null; } };
+  const pbRaws = () => policies.map((p) => p.raw);
+  const pbNameFn = () => (id) => {
+    const r = policyResolve ? policyResolve(id) : null;
+    if (r && r !== id) return r;
+    return (pbDraft && pbDraft.names[id]) || (signinContext && signinContext.names && signinContext.names[id])
+      || (Builder.ROLES.find((x) => x[0] === id) || [])[1] || (Builder.APP_GROUPS.find((x) => x[0] === id) || [])[1] || id;
+  };
+  function pbGroups() {
+    const m = new Map(), nm = pbNameFn();
+    policies.forEach((p) => { const u = (p.raw.conditions || {}).users || {}; [...(u.includeGroups || []), ...(u.excludeGroups || [])].forEach((id) => m.set(id, nm(id))); });
+    Object.entries((pbDraft && pbDraft.names) || {}).forEach(([id, n]) => { if (!m.has(id)) m.set(id, n); });
+    return [...m].map(([id, name]) => ({ id, name }));
+  }
+  const pbCtx = () => ({ raws: pbRaws(), names: pbNameFn(), groups: pbGroups(), locations: pbLocs || [], catalog: pbCat(), hints: pbDraft ? Builder.hints(pbDraft, { raws: pbRaws(), names: pbNameFn(), groups: pbGroups(), locations: pbLocs || [] }) : [] });
+
+  // The blocks, from the sign-in context first (one read at sign-in, 25425),
+  // then Graph for what it does not hold. Terms of use are read only when
+  // step 5 opens: Agreement.Read.All is not a base scope.
+  async function pbLoadContext() {
+    const sc = signinContext || {};
+    const fromCtx = (k) => sc[k] && sc[k].ok && Array.isArray(sc[k].items) ? sc[k].items : null;
+    if (!pbLocs) pbLocs = fromCtx("namedLocations") || (isDemo ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.namedLocations) || []) : await Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []));
+    if (!pbStrengths) pbStrengths = fromCtx("authStrengths") || (isDemo ? [] : await Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []));
+    if (!pbContexts) pbContexts = fromCtx("authContexts") || (isDemo ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.authContexts) || []) : await Graph.ggetAll("/identity/conditionalAccess/authenticationContextClassReferences").catch(() => []));
+    if (!pbRoles) pbRoles = isDemo ? Builder.ROLES.map(([id, displayName]) => ({ id, displayName })) : await Graph.ggetAll("/directoryRoleTemplates?$select=id,displayName").catch(() => Builder.ROLES.map(([id, displayName]) => ({ id, displayName })));
+  }
+  async function pbLoadTou() {
+    if (pbTou) return;
+    if (isDemo) { pbTou = []; return; }
+    try { await Graph.ensureScopes([...AUTH_CONFIG.scopes, "Agreement.Read.All"]); pbTou = await Graph.ggetAll("/identityGovernance/termsOfUse/agreements?$select=id,displayName"); }
+    catch (e) { pbTou = { error: e.message || String(e) }; }
+  }
+
+  // opts: { from: raw | id, as: "edit" | "clone", with: { kind, id, name }, template: entry, fresh: true }
+  function openBuilder(opts) {
+    const o = opts || {};
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "builder");
+    show("screen-builder");
+    const cat = pbCat();
+    if (o.from) {
+      const raw = typeof o.from === "string" ? (policies.find((p) => p.id === o.from) || {}).raw : o.from;
+      if (raw) {
+        pbDraft = o.as === "clone" ? Builder.cloneOf(raw, pbRaws(), cat) : Builder.fromRaw(raw, cat);
+        pbDraft.mode = o.as === "clone" ? "clone" : "edit";
+        pbBefore = o.as === "clone" ? null : JSON.parse(JSON.stringify(raw));
+        pbStep = 1; pbView = o.as === "clone" ? "card" : "diff";
+      }
+    } else if (o.template) {
+      const live = policies.find((p) => Builder.caNum(p.raw.displayName) === Builder.caNum(o.template.name));
+      if (live) { pbDraft = Builder.cloneOf(live.raw, pbRaws(), cat); pbDraft.number = Builder.caNum(live.raw.displayName); pbDraft.template = { num: o.template.num, name: o.template.name, missing: [], notes: [`Started from ${live.raw.displayName}, which this tenant holds — the template's live counterpart.`] }; }
+      else {
+        const byName = {}; pbGroups().forEach((g) => byName[String(g.name).toLowerCase()] = g.id);
+        pbDraft = Builder.fromTemplate(o.template, byName, cat);
+      }
+      pbBefore = null; pbStep = 1; pbView = "card";
+    } else if (!pbDraft || o.fresh) {
+      pbDraft = Builder.blank();
+      pbDraft.number = Builder.nextNumber(pbDraft.persona, pbRaws(), cat).num;
+      pbBefore = null; pbStep = 1; pbView = "card";
+    }
+    if (o.with) pbApplyWith(o.with);
+    renderBuilder();
+    pbLoadContext().then(renderBuilder).catch((e) => console.warn("builder context:", e));
+  }
+  // A block's detail pane: "New policy with this …" pre-fills the one step
+  // that block belongs to and opens there.
+  function pbApplyWith(w) {
+    if (!w || !w.id) return;
+    if (w.name) pbDraft.names[w.id] = w.name;
+    if (w.kind === "location") { pbDraft.cond.locations.mode = "selected"; pbDraft.cond.locations.include = [w.id]; pbStep = 4; }
+    else if (w.kind === "strength") { pbDraft.grant.mode = "grant"; pbDraft.grant.strength = w.id; pbStep = 5; }
+    else if (w.kind === "context") { pbDraft.apps.target = "contexts"; pbDraft.apps.authContexts = [w.id]; pbStep = 3; }
+    else if (w.kind === "tou") { pbDraft.grant.mode = "grant"; pbDraft.grant.termsOfUse = [w.id]; pbStep = 5; }
+  }
+
+  // ---------- rendering ----------
+  const pbOpt = (list, val, label) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(val) ? " selected" : ""}>${esc(label ? label(l) : l)}</option>`).join("");
+  const pbCk = (path, val, checked, label, extra) => `<label class="pb-ck"><input type="checkbox" data-pbl="${esc(path)}" value="${esc(val)}"${checked ? " checked" : ""}${extra || ""}> ${label}</label>`;
+  const pbChips = (path, ids, nm) => ids.length ? `<div class="pb-chips">${ids.map((id) => `<span class="fchip pb-chip" title="${esc(id)}">${esc(nm(id))} <button type="button" class="pb-x" data-pbrm="${esc(path)}" data-id="${esc(id)}" aria-label="Remove">✕</button></span>`).join("")}</div>` : `<span class="mini muted">none</span>`;
+  // a search box whose results are chips to click; kind decides the read
+  const pbPick = (kind, path, placeholder) => `<div class="pb-pick" data-pbpick="${kind}" data-path="${esc(path)}"><input type="search" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false"><div class="pb-pickres mini muted"></div></div>`;
+
+  function pbFormHtml(step) {
+    const d = pbDraft, cat = pbCat(), nm = pbNameFn(), ctx = pbCtx(), P = Builder.personaOf(d.persona, cat);
+    const hints = Builder.hintsHtml(ctx.hints.filter((h) => h.step === step));
+    const nav = (prev, next) => `<div class="pb-row pb-nav">${prev ? `<button class="btn sm" type="button" data-pbgo="${prev}">← ${prev} · ${Builder.STEPS[prev - 1][1]}</button>` : ""}${next ? `<button class="btn primary sm" type="button" data-pbgo="${next}">Next: ${next} · ${Builder.STEPS[next - 1][1]} →</button>` : ""}<span class="mini muted">${d.mode === "edit" ? "editing the selected policy — nothing is written until Save" : "the draft is kept while you use other tools"}</span></div>`;
+    switch (step) {
+      case 1: {
+        const nn = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId);
+        return `<h4 class="wi-h">Persona <span class="mini muted">— decides the CA-number range and the persona word in the name</span></h4>
+          <div class="chip-filter pb-personas">${Builder.personas(cat).map((p) => `<button type="button" class="chip${p.key === d.persona ? " active" : ""}" data-pbpersona="${p.key}" title="CA${String(p.lo).padStart(3, "0")}–CA${String(p.hi).padStart(3, "0")}">${esc(p.label)}</button>`).join("")}</div>
+          <div class="wi-grid" style="margin-top:12px">
+            <label class="wi-f">CA number <span class="mini">${P ? `range CA${String(P.lo).padStart(3, "0")}–CA${String(P.hi).padStart(3, "0")}` : ""} · next free: ${nn.num == null ? "none" : "CA" + String(nn.num).padStart(3, "0")}</span><input type="number" data-pb="number" value="${d.number == null ? "" : d.number}" min="0" max="1299" ${d.mode === "edit" ? "" : ""}></label>
+            <label class="wi-f">Descriptive words <span class="mini">resource · platform · control, as the baseline names them</span><input type="text" data-pb="words" value="${esc(d.words)}" placeholder="${esc(Builder.suggestWords(d))}"></label>
+            <label class="wi-f">Version<input type="text" data-pb="version" value="${esc(d.version)}" placeholder="1.0"></label>
+          </div>
+          <div class="pb-row"><label class="pb-ck"><input type="checkbox" data-pbflag="customName"${d.customName ? " checked" : ""}> Use a name of my own instead of the convention</label>${d.customName !== "" ? `<input type="text" data-pb="customName" value="${esc(d.customName)}" style="flex:1;min-width:280px">` : ""}</div>
+          <p class="mini" style="margin:10px 0 0">The name reads <b class="pb-name">${esc(Builder.nameOf(d, cat))}</b> — the kind (${Builder.kindOf(d)}) follows the controls in step 5.</p>
+          ${nn.taken.length && nn.taken.some(([n]) => n === d.number) ? `<div class="pb-hint warn">⚠ <span>CA${String(d.number).padStart(3, "0")} is taken by ${esc(nn.taken.find(([n]) => n === d.number)[1])}.</span></div>` : ""}
+          ${d.template && d.template.notes.length ? `<div class="pb-hint">🧬 <span><b>The template says:</b> ${d.template.notes.map(esc).join(" · ")}${d.template.missing.length ? `<br><b>Groups the tenant does not hold yet:</b> ${d.template.missing.map(esc).join(", ")} — create them in 👥 CA groups, or pick others in step 2.` : ""}</span></div>` : ""}
+          ${hints}${nav(null, 2)}`;
+      }
+      case 2: {
+        const u = d.users, G = (g) => g ? `<code>${esc(g)}</code>` : "";
+        const guest = (side, obj) => `<details class="pb-det"><summary>${side === "include" ? "Include" : "Exclude"} guests and external users ${obj && obj.guestOrExternalUserTypes ? `<span class="tag">${esc(obj.guestOrExternalUserTypes.split(",").length)} type${obj.guestOrExternalUserTypes.split(",").length === 1 ? "" : "s"}</span>` : ""}</summary>
+          <div class="pb-row">${["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "internalGuest", "serviceProvider", "otherExternalUser"].map((t) => pbCk(`users.${side}Guests.types`, t, obj && String(obj.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()).includes(t), esc(t))).join("")}</div>
+          <p class="mini muted" style="margin:4px 0 0">All external tenants. A clause with no type is not written at all.</p></details>`;
+        return `<h4 class="wi-h">Include</h4>
+          <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="all"${u.includeAll ? " checked" : ""}> All users</label><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="some"${!u.includeAll ? " checked" : ""}> Selected users, groups and roles</label></div>
+          ${u.includeAll ? "" : `<div class="pb-sub"><b>Groups</b> ${P && P.group ? `<button type="button" class="btn sm" data-pbpersonagroup="${esc(P.group)}" title="The baseline's persona group for ${esc(P.label)}">＋ ${esc(P.group)}</button>` : ""}${pbChips("users.includeGroups", u.includeGroups, nm)}${pbPick("groups", "users.includeGroups", "Search groups by name, or paste an object ID…")}</div>
+          <div class="pb-sub"><b>Users</b>${pbChips("users.includeUsers", u.includeUsers, nm)}${pbPick("users", "users.includeUsers", "Search users by name or UPN…")}</div>
+          <div class="pb-sub"><b>Directory roles</b>${pbChips("users.includeRoles", u.includeRoles, nm)}${pbPick("roles", "users.includeRoles", "Search roles…")}</div>`}
+          ${guest("include", u.includeGuests)}
+          <h4 class="wi-h" style="margin-top:16px">Exclude</h4>
+          <div class="pb-sub"><b>Groups</b> ${(() => { const bg = pbGroups().find((g) => Builder.BREAK_GLASS_RE.test(g.name || "")); return bg && !u.excludeGroups.includes(bg.id) ? `<button type="button" class="btn sm" data-pbaddgroup="${esc(bg.id)}" data-name="${esc(bg.name)}" data-path="users.excludeGroups">＋ ${esc(bg.name)}</button>` : ""; })()}${pbChips("users.excludeGroups", u.excludeGroups, nm)}${pbPick("groups", "users.excludeGroups", "Search groups by name, or paste an object ID…")}</div>
+          <div class="pb-sub"><b>Users</b>${pbChips("users.excludeUsers", u.excludeUsers, nm)}${pbPick("users", "users.excludeUsers", "Search users…")}</div>
+          <div class="pb-sub"><b>Directory roles</b>${pbChips("users.excludeRoles", u.excludeRoles, nm)}${pbPick("roles", "users.excludeRoles", "Search roles…")}</div>
+          ${guest("exclude", u.excludeGuests)}
+          ${d.mode !== "edit" ? `<div class="pb-row" style="margin-top:12px"><label class="pb-ck"><input type="checkbox" data-pbflag="createExclusionGroup"${d.createExclusionGroup ? " checked" : ""}> Create the policy's own exclusion group ${G(Builder.exclusionGroupName(d, cat))} and exclude it</label></div><p class="mini muted" style="margin:2px 0 0">Empty, security-enabled, created before the policy so the policy never names a group that failed to exist. Skipped when a group of that name already exists.</p>` : ""}
+          ${hints}${nav(1, 3)}`;
+      }
+      case 3: {
+        const a = d.apps;
+        return `<h4 class="wi-h">Target resources</h4>
+          <div class="pb-row">${[["all", "All resources"], ["selected", "Selected resources"], ["actions", "User actions"], ["contexts", "Authentication context"]].map(([v, l]) => `<label class="pb-ck"><input type="radio" name="pbTarget" data-pb="apps.target" value="${v}"${a.target === v ? " checked" : ""}> ${l}</label>`).join("")}</div>
+          ${a.target === "selected" ? `<div class="pb-sub"><b>Include</b> <span class="mini muted">app groups match as a group — What-If evaluates them by design as not matching a single app</span><div class="pb-row">${Builder.APP_GROUPS.filter((x) => x[0] !== "All").map(([v, l]) => a.includeApplications.includes(v) ? "" : `<button type="button" class="btn sm" data-pbaddapp="${v}" data-name="${esc(l)}" data-path="apps.includeApplications">＋ ${esc(l)}</button>`).join("")}</div>${pbChips("apps.includeApplications", a.includeApplications, nm)}${pbPick("apps", "apps.includeApplications", "Search the tenant's apps by name, or paste an application ID…")}</div>
+            <div class="pb-sub"><b>Exclude</b>${pbChips("apps.excludeApplications", a.excludeApplications, nm)}${pbPick("apps", "apps.excludeApplications", "Search apps to exclude…")}</div>` : ""}
+          ${a.target === "all" ? `<div class="pb-sub"><b>Exclude</b>${pbChips("apps.excludeApplications", a.excludeApplications, nm)}${pbPick("apps", "apps.excludeApplications", "Search apps to exclude from All resources…")}</div>` : ""}
+          ${a.target === "actions" ? `<div class="pb-row">${Builder.USER_ACTIONS.map(([v, l]) => pbCk("apps.userActions", v, a.userActions.includes(v), esc(l))).join("")}</div>` : ""}
+          ${a.target === "contexts" ? `<div class="pb-blocks">${(pbContexts || []).length ? (pbContexts || []).map((c) => `<label class="pb-block${a.authContexts.includes(c.id) ? " picked" : ""}"><input type="checkbox" data-pbl="apps.authContexts" value="${esc(c.id)}"${a.authContexts.includes(c.id) ? " checked" : ""}><span><b>${esc(c.displayName || c.id)}</b> <span class="tag">${esc(c.id)}</span>${c.isAvailable === false ? ' <span class="tag">unpublished</span>' : ""}<span class="mini muted">${esc(c.description || "")}</span></span></label>`).join("") : `<span class="mini muted">No authentication contexts in this tenant — <a href="#" data-tabgo="blocks:contexts">create one in the 🎫 Contexts tab</a>; the draft is kept.</span>`}</div>` : ""}
+          <div class="pb-row" style="margin-top:10px"><label class="wi-f" style="flex:1">Application filter <span class="mini">(optional — a rule over app attributes; include or exclude)</span><span class="pb-row"><select data-pb="apps.filterMode" style="width:auto">${pbOpt([["include", "Include"], ["exclude", "Exclude"]], a.filter ? a.filter.mode : "include")}</select><input type="text" data-pb="apps.filterRule" value="${esc(a.filter ? a.filter.rule : "")}" placeholder='customSecurityAttribute.Contoso_CA_Tier -eq "1"' style="flex:1"></span></label></div>
+          ${hints}${nav(2, 4)}`;
+      }
+      case 4: {
+        const c = d.cond, L = c.locations;
+        const locBlock = (l, path, picked) => `<label class="pb-block${picked ? " picked" : ""}"><input type="checkbox" data-pbl="${path}" value="${esc(l.id)}"${picked ? " checked" : ""}><span><b>${esc(l.displayName)}</b> ${l.isTrusted ? '<span class="tag ok">trusted</span>' : ""}${/countryNamedLocation/.test(l["@odata.type"] || "") ? '<span class="tag">countries</span>' : /compliantNetwork/.test(l["@odata.type"] || "") ? '<span class="tag">network access</span>' : ""}<span class="mini muted">${/countryNamedLocation/.test(l["@odata.type"] || "") ? `${(l.countriesAndRegions || []).length} countr${(l.countriesAndRegions || []).length === 1 ? "y" : "ies"}: ${(l.countriesAndRegions || []).slice(0, 6).join(", ")}` : /compliantNetwork/.test(l["@odata.type"] || "") ? "Global Secure Access compliant network — managed by the service" : `${(l.ipRanges || []).length} range${(l.ipRanges || []).length === 1 ? "" : "s"}: ${(l.ipRanges || []).slice(0, 3).map((r) => r.cidrAddress).join(", ")}`}${(() => { const used = typeof CaUses !== "undefined" ? (CaUses.by("namedLocation", l.id, pbRaws()) || []).length : 0; return used ? ` · used by ${used} polic${used === 1 ? "y" : "ies"}` : ""; })()}</span></span></label>`;
+        return `<h4 class="wi-h">🌐 Locations <span class="mini muted">— the tenant's named locations, the 🌐 Locations tab's own list</span></h4>
+          <div class="pb-row">${[["any", "Any location"], ["selected", "Selected locations"], ["trusted", "All trusted locations only"]].map(([v, l]) => `<label class="pb-ck"><input type="radio" name="pbLoc" data-pb="cond.locations.mode" value="${v}"${L.mode === v ? " checked" : ""}> ${l}</label>`).join("")}<span class="mini muted">·</span><label class="pb-ck"><input type="checkbox" data-pbflag="excludeTrusted"${L.excludeTrusted ? " checked" : ""}> Exclude all trusted locations</label></div>
+          ${L.mode === "selected" ? `<div class="pb-blocks">${(pbLocs || []).map((l) => locBlock(l, "cond.locations.include", L.include.includes(l.id))).join("") || '<span class="mini muted">No named locations yet.</span>'}</div>` : ""}
+          <details class="pb-det"><summary>Exclude selected locations ${L.exclude.length ? `<span class="tag">${L.exclude.length}</span>` : ""}</summary><div class="pb-blocks">${(pbLocs || []).map((l) => locBlock(l, "cond.locations.exclude", L.exclude.includes(l.id))).join("")}</div></details>
+          <div class="pb-row"><a href="#" class="mini" data-tabgo="blocks:locations">＋ New location — opens the 🌐 Locations tab; the draft is kept</a></div>
+          <h4 class="wi-h" style="margin-top:16px">💻 Device platforms</h4>
+          <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbPl" data-pb="cond.platforms.mode" value="any"${c.platforms.mode === "any" ? " checked" : ""}> Any platform</label><label class="pb-ck"><input type="radio" name="pbPl" data-pb="cond.platforms.mode" value="selected"${c.platforms.mode === "selected" ? " checked" : ""}> Selected platforms</label></div>
+          ${c.platforms.mode === "selected" ? `<div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.include", v, c.platforms.include.includes(v), esc(l))).join("")}</div><details class="pb-det"><summary>Exclude platforms ${c.platforms.exclude.length ? `<span class="tag">${c.platforms.exclude.length}</span>` : ""}</summary><div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.exclude", v, c.platforms.exclude.includes(v), esc(l))).join("")}</div></details>` : ""}
+          <h4 class="wi-h" style="margin-top:16px">📲 Client apps</h4>
+          <div class="pb-row">${Builder.CLIENT_APPS.map(([v, l]) => pbCk("cond.clientApps", v, c.clientApps.includes(v), esc(l))).join("")}</div>
+          <h4 class="wi-h" style="margin-top:16px">🎲 Risk, flows and device filter</h4>
+          <div class="pb-row"><span class="mini">Sign-in risk</span>${Builder.RISK.map((r) => pbCk("cond.signInRisk", r, c.signInRisk.includes(r), r)).join("")}<span class="mini" style="margin-left:10px">User risk</span>${Builder.RISK.map((r) => pbCk("cond.userRisk", r, c.userRisk.includes(r), r)).join("")}<span class="mini" style="margin-left:10px">Insider risk</span>${Builder.INSIDER.map((r) => pbCk("cond.insiderRisk", r, c.insiderRisk.includes(r), r)).join("")}</div>
+          <div class="pb-row"><span class="mini">Authentication flows</span>${Builder.FLOWS.map(([v, l]) => pbCk("cond.authFlows", v, c.authFlows.includes(v), esc(l))).join("")}</div>
+          <div class="pb-row"><span class="mini">Device filter</span><select data-pb="cond.deviceFilter.mode" style="width:auto">${pbOpt([["exclude", "Exclude devices matching"], ["include", "Include only devices matching"]], c.deviceFilter.mode)}</select><input type="text" data-pb="cond.deviceFilter.rule" value="${esc(c.deviceFilter.rule)}" placeholder='device.trustType -eq "AzureAD"' style="flex:1;min-width:260px"></div>
+          ${hints}${nav(3, 5)}`;
+      }
+      case 5: {
+        const g = d.grant;
+        const strengths = (pbStrengths || []);
+        const touList = Array.isArray(pbTou) ? pbTou : null;
+        return `<h4 class="wi-h">Access</h4>
+          <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbMode" data-pb="grant.mode" value="grant"${g.mode === "grant" ? " checked" : ""}> Grant access</label><label class="pb-ck"><input type="radio" name="pbMode" data-pb="grant.mode" value="block"${g.mode === "block" ? " checked" : ""}> Block access</label></div>
+          ${g.mode === "grant" ? `<div class="pb-sub"><b>Require</b><div class="pb-row pb-col">${Builder.GRANTS.map(([v, l]) => pbCk("grant.controls", v, g.controls.includes(v), esc(l), v === "approvedApplication" && !g.controls.includes(v) ? " disabled" : "")).join("")}</div></div>
+            <div class="pb-sub"><b>💪 Authentication strength</b> <span class="mini muted">— the 💪 Strengths tab's list</span><div class="pb-blocks">${strengths.map((s) => `<label class="pb-block${g.strength === s.id ? " picked" : ""}"><input type="radio" name="pbStr" data-pb="grant.strength" value="${esc(s.id)}"${g.strength === s.id ? " checked" : ""}><span><b>${esc(s.displayName)}</b> ${s.policyType === "builtIn" ? '<span class="tag">built-in</span>' : ""}<span class="mini muted">${esc((s.allowedCombinations || []).length + " combination" + ((s.allowedCombinations || []).length === 1 ? "" : "s"))}</span></span></label>`).join("")}<label class="pb-block${!g.strength ? " picked" : ""}"><input type="radio" name="pbStr" data-pb="grant.strength" value=""${!g.strength ? " checked" : ""}><span><b>No strength</b><span class="mini muted">the built-in controls above decide</span></span></label></div></div>
+            <div class="pb-sub"><b>📜 Terms of use</b> ${touList ? `<div class="pb-blocks">${touList.map((t) => `<label class="pb-block${g.termsOfUse.includes(t.id) ? " picked" : ""}"><input type="checkbox" data-pbl="grant.termsOfUse" value="${esc(t.id)}"${g.termsOfUse.includes(t.id) ? " checked" : ""}><span><b>${esc(t.displayName)}</b></span></label>`).join("") || '<span class="mini muted">No agreements in this tenant.</span>'}</div>` : pbTou && pbTou.error ? `<span class="mini muted">Not read: ${esc(pbTou.error)}</span>` : `<button type="button" class="btn sm" data-pbact="tou">Read the tenant's agreements</button> <span class="mini muted">asks for Agreement.Read.All, once</span>`}${g.termsOfUse.length && !touList ? pbChips("grant.termsOfUse", g.termsOfUse, nm) : ""}</div>
+            <div class="pb-row"><span class="mini">For multiple controls</span><label class="pb-ck"><input type="radio" name="pbOp" data-pb="grant.operator" value="AND"${g.operator === "AND" ? " checked" : ""}> Require all (AND)</label><label class="pb-ck"><input type="radio" name="pbOp" data-pb="grant.operator" value="OR"${g.operator !== "AND" ? " checked" : ""}> Require one (OR)</label></div>` : `<p class="mini muted" style="margin:6px 0 0">Block wins over every grant. The name becomes CAnnn-BLOCK-…</p>`}
+          ${hints}${nav(4, 6)}`;
+      }
+      case 6: {
+        const s = d.session, sif = s.sif || {};
+        return `<h4 class="wi-h">Session controls</h4>
+          <div class="pb-row"><span class="mini">Sign-in frequency</span><select data-pb="session.sifMode" style="width:auto">${pbOpt([["", "not set"], ["every", "every time"], ["time", "a period"]], s.sif ? (sif.everyTime ? "every" : "time") : "")}</select>${s.sif && !sif.everyTime ? `<input type="number" min="1" data-pb="session.sifValue" value="${esc(sif.value || 1)}" style="width:80px"><select data-pb="session.sifType" style="width:auto">${pbOpt([["hours", "hours"], ["days", "days"]], sif.type || "hours")}</select>` : ""}</div>
+          <div class="pb-row"><span class="mini">Persistent browser session</span><select data-pb="session.persistent" style="width:auto">${pbOpt([["", "not set"], ["always", "always persistent"], ["never", "never persistent"]], s.persistent || "")}</select></div>
+          <div class="pb-row"><label class="pb-ck"><input type="checkbox" data-pbflag="appEnforced"${s.appEnforced ? " checked" : ""}> Use app enforced restrictions</label><label class="pb-ck"><input type="checkbox" data-pbflag="tokenProtection"${s.tokenProtection ? " checked" : ""}> Require token protection for sign-in sessions</label><label class="pb-ck"><input type="checkbox" data-pbflag="resilience"${s.resilience ? " checked" : ""}> Disable resilience defaults</label></div>
+          <div class="pb-row"><span class="mini">Continuous access evaluation</span><select data-pb="session.cae" style="width:auto">${pbOpt([["", "not set"], ["disabled", "disabled"], ["strictLocation", "strictly enforce location policies"]], s.cae || "")}</select><span class="mini" style="margin-left:10px">Defender for Cloud Apps</span><select data-pb="session.mdca" style="width:auto">${pbOpt([["", "not set"], ["monitorOnly", "monitor only"], ["blockDownloads", "block downloads"], ["mcasConfigured", "use custom policy"]], s.mdca || "")}</select></div>
+          ${hints}${nav(5, 7)}`;
+      }
+      case 7: {
+        const v = Builder.validate(d), ops = Builder.willDo(d, ctx);
+        const goLabel = d.mode === "edit" ? "✎ Save changes to the policy" : `＋ Create ${d.state === "enabledForReportingButNotEnforced" ? "in report-only" : d.state === "disabled" ? "Off" : "ON"}`;
+        return `<h4 class="wi-h">State</h4>
+          <div class="pb-row">${Builder.STATES.map(([val, l]) => `<label class="pb-ck"><input type="radio" name="pbState" data-pb="state" value="${val}"${d.state === val ? " checked" : ""}> ${l}${val === "enabledForReportingButNotEnforced" ? ' <span class="mini muted">(default)</span>' : ""}</label>`).join("")}</div>
+          ${d.state === "enabled" && (d.mode !== "edit" || (pbBefore && pbBefore.state !== "enabled")) ? `<div class="pb-row"><span class="mini">Type <b>ON</b> to confirm enforcing at once</span><input type="text" data-pb="typedOn" value="${esc(d.typedOn || "")}" placeholder="ON" style="width:90px" autocomplete="off"></div>` : ""}
+          <h4 class="wi-h" style="margin-top:14px">What will happen</h4>${Builder.willHtml(ops)}
+          ${v.bad.length ? `<div class="pb-hint warn">✗ <span>${v.bad.map(esc).join("<br>")}</span></div>` : ""}${v.warn.map((w) => `<div class="pb-hint warn">⚠ <span>${esc(w)}</span></div>`).join("")}
+          ${hints}
+          <div class="pb-row pb-nav"><button class="btn sm" type="button" data-pbgo="6">← 6 · Session</button><button class="btn primary sm" type="button" id="pbGoStep" ${v.ok && (d.state !== "enabled" || d.mode === "edit" && pbBefore && pbBefore.state === "enabled" || d.typedOn === "ON") ? "" : "disabled"}>${goLabel}</button><span class="mini muted">Recovery: a policy created here is restorable for 30 days from ♻ Deleted; an edit can be reverted from its 🕓 Changes entry.</span></div>
+          <div id="pbLedger"></div>`;
+      }
+    }
+    return "";
+  }
+
+  function pbPreviewHtml() {
+    const d = pbDraft, cat = pbCat(), ctx = pbCtx(), raw = Builder.toRaw(d, cat);
+    if (pbView === "json") return `<pre class="pb-json">${esc(JSON.stringify(d.mode === "edit" && pbBefore ? Builder.patchBody(pbBefore, d, cat) : raw, null, 2))}</pre><p class="mini muted">${d.mode === "edit" ? "The PATCH body — whole sections, only the ones that changed." : "The exact body that will be POSTed."}</p>`;
+    if (pbView === "preflight") return `<div class="list-card lo-card pb-card"><div class="lo-h"><b>🧪 Preflight</b> <span class="mini muted">— synthetic sign-ins What-If evaluates against the draft and the loaded policies; no read, no write</span></div>${Builder.preflightHtml(Builder.preflight(d, ctx))}<p class="mini muted" style="margin:8px 0 0">For a real person and a real app, use 🧪 What-If itself once the policy exists.</p></div>`;
+    if (pbView === "diff") return `<div class="list-card lo-card pb-card"><div class="lo-h"><b>± Diff</b> <span class="mini muted">— the tenant's policy against the draft</span></div>${pbBefore ? Builder.diffHtml(Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(raw))) : '<p class="mini muted">A diff needs a policy to start from — Open in builder from 🗂 Policies.</p>'}</div>`;
+    // card
+    const vm = buildViewModel({ ...raw, id: d.sourceId || "draft", modifiedDateTime: pbBefore ? pbBefore.modifiedDateTime : "" }, (id, map) => (map && map[id]) || ctx.names(id), 0);
+    return `<div class="pb-cardwrap">${Render.card(vm, tenantName)}</div>${ctx.hints.length ? `<div class="list-card lo-card pb-card"><div class="lo-h"><b>💡 Hints</b> <span class="mini muted">— ${ctx.hints.length} over the loaded policies and the blocks</span></div>${Builder.hintsHtml(ctx.hints)}</div>` : ""}`;
+  }
+
+  function renderBuilder() {
+    if (!pbDraft) return;
+    const d = pbDraft, cat = pbCat(), ctx = pbCtx();
+    const P = Builder.personaOf(d.persona, cat);
+    const modeLine = d.mode === "edit" ? `<b>Editing</b> ${esc(d.sourceName)}` : d.mode === "clone" ? `<b>New policy</b> · cloned from ${esc(d.sourceName)}` : d.template ? `<b>New policy</b> · started from template CA${String(d.template.num).padStart(3, "0")}` : `<b>New policy</b>`;
+    $("pbHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:260px">${toolHead("toolBuilder")}
+      <p class="mini" style="margin:6px 0 0">One guided screen for a policy: start blank, from a baseline template, or from a policy selected anywhere else in ENCA. Every choice is a building block from the tabs beside it, the result is preflighted in What-If before it is written, and a new policy is born in report-only unless you say otherwise.</p></div>
+      <div class="pb-mode">${modeLine} · ${esc(tenantName || "this tenant")}<br>${P ? `next free number in ${esc(P.label)}: <b>${(() => { const n = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId).num; return n == null ? "none" : "CA" + String(n).padStart(3, "0"); })()}</b>` : ""}</div></div>`;
+    $("pbStart").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.pbstart === (d.mode === "edit" || d.mode === "clone" ? "policy" : d.template ? "template" : "blank")));
+    $("pbGo").textContent = d.mode === "edit" ? "✎ Save changes" : "＋ Create in report-only";
+    $("pbGo").disabled = pbBusy || !Builder.validate(d).ok || (d.mode !== "edit" && d.state !== "enabledForReportingButNotEnforced");
+    $("pbGo").title = d.mode === "edit" ? "PATCH the selected policy with the draft — step 7 shows the diff and the plan" : d.state === "enabledForReportingButNotEnforced" ? "POST the policy in report-only, read it back, open it in Policies" : "Another state is chosen in step 7 — create it from there";
+    $("pbBody").innerHTML = `<div class="ld-shell pb-shell" style="--ld-list:56%"><div class="ld-list pb-steps">${Builder.stepsHtml(d, pbStep, ctx, pbFormHtml(pbStep))}</div>
+      <input class="ld-divider" type="range" min="40" max="65" value="56" aria-label="List width">
+      <section class="ld-panel" aria-label="Draft preview"><div class="ld-controls"><div class="seg pb-views">${[["card", "🗂 Card"], ["json", "{ } JSON"], ["preflight", "🧪 Preflight"], ["diff", "± Diff"]].map(([k, l]) => `<button type="button" data-pbview="${k}" class="${pbView === k ? "active" : ""}"${k === "diff" && d.mode !== "edit" ? ' title="A diff needs a policy selected elsewhere"' : ""}>${l}</button>`).join("")}</div><span class="mini muted">Preview</span></div>
+      <h2 class="ld-title pb-name">${esc(Builder.nameOf(d, cat))}</h2><div class="ld-content">${pbPreviewHtml()}</div></section></div>`;
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply($("pbBody"));
+    if (typeof syncStickyTops === "function") (window.requestAnimationFrame || setTimeout)(syncStickyTops);
+  }
+
+  // ---------- draft edits (delegated) ----------
+  const pbSet = (path, val) => { const ks = path.split("."); let o = pbDraft; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; };
+  const pbGet = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), pbDraft);
+  function pbToggle(path, val, on) {
+    if (path.endsWith("Guests.types")) {
+      const side = path.startsWith("users.include") ? "includeGuests" : "excludeGuests";
+      const cur = pbDraft.users[side] && pbDraft.users[side].guestOrExternalUserTypes ? pbDraft.users[side].guestOrExternalUserTypes.split(",").map((x) => x.trim()).filter(Boolean) : [];
+      const next = on ? [...new Set([...cur, val])] : cur.filter((x) => x !== val);
+      pbDraft.users[side] = next.length ? { guestOrExternalUserTypes: next.join(","), externalTenants: { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } } : null;
+      return;
+    }
+    const list = pbGet(path) || []; pbSet(path, on ? [...new Set([...list, val])] : list.filter((x) => x !== val));
+  }
+  $("pbBody").addEventListener("click", (e) => {
+    if (!pbDraft) return;
+    const st = e.target.closest("[data-pbstep]"); if (st) { pbStep = +st.dataset.pbstep; renderBuilder(); return; }
+    const go = e.target.closest("[data-pbgo]"); if (go) { pbStep = +go.dataset.pbgo; renderBuilder(); window.scrollTo({ top: 0 }); return; }
+    const v = e.target.closest("[data-pbview]"); if (v) { pbView = v.dataset.pbview; renderBuilder(); return; }
+    const per = e.target.closest("[data-pbpersona]"); if (per) { pbDraft.persona = per.dataset.pbpersona; if (pbDraft.mode !== "edit") pbDraft.number = Builder.nextNumber(pbDraft.persona, pbRaws(), pbCat()).num; renderBuilder(); return; }
+    const rm = e.target.closest("[data-pbrm]"); if (rm) { pbToggle(rm.dataset.pbrm, rm.dataset.id, false); renderBuilder(); return; }
+    const ag = e.target.closest("[data-pbaddgroup]"); if (ag) { pbDraft.names[ag.dataset.pbaddgroup] = ag.dataset.name; pbToggle(ag.dataset.path, ag.dataset.pbaddgroup, true); renderBuilder(); return; }
+    const aa = e.target.closest("[data-pbaddapp]"); if (aa) { pbDraft.names[aa.dataset.pbaddapp] = aa.dataset.name; pbToggle(aa.dataset.path, aa.dataset.pbaddapp, true); renderBuilder(); return; }
+    const pg = e.target.closest("[data-pbpersonagroup]"); if (pg) { pbAddPersonaGroup(pg.dataset.pbpersonagroup); return; }
+    const pick = e.target.closest("[data-pbpickid]"); if (pick) { const box = pick.closest(".pb-pick"); pbDraft.names[pick.dataset.pbpickid] = pick.dataset.name; pbToggle(box.dataset.path, pick.dataset.pbpickid, true); renderBuilder(); return; }
+    const act = e.target.closest("[data-pbact]"); if (act && act.dataset.pbact === "tou") { act.disabled = true; pbLoadTou().then(renderBuilder); return; }
+    if (e.target.closest("#pbGoStep")) { pbWrite(); return; }
+    const tab = e.target.closest("a[data-tabgo]"); if (tab) { e.preventDefault(); }
+  });
+  $("pbBody").addEventListener("change", (e) => {
+    if (!pbDraft) return;
+    const t = e.target;
+    if (t.dataset.pbl) { pbToggle(t.dataset.pbl, t.value, t.checked); renderBuilder(); return; }
+    if (t.dataset.pbflag) {
+      const f = t.dataset.pbflag;
+      if (f === "includeAll") pbDraft.users.includeAll = t.value === "all";
+      else if (f === "customName") pbDraft.customName = t.checked ? Builder.nameOf(pbDraft, pbCat()) : "";
+      else if (f === "excludeTrusted") pbDraft.cond.locations.excludeTrusted = t.checked;
+      else if (f === "createExclusionGroup") pbDraft.createExclusionGroup = t.checked;
+      else if (f === "appEnforced") pbDraft.session.appEnforced = t.checked;
+      else if (f === "tokenProtection") pbDraft.session.tokenProtection = t.checked;
+      else if (f === "resilience") pbDraft.session.resilience = t.checked;
+      renderBuilder(); return;
+    }
+    if (t.dataset.pb) {
+      const p = t.dataset.pb, val = t.value;
+      if (p === "number") pbDraft.number = val === "" ? null : Math.max(0, parseInt(val, 10) || 0);
+      else if (p === "apps.filterMode") pbDraft.apps.filter = { mode: val, rule: (pbDraft.apps.filter || {}).rule || "" };
+      else if (p === "apps.filterRule") pbDraft.apps.filter = val.trim() ? { mode: (pbDraft.apps.filter || {}).mode || "include", rule: val.trim() } : null;
+      else if (p === "grant.strength") pbDraft.grant.strength = val || null;
+      else if (p === "session.sifMode") pbDraft.session.sif = val === "every" ? { everyTime: true } : val === "time" ? { value: 1, type: "hours" } : null;
+      else if (p === "session.sifValue") pbDraft.session.sif = { ...(pbDraft.session.sif || {}), value: Math.max(1, parseInt(val, 10) || 1) };
+      else if (p === "session.sifType") pbDraft.session.sif = { ...(pbDraft.session.sif || {}), type: val };
+      else if (p === "session.persistent" || p === "session.cae" || p === "session.mdca") pbSet(p, val || null);
+      else if (p === "grant.mode") { pbDraft.grant.mode = val; }
+      else pbSet(p, val);
+      if (p === "apps.target" || p === "grant.mode" || p === "cond.locations.mode" || p === "cond.platforms.mode" || p === "state" || p === "session.sifMode" || p === "typedOn") renderBuilder();
+      else pbRepaintPreview();
+    }
+  });
+  // typing in a text field repaints the preview only, so the caret stays
+  $("pbBody").addEventListener("input", (e) => {
+    const t = e.target; if (!pbDraft) return;
+    if (t.closest(".pb-pick")) { pbSearch(t.closest(".pb-pick")); return; }
+    if (!t.dataset.pb) return;
+    if (["words", "version", "customName", "cond.deviceFilter.rule", "typedOn"].includes(t.dataset.pb)) {
+      if (t.dataset.pb === "typedOn") { pbDraft.typedOn = t.value.trim(); const b = $("pbGoStep"); if (b) b.disabled = !(Builder.validate(pbDraft).ok && pbDraft.typedOn === "ON"); return; }
+      pbSet(t.dataset.pb, t.value); pbRepaintPreview();
+    }
+  });
+  function pbRepaintPreview() {
+    const panel = $("pbBody").querySelector(".ld-panel"); if (!panel) return;
+    panel.querySelector(".ld-title").textContent = Builder.nameOf(pbDraft, pbCat());
+    panel.querySelector(".ld-content").innerHTML = pbPreviewHtml();
+    const nm = $("pbBody").querySelector(".pb-form .pb-name"); if (nm) nm.textContent = Builder.nameOf(pbDraft, pbCat());
+    $("pbGo").disabled = pbBusy || !Builder.validate(pbDraft).ok || (pbDraft.mode !== "edit" && pbDraft.state !== "enabledForReportingButNotEnforced");
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply(panel);
+  }
+  // the persona group by NAME: the loaded policies may already name it; else one read
+  async function pbAddPersonaGroup(name) {
+    const known = pbGroups().find((g) => String(g.name).toLowerCase() === name.toLowerCase());
+    if (known) { pbToggle("users.includeGroups", known.id, true); renderBuilder(); return; }
+    if (isDemo) { toast(`Demo — <span>${esc(name)}</span> is not in the sample tenant`); return; }
+    try {
+      const r = await Graph.gget(`/groups?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id,displayName&$top=1`);
+      const g = ((r && r.value) || [])[0];
+      if (!g) { toast(`<span>${esc(name)}</span> does not exist in this tenant — create it in 👥 CA groups first`); return; }
+      pbDraft.names[g.id] = g.displayName; pbToggle("users.includeGroups", g.id, true); renderBuilder();
+    } catch (e) { toast(`Group lookup failed: <span>${esc(e.message || e)}</span>`); }
+  }
+  // the search box: groups / users / roles / apps; a pasted GUID is accepted as is
+  function pbSearch(box) {
+    clearTimeout(pbPickTimer);
+    const q = box.querySelector("input").value.trim(), res = box.querySelector(".pb-pickres"), kind = box.dataset.pbpick;
+    const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const paint = (rows, note) => { res.innerHTML = rows.slice(0, 10).map((r) => `<button type="button" class="fchip" data-pbpickid="${esc(r.id)}" data-name="${esc(r.name)}">${esc(r.name)}${r.sub ? ` <span class="muted">${esc(r.sub)}</span>` : ""}</button>`).join("") + (note ? `<span class="mini muted">${note}</span>` : ""); };
+    if (!q) { res.innerHTML = ""; return; }
+    if (GUID.test(q)) { paint([{ id: q, name: pbNameFn()(q), sub: "by id" }]); return; }
+    if (q.length < 2) return;
+    const local = (kind === "groups" ? pbGroups() : kind === "roles" ? (pbRoles || []).map((r) => ({ id: r.id, name: r.displayName })) : []).filter((x) => String(x.name).toLowerCase().includes(q.toLowerCase()));
+    if (kind === "roles" || isDemo) {
+      const demo = isDemo && kind !== "roles" && typeof DEMO_DATA !== "undefined" ? Object.entries(DEMO_DATA.names || {}).filter(([id, n]) => String(n).toLowerCase().includes(q.toLowerCase()) && (kind === "users" ? /^u-/.test(id) : kind === "apps" ? /^[0-9a-f-]{36}$/i.test(id) && !/^u-/.test(id) : true)).map(([id, name]) => ({ id, name })) : [];
+      paint([...local, ...demo].filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i), local.length + demo.length ? "" : "no match");
+      return;
+    }
+    paint(local, "searching…");
+    pbPickTimer = setTimeout(async () => {
+      try {
+        const f = q.replace(/'/g, "''");
+        let rows = [];
+        if (kind === "groups") rows = ((await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=10`)).value || []).map((g) => ({ id: g.id, name: g.displayName }));
+        else if (kind === "users") rows = ((await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=id,displayName,userPrincipalName&$top=10`)).value || []).map((u) => ({ id: u.id, name: u.displayName || u.userPrincipalName, sub: u.userPrincipalName }));
+        else if (kind === "apps") rows = ((await Graph.gget(`/servicePrincipals?$filter=startswith(displayName,'${f}')&$select=appId,displayName&$top=10`)).value || []).map((s) => ({ id: s.appId, name: s.displayName, sub: s.appId.slice(0, 8) + "…" }));
+        paint([...local, ...rows].filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i), rows.length || local.length ? "" : "no match");
+      } catch (e) { paint(local, `search failed: ${esc(e.message || e)}`); }
+    }, 300);
+  }
+
+  // ---------- toolbar ----------
+  $("pbStart").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pbstart]"); if (!b) return;
+    if (b.dataset.pbstart === "blank") { if (pbDraft && pbDraft.mode !== "new" || pbDraft && pbDraft.template) { if (!confirm("Start a blank draft? The current draft is dropped.")) return; } openBuilder({ fresh: true }); }
+    else if (b.dataset.pbstart === "template") pbOpenTemplatePicker();
+    else if (b.dataset.pbstart === "policy") pbOpenPolicyPicker();
+  });
+  $("pbPreflight").addEventListener("click", () => { pbView = "preflight"; renderBuilder(); });
+  $("pbJson").addEventListener("click", () => { if (!pbDraft) return; const cat = pbCat(); downloadText((Builder.nameOf(pbDraft, cat) || "policy").replace(/[^\w.\- ]+/g, "").slice(0, 80), "json", "application/json", JSON.stringify(Builder.toRaw(pbDraft, cat), null, 2)); toast("Draft <span>JSON</span> downloaded — 📥 Import can load it"); });
+  $("pbPlan").addEventListener("click", () => {
+    if (!pbDraft) return;
+    const cat = pbCat(), ctx = pbCtx(), name = Builder.nameOf(pbDraft, cat);
+    const md = [`# Change plan — ${name}`, "", `Tenant: ${tenantName || "—"} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC · ${pbDraft.mode === "edit" ? "EDIT of " + pbDraft.sourceName : "NEW policy"} · state: ${pbDraft.state}`, "",
+      "## What will happen", ...Builder.willDo(pbDraft, ctx).map((o) => `- ${o.op} ${o.what}${o.sub ? " — " + o.sub : ""}`), "",
+      "## Steps", ...Builder.STEPS.map(([n, l]) => `- ${n} · ${l}: ${Builder.summary(pbDraft, n, ctx).replace(/<[^>]+>/g, "")}`), "",
+      ...(ctx.hints.length ? ["## Hints", ...ctx.hints.map((h) => `- ${h.level === "warn" ? "⚠" : "💡"} ${h.text}`), ""] : []),
+      ...(pbDraft.mode === "edit" && pbBefore ? ["## Diff", "| Setting | In the tenant | Draft |", "|---|---|---|", ...Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(Builder.toRaw(pbDraft, cat))).map((r) => `| ${r.path} | ${r.before} | ${r.after} |`), ""] : []),
+      "## Body", "```json", JSON.stringify(pbDraft.mode === "edit" && pbBefore ? Builder.patchBody(pbBefore, pbDraft, cat) : Builder.toRaw(pbDraft, cat), null, 2), "```", ""].join("\n");
+    downloadText(("change-plan-" + name).replace(/[^\w.\- ]+/g, "").slice(0, 80), "md", "text/markdown", md);
+    toast("<span>Change plan</span> downloaded — hand it to a reviewer, then apply it here");
+  });
+  $("pbGo").addEventListener("click", () => { if (!pbDraft) return; if (pbDraft.mode !== "edit" && pbDraft.state !== "enabledForReportingButNotEnforced") { pbStep = 7; renderBuilder(); return; } pbWrite(); });
+
+  // 🧬 a catalog entry, or 🗂 a loaded policy, as the start — small pickers
+  function pbOpenTemplatePicker() {
+    const cat = pbCat(); const list = (cat && cat.policies) || (typeof BASELINE !== "undefined" ? BASELINE.policies : []);
+    const live = new Set(policies.map((p) => Builder.caNum(p.raw.displayName)));
+    pbModal(`🧬 Start from a baseline template`, `<p class="mini muted" style="margin:0 0 8px">${esc(cat && cat.title || "the active baseline")} · a template the tenant already holds starts from that policy; the others seed the number, persona, groups and the template's own words.</p><div class="pb-picklist">${list.map((p) => `<button type="button" class="ld-row" data-pbtpl="${p.num}"><strong>${esc(p.name)}</strong><span class="mini muted">${live.has(Builder.caNum(p.name)) ? "in this tenant — starts from the live policy" : (p.include || []).concat(p.exclude || []).length + " group references · " + esc(String(p.resources || "").replace(/<[^>]+>/g, ""))}</span></button>`).join("")}</div>`,
+      (e) => { const b = e.target.closest("[data-pbtpl]"); if (!b) return false; openBuilder({ template: list.find((p) => String(p.num) === b.dataset.pbtpl) }); return true; });
+  }
+  function pbOpenPolicyPicker() {
+    pbModal(`🗂 Start from a policy in this tenant`, `<p class="mini muted" style="margin:0 0 8px">Edit changes that policy; Clone makes a new one with the next free number in its range.</p><div class="pb-picklist">${policies.map((p) => `<div class="ld-row pb-pickrow"><strong>${esc(p.raw.displayName)}</strong><span class="mini muted">${esc(p.state)}</span><span class="pb-row"><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="edit">✎ Edit</button><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone</button></span></div>`).join("")}</div>`,
+      (e) => { const b = e.target.closest("[data-pbfrom]"); if (!b) return false; openBuilder({ from: b.dataset.pbfrom, as: b.dataset.as }); return true; });
+  }
+  function pbModal(title, body, onClick) {
+    const bg = $("pbModal"); $("pbModalTitle").textContent = title; $("pbModalBody").innerHTML = body; bg.classList.add("open");
+    const h = (e) => { if (onClick(e)) { bg.classList.remove("open"); $("pbModalBody").removeEventListener("click", h); } };
+    $("pbModalBody").addEventListener("click", h);
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply(bg);
+  }
+  $("pbModalClose").addEventListener("click", () => $("pbModal").classList.remove("open"));
+
+  // ---------- the write ----------
+  async function pbWrite() {
+    const d = pbDraft; if (!d || pbBusy) return;
+    const cat = pbCat(), v = Builder.validate(d);
+    if (!v.ok) { pbStep = 7; renderBuilder(); toast(`<span>Not written</span> — ${esc(v.bad[0])}`); return; }
+    if (d.state === "enabled" && !(d.mode === "edit" && pbBefore && pbBefore.state === "enabled") && d.typedOn !== "ON") { pbStep = 7; renderBuilder(); toast("Creating it <span>ON</span> needs the typed ON in step 7"); return; }
+    const wantGroup = d.mode !== "edit" && d.createExclusionGroup && Builder.exclusionGroupName(d, cat) && !pbGroups().some((g) => String(g.name).toLowerCase() === Builder.exclusionGroupName(d, cat).toLowerCase());
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...PB_WRITE, ...(wantGroup ? ["Group.ReadWrite.All"] : [])])) return;
+    pbBusy = true; pbStep = 7; renderBuilder();
+    const host = $("pbLedger"); if (host) host.scrollIntoView({ block: "nearest" });
+    const items = [...(wantGroup ? [{ label: `Create group ${Builder.exclusionGroupName(d, cat)}` }] : []), { label: d.mode === "edit" ? `Save ${d.sourceName}` : `Create ${Builder.nameOf(d, cat)}`, sub: d.mode === "edit" ? "PATCH, whole sections" : (Builder.STATES.find((s) => s[0] === d.state) || [])[1] }, { label: "Read it back" }, { label: "Re-read the policy set" }];
+    const L = RunLedger.create(host, { title: d.mode === "edit" ? "Saving the policy" : "Creating the policy", items });
+    let i = 0, createdId = null;
+    try {
+      if (wantGroup) {
+        L.start(i);
+        const gname = Builder.exclusionGroupName(d, cat);
+        if (isDemo) { const id = "g-" + Date.now().toString(36); d.names[id] = gname; d.users.excludeGroups.push(id); L.done(i, "simulated"); }
+        else {
+          const g = await Graph.gpostGroupCreate("/groups", { displayName: gname, mailEnabled: false, mailNickname: gname.replace(/[^A-Za-z0-9]/g, "").slice(0, 60) || "enca", securityEnabled: true, description: `Exclusion group for ${Builder.nameOf(d, cat)} — created by ENCA` });
+          d.names[g.id] = g.displayName; if (!d.users.excludeGroups.includes(g.id)) d.users.excludeGroups.push(g.id); L.done(i, g.id);
+        }
+        i++;
+      }
+      L.start(i);
+      const body = d.mode === "edit" ? Builder.patchBody(pbBefore, d, cat) : Builder.toRaw(d, cat);
+      if (isDemo) { createdId = d.sourceId || ("demo-" + Date.now().toString(36)); L.done(i, "simulated"); i++; L.start(i); L.done(i, "simulated"); i++; L.start(i); L.done(i, "simulated"); }
+      else if (d.mode === "edit") {
+        if (!Object.keys(body).length) { L.skip(i, "nothing changed"); i++; L.skip(i, "—"); i++; L.skip(i, "—"); }
+        else {
+          await Graph.gpatch(`/identity/conditionalAccess/policies/${d.sourceId}`, body, [...AUTH_CONFIG.scopes, ...PB_WRITE]); createdId = d.sourceId; L.done(i, `${Object.keys(body).length} section${Object.keys(body).length === 1 ? "" : "s"}`); i++;
+          L.start(i); const back = await Importer.readSettled(`/identity/conditionalAccess/policies/${d.sourceId}`, (s) => s && Object.keys(body).every((k) => JSON.stringify(Builder.canon(s[k])) === JSON.stringify(Builder.canon(body[k]))));
+          const agree = back && Object.keys(body).every((k) => JSON.stringify(Builder.canon(back[k])) === JSON.stringify(Builder.canon(body[k])));
+          if (agree) L.done(i, "matches the draft"); else L.part(i, "read back differs from the draft — Graph may have normalised a value; compare in 🕓 Changes"); i++;
+          L.start(i); await loadFromGraph(true); L.done(i); 
+        }
+      } else {
+        const res = await Graph.gpost("/identity/conditionalAccess/policies", body, [...AUTH_CONFIG.scopes, ...PB_WRITE]); createdId = res && res.id; L.done(i, createdId || ""); i++;
+        L.start(i); const back = await Importer.readSettled(`/identity/conditionalAccess/policies/${createdId}`, (s) => s && s.displayName === body.displayName); L.done(i, back && back.state === body.state ? "state " + back.state : "read"); i++;
+        L.start(i); await loadFromGraph(true); L.done(i);
+      }
+      L.finish();
+      toast(`<span>${esc(Builder.nameOf(d, cat))}</span> ${d.mode === "edit" ? "saved" : "created"}${isDemo ? " (simulated)" : ""}`);
+      if (createdId && !isDemo) { pbDraft = null; pbBefore = null; idFilter = new Set([createdId]); stateFilter = "all"; $("toolPolicies").click(); refreshViews(); }
+      else if (isDemo) { pbDraft = null; pbBefore = null; $("toolPolicies").click(); }
+    } catch (e) {
+      console.error("builder write:", e);
+      L.fail(i, e.message || String(e)); L.finish();
+      toast(`<span>Not written</span> — ${esc(e.message || e)}`);
+    } finally { pbBusy = false; }
+  }
+  // the selection bar: one policy → edit or clone; more → the first, said so
+  $("selActBuild").addEventListener("click", () => {
+    const ids = [...selected]; if (!ids.length) { openBuilder({ fresh: !pbDraft }); return; }
+    const p = policies.find((x) => x.id === ids[0]); if (!p) return;
+    if (ids.length > 1) toast(`Opening <span>${esc(p.raw.displayName)}</span> — the first of ${ids.length} selected; the builder works on one policy at a time`);
+    pbModal(`🏗 ${esc(p.raw.displayName)}`, `<p class="mini muted" style="margin:0 0 10px">Edit changes this policy in the tenant (a diff shows exactly what); Clone makes a new one with the next free number in its range.</p><div class="pb-row"><button type="button" class="btn primary" data-pbfrom="${esc(p.id)}" data-as="edit">✎ Edit in builder</button><button type="button" class="btn" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone into a new policy</button></div>`,
+      (e) => { const b = e.target.closest("[data-pbfrom]"); if (!b) return false; openBuilder({ from: b.dataset.pbfrom, as: b.dataset.as }); return true; });
+  });
+  // a block's detail pane: "New policy with this …"
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pbwith]"); if (!b) return;
+    e.preventDefault();
+    openBuilder({ with: { kind: b.dataset.pbwith, id: b.dataset.id, name: b.dataset.name }, fresh: !pbDraft || pbDraft.mode === "edit" });
+  });
 
   async function openRecycle(force) {
     crumb("🧩 Policy building blocks");

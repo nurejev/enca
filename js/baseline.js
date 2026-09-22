@@ -628,7 +628,7 @@ const Baseline = (() => {
       const who = tally(res.rows.filter((r) => r.status === "conflict"));
       parts.push(`<b>${n("conflict")} number clash</b> — the CA number is taken by a different policy${who ? ` (${esc(who)}, by its naming)` : ""}, so it counts as absent; an import deploys ${esc(cat.label)}'s alongside and never replaces the other.`);
     }
-    if (n("ahead")) parts.push(`${n("ahead")} newer than the baseline lists.`);
+    if (n("ahead")) parts.push(`${n("ahead")} newer <b>by the version in the name</b> than the baseline lists — what changed inside a policy is 🧱 Update the catalog's question, not this line's.`);
     if (n("unversioned")) parts.push(`${n("unversioned")} with a version on one side only.`);
     if (n("extra")) {
       const who = tally(res.rows.filter((r) => r.status === "extra"));
@@ -991,7 +991,10 @@ const Baseline = (() => {
       const h = holds[String(r.num)];
       const sig = diffSig(diff);
       if (h && h.sig === sig) { held.push({ num: r.num, cat: r.baseline, ten, diff, hold: h }); continue; }
-      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, reopened: !!(h && h.sig !== sig) });
+      // status is the NAME comparison (ok / outdated / ahead / unversioned) — carried so the
+      // review can say how the two counts relate: "26 changed in definition, 6 of them
+      // also newer by version" is one fact; "6 newer" and "26 changed" side by side read as two
+      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, status: r.status, reopened: !!(h && h.sig !== sig) });
     }
     // Every unchanged policy is a free test of the serialiser.
     const drift = unchanged.filter((u) => JSON.stringify(u.cat) !== JSON.stringify({ ...u.ten, num: u.cat.num, version: u.cat.version, tag: u.cat.tag, name: u.cat.name }));
