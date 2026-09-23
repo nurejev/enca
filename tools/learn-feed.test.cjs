@@ -77,3 +77,12 @@ test("build(): new / changed / watched from a real git history", async () => {
   assert.ok(w.watched && w.lastSubstantive.subject.startsWith("Update token protection"));
   assert.strictEqual(feed.watched["https://learn.microsoft.com/surface-hub/x"].watched, false);
 });
+
+test("the generator loads js/learnfeed.js + js/learntriage.js and marks open items", async () => {
+  const F = await load();
+  const root = path.join(__dirname, "..");
+  const lib = F.loadLib(path.join(root, "js/learnfeed.js"), path.join(root, "js/learntriage.js"));
+  const feed = { docs: [{ url: "https://learn.microsoft.com/entra/identity/conditional-access/new-thing", path: "docs/identity/conditional-access/new-thing.md", title: "New thing", kind: "new", lastChange: "2026-09-20T00:00:00Z", lines: 40, commits: [{ sha: "abc", subject: "Add" }] }], whatsNew: [], watched: {} };
+  const w = F.withOpen(feed, fs.readFileSync(path.join(root, "js/mslearn.js"), "utf8"), lib);
+  assert.deepStrictEqual(w.open.map((x) => [x.kind, x.title]), [["new", "New thing"]]);
+});

@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32306, date: "2026-09-23", title: "📰 Learn changes: what Microsoft changed on Learn, every night",
+    items: [
+      { kind: "new", tool: "Checks", text: "The Microsoft Learn tab has a third tab, 📰 Learn changes. Every night ENCA reads Microsoft's own documentation repository for Conditional Access and lists what changed: new pages, changed pages with a link to exactly what changed, and the Conditional Access entries of the Entra what's-new page. It needs no scan and reads nothing from your tenant." },
+      { kind: "new", tool: "Checks", text: "Each Microsoft Learn check now knows when its page was last read. When Microsoft changes that page afterwards, the check is flagged: a ⚠ count on the tab, ⚠ Learn changed on the finding, and a line at the top of the finding with a link to the change, so advice that may be out of date says so." },
+      { kind: "new", tool: "Checks", text: "Decide each item where you see it: re-verified or the check needs a change for a check's page; new check, extends a check, already covered or not for ENCA for the rest. 📋 Work order turns your decisions into a work order to hand over, and once they are recorded they stop showing up." },
+      { kind: "new", tool: "Checks", text: "GitHub tells you too: one issue in the ENCA repository lists what is still undecided. It is updated every night, gets a comment only when something new turns up, and closes by itself when everything is decided." },
+    ],
+  },
+  {
     build: 32305, date: "2026-09-23", title: "Baseline catalog: the shared devices out of seven more policies",
     items: [
       { kind: "improved", tool: "Baseline", text: "🧱 Seven policies taken into the CloudFellows catalog, the first round trip from 🧰 Fix: CA005, CA006, CA009, CA011, CA012, CA013 and CA017 now exclude CAB-SEC-U-TeamsSharedDevices, because app-enforced restrictions, app protection, a never-persistent browser, the insider-risk blocks and terms of use are controls a Teams Rooms or shared-device account cannot meet. Each moves one version up; nothing else in them changed." },

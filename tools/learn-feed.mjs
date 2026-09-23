@@ -23,7 +23,7 @@
 //        [--out learn-feed.json] [--days 60] [--now 2026-09-23T05:00:00Z]
 // ======================================================================
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 
 export const SCHEMA = "enca-learn-feed/1";
 export const LEARN = "https://learn.microsoft.com/";
@@ -85,7 +85,7 @@ export function parseWhatsNew(md, docsBase = "docs/fundamentals/") {
       const head = /^###\s+(.+)$/m.exec(e)[1].trim();
       const dash = head.split(/\s+-\s+/);
       const stage = dash.length > 1 ? dash[0].trim() : null;
-      const title = dash.length > 1 ? dash.slice(1).join(" - ").trim() : head;
+      const title = (dash.length > 1 ? dash.slice(1).join(" - ").trim() : head).replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$)/g, "$1$2");
       const field = (k) => { const r = new RegExp("\\*\\*" + k + ":\\*\\*\\s*(.+)", "i").exec(e); return r ? r[1].trim() : null; };
       const body = e.replace(/^###.*$/m, "").replace(/\*\*[^*]+:\*\*.*$/gm, "").replace(/\n---\s*$/, "").trim();
       const category = field("Service category");
@@ -99,7 +99,7 @@ export function parseWhatsNew(md, docsBase = "docs/fundamentals/") {
         month, stage, title,
         type: field("Type"), category,
         primary: /conditional access/i.test(category || ""),
-        text: body.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\*\*/g, "").replace(/\s+/g, " ").slice(0, 600),
+        text: body.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\*\*/g, "").replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,;:]|$)/g, "$1$2").replace(/\s+/g, " ").slice(0, 600),
         links,
       });
     }
@@ -199,7 +199,7 @@ export function build({ docsRepo, mslearnSrc, now = new Date(), days = 60, readF
       const rows = git(docsRepo, ["log", "-40", "--no-merges", "--format=%H%x09%cI%x09%s", "--", path]).trim().split("\n");
       for (const r of rows) { const [s, d, subj] = r.split("\t"); if (!BULK_RE.test(subj)) { lastSubstantive = { sha: s.slice(0, 10), date: d, subject: subj.slice(0, 160) }; break; } }
     } catch { /* shallow clone ran out */ }
-    watched[url] = { watched: true, path, last: { sha: sha.slice(0, 10), date, subject: subject.slice(0, 160) }, lastSubstantive };
+    watched[url] = { watched: true, path, title: frontTitle(show(path)), last: { sha: sha.slice(0, 10), date, subject: subject.slice(0, 160) }, lastSubstantive };
   }
 
   const wn = show("docs/fundamentals/whats-new.md");
@@ -221,18 +221,53 @@ export function build({ docsRepo, mslearnSrc, now = new Date(), days = 60, readF
   };
 }
 
+// ---------- open items: the SAME judgement the tab makes ----------
+// js/learnfeed.js is a browser IIFE; load it (and the recorded decisions in
+// js/learntriage.js) the way the tests load every module, so the issue and
+// the tab can never disagree about what is open.
+export function loadLib(libPath, triagePath) {
+  const LearnFeed = new Function(readFileSync(libPath, "utf8") + "\n;return LearnFeed;")();
+  let triage = { decisions: {} };
+  if (triagePath && existsSync(triagePath)) triage = new Function(readFileSync(triagePath, "utf8") + "\n;return LEARN_TRIAGE;")();
+  return { LearnFeed, triage };
+}
+export function withOpen(feed, mslearnSrc, lib) {
+  const res = lib.LearnFeed.classify(feed, lib.LearnFeed.checksFrom(mslearnSrc), lib.triage, {});
+  return { res, open: res.open.map((x) => ({ key: x.key, kind: x.kind, title: x.title, url: x.url || null, since: x.since || null, checks: (x.checks || []).map((c) => c.id) })) };
+}
+
 // ---------- CLI ----------
 const isMain = process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href;
 if (isMain) {
   const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => (v.startsWith("--") ? [...acc, [v.slice(2), arr[i + 1]]] : acc), []));
-  if (!a.docs || !a.mslearn || !existsSync(a.docs)) { console.error("usage: learn-feed.mjs --docs <entra-docs clone> --mslearn js/mslearn.js [--out f] [--days n]"); process.exit(2); }
-  const feed = build({ docsRepo: a.docs, mslearnSrc: readFileSync(a.mslearn, "utf8"), days: +(a.days || 60), now: a.now ? new Date(a.now) : new Date() });
+  if (!a.docs || !a.mslearn || !existsSync(a.docs)) { console.error("usage: learn-feed.mjs --docs <entra-docs clone> --mslearn js/mslearn.js [--lib js/learnfeed.js --triage js/learntriage.js --issue-dir dir] [--out f] [--days n]"); process.exit(2); }
+  const mslearnSrc = readFileSync(a.mslearn, "utf8");
+  const feed = build({ docsRepo: a.docs, mslearnSrc, days: +(a.days || 60), now: a.now ? new Date(a.now) : new Date() });
   const out = a.out || "learn-feed.json";
-  // Keep the file stable when nothing moved, so the workflow commits nothing.
   let prev = null;
   try { prev = JSON.parse(readFileSync(out, "utf8")); } catch { /* first run */ }
+  // open items + the GitHub issue text (32306)
+  let res = null;
+  if (a.lib) {
+    const lib = loadLib(a.lib, a.triage);
+    const w = withOpen(feed, mslearnSrc, lib);
+    feed.open = w.open; res = w.res;
+  }
+  // Keep the file stable when nothing moved, so the workflow commits nothing.
   const strip = (f) => JSON.stringify({ ...f, generated: null });
-  if (prev && strip(prev) === strip(feed)) { console.log("learn-feed: no change since " + prev.generated); process.exit(0); }
+  const unchanged = prev && strip(prev) === strip(feed);
+  if (unchanged) feed.generated = prev.generated;
+  if (a["issue-dir"] && res) {
+    const lib = loadLib(a.lib, a.triage);
+    res.generated = feed.generated;
+    const fresh = lib.LearnFeed.newKeys(prev && prev.open, res.open);
+    mkdirSync(a["issue-dir"], { recursive: true });
+    writeFileSync(`${a["issue-dir"]}/count`, String(res.open.length));
+    writeFileSync(`${a["issue-dir"]}/title`, `📰 Learn changes: ${res.open.length} to triage${res.alerts.some((x) => !x.decision) ? ` — ${res.alerts.filter((x) => !x.decision).length} touch a check` : ""}`);
+    writeFileSync(`${a["issue-dir"]}/body.md`, lib.LearnFeed.issueMarkdown(res, new Set(fresh.map((x) => x.key))));
+    writeFileSync(`${a["issue-dir"]}/new.md`, lib.LearnFeed.commentMarkdown(prev ? fresh : []));
+  }
+  if (unchanged) { console.log("learn-feed: no change since " + prev.generated); process.exit(0); }
   writeFileSync(out, JSON.stringify(feed, null, 1) + "\n");
-  console.log(`learn-feed: ${feed.counts.docs} docs (${feed.counts.newDocs} new, ${feed.counts.substantive} substantive), ${feed.whatsNew.length} what's-new, ${feed.counts.watched}/${feed.counts.watched + feed.counts.unwatched} check URLs watched`);
+  console.log(`learn-feed: ${feed.counts.docs} docs (${feed.counts.newDocs} new, ${feed.counts.substantive} substantive), ${feed.whatsNew.length} what's-new, ${feed.counts.watched}/${feed.counts.watched + feed.counts.unwatched} check URLs watched${feed.open ? `, ${feed.open.length} open` : ""}`);
 }

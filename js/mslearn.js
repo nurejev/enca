@@ -601,6 +601,12 @@ const MSLearn = (() => {
   }
 
   // ---- checks database ----
+  // `verified` (32306): the day this check's Learn page was last read against
+  // the check — 2026-09-11 for every check that existed then (all their URLs
+  // were fetched and read that day), the day it was written for the later
+  // ones. 📰 Learn changes flags a check whose page Microsoft changed AFTER
+  // that date. When you change a check to follow its page, or read the page
+  // and find the check still right, move the date.
   const CHECKS = [
     // ── Emergency access / break-glass ────────────────────────────────
     {
@@ -610,6 +616,7 @@ const MSLearn = (() => {
       requirement: "Microsoft recommends excluding at least two emergency access (break-glass) accounts from every CA policy, so a misconfiguration or outage can never lock every administrator out of the tenant.",
       severity: "critical",
       docUrl: "https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access",
+      verified: "2026-09-11",
       remediation: "Exclude at least 2 emergency access (break-glass) accounts from this policy. Keep them cloud-only, with strong credentials, and alert on every sign-in.",
       // prefers the conventional break-glass group (CAB-SEC-U-BreakGlass),
       // falling back to whatever the exclusion patterns pointed at
@@ -640,6 +647,7 @@ const MSLearn = (() => {
       requirement: "Require approved client app retired on 30 June 2026. Every policy that includes it is now READ-ONLY: it keeps being enforced while it is On, it can be switched off or deleted, and it can no longer be edited — not its users, not its apps, not its exclusions — and no new policy can use the control. The replacement is Require app protection policy, which only works for users who have an Intune app protection policy assigned; an app that does not support app protection is blocked by it.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app",
+      verified: "2026-09-11",
       remediation: "This policy cannot be changed in place any more — Entra refuses every edit. Build a replacement with Require app protection policy instead of the retired control, keep everything else the same, run it report-only, switch it On, then switch the old one Off and delete it.",
       remediationParts: [
         ["Why not edit", "Entra has made this policy read-only since 30 June 2026 because it includes the retired control. It is still enforced while On — nothing is broken today — but you can no longer add an exclusion, a group or an app to it."],
@@ -682,6 +690,7 @@ const MSLearn = (() => {
       requirement: "Token protection policies must target only Exchange Online, SharePoint Online, Teams Services, Azure Virtual Desktop, Windows 365 and Windows Cloud Login. Targeting All resources or the Office 365 app group causes failures in unsupported clients.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#deployment",
+      verified: "2026-09-11",
       remediation: "Target only: Office 365 Exchange Online, Office 365 SharePoint Online, Microsoft Teams Services (plus AVD / Windows 365 if deployed). Do not use the Office 365 application group or All resources.",
       fix: (d) => {
         const a = d.conditions.applications || (d.conditions.applications = {});
@@ -720,6 +729,7 @@ const MSLearn = (() => {
       requirement: "Token protection works for native apps on Windows, and on macOS 14+ and iOS / iPadOS 16+ devices that are MDM-managed with the Microsoft Enterprise SSO plug-in; Android is not supported, and Azure Virtual Desktop / Windows 365 are protected on Windows only. The policy must name its platforms and target only 'Mobile apps and desktop clients' — including Browser blocks MSAL.js apps such as Teams Web (browser support is a preview for Azure Resource Manager web apps only).",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection#supported-resources",
+      verified: "2026-09-11",
       remediation: "Set Device platforms → Include → Windows (add macOS / iOS only for MDM-managed Apple devices with the Enterprise SSO plug-in, preview), and Client apps → Mobile apps and desktop clients only (leave Browser unchecked).",
       fix: (d) => {
         const ch = [];
@@ -762,6 +772,7 @@ const MSLearn = (() => {
       requirement: "Unsupported registration types must be excluded via device filters: Surface Hub, Teams Rooms, Entra-joined AVD hosts and Cloud PCs, Autopilot self-deploying, bulk-enrolled devices and Azure VMs.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows#known-limitations",
+      verified: "2026-09-11",
       remediation: 'Add a device filter in EXCLUDE mode that matches only the Entra-JOINED Cloud PCs, AVD session hosts, Power Automate hosted machines and Azure VMs — hybrid-joined ones are supported and should stay protected. For example: (device.systemLabels -contains "CloudPC" -and device.trustType -eq "AzureAD") -or (device.systemLabels -contains "AzureVirtualDesktop" -and device.trustType -eq "AzureAD") -or (device.systemLabels -contains "MicrosoftPowerAutomate" -and device.trustType -eq "AzureAD") -or (device.profileType -eq "SecureVM" -and device.trustType -eq "AzureAD"). Autopilot self-deploying devices cannot be matched by type: filter on the enrollmentProfileName of their Intune profile. Surface Hub and Teams Rooms on Windows cannot be excluded by a device filter — exclude their resource accounts.',
       remediationParts: [
         ["Change", "On this policy: Conditions → Filter for devices → Exclude filtered devices, with the rule in the Fix (it pairs each device type with trustType AzureAD). The Fix button builds it."],
@@ -825,6 +836,7 @@ const MSLearn = (() => {
       requirement: "CAE enables near-real-time token revocation. With CAE disabled, revocation falls back to token expiry (up to 1 hour) — a vulnerability window after security events such as account disablement or password change.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation",
+      verified: "2026-09-11",
       remediation: "Remove the CAE-disable setting unless strict evaluation demonstrably breaks a workload; CAE is on by default and should stay active.",
       fix: (d) => {
         if (d.sessionControls) delete d.sessionControls.continuousAccessEvaluation;
@@ -846,6 +858,7 @@ const MSLearn = (() => {
       requirement: "With resilience defaults disabled, users whose sessions expire during an Entra ID outage are denied access until the service recovers. Only intended for high-security scenarios.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/resilience-defaults",
+      verified: "2026-09-11",
       remediation: "Keep resilience defaults enabled unless your organization requires strict real-time policy evaluation (e.g. regulated industries).",
       fix: (d) => {
         if (d.sessionControls) d.sessionControls.disableResilienceDefaults = false;
@@ -868,6 +881,7 @@ const MSLearn = (() => {
       requirement: "Surface Hub device accounts are incompatible with MFA, authentication strength, device compliance, hybrid join, approved client app, app protection and password change controls — they must be excluded from such policies.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/surface-hub/conditional-access-for-surface-hub",
+      verified: "2026-09-11",
       remediation: "Exclude Surface Hub device accounts (or a group containing them) from this policy — select the user object, not the device object.",
       needsGroup: "sharedDevices",
       fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
@@ -889,6 +903,7 @@ const MSLearn = (() => {
       requirement: "Teams Rooms on Windows supports neither MFA nor authentication strength; Teams Rooms on Android supports MFA but not authentication strength. Room resource accounts must be excluded from MFA-enforcing policies.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
+      verified: "2026-09-11",
       remediation: "Exclude Teams Rooms resource accounts (or a shared-device group) from MFA-enforcing policies; use device compliance as the control for these devices instead.",
       needsGroup: "sharedDevices",
       fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
@@ -908,6 +923,7 @@ const MSLearn = (() => {
       requirement: "Blocking device code flow prevents remote sign-in via microsoft.com/devicelogin, which Teams Android devices (phones, panels, rooms) rely on for setup. Their resource accounts need an exclusion or an alternative sign-in method.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
+      verified: "2026-09-11",
       remediation: "Exclude Teams device resource accounts from the device-code-flow block policy, or add a device filter excluding Teams Android devices.",
       needsGroup: "sharedDevices",
       fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
@@ -928,6 +944,7 @@ const MSLearn = (() => {
       requirement: "Teams Rooms, phones and panels do not support the sign-in frequency session control — it makes them periodically sign out, disrupting meetings and room availability.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
+      verified: "2026-09-11",
       remediation: "Exclude Teams Rooms / shared-device resource accounts from sign-in frequency policies, or scope the frequency requirement to admin roles instead of all users.",
       needsGroup: "sharedDevices",
       fix: excludeGroupFix("sharedDevices", "shared-device / resource account"),
@@ -949,6 +966,7 @@ const MSLearn = (() => {
       requirement: "Applying sign-in frequency to individual Microsoft 365 services (Exchange, SharePoint, Teams) can interrupt or stop the Teams device sign-in flow and is not supported.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
+      verified: "2026-09-11",
       remediation: "Target all resources (or Microsoft Admin Portals) with the sign-in frequency policy instead of individual M365 services.",
       detect: (p) => {
         if (!isActive(p)) return null;
@@ -971,6 +989,7 @@ const MSLearn = (() => {
       requirement: "The Microsoft Defender mobile app must run continuously in the background to report device posture. Restrictive CA policies that do not exclude the Defender apps can stop that reporting, making devices appear non-compliant (a compliance loop).",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/defender-endpoint/mobile-resources-defender-endpoint#microsoft-defender-mobile-app-exclusion-from-conditional-access-ca-policies",
+      verified: "2026-09-11",
       remediation: `Exclude MicrosoftDefenderATP XPlat (${DEFENDER_ATP_XPLAT}) and Microsoft Defender for Mobile TVM (${DEFENDER_TVM}) from this policy — create their service principals first if they do not exist.`,
       fix: (d) => {
         const a = d.conditions.applications || (d.conditions.applications = {});
@@ -1012,6 +1031,7 @@ const MSLearn = (() => {
       requirement: `The Microsoft Azure Windows Virtual Machine Sign-In app (${AZURE_VM_SIGNIN}) requires the RDP client to supply the MFA claim; without Windows Hello for Business or FIDO2 that is impossible, and Windows Server RDP clients cannot satisfy device compliance at all. Microsoft recommends excluding the app when WHfB is not deployed.`,
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/devices/howto-vm-sign-in-azure-ad-windows#mfa-sign-in-method-required",
+      verified: "2026-09-11",
       remediation: `If Windows Hello for Business is not deployed, exclude the Azure Windows VM Sign-In app (${AZURE_VM_SIGNIN}) from MFA / compliance policies — or ensure all RDP clients support WHfB or FIDO2.`,
       fix: (d) => {
         const a = d.conditions.applications || (d.conditions.applications = {});
@@ -1039,6 +1059,7 @@ const MSLearn = (() => {
       requirement: "Until the rollout that began 15 June 2026, an All-resources policy with ANY app exclusion silently exempted sign-ins that requested only the baseline scopes (openid, profile, email, offline_access, User.Read, User.Read.All, User.ReadBasic.All, People.Read, People.Read.All, GroupMember.Read.All, Member.Read.Hidden). Those sign-ins are now evaluated against Windows Azure Active Directory (00000002-0000-0000-c000-000000000000) as the audience and get the policy's controls — unless the tenant's Baseline scopes setting keeps the legacy behaviour (Customize behavior for a placeholder app the policy excludes, or Disable enforcement, which Microsoft advises against).",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions",
+      verified: "2026-09-11",
       remediation: "Prefer All-resources policies with NO app exclusions — give an exempted app its own targeted policy instead. Where an exclusion must stay, check whether the app requests only baseline scopes (Learn shows the sign-in log query on conditionalAccessAudiences) and whether it can take a Conditional Access challenge; if it cannot, keep the legacy behaviour for that ONE policy with Customize behavior, never with Disable enforcement.",
       detect: (p, ctx) => {
         if (!isActive(p) || !allApps(p)) return null;
@@ -1071,6 +1092,7 @@ const MSLearn = (() => {
       requirement: "Require password change remediates user risk by having the user complete MFA and change their password. A user who signs in without a password — passkey / FIDO2, Windows Hello for Business, certificate, Authenticator phone sign-in — has no password to change and cannot complete that flow; at high risk they stay blocked until an administrator dismisses the risk. Require risk remediation chooses the flow per user (secure password change, or session revocation and a fresh strong sign-in) and overrides password change when a user is in both.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies#require-risk-remediation-control",
+      verified: "2026-09-11",
       remediation: "Move the user-risk policy to Require risk remediation (an authentication strength and sign-in frequency every time are applied with it), keeping the same users, All resources and the risk level. Not supported for guests and external users — keep them on a separate policy or exclude them. Legacy ID Protection risk policies retire on 1 October 2026; a Conditional Access policy is the place for this either way.",
       detect: (p, ctx) => {
         if (!isActive(p)) return null;
@@ -1095,6 +1117,7 @@ const MSLearn = (() => {
       requirement: "Require risk remediation always carries an authentication strength, and external authentication methods are incompatible with authentication strengths (Learn: use the Require multifactor authentication grant control for EAM). A user whose only MFA method is the external one cannot pass the remediation challenge and stays blocked.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength#create-a-conditional-access-policy",
+      verified: "2026-09-11",
       remediation: "Keep users whose MFA is the external method on a separate user-risk policy that uses the built-in Require multifactor authentication control (with Require password change, or Block), and exclude that group from the risk-remediation policy; or register a Microsoft method (Authenticator, passkey) for them so the strength can be met. Verify on the tenant which combination the portal accepts before rolling it out.",
       detect: (p, ctx) => {
         if (!isActive(p)) return null;
@@ -1115,6 +1138,7 @@ const MSLearn = (() => {
       requirement: "The Directory Synchronization Accounts exclusion existed because the sync engine's service account could not perform MFA. Entra Connect v2.5.76.0+ supports application-based authentication, removing the need for this MFA gap.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history",
+      verified: "2026-09-11",
       remediation: "Check your Entra Connect version; if v2.5.76.0 or later, migrate the sync engine to application-based authentication and remove the Directory Synchronization Accounts exclusion from MFA policies.",
       fix: (d) => {
         const u = d.conditions.users || (d.conditions.users = {});
@@ -1139,6 +1163,7 @@ const MSLearn = (() => {
       requirement: "Guests, B2B collaborators and external service providers are not enrolled in your third-party MFA provider (Duo, RSA, …) and cannot satisfy an EAM requirement — a policy demanding it for All users effectively blocks external access.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/authentication/how-to-authentication-external-method-manage",
+      verified: "2026-09-11",
       remediation: "Exclude guest/external user types and give them a separate policy with Entra ID native MFA; or use an authentication strength that accepts both the EAM and native MFA methods; or scope the EAM requirement to a group of enrolled internal users.",
       detect: (p, ctx) => {
         if (!isActive(p)) return null;
@@ -1180,6 +1205,7 @@ const MSLearn = (() => {
       requirement: "An external user completes MFA either in their home tenant or in yours. FIDO2 / passkey, Windows Hello for Business, certificate-based authentication, Authenticator phone sign-in and OATH hardware tokens are accepted ONLY when completed in the home tenant, and only when your cross-tenant access settings trust MFA claims from it. In your own tenant an external user can complete SMS, voice call, Authenticator push and OATH software tokens — nothing else. A strength built only from home-tenant methods (the built-in Phishing-resistant MFA and Passwordless MFA strengths are) therefore cannot be satisfied by a guest unless inbound MFA trust is on AND their home tenant has deployed that method.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strength-external-users",
+      verified: "2026-09-22",
       remediation: "Exclude the guest and external user types from this policy and give them their own with the Multifactor authentication strength, which they can satisfy here. Or turn on inbound MFA trust for the partner tenants — having confirmed with them that the method is actually deployed, since trust alone does not create a credential.",
       detect: (p, ctx) => {
         if (!isActive(p)) return null;
@@ -1220,6 +1246,7 @@ const MSLearn = (() => {
       requirement: "Authentication strength policies apply only to external users who authenticate with Microsoft Entra ID. For email one-time passcode, SAML/WS-Fed federated, Google-federated and Microsoft personal account users the strength does not apply at all — Microsoft's guidance is to use the Require multifactor authentication grant control for those identities instead.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength",
+      verified: "2026-09-22",
       remediation: "Exclude nothing and add one policy beside this one. The four identities are not blocked by this policy, the strength is simply not applied to them — and no Conditional Access condition names the identity provider a guest signed in with, so they cannot be carved out of its scope even if you wanted to. The second policy carries the same scope and the plain Require multifactor authentication grant control; Entra refuses both controls in one policy, which is why it has to be its own.",
       // Two answers, because the one-paragraph version was read as an
       // instruction to carve the four identities out of this policy (Mihai,
@@ -1283,6 +1310,7 @@ const MSLearn = (() => {
       requirement: "Microsoft's built-in strengths table describes the Multifactor authentication strength as the same set of combinations that satisfies the Require multifactor authentication setting, and the Limitations section says the two controls cannot be used in one policy because they are equivalent. A strength is not applied to externals who authenticate with an email one-time passcode, a SAML/WS-Fed provider, Google or a Microsoft account; the grant control is. So where the strength asks no more than the grant control, the grant control does the same job and reaches more identities.",
       severity: "low",
       docUrl: "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths#limitations",
+      verified: "2026-09-22",
       remediation: "Change the grant control on this policy from the authentication strength to Require multifactor authentication. Nothing changes for the users it already reaches — Microsoft documents the two as equivalent — and the four identities a strength is never applied to come into scope of the requirement. One policy, one control, nothing added.",
       remediationParts: [
         ["Exclude", "Nothing. This policy's scope is right; only its control is the wrong one of two equivalent ones."],
@@ -1320,6 +1348,7 @@ const MSLearn = (() => {
       requirement: "Require approved client app, Require app protection policy and Require password change are documented as not supported for B2B collaboration and B2B direct connect users. The first two need the device registered in THIS tenant, and a device is managed only by its owner's home tenant; the third cannot complete because an external user has no password to change in your directory. The control cannot be met, so access is denied rather than challenged.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#conditional-access-for-external-users",
+      verified: "2026-09-22",
       remediation: "Exclude the guest and external user types from this policy and cover your own users with it. These controls are for identities managed in this tenant.",
       detect: (p) => {
         if (!isActive(p)) return null;
@@ -1341,6 +1370,7 @@ const MSLearn = (() => {
       requirement: "A device can only be managed by its owner's home tenant, so an external user cannot register one with your organization. The control works for them only when your cross-tenant access settings trust device claims from their tenant. Microsoft: unless you are willing to trust claims about device compliance or hybrid joined status from an external user's home tenant, applying policies that require external users to use managed devices is not recommended.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#device-compliance-and-microsoft-entra-hybrid-joined-device-policies",
+      verified: "2026-09-22",
       remediation: "Either trust compliant-device and hybrid-join claims from the partner tenants in cross-tenant access settings, or exclude the guest and external user types, or add an alternative control with the OR operator so MFA satisfies the policy instead.",
       detect: (p, ctx) => {
         if (!isActive(p)) return null;
@@ -1370,6 +1400,7 @@ const MSLearn = (() => {
       requirement: "An external user's user risk is evaluated in their HOME directory, and nobody here can clear it. Require password change blocks them outright — they cannot reset a password in your directory — and Require risk remediation is documented as not supported for external and guest users. A Block on user risk shuts them out until their own organisation remediates. (A user-risk policy that only asks for MFA is not a lockout — they meet it — and is not reported here.) Microsoft's guidance is to exclude external users from risk-based policies and require MFA of them always instead.",
       severity: "high",
       docUrl: "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-b2b",
+      verified: "2026-09-22",
       remediation: "Exclude the guest and external user types from this policy, and make sure an always-on MFA policy reaches them instead of a risk-based one.",
       remediationParts: [
         ["Exclude", "The guest and external user types (all six, all tenants) from this policy. Nothing else changes for your own users."],
@@ -1405,6 +1436,7 @@ const MSLearn = (() => {
       requirement: "Terms of use, sign-in frequency, persistent browser session, app enforced restrictions and Conditional Access App Control are all documented as supported for B2B collaboration users and NOT supported for B2B direct connect users — the Teams shared-channel identities that hold no account in your directory. A policy relying on one of them does not do for those users what it does for everyone else.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#conditional-access-for-external-users",
+      verified: "2026-09-22",
       remediation: "Decide deliberately: exclude B2B direct connect users from this policy if the control is the point of it, or accept that they are covered by whatever else the policy requires. Either way it should not be an accident.",
       detect: (p) => {
         if (!isActive(p)) return null;
@@ -1439,6 +1471,7 @@ const MSLearn = (() => {
       severity: "high",
       needsServiceProvider: true,
       docUrl: "https://learn.microsoft.com/security/zero-trust/zero-trust-identity-device-access-policies-guest-access",
+      verified: "2026-09-11",
       remediation: "Add Service provider users to the Guest or external users exclusion. Choose all tenants unless you deliberately want the carve-out limited to named partner tenants.",
       fix: (d) => {
         const sel = d.conditions?.users?.excludeGuestsOrExternalUsers;
@@ -1473,6 +1506,7 @@ const MSLearn = (() => {
       severity: "high",
       needsServiceProvider: true,
       docUrl: "https://learn.microsoft.com/partner-center/customers/gdap-faq",
+      verified: "2026-09-11",
       remediation: "If you use a CSP or delegated-administration partner, exclude Service provider users — for all tenants, or for your partner's tenant ID specifically. If you have no partner and want them blocked, this is working as intended.",
       detect: (p, ctx) => {
         if (!isActive(p) || !hasBlock(p)) return null;
@@ -1501,6 +1535,7 @@ const MSLearn = (() => {
       severity: "high",
       needsServiceProvider: true,
       docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#device-compliance-and-microsoft-entra-hybrid-joined-device-policies",
+      verified: "2026-09-11",
       remediation: "Either trust compliant-device and hybrid-join claims from the partner tenant in cross-tenant access settings, or exclude Service provider users from this policy, or add an alternative control with the OR operator so MFA satisfies it instead.",
       detect: (p, ctx) => {
         if (!isActive(p)) return null;
@@ -1540,6 +1575,7 @@ const MSLearn = (() => {
       severity: "high",
       needsServiceProvider: true,
       docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access#conditional-access-for-external-users",
+      verified: "2026-09-11",
       remediation: "Exclude Service provider users (and the other external user types) from this policy and cover internal users with it instead. These controls are for identities managed in this tenant.",
       detect: (p) => {
         if (!isActive(p)) return null;
@@ -1563,6 +1599,7 @@ const MSLearn = (() => {
       severity: "medium",
       needsServiceProvider: true,
       docUrl: "https://learn.microsoft.com/security/zero-trust/zero-trust-identity-device-access-policies-guest-access",
+      verified: "2026-09-11",
       remediation: "Add Service provider users to the Guest or external users selection, so partner delegated admins face the same authentication requirement as your other external identities.",
       fix: (d) => {
         const sel = d.conditions?.users?.includeGuestsOrExternalUsers;
@@ -1600,6 +1637,7 @@ const MSLearn = (() => {
       requirement: "A B2B direct connect user has no account in your directory, so they cannot register MFA here — they can only meet an MFA requirement with the claim their HOME tenant issued, and that claim is accepted only when inbound MFA trust is on. Without it, Microsoft documents that direct connect users are blocked from the resource (Teams shared channels).",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access",
+      verified: "2026-09-23",
       remediation: "Either turn on inbound MFA trust for the organisations you share Teams channels with (Cross-tenant access settings → the organisation → Inbound → Trust settings), or, if they should not require MFA from this policy, exclude B2B direct connect users here. If you do not use shared channels at all, keep B2B direct connect blocked inbound and this does not arise.",
       remediationParts: [
         ["Fix, usually", "Cross-tenant access settings → Organizational settings → the partner → Inbound access → Trust settings → Trust multifactor authentication from Microsoft Entra tenants. Their users' MFA at home then satisfies this policy."],
@@ -1626,6 +1664,7 @@ const MSLearn = (() => {
       requirement: "Teams Rooms, Teams phones and panels and Surface Hub sign in with a resource account and nobody sits at the device to answer a prompt. Microsoft's support tables list, per device, the grant and session controls those accounts cannot meet — terms of use, persistent browser, app enforced restrictions, Conditional Access App Control, token protection, customised continuous access evaluation, risk remediation, app protection, password change, hybrid join, insider risk, and more. A policy that demands one of them makes the device fail to sign in or sign out on its own. Microsoft's pattern: exclude the resource accounts from every other policy and give them one policy of their own — compliant device plus a known location.",
       severity: "medium",
       docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
+      verified: "2026-09-23",
       remediation: "When the policy reaches the devices through All users: exclude the shared-device group. When it is the devices' own policy (it includes that group): take the unsupported control out of it.",
       remediationParts: [
         ["Exclude", "The shared-device group (CAB-SEC-U-TeamsSharedDevices or your equivalent) from this policy — when it reaches the devices only because it targets All users. The Fix button adds that exclusion."],
@@ -1674,6 +1713,7 @@ const MSLearn = (() => {
       requirement: "Microsoft's starting point for guest and external access is to require MFA of guests and external users always. A type left out of the guest MFA policy, and excluded from the All-users MFA policy as well, signs in with whatever its home organisation did and nothing more — no policy here asks it for MFA. B2B direct connect is a special case: it can only satisfy MFA through inbound MFA trust, so requiring MFA of it without that trust BLOCKS it, and it only arrives at all when B2B direct connect is enabled inbound (it is blocked by default).",
       severity: "high",
       docUrl: "https://learn.microsoft.com/security/zero-trust/zero-trust-identity-device-access-policies-guest-access",
+      verified: "2026-09-22",
       remediation: "Add the missing types to this policy's guest and external user selection. For B2B direct connect, first decide whether you want those users at all: if yes, turn on inbound MFA trust for the organisations you share channels with, then add the type; if no, keep B2B direct connect blocked inbound in cross-tenant access settings, and this finding goes away.",
       remediationParts: [
         ["Change", "On this policy, add the types listed in the assessment to Users → Include → Guest or external users. The Fix button builds that version (state Off, version bumped)."],
@@ -2075,16 +2115,19 @@ const MSLearn = (() => {
       const uniform = new Set(g.policies.map((p) => p.result.detail)).size === 1;
       const resources = [...new Set(g.policies.flatMap((p) => p.result.impactedResources || []))];
       const nFix = fixable.get(c.id) || 0;
+      // 32306: the check's Learn page changed after the check was verified
+      const drift = opts.drift ? opts.drift(c.id) : null;
       const fixBtn = canApply && nFix ? `<button class="btn lemon sm ml-headfix" data-mlapply="${esc(c.id)}" title="Change the ${nFix === 1 ? "policy" : `${nFix} policies`} in place in this tenant — version bumped, state kept">🧰 Fix ${nFix}</button>` : "";
       return `<div class="list-card ml-card">
         <div class="ml-headrow"><button class="ml-head ${open ? "open" : ""}" data-mltoggle="${esc(c.id)}">
           <span class="caret">▶</span>
           ${sevBadge(c.severity)}
           ${EFFECT[c.id] ? `<span class="ml-eff eff-${EFFECT[c.id]}">${EFFECT_TEXT[EFFECT[c.id]][0]} ${esc(EFFECT_TEXT[EFFECT[c.id]][1])}</span>` : ""}
-          <span class="ml-title">${esc(c.title)}</span>
+          <span class="ml-title">${esc(c.title)}</span>${drift ? '<span class="lf-pill chk" title="Its Microsoft Learn page changed after this check was verified">⚠ Learn changed</span>' : ""}
           <span class="mini">${n === 1 ? esc(g.policies[0].name) : `${n} policies affected`}</span>
         </button>${fixBtn}</div>
         ${open ? `<div class="ml-detail">
+          ${drift ? drift.html : ""}
           ${EFFECT[c.id] ? `<p class="ml-effect eff-${EFFECT[c.id]}"><b>${EFFECT_TEXT[EFFECT[c.id]][0]} ${esc(EFFECT_TEXT[EFFECT[c.id]][1])}.</b> ${esc(EFFECT_TEXT[EFFECT[c.id]][2])}</p>` : ""}
           ${uniform ? `<h5>Assessment</h5><p>${esc(g.policies[0].result.detail)}</p>` : ""}
           <h5>🛡 Affected ${n === 1 ? "policy" : `policies (${n})`}</h5>
@@ -2526,5 +2569,5 @@ const MSLearn = (() => {
     return [...ids];
   }
 
-  return { patchBody, acceptSig, renderAccepted, deviceMatrix, renderDeviceMatrix, DEVICE_ROWS, guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { patchBody, acceptSig, renderAccepted, deviceMatrix, renderDeviceMatrix, DEVICE_ROWS, guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length, checkDocs: () => CHECKS.filter((c) => c.docUrl).map((c) => ({ id: c.id, title: c.title, docUrl: c.docUrl, verified: c.verified || null })) };
 })();

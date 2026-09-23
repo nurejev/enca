@@ -20044,6 +20044,10 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🛡 Checks");
     show("screen-mslearn");
     mountToolTabs("checks", "mslearn");
+    // the feed is read in the background: it puts the ⚠ count on the tab and
+    // the "Learn changed" line on a finding whose page moved
+    lfLoad().then(() => { if ($("screen-mslearn").classList.contains("active")) { if (mlTab === "learn") renderLearn(); else { mlTabsPaint(); if (mlGroups) renderMsLearn(); } } });
+    if (mlTab === "learn") { renderLearn(); return; }
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; mlKey = null; return; }
     // baseline tenant → include Off + persona-only; note the scope.
     // Before the cache check, because the scope is part of what the result
@@ -20237,13 +20241,90 @@ This is a directory write. Nothing else changes.`)) return;
       <button class="btn sm" data-catready-clear>Clear</button>
       <button class="btn primary sm" data-catready-open>Open 🧱 Update the catalog →</button></div>`;
   }
+  // ---------- 📰 Learn changes (32306) ----------
+  // The nightly Microsoft Learn feed (js/learnfeed.js), read without a scan
+  // and without a tenant call: raw.githubusercontent.com first, the copy
+  // shipped with the build when GitHub cannot be reached. Decisions made here
+  // are kept on this browser as PENDING until 📋 Work order carries them to a
+  // session that writes them into js/learntriage.js.
+  let lfFeed = null, lfSource = null, lfError = null, lfLoading = null, lfFilter = "all";
+  const LF_LOCAL = "enca-learn-triage";
+  const lfLocalLoad = () => { try { return JSON.parse(localStorage.getItem(LF_LOCAL) || "{}") || {}; } catch { return {}; } };
+  const lfLocalSave = (o) => { try { localStorage.setItem(LF_LOCAL, JSON.stringify(o)); } catch { /* private window — kept for this view only */ } };
+  const lfToday = () => new Date().toISOString().slice(0, 10);
+  function lfLoad(force) {
+    if (lfLoading) return lfLoading;
+    if (lfFeed && !force) return Promise.resolve(lfFeed);
+    lfLoading = (async () => {
+      const get = async (u) => {
+        const r = await fetch(u, { cache: "no-store" });
+        if (!r.ok) throw new Error(r.status === 404 ? "no feed published yet" : `HTTP ${r.status}`);
+        const j = await r.json();
+        if (!j || j.schema !== LearnFeed.SCHEMA) throw new Error("not a Learn feed");
+        return j;
+      };
+      try { lfFeed = await get(LearnFeed.FEED_URL + (force ? `?t=${Date.now()}` : "")); lfSource = "live"; lfError = null; }
+      catch (e) {
+        lfError = e.message || String(e);
+        try { lfFeed = await get(`${LearnFeed.SNAPSHOT_URL}?v=${APP_BUILD.build}`); lfSource = "snapshot"; }
+        catch { lfFeed = null; lfSource = null; }
+      }
+      lfLoading = null;
+      return lfFeed;
+    })();
+    return lfLoading;
+  }
+  function lfResult() {
+    if (!lfFeed) return null;
+    const triage = typeof LEARN_TRIAGE !== "undefined" ? LEARN_TRIAGE : { decisions: {} };
+    // a pending decision the repo has since recorded is done with
+    const loc = lfLocalLoad();
+    const rec = (triage && triage.decisions) || {};
+    if (Object.keys(loc).some((k) => rec[k])) { Object.keys(loc).forEach((k) => { if (rec[k]) delete loc[k]; }); lfLocalSave(loc); }
+    return LearnFeed.classify(lfFeed, MSLearn.checkDocs(), triage, loc);
+  }
+  const lfAll = (r) => [...r.alerts, ...r.newDocs, ...r.changed, ...r.minor, ...r.whatsNew, ...r.mentions];
+  function mlTabsPaint() {
+    $("mlTabFindings").classList.toggle("active", mlTab === "findings");
+    $("mlTabFixes").classList.toggle("active", mlTab === "fixes");
+    $("mlTabLearn").classList.toggle("active", mlTab === "learn");
+    const r = lfResult();
+    const n = r ? r.counts.open : 0, a = r ? r.counts.alerts : 0;
+    $("mlTabLearn").innerHTML = `📰 Learn changes${n ? ` <span class="lf-count${a ? " warn" : ""}" title="${a ? `${a} page${a === 1 ? "" : "s"} a check relies on changed after the check was verified · ` : ""}${n} to decide">${a ? `⚠ ${a}` : n}</span>` : ""}`;
+  }
+  function renderLearn() {
+    mlTabsPaint();
+    $("mlDisabledWrap").style.display = "none"; $("mlApply").style.display = "none"; $("mlFixZip").style.display = "none";
+    $("mlLearnWo").style.display = lfFeed ? "" : "none";
+    if (!lfFeed) {
+      $("mlChips").innerHTML = "";
+      $("mlBody").innerHTML = lfLoading
+        ? '<p class="mini" style="padding:16px">Reading the Learn feed…</p>'
+        : `<p class="mini" style="padding:16px">The Learn feed could not be read${lfError ? ` (${esc(lfError)})` : ""}, and no copy shipped with this build could be read either. <button class="btn sm" data-lfreload>↻ Try again</button></p>`;
+      if (lfLoading) lfLoading.then(() => { if (mlTab === "learn") renderLearn(); });
+      return;
+    }
+    const r = lfResult();
+    $("mlChips").innerHTML = LearnFeed.chips(r, lfFilter);
+    $("mlBody").innerHTML = LearnFeed.render(r, { filter: lfFilter, source: lfSource, error: lfError });
+  }
+  function lfDecide(key, d, why) {
+    const r = lfResult(); if (!r) return;
+    const item = lfAll(r).find((x) => x.key === key);
+    const loc = lfLocalLoad();
+    loc[key] = { d, at: lfToday(), ...(why ? { why } : {}), ...(item && item.since ? { upTo: item.since } : {}), ...(item && item.kind === "alert" ? { checks: item.checks.map((c) => c.id) } : {}) };
+    lfLocalSave(loc);
+    renderLearn();
+    toast(`${esc(LearnFeed.DECISIONS[d] ? LearnFeed.DECISIONS[d].label : d)} — <span>pending</span>: 📋 Work order carries it to be recorded`);
+  }
   function renderMsLearn() {
+    if (mlTab === "learn") { renderLearn(); return; }
+    $("mlDisabledWrap").style.display = ""; $("mlLearnWo").style.display = "none";
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
     const nFix = mlFixes ? mlFixes.fixes.length : 0;
     $("mlTabFixes").textContent = nFix ? `Suggested fixes (${nFix})` : "Suggested fixes";
-    $("mlTabFindings").classList.toggle("active", mlTab === "findings");
-    $("mlTabFixes").classList.toggle("active", mlTab === "fixes");
+    mlTabsPaint();
     // accepted findings fold away while they are about the same policies
     const acc = mlAccLoad();
     const accepted = [], active = [];
@@ -20280,19 +20361,64 @@ This is a directory write. Nothing else changes.`)) return;
       $("mlBody").innerHTML = band + matrices + MSLearn.renderEmpty() + MSLearn.renderAccepted(accepted);
       return;
     }
+    const lfr = lfResult();
     const count = (s) => s === "all" ? active.length : active.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
     $("mlBody").innerHTML = band + matrices
-      + MSLearn.renderGroups(active, mlFilter, mlExpanded, { canApply, fixable: mlFixable, accept: !isDemo })
+      + MSLearn.renderGroups(active, mlFilter, mlExpanded, { canApply, fixable: mlFixable, accept: !isDemo, drift: (id) => LearnFeed.driftFor(lfr, id) })
       + MSLearn.renderAccepted(accepted);
   }
-  $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
-  $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
+  // Findings and Suggested fixes need a scan; before one, they show the
+  // ▶ Run checks prompt again (📰 Learn changes needs none).
+  const mlToScanTab = (t) => {
+    mlTab = t;
+    if (!mlGroups) { $("mlDisabledWrap").style.display = ""; $("mlLearnWo").style.display = "none"; mlTabsPaint(); openMsLearn(); return; }
+    renderMsLearn();
+  };
+  $("mlTabFindings").addEventListener("click", () => mlToScanTab("findings"));
+  $("mlTabFixes").addEventListener("click", () => mlToScanTab("fixes"));
+  $("mlTabLearn").addEventListener("click", () => {
+    mlTab = "learn"; renderLearn();
+    lfLoad().then(() => { if (mlTab === "learn") renderLearn(); });
+  });
+  $("mlLearnWo").addEventListener("click", () => {
+    const r = lfResult(); if (!r) return;
+    const md = LearnFeed.workOrder(r, { date: lfToday(), source: lfSource === "live" ? "nightly feed" : "copy shipped with the build", build: APP_BUILD.label });
+    showReport("📋 Learn changes — work order", `ENCA-learn-work-order-${lfToday()}`, md);
+  });
+  $("mlChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-lff]"); if (!b) return;
+    lfFilter = b.dataset.lff; renderLearn();
+  });
+  $("mlBody").addEventListener("click", (e) => {
+    const go = e.target.closest("[data-lfgo]");
+    if (go) { e.preventDefault(); mlTab = "learn"; lfFilter = "alerts"; renderLearn(); return; }
+    if (e.target.closest("[data-lfreload]")) { lfLoad(true).then(() => renderLearn()); renderLearn(); return; }
+    const u = e.target.closest("[data-lfundo]");
+    if (u) { const loc = lfLocalLoad(); delete loc[u.dataset.lfundo]; lfLocalSave(loc); renderLearn(); return; }
+    const d = e.target.closest("[data-lfd]"); if (!d) return;
+    const key = d.dataset.lfd, dv = d.dataset.lfdv;
+    const inp = [...$("mlBody").querySelectorAll("[data-lfwhy]")].find((x) => x.dataset.lfwhy === key);
+    const why = inp ? inp.value.trim() : "";
+    // a decision that orders or dismisses work says why, or which check
+    if (!why && ["check-change", "extends", "covered", "not-relevant"].includes(dv)) {
+      toast(dv === "check-change" ? "Say <span>what needs to change</span> first" : dv === "not-relevant" ? "Say <span>why</span> it is not for ENCA first" : "Name <span>the check</span> first");
+      if (inp) inp.focus();
+      return;
+    }
+    lfDecide(key, dv, why);
+  });
   // Refresh: re-read the tenant, then re-run the MS Learn checks.
   $("mlRefresh").addEventListener("click", async () => {
     const btn = $("mlRefresh"); btn.disabled = true; btn.textContent = "⟳ Refreshing…";
+    if (mlTab === "learn") {
+      // on 📰 Learn changes, Refresh re-reads the feed — not the tenant
+      try { await lfLoad(true); renderLearn(); toast(lfSource === "live" ? "Learn feed <span>re-read</span>" : "GitHub could not be reached — <span>showing the copy shipped with this build</span>"); }
+      finally { btn.disabled = false; btn.textContent = "⟳ Refresh"; }
+      return;
+    }
     try {
       if (isDemo) loadDemo(); else await loadFromGraph(true);
       await openMsLearn();
