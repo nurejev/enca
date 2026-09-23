@@ -734,7 +734,11 @@ const Importer = (() => {
   function housekeeping(list) {
     const signature = PolicyCompare.signature;
     const state = p => ({ disabled: "off", enabled: "on", enabledForReportingButNotEnforced: "report", off: "off", on: "on", report: "report" })[p.raw?.state ?? p.state] || "unknown";
-    const family = name => cleanName(name).replace(/\s+v\d+(?:\.\d+)+\s*$/i, "").replace(/\s+/g, " ").trim();
+    // 25484: the version is written "-v1.0.3" in every CloudFellows name (and
+    // " v1.0.3" in the older ones). This only stripped the SPACED form, so
+    // two versions of the same hyphenated name always differed "beyond the
+    // version" — no CloudFellows pair could ever become a cleanup candidate.
+    const family = name => cleanName(name).replace(/[\s-]+v\d+(?:\.\d+)*\s*$/i, "").replace(/\s+/g, " ").trim();
     const payload = PolicyCompare.config;
     const items = (list || []).map(p => ({ p, ...parseCaVersion(p.name) })).filter(x => x.num != null && x.ver);
     const out = [];
@@ -760,6 +764,94 @@ const Importer = (() => {
     return out.sort((a, b) => a.num - b.num || cmpVer(a.ver, b.ver));
   }
   function supersededOff(list) { return housekeeping(list).filter(r => r.canDelete); }
+
+  // ---------- ⇄ switch-over: finish a version change (beta 25484) ----------
+  // Mihai, on Perfetti (23 Sep): an import that could not verify its new
+  // versions left each one Off beside its predecessor On, and 🧹 Housekeeping
+  // could only say "needs review" — nothing in ENCA could finish the change.
+  // A switch-over candidate is a NEWER version that is Off while one or more
+  // older versions of the same CA number are On or Report-only. The switch:
+  // the newer version takes the older one's state (or Report-only first),
+  // is read back in that state, and only THEN are the older versions switched
+  // Off, each read back too. A newer version that cannot be verified leaves
+  // the older ones exactly as they were.
+  //
+  // Housekeeping's reasons still apply, minus the two the switch itself
+  // resolves (old still On, new not On): a pair whose names differ beyond the
+  // version, or whose scope or controls differ, needs a Compare before it can
+  // be ticked (needsCompare); one whose details are incomplete cannot be
+  // switched here at all.
+  function switchCandidates(list) {
+    const st = (p) => ({ disabled: "off", enabled: "on", enabledForReportingButNotEnforced: "report", off: "off", on: "on", report: "report" })[p.raw?.state ?? p.state] || "unknown";
+    const by = new Map();
+    for (const r of housekeeping(list)) {
+      const so = st(r.policy), sn = st(r.newer);
+      if (sn !== "off" || (so !== "on" && so !== "report")) continue;
+      if (!by.has(r.newer.id)) by.set(r.newer.id, { key: r.newer.id, num: r.num, newer: r.newer, newerVer: r.newerVer, olds: [], reasons: new Set(), incomplete: false });
+      const e = by.get(r.newer.id);
+      e.olds.push({ policy: r.policy, ver: r.ver, state: so });
+      for (const why of r.reasons) {
+        if (/^Older version is still|^Newer version is not On/.test(why)) continue;
+        if (/incomplete/i.test(why)) e.incomplete = true;
+        e.reasons.add(why);
+      }
+    }
+    return [...by.values()].map((e) => ({ ...e, reasons: [...e.reasons],
+      targetState: e.olds.some((o) => o.state === "on") ? "enabled" : "enabledForReportingButNotEnforced",
+      needsCompare: e.reasons.size > 0 && !e.incomplete })).sort((a, b) => a.num - b.num);
+  }
+  // items: switchCandidates() entries. opts.reportOnlyFirst puts every newer
+  // version in Report-only instead of the older one's state.
+  async function switchOver(items, opts = {}) {
+    const scopes = [...AUTH_CONFIG.scopes, ...WRITE];
+    const results = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (opts.shouldStop && opts.shouldStop()) { results.push({ key: it.key, ok: false, stopped: true, error: "stopped — nothing changed" }); continue; }
+      opts.onItem?.(i, "start");
+      const target = opts.reportOnlyFirst ? "enabledForReportingButNotEnforced" : it.targetState;
+      const r = { key: it.key, num: it.num, newerName: it.newer.name, target, ok: false, newerDone: false, oldsOff: [], oldsFailed: [] };
+      try {
+        const url = `/identity/conditionalAccess/policies/${it.newer.id}`;
+        const fresh = await readSettled(url, null, opts.readWaits);
+        if (fresh.state !== target) {
+          await Graph.gpatch(url, { state: target }, scopes);
+          const back = await readSettled(url, (x) => x && x.state === target, opts.readWaits);
+          if (back.state !== target) throw new Error(`the new version did not read back as ${target === "enabled" ? "On" : "Report-only"} — the older version${it.olds.length === 1 ? " was" : "s were"} left as ${it.olds.length === 1 ? "it was" : "they were"}`);
+        }
+        r.newerDone = true;
+        for (const o of it.olds) {
+          const ou = `/identity/conditionalAccess/policies/${o.policy.id}`;
+          try {
+            await Graph.gpatch(ou, { state: "disabled" }, scopes);
+            const ob = await readSettled(ou, (x) => x && x.state === "disabled", opts.readWaits);
+            if (ob.state !== "disabled") throw new Error("did not read back as Off");
+            r.oldsOff.push(o.policy.name);
+          } catch (e) { r.oldsFailed.push({ name: o.policy.name, error: e.message || String(e) }); }
+        }
+        r.ok = !r.oldsFailed.length;
+        if (!r.ok) r.error = `the new version is ${target === "enabled" ? "On" : "Report-only"}, but ${r.oldsFailed.map((f) => `“${f.name}” (${f.error})`).join(", ")} could not be switched Off — both apply until you switch ${r.oldsFailed.length === 1 ? "it" : "them"} Off by hand`;
+      } catch (e) {
+        r.error = r.error || (e.message || String(e));
+      }
+      results.push(r);
+      opts.onItem?.(i, "end", r);
+    }
+    return results;
+  }
+  function switchReport(meta, items, results) {
+    const W = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+    const L = [`# Switch-over report — ${meta.tenant || "tenant"}`, "", `_${new Date().toISOString()}_`, ""];
+    for (const it of items) {
+      const r = (results || []).find((x) => x.key === it.key) || {};
+      L.push(`## CA${String(it.num).padStart(3, "0")} → v${it.newerVer}`, "");
+      L.push(`- **New version:** ${it.newer.name} — ${r.newerDone ? W[r.target] : "unchanged (Off)"}`);
+      for (const o of it.olds) L.push(`- **Older:** ${o.policy.name} — ${r.oldsOff && r.oldsOff.includes(o.policy.name) ? "switched Off" : `still ${W[o.state === "on" ? "enabled" : "enabledForReportingButNotEnforced"]}`}`);
+      L.push(`- **Result:** ${r.ok ? "done" : r.stopped ? "stopped — nothing changed" : r.error || "not run"}`, "");
+    }
+    L.push("Undo: switch the older version back to its previous state first, then the new version Off. The older versions are kept, Off — 🧹 Housekeeping offers them for deletion once they match the version that replaced them.");
+    return L.join("\n");
+  }
 
   // ---------- duplicates: the same policy twice (beta 25387) ---------------
   // housekeeping() above answers "is there an older VERSION of this policy",
@@ -1988,5 +2080,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled };
+  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled };
 })();

@@ -3053,13 +3053,85 @@
     const n = hkFind().length;
     const b = $("hkBtn"); if (!b) return;
     b.style.display = (n && viewMode !== "analyze") ? "" : "none";
-    b.textContent = `🧹 Housekeeping (${n})`;
+    const sw = Importer.switchCandidates(policies).length;
+    b.textContent = sw ? `🧹 Housekeeping (${n} · ⇄ ${sw})` : `🧹 Housekeeping (${n})`;
     b.title = `${n} older policy version${n === 1 ? "" : "s"} in the loaded inventory — review status, scope and controls`;
   }
+  // ---- ⇄ switch over (25484) — finish a version change ----------------
+  // A newer version Off while an older one is On or Report-only: the newer
+  // takes the older's state (or Report-only first), is read back, and only
+  // then are the older versions switched Off. Pure logic in
+  // Importer.switchCandidates / switchOver.
+  let hkSwOn = new Set(), hkSwCompared = new Set(), hkSwReport = false, hkSwStep = "list";
+  const W3 = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+  function hkSwitchHtml() {
+    const cands = Importer.switchCandidates(policies);
+    if (!cands.length) return "";
+    const can = (c) => !c.incomplete && (!c.needsCompare || hkSwCompared.has(c.key));
+    for (const k of [...hkSwOn]) { const c = cands.find((x) => x.key === k); if (!c || !can(c)) hkSwOn.delete(k); }
+    const chosen = cands.filter((c) => hkSwOn.has(c.key));
+    const target = (c) => hkSwReport ? "Report-only" : W3[c.targetState];
+    if (hkSwStep === "confirm") {
+      return `<div class="hk-sw" id="hkSw"><b>⇄ Switch over — review</b>
+        <ul class="plist2" style="margin:8px 0">${chosen.map((c) => `<li><div><b>${esc(c.newer.name)}</b> → <b>${target(c)}</b></div>
+          <div class="mini">then Off: ${esc(c.olds.map((o) => o.policy.name).join(", "))}</div></li>`).join("")}</ul>
+        <p class="mini">Each new version is set and READ BACK before its older version is switched Off; a new version that does not read back leaves the older one exactly as it is. For the moment between the two writes both apply — every applicable policy must be met, so nobody gets less protection, at most one prompt more. Undo: the older version back to its state first, then the new one Off.</p>
+        <label class="mini" for="hkSwWord">Type <b>SWITCH</b> to confirm</label>
+        <input id="hkSwWord" class="txt" placeholder="SWITCH" autocomplete="off" spellcheck="false" style="margin:4px 0 8px">
+        <div class="row" style="justify-content:flex-start;margin:0"><button class="btn" data-hksw-back>← Back</button><button class="btn primary" id="hkSwGo" disabled>Switch over ${chosen.length}</button></div>
+        <div id="hkSwLedger"></div></div>`;
+    }
+    return `<div class="hk-sw" id="hkSw"><div><b>⇄ Switch over (${cands.length})</b> <span class="mini">— newer versions still Off while the older one is On or Report-only</span></div>
+      <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0">${cands.map((c) => {
+        const olds = c.olds.map((o) => `${Render.stateChip(o.state)} ${esc(o.policy.name)}`).join("<br>");
+        const why = c.incomplete ? "Policy details are incomplete — switch it in the portal." : c.needsCompare && !hkSwCompared.has(c.key) ? `${c.reasons.join(" ")} Compare the two before ticking.` : c.needsCompare ? "Compared — the differences above are yours to accept." : "Same scope and controls — only the version differs.";
+        return `<li><label class="chk hk-choice"><input type="checkbox" data-hksw="${esc(c.key)}"${hkSwOn.has(c.key) ? " checked" : ""}${can(c) ? "" : " disabled"}>
+          <span class="hk-details"><span>${Render.stateChip(c.newer.state)} <b>${esc(c.newer.name)}</b> → <b>${target(c)}</b></span>
+          <span class="mini">Older: ${olds}</span>
+          <span class="mini"${c.needsCompare && !hkSwCompared.has(c.key) ? ' style="color:var(--off)"' : ""}>${esc(why)}</span></span></label>
+          ${c.olds.map((o) => `<button type="button" class="btn sm hk-compare" data-hk-compare="${esc(o.policy.id)}" data-hk-newer="${esc(c.newer.id)}" data-hksw-key="${esc(c.key)}">Compare${c.olds.length > 1 ? ` v${esc(o.ver)}` : ""}</button>`).join("")}</li>`;
+      }).join("")}</ul>
+      <div class="row" style="justify-content:flex-start;margin:0;gap:10px;flex-wrap:wrap">
+        <label class="chk" style="margin:0"><input type="checkbox" id="hkSwReport"${hkSwReport ? " checked" : ""}> Put the new versions in Report-only first, not in the older version's state</label>
+        <button class="btn primary" data-hksw-review${chosen.length ? "" : " disabled"}>Review switch-over${chosen.length ? ` (${chosen.length})` : ""} →</button></div></div>`;
+  }
+  function paintHkSwitch() {
+    const box = $("hkSw"); if (!box) return;
+    const tmp = document.createElement("div"); tmp.innerHTML = hkSwitchHtml();
+    box.replaceWith(tmp.firstElementChild || document.createElement("div"));
+  }
+  async function hkSwRun() {
+    const cands = Importer.switchCandidates(policies).filter((c) => hkSwOn.has(c.key));
+    if (!cands.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...ML_WRITE])) return;
+    $("hkSwGo").disabled = true;
+    const L = RunLedger.create($("hkSwLedger"), { unit: "switch-overs", title: "switch", items: cands.map((c) => ({ label: c.newer.name, sub: `→ ${hkSwReport ? "Report-only" : W3[c.targetState]}, then ${c.olds.length} older Off` })), onStop: () => {} });
+    let res;
+    if (isDemo) {
+      res = cands.map((c) => ({ key: c.key, ok: true, newerDone: true, target: hkSwReport ? "enabledForReportingButNotEnforced" : c.targetState, oldsOff: c.olds.map((o) => o.policy.name) }));
+      res.forEach((r, i) => L.done(i, "switched (simulated)", "switched"));
+    } else {
+      res = await Importer.switchOver(cands, { reportOnlyFirst: hkSwReport, shouldStop: () => L.stopped,
+        onItem: (i, phase, r) => {
+          if (phase === "start") { L.start(i); return; }
+          if (r.stopped) L.skip(i, r.error);
+          else if (r.ok) L.done(i, `${W3[r.target]} · ${r.oldsOff.length} older Off`, "switched");
+          else if (r.newerDone) L.part(i, r.error, "partly done");
+          else L.fail(i, r.error || "refused", "refused");
+        } });
+    }
+    L.finish({ report: () => showReport("⇄ Switch-over report", `CA-Switch-Over-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, Importer.switchReport({ tenant: tenantName }, cands, res)) });
+    hkSwOn.clear(); hkSwStep = "list";
+    toast(`${res.filter((r) => r.ok).length} of ${res.length} switched${isDemo ? " (simulated)" : ""}`);
+    if (!isDemo && res.some((r) => r.newerDone)) await loadFromGraph(true);
+  }
+
   function openHousekeeping() {
     const rows = hkFind(), eligible = rows.filter(r => r.canDelete).length;
-    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates. Includes policies outside the current search filter.`;
-    $("hkList").innerHTML = `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
+    hkSwStep = "list";
+    const nSw = Importer.switchCandidates(policies).length;
+    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates${nSw ? `, and ${nSw} newer version${nSw === 1 ? "" : "s"} still Off beside an older one that is On — switch ${nSw === 1 ? "it" : "them"} over first` : ""}. Includes policies outside the current search filter.`;
+    $("hkList").innerHTML = hkSwitchHtml() + `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
       + rows.map(r => `<li><label class="chk hk-choice">
           <input type="checkbox" data-hk="${esc(r.policy.id)}" ${r.canDelete ? "" : "disabled"}>
           <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>
@@ -3079,7 +3151,11 @@
     if (hkComparison) $("hkCompareBody").innerHTML = PolicyCompare.render(hkComparison, { onlyChanges: $("hkCompareOnly").checked, resolve: policyResolve });
   }
   $("hkList").addEventListener("click", e => {
+    if (e.target.closest("[data-hksw-review]")) { hkSwStep = "confirm"; paintHkSwitch(); return; }
+    if (e.target.closest("[data-hksw-back]")) { hkSwStep = "list"; paintHkSwitch(); return; }
+    if (e.target.closest("#hkSwGo")) { hkSwRun(); return; }
     const button = e.target.closest("[data-hk-compare]"); if (!button) return;
+    if (button.dataset.hkswKey) { hkSwCompared.add(button.dataset.hkswKey); setTimeout(paintHkSwitch, 0); }
     const older = policies.find(p => p.id === button.dataset.hkCompare), newer = policies.find(p => p.id === button.dataset.hkNewer);
     if (!older || !newer) { openHousekeeping(); toast("Policy inventory changed. Review the updated list."); return; }
     hkComparison = PolicyCompare.compare(older, newer);
@@ -3091,7 +3167,12 @@
   $("hkCompareClose").addEventListener("click", () => { $("hkCompareModal").classList.remove("open"); hkComparison = null; });
   $("hkBtn").addEventListener("click", openHousekeeping);
   $("hkCancel").addEventListener("click", () => $("hkModal").classList.remove("open"));
-  $("hkList").addEventListener("change", (e) => { if (e.target.matches("[data-hk]")) syncHkGo(); });
+  $("hkList").addEventListener("change", (e) => {
+    if (e.target.matches("[data-hk]")) syncHkGo();
+    if (e.target.matches("[data-hksw]")) { e.target.checked ? hkSwOn.add(e.target.dataset.hksw) : hkSwOn.delete(e.target.dataset.hksw); paintHkSwitch(); }
+    if (e.target.id === "hkSwReport") { hkSwReport = e.target.checked; paintHkSwitch(); }
+  });
+  $("hkList").addEventListener("input", (e) => { if (e.target.id === "hkSwWord") $("hkSwGo").disabled = e.target.value.trim().toUpperCase() !== "SWITCH"; });
   $("hkGo").addEventListener("click", () => {
     const eligible = new Set(hkFind().filter(r => r.canDelete).map(r => r.policy.id));
     const ids = [...$("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)")].map(cb => cb.dataset.hk);
@@ -3242,7 +3323,7 @@
     const mergeable = sets.filter((s) => dupPlanFor(s).canRun).length;
     $("dupDesc").innerHTML = dupStep === "plan"
       ? `Review before anything is written in ${esc(tenantName || "this tenant")}.`
-      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${esc(tenantName || "this tenant")}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first — tick <b>Reviewed</b> on one to release it. Includes policies outside the current search filter.`;
+      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${esc(tenantName || "this tenant")}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first — tick <b>Reviewed</b> on one to release it. Includes policies outside the current search filter.${(() => { const nv = new Set(hkFind().map((r) => r.num)).size; return nv ? ` <b>${nv}</b> more CA number${nv === 1 ? " is" : "s are"} in the tenant at two versions — those are not duplicates, they are 🧹 Housekeeping's (switch over, then clean up).` : ""; })()}`;
     $("dupNote").style.display = dupStep === "plan" ? "none" : "";
     $("dupList").innerHTML = dupStep === "plan" ? dupPlanHtml() : sets.map(dupSetHtml).join("")
       || '<p class="mini muted">No duplicates in the loaded inventory.</p>';

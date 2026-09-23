@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25484, date: "2026-09-23", title: "Housekeeping: switch over a version change that stopped half-way",
+    items: [
+      { kind: "new", tool: "Policies", text: "🧹 ⇄ Switch over: when a newer version of a policy is still Off while the older one is On — as an import leaves it when Entra is slow to show the new policy — Housekeeping lists the pair and finishes the change. The new version takes the older one's state (or Report-only first), is read back, and only then is the older version switched Off. Pairs whose names or scope differ can only be ticked after you compare them." },
+      { kind: "fixed", tool: "Policies", text: "🧹 Housekeeping compared names without the version only when it was written with a space. CloudFellows names write it -v1.0.3, so every such pair read as renamed and none could ever be offered for cleanup. Both spellings are recognised now. The 👯 Duplicates dialog also says how many CA numbers exist at two versions, so version pairs are not mistaken for missing duplicates." },
+    ],
+  },
+  {
     build: 25483, date: "2026-09-23", title: "Import: a policy Entra is slow to show is finished at the end of the run",
     items: [
       { kind: "fixed", tool: "Import", text: "📥 On a large tenant Conditional Access can take more than 20 seconds to show a policy it has just created. The import used to report those as failed — the new version stayed Off beside the old one, and importing again skipped it by name, so the switch could never finish. Now the run carries on and checks those policies again at the end, then switches them On and turns the old version Off as planned. Only a policy that still does not show after both checks is reported, with how to finish it." },
