@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32302"></script>
+<script src="js/popup-guard.js?v=32303"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32302" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32302">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32303" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32303">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32302"></script>
+<script src="js/selfhost-boot.js?v=32303"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32302"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32302"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32302">
-<link rel="stylesheet" href="css/workspaces.css?v=32302">
-<link rel="stylesheet" href="css/tool-layout.css?v=32302">
-<link rel="stylesheet" href="css/list-detail.css?v=32302">
-<link rel="stylesheet" href="css/flat-icons.css?v=32302">
+<script src="js/counter.js?v=32303"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32303"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32303">
+<link rel="stylesheet" href="css/workspaces.css?v=32303">
+<link rel="stylesheet" href="css/tool-layout.css?v=32303">
+<link rel="stylesheet" href="css/list-detail.css?v=32303">
+<link rel="stylesheet" href="css/flat-icons.css?v=32303">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32302" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32303" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32302" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32303" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1466,10 +1466,129 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
-          <!-- The 2.0 cards carry data-shipped="32301": the beta build in which they
-               reached production (322), not the beta build that first had them.
-               The channel jumped from 25495 to 32301 at 2.0, so their first beta
-               build would age them into "Shipped before" at once. -->
+          <!-- 32303 (Mihai: every item live may go to Shipped before): the live cards
+               sit under Shipped before from the start rather than waiting to age out,
+               so Now holds only what is actually moving. rmAgeShipped still sorts
+               them newest first. -->
+          <div class="list-card rm-card"><p class="mini" style="margin:0">Everything live is under <b>Shipped before</b>, at the bottom of this page — 45 items, newest first. What is moving now is <b>In beta today</b>, below.</p></div>
+        </div>
+        <div class="rm-era beta">
+          <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R62</span> 🧰 From finding to catalog, in the baseline tenant <span class="tag ok">in beta today · beta 32303</span></h4>
+            <p class="mini" style="margin:0">A Microsoft Learn finding in the CloudFellows tenant used to mean: open Suggested fixes, apply everything or download JSON, find the changed policies again on the Baseline screen, tick them in 🧱 Update the catalog, and write the reason down yourself. Now each finding carries <b>🧰 Fix</b>, the policy is changed in place with its version bumped, and the changed policies arrive in <b>🧱 Update the catalog</b> already ticked, with the check and its Learn page as the revision note. Findings with no mechanical fix can be accepted with a reason. Graduates once a Fix has run against the real reference tenant and its catalog source has been committed.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span> <span class="tag">CloudFellows tenant only</span></h4>
+            <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
+          </div>
+        </div>
+<div class="rm-era future">
+          <h3>Next <span class="rm-when">being worked toward</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R13</span> 🔐 Improve security <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
+            <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R46</span> 🤖 Workload identity Conditional Access <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Do the service-principal policies ever fire? Conditional Access for workload identities has its own sign-in log (<code>AADSpnSignInEventsBeta</code> in Defender hunting) and nothing in ENCA reads it. The plan: the WorkloadIDs policies next to that log — which principals each targets, which of those actually sign in, what was blocked, the report-only forecast per policy, and the principals signing in from outside every named location that no policy can reach because they are managed identities or multi-tenant apps. Same hunting scope as R44; needs Workload Identities Premium for the policies to apply at all.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R47</span> 🖥 Device reality check — the Defender half <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">🖥 checks the Intune half: is the scope of a compliant-device policy actually assigned a compliance policy. The Defender half is the fleet as Defender for Endpoint sees it (<code>DeviceInfo</code>): join type, sensor health, onboarding, exposure — held against every compliant / hybrid-device policy. The findings only the fleet side can give: devices that can never be compliant because they are not joined, a hybrid-join grant that permanently excludes cloud-native laptops, and “compliant” devices with high exposure. A second tab on the existing tool.</p>
+          </div>
+        </div>
+        <div class="rm-era future">
+          <h3>Self-hosted <span class="rm-when">for the instance you run yourself — see SELF-HOSTING.md in the repo</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S01</span> 💾 Keep things between visits <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The hosted site stores nothing anywhere, by design, and keeps that promise — what <span class="rm-ref">R58</span> keeps is in your browser, by your choice, and never on the site. A host of your own changes what is possible: an optional <b>SQLite</b> store alongside the container — a volume, nothing more — holding <b>Drift watch snapshots</b>, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having kept track of a JSON file. Strictly opt-in and self-hosted only; tokens stay out of it regardless — they belong in the browser session and nowhere else. Drift is the first customer: a snapshot that survives the tab closing is the difference between a drift <i>check</i> and a drift <i>watch</i>.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="25195">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S02</span> 🎨 Branding without a fork <span class="tag grant">live · beta 25195 · production 297</span></h4>
+            <p class="mini" style="margin:0">Branding settings, in the account menu behind your initials, on any host: product and organisation names, logos, login text and light/dark identity colours, through the same override mechanism as the hosted per-audience looks — chrome only, exports keep the neutral product credit. <b>Apply</b> keeps the look in this browser; <b>Download</b> produces <code>selfhost-branding.json</code>, <b>Import</b> reads one back into the form for review — so a look made elsewhere or handed over by a customer never has to be retyped — and serving that file next to index.html (the compose file and install scripts mount it) gives every visitor the branding — and softens the red BETA ribbon to a neutral SELF-HOSTED one, because a deliberately configured instance is not a test site. What the dialog will never configure is the canonical host: that drives the production check and the export credit, and a settings dialog must not be able to make a copy claim to be production.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S04</span> ⏱ A collector that reads ahead of you <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0"><span class="rm-ref">R58</span> still needs someone to open the tool for a read to happen, and Microsoft still keeps only 30 days. A self-hosted instance could run a small <b>collector</b> next to the container — its own identity (application permissions on <i>your</i> registration, a certificate or a managed identity, never a secret in the browser), the same daily bucket query every hour, the rows in a <b>SQLite</b> file on a volume that outlives every image update (schema kept by <code>PRAGMA user_version</code>, forward-only migrations, a nightly <code>VACUUM INTO</code> backup) — and the app reading <code>/api/</code> on its own origin, so the week is already there when the tool opens and the retention is yours: ninety days, a year. Three things make it a different product and are why it is S-numbered: an unattended, tenant-wide read on a service principal; an API that has to authorise its callers with an exposed scope and a role check, because a Graph token cannot; and a second process behind nginx. On Azure Container Apps the store cannot be SQLite on Azure Files (Microsoft says not to put a database on an SMB mount) and the hourly run wants a Container Apps Job, so the storage layer has two backends — SQLite for compose and a VM, a hosted table store for ACA. Single-tenant self-hosters only; the shared registration never gets application permissions. Design note: <code>review/SIGNIN-STORE-DESIGN.md</code>.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">S03</span> 📦 Update channel choice <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The image ships as <code>:latest</code> (production) and <code>:beta</code> today, and the fork notice (<span class="rm-ref">R15</span>) says when you are behind — what is missing is making the choice a stated, visible thing: the instance saying which channel it follows, guidance for unattended updates (a watchtower-style puller for those who want them, and the reasons a reviewed fork should not), and a pinned-digest example for the high-assurance case where even <code>:latest</code> is too much trust.</p>
+          </div>
+        </div>
+        <div class="rm-era future far">
+          <h3>Later <span class="rm-when">after the above</span></h3>
+                    <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R18</span> 🏢 Several tenants at once <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">For anyone who looks after more than one tenant: sign into each in turn and hold the results side by side — baseline coverage, CIS score, gap count, drift since last visit, one row per customer. One screen that answers “which of my tenants is worst off this month” without opening thirteen browser tabs. Pairs with Drift watch: a snapshot per tenant, reviewed on a schedule you keep rather than infrastructure you run.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R19</span> 🌐 Named locations vs. the sign-in log <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The trusted IP ranges in a tenant are usually older than the offices they describe. Cross the named locations with the sign-in log already read for Report-only impact and Sign-in failures: ranges nobody has signed in from for months, sign-ins from countries no location names, and trusted ranges that no longer match reality — the quiet way a location-based exception outlives its reason.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R20</span> 🤝 Cross-tenant access settings <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Inbound and outbound B2B collaboration, and whether the tenant accepts a partner's MFA and device claims. It sits directly next to Conditional Access — accepting a partner's MFA claim decides whether your own MFA requirement is satisfied by someone else's authentication — and it is invisible in every tool here today.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R21</span> 🎫 CAE and token protection coverage <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Continuous access evaluation and token protection are the newer session controls, and both are easy to leave half-configured: which policies opt in, which silently do not, and which resources support it. The same treatment the persona × control matrix gives the classic grant controls.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R22</span> 📋 Change plan export <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Export what a write <i>would</i> do as a reviewable file, hand it to a colleague, then apply it. The obvious companion to a toolset whose whole pitch is that nothing changes until you say so — and the practical form of a two-person rule for tenants that need one.</p>
+          </div>
+        </div>
+        <div class="rm-era future far">
+          <h3>On the horizon <span class="rm-when">builds on policy editing</span></h3>
+                    <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R24</span> 🚀 Go-live checklist <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Report-only impact forecasts one policy at a time; a checklist tracks the whole report-only backlog toward enforcement — what is staged, what has enough traffic to judge, what is ready to switch on, with the forecast attached to each. The paperwork of a go-live, kept in the tool that produced the evidence.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R25</span> 📏 Naming-convention linter <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The CA-number persona ranges are a convention every tool here assumes and none of them validates: numbers out of range for their persona, duplicates, gaps, policies whose name says one persona while their assignment says another. Cheap to check, and it keeps the convention that makes everything else legible from quietly rotting.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R26</span> 🇳🇱 Dutch interface <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The exported documentation is the part non-administrators actually read, and for a Dutch organisation that reads better in Dutch. The tool is built for it — one labels file, no build step — so the work is translation and keeping it honest, not plumbing.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R32</span> 🧩 Every tool runs on its own <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Today most tools quietly lean on the rest of the app having run first: the policy list a tool judges against was loaded by sign-in, the group names it prints were resolved by another tool's pass, the shared wiring holds state a tool assumes is there. It mostly works because the app loads everything up front — which means the dependency is invisible until the day it is not (a deep link straight into a tool, a tool opened before a slow read finished, a tool lifted out of this app entirely).</p>
+            <p class="mini" style="margin:6px 0 0">The rule this item works toward: <b>every tool must be able to run with nothing but a signed-in session</b>. Whatever its core result needs, it reads itself — or states plainly that it is waiting, instead of rendering from state that happens to be lying around. Connections to other ENCA tools — shared results, deep links and one-click hand-offs — are welcome conveniences, never prerequisites. Each connection is capability-checked and <b>fails soft</b>: if the other tool is absent, unfinished, denied or broken, the core tool still performs its own read and produces its result; only the shortcut or enrichment may be unavailable. Independence is also the precondition for <span class="rm-ref">R34</span> — a tool that cannot run alone cannot move alone.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R34</span> 📦 Every tool easy to port to other applications <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">The newer tools already follow a pattern worth making a rule: the logic lives in its own file as pure functions over a plain data contract — no DOM, no globals, no Graph calls — and the app contributes only a thin wiring layer that fills the contract and renders the result. That split is why the Restricted-AUs checks, the guide and the device check can be tested with <code>node</code> alone, and it is exactly what makes a tool liftable: another application (a customer's own portal, a CLI in a pipeline, a scheduled report) reimplements the small wiring and takes the logic file as-is.</p>
+            <p class="mini" style="margin:6px 0 0">This item makes that the standard for <b>every</b> tool: each one a logic module with a documented contract (what goes in, what comes out, which reads the host must supply), thin host wiring, and optional integrations behind adapters <b>outside the core contract</b>. A host may supply another tool's result or expose a hand-off, but it may omit every integration and the module must still work. Tests run the core with integrations absent and throwing: an integration failure may remove convenience, never break the main tool. Portability is the honest test of <span class="rm-ref">R32</span>.</p>
+          </div>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R39</span> 🤖 A second opinion, without growing a backend <span class="tag">planned</span></h4>
+            <p class="mini" style="margin:0">Bring your own key, and let a model read a policy with you — starting with one <b>🤖 Second opinion</b> button on the expanded policy card, next to the per-policy 🧪 What-If flow, because that is already the corner where you interrogate a single policy. The name is the promise: <b>advisory, and labelled as such</b>. Later the same panel takes a <b>selection</b> — two or five policies you suspect are interfering, which is where conflict and shadowing analysis actually lives — and later still the whole set. One policy first is not timidity; it is the only scope where the answer can be checked against tools that already know the answer.</p>
+            <p class="mini" style="margin:6px 0 0"><b>No server, and it does not need one.</b> The obvious build is a small backend holding the key and forwarding the calls. ENCA is not going to grow one: everything here is static files in a browser, nothing stored anywhere, and that promise is worth more than any feature. The Anthropic API can be called <i>directly from the browser</i> — CORS is enabled for it, opted into with the <code>anthropic-dangerous-direct-browser-access</code> request header. The key is pasted per session and held <b>in memory</b>, never in <code>localStorage</code> where it would outlive the tab and sit in a profile backup; it goes to <code>api.anthropic.com</code> and nowhere else; the whole feature is <b>off</b> until somebody types one in. Tools that reach for a proxy here are solving a problem this architecture does not have.</p>
+            <p class="mini" style="margin:6px 0 0"><b>It reads the findings, not just the JSON — and it says where each line came from.</b> A policy alone is the one thing ENCA is already strongest at: 📘 MS Learn, 📐 CIS, ✅ CA validator and the dependency inspector all judge it deterministically, and a model paraphrasing them adds nothing but a chance to be subtly wrong. So it is handed what those tools found — 🔍 Gap analyse already tags every finding with a policy id, so the per-policy slice is free — and every line it produces must be one of two things: a <b>relayed</b> finding, linked back to the tool that made it and styled like ENCA's own, or <b>its own reading</b>, marked as opinion and never dressed up as a check.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Disagreement is the output, not a bug to hide.</b> When the model contradicts a deterministic result — “📐 CIS scores this a pass; I think the scope makes it ineffective because…” — that is shown, loudly. Either the model is wrong or a check has a blind spot, and both are worth knowing; neither survives being quietly resolved in favour of one side. And it <b>fails soft</b>, per <span class="rm-ref">R32</span>: it works with nothing but the policy, and states what it did <i>not</i> see — “🔍 Gap analyse had not run, so nothing about who bypasses this was in what I read” — which tells you the answer is thinner than it could be and exactly which button makes it better.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Redaction, and the sharp edge is not the one you would expect.</b> Replacing every name with a placeholder would destroy the most useful signal there is: <code>CA101-GRANT-Admins-AnyApp-MFA</code> <i>is</i> the stated intent, and intent-versus-implementation is precisely what a model is good at. So it is three tiers, not one switch. <b>Always replaced:</b> tenant name and domain, user UPNs, object GUIDs. <b>Kept:</b> the baseline convention — CA numbers, <code>CAB-SEC-*</code>, <code>CAD-SEC-*</code> — which is published documentation, not a secret, and carries the meaning. <b>Replaced, with the mapping held in the browser so a finding reads back to real names:</b> the tenant's own group and location names, <code>SEC-VIP-Exceptions</code> and the like, which are facts about that organisation. Conveniently that is a split ENCA can already evaluate, because it is the same convention-or-not question <span class="rm-ref">R28</span>'s group mapping answers.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Two things it will not do.</b> It will not generate PowerShell: ENCA ships scripts written and tested deliberately, and a model improvising one that writes to a tenant is exactly the wrong shape for a toolset whose pitch is that it cannot do much harm. And its output never reaches 📄 Create documentation alongside the deterministic findings — in one document a model's opinion and a CIS control result look equally authoritative, and they are not. The <code>connect-src</code> in the Content-Security-Policy has to name <code>api.anthropic.com</code>: a deliberate, reviewable one-line change, not something to slip in ahead of the rest.</p>
+          </div>
+        </div>
+        <div class="rm-more">→ and further, steered by what you ask for</div>
+      </div>
+    </div>
+        <div class="rm-shipped" id="rmShipped">
+        <h3>Shipped before <span class="rm-when">delivered, and no longer news</span></h3>
+        <p class="mini muted" style="margin:0 0 12px">Everything that is live, newest first. A card lands here when it goes live, and a later build ages any other shipped card here too. They are kept rather than deleted — a roadmap that forgets what it delivered is only a wish list — but they stop competing with what is happening now.</p>
+        <div id="rmShippedCards">
           <div class="list-card rm-card" data-shipped="32301">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R60</span> 🧭 Workspaces: one layout for every tool <span class="tag grant">live · beta 25401 · production 322 (v2.0.0)</span></h4>
             <p class="mini" style="margin:0"><b>The 2.0 interface.</b> A left rail with the tools in work order, a branded header with the logo on its medallion, and every list tool drawn the same way — the list on the left, the selected item in an inspector on the right, the open row kept highlighted, both panes scrolling on their own and handing over to the page at their end. Each tool's head folds away with the ▾ at the end of its title, remembered per tool; flat icons, a contrasting active tool and tab, and tab strips inside the tools that host several. Nothing about what a tool reads or writes changed — only where it sits and how you move between them.</p>
@@ -1682,119 +1801,6 @@
             <p class="mini" style="margin:6px 0 0"><b>R36.1 (beta 25249) — deployed on, not chosen.</b> A tenant that never chose a baseline now gets the one it <b>holds most of by name</b> as the active one for the session — the card says the counts, 📌 Keep saves it, a saved choice is never overridden — instead of defaulting to CloudFellows while 26 policies carried his names. The CloudFellows 🚨 E-Admins policies are expected under every catalog as a shared section. And the live read now brings <code>Config/Groups</code> and <code>Config/NamedLocations</code> with the policies, so <b>📥 Import baseline takes the repository read directly</b>, no zip, with a third assignment mode — <b>🔀 Switch baseline</b> — that creates his groups and <b>copies the members of the CloudFellows counterparts across</b> (break-glass, same-CA-number exclusion, persona include) before the policies land Off; the old groups stay as the rollback and surface in 🧹 leftovers.</p>
           </div>
         </div>
-        <div class="rm-era beta">
-          <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span> <span class="tag">CloudFellows tenant only</span></h4>
-            <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
-          </div>
-        </div>
-<div class="rm-era future">
-          <h3>Next <span class="rm-when">being worked toward</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R12</span> ↩️ Undo for writes <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Every write tool already produces a change report of exactly what it did. Make it replayable in reverse: one action that puts back the state before the run, with the same typed-confirmation discipline as the original write. It lowers the cost of every write tool already shipped, and it is the natural safety net under <i>Editable Conditional Access policies</i> further down this map.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R13</span> 🔐 Improve security <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Implementing our own advice: the hardening recommendations from the security documentation turned into defaults — a tighter Content-Security-Policy, a documented review routine for the self-hosted libraries in <code>vendor/</code>, and an even smoother fork-review-pin path for high-assurance tenants that want to serve a reviewed copy from their own origin.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
-            <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R46</span> 🤖 Workload identity Conditional Access <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Do the service-principal policies ever fire? Conditional Access for workload identities has its own sign-in log (<code>AADSpnSignInEventsBeta</code> in Defender hunting) and nothing in ENCA reads it. The plan: the WorkloadIDs policies next to that log — which principals each targets, which of those actually sign in, what was blocked, the report-only forecast per policy, and the principals signing in from outside every named location that no policy can reach because they are managed identities or multi-tenant apps. Same hunting scope as R44; needs Workload Identities Premium for the policies to apply at all.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R47</span> 🖥 Device reality check — the Defender half <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">🖥 checks the Intune half: is the scope of a compliant-device policy actually assigned a compliance policy. The Defender half is the fleet as Defender for Endpoint sees it (<code>DeviceInfo</code>): join type, sensor health, onboarding, exposure — held against every compliant / hybrid-device policy. The findings only the fleet side can give: devices that can never be compliant because they are not joined, a hybrid-join grant that permanently excludes cloud-native laptops, and “compliant” devices with high exposure. A second tab on the existing tool.</p>
-          </div>
-        </div>
-        <div class="rm-era future">
-          <h3>Self-hosted <span class="rm-when">for the instance you run yourself — see SELF-HOSTING.md in the repo</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">S01</span> 💾 Keep things between visits <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The hosted site stores nothing anywhere, by design, and keeps that promise — what <span class="rm-ref">R58</span> keeps is in your browser, by your choice, and never on the site. A host of your own changes what is possible: an optional <b>SQLite</b> store alongside the container — a volume, nothing more — holding <b>Drift watch snapshots</b>, generated reports and per-tenant preferences, so a baseline signed off in March can be compared against in November without anyone having kept track of a JSON file. Strictly opt-in and self-hosted only; tokens stay out of it regardless — they belong in the browser session and nowhere else. Drift is the first customer: a snapshot that survives the tab closing is the difference between a drift <i>check</i> and a drift <i>watch</i>.</p>
-          </div>
-          <div class="list-card rm-card" data-shipped="25195">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">S02</span> 🎨 Branding without a fork <span class="tag grant">live · beta 25195 · production 297</span></h4>
-            <p class="mini" style="margin:0">Branding settings, in the account menu behind your initials, on any host: product and organisation names, logos, login text and light/dark identity colours, through the same override mechanism as the hosted per-audience looks — chrome only, exports keep the neutral product credit. <b>Apply</b> keeps the look in this browser; <b>Download</b> produces <code>selfhost-branding.json</code>, <b>Import</b> reads one back into the form for review — so a look made elsewhere or handed over by a customer never has to be retyped — and serving that file next to index.html (the compose file and install scripts mount it) gives every visitor the branding — and softens the red BETA ribbon to a neutral SELF-HOSTED one, because a deliberately configured instance is not a test site. What the dialog will never configure is the canonical host: that drives the production check and the export credit, and a settings dialog must not be able to make a copy claim to be production.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">S04</span> ⏱ A collector that reads ahead of you <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0"><span class="rm-ref">R58</span> still needs someone to open the tool for a read to happen, and Microsoft still keeps only 30 days. A self-hosted instance could run a small <b>collector</b> next to the container — its own identity (application permissions on <i>your</i> registration, a certificate or a managed identity, never a secret in the browser), the same daily bucket query every hour, the rows in a <b>SQLite</b> file on a volume that outlives every image update (schema kept by <code>PRAGMA user_version</code>, forward-only migrations, a nightly <code>VACUUM INTO</code> backup) — and the app reading <code>/api/</code> on its own origin, so the week is already there when the tool opens and the retention is yours: ninety days, a year. Three things make it a different product and are why it is S-numbered: an unattended, tenant-wide read on a service principal; an API that has to authorise its callers with an exposed scope and a role check, because a Graph token cannot; and a second process behind nginx. On Azure Container Apps the store cannot be SQLite on Azure Files (Microsoft says not to put a database on an SMB mount) and the hourly run wants a Container Apps Job, so the storage layer has two backends — SQLite for compose and a VM, a hosted table store for ACA. Single-tenant self-hosters only; the shared registration never gets application permissions. Design note: <code>review/SIGNIN-STORE-DESIGN.md</code>.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">S03</span> 📦 Update channel choice <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The image ships as <code>:latest</code> (production) and <code>:beta</code> today, and the fork notice (<span class="rm-ref">R15</span>) says when you are behind — what is missing is making the choice a stated, visible thing: the instance saying which channel it follows, guidance for unattended updates (a watchtower-style puller for those who want them, and the reasons a reviewed fork should not), and a pinned-digest example for the high-assurance case where even <code>:latest</code> is too much trust.</p>
-          </div>
-        </div>
-        <div class="rm-era future far">
-          <h3>Later <span class="rm-when">after the above</span></h3>
-                    <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R18</span> 🏢 Several tenants at once <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">For anyone who looks after more than one tenant: sign into each in turn and hold the results side by side — baseline coverage, CIS score, gap count, drift since last visit, one row per customer. One screen that answers “which of my tenants is worst off this month” without opening thirteen browser tabs. Pairs with Drift watch: a snapshot per tenant, reviewed on a schedule you keep rather than infrastructure you run.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R19</span> 🌐 Named locations vs. the sign-in log <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The trusted IP ranges in a tenant are usually older than the offices they describe. Cross the named locations with the sign-in log already read for Report-only impact and Sign-in failures: ranges nobody has signed in from for months, sign-ins from countries no location names, and trusted ranges that no longer match reality — the quiet way a location-based exception outlives its reason.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R20</span> 🤝 Cross-tenant access settings <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Inbound and outbound B2B collaboration, and whether the tenant accepts a partner's MFA and device claims. It sits directly next to Conditional Access — accepting a partner's MFA claim decides whether your own MFA requirement is satisfied by someone else's authentication — and it is invisible in every tool here today.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R21</span> 🎫 CAE and token protection coverage <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Continuous access evaluation and token protection are the newer session controls, and both are easy to leave half-configured: which policies opt in, which silently do not, and which resources support it. The same treatment the persona × control matrix gives the classic grant controls.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R22</span> 📋 Change plan export <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Export what a write <i>would</i> do as a reviewable file, hand it to a colleague, then apply it. The obvious companion to a toolset whose whole pitch is that nothing changes until you say so — and the practical form of a two-person rule for tenants that need one.</p>
-          </div>
-        </div>
-        <div class="rm-era future far">
-          <h3>On the horizon <span class="rm-when">builds on policy editing</span></h3>
-                    <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R24</span> 🚀 Go-live checklist <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Report-only impact forecasts one policy at a time; a checklist tracks the whole report-only backlog toward enforcement — what is staged, what has enough traffic to judge, what is ready to switch on, with the forecast attached to each. The paperwork of a go-live, kept in the tool that produced the evidence.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R25</span> 📏 Naming-convention linter <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The CA-number persona ranges are a convention every tool here assumes and none of them validates: numbers out of range for their persona, duplicates, gaps, policies whose name says one persona while their assignment says another. Cheap to check, and it keeps the convention that makes everything else legible from quietly rotting.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R26</span> 🇳🇱 Dutch interface <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The exported documentation is the part non-administrators actually read, and for a Dutch organisation that reads better in Dutch. The tool is built for it — one labels file, no build step — so the work is translation and keeping it honest, not plumbing.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R32</span> 🧩 Every tool runs on its own <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Today most tools quietly lean on the rest of the app having run first: the policy list a tool judges against was loaded by sign-in, the group names it prints were resolved by another tool's pass, the shared wiring holds state a tool assumes is there. It mostly works because the app loads everything up front — which means the dependency is invisible until the day it is not (a deep link straight into a tool, a tool opened before a slow read finished, a tool lifted out of this app entirely).</p>
-            <p class="mini" style="margin:6px 0 0">The rule this item works toward: <b>every tool must be able to run with nothing but a signed-in session</b>. Whatever its core result needs, it reads itself — or states plainly that it is waiting, instead of rendering from state that happens to be lying around. Connections to other ENCA tools — shared results, deep links and one-click hand-offs — are welcome conveniences, never prerequisites. Each connection is capability-checked and <b>fails soft</b>: if the other tool is absent, unfinished, denied or broken, the core tool still performs its own read and produces its result; only the shortcut or enrichment may be unavailable. Independence is also the precondition for <span class="rm-ref">R34</span> — a tool that cannot run alone cannot move alone.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R34</span> 📦 Every tool easy to port to other applications <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The newer tools already follow a pattern worth making a rule: the logic lives in its own file as pure functions over a plain data contract — no DOM, no globals, no Graph calls — and the app contributes only a thin wiring layer that fills the contract and renders the result. That split is why the Restricted-AUs checks, the guide and the device check can be tested with <code>node</code> alone, and it is exactly what makes a tool liftable: another application (a customer's own portal, a CLI in a pipeline, a scheduled report) reimplements the small wiring and takes the logic file as-is.</p>
-            <p class="mini" style="margin:6px 0 0">This item makes that the standard for <b>every</b> tool: each one a logic module with a documented contract (what goes in, what comes out, which reads the host must supply), thin host wiring, and optional integrations behind adapters <b>outside the core contract</b>. A host may supply another tool's result or expose a hand-off, but it may omit every integration and the module must still work. Tests run the core with integrations absent and throwing: an integration failure may remove convenience, never break the main tool. Portability is the honest test of <span class="rm-ref">R32</span>.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R39</span> 🤖 A second opinion, without growing a backend <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Bring your own key, and let a model read a policy with you — starting with one <b>🤖 Second opinion</b> button on the expanded policy card, next to the per-policy 🧪 What-If flow, because that is already the corner where you interrogate a single policy. The name is the promise: <b>advisory, and labelled as such</b>. Later the same panel takes a <b>selection</b> — two or five policies you suspect are interfering, which is where conflict and shadowing analysis actually lives — and later still the whole set. One policy first is not timidity; it is the only scope where the answer can be checked against tools that already know the answer.</p>
-            <p class="mini" style="margin:6px 0 0"><b>No server, and it does not need one.</b> The obvious build is a small backend holding the key and forwarding the calls. ENCA is not going to grow one: everything here is static files in a browser, nothing stored anywhere, and that promise is worth more than any feature. The Anthropic API can be called <i>directly from the browser</i> — CORS is enabled for it, opted into with the <code>anthropic-dangerous-direct-browser-access</code> request header. The key is pasted per session and held <b>in memory</b>, never in <code>localStorage</code> where it would outlive the tab and sit in a profile backup; it goes to <code>api.anthropic.com</code> and nowhere else; the whole feature is <b>off</b> until somebody types one in. Tools that reach for a proxy here are solving a problem this architecture does not have.</p>
-            <p class="mini" style="margin:6px 0 0"><b>It reads the findings, not just the JSON — and it says where each line came from.</b> A policy alone is the one thing ENCA is already strongest at: 📘 MS Learn, 📐 CIS, ✅ CA validator and the dependency inspector all judge it deterministically, and a model paraphrasing them adds nothing but a chance to be subtly wrong. So it is handed what those tools found — 🔍 Gap analyse already tags every finding with a policy id, so the per-policy slice is free — and every line it produces must be one of two things: a <b>relayed</b> finding, linked back to the tool that made it and styled like ENCA's own, or <b>its own reading</b>, marked as opinion and never dressed up as a check.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Disagreement is the output, not a bug to hide.</b> When the model contradicts a deterministic result — “📐 CIS scores this a pass; I think the scope makes it ineffective because…” — that is shown, loudly. Either the model is wrong or a check has a blind spot, and both are worth knowing; neither survives being quietly resolved in favour of one side. And it <b>fails soft</b>, per <span class="rm-ref">R32</span>: it works with nothing but the policy, and states what it did <i>not</i> see — “🔍 Gap analyse had not run, so nothing about who bypasses this was in what I read” — which tells you the answer is thinner than it could be and exactly which button makes it better.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Redaction, and the sharp edge is not the one you would expect.</b> Replacing every name with a placeholder would destroy the most useful signal there is: <code>CA101-GRANT-Admins-AnyApp-MFA</code> <i>is</i> the stated intent, and intent-versus-implementation is precisely what a model is good at. So it is three tiers, not one switch. <b>Always replaced:</b> tenant name and domain, user UPNs, object GUIDs. <b>Kept:</b> the baseline convention — CA numbers, <code>CAB-SEC-*</code>, <code>CAD-SEC-*</code> — which is published documentation, not a secret, and carries the meaning. <b>Replaced, with the mapping held in the browser so a finding reads back to real names:</b> the tenant's own group and location names, <code>SEC-VIP-Exceptions</code> and the like, which are facts about that organisation. Conveniently that is a split ENCA can already evaluate, because it is the same convention-or-not question <span class="rm-ref">R28</span>'s group mapping answers.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Two things it will not do.</b> It will not generate PowerShell: ENCA ships scripts written and tested deliberately, and a model improvising one that writes to a tenant is exactly the wrong shape for a toolset whose pitch is that it cannot do much harm. And its output never reaches 📄 Create documentation alongside the deterministic findings — in one document a model's opinion and a CIS control result look equally authoritative, and they are not. The <code>connect-src</code> in the Content-Security-Policy has to name <code>api.anthropic.com</code>: a deliberate, reviewable one-line change, not something to slip in ahead of the rest.</p>
-          </div>
-        </div>
-        <div class="rm-more">→ and further, steered by what you ask for</div>
-      </div>
-    </div>
-        <div class="rm-shipped" id="rmShipped" style="display:none">
-        <h3>Shipped before <span class="rm-when">delivered, and no longer news</span></h3>
-        <p class="mini muted" style="margin:0 0 12px">Items move here automatically once they are more than <b>15 builds</b> old. They are kept rather than deleted — a roadmap that forgets what it delivered is only a wish list — but they stop competing with what is happening now.</p>
-        <div id="rmShippedCards"></div>
       </div>
 </section>
 
@@ -1981,6 +1987,10 @@
         <li><b>The shared-device matrix <span class="tag new">NEW</span></b> (build 25485) — below the guest matrix: Teams Rooms on Windows, Teams Rooms on Android / phones / panels, and Surface Hub, against the controls the policies that reach their resource accounts demand, read from Microsoft's own support tables. A policy reaches them through All users (unless it excludes the shared-device group) or by including that group, and only when it targets All resources or an app the devices use; a platform condition decides the family. <b>ok</b> supported · <b>prompts</b> supported but someone has to complete it on the device (MFA on Android devices) · <b>blocked</b> not supported — the device stops signing in · <b>?</b> not in that device's documentation (Surface Hub documents only the grant controls). Sign-in frequency, persistent browser, token protection, terms of use and every session control are unsupported on Teams devices; blocking device code flow is fine for Windows rooms and breaks Android ones. Click a cell for the policies behind it. The card names the shared-device group it read (or says none was found, and then counts every policy on All users as reaching them).
           <br><b>Every blocked cell has a finding below it</b>, per policy, naming the device families and the controls they cannot meet, and the fix depends on how the policy reaches them: through <b>All users</b> → exclude the shared-device group (🧰 Fix adds the exclusion); by <b>including</b> that group → it is the devices' own policy, so take the unsupported control out of it — excluding them from their own policy would leave them with none, so no exclusion fix is offered there.</li>
         <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
+        <li><b>🧰 Fix where the finding is <span class="tag new">NEW</span></b> (build 32303) — <b>baseline tenant only</b>. A finding with a fix carries <b>🧰 Fix N</b> on its head and in its detail; the shared-device matrix carries <b>🧰 Fix these</b>, which takes every shared-device finding at once; <b>🧰 Fix all</b> sits in the toolbar. A finding's button applies <i>that finding's</i> change and nothing else. You confirm the list first. Each policy is <b>changed in place</b> — same policy, same ID, same state; only the listed change and the version in its name move — and a companion policy is created Off beside its original. The one exception: a policy still carrying <b>Require approved client app</b> is read-only in Entra, so it is rebuilt — created Off at the bumped version, then the frozen original deleted — and the confirm says so. Nothing else is deleted. The report that opens afterwards keeps every changed section as it was, which is the way back (✎ Edit on the card, or a PATCH of that JSON). The policies are re-read and the checks run again, so what was fixed drops out of the list.</li>
+        <li><b>The shared devices' own policy</b> (build 32303) — a policy that <i>includes</i> the shared-device group is theirs, so the Fix takes the unsupported control <b>out</b> rather than excluding them — but only when that group is its only include, and only grant and session controls. A condition (insider risk, the device-code block) is never removed, and a control that is the point of the policy (compliant device, which Surface Hub cannot meet) is named and left for you to decide.</li>
+        <li><b>Ready for the catalog</b> (build 32303) — the policies a Fix changed are marked ready for <b>🧱 Update the catalog</b> on the Baseline screen. A band on this tab counts them and opens the catalog panel with them ticked, each saying which check it answers; the generated catalog source carries the checks, their Learn pages and the changes as its revision note. <b>Clear</b> empties the list; an entry also leaves by itself once the catalog has caught up with that policy.</li>
+        <li><b>✓ Accept with a reason</b> (build 32303) — a finding with nothing to fix automatically, such as the baseline-scopes one, can be accepted with a reason. It folds into <b>Accepted</b> under the findings, kept for this tenant; it reopens by itself when a different set of policies matches, and <b>Reopen</b> puts it back.</li>
         <li><b>Which way the policy is wrong <span class="tag new">NEW</span></b> (build 25460) — the external-identity findings come in two kinds and they need opposite fixes, so each one says which it is. <b>🚫 Blocks them</b>: the control cannot be met by an identity this tenant does not manage, so those users are denied access — the policy is too strict, and the remedy takes them out of its scope. <b>🕳 Misses them</b>: the control is not applied to them at all, so the policy asks them for nothing — too loose, and the remedy brings a requirement that reaches them, since excluding people a policy already asks nothing of changes nothing. That is why four of these findings begin “exclude the guest and external user types” and two begin “exclude nothing”. A finding that is genuinely neither carries no badge rather than a guessed one.</li>
         <li><b>Two verdicts on one strength <span class="tag new">NEW</span></b> (build 25459) — an authentication strength is never applied to guests who sign in with an email one-time passcode, a SAML/WS-Fed provider, Google or a Microsoft account, but what to DO about it depends on the strength. If it asks more than <b>Require multifactor authentication</b> does (phishing-resistant, passwordless), swapping the control would weaken the policy for everyone else, so the requirement is <i>added beside it</i>. If it asks no more — Microsoft's own table calls the built-in <b>Multifactor authentication</b> strength the same set of combinations that satisfies Require multifactor authentication, which is why the two cannot share a policy — then the answer is one <i>swap</i> on the policy you already have, and no second policy at all. The tool reads the strength's own allowed combinations to tell the two apart, and says nothing if the strengths were not read.</li>
         <li><b>Companion policies <span class="tag new">NEW</span></b> (build 25458) — one finding's answer is not an edit to the policy it names but a <i>second policy beside it</i>: an authentication strength does not reach guests who sign in with an email one-time passcode, a SAML/WS-Fed provider, Google or a Microsoft account, and Entra refuses <b>Require multifactor authentication</b> and <b>Require authentication strength</b> in the same policy. Its remediation says both halves outright — <b>Exclude: nothing</b> (no condition names the identity provider a guest used, so those identities cannot be carved out of the original, and the strength does not block them anyway) and <b>Create: one policy</b>, the same scope with the plain control — and <b>🧰 Fix</b> builds it: the next free CA number in the original's range rather than a version bump, since it lives beside the original rather than replacing it. The original is never modified. Marked <b>companion</b> in the Suggested fixes tab, which counts how many fixes go <i>beside</i> their policy. The finding's remediation is laid out in three labelled parts — <b>Exclude</b>, <b>Create</b> and <b>Why two</b> — the last because Entra will not hold both controls in one policy.</li>
@@ -2366,6 +2376,7 @@
         <li><b>⬇ Newer than baseline</b> — the fifth status: a policy in this tenant ahead of the catalog. <b>What counts as newer depends on the tenant.</b> On the <b>baseline tenant</b> (where the catalog is authored) it is a newer version in the name <i>or</i> the same version with a definition edited in place — or renamed — because that is exactly what the catalog has not caught up with yet; the summary line splits the count into those kinds. <b>Everywhere else the CA number and the version decide.</b> A policy at the catalog's number and version is <b>Up to date</b> whatever its definition, and the tenant's own assignments — the groups it includes, the exclusions it adds, the name — are <b>never</b> a difference. Where the resources, conditions, grant or session controls differ at that version, the row carries a <span class="tag">differs · …</span> tag naming what, and the summary counts those separately; they are shown for reading, not counted as newer.</li>
         <li><b>Catalog revised 2026-09-22</b> from the CloudFellows.dev reference tenant, taken with 🧱 Update the catalog below. The main change: <b>B2B direct connect users come out of the session policies</b> — sign-in frequency, persistent browser and app-enforced restrictions are documented as not supported for them, so the session policies that reach every external type now exclude direct connect, and the guest includes of CA400 and CA402 drop it. CA000 now excludes every guest and external type, and CA400 (guest MFA) grants <b>Require multifactor authentication</b> instead of the MFA strength, which is the only control an external who did not authenticate with Entra can satisfy. A number of names, exclusions (Teams shared devices, service provider users) and device filters followed. A tenant still on an earlier version of these policies now reads <b>Outdated</b>, and <b>Import baseline</b> proposes the new version. Recorded with the catalog, not changed by it: after this revision B2B direct connect and other external users are reached by no MFA grant in the catalog — the catalog says what CloudFellows publishes. 🗣 User impact brief warns until its rules have been checked against this revision.</li>
         <li><b>⬇ Export baseline</b> — on the <b>baseline tenant</b> only (never in demo), beside 🧱. The same export as <b>🗄 Backup (JSON)</b> on 🗂 Policies — one zip with <code>MigrationTable.json</code> and the same dependency read — opened from the page where the baseline is worked on, with a <b>per-persona chooser</b>: only the personas this tenant holds are offered, each with its count, plus a row for policies without a CA number. <b>Dependencies</b> is ticked on open, and the dependency folders hold only what the chosen policies reference — the groups, named locations, strengths, contexts and terms of use — not the whole tenant's. Untick a persona and the policy and dependency counts drop; untick all and Download is disabled. As with every backup on the baseline tenant, only the persona baseline policies are in scope. 🗄 Backup on 🗂 Policies is unchanged.</li>
+        <li><b>🧰 Ready from Fix <span class="tag new">NEW</span></b> (build 32303) — policies changed by the MS Learn checks' <b>🧰 Fix</b> arrive here ticked, each marked <b>🧰 from Fix</b> with the check it answers; the button says how many are waiting, <b>Select the N from Fix</b> picks them again, and the generated source opens with a note listing the checks, their Learn pages and the changes. An entry leaves once the catalog no longer differs from that policy.</li>
         <li><b>🧱 Update the catalog from this tenant <span class="tag new">NEW</span></b> — <b>baseline tenants only</b>, because the baseline tenant is where the catalog is authored. It runs the comparison the other way round: not <i>is this tenant behind the catalog</i>, but <i>what has the catalog not caught up with</i>.
           <br><b>It compares definitions, not version numbers.</b> The ordinary comparison reads the version out of the policy's name — so a policy you edit and save without bumping it reads as up to date. This one compares the assignment, resources, network, conditions, grant and session controls themselves, and it knows what is <i>not</i> a change: group order, condition order and the catalog's own markup are ignored, which is most of what made the last hand-regeneration slow.
           <br><b>Take it, or hold it with a reason.</b> The reason is kept and travels into the generated revision note, the way the catalog's header already records its departures — so what you held last time stays held instead of being decided again. A hold is tied to the difference it was made about: if that policy later changes in some <i>other</i> way it reopens and says so, because nobody has looked at that one. A policy the tenant has and the catalog does not is offered as new; one the catalog has and the tenant no longer does is reported and <b>never removed</b> — deleting a baseline policy is not a decision this makes for you.
@@ -2680,10 +2691,11 @@
 </div>
 <div class="modal-bg" id="mlApplyModal">
   <div class="modal">
-    <h3>⚡ Apply suggested fixes in <span id="mlApplyTenant"></span></h3>
+    <h3>🧰 Fix in <span id="mlApplyTenant"></span></h3>
     <p class="mini" id="mlApplyDesc"></p>
     <div class="ml-apply-list" id="mlApplyList"></div>
-    <label class="chk"><input type="checkbox" id="mlApplyDelete" checked> Delete the original policy after its replacement is created</label>
+    <label class="chk" id="mlApplyDeleteRow"><input type="checkbox" id="mlApplyDelete" checked> Delete the original policy after its replacement is created</label>
+    <label class="chk" id="mlApplyReadyRow"><input type="checkbox" id="mlApplyReady" checked> Mark them ready for 🧱 Update the catalog when they land</label>
     <label class="chk"><input type="checkbox" id="mlApplyOk"> I understand this writes to the tenant and cannot be undone</label>
     <div id="mlApplyResult" class="ml-apply-list" style="display:none"></div>
     <div class="modal-foot">
@@ -3411,87 +3423,87 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32302"></script>
-<script src="js/selfhost.js?v=32302"></script>
-<script src="js/version.js?v=32302"></script>
-<script src="js/verdict.js?v=32302"></script>
-<script src="js/fork.js?v=32302"></script>
-<script src="js/promote.js?v=32302"></script>
-<script src="js/authConfig.js?v=32302"></script>
-<script src="js/connection.js?v=32302"></script>
-<script src="js/labels.js?v=32302"></script>
-<script src="js/capabilities.js?v=32302"></script>
-<script src="js/graph.js?v=32302"></script>
-<script src="js/model.js?v=32302"></script>
-<script src="js/render.js?v=32302"></script>
-<script src="js/analyze.js?v=32302"></script>
-<script src="js/whatif.js?v=32302"></script>
-<script src="js/mslearn.js?v=32302"></script>
-<script src="js/gapcheck.js?v=32302"></script>
-<script src="js/cisdata.js?v=32302"></script>
-<script src="js/cischeck.js?v=32302"></script>
-<script src="js/exclusions.js?v=32302"></script>
-<script src="js/cascope.js?v=32302"></script>
-<script src="js/coverage.js?v=32302"></script>
-<script src="js/runmeta.js?v=32302"></script>
-<script src="js/overview.js?v=32302"></script>
-<script src="js/validator.js?v=32302"></script>
-<script src="js/whatifeval.js?v=32302"></script>
-<script src="js/builder.js?v=32302"></script>
-<script src="js/onboard.js?v=32302"></script>
-<script src="js/compare.js?v=32302"></script>
-<script src="js/whois.js?v=32302"></script>
-<script src="js/wave.js?v=32302"></script>
-<script src="js/sessionctl.js?v=32302"></script>
-<script src="js/spgap.js?v=32302"></script>
-<script src="js/groupuse.js?v=32302"></script>
-<script src="js/iso3166.js?v=32302"></script>
-<script src="js/causes.js?v=32302"></script>
-<script src="js/locations.js?v=32302"></script>
-<script src="js/authcontexts.js?v=32302"></script>
-<script src="js/authstrengths.js?v=32302"></script>
-<script src="js/recycle.js?v=32302"></script>
-<script src="js/rmau.js?v=32302"></script>
-<script src="js/camap.js?v=32302"></script>
-<script src="js/rmaudoc.js?v=32302"></script>
-<script src="js/termsofuse.js?v=32302"></script>
-<script src="js/audit.js?v=32302"></script>
-<script src="js/drift.js?v=32302"></script>
-<script src="js/guide.js?v=32302"></script>
-<script src="js/userimpact.js?v=32302"></script>
-<script src="js/smsvoice.js?v=32302"></script>
-<script src="js/memberof.js?v=32302"></script>
-<script src="js/devcheck.js?v=32302"></script>
-<script src="js/licgap.js?v=32302"></script>
-<script src="js/teamsdev.js?v=32302"></script>
-<script src="js/signinstore.js?v=32302"></script>
-<script src="js/signins.js?v=32302"></script>
-<script src="js/reportimpact.js?v=32302"></script>
-<script src="js/changelog.js?v=32302"></script>
-<script src="js/baselineData.js?v=32302"></script>
-<script src="js/baselineJoeyData.js?v=32302"></script>
-<script src="js/baselineLive.js?v=32302"></script>
-<script src="js/baseline.js?v=32302"></script>
-<script src="js/baselineCleanup.js?v=32302"></script>
-<script src="js/groupTemplates.js?v=32302"></script>
-<script src="js/assign.js?v=32302"></script>
-<script src="js/cagroups.js?v=32302"></script>
-<script src="js/groupmerge.js?v=32302"></script>
-<script src="js/groupsview.js?v=32302"></script>
-<script src="js/runledger.js?v=32302"></script>
-<script src="js/protect.js?v=32302"></script>
-<script src="js/policy-compare.js?v=32302"></script>
-<script src="js/import.js?v=32302"></script>
-<script src="js/export.js?v=32302"></script>
-<script src="js/demo.js?v=32302"></script>
-<script src="js/list-detail.js?v=32302"></script>
-<script src="js/flat-icons.js?v=32302"></script>
-<script src="js/workspace.js?v=32302"></script>
-<script src="js/analysis-jobs.js?v=32302"></script>
-<script src="js/search-suggest.js?v=32302"></script>
-<script src="js/app.js?v=32302"></script>
-<script src="js/accessibility.js?v=32302"></script>
-<script src="js/workspaces.js?v=32302"></script>
-<script src="js/tool-layout.js?v=32302"></script>
+<script src="js/branding.js?v=32303"></script>
+<script src="js/selfhost.js?v=32303"></script>
+<script src="js/version.js?v=32303"></script>
+<script src="js/verdict.js?v=32303"></script>
+<script src="js/fork.js?v=32303"></script>
+<script src="js/promote.js?v=32303"></script>
+<script src="js/authConfig.js?v=32303"></script>
+<script src="js/connection.js?v=32303"></script>
+<script src="js/labels.js?v=32303"></script>
+<script src="js/capabilities.js?v=32303"></script>
+<script src="js/graph.js?v=32303"></script>
+<script src="js/model.js?v=32303"></script>
+<script src="js/render.js?v=32303"></script>
+<script src="js/analyze.js?v=32303"></script>
+<script src="js/whatif.js?v=32303"></script>
+<script src="js/mslearn.js?v=32303"></script>
+<script src="js/gapcheck.js?v=32303"></script>
+<script src="js/cisdata.js?v=32303"></script>
+<script src="js/cischeck.js?v=32303"></script>
+<script src="js/exclusions.js?v=32303"></script>
+<script src="js/cascope.js?v=32303"></script>
+<script src="js/coverage.js?v=32303"></script>
+<script src="js/runmeta.js?v=32303"></script>
+<script src="js/overview.js?v=32303"></script>
+<script src="js/validator.js?v=32303"></script>
+<script src="js/whatifeval.js?v=32303"></script>
+<script src="js/builder.js?v=32303"></script>
+<script src="js/onboard.js?v=32303"></script>
+<script src="js/compare.js?v=32303"></script>
+<script src="js/whois.js?v=32303"></script>
+<script src="js/wave.js?v=32303"></script>
+<script src="js/sessionctl.js?v=32303"></script>
+<script src="js/spgap.js?v=32303"></script>
+<script src="js/groupuse.js?v=32303"></script>
+<script src="js/iso3166.js?v=32303"></script>
+<script src="js/causes.js?v=32303"></script>
+<script src="js/locations.js?v=32303"></script>
+<script src="js/authcontexts.js?v=32303"></script>
+<script src="js/authstrengths.js?v=32303"></script>
+<script src="js/recycle.js?v=32303"></script>
+<script src="js/rmau.js?v=32303"></script>
+<script src="js/camap.js?v=32303"></script>
+<script src="js/rmaudoc.js?v=32303"></script>
+<script src="js/termsofuse.js?v=32303"></script>
+<script src="js/audit.js?v=32303"></script>
+<script src="js/drift.js?v=32303"></script>
+<script src="js/guide.js?v=32303"></script>
+<script src="js/userimpact.js?v=32303"></script>
+<script src="js/smsvoice.js?v=32303"></script>
+<script src="js/memberof.js?v=32303"></script>
+<script src="js/devcheck.js?v=32303"></script>
+<script src="js/licgap.js?v=32303"></script>
+<script src="js/teamsdev.js?v=32303"></script>
+<script src="js/signinstore.js?v=32303"></script>
+<script src="js/signins.js?v=32303"></script>
+<script src="js/reportimpact.js?v=32303"></script>
+<script src="js/changelog.js?v=32303"></script>
+<script src="js/baselineData.js?v=32303"></script>
+<script src="js/baselineJoeyData.js?v=32303"></script>
+<script src="js/baselineLive.js?v=32303"></script>
+<script src="js/baseline.js?v=32303"></script>
+<script src="js/baselineCleanup.js?v=32303"></script>
+<script src="js/groupTemplates.js?v=32303"></script>
+<script src="js/assign.js?v=32303"></script>
+<script src="js/cagroups.js?v=32303"></script>
+<script src="js/groupmerge.js?v=32303"></script>
+<script src="js/groupsview.js?v=32303"></script>
+<script src="js/runledger.js?v=32303"></script>
+<script src="js/protect.js?v=32303"></script>
+<script src="js/policy-compare.js?v=32303"></script>
+<script src="js/import.js?v=32303"></script>
+<script src="js/export.js?v=32303"></script>
+<script src="js/demo.js?v=32303"></script>
+<script src="js/list-detail.js?v=32303"></script>
+<script src="js/flat-icons.js?v=32303"></script>
+<script src="js/workspace.js?v=32303"></script>
+<script src="js/analysis-jobs.js?v=32303"></script>
+<script src="js/search-suggest.js?v=32303"></script>
+<script src="js/app.js?v=32303"></script>
+<script src="js/accessibility.js?v=32303"></script>
+<script src="js/workspaces.js?v=32303"></script>
+<script src="js/tool-layout.js?v=32303"></script>
 </body>
 </html>

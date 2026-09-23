@@ -1093,6 +1093,23 @@ const Baseline = (() => {
     } else {
       L.push("// No policy change was taken in this pass.");
     }
+    // 32303 — policies changed by the MS Learn checks' 🧰 Fix carry WHY: the
+    // check and its Learn page, so the revision note writes itself.
+    const why = Object.entries(meta.why || {}).filter(([, w]) => w && (w.checks || []).length);
+    if (why.length) {
+      L.push("//");
+      L.push(`// FIXED FROM THE MICROSOFT LEARN CHECKS (${why.length}):`);
+      const byCheck = new Map();
+      why.forEach(([num, w]) => w.checks.forEach((c) => {
+        if (!byCheck.has(c.id)) byCheck.set(c.id, { c, nums: [] });
+        byCheck.get(c.id).nums.push(`CA${String(num).padStart(3, "0")}`);
+      }));
+      for (const { c, nums } of byCheck.values()) {
+        L.push(`//   * ${c.title} — ${nums.join(", ")}`);
+        if (c.docUrl) L.push(`//     ${c.docUrl}`);
+      }
+      why.forEach(([num, w]) => (w.changes || []).forEach((ch) => L.push(`//     CA${String(num).padStart(3, "0")}: ${ch}`)));
+    }
     const holdList = Object.entries(holds || {}).filter(([, h]) => h && h.reason);
     if (holdList.length) {
       L.push("//");

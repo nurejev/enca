@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32303, date: "2026-09-23", title: "Fix a Microsoft Learn finding where you see it, and hand it straight to the catalog",
+    items: [
+      { kind: "new", tool: "Checks", text: "In the baseline tenant, every Microsoft Learn finding that has a fix now carries 🧰 Fix on the finding itself, the shared-device matrix has one button for all its blocked cells, and 🧰 Fix all sits in the toolbar. You see the list of changes first. Each policy is changed in place — the same policy, the same state, only the fix and the version in its name — and nothing is deleted. The report afterwards keeps every changed part as it was, so you can put it back." },
+      { kind: "improved", tool: "Checks", text: "Shared devices: where a policy is the devices' own (it includes the shared-device group and nobody else), the Fix now takes the controls they cannot meet out of it, instead of offering nothing. It never removes a condition, and it leaves compliant device alone and says so." },
+      { kind: "new", tool: "Checks", text: "A finding with no mechanical fix can be accepted with a reason. It folds into an Accepted list under the findings and comes back by itself when other policies start to match." },
+      { kind: "new", tool: "Baseline", text: "Policies changed by 🧰 Fix are marked ready for the catalog. 🧱 Update the catalog opens with them ticked, each saying which check it answers, and the generated catalog source carries the checks, their Microsoft Learn pages and the changes as its revision note." },
+      { kind: "improved", tool: "Roadmap", text: "Everything live is under Shipped before now, newest first, so Now no longer repeats what has already been delivered. New on the roadmap: R62, from finding to catalog." },
+    ],
+  },
+  {
     build: 32302, date: "2026-09-23", title: "A redesigned ENCA mark, and a BETA mark on the beta site",
     items: [
       { kind: "improved", tool: "Workspaces", text: "The ENCA mark is redesigned in the same family as the customer marks: in light mode a deep-green shield on a pale disc, in dark mode a lime shield on a green disc, both with a gold ring and a gold keyhole. The shield and keyhole no longer blend together, so the mark reads at header size and as a tab icon." },

@@ -249,7 +249,11 @@ test("the devices' own policy is told to drop the control, not to exclude them",
   const f = find(findings, "shared-device-unsupported")[0];
   assert.match(f.result.detail, /INCLUDES the shared-device group/);
   const res = M.buildFixes(findings, [own], DEV.groups);
-  assert.equal((res.fixes || []).length, 0, "no exclusion is proposed for the devices' own policy");
+  // 32303 (Mihai chose it): the Fix takes the control OUT of their own policy
+  // when the group is its only include — still never an exclusion
+  assert.equal((res.fixes || []).length, 1);
+  assert.ok(!(res.fixes[0].draft.conditions.users.excludeGroups || []).length, "no exclusion is proposed for the devices' own policy");
+  assert.match(res.fixes[0].changes[0], /Removed Persistent browser/);
 });
 
 test("no double report: MFA on All users / All resources stays teams-rooms-mfa's", () => {

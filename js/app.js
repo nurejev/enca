@@ -1716,7 +1716,9 @@
     }
     // Newest first: the most recently retired is the most likely to be looked up.
     moved.sort((a, b) => b[0] - a[0]).forEach(([, c]) => host.appendChild(c));
-    box.style.display = moved.length ? "" : "none";
+    // 32303: live cards also sit in the host from the start (index.html), so
+    // the box shows whenever it holds anything, moved now or placed there
+    box.style.display = host.querySelector("[data-shipped]") ? "" : "none";
     rmAged = true;
   }
   function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); rmAgeShipped(); }
@@ -9698,6 +9700,8 @@ This is a directory write. Nothing else changes.`)) return;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
     // Regenerating the catalog is only meaningful where the catalog is BUILT.
     $("blCatalogUpdate").style.display = isBaselineTenant() && !isDemo ? "" : "none";
+    { const nR = blCat === "limonit" && isBaselineTenant() ? Object.keys(catReadyLoad()).length : 0;
+      $("blCatalogUpdate").textContent = nR ? `🧱 Update the catalog from this tenant · ${nR} ready from Fix` : "🧱 Update the catalog from this tenant"; }
     $("blExport").style.display = isBaselineTenant() && !isDemo ? "" : "none";
     if (blCatOpen) renderCatalogUpdate();
   }
@@ -9710,7 +9714,17 @@ This is a directory write. Nothing else changes.`)) return;
   // Holds live per tenant and are keyed by the SIGNATURE of the difference
   // they were made about, so the 58 dropped exclusion groups stay held while a
   // later, different change on one of those policies reopens by itself.
-  let blCatOpen = false, blReview = null, blTake = new Set();
+  let blCatOpen = false, blReview = null, blTake = new Set(), blTakeReady = false;
+  // 32303 — arrive from 🧰 Fix: the CloudFellows catalog, the panel open, the
+  // fixed policies ticked. The comparison is re-run on the policies as they
+  // are NOW, so the change that was just written is the change it sees.
+  function openCatalogFromReady() {
+    crumb("🧬 Baseline");
+    openBaseline("limonit");
+    blCatOpen = true; blTake.clear(); blTakeReady = true;
+    renderCatalogUpdate();
+    try { $("blCatalogPanel").scrollIntoView({ block: "start", behavior: "smooth" }); } catch { /* jsdom */ }
+  }
   const HOLD_KEY = () => `enca-baseline-holds:${tenantId || "unknown"}:${blCat}`;
   const loadHolds = () => { try { return JSON.parse(localStorage.getItem(HOLD_KEY()) || "{}") || {}; } catch { return {}; } };
   const saveHolds = (h) => { try { localStorage.setItem(HOLD_KEY(), JSON.stringify(h)); } catch { /* private mode */ } };
@@ -9722,6 +9736,18 @@ This is a directory write. Nothing else changes.`)) return;
     const holds = loadHolds();
     blReview = Baseline.catalogReview(blResult, holds);
     const r = blReview;
+    // 32303 — the policies 🧰 Fix changed. One the catalog no longer differs
+    // from has been taken (the catalog caught up), so it leaves the list — but
+    // only once the policies were read AFTER the fix, never on a stale read.
+    const ready = isBaselineTenant() && blCat === "limonit" ? catReadyLoad() : {};
+    const differs = new Set([...(r.changed || []), ...(r.added || []), ...(r.held || [])].map((x) => x.num));
+    let pruned = false;
+    for (const k of Object.keys(ready)) {
+      if (!differs.has(+k) && policiesReadAt && Date.parse(ready[k].at) < policiesReadAt) { delete ready[k]; pruned = true; }
+    }
+    if (pruned) catReadySave(ready);
+    if (blTakeReady) { Object.keys(ready).forEach((k) => { if (differs.has(+k)) blTake.add(+k); }); blTakeReady = false; }
+    const fromFix = (x) => ready[String(x.num)];
     const row = (x, kind) => {
       const num = `CA${String(x.num).padStart(3, "0")}`;
       const diff = (x.diff || []).map((d) => `<li><b>${esc(d.label)}</b><div class="mini muted bl-diffv">catalog: ${esc(d.cat)}</div><div class="mini bl-diffv">tenant: ${esc(d.ten)}</div></li>`).join("");
@@ -9733,6 +9759,7 @@ This is a directory write. Nothing else changes.`)) return;
           ${x.reopened ? '<span class="tag new" title="It was held, but the difference is not the one that was held">REOPENED</span>' : ""}
           ${kind === "changed" ? (x.kind === "renamed" ? '<span class="tag" title="Only the name differs from the catalog; the definition is the same">renamed, same version</span>' : x.kind === "edited" && x.status === "ahead" ? '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows; the chip counts it as newer">same version — edited in place</span>' : x.status === "ahead" ? (x.diff.length === 1 && x.diff[0].field === "name" ? '<span class="tag" title="Only the version in the name moved; the definition is the catalog\'s — taking it updates the entry\'s name and version">newer version only</span>' : '<span class="tag" title="The version in the policy name is newer than the catalog\'s — the chip counts this one">newer version in name</span>') : x.status === "outdated" ? '<span class="tag" title="The version in the name is OLDER than the catalog\'s, yet the definition differs">older version in name</span>' : x.status === "ok" ? (x.diff.some((d) => d.field === "name") ? '<span class="tag" title="Renamed without a version bump">renamed, same version</span>' : '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows">same version — edited in place</span>') : "") : ""}
         </div>
+        ${fromFix(x) ? `<p class="mini bl-fromfix"><span class="tag grant">🧰 from Fix</span> ${esc(fromFix(x).checks.map((c) => c.title).join("; "))}</p>` : ""}
         ${diff ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0 0">${diff}</ul>` : ""}
         ${x.hold ? `<p class="mini" style="margin:8px 0 0">Held: <i>${esc(x.hold.reason)}</i>${x.hold.at ? ` · ${esc(String(x.hold.at).slice(0, 10))}` : ""}</p>` : ""}
         <div class="bl-cardact">
@@ -9757,9 +9784,11 @@ This is a directory write. Nothing else changes.`)) return;
         const nameOnly = newer.filter((x) => !x.edited).length;
         const chip = r.changed.filter((x) => x.status === "ahead").length, older = r.changed.filter((x) => x.status === "outdated").length;
         const total = r.changed.length + r.added.length;
-        return `<p class="mini" style="margin:6px 0 0"><b>${total}</b> to take · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
+        const nReady = [...r.changed, ...r.added].filter((x) => fromFix(x)).length;
+        return `${nReady ? `<p class="mini" style="margin:6px 0 0"><span class="tag grant">🧰 ${nReady} ready from Fix</span> changed by the MS Learn checks' Fix — each says which check below; the catalog note carries it.</p>` : ""}<p class="mini" style="margin:6px 0 0"><b>${total}</b> to take · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
       <p class="mini muted" style="margin:4px 0 0">The <b>${chip}</b> the Newer than baseline chip counts, in three kinds: <b>${newer.length}</b> with a newer version in the name${nameOnly ? ` (${nameOnly} of them the version alone, definition unchanged)` : ""}, <b>${inPlace.length}</b> edited in place at the same version, <b>${renamed.length}</b> renamed at the same version (the definition unchanged — the card shows both names)${older ? `; plus <b>${older}</b> at an OLDER version whose definition differs (the chip counts those as outdated)` : ""}${r.added.length ? `; plus <b>${r.added.length}</b> the catalog does not know at all` : ""}.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px;flex-wrap:wrap">
+        ${nReady ? `<button class="btn sm" id="blTakeReady">☑ Select the ${nReady} from Fix</button>` : ""}
         <button class="btn sm" id="blTakeNewer" ${newer.length ? "" : "disabled"} title="The policies whose version in the name is newer than the catalog's">☑ Select the ${newer.length} newer</button>
         <button class="btn sm" id="blTakeInPlace" ${inPlace.length ? "" : "disabled"} title="Definition differs, version not bumped">☑ Select the ${inPlace.length} edited in place</button>
         <button class="btn sm" id="blTakeRenamed" ${renamed.length ? "" : "disabled"} title="Only the name differs — take them to update the catalog's names">☑ Select the ${renamed.length} renamed</button>
@@ -9783,7 +9812,12 @@ This is a directory write. Nothing else changes.`)) return;
     </div></div>`;
   }
 
-  $("blCatalogUpdate").addEventListener("click", () => { blCatOpen = !blCatOpen; blTake.clear(); renderCatalogUpdate(); });
+  $("blCatalogUpdate").addEventListener("click", () => {
+    blCatOpen = !blCatOpen; blTake.clear();
+    // fixed policies are ticked on open, the same as arriving from the band
+    if (blCatOpen && Object.keys(catReadyLoad()).length) { blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() }); blTakeReady = true; }
+    renderCatalogUpdate();
+  });
   // ⬇ Export baseline (25463) — the SAME export 🗄 Backup gives on the
   // Policies screen, opened from where the baseline is actually worked on and
   // with the persona chooser on. Mihai: "just like the backup from the
@@ -9803,6 +9837,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (e.target.id === "blTakeInPlace") { (blReview.changed || []).filter((x) => x.kind === "edited").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
     if (e.target.id === "blTakeRenamed") { (blReview.changed || []).filter((x) => x.kind === "renamed").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
     if (e.target.id === "blTakeNone") { blTake.clear(); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeReady") { const rd = catReadyLoad(); [...(blReview.changed || []), ...(blReview.added || [])].filter((x) => rd[String(x.num)]).forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
     const hold = e.target.closest("[data-blhold]");
     if (hold) {
       const num = +hold.dataset.blhold;
@@ -9825,7 +9860,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (e.target.id === "blCatGen") {
       const taken = [...(blReview.changed || []), ...(blReview.added || [])].filter((x) => blTake.has(x.num))
         .map((x) => ({ num: x.num, ten: x.ten, diff: x.diff || [{ label: "new in this tenant" }] }));
-      const md = "```js\n" + Baseline.catalogSource(blReview, taken, loadHolds(), { tenant: tenantName || tenantId }) + "\n```";
+      const rd = catReadyLoad();
+      const why = {};
+      taken.forEach((t) => { const x = rd[String(t.num)]; if (x) why[t.num] = x; });
+      const md = "```js\n" + Baseline.catalogSource(blReview, taken, loadHolds(), { tenant: tenantName || tenantId, why }) + "\n```";
       showReport("🧱 Proposed baseline catalog", "ENCA-baseline-catalog", md);
     }
   });
@@ -19979,6 +20017,9 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- MS Learn documented exclusion checks ----------
   let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";
+  // 32303: the run's raw findings, scope and groups, so a finding's own 🧰 Fix
+  // can build ITS fixes alone; mlFixable counts them per check.
+  let mlFindings = null, mlRaws = null, mlCtx = null, mlFixable = new Map();
   // The guest reality matrix (25433) — six external user types against the
   // controls the loaded policies demand. Built from the same inputs as the
   // findings, so it costs no extra read.
@@ -20134,6 +20175,7 @@ This is a directory write. Nothing else changes.`)) return;
     ctx.authMethods = await readAuthMethods();
     const guestGroups = await readGuestGroups(MSLearn.guestGroupIds(scope.raws, scope.includeDisabled));
     const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
+    mlFindings = findings; mlRaws = scope.raws; mlCtx = ctx; mlFixable = new Map();
     mlGroups = MSLearn.group(findings);
     // The guest matrix reads the same inputs — no extra tenant call.
     mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
@@ -20154,6 +20196,7 @@ This is a directory write. Nothing else changes.`)) return;
         if (ids.length) MSLearn.markUnknownApps(mlFixes, await Graph.existingAppIds(ids));
       } catch (e) { console.warn("App reference check failed:", e.message); }
     }
+    mlFixable = mlFixableCounts();
     renderMsLearn();
   }
   // re-run on a scope change only once there is a result to replace
@@ -20161,6 +20204,39 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlDisabledNote").textContent = scopeNote(checkScope($("mlDisabled").checked), policies.filter(p => p.raw.state === "disabled").length);
     if (mlGroups) mlScan();
   });
+  // ---- 32303: findings accepted with a reason, per tenant -----------------
+  const ML_ACC_KEY = () => `enca-ml-accepted:${tenantId || "unknown"}`;
+  const mlAccLoad = () => { try { return JSON.parse(localStorage.getItem(ML_ACC_KEY()) || "{}") || {}; } catch { return {}; } };
+  const mlAccSave = (a) => { try { localStorage.setItem(ML_ACC_KEY(), JSON.stringify(a)); } catch { /* private mode */ } };
+  // ---- 32303: policies a Fix changed, waiting for 🧱 Update the catalog ----
+  // Kept per tenant until the catalog has caught up with them (the catalog
+  // panel prunes what no longer differs) or someone clears them.
+  const CAT_READY_KEY = () => `enca-catalog-ready:${tenantId || "unknown"}`;
+  function catReadyLoad() { try { return JSON.parse(localStorage.getItem(CAT_READY_KEY()) || "{}") || {}; } catch { return {}; } }
+  function catReadySave(r) { try { localStorage.setItem(CAT_READY_KEY(), JSON.stringify(r)); } catch { /* private mode */ } }
+  function catReadyAdd(fixes) {
+    const r = catReadyLoad(), at = new Date().toISOString();
+    for (const f of fixes) {
+      const m = /CA(\d{1,4})/i.exec(String(f.newName || ""));
+      if (!m) continue;
+      const num = String(parseInt(m[1], 10));
+      const prev = r[num] || { checks: [], changes: [] };
+      const checks = [...prev.checks];
+      for (const c of f.checks || []) if (!checks.some((x) => x.id === c.id)) checks.push({ id: c.id, title: c.title, docUrl: c.docUrl });
+      r[num] = { name: f.newName, checks, changes: [...new Set([...(prev.changes || []), ...(f.changes || [])])], at, companion: !!f.companion };
+    }
+    catReadySave(r);
+  }
+  function mlReadyBand() {
+    if (!isBaselineTenant() || isDemo) return "";
+    const r = catReadyLoad(), n = Object.keys(r).length;
+    if (!n) return "";
+    const nums = Object.keys(r).map(Number).sort((a, b) => a - b).map((x) => `CA${String(x).padStart(3, "0")}`);
+    return `<div class="ml-ready"><div class="grow"><b>🧱 ${n} polic${n === 1 ? "y" : "ies"} ready for the catalog</b>
+      <div class="mini muted">${esc(nums.join(", "))} — changed by 🧰 Fix, each with the check it answers. Kept for this tenant until the catalog has taken them.</div></div>
+      <button class="btn sm" data-catready-clear>Clear</button>
+      <button class="btn primary sm" data-catready-open>Open 🧱 Update the catalog →</button></div>`;
+  }
   function renderMsLearn() {
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
@@ -20168,29 +20244,49 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlTabFixes").textContent = nFix ? `Suggested fixes (${nFix})` : "Suggested fixes";
     $("mlTabFindings").classList.toggle("active", mlTab === "findings");
     $("mlTabFixes").classList.toggle("active", mlTab === "fixes");
-    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
+    // accepted findings fold away while they are about the same policies
+    const acc = mlAccLoad();
+    const accepted = [], active = [];
+    for (const g of mlGroups) {
+      const a = acc[g.check.id];
+      if (a && a.sig === MSLearn.acceptSig(g)) accepted.push({ g, a }); else active.push(g);
+    }
+    $("mlHead").innerHTML = MSLearn.renderSummary(active, MSLearn.checksCount, incDis);
+    const canApply = isBaselineTenant() && !isDemo;
+    const band = mlReadyBand();
 
     if (mlTab === "fixes") {
       $("mlChips").innerHTML = "";
       $("mlFixZip").style.display = nFix ? "" : "none";
       // writing back is offered only in a recognised baseline tenant
-      $("mlApply").style.display = nFix && isBaselineTenant() && !isDemo ? "" : "none";
-      $("mlBody").innerHTML = MSLearn.renderFixes(mlFixes || { fixes: [], skipped: [] });
+      $("mlApply").style.display = nFix && canApply ? "" : "none";
+      $("mlApply").innerHTML = `🧰 Fix all (${nFix}) <span class="tag block">writes</span>`;
+      $("mlBody").innerHTML = band + MSLearn.renderFixes(mlFixes || { fixes: [], skipped: [] });
       return;
     }
     $("mlFixZip").style.display = "none";
-    $("mlApply").style.display = "none";
-    if (!mlGroups.length) {
+    // 🧰 Fix all: the Suggested fixes tab's whole set, from the findings too
+    $("mlApply").style.display = nFix && canApply ? "" : "none";
+    $("mlApply").innerHTML = `🧰 Fix all that can be fixed (${nFix}) <span class="tag block">writes</span>`;
+    // the shared-device band's Fix covers every shared-device finding at once
+    let devFix = 0;
+    if (canApply && mlFindings && mlRaws) {
+      const s = mlSubset("@devices");
+      devFix = s ? s.fixes.length : 0;
+    }
+    const matrices = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix, { fixN: devFix }) : "");
+    if (!active.length) {
       $("mlChips").innerHTML = "";
-      $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "") + MSLearn.renderEmpty();
+      $("mlBody").innerHTML = band + matrices + MSLearn.renderEmpty() + MSLearn.renderAccepted(accepted);
       return;
     }
-    const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
+    const count = (s) => s === "all" ? active.length : active.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
-    $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "")
-      + MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
+    $("mlBody").innerHTML = band + matrices
+      + MSLearn.renderGroups(active, mlFilter, mlExpanded, { canApply, fixable: mlFixable, accept: !isDemo })
+      + MSLearn.renderAccepted(accepted);
   }
   $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
   $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
@@ -20236,6 +20332,36 @@ This is a directory write. Nothing else changes.`)) return;
       b.disabled = false; b.innerHTML = `➕ Create ${esc(name)} <span class="tag block">writes</span>`;
       toast(`Could not create ${esc(name)}: <span>${esc(err.message || err)}</span>`);
     }
+  });
+
+  // 32303 — 🧰 Fix on a finding / on the shared-device band, ✓ Accept with a
+  // reason, and the ready-for-the-catalog band.
+  $("mlBody").addEventListener("click", (e) => {
+    const ap = e.target.closest("[data-mlapply]");
+    if (ap) {
+      e.preventDefault(); e.stopPropagation();
+      const sel = ap.dataset.mlapply;
+      const set = mlSubset(sel);
+      if (!set || !set.fixes.length) { toast("Nothing to fix here any more — <span>run the checks again</span>"); return; }
+      const g = (mlGroups || []).find((x) => x.check.id === sel);
+      openApplyModal(set, sel === "@devices" ? "Shared devices — every finding behind the matrix" : (g ? g.check.title : ""));
+      return;
+    }
+    const ac = e.target.closest("[data-mlaccept]");
+    if (ac) {
+      const id = ac.dataset.mlaccept;
+      const box = $("mlBody").querySelector(`[data-mlwhy="${CSS.escape(id)}"]`);
+      const reason = (box && box.value.trim()) || "";
+      if (!reason) { toast("Say why it is accepted — <span>the reason is the record</span>"); if (box) box.focus(); return; }
+      const g = (mlGroups || []).find((x) => x.check.id === id); if (!g) return;
+      const a = mlAccLoad(); a[id] = { reason, sig: MSLearn.acceptSig(g), at: new Date().toISOString() }; mlAccSave(a);
+      toast(`<span>${esc(g.check.title)}</span> accepted — it reopens by itself if other policies start to match`);
+      renderMsLearn(); return;
+    }
+    const ro = e.target.closest("[data-mlreopen]");
+    if (ro) { const a = mlAccLoad(); delete a[ro.dataset.mlreopen]; mlAccSave(a); renderMsLearn(); return; }
+    if (e.target.closest("[data-catready-clear]")) { catReadySave({}); renderMsLearn(); return; }
+    if (e.target.closest("[data-catready-open]")) { openCatalogFromReady(); return; }
   });
 
   // a finding card's Fix button jumps to the generated policy
@@ -20286,27 +20412,82 @@ This is a directory write. Nothing else changes.`)) return;
   // original goes, so a failure never leaves the control missing entirely.
   // Everything lands Off, and the confirmation lists every create and delete.
   const ML_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
-  function openApplyModal() {
-    if (!mlFixes || !mlFixes.fixes.length) return;
-    const n = mlFixes.fixes.length;
+  // 32303 — WHICH fixes a confirm is about. The Suggested fixes tab applies
+  // them all; a finding's own 🧰 Fix, and the shared-device matrix, apply only
+  // theirs — built from THEIR findings alone, because the tab's drafts merge
+  // every check that touched a policy, and a Fix on one finding must not
+  // quietly write another finding's change into the same policy.
+  let mlApplySet = null, mlApplyLabel = "";
+  function mlSubset(sel) {
+    if (!mlFindings || !mlRaws) return null;
+    const pick = sel === "@devices"
+      ? mlFindings.filter((f) => f.check.needsGroup === "sharedDevices")
+      : mlFindings.filter((f) => f.check.id === sel);
+    const res = MSLearn.buildFixes(pick, mlRaws, mlCtx || {});
+    res.missingApps = [];
+    if (mlFixes && mlFixes.missingApps) {
+      const want = new Set(MSLearn.referencedAppIds(res));
+      res.missingApps = mlFixes.missingApps.filter((m) => want.has(m.appId));
+      const have = new Set((mlFixes.missingApps || []).map((m) => m.appId));
+      res.fixes.forEach((f) => { f.missing = MSLearn.referencedAppIds({ fixes: [f] }).filter((id) => have.has(id)); });
+    }
+    return res;
+  }
+  // Fixable policy count per check — the number on each finding's button.
+  function mlFixableCounts() {
+    const out = new Map();
+    if (!mlFindings || !mlRaws) return out;
+    for (const id of new Set(mlFindings.map((f) => f.check.id))) {
+      const n = MSLearn.buildFixes(mlFindings.filter((f) => f.check.id === id), mlRaws, mlCtx || {}).fixes.length;
+      if (n) out.set(id, n);
+    }
+    return out;
+  }
+  // In place is the baseline tenant's way (Mihai, 2026-09-23: PATCH in place):
+  // same object, same ID, state kept, the version in the name bumped so 🧱
+  // Update the catalog reads it as newer. A companion is a new policy by
+  // definition and is still created, Off.
+  const mlInPlace = () => isBaselineTenant() && !isDemo;
+  // A policy that still carries Require approved client app is READ-ONLY
+  // since 30 June 2026 — Entra refuses every PATCH to it — so its fix is the
+  // old replace: create the rebuilt policy Off, then delete the frozen one.
+  const mlFrozen = (f) => !f.companion && ((f.raw && f.raw.grantControls && f.raw.grantControls.builtInControls) || []).includes("approvedApplication");
+  const mlEditsInPlace = (f) => mlInPlace() && !f.companion && !mlFrozen(f);
+  function openApplyModal(set, label) {
+    mlApplySet = set && set.fixes ? set : mlFixes;
+    mlApplyLabel = label || "";
+    if (!mlApplySet || !mlApplySet.fixes.length) return;
+    const inPlace = mlInPlace();
+    const fx = mlApplySet.fixes, n = fx.length;
+    const nComp = fx.filter((f) => f.companion).length, nEdit = fx.filter((f) => mlEditsInPlace(f)).length, nRep = n - nComp - nEdit;
     $("mlApplyTenant").textContent = tenantName || "this tenant";
-    $("mlApplyDesc").innerHTML = `${n} new polic${n === 1 ? "y" : "ies"} will be created <b>Off (disabled)</b>, `
-      + "each replacing the policy it was built from. Nothing is switched on — review and enable them yourself afterwards.";
-    const miss = mlFixes.missingApps || [];
+    $("mlApplyDesc").innerHTML = (mlApplyLabel ? `<b>${esc(mlApplyLabel)}</b> — ` : "")
+      + (inPlace
+        ? `${nEdit ? `${nEdit} polic${nEdit === 1 ? "y is" : "ies are"} <b>changed in place</b> — same policy, same ID, same state; only the listed change and the version in the name move, which is what 🧱 Update the catalog reads as newer` : ""}${nEdit && nComp ? "; " : ""}${nComp ? `${nComp} companion polic${nComp === 1 ? "y is" : "ies are"} <b>created Off</b> beside the policy ${nComp === 1 ? "it comes" : "they come"} from` : ""}${nRep ? `${nEdit || nComp ? "; " : ""}${nRep} polic${nRep === 1 ? "y is" : "ies are"} <b>rebuilt</b> — created Off at the bumped version, then the original deleted, because a policy still carrying Require approved client app is read-only in Entra` : ". Nothing is deleted"}. <b>Recovery:</b> the report that opens afterwards carries each policy's JSON as it was before; ✎ Edit on its card puts a section back.`
+        : `${n} new polic${n === 1 ? "y" : "ies"} will be created <b>Off (disabled)</b>, each replacing the policy it was built from. Nothing is switched on — review and enable them yourself afterwards.`);
+    const miss = mlApplySet.missingApps || [];
     $("mlApplyList").innerHTML = (miss.length ? `<div class="ml-apply-row">
         <div><span class="ml-op create">CREATE</span> ${miss.length} Microsoft service principal${miss.length === 1 ? "" : "s"} — required before the policies can reference them</div>
         <div class="mini">${miss.map((m) => `${esc(m.label)} (${esc(m.appId)})`).join(" · ")}</div>
-      </div>` : "") + mlFixes.fixes.map((f) => `<div class="ml-apply-row">
+      </div>` : "") + fx.map((f) => mlEditsInPlace(f)
+        ? `<div class="ml-apply-row">
+        <div><span class="ml-op create">CHANGE</span> ${esc(f.originalName)} <span class="mini">→ ${esc(f.newName)} · stays ${esc(f.originalState || "")}</span></div>
+        <div class="mini">${esc(f.changes.join("; "))}</div>
+      </div>`
+        : `<div class="ml-apply-row">
         <div><span class="ml-op create">CREATE</span> ${esc(f.newName)} <span class="mini">· Off</span></div>
-        <div><span class="ml-op delete">DELETE</span> ${esc(f.originalName)} <span class="mini">· currently ${esc(f.originalState)}</span></div>
+        ${f.companion ? `<div class="mini">beside ${esc(f.originalName)}, which is not changed</div>` : `<div><span class="ml-op delete">DELETE</span> ${esc(f.originalName)} <span class="mini">· currently ${esc(f.originalState)}${mlFrozen(f) ? " · read-only since the approved client app retirement, so it cannot be changed in place" : ""}</span></div>`}
         <div class="mini">${f.changes.length} adjustment${f.changes.length === 1 ? "" : "s"}: ${esc(f.changes.join("; "))}</div>
       </div>`).join("");
+    $("mlApplyDeleteRow").style.display = fx.some((f) => !f.companion && !mlEditsInPlace(f)) ? "" : "none";
+    $("mlApplyReadyRow").style.display = isBaselineTenant() ? "" : "none";
+    $("mlApplyReady").checked = true;
     $("mlApplyResult").style.display = "none"; $("mlApplyResult").innerHTML = "";
     $("mlApplyOk").checked = false; $("mlApplyDelete").checked = true;
-    $("mlApplyGo").disabled = true; $("mlApplyGo").textContent = "Apply";
+    $("mlApplyGo").disabled = true; $("mlApplyGo").textContent = `Apply ${n}`;
     $("mlApplyModal").classList.add("open");
   }
-  $("mlApply").addEventListener("click", openApplyModal);
+  $("mlApply").addEventListener("click", () => openApplyModal(mlFixes, ""));
   $("mlApplyCancel").addEventListener("click", () => $("mlApplyModal").classList.remove("open"));
   $("mlApplyOk").addEventListener("change", (e) => { $("mlApplyGo").disabled = !e.target.checked; });
   $("mlApplyDelete").addEventListener("change", () => {
@@ -20314,21 +20495,26 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlApplyModal").querySelectorAll(".ml-op.delete").forEach((el) => el.classList.toggle("skip", !del));
   });
   $("mlApplyGo").addEventListener("click", async () => {
-    if (!mlFixes || !$("mlApplyOk").checked) return;
+    const set = mlApplySet;
+    if (!set || !$("mlApplyOk").checked) return;
+    const inPlace = mlInPlace();
     const del = $("mlApplyDelete").checked;
+    const markReady = isBaselineTenant() && $("mlApplyReady").checked;
     // Applying fixes may also have to create service principals, so both write
     // scopes are consented here rather than deep inside the loop.
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess", "Application.ReadWrite.All"])) return;
+    const scopes = [...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"];
+    if ((set.missingApps || []).length) scopes.push("Application.ReadWrite.All");
+    if (!await preConsent(scopes)) return;
     const btn = $("mlApplyGo"); btn.disabled = true;
     const out = $("mlApplyResult"); out.style.display = ""; out.innerHTML = "";
     const log = (cls, msg) => { out.insertAdjacentHTML("beforeend", `<div class="ml-apply-row ${cls}">${msg}</div>`); out.scrollTop = out.scrollHeight; };
-    let created = 0, deleted = 0, failed = 0;
+    let created = 0, deleted = 0, failed = 0, patched = 0;
     const results = [];
     // Step 0: instantiate the Microsoft apps the fixes reference. A policy that
     // names an app with no service principal is rejected outright, so this has
     // to happen before any policy is written.
     const spCreated = [], spFailed = [];
-    for (const m of (mlFixes.missingApps || [])) {
+    for (const m of (set.missingApps || [])) {
       btn.textContent = "Creating service principals…";
       try {
         const sp = await Graph.createServicePrincipal(m.appId);
@@ -20340,11 +20526,30 @@ This is a directory write. Nothing else changes.`)) return;
       }
     }
     // whatever could not be created must come out of the drafts
-    if (spFailed.length) MSLearn.dropApps(mlFixes, spFailed.map((x) => x.appId));
-    for (const f of mlFixes.fixes) {
-      const rec = { fix: f, created: false, deleted: false, error: null, deleteError: null };
+    if (spFailed.length) MSLearn.dropApps(set, spFailed.map((x) => x.appId));
+    const ready = [];
+    let i = 0;
+    for (const f of set.fixes) {
+      const rec = { fix: f, created: false, deleted: false, patched: false, error: null, deleteError: null };
       results.push(rec);
-      btn.textContent = `Applying ${created + failed + 1}/${mlFixes.fixes.length}…`;
+      btn.textContent = `Applying ${++i}/${set.fixes.length}…`;
+      if (mlEditsInPlace(f)) {
+        // IN PLACE: one PATCH of the sections that changed, name included.
+        try {
+          const body = MSLearn.patchBody(f.raw, f.draft);
+          rec.body = JSON.stringify(body, null, 2);
+          // the same sections as the policy held them — the recovery record
+          rec.before = JSON.stringify(Object.fromEntries(Object.keys(body).map((k) => [k, (f.raw || {})[k] ?? null])), null, 2);
+          await Graph.gpatch(`/identity/conditionalAccess/policies/${f.policyId}`, body, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+          patched++; rec.patched = true;
+          log("ok", `✓ Changed <b>${esc(f.originalName)}</b> → <b>${esc(f.newName)}</b>`);
+          ready.push(f);
+        } catch (e) {
+          failed++; rec.error = e.message || String(e);
+          log("bad", `✗ Could not change <b>${esc(f.originalName)}</b>: ${esc(e.message || e)} — it was left as it was.`);
+        }
+        continue;
+      }
       try {
         // Entra rejects some payloads without saying why; try the full policy
         // first, then progressively simpler variants, so one awkward property
@@ -20365,7 +20570,8 @@ This is a directory write. Nothing else changes.`)) return;
         if (!res) throw lastErr;
         created++; rec.created = true; rec.createdId = res && res.id;
         log("ok", `✓ Created <b>${esc(f.newName)}</b> (Off)`);
-        if (del) {
+        ready.push(f);
+        if (del && !f.companion) {
           try {
             await Graph.gdelete(`/identity/conditionalAccess/policies/${f.policyId}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
             deleted++; rec.deleted = true;
@@ -20381,13 +20587,15 @@ This is a directory write. Nothing else changes.`)) return;
         log("bad", `✗ Failed to create <b>${esc(f.newName)}</b>: ${esc(e.message || e)} — <b>${esc(f.originalName)}</b> was left untouched.`);
       }
     }
+    if (markReady && ready.length) { catReadyAdd(ready); renderMsLearn(); }
     btn.textContent = "Done";
-    log("", `<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed. Reloading policies…`);
-    const mlMd = applyReport(results, { created, deleted, failed, del, spCreated, spFailed });
-    toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""}`);
+    log("", `${patched ? `<b>${patched}</b> changed in place · ` : ""}<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed.${markReady && ready.length ? ` <b>${ready.length}</b> marked ready for 🧱 Update the catalog.` : ""} Reloading policies…`);
+    const mlMd = applyReport(results, { created, deleted, failed, del, patched, inPlace, spCreated, spFailed });
+    toast(`${patched ? `${patched} changed` : ""}${patched && created ? ", " : ""}${created ? `${created} created` : ""}${deleted ? `, ${deleted} removed` : ""}${!patched && !created ? "nothing written" : ""}`);
     try { await loadFromGraph(true); } catch { /* surfaced by loadFromGraph */ }
     show("screen-mslearn");
     await openMsLearn();
+    if (mlGroups || patched || created) await mlScan();   // the findings they fixed should be gone
     showReport("📘 MS Learn fixes applied", "CA-MSLearn-Applied", mlMd);
   });
 
@@ -20401,7 +20609,8 @@ This is a directory write. Nothing else changes.`)) return;
     L.push(Brand.generatedBy("Applied"));
     L.push("");
     L.push(`- Created: **${sum.created}** (all in the **Off / disabled** state)`);
-    L.push(`- Deleted: **${sum.deleted}**${sum.del ? "" : " — the originals were kept on purpose"}`);
+    if (sum.inPlace) L.push(`- Changed in place: **${sum.patched || 0}** (same policy, same ID, same state — the version in the name bumped)`);
+    if (!sum.inPlace || sum.deleted) L.push(`- Deleted: **${sum.deleted}**${sum.del ? "" : " — the originals were kept on purpose"}`);
     L.push(`- Failed: **${sum.failed}**`);
     if ((sum.spCreated || []).length) L.push(`- Service principals created: **${sum.spCreated.length}**`);
     if ((sum.spFailed || []).length) L.push(`- Service principals that could NOT be created: **${sum.spFailed.length}**`);
@@ -20424,7 +20633,9 @@ This is a directory write. Nothing else changes.`)) return;
     L.push("| Result | New policy | Replaced | Adjustments |");
     L.push("| --- | --- | --- | --- |");
     for (const r of results) {
-      const result = r.error ? "❌ create failed"
+      const result = r.patched ? "✅ changed in place"
+        : r.error && sum.inPlace && !r.fix.companion ? "❌ change failed"
+        : r.error ? "❌ create failed"
         : r.deleteError ? "⚠ created, delete failed"
         : r.deleted ? "✅ created + original deleted"
         : "✅ created (original kept)";
@@ -20432,14 +20643,29 @@ This is a directory write. Nothing else changes.`)) return;
     }
     L.push("");
 
-    const done = results.filter((r) => r.created);
+    const done = results.filter((r) => r.created || r.patched);
     if (done.length) {
       L.push("## What changed, policy by policy");
       L.push("");
       for (const r of done) {
         L.push(`### ${e(r.fix.newName)}`);
         L.push("");
-        L.push(`Built from **${e(r.fix.originalName)}** (was ${e(r.fix.originalState)}), created **Off**.`);
+        if (r.patched) {
+          L.push(`Changed in place — was **${e(r.fix.originalName)}**, state kept (${e(r.fix.originalState)}).`);
+          L.push("");
+          r.fix.changes.forEach((c) => L.push(`- ${e(c)}`));
+          L.push("");
+          L.push(`Based on: ${e(r.fix.checks.map((c) => c.title).join("; "))}`);
+          L.push("");
+          L.push("To put it back, PATCH these sections as they were:");
+          L.push("");
+          L.push("```json");
+          L.push(r.before || "{}");
+          L.push("```");
+          L.push("");
+          continue;
+        }
+        L.push(r.fix.companion ? `Created **Off** beside **${e(r.fix.originalName)}**, which was not changed.` : `Built from **${e(r.fix.originalName)}** (was ${e(r.fix.originalState)}), created **Off**.`);
         L.push(r.deleted ? "The original policy was deleted." : r.deleteError
           ? `⚠ The original could NOT be deleted: ${e(r.deleteError)} — both policies exist, remove the old one manually.`
           : "The original policy was kept.");

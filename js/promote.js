@@ -117,6 +117,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 280,
+      title: "🧰 Fix on the MS Learn finding, in place in the baseline tenant, and ready for 🧱 Update the catalog",
+      tools: ["Checks", "Baseline"],
+      builds: [32303],
+      risk: "medium",
+      what: "js/mslearn.js: ownDeviceFix (shared-device-unsupported on the devices' own policy removes the unsupported grant and session controls when the shared-device group is the only include; conditions never; compliant device named and left), blockedControls on the finding, patchBody (changed sections only, name, explicit null for anything a fix took out, never state), acceptSig, renderAccepted, renderGroups opts (Fix N on the head and in the detail, accept form), renderDeviceMatrix opts.fixN. js/app.js: mlFindings / mlRaws / mlCtx, mlSubset (one finding's fixes alone, or @devices), mlFixableCounts, openApplyModal(set, label) with in-place PATCH in the baseline tenant, companions still POSTed, a policy still carrying approvedApplication rebuilt (POST Off, then DELETE — it is read-only in Entra), report with each changed section as it was, re-read and re-run after; accepted store enca-ml-accepted:<tenant>; ready store enca-catalog-ready:<tenant>, the band, openCatalogFromReady, the catalog panel ticking, pruning and the from-Fix line. js/baseline.js: catalogSource meta.why note. index.html: modal rows, Help, R62. css/app.css: ml-headrow, ml-accept, ml-accepted, ml-ready.",
+      why: "Mihai, 23 Sep, with a screenshot of the baseline tenant's Microsoft Learn tab: the issues found may be fixed with a fix button, then set ready for updating the CloudFellows baseline; now it is too much manual work. Mockup first (review/2026-09-23/mslearn-fix-to-catalog/); he chose PATCH in place, removing the control from the devices' own policy when the group is the only include, and accept-with-a-reason. Medium because it writes policies — only in the baseline tenant, where they are Off — and none of it has run against the real tenant yet.",
+      test: [
+        "CloudFellows tenant, Microsoft Learn, Include Off ticked, Run checks: Shared devices: controls their resource accounts cannot meet shows 🧰 Fix 7 (or the real count) on its head; the matrix note has 🧰 Fix these; the toolbar has 🧰 Fix all (N).",
+        "Click 🧰 Fix on that finding: the confirm lists one CHANGE row per policy with old name → new name and stays Off, no DELETE rows, the Delete-original tick is hidden, Mark ready is ticked. Apply: every row ✓, the report opens with each policy's users section as it was.",
+        "In the Entra portal, one of those policies: same object ID as before, still Off, CAB-SEC-U-TeamsSharedDevices under Exclude, version in the name one step up, nothing else changed.",
+        "Back on the tab after the re-run: the shared-device matrix has no blocked cells from those policies and the finding is gone; the band says N policies ready for the catalog.",
+        "A policy that includes only CAB-SEC-U-TeamsSharedDevices and asks for terms of use: its Fix removes the terms of use and keeps compliant device (the change line says so). The same policy with a second include group: no Fix, listed as needing a decision.",
+        "Band → Open 🧱 Update the catalog: the CloudFellows catalog, the panel open, those policies ticked and marked 🧰 from Fix with the check; Generate the catalog source: the note lists the check, its Learn URL, the CA numbers and each change.",
+        "The baseline-scopes finding: type a reason, Accept — it folds into Accepted (1) with the reason; the count drops; Reopen brings it back. Change the policy set (add an app exclusion to another All-resources policy), run again: it is open again by itself.",
+        "A policy still carrying Require approved client app (read-only in Entra): its 🧰 Fix confirm shows CREATE at the bumped version and DELETE of the original with the reason; after Apply the new one exists Off and the old one is gone.",
+        "Any other tenant: no 🧰 Fix buttons and no band; Suggested fixes still downloads the JSON for Import. Demo: no writes offered.",
+      ],
+      files: ["js/mslearn.js", "js/app.js", "js/baseline.js", "css/app.css", "index.html", "tools/mslearn-fix.test.cjs", "tools/mslearn-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 279,
       title: "Redesigned ENCA mark (light, dark, favicon) and a BETA edition on the beta host",
       tools: ["Workspaces"],
