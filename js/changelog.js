@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32305, date: "2026-09-23", title: "Baseline catalog: the shared devices out of seven more policies",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "🧱 Seven policies taken into the CloudFellows catalog, the first round trip from 🧰 Fix: CA005, CA006, CA009, CA011, CA012, CA013 and CA017 now exclude CAB-SEC-U-TeamsSharedDevices, because app-enforced restrictions, app protection, a never-persistent browser, the insider-risk blocks and terms of use are controls a Teams Rooms or shared-device account cannot meet. Each moves one version up; nothing else in them changed." },
+    ],
+  },
+  {
     build: 32304, date: "2026-09-23", title: "🧰 Fix shows its progress the way every other write does",
     items: [
       { kind: "improved", tool: "Checks", text: "Applying Microsoft Learn fixes now runs in the same progress list as importing, the group tools and Housekeeping: every policy is listed before the first write, each row turns done, failed or partly done where it stands with the reason beside it, the header counts, and Stop after this one leaves the rest untouched. A clean run closes and opens the report; if anything failed the list stays open so you can read it." },

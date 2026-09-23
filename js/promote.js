@@ -117,6 +117,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 281,
+      title: "Baseline catalog revised 2026-09-23 — CAB-SEC-U-TeamsSharedDevices excluded from CA005, CA006, CA009, CA011, CA012, CA013, CA017",
+      tools: ["Baseline"],
+      builds: [32305],
+      risk: "medium",
+      what: "js/baselineData.js: seven entries take the exclusion, the name and the version from the 🧱 Update the catalog output of 2026-09-23 (CA005 1.0.2, CA006 1.0.2, CA009 3.0.2, CA011 1.0.2, CA012 3.0.2, CA013 3.0.3, CA017 3.0.2); each keeps its own list order with the group added after its last group; revised 2026-09-23 with a note. Not taken: the trailing space the export put on CA017's terms-of-use name. js/userimpact.js RULES_CHECKED_AGAINST not moved (the exclusion changes no policy shape the brief matches on).",
+      why: "Mihai uploaded the catalog output generated after 🧰 Fix (32303) answered the shared-device Microsoft Learn check in the CloudFellows tenant, and asked for it to be queued. All seven are real changes, verified field by field against the catalog: only exclude, name and version differ. Medium because a tenant compared against the catalog in production reads these seven as newer than its own until it takes them.",
+      test: [
+        "Beta site, CloudFellows tenant, 🧱 Baseline: CA005, CA006, CA009, CA011, CA012, CA013 and CA017 read Up to date (same number and version as the catalog); the Newer-than-baseline chip does not count them.",
+        "🧱 Update the catalog on the CloudFellows tenant: none of the seven is offered any more; the 🧰 ready-for-the-catalog list is empty for them.",
+        "Any customer tenant still on the previous versions: those seven show as the baseline being newer, with the shared-device exclusion as the difference; importing one creates it with CAB-SEC-U-TeamsSharedDevices under Exclude.",
+        "Baseline card for CA017: Exclude lists CAB-SEC-U-TeamsSharedDevices; the grant reads Terms of use Internals Minor insider risk (no trailing space).",
+      ],
+      files: ["js/baselineData.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 280,
       title: "🧰 Fix on the MS Learn finding, in place in the baseline tenant, and ready for 🧱 Update the catalog",
       tools: ["Checks", "Baseline"],
