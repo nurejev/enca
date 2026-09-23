@@ -120,6 +120,19 @@ footer{position:sticky;top:100vh}
   background-image:radial-gradient(500px 260px at 85% -80px,var(--glow) 0%,transparent 60%)}
 .login-card h1{font-size:24px;margin:18px 0 8px;letter-spacing:-.02em}
 .login-card p{color:var(--muted);line-height:1.55;margin-bottom:26px}
+/* The mark rides over the card's top edge on its own medallion (beta 25493):
+   the card is lifted off the page, and the mark is lifted off the card by the
+   same shadow and border, so the sign-in screen reads as one object popping up.
+   Tokens only, so it follows every branding (Limon-IT light/dark, PVM, a
+   self-hosted look). Margin -110px = the card's 48px padding plus half the
+   124px disc, so exactly half of it sits outside the card; #screen-login gets
+   the room above for it. A WIDE wordmark (logoWide) is not a round thing and
+   keeps the flat look - app.js and selfhost-boot.js flag it on <html>. */
+#screen-login{padding-top:64px}
+.login-card{position:relative}
+:root:not(.brand-wide-logo) .login-card > img{display:block;position:relative;box-sizing:border-box;width:124px;height:124px;margin:-110px auto 0;padding:8px;
+  border-radius:50%;background:var(--surface);border:1px solid var(--border);
+  box-shadow:var(--shadow),0 0 0 6px color-mix(in srgb,var(--glow) 45%,transparent)}
 .ms-btn{width:100%;justify-content:center;padding:12px;font-size:14px}
 .login-note{margin-top:20px;font-size:12px;color:var(--muted);line-height:1.5}
 /* why a sign-in did not complete — shown in place, never as an alert */

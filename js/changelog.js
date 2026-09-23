@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25493, date: "2026-09-23", title: "The sign-in card's logo pops out of the card",
+    items: [
+      { kind: "improved", tool: "Sign-in", text: "The logo on the sign-in card now sits on its own round medallion that rides over the card's top edge, half in and half out, with the same lift and border as the card itself. It is bigger (124px instead of 76px) and follows the active branding in light and dark, including PVM and self-hosted looks. A wide wordmark logo keeps the flat look." },
+    ],
+  },
+  {
     build: 25492, date: "2026-09-23", title: "The Purview Suite for Business Premium counts for insider-risk policies",
     items: [
       { kind: "fixed", tool: "Policies", text: "✎ The Microsoft Purview Suite for Microsoft 365 Business Premium includes Insider Risk Management with adaptive protection, but ENCA only recognised the licence by the name of a plan inside it. The suite itself is recognised now — as are the enterprise and frontline Purview suites, E5 Compliance and Microsoft 365 E5 — and when a licence still cannot be confirmed, the message lists the subscriptions ENCA read, so a mismatch is visible instead of a bare “could not be verified”." },

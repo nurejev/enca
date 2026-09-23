@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 276,
+      title: "Sign-in card — the logo on a medallion over the card's top edge",
+      tools: ["Sign-in"],
+      builds: [25493],
+      risk: "low",
+      what: "css/app.css: .login-card > img becomes a 124px round medallion (surface background, border, the card's shadow plus a 6px glow ring) with margin -110px, so half of it sits above the card; #screen-login gets 64px top padding and .login-card position:relative. Skipped when html.brand-wide-logo is set — js/app.js applyBranding toggles it from logoWide, js/selfhost-boot.js adds it pre-paint for a wide self-hosted logo.",
+      why: "Mihai: adjust the layout around the logo so it pops up just like the login screen itself. Mockup shown first (A raised medallion, B breaks out of the card, C glow stage); he chose B.",
+      test: [
+        "Signed out, light theme: the mark sits on a round white medallion, half above the card's top edge, with a shadow; the title starts below it with normal spacing.",
+        "Dark theme (and Auto with the OS in dark): the dark mark shows on a dark medallion, no light square or halo around it.",
+        "PVM branding (pvm/selfhost-branding.json via the ⚙ gear or a self-hosted copy): the PVM mark sits on the medallion with the navy look; nothing is cropped.",
+        "A branding with Wide wordmark ticked: the wordmark shows flat at 56px high inside the card, not squeezed into a circle.",
+        "Narrow window (390px wide): the medallion is not clipped at the top and the card still fits the width.",
+      ],
+      files: ["css/app.css", "js/app.js", "js/selfhost-boot.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 275,
       title: "Policy write guard — Adaptive Protection from Insider Risk plans; an edit is checked only for what it adds",
       tools: ["Policies"],

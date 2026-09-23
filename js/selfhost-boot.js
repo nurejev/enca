@@ -111,7 +111,7 @@
         el.dataset.shBoot = "1";
         el.src = logo;
         if (b.org || b.name) el.alt = String(b.org || b.name).slice(0, 120);
-        if (b.logoWide === true) { el.style.width = "auto"; el.style.height = el.id === "brandLogo" ? "34px" : "56px"; }
+        if (b.logoWide === true) { el.style.width = "auto"; el.style.height = el.id === "brandLogo" ? "34px" : "56px"; const de = document.documentElement; if (de && de.classList) de.classList.add("brand-wide-logo"); }
       };
       const scan = (n) => {
         if (!n || n.nodeType !== 1) return;

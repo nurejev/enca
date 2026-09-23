@@ -714,6 +714,8 @@
       if (B.logoWide) { el.style.height = id === "brandLogo" ? "34px" : "56px"; el.style.width = "auto"; }
       else { el.style.height = ""; el.style.width = ""; }
     }));
+    // The sign-in medallion (css/app.css) is for a round mark; a wordmark keeps the flat look.
+    document.documentElement.classList.toggle("brand-wide-logo", !!B.logoWide);
     // Dark mode swaps the DEFAULT logo via a CSS content: rule; flag the root
     // when an override is active so that rule stands down (see app.css).
     const oBrand = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
