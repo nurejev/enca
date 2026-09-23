@@ -294,6 +294,7 @@ Requested **on demand** (incremental consent) only when a tool needs them:
 | `RoleManagement.ReadWrite.Directory` | Assign groups — create those groups as role-assignable |
 | `RoleManagement.Read.Directory` | Group Analyzer — directory role assignments and PIM eligibility for a group |
 | `Group-NestingSupport.ReadWrite.All` | CA groups — set `disableNesting` on a group (beta) so no group can be added as a member |
+| `DirectoryRecommendations.Read.All` | 🛡 Checks → 🏅 Identity score and the home page — read the Entra Identity Secure Score and its recommendations (beta, read-only); the user also needs a reader role such as Security Reader or Global Reader |
 | `EntitlementManagement.Read.All` | Group Analyzer — access packages and their assignment policies |
 | `DeviceManagementConfiguration.Read.All` | Group Analyzer — Intune compliance policies, configuration profiles, scripts, update profiles |
 | `DeviceManagementApps.Read.All` | Group Analyzer — Intune app assignments, app protection and app configuration policies |

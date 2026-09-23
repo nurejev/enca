@@ -182,7 +182,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -309,6 +309,8 @@
                         open: () => openCis(), betaOnly: true, only: () => isCisTenant() },
     toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
                         open: () => openDevCheck() },
+    toolIdScore:      { into: "toolGapCheck", label: "🏅 Identity Secure Score",      where: "the Identity score tab",     build: 32308,
+                        open: () => openIdScore() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
                         open: () => openValidator() },
     toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
@@ -444,6 +446,9 @@
         { key: "mslearn", icon: "📘", name: "Microsoft Learn",      toolbar: "mlToolbar", open: () => openMsLearn() },
         { key: "cis",     icon: "📐", name: "CIS 5.2.2",            toolbar: "ciToolbar", open: () => openCis(), beta: true, betaOnly: true, only: () => isCisTenant() },
         { key: "intune",  icon: "🖥", name: "Intune reality",       toolbar: "dvToolbar", open: () => openDevCheck() },
+        // 32308 (T42): Microsoft's own judgement of the identity setup, next
+        // to ENCA's reading of the policies — a reference like the other three
+        { key: "idscore", icon: "🏅", name: "Identity score",       toolbar: "isToolbar", open: () => openIdScore(), beta: true },
       ],
     },
     blocks: {
@@ -2323,6 +2328,10 @@
   }
 
   let caSettingsCache;
+  // 🏅 Identity Secure Score (32308): what Microsoft returned, kept per tenant
+  // and session; the model is rebuilt from it against the policies loaded now
+  let isRaw = null, isModel = null, isBusy = false, isErr = null, isFilter = "open";
+  const isExpanded = new Set();
   async function readCaSettings() {
     if (caSettingsCache !== undefined) return caSettingsCache;
     if (isDemo) { caSettingsCache = DEMO_DATA.caSettings || { advancedSettings: null }; return caSettingsCache; }
@@ -2364,7 +2373,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined;
+      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null;
       signinContext = { tenantId: account?.tenantId || "", at: Date.now(), demo: false, names: names || {}, ...(context || {}) };
       // Results belong to the snapshot they were computed from.
       invalidateToolResults("policies reloaded");
@@ -2437,7 +2446,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined;
+    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null;
     {
       const at = Date.now();
       const strengths = Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
@@ -21065,6 +21074,75 @@ This is a directory write. Nothing else changes.`)) return;
   let ciFilter = { level: "all", status: "all" };
   const ciExpanded = new Set();
   const CI_IDLE_HEAD = toolHead("toolCis") + '<p class="mini" style="margin:6px 0 0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated CA recommendations of section 5.2.2, with per-control pass/fail and the nearest policy for every gap.</p>';
+  // ---------- 🏅 Identity Secure Score (32308, T42) ----------
+  // Entra's Identity Secure Score and its recommendations, read on ▶ and kept
+  // for the session; "What ENCA sees" is judged again from the policies
+  // loaded now every time the tab or the dashboard paints (js/idscore.js).
+  // Read-only: status changes stay in the Entra admin center.
+  function isRebuild() {
+    if (!isRaw) { isModel = null; return; }
+    isModel = IdScore.model(isRaw.scores, isRaw.recs, policies.map((p) => p.raw), { readAt: isRaw.at, demo: isRaw.demo });
+  }
+  const IS_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Microsoft Entra\'s own score for the identity setup of this tenant, and the recommendations behind it — with, next to each one Conditional Access answers, what ENCA sees in the policies loaded now: On, report-only, built but Off, or missing. Microsoft recalculates once a day; nothing here changes the tenant.</p>';
+  function openIdScore() {
+    crumb("🛡 Checks");
+    show("screen-idscore");
+    mountToolTabs("checks", "idscore");
+    $("isHead").innerHTML = toolHead("toolIdScore") + IS_HEAD_TEXT;
+    if (isRaw) { renderIdScore(); return; }
+    $("isChips").innerHTML = ""; $("isMd").style.display = "none";
+    $("isBody").innerHTML = isBusy
+      ? '<p class="mini" style="padding:16px">Reading the Identity Secure Score…</p>'
+      : `${isErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(isErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-isrun>▶ Read Identity Secure Score</button>
+        <p class="mini muted">Reads the score history and the recommendations through Microsoft Graph (beta): DirectoryRecommendations.Read.All, read-only, admin consent once. The signed-in account needs a role such as Reports Reader, Security Reader or Global Reader. Results stay until you refresh.</p></div>`;
+  }
+  function renderIdScore() {
+    isRebuild();
+    if (!isModel) return;
+    $("isChips").innerHTML = IdScore.chips(isModel, isFilter);
+    $("isMd").style.display = "";
+    $("isBody").innerHTML = IdScore.render(isModel, { filter: isFilter, expanded: isExpanded });
+  }
+  async function runIdScore() {
+    if (isBusy) return;
+    isBusy = true; isErr = null;
+    if ($("screen-idscore").classList.contains("active")) openIdScore();
+    try { renderOverview({ force: true }); } catch { /* the home is not up */ }
+    try {
+      let scores, recs;
+      if (isDemo) { scores = DEMO_DATA.idScores || []; recs = DEMO_DATA.idRecommendations || []; }
+      else {
+        const sc = [...AUTH_CONFIG.scopes, ...IdScore.SCOPES];
+        if (!await preConsent(sc)) throw new Error("DirectoryRecommendations.Read.All was not granted");
+        [scores, recs] = await Promise.all([
+          Graph.ggetAll("/directory/recommendations/tenantSecureScores", sc),
+          Graph.ggetAll("/directory/recommendations", sc),
+        ]);
+      }
+      isRaw = { scores: [...scores], recs: [...recs], at: Date.now(), demo: isDemo };
+      isRebuild();
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      isErr = /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "")
+        ? "access denied: the signed-in account needs Reports Reader, Security Reader, Global Reader or a similar role, and the tenant must have consented to DirectoryRecommendations.Read.All"
+        : m;
+      isRaw = null; isModel = null;
+    } finally { isBusy = false; }
+    if ($("screen-idscore").classList.contains("active")) { if (isRaw) renderIdScore(); else openIdScore(); }
+    try { renderOverview({ force: true }); } catch { /* the home is not up */ }
+    if (isRaw) toast(`Identity Secure Score <span>${isModel && isModel.score ? `${isModel.score.pct}%` : "read"}</span>`);
+  }
+  $("isChips").addEventListener("click", (e) => { const b = e.target.closest("[data-isf]"); if (!b) return; isFilter = b.dataset.isf; renderIdScore(); });
+  $("isBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-isrun]")) { runIdScore(); return; }
+    const t = e.target.closest("[data-istoggle]");
+    if (t) { const id = t.dataset.istoggle; if (isExpanded.has(id)) isExpanded.delete(id); else isExpanded.add(id); renderIdScore(); return; }
+    const g = e.target.closest("[data-isgo]");
+    if (g) { const el = $(g.dataset.isgo); if (el) el.click(); }
+  });
+  $("isRefresh").addEventListener("click", () => runIdScore());
+  $("isMd").addEventListener("click", () => { if (isModel) showReport("🏅 Identity Secure Score", `ENCA-identity-secure-score-${new Date().toISOString().slice(0, 10)}`, IdScore.toMd(isModel, tenantName)); });
+
   function openCis() {
     crumb("🛡 Checks");
     show("screen-cis");
@@ -21748,7 +21826,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function ovPaintKeyOf(snap) {
     return [snap, exRunMeta && exRunMeta.id, anRunMeta && anRunMeta.id, lgRunMeta && lgRunMeta.id, gcRunAt, ciRunAt,
-      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f", signinContext && signinContext.at].join("|");
+      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f", signinContext && signinContext.at, isRaw && isRaw.at, isBusy ? 1 : 0, isErr || ""].join("|");
   }
   function deriveSummary(key) {
     if (ovDerived && ovDerived.key === key) return ovDerived;
@@ -21856,7 +21934,8 @@ This is a directory write. Nothing else changes.`)) return;
     const base = { tenantName, isDemo, snapshot: policiesReadAt || null };
     if (leadEl) leadEl.textContent = Overview.lead(base);
     host.hidden = false;
-    let html = Overview.header({ ...base, counts, status });
+    if (isRaw) isRebuild();
+    let html = Overview.header({ ...base, counts, status, idScore: policies.length ? IdScore.dashboardTile(isModel, { busy: isBusy, error: isErr }) : null });
     if (policies.length) {
       // what the two retirement tools found in THIS tenant, once they have run
       const impact = {};
@@ -21867,6 +21946,7 @@ This is a directory write. Nothing else changes.`)) return;
         policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
         baseline: d.baseline, exclusions: d.exclusions, showAdvisories: false, now: Date.now() })
         + `</div>`
+        + IdScore.dashboardRecs(isModel, { busy: isBusy, error: isErr })
         + Overview.checks(checkRows())
         + Overview.map(mapInput(d))
         + Overview.advisories({ impact, now: Date.now() });
@@ -22090,6 +22170,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (which === "ex") { $("toolExclusions").click(); if (!exBusy) runExclusionScan(); }
     else if (which === "an") { $("toolAnalyze").click(); (window.requestAnimationFrame || setTimeout)(() => $("anRun").click()); }
     else if (which === "lg") { openLicGap(); if (!lgBusy) lgRun(); }
+    else if (which === "is") runIdScore();
   });
   $("overview") && $("overview").addEventListener("toggle", (e) => {
     if (e.target && e.target.id === "ovMap") { ovMapOpen = e.target.open; try { localStorage.setItem("enca.ovMapOpen", ovMapOpen ? "1" : "0"); } catch {} }

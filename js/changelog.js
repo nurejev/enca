@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32308, date: "2026-09-23", title: "🏅 Identity Secure Score on the home page and in Checks",
+    items: [
+      { kind: "new", tool: "Checks", text: "A new Identity score tab in 🛡 Checks reads Microsoft Entra's Identity Secure Score: the percentage, the points behind it, the change over the last 30 days and the daily trend, and every recommendation with its status and the points still open. Open one for Microsoft's reasoning, value, user impact and steps." },
+      { kind: "new", tool: "Checks", text: "For each recommendation Conditional Access answers — MFA for admin roles, blocking legacy authentication, sign-in risk, user risk, insider risk, MFA for everyone — ENCA shows the policy in this tenant that does it and whether it is On, report-only, built but Off, or missing. So you can see which points are one switch away." },
+      { kind: "new", tool: "Overview", text: "The home page shows the Identity Secure Score beside the policy counts, and a Microsoft recommends section with the open recommendations, Conditional Access first. Before it has been read, both offer to read it. It only reads: it needs a reader role such as Security Reader or Global Reader, and admin consent once for reading recommendations." },
+    ],
+  },
+  {
     build: 32307, date: "2026-09-23", title: "The groups actions bar follows your branding",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "The actions bar at the bottom of the groups list, and the same bar in Protect exclusions, stayed ENCA green in the dark theme whatever branding the site carries. It now takes the brand's own colours in both themes, and the hint next to the group name is readable on it." },

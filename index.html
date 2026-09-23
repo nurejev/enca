@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32307"></script>
+<script src="js/popup-guard.js?v=32308"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32307" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32307">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32308" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32308">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32307"></script>
+<script src="js/selfhost-boot.js?v=32308"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32307"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32307"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32307">
-<link rel="stylesheet" href="css/workspaces.css?v=32307">
-<link rel="stylesheet" href="css/tool-layout.css?v=32307">
-<link rel="stylesheet" href="css/list-detail.css?v=32307">
-<link rel="stylesheet" href="css/flat-icons.css?v=32307">
+<script src="js/counter.js?v=32308"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32308"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32308">
+<link rel="stylesheet" href="css/workspaces.css?v=32308">
+<link rel="stylesheet" href="css/tool-layout.css?v=32308">
+<link rel="stylesheet" href="css/list-detail.css?v=32308">
+<link rel="stylesheet" href="css/flat-icons.css?v=32308">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32307" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32308" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32307" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32308" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1416,6 +1416,19 @@
   </section>
 
   <!-- ============ COMPLIANT-DEVICE REALITY CHECK (R11) ============ -->
+  <!-- ============ 🏅 IDENTITY SECURE SCORE (T42, build 32308) — a tab of 🛡 Checks ============ -->
+  <section id="screen-idscore" class="screen tool">
+    <div class="list-card readme" id="isHead"></div>
+    <div class="toolbar" id="isToolbar">
+      <div class="chip-filter" id="isChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="isRefresh" title="Read the score and the recommendations again from Microsoft Graph">⟳ Refresh</button>
+        <button class="btn" id="isMd" style="display:none">Export MD</button>
+      </div>
+    </div>
+    <div class="tool-body" id="isBody"></div>
+  </section>
+
   <section id="screen-devcheck" class="screen tool">
     <div class="list-card readme" id="dvHead"></div>
     <div class="toolbar" id="dvToolbar">
@@ -1476,6 +1489,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R64</span> 🏅 Identity Secure Score, next to the policies <span class="tag ok">in beta today · beta 32308</span></h4>
+            <p class="mini" style="margin:0">Microsoft Entra's Identity Secure Score on the home page and as a tab of 🛡 Checks: the percentage and its trend, the recommendations behind it, and for every recommendation Conditional Access answers, what ENCA sees — the policy that does it and whether it is On, report-only, built but Off, or missing. Read-only. Graduates once it has been read on a few real tenants, including one where the account lacks the reader role.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R63</span> 📰 Microsoft Learn, watched every night <span class="tag ok">in beta today · beta 32306</span></h4>
             <p class="mini" style="margin:0">The MS Learn checks were only as current as the last time someone read their pages. A nightly run now reads Microsoft's documentation repository for Conditional Access, flags every check whose page changed after it was last read, lists new pages and what's-new entries, and keeps one GitHub issue open while anything is undecided. Each item is decided on the tab, and 📋 Work order turns the decisions into work. Graduates once a few nights of real feed have been triaged and at least one work order has been carried out.</p>
@@ -2045,6 +2062,17 @@
         <li><b>📄 Export MD</b> — the verdicts as Markdown for the review record.</li>
       </ul>
       <p class="help-x">Read-only. Needs <code>DeviceManagementConfiguration.Read.All</code> and <code>DeviceManagementApps.Read.All</code>, asked once on the click, plus an Intune RBAC role that can read the workload (e.g. Read Only Operator). Assignment targets are checked first; where names alone cannot prove overlap, the tool expands transitive group memberships and matches the users. An unreadable, unenumerable or over-cap scope stays <b>not proven</b> rather than being guessed empty or uncovered.</p>
+          <h5>🏅 Identity Secure Score <span class="tag new">BETA</span> <span class="help-fold">a tab of this tool — build 32308</span></h5>
+      <p>Microsoft Entra's own score for the identity setup of the tenant (Entra ID → Identity Secure Score in the admin center), and the recommendations behind it — beside what ENCA sees in the policies loaded now.</p>
+      <ul>
+        <li><b>▶ Read Identity Secure Score</b> — the tab waits until you ask. It reads the daily score history and the recommendations; the result stays for the session until ⟳ Refresh. Microsoft recalculates once a day, so a policy switched on today counts tomorrow.</li>
+        <li><b>The score</b> — the percentage, the points behind it, the change over the last 30 days and a line of the daily history; then how many recommendations are open, how many of those Conditional Access answers, and how many of THOSE are already built in this tenant and simply not enforcing.</li>
+        <li><b>What ENCA sees</b> — for the recommendations Conditional Access answers (MFA for administrative roles, blocking legacy authentication, sign-in risk, user risk, insider risk, MFA for everyone), the policies that do it and their state: <b>On</b>, <b>report-only</b>, <b>built but Off</b>, or none. It is ENCA's reading, next to Microsoft's, not a correction of it: where a policy is On and Microsoft still counts the recommendation open, the detail says Microsoft's own check decides.</li>
+        <li><b>Filters</b> — To address (the default), Conditional Access, In the score, All, Completed, and Accepted / planned / dismissed. Open a row for Microsoft's reasoning, value, user impact and steps with their links.</li>
+        <li><b>On the home page</b> — the score is a fifth figure beside the policy counts, and <b>Microsoft recommends</b> lists the open recommendations, Conditional Access first. Before a read, both offer ▶ Read.</li>
+        <li><b>Read-only.</b> The API can mark a recommendation planned, dismissed or risk-accepted; this tool never does — status changes are made in the Entra admin center. <b>📄 Export MD</b> writes the list for the review record.</li>
+      </ul>
+      <p class="help-x">Needs <code>DirectoryRecommendations.Read.All</code> (read-only, admin consent once), asked on the click, and a role that can read it — Reports Reader, Security Reader, Global Reader, Security Operator, Security Administrator, Application Administrator or Cloud Application Administrator. The recommendations API is Microsoft Graph beta.</p>
     </section>
 
 
@@ -2259,7 +2287,7 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T41</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T42</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
         <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T42</code> is next.</li>
@@ -2286,6 +2314,7 @@
             <li><code>T31</code> 🎫 Licence gap → <b>🔍 Gap analyse</b>, Licences tab (build 25348)</li>
             <li><code>T35</code> 📞 Teams devices → <b>👥 Conditional Access groups</b>, the 📞 Rule action on the TeamsSharedDevices row (build 25349)</li>
             <li><code>T41</code> 🏗 Policy builder → <b>🧩 Policy building blocks</b>, Builder tab (build 25437 — born there, never a tile)</li>
+            <li><code>T42</code> 🏅 Identity Secure Score → <b>🛡 Checks</b>, Identity score tab (build 32308 — born there, never a tile)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The newest two</b> — <code>T40</code> ↗ Guided rollout is a tile of its own; <code>T41</code> 🏗 Policy builder is the one number that never had a tile: it was born as the Builder tab of 🧩 Policy building blocks, and is listed above with the folded tools for that reason.</li>
@@ -3433,89 +3462,90 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32307"></script>
-<script src="js/selfhost.js?v=32307"></script>
-<script src="js/version.js?v=32307"></script>
-<script src="js/verdict.js?v=32307"></script>
-<script src="js/fork.js?v=32307"></script>
-<script src="js/promote.js?v=32307"></script>
-<script src="js/authConfig.js?v=32307"></script>
-<script src="js/connection.js?v=32307"></script>
-<script src="js/labels.js?v=32307"></script>
-<script src="js/capabilities.js?v=32307"></script>
-<script src="js/graph.js?v=32307"></script>
-<script src="js/model.js?v=32307"></script>
-<script src="js/render.js?v=32307"></script>
-<script src="js/analyze.js?v=32307"></script>
-<script src="js/whatif.js?v=32307"></script>
-<script src="js/mslearn.js?v=32307"></script>
-<script src="js/learntriage.js?v=32307"></script>
-<script src="js/learnfeed.js?v=32307"></script>
-<script src="js/gapcheck.js?v=32307"></script>
-<script src="js/cisdata.js?v=32307"></script>
-<script src="js/cischeck.js?v=32307"></script>
-<script src="js/exclusions.js?v=32307"></script>
-<script src="js/cascope.js?v=32307"></script>
-<script src="js/coverage.js?v=32307"></script>
-<script src="js/runmeta.js?v=32307"></script>
-<script src="js/overview.js?v=32307"></script>
-<script src="js/validator.js?v=32307"></script>
-<script src="js/whatifeval.js?v=32307"></script>
-<script src="js/builder.js?v=32307"></script>
-<script src="js/onboard.js?v=32307"></script>
-<script src="js/compare.js?v=32307"></script>
-<script src="js/whois.js?v=32307"></script>
-<script src="js/wave.js?v=32307"></script>
-<script src="js/sessionctl.js?v=32307"></script>
-<script src="js/spgap.js?v=32307"></script>
-<script src="js/groupuse.js?v=32307"></script>
-<script src="js/iso3166.js?v=32307"></script>
-<script src="js/causes.js?v=32307"></script>
-<script src="js/locations.js?v=32307"></script>
-<script src="js/authcontexts.js?v=32307"></script>
-<script src="js/authstrengths.js?v=32307"></script>
-<script src="js/recycle.js?v=32307"></script>
-<script src="js/rmau.js?v=32307"></script>
-<script src="js/camap.js?v=32307"></script>
-<script src="js/rmaudoc.js?v=32307"></script>
-<script src="js/termsofuse.js?v=32307"></script>
-<script src="js/audit.js?v=32307"></script>
-<script src="js/drift.js?v=32307"></script>
-<script src="js/guide.js?v=32307"></script>
-<script src="js/userimpact.js?v=32307"></script>
-<script src="js/smsvoice.js?v=32307"></script>
-<script src="js/memberof.js?v=32307"></script>
-<script src="js/devcheck.js?v=32307"></script>
-<script src="js/licgap.js?v=32307"></script>
-<script src="js/teamsdev.js?v=32307"></script>
-<script src="js/signinstore.js?v=32307"></script>
-<script src="js/signins.js?v=32307"></script>
-<script src="js/reportimpact.js?v=32307"></script>
-<script src="js/changelog.js?v=32307"></script>
-<script src="js/baselineData.js?v=32307"></script>
-<script src="js/baselineJoeyData.js?v=32307"></script>
-<script src="js/baselineLive.js?v=32307"></script>
-<script src="js/baseline.js?v=32307"></script>
-<script src="js/baselineCleanup.js?v=32307"></script>
-<script src="js/groupTemplates.js?v=32307"></script>
-<script src="js/assign.js?v=32307"></script>
-<script src="js/cagroups.js?v=32307"></script>
-<script src="js/groupmerge.js?v=32307"></script>
-<script src="js/groupsview.js?v=32307"></script>
-<script src="js/runledger.js?v=32307"></script>
-<script src="js/protect.js?v=32307"></script>
-<script src="js/policy-compare.js?v=32307"></script>
-<script src="js/import.js?v=32307"></script>
-<script src="js/export.js?v=32307"></script>
-<script src="js/demo.js?v=32307"></script>
-<script src="js/list-detail.js?v=32307"></script>
-<script src="js/flat-icons.js?v=32307"></script>
-<script src="js/workspace.js?v=32307"></script>
-<script src="js/analysis-jobs.js?v=32307"></script>
-<script src="js/search-suggest.js?v=32307"></script>
-<script src="js/app.js?v=32307"></script>
-<script src="js/accessibility.js?v=32307"></script>
-<script src="js/workspaces.js?v=32307"></script>
-<script src="js/tool-layout.js?v=32307"></script>
+<script src="js/branding.js?v=32308"></script>
+<script src="js/selfhost.js?v=32308"></script>
+<script src="js/version.js?v=32308"></script>
+<script src="js/verdict.js?v=32308"></script>
+<script src="js/fork.js?v=32308"></script>
+<script src="js/promote.js?v=32308"></script>
+<script src="js/authConfig.js?v=32308"></script>
+<script src="js/connection.js?v=32308"></script>
+<script src="js/labels.js?v=32308"></script>
+<script src="js/capabilities.js?v=32308"></script>
+<script src="js/graph.js?v=32308"></script>
+<script src="js/model.js?v=32308"></script>
+<script src="js/render.js?v=32308"></script>
+<script src="js/analyze.js?v=32308"></script>
+<script src="js/whatif.js?v=32308"></script>
+<script src="js/mslearn.js?v=32308"></script>
+<script src="js/learntriage.js?v=32308"></script>
+<script src="js/learnfeed.js?v=32308"></script>
+<script src="js/gapcheck.js?v=32308"></script>
+<script src="js/cisdata.js?v=32308"></script>
+<script src="js/cischeck.js?v=32308"></script>
+<script src="js/exclusions.js?v=32308"></script>
+<script src="js/cascope.js?v=32308"></script>
+<script src="js/coverage.js?v=32308"></script>
+<script src="js/runmeta.js?v=32308"></script>
+<script src="js/overview.js?v=32308"></script>
+<script src="js/validator.js?v=32308"></script>
+<script src="js/whatifeval.js?v=32308"></script>
+<script src="js/builder.js?v=32308"></script>
+<script src="js/onboard.js?v=32308"></script>
+<script src="js/compare.js?v=32308"></script>
+<script src="js/whois.js?v=32308"></script>
+<script src="js/wave.js?v=32308"></script>
+<script src="js/sessionctl.js?v=32308"></script>
+<script src="js/spgap.js?v=32308"></script>
+<script src="js/groupuse.js?v=32308"></script>
+<script src="js/iso3166.js?v=32308"></script>
+<script src="js/causes.js?v=32308"></script>
+<script src="js/locations.js?v=32308"></script>
+<script src="js/authcontexts.js?v=32308"></script>
+<script src="js/authstrengths.js?v=32308"></script>
+<script src="js/recycle.js?v=32308"></script>
+<script src="js/rmau.js?v=32308"></script>
+<script src="js/camap.js?v=32308"></script>
+<script src="js/rmaudoc.js?v=32308"></script>
+<script src="js/termsofuse.js?v=32308"></script>
+<script src="js/audit.js?v=32308"></script>
+<script src="js/drift.js?v=32308"></script>
+<script src="js/guide.js?v=32308"></script>
+<script src="js/userimpact.js?v=32308"></script>
+<script src="js/smsvoice.js?v=32308"></script>
+<script src="js/memberof.js?v=32308"></script>
+<script src="js/devcheck.js?v=32308"></script>
+<script src="js/idscore.js?v=32308"></script>
+<script src="js/licgap.js?v=32308"></script>
+<script src="js/teamsdev.js?v=32308"></script>
+<script src="js/signinstore.js?v=32308"></script>
+<script src="js/signins.js?v=32308"></script>
+<script src="js/reportimpact.js?v=32308"></script>
+<script src="js/changelog.js?v=32308"></script>
+<script src="js/baselineData.js?v=32308"></script>
+<script src="js/baselineJoeyData.js?v=32308"></script>
+<script src="js/baselineLive.js?v=32308"></script>
+<script src="js/baseline.js?v=32308"></script>
+<script src="js/baselineCleanup.js?v=32308"></script>
+<script src="js/groupTemplates.js?v=32308"></script>
+<script src="js/assign.js?v=32308"></script>
+<script src="js/cagroups.js?v=32308"></script>
+<script src="js/groupmerge.js?v=32308"></script>
+<script src="js/groupsview.js?v=32308"></script>
+<script src="js/runledger.js?v=32308"></script>
+<script src="js/protect.js?v=32308"></script>
+<script src="js/policy-compare.js?v=32308"></script>
+<script src="js/import.js?v=32308"></script>
+<script src="js/export.js?v=32308"></script>
+<script src="js/demo.js?v=32308"></script>
+<script src="js/list-detail.js?v=32308"></script>
+<script src="js/flat-icons.js?v=32308"></script>
+<script src="js/workspace.js?v=32308"></script>
+<script src="js/analysis-jobs.js?v=32308"></script>
+<script src="js/search-suggest.js?v=32308"></script>
+<script src="js/app.js?v=32308"></script>
+<script src="js/accessibility.js?v=32308"></script>
+<script src="js/workspaces.js?v=32308"></script>
+<script src="js/tool-layout.js?v=32308"></script>
 </body>
 </html>

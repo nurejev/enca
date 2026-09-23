@@ -117,6 +117,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 284,
+      title: "🏅 Identity Secure Score — T42, a tab of 🛡 Checks, and the score + Microsoft recommends on the home page",
+      tools: ["Checks", "Overview"],
+      builds: [32308],
+      risk: "medium",
+      what: "js/idscore.js (new, pure: latest, normalize, evidence, model, render, chips, dashboardTile, dashboardRecs, toMd) with its script tag; js/app.js: isRaw/isModel state beside caSettingsCache (reset on both tenant loads), openIdScore/renderIdScore/runIdScore, the checks TAB_HOSTS tab (beta: true), the FOLDED entry for the command palette, screen-idscore in HISTORY_SCREENS, renderOverview passes the tile to Overview.header and puts IdScore.dashboardRecs after the primary band, data-ovrun is reads it in place; js/overview.js: header() takes an optional fifth figure (db-counts.five); index.html: screen-idscore, Help h5 under 🛡 Checks, T42 in the tool numbers, roadmap R64; css is-* and db-is; js/demo.js idScores + idRecommendations; DirectoryRecommendations.Read.All added to New-EncaAppRegistration.ps1, js/onboard.js SCOPES and the README permission table; tools/idscore.test.cjs.",
+      why: "Mihai, 23 Sep, on the home dashboard: it should also show the secure score percentage and a recommendations section, perhaps a new tool; on the mockup: only focus on identity, go build. Medium: a new Graph permission (read-only, admin consent) and a beta API; nothing is written to the tenant.",
+      test: [
+        "Beta site, a real tenant, signed in as Global Reader or Security Reader: the home strip has a fifth figure, Identity Secure Score — ▶ read it. Click it: the admin-consent prompt for DirectoryRecommendations.Read.All appears once; after it, the figure shows the same percentage as Entra ID → Identity Secure Score in the admin center (Microsoft's page may round differently).",
+        "Microsoft recommends lists up to four open recommendations, the Conditional Access ones first, each with points and What ENCA sees; All N recommendations opens 🛡 Checks on the Identity score tab.",
+        "The tab: score, 30-day change and trend line, three facts (to address, answered by Conditional Access, already built but not enforcing). Filters To address / Conditional Access / In the score / All / Completed / Accepted. Open a row: Microsoft's reasoning, value, steps with links, and what ENCA looked for.",
+        "In the CloudFellows tenant (99 of 105 Off): Require MFA for administrative roles and Block legacy authentication read Built, Off with the baseline policy names; the ›-button goes to 🧬 Baseline or 🛡 Checks.",
+        "Signed in with an account WITHOUT a reader role (or refuse the consent): the tab and the home band say it could not be read and why; the rest of the home page is unchanged.",
+        "⟳ Refresh reads again; Export MD opens the report. Switch tenant: the figure goes back to ▶ read it.",
+        "Demo (?demo=1): the figure reads 47.9% with example recommendations, marked demo in the footer.",
+      ],
+      files: ["js/idscore.js", "js/app.js", "js/overview.js", "js/demo.js", "js/onboard.js", "index.html", "css/app.css", "New-EncaAppRegistration.ps1", "README.md", "tools/idscore.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 283,
       title: "T12 groups actions bar (and the 🔒 Protect bar) follows the site branding in dark",
       tools: ["Conditional Access groups"],
