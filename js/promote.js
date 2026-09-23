@@ -119,6 +119,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 275,
+      title: "Policy write guard — Adaptive Protection from Insider Risk plans; an edit is checked only for what it adds",
+      tools: ["Policies"],
+      builds: [25491],
+      risk: "medium",
+      what: "js/capabilities.js: fromSkus purview matches INSIDER_RISK / INSIDER_RISK_MANAGEMENT as well as ADAPTIVE PROTECTION; check(raw, evidence, already) skips requirements the policy already had. js/app.js Graph.setPolicyGuard: a PATCH passes the existing policy's requirements as already, a restore the restored policy's; a POST is checked in full as before.",
+      why: "Mihai hit “Policy write stopped: Purview Adaptive Protection could not be verified. No premium conditions were removed.” on a PATCH (whole sections). No service plan is named Adaptive Protection, so the evidence was unknown in every tenant and every write to an insider-risk policy stopped.",
+      test: [
+        "Perfetti (or the baseline tenant): edit CA012, CA013 or CA017 on the card — add an exclusion group — Save: it writes and reads back, no guard message.",
+        "In a tenant with Microsoft 365 E5 or E5 Compliance, 📥 Import of an insider-risk policy is no longer refused for Adaptive Protection.",
+        "On the card of a policy WITHOUT risk conditions, add a user-risk condition in a tenant without Entra ID P2 (or where it cannot be read): the save is still stopped, naming Entra ID P2.",
+      ],
+      files: ["js/capabilities.js", "js/app.js", "tools/capabilities-write.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 274,
       title: "📘 Shared-device matrix — Teams Rooms and Surface Hub against the demanded controls",
       tools: ["Checks"],

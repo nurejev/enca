@@ -23347,13 +23347,22 @@ This is a directory write. Nothing else changes.`)) return;
     if (isDemo || (method === "PATCH" && body.state === "disabled" && Object.keys(body).length === 1)) return;
     const context = `${tenantId}:${policiesReadAt}`;
     const evidence = await readCapabilities(true);
-    let raw = body;
-    if (method === "POST" && /\/restore$/.test(url)) raw = await Graph.gget(url.replace(/\/restore$/, ""));
+    let raw = body, already = [];
+    if (method === "POST" && /\/restore$/.test(url)) {
+      raw = await Graph.gget(url.replace(/\/restore$/, ""));
+      already = Capabilities.requirements(raw);   // restoring what Entra already accepted once
+    }
     if (method === "PATCH") {
       const existing = await Graph.gget(url);
       raw = { ...existing, ...body, conditions: { ...(existing.conditions || {}), ...(body.conditions || {}) } };
+      // 25491: only what this write ADDS has to be proven. An edit of a
+      // policy that already carries an insider-risk condition (CA012, CA013,
+      // CA017) was stopped because Adaptive Protection "could not be
+      // verified" — though Entra had accepted the condition when the policy
+      // was made, and the edit did not touch it.
+      already = Capabilities.requirements(existing);
     }
-    const requirement = Capabilities.check(raw, evidence);
+    const requirement = Capabilities.check(raw, evidence, already);
     if (!requirement.ok) throw new Error(`Policy write stopped: ${requirement.reason}. No premium conditions were removed.`);
     if (method === "POST") {
       const current = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id");

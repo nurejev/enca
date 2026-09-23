@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25491, date: "2026-09-23", title: "Editing a policy with an insider-risk condition is no longer stopped",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "✎ Saving a change to a policy that uses an insider-risk condition (CA012, CA013, CA017) stopped with “Purview Adaptive Protection could not be verified” — even when the change was only an exclusion. ENCA looked for a licence plan named Adaptive Protection, and there is none: it comes with Insider Risk Management, which is now recognised. And an edit is only checked for what it ADDS — a condition Entra already accepted on the policy is not held against it." },
+    ],
+  },
+  {
     build: 25490, date: "2026-09-23", title: "MS Learn checks wait for Run checks, like Bypass",
     items: [
       { kind: "improved", tool: "Checks", text: "📘 The Microsoft Learn tab no longer runs by itself every time it opens — it now reads a fair amount from the tenant (cross-tenant settings, the guests in every included group). Like Bypass & Swiss cheese it waits for ▶ Run checks, says what it will read, and keeps the result until you refresh." },

@@ -17,7 +17,13 @@ const Capabilities = (() => {
       // match is unknown, not proof that the product is unlicensed/unconfigured.
       cloudApps: named(/ADALLOM|MCAS|DEFENDER.*CLOUD.*APP/i) || null,
       governance: named(/ENTRA.*GOVERNANCE|AAD.*GOVERNANCE/i) || null,
-      purview: named(/ADAPTIVE.*PROTECTION/i) || null };
+      // 25491: no service plan is NAMED Adaptive Protection — it is part of
+      // Insider Risk Management (Microsoft 365 E5, E5 Compliance, E5 Insider
+      // Risk Management), whose plans are INSIDER_RISK and
+      // INSIDER_RISK_MANAGEMENT. Matching only /ADAPTIVE.*PROTECTION/ left
+      // this unknown in every tenant, so every write to a policy with an
+      // insider-risk condition stopped with "could not be verified".
+      purview: named(/INSIDER_RISK|ADAPTIVE.*PROTECTION/i) || null };
   }
   function requirements(raw) {
     const p = raw || {}, c = p.conditions || {}, grants = p.grantControls || {}, sessions = p.sessionControls || {};
@@ -28,9 +34,14 @@ const Capabilities = (() => {
     if (grants.builtInControls?.includes("compliantApplication")) need.add("intune");
     return [...need];
   }
-  function check(raw, evidence) {
+  // `already`: requirements the policy carried BEFORE this write (a PATCH).
+  // Entra accepted those when the policy was made, so an edit that keeps them
+  // — an exclusion added, a name changed — is not blocked on evidence this
+  // tool cannot read; only a requirement the write ADDS must be proven.
+  function check(raw, evidence, already) {
+    const had = new Set(already || []);
     const required = requirements(raw);
-    const missing = required.filter(k => evidence?.[k] !== true);
+    const missing = required.filter(k => !had.has(k) && evidence?.[k] !== true);
     return { ok: !missing.length, required, missing, reason: missing.map(k => `${labels[k]} ${evidence?.[k] === false ? "not present in active subscriptions" : "could not be verified"}`).join("; ") };
   }
   function plan(raws, evidence, existingCount) {
