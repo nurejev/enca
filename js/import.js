@@ -1595,9 +1595,63 @@ const Importer = (() => {
   // like a replace.
   // opts.onItem(i, "start" | "end", result) lets the caller drive a run
   // ledger; opts.shouldStop() is checked between policies.
+  // Verify a created policy, activate it, then switch the version it replaces
+  // Off — the second half of an import, run once per policy right after its
+  // create and, for one Conditional Access has not shown yet, once more at
+  // the end of the run (25483). Throws on anything it cannot verify.
+  async function afterCreate(c, waits) {
+    const { it, created, staged, payload, supersedes, matchFrom, dropped, agentNotes } = c;
+    const replace = c.replace, switching = c.switching, shipped = c.shipped, warnings = c.warnings;
+        const url = `/identity/conditionalAccess/policies/${created.id}`;
+        const canonical = value => {
+          if (Array.isArray(value)) return value.map(canonical).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+          if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).filter(k => !k.startsWith("@odata") && value[k] != null && !(Array.isArray(value[k]) && !value[k].length)).sort().map(k => [k, canonical(value[k])]));
+          return value;
+        };
+        // Compare the properties we sent; Graph may return additional read-only fields.
+        const contains = (actual, expected) => {
+          if (expected == null) return actual == null;
+          if (Array.isArray(expected)) return JSON.stringify(canonical(actual || [])) === JSON.stringify(canonical(expected));
+          // An OData annotation is not a setting. Graph answers a read with
+          // minimal metadata, so the "@odata.type" an export carries on every
+          // nested object never comes back — comparing it failed every Joey
+          // policy as "differs from the approved plan" after creating it.
+          if (typeof expected === "object") return Object.entries(expected).every(([k,v]) => k.includes("@odata") || contains(actual?.[k],v));
+          return actual === expected;
+        };
+        let saved;
+        {
+          saved = await readSettled(url, null, waits);
+          if (!contains(saved, staged)) throw new Error("Stored policy differs from the approved plan");
+          if (payload.state !== "disabled") {
+            await Graph.gpatch(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE]);
+            saved = await readSettled(url, (s) => contains(s, payload), waits);
+            if (!contains(saved, payload)) throw new Error("Activated policy could not be verified");
+          }
+        }
+        const newState = payload.state;
+        let disabledOld = false;
+        const oldName = it.existing?.name || null;
+        if (supersedes) {
+          // switch the superseded policy Off; both land disabled, so the admin
+          // reviews the new one and removes the old when satisfied.
+          try {
+            await Graph.gpatch(`/identity/conditionalAccess/policies/${supersedes.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE]);
+            const oldReadback = await readSettled(`/identity/conditionalAccess/policies/${supersedes.id}`, (s) => s && s.state === "disabled", waits);
+            if (oldReadback.state !== "disabled") throw new Error("previous policy did not read back as Off");
+            disabledOld = true;
+          } catch (e) {
+            warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
+          }
+        }
+        return ({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching || shipped ? null : it.personaGroup, asIs: it.asIs, forceOff: !!it.forceOff, matched: !!matchFrom, switched: switching, shipped: shipped && !matchFrom, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped, agentNotes });
+  }
+  const UNREAD = /\(404\)|ResourceNotFound|does not exist/i;
+  const LATE_WAITS = { missing: [2000, 4000, 8000, 15000, 30000], stale: [1000, 2000, 4000] };
+
   async function importPolicies(items, maps, onStatus, opts = {}) {
     const replace = opts.mode === "replace", switching = opts.mode === "switch", shipped = opts.mode === "shipped";
-    const results = [], warnings = [];
+    const results = [], warnings = [], deferred = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (opts.shouldStop && opts.shouldStop()) { results.push({ name: it.name, ok: false, stopped: true, error: "stopped before this policy — nothing changed" }); continue; }
@@ -1643,54 +1697,27 @@ const Importer = (() => {
         }
         if (!created?.id) throw new Error("Create returned no policy id; verify the tenant before retrying. Previous policy was not changed.");
         createdId = created.id;
-        const url = `/identity/conditionalAccess/policies/${created.id}`;
-        const canonical = value => {
-          if (Array.isArray(value)) return value.map(canonical).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-          if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).filter(k => !k.startsWith("@odata") && value[k] != null && !(Array.isArray(value[k]) && !value[k].length)).sort().map(k => [k, canonical(value[k])]));
-          return value;
-        };
-        // Compare the properties we sent; Graph may return additional read-only fields.
-        const contains = (actual, expected) => {
-          if (expected == null) return actual == null;
-          if (Array.isArray(expected)) return JSON.stringify(canonical(actual || [])) === JSON.stringify(canonical(expected));
-          // An OData annotation is not a setting. Graph answers a read with
-          // minimal metadata, so the "@odata.type" an export carries on every
-          // nested object never comes back — comparing it failed every Joey
-          // policy as "differs from the approved plan" after creating it.
-          if (typeof expected === "object") return Object.entries(expected).every(([k,v]) => k.includes("@odata") || contains(actual?.[k],v));
-          return actual === expected;
-        };
-        let saved;
-        try {
-          saved = await readSettled(url, null, opts.readWaits);
-          if (!contains(saved, staged)) throw new Error("Stored policy differs from the approved plan");
-          if (payload.state !== "disabled") {
-            await Graph.gpatch(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE]);
-            saved = await readSettled(url, (s) => contains(s, payload), opts.readWaits);
-            if (!contains(saved, payload)) throw new Error("Activated policy could not be verified");
+        const c = { it, created, staged, payload, supersedes, matchFrom, dropped, agentNotes, replace, switching, shipped, warnings };
+        let r;
+        try { r = await afterCreate(c, opts.readWaits); }
+        catch (e) {
+          // 25483: CREATED BUT NOT YET VISIBLE is not a failure yet. On a large
+          // tenant Conditional Access can answer "does not exist" for a policy
+          // it just created for longer than the ~20 s the read-back waits
+          // (Perfetti, 23 Sep: 8 of 18 replacements). Those used to fail on
+          // the spot, leaving the new version Off beside the old one On and a
+          // re-run that skips it by name — so the switch never happened. Now
+          // the run carries on and checks them again at the END, minutes
+          // later, finishing activation and the switch-over when they show.
+          if (UNREAD.test(e.message || "")) {
+            deferred.push({ at: results.length, i, c });
+            results.push({ name: it.name, ok: false, pending: true, createdId: created.id, error: "created — Conditional Access has not shown it yet; checked again at the end of the run" });
+            opts.onItem?.(i, "pending", results[results.length - 1]);
+            continue;
           }
-        } catch (e) {
-          const unread = /\(404\)|ResourceNotFound|does not exist/i.test(e.message || "");
-          throw new Error(unread
-            ? `Created as ${created.id}, but Conditional Access still answered “does not exist” after about 20 seconds, so its settings are not verified. It is almost certainly there, Off — open it before importing again (a re-run skips it by name). Previous policy was not changed.`
-            : `${e.message}. New policy ${created.id} may exist (last verified state: ${saved?.state || "unknown"}); inspect it before retrying. Previous policy was not changed.`);
+          throw new Error(`${e.message}. New policy ${created.id} may exist; inspect it before retrying. Previous policy was not changed.`);
         }
-        const newState = payload.state;
-        let disabledOld = false;
-        const oldName = it.existing?.name || null;
-        if (supersedes) {
-          // switch the superseded policy Off; both land disabled, so the admin
-          // reviews the new one and removes the old when satisfied.
-          try {
-            await Graph.gpatch(`/identity/conditionalAccess/policies/${supersedes.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE]);
-            const oldReadback = await readSettled(`/identity/conditionalAccess/policies/${supersedes.id}`, (s) => s && s.state === "disabled", opts.readWaits);
-            if (oldReadback.state !== "disabled") throw new Error("previous policy did not read back as Off");
-            disabledOld = true;
-          } catch (e) {
-            warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
-          }
-        }
-        results.push({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching || shipped ? null : it.personaGroup, asIs: it.asIs, forceOff: !!it.forceOff, matched: !!matchFrom, switched: switching, shipped: shipped && !matchFrom, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped, agentNotes });
+        results.push(r);
         for (const n of agentNotes) warnings.push(`${it.name}: ${n}`);
       } catch (e) {
         console.error("Import failed:", it.name, e);
@@ -1725,6 +1752,25 @@ const Importer = (() => {
         results.push({ name: it.name, ok: false, createdId, error: (e.message || String(e)) + hint });
       }
       opts.onItem?.(i, "end", results[results.length - 1]);
+    }
+    // 25483: the second look at every policy Conditional Access had not shown
+    // yet. By now the rest of the run has passed, and the wait is longer.
+    if (deferred.length) onStatus?.(`Checking ${deferred.length} created polic${deferred.length === 1 ? "y" : "ies"} Conditional Access had not shown yet…`);
+    for (const d of deferred) {
+      const { it, created } = d.c;
+      if (opts.shouldStop && opts.shouldStop()) {
+        results[d.at] = { name: it.name, ok: false, createdId: created.id, stopped: true, error: `stopped before the second check — ${created.id} was created Off and is not verified; the previous policy was not changed` };
+        opts.onItem?.(d.i, "end", results[d.at]); continue;
+      }
+      onStatus?.(`${it.name}: checking again…`);
+      try { results[d.at] = await afterCreate(d.c, opts.lateWaits || LATE_WAITS); results[d.at].late = true; for (const n of d.c.agentNotes) warnings.push(`${it.name}: ${n}`); }
+      catch (e) {
+        const hint = d.c.supersedes ? ` · the previous policy "${d.c.supersedes.name || it.name}" is only changed after a verified replacement — finish it with 🧹 Housekeeping → Switch over, or by hand` : "";
+        results[d.at] = { name: it.name, ok: false, createdId: created.id, error: (UNREAD.test(e.message || "")
+          ? `Created as ${created.id}, but Conditional Access still answered “does not exist” — at once, and again at the end of the run a minute or more later — so its settings are not verified. It is almost certainly there, Off; a re-run skips it by name. Previous policy was not changed.`
+          : `${e.message}. New policy ${created.id} may exist; inspect it before retrying. Previous policy was not changed.`) + hint };
+      }
+      opts.onItem?.(d.i, "end", results[d.at]);
     }
     return { results, warnings };
   }

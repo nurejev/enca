@@ -119,6 +119,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 272,
+      title: "Import — finish created-but-not-yet-visible policies at the end of the run",
+      tools: ["Import"],
+      builds: [25483],
+      risk: "high",
+      what: "js/import.js: afterCreate(c, waits) — verify, activate, switch the superseded version Off — split out of importPolicies; an UNREAD (404) error after the create parks the item in deferred[] with a pending result and onItem phase pending; after the loop each parked item runs afterCreate again with LATE_WAITS (2+4+8+15+30 s) and its result replaces the pending one; a still-unread policy fails with the two-checks wording and points at Housekeeping / by hand. js/app.js: the import ledger notes a pending row instead of failing it, and marks a late success.",
+      why: "Perfetti, 23 Sep, Match & replace from the CloudFellows baseline: 8 of 18 replacements created and never verified, each left Off beside its predecessor On. Risk high because it changes when an import switches a production policy Off.",
+      test: [
+        "Import into a large tenant (Perfetti) in Match & replace: rows that Entra is slow to show read created · checked again at the end, and turn ✓ at the end with the old version switched Off — the report lists them under imported, not failed.",
+        "A policy that never becomes readable (simulate by importing and deleting it in the portal within seconds) is reported as failed after both checks, the old version untouched.",
+        "Stop the run while policies are parked: they are reported as created Off and not verified, the old versions untouched.",
+        "Recover the 8 from 23 Sep by hand first (they are Off beside their predecessors); a re-run of the same file will not touch them because it skips them by name.",
+      ],
+      files: ["js/import.js", "js/app.js", "tools/import-joey.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 271,
       title: "🔀 Merge groups that share a display name",
       tools: ["CA groups"],

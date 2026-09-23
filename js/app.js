@@ -4344,8 +4344,11 @@
           onItem: (i, phase, r) => {
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
-            if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
-            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : r.shipped ? "created as shipped" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}${(r.agentNotes || []).length ? " · 🤖 written in the documented agent shape" : ""}`, "imported");
+            // 25483: created, not yet visible — the item stays open and is
+            // settled by the second check at the end of the run
+            if (phase === "pending") { L.note(i + 1, "created · Conditional Access has not shown it yet — checked again at the end of the run"); return; }
+            if (r.stopped) { L.skip(i + 1, r.createdId ? r.error : "stopped"); stoppedEarly = true; return; }
+            if (r.ok) L.done(i + 1, `${r.late ? "(on the second check) " : ""}${r.matched ? "updated in place" : r.switched ? "switched" : r.shipped ? "created as shipped" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}${(r.agentNotes || []).length ? " · 🤖 written in the documented agent shape" : ""}`, "imported");
             else L.fail(i + 1, r.error || "refused", "refused");
           },
         });

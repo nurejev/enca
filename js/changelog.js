@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25483, date: "2026-09-23", title: "Import: a policy Entra is slow to show is finished at the end of the run",
+    items: [
+      { kind: "fixed", tool: "Import", text: "📥 On a large tenant Conditional Access can take more than 20 seconds to show a policy it has just created. The import used to report those as failed — the new version stayed Off beside the old one, and importing again skipped it by name, so the switch could never finish. Now the run carries on and checks those policies again at the end, then switches them On and turns the old version Off as planned. Only a policy that still does not show after both checks is reported, with how to finish it." },
+    ],
+  },
+  {
     build: 25482, date: "2026-09-22", title: "Baseline catalog: CA406 lets partners through, CA1007 versioned",
     items: [
       { kind: "improved", tool: "Baseline", text: "🧱 Two more from CloudFellows.dev: CA406 now excludes service provider (CSP / GDAP) admins like CA401 and CA404, and CA1007 carries v1.0.3 for the token-protection filter it changed in the last revision — so a tenant still on the old filter reads Outdated instead of Up to date." },
