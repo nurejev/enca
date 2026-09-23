@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32304, date: "2026-09-23", title: "🧰 Fix shows its progress the way every other write does",
+    items: [
+      { kind: "improved", tool: "Checks", text: "Applying Microsoft Learn fixes now runs in the same progress list as importing, the group tools and Housekeeping: every policy is listed before the first write, each row turns done, failed or partly done where it stands with the reason beside it, the header counts, and Stop after this one leaves the rest untouched. A clean run closes and opens the report; if anything failed the list stays open so you can read it." },
+    ],
+  },
+  {
     build: 32303, date: "2026-09-23", title: "Fix a Microsoft Learn finding where you see it, and hand it straight to the catalog",
     items: [
       { kind: "new", tool: "Checks", text: "In the baseline tenant, every Microsoft Learn finding that has a fix now carries 🧰 Fix on the finding itself, the shared-device matrix has one button for all its blocked cells, and 🧰 Fix all sits in the toolbar. You see the list of changes first. Each policy is changed in place — the same policy, the same state, only the fix and the version in its name — and nothing is deleted. The report afterwards keeps every changed part as it was, so you can put it back." },

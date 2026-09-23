@@ -20483,6 +20483,10 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlApplyReadyRow").style.display = isBaselineTenant() ? "" : "none";
     $("mlApplyReady").checked = true;
     $("mlApplyResult").style.display = "none"; $("mlApplyResult").innerHTML = "";
+    // 32304: the run ledger hides the plan and the ticks while it writes — put
+    // them back for the next confirm (Delete / Ready rows were set above).
+    ["mlApplyDesc", "mlApplyList", "mlApplyOkRow"].forEach((id) => { const el = $(id); if (el) el.style.display = ""; });
+    $("mlApplyResult").classList.add("ml-apply-list"); $("mlApplyGo").style.display = "";
     $("mlApplyOk").checked = false; $("mlApplyDelete").checked = true;
     $("mlApplyGo").disabled = true; $("mlApplyGo").textContent = `Apply ${n}`;
     $("mlApplyModal").classList.add("open");
@@ -20505,34 +20509,58 @@ This is a directory write. Nothing else changes.`)) return;
     const scopes = [...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"];
     if ((set.missingApps || []).length) scopes.push("Application.ReadWrite.All");
     if (!await preConsent(scopes)) return;
-    const btn = $("mlApplyGo"); btn.disabled = true;
-    const out = $("mlApplyResult"); out.style.display = ""; out.innerHTML = "";
-    const log = (cls, msg) => { out.insertAdjacentHTML("beforeend", `<div class="ml-apply-row ${cls}">${msg}</div>`); out.scrollTop = out.scrollHeight; };
-    let created = 0, deleted = 0, failed = 0, patched = 0;
+    const btn = $("mlApplyGo"); btn.disabled = true; btn.textContent = "Applying…";
+    // 32304 — THE RUN LEDGER, like every other write (📥 Import, 👥 groups,
+    // 🧹 Housekeeping). Mihai, on a screenshot of this dialog mid-run: "this
+    // flow should be the same as the others in groups, imports etc". It was
+    // its own thing — a scrolling log appended BELOW the plan and the two
+    // confirmation ticks, with the progress only in the button text. Now the
+    // plan and the ticks make way for the ledger: the whole list is shown
+    // before the first write, each row turns ✓ / ✗ / ◐ in place with the
+    // reason inline, the header counts, and ■ Stop after this one works.
+    // A clean run closes the dialog and opens the report; one with failures
+    // or a stop stays open so the ✗ rows are read where they happened.
+    ["mlApplyDesc", "mlApplyList", "mlApplyDeleteRow", "mlApplyReadyRow", "mlApplyOkRow"].forEach((id) => { const el = $(id); if (el) el.style.display = "none"; });
+    const out = $("mlApplyResult"); out.style.display = ""; out.classList.remove("ml-apply-list"); out.innerHTML = "";
+    const miss0 = set.missingApps || [];
+    const spRow = miss0.length ? 0 : -1, off = miss0.length ? 1 : 0;
+    const L = RunLedger.create(out, { unit: "policies", title: mlApplyLabel || "MS Learn fixes", items: [
+      ...(miss0.length ? [{ label: `${miss0.length} Microsoft service principal${miss0.length === 1 ? "" : "s"}`, sub: "created first — a policy cannot name an app the tenant has no object for" }] : []),
+      ...set.fixes.map((f) => mlEditsInPlace(f)
+        ? { label: f.originalName, sub: `change in place → ${f.newName} · stays ${f.originalState || ""}` }
+        : f.companion ? { label: f.newName, sub: `new companion, Off · beside ${f.originalName}` }
+        : { label: f.newName, sub: `create Off${del ? `, then delete ${f.originalName}` : ` · ${f.originalName} kept`}` }),
+    ], onStop: () => {} });
+    let created = 0, deleted = 0, failed = 0, patched = 0, stoppedEarly = false;
     const results = [];
     // Step 0: instantiate the Microsoft apps the fixes reference. A policy that
     // names an app with no service principal is rejected outright, so this has
     // to happen before any policy is written.
     const spCreated = [], spFailed = [];
-    for (const m of (set.missingApps || [])) {
-      btn.textContent = "Creating service principals…";
-      try {
-        const sp = await Graph.createServicePrincipal(m.appId);
-        spCreated.push({ ...m, name: sp.displayName || m.label });
-        log("ok", `✓ Created service principal <b>${esc(sp.displayName || m.label)}</b> (${esc(m.appId)})`);
-      } catch (e) {
-        spFailed.push({ ...m, error: e.message || String(e) });
-        log("bad", `✗ Could not create the service principal for <b>${esc(m.label)}</b> (${esc(m.appId)}): ${esc(e.message || e)} — that app reference will be dropped.`);
+    if (spRow === 0) {
+      L.start(0);
+      for (const m of miss0) {
+        try {
+          const sp = await Graph.createServicePrincipal(m.appId);
+          spCreated.push({ ...m, name: sp.displayName || m.label });
+        } catch (e) {
+          spFailed.push({ ...m, error: e.message || String(e) });
+        }
       }
+      const spNote = `${spCreated.length} created${spFailed.length ? ` · ${spFailed.length} refused (${spFailed.map((x) => x.label).join(", ")}) — ${spFailed.length === 1 ? "that app reference is" : "those app references are"} dropped from the policies` : ""}`;
+      if (!spFailed.length) L.done(0, spNote, "created");
+      else if (spCreated.length) L.part(0, spNote, "partly done");
+      else L.fail(0, spNote, "refused");
     }
     // whatever could not be created must come out of the drafts
     if (spFailed.length) MSLearn.dropApps(set, spFailed.map((x) => x.appId));
     const ready = [];
-    let i = 0;
-    for (const f of set.fixes) {
+    for (let i = 0; i < set.fixes.length; i++) {
+      const f = set.fixes[i], row = i + off;
       const rec = { fix: f, created: false, deleted: false, patched: false, error: null, deleteError: null };
       results.push(rec);
-      btn.textContent = `Applying ${++i}/${set.fixes.length}…`;
+      if (L.stopped) { stoppedEarly = true; rec.error = "stopped before this policy — nothing changed for it"; rec.stopped = true; L.skip(row, "stopped before this policy — nothing changed", "stopped"); continue; }
+      L.start(row);
       if (mlEditsInPlace(f)) {
         // IN PLACE: one PATCH of the sections that changed, name included.
         try {
@@ -20542,11 +20570,11 @@ This is a directory write. Nothing else changes.`)) return;
           rec.before = JSON.stringify(Object.fromEntries(Object.keys(body).map((k) => [k, (f.raw || {})[k] ?? null])), null, 2);
           await Graph.gpatch(`/identity/conditionalAccess/policies/${f.policyId}`, body, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
           patched++; rec.patched = true;
-          log("ok", `✓ Changed <b>${esc(f.originalName)}</b> → <b>${esc(f.newName)}</b>`);
+          L.done(row, `now ${f.newName} · ${f.changes.join("; ")}`, "changed");
           ready.push(f);
         } catch (e) {
           failed++; rec.error = e.message || String(e);
-          log("bad", `✗ Could not change <b>${esc(f.originalName)}</b>: ${esc(e.message || e)} — it was left as it was.`);
+          L.fail(row, `${e.message || e} — the policy was left as it was`, "refused");
         }
         continue;
       }
@@ -20562,41 +20590,51 @@ This is a directory write. Nothing else changes.`)) return;
             if (vi > 0) {
               rec.variantNote = variants[vi].note;
               f.changes.push(variants[vi].note);
-              log("ok", `↻ ${esc(variants[vi].note)}`);
+              L.note(row, `↻ ${variants[vi].note}`);
             }
             break;
           } catch (err) { lastErr = err; res = null; }
         }
         if (!res) throw lastErr;
         created++; rec.created = true; rec.createdId = res && res.id;
-        log("ok", `✓ Created <b>${esc(f.newName)}</b> (Off)`);
         ready.push(f);
         if (del && !f.companion) {
           try {
             await Graph.gdelete(`/identity/conditionalAccess/policies/${f.policyId}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
             deleted++; rec.deleted = true;
-            log("ok", `✓ Deleted <b>${esc(f.originalName)}</b>`);
+            L.done(row, `created Off · ${f.originalName} deleted${rec.variantNote ? ` · ${rec.variantNote}` : ""}`, "replaced");
           } catch (e) {
+            // the replacement landed and the original did not go — neither ✓
+            // nor ✗ is honest for that (25324): partly done
             failed++; rec.deleteError = e.message || String(e);
-            log("bad", `✗ Created the replacement but could NOT delete <b>${esc(f.originalName)}</b>: ${esc(e.message || e)} — both policies now exist, remove the old one manually.`);
+            L.part(row, `created Off, but ${f.originalName} could NOT be deleted: ${e.message || e} — both exist now, remove the old one by hand`, "partly done");
           }
+        } else {
+          L.done(row, `created Off${f.companion ? ` · ${f.originalName} not changed` : ` · ${f.originalName} kept`}${rec.variantNote ? ` · ${rec.variantNote}` : ""}`, "created");
         }
         if (res && res.id) f.createdId = res.id;
       } catch (e) {
         failed++; rec.error = e.message || String(e);
-        log("bad", `✗ Failed to create <b>${esc(f.newName)}</b>: ${esc(e.message || e)} — <b>${esc(f.originalName)}</b> was left untouched.`);
+        L.fail(row, `${e.message || e} — ${f.originalName} was left untouched`, "refused");
       }
     }
     if (markReady && ready.length) { catReadyAdd(ready); renderMsLearn(); }
-    btn.textContent = "Done";
-    log("", `${patched ? `<b>${patched}</b> changed in place · ` : ""}<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed.${markReady && ready.length ? ` <b>${ready.length}</b> marked ready for 🧱 Update the catalog.` : ""} Reloading policies…`);
     const mlMd = applyReport(results, { created, deleted, failed, del, patched, inPlace, spCreated, spFailed });
+    const openReport = () => showReport("📘 MS Learn fixes applied", "CA-MSLearn-Applied", mlMd);
+    L.finish({ report: openReport });
     toast(`${patched ? `${patched} changed` : ""}${patched && created ? ", " : ""}${created ? `${created} created` : ""}${deleted ? `, ${deleted} removed` : ""}${!patched && !created ? "nothing written" : ""}`);
+    // a clean run closes the dialog; one with failures (or a stop) stays open
+    // so the ✗ rows are read where they happened — the same manners as 📥 Import
+    if (!failed && !stoppedEarly && !spFailed.length) $("mlApplyModal").classList.remove("open");
+    else {
+      btn.style.display = "none";
+      out.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)"><b>${failed} not done${stoppedEarly ? ", stopped early" : ""}</b> — the reasons are on the rows and in the report.${markReady && ready.length ? ` ${ready.length} that landed are marked ready for 🧱 Update the catalog.` : ""}</p>`);
+    }
     try { await loadFromGraph(true); } catch { /* surfaced by loadFromGraph */ }
     show("screen-mslearn");
     await openMsLearn();
     if (mlGroups || patched || created) await mlScan();   // the findings they fixed should be gone
-    showReport("📘 MS Learn fixes applied", "CA-MSLearn-Applied", mlMd);
+    openReport();
   });
 
   // Markdown record of what the apply actually did — one row per policy, the
