@@ -14,8 +14,18 @@
 # `git push enca-beta beta:main` or `git push origin main:main`, and a push
 # made with GITHUB_TOKEN does not start docker.yml.
 #
-# Undo: delete this file and the `learn-feed` branch. Nothing else depends
-# on it; the tool falls back to "feed unavailable".
+# THE GITHUB ISSUE (32306): one open issue labelled `learn-feed` lists what
+# nobody has decided about yet — pages a check relies on that changed after
+# the check was verified, new Conditional Access pages, and Conditional
+# Access entries of the Entra what's-new page. It is rewritten every night,
+# gets a comment only when something NEW appears (so a notification means
+# something), and closes itself when everything is recorded in
+# js/learntriage.js on beta. The judgement is js/learnfeed.js — the same
+# file the 📰 Learn changes tab runs — so the issue and the tab agree.
+#
+# Undo: delete this file, the `learn-feed` branch and the `learn-feed`
+# label. Nothing else depends on it; the tool falls back to the copy
+# shipped with the build (js/learnfeed-snapshot.json).
 # ======================================================================
 name: learn feed
 
@@ -31,6 +41,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: learn-feed
@@ -50,6 +61,8 @@ jobs:
           sparse-checkout: |
             tools/learn-feed.mjs
             js/mslearn.js
+            js/learnfeed.js
+            js/learntriage.js
           sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@v4
@@ -74,7 +87,10 @@ jobs:
           fi
 
       - name: Build learn-feed.json
-        run: node enca/tools/learn-feed.mjs --docs entra-docs --mslearn enca/js/mslearn.js --out feed/learn-feed.json --days "${{ github.event.inputs.days || '60' }}"
+        run: >-
+          node enca/tools/learn-feed.mjs --docs entra-docs --mslearn enca/js/mslearn.js
+          --lib enca/js/learnfeed.js --triage enca/js/learntriage.js --issue-dir issue
+          --out feed/learn-feed.json --days "${{ github.event.inputs.days || '60' }}"
 
       - name: Commit when something moved
         run: |
@@ -85,3 +101,24 @@ jobs:
           if git diff --cached --quiet; then echo "no change"; exit 0; fi
           git commit --quiet -m "learn-feed $(date -u +%Y-%m-%d): $(node -e 'const f=require("./learn-feed.json");const c=f.counts;console.log(`${c.docs} docs (${c.newDocs} new), ${f.whatsNew.length} what\x27s-new, ${c.watched} watched`)')"
           git push --quiet origin HEAD:learn-feed
+
+      - name: Open, update or close the GitHub issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create learn-feed --color F7D65A --description "Microsoft Learn changes waiting for triage in ENCA" --force >/dev/null
+          N=$(cat issue/count)
+          NUM=$(gh issue list --label learn-feed --state open --json number --jq '.[0].number // empty')
+          if [ "$N" -gt 0 ]; then
+            if [ -z "$NUM" ]; then
+              gh issue create --title "$(cat issue/title)" --label learn-feed --body-file issue/body.md
+            else
+              gh issue edit "$NUM" --title "$(cat issue/title)" --body-file issue/body.md
+              if [ -s issue/new.md ]; then gh issue comment "$NUM" --body-file issue/new.md; fi
+            fi
+          elif [ -n "$NUM" ]; then
+            gh issue close "$NUM" --comment "Everything is decided and recorded in js/learntriage.js — closing. A new change reopens a new issue."
+          else
+            echo "nothing open"
+          fi
