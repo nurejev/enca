@@ -2709,3 +2709,4 @@ td.gm-none{color:var(--muted);font-weight:700}
 .is-det p,.is-det ol{margin:0 0 6px;font-size:12.5px;line-height:1.5;max-width:90ch}
 @media (max-width:900px){.db-counts.five{grid-template-columns:repeat(4,minmax(0,1fr))}.db-counts.five .db-count:nth-child(5){grid-column:1/-1;border-top:1px solid var(--border);border-right:0;padding:12px 0 0}}
 @media (max-width:600px){.is-drow{grid-template-columns:52px minmax(0,1fr)}.is-ca{display:none}}
+.is-partial{margin:-4px 0 12px;padding:8px 12px;border-radius:10px;background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--ink)}

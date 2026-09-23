@@ -21081,7 +21081,7 @@ This is a directory write. Nothing else changes.`)) return;
   // Read-only: status changes stay in the Entra admin center.
   function isRebuild() {
     if (!isRaw) { isModel = null; return; }
-    isModel = IdScore.model(isRaw.scores, isRaw.recs, policies.map((p) => p.raw), { readAt: isRaw.at, demo: isRaw.demo });
+    isModel = IdScore.model(isRaw.scores, isRaw.recs, policies.map((p) => p.raw), { readAt: isRaw.at, demo: isRaw.demo, scoreErr: isRaw.scoreErr, recsErr: isRaw.recsErr });
   }
   const IS_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Microsoft Entra\'s own score for the identity setup of this tenant, and the recommendations behind it — with, next to each one Conditional Access answers, what ENCA sees in the policies loaded now: On, report-only, built but Off, or missing. Microsoft recalculates once a day; nothing here changes the tenant.</p>';
   function openIdScore() {
@@ -21110,22 +21110,39 @@ This is a directory write. Nothing else changes.`)) return;
     try { renderOverview({ force: true }); } catch { /* the home is not up */ }
     try {
       let scores, recs;
-      if (isDemo) { scores = DEMO_DATA.idScores || []; recs = DEMO_DATA.idRecommendations || []; }
+      if (isDemo) { scores = DEMO_DATA.idScores || []; recs = DEMO_DATA.idRecommendations || []; isRaw = { scores: [...scores], recs: [...recs], at: Date.now(), demo: true }; }
       else {
         const sc = [...AUTH_CONFIG.scopes, ...IdScore.SCOPES];
         if (!await preConsent(sc)) throw new Error("DirectoryRecommendations.Read.All was not granted");
-        [scores, recs] = await Promise.all([
-          Graph.ggetAll("/directory/recommendations/tenantSecureScores", sc),
-          Graph.ggetAll("/directory/recommendations", sc),
-        ]);
+        // 32309: the two reads stand alone. The first real read failed
+        // whole because tenantSecureScores answered 400 "Please try again
+        // after some time" (UnknownError) — a transient-looking beta error
+        // that took the working recommendations down with it. Each is tried
+        // up to three times on a transient answer, one after the other (the
+        // parallel pair may itself have been the throttle), and a part that
+        // still fails is named on the tab instead of failing the whole read.
+        const transient = (m) => /try again|throttl|too many|\b(429|503|504)\b|UnknownError|timeout|temporar/i.test(m || "");
+        const one = async (path) => {
+          let last = null;
+          for (let i = 0; i < 3; i++) {
+            try { return { ok: true, v: [...await Graph.ggetAll(path, sc)] }; }
+            catch (e) { last = e; if (!transient(e && e.message) || i === 2) break; await new Promise((r) => setTimeout(r, 1500 * (i + 1))); }
+          }
+          return { ok: false, error: last };
+        };
+        const rr = await one("/directory/recommendations");
+        const ss = await one("/directory/recommendations/tenantSecureScores");
+        if (!rr.ok && !ss.ok) throw rr.error || ss.error;
+        const short = (e) => { const m = (e && e.message) || String(e); return /403|forbidden/i.test(m) ? "access denied" : m.replace(/\s*·\s*inner:.*$/, "").slice(0, 160); };
+        scores = ss.ok ? ss.v : []; recs = rr.ok ? rr.v : [];
+        isRaw = { scores, recs, at: Date.now(), demo: false, scoreErr: ss.ok ? null : short(ss.error), recsErr: rr.ok ? null : short(rr.error) };
       }
-      isRaw = { scores: [...scores], recs: [...recs], at: Date.now(), demo: isDemo };
       isRebuild();
     } catch (e) {
       const m = e && (e.message || String(e));
       isErr = /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "")
         ? "access denied: the signed-in account needs Reports Reader, Security Reader, Global Reader or a similar role, and the tenant must have consented to DirectoryRecommendations.Read.All"
-        : m;
+        : String(m || "").replace(/\s*·\s*inner:.*$/, "");
       isRaw = null; isModel = null;
     } finally { isBusy = false; }
     if ($("screen-idscore").classList.contains("active")) { if (isRaw) renderIdScore(); else openIdScore(); }

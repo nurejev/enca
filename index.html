@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32308"></script>
+<script src="js/popup-guard.js?v=32309"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32308" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32308">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32309" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32309">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32308"></script>
+<script src="js/selfhost-boot.js?v=32309"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32308"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32308"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32308">
-<link rel="stylesheet" href="css/workspaces.css?v=32308">
-<link rel="stylesheet" href="css/tool-layout.css?v=32308">
-<link rel="stylesheet" href="css/list-detail.css?v=32308">
-<link rel="stylesheet" href="css/flat-icons.css?v=32308">
+<script src="js/counter.js?v=32309"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32309"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32309">
+<link rel="stylesheet" href="css/workspaces.css?v=32309">
+<link rel="stylesheet" href="css/tool-layout.css?v=32309">
+<link rel="stylesheet" href="css/list-detail.css?v=32309">
+<link rel="stylesheet" href="css/flat-icons.css?v=32309">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32308" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32309" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32308" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32309" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -2065,7 +2065,8 @@
           <h5>🏅 Identity Secure Score <span class="tag new">BETA</span> <span class="help-fold">a tab of this tool — build 32308</span></h5>
       <p>Microsoft Entra's own score for the identity setup of the tenant (Entra ID → Identity Secure Score in the admin center), and the recommendations behind it — beside what ENCA sees in the policies loaded now.</p>
       <ul>
-        <li><b>▶ Read Identity Secure Score</b> — the tab waits until you ask. It reads the daily score history and the recommendations; the result stays for the session until ⟳ Refresh. Microsoft recalculates once a day, so a policy switched on today counts tomorrow.</li>
+        <li><b>▶ Read Identity Secure Score</b> — the tab waits until you ask. It reads the daily score history and the recommendations, one after the other, and tries each again a few times when Microsoft answers "try again later"; the result stays for the session until ⟳ Refresh. Microsoft recalculates once a day, so a policy switched on today counts tomorrow.</li>
+        <li><b>When one part does not answer</b> (build 32309) — the tab says which. Without the score history the score is added up from the recommendations themselves and shown as <b>≈</b>, without a trend; without the recommendations the score shows alone.</li>
         <li><b>The score</b> — the percentage, the points behind it, the change over the last 30 days and a line of the daily history; then how many recommendations are open, how many of those Conditional Access answers, and how many of THOSE are already built in this tenant and simply not enforcing.</li>
         <li><b>What ENCA sees</b> — for the recommendations Conditional Access answers (MFA for administrative roles, blocking legacy authentication, sign-in risk, user risk, insider risk, MFA for everyone), the policies that do it and their state: <b>On</b>, <b>report-only</b>, <b>built but Off</b>, or none. It is ENCA's reading, next to Microsoft's, not a correction of it: where a policy is On and Microsoft still counts the recommendation open, the detail says Microsoft's own check decides.</li>
         <li><b>Filters</b> — To address (the default), Conditional Access, In the score, All, Completed, and Accepted / planned / dismissed. Open a row for Microsoft's reasoning, value, user impact and steps with their links.</li>
@@ -3462,90 +3463,90 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32308"></script>
-<script src="js/selfhost.js?v=32308"></script>
-<script src="js/version.js?v=32308"></script>
-<script src="js/verdict.js?v=32308"></script>
-<script src="js/fork.js?v=32308"></script>
-<script src="js/promote.js?v=32308"></script>
-<script src="js/authConfig.js?v=32308"></script>
-<script src="js/connection.js?v=32308"></script>
-<script src="js/labels.js?v=32308"></script>
-<script src="js/capabilities.js?v=32308"></script>
-<script src="js/graph.js?v=32308"></script>
-<script src="js/model.js?v=32308"></script>
-<script src="js/render.js?v=32308"></script>
-<script src="js/analyze.js?v=32308"></script>
-<script src="js/whatif.js?v=32308"></script>
-<script src="js/mslearn.js?v=32308"></script>
-<script src="js/learntriage.js?v=32308"></script>
-<script src="js/learnfeed.js?v=32308"></script>
-<script src="js/gapcheck.js?v=32308"></script>
-<script src="js/cisdata.js?v=32308"></script>
-<script src="js/cischeck.js?v=32308"></script>
-<script src="js/exclusions.js?v=32308"></script>
-<script src="js/cascope.js?v=32308"></script>
-<script src="js/coverage.js?v=32308"></script>
-<script src="js/runmeta.js?v=32308"></script>
-<script src="js/overview.js?v=32308"></script>
-<script src="js/validator.js?v=32308"></script>
-<script src="js/whatifeval.js?v=32308"></script>
-<script src="js/builder.js?v=32308"></script>
-<script src="js/onboard.js?v=32308"></script>
-<script src="js/compare.js?v=32308"></script>
-<script src="js/whois.js?v=32308"></script>
-<script src="js/wave.js?v=32308"></script>
-<script src="js/sessionctl.js?v=32308"></script>
-<script src="js/spgap.js?v=32308"></script>
-<script src="js/groupuse.js?v=32308"></script>
-<script src="js/iso3166.js?v=32308"></script>
-<script src="js/causes.js?v=32308"></script>
-<script src="js/locations.js?v=32308"></script>
-<script src="js/authcontexts.js?v=32308"></script>
-<script src="js/authstrengths.js?v=32308"></script>
-<script src="js/recycle.js?v=32308"></script>
-<script src="js/rmau.js?v=32308"></script>
-<script src="js/camap.js?v=32308"></script>
-<script src="js/rmaudoc.js?v=32308"></script>
-<script src="js/termsofuse.js?v=32308"></script>
-<script src="js/audit.js?v=32308"></script>
-<script src="js/drift.js?v=32308"></script>
-<script src="js/guide.js?v=32308"></script>
-<script src="js/userimpact.js?v=32308"></script>
-<script src="js/smsvoice.js?v=32308"></script>
-<script src="js/memberof.js?v=32308"></script>
-<script src="js/devcheck.js?v=32308"></script>
-<script src="js/idscore.js?v=32308"></script>
-<script src="js/licgap.js?v=32308"></script>
-<script src="js/teamsdev.js?v=32308"></script>
-<script src="js/signinstore.js?v=32308"></script>
-<script src="js/signins.js?v=32308"></script>
-<script src="js/reportimpact.js?v=32308"></script>
-<script src="js/changelog.js?v=32308"></script>
-<script src="js/baselineData.js?v=32308"></script>
-<script src="js/baselineJoeyData.js?v=32308"></script>
-<script src="js/baselineLive.js?v=32308"></script>
-<script src="js/baseline.js?v=32308"></script>
-<script src="js/baselineCleanup.js?v=32308"></script>
-<script src="js/groupTemplates.js?v=32308"></script>
-<script src="js/assign.js?v=32308"></script>
-<script src="js/cagroups.js?v=32308"></script>
-<script src="js/groupmerge.js?v=32308"></script>
-<script src="js/groupsview.js?v=32308"></script>
-<script src="js/runledger.js?v=32308"></script>
-<script src="js/protect.js?v=32308"></script>
-<script src="js/policy-compare.js?v=32308"></script>
-<script src="js/import.js?v=32308"></script>
-<script src="js/export.js?v=32308"></script>
-<script src="js/demo.js?v=32308"></script>
-<script src="js/list-detail.js?v=32308"></script>
-<script src="js/flat-icons.js?v=32308"></script>
-<script src="js/workspace.js?v=32308"></script>
-<script src="js/analysis-jobs.js?v=32308"></script>
-<script src="js/search-suggest.js?v=32308"></script>
-<script src="js/app.js?v=32308"></script>
-<script src="js/accessibility.js?v=32308"></script>
-<script src="js/workspaces.js?v=32308"></script>
-<script src="js/tool-layout.js?v=32308"></script>
+<script src="js/branding.js?v=32309"></script>
+<script src="js/selfhost.js?v=32309"></script>
+<script src="js/version.js?v=32309"></script>
+<script src="js/verdict.js?v=32309"></script>
+<script src="js/fork.js?v=32309"></script>
+<script src="js/promote.js?v=32309"></script>
+<script src="js/authConfig.js?v=32309"></script>
+<script src="js/connection.js?v=32309"></script>
+<script src="js/labels.js?v=32309"></script>
+<script src="js/capabilities.js?v=32309"></script>
+<script src="js/graph.js?v=32309"></script>
+<script src="js/model.js?v=32309"></script>
+<script src="js/render.js?v=32309"></script>
+<script src="js/analyze.js?v=32309"></script>
+<script src="js/whatif.js?v=32309"></script>
+<script src="js/mslearn.js?v=32309"></script>
+<script src="js/learntriage.js?v=32309"></script>
+<script src="js/learnfeed.js?v=32309"></script>
+<script src="js/gapcheck.js?v=32309"></script>
+<script src="js/cisdata.js?v=32309"></script>
+<script src="js/cischeck.js?v=32309"></script>
+<script src="js/exclusions.js?v=32309"></script>
+<script src="js/cascope.js?v=32309"></script>
+<script src="js/coverage.js?v=32309"></script>
+<script src="js/runmeta.js?v=32309"></script>
+<script src="js/overview.js?v=32309"></script>
+<script src="js/validator.js?v=32309"></script>
+<script src="js/whatifeval.js?v=32309"></script>
+<script src="js/builder.js?v=32309"></script>
+<script src="js/onboard.js?v=32309"></script>
+<script src="js/compare.js?v=32309"></script>
+<script src="js/whois.js?v=32309"></script>
+<script src="js/wave.js?v=32309"></script>
+<script src="js/sessionctl.js?v=32309"></script>
+<script src="js/spgap.js?v=32309"></script>
+<script src="js/groupuse.js?v=32309"></script>
+<script src="js/iso3166.js?v=32309"></script>
+<script src="js/causes.js?v=32309"></script>
+<script src="js/locations.js?v=32309"></script>
+<script src="js/authcontexts.js?v=32309"></script>
+<script src="js/authstrengths.js?v=32309"></script>
+<script src="js/recycle.js?v=32309"></script>
+<script src="js/rmau.js?v=32309"></script>
+<script src="js/camap.js?v=32309"></script>
+<script src="js/rmaudoc.js?v=32309"></script>
+<script src="js/termsofuse.js?v=32309"></script>
+<script src="js/audit.js?v=32309"></script>
+<script src="js/drift.js?v=32309"></script>
+<script src="js/guide.js?v=32309"></script>
+<script src="js/userimpact.js?v=32309"></script>
+<script src="js/smsvoice.js?v=32309"></script>
+<script src="js/memberof.js?v=32309"></script>
+<script src="js/devcheck.js?v=32309"></script>
+<script src="js/idscore.js?v=32309"></script>
+<script src="js/licgap.js?v=32309"></script>
+<script src="js/teamsdev.js?v=32309"></script>
+<script src="js/signinstore.js?v=32309"></script>
+<script src="js/signins.js?v=32309"></script>
+<script src="js/reportimpact.js?v=32309"></script>
+<script src="js/changelog.js?v=32309"></script>
+<script src="js/baselineData.js?v=32309"></script>
+<script src="js/baselineJoeyData.js?v=32309"></script>
+<script src="js/baselineLive.js?v=32309"></script>
+<script src="js/baseline.js?v=32309"></script>
+<script src="js/baselineCleanup.js?v=32309"></script>
+<script src="js/groupTemplates.js?v=32309"></script>
+<script src="js/assign.js?v=32309"></script>
+<script src="js/cagroups.js?v=32309"></script>
+<script src="js/groupmerge.js?v=32309"></script>
+<script src="js/groupsview.js?v=32309"></script>
+<script src="js/runledger.js?v=32309"></script>
+<script src="js/protect.js?v=32309"></script>
+<script src="js/policy-compare.js?v=32309"></script>
+<script src="js/import.js?v=32309"></script>
+<script src="js/export.js?v=32309"></script>
+<script src="js/demo.js?v=32309"></script>
+<script src="js/list-detail.js?v=32309"></script>
+<script src="js/flat-icons.js?v=32309"></script>
+<script src="js/workspace.js?v=32309"></script>
+<script src="js/analysis-jobs.js?v=32309"></script>
+<script src="js/search-suggest.js?v=32309"></script>
+<script src="js/app.js?v=32309"></script>
+<script src="js/accessibility.js?v=32309"></script>
+<script src="js/workspaces.js?v=32309"></script>
+<script src="js/tool-layout.js?v=32309"></script>
 </body>
 </html>

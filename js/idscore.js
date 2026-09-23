@@ -41,6 +41,21 @@ const IdScore = (() => {
     return { ...now, delta: back ? Math.round((now.pct - back.pct) * 10) / 10 : null, deltaFrom: back ? back.at : null, history: s.slice(0, 90).reverse() };
   }
 
+  // 32309: the score from the recommendations themselves, for when the
+  // history endpoint does not answer. Mihai's first real read: tenantSecure-
+  // Scores came back 400 "Please try again after some time" (UnknownError) —
+  // a beta endpoint that fails on its own while /directory/recommendations
+  // works. The recommendations in the score carry currentScore and maxScore;
+  // their sums are the score Microsoft shows, give or take recommendations
+  // it leaves out (an ignored one does not count), so it is labelled as
+  // derived, never passed off as Microsoft's figure.
+  function fromRecs(recs, at) {
+    const inScore = (recs || []).filter((r) => r && r.category === "identitySecureScore" && r.maxScore > 0);
+    if (!inScore.length) return null;
+    const score = inScore.reduce((n, r) => n + (+r.currentScore || 0), 0), max = inScore.reduce((n, r) => n + (+r.maxScore || 0), 0);
+    return { score: Math.round(score * 100) / 100, max: Math.round(max * 100) / 100, at: at || new Date().toISOString(), pct: Math.round((score / max) * 1000) / 10, delta: null, deltaFrom: null, history: [], derived: true };
+  }
+
   // ---- the recommendations ----
   const OPEN = new Set(["active", "needsMoreAction"]);
   const DONE = new Set(["completedBySystem", "completedByUser"]);
@@ -123,7 +138,7 @@ const IdScore = (() => {
 
   // The whole model the tab and the dashboard draw from.
   function model(scores, recs, raws, meta = {}) {
-    const score = latest(scores);
+    const score = latest(scores) || fromRecs(recs, meta.readAt ? new Date(meta.readAt).toISOString() : null);
     const rows = normalize(recs).map((r) => ({ ...r, ev: r.kind ? evidence(r.kind, raws) : null }));
     // order: open first, then points to gain, then priority
     rows.sort((a, b) => (b.open - a.open) || ((b.lost ?? -1) - (a.lost ?? -1)) || ((PRIO[a.priority] ?? 9) - (PRIO[b.priority] ?? 9)) || a.name.localeCompare(b.name));
@@ -134,6 +149,8 @@ const IdScore = (() => {
     const oneSwitch = caOpen.filter((r) => r.ev.verdict === "off" || r.ev.verdict === "report");
     return {
       score, rows, readAt: meta.readAt || null, demo: !!meta.demo,
+      // a part that could not be read is named, not silently empty
+      scoreErr: meta.scoreErr || null, recsErr: meta.recsErr || null,
       counts: { all: rows.length, open: open.length, ca: rows.filter((r) => r.ev).length, caOpen: caOpen.length, done: rows.filter((r) => r.done).length, parked: rows.filter((r) => r.parked).length, score: rows.filter((r) => r.isScore).length },
       openPts: Math.round(openPts * 10) / 10, caPts: Math.round(caPts * 10) / 10,
       oneSwitch: oneSwitch.length, oneSwitchPts: Math.round(oneSwitch.reduce((n, r) => n + (r.lost || 0), 0) * 10) / 10,
@@ -165,7 +182,7 @@ const IdScore = (() => {
       <div class="is-score">
         <div class="is-pct">${s ? `${s.pct}<small>%</small>` : "—"}</div>
         <div class="is-lbl">Identity Secure Score</div>
-        <div class="is-sub">${s ? `${fmtPts(s.score)} of ${fmtPts(s.max)} points · Microsoft, ${esc(when(s.at))}` : "no score returned"}${s && s.delta != null ? ` · <b class="${s.delta >= 0 ? "up" : "down"}">${s.delta >= 0 ? "+" : ""}${s.delta}</b> since ${esc(when(s.deltaFrom))}` : ""}</div>
+        <div class="is-sub">${s ? `${fmtPts(s.score)} of ${fmtPts(s.max)} points · ${s.derived ? "summed from the recommendations — the score history did not answer" : `Microsoft, ${esc(when(s.at))}`}` : "no score returned"}${s && s.delta != null ? ` · <b class="${s.delta >= 0 ? "up" : "down"}">${s.delta >= 0 ? "+" : ""}${s.delta}</b> since ${esc(when(s.deltaFrom))}` : ""}</div>
         ${s ? `<div class="is-meter"><i style="width:${Math.min(100, s.pct)}%"></i></div>` : ""}
       </div>
       ${s ? `<div class="is-trend">${spark(s.history)}<span class="mini muted">${s.history.length} day${s.history.length === 1 ? "" : "s"}</span></div>` : ""}
@@ -204,7 +221,8 @@ const IdScore = (() => {
     const f = st.filter || "open";
     const list = pick(m, f);
     const exp = st.expanded || new Set();
-    return head(m) + `<div class="list-card is-list"><div class="is-tw"><table class="is-tbl">
+    const partial = [m.scoreErr ? `The score history could not be read (${esc(m.scoreErr)})${m.score && m.score.derived ? " — the score is summed from the recommendations, and there is no trend" : ""}.` : "", m.recsErr ? `The recommendations could not be read (${esc(m.recsErr)}) — only the score is shown.` : ""].filter(Boolean);
+    return head(m) + (partial.length ? `<p class="mini is-partial">${partial.join(" ")} ⟳ Refresh tries again.</p>` : "") + `<div class="list-card is-list"><div class="is-tw"><table class="is-tbl">
       <thead><tr><th>Points</th><th>Recommendation</th><th>Status</th><th>What ENCA sees</th><th></th></tr></thead>
       <tbody>${list.map((r) => row(r, exp.has(r.id))).join("") || `<tr><td colspan="5" class="mini muted" style="padding:16px">Nothing ${f === "open" ? "to address" : "under this filter"}.</td></tr>`}</tbody>
     </table></div>
@@ -218,7 +236,7 @@ const IdScore = (() => {
     if (st.busy) return { cls: "", n: "…", label: "Identity Secure Score", sub: "reading…" };
     if (st.error) return { cls: "", n: "—", label: "Identity Secure Score", sub: "not readable" };
     if (!m || !m.score) return { cls: "", n: "—", label: "Identity Secure Score", sub: m ? "no score returned" : "▶ read it", unread: !m };
-    return { cls: "", n: `${m.score.pct}%`, label: "Identity Secure Score", sub: `${m.counts.open} to address${m.score.delta != null ? ` · ${m.score.delta >= 0 ? "+" : ""}${m.score.delta} in 30 days` : ""}`, pct: m.score.pct };
+    return { cls: "", n: `${m.score.derived ? "≈" : ""}${m.score.pct}%`, label: "Identity Secure Score", sub: `${m.counts.open} to address${m.score.delta != null ? ` · ${m.score.delta >= 0 ? "+" : ""}${m.score.delta} in 30 days` : ""}`, pct: m.score.pct };
   }
   function dashboardRecs(m, st = {}) {
     if (!m) {

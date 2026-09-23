@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32309, date: "2026-09-23", title: "Identity Secure Score: one failing read no longer fails both",
+    items: [
+      { kind: "fixed", tool: "Checks", text: "Reading the Identity Secure Score could fail as a whole when Microsoft's score history answered 'please try again after some time'. The score history and the recommendations are now read separately and retried a few times when Microsoft asks to try again. If the history still does not answer, the recommendations are shown and the score is added up from them, marked ≈, without the trend." },
+    ],
+  },
+  {
     build: 32308, date: "2026-09-23", title: "🏅 Identity Secure Score on the home page and in Checks",
     items: [
       { kind: "new", tool: "Checks", text: "A new Identity score tab in 🛡 Checks reads Microsoft Entra's Identity Secure Score: the percentage, the points behind it, the change over the last 30 days and the daily trend, and every recommendation with its status and the points still open. Open one for Microsoft's reasoning, value, user impact and steps." },

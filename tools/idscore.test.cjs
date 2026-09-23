@@ -55,3 +55,18 @@ test("render and dashboard: escaped, filtered, read prompt before a read", () =>
   assert.match(IS.dashboardTile(m, {}).n, /%$/);
   assert.match(IS.toMd(m, "Contoso"), /# Identity Secure Score — Contoso/);
 });
+
+test("32309: no score history → the score is summed from the recommendations, labelled derived", () => {
+  const m = IS.model([], DEMO.idRecommendations, RAWS, { readAt: Date.parse("2026-09-23T20:00:00Z"), scoreErr: "Graph request failed (400): Please try again after some time." });
+  const inScore = DEMO.idRecommendations.filter((r) => r.category === "identitySecureScore");
+  const cur = inScore.reduce((n, r) => n + r.currentScore, 0), max = inScore.reduce((n, r) => n + r.maxScore, 0);
+  assert.strictEqual(m.score.derived, true);
+  assert.strictEqual(m.score.pct, Math.round((cur / max) * 1000) / 10);
+  const html = IS.render(m, {});
+  assert.match(html, /summed from the recommendations/);
+  assert.match(html, /The score history could not be read/);
+  assert.match(IS.dashboardTile(m, {}).n, /^≈/);
+  const none = IS.model(DEMO.idScores, [], RAWS, { recsErr: "access denied" });
+  assert.strictEqual(none.score.derived, undefined);
+  assert.match(IS.render(none, {}), /The recommendations could not be read \(access denied\)/);
+});
