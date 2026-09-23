@@ -117,6 +117,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 283,
+      title: "T12 groups actions bar (and the 🔒 Protect bar) follows the site branding in dark",
+      tools: ["Conditional Access groups"],
+      builds: [32307],
+      risk: "low",
+      what: "css/app.css: the dark .cgg-bulk rules (explicit dark and prefers-color-scheme) mix the brand tokens — background color-mix(--green 18%, --green-deep), border color-mix(--green 35%, --green-deep) — instead of the literal #1e4729 / #3c6b48; .cgg-bulk .mini inherits the bar's text colour. The 📰 Learn changes count chip takes --green-deep instead of a literal.",
+      why: "Mihai, screenshot of a Dovilo-branded instance in dark: in the groups T12, the bottom bar needs to follow the branding. Low: colour only; ENCA's own palette mixes back to the green it had.",
+      test: [
+        "Beta site, dark theme, ENCA branding: 👥 Conditional Access groups, click a group — the bottom bar is the same deep green as before, border included.",
+        "A self-hosted instance with the Dovilo branding (or ⚙ branding with a different --green / --green-deep), dark: the bar is deep brand blue with a lighter blue border, not green; light: brand blue as before.",
+        "In both themes the (open — tick rows to act on more) hint after the group name is readable.",
+        "🔒 Protect exclusions: its bottom bar follows the same colours.",
+      ],
+      files: ["css/app.css", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 282,
       title: "📰 Learn changes — the nightly Microsoft Learn watch in the MS Learn tool, per-check verified dates, triage, 📋 Work order and the GitHub issue",
       tools: ["Checks"],

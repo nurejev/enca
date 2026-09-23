@@ -2258,14 +2258,19 @@ body.cgg-modal-open{overflow:hidden}
 .cgg-bulk .btn{background:rgba(255,255,255,.14);border-color:transparent;color:#fff;padding:5px 12px;min-height:0;font-size:12.5px}
 .cgg-bulk .btn:hover{background:rgba(255,255,255,.26)}
 .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
-/* dark: --green is the pale accent there, so the bar takes the deep
-   green surface with a light border and light text, like a card */
-:root[data-theme="dark"] .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+.cgg-bulk .mini{color:inherit}   /* the (open — tick rows…) hint: --muted is unreadable on the brand surface */
+/* dark: --green is the pale accent there, so the bar takes the deep brand
+   surface with a light border and light text, like a card. Mixed from the
+   brand tokens, never a literal green (Mihai, 32307, on a Dovilo-branded
+   instance: "the bottom bar needs to follow the branding" — #1e4729 kept
+   the ENCA green under a blue brand). ENCA's own palette mixes to the same
+   green it had. */
+:root[data-theme="dark"] .cgg-bulk{background:color-mix(in srgb,var(--green) 18%,var(--green-deep));color:var(--ink);border:1px solid color-mix(in srgb,var(--green) 35%,var(--green-deep))}
 :root[data-theme="dark"] .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
 :root[data-theme="dark"] .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
 :root[data-theme="dark"] .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk{background:color-mix(in srgb,var(--green) 18%,var(--green-deep));color:var(--ink);border:1px solid color-mix(in srgb,var(--green) 35%,var(--green-deep))}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
@@ -2619,7 +2624,7 @@ td.gm-none{color:var(--muted);font-weight:700}
 
 /* ---- 📰 Learn changes (32306): the nightly Microsoft Learn feed, triaged ---- */
 .lf-count{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:700;background:var(--soft);color:var(--ink);line-height:18px}
-.lf-count.warn{background:var(--lemon);color:#12331f}
+.lf-count.warn{background:var(--lemon);color:var(--green-deep)}
 .lf-band{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:10px 14px;margin:0 0 12px;border:1px solid var(--border);border-radius:12px;background:var(--soft2);font-size:12.5px;color:var(--muted)}
 .lf-band b{color:var(--ink)}
 .lf-band code{font-size:11.5px}

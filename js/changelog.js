@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32307, date: "2026-09-23", title: "The groups actions bar follows your branding",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "The actions bar at the bottom of the groups list, and the same bar in Protect exclusions, stayed ENCA green in the dark theme whatever branding the site carries. It now takes the brand's own colours in both themes, and the hint next to the group name is readable on it." },
+    ],
+  },
+  {
     build: 32306, date: "2026-09-23", title: "📰 Learn changes: what Microsoft changed on Learn, every night",
     items: [
       { kind: "new", tool: "Checks", text: "The Microsoft Learn tab has a third tab, 📰 Learn changes. Every night ENCA reads Microsoft's own documentation repository for Conditional Access and lists what changed: new pages, changed pages with a link to exactly what changed, and the Conditional Access entries of the Entra what's-new page. It needs no scan and reads nothing from your tenant." },
