@@ -2999,6 +2999,9 @@
       + ps.map(p => `<li>${Render.stateChip(p.state)} ${esc(p.name)}</li>`).join("") + "</ul>";
     $("delConfirm").value = "";
     $("delBackup").checked = true;
+    // 25488: the dialog starts on the plan again — a previous run's ledger goes
+    $("delPlan").style.display = ""; $("delLedger").innerHTML = "";
+    $("delGo").style.display = ""; $("delCancel").textContent = "Cancel"; $("delCancel").disabled = false;
     syncDelGo();
     $("delModal").classList.add("open");
   }
@@ -3027,24 +3030,45 @@
         return;
       }
     }
-    $("delGo").disabled = true;
-    try {
-      const results = [];
-      for (let i = 0; i < ps.length; i++) {
-        toast(`Deleting ${i + 1}/${ps.length}…`);
-        try {
-          if (!isDemo) await Graph.gdelete(`/identity/conditionalAccess/policies/${ps[i].id}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
-          results.push({ name: ps[i].name, ok: true });
-        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false, err: e.message }); }
+    // 25488, Mihai (screenshot of "Deleting 10/20…" as a toast over the
+    // dialog): the same run layout as import, switch-over and the merges —
+    // a ledger row per policy that fills in as it goes, a Stop that halts
+    // before the next delete, a report at the end, and the dialog stays open
+    // on the outcome instead of vanishing behind a toast.
+    $("delGo").disabled = true; $("delGo").style.display = "none";
+    $("delPlan").style.display = "none"; $("delOnWarn").style.display = "none";
+    $("delCancel").disabled = true;
+    const L = RunLedger.create($("delLedger"), { unit: "policies", title: "delete",
+      items: ps.map((p) => ({ label: p.name, sub: p.state === "on" || p.raw?.state === "enabled" ? "On — enforcement stops" : p.state === "report" || p.raw?.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off" })), onStop: () => {} });
+    const results = [];
+    for (let i = 0; i < ps.length; i++) {
+      if (L.stopped) { L.skip(i, "stopped — not deleted"); results.push({ name: ps[i].name, id: ps[i].id, ok: false, stopped: true }); continue; }
+      L.start(i);
+      try {
+        if (!isDemo) await Graph.gdelete(`/identity/conditionalAccess/policies/${ps[i].id}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+        results.push({ name: ps[i].name, id: ps[i].id, ok: true });
+        L.done(i, isDemo ? "deleted (simulated) · in the recycle bin for 30 days" : "deleted · in the recycle bin for 30 days", "deleted");
+      } catch (e) {
+        console.error(e);
+        results.push({ name: ps[i].name, id: ps[i].id, ok: false, err: e.message || String(e) });
+        L.fail(i, e.message || String(e), "refused");
       }
-      $("delModal").classList.remove("open");
-      const failed = results.filter(r => !r.ok);
-      toast(failed.length
-        ? `Deleted <span>${results.length - failed.length}</span>, <span>${failed.length} failed</span> — see console`
-        : `<span>${results.length}</span> ${results.length === 1 ? "policy" : "policies"} deleted${isDemo ? " (simulated)" : ""}`);
-      selected.clear();
-      if (!isDemo && results.some(r => r.ok)) await loadFromGraph(true); else refreshViews();
-    } finally { $("delGo").disabled = false; }
+    }
+    const report = () => {
+      const ok = results.filter((r) => r.ok), bad = results.filter((r) => !r.ok && !r.stopped), stop = results.filter((r) => r.stopped);
+      return [`# Delete report — ${tenantName || "tenant"}`, "", `_${new Date().toISOString()}_`, "",
+        `- **Deleted:** ${ok.length}`, `- **Failed:** ${bad.length}`, ...(stop.length ? [`- **Stopped, not deleted:** ${stop.length}`] : []), "",
+        ...(ok.length ? ["## Deleted", "", ...ok.map((r) => `- ${r.name} — \`${r.id}\``), ""] : []),
+        ...(bad.length ? ["## Failed", "", ...bad.map((r) => `- ${r.name} — ${r.err}`), ""] : []),
+        ...(stop.length ? ["## Not deleted (stopped)", "", ...stop.map((r) => `- ${r.name}`), ""] : []),
+        "Undo: a deleted policy can be restored for 30 days in ♻️ Recycle bin, with its original id. After that only the JSON backup downloaded before the run can recreate it, with a new id."].join("\n");
+    };
+    L.finish({ report: () => showReport("🗑 Delete report", `CA-Delete-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, report()) });
+    $("delCancel").disabled = false; $("delCancel").textContent = "Close";
+    selected.clear();
+    if (!isDemo && results.some((r) => r.ok)) await loadFromGraph(true); else refreshViews();
+    // the Housekeeping list behind this dialog is stale after a delete
+    if ($("hkModal").classList.contains("open")) renderHkList();
   });
 
   // ---------- housekeeping: review older versions across the loaded inventory ----------

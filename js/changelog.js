@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25488, date: "2026-09-23", title: "Deleting policies runs like an import: a row per policy, Stop and a report",
+    items: [
+      { kind: "improved", tool: "Policies", text: "🗑 Deleting policies used to count down in a toast over the dialog and then close it. It now runs like an import or a switch-over: one row per policy that fills in as it goes (deleted, or why it was refused), a Stop that halts before the next delete, and a report listing every deleted policy with its id and how to restore it. The dialog stays open on the outcome, and 🧹 Housekeeping behind it refreshes." },
+    ],
+  },
+  {
     build: 25487, date: "2026-09-23", title: "Housekeeping: Reviewed, Mark all reviewed, Select all",
     items: [
       { kind: "improved", tool: "Policies", text: "🧹 A version marked Needs review could never be ticked for clean-up, even when the difference was the one you meant to make. Each such row now has its own Reviewed tick, ✓ Mark all reviewed ticks them all, and ☑ Select all to delete selects every version that can go. An older version that is still On stays blocked — and ⇄ Switch over now also finishes the half-done case where the newer version is already On, by switching only the older one Off. Every delete still takes the backup and the typed DELETE." },
