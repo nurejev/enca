@@ -30,13 +30,16 @@ const raw = (id, name, state, users) => ({ id, displayName: name, state,
 const vm_ = (r) => ({ id: r.id, name: r.displayName, state: r.state, raw: r });
 const fast = { missing: [1, 1], stale: [1, 1] };
 
-test("a newer version Off beside an older one On is a candidate; On beside On is not", () => {
+test("a newer version Off beside an older one On is a candidate; On beside On is the half-switch (since 25486)", () => {
   const w = world();
   const list = [raw("a", "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", "enabled"), raw("b", "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0.1", "disabled"),
     raw("c", "CA300-GRANT-Externals-IP-AnyApp-AnyPlatform-MFA-v1.0", "enabled"), raw("d", "CA300-GRANT-Externals-IP-AnyApp-AnyPlatform-MFA-v1.1", "enabled")].map(vm_);
   const c = w.I.switchCandidates(list);
-  assert.equal(c.length, 1);
+  assert.equal(c.length, 2);
   assert.equal(c[0].newer.id, "b");
+  assert.equal(c[0].newerWasOff, true);
+  assert.equal(c[1].newer.id, "d");
+  assert.equal(c[1].newerWasOff, false);
   assert.equal(c[0].targetState, "enabled");
   assert.equal(c[0].needsCompare, false);
 });
@@ -90,4 +93,19 @@ test("an older version that refuses to go Off is reported as partly done", async
   assert.equal(r[0].ok, false);
   assert.equal(r[0].newerDone, true);
   assert.match(r[0].error, /both apply/);
+});
+
+test("25486: a newer version already On beside an older one still On is half a switch — only the older goes Off", async () => {
+  const w = world();
+  const a = raw("a", "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", "enabled"), b = raw("b", "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0.1", "enabled");
+  w.pols.set("a", a); w.pols.set("b", b);
+  const c = w.I.switchCandidates([a, b].map(vm_));
+  assert.equal(c.length, 1);
+  const r = await w.I.switchOver(c, { readWaits: fast, reportOnlyFirst: true });
+  assert.equal(r[0].ok, true, r[0].error);
+  assert.deepEqual(JSON.parse(JSON.stringify(w.calls)), [["a", "disabled"]], "the On newer version is not touched, not even by Report-only first");
+  // a Report-only newer beside an On older is not offered
+  const w2 = world();
+  const c2 = w2.I.switchCandidates([raw("a", "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0", "enabled"), raw("b", "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0.1", "enabledForReportingButNotEnforced")].map(vm_));
+  assert.equal(c2.length, 0);
 });

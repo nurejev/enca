@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25487, date: "2026-09-23", title: "Housekeeping: Reviewed, Mark all reviewed, Select all",
+    items: [
+      { kind: "improved", tool: "Policies", text: "🧹 A version marked Needs review could never be ticked for clean-up, even when the difference was the one you meant to make. Each such row now has its own Reviewed tick, ✓ Mark all reviewed ticks them all, and ☑ Select all to delete selects every version that can go. An older version that is still On stays blocked — and ⇄ Switch over now also finishes the half-done case where the newer version is already On, by switching only the older one Off. Every delete still takes the backup and the typed DELETE." },
+    ],
+  },
+  {
     build: 25486, date: "2026-09-23", title: "Reports open on top of the dialog that asked for them",
     items: [
       { kind: "fixed", tool: "Policies", text: "📄 A report opened from inside another dialog — the switch-over and clean-up in Housekeeping, merging duplicate policies or groups, re-attaching groups after an import — appeared behind that dialog, where it could not be read or saved. Reports now always open on top." },

@@ -786,8 +786,12 @@ const Importer = (() => {
     const by = new Map();
     for (const r of housekeeping(list)) {
       const so = st(r.policy), sn = st(r.newer);
-      if (sn !== "off" || (so !== "on" && so !== "report")) continue;
-      if (!by.has(r.newer.id)) by.set(r.newer.id, { key: r.newer.id, num: r.num, newer: r.newer, newerVer: r.newerVer, olds: [], reasons: new Set(), incomplete: false });
+      // 25486: also a newer version that is already ON beside an older one
+      // still On or Report-only — half a switch: only the older one has to go
+      // Off. A newer version in Report-only is not offered: turning its older
+      // version Off would lower enforcement.
+      if ((sn !== "off" && sn !== "on") || (so !== "on" && so !== "report")) continue;
+      if (!by.has(r.newer.id)) by.set(r.newer.id, { key: r.newer.id, num: r.num, newer: r.newer, newerVer: r.newerVer, newerWasOff: sn === "off", olds: [], reasons: new Set(), incomplete: false });
       const e = by.get(r.newer.id);
       e.olds.push({ policy: r.policy, ver: r.ver, state: so });
       for (const why of r.reasons) {
@@ -797,7 +801,7 @@ const Importer = (() => {
       }
     }
     return [...by.values()].map((e) => ({ ...e, reasons: [...e.reasons],
-      targetState: e.olds.some((o) => o.state === "on") ? "enabled" : "enabledForReportingButNotEnforced",
+      targetState: !e.newerWasOff || e.olds.some((o) => o.state === "on") ? "enabled" : "enabledForReportingButNotEnforced",
       needsCompare: e.reasons.size > 0 && !e.incomplete })).sort((a, b) => a.num - b.num);
   }
   // items: switchCandidates() entries. opts.reportOnlyFirst puts every newer
@@ -809,7 +813,7 @@ const Importer = (() => {
       const it = items[i];
       if (opts.shouldStop && opts.shouldStop()) { results.push({ key: it.key, ok: false, stopped: true, error: "stopped — nothing changed" }); continue; }
       opts.onItem?.(i, "start");
-      const target = opts.reportOnlyFirst ? "enabledForReportingButNotEnforced" : it.targetState;
+      const target = opts.reportOnlyFirst && it.newerWasOff !== false ? "enabledForReportingButNotEnforced" : it.targetState;
       const r = { key: it.key, num: it.num, newerName: it.newer.name, target, ok: false, newerDone: false, oldsOff: [], oldsFailed: [] };
       try {
         const url = `/identity/conditionalAccess/policies/${it.newer.id}`;

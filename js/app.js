@@ -3081,7 +3081,7 @@
         <div class="row" style="justify-content:flex-start;margin:0"><button class="btn" data-hksw-back>← Back</button><button class="btn primary" id="hkSwGo" disabled>Switch over ${chosen.length}</button></div>
         <div id="hkSwLedger"></div></div>`;
     }
-    return `<div class="hk-sw" id="hkSw"><div><b>⇄ Switch over (${cands.length})</b> <span class="mini">— newer versions still Off while the older one is On or Report-only</span></div>
+    return `<div class="hk-sw" id="hkSw"><div><b>⇄ Switch over (${cands.length})</b> <span class="mini">— an older version still On or Report-only beside its newer version (Off, or already On)</span></div>
       <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0">${cands.map((c) => {
         const olds = c.olds.map((o) => `${Render.stateChip(o.state)} ${esc(o.policy.name)}`).join("<br>");
         const why = c.incomplete ? "Policy details are incomplete — switch it in the portal." : c.needsCompare && !hkSwCompared.has(c.key) ? `${c.reasons.join(" ")} Compare the two before ticking.` : c.needsCompare ? "Compared — the differences above are yours to accept." : "Same scope and controls — only the version differs.";
@@ -3124,25 +3124,64 @@
     hkSwOn.clear(); hkSwStep = "list";
     toast(`${res.filter((r) => r.ok).length} of ${res.length} switched${isDemo ? " (simulated)" : ""}`);
     if (!isDemo && res.some((r) => r.newerDone)) await loadFromGraph(true);
+    // the switched older versions are Off now — show them as what they are
+    if ($("hkModal").classList.contains("open")) renderHkList();
   }
 
-  function openHousekeeping() {
-    const rows = hkFind(), eligible = rows.filter(r => r.canDelete).length;
-    hkSwStep = "list";
-    const nSw = Importer.switchCandidates(policies).length;
-    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates${nSw ? `, and ${nSw} newer version${nSw === 1 ? "" : "s"} still Off beside an older one that is On — switch ${nSw === 1 ? "it" : "them"} over first` : ""}. Includes policies outside the current search filter.`;
-    $("hkList").innerHTML = hkSwitchHtml() + `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
-      + rows.map(r => `<li><label class="chk hk-choice">
-          <input type="checkbox" data-hk="${esc(r.policy.id)}" ${r.canDelete ? "" : "disabled"}>
+  // 25486, Mihai (after switching 11 over on Perfetti): "the review checkbox is
+  // not there — there should be an option to confirm reviewed all, and select
+  // all to delete". A Needs-review row could never be ticked, so a version
+  // whose only difference is the one you meant to make (an exclusion added,
+  // a name tidied) could not be cleaned up here at all. Now each such row has
+  // its own Reviewed tick, and the list has Mark all reviewed and Select all.
+  // What stays a HARD block — no tick releases it: the older version still On
+  // or Report-only (switch it over first), incomplete details, or several
+  // policies sharing the highest version. Every delete still goes through the
+  // JSON backup and the typed DELETE.
+  let hkRev = new Set(), hkSel = new Set();
+  const hkHard = (r) => r.reasons.filter((x) => /^Older version is still|incomplete|Multiple policies share/i.test(x));
+  const hkCan = (r) => r.canDelete || (!hkHard(r).length && hkRev.has(r.policy.id));
+  function renderHkList() {
+    const rows = hkFind();
+    for (const id of [...hkSel]) { const r = rows.find((x) => x.policy.id === id); if (!r || !hkCan(r)) hkSel.delete(id); }
+    const reviewable = rows.filter((r) => !r.canDelete && !hkHard(r).length);
+    const open = reviewable.filter((r) => !hkRev.has(r.policy.id)).length;
+    const deletable = rows.filter(hkCan);
+    const bulk = `<div class="row hk-bulk" style="justify-content:flex-start;gap:8px;margin:10px 0 8px;flex-wrap:wrap">
+        <button type="button" class="btn sm" data-hkbulk="review"${open ? "" : " disabled"}>✓ Mark all reviewed${open ? ` (${open})` : ""}</button>
+        <button type="button" class="btn sm" data-hkbulk="all"${deletable.length ? "" : " disabled"}>☑ Select all to delete${deletable.length ? ` (${deletable.length})` : ""}</button>
+        <button type="button" class="btn sm" data-hkbulk="none"${hkSel.size ? "" : " disabled"}>Clear</button>
+        <span class="mini muted">${rows.length - reviewable.length - rows.filter((r) => r.canDelete).length} cannot be deleted yet — the older version is still On or Report-only, or the details are incomplete.</span></div>`;
+    const item = (r) => {
+      const hard = hkHard(r), rev = hkRev.has(r.policy.id), can = hkCan(r);
+      const status = r.canDelete ? "Cleanup candidate" : hard.length ? "Blocked" : rev ? "Reviewed" : "Needs review";
+      const why = r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" ");
+      return `<li><label class="chk hk-choice">
+          <input type="checkbox" data-hk="${esc(r.policy.id)}"${hkSel.has(r.policy.id) ? " checked" : ""}${can ? "" : " disabled"}>
           <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>
           <span class="mini">Higher version: <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
-          <span class="mini"><b>${r.canDelete ? "Cleanup candidate" : "Needs review"}</b> — ${esc(r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" "))}</span></span>
-        </label><button type="button" class="btn sm hk-compare" data-hk-compare="${esc(r.policy.id)}" data-hk-newer="${esc(r.newer.id)}">Compare versions</button></li>`).join("") + "</ul>";
+          <span class="mini"><b>${status}</b> — ${esc(why)}${hard.length ? (/^Older version is still/.test(hard[0]) ? " Use ⇄ Switch over above to put it Off first." : " Fix it in the portal first.") : ""}</span></span>
+        </label>
+        <span class="hk-acts">${!r.canDelete && !hard.length ? `<label class="chk mini" style="margin:0"><input type="checkbox" data-hkrev="${esc(r.policy.id)}"${rev ? " checked" : ""}> Reviewed</label>` : ""}
+        <button type="button" class="btn sm hk-compare" data-hk-compare="${esc(r.policy.id)}" data-hk-newer="${esc(r.newer.id)}">Compare versions</button></span></li>`;
+    };
+    const box = $("hkRows");
+    const html = bulk + `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${rows.map(item).join("")}</ul>`;
+    if (box) box.innerHTML = html;
     syncHkGo();
+    return html;
+  }
+  function openHousekeeping() {
+    const rows = hkFind(), eligible = rows.filter(r => r.canDelete).length;
+    hkSwStep = "list"; hkRev = new Set(); hkSel = new Set();
+    const nSw = Importer.switchCandidates(policies).length;
+    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates${nSw ? `, and ${nSw} newer version${nSw === 1 ? "" : "s"} still Off beside an older one that is On — switch ${nSw === 1 ? "it" : "them"} over first` : ""}. Includes policies outside the current search filter.`;
+    $("hkList").innerHTML = hkSwitchHtml() + `<div id="hkRows"></div>`;
+    renderHkList();
     $("hkModal").classList.add("open");
   }
   function syncHkGo() {
-    const n = $("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)").length;
+    const n = hkSel.size;
     $("hkGo").disabled = n === 0;
     $("hkGo").textContent = n ? `Review & delete ${n}` : "Review & delete";
   }
@@ -3151,6 +3190,18 @@
     if (hkComparison) $("hkCompareBody").innerHTML = PolicyCompare.render(hkComparison, { onlyChanges: $("hkCompareOnly").checked, resolve: policyResolve });
   }
   $("hkList").addEventListener("click", e => {
+    const bulk = e.target.closest("[data-hkbulk]");
+    if (bulk) {
+      const rows = hkFind();
+      if (bulk.dataset.hkbulk === "review") {
+        const n = rows.filter((r) => !r.canDelete && !hkHard(r).length && !hkRev.has(r.policy.id)).length;
+        rows.forEach((r) => { if (!r.canDelete && !hkHard(r).length) hkRev.add(r.policy.id); });
+        toast(`<span>${n}</span> marked reviewed — each delete still asks for the backup and a typed DELETE`);
+      } else if (bulk.dataset.hkbulk === "all") rows.filter(hkCan).forEach((r) => hkSel.add(r.policy.id));
+      else hkSel.clear();
+      renderHkList();
+      return;
+    }
     if (e.target.closest("[data-hksw-review]")) { hkSwStep = "confirm"; paintHkSwitch(); return; }
     if (e.target.closest("[data-hksw-back]")) { hkSwStep = "list"; paintHkSwitch(); return; }
     if (e.target.closest("#hkSwGo")) { hkSwRun(); return; }
@@ -3168,14 +3219,15 @@
   $("hkBtn").addEventListener("click", openHousekeeping);
   $("hkCancel").addEventListener("click", () => $("hkModal").classList.remove("open"));
   $("hkList").addEventListener("change", (e) => {
-    if (e.target.matches("[data-hk]")) syncHkGo();
+    if (e.target.matches("[data-hk]")) { e.target.checked ? hkSel.add(e.target.dataset.hk) : hkSel.delete(e.target.dataset.hk); syncHkGo(); renderHkList(); }
+    if (e.target.matches("[data-hkrev]")) { const id = e.target.dataset.hkrev; if (e.target.checked) hkRev.add(id); else { hkRev.delete(id); hkSel.delete(id); } renderHkList(); }
     if (e.target.matches("[data-hksw]")) { e.target.checked ? hkSwOn.add(e.target.dataset.hksw) : hkSwOn.delete(e.target.dataset.hksw); paintHkSwitch(); }
     if (e.target.id === "hkSwReport") { hkSwReport = e.target.checked; paintHkSwitch(); }
   });
   $("hkList").addEventListener("input", (e) => { if (e.target.id === "hkSwWord") $("hkSwGo").disabled = e.target.value.trim().toUpperCase() !== "SWITCH"; });
   $("hkGo").addEventListener("click", () => {
-    const eligible = new Set(hkFind().filter(r => r.canDelete).map(r => r.policy.id));
-    const ids = [...$("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)")].map(cb => cb.dataset.hk);
+    const eligible = new Set(hkFind().filter(hkCan).map(r => r.policy.id));
+    const ids = [...hkSel];
     if (!ids.length) return;
     // Recheck the current inventory by ID; list positions may have changed.
     if (ids.some(id => !eligible.has(id))) { openHousekeeping(); toast("Policy details changed. Review the updated list before continuing."); return; }
