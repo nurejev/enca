@@ -231,3 +231,36 @@ test("a policy aimed at the shared-device group itself is read too", () => {
   assert.equal(m.cells.get("mtrWindows|compliantDevice").v, "ok");
   assert.equal(m.cells.get("surfaceHub|compliantDevice").v, "blocked");
 });
+
+// ---- 25489: every blocked / trust matrix cell has a finding ----
+test("an All-users terms of use reaching the rooms is a finding with an exclusion fix", () => {
+  const tou = pol("CA017-ToU", { users: { includeUsers: ["All"] } }, { operator: "OR", builtInControls: [], termsOfUse: ["t1"] });
+  const f = find(run([tou], DEV), "shared-device-unsupported");
+  assert.equal(f.length, 1);
+  assert.match(f[0].result.detail, /Teams Rooms on Windows: Terms of use/);
+  assert.match(f[0].result.detail, /through All users/);
+  const res = M.buildFixes(run([tou], DEV), [tou], DEV.groups);
+  assert.ok(res.fixes[0].draft.conditions.users.excludeGroups.includes("rooms"));
+});
+
+test("the devices' own policy is told to drop the control, not to exclude them", () => {
+  const own = pol("CA-rooms", { users: { includeUsers: [], includeGroups: ["rooms"] } }, { operator: "OR", builtInControls: ["compliantDevice"] }, { persistentBrowser: { isEnabled: true, mode: "never" } });
+  const findings = run([own], DEV);
+  const f = find(findings, "shared-device-unsupported")[0];
+  assert.match(f.result.detail, /INCLUDES the shared-device group/);
+  const res = M.buildFixes(findings, [own], DEV.groups);
+  assert.equal((res.fixes || []).length, 0, "no exclusion is proposed for the devices' own policy");
+});
+
+test("no double report: MFA on All users / All resources stays teams-rooms-mfa's", () => {
+  const mfa = pol("CA-MFA", { users: { includeUsers: ["All"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  assert.equal(find(run([mfa], DEV), "shared-device-unsupported").length, 0);
+  assert.equal(find(run([mfa], DEV), "teams-rooms-mfa").length, 1);
+});
+
+test("MFA reaching B2B direct connect without inbound MFA trust is a finding; with trust or direct connect blocked it is not", () => {
+  const p = pol("CA400", { users: { includeUsers: [], includeGuestsOrExternalUsers: GUESTS("b2bDirectConnectUser") } }, { operator: "OR", builtInControls: ["mfa"] });
+  assert.equal(find(run([p], CT({}, [], "allowed")), "dc-mfa-needs-trust").length, 1);
+  assert.equal(find(run([p], CT({ isMfaAccepted: true }, [], "allowed")), "dc-mfa-needs-trust").length, 0);
+  assert.equal(find(run([p], CT({}, [], "blocked")), "dc-mfa-needs-trust").length, 0);
+});

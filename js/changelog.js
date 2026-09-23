@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25489, date: "2026-09-23", title: "MS Learn checks: every blocked cell in the matrices is explained below it",
+    items: [
+      { kind: "improved", tool: "Checks", text: "📘 A blocked cell in the shared-device matrix — terms of use, persistent browser, app enforced restrictions, token protection and the rest on Teams Rooms, phones, panels and Surface Hub — is now a finding below, per policy, saying why the device cannot meet it and what to do: exclude the shared-device group when the policy reaches them through All users, or take the control out when it is the devices' own policy. On the guest side the one cell without a finding, MFA for B2B direct connect without inbound MFA trust, has one too." },
+    ],
+  },
+  {
     build: 25488, date: "2026-09-23", title: "Deleting policies runs like an import: a row per policy, Stop and a report",
     items: [
       { kind: "improved", tool: "Policies", text: "🗑 Deleting policies used to count down in a toast over the dialog and then close it. It now runs like an import or a switch-over: one row per policy that fills in as it goes (deleted, or why it was refused), a Stop that halts before the next delete, and a report listing every deleted policy with its id and how to restore it. The dialog stays open on the outcome, and 🧹 Housekeeping behind it refreshes." },

@@ -356,6 +356,8 @@ const MSLearn = (() => {
     "guest-auth-strength-swap-for-mfa": "misses",
     "sp-not-in-external-mfa": "misses",
     "ext-type-no-mfa": "misses",
+    "dc-mfa-needs-trust": "denies",
+    "shared-device-unsupported": "denies",
   };
   const EFFECT_TEXT = {
     denies: ["🚫", "Blocks them", "These identities are DENIED access — the control cannot be met by an identity this tenant does not manage. The fix takes them out of this policy's scope and covers them with something they can satisfy."],
@@ -1538,6 +1540,79 @@ const MSLearn = (() => {
       },
     },
 
+    // ── Every "blocked" / "trust" matrix cell has a finding (25489) ────
+    // Mihai, on the shared-device matrix: "shouldn't those blocked ones be
+    // mentioned below, with a why and how to fix — also for guests?" For
+    // guests every cell already had one except MFA for B2B direct connect;
+    // for shared devices only MFA, sign-in frequency, the device-code block
+    // and Surface Hub's grants did, and only on All-users-All-resources
+    // policies. These two close the gap, in the same words as the matrix.
+    {
+      id: "dc-mfa-needs-trust",
+      title: "MFA for B2B direct connect users without inbound MFA trust",
+      appliesWhen: "Policy requires MFA or an authentication strength, reaches B2B direct connect users, and inbound MFA trust is not on for every tenant",
+      requirement: "A B2B direct connect user has no account in your directory, so they cannot register MFA here — they can only meet an MFA requirement with the claim their HOME tenant issued, and that claim is accepted only when inbound MFA trust is on. Without it, Microsoft documents that direct connect users are blocked from the resource (Teams shared channels).",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/external-id/authentication-conditional-access",
+      remediation: "Either turn on inbound MFA trust for the organisations you share Teams channels with (Cross-tenant access settings → the organisation → Inbound → Trust settings), or, if they should not require MFA from this policy, exclude B2B direct connect users here. If you do not use shared channels at all, keep B2B direct connect blocked inbound and this does not arise.",
+      remediationParts: [
+        ["Fix, usually", "Cross-tenant access settings → Organizational settings → the partner → Inbound access → Trust settings → Trust multifactor authentication from Microsoft Entra tenants. Their users' MFA at home then satisfies this policy."],
+        ["Or exclude", "B2B direct connect users on this policy (Users → Exclude → Guest or external users) — they then face no MFA from it."],
+        ["Why", "A direct connect user is not in your directory; there is nowhere here for them to register MFA."],
+      ],
+      detect: (p, ctx) => {
+        if (!isActive(p) || !hasMfa(p) || grants(p).includes("block")) return null;
+        if (dcInboundOpen(ctx) === false) return null;
+        const sc = extScope(p, [DIRECT_CONNECT]);
+        if (!sc) return null;
+        const gt = guestTrust(ctx, "isMfaAccepted");
+        if (gt.ok === true) return null;
+        return {
+          detail: `Policy "${p.displayName}" requires ${grants(p).includes("mfa") ? "MFA" : "an authentication strength"} and reaches B2B direct connect users (via ${sc.via}). ${gt.text} Direct connect users from those organisations cannot meet it and are blocked from what this policy covers.`,
+          impactedResources: ["B2B direct connect users", "Teams shared channels"],
+        };
+      },
+    },
+    {
+      id: "shared-device-unsupported",
+      title: "Shared devices: controls their resource accounts cannot meet",
+      appliesWhen: "Policy reaches the resource accounts of Teams Rooms, Teams phones / panels or Surface Hub and demands a control Microsoft documents as not supported there",
+      requirement: "Teams Rooms, Teams phones and panels and Surface Hub sign in with a resource account and nobody sits at the device to answer a prompt. Microsoft's support tables list, per device, the grant and session controls those accounts cannot meet — terms of use, persistent browser, app enforced restrictions, Conditional Access App Control, token protection, customised continuous access evaluation, risk remediation, app protection, password change, hybrid join, insider risk, and more. A policy that demands one of them makes the device fail to sign in or sign out on its own. Microsoft's pattern: exclude the resource accounts from every other policy and give them one policy of their own — compliant device plus a known location.",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies",
+      remediation: "When the policy reaches the devices through All users: exclude the shared-device group. When it is the devices' own policy (it includes that group): take the unsupported control out of it.",
+      remediationParts: [
+        ["Exclude", "The shared-device group (CAB-SEC-U-TeamsSharedDevices or your equivalent) from this policy — when it reaches the devices only because it targets All users. The Fix button adds that exclusion."],
+        ["Or remove", "The listed controls from this policy — when it is the policy you made FOR the devices (it includes the shared-device group). Excluding them from their own policy would leave them with none."],
+        ["What they can have", "Require device to be marked as compliant, a known named location, and block for everything else. No sign-in frequency, no authentication strength, and do not block device code flow for Android devices."],
+      ],
+      needsGroup: "sharedDevices",
+      fix: (d, ctx, res) => (res && res.viaGroup ? null : excludeGroupFix("sharedDevices", "shared-device / resource account")(d, ctx)),
+      detect: (p, ctx) => {
+        if (!isActive(p) || !reachesDevices(p, ctx)) return null;
+        const g = ctx && ctx.sharedDevices && ctx.sharedDevices.id;
+        const viaGroup = !!(g && (U(p).includeGroups || []).includes(g));
+        // what the older, narrower checks already say about this policy
+        const broad = allUsers(p) && allApps(p);
+        const covered = new Set(broad ? ["mfa", "strength", "signInFrequency"] : []);
+        covered.add("deviceCodeBlock");
+        const demands = deviceDemands(p).filter((c) => !covered.has(c));
+        const lines = [];
+        for (const row of DEVICE_ROWS) {
+          if (!reachesPlatform(p, row.platform)) continue;
+          if (row.key === "surfaceHub" && broad) continue;   // surface-hub-mfa owns these
+          const bad = demands.filter((c) => (DEVICE_SUPPORT[row.key] || {})[c] === "blocked");
+          if (bad.length) lines.push(`${row.label}: ${bad.map((c) => (DEVICE_CONTROLS.find((x) => x.key === c) || {}).label || c).join(", ")}`);
+        }
+        if (!lines.length) return null;
+        return {
+          detail: `Policy "${p.displayName}" reaches the shared-device resource accounts ${viaGroup ? "because it INCLUDES the shared-device group — it is their own policy, so take these controls out of it rather than excluding them" : "through All users"} and demands what they cannot meet — ${lines.join("; ")}. Those devices fail to sign in, or sign themselves out, while it applies.`,
+          impactedResources: lines.map((l) => l.split(":")[0]),
+          viaGroup,
+        };
+      },
+    },
+
     // ── External types no MFA policy reaches (25469) ───────────────────
     // What the catalog revision of 25468 exposed and no check could see: an
     // All-users MFA policy that excludes every external type, a guest MFA
@@ -1770,7 +1845,7 @@ const MSLearn = (() => {
         <b class="gm-k gm-na">n/a</b> the control does not reach this type ·
         <b>·</b> nothing in scope asks it of them
       </p>
-      ${counts.blocked || counts.trust ? `<p class="mini" style="margin:6px 0 0">${counts.blocked ? `<b>${counts.blocked}</b> combination${counts.blocked === 1 ? "" : "s"} cannot be satisfied at all. ` : ""}${counts.trust ? `<b>${counts.trust}</b> depend${counts.trust === 1 ? "s" : ""} on cross-tenant trust that is not in place. ` : ""}A cell opens the policies behind it.</p>` : ""}
+      ${counts.blocked || counts.trust ? `<p class="mini" style="margin:6px 0 0">${counts.blocked ? `<b>${counts.blocked}</b> combination${counts.blocked === 1 ? "" : "s"} cannot be satisfied at all. ` : ""}${counts.trust ? `<b>${counts.trust}</b> depend${counts.trust === 1 ? "s" : ""} on cross-tenant trust that is not in place. ` : ""}Each blocked or trust cell is explained below, per policy, with the fix; a cell opens the policies behind it.</p>` : ""}
     </div></div>`;
   }
 
@@ -1890,7 +1965,7 @@ const MSLearn = (() => {
         <b class="gm-k gm-na">?</b> not in the device's documentation ·
         <b>·</b> nothing that reaches these accounts asks for it
       </p>
-      ${blocked ? `<p class="mini" style="margin:6px 0 0"><b>${blocked}</b> combination${blocked === 1 ? "" : "s"} these devices cannot meet. Microsoft's advice: exclude the resource accounts from every other policy and give them one of their own — compliant device plus a known location, no sign-in frequency, device code flow not blocked. A cell opens the policies behind it.</p>` : ""}
+      ${blocked ? `<p class="mini" style="margin:6px 0 0"><b>${blocked}</b> combination${blocked === 1 ? "" : "s"} these devices cannot meet. Microsoft's advice: exclude the resource accounts from every other policy and give them one of their own — compliant device plus a known location, no sign-in frequency, device code flow not blocked. Each blocked cell is explained below, per policy, with the fix; a cell opens the policies behind it.</p>` : ""}
     </div></div>`;
   }
 
