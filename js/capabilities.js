@@ -23,7 +23,18 @@ const Capabilities = (() => {
       // INSIDER_RISK_MANAGEMENT. Matching only /ADAPTIVE.*PROTECTION/ left
       // this unknown in every tenant, so every write to a policy with an
       // insider-risk condition stopped with "could not be verified".
-      purview: named(/INSIDER_RISK|ADAPTIVE.*PROTECTION/i) || null };
+      // 25492, Mihai: "this tenant has the Microsoft Purview Suite for
+      // Microsoft 365 Business Premium, so the licence should be covered".
+      // It is — the suite includes Insider Risk Management with adaptive
+      // protection — but a plan-name match alone depends on how Microsoft
+      // names the plans inside each new bundle. The SKU is matched as well:
+      // any Purview suite (Business Premium, enterprise, frontline), the old
+      // E5 Compliance / E5 Insider Risk Management SKUs, and Microsoft 365
+      // E5 / F5 Compliance, which carry the same component.
+      purview: named(/INSIDER_RISK|ADAPTIVE.*PROTECTION/i)
+        || live.some(s => /PURVIEW|INSIDER_RISK|INFORMATION_PROTECTION_COMPLIANCE|^SPE_E5|M365_E5_SUITE|F5_COMP/i.test(s.skuPartNumber || "")) || null,
+      // what was read, so a "could not be verified" can name it
+      _skus: live.map(s => s.skuPartNumber).filter(Boolean) };
   }
   function requirements(raw) {
     const p = raw || {}, c = p.conditions || {}, grants = p.grantControls || {}, sessions = p.sessionControls || {};
@@ -42,7 +53,10 @@ const Capabilities = (() => {
     const had = new Set(already || []);
     const required = requirements(raw);
     const missing = required.filter(k => !had.has(k) && evidence?.[k] !== true);
-    return { ok: !missing.length, required, missing, reason: missing.map(k => `${labels[k]} ${evidence?.[k] === false ? "not present in active subscriptions" : "could not be verified"}`).join("; ") };
+    const seen = evidence && Array.isArray(evidence._skus) ? evidence._skus : null;
+    return { ok: !missing.length, required, missing, reason: missing.map(k => `${labels[k]} ${evidence?.[k] === false ? "not present in active subscriptions" : seen
+      ? `could not be verified from the active subscriptions (${seen.length ? seen.join(", ") : "none readable"})`
+      : "could not be verified — the subscriptions could not be read (LicenseAssignment.Read.All or Organization.Read.All)"}`).join("; ") };
   }
   function plan(raws, evidence, existingCount) {
     const rows = raws.map(raw => ({ id: raw.id, name: raw.displayName, ...check(raw, evidence) }));

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25492, date: "2026-09-23", title: "The Purview Suite for Business Premium counts for insider-risk policies",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "✎ The Microsoft Purview Suite for Microsoft 365 Business Premium includes Insider Risk Management with adaptive protection, but ENCA only recognised the licence by the name of a plan inside it. The suite itself is recognised now — as are the enterprise and frontline Purview suites, E5 Compliance and Microsoft 365 E5 — and when a licence still cannot be confirmed, the message lists the subscriptions ENCA read, so a mismatch is visible instead of a bare “could not be verified”." },
+    ],
+  },
+  {
     build: 25491, date: "2026-09-23", title: "Editing a policy with an insider-risk condition is no longer stopped",
     items: [
       { kind: "fixed", tool: "Policies", text: "✎ Saving a change to a policy that uses an insider-risk condition (CA012, CA013, CA017) stopped with “Purview Adaptive Protection could not be verified” — even when the change was only an exclusion. ENCA looked for a licence plan named Adaptive Protection, and there is none: it comes with Insider Risk Management, which is now recognised. And an edit is only checked for what it ADDS — a condition Entra already accepted on the policy is not held against it." },
