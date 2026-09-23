@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32302, date: "2026-09-23", title: "A redesigned ENCA mark, and a BETA mark on the beta site",
+    items: [
+      { kind: "improved", tool: "Workspaces", text: "The ENCA mark is redesigned in the same family as the customer marks: in light mode a deep-green shield on a pale disc, in dark mode a lime shield on a green disc, both with a gold ring and a gold keyhole. The shield and keyhole no longer blend together, so the mark reads at header size and as a tab icon." },
+      { kind: "new", tool: "Workspaces", text: "The beta site shows a BETA edition of the mark, with a yellow BETA pill under the shield, in the header, on the sign-in card and as the tab icon, so a beta tab cannot be mistaken for production. Production, self-hosted copies and custom brandings keep their own logo, and policy cards keep the plain mark." },
+    ],
+  },
+  {
     build: 32301, date: "2026-09-23",
     title: "Production is ENCA 2.0 — a new workspace, an overview on the home page, and policies you can build and edit",
     intro: "ENCA 2.0 gathers everything that was proven on the beta channel since 1.0.321 into one release: a new interface, a home page that tells you where to look first, policy building and editing, deeper guest and external-user checks, and faster, more honest analysis. The 1.x release notes are kept in the Archive at the foot of this page.",

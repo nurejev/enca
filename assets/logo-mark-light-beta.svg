@@ -1,16 +1,23 @@
-<!-- ENCA favicon (redesign, beta 32302). The light mark cropped to its inner
-     disc: at 16-32px the orbit ring reads as dirt on the tab strip. -->
-<svg width="484" height="484" xmlns="http://www.w3.org/2000/svg" viewBox="270 263 484 484">
+<!-- ENCA mark, light, BETA edition (beta 32302): logo-mark-light.svg with a
+     yellow #ffd21f BETA pill under the shield. Shown instead of the plain mark
+     on the publisher's beta host (BRANDING.betaHost) only - see applyBranding
+     in js/app.js. Policy cards and exports keep the plain mark. -->
+<svg width="856" height="856" xmlns="http://www.w3.org/2000/svg" viewBox="84 84 856 856">
 <defs>
 <filter id="glow" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <filter id="softglow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <linearGradient id="ringg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f0cf55"/><stop offset="55%" stop-color="#dfb32b"/><stop offset="100%" stop-color="#a8871c"/></linearGradient>
 <linearGradient id="shieldg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3f7a24"/><stop offset="55%" stop-color="#1e4729"/><stop offset="100%" stop-color="#12331f"/></linearGradient>
 </defs>
+<circle cx="512" cy="512" r="330" fill="#cfe0b4" opacity="0.10"/><circle cx="512" cy="512" r="230" fill="#b7d38e" opacity="0.08"/>
+<circle cx="512" cy="512" r="400" fill="none" stroke="#9dbb7a" stroke-width="3" stroke-dasharray="2 14" opacity="0.9"/><circle cx="512" cy="512" r="400" fill="none" stroke="#dfb32b" stroke-width="1.5" opacity="0.35"/>
+<circle cx="512.0" cy="112.0" r="9" fill="#3f7a24" filter="url(#glow)"/><circle cx="858.4" cy="312.0" r="9" fill="#3f7a24" filter="url(#glow)"/><circle cx="858.4" cy="712.0" r="9" fill="#3f7a24" filter="url(#glow)"/><circle cx="512.0" cy="912.0" r="9" fill="#3f7a24" filter="url(#glow)"/><circle cx="165.6" cy="712.0" r="9" fill="#3f7a24" filter="url(#glow)"/><circle cx="165.6" cy="312.0" r="9" fill="#3f7a24" filter="url(#glow)"/>
+<circle cx="512" cy="512" r="320" fill="none" stroke="#dfb32b" stroke-width="2" opacity="0.4"/><circle cx="512" cy="512" r="265" fill="none" stroke="#9dbb7a" stroke-width="2" opacity="0.55"/>
 <g transform="translate(512,505)">
 <g filter="url(#softglow)"><circle r="215" fill="#eef5e6" stroke="url(#ringg)" stroke-width="16"/></g>
 <g transform="translate(-112,-104) scale(1.5)" opacity="0.28"><circle r="24" fill="none" stroke="#12331f" stroke-width="7"/><circle r="9" fill="none" stroke="#12331f" stroke-width="6"/><line x1="24.0" y1="0.0" x2="36.0" y2="0.0" stroke="#12331f" stroke-width="10"/><line x1="17.0" y1="17.0" x2="25.5" y2="25.5" stroke="#12331f" stroke-width="10"/><line x1="0.0" y1="24.0" x2="0.0" y2="36.0" stroke="#12331f" stroke-width="10"/><line x1="-17.0" y1="17.0" x2="-25.5" y2="25.5" stroke="#12331f" stroke-width="10"/><line x1="-24.0" y1="0.0" x2="-36.0" y2="0.0" stroke="#12331f" stroke-width="10"/><line x1="-17.0" y1="-17.0" x2="-25.5" y2="-25.5" stroke="#12331f" stroke-width="10"/><line x1="-0.0" y1="-24.0" x2="-0.0" y2="-36.0" stroke="#12331f" stroke-width="10"/><line x1="17.0" y1="-17.0" x2="25.5" y2="-25.5" stroke="#12331f" stroke-width="10"/></g>
 <g transform="translate(0,-6)"><path d="M0,-140 L112,-100 L112,10 C112,80 56,130 0,158 C-56,130 -112,80 -112,10 L-112,-100 Z" fill="none" stroke="url(#shieldg)" stroke-width="15" stroke-linejoin="round"/><circle cx="0" cy="-24" r="30" fill="none" stroke="#dfb32b" stroke-width="14"/><path d="M-13,-6 L-20,58 L20,58 L13,-6 Z" fill="#dfb32b"/></g>
 <circle cx="118" cy="-118" r="13" fill="#3f7a24" filter="url(#glow)"/>
 </g>
+<g id="beta-tag"><rect x="302" y="742" width="420" height="150" rx="75" fill="#ffd21f" stroke="#12331f" stroke-width="10"/><text x="512" y="844" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-weight="800" font-size="112" letter-spacing="6" fill="#12331f">BETA</text></g>
 </svg>

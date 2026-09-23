@@ -117,6 +117,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 279,
+      title: "Redesigned ENCA mark (light, dark, favicon) and a BETA edition on the beta host",
+      tools: ["Workspaces"],
+      builds: [32302],
+      risk: "low",
+      what: "assets/logo-mark-light.svg, logo-mark-dark.svg, favicon.svg redrawn (pale disc, gold ring, deep-green shield, gold keyhole; dark: green disc, lime shield). New assets/logo-mark-light-beta.svg, logo-mark-dark-beta.svg, favicon-beta.svg carry a yellow BETA pill. js/branding.js: asset ?v= 32302 plus betaLogo / betaLogoDark / betaFavicon. js/app.js applyBranding: on BRANDING.betaHost with no override or self-hosted look, the header and sign-in logo and the favicon use the beta assets and html gets data-beta-mark. css/app.css: the dark-mode content:url rules move to v=32302, plus data-beta-mark rules for the dark beta mark.",
+      why: "Mihai asked for the Limon-IT logo to get the same redesign as the PVM, CloudFellows and Dovilo marks, plus a beta logo. Mockup shown first; he approved the redesign as shown and the automatic swap on the beta host.",
+      test: [
+        "Beta site, light theme: the header medallion, the sign-in card and the browser tab show the mark with the yellow BETA pill.",
+        "Beta site, dark theme (and Auto with the OS in dark): the dark mark with the BETA pill, in the header and on the sign-in card.",
+        "Beta site with a look applied through the gear (or a per-audience override): that look's own logo, no BETA mark, and html has no data-beta-mark attribute.",
+        "Open a policy card on the beta site: the small mark in the card header is the plain mark, without the pill.",
+        "Production (after promotion) and a local or self-hosted copy: the redesigned mark without the pill everywhere, the plain favicon.",
+        "Hard refresh after deploy: no old gold-shield mark comes back from cache (asset ?v= is 32302).",
+      ],
+      files: ["assets/logo-mark-light.svg", "assets/logo-mark-dark.svg", "assets/favicon.svg", "assets/logo-mark-light-beta.svg", "assets/logo-mark-dark-beta.svg", "assets/favicon-beta.svg", "js/branding.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 224,
       title: "📐 CIS Benchmark (T21) — beta AND the CloudFellows tenant only; production 316 removes it from that build",
       tools: ["CIS Benchmark"],

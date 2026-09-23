@@ -705,9 +705,23 @@
     Brand.setActive(B);
     const set = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
     document.title = Brand.pageTitle;
-    set("favicon", (el) => { if (B.favicon) el.href = B.favicon; });
+    // The publisher's beta host wears the BETA edition of the DEFAULT mark
+    // (branding.js betaLogo/betaFavicon). Not under an override or a
+    // self-hosted look - those are somebody's own logo - and not on policy
+    // cards, which read Brand.current.logo and stay plain. data-beta-mark on
+    // <html> lets css/app.css swap the dark BETA mark in dark mode.
+    const betaMark = (() => {
+      try {
+        const o = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
+        const beta = String((typeof BRANDING !== "undefined" && BRANDING.betaHost) || "").toLowerCase();
+        return !o && !!B.betaLogo && !!beta && (location.hostname || "").toLowerCase() === beta;
+      } catch { return false; }
+    })();
+    document.documentElement.toggleAttribute("data-beta-mark", betaMark);
+    set("favicon", (el) => { const f = betaMark ? (B.betaFavicon || B.favicon) : B.favicon; if (f) el.href = f; });
     ["brandLogo", "brandLogoLogin"].forEach((id) => set(id, (el) => {
-      if (B.logo) el.src = B.logo;
+      const logo = betaMark ? B.betaLogo : B.logo;
+      if (logo) el.src = logo;
       el.alt = B.org || B.name;
       // Wide wordmarks (the default marks are 1:1) keep their aspect: fix the
       // height the layout expects and let the width follow.

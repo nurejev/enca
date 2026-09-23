@@ -1,7 +1,5 @@
-<!-- ENCA mark, dark (redesign, beta 32302). Same drawing as logo-mark-light.svg
-     in the dark palette: green disc #2f5c1a, gold ring #e8c132, lime shield
-     #c8e84a, gold keyhole. Swapped in by css/app.css rather than by script,
-     so it is already right on the sign-in screen before the app has booted. -->
+<!-- ENCA mark, dark, BETA edition (beta 32302): logo-mark-dark.svg with the
+     yellow BETA pill. Swapped in by css/app.css under :root[data-beta-mark]. -->
 <svg width="856" height="856" xmlns="http://www.w3.org/2000/svg" viewBox="84 84 856 856">
 <defs>
 <filter id="glow" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -19,4 +17,5 @@
 <g transform="translate(0,-6)"><path d="M0,-140 L112,-100 L112,10 C112,80 56,130 0,158 C-56,130 -112,80 -112,10 L-112,-100 Z" fill="none" stroke="url(#shieldg)" stroke-width="15" stroke-linejoin="round"/><circle cx="0" cy="-24" r="30" fill="none" stroke="#e8c132" stroke-width="14"/><path d="M-13,-6 L-20,58 L20,58 L13,-6 Z" fill="#e8c132"/></g>
 <circle cx="118" cy="-118" r="13" fill="#c8e84a" filter="url(#glow)"/>
 </g>
+<g id="beta-tag"><rect x="302" y="742" width="420" height="150" rx="75" fill="#ffd21f" stroke="#12331f" stroke-width="10"/><text x="512" y="844" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-weight="800" font-size="112" letter-spacing="6" fill="#12331f">BETA</text></g>
 </svg>

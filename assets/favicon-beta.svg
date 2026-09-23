@@ -1,5 +1,5 @@
-<!-- ENCA favicon (redesign, beta 32302). The light mark cropped to its inner
-     disc: at 16-32px the orbit ring reads as dirt on the tab strip. -->
+<!-- ENCA favicon, BETA edition (beta 32302): favicon.svg with the yellow BETA
+     pill, so a beta tab is told apart from a production tab at a glance. -->
 <svg width="484" height="484" xmlns="http://www.w3.org/2000/svg" viewBox="270 263 484 484">
 <defs>
 <filter id="glow" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -13,4 +13,5 @@
 <g transform="translate(0,-6)"><path d="M0,-140 L112,-100 L112,10 C112,80 56,130 0,158 C-56,130 -112,80 -112,10 L-112,-100 Z" fill="none" stroke="url(#shieldg)" stroke-width="15" stroke-linejoin="round"/><circle cx="0" cy="-24" r="30" fill="none" stroke="#dfb32b" stroke-width="14"/><path d="M-13,-6 L-20,58 L20,58 L13,-6 Z" fill="#dfb32b"/></g>
 <circle cx="118" cy="-118" r="13" fill="#3f7a24" filter="url(#glow)"/>
 </g>
+<g id="beta-tag"><rect x="322" y="628" width="380" height="124" rx="62" fill="#ffd21f" stroke="#12331f" stroke-width="10"/><text x="512" y="713" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-weight="800" font-size="92" letter-spacing="6" fill="#12331f">BETA</text></g>
 </svg>
