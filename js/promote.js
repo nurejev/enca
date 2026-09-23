@@ -119,6 +119,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 277,
+      title: "Workspaces header — the logo on a medallion hanging over the header's edge",
+      tools: ["Workspaces"],
+      builds: [25494],
+      risk: "low",
+      what: "css/workspaces.css: with body.workspaces-shell.with-side, not wc-wide-logo, and wider than 700px, #brandLogo becomes a 60px round medallion (surface background, border, shadow plus a 4px glow ring), absolutely placed in the sticky header at left: rail width / 2 - 30px, bottom -30px. .hwrap padding-left becomes rail width + 12px so ENCA starts beside it, and #wcRail padding-top 46px so Home clears the disc.",
+      why: "Mihai: make something similar to the sign-in medallion (item 276) for the top-corner logo. Mockup shown first (A medallion in the header, B hangs over the edge, C halo); he chose B.",
+      test: [
+        "Signed in, light theme, wide window: the mark sits on a round medallion centred above the rail, half over the header's bottom edge; ENCA and the context text start to its right; the Home button is fully visible below the disc.",
+        "Dark theme: the dark mark on a dark medallion, no light square around it.",
+        "Beta site (red BETA ribbon on top): the medallion still hangs over the bottom edge of the header, not the ribbon.",
+        "PVM branding: the PVM mark on the medallion, navy header, nothing cropped.",
+        "Scroll a long tool page: the medallion stays with the sticky header and draws over the rail and tool tabs, never under them.",
+        "Narrow window (below 700px, rail at the bottom) and a Wide wordmark branding: the flat 34px logo in the header, as before.",
+      ],
+      files: ["css/workspaces.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 276,
       title: "Sign-in card — the logo on a medallion over the card's top edge",
       tools: ["Sign-in"],

@@ -140,3 +140,16 @@ body.workspaces-shell #permOverview,body.workspaces-shell .workspace-about{margi
 #wcHome .wc-home-foot{margin-top:22px}
 #wcHome .wc-tool{box-shadow:none;border-radius:5px}
 body.workspaces-shell #screen-home>.workspace-about{background:transparent;border:0;border-top:1px solid var(--border);border-radius:0;padding-inline:0;box-shadow:none}
+/* The mark in the top corner hangs over the header's bottom edge on the same
+   medallion as the sign-in card (beta 25494): a 60px disc centred on the rail
+   column, half in the header and half over the rail, so mark and rail read as
+   one column. The header is position:sticky, so it is the containing block and
+   bottom:-30px tracks its real height (with or without the BETA ribbon). Only
+   with the rail showing (with-side, wider than 700px) and never for a wide
+   wordmark (wc-wide-logo), which keeps the flat 34px look. */
+@media(min-width:701px){
+body.workspaces-shell.with-side:not(.wc-wide-logo) .hwrap{padding-left:calc(var(--wc-rail-width) + 12px)}
+body.workspaces-shell.with-side:not(.wc-wide-logo) #brandLogo{position:absolute;z-index:1;left:calc(var(--wc-rail-width) / 2 - 30px);bottom:-30px;box-sizing:border-box;width:60px;height:60px;max-width:none;padding:5px;
+  border-radius:50%;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow),0 0 0 4px color-mix(in srgb,var(--glow) 45%,transparent)}
+body.workspaces-shell.with-side:not(.wc-wide-logo) #wcRail{padding-top:46px}
+}

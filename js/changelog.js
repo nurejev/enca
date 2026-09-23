@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25494, date: "2026-09-23", title: "The logo in the top corner hangs over the header's edge",
+    items: [
+      { kind: "improved", tool: "Workspaces", text: "The logo in the top-left corner now sits on the same round medallion as the sign-in card, 60px, centred above the left rail and hanging over the header's bottom edge, half in and half out. It follows the active branding in light and dark. On a narrow window, where the rail moves to the bottom, and with a wide wordmark logo, the header keeps the flat logo." },
+    ],
+  },
+  {
     build: 25493, date: "2026-09-23", title: "The sign-in card's logo pops out of the card",
     items: [
       { kind: "improved", tool: "Sign-in", text: "The logo on the sign-in card now sits on its own round medallion that rides over the card's top edge, half in and half out, with the same lift and border as the card itself. It is bigger (124px instead of 76px) and follows the active branding in light and dark, including PVM and self-hosted looks. A wide wordmark logo keeps the flat look." },
