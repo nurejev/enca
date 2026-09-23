@@ -19833,7 +19833,7 @@ This is a directory write. Nothing else changes.`)) return;
   // The guest reality matrix (25433) — six external user types against the
   // controls the loaded policies demand. Built from the same inputs as the
   // findings, so it costs no extra read.
-  let mlMatrix = null;
+  let mlMatrix = null, mlDevMatrix = null;
   const mlExpanded = new Set();
   // WHAT THE RESULT ON SCREEN BELONGS TO (25434). 🛡 Checks' other three tabs
   // all keep their result across a tab switch — `if (gcResult) { render();
@@ -19866,7 +19866,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (mlGroups && mlKey === mlReadKey()) { renderMsLearn(); return; }
     $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
-    mlTab = "findings"; mlFixes = null; mlMatrix = null;
+    mlTab = "findings"; mlFixes = null; mlMatrix = null; mlDevMatrix = null;
     // authentication strengths are needed to detect external authentication
     // methods (EAM) inside strength policies — one read, Policy.Read.All
     mlStrengths = new Map();
@@ -19974,6 +19974,7 @@ This is a directory write. Nothing else changes.`)) return;
     mlGroups = MSLearn.group(findings);
     // The guest matrix reads the same inputs — no extra tenant call.
     mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
+    mlDevMatrix = MSLearn.deviceMatrix(scope.raws, { includeDisabled: scope.includeDisabled, groups: ctx });
     // Stamp what this result belongs to: from here a tab switch renders it
     // again instead of re-running the whole pass.
     mlKey = mlReadKey();
@@ -20014,14 +20015,14 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlApply").style.display = "none";
     if (!mlGroups.length) {
       $("mlChips").innerHTML = "";
-      $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + MSLearn.renderEmpty();
+      $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "") + MSLearn.renderEmpty();
       return;
     }
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
-    $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "")
+    $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "")
       + MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
   }
   $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
@@ -20071,6 +20072,21 @@ This is a directory write. Nothing else changes.`)) return;
 
   // a finding card's Fix button jumps to the generated policy
   $("mlBody").addEventListener("click", (e) => {
+    const dm = e.target.closest("[data-dmcell]");
+    if (dm && mlDevMatrix) {
+      const [row, control] = dm.dataset.dmcell.split("|");
+      const cell = mlDevMatrix.cells.get(`${row}|${control}`);
+      if (cell) {
+        const rl = (MSLearn.DEVICE_ROWS.find((r) => r.key === row) || {}).label || row;
+        const ctl = (mlDevMatrix.controls.find((c) => c.key === control) || {}).label || control;
+        idFilter = new Set(cell.policies.map((x) => x.id));
+        stateFilter = "all";
+        toast(`${esc(rl)} × ${esc(ctl)} — <span>${cell.policies.length}</span> polic${cell.policies.length === 1 ? "y" : "ies"}, opened in Policies`);
+        $("toolPolicies").click();
+        refreshViews();
+      }
+      return;
+    }
     const gm = e.target.closest("[data-gmcell]");
     if (gm && mlMatrix) {
       const [type, control] = gm.dataset.gmcell.split("|");

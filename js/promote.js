@@ -119,6 +119,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 274,
+      title: "📘 Shared-device matrix — Teams Rooms and Surface Hub against the demanded controls",
+      tools: ["Checks"],
+      builds: [25485],
+      risk: "low",
+      what: "js/mslearn.js: DEVICE_ROWS, DEVICE_CONTROLS (the guest matrix's controls plus risk remediation, token protection, customised CAE, no resilience defaults, insider risk, device code blocked), DEVICE_SUPPORT from Learn's Teams Rooms table and the Surface Hub page, reachesDevices (All users minus the shared-device group, or including it; All resources or a Teams app), reachesPlatform, deviceDemands, deviceMatrix, renderDeviceMatrix. js/app.js: mlDevMatrix built beside mlMatrix, rendered under it, data-dmcell opens Policies with idFilter. index.html: Help entry.",
+      why: "Mihai asked for shared devices beside the guest matrix. Microsoft documents what Teams devices cannot do, and the per-policy checks only covered MFA, sign-in frequency and the device-code block on All-users policies.",
+      test: [
+        "CloudFellows baseline tenant (Include Off): the shared-device card says it reads CAB-SEC-U-TeamsSharedDevices; CA000, CA007, CA008, CA014, CA015, CA016 do not appear (they exclude it); CA099 no longer does either after 25481.",
+        "A tenant with an All-users sign-in frequency policy that does not exclude the group: Teams Rooms on Windows × Sign-in frequency reads blocked, and the cell opens that policy.",
+        "An All-users MFA policy: Windows rooms blocked, Android prompts, Surface Hub blocked.",
+        "Remove the shared-device group temporarily (or test in a tenant without one): the card says no group was found and counts every All-users policy.",
+      ],
+      files: ["js/mslearn.js", "js/app.js", "index.html", "tools/mslearn-audit.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 273,
       title: "⇄ Switch over in Housekeeping, and version names with a hyphen",
       tools: ["Policies"],

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25485, date: "2026-09-23", title: "MS Learn checks: a matrix for Teams Rooms and Surface Hub",
+    items: [
+      { kind: "new", tool: "Checks", text: "📘 Below the guest matrix, a second one for shared devices: Teams Rooms on Windows, Teams Rooms on Android with phones and panels, and Surface Hub — against every control the policies that reach their resource accounts demand, straight from Microsoft's support tables. It shows at a glance where a room will stop signing in (MFA, authentication strength, sign-in frequency, token protection, terms of use, a device-code block on Android), where it will prompt, and what the documentation does not cover. A policy that excludes the shared-device group is left out; a cell opens the policies behind it." },
+    ],
+  },
+  {
     build: 25484, date: "2026-09-23", title: "Housekeeping: switch over a version change that stopped half-way",
     items: [
       { kind: "new", tool: "Policies", text: "🧹 ⇄ Switch over: when a newer version of a policy is still Off while the older one is On — as an import leaves it when Entra is slow to show the new policy — Housekeeping lists the pair and finishes the change. The new version takes the older one's state (or Report-only first), is read back, and only then is the older version switched Off. Pairs whose names or scope differ can only be ticked after you compare them." },

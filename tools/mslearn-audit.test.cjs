@@ -192,3 +192,42 @@ test("types an unconditional All-resources block shuts out are not an MFA gap", 
   const geo = { ...CA099, conditions: { ...CA099.conditions, locations: { includeLocations: ["All"], excludeLocations: ["nl"] } } };
   assert.equal(find(run([CA000, CA400, geo], CT({})), "ext-type-no-mfa").length, 1);
 });
+
+// ---- 25485: shared devices against the controls this tenant demands ----
+const DEV = { groups: { sharedDevices: { id: "rooms", name: "CAB-SEC-U-TeamsSharedDevices" } } };
+test("the device matrix reads Learn's table: MFA blocked on Windows rooms, prompts on Android, SIF blocked on both", () => {
+  const mfa = pol("CA-MFA-all", { users: { includeUsers: ["All"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const sif = pol("CA-SIF", { users: { includeUsers: ["All"] } }, null, { signInFrequency: { isEnabled: true, value: 4, type: "hours" } });
+  const m = M.deviceMatrix([mfa, sif], DEV);
+  assert.equal(m.cells.get("mtrWindows|mfa").v, "blocked");
+  assert.equal(m.cells.get("mtrAndroid|mfa").v, "caution");
+  assert.equal(m.cells.get("surfaceHub|mfa").v, "blocked");
+  assert.equal(m.cells.get("mtrWindows|signInFrequency").v, "blocked");
+  assert.equal(m.cells.get("surfaceHub|signInFrequency").v, "unknown", "Surface Hub's page does not document sign-in frequency");
+  assert.match(M.renderDeviceMatrix(m), /data-dmcell="mtrWindows\|mfa"/);
+});
+
+test("a policy that excludes the shared-device group, or targets Azure management only, does not reach the devices", () => {
+  const ex = pol("CA000", { users: { includeUsers: ["All"], excludeGroups: ["rooms"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const arm = pol("CA111", { users: { includeUsers: ["All"] }, applications: { includeApplications: ["797f4846-ba00-4fd7-ba43-dac1f8f63013"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  assert.equal(M.deviceMatrix([ex, arm], DEV).types.length, 0);
+  assert.equal(M.renderDeviceMatrix(M.deviceMatrix([ex, arm], DEV)), "");
+});
+
+test("the device-code block is fine for Windows rooms and blocks Android devices; a platform condition picks the family", () => {
+  const dcf = pol("CA004", { users: { includeUsers: ["All"] }, authenticationFlows: { transferMethods: "deviceCodeFlow" } }, { operator: "OR", builtInControls: ["block"] });
+  const m = M.deviceMatrix([dcf], DEV);
+  assert.equal(m.cells.get("mtrWindows|deviceCodeBlock").v, "ok");
+  assert.equal(m.cells.get("mtrAndroid|deviceCodeBlock").v, "blocked");
+  const mob = pol("CA-mob", { users: { includeUsers: ["All"] }, platforms: { includePlatforms: ["android", "iOS"] } }, { operator: "OR", builtInControls: ["compliantDevice"] });
+  const m2 = M.deviceMatrix([mob], DEV);
+  assert.ok(m2.cells.has("mtrAndroid|compliantDevice"));
+  assert.ok(!m2.cells.has("mtrWindows|compliantDevice"));
+});
+
+test("a policy aimed at the shared-device group itself is read too", () => {
+  const own = pol("CA-rooms", { users: { includeUsers: [], includeGroups: ["rooms"] } }, { operator: "OR", builtInControls: ["compliantDevice"] });
+  const m = M.deviceMatrix([own], DEV);
+  assert.equal(m.cells.get("mtrWindows|compliantDevice").v, "ok");
+  assert.equal(m.cells.get("surfaceHub|compliantDevice").v, "blocked");
+});

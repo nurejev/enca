@@ -1774,6 +1774,126 @@ const MSLearn = (() => {
     </div></div>`;
   }
 
+  // ---- 🖥 shared devices against the controls this tenant demands (25485) ----
+  // Mihai: the guest matrix only covers guests — "yes build that one also".
+  // Microsoft publishes a support table for Teams devices too (Supported
+  // Conditional Access and Intune device compliance policies for Microsoft
+  // Teams Rooms and Teams Android Devices, updated 6 Jul 2026) and a list for
+  // Surface Hub. The same idea as the guest matrix: which controls the LOADED
+  // policies demand of the resource accounts these devices sign in with, and
+  // whether the device can meet them at all. A resource account is a directory
+  // user, so a policy reaches it through All users (unless it excludes the
+  // shared-device group) or by including that group; a platform condition
+  // decides which device family it reaches.
+  const DEVICE_ROWS = [
+    { key: "mtrWindows", label: "Teams Rooms on Windows", platform: "windows" },
+    { key: "mtrAndroid", label: "Teams Rooms on Android, phones, panels", platform: "android" },
+    { key: "surfaceHub", label: "Surface Hub", platform: "windows" },
+  ];
+  const DEVICE_CONTROLS = [
+    ...MATRIX_CONTROLS,
+    { key: "riskRemediation", label: "Risk remediation" },
+    { key: "tokenProtection", label: "Token protection" },
+    { key: "cae", label: "Customised CAE" },
+    { key: "disableResilience", label: "No resilience defaults" },
+    { key: "insiderRisk", label: "Insider risk" },
+    { key: "deviceCodeBlock", label: "Device code blocked" },
+  ];
+  // Learn's table, column by column. ok = Supported; blocked = Not supported;
+  // caution = supported, but a person has to be there (Android MFA: "to enable
+  // seamless sign-on, don't enforce this policy"). Surface Hub: only what its
+  // own page documents — anything else reads "not documented", not ok.
+  const DEVICE_SUPPORT = {
+    mtrWindows: { mfa: "blocked", strength: "blocked", compliantDevice: "ok", domainJoinedDevice: "blocked", appProtection: "blocked", passwordChange: "blocked", riskRemediation: "blocked", termsOfUse: "blocked",
+      appEnforced: "blocked", cloudAppSecurity: "blocked", signInFrequency: "blocked", persistentBrowser: "blocked", cae: "blocked", disableResilience: "blocked", tokenProtection: "blocked", insiderRisk: "blocked", deviceCodeBlock: "ok" },
+    mtrAndroid: { mfa: "caution", strength: "blocked", compliantDevice: "ok", domainJoinedDevice: "blocked", appProtection: "blocked", passwordChange: "blocked", riskRemediation: "blocked", termsOfUse: "blocked",
+      appEnforced: "blocked", cloudAppSecurity: "blocked", signInFrequency: "blocked", persistentBrowser: "blocked", cae: "blocked", disableResilience: "blocked", tokenProtection: "blocked", insiderRisk: "blocked", deviceCodeBlock: "blocked" },
+    surfaceHub: { mfa: "blocked", strength: "blocked", compliantDevice: "blocked", domainJoinedDevice: "blocked", appProtection: "blocked", passwordChange: "blocked" },
+  };
+  const DEVICE_WHY = {
+    blocked: "not supported for this device — its resource account cannot meet it and stops signing in; exclude the shared-device group",
+    caution: "supported, but it prompts on the device: a room signs out until someone completes it — Microsoft advises another factor (location, compliant device)",
+    ok: "supported",
+    unknown: "not in the device's documentation — test it on one device first",
+  };
+  const TEAMS_APPS = ["office365", "00000002-0000-0ff1-ce00-000000000000", "00000003-0000-0ff1-ce00-000000000000", "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe", "d4ebce55-015a-49b5-a083-c84d1797ae8c", "01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9"];
+  function reachesDevices(p, ctx) {
+    const g = ctx && ctx.sharedDevices && ctx.sharedDevices.id;
+    const u = U(p);
+    const byGroup = g && (u.includeGroups || []).includes(g);
+    const byAll = allUsers(p) && !(g && (u.excludeGroups || []).includes(g));
+    if (!byGroup && !byAll) return false;
+    const inc = appsInc(p).map((x) => String(x).toLowerCase());
+    return inc.includes("all") || inc.some((x) => TEAMS_APPS.includes(x));
+  }
+  function reachesPlatform(p, plat) {
+    const pl = p.conditions?.platforms;
+    if (!pl) return true;
+    const inc = (pl.includePlatforms || []).map((x) => String(x).toLowerCase()), exc = (pl.excludePlatforms || []).map((x) => String(x).toLowerCase());
+    return (!inc.length || inc.includes("all") || inc.includes(plat)) && !exc.includes(plat);
+  }
+  function deviceDemands(p) {
+    const out = demandsOf(p), g = G(p), sess = S(p), c = p.conditions || {};
+    if (grants(p).includes("riskRemediation")) out.push("riskRemediation");
+    if (sess.secureSignInSession?.isEnabled) out.push("tokenProtection");
+    if (sess.continuousAccessEvaluation && sess.continuousAccessEvaluation.mode && sess.continuousAccessEvaluation.mode !== "disabled") out.push("cae");
+    if (sess.disableResilienceDefaults) out.push("disableResilience");
+    if (c.insiderRiskLevels && String(c.insiderRiskLevels) !== "") out.push("insiderRisk");
+    if (grants(p).includes("block") && /deviceCodeFlow/i.test(String(c.authenticationFlows?.transferMethods || ""))) out.push("deviceCodeBlock");
+    return out;
+  }
+  function deviceMatrix(rawPolicies, opts = {}) {
+    INCLUDE_DISABLED = !!opts.includeDisabled;
+    const ctx = { ...(opts.groups || {}) };
+    const cells = new Map(), seen = new Set();
+    for (const p of rawPolicies || []) {
+      if (!isActive(p) || !reachesDevices(p, ctx)) continue;
+      const demands = deviceDemands(p);
+      for (const row of DEVICE_ROWS) {
+        if (!reachesPlatform(p, row.platform)) continue;
+        for (const control of demands) {
+          seen.add(control);
+          const v = (DEVICE_SUPPORT[row.key] || {})[control] || "unknown";
+          const k = `${row.key}|${control}`;
+          let cell = cells.get(k);
+          if (!cell) { cell = { v, why: DEVICE_WHY[v], policies: [] }; cells.set(k, cell); }
+          cell.policies.push({ id: p.id, name: p.displayName || "(unnamed policy)", state: p.state });
+        }
+      }
+    }
+    const controls = DEVICE_CONTROLS.filter((c) => seen.has(c.key));
+    const types = DEVICE_ROWS.filter((r) => controls.some((c) => cells.has(`${r.key}|${c.key}`)));
+    return { types, controls, cells, groupKnown: !!(ctx.sharedDevices && ctx.sharedDevices.id), groupName: ctx.sharedDevices && ctx.sharedDevices.name };
+  }
+  const DV_LABEL = { ok: "ok", caution: "prompts", blocked: "blocked", unknown: "?" };
+  function renderDeviceMatrix(m) {
+    if (!m || !m.types.length || !m.controls.length) return "";
+    const blocked = [...m.cells.values()].filter((c) => c.v === "blocked").length;
+    const head = m.controls.map((c) => `<th class="gm-c">${esc(c.label)}</th>`).join("");
+    const rows = m.types.map((r) => `<tr><th class="gm-t" scope="row">${esc(r.label)}</th>${m.controls.map((c) => {
+      const cell = m.cells.get(`${r.key}|${c.key}`);
+      if (!cell) return `<td class="gm-cell gm-none" title="No policy that reaches these accounts asks for it">·</td>`;
+      const cls = cell.v === "caution" ? "trust" : cell.v === "unknown" ? "na" : cell.v;
+      const n = cell.policies.length;
+      return `<td class="gm-cell gm-${cls}"><button type="button" data-dmcell="${esc(r.key)}|${esc(c.key)}" title="${esc(cell.why)} — ${n} polic${n === 1 ? "y" : "ies"}">${DV_LABEL[cell.v]}</button></td>`;
+    }).join("")}</tr>`).join("");
+    return `<div class="list-card gm-card"><div class="fx-body">
+      <div class="gm-head">
+        <h5>Shared devices against the controls this tenant demands</h5>
+        <span class="mini muted">${m.groupKnown ? `resource accounts in ${esc(m.groupName || "the shared-device group")} — policies that exclude it are left out` : "no shared-device group found (CAB-SEC-U-TeamsSharedDevices or similar), so every policy on All users counts as reaching them"}</span>
+      </div>
+      <div class="gm-scroll"><table class="gm"><thead><tr><th class="gm-t"></th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="mini gm-legend">
+        <b class="gm-k gm-ok">ok</b> supported ·
+        <b class="gm-k gm-trust">prompts</b> supported, but someone has to complete it on the device ·
+        <b class="gm-k gm-blocked">blocked</b> not supported — the device stops signing in; exclude its resource account ·
+        <b class="gm-k gm-na">?</b> not in the device's documentation ·
+        <b>·</b> nothing that reaches these accounts asks for it
+      </p>
+      ${blocked ? `<p class="mini" style="margin:6px 0 0"><b>${blocked}</b> combination${blocked === 1 ? "" : "s"} these devices cannot meet. Microsoft's advice: exclude the resource accounts from every other policy and give them one of their own — compliant device plus a known location, no sign-in frequency, device code flow not blocked. A cell opens the policies behind it.</p>` : ""}
+    </div></div>`;
+  }
+
   // group findings per check so one issue hitting many policies is one card
   function group(findings) {
     const map = new Map();
@@ -2236,5 +2356,5 @@ const MSLearn = (() => {
     return [...ids];
   }
 
-  return { guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { deviceMatrix, renderDeviceMatrix, DEVICE_ROWS, guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();
