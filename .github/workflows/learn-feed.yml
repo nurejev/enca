@@ -1,0 +1,87 @@
+# ======================================================================
+# 📚 Learn feed: what changed on Microsoft Learn for Conditional Access.
+#
+# Daily. Reads the public MicrosoftDocs/entra-docs repo (git, not the web
+# site), runs tools/learn-feed.mjs from the BETA branch against the beta
+# js/mslearn.js, and writes learn-feed.json to the `learn-feed` branch of
+# this repo. The MS Learn tool reads it at run time from
+#   https://raw.githubusercontent.com/nurejev/enca/learn-feed/learn-feed.json
+# (raw.githubusercontent.com is already in the site's connect-src).
+#
+# WHY THIS FILE IS ON MAIN: GitHub only fires `schedule` (and lists
+# `workflow_dispatch`) from the default branch. It changes nothing on main
+# or beta — it never commits to either, so it cannot collide with a
+# `git push enca-beta beta:main` or `git push origin main:main`, and a push
+# made with GITHUB_TOKEN does not start docker.yml.
+#
+# Undo: delete this file and the `learn-feed` branch. Nothing else depends
+# on it; the tool falls back to "feed unavailable".
+# ======================================================================
+name: learn feed
+
+on:
+  schedule:
+    - cron: "17 4 * * *"      # 04:17 UTC daily — after Microsoft's overnight doc syncs
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Window in days"
+        required: false
+        default: "60"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: learn-feed
+  cancel-in-progress: false
+
+jobs:
+  feed:
+    if: github.repository == 'nurejev/enca'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Script and checks from beta
+        uses: actions/checkout@v4
+        with:
+          ref: beta
+          path: enca
+          sparse-checkout: |
+            tools/learn-feed.mjs
+            js/mslearn.js
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Clone MicrosoftDocs/entra-docs (bounded history, blobs on demand)
+        run: |
+          git clone --quiet --filter=blob:none --no-checkout \
+            --shallow-since="$(date -u -d '400 days ago' +%Y-%m-%d)" \
+            https://github.com/MicrosoftDocs/entra-docs.git entra-docs
+          git -C entra-docs log -1 --format='entra-docs at %h (%cI) %s'
+
+      - name: Previous feed (the learn-feed branch, created on the first run)
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" learn-feed >/dev/null; then
+            git clone --quiet --depth 1 --branch learn-feed "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" feed
+          else
+            mkdir feed && git -C feed init --quiet -b learn-feed
+            git -C feed remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git"
+            printf '# learn-feed\n\nWritten daily by .github/workflows/learn-feed.yml on main. Data only — never merge this branch.\n' > feed/README.md
+          fi
+
+      - name: Build learn-feed.json
+        run: node enca/tools/learn-feed.mjs --docs entra-docs --mslearn enca/js/mslearn.js --out feed/learn-feed.json --days "${{ github.event.inputs.days || '60' }}"
+
+      - name: Commit when something moved
+        run: |
+          cd feed
+          git config user.name  "enca-learn-feed[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit --quiet -m "learn-feed $(date -u +%Y-%m-%d): $(node -e 'const f=require("./learn-feed.json");const c=f.counts;console.log(`${c.docs} docs (${c.newDocs} new), ${f.whatsNew.length} what\x27s-new, ${c.watched} watched`)')"
+          git push --quiet origin HEAD:learn-feed
