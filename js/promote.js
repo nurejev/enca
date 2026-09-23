@@ -119,6 +119,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 278,
+      title: "📋 What's new — the current major open, 1.x in an Archive fold; v2.0.x labels",
+      tools: ["What's new"],
+      builds: [25495],
+      risk: "low",
+      what: "js/changelog.js: CHANGELOG_MAJORS names where each major version starts, per channel series (2.0 = production 322, beta 32301). js/app.js: clMajorOf / clCurrentMajor; openChangelog renders the current major's releases as before and every older major inside one closed details.cl-archive (“📦 Archive — version 1.x”, count, build and date range); maybeShowWhatsNew only offers releases of the current major, and a release carrying release: and intro: shows its version in the header and an intro line. js/version.js: optional patchBase — the production build that is x.y.0 — so the label reads v2.0.0, v2.0.1 … while build keeps increasing; on beta the cycle minus patchBase names the release it is a beta of. css/app.css: .cl-archive, .cl-intro. Help General documents it.",
+      why: "Mihai, 23 Sep: releasing ENCA 2.0 — for What's new, everything from 1.x goes to an archive. Chosen from a mockup: 2.0 on top, 1.x folded; label v2.0.0 rather than v2.0.322. Nothing changes on this channel until a 2.0 build exists — every beta release so far is below 32301.",
+      test: [
+        "Beta 25495: 📋 What's new looks exactly as before — one list, no archive fold (every release is still 1.x on this series).",
+        "Production 322: the page opens with the ENCA 2.0 release (v2.0.0 · build 322 in its header) and below it a closed “📦 Archive — version 1.x” naming the release count and build 131 → 321; opening it shows every 1.x release.",
+        "Production 322, a browser last acknowledged on 320: the overlay title reads What's new in ENCA 2.0 and shows only the 2.0 release — not 321.",
+        "Production 322, a fresh browser: the overlay shows the 2.0 release; footer and sign-in stamp read v2.0.0.",
+        "Beta 32301 (after the release): archive fold appears with every 25xxx release in it; footer reads v2.0.1-beta.1.",
+      ],
+      files: ["js/app.js", "js/changelog.js", "js/version.js", "css/app.css", "index.html", "js/promote.js"],
+    },
+    {
       n: 277,
       title: "Workspaces header — the logo on a medallion hanging over the header's edge",
       tools: ["Workspaces"],

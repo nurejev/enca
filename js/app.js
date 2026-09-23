@@ -1618,17 +1618,61 @@
           ? ' <span class="tag block" title="This entry contains a formatting tag. js/changelog.js is plain text — the renderer escapes it, so the tag will show as angle brackets. Remove it and carry the emphasis in the words.">markup — will render literally</span>' : ""}</span></li>`).join("");
   }
   function clRelease(rel) {
-    return `<div class="cl-rel">
+    return `<div class="cl-rel${rel.release ? " cl-major" : ""}">
       <div class="cl-h"><b>${esc(rel.title)}</b>
-        <span class="mini muted">build ${rel.build} · ${esc(rel.date)}</span></div>
+        <span class="mini muted">${rel.release ? `v${esc(rel.release)} · ` : ""}build ${rel.build} · ${esc(rel.date)}</span></div>
+      ${rel.intro ? `<p class="mini cl-intro">${esc(rel.intro)}</p>` : ""}
       <ul class="cl-list">${clEntries(rel)}</ul>
     </div>`;
+  }
+  // ---- major versions: the current one open, every older one archived ----
+  //
+  // ENCA 2.0 (production 322) put a line under the 1.x history: 190-odd
+  // releases of per-build notes are the record, not the news. CHANGELOG_MAJORS
+  // in js/changelog.js names where each major version STARTS, once per channel
+  // series (a production integer and a beta five-digit build, because the two
+  // numberings are never compared with each other — see CL_BETA_SERIES). A
+  // release older than every listed start is "1.x".
+  //
+  // The page shows the current major's releases as before and folds each older
+  // major into one closed <details> — kept, searchable, one click away. The
+  // overlay after sign-in shows the current major only: someone last here on
+  // 1.0.320 is told about 2.0, not handed the tail of the 1.x log as well.
+  const clMajors = () => (typeof CHANGELOG_MAJORS === "undefined" ? [] : CHANGELOG_MAJORS)
+    .slice().sort((a, b) => (CL_BETA_SERIES ? b.beta - a.beta : b.production - a.production));
+  function clMajorOf(rel) {
+    for (const m of clMajors()) {
+      const from = CL_BETA_SERIES ? m.beta : m.production;
+      if (from && rel.build >= from) return m.version;
+    }
+    return "1.x";
+  }
+  function clCurrentMajor() {
+    const vis = clVisible();
+    return vis.length ? clMajorOf(vis[0]) : "1.x";
   }
   function openChangelog() {
     crumb("📋 What's new");
     show("screen-changelog");
-    $("clBody").innerHTML = clVisible().map(clRelease).join("")
-      || '<p class="mini">No changelog entries yet.</p>';
+    const vis = clVisible();
+    const cur = clCurrentMajor();
+    const byMajor = new Map();
+    for (const r of vis) {
+      const m = clMajorOf(r);
+      if (!byMajor.has(m)) byMajor.set(m, []);
+      byMajor.get(m).push(r);
+    }
+    const parts = [];
+    for (const [m, rels] of byMajor) {
+      if (m === cur) { parts.push(rels.map(clRelease).join("")); continue; }
+      const lo = rels[rels.length - 1], hi = rels[0];
+      parts.push(`<details class="cl-archive">
+        <summary><b>📦 Archive — version ${esc(m)}</b>
+          <span class="mini muted">${rels.length} release${rels.length === 1 ? "" : "s"} · build ${lo.build} → ${hi.build} · ${esc(lo.date)} → ${esc(hi.date)}</span></summary>
+        <div class="cl-archive-body">${rels.map(clRelease).join("")}</div>
+      </details>`);
+    }
+    $("clBody").innerHTML = parts.join("") || '<p class="mini">No changelog entries yet.</p>';
     clMarkSeen();
   }
   $("toolChangelog").addEventListener("click", openChangelog);
@@ -1679,12 +1723,16 @@
     // newest release, not the entire history.
     const vis = clVisible();
     if (!vis.length) return;
-    const fresh = seen ? vis.filter((r) => r.build > seen) : [];
+    // Only the current major version: an older major's releases live in the
+    // page's archive fold, and a returning 1.x visitor is told about 2.0.
+    const cur = clCurrentMajor();
+    const fresh = seen ? vis.filter((r) => r.build > seen && clMajorOf(r) === cur) : [];
     const rels = fresh.length ? fresh : [vis[0]];
     const n = rels.reduce((s, r) => s + r.items.length, 0);
     $("newSub").innerHTML = seen
       ? `${n} change${n === 1 ? "" : "s"} since you were last here (build ${seen} → ${CHANGELOG_LATEST}).`
-      : `Here's what the toolset can do as of build ${CHANGELOG_LATEST}.`;
+      : `Here's what the toolset can do as of ${APP_BUILD.label}.`;
+    if (vis[0] && vis[0].release) $("newTitle").textContent = `✨ What's new in ${BRANDING.name || "ENCA"} ${vis[0].release.replace(/\.0$/, "")}`;
     $("newBody").innerHTML = rels.map(clRelease).join("");
     $("newModal").classList.add("open");
   }
@@ -1696,6 +1744,15 @@
   // ---------- Help (a full tool: own screen + tab) ----------
   // Table of contents is built once from the section headings so it can never
   // drift from the sections themselves.
+  // A heading's contents label is its text WITHOUT its chips: the BETA / NEW /
+  // writes-to-tenant tags and the grey help-fold note ("folded into this tool
+  // — build …", "the first tab — T41"). Removing the elements rather than
+  // matching their wording means a new fold note can never leak into the list.
+  function helpTocLabel(h) {
+    const c = h.cloneNode(true);
+    c.querySelectorAll(".tag, .help-fold").forEach((x) => x.remove());
+    return esc(c.textContent.replace(/\s+/g, " ").trim());
+  }
   let helpTocBuilt = false;
   function buildHelpToc() {
     if (helpTocBuilt) return;
@@ -1712,7 +1769,7 @@
     const secs = [...document.querySelectorAll("#screen-help .help-sec > h4, #screen-help .help-sec > h5")]
       .filter((h) => !h.closest("#helpPromote"));
     secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
-    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}"${h.tagName === "H5" ? ' class="sub"' : ""}>${h.textContent.replace(/\s+(BETA|NEW|writes to tenant|folded into this tool — build \d+)\b/gi, "").trim()}</a>`).join("");
+    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}"${h.tagName === "H5" ? ' class="sub"' : ""}>${helpTocLabel(h)}</a>`).join("");
     // Scroll-spy: highlight the chip for the section currently in view, and keep
     // that chip scrolled into view within the sticky ToC so it stays reachable.
     const links = new Map([...$("helpToc").querySelectorAll("a")].map((a) => [a.getAttribute("href").slice(1), a]));

@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25495, date: "2026-09-23", title: "What's new gets an archive, and Help covers every tool for 2.0",
+    items: [
+      { kind: "improved", tool: "What's new", text: "📋 The What's new page is ready for ENCA 2.0: the current major version's notes stay open at the top and every older release folds into one “📦 Archive — version 1.x”, one click away. The overlay after sign-in only speaks about the current major version, and from 2.0 the version reads v2.0.0, v2.0.1 … while each release still names its build. On this channel nothing moves yet — the archive appears with the first 2.0 build." },
+      { kind: "improved", tool: "Help", text: "❓ Help documents every tool as it ships in 2.0: new sections for ↗ Guided rollout and for the workspaces layout and navigation, and the Overview, Policies, Checks, Import, Exclusion analyzer, Gap analyse, Licences, Who is, Sign-in log, Baseline, Conditional Access groups, Policy builder and own-registration sections brought up to what the tools do now. The tool-number map names T40 and T41 and says T42 is next, and the contents list shows each heading without its tags or grey notes." },
+      { kind: "improved", tool: "Roadmap", text: "🗺 Two cards for work that had none — R60 Workspaces and R61 the home-page overview — and R23 says the builder is the FIRST tab of Policy building blocks, with editing on the policy card (R17)." },
+    ],
+  },
+  {
     build: 25494, date: "2026-09-23", title: "The logo in the top corner hangs over the header's edge",
     items: [
       { kind: "improved", tool: "Workspaces", text: "The logo in the top-left corner now sits on the same round medallion as the sign-in card, 60px, centred above the left rail and hanging over the header's bottom edge, half in and half out. It follows the active branding in light and dark. On a narrow window, where the rail moves to the bottom, and with a wide wordmark logo, the header keeps the flat logo." },
@@ -4673,6 +4681,16 @@ const CHANGELOG = [
       { kind: "improved", tool: "Baseline Policies", text: "Catalog updated to the 2026-07-21 R26.6 export, including the new TeamsSharedDevices exclusion on the global session and risk policies." },
     ],
   },
+];
+
+// Where each MAJOR version starts, per channel series — the 📋 What's new page
+// shows the current major open and folds every older one into an Archive, and
+// the overlay after sign-in only speaks about the current major. A release
+// older than every start listed here is "1.x". `production` is the production
+// integer that IS x.0.0; `beta` is the first beta build after it (the beta
+// cycle named after the release it will become, 323 → 32301).
+const CHANGELOG_MAJORS = [
+  { version: "2.0", production: 322, beta: 32301 },
 ];
 
 // The newest build that has changelog copy — what the overlay compares against.

@@ -925,6 +925,13 @@ tr.detail>td{background:var(--hover);padding:12px 18px}
 .rk-d{color:var(--muted);font-size:12px;margin-top:2px}
 /* changelog / what's new */
 .cl-rel{margin-bottom:20px}
+.cl-intro{margin:4px 0 8px;line-height:1.6}
+.cl-archive{margin-top:24px;border:1px solid var(--border);border-radius:10px;background:var(--soft)}
+.cl-archive>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 14px}
+.cl-archive>summary::-webkit-details-marker{display:none}
+.cl-archive>summary::before{content:"▸";color:var(--muted);font-size:12px}
+.cl-archive[open]>summary::before{content:"▾"}
+.cl-archive-body{padding:4px 14px 8px;background:var(--surface);border-radius:0 0 10px 10px}
 .cl-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding-bottom:6px;
   border-bottom:2px solid var(--green);margin-bottom:8px}
 .cl-list{list-style:none;margin:0;padding:0}

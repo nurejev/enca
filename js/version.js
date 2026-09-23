@@ -30,7 +30,7 @@ const APP_BUILD = {
   // graduating to production one queue number at a time — production walked
   // 250 → 281 while this cycle stayed 250. It is a cycle NAME, not a promise.
   cycle: 250,
-  build: 25494,
+  build: 25495,
   date: "2026-09-23",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -40,7 +40,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-09-23T15:19Z",
+  released: "2026-09-23T15:57Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
@@ -72,10 +72,20 @@ const APP_BUILD = {
   get iteration() {
     return this.cycle ? this.build - this.cycle * 100 : this.build % 100;
   },
+  // `patchBase` (version 2.0, production build 322) — the production build
+  // that IS x.y.0. From 2.0 on the label counts releases within the major
+  // version (322 → v2.0.0, 323 → v2.0.1) instead of printing the running build
+  // number, while `build` itself keeps increasing: ?v= cache-busting and the
+  // What's-new seen-marker compare it numerically, so it must never restart.
+  // A beta cycle is named after the production build it will become, so on
+  // beta the same subtraction names the release it is a beta OF (cycle 323 →
+  // v2.0.1-beta.N). Without patchBase (every 1.x build) the label is unchanged.
+  get patch() { return this.patchBase ? this.build - this.patchBase : this.build; },
   get label() {
+    const cyc = this.cycle || Math.floor(this.build / 100);
     return this.isBeta
-      ? `v${this.version}.${this.cycle || Math.floor(this.build / 100)}-beta.${this.iteration}`
-      : `v${this.version}.${this.build}`;
+      ? `v${this.version}.${this.patchBase ? cyc - this.patchBase : cyc}-beta.${this.iteration}`
+      : `v${this.version}.${this.patch}`;
   },
   get full() { return `${this.label} · ${this.date}`; },
 };
