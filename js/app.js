@@ -1732,7 +1732,7 @@
     $("newSub").innerHTML = seen
       ? `${n} change${n === 1 ? "" : "s"} since you were last here (build ${seen} → ${CHANGELOG_LATEST}).`
       : `Here's what the toolset can do as of ${APP_BUILD.label}.`;
-    if (vis[0] && vis[0].release) $("newTitle").textContent = `✨ What's new in ${BRANDING.name || "ENCA"} ${vis[0].release.replace(/\.0$/, "")}`;
+    if (cur !== "1.x") $("newTitle").textContent = `✨ What's new in ${BRANDING.name || "ENCA"} ${cur}`;
     $("newBody").innerHTML = rels.map(clRelease).join("");
     $("newModal").classList.add("open");
   }

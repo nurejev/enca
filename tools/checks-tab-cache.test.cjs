@@ -31,7 +31,10 @@ function body(fn) {
   return app.slice(at, end > 0 ? end : at + 4000);
 }
 
-for (const { tab, fn, held } of TABS) {
+// 📐 CIS is a beta-channel tab only — production has no openCis at all — so
+// its row is checked where the tab exists and skipped where it does not. The
+// file is identical on both channels.
+for (const { tab, fn, held } of TABS.filter((t) => t.tab !== "cis" || app.includes("function openCis("))) {
   test(`${fn} (${tab}) renders its cached result instead of re-running`, () => {
     const src = body(fn);
     // An early return guarded by the state that holds the result. The

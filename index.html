@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=25495"></script>
+<script src="js/popup-guard.js?v=32301"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=25495" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=25495">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32301" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32301">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=25495"></script>
+<script src="js/selfhost-boot.js?v=32301"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=25495"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=25495"></script>
-<link rel="stylesheet" href="css/workspace.css?v=25495">
-<link rel="stylesheet" href="css/workspaces.css?v=25495">
-<link rel="stylesheet" href="css/tool-layout.css?v=25495">
-<link rel="stylesheet" href="css/list-detail.css?v=25495">
-<link rel="stylesheet" href="css/flat-icons.css?v=25495">
+<script src="js/counter.js?v=32301"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32301"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32301">
+<link rel="stylesheet" href="css/workspaces.css?v=32301">
+<link rel="stylesheet" href="css/tool-layout.css?v=32301">
+<link rel="stylesheet" href="css/list-detail.css?v=32301">
+<link rel="stylesheet" href="css/flat-icons.css?v=32301">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=25495" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32301" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=25495" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32301" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1466,6 +1466,30 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <!-- The 2.0 cards carry data-shipped="32301": the beta build in which they
+               reached production (322), not the beta build that first had them.
+               The channel jumped from 25495 to 32301 at 2.0, so their first beta
+               build would age them into "Shipped before" at once. -->
+          <div class="list-card rm-card" data-shipped="32301">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R60</span> 🧭 Workspaces: one layout for every tool <span class="tag grant">live · beta 25401 · production 322 (v2.0.0)</span></h4>
+            <p class="mini" style="margin:0"><b>The 2.0 interface.</b> A left rail with the tools in work order, a branded header with the logo on its medallion, and every list tool drawn the same way — the list on the left, the selected item in an inspector on the right, the open row kept highlighted, both panes scrolling on their own and handing over to the page at their end. Each tool's head folds away with the ▾ at the end of its title, remembered per tool; flat icons, a contrasting active tool and tab, and tab strips inside the tools that host several. Nothing about what a tool reads or writes changed — only where it sits and how you move between them.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32301">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R61</span> 🏠 An overview on the home page <span class="tag grant">live · beta 25419 · production 322 (v2.0.0)</span></h4>
+            <p class="mini" style="margin:0"><b>The home page became a dashboard.</b> A snapshot header saying when the policies were read, the policy context (report-only, recently modified, baseline match, unique exclusion references), <i>Worth a look first</i> — findings with their evidence state and a policy filter that carries into 🗂 Policies — your own check runs, a configuration map of what the tenant holds, what changed since the previous refresh, and upcoming Microsoft changes. It says only what it knows: an unread source is Unknown, never zero, and nothing is scored provisionally.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32301">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R59</span> 🪪 Your own registration, from the browser <span class="tag grant">live · beta 25438 · production 322 (v2.0.0)</span></h4>
+            <p class="mini" style="margin:0"><b>Builds on <span class="rm-ref">R14</span>.</b> The PowerShell route registers ENCA in your own tenant; this does the same from the page. <b>Before sign-in</b>, the sign-in card offers it on every host but the publisher's own: sign in once with the shipped registration, and a four-step wizard creates a single-tenant SPA registration in your directory with the same delegated permissions, its service principal, optionally <i>assignment required</i> with you assigned first, and optionally admin consent for the organisation — each step read back, impact and recovery stated before the write. <b>After sign-in</b>, a band on the home page (and a row in the account menu) offers it to a Global, Privileged Role, Application or Cloud Application Administrator while the copy still signs in through an app another directory owns. The result is the default sign-in: for this browser at once, for an Azure Container App deployment with one button that writes <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code> onto the container app with your own rights, and for any other host as the <code>js/authConfig.local.js</code> block and the <code>docker -e</code> lines to copy.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32301">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> <a href="#" class="md-tool" data-tool="toolBuilder">🏗 Policy builder</a> <span class="tag grant">live · beta 25437 · production 322 (v2.0.0)</span></h4>
+            <p class="mini" style="margin:0"><b>Shipped as T41, the first tab of 🧩 Policy building blocks</b> — creation and Clone; editing an existing policy is <span class="rm-ref">R17</span>, on its card — the tenant's locations, strengths, contexts and terms as the pickers, hints computed over the loaded policies, a What-If preflight, a change-plan export, and a policy born in report-only. Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32301">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R17</span> ✏️ Editable Conditional Access policies <span class="tag grant">live · beta 25448 · production 322 (v2.0.0)</span></h4>
+            <p class="mini" style="margin:0"><b>Shipped on the policy card (beta 25448)</b> — ✎ Edit turns the card's six boxes into forms, the name into a field, and a bar counts the settings that change, shows the ± Diff and the preflight, and saves whole sections, only the changed ones, read back after the write. The 🏗 builder keeps creation and Clone. Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="25378">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R58</span> <a href="#" class="md-tool" data-tool="toolImpact">💾 Keep sign-ins on this device</a> <span class="tag grant">live · beta 25378 · production 315</span></h4>
             <p class="mini" style="margin:0">A report-only review is a cadence — an hour after staging, four hours, the next morning, a week — and every look used to read the whole window again. With your consent, per tenant, the browser now keeps the report-only verdicts the hunting sources bring back (per day, policy, verdict, user and app — the buckets of <span class="rm-ref">T26</span> 2.0) and a later look asks Microsoft only for the days it does not hold yet, plus the current day, which is re-read every time because sign-ins reach the hunting table late. Opening the tool shows what the device holds first, then the new days land on top (25379). <b>Off by default</b>, in words: the button next to the sign-in source says what is kept, where (this browser, this device, nowhere else), who can read it (anyone in this browser profile), and Forget deletes it at once; everything ages out after the days you choose. Tokens stay out of it, the Entra-log source is not stored, and the hosted site itself still keeps nothing anywhere. <b>Next:</b> whole sign-in rows for 🕵 🌊 🛂, behind a second, larger consent, once the buckets have earned their keep.</p>
@@ -1661,27 +1685,6 @@
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R60</span> 🧭 Workspaces: one layout for every tool <span class="tag ok">in beta today · beta 25401</span></h4>
-            <p class="mini" style="margin:0"><b>The 2.0 interface.</b> A left rail with the tools in work order, a branded header with the logo on its medallion, and every list tool drawn the same way — the list on the left, the selected item in an inspector on the right, the open row kept highlighted, both panes scrolling on their own and handing over to the page at their end. Each tool's head folds away with the ▾ at the end of its title, remembered per tool; flat icons, a contrasting active tool and tab, and tab strips inside the tools that host several. Nothing about what a tool reads or writes changed — only where it sits and how you move between them.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R61</span> 🏠 An overview on the home page <span class="tag ok">in beta today · beta 25419</span></h4>
-            <p class="mini" style="margin:0"><b>The home page became a dashboard.</b> A snapshot header saying when the policies were read, the policy context (report-only, recently modified, baseline match, unique exclusion references), <i>Worth a look first</i> — findings with their evidence state and a policy filter that carries into 🗂 Policies — your own check runs, a configuration map of what the tenant holds, what changed since the previous refresh, and upcoming Microsoft changes. It says only what it knows: an unread source is Unknown, never zero, and nothing is scored provisionally.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R59</span> 🪪 Your own registration, from the browser <span class="tag ok">in beta today · beta 25438</span></h4>
-            <p class="mini" style="margin:0"><b>Builds on <span class="rm-ref">R14</span>.</b> The PowerShell route registers ENCA in your own tenant; this does the same from the page. <b>Before sign-in</b>, the sign-in card offers it on every host but the publisher's own: sign in once with the shipped registration, and a four-step wizard creates a single-tenant SPA registration in your directory with the same delegated permissions, its service principal, optionally <i>assignment required</i> with you assigned first, and optionally admin consent for the organisation — each step read back, impact and recovery stated before the write. <b>After sign-in</b>, a band on the home page (and a row in the account menu) offers it to a Global, Privileged Role, Application or Cloud Application Administrator while the copy still signs in through an app another directory owns. The result is the default sign-in: for this browser at once, for an Azure Container App deployment with one button that writes <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code> onto the container app with your own rights, and for any other host as the <code>js/authConfig.local.js</code> block and the <code>docker -e</code> lines to copy.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> <a href="#" class="md-tool" data-tool="toolBuilder">🏗 Policy builder</a> <span class="tag ok">in beta today · beta 25437</span></h4>
-            <p class="mini" style="margin:0"><b>Shipped as T41, the first tab of 🧩 Policy building blocks</b> — creation and Clone; editing an existing policy is <span class="rm-ref">R17</span>, on its card — the tenant's locations, strengths, contexts and terms as the pickers, hints computed over the loaded policies, a What-If preflight, a change-plan export, and a policy born in report-only. Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R17</span> ✏️ Editable Conditional Access policies <span class="tag ok">in beta today · beta 25448</span></h4>
-            <p class="mini" style="margin:0"><b>Shipped on the policy card (beta 25448)</b> — ✎ Edit turns the card's six boxes into forms, the name into a field, and a bar counts the settings that change, shows the ± Diff and the preflight, and saves whole sections, only the changed ones, read back after the write. The 🏗 builder keeps creation and Clone. Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
-          </div>
-          
-                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span> <span class="tag">CloudFellows tenant only</span></h4>
             <p class="mini" style="margin:0">Score the Conditional Access policies against the CIS Microsoft 365 Foundations Benchmark v7.0.0 — the 17 automated recommendations of section 5.2.2, with per-control pass / report-only / configured-but-Off / fail, licence awareness, the nearest policy for every gap, and a Markdown compliance report. Running on the beta channel now; graduates to production once it has proven itself against enough real tenants.</p>
           </div>
@@ -3408,87 +3411,87 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=25495"></script>
-<script src="js/selfhost.js?v=25495"></script>
-<script src="js/version.js?v=25495"></script>
-<script src="js/verdict.js?v=25495"></script>
-<script src="js/fork.js?v=25495"></script>
-<script src="js/promote.js?v=25495"></script>
-<script src="js/authConfig.js?v=25495"></script>
-<script src="js/connection.js?v=25495"></script>
-<script src="js/labels.js?v=25495"></script>
-<script src="js/capabilities.js?v=25495"></script>
-<script src="js/graph.js?v=25495"></script>
-<script src="js/model.js?v=25495"></script>
-<script src="js/render.js?v=25495"></script>
-<script src="js/analyze.js?v=25495"></script>
-<script src="js/whatif.js?v=25495"></script>
-<script src="js/mslearn.js?v=25495"></script>
-<script src="js/gapcheck.js?v=25495"></script>
-<script src="js/cisdata.js?v=25495"></script>
-<script src="js/cischeck.js?v=25495"></script>
-<script src="js/exclusions.js?v=25495"></script>
-<script src="js/cascope.js?v=25495"></script>
-<script src="js/coverage.js?v=25495"></script>
-<script src="js/runmeta.js?v=25495"></script>
-<script src="js/overview.js?v=25495"></script>
-<script src="js/validator.js?v=25495"></script>
-<script src="js/whatifeval.js?v=25495"></script>
-<script src="js/builder.js?v=25495"></script>
-<script src="js/onboard.js?v=25495"></script>
-<script src="js/compare.js?v=25495"></script>
-<script src="js/whois.js?v=25495"></script>
-<script src="js/wave.js?v=25495"></script>
-<script src="js/sessionctl.js?v=25495"></script>
-<script src="js/spgap.js?v=25495"></script>
-<script src="js/groupuse.js?v=25495"></script>
-<script src="js/iso3166.js?v=25495"></script>
-<script src="js/causes.js?v=25495"></script>
-<script src="js/locations.js?v=25495"></script>
-<script src="js/authcontexts.js?v=25495"></script>
-<script src="js/authstrengths.js?v=25495"></script>
-<script src="js/recycle.js?v=25495"></script>
-<script src="js/rmau.js?v=25495"></script>
-<script src="js/camap.js?v=25495"></script>
-<script src="js/rmaudoc.js?v=25495"></script>
-<script src="js/termsofuse.js?v=25495"></script>
-<script src="js/audit.js?v=25495"></script>
-<script src="js/drift.js?v=25495"></script>
-<script src="js/guide.js?v=25495"></script>
-<script src="js/userimpact.js?v=25495"></script>
-<script src="js/smsvoice.js?v=25495"></script>
-<script src="js/memberof.js?v=25495"></script>
-<script src="js/devcheck.js?v=25495"></script>
-<script src="js/licgap.js?v=25495"></script>
-<script src="js/teamsdev.js?v=25495"></script>
-<script src="js/signinstore.js?v=25495"></script>
-<script src="js/signins.js?v=25495"></script>
-<script src="js/reportimpact.js?v=25495"></script>
-<script src="js/changelog.js?v=25495"></script>
-<script src="js/baselineData.js?v=25495"></script>
-<script src="js/baselineJoeyData.js?v=25495"></script>
-<script src="js/baselineLive.js?v=25495"></script>
-<script src="js/baseline.js?v=25495"></script>
-<script src="js/baselineCleanup.js?v=25495"></script>
-<script src="js/groupTemplates.js?v=25495"></script>
-<script src="js/assign.js?v=25495"></script>
-<script src="js/cagroups.js?v=25495"></script>
-<script src="js/groupmerge.js?v=25495"></script>
-<script src="js/groupsview.js?v=25495"></script>
-<script src="js/runledger.js?v=25495"></script>
-<script src="js/protect.js?v=25495"></script>
-<script src="js/policy-compare.js?v=25495"></script>
-<script src="js/import.js?v=25495"></script>
-<script src="js/export.js?v=25495"></script>
-<script src="js/demo.js?v=25495"></script>
-<script src="js/list-detail.js?v=25495"></script>
-<script src="js/flat-icons.js?v=25495"></script>
-<script src="js/workspace.js?v=25495"></script>
-<script src="js/analysis-jobs.js?v=25495"></script>
-<script src="js/search-suggest.js?v=25495"></script>
-<script src="js/app.js?v=25495"></script>
-<script src="js/accessibility.js?v=25495"></script>
-<script src="js/workspaces.js?v=25495"></script>
-<script src="js/tool-layout.js?v=25495"></script>
+<script src="js/branding.js?v=32301"></script>
+<script src="js/selfhost.js?v=32301"></script>
+<script src="js/version.js?v=32301"></script>
+<script src="js/verdict.js?v=32301"></script>
+<script src="js/fork.js?v=32301"></script>
+<script src="js/promote.js?v=32301"></script>
+<script src="js/authConfig.js?v=32301"></script>
+<script src="js/connection.js?v=32301"></script>
+<script src="js/labels.js?v=32301"></script>
+<script src="js/capabilities.js?v=32301"></script>
+<script src="js/graph.js?v=32301"></script>
+<script src="js/model.js?v=32301"></script>
+<script src="js/render.js?v=32301"></script>
+<script src="js/analyze.js?v=32301"></script>
+<script src="js/whatif.js?v=32301"></script>
+<script src="js/mslearn.js?v=32301"></script>
+<script src="js/gapcheck.js?v=32301"></script>
+<script src="js/cisdata.js?v=32301"></script>
+<script src="js/cischeck.js?v=32301"></script>
+<script src="js/exclusions.js?v=32301"></script>
+<script src="js/cascope.js?v=32301"></script>
+<script src="js/coverage.js?v=32301"></script>
+<script src="js/runmeta.js?v=32301"></script>
+<script src="js/overview.js?v=32301"></script>
+<script src="js/validator.js?v=32301"></script>
+<script src="js/whatifeval.js?v=32301"></script>
+<script src="js/builder.js?v=32301"></script>
+<script src="js/onboard.js?v=32301"></script>
+<script src="js/compare.js?v=32301"></script>
+<script src="js/whois.js?v=32301"></script>
+<script src="js/wave.js?v=32301"></script>
+<script src="js/sessionctl.js?v=32301"></script>
+<script src="js/spgap.js?v=32301"></script>
+<script src="js/groupuse.js?v=32301"></script>
+<script src="js/iso3166.js?v=32301"></script>
+<script src="js/causes.js?v=32301"></script>
+<script src="js/locations.js?v=32301"></script>
+<script src="js/authcontexts.js?v=32301"></script>
+<script src="js/authstrengths.js?v=32301"></script>
+<script src="js/recycle.js?v=32301"></script>
+<script src="js/rmau.js?v=32301"></script>
+<script src="js/camap.js?v=32301"></script>
+<script src="js/rmaudoc.js?v=32301"></script>
+<script src="js/termsofuse.js?v=32301"></script>
+<script src="js/audit.js?v=32301"></script>
+<script src="js/drift.js?v=32301"></script>
+<script src="js/guide.js?v=32301"></script>
+<script src="js/userimpact.js?v=32301"></script>
+<script src="js/smsvoice.js?v=32301"></script>
+<script src="js/memberof.js?v=32301"></script>
+<script src="js/devcheck.js?v=32301"></script>
+<script src="js/licgap.js?v=32301"></script>
+<script src="js/teamsdev.js?v=32301"></script>
+<script src="js/signinstore.js?v=32301"></script>
+<script src="js/signins.js?v=32301"></script>
+<script src="js/reportimpact.js?v=32301"></script>
+<script src="js/changelog.js?v=32301"></script>
+<script src="js/baselineData.js?v=32301"></script>
+<script src="js/baselineJoeyData.js?v=32301"></script>
+<script src="js/baselineLive.js?v=32301"></script>
+<script src="js/baseline.js?v=32301"></script>
+<script src="js/baselineCleanup.js?v=32301"></script>
+<script src="js/groupTemplates.js?v=32301"></script>
+<script src="js/assign.js?v=32301"></script>
+<script src="js/cagroups.js?v=32301"></script>
+<script src="js/groupmerge.js?v=32301"></script>
+<script src="js/groupsview.js?v=32301"></script>
+<script src="js/runledger.js?v=32301"></script>
+<script src="js/protect.js?v=32301"></script>
+<script src="js/policy-compare.js?v=32301"></script>
+<script src="js/import.js?v=32301"></script>
+<script src="js/export.js?v=32301"></script>
+<script src="js/demo.js?v=32301"></script>
+<script src="js/list-detail.js?v=32301"></script>
+<script src="js/flat-icons.js?v=32301"></script>
+<script src="js/workspace.js?v=32301"></script>
+<script src="js/analysis-jobs.js?v=32301"></script>
+<script src="js/search-suggest.js?v=32301"></script>
+<script src="js/app.js?v=32301"></script>
+<script src="js/accessibility.js?v=32301"></script>
+<script src="js/workspaces.js?v=32301"></script>
+<script src="js/tool-layout.js?v=32301"></script>
 </body>
 </html>
