@@ -355,7 +355,7 @@ const Baseline = (() => {
   const STATUS = {
     ok: { icon: "✓", label: "Up to date", cls: "ok", order: 3, desc: "in this tenant at the baseline's version" },
     outdated: { icon: "⬆", label: "Outdated", cls: "warn", order: 1, desc: "in this tenant, but at an older version than the baseline" },
-    ahead: { icon: "⬇", label: "Newer than baseline", cls: "info", order: 4, desc: "in this tenant at a newer version than the baseline lists" },
+    ahead: { icon: "⬇", label: "Newer than baseline", cls: "info", order: 4, desc: "in this tenant newer than the baseline lists — a newer version in the name, or the same version with a definition edited in place" },
     present: { icon: "✓", label: "Present", cls: "ok", order: 2, desc: "in this tenant under this baseline's name (this baseline does not version its names)" },
     unversioned: { icon: "?", label: "Version unknown", cls: "info", order: 5, desc: "in this tenant, but one side carries no version to compare" },
     missing: { icon: "✗", label: "Missing", cls: "bad", order: 0, desc: "no policy with this CA number in this tenant" },
@@ -476,7 +476,15 @@ const Baseline = (() => {
 
   // ---- compare tenant policies against the catalog ----
   // vms: the app's view models ({ id, name, state, raw }).
-  function compare(vms, catId) {
+  // opts.byDefinition — judge a same-version policy on its DEFINITION as well
+  // (edited in place, renamed → Newer than baseline). That is the REFERENCE
+  // tenant's question, the one the catalog is generated from. Any other
+  // tenant is judged on CA NUMBER AND VERSION alone (Mihai, 2026-09-22: "the
+  // key is the CA number and version; changes may be shown") — a definition
+  // that differs there is marked on the row and counted in the summary, and
+  // never moves the status.
+  function compare(vms, catId, opts) {
+    const byDefinition = !!(opts && opts.byDefinition);
     const cat = catalog(catId);
     const shared = sharedPolicies(cat);
     const byNum = new Map();
@@ -553,6 +561,31 @@ const Baseline = (() => {
       // best status
       }).sort((a, b2) => (exactName(b2.p.name, b.name) - exactName(a.p.name, b.name)) || (STATUS[b2.status].order - STATUS[a.status].order));
       const best = scored[0];
+      // "Up to date" used to mean "same version in the name". A policy edited
+      // in the portal without a version bump is NEWER than what the baseline
+      // holds, whatever its name says — the catalog lists a definition the
+      // tenant no longer runs. So the same version with a differing definition
+      // is newer than the baseline, marked edited in place; 🧱 Update the
+      // catalog counts these the same way, which is why the chip and the panel
+      // agree (Mihai, 2026-09-22: "shouldn't the 6 then also be more?").
+      if (best.status === "ok" && b.version) {
+        try {
+          const rv = reviewRow(b, best.p);
+          if (byDefinition && rv.diff.length) {
+            best.edited = rv.edited; best.renamed = rv.renamed && !rv.edited; best.differs = true;
+            best.status = "ahead"; best.why = rv.edited ? "same version as the catalog, definition differs — edited in place" : "same version as the catalog, renamed";
+          } else if (!byDefinition) {
+            // a customer tenant: its assignments are its own — the exclusion
+            // groups it adds, the persona or deploy groups it includes — and
+            // never a reason to differ from the baseline (Mihai, 2026-09-22:
+            // "other exclusions should not trigger a newer than baseline").
+            // What is worth showing is the substance: resources, conditions,
+            // the grant and the session controls, named on the row.
+            const subst = rv.diff.filter((d) => d.field !== "include" && d.field !== "exclude" && d.field !== "name");
+            if (subst.length) { best.differs = true; best.differsIn = subst.map((d) => d.label); best.why = null; }
+          }
+        } catch { /* a view model this catalog cannot render — stays as the name says */ }
+      }
       claimed.add(best.p);
       // "2 policies share CA5" is a warning about a leftover COPY, not about
       // a catalog that deliberately numbers two policies the same: only count
@@ -560,7 +593,7 @@ const Baseline = (() => {
       const spare = hits.length > (defined.get(b.num) || 1);
       rows.push({
         num: b.num, baseline: b, tenant: best.p, tenantVersion: best.tv,
-        status: best.status, why: best.why || null,
+        status: best.status, why: best.why || null, edited: !!best.edited, renamed: !!best.renamed, differs: !!best.differs, differsIn: best.differsIn || [],
         duplicates: spare ? hits.length : 0, shared: b.shared || null,
       });
     }
@@ -578,7 +611,7 @@ const Baseline = (() => {
     const total = cat.policies.length + shared.length;
     const gap = (r) => ["missing", "outdated", "conflict"].includes(r.status);
     return {
-      rows, counts,
+      rows, counts, byDefinition,
       catalog: cat,
       baselineTotal: total,
       shared: shared.length,
@@ -628,7 +661,14 @@ const Baseline = (() => {
       const who = tally(res.rows.filter((r) => r.status === "conflict"));
       parts.push(`<b>${n("conflict")} number clash</b> — the CA number is taken by a different policy${who ? ` (${esc(who)}, by its naming)` : ""}, so it counts as absent; an import deploys ${esc(cat.label)}'s alongside and never replaces the other.`);
     }
-    if (n("ahead")) parts.push(`${n("ahead")} newer than the baseline lists.`);
+    if (n("ahead")) {
+      const edited = res.rows.filter((r) => r.status === "ahead" && r.edited).length, renamed = res.rows.filter((r) => r.status === "ahead" && r.renamed).length, byVer = n("ahead") - edited - renamed;
+      parts.push(`<b>${n("ahead")} newer than the baseline lists</b> — ${[byVer ? `${byVer} by a newer version in the name` : "", edited ? `${edited} edited in place at the same version` : "", renamed ? `${renamed} renamed at the same version` : ""].filter(Boolean).join(", ")}${res.byDefinition ? "; 🧱 Update the catalog takes them into the catalog" : ""}.`);
+    }
+    // a customer tenant: number and version decide; a definition that differs
+    // at the same version is SHOWN, not counted
+    const shown = res.rows.filter((r) => r.status === "ok" && r.differs).length;
+    if (shown && !res.byDefinition) parts.push(`${shown} of the up-to-date ones differ from the catalog in their resources, conditions or controls at that version — marked on the row, not counted: outside the baseline tenant the key is the CA number and the version, and the assignments (includes, exclusions) are this tenant's own.`);
     if (n("unversioned")) parts.push(`${n("unversioned")} with a version on one side only.`);
     if (n("extra")) {
       const who = tally(res.rows.filter((r) => r.status === "extra"));
@@ -868,6 +908,208 @@ const Baseline = (() => {
     return out;
   }
 
+  // ==================================================================
+  // REGENERATING THE CATALOG FROM ITS REFERENCE TENANT (25436)
+  //
+  // js/baselineData.js was last rebuilt BY HAND on 2026-08-20, and its
+  // header records what that cost: three real changes, buried in a pile of
+  // differences that were not changes at all ("the guest-type wording moved
+  // because ENCA itself renders it more precisely now, and group order varies
+  // per read"), plus 59 real differences deliberately NOT taken, so the
+  // catalog stays a baseline rather than a copy of one tenant.
+  //
+  // TWO RULES THIS IS BUILT ON.
+  //
+  // 1. COMPARE STRUCTURE, GENERATE PROSE — never the reverse. The catalog's
+  //    strings ("All resources · − Azure Windows VM Sign-In", a grant joined
+  //    with <br> and closed by "_Require all of the selected controls_") were
+  //    written by a one-off generator that is not in this repo. If the diff
+  //    string-compared against prose we re-derive here, one comma out of
+  //    place would report all 105 policies as changed. So the COMPARISON
+  //    normalises both sides into fields and ignores order and decoration;
+  //    the serialiser is used only for what comes OUT.
+  // 2. SAY WHEN THE SERIALISER HAS DRIFTED. Every policy the diff calls
+  //    unchanged is a free test of the serialiser: its entry should come back
+  //    byte-identical to the catalog's. drift() counts the ones that do not.
+  //    A high count means the generated entries will read differently from
+  //    their neighbours — cosmetic, not wrong, but you should know before
+  //    pasting 105 of them into the file.
+  //
+  // Nothing here writes: not the tenant, not the repo. It proposes source.
+  // ==================================================================
+
+  // Catalog prose, rebuilt from a tenant view model. `prev` is the entry this
+  // one replaces — num, version, tag and shared belong to the CATALOG, not to
+  // the tenant, so they are carried across rather than re-derived.
+  const joinDot = (inc, exc) => [...(inc || []), ...(exc || []).map((x) => "− " + x)].join(" · ");
+  // The catalog writes platforms as "Android, iOS (excl. Windows, macOS)";
+  // the tool wrote "Android · iOS · − Windows · − macOS" — the same policy in
+  // two spellings, which 25449's review reported as 19 changed policies on the
+  // reference tenant (2026-09-22). One spelling now (the catalog's), and one
+  // canonical key for comparing either spelling, old catalogs included.
+  const platformLine = (inc, exc) => "Platforms: " + ((inc || []).length ? inc.join(", ") : "Any device") + ((exc || []).length ? ` (excl. ${exc.join(", ")})` : "");
+  function platformKey(text) {
+    const t = String(text || "").replace(/^platforms:\s*/i, "").trim();
+    let inc = [], exc = [];
+    const m = /^(.*?)\s*\(excl\.\s*(.*?)\)\s*$/i.exec(t);
+    if (m) { inc = m[1].split(/\s*[,·]\s*/); exc = m[2].split(/\s*[,·]\s*/); }
+    else t.split(/\s*·\s*/).forEach((x) => { const y = x.trim(); if (!y) return; if (/^[−-]\s*/.test(y)) exc.push(y.replace(/^[−-]\s*/, "")); else inc.push(y); });
+    const norm = (a) => a.map((x) => x.replace(/\s+/g, " ").trim().toLowerCase()).filter((x) => x && x !== "any device").sort().join(",");
+    return `platforms: ${norm(inc)} excl ${norm(exc)}`;
+  }
+  function vmToEntry(vm, prev) {
+    const cond = [];
+    const c = vm.cond || {};
+    if ((c.platforms || []).length || (c.platformsExc || []).length) {
+      cond.push(platformLine(c.platforms, c.platformsExc));
+    }
+    if ((c.clientApps || []).length) cond.push("Client apps: " + c.clientApps.join(", "));
+    if (c.devFilter && c.devFilter.rule) cond.push(`Device filter (${c.devFilter.mode === "exclude" ? "exclude" : "include"}): \`${c.devFilter.rule}\``);
+    if ((c.insider || []).length) cond.push("Insider risk: " + c.insider.join(", "));
+    if ((c.authFlows || []).length) cond.push("Auth flows: " + c.authFlows.join(", "));
+    (c.risks || []).forEach((r) => cond.push(r));
+    const isBlock = vm.grant && vm.grant.mode === "block";
+    const controls = (vm.grant && vm.grant.controls) || [];
+    let grant;
+    if (isBlock) grant = "Block access";
+    else {
+      grant = controls.join("<br>");
+      if (vm.grant && vm.grant.op && controls.length > 1) {
+        grant += `<br>_Require ${String(vm.grant.op).toUpperCase() === "OR" ? "one" : "all"} of the selected controls_`;
+      }
+    }
+    return {
+      num: prev ? prev.num : caNum(vm.name),
+      // (NEW) / (UP) are the TENANT's staging marks; the catalog names the
+      // policy, not its stage (the 2026-09-22 regeneration carried them in)
+      name: String(vm.name || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim(),
+      version: version(vm.name) || (prev ? prev.version : ""),
+      tag: prev ? prev.tag : "NEW",
+      include: ((vm.users && vm.users.inc) || []).slice(),
+      exclude: ((vm.users && vm.users.exc) || []).slice(),
+      resources: joinDot((vm.apps && vm.apps.inc) || [], (vm.apps && vm.apps.exc) || []),
+      network: joinDot((vm.net && vm.net.inc) || [], (vm.net && vm.net.exc) || []),
+      conditions: cond,
+      grant,
+      block: !!isBlock,
+      session: ((vm.session) || []).map((x) => x.t || x).join("<br>"),
+      ...(prev && prev.shared ? { shared: prev.shared } : {}),
+    };
+  }
+
+  // ---- comparison, on structure ----
+  // Decoration the catalog's prose carries and a tenant read does not
+  // reliably reproduce: the bullet, the minus, markdown emphasis, <br>, and
+  // ORDER, which "varies per read" per the file's own header.
+  const bits = (s) => String(s || "")
+    .replace(/<br\s*\/?>/gi, " · ")
+    .split("·").map((x) => x.replace(/[_`*]/g, "").replace(/\s+/g, " ").trim().toLowerCase())
+    .filter(Boolean).sort().join(" · ");
+  const listKey = (x) => /^platforms:/i.test(String(x).trim()) ? platformKey(x) : String(x).replace(/\s+/g, " ").trim().toLowerCase();
+  const sameList = (a, b) => {
+    const A = (a || []).map(listKey).sort();
+    const B = (b || []).map(listKey).sort();
+    return A.length === B.length && A.every((x, i) => x === B[i]);
+  };
+  // What differs between the catalog entry and the tenant's, field by field.
+  function entryDiff(cat, ten) {
+    const out = [];
+    const listField = (k, label) => { if (!sameList(cat[k], ten[k])) out.push({ field: k, label, cat: (cat[k] || []).join(" · "), ten: (ten[k] || []).join(" · ") }); };
+    const textField = (k, label) => { if (bits(cat[k]) !== bits(ten[k])) out.push({ field: k, label, cat: String(cat[k] || "—"), ten: String(ten[k] || "—") }); };
+    listField("include", "assignment — include");
+    listField("exclude", "assignment — exclude");
+    textField("resources", "target resources");
+    textField("network", "network");
+    listField("conditions", "conditions");
+    if (!!cat.block !== !!ten.block) out.push({ field: "block", label: "grant mode", cat: cat.block ? "Block" : "Grant", ten: ten.block ? "Block" : "Grant" });
+    textField("grant", "grant controls");
+    textField("session", "session controls");
+    return out;
+  }
+
+  // A stable signature of ONE policy's differences, so a hold can be tied to
+  // the change it was made about. A later, different change reopens it — a
+  // hold must never silently swallow something nobody looked at.
+  const diffSig = (diff) => diff.map((d) => `${d.field}:${bits(d.ten)}`).sort().join("|");
+
+  // res: the compare() result. holds: { "<num>": { reason, sig, at } }.
+  // Returns every row the catalog regeneration cares about.
+  // ONE judgement of a tenant policy against its catalog entry, used by the
+  // compare (the chips) and by the catalog review (the panel) — so the two
+  // cannot disagree again (25442 counted definitions in one place and names
+  // in the other: 27 on the chip, 77 in the panel). Names are compared CLEAN:
+  // staging prefix off, whitespace trimmed, case folded — a (NEW) prefix or a
+  // capital is not a rename. kind: version (a newer version in the name),
+  // edited (definition differs, version not newer), renamed (only the name).
+  function reviewRow(cat, vm) {
+    const ten = vmToEntry(vm, cat);
+    const diff = entryDiff(cat, ten);
+    const renamed = cleanName(ten.name) !== cleanName(cat.name);
+    if (renamed) diff.push({ field: "name", label: "name and version", cat: String(cat.name || "—"), ten: String(ten.name || "—") });
+    const tv = version(ten.name), cv = cat.version;
+    const newer = !!(tv && cv && cmpVersion(tv, cv) > 0);
+    const edited = diff.some((d) => d.field !== "name");
+    const kind = newer ? "version" : edited ? "edited" : renamed ? "renamed" : "same";
+    return { ten, diff, renamed, edited, newer, kind };
+  }
+  function catalogReview(res, holds = {}) {
+    const changed = [], added = [], gone = [], unchanged = [], held = [];
+    for (const r of res.rows || []) {
+      if (r.status === "missing") { gone.push({ num: r.num, cat: r.baseline }); continue; }
+      // a number clash is a DIFFERENT policy on that number, not a change to
+      // this one — never offered to the catalog (it was in the 25436 list)
+      if (r.status === "conflict") continue;
+      if (!r.tenant || !r.baseline) {
+        // a tenant policy the catalog does not define at all
+        if (r.tenant && !r.baseline) added.push({ num: caNum(r.tenant.name), name: r.tenant.name, ten: vmToEntry(r.tenant, null) });
+        continue;
+      }
+      const rv = reviewRow(r.baseline, r.tenant), ten = rv.ten, diff = rv.diff;
+      if (!diff.length) { unchanged.push({ num: r.num, cat: r.baseline, ten }); continue; }
+      const h = holds[String(r.num)];
+      const sig = diffSig(diff);
+      if (h && h.sig === sig) { held.push({ num: r.num, cat: r.baseline, ten, diff, hold: h }); continue; }
+      // status is the NAME comparison (ok / outdated / ahead / unversioned) — carried so the
+      // review can say how the two counts relate: "26 changed in definition, 6 of them
+      // also newer by version" is one fact; "6 newer" and "26 changed" side by side read as two
+      changed.push({ num: r.num, cat: r.baseline, ten, diff, sig, status: r.status, kind: rv.kind, edited: rv.edited, renamed: rv.renamed, reopened: !!(h && h.sig !== sig) });
+    }
+    // Every unchanged policy is a free test of the serialiser.
+    const drift = unchanged.filter((u) => JSON.stringify(u.cat) !== JSON.stringify({ ...u.ten, num: u.cat.num, version: u.cat.version, tag: u.cat.tag, name: u.cat.name }));
+    const sort = (a, b) => (a.num ?? 0) - (b.num ?? 0);
+    return { changed: changed.sort(sort), added: added.sort(sort), gone: gone.sort(sort), unchanged, held: held.sort(sort), drift };
+  }
+
+  // The proposed catalog source: only what was taken, in the file's own shape.
+  // `taken` is a list of review rows; `holds` the decisions, so the header
+  // note can carry them the way the 2026-08-20 revision note does.
+  function catalogSource(review, taken, holds, meta = {}) {
+    const today = new Date().toISOString().slice(0, 10);
+    const L = [];
+    L.push(`// Revision ${today}: regenerated from ${meta.tenant || "the reference tenant"} with ENCA.`);
+    if (taken.length) {
+      L.push(`// ${taken.length} polic${taken.length === 1 ? "y" : "ies"} taken into the catalog:`);
+      taken.forEach((t) => L.push(`//   * CA${String(t.num).padStart(3, "0")} — ${t.diff.map((d) => d.label).join(", ")}`));
+    } else {
+      L.push("// No policy change was taken in this pass.");
+    }
+    const holdList = Object.entries(holds || {}).filter(([, h]) => h && h.reason);
+    if (holdList.length) {
+      L.push("//");
+      L.push(`// DELIBERATE DEPARTURES, so the catalog stays a baseline rather than a copy`);
+      L.push(`// of one tenant — ${holdList.length} held:`);
+      holdList.forEach(([num, h]) => L.push(`//   * CA${String(num).padStart(3, "0")} — ${h.reason}`));
+    }
+    L.push("//");
+    L.push("// WHEN YOU BUMP `revised`, RE-CHECK js/userimpact.js — its RULES match on");
+    L.push("// POLICY SHAPE and carry a RULES_CHECKED_AGAINST date.");
+    L.push("");
+    L.push(`  revised: "${today}",`);
+    L.push("");
+    taken.forEach((t) => L.push("    " + JSON.stringify(t.ten) + ","));
+    return L.join("\n");
+  }
+
   function renderTable(res, filter, query, collapsed) {
     const q = (query || "").toLowerCase();
     const isCollapsed = (g) => collapsed && collapsed.has(g);
@@ -900,7 +1142,7 @@ const Baseline = (() => {
       const tag = r.baseline?.tag ? `<span class="tag new">${esc(r.baseline.tag)}</span>` : "";
       const tenant = r.tenant
         ? `<span class="pname" data-blpol="${esc(r.tenant.id)}">${esc(r.tenant.name)}</span>
-           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}${r.why ? ` · <b>${esc(r.why)}</b>` : ""}</div>`
+           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}${r.why ? ` · <b>${esc(r.why)}</b>` : ""}${r.status === "ok" && r.differs ? ` · <span class="tag" title="Same number and version as the catalog, but this differs — shown for reading, not counted as newer; assignments are never compared here">differs · ${esc((r.differsIn || []).join(", "))}</span>` : ""}</div>`
         : '<span class="mini">not present in this tenant</span>';
       const ver = r.status === "outdated"
         ? `<span class="bl-ver warn">${esc(r.tenantVersion)} → ${esc(r.baseline.version)}</span>`
@@ -979,7 +1221,7 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
+  return { catalogs, catalog, compare, vmToEntry, entryDiff, reviewRow, catalogReview, catalogSource, diffSig, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
     // R36
     use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, previewSwitch, renderPreview, DEFAULT_ID,
     // R36.1 — matched, not chosen

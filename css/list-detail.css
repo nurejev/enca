@@ -1,0 +1,61 @@
+.ld-shell{--ld-list:54%;display:grid;grid-template-columns:minmax(0,var(--ld-list)) 12px minmax(0,1fr);align-items:start;gap:0}.ld-list,.ld-panel{min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}.ld-row{width:100%;display:grid;gap:7px;text-align:left;padding:16px;background:transparent;color:var(--ink);border:0;border-bottom:1px solid var(--border);font:inherit;cursor:pointer;overflow-wrap:anywhere}.ld-row:last-child{border-bottom:0}.ld-row[aria-pressed=true]{background:var(--soft);box-shadow:inset 3px 0 var(--green)}.ld-row:hover{background:var(--soft2)}.ld-row strong{font-size:13px}.ld-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)}.ld-controls>button:first-child{display:none}.ld-title{font-size:18px!important;margin:18px!important;overflow-wrap:anywhere}.ld-content{padding:0 16px 16px;min-width:0;overflow-x:auto;overflow-wrap:anywhere}.ld-content>.list-card{border:0!important;margin:0!important;border-radius:0!important}.ld-content .au-h,.ld-content .lo-h{flex-wrap:wrap;cursor:default}.ld-content .au-diff{display:block}.ld-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 16px 16px;border-bottom:1px solid var(--border)}.ld-tabs button{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px;color:var(--muted);font:inherit;cursor:pointer}.ld-tabs [aria-selected=true]{border-color:var(--green);color:var(--green)}.ld-divider{writing-mode:vertical-lr;direction:rtl;width:12px;min-height:160px;max-height:240px;align-self:center;opacity:.45;cursor:col-resize;accent-color:var(--green)}.ld-wide{grid-template-columns:1fr}.ld-wide>.ld-list,.ld-wide>.ld-divider{display:none}.ld-wide .ld-controls>button:first-child{display:inline-flex}.ld-panel [hidden]{display:none!important}.ld-panel .lo-u{max-height:none}.ld-panel .lo-act{flex-wrap:wrap}.ld-row:focus-visible{outline:2px solid var(--green);outline-offset:-3px}
+body.workspaces-shell #policyWorkspace.with-inspector{grid-template-columns:minmax(0,54fr) minmax(0,46fr);gap:14px}#workspaceInspector{min-width:0;max-height:none;position:static;overflow-wrap:anywhere}#workspaceInspector .pcard{border:0;box-shadow:none;margin:0}#workspaceInspector .pcard-head,#workspaceInspector .pcard-foot{display:none}#workspaceInspector .pcard-grid{display:grid;grid-template-columns:1fr;gap:12px;padding:14px 0}#workspaceInspector .sect.wide{grid-column:auto}#workspaceInspector .sect{min-width:0}#workspaceInspector .wp-tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--border);gap:2px;margin-top:14px}#workspaceInspector .wp-tabs button{font:inherit;font-size:12px;background:transparent;border:0;border-bottom:2px solid transparent;padding:9px;color:var(--muted);cursor:pointer}#workspaceInspector .wp-tabs [aria-selected=true]{color:var(--green);border-bottom-color:var(--green)}#workspaceInspector[data-section=Assignments] .sect:nth-child(n+4),#workspaceInspector[data-section=Conditions] .sect:not(:nth-child(4)),#workspaceInspector[data-section=Controls] .sect:nth-child(-n+4){display:none}#workspaceInspector[data-section=Definition] .pcard{display:none}#workspaceInspector pre{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}#policyWorkspace.with-inspector #ptable th:nth-child(n+4),#policyWorkspace.with-inspector #ptable td:nth-child(n+4){display:none}#policyWorkspace.with-inspector #ptable .pname{overflow-wrap:anywhere}#policyWorkspace.with-inspector #ptable{table-layout:auto}#policyWorkspace.with-inspector #ptable th:nth-child(2){width:auto!important}#policyWorkspace.with-inspector #ptable th:nth-child(3){width:105px!important}
+@media(max-width:900px){.ld-shell{grid-template-columns:1fr}.ld-shell>.ld-divider,.ld-shell:not(.ld-mobile-detail)>.ld-panel{display:none}.ld-mobile-detail>.ld-list{display:none}.ld-mobile-detail .ld-controls>button:first-child{display:inline-flex}body.workspaces-shell #policyWorkspace.with-inspector{grid-template-columns:1fr}#policyWorkspace.with-inspector #listView{display:none}.ld-content table{min-width:0}.ld-content td{overflow-wrap:anywhere}}
+
+/* ── A PREVIEW SCROLLS ON ITS OWN (build 25408) ───────────────────────────
+   Until now the list and the detail panel were two columns of one growing
+   page: reading to the bottom of a long policy scrolled the results away,
+   and coming back to pick the next one meant scrolling the whole page up
+   again. Twenty audit events with a long diff each made the page thousands
+   of pixels tall and the list unreachable from anywhere in it.
+   Each column is its own scroll container now, pinned under whatever sticky
+   chrome this screen has — --sticky-tools is header + tool tabs + the
+   screen's tab strip + its toolbar, MEASURED by syncStickyTops (js/app.js)
+   and re-measured by its ResizeObserver, so a wrapped toolbar or a second
+   row of tool tabs moves the panes with it instead of sliding under them.
+   The panes CHAIN to the page (no overscroll-behavior:contain since 25447):
+   at the top of the page a pane's lower part sits below the fold, and with
+   containment the wheel scrolled the pane to its end and then stopped — the
+   rest of the policy stayed hidden until the PAGE was scrolled with the
+   pointer somewhere else. Chaining is what makes reading continue: the
+   pane scrolls to its end, the page takes over, the pane pins, the tail
+   is on screen. A flick at the end of a pane moving the page is the price,
+   and it is the browser's own behaviour everywhere else.
+   dvh, not vh: on a phone browser with a retracting URL bar, vh is the tall
+   measurement and the bottom of the pane sits under the chrome. */
+/* --ld-foot is the footer, measured by the same function. It is subtracted
+   from the pane so the page runs out of scroll at the moment the panes
+   pin: a sticky box cannot hold its offset past the bottom of its own box,
+   and without this the last stretch of page scroll dragged both panes up
+   under the toolbar — 109px of list hidden behind it at the bottom of the
+   policy workspace, which is exactly the bug this change set out to fix. */
+:root{--ld-top:calc(var(--sticky-tools,168px) + 12px);--ld-max:calc(100dvh - var(--ld-top) - var(--ld-foot,48px) - 18px)}
+/* The other half of the same sum: main's bottom padding is page scroll the
+   panes cannot hold through, and a screen that ends in a pane of its own
+   height does not need it — the pane already ends where the footer begins. */
+@media(min-width:901px){
+  body:has(section.screen.active .ld-shell) main,
+  body:has(section.screen.active #policyWorkspace.with-inspector) main{padding-bottom:0}
+}
+.ld-shell>.ld-list,.ld-shell>.ld-panel{align-self:start;position:sticky;top:var(--ld-top);
+  max-height:var(--ld-max);overflow-y:auto;overscroll-behavior:auto}
+/* The width slider goes with them — it is the handle between two panes that
+   now stay on screen, so it cannot be the one thing that scrolls away. */
+.ld-shell>.ld-divider{align-self:start;position:sticky;top:calc(var(--ld-top) + 46px)}
+/* 🗂 the policy workspace is the same shape with its own markup: the table is
+   the list, the inspector the preview. 25406 had un-stuck the inspector
+   (position:static, max-height:none) to let the full six-section detail
+   breathe; it breathes inside its own scrollbar instead. */
+body.workspaces-shell #policyWorkspace.with-inspector>#listView,
+#workspaceInspector{align-self:start;position:sticky;top:var(--ld-top);
+  max-height:var(--ld-max);overflow:auto;overscroll-behavior:auto}
+
+/* One column, one scrollbar. On a phone the pane IS the page — a second
+   scrollbar inside a 390px screen is a trap, not a convenience, and the
+   back button already returns to the list. */
+@media(max-width:900px){
+  .ld-shell>.ld-list,.ld-shell>.ld-panel{position:static;max-height:none;overflow:hidden}
+  .ld-shell>.ld-divider{position:static}
+  body.workspaces-shell #policyWorkspace.with-inspector>#listView,
+  #workspaceInspector{position:static;max-height:none;overflow:auto}
+}

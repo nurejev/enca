@@ -210,6 +210,14 @@ const LicGap = (() => {
   const adminGroups = (ctx) => Array.isArray(ctx.adminExclude) ? ctx.adminExclude
     : ctx.adminExclude ? [ctx.adminExclude] : [];
 
+  // The population every count in this tab is about: member users. When the
+  // user list is complete it is an id set; otherwise null, meaning "cannot
+  // narrow, so do not pretend to".
+  function memberSet(ctx) {
+    if (!ctx.users || ctx.usersCapped) return null;
+    return new Set(ctx.users.map((u) => u.id));
+  }
+
   function adminSet(ctx) {
     const gs = adminGroups(ctx);
     if (!gs.length) return null;
@@ -229,6 +237,15 @@ const LicGap = (() => {
   function sizeOf(raw, ctx) {
     const s = scopeOf(raw);
     const exc = usersOf(s.excUsers, s.excGroups, s.excRoles, ctx);
+    // Numerator and denominator must be the same population. For an All-users
+    // policy the size is `member count − excluded`, and the exclusion set is
+    // resolved from groups and roles that can hold guests, service principals
+    // and other non-member objects: subtracting those from a MEMBER count is
+    // arithmetic across two different sets. A one-member tenant excluding one
+    // guest reported 0 users in scope and 1 gap user for the same policy
+    // (beta 25410 review, finding 15).
+    const members = memberSet(ctx);
+    if (members) exc.set = new Set([...exc.set].filter((id) => members.has(id)));
     const adm = adminSet(ctx);
     if (adm) for (const id of adm) exc.set.add(id);
     if (adm && adminGroups(ctx).some((g) => g.capped)) exc.approx = true;
@@ -366,6 +383,18 @@ const LicGap = (() => {
       return out;
     };
 
+    // Seats OWNED and entitlement ASSIGNED TO THE TARGETED USERS are different
+    // measures, and the bar used to draw the first while labelling it the
+    // second. All the seats could be unassigned, or assigned to people outside
+    // the scope, so a green bar could sit above a named list of unlicensed
+    // users. Counted here, over the same id set the gap list uses.
+    const assignedInScopeOf = (info, key) => {
+      if (!info.ids || !byId) return null;
+      let n = 0;
+      for (const id of info.ids) { const u = byId.get(id); if (u && u[key]) n++; }
+      return n;
+    };
+
     const broadest = perPolicy.reduce((w, p) => (p.size != null && (!w || p.size > w.size) ? p : w), null);
     const disabledRisk = (ctx.policies || []).filter((p) => p.state === "disabled" && riskKindsOf(p).length).length;
 
@@ -380,11 +409,13 @@ const LicGap = (() => {
       assigned: lic.known ? lic.p1.assigned : null,
       gap: lic.known && p1u.size != null ? p1u.size - lic.p1.seats : null,
       gapUsers: gapListOf(p1u, "p1"), gapPartial: !!p1u.partial, gapUnknown: unknownOf(p1u),
+      assignedInScope: assignedInScopeOf(p1u, "p1"),
       graceCount: (gapListOf(p1u, "p1") || []).filter((u) => u.p1grace).length };
     const p2 = { targeted: p2u.size, approx: p2u.approx, seats: lic.known ? lic.p2.seats : null,
       assigned: lic.known ? lic.p2.assigned : null,
       gap: lic.known && p2u.size != null ? p2u.size - lic.p2.seats : null,
       gapUsers: gapListOf(p2u, "p2"), gapPartial: !!p2u.partial, gapUnknown: unknownOf(p2u),
+      assignedInScope: assignedInScopeOf(p2u, "p2"),
       graceCount: (gapListOf(p2u, "p2") || []).filter((u) => u.p2grace).length,
       riskCount: riskIdx.length };
 
@@ -422,6 +453,10 @@ const LicGap = (() => {
       L.push("The user list could not be read, so the gap is counted but not named.", "");
       return;
     }
+    if (!o.gapUsers.length && o.approx) {
+      L.push(`No ${label} gap found in the scope that could be resolved — **the result is incomplete**: a group, role or user read did not complete, so users may be missing from this list. This is not the same as everyone being licensed.`, "");
+      return;
+    }
     if (!o.gapUsers.length) {
       L.push(`Nobody — every targeted user has ${label} assigned.`, "");
       return;
@@ -432,8 +467,13 @@ const LicGap = (() => {
     // "mailbox-no-access" — a mailbox EXISTS but the delegated read was
     // denied; on an unlicensed account that is almost always a shared/
     // room/equipment mailbox — and "no-mailbox", a plain unlicensed user.
+    // Graph's userPurpose is evidence. A denied read is not: it says the
+    // mailbox could not be read, not what the mailbox is for — and a mailbox
+    // classification has never been a reason to drop Conditional Access from
+    // an account. Shared mailboxes can need licensing (size, archive, hold)
+    // and should stay sign-in blocked either way.
     const RESOURCE = { shared: "SHARED MAILBOX", room: "ROOM MAILBOX", equipment: "EQUIPMENT MAILBOX" };
-    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${RESOURCE[u.purpose] ? ` — **${RESOURCE[u.purpose]}** (never licensed — disable or exclude it)` : u.purpose === "mailbox-no-access" ? " — **UNLICENSED MAILBOX** (likely shared/room/equipment — verify in the Exchange admin center)" : u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : u.lic0 ? " — **NO LICENCES AT ALL** (service account or sync artifact? exclude deliberately or license deliberately)" : ""}${(label === "P1" ? u.p1grace : u.p2grace) ? ` — **${label} IN GRACE** (from a suspended/expired subscription — the seat is no longer owned)` : ""}`);
+    for (const u of o.gapUsers) L.push(`- ${u.upn || u.id}${u.name && u.name !== u.upn ? ` — ${u.name}` : ""}${RESOURCE[u.purpose] ? ` — **${RESOURCE[u.purpose]}** (userPurpose returned by Graph; licence need depends on mailbox features — keep sign-in blocked)` : u.purpose === "mailbox-no-access" ? " — **MAILBOX READ DENIED** (a mailbox exists; its purpose was NOT established — verify in the Exchange admin center)" : u.enabled === false ? " — **DISABLED** (cleanup candidate, not a purchase)" : u.lic0 ? " — **NO LICENCES AT ALL** (service account or sync artifact? exclude deliberately or license deliberately)" : ""}${(label === "P1" ? u.p1grace : u.p2grace) ? ` — **${label} IN GRACE** (from a suspended/expired subscription — the seat is no longer owned)` : ""}`);
     if (o.gapUnknown) L.push("", `${o.gapUnknown.toLocaleString()} more targeted identit${o.gapUnknown === 1 ? "y is" : "ies are"} not in the member-user list (guests reached through a group, or beyond the user-read cap) and cannot be classified.`);
     const unassigned = o.seats != null && o.assigned != null ? Math.max(0, o.seats - o.assigned) : null;
     L.push("");
@@ -441,11 +481,17 @@ const LicGap = (() => {
   }
   function toMd(res, meta = {}) {
     const L = [`# Licence gap — ${meta.tenantName || "tenant"}`, "", Brand.generatedBy(), ""];
+    L.push("**Population:** member users only (guests are excluded — guest licensing follows different rules), policies On and Report-only, tenant-wide. The Coverage tab can be scoped to named principals and can exclude report-only policies, so the two tabs are answering the same question about different populations by design; where they differ, this line says why.", "");
     L.push("The licence usage blade in Entra counts **evaluated** users — who triggered a policy last month. The licensing obligation is on **targeted** users: every user a Conditional Access policy is scoped to needs Entra ID P1, and every user targeted by a risk-based policy needs P2, whether they signed in or not. This report counts the targeted number and names the users in the gap.", "");
     L.push("## The gap", "");
-    L.push("| | Targeted | Licensed | Gap |", "|---|---|---|---|");
-    L.push(`| **Entra ID P1** (any CA policy) | ${n(res.p1.targeted, res.p1.approx)} | ${n(res.p1.seats)} | ${res.p1.gap == null ? "—" : res.p1.gap > 0 ? `**${res.p1.gap.toLocaleString()} short**` : "covered"} |`);
-    L.push(`| **Entra ID P2** (risk-based policies) | ${n(res.p2.targeted, res.p2.approx)} | ${n(res.p2.seats)} | ${res.p2.gap == null ? "—" : res.p2.gap > 0 ? `**${res.p2.gap.toLocaleString()} short**` : "covered"} |`, "");
+    // Three measures, never one. Seats owned is not the number of targeted
+    // people holding the entitlement, and conflating them can print "covered"
+    // above a named list of unlicensed users.
+    L.push("| | Estimated demand (targeted) | Seats purchased | Assigned in scope | Purchasing shortfall |", "|---|---|---|---|---|");
+    const row = (label, o) => L.push(`| **${label}** | ${n(o.targeted, o.approx)} | ${n(o.seats)} | ${o.assignedInScope == null ? "not read" : o.assignedInScope.toLocaleString()} | ${o.gap == null ? "—" : o.gap > 0 ? `**${o.gap.toLocaleString()} short**` : "capacity covers demand"} |`);
+    row("Entra ID P1 (any CA policy)", res.p1);
+    row("Entra ID P2 (risk-based policies)", res.p2);
+    L.push("", "Purchasing shortfall is demand against seats OWNED. Assignment remediation is a different action: the users named below hold no qualifying entitlement today, and unassigned seats already paid for may cover some of them.", "");
     if (res.totals.members != null) L.push(`Member users in the tenant: ${res.totals.members.toLocaleString()}${res.totals.disabled != null ? ` (of which ${res.totals.disabled.toLocaleString()} disabled)` : ""}. Active CA policies: ${res.activeCount}.${res.broadest ? ` Broadest policy: **${res.broadest.name}** (${n(res.broadest.size, res.broadest.approx)} users).` : ""}`, "");
     if (res.adminExclude) L.push(`**Admin accounts excluded:** ${res.adminExclude.count.toLocaleString()} via ${res.adminExclude.groups.length === 1 ? "group" : `${res.adminExclude.groups.length} groups`} ${res.adminExclude.groups.map((g) => `**${g.name}**`).join(", ")}${res.adminExclude.capped ? " (member read capped — possibly incomplete)" : ""} — a second internal account of an already-licensed person needs no second licence. This assumes every member maps to a licensed owner; document the mapping.`, "");
     mdGapList(L, "P1", res.p1, res.totals.usersCapped);

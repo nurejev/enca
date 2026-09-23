@@ -1,6 +1,11 @@
 // Same pure engines as the screens; no credentials, storage, Graph or tenant writes.
 const assetVersion = new URL(self.location.href).search;
-importScripts(...["cascope.js", "analyze.js", "whois.js", "signins.js", "reportimpact.js", "wave.js", "exclusions.js"].map(f => f + assetVersion));
+// coverage.js (the shared "does this policy replace that one?" comparison)
+// rides along because Analyzer.evaluate and Exclusions.effectiveUsers both
+// call it, and the worker is where those run. Leaving it out is silent on the
+// screen and fatal in here: the analysis fails with "CaCoverage is not
+// defined" after the whole tenant has been read.
+importScripts(...["cascope.js", "coverage.js", "analyze.js", "whois.js", "signins.js", "reportimpact.js", "wave.js", "exclusions.js"].map(f => f + assetVersion));
 let stream = null;
 const reportOrder = (a, b) => b.riskyCount - a.riskyCount || b.bypassing.length - a.bypassing.length || a.user.localeCompare(b.user);
 function sendResult() {

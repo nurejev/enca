@@ -222,6 +222,9 @@ const DEMO_DATA = {
   // service provider checks read this to name the partner and to decide
   // whether they apply at all. Inbound trust is deliberately off, which is
   // the common real configuration and what makes the device check bite.
+  // 25469: the default inbound cross-tenant settings — MFA trusted, device
+  // claims not, B2B direct connect blocked (Microsoft's default for it).
+  crossTenantDefault: { inboundTrust: { isMfaAccepted: true, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false }, dcInbound: "blocked" },
   serviceProviders: [
     { tenantId: "7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009", name: "Northwind Managed Services",
       inboundTrust: { isMfaAccepted: false, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false } },

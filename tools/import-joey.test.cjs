@@ -357,9 +357,37 @@ test('a policy that is not readable yet right after its create is read again, no
   const p2 = w2.I.prepareBundle(b);
   const c2 = w2.I.plan(p2, []);
   const d2 = await w2.I.ensureDependencies(w2.I.scopeBundle(p2, c2.map((p) => p.raw)), () => {}, { matchedNames: c2.map((p) => p.name) });
-  const r2 = await w2.I.importPolicies(c2, d2.maps, () => {}, { mode: 'shipped', readWaits: fast });
+  const r2 = await w2.I.importPolicies(c2, d2.maps, () => {}, { mode: 'shipped', readWaits: fast, lateWaits: fast });
   assert.equal(r2.results[0].ok, false);
   assert.match(r2.results[0].error, /^Created as \S+, but Conditional Access still answered/);
+  assert.match(r2.results[0].error, /again at the end of the run/);
+});
+
+test('25483: a policy still invisible after the first wait is finished by the second check at the end — switch-over included', async () => {
+  const w = world();
+  const g = w.graphRef, get = g.gget;
+  // the new policy stays invisible for longer than the first schedule (3
+  // misses), then appears — as on Perfetti, 23 Sep
+  let misses = 0; const phases = [];
+  g.gget = async (url) => {
+    if (!/policies\/old-/.test(url) && misses < 5) { misses++; throw new Error('Graph request failed (404): ConditionalAccessPolicy with id x does not exist in the directory. · code: ResourceNotFound'); }
+    return get(url);
+  };
+  const b = joey(); b.policies = [pol(N000, { excludeGroups: [G000] })];
+  const prepared = w.I.prepareBundle(b);
+  const chosen = w.I.plan(prepared, []);
+  // pretend it upgrades an existing, On policy
+  w.pols.set('old-1', { id: 'old-1', displayName: 'old', state: 'enabled' });
+  chosen[0].upgrade = true; chosen[0].existing = { id: 'old-1', name: 'old', raw: { state: 'enabled', conditions: { users: {} } } };
+  const dep = await w.I.ensureDependencies(w.I.scopeBundle(prepared, chosen.map((p) => p.raw)), () => {}, { matchedNames: chosen.map((p) => p.name) });
+  const fast = { missing: [1, 1, 1], stale: [1] };
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'replace', readWaits: fast, lateWaits: { missing: [1, 1, 1, 1], stale: [1] },
+    onItem: (i, phase, r) => phases.push(phase + (r ? (r.ok ? ':ok' : r.pending ? ':pending' : ':fail') : '')) });
+  assert.equal(res.results[0].ok, true, res.results[0].error);
+  assert.equal(res.results[0].late, true);
+  assert.deepEqual(phases, ['start', 'pending:pending', 'end:ok']);
+  assert.equal(res.results[0].disabledOld, true, 'the version it replaces is switched Off on the second check');
+  assert.equal(w.pols.get('old-1').state, 'disabled');
 });
 
 test('E-Admins groups are filed in the break-glass vault and never get a deploy persona group', async () => {

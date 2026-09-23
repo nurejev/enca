@@ -26,21 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=321"></script>
+<script src="js/popup-guard.js?v=322"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=321" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=321">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=322" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=322">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=321"></script>
+<script src="js/selfhost-boot.js?v=322"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=321"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=321"></script>
-<link rel="stylesheet" href="css/workspace.css?v=321">
+<script src="js/counter.js?v=322"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=322"></script>
+<link rel="stylesheet" href="css/workspace.css?v=322">
+<link rel="stylesheet" href="css/workspaces.css?v=322">
+<link rel="stylesheet" href="css/tool-layout.css?v=322">
+<link rel="stylesheet" href="css/list-detail.css?v=322">
+<link rel="stylesheet" href="css/flat-icons.css?v=322">
 </head>
 <body>
 
@@ -48,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=321" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=322" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -75,6 +79,7 @@
           <b id="acctMenuName"></b><span class="mini" id="tenantUser"></span>
         </div>
         <button type="button" role="menuitem" id="copyTenantBtn">Copy tenant ID</button>
+        <button type="button" role="menuitem" id="onboardBtn" title="Register ENCA in this tenant, or check the registration this copy signs in with (R59)">🪪 Add my own app registration…</button>
         <button type="button" role="menuitem" id="brandingBtn">Branding settings</button>
         <div class="acct-menu-sep"></div>
         <button type="button" role="menuitem" id="signOutBtn">Sign out</button>
@@ -100,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=321" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=322" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -146,6 +151,21 @@
               <button type="button" class="btn sm" id="connCancel">Cancel</button>
             </div>
           </form>
+          <!-- 🪪 OWN REGISTRATION (R59) — the THIRD answer to the one question
+               this panel asks: which registration signs you in. It used to be a
+               separate line under the fold, which made two cards of one
+               question and let that line offer to sign you in to your own
+               tenant while the panel above it said, correctly, "that directory
+               only". Painted by paintRoute() in js/connection.js in one of two
+               forms, decided by the ACTIVE AUTHORITY and never by the hostname:
+               a registration another directory can reach is a foothold the
+               wizard can use, a single-tenant one owned by somebody else is
+               not, and no wording makes it one. The static markup here is the
+               neutral form — what shows if the script never runs. -->
+          <div class="conn-route" id="loginOnboard">
+            <h4>🪪 No registration of your own yet?</h4>
+            <div id="connRouteBody"><p>Register ENCA in your own tenant — which route is open depends on the registration named above.</p></div>
+          </div>
           <p class="conn-hint conn-redirect" id="connRedirect"></p>
         </div>
       </details>
@@ -191,6 +211,9 @@
          Clear UPDATED at the start of the next cycle — a stale flag takes a slot
          from something that genuinely changed. -->
     <div class="workspace-home-intro"><div><span class="workspace-eyebrow">Conditional Access workspace</span><h1>A clear view. A deliberate change.</h1><p>Inspect policies, review the evidence and prepare your next rollout from one workspace.</p></div><div class="workspace-actions"><button class="btn primary" data-workspace-tool="policies">Open policies →</button><button class="btn" data-workspace-tool="deploy">Plan a rollout</button></div></div>
+    <!-- OVERVIEW (25419) — drawn from what sign-in already read and from the
+         last result of each on-demand tool. Empty until a tenant is loaded. -->
+    <div id="overview" class="overview" hidden></div>
     <h2 class="home-title">Tools <span class="home-count" id="homeCount"></span></h2>
     <!-- TEMPORARY TOOLS — tools that exist for a dated migration or retirement.
          Each one names the date it stops mattering, and the section is removed
@@ -211,12 +234,12 @@
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
       <div class="tool tool-tile" id="toolUserImpact">
-        <div class="tool-ic">🗣</div><h3>User impact brief <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">🗣</div><h3>User impact brief</h3>
         <p>The rollout email, written by the tenant itself: what people will notice and what will deliberately no longer be possible, derived from the Conditional Access policies actually deployed — with what is live today kept apart from what changes at go-live. Filter by audience, export as Markdown or a Word document for the communications team.</p>
       </div>
       <div class="tool tool-tile" id="toolPolicies">
         <div class="tool-ic">🗂</div><h3>Policies <span class="tag upd">UPDATED</span></h3>
-        <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona. One screen, and the action bar does the rest: <b>📄 Create documentation</b> (Word, PDF, PNG or a PNG bundle, with auditor-ready pages for the restricted units protecting exclusion groups), <b>🗄 Backup (JSON)</b> to a zip with its dependencies, <b>🔍 Gap analyse</b>, <b>👥 Assign groups or roles</b> and <b>🎚 Set policy state</b> — the three reads falling back to every visible policy when nothing is selected, the two writes asking for an explicit pick. On a baseline tenant the document and the backup are scoped to the baseline catalog. <span class="tag block">writes to tenant</span></p>
+        <p>Browse all Conditional Access policies as cards, a list or a settings matrix — grouped by persona. One screen, and the action bar does the rest: <b>📄 Create documentation</b> (Word, PDF, PNG or a PNG bundle, with auditor-ready pages for the restricted units protecting exclusion groups), <b>🗄 Backup (JSON)</b> to a zip with its dependencies, <b>🔍 Gap analyse</b>, <b>👥 Assign groups or roles</b>, <b>🎚 Set policy state</b> and <b>⧉ Clone in builder</b> — the three reads falling back to every visible policy when nothing is selected, the writes asking for an explicit pick. Open a card and <b>✎ Edit this policy</b> — first in the card's action row since build 322: every box a form, a diff of what changes, whole-section writes. On a baseline tenant the document and the backup are scoped to the baseline catalog. <span class="tag block">writes to tenant</span></p>
       </div>
     </div>
     <div class="tool-sec"><h3>🔍 Analyse &amp; simulate</h3><p>Work out what your policies actually do, and to whom.</p></div>
@@ -272,15 +295,15 @@
         <p>One read, then everything is a row: every group the baseline expects or a policy references, with its status, members (direct and nested), the policies that use it and its protection — and a detail panel for the one you click: members as a tree with add and remove, policies, protection, history. Create, assign, protect, migrate, import and compare from the rows you tick. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolProtect">
-        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">🔒</div><h3>Protect exclusions</h3>
         <p>Two locks per CA exclusion group on one row: a <b>restricted management administrative unit</b> so only AU-scoped roles can change the members, and <b>nesting disabled</b> so no group can be put inside — with what each group still lacks pre-ticked. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolLocations">
         <div class="tool-ic">🧩</div><h3>Policy building blocks <span class="tag upd">UPDATED</span></h3>
-        <p>The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
+        <p><b>🏗 Builder</b> <span class="tag new">BETA</span> — one guided screen for a policy, blank, from a baseline template, or from a policy selected elsewhere, preflighted in What-If and born report-only. The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolRmau">
-        <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
+        <div class="tool-ic">🛡</div><h3>Restricted AUs</h3>
         <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
       </div>
       <div class="tool tool-tile" id="toolDeploy"><div class="tool-ic">↗</div><h3>Guided rollout <span class="tag new">NEW</span></h3><p>CloudFellows from a backup ZIP, Joey via Fetch latest. Review the import, observed impact and enforcement with the existing confirmations.</p></div>
@@ -299,6 +322,7 @@
         <div class="tool-ic">🗺</div><h3>Roadmap <span class="tag upd">UPDATED</span></h3>
         <p>Where ENCA is heading next — the ideas being worked toward, in the open, so you know what to expect and can say what matters most.</p>
       </div>
+      <div class="tool tool-help" id="toolPermissions"><div class="tool-ic">🔑</div><h3>Permissions in this session</h3><p>View granted permissions, request consent and inspect revocation guidance.</p></div>
       <div class="tool tool-help" id="toolHelp">
         <div class="tool-ic">❓</div><h3>Help</h3>
         <p>How every tool works and what to expect from each option — opens in its own tab, jump back to any tool anytime.</p>
@@ -306,7 +330,7 @@
     </div>
     </div>
 
-    <div class="list-card readme" id="permOverview" style="display:none"></div>
+
 
     <details class="list-card readme workspace-about"><summary>About ENCA, permissions and credits</summary>
       <p><b>ENCA</b> (Entra Conditional Access) is a toolset for reviewing and managing policies for your Microsoft Entra Conditional Access baseline.
@@ -350,6 +374,7 @@
         <li><b><a href="https://www.tiagoscarvalho.com/scripts-automation/ca-exclusions-audit" target="_blank" rel="noopener noreferrer">Audit Conditional Access Exclusions with PowerShell</a></b> — by <b>Tiago S. Carvalho</b>.
           The governance flag patterns behind the <b>Risk review</b> in the Exclusion analyzer: privileged roles excluded, all-guest exclusions,
           direct user exclusions, oversized exclusion lists, stale disabled accounts and report-only exclusions.</li>
+        <li><b>⬇ Export baseline <span class="tag new">NEW</span></b> (build 322) — on the reference tenant only. The same export 🗄 Backup gives on the Policies screen, opened from here and with a <b>persona chooser</b>: only the personas this tenant holds, each with its count, and the policy and dependency totals move as you tick. <b>Dependencies</b> — groups, authentication strengths, named locations, authentication contexts, terms of use, in per-category folders with the migration table — are ticked when it opens, because a baseline taken elsewhere without them is not taken. With nothing ticked it says zero and will not download.</li>
         <li><b><a href="https://www.chanceofsecurity.com/post/microsoft-entra-conditional-access" target="_blank" rel="noopener noreferrer">Microsoft Entra Conditional Access blog series</a></b> — by <b>Sebastian F. Markdanner</b> (Chance of Security).
           A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the CloudFellows baseline bundled here.</li>
       </ul>
@@ -394,6 +419,17 @@
       </div>
     </div>
 
+    <!-- Persona filter. Its own row rather than more chips in the toolbar: the
+         toolbar already wraps on a laptop, and a tenant can carry a dozen
+         personas. Only the personas this tenant actually has get a chip, and
+         the counts follow the state filter and the search so a chip says how
+         many you would get, not how many exist. Several can be on at once —
+         "Admins and E-Admins" is a real question and the chips show which. -->
+    <div class="persona-filter" id="personaFilter" style="display:none">
+      <span class="mini muted persona-filter-lead">Persona</span>
+      <div class="chip-filter" id="personaChips"></div>
+    </div>
+
     <!-- The single action row for this screen. Visible whenever policies are
          loaded, not only when something is selected: Documentation, Backup and
          Gap analyse fall back to every visible policy when the selection is
@@ -406,6 +442,7 @@
         <button class="btn sm" id="selActDoc" title="Create documentation">📄 Documentation</button>
         <button class="btn sm" id="selActBackup" title="Download raw JSON definitions">🗄 Backup</button>
         <button class="btn sm" id="selActAnalyze" title="Users × policies impact matrix">🔍 Gap analyse</button>
+        <button class="btn sm" id="selActBuild" title="A new policy from the selected one in the 🏗 Policy builder — the next free number in its range, in report-only. To change a policy, open its card and press ✎ Edit this policy, or pick it in the builder's 🗂 start">⧉ Clone in builder</button>
         <button class="btn sm" id="selActAssign" title="Change the group or directory-role assignment — writes to your tenant">👥 Assign groups or roles</button>
         <button class="btn sm" id="selActState" title="Switch On / report-only / Off — writes to your tenant">🎚 Policy state</button>
         <span class="sel-sep"></span>
@@ -440,11 +477,12 @@
       <div class="list-card" id="anIntro" style="padding:26px">
         <h3 style="margin-bottom:6px" data-tool-head="toolAnalyze"></h3>
         <p class="mini" style="max-width:640px;line-height:1.5;margin-bottom:16px">
-          Builds a users × policies matrix: which policies apply to each user, who bypasses
-          a policy via exclusions (and why), whether a bypass is covered by another policy
-          with the same control and equal-or-wider conditions, and who gets no MFA from any
-          CA policy. Fetches all users and expands every group/role referenced by your
-          policies — on large tenants this can take a few minutes.
+          Builds a users × policies matrix: which policies are assigned to each user, who
+          bypasses a policy via exclusions (and why), and whether another enabled policy
+          gives that person the <b>same protection</b> — same users, same conditions, same
+          controls — with the missing requirement named when it does not. Also who no MFA
+          policy targets at all. Fetches all users and expands every group/role referenced
+          by your policies — on large tenants this can take a few minutes.
         </p>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <select id="anScope" class="btn" style="cursor:pointer">
@@ -491,6 +529,7 @@
           <button class="btn" id="anGroupAdd">+ Add</button>
           <div class="seg">
             <button class="active" id="anTabUsers">Users</button>
+            <button id="anTabCohorts">Cohorts</button>
             <button id="anTabMatrix">Matrix</button>
           </div>
           <div class="tb-actions">
@@ -500,10 +539,11 @@
         </div>
         <div class="list-card" id="anUsersWrap">
           <table class="plist an-table">
-            <thead><tr><th>User</th><th class="num">Applied</th><th class="num">Enforced</th><th class="num">Bypassing</th><th class="num">Risky</th><th>MFA via CA</th></tr></thead>
+            <thead><tr><th>User</th><th class="num">Applied</th><th class="num">Enforced</th><th class="num">Bypassing</th><th class="num">Risky</th><th>MFA policy</th></tr></thead>
             <tbody id="anBody"></tbody>
           </table>
         </div>
+        <div class="list-card" id="anCohortsWrap" style="display:none;padding:14px 16px"></div>
         <div id="anMatrixWrap" style="display:none">
           <div class="an-pager">
             <button class="btn" id="anMPrev">←</button><span id="anMPage" class="mini"></span><button class="btn" id="anMNext">→</button>
@@ -546,6 +586,7 @@
         <input id="exSearch" placeholder="Search exclusions or users…">
       </div>
       <div class="seg">
+        <button id="exTabEntities">Exclusions</button>
         <button class="active" id="exTabMatrix">Matrix</button>
         <button id="exTabUsers">Effective users</button>
         <button id="exTabRisk">Risk review</button>
@@ -561,7 +602,6 @@
     <div class="scroll-hint" id="exHint" style="display:none">◂ ▸ Scroll horizontally to see all policies</div>
     <div id="exPager" class="an-pager" style="display:none">
       <button class="btn" id="exPrev">←</button><span id="exPage" class="mini"></span><button class="btn" id="exNext">→</button>
-      <span class="mini">✗ excluded directly · <span style="color:var(--report)">◐</span> excluded via group membership</span>
     </div>
     <div class="tool-body" id="exBody"></div>
   </section>
@@ -610,6 +650,7 @@
       <input type="file" id="cgCsvFile" accept=".csv,text/csv,text/plain" style="display:none">
       <div class="tb-actions">
         <button class="btn" id="cgFull" style="display:none" title="Open the members matrix full screen">⤢ Full screen</button>
+        <button class="btn" id="cgMergeDup" style="display:none" title="Two or more groups share one display name — keep one, move members and policies to it, retire the other">🔀 Duplicate names</button>
         <button class="btn" id="cgArchived" title="Groups a recreate renamed aside and nobody deleted">🧹 Archived groups</button>
         <button class="btn" id="cgRefresh" title="Re-scan the tenant">⟳ Refresh</button>
         <button class="btn" id="cgMd">Export MD</button>
@@ -658,9 +699,12 @@
         <button class="btn" id="blRefresh" title="Fetch the latest policies from Entra and re-compare">⟳ Refresh</button>
         <button class="btn" id="blMd">Export MD</button>
         <button class="btn" id="blPrereq" title="Before you change the baseline: snapshot, full backup and documentation of what is here now">🧷 Update pre-requirements</button>
+        <button class="btn" id="blCatalogUpdate" style="display:none" title="Compare this tenant against the catalog on DEFINITION, and propose the baselineData.js entries">🧱 Update the catalog from this tenant</button>
+        <button class="btn" id="blExport" style="display:none" title="The baseline policies as JSON, per persona, with the groups, strengths, locations, contexts and terms of use they reference — the 🗄 Backup export, from here">⬇ Export baseline</button>
         <button class="btn lemon" id="blImport">📥 Import baseline →</button>
       </div>
     </div>
+    <div id="blCatalogPanel" style="display:none"></div>
     <div class="tool-body" id="blBody"></div>
   </section>
 
@@ -1032,7 +1076,7 @@
         <input id="loSearch" placeholder="Search named locations…">
       </div>
       <div class="seg" id="loViewSeg">
-        <button class="active" data-loview="cards">Cards</button>
+        <button class="active" data-loview="cards">List & details</button>
         <button data-loview="table">Table</button>
       </div>
       <div class="chip-filter" id="loChips"></div>
@@ -1046,6 +1090,30 @@
       </div>
     </div>
     <div class="tool-body" id="loBody"></div>
+  </section>
+
+  <!-- ============ 🏗 POLICY BUILDER (T41, build 25437) ============
+       The sixth tab of 🧩 Policy building blocks — R23 built on R17. The
+       head, toolbar and body are painted by renderBuilder() in js/app.js from
+       the draft (Builder.*, js/builder.js). Same frame as its five siblings:
+       head → tabs → toolbar → tool-body, list/detail inside the body. -->
+  <section id="screen-builder" class="screen tool">
+    <div class="list-card readme" id="pbHead"></div>
+    <div class="toolbar" id="pbToolbar">
+      <div class="seg" id="pbStart" title="Where the draft starts from">
+        <button data-pbstart="blank">✨ Blank</button>
+        <button data-pbstart="template">🧬 Baseline template</button>
+        <button data-pbstart="policy">🗂 Tenant policy</button>
+      </div>
+      <div id="pbEditing" style="display:none;align-items:center;gap:8px"></div>
+      <div class="tb-actions">
+        <button class="btn" id="pbPreflight" title="Evaluate the draft against synthetic sign-ins with What-If — no read, no write">🧪 Preflight</button>
+        <button class="btn" id="pbJson" title="Download the exact body that would be written — 📥 Import can load it">⭳ JSON</button>
+        <button class="btn" id="pbPlan" title="Export what this write would do as a reviewable Markdown file, hand it to a colleague, then apply it here (R22)">📋 Change plan</button>
+        <button class="btn lemon" id="pbGo">＋ Create in report-only</button>
+      </div>
+    </div>
+    <div class="tool-body" id="pbBody"></div>
   </section>
 
   <!-- ============ AUTHENTICATION CONTEXTS (BETA) ============ -->
@@ -1378,6 +1446,26 @@
       <div class="rm-tl">
         <div class="rm-era now">
           <h3>Now <span class="rm-when">shipped &amp; shipping</span></h3>
+          <div class="list-card rm-card" data-shipped="322">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R60</span> 🧭 Workspaces: one layout for every tool <span class="tag grant">live · build 322 · v2.0.0</span></h4>
+            <p class="mini" style="margin:0"><b>The 2.0 interface.</b> A left rail with the tools in work order, a branded header with the logo on its medallion, and every list tool drawn the same way — the list on the left, the selected item in an inspector on the right, the open row kept highlighted, both panes scrolling on their own and handing over to the page at their end. Each tool's head folds away with the ▾ at the end of its title, remembered per tool; flat icons, a contrasting active tool and tab, and tab strips inside the tools that host several. Nothing about what a tool reads or writes changed — only where it sits and how you move between them.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="322">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R61</span> 🏠 An overview on the home page <span class="tag grant">live · build 322 · v2.0.0</span></h4>
+            <p class="mini" style="margin:0"><b>The home page became a dashboard.</b> A snapshot header saying when the policies were read, the policy context (report-only, recently modified, baseline match, unique exclusion references), <i>Worth a look first</i> — findings with their evidence state and a policy filter that carries into 🗂 Policies — your own check runs, a configuration map of what the tenant holds, what changed since the previous refresh, and upcoming Microsoft changes. It says only what it knows: an unread source is Unknown, never zero, and nothing is scored provisionally.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="322">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R59</span> 🪪 Your own registration, from the browser <span class="tag grant">live · build 322 · v2.0.0</span></h4>
+            <p class="mini" style="margin:0"><b>Builds on <span class="rm-ref">R14</span>.</b> The PowerShell route registers ENCA in your own tenant; this does the same from the page. <b>Before sign-in</b>, the sign-in card offers it on every host but the publisher's own: sign in once with the shipped registration, and a four-step wizard creates a single-tenant SPA registration in your directory with the same delegated permissions, its service principal, optionally <i>assignment required</i> with you assigned first, and optionally admin consent for the organisation — each step read back, impact and recovery stated before the write. <b>After sign-in</b>, a band on the home page (and a row in the account menu) offers it to a Global, Privileged Role, Application or Cloud Application Administrator while the copy still signs in through an app another directory owns. The result is the default sign-in: for this browser at once, for an Azure Container App deployment with one button that writes <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code> onto the container app with your own rights, and for any other host as the <code>js/authConfig.local.js</code> block and the <code>docker -e</code> lines to copy.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="322">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> <a href="#" class="md-tool" data-tool="toolBuilder">🏗 Policy builder</a> <span class="tag grant">live · build 322 · v2.0.0</span></h4>
+            <p class="mini" style="margin:0"><b>Shipped as T41, the first tab of 🧩 Policy building blocks</b> — creation and Clone; editing an existing policy is <span class="rm-ref">R17</span>, on its card — the tenant's locations, strengths, contexts and terms as the pickers, hints computed over the loaded policies, a What-If preflight, a change-plan export, and a policy born in report-only. Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="322">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R17</span> ✏️ Editable Conditional Access policies <span class="tag grant">live · build 322 · v2.0.0</span></h4>
+            <p class="mini" style="margin:0"><b>Shipped on the policy card in 2.0</b> — ✎ Edit turns the card's six boxes into forms, the name into a field, and a bar counts the settings that change, shows the ± Diff and the preflight, and saves whole sections, only the changed ones, read back after the write. The 🏗 builder keeps creation and Clone. Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="315">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R58</span> <a href="#" class="md-tool" data-tool="toolImpact">💾 Keep sign-ins on this device</a> <span class="tag grant">live · build 315</span></h4>
             <p class="mini" style="margin:0">A report-only review is a cadence — an hour after staging, four hours, the next morning, a week — and every look used to read the whole window again. With your consent, per tenant, the browser now keeps the report-only verdicts the hunting sources bring back (per day, policy, verdict, user and app — the buckets of <span class="rm-ref">T26</span> 2.0) and a later look asks Microsoft only for the days it does not hold yet, plus the current day, which is re-read every time because sign-ins reach the hunting table late. Opening the tool shows what the device holds first, then the new days land on top. <b>Off by default</b>, in words: the button next to the sign-in source says what is kept, where (this browser, this device, nowhere else), who can read it (anyone in this browser profile), and Forget deletes it at once; everything ages out after the days you choose. Tokens stay out of it, the Entra-log source is not stored, and the hosted site itself still keeps nothing anywhere. <b>Next:</b> whole sign-in rows for 🕵 🌊 🛂, behind a second, larger consent, once the buckets have earned their keep.</p>
@@ -1559,7 +1647,7 @@
             <h4 style="margin:0 0 4px"><span class="rm-ref">R33</span> 🔢 Tool reference numbers, in order of introduction <span class="tag grant">live · build 287</span></h4>
             <p class="mini" style="margin:0">The roadmap items carry <span class="rm-ref">Rnn</span> references so one can be pointed at without quoting its title; the tools went by name and emoji, which drift — tools get renamed, retitled and, once 🇳🇱 <span class="rm-ref">R26</span> lands, translated, at which point every English note about a tool stops being findable. Each tool now carries a permanent <b>T-number</b>, shown in the tile corner and in the tool's own header beside the per-tool version, and searchable in the ⌨️ command palette: type <code>T07</code>, or just <code>7</code>, and you land on 📘 MS Learn checks.</p>
             <p class="mini" style="margin:6px 0 0"><b>T01–T31 were reconstructed from git</b>, not assigned by preference: the first commit that put each tile in <code>index.html</code>, ordered by commit time, with tools that arrived together ordered as they were written into the page. That makes the order a fact about the repository — checkable rather than arguable — and it puts 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup at T01–T04, which is the day this app existed at all.</p>
-            <p class="mini" style="margin:6px 0 0"><b>Never reused</b> — not when a tool is retired, not when it is folded into another, because a recycled number makes every older note about it wrong, which is the exact failure the number exists to prevent. A new tool takes the next free number (34 next) in the same commit that adds its tile, alongside the changelog entry and the promotion-queue row.</p>
+            <p class="mini" style="margin:6px 0 0"><b>Never reused</b> — not when a tool is retired, not when it is folded into another, because a recycled number makes every older note about it wrong, which is the exact failure the number exists to prevent. A new tool takes the next free number (42 next) in the same commit that adds its tile, alongside the changelog entry and the promotion-queue row.</p>
             <p class="mini" style="margin:6px 0 0"><b>Three things are deliberately not numbered:</b> ❓ Help, 📋 What's new and 🗺 Roadmap. They are the app describing itself rather than tools that read a tenant, report on it or write to it — which is also why they carry no version. They go by name, and that is written down so nobody later "fixes" the gap by numbering them and shifting everything.</p>
           </div>
           <div class="list-card rm-card" data-shipped="306">
@@ -1621,11 +1709,7 @@
         </div>
         <div class="rm-era future far">
           <h3>Later <span class="rm-when">after the above</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R17</span> ✏️ Editable Conditional Access policies <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Edit an existing policy from its card — not just state and group assignments but the conditions, grant and session controls themselves, with a field-level diff of exactly what will change and validation before the PATCH. The Change audit tool then shows the same diff after the fact, so intent and record match.</p>
-          </div>
-          <div class="list-card rm-card">
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R18</span> 🏢 Several tenants at once <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">For anyone who looks after more than one tenant: sign into each in turn and hold the results side by side — baseline coverage, CIS score, gap count, drift since last visit, one row per customer. One screen that answers “which of my tenants is worst off this month” without opening thirteen browser tabs. Pairs with Drift watch: a snapshot per tenant, reviewed on a schedule you keep rather than infrastructure you run.</p>
           </div>
@@ -1648,11 +1732,7 @@
         </div>
         <div class="rm-era future far">
           <h3>On the horizon <span class="rm-when">builds on policy editing</span></h3>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> 🏗 Policy builder <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Build a new policy from scratch, guided: pick the persona, the resources, the conditions and the controls with best-practice hints along the way, preflight the result in What-If, and create it in report-only by default — so every new policy is born with the evidence trail the Report-only impact tool needs before go-live.</p>
-          </div>
-          <div class="list-card rm-card">
+                    <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R24</span> 🚀 Go-live checklist <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Report-only impact forecasts one policy at a time; a checklist tracks the whole report-only backlog toward enforcement — what is staged, what has enough traffic to judge, what is ready to switch on, with the forecast attached to each. The paperwork of a go-live, kept in the tool that produced the evidence.</p>
           </div>
@@ -1696,6 +1776,8 @@
 
   <!-- ============ HELP — opens as a tool, in its own tab ============ -->
     <!-- ============ HELP — opens as a tool, in its own tab ============ -->
+  <section id="screen-permissions" class="screen"><div class="workspace-heading wc-tool-head"><div class="wc-eyebrow">Connection</div><h1 class="wc-page-title">Permissions in this session</h1><p>Inspect the permissions granted to the current connection.</p></div><div class="list-card readme" id="permOverview" style="display:none"></div></section>
+
   <section id="screen-help" class="screen">
     <div class="help-page">
       <h2 class="home-title" style="margin:0 0 8px">❓ How to use ENCA</h2>
@@ -1705,6 +1787,34 @@
 
     <!-- Beta-channel only: what is here and not yet in production. Hidden by
          default so it can never appear on enca.limon-it.nl. -->
+    <section class="help-sec">
+      <h4>🪪 Your own registration <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p><b>The browser version of <code>New-EncaAppRegistration.ps1 -SingleTenant</code> (R59).</b> ENCA signs in through one app registration; by default it is the one this copy ships with, owned by whoever published the copy. Registering ENCA in <i>your</i> directory changes who owns the trust decision — your application ID, your consent record, revocable by you alone — and nothing about the sign-in flow, which stays a public SPA client with authorization code + PKCE and no secret. Once made, it becomes the <b>default sign-in</b>: for this browser at once, and for the whole deployment if you set it there (step ④ below).</p>
+      <ul>
+        <li><b>Before sign-in</b> — inside the ⚙ connection panel on the sign-in card, under <i>🪪 No registration of your own yet?</i>, on every host. What it offers is decided by the registration the panel has selected, never by the web address. A registration that can sign in to <b>any</b> work or school tenant (the shared, multi-tenant kind) offers <b>Register ENCA in your own tenant →</b>: it signs you in once with that registration and opens the wizard by itself as soon as your tenant has loaded (What's new waits until the wizard is closed). A registration pinned to <b>one directory</b> cannot sign you in to yours, so the block is edged in red, names the directory it is pinned to and offers no sign-in link — only the two routes that work: <b>＋ Add</b> an ENCA registration you already have in your tenant, or create one with <code>New-EncaAppRegistration.ps1 -SingleTenant</code> (a <b>Copy</b> button puts the line on the clipboard) and ＋ Add what it prints. Signing in to that directory itself, the wizard is still there as a check — from the account menu.</li>
+        <li><b>After sign-in</b> — ENCA reads your directory roles and who owns the registration it signed in with. Ownership is judged by the registration's <b>owner tenant</b> against the tenant you signed in to, and shown as that tenant's id, never as the app's display name. When the registration belongs to another directory and you hold Global, Privileged Role, Application or Cloud Application Administrator, a <b>band</b> on the home page offers the wizard; <i>Not now</i> hides it for that tenant only. The <b>account menu</b> always has the row: <b>🪪 Add my own app registration…</b>, or, when the registration is already this tenant's, <b>🪪 App registration: check this one, or add my own…</b>.</li>
+        <li><b>When the registration is already yours</b> the wizard opens as a <b>check</b> of the registration this copy signs in with, found by its application ID rather than its name. Running it adds this copy's SPA redirect URI if it is missing and <b>keeps every redirect URI the registration already has</b>, sets ENCA's delegated Graph permissions, and makes sure of the service principal and, if ticked, assignment and organisation-wide consent. Name, audience and secrets are not touched and no new connection is saved. <b>＋ Add a separate registration instead</b> switches to creating a new one in the same tenant.</li>
+        <li><b>The four steps.</b> ① What changes: the name (the handle the registration is found by — the same name updates it, a new name makes a second app), the exact SPA redirect URI this copy is served from, <code>localhost:8080</code> if you want it, <i>assignment required</i> (you are assigned first, so it can never seal you out), admin consent for the organisation. ② The plan: what will be written, the likely impact, the recovery, and what ENCA needs from you now — consent, for you only, to <code>Application.ReadWrite.All</code>, <code>DelegatedPermissionGrant.ReadWrite.All</code> and, with assignment, <code>AppRoleAssignment.ReadWrite.All</code>, asked on the Create click. ③ The run, each step read back. ④ The default sign-in.</li>
+        <li><b>Default sign-in.</b> This browser: saved as a ⚙ connection on the sign-in card and selected — <i>Default</i> there restores the shipped one. This deployment, on an Azure Container App: one button writes <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code> onto the container app with your own Azure rights, the way Branding settings writes <code>ENCA_BRANDING</code>; a new revision rolls and every visitor signs in with your registration. Any other host: copy the <code>js/authConfig.local.js</code> block, the <code>docker -e</code> lines or the Azure template parameters — SINGLE-TENANT.md step 3.</li>
+        <li><b>Recovery.</b> Delete the registration (it sits in the deleted applications list for 30 days), or ⚙ Forget the connection; the shared registration's consent stays until you revoke it under Enterprise applications. Nothing here can lock you out of the tenant. Demo mode simulates every step and writes nothing.</li>
+      </ul>
+    </section>
+    <section class="help-sec">
+      <h4>🏠 Overview <span class="tag new">NEW</span></h4>
+      <p>The home page once a tenant is loaded. It reads <b>nothing</b> beyond what sign-in already read: everything on it is either pure over the loaded policy set, the baseline comparison that already runs at sign-in, or the last result a tool published.</p>
+      <ul>
+        <li><b>Flat dashboard</b> — one statistics strip, findings beside policy context on desktop, and checks separated by simple lines. The dashboard uses line icons, no raised cards or shadows. It reads top to bottom: the snapshot header, then <b>Worth a look first</b> with <b>Policy context</b> beside it, then <b>Your checks</b>, the <b>Configuration map</b> and <b>Upcoming changes</b>. Evidence opens within its finding; <i>About this assessment</i>, the configuration map and the upcoming changes expand on request. On narrow screens the same information stacks in that order.</li>
+        <li><b>Snapshot header</b> — under the <b>Conditional Access overview</b> heading, the tenant and a line saying when the policies were read (<i>details come from each check’s own run</i>), then <b>Policies loaded / Enabled / Report-only / Off</b>; the four counts stay on every screen size and each opens 🗂 Policies filtered to that state. A line under them says when there is something to say: <i>Reading policies…</i> (the earlier snapshot stays on screen until the read completes), <i>0 policies loaded</i> (a real answer, with Read again / Start from a baseline / Import), or <i>could not be re-read</i> with the failure, a Retry button and the snapshot still shown. The tool library sits below the Overview, closed until you press <b>Show</b> (the choice is remembered) — the rail and the header keep All tools one press away.</li>
+        <li><b>Policy context</b> — the tiles beside the findings. <b>Report-only</b> with the policies <i>last modified 30+ days ago</i> (the app knows when a policy was last modified, not when it entered report-only, and the tile says so — a policy without a date is counted apart as <i>date unavailable</i>, never as “no change”); <b>Modified in 30 days</b> with the newest change; the <b>Baseline match</b> with missing, outdated and conflicting policies; the <b>Unique exclusion references</b> by kind, every kind, so the breakdown adds up to the number. Configured is the word: who a policy actually reaches needs a membership read, and that stays behind the 🚪 Run button. The two policy tiles open 🗂 Policies (report-only, or the full list), with a smaller link beside each — <i>validate with sign-ins</i> into 🚦 and <i>who changed what</i> into 🕓; the baseline and exclusion tiles open 🧬 and 🚪.</li>
+        <li><b>Upcoming changes</b> — folded at the foot of the page, its summary line carrying the dates: the two dated retirements, each with its cohorts and dates (Microsoft-provided SMS &amp; voice delivery: most users including internal guests on 1 February 2027, Global Administrators and external users on 1 July 2027; memberOf on 3 November 2026), the Microsoft source and the day it was checked. A published date says nothing about this tenant: the <i>tenant impact</i> reads <b>not assessed</b> with an <b>Assess</b> button until 📵 or 🧷 has run, and then shows what that run found, with <b>Open</b>.</li>
+        <li><b>Worth a look first</b> — the highest-severity findings the loaded policy set shows, ranked (severity, then tool); three show, <i>View all</i> keeps the rest one press away. Each line carries its <b>evidence state</b> — <i>Policy snapshot</i> (computed from the loaded policies, with the time), <i>Partial context</i> (a read the check needed was not made; such a finding can be understated, never invented), <i>Run needed</i>, or <i>Previous snapshot</i> (the result predates the last reload) — and opens in place to show what was observed, the policies it names with their original names, scope, grant logic (AND / OR is spelled out: OR means any one control satisfies the policy), exclusions and modification date, the suggested next step, a button into the tool (a 🛡 finding opens Checks on its Bypass tab, a 📐 line the CIS tab), and <i>Show these policies</i>, which opens 🗂 Policies filtered to exactly those policies. The filter shows there as a <b>From the Overview</b> chip with its count; it stays while you move between Home and 🗂 Policies and comes off with its ✕, or when you pick one of the four state counts in the header. A policy count on the tiles opens the policies it counts; sign-in validation and audit history are separate links. The 🛡 gap checks run over the loaded policies at once, on what sign-in already read: the named locations, authentication strengths and authentication contexts are kept from the sign-in read (with when they were read and whether they completed — a failed read stays failed, nothing retries and nothing widens the sign-in scope), so the provisional pass uses them and names only what is still unread — the Conditional Access settings, and any read that failed. Without a 🛡 run the findings still read <i>Partial context</i>. 📐 CIS runs provisionally only when both reads completed, with its licence read named as unread; otherwise it offers the run. The 🚪 app-exclusion comparison (which other enforcing policy still reaches an excluded app) runs over the policy set too. A provisional pass shows <b>configuration checks — partial</b> and no number, and <i>About this assessment</i> under the findings says what it used and what is still unread; the configuration score appears only from a 🛡 run whose context was read in full, with the run time, and is a count of findings, not effective protection.</li>
+        <li><b>Unknown is never zero</b> — a Licences result whose measures were not all read says <i>Unknown · incomplete read</i>, and an exclusion result without a state count says the bypass count is not established, rather than the length of a list.</li>
+        <li><b>Configuration map</b> — folded under the checks, open on request (the choice is remembered): the <i>report-only review queue</i> (oldest modification first — a review prompt, not proof of a forgotten rollout), <i>recently modified</i> policies (names and dates; who changed what is audit data), <i>controls referenced by policies</i> by state (policy counts that overlap and count no protected people), the <i>snapshot context</i> (the selected baseline with its release, source and how it came to be active; requirements matched, missing, outdated and in conflict; exclusion references as unique / occurrences / policies; effective user impact <i>not checked</i> until 🚪 has run; what sign-in read — named locations, authentication strengths and authentication contexts with their counts and read time, or <i>read failed at sign-in</i> with the error — and the Conditional Access settings and licence SKUs, which read <i>not read</i> until 🛡 Checks or 🎫 Licences reads them), and <i>since your previous refresh</i> — added, modified and removed definitions between the two reads of this session, compared by id and normalised definition with dates left out (<i>No earlier snapshot</i> on the first read; cleared on sign-out, tenant or demo/live change). Every section has a way out: <i>Open the report-only list</i> and <i>Validate with sign-ins</i> under the review queue, <i>Show these policies</i> and <i>Who changed what</i> under recent changes, <i>Inspect policies and grant logic</i> under the controls, <i>Open the baseline</i> and <i>Open exclusions</i> under the context, <i>Show the changed policies</i> and <i>Audit history</i> under the diff.</li>
+        <li><b>Your checks</b> — one row per on-demand tool: 🚪 <b>Exclusion analyzer</b> (effective bypasses), 🔍 <b>Gap analyse</b> (risky bypasses, and how many are unresolved) and 🎫 <b>Licences</b> (P1 seats short, or entitlements to assign with no purchase). Each reads <i>Not run this session</i> with <b>Run check</b>, <i>Previous snapshot</i> when the policies were reloaded after the run, or the headline with the run number, time and completeness (a partial read is marked), with <b>Open</b> and <b>Run again</b> / <b>Rescan</b>. Results are session-scoped and are dropped on a reload, a tenant change or a sign-out.</li>
+        <li><b>What it deliberately does not do</b> — no tenant-wide read at sign-in, no score without its evidence, and no work on the sign-in path it can avoid: the page paints once per snapshot (an unchanged page is not redrawn), the baseline comparison and exclusion collection are cached on the snapshot, and the configuration checks run after the first paint and are dropped if the snapshot moved under them. A dashboard that reads the tenant fourteen times before it shows anything is a different product.</li>
+      </ul>
+      <p class="help-x">Read-only. Draws only from what is already loaded.</p>
+    </section>
 
     <section class="help-sec">
       <h4>🗂 Policies</h4>
@@ -1713,14 +1823,22 @@
       <ul>
         <li><b>Cards / List / Settings matrix</b> — Cards show each policy in full; List is a compact one-line-per-policy view; the Settings matrix is a policies × settings grid for spotting differences at a glance. The matrix has a <b>full-screen</b> button.</li>
         <li><b>Search</b> — filter by CA number, policy name or persona.</li>
-        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups or roles</b>, <b>Set state</b> or <b>Delete</b>.</li>
-        <li><b>Per-card quick actions</b> — Documentation, Backup, Assign groups or roles, and Policy state, scoped to that one policy.</li>
+        <li><b>Persona filter <span class="tag new">NEW</span></b> (build 322) — the row of chips under the toolbar, one per persona this tenant actually has: <b>Global</b>, <b>Admins</b>, <b>Internals</b>, <b>Externals</b>, <b>Guest users</b>, <b>Guest admins</b>, the service-account ranges, and <b>Other / unnumbered</b> for policies whose name carries no CA number. Personas come from the CA number in the name, the same reading the grouped view and the search already use. <b>Several can be on at once</b> — Admins and E-Admins is a real question — and a chip you click again turns itself off; <b>All personas</b> clears them. Only the personas the tenant has get a chip, and the counts follow the state filter and the search, so a chip says how many you would get by ticking it rather than how many exist. A persona you have ticked keeps its chip even when the count falls to zero, so the filter never disappears under its own empty result. <b>It narrows what the action bar acts on:</b> Documentation, Backup and Gap analyse fall back to everything in view, and Select all ticks what is in view — so a persona filter is also a way to scope those to one persona.</li>
+        <li><b>Select policies</b> (checkboxes) — a green action bar appears: send the selection straight to <b>Documentation</b>, <b>Backup</b>, <b>Assign groups or roles</b>, <b>Set state</b>, <b>Delete</b> — or <b>⧉ Clone in builder</b>: a new policy from the selected one in the 🏗 Policy builder, with the next free number in its range, in report-only (build 322).</li>
+        <li><b>✎ Edit on the card</b> (build 322, <span class="rm-ref">R17</span>). Open a policy and press <b>✎ Edit this policy</b> — the first button in the card's action row at the bottom, ahead of What-if flow, Documentation and the rest: the six boxes — users, target resources, network, conditions, grant, session — become forms in the layout you were reading, the name a field under the title. A bar under the boxes counts the settings that change against the policy in the tenant, marks the boxes they are in, holds the state (switching to On needs a typed <b>ON</b>), and offers ± View diff and 🧪 Preflight. Save sends the changed sections <i>whole</i> and only those — a clause you were not looking at cannot be dropped — reads the policy back, re-reads the set and reopens the card; 🕓 Changes shows the same rows. Cancel discards; closing the card ends the edit. Users are edited inline for one policy here; 👥 Assign groups or roles stays the tool for many at once.</li>
+        <li><b>Per-card quick actions</b> — ✎ Edit this policy, ⑃ What-if flow, Documentation, Backup, Assign groups or roles, and Policy state, scoped to that one policy.</li>
+        <li><b>👥 Assign groups or roles</b> — besides groups and directory roles, the wizard can aim at <b>guests &amp; external users</b>: the external user types and the tenants they come from, set, added to or removed from a policy's include or exclude, for a selection or the whole tenant. A policy already scoped to different external tenants is left untouched with the reason rather than quietly rescoped. A directory-role change keeps a policy's guest and external user clause as it was. The full description is under 👥 Conditional Access groups.</li>
+        <li><b>🗑 Delete</b> — the selected policies, after a JSON backup (ticked by default; if the download fails nothing is deleted), a typed <code>DELETE</code>, and an extra tick when any of them is On, because deleting it stops enforcement at once. The run shows one row per policy as it goes — deleted, or why it was refused — with a <b>Stop</b> that halts before the next delete, and ends with a report listing every deleted policy with its id. The dialog stays open on the outcome. A deleted policy can be restored with its original id for 30 days in ♻️ Recycle bin; after that only the backup can recreate it, with a new id.</li>
+        <li><b>Clear</b> (build 322) — takes away everything narrowing the view at once: the selection, an <i>From the Overview</i> filter you arrived through, the persona chips, the search box and the state filter. It greys out when there is nothing to clear, and hovering it names exactly what it would remove. Each filter still has its own control if you want to drop just one — the Overview chip's ✕, a second click on a persona chip, <b>All</b> on the state chips.</li>
         <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
         <li><b>👯 Duplicates</b> <span class="tag new">NEW</span> — the same policy <b>twice</b>. 🧹 Housekeeping reads VERSIONS and needs one in the name; a baseline whose names carry none (Joey Verlinden's) leaves a second import sitting beside the first, which is how Courseware ended up with <code>CA004-Global-…-AuthenticationFlows</code> as CA018 (Off, on the deploy group) and CA019 (Report-only, All users). A duplicate set is <b>one name carried by two or more policies</b>, the staging prefix aside. The version is part of the name, so v1.0 beside v3.0 is not a duplicate — that is Housekeeping's case; the same CA number under two different names is a number clash, which 🧬 Baseline reports. Each set is compared with the same engine as 🔍 Compare and gets a verdict: <b>identical</b> (nothing but the state differs), <b>assignment differs</b> (only who they reach), or <b>needs review</b> (conditions, controls, or a guest or workload scope a merge cannot express — never merged here). Each row says when that copy was <b>created</b> — to the minute, in your own timezone — and which of them is the <b>newer</b> one, because two runs of the same import land on the same day and the date alone answers nothing. A copy changed after it was made says that too. <b>Merge</b> is: pick the copy to KEEP, tick what to bring across from the other (include groups, exclusions, directory roles, the state — each tick says what it changes, and whether it widens who the policy reaches), and the rest are deleted. The copy that is On is never the one deleted while the kept one is not: that set is refused with the reason on it. A <b>needs review</b> set carries a <b>Reviewed</b> tick — the tool refuses to decide a security question for you, not to be overruled on one you have looked at: tick it and the set can be selected and merged like any other, with the reason it was held recorded in the report. The page behind the popup does not scroll while it is open, the list keeps its place when you tick something, and closing a comparison comes back to the set it was opened from. Then a plan — what is patched, what is deleted — a JSON backup of what goes, the typed <b>DELETE</b>, the run ledger and a Markdown report. A deleted policy is restorable for 30 days in ♻️ Recycle bin.</li>
-        <li><b>🧹 Housekeeping</b> — lists older versions when a higher version of the same CA number exists, including On and Report-only policies. Status, assignment and configuration differences are shown as review points. Compare opens a read-only, field-by-field view of both versions, with additions and removals highlighted; turn off Differences only to see matching settings too. Every row is a setting: a block one version leaves unset is compared setting by setting against the other (build 315), an authentication strength is shown as its name and id rather than as the strength's own combinations, and Graph's <code>@odata</code> annotations — which name the policy's own id and made two policies on the same strength look different — are not settings and are left out. Only an Off version with matching configuration and a newer On successor can be selected for the normal delete confirmation (JSON backup + typed <code>DELETE</code>). Nothing is selected automatically.</li>
+        <li><b>🧹 Housekeeping</b> — lists older versions when a higher version of the same CA number exists, including On and Report-only policies. Status, assignment and configuration differences are shown as review points. Compare opens a read-only, field-by-field view of both versions, with additions and removals highlighted; turn off Differences only to see matching settings too. Every row is a setting: a block one version leaves unset is compared setting by setting against the other (build 315), an authentication strength is shown as its name and id rather than as the strength's own combinations, and Graph's <code>@odata</code> annotations — which name the policy's own id and made two policies on the same strength look different — are not settings and are left out. A <b>cleanup candidate</b> — an Off version with matching configuration and a newer On successor — can be selected straight away; any other row needs the Reviewed tick below first. Either way the delete goes through the same confirmation as 🗑 Delete (JSON backup + typed <code>DELETE</code>, a row per policy, Stop and a report), and the list behind it refreshes afterwards. Nothing is selected automatically. The button reads <b>🧹 Housekeeping (n)</b>, or <b>(n · ⇄ m)</b> when m version changes are waiting to be switched over. Names are compared without the version, written <code>-v1.0.3</code> or <code> v1.0.3</code>.
+          <b>⇄ Switch over</b> (at the top, when it applies) finishes a version change that stopped half-way — a newer version still Off while an older one is On or Report-only, as an import leaves it when Entra is slow to show the new policy. Tick the pairs: each new version takes its older version's state (or Report-only first, if you tick that), is read back, and only then is the older version switched Off. A pair whose names or scope differ can only be ticked after you have compared it. It also finishes half a switch: a newer version already On beside an older one still On only needs the older one Off. Typed <code>SWITCH</code>, a run ledger and a report; afterwards the older versions are Off and show up here as cleanup candidates.
+          <b>Reviewed</b>: a row that differs from its newer version only in ways you meant — an exclusion added, a name tidied — has its own Reviewed tick, and <b>✓ Mark all reviewed</b> ticks them all; a reviewed row can be selected for deletion, and <b>☑ Select all to delete</b> selects every one that can. Still blocked, whatever you tick: an older version that is On or Report-only (switch it over first), incomplete details, or several policies at the highest version. Every delete still goes through the JSON backup and the typed <code>DELETE</code>.</li>
               <li><b>The policy ID is on the expanded card too.</b> The compact card carried it and the expanded one did not, so opening a policy to look at it properly took away the one string that identifies it — on the card that gets exported, screenshotted and pasted into a ticket. Two policies can share a name, a version and a persona; the portal is reached by id. One click selects the whole GUID.</li>
 </ul>
-      <p class="help-x">Browsing is read-only; the two writing actions on the bar — 👥 Assign groups or roles and 🎚 Policy state — each confirm before they touch the tenant.</p>
+      <p><b>Licence check before every policy write.</b> Whatever writes a policy — ✎ Edit on the card, the 🏗 Policy builder, 👥 Assign, 🎚 Policy state, 📥 Import, a Checks fix, a restore from ♻️ Recycle bin — the tenant's active subscriptions are read first, and the write stops when the policy needs a product that cannot be shown to be there: Entra ID P2 for user or sign-in risk and Require password change, Workload ID for a policy on service principals, Intune for app protection, Defender for Cloud Apps for Conditional Access App Control, and Purview Adaptive Protection for an insider-risk condition. Adaptive Protection is recognised from the Insider Risk Management plans and from the suites that carry it — the Purview suites (Business Premium, enterprise, frontline), E5 Compliance, Microsoft 365 E5 and F5 Compliance. <b>An edit is checked only for what it adds</b>: a condition Entra already accepted on the policy is not held against it, so adding an exclusion to an insider-risk policy just saves. When a licence cannot be confirmed, the message lists the subscriptions that were read, so a mismatch is visible; nothing is removed from the policy to make it fit. Switching a policy Off is never held back, and a new policy is refused when the tenant has no free slot of the 240.</p>
+      <p class="help-x">Browsing is read-only. The writing actions — ✎ Edit, 👥 Assign groups or roles, 🎚 Policy state, 🗑 Delete, ⇄ Switch over, 👯 Merge — each confirm before they touch the tenant.</p>
 
       <h5>📄 Create documentation <span class="help-fold">folded into this tool — build 311</span></h5>
       <p>Turn all or selected policies into shareable documentation carrying your tenant's branding. For a full control hand-off, the same document can include the restricted administrative units that protect the exclusion groups.</p>
@@ -1766,10 +1884,15 @@
       <p>A users × policies impact matrix: who is in scope for what, who bypasses a policy and why.</p>
       <ul>
         <li><b>Coverage</b> <span class="tag new">NEW</span> — the funnel above the results, and usually the first thing worth reading. Five stages, each a subset of the one above: everyone <b>in scope</b> → <b>targeted</b> by at least one active policy → covered by one that is actually <b>enforced</b> → required to do <b>MFA</b> → holding the <b>licence</b> their own policies oblige. Every bar is drawn against the same denominator, so the shape of the drop is readable without doing arithmetic on five percentages.</li>
+        <li><b>Targeting, not enforcement</b> <span class="tag upd">UPDATED</span> — the stages say <i>targeted by an enabled policy</i> and <i>targeted by an enabled MFA policy</i>, because that is what an identity assignment proves. A policy that demands MFA of one app at high sign-in risk targets the user; whether it fires on a given sign-in depends on its own conditions, which is a 🧪 What-If question. The word enforced is reserved for scenario or sign-in evidence.</li>
+        <li><b>Every bypass carries a verdict</b> <span class="tag upd">UPDATED</span> — expanding a user shows, per bypassed policy, whether another enabled policy gives that person the same protection: <span class="vd eq">✔ Equivalent coverage</span>, <span class="vd part">◐ Partial coverage</span> with the missing requirement named, <span class="vd none">✖ No equivalent coverage</span>, or <span class="vd unk">? Not established</span>. Sharing one grant control is no longer enough to call a bypass closed — a policy requiring MFA <b>and</b> a compliant device is not replaced by one requiring MFA alone, and the row says which half is missing. Anything short of established equivalence counts as risky, because “could not tell” is not a reason to stop showing a bypass.</li>
         <li><b>The drops are the finding, not the totals.</b> A tenant with 900 targeted users and 40 covered by an enforced policy has a report-only backlog, not a coverage problem — and those two look identical in any single number. Users reached by <b>no active policy at all</b> and users targeted <b>only</b> by report-only policies are called out by name in the notes under the funnel, because for the first group Conditional Access is not weak, it is absent.</li>
-        <li><b>Click a row to list exactly who did not get that far</b>, and click it again to clear. These are deliberately <b>not</b> the same sets as the summary cards below: “No MFA from CA” counts everyone without MFA including the users no policy reaches, while the funnel’s MFA drop counts only those a policy <i>does</i> reach and still does not ask. A row with no drop is not clickable rather than being a link that does nothing.</li>
-        <li><b>The licence stage reads its own data</b> — the assigned licences ride along on the user read the tool was doing anyway, and the subscribed SKUs are one more call, both covered by permissions it already holds. It does not depend on 🎫 Licence gap having run, and it uses that tool's own verdict function, so the two cannot disagree about whether a user is licensed. P2 is required where a risk-based policy targets them, P1 otherwise; report-only counts, because the obligation follows targeting rather than enforcement.</li>
+        <li><b>Click a row to list exactly who did not get that far</b>, and click it again to clear. These are deliberately <b>not</b> the same sets as the summary cards below: “No MFA policy targets them” counts everyone no MFA policy targets including the users no policy reaches, while the funnel’s MFA drop counts only those a policy <i>does</i> reach and still does not ask. A row with no drop is not clickable rather than being a link that does nothing.</li>
+        <li><b>Cohorts</b> <span class="tag new">NEW</span> — users whose state is identical across every policy in the run are one row, the same way the Exclusion analyzer collapses identical exclusion patterns. A tenant of thousands reads as a handful of cohorts plus its outliers; findings sort first, so a cohort of <i>one</i> user with a risky bypass is at the top and the quiet crowd of 400 is one line at the bottom. Open a cohort to list the people in it. The cohorts follow the filters, so a search or a group narrows them too.</li>
+        <li><b>The run strip and the exported header</b> <span class="tag upd">UPDATED</span> — the result carries the run that made it: tenant, policy snapshot time, states, population, options, completeness and a run number. Reloading the policies, signing out, or switching tenant or between demo and live <b>drops</b> the result and its export, so nothing from the previous snapshot stays on screen; a snapshot that moves while a result is open turns the strip amber. The exported HTML report takes its header from that descriptor, so changing the scope without rerunning no longer rewrites the description of a file whose contents have not changed; stopping a run says <i>Stopped</i>, and a second run cannot start over the first.</li>
+        <li><b>The licence stage reads its own data</b> — the assigned licences ride along on the user read the tool was doing anyway, and the subscribed SKUs are one more call, both covered by permissions it already holds. It does not depend on 🎫 Licence gap having run, and it uses that tool's own verdict function, so the two cannot disagree about whether a user is licensed. P2 is required where a risk-based policy (sign-in, user or insider risk) targets them, P1 otherwise; report-only counts, because the obligation follows targeting rather than enforcement.</li>
         <li><b>Not read is not zero.</b> If the licence read is refused or fails, the stage says <i>not read</i> and every other stage is unaffected — “we did not look” and “nobody is licensed” are opposite findings. Targeted users with no licence record at all (guests, or a capped read) are left out of the stage and counted separately, never rounded up to licensed.</li>
+        <li><b>Policies are kept apart by id</b> — results are keyed on the policy id, not its display name, so two policies that share a name stay two columns in the Matrix, each header then carrying the start of its id, and each opens its own policy card. An included policy and an excluded one can no longer merge into one cell.</li>
         <li><b>Group filters</b> — narrow the matrix columns to the policies that target chosen groups.</li>
         <li><b>Apply flow</b> — the same per-persona flow as in List Policies.</li>
         <li><b>Its own toolbar, and one way out.</b> Gap analyse renders inside the List Policies screen, so it used to sit under that screen’s <b>Cards / List / Matrix</b> picker — which switched <i>away</i> from Gap analyse rather than within it, with none of the three highlighted because none of them was where you were. Its Matrix also meant the policies × settings grid, while the Matrix tab in this tool’s own toolbar means users × policies: two buttons, one label, one screen. The picker is hidden here now and a single <b>← Back to policies</b> button takes its place, returning you to whichever view you came from. The tool’s own <b>Users</b> and <b>Matrix</b> tabs appear once a run has produced results.</li>
@@ -1782,9 +1905,15 @@
       <p>Microsoft has started showing a <b>“Licensing overage”</b> warning on the Conditional Access page, linked to the licence usage blade. The blade counts <b>evaluated</b> users — unique users who actually triggered a policy during the previous month. But that is not what Microsoft licenses on: <b>every user targeted by a Conditional Access policy needs Entra ID P1</b>, and every user targeted by a risk-based (sign-in / user risk) policy needs <b>P2</b> — whether they signed in or not. A blade showing “2 of 25, no warning” can sit on a tenant whose broadest policy targets every one of its 121 users. This tool computes the <i>targeted</i> number — the obligation — and compares it with the seats the tenant owns.</p>
       <ul>
         <li><b>Targeting is resolved on the actual members</b> — an All-users policy is the member-user count minus its resolvable exclusions; a scoped policy is the union of its included users, transitive group members (nesting counts) and directory-role holders (a role held through a role-assignable group is expanded to its users; service principals holding a role are ignored — they hold no user licences), minus its exclusions. Per-policy counts overlap, so the obligation is the <b>union across policies</b>, computed on user ids — one user under five policies needs one licence, never five.</li>
+        <li><b>Three measures, never one</b> <span class="tag upd">UPDATED</span> — <b>estimated demand</b> (the identities your policies target), <b>seats purchased</b> (what the tenant owns) and <b>assigned in scope</b> (how many of those targeted identities actually hold the entitlement today). The bar draws purchased capacity against demand with a marker at the assigned count, because they answer different questions: a <b>purchasing shortfall</b> is something to buy, and targeted identities without an assignment are something to assign — often from seats already paid for. Before build 322 the bar drew seats and labelled them “targeted users licensed”, so it could read 100% directly above a list of unlicensed users.</li>
+        <li><b>What you see</b> — tiles for <i>member users</i>, <i>estimated P1 demand</i>, <i>P1 seats purchased</i>, <i>P1 assigned in scope</i> and the <i>P1 gap</i> (and the same four for P2 where a risk-based policy exists or P2 seats are owned). Under the bar the verdict keeps the two actions apart: a <b>Licence gap</b> of N users to buy for, or <b>No P1 purchasing shortfall</b> followed, where it applies, by how many targeted identities do not hold the entitlement — an assignment to make, not a purchase. The Markdown table carries the same four columns: estimated demand, seats purchased, assigned in scope and purchasing shortfall.</li>
+        <li><b>The head states the population</b> — member users tenant-wide, guests excluded, On and Report-only policies, insider risk counted as a P2 condition — so a Licences result and a scoped 🔍 Coverage run say plainly when they are answering the question about different populations.</li>
+        <li><b>Bound to its run</b> — the same run strip as 🔍: tenant, policy snapshot time, states, population, completeness and a run number. A policy reload, sign-out or tenant switch drops the count and its export, and a snapshot that moves under an open result turns the strip amber with <i>rescan before quoting these numbers</i>.</li>
+        <li><b>One population for every number</b> <span class="tag upd">UPDATED</span> — exclusions are resolved from groups and roles that can hold guests and service principals, so they are intersected with the member users before being subtracted from a member count. A tenant whose exclusion groups contain guests no longer reports fewer users in scope than it has gap users.</li>
+        <li><b>Mailbox states say what was read</b> <span class="tag upd">UPDATED</span> — a returned <code>userPurpose</code> is named as such, with the note that a shared mailbox can still need licensing for size, archive or litigation hold and should stay sign-in blocked. A <i>denied</i> mailbox read is reported as exactly that — purpose not established, verify in the Exchange admin center — rather than being turned into “likely shared, never licensed”. No mailbox classification suggests removing Conditional Access from an account.</li>
         <li><b>Seats are matched on service plans</b>, not SKU names: any subscription carrying the <code>AAD_PREMIUM</code> / <code>AAD_PREMIUM_P2</code> plan counts (EMS, M365 E3/E5, Business Premium…), a P2 seat counts for the P1 obligation too, and suspended or cancelled subscriptions are excluded by <code>capabilityStatus</code>. The comparison is against seats <b>owned</b>, not assigned — an unassigned seat still covers a targeted user.</li>
         <li><b>The gap is named, in a pop-out</b> — the on-screen card shows the breakdown; the full list opens in a searchable dialog (large tenants make long lists), and the complete list is always in the Markdown export. <b>🏷 Check mailbox types</b> reads each gap user's mailbox purpose (<code>MailboxSettings.Read</code>, asked once on the click) and labels <b>shared, room and equipment mailbox accounts</b> — those are never licensed and should be disabled or excluded, not bought for. A delegated sign-in usually cannot read another mailbox's type directly, so the check also reads the <i>failure</i>: an unlicensed account whose mailbox read is <i>denied</i> has a mailbox without a licence — almost always shared/room/equipment — and is labelled <b>likely shared/resource</b> with a verify-in-Exchange note, while “no mailbox” confirms a regular unlicensed account.</li>
-        <li><b>Honest numbers</b> — a count where a group was unreadable or over the read cap, or a role could not be read, is marked <b>≈</b> rather than presented as exact. Report-only policies count (they evaluate everyone in scope); disabled policies do not, but a disabled risk-based policy is named as a P2 obligation waiting to happen. Guests are deliberately not counted — guest licensing follows different rules.</li>
+        <li><b>Honest numbers</b> — a count where a group was unreadable or over the read cap, or a role could not be read, is marked <b>≈</b> rather than presented as exact, and an empty gap list over such a read is exported as <i>no gap found in the scope that could be resolved</i>, marked incomplete — not as everyone licensed. Report-only policies count (they evaluate everyone in scope); disabled policies do not, but a disabled risk-based policy is named as a P2 obligation waiting to happen. Guests are deliberately not counted — guest licensing follows different rules.</li>
         <li><b>Why gaps exist and how to close them</b> — the result explains the usual cause (an All-users baseline sweeping in disabled accounts, stale synced users, service accounts and shared mailboxes) and lays out the options with their trade-offs: clean up and exclude before buying, map admin accounts to their owners (one person, one licence — the counts here are identities), narrow the targeting only as a deliberate decision because everyone outside a licensed-users group goes unprotected, Security defaults for small tenants (cannot coexist with CA), and finally buying the remainder.</li>
         <li><b>👑 Exclude admin-accounts groups</b> — Microsoft licenses <i>people</i>: a second internal account (an <code>adm-</code> account next to a day-to-day account) needs no second licence. Pick the group or groups that hold those accounts, one after another — the field auto-fills with the groups your CA policies already reference and searches the directory as you type — and the union of their transitive user members drops out of every count and named list. Each group gets its own chip with its own ✕. The exclusion is stated on the result and in the export, with the caveat that it assumes every member maps to a licensed owner: document the mapping.</li>
         <li><b>📄 Export MD</b> — the comparison, the per-policy table and the mitigation options as Markdown for the licensing conversation.</li>
@@ -1800,6 +1929,15 @@
       <ul>
         <li>MFA coverage, FOCI token-sharing, break-glass coverage, known bypass apps, and a <b>persona × control</b> coverage matrix.</li>
         <li>Each finding has a severity and an explanation; a deployed-but-Off policy is flagged as not yet enforcing.</li>
+        <li><b>▶ Run checks</b> — the tab waits until you ask, and the result stays until you refresh. A finding you opened stays open when you change the severity filter.</li>
+        <li><b>Coverage is only counted when it is real.</b> <b>MFA for all users</b> needs an All-users policy on <b>All resources</b>; one that asks MFA for selected apps only is its own high finding. <b>Legacy authentication</b> counts as blocked tenant-wide only when the block covers everyone, All resources and both legacy client types; a narrower block is reported with its scope.</li>
+        <li><b>Grant “OR” is judged by what it lets through.</b> MFA OR a compliant or hybrid-joined device is Microsoft's own template and reads <b>low</b>; MFA OR app protection or password change reads <b>medium</b>, because those can be met without a second factor; an OR with terms of use reads <b>high</b> — accepting terms is a click, not a factor. An authentication strength counts as the MFA side. An OR between device and app-protection controls only (MDM-or-MAM) is an accepted pattern.</li>
+        <li><b>Guest authentication strength</b> — raised only when <i>every</i> combination of the strength needs a method a guest can complete only at home (phishing-resistant, passwordless). A guest MFA policy on Require multifactor authentication is fine: an untrusted guest simply registers MFA here.</li>
+        <li><b>Security info registration</b> — no enabled policy protects the <b>Register security information</b> user action with MFA or a block, so whoever has a user's password can register their own authenticator for that account (medium; low when the policy exists but is not On). The remediation is Microsoft's template, with a Temporary Access Pass for new users.</li>
+        <li><b>Device code flow</b> — no enabled block on the device code flow for everyone on All resources (medium; low when the block is narrower or not On). The remediation names the Teams Android devices that still need it.</li>
+        <li><b>Duplicate group names</b> (Group Hygiene) — two or more groups referenced by Conditional Access that share a display name, each listed with the policies that use it: one persona's MFA policy can sit on one copy while an exclusion sits on the other.</li>
+        <li><b>Allow-list blocks</b> — an unconditional block on All users and All resources that excludes three or more groups is an allow-list. It is reported when it misses a group another active policy includes, or a group two or more other All-users policies exclude (the shared-device accounts, for instance), and when it blocks service provider, B2B direct connect and other external users, who can never be in a group.</li>
+        <li>The persona matrix's <b>Sign-in frequency</b> column counts sign-in frequency only — a persistent-browser setting alone no longer marks a persona covered. Recommendations are written as <b>where / change / why</b>.</li>
         <li><b>Export MD</b> — the findings as Markdown for a ticket or review.</li>
       </ul>
       <p class="help-x">Read-only.</p>
@@ -1807,10 +1945,28 @@
       <h5>📘 MS Learn checks <span class="help-fold">folded into this tool — build 311</span></h5>
       <p>Checks policies against documented Microsoft Learn exclusions and limitations — break-glass, token protection, Teams Rooms, service providers, retired features.</p>
       <ul>
-        <li><b>Findings</b> tab lists what conflicts with the docs; <b>Refresh</b> re-runs after you fix something.</li>
+        <li><b>▶ Run checks</b> — the tab waits until you ask, like Bypass &amp; Swiss cheese, and says what it will read: authentication strengths, cross-tenant access settings (the default and every partner), the Conditional Access settings, the authentication methods policy, the break-glass and shared-device groups, and how many guests sit in each group a policy includes. The result then stays when you switch to another tab and back — same severity filter, same open findings, same sub-tab. <b>⟳ Refresh</b> re-reads the tenant and runs again; ticking Include Off re-runs; another tenant always starts fresh.</li>
+        <li><b>Findings</b> lists what conflicts with the docs; <b>Suggested fixes</b> holds the fixes they come with. Severity chips run from Critical to Info, <b>Low</b> included.</li>
         <li><b>Service provider (CSP / GDAP) exclusions</b> — five checks covering the partner who administers this tenant on your behalf. They are matched by the <b>Service provider users</b> external user type and by nothing else: a partner admin arriving through delegated privileges holds no account, no group membership and no device here, so a group exclusion or a named break-glass account never reaches them. The checks find an external-user exclusion that lists the other five types but not this one; a Block policy their sign-in falls into; a compliant or hybrid-joined device requirement they cannot meet unless cross-tenant access settings trust device claims from their tenant; grant controls documented as unsupported for external users (approved client app, app protection policy, password change); and a guest MFA policy that leaves out the one external identity holding admin roles here. Exclusions naming specific tenants are read as such — an exclusion for two partner tenants does not cover a third.</li>
         <li><b>Read once, judged against your tenant.</b> Cross-tenant access settings are read to see which partners are flagged as service providers and whether this tenant accepts their MFA and device claims. A partner whose compliant-device claims you already trust does not raise a device finding, and a tenant with no partner at all has the five checks skipped rather than answered — the summary says so. If the settings cannot be read the checks still run and say the trust configuration was not verified, which is not the same as saying there is nothing there.</li>
+        <li><b>Trust is read from the default as well as the partners.</b> Every guest answer that depends on cross-tenant trust — MFA claims, compliant-device claims, hybrid-joined claims — reads the tenant's <b>default</b> inbound trust and every partner row; a partner that sets nothing inherits the default. A tenant with no partner at all is judged on its default, so a compliant-device policy reaching every B2B guest while the default does not trust device claims is reported (and the matrix cell reads <b>trust</b>, not <b>ok</b>). Each finding says whether the missing trust is in the default or in a named partner.</li>
+        <li><b>Guests &amp; external users <span class="tag new">NEW</span></b> (build 322) — six checks and a matrix, from Microsoft's own two tables for external identities. <b>What a guest cannot satisfy at all:</b> Require approved client app, Require app protection policy and Require password change are documented as not supported for B2B collaboration and B2B direct connect — the first two need a device registered in <i>this</i> tenant, and a guest has no password here. <b>What needs cross-tenant trust:</b> compliant device and hybrid joined device, because a device is managed only by its owner's home tenant. <b>The authentication-strength trap:</b> FIDO2 / passkeys, Windows Hello for Business, certificate-based authentication, Authenticator phone sign-in and OATH hardware tokens can only be completed in the guest's <b>home</b> tenant — in yours they have SMS, voice, Authenticator push and OATH software tokens and nothing else. So the built-in <b>Phishing-resistant MFA</b> and <b>Passwordless MFA</b> strengths are unsatisfiable for a guest unless inbound MFA trust is on <i>and</i> their home tenant has deployed the method; the check says which of the two you are missing, and never confuses "not configured" with "not read". Also: an authentication strength does not reach email one-time passcode, SAML/WS-Fed, Google or MSA guests at all, so for them the policy imposes no MFA requirement; a user-risk policy blocks guests it can never remediate, since the password reset it demands is impossible in your directory; and terms of use, sign-in frequency, persistent browser, app enforced restrictions and Conditional Access App Control are unsupported for <b>B2B direct connect</b> while working normally for collaboration guests.
+          <br><b>Local guest users are deliberately left out of all of it</b> — that type is an account in your own directory with UserType Guest, so it has your credentials and your management, and none of the cross-tenant limits apply.</li>
+        <li><b>The guest matrix <span class="tag new">NEW</span></b> (build 322) — above the findings: the external user types this tenant's policies actually reach, against the controls those policies actually demand. Each cell is <b>ok</b> (satisfiable as configured), <b>trust</b> (only with inbound cross-tenant trust, which is not in place), <b>blocked</b> (documented as unsatisfiable — an exclusion is the remedy) or <b>n/a</b> (the control does not reach that type); a control nothing asks of a type is left blank, because "nobody demands it" is not the same as "fine". Click a cell to open the policies behind it in 🗂 Policies. Built from the policies already loaded and the cross-tenant settings the service provider checks already read — no extra permission and no extra call; when those settings could not be read the band says every trust answer is unverified rather than guessing.</li>
+        <li><b>The shared-device matrix <span class="tag new">NEW</span></b> (build 322) — below the guest matrix: Teams Rooms on Windows, Teams Rooms on Android / phones / panels, and Surface Hub, against the controls the policies that reach their resource accounts demand, read from Microsoft's own support tables. A policy reaches them through All users (unless it excludes the shared-device group) or by including that group, and only when it targets All resources or an app the devices use; a platform condition decides the family. <b>ok</b> supported · <b>prompts</b> supported but someone has to complete it on the device (MFA on Android devices) · <b>blocked</b> not supported — the device stops signing in · <b>?</b> not in that device's documentation (Surface Hub documents only the grant controls). Sign-in frequency, persistent browser, token protection, terms of use and every session control are unsupported on Teams devices; blocking device code flow is fine for Windows rooms and breaks Android ones. Click a cell for the policies behind it. The card names the shared-device group it read (or says none was found, and then counts every policy on All users as reaching them).
+          <br><b>Every blocked cell has a finding below it</b>, per policy, naming the device families and the controls they cannot meet, and the fix depends on how the policy reaches them: through <b>All users</b> → exclude the shared-device group (🧰 Fix adds the exclusion); by <b>including</b> that group → it is the devices' own policy, so take the unsupported control out of it — excluding them from their own policy would leave them with none, so no exclusion fix is offered there.</li>
         <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
+        <li><b>Which way the policy is wrong <span class="tag new">NEW</span></b> (build 322) — the external-identity findings come in two kinds and they need opposite fixes, so each one says which it is. <b>🚫 Blocks them</b>: the control cannot be met by an identity this tenant does not manage, so those users are denied access — the policy is too strict, and the remedy takes them out of its scope. <b>🕳 Misses them</b>: the control is not applied to them at all, so the policy asks them for nothing — too loose, and the remedy brings a requirement that reaches them, since excluding people a policy already asks nothing of changes nothing. That is why four of these findings begin “exclude the guest and external user types” and two begin “exclude nothing”. A finding that is genuinely neither carries no badge rather than a guessed one.</li>
+        <li><b>Two verdicts on one strength <span class="tag new">NEW</span></b> (build 322) — an authentication strength is never applied to guests who sign in with an email one-time passcode, a SAML/WS-Fed provider, Google or a Microsoft account, but what to DO about it depends on the strength. If it asks more than <b>Require multifactor authentication</b> does (phishing-resistant, passwordless), swapping the control would weaken the policy for everyone else, so the requirement is <i>added beside it</i>. If it asks no more — Microsoft's own table calls the built-in <b>Multifactor authentication</b> strength the same set of combinations that satisfies Require multifactor authentication, which is why the two cannot share a policy — then the answer is one <i>swap</i> on the policy you already have, and no second policy at all. The tool reads the strength's own allowed combinations to tell the two apart, and says nothing if the strengths were not read.</li>
+        <li><b>Companion policies <span class="tag new">NEW</span></b> (build 322) — one finding's answer is not an edit to the policy it names but a <i>second policy beside it</i>: an authentication strength does not reach guests who sign in with an email one-time passcode, a SAML/WS-Fed provider, Google or a Microsoft account, and Entra refuses <b>Require multifactor authentication</b> and <b>Require authentication strength</b> in the same policy. Its remediation says both halves outright — <b>Exclude: nothing</b> (no condition names the identity provider a guest used, so those identities cannot be carved out of the original, and the strength does not block them anyway) and <b>Create: one policy</b>, the same scope with the plain control — and <b>🧰 Fix</b> builds it: the next free CA number in the original's range rather than a version bump, since it lives beside the original rather than replacing it. The original is never modified. Marked <b>companion</b> in the Suggested fixes tab, which counts how many fixes go <i>beside</i> their policy. The finding's remediation is laid out in three labelled parts — <b>Exclude</b>, <b>Create</b> and <b>Why two</b> — the last because Entra will not hold both controls in one policy.</li>
+        <li><b>Guests reached through a group.</b> A B2B guest can sit in any group, so a policy that includes a group holding guests — a guest-admin persona, a partner group — reaches them as surely as one naming the user type. For each group a policy includes (when the policy does not already reach every user), the run counts the members with userType Guest, and the guest checks and the guest matrix treat that policy as reaching B2B collaboration guests, naming the group and the count. Excluding the group on the policy removes it again. The summary says how many included groups hold guests; when some counts could not be read, it says guests reached only through those groups were not evaluated. The count cannot tell a B2B guest from a local account created with userType Guest, so the finding says <i>members with userType Guest</i>.</li>
+        <li><b>A Temporary Access Pass is not a guest method.</b> Microsoft's external-user table lists it in neither the home nor the resource column, so a strength such as Phishing-resistant MFA + TAP is not satisfiable by a guest here. A strength with no combination a guest can complete anywhere reads <b>blocked</b> in the matrix — not here, and not through trust either — and the finding says a TAP does not work for guests.</li>
+        <li><b>External user types that no MFA policy reaches</b> (high) — a guest MFA policy names some external types, and the ones it leaves out are required MFA by no other policy on All resources (typically because the All-users MFA policy excludes every external type). The finding sits on the guest MFA policy, and 🧰 Fix adds only the missing types to it (a new version, Off). A type that an <b>unconditional</b> block on All resources shuts out already counts as covered and is named as such; a block with a location, platform, client-app, risk, device or authentication-flow condition does not count. <b>B2B direct connect</b> is left out while it is blocked inbound; when it is open, the remediation warns that requiring MFA of it without inbound MFA trust blocks it.</li>
+        <li><b>MFA for B2B direct connect without inbound MFA trust</b> — a direct connect user has no account here and can only bring MFA from home, so a policy requiring MFA or a strength of them blocks them from Teams shared channels unless inbound MFA trust is on. Silent when direct connect is blocked inbound or trust is on for every tenant. The fix is usually the trust setting; excluding them is the alternative.</li>
+        <li><b>User-risk policies and guests</b> — reported only when the policy grants Require password change or Require risk remediation, or blocks: those a guest can never clear in your directory. A user-risk policy that asks for MFA is not a guest lockout.</li>
+        <li><b>Token protection.</b> Windows Cloud Login is recognised as a supported target, alongside Exchange Online, SharePoint Online, Teams, Azure Virtual Desktop and Windows 365. The unsupported-device filter the fix writes excludes only <b>Entra-joined</b> Cloud PCs, Azure Virtual Desktop session hosts, Power Automate hosted machines and Azure VMs — each label paired with <code>device.trustType -eq "AzureAD"</code> — because hybrid-joined ones are supported and should stay protected. A filter that names those labels without the trust type is reported as over-broad. If Entra rejects the rule, the fix tries simpler filters and says which one it applied. Autopilot self-deploying devices, Surface Hub and Teams Rooms are left for you to exclude by name.</li>
+        <li><b>Require approved client app is retired.</b> Since 30 June 2026 a policy carrying it is <b>read-only</b> in Entra: still enforced while On, but it can no longer be edited, and no new policy can use it. That includes the transition pattern approved client app OR app protection. The finding is high, and 🧰 Fix builds a copy with Require app protection policy in place of the retired control, state Off, for you to run report-only, switch On, then switch the old one Off.</li>
+        <li><b>Defender mobile exclusion</b> — asked only of broad blocks the Defender mobile app actually meets: a block limited to legacy authentication, to an authentication flow, or to platforms that leave out both Android and iOS is no longer flagged.</li>
       </ul>
       <p class="help-x">Checks are read-only; applying a fix writes, and produces a change report.</p>
 
@@ -1859,6 +2015,7 @@
       <ul>
         <li><b>Expected control</b> — every simulation shows the control the policy would require (MFA, Block, Compliant device, …). When the principal, app, location or platform is on the <b>excluded</b> side, the expectation inverts to <b>“no &lt;control&gt;”</b> — proving the policy does not fire there.</li>
         <li><b>Run against a target</b> — optionally enter a <b>user</b> (UPN) or a <b>persona group</b> (name or ID) to scope the report to only the policies that actually apply to that principal (include minus exclude); for a user, their group and role memberships are evaluated. Leave empty to simulate every policy.</li>
+        <li><b>Scope it cannot decide is not guessed</b> — with a target, a policy scoped to specific external-user types resolves for a user from their account (an internal account is never a service provider or direct-connect user), exactly as in 🕵 and ⚖. Where the scope still cannot be decided — a guest whose home tenant is not knowable against a list of named partner tenants — the policy is not simulated and is named in the <i>Not simulated</i> line under the results instead of being counted in or out.</li>
         <li><b>Include report-only</b> — off by default; tick it to also simulate policies in report-only mode.</li>
         <li><b>Filter &amp; search</b> — filter by expected control, or search by policy or simulation text; collapse/expand all policies.</li>
         <li>Users are shown as <b>representative placeholders</b> (“all users”, “members of &lt;group&gt;”, “role: …”) — no individual accounts are sampled. Session-only policies are listed as having nothing to assert.</li>
@@ -1897,6 +2054,7 @@
         <li><b>Policy numbers are the baseline's</b> — <code>CA012</code> from “(NEW)CA012-BLOCK-…”, the number the person reading knows the policy by — never ENCA's own running number. A policy whose name carries no number is shown in full.</li>
         <li><b>Deployment groups</b> — every deploy group and persona group of the ★ active baseline with In / Not in / Not in this tenant, and for each membership <b>how</b>: direct, or nested via which parent group. The exclusion groups she is in are listed with the policies they take her out of; one that bypasses an enforced policy is called a <b>standing bypass</b>. Who put her there is a question for ⚖ Compare users (the membership next to a colleague's) or 🕓 Change audit.</li>
         <li><b>Policies</b> — every policy, including the Off ones: state, <b>reaches her via</b> (All users, a group with its path, a role, guest type — or EXCLUDED and by what), the controls, this user's blocked / interrupted counts from the log, and for report-only policies the forecast. Filter chips: reaches her, excluded, not targeted, all; and by state.</li>
+        <li><b>Unknown scope</b> (build 322) — a fourth answer, next to reaches / excluded / not targeted, for a policy whose scope this read cannot decide: an external-user type or home tenant that is not knowable from here, or a membership list that came back incomplete. It gets its own amber chip when there is one (and no chip at all when there is not, so the chips always add up to <b>All</b>), a count on the policies tile, a place above <i>Not targeted</i> in the table, and a callout saying which half could not be decided. It is deliberately not guessed in either direction — Microsoft's own <b>What If</b> in the Entra portal is what settles it. Before build 322 a policy scoped to specific external-user types, such as <i>Guests &amp; external users: Service provider users</i>, landed here for everybody and had nowhere to be shown; those resolve now, because a principal holding an account in this tenant cannot be a service provider or direct-connect user — neither has one. The type is read from the account’s own user type and the <code>#EXT#</code> marker in its UPN, so no extra read is made, and the same answer is given in ⚖ Compare users, ⚡ CA validator and 🔍 Gap analyse, which share this scope check.</li>
         <li><b>🛡 Identity risk</b> — what Identity Protection says about her now (at risk and at which level, remediated, dismissed, never flagged), the risk detections of the last 30 days, the risky sign-ins in the window, and <b>only the risk-based policies that reach her</b> — user risk, sign-in risk, insider risk — with the one that <b>fires now</b> on her current level named. A risk policy that does not reach her (not targeted, or she is excluded) is counted in one line and stays in the policies table, not here. The user-risk read is optional (IdentityRiskyUser.Read.All + IdentityRiskEvent.Read.All), offered as a button, and needs Entra ID P2 to be populated. Nothing here changes the tenant — dismissing or confirming a risk is done in the Entra portal.</li>
         <li><b>💻 Devices she signs in from</b> — one row per device in the window with what Conditional Access saw of it on the last sign-in: <b>Compliant</b>, <b>Managed, not compliant</b>, <b>Registered, not managed</b> or <b>Unmanaged</b>; sign-in and stopped counts, the apps, when it was last seen. A callout says when a compliant-device grant reaches her and sign-ins came from devices that cannot meet it. State is per sign-in, not per device — a laptop made compliant yesterday shows compliant on the sign-ins since.</li>
         <li><b>📵 Retired control: Require approved client app</b> — Microsoft retired that grant on 30 June 2026: a policy carrying it is read-only (it enforces until disabled, cannot be edited — the policies table marks it) and the day it is replaced by <i>Require app protection policy</i> or the control is simply removed, whoever satisfied it <i>through the approved app</i> — a mobile app on a device that is not compliant — is blocked unless an Intune app protection policy already reaches them. The card lists, per retired policy that reaches her, the sign-ins it let through on that path (apps, devices, last), and gives the verdict: <b>blocked the day the control goes</b> (no app protection policy seen for her yet — assign one first), <b>ready for the replacement</b> (a sign-in already shows an app protection policy satisfied on a non-compliant device), or <b>not affected</b> (compliant device, or no mobile app in the window).</li>
@@ -1927,7 +2085,7 @@
       <h5>⚖ Compare users <span class="help-fold">folded into this tool — build 311</span></h5>
       <p>Why does it work for her but not for him? Put two or more users side by side and see where Conditional Access treats them differently.</p>
       <ul>
-        <li><b>Policy assignment</b> — per enabled or report-only policy, whether each user is <b>included</b> (✓), <b>excluded</b> (✗ — hover for the group, role or direct exclusion behind it) or <b>not targeted</b> (·). Rows where the users differ are flagged; <b>Differences only</b> (default) hides the rest.</li>
+        <li><b>Policy assignment</b> — per enabled or report-only policy, whether each user is <b>included</b> (✓), <b>excluded</b> (✗ — hover for the group, role or direct exclusion behind it), <b>not targeted</b> (·), or <b>?</b> when the scope cannot be decided from what was read (the same fourth state as 🕵’s Unknown scope; a policy scoped to specific external-user types resolves for any account in this tenant). Rows where the users differ are flagged; <b>Differences only</b> (default) hides the rest.</li>
         <li><b>Memberships</b> — the groups and directory roles each user holds, same ✓/· grid. Assignment differences almost always trace back to a row here.</li>
         <li><b>What-If scenario</b> (optional) — describe one sign-in (resource, platform, client, IP/country, device state, risk) and it is evaluated once per user with the What-If engine: a verdict per user, then the per-policy matrix of who it would actually hit.</li>
         <li><b>Export MD</b> — the whole comparison as Markdown tables, differences marked <b>≠</b>.</li>
@@ -2014,6 +2172,24 @@
     </section>
 
     <section class="help-sec">
+      <h4>🧭 Workspaces &amp; navigation</h4>
+      <p>From 2.0, once you are signed in, ENCA is laid out as workspaces: a rail of shortcuts on the left, a branded header across the top, a strip of open tools under it, and the tool itself below. The tools, their data and their confirmation steps are the same as before; this is how you move between them.</p>
+      <ul>
+        <li><b>The rail</b> — <b>Home</b>, then the tools in the order the work happens: <b>Policies</b>, <b>Sign-ins</b> and <b>Who is…</b> (what exists and who it reaches), <b>Checks</b> (what is wrong with it), then <b>Baseline</b>, <b>CA groups</b> and <b>Building blocks</b> — 🧩 Policy building blocks (what to change). Below the divider, <b>All tools</b> and <b>Help</b>. The tool you are in is highlighted. On a narrow window the rail becomes a bar along the bottom with fewer shortcuts; the rest stay under All tools.</li>
+        <li><b>All tools</b> — in the rail and in the header. Opens the tool library: every tool in its group, searchable by name, task or tool number (<code>T14</code>).</li>
+        <li><b>The header</b> — your logo on a round medallion hanging over the header's lower edge above the rail (a wide wordmark logo, or a narrow window, keeps the flat logo), the product name, and the account button naming the tenant, with <i>Demo</i> when you are on sample data. The account menu holds the connected app registration, <b>Theme</b>, <b>Close all workspaces</b> and sign-out. Header text switches between dark and light to stay readable on whatever colours the branding sets.</li>
+        <li><b>Home</b> — the 🏠 Overview, your <b>Recent tools</b> (the last five opened in this session; they reset when you sign out or switch tenant) and the full tool list, folded until you press <b>Show</b> (remembered in this browser).</li>
+        <li><b>Open tools as tabs</b> — every tool you open gets a tab in the strip under the header, after <b>Overview</b>, and keeps its filters and selection while you work elsewhere. Hover a tab for its <b>×</b> to close it. The browser's <b>Back</b> walks through the tools you visited instead of leaving the site, and closes an open dialog or full-screen panel first. Each tool keeps its own scroll position.</li>
+        <li><b>Tabs inside a tool</b> — tools that host others (🚦 Sign-in log, 🕓 Changes, 🔍 Gap analyse, 🕵 Who is … to CA, 🧪 What-If, 🛡 Checks, 🧩 Policy building blocks, 🧬 Baseline) show their own tab strip under the title, and coming back to one returns you to the tab you left. The active tool, the active tab and the matching rail shortcut have a solid, contrasting fill in both themes.</li>
+        <li><b>Fold the head</b> — every tool's title ends in <b>▾</b>. Press it and the description underneath folds away; the title and its chips stay and the toolbar moves up. <b>▸</b> brings it back. The choice is remembered per tool in this browser.</li>
+        <li><b>List and detail</b> — 🗂 Policies in list view opens a policy in an inspector beside the table, with <b>Settings</b>, <b>Assignments</b>, <b>Conditions</b>, <b>Controls</b> and <b>Definition</b> tabs, <b>Open wide &amp; actions</b> for the full detail and its actions, and <b>Back to results</b>. The row you opened stays highlighted while you tick, filter or search. 🕓 Changes, 🚦 Sign-in log, 🧩 Policy building blocks, 🚪 Exclusion analyzer and 🔗 User or Group analyzer use the same results list with a detail panel, a slider to resize the list, <b>Open wide</b> / <b>Restore split view</b>, and detail tabs where there is evidence to show.</li>
+        <li><b>Scrolling</b> — the list and the detail scroll on their own, pinned under the toolbar, so the list stays in view while you read a long detail; at the end of a pane the page takes over, so the rest is never out of reach. A newly picked item opens at its top. Below 900 pixels wide, list and detail become one column with <b>Back to results</b>.</li>
+        <li><b>Flat icons</b> — the emoji in navigation, headings, buttons and chips are shown as matching line icons in the theme colour. Only the screen changes: policy names, exported files and reports keep their original text.</li>
+      </ul>
+      <p class="help-x">Presentation only — nothing here reads from or writes to the tenant. Recent tools last for the session; folded heads and the tool list on Home are remembered in this browser only.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>⌨️ Command palette</h4>
       <p>Press <b>Ctrl + K</b> (<b>⌘ + K</b> on a Mac) anywhere in the app. Type a few letters, press <b>Enter</b>.</p>
       <ul>
@@ -2027,11 +2203,11 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T39</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T41</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
-        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number.</li>
-        <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty numbers no longer have a tile of their own:
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T42</code> is next.</li>
+        <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty-one numbers have no tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 311)</li>
             <li><code>T04</code> 🗄 Backup (JSON) → <b>🗂 Policies</b>, action bar (build 311)</li>
@@ -2053,10 +2229,12 @@
             <li><code>T18</code> ⚖ Compare users → <b>🕵 Who is … to CA</b>, Compare users subject (build 311)</li>
             <li><code>T31</code> 🎫 Licence gap → <b>🔍 Gap analyse</b>, Licences tab (build 311)</li>
             <li><code>T35</code> 📞 Teams devices → <b>👥 Conditional Access groups</b>, the 📞 Rule action on the TeamsSharedDevices row (build 311)</li>
+            <li><code>T41</code> 🏗 Policy builder → <b>🧩 Policy building blocks</b>, Builder tab (build 322 — born there, never a tile)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
+        <li><b>The newest two</b> — <code>T40</code> ↗ Guided rollout is a tile of its own; <code>T41</code> 🏗 Policy builder is the one number that never had a tile: it was born as the Builder tab of 🧩 Policy building blocks, and is listed above with the folded tools for that reason.</li>
         <li><b>The version beside it is the opposite kind of thing</b> — the number never changes, the version always does. They sit together so they are read together: “T21 v0.5” says which tool and how far along it is.</li>
-        <li><b>❓ Help, 📋 What's new and 🗺 Roadmap carry none</b>, deliberately. They are the app describing itself rather than tools that read your tenant, report on it or write to it — which is also why they carry no version. They go by name.</li>
+        <li><b>❓ Help, 📋 What's new, 🗺 Roadmap and 🔑 Permissions in this session carry none</b>, deliberately. They are the app describing itself and its session rather than tools that read your tenant, report on it or write to it — which is also why they carry no version. They go by name.</li>
       </ul>
       <p class="help-x">A label, nothing more — it reads nothing and changes nothing.</p>
     </section>
@@ -2074,6 +2252,8 @@
         <li><b>Report-only</b> — sign-ins a report-only policy <i>would have failed</i>. These sign-ins complete, so Graph cannot pre-filter them: the whole window is read and filtered in the browser, capped at 10&#8239;000 sign-ins. This is the number to check before flipping a policy from report-only to On.</li>
         <li><b>Per policy</b> — one row per failing policy: failure count, distinct users, most affected users, and the grant controls that weren't met. Expand a row for the individual sign-ins.</li>
         <li><b>🔑 Signed in with</b> (build 315) — what the person authenticated with, from the record's authentication steps (the portal's <i>Authentication Details</i> tab): <i>Password — Phishing-resistant MFA required, not provided (MFA required in Azure AD)</i>, <i>Password + Microsoft Authenticator — MFA satisfied</i>, or <i>MFA by a claim already in the token</i>. A password where MFA or an authentication strength was required is the gap that explains the failure without touching a policy: it is red on the card and the per-policy detail line, counted per policy and in the header (<i>3 without the MFA asked</i>), and it has its own filter chip. The sign-in card lists the steps one by one. The CSV carries <code>authRequired</code>, <code>authUsed</code> and <code>authGap</code>; the Markdown export a Signed in with column. Hunting rows carry the requirement and no steps, and say so.</li>
+        <li><b>What the browser can hold</b> — the hunting sources have no server-side window cap, and on <b>Hunting + non-interactive</b> an enforced read on a large tenant is dominated by legacy-protocol blocks of service accounts retrying every few seconds: hundreds of thousands of sign-ins for one week. Every one of them was shaped into a record and kept, and the tab died. A read that keeps its rows now stops at <b>50&#8239;000 sign-ins</b> and says so — <i>window stopped at 50,000 sign-ins — more than this window holds in the browser. Read a shorter period, or switch the source off non-interactive.</i> That is a partial window, labelled as one, in place of a lost tab; narrow the period or drop non-interactive for a complete answer. 🎚 Report-only impact on the hunting sources is not affected: its buckets are summarised by Microsoft and streamed, so it holds nothing of the window.
+          <br>The ceiling is on the <b>total the tab keeps</b> for one window, on either hunting source, and it is the same for every tool that reads the shared window — 🕵 Who is … to CA, 🌊 the wave and 🛂 Session controls name a stopped window in the same words. It is not the other short-window reason: <i>truncated — a day hit the hunting row cap</i> means one slice of a day could not be read whole, and <i>truncated at 10,000 sign-ins</i> is the Entra sign-in log's own cap. Each says which it is, because each asks for a different fix. No query, permission, verdict or export changed; the newest sign-in is still first in the list and in the exports.</li>
         <li><b>🧪 Replay in What-If</b> — one click prefills the What-If scenario with the sign-in's user, app, platform, client, IP, country and device state, so you can see exactly which policies apply and why.</li>
         <li><b>Export CSV</b> — one line per sign-in × failing policy, ready for a pivot table or a SIEM. <b>Export MD</b> — the per-policy summary with sign-in tables, for a review or a ticket.</li>
       </ul>
@@ -2117,12 +2297,22 @@
       <h4>🚪 Exclusion analyzer</h4>
       <p>Every exclusion across all policies in one place.</p>
       <ul>
-        <li><b>Matrix</b> (default) — exclusions × policies; <b>Effective users</b> — the same but expanded to the individual users a group exclusion covers; <b>Risk review</b> — policies scored for exclusion governance, worst first.</li>
+        <li><b>Exclusions</b> (default) <span class="tag upd">UPDATED</span> — the ranked list of what is excluded and where; <b>Matrix</b> — exclusions × policies, kept as the expert view because a grid is the only thing that shows the <b>odd one out</b>: where most policies carry an exclusion, the shared pattern is muted and the policies that do <i>not</i> carry it are marked ⚠ with a line naming them (“most” means at least 60% of the policies on screen, and at least two — an exclusion in only one or two policies has no pattern to deviate from and is never marked); <b>Effective users</b> — the same but expanded to the individual users a group exclusion covers; <b>Risk review</b> — policies scored for exclusion governance, worst first.</li>
+        <li><b>Configured is not the same as bypassing</b> <span class="tag upd">UPDATED</span> — a user listed in an exclusion is only bypassing when the policy would otherwise have <i>included</i> them. Each cell in <b>Effective users</b> is one of three: <b>✗ / ◐ / ↪</b> an effective bypass, <b>○</b> configured only (listed, but this policy never targets them — a policy scoped to Finance that also excludes the break-glass account never addressed that account), and <b>?</b> not established, which is the honest answer when the include side names a group or role this scan did not read. The head counts all three, and the column header carries the policy state.</li>
+        <li><b>Populations this list does not contain</b> <span class="tag upd">UPDATED</span> — an excluded <b>directory role</b> is not expanded to its members, so those people are excluded and are not rows here; the head says how many roles were left unexpanded instead of showing a silent zero. Guest and external clauses are named the same way.</li>
+        <li><b>The external clause is kept whole</b> <span class="tag upd">UPDATED</span> — types, tenant kind and the named tenants. Two policies excluding B2B collaboration guests from two different partner tenants are two exclusions, each naming its tenants, and <span class="tag block">High</span> “all guests and external users are excluded” is raised only when the clause really does cover every external user; a narrower one gets <span class="tag">Medium</span> with its scope spelled out.</li>
         <li><b>Risk review flags</b> — <span class="tag block">High</span> a privileged role excluded, or all guests/external excluded; <span class="tag">Medium</span> direct user exclusions (no lifecycle), more than five excluded groups, or <b>disabled accounts</b> still in scope — directly or sitting inside an excluded group; <span class="tag">Info</span> a report-only policy whose exclusions go live the moment it is enforced. Each flag is a prompt to review, not a finding. Patterns follow Tiago S. Carvalho's CA exclusions audit.</li>
-        <li><b>Nesting</b> — each excluded group is expanded to its transitive members (what Entra evaluates), and the scan also reads the group's direct members and its nested groups, so the matrix row says <i>↪ all through 9 nested groups</i>, the member list names the nested group each member came through (direct first), the effective-users matrix shows <b>↪</b> for a user who is excluded through nesting only, and the head counts the users who come in that way. The risk review flags it: <span class="tag">Medium</span> nested groups inside an excluded group, <span class="tag block">High</span> an exclusion group fed entirely by nested groups — whoever manages those groups decides who bypasses the policy, without ever touching the exclusion group. First 40 nested groups are resolved by name; beyond that a member is marked nested without the path.</li>
+        <li><b>Who counts as excluded: everyone Entra evaluates</b> — each excluded group is expanded to its <b>transitive</b> members, so a user who is only in a group <i>nested inside</i> the excluded group is counted, exactly as Conditional Access evaluates them. The read is paged in full (no cap) and asks for users only, so nested groups are not rows of their own and devices or service principals sitting in the group are ignored — they hold no user scope. If a group's membership cannot be read the scan <b>stops</b> and says so, rather than publishing a smaller number that looks like a clean result. Two populations are deliberately <b>not</b> expanded and are named on the head instead of contributing a silent zero: an excluded <b>directory role</b> (its members are real exclusions and are not rows here) and a <b>guest or external clause</b>, which has no member list to read.</li>
+        <li><b>Membership and path are different kinds of completeness</b> — knowing <i>who</i> is in the group is one read; knowing <i>how</i> each person got there is another. The scan also reads each group's direct members and the members of its nested groups, so the matrix row says <i>↪ all through 9 nested groups</i>, the member list names the group each member came through (direct first), and the effective-users grid shows <b>↪</b> for somebody who is excluded through nesting only. Both reads follow their continuation links; the first <b>40</b> nested groups per run are resolved by name, and anything past that — or any read that failed — says <b>path not resolved</b> rather than inventing a route. So a large group can legitimately read <i>membership exact, some paths unresolved</i>: the count is right, the ↪ attribution is not complete.</li>
+        <li><b>Why nesting is a governance flag</b> — <span class="tag">Medium</span> when an excluded group contains nested groups, <span class="tag block">High</span> when an exclusion group is fed <i>entirely</i> by nesting. At that point whoever administers the child groups decides who bypasses your policy, without ever touching the exclusion group itself.</li>
+        <li><b>Coverage verdict</b> <span class="tag upd">UPDATED</span> — an app excluded from an All-resources policy is compared against every enabled policy that reaches it, and the answer is one of four: <span class="vd eq">✔ Equivalent coverage</span> every compared requirement met; <span class="vd part">◐ Partial coverage</span> with the missing requirements named (the replacement excludes somebody, is scoped to one platform, or requires a different control); <span class="vd none">✖ No equivalent coverage</span>; <span class="vd unk">? Not established</span> when a condition sits outside what the comparison models — a device filter, an authentication context, a resource collection such as Office 365. It is the same comparison 🔍 Gap analyse uses for bypasses (<code>js/coverage.js</code>), so the two tools cannot disagree about what “covered” means. An app nothing reaches reads <i>no equivalent coverage established by this analysis</i> rather than the stronger claim that it has no Conditional Access at all.</li>
         <li><b>Type chips</b> — All, User, Group, Directory role, Guest/external, Application, Named location, Device platform.</li>
-        <li><b>Click to filter</b> — click a user/group row to show only the policies excluding it, or a policy column to show only the exclusions in scope for it. The out-of-scope “·” cells drop away; a banner shows the filter with a one-click clear.</li>
-        <li><b>Export</b> — CSV or Markdown; full-screen for wide grids.</li>
+        <li><b>Click a cell for the evidence</b> <span class="tag new">NEW</span> — every marked cell in Matrix and Effective users is a button. Its card names who and why (named directly, member of which excluded group, through which nested group, or a route that could not be read), the policy with its state, and the verdict: effective bypass, configured only or not established for a user; the coverage verdict for an app; the odd-one-out sentence for a gap. From the card: <b>Open policy</b>, <b>View members</b>, <b>Only this row</b>, <b>Only this policy</b>. Escape closes it and puts focus back on the cell; a click outside or a scroll closes it too. A tap works the same on a touch screen — nothing depends on hovering.</li>
+        <li><b>Members from the grid</b> — a group row in the Matrix carries its own <b>👥 View N members</b> button on a line under the group name; it opens the member dialog without also pinning the row. <b>Full screen</b> takes the page controls with it, so a paged Effective users grid can be paged inside the full-screen view.</li>
+        <li><b>Keyboard</b> <span class="tag new">NEW</span> — Tab lands on the first policy header; the arrow keys walk headers, row labels and marked cells; Home and End jump along a row; Enter opens. One cell holds the tab stop at a time.</li>
+        <li><b>Click to filter</b> <span class="tag upd">UPDATED</span> — click a user/group row to show only the policies excluding it, or a policy column to show only the exclusions in scope for it. Each pin is a <b>removable chip</b> in the toolbar beside the type chips, so one place says what is narrowing the view. With a column picked, the strip above the grid carries the <b>full policy name</b>, its state, its controls and its exclusion count, which is why the rotated headers can stay short. Pin one row <i>and</i> one policy and the tool shows the evidence card for that pair instead of a grid with a single mark in it. Below 700px the Matrix tab is not offered — the Exclusions list carries the same facts. A legend above each grid says what clicking does.</li>
+        <li><b>The run strip</b> <span class="tag upd">UPDATED</span> — above every result: which tenant, when the policies were read, how many and in which states, the population, how complete the read was, and a run number. Reloading the policies <b>drops</b> the result rather than leaving it on screen under a new snapshot (it used to survive a Refresh, exports included), and a snapshot that moves while a result is open turns the strip amber. Signing out, or switching tenant or between demo and live, drops it the same way. While a scan runs, reopening the tool shows only the progress panel — no run prompt, no toolbar, no export — and the new result appears whole when the scan finishes, never half-built over the previous one.</li>
+        <li><b>Export</b> — CSV or Markdown, with the three states written out in words (effective bypass, configured only, not established) and each policy’s state (On / Report-only / Off) in its column header; full-screen for wide grids.</li>
       </ul>
       <p class="help-x">Read-only.</p>
     </section>
@@ -2137,6 +2327,15 @@
         <li><b>One table, both catalogs</b> — a baseline comparison is a row per policy with a status, so that is what it renders, whichever catalog you pick. The Cards view was removed in beta 25157: the same screen answered the same question two different ways depending on which catalog you had clicked, which made the two baselines impossible to read side by side. Search and collapsible persona sections work as before.</li>
         <li><b>Catalog switch</b> — CloudFellows R26.6 or the community Joey Verlinden catalog. Switching what you LOOK at does not switch what the tools work against; the ★ button on the summary card does (R36, see the next section).</li>
         <li><b>Export MD</b> — a gap report; <b>Refresh</b> re-compares in place; <b>Import baseline</b> hands the missing/outdated set to the Import tool — for the Joey Verlinden catalog straight from the live repository read (policy files, groups and named locations, no zip), with the gap ticked and 🔀 Switch baseline offered when this tenant's policies use the other baseline's groups.</li>
+        <li><b>⬇ Newer than baseline</b> — the fifth status: a policy in this tenant ahead of the catalog. <b>What counts as newer depends on the tenant.</b> On the <b>baseline tenant</b> (where the catalog is authored) it is a newer version in the name <i>or</i> the same version with a definition edited in place — or renamed — because that is exactly what the catalog has not caught up with yet; the summary line splits the count into those kinds. <b>Everywhere else the CA number and the version decide.</b> A policy at the catalog's number and version is <b>Up to date</b> whatever its definition, and the tenant's own assignments — the groups it includes, the exclusions it adds, the name — are <b>never</b> a difference. Where the resources, conditions, grant or session controls differ at that version, the row carries a <span class="tag">differs · …</span> tag naming what, and the summary counts those separately; they are shown for reading, not counted as newer.</li>
+        <li><b>Catalog revised 2026-09-22</b> from the CloudFellows.dev reference tenant, taken with 🧱 Update the catalog below. The main change: <b>B2B direct connect users come out of the session policies</b> — sign-in frequency, persistent browser and app-enforced restrictions are documented as not supported for them, so the session policies that reach every external type now exclude direct connect, and the guest includes of CA400 and CA402 drop it. CA000 now excludes every guest and external type, and CA400 (guest MFA) grants <b>Require multifactor authentication</b> instead of the MFA strength, which is the only control an external who did not authenticate with Entra can satisfy. A number of names, exclusions (Teams shared devices, service provider users) and device filters followed. A tenant still on an earlier version of these policies now reads <b>Outdated</b>, and <b>Import baseline</b> proposes the new version. Recorded with the catalog, not changed by it: after this revision B2B direct connect and other external users are reached by no MFA grant in the catalog — the catalog says what CloudFellows publishes. 🗣 User impact brief warns until its rules have been checked against this revision.</li>
+        <li><b>⬇ Export baseline</b> — on the <b>baseline tenant</b> only (never in demo), beside 🧱. The same export as <b>🗄 Backup (JSON)</b> on 🗂 Policies — one zip with <code>MigrationTable.json</code> and the same dependency read — opened from the page where the baseline is worked on, with a <b>per-persona chooser</b>: only the personas this tenant holds are offered, each with its count, plus a row for policies without a CA number. <b>Dependencies</b> is ticked on open, and the dependency folders hold only what the chosen policies reference — the groups, named locations, strengths, contexts and terms of use — not the whole tenant's. Untick a persona and the policy and dependency counts drop; untick all and Download is disabled. As with every backup on the baseline tenant, only the persona baseline policies are in scope. 🗄 Backup on 🗂 Policies is unchanged.</li>
+        <li><b>🧱 Update the catalog from this tenant <span class="tag new">NEW</span></b> — <b>baseline tenants only</b>, because the baseline tenant is where the catalog is authored. It runs the comparison the other way round: not <i>is this tenant behind the catalog</i>, but <i>what has the catalog not caught up with</i>.
+          <br><b>It compares definitions, not version numbers.</b> The ordinary comparison reads the version out of the policy's name — so a policy you edit and save without bumping it reads as up to date. This one compares the assignment, resources, network, conditions, grant and session controls themselves, and it knows what is <i>not</i> a change: group order, condition order and the catalog's own markup are ignored, which is most of what made the last hand-regeneration slow.
+          <br><b>Take it, or hold it with a reason.</b> The reason is kept and travels into the generated revision note, the way the catalog's header already records its departures — so what you held last time stays held instead of being decided again. A hold is tied to the difference it was made about: if that policy later changes in some <i>other</i> way it reopens and says so, because nobody has looked at that one. A policy the tenant has and the catalog does not is offered as new; one the catalog has and the tenant no longer does is reported and <b>never removed</b> — deleting a baseline policy is not a decision this makes for you.
+          <br><b>The panel counts what the chip counts.</b> The changed policies are grouped the way the <b>Newer than baseline</b> chip and the summary line count them — 🆙 <b>newer version in the name</b>, ✏️ <b>edited in place</b> (definition differs, version not bumped), 🏷 <b>renamed</b> (only the name differs) — then 🆕 <b>new here</b>, so the chip's number equals the first three groups together. A staging prefix such as <code>(NEW)</code> or a capital letter is not a rename, and a policy on another policy's CA number is never offered. Each card says which kind it is; a policy at an <i>older</i> version whose definition differs is listed too, and counted as outdated. <b>☑ Select the N newer / edited in place / renamed</b> ticks one group, <b>☑ Select all</b> every changed and new-here card, <b>☐ Deselect all</b> clears the ticks, and the Generate button counts what is ticked.
+          <br><b>What comes out</b> is the catalog source: the entries you took, in the file's own shape and keeping their number, version and tag, plus a revision note listing what was taken and what was held, and the reminder to re-check 🗣 User impact brief's rules. It opens as a report to download and read. <b>Nothing is written to your tenant, and nothing to the repository</b> — you edit <code>js/baselineData.js</code> yourself.
+          <br>It also says when its own wording has drifted: every policy it calls unchanged is a free test of the writer, and if those would come out phrased differently from the catalog's existing prose it tells you how many, before you paste any of them.</li>
               <li><b>🧷 Update pre-requirements</b> — one click, before you change anything, for the three things you cannot capture afterwards. A <b>configuration snapshot</b> (JSON) is taken first, because it is the only one that can be diffed against a later read in 📉 Drift watch: it is what answers <i>what did this change?</i> Then a <b>full policy backup with every dependency resolved</b> — groups, named locations, authentication strengths and contexts, terms of use — since a policy backup without its dependencies restores to a policy pointing at ids the tenant may no longer have, which is not a backup. Then <b>documentation as Markdown</b>, for the change record and the reviewer.</li>
         <li><b>It takes every policy, not your current selection</b> — a pre-requirement that captured whatever happened to be ticked would be worse than none, because it would look complete. Each artefact is attempted independently, so one failing does not cost you the other two, and the run always ends in a report saying which of the three were captured. Anything that could not be read is <b>named</b>: an unreadable snapshot area, a dependency that failed to fetch. If any step failed the report says so and tells you not to start the update — a failed pre-requirement is not a formality, it is the copy you would have restored from.</li>
 </ul>
@@ -2175,6 +2374,12 @@
       <ul>
         <li><b>The list</b> — group, status (present / missing / referenced but gone), members (count, direct vs nested, or a read button), the policies that use it with their state, protection (which restricted unit, or not protected). Filter chips: needs attention, missing, gone, empty, not protected, role-assignable, ↪ has nested groups (always shown — a nested group inside an exclusion or break-glass group is needs attention, because whoever manages the nested group decides who bypasses the policy), not in the baseline; the search matches group names, object IDs and members. Sorted attention first; click a column header to sort by it, again to flip, a third time to go back. Each row offers what applies to it — ＋ Create on a missing group, 🔁 Restore on a dangling reference, 🌊 on a deploy group, ⋯ for everything else.</li>
         <li><b>Groups every baseline shares</b> <span class="tag upd">UPDATED</span> — a group counts as the baseline's (present, not <b>not in the baseline</b>) when the ★ active baseline defines it, and also when it belongs to <b>every</b> baseline: the <b>🚨 E-Admins groups</b> — <code>Emergency_Access1</code>, <code>Emergency_Access2</code>, <code>CAB-SEC-U-BreakGlass</code>, and any group an E-Admins policy includes — and the <b>🚀 deploy groups</b> <code>CAD-SEC-U-DG-*</code> that a Deployment groups import and 🌊 waves use under any baseline. Under Joey Verlinden's baseline a group also counts when his repository names it that way (<code>CA403-Guests-… - Exclude</code>), when it is his example include group (<code>APP_Microsoft365_E5</code>), or when it is the exclusion group his naming rule gives a policy this tenant has under an older release's name (<code>CA005-…-AppEnforcedRestrictions - Exclude</code>). The row says why — <i>every baseline</i>, <i>🚨 E-Admins, every baseline</i>, <i>the baseline's naming rule</i>, <i>the repository's group name</i> — and so does Export MD. Under his baseline, <b>Baseline + templates</b> also expects the Emergency_Access pair (the shared E-Admins policies name them; his own break-glass group does the rest) and ② Create makes them from the CloudFellows template; deploy groups are recognised but never reported missing. The ⚠ hint that this tenant carries another baseline's policy names no longer counts the six E-Admins policies, which every baseline expects. Only a group none of this explains stays under <b>not in the baseline</b>.</li>
+        <li><b>🔀 Duplicate names</b> <span class="tag block">writes to tenant</span> (toolbar, only when it applies) — two or more groups with one display name look like one group everywhere, so one policy can include one and another exclude the other without anybody seeing it. The button appears after a scan finds such a name among the groups in the current scope (names compared ignoring case and surrounding spaces) and counts them.
+          <br><b>What it reads.</b> The direct members of every group involved, and the Conditional Access policies already loaded. One card per name lists each group by object id — assigned or dynamic, its rule, its direct member count, the policies that name it (include and exclude) — with a <b>keep</b> radio; the suggestion is the group more policies point at, then the one with more members, then an assigned group over a dynamic one. The foot of the card says how many members move, how many policies are repointed (and which already name both, so the duplicate reference is dropped), and how many policies name the kept group afterwards.
+          <br><b>What it changes, in this order.</b> ① The other group's direct members are <b>added</b> to the kept group (someone already there is skipped). ② Every policy that names the other group is read <b>fresh</b> and its users block is written back with the kept group in its place — includes and exclusions alike — then read back until the change shows. ③ Only when every member and every policy landed is the other group <b>renamed aside</b> as “(merged YYYY-MM-DD)” — the default — or <b>deleted</b>, if you choose that. A run that fails or is stopped part-way never removes the other group, because a policy may still name it; the run ledger says what landed and the report lists the failed steps.
+          <br><b>Confirmations.</b> A review step shows the plan per name before anything is written; running it takes a typed <code>MERGE</code> (rename aside) or <code>DELETE</code> (delete). A <b>JSON backup</b> — the groups, their members and every affected policy's users block as it is now — downloads first unless you untick it, and a failed download stops the run. Permissions are asked for on the click.
+          <br><b>Refusals and warnings, on the card.</b> It refuses when the kept group is <b>dynamic</b> and members of the other group are not in it (nobody can be added to a dynamic group by hand — keep the other one, or widen the rule first), when a policy <b>includes one and excludes the other</b> (after the merge the exclusion would win and the policy would apply to nobody in the group — decide what that policy means first), or when members could not be read. Members taken from a dynamic group become fixed members of the kept one, and a retired dynamic group with its own rule is flagged: people that rule would add later are not reached by the policies.
+          <br><b>What it never does.</b> It never removes a member from the kept group, never touches a policy that names neither group, never changes anything but the group references in a policy, and never moves anything outside Conditional Access — app assignments, licences, access packages or Intune assignments that use the other group are not repointed. That is why rename aside is the default: 🧹 Archived groups lists the renamed group, checks its other uses and deletes it when you are satisfied. Demo mode simulates the run. Needs <code>Group.ReadWrite.All</code> and <code>Policy.ReadWrite.ConditionalAccess</code>; the consent asked on the click also names <code>RoleManagement.ReadWrite.Directory</code>, which it shares with the other member-moving writes here.</li>
         <li><b>🧹 Archived groups</b> (toolbar) — the groups a migration renamed aside. Delete leaves nothing behind: a ticked group still named by a policy is taken out of those policies first (live read, removal, read-back) and deleted only when no policy names it. A policy that refuses the change (the unpatchable ones every tenant seems to have) does not fail the group: the row reads <b>◐ partly done</b> — taken out of 36 of 39, still named by the three that refused, not deleted so no policy points at nothing — and the report says which policies to fix before running again. <b>🔗 Check other uses</b> runs the User or Group analyzer's sources over the ticked groups — app assignments, Intune, licensing, Teams, admin units — and shows the hits per group before you delete, because a recreate moves Conditional Access for you and nothing else.</li>
         <li><b>The actions bar</b> — shows as soon as a row is open, and acts on that row until you tick more. Tick rows and act on them: read members, ⊞ compare selected (the members × groups matrix, only for what you ticked, with the nesting view), assign to policies, protect in a restricted unit, migrate off role-assignable, import members from CSV, create the missing ones. The writes — Create, Assign, Import, Protect, Migrate — open in a <b>dialog over the list</b> with your selection carried across; close it (✕ or Esc) and the ticks and the open row are where you left them. ⊞ Compare opens as a <b>sheet rising from the bar</b> with two views — <b>Members</b> (the members × groups matrix, with nesting) and <b>Policies</b> (groups × policies: ● in, ✗ ex, · not named; rows where the picked groups differ come first, and each group gets a line saying how many inclusions and exclusions it is missing against the others — after a migration, that is what the new group still lacks; every missing cell is a tick, and one button adds the ticked groups to those policies the way the other group already is on them) — full height by default; ▁ Half in its header drops it to half the window so the list stays visible above it and the matrix follows your ticks. Protect and Migrate check only the groups you came with on arrival, and offer the full check as a button.</li>
         <li><b>The detail drawer</b> — click a row, or tick it: the drawer follows the tick, and unticking the open row opens the last one still ticked. <b>Members</b>: direct members first, then each nested group with its own members underneath; a <b>find box</b> filters them as you type (nested groups open on a match) and a segment orders them as read / by name / by UPN; when the group is bigger than the 500 read, 🔎 or Enter <b>searches the whole group in the tenant</b> — the answer is either “not a member” or the person, direct or placed under the nested group she came through, with her ×; add inline; × removes from the group the member actually sits in — a member under a nested group is removed from that nested group, and the confirmation names what else that group feeds. <b>Policies</b>: include / exclude with state, names open the policy card. <b>Protection</b>: the unit it is in, or why it is not protected and the button that fixes it. <b>History</b>: the group's last 30 days from the directory audit log — who added or removed whom.</li>
@@ -2190,6 +2395,9 @@
         Step 2 is a <b>drift report</b> rather than a list to tick: how many policies are already correct, how many have lost the reference, and how many name a group that does not exist in the tenant at all. Only the ones needing repair arrive ticked. Scope it to your selection for a repair, or to <b>all policies in this tenant</b> for the <b>sweep</b> — the same question asked of everything, which is how you find out how far an estate has drifted.<br>
         The group name comes from the <b>baseline catalog</b> where the catalog has that CA number (definitive — and 14 of the 99 policies legitimately have no exclusion group, so those are reported as nothing to do rather than invented). A policy carrying a CA number the catalog does not have gets the convention applied by inference, labelled <span class="tag">derived</span> so it can be checked before it is ticked. Groups that do not exist yet can be <b>created first</b> from their baseline templates in the same run.<br>
         <b>Additive only</b> — the group is added to whatever the policy already excludes; nothing is replaced and nothing is removed. But an exclusion <b>widens</b> a policy: anyone already in one of these groups stops being covered by the policy it is added to, so a tenant-wide sweep asks for the typed <b>ALL</b> like every other tenant-wide write, and the change report records the policy → group pairing rather than one group list.</li>
+        <li><b>Assign guests &amp; external users <span class="tag new">NEW</span></b> (build 322) — the wizard's third target, the portal's <b>Guests or external users</b> choice under Include and its matching tick under Exclude. Pick the types — <b>local guests</b>, <b>B2B collaboration guests</b>, <b>B2B collaboration members</b>, <b>B2B direct connect users</b>, <b>other external users</b>, <b>service provider (CSP/GDAP) users</b> — and the tenants they come from: <b>all external tenants</b>, or a list of tenant IDs. Aimed at a selection or at <b>every policy in the tenant</b>, like the other two.
+          <br><b>It is one clause, not a list of ids</b>, and that changes what the actions mean. <b>Set</b> writes the types and the tenant scope, replacing whatever the clause held. <b>ADD</b> unions the types — but the tenant scope is a <i>single value</i> that cannot merge, so a policy already scoped to different external tenants is <b>left untouched</b> and says why, rather than being quietly rescoped; re-run those with Set if replacing the scope is what you meant. <b>REMOVE</b> subtracts types, and a policy left with none loses the clause entirely, because an empty type list is not a valid clause. The step-1 panel lists what the policies in scope carry today, and a REMOVE offers only the types they actually have, pre-ticked — the question there is which ones to keep.
+          <br>On the <b>include</b> side this is a choice like any other: a policy currently on All users switches to covering only these guest types, and the wizard says so before it writes. On the <b>exclude</b> side it <b>widens</b> the policy — whoever those types cover stops being subject to it. Every outcome reaches the run ledger and the change report, including <i>left untouched</i> with its reason.</li>
         <li><b>Assign directory roles <span class="tag new">NEW</span></b> — the wizard can target a policy’s <b>Directory roles</b> include/exclude, the same assignment the portal offers, not only groups. Choose <b>Directory roles</b> at the top and the same actions apply to them (bar “All users”, which has no role equivalent). Quick picks give <b>Microsoft’s privileged set</b> — the fourteen roles Microsoft names as the minimum to require MFA on, resolved against this tenant’s own role templates rather than hard-coded IDs — or every built-in role. <b>Conditional Access enforces built-in roles only:</b> custom roles and administrative-unit-scoped assignments are not covered by a policy scoped this way, which the wizard says at the point of choosing, in the review and in the change report.</li>
         <li><b>🚫 Disable group nesting <span class="tag new">BETA</span></b> — on any present, non-dynamic group in <b>① Check</b>. <b>Not generally available:</b> Microsoft documents the permission (<i>Group-NestingSupport.ReadWrite.All</i>) but publishes <code>disableNesting</code> on neither the v1.0 nor the beta <code>group</code> resource, and a tenant that lacks it answers <code>400 Request_BadRequest — “Unexpected request made to property ‘disableNesting’”</code>. ENCA sends this one request to <b>v1.0</b> (the only version whose docs name it), and when the directory refuses it says so, stops offering the action for the rest of the session, and does <b>not</b> fall through to the recreate — that route sets the property at creation, which is the request that was just refused, so it would destroy and rebuild a group to reach the same error. A nested group is an invisible route into a Conditional Access assignment: someone adds a group to a group and a policy's scope widens without the policy being touched, and the extra members never show up in a review of the policy itself. Entra's beta <code>disableNesting</code> property closes that side door — with it set, no group can be added as a member.<br>
         Two things make this awkward, and the tool is explicit about both. <b>Reading it is not free</b>: a plain read does not return the property at all, so ENCA asks for it separately and reports three states — disabled, allowed, or <i>not reported</i> (which honestly means "this tenant does not surface it yet", not "allowed"). <b>Writing it is undocumented</b>: Microsoft lists a dedicated permission for updating it but does not list the property as updatable, and in the field it currently only takes at creation. So ENCA <b>tries the in-place change first</b> — and verifies it by reading the value back, because Entra will accept a PATCH and silently ignore a property it does not know. Only if that genuinely fails does it offer to <b>recreate</b> the group: rename the current one aside, create it again with nesting disabled, move the user members and repoint every Conditional Access assignment. That path is behind its own typed confirmation, never the first one. When Microsoft finishes shipping this, the recreate simply stops being offered.<br>
@@ -2214,7 +2422,7 @@
           <br><b>Skipped, with the reason shown:</b> a group that holds a directory role (a plain group cannot carry one — deal with the role first), one already inside a restricted AU, one not in the tenant, and one already plain. A group whose role check fails is skipped rather than risked.
           <br><b>Select all / deselect all</b> above the list, and the restricted-AU placement is <b>optional</b> — untick it to convert in stages, verify the members, then place the groups from ⑥ Protect when ready (they are ordinary groups by then, so Protect handles them like any other). A converted-but-unplaced group is editable by any tenant-wide Groups Administrator until you do.
           <br>The archived originals keep their members and stay role-assignable — they are your rollback until you delete them from <b>🧹 Archived groups</b>. Needs <code>Group.ReadWrite.All</code>, <code>RoleManagement.ReadWrite.Directory</code>, <code>AdministrativeUnit.ReadWrite.All</code> and <code>Policy.ReadWrite.ConditionalAccess</code>, plus <b>Privileged Role Administrator</b>.</li>
-      <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect / Migrate, each behind a confirmation.</p>
+      <p class="help-x">Writes only on Create / Recreate / Make dynamic / Assign / Import members / Protect / Migrate / 🔀 Merge duplicate names, each behind a confirmation.</p>
 
       <h5>📞 Teams devices <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span> <span class="help-fold">folded into this tool — build 311</span></h5>
       <p>Teams Rooms, panels, common-area phones and the resource accounts behind auto attendants and call queues sign in as users — and cannot answer an MFA prompt, accept terms of use, survive a sign-in frequency or work without device code flow. The baseline keeps them out of those controls by excluding <b>one dynamic group</b>, <code>CAB-SEC-U-TeamsSharedDevices</code>, from every global policy. Whether that works depends entirely on the group's <b>membership rule</b>, and the rule shipped so far names three Teams <b>Rooms</b> plans: a tenant whose phones sit on <b>Teams Shared Space</b> (Microsoft Teams Shared Devices until April 2026) and whose call queues use <b>Teams Phone Resource Account</b> licences has none of them in the group.</p>
@@ -2232,7 +2440,7 @@
     </section>
 
         <section class="help-sec">
-      <h4>🔒 Protect exclusions <span class="tag upd">UPDATED</span> <span class="tag block">writes to tenant</span></h4>
+      <h4>🔒 Protect exclusions <span class="tag block">writes to tenant</span></h4>
       <p>An exclusion group is exposed in two ways, and one lock does not cover the other: <b>who can change its members</b> (a restricted management administrative unit — the vault) and <b>whether a group can be nested into it</b> (the group's <code>disableNesting</code> setting — otherwise anyone who can edit some other group can put that group inside the exclusion and walk through the policy). This tool shows <b>both locks per group in one table</b> and applies either or both in one run. It is the standalone version of Conditional Access groups → ⑥ Protect and shares that scan and selection.</p>
       <ul>
         <li><b>One row per group, two locks.</b> <b>🔒 Members — restricted unit</b>: in which vault it sits, or <i>unprotected</i> with where it would go. <b>🚫 Nesting</b>: disabled, allowed (with the number of nested groups already inside), <i>never</i> for a dynamic-membership group (its rule picks users or devices; a group can never be added), <i>impossible</i> for a role-assignable one, or <i>not returned by the directory</i>. Chips filter by state: not fully protected, vault only, nesting only, open, fully protected, cannot here.</li>
@@ -2251,6 +2459,7 @@
     <section class="help-sec">
       <h4>🧩 Policy building blocks <span class="tag block">writes to tenant</span></h4>
       <p><b>Four kinds of reference, one tool.</b> 🌐 Named locations, 💪 Authentication strengths, 🎫 Authentication contexts and 📜 Terms of use were four tiles over four copies of the same screen — a list, which policies use each row, create / edit / delete — and four private copies of the same query, one per module. ♻ Recycle bin is the fifth tab because the restore window holds deleted named LOCATIONS as well as deleted policies. They are one tool with five tabs from build 311; <b>T15</b>, <b>T22</b>, <b>T23</b>, <b>T24</b> and <b>T25</b> keep their numbers (see 🔢 Tool numbers) and their sections below. The four <i>which policies use this</i> lookups are now one implementation in <code>js/causes.js</code>, so the All-trusted-locations case — a policy that never names a location but reaches it through <b>All trusted locations</b>, and so changes behaviour the moment you flip the trusted flag — is available to every kind rather than to locations alone.</p>
+      <p><b>🏗 Builder is the first tab</b>, before 🌐 Locations: the policy the other five tabs are building blocks <i>of</i>. It creates new policies and clones existing ones (see 🏗 Policy builder below); changing an existing policy is done on the policy's own card in 🗂 Policies — <b>✎ Edit this policy</b>, first in its action row. The 🧩 tile and its deep links still open on Locations, and the strip remembers the last tab you opened in this session.</p>
       <p>Manage the named locations your Conditional Access policies target — the IP-range and country locations — without leaving the tool.</p>
       <ul>
         <li><b>Cards / Table</b> — Cards tile at least two per row with the ranges, usage and the Edit/Delete buttons; Table is the same information one line per location, which is the readable option once a tenant has dozens.</li>
@@ -2311,6 +2520,17 @@
         <li><b>Export MD</b> — the bin's contents with their deadlines.</li>
       </ul>
       <p class="help-x">Reads and restores need <code>Policy.ReadWrite.ConditionalAccess</code>, asked for on the click. Nothing here can delete anything — the only write is a restore.</p>
+          <h5>🏗 Policy builder <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span> <span class="help-fold">the first tab — T41</span></h5>
+      <p><b>One guided screen for a policy.</b> Seven steps — name and persona, who, what, when, then, session, state — with the tenant's own building blocks as the pickers: the named locations of the 🌐 tab, the contexts of 🎫, the strengths of 💪 and the terms of 📜. The CA number is the next free one in the persona's range and the name follows the baseline convention (<code>CAnnn-GRANT|BLOCK|SESSION-Persona-words-vX.Y</code>) as you choose; the kind follows the controls. Hints on the way are computed from the loaded policies and blocks, never read from the tenant again: the break-glass group not excluded, legacy authentication already blocked tenant-wide, an IP location not marked trusted behind “All trusted locations”, an empty country location, an enabled policy that already targets the same people and resources.</p>
+      <ul>
+        <li><b>Three starts.</b> ✨ Blank. 🧬 A baseline template — when the tenant holds that CA number the builder starts from the tenant's policy (structured); otherwise from the template's number, persona, version, group names resolved against the tenant's groups, and its own sentences carried into step 1 as “the template says”. 🗂 A policy from this tenant — every row offers <b>✎ Edit this policy</b> (that policy itself: same number, same name, Save writes only the sections that differ) and <b>⧉ Clone into a new policy</b> (a new one at the next free number, report-only). Also reached as <b>⧉ Clone in builder</b> from a policy card and from 🗂 Policies' action bar, and from every block's detail pane (<b>New policy with this location / strength / context / terms</b>).</li>
+        <li><b>Editing a policy belongs on its card.</b> The builder is for new policies and clones; to change one that exists, open it in 🗂 Policies and press <b>✎ Edit this policy</b>, first in the card's action row: the card's boxes become the same forms the builder uses, a bar counts what changes and shows the diff, the name is editable, and Save writes the same way the builder does. Edit from the builder's 🗂 start is the same edit reached from here: the toolbar reads <i>Editing &lt;name&gt;</i> with Discard, and Save stays disabled until something changes.</li>
+        <li><b>Save validates first.</b> A draft that Entra would refuse is stopped before the round-trip — Save greys out and says why: nobody included, nothing enforced, no target resource, a guests clause limited to chosen tenants with none chosen, the retired approved-client-app control — and an <b>authentication strength together with Require multifactor authentication</b> in one grant, which Entra does not allow. The built-in Multifactor authentication strength is the same set of combinations as the control, so pick one: the strength, or the control with the strength set to none. Switching a policy from a strength to Require MFA clears the strength on save, so the two never end up on the policy together. A Block policy is not affected.</li>
+        <li><b>Open folds stay open.</b> The folded panels inside a step — include and exclude guests and external users, exclude selected locations, exclude platforms — stay open while you tick inside them, in the builder and on the card edit alike; one you closed stays closed.</li>
+        <li><b>Preview.</b> 🗂 Card is the policy card it will be; { } JSON the exact body Graph receives (a PATCH body when editing); 🧪 Preflight evaluates the draft with What-If against synthetic sign-ins — a member of what it includes from outside and from inside a trusted location, a member of what it excludes, a B2B guest — beside the loaded policies, so each row also names the other policies that apply; ± Diff compares the tenant's policy with the draft when editing. 📋 Change plan exports the op list, the step summaries, the hints and the body as Markdown, to hand to a reviewer before applying it here (R22).</li>
+        <li><b>The write.</b> Create POSTs the policy <b>report-only</b>, reads it back with the same settle schedule 📥 Import uses, re-reads the policy set and opens 🗂 Policies filtered to it. Off is allowed; On needs a typed <b>ON</b>. The policy's own exclusion group (the baseline's naming rule, <code>CAB-SEC-U-CAnnn-Exclusion</code> for CloudFellows) is created <i>first</i>, empty, so the policy never names a group that failed to exist — untick it to use existing groups only. An edit PATCHes <b>whole sections</b> — conditions, grant controls, session controls — and only the ones that changed, so a clause nobody was looking at (a guest exclusion, a device filter) cannot be dropped. A staging prefix such as <code>(NEW)</code> stays on an edit.</li>
+        <li><b>Recovery.</b> A created policy is restorable for 30 days from ♻ Deleted; a created group can be deleted in 👥 CA groups; an edit can be reverted from its 🕓 Changes entry.</li>
+      </ul>
     </section>
 
 
@@ -2352,12 +2572,13 @@
         <li><b>Assignment mode — 🔀 Switch baseline</b> <span class="tag new">BETA</span>: for moving a tenant from one baseline's groups to the other's. Policies land with the <b>baseline's own groups</b> as shipped (created here — Joey Verlinden's “&lt;policy name&gt; - Exclude” and <code>CA-BreakGlassAccounts - Exclude</code>, or the CloudFellows <code>CAB-SEC-U-CAnnn-Exclusion</code> set), and the <b>members of the other baseline's counterpart groups are copied across</b>: break-glass to break-glass, the exclusion group of the same CA number, the persona include group. It is a copy — the old groups keep their members as the rollback and show in 🧹 <b>What &lt;baseline&gt; left behind</b> (🧬 Baseline Policies) once nothing references them. A same-policy-other-name it supersedes is switched Off. Offered only when the file matches a baseline the tenant is not on, and pre-selected when the tenant's policies visibly use the other baseline's groups.</li>
         <li><b>From the repository</b> — 📥 Import baseline on 🧬 Baseline (Joey Verlinden) and Fetch latest in ↗ Guided rollout need no zip: the live read of his repository ships the policy files, <code>Config/Groups</code> and <code>Config/NamedLocations</code> — the same layout as a backup — so the import starts from that read with the gap ticked and the rest of the release listed unticked. A downloaded copy of the repository imports too (its files are UTF-16).</li>
         <li><b>🚨 E-Admins from a CloudFellows backup</b> <span class="tag new">NEW</span> — the emergency-access policies (CA1100–CA1105) are expected under every baseline and only a CloudFellows backup ships them. A file without them shows the 🚨 panel: <b>＋ E-Admins from a CloudFellows backup ZIP</b> (or an extracted folder) takes only the E-Admins policies and the groups, locations and authentication strengths they use into this import, renames the break-glass group to the target baseline's (<code>CAB-SEC-U-BreakGlass</code> → <code>CA-BreakGlassAccounts - Exclude</code> for Joey), files the groups they name in the <b>break-glass</b> restricted unit (never the Admins one, and never a deploy group), and lands them <b>Off</b> whatever the backup says — an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out.</li>
-        <li><b>Read back, patiently</b> <span class="tag upd">UPDATED</span> — Conditional Access is eventually consistent: a policy created a moment ago can answer “does not exist” to a read by its own id. Every read after a write is repeated with a short backoff (about 20 seconds for a missing policy) before it counts, and a policy that is still unreadable is reported as <b>created but not verified</b>, with its id — a re-run skips it by name. Authentication contexts, locations, strengths and terms of use come along only when a chosen policy names them exactly.</li>
+        <li><b>Read back, patiently</b> <span class="tag upd">UPDATED</span> — Conditional Access is eventually consistent: a policy created a moment ago can answer “does not exist” to a read by its own id. Every read after a write is repeated with a short backoff (about 20 seconds for a missing policy) before it counts. <b>A policy Entra is slow to show is finished at the end of the run</b>, not failed: its row reads <i>created · checked again at the end of the run</i>, the import carries on with the rest, and when the other policies are done every such policy is read again with a longer wait (up to about a minute). Once it shows, it is finished exactly as planned — verified, given its state, and in ♻️ Match &amp; replace the old version switched Off — and its row and the report mark it as done on the second check. Only a policy still invisible after both checks is reported as failed, with its id: it is almost certainly there, Off, and a re-run skips it by name, so finish it with 🧹 Housekeeping → ⇄ Switch over or by hand. The version it was meant to replace is never touched until the new one is verified. <b>Stop</b> while policies are waiting for their second check leaves them created, Off and unverified, with the old versions unchanged. Authentication contexts, locations, strengths and terms of use come along only when a chosen policy names them exactly.</li>
         <li><b>🔧 Re-attach</b> <span class="tag new">NEW</span> <span class="tag block">writes to tenant</span> — policies already in the tenant that point at group ids from the loaded file (an import before build 315 left them when a group could not be created; 👥 CA groups lists them as <b>referenced but gone</b>) are listed with the group each id meant. One click creates or finds those groups by name, swaps only those ids, and reads every policy back; state, conditions and the other assignments are untouched. A separate click from Import, with its own ledger and report.</li>
         <li><b>🤖 Agent policies (preview)</b> <span class="tag upd">UPDATED</span> — Joey's CA5xx block targets agent identities and agents' user accounts. His files are what a <i>read</i> returns, and Graph refused all five as written (a bare 400), so an agent policy is now written in the shape Graph documents for a <b>create</b>: agent identities without the read-only <code>users: None</code> block and empty service-principal list; agents' user accounts as users <code>AllAgentIdUsers</code> instead of the <code>agents</code> object; no OData annotations. The agent execution environment (CA503's “sessions initiated from endpoints”) is documented nowhere — if Graph refuses it, the policy is created once more without it and the row and report say that it then covers <b>every</b> session of the agents' user accounts. An agent filter, or users and agents in one policy, cannot be written that way and is refused with the reason. The tenant still needs <b>Microsoft Entra Agent ID</b> (Entra ID P1 or P2 with a Microsoft Agent 365 licence), and agent risk needs ID Protection. CA505 excludes Microsoft's <b>compliant network</b> location, which is referenced by its fixed id and never created — it applies once Global Secure Access signaling is enabled for Conditional Access.</li>
         <li><b>Import only</b> — pick a persona to bring in just its policies, or use All / None. A policy with the same CA number <i>and</i> version is skipped.</li>
         <li><b>Unknown application references</b> — a policy can only name an app that has a <b>service principal</b> in this tenant, and Graph rejects the whole policy over one it cannot resolve. The importer instantiates the missing ones first (the baseline excludes Microsoft first-party apps like Defender for Endpoint and Defender for Mobile TVM that an unused tenant does not have). If one still cannot be created, the policy is <b>not created</b> and the row names the missing app — dropping an exclusion would widen the policy.</li>
-        <li><b>🔒 no Workload ID licence</b> — a policy scoped to service principals (the CA900 range) needs the separately purchased <b>Microsoft Entra Workload ID</b> licence, which is <i>not</i> part of Entra ID P1/P2. The importer reads the tenant’s subscriptions first; without the licence those policies are shown greyed out and left out entirely, rather than attempted and rejected by Graph with a bare 400. Buy or trial the licence, then re-import.</li>
+        <li><b>🔒 no Workload ID licence</b> — a policy scoped to service principals (the CA900 range) needs the separately purchased <b>Microsoft Entra Workload ID</b> licence, which is <i>not</i> part of Entra ID P1/P2. The importer reads the tenant’s subscriptions first; without the licence those policies are shown greyed out and left out entirely, rather than attempted and rejected by Graph with a bare 400. Buy or trial the licence, then re-import. The warning only appears for a file that has workload-identity policies.</li>
+        <li><b>Licences are checked per policy before it is written</b> — the same check every policy write goes through (see 🗂 Policies): a policy that needs Entra ID P2, Intune, Defender for Cloud Apps or Purview Adaptive Protection is refused, with the reason on its row, when the tenant's subscriptions cannot show it. Insider-risk policies are accepted in tenants with Insider Risk Management — the Purview suites, E5 Compliance or Microsoft 365 E5 — and a refusal lists the subscriptions that were read.</li>
         <li><b>📜 needs ToU</b> — a policy granting a Terms of use imports without that control (Terms of use has no create API); the report gives a checklist to create it in the portal, then re-import.</li>
         <li><b>🛡 Protection preflight</b> <span class="tag new">BETA</span> — before the import runs, the tool checks that a restricted administrative unit exists for each persona <i>your selection actually touches</i>, and offers to create the missing ones (restricted, with you scoped as Groups Administrator). Every group the import <b>creates</b> is then added to its persona's unit, so a tenant-wide Groups Administrator cannot afterwards widen a Conditional Access exclusion. It is optional and never blocks the import: skip it and the groups simply land unprotected.</li>
         <li><b>Only groups this run created are placed</b> — a group that already existed is left where it is, because it may be somewhere on purpose and that is not the import's call to make. A group used by <b>two personas</b> is not placed either, and the report says why: an object may sit in several restricted units and a scoped administrator on <i>any</i> of them can manage it, so filing a shared group under one persona hands that persona's admin control of the other's exclusions, and filing it under both hands it to either. Split it per persona, or place it by hand knowing who can reach it.</li>
@@ -2370,12 +2591,30 @@
     </section>
 
     <section class="help-sec">
+      <h4>↗ Guided rollout <span class="tag new">NEW</span></h4>
+      <p>A four-step path from “which policies” to “switch them on”, built on the tools that already do each part. The rollout screen itself reads and writes nothing: every step opens the existing tool, and every tenant change goes through that tool's own review, permission check and confirmation.</p>
+      <ul>
+        <li><b>The steps</b> — a numbered strip across the top: <b>1 Scope</b>, <b>2 Plan</b>, <b>3 Observed impact</b>, <b>4 Go live</b>. Click any step to jump to it, or <b>Continue →</b> to take the next. A line above the steps names the tenant (or <i>Demo — writes are simulated</i>) and how many policies are selected.</li>
+        <li><b>Scope</b> — the rollout works on the policies ticked in 🗂 Policies, listed here with their current state. <b>Choose policies</b> opens the list to tick them; <b>Compare a baseline</b> opens 🧬 Baseline; <b>Check deployment prerequisites</b> opens the baseline's Deployment guide.</li>
+        <li><b>Plan</b> — <b>Back up selected policies</b> runs <b>🗄 Backup</b> from the 🗂 Policies action bar, <b>Prepare an import</b> opens 📥 Import, <b>Review groups &amp; exclusions</b> opens 👥 Conditional Access groups. The backup is a file you keep; ENCA does not check that you saved it or that your rollback works.</li>
+        <li><b>Start from a baseline</b> (on the first two steps) — <b>CloudFellows: Choose ZIP</b> opens 📥 Import and the file picker for your baseline backup ZIP. <b>Joey Verlinden: Fetch latest</b> reads the newest release of his repository — policies, groups and named locations — and opens it in 📥 Import with the release and commit named. If the release or any of its dependencies could not be read completely, nothing is opened (never an older copy) and you are asked to retry. Either way you land in the import review: assignment mode, groups created or found by name, and <b>＋ E-Admins from a CloudFellows backup ZIP</b> for the shared emergency-access policies. Imported policies arrive <b>Off</b>.</li>
+        <li><b>Observed impact</b> — shows sign-ins in the loaded window, users with a predicted denial and users with a predicted prompt, taken from a <b>completed</b> 🎚 Report-only impact read of this tenant that is newer than the policy snapshot. A capped, running or older read is not used, and the step says impact is not checked yet. The totals describe that report, not necessarily your selection. <b>Open report-only impact</b>, <b>Review configuration findings</b> (🛡 Checks) and <b>Test a sign-in scenario</b> (🧪 What-If) are one click away. A window with no matching sign-ins is no evidence that the rollout is safe.</li>
+        <li><b>Go live</b> — three acknowledgements you tick yourself: the selection, exclusions and emergency access are reviewed; the current definitions are saved with a rollback procedure; the sign-in impact is reviewed. They are your statements, not an automated validation. With all three ticked and at least one policy selected, <b>Review policy state change →</b> opens <b>🎚 Policy state</b> from the 🗂 Policies action bar for the selection, where each proposed state is named and confirmed as usual.</li>
+        <li><b>Nothing is kept</b> — the acknowledgements live in this session only. Refreshing the policies, changing the selection or switching tenant clears them.</li>
+      </ul>
+      <p class="help-x">No permissions of its own. The import and the state change it leads to write to the tenant under 📥 Import's and 🗂 Policies' permissions and confirmations; Fetch latest reads the public repository on GitHub. <b>Back to policies</b> in the toolbar returns to 🗂 Policies.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>General</h4>
       <ul>
-        <li><b>Tabs</b> — tools open in browser-style tabs; the <b>+</b> opens another, the <b>house</b> button returns to the tool grid, and <b>✕ all</b> closes every tab at once.</li>
+        <li><b>Tabs</b> — tools open in browser-style tabs under the header; <b>Overview</b> returns home, a tab's <b>×</b> closes it, and <b>Close all workspaces</b> in the account menu closes every tab at once. See 🧭 Workspaces &amp; navigation.</li>
         <li><b>Permissions</b> — sign-in is read-only; a write tool requests its extra scope only when you run it, with an up-front consent step so pop-ups aren’t blocked.</li>
         <li><b>Demo</b> — append <code>?demo=1</code> to explore with sample policies; writes are simulated.</li>
         <li><b>Build</b> — the number on the sign-in screen matches the asset version; hard-refresh if it lags what you expect.</li>
+        <li><b>Version</b> — from 2.0 the label counts releases within the major version: <code>v2.0.0</code>, <code>v2.0.1</code>… The build number underneath keeps counting and is shown in each release's header on 📋 What's new. The beta channel reads <code>v2.0.1-beta.N</code>: the release it is a beta of.</li>
+        <li><b>📋 What's new</b> — every release, newest first. From 2.0 the page shows the 2.0 notes open and folds all of 1.x into one <b>📦 Archive — version 1.x</b>, closed, with its release count and date range — still there and one click away. The overlay after sign-in lists what changed since your last visit within the current major version only, so someone last here on 1.x is told about 2.0 rather than handed the tail of the 1.x log.</li>
+        <li><b>🗺 Roadmap</b> — where ENCA is heading: shipped and shipping, in beta today, next, self-hosted, later and on the horizon. Each item carries a permanent reference (<code>R33</code>), and a shipped item moves to <i>Now</i> with its reference intact rather than being deleted.</li>
         <li><b>Forking</b> — everything identity-shaped (name, organisation, logos, colours, host) lives in a single file, <code>js/branding.js</code>; nothing else hard-codes it. See “Rebranding a fork” in the README.</li>
       </ul>
     </section>
@@ -2393,6 +2632,16 @@
 </footer>
 
 <!-- ============ MS LEARN: APPLY FIXES (writes to the tenant) ============ -->
+<div class="modal-bg" id="obModal">
+  <div class="modal ob-modal" id="obModalBody"></div>
+</div>
+<div class="modal-bg" id="pbModal">
+  <div class="modal" style="max-width:720px">
+    <h3 id="pbModalTitle">🏗</h3>
+    <div id="pbModalBody"></div>
+    <div class="modal-foot"><button class="btn" id="pbModalClose">Close</button></div>
+  </div>
+</div>
 <div class="modal-bg" id="mlApplyModal">
   <div class="modal">
     <h3>⚡ Apply suggested fixes in <span id="mlApplyTenant"></span></h3>
@@ -2482,6 +2731,18 @@
     <!-- Shown only on a baseline tenant: there the backup IS the baseline
          catalog, scoped to the persona policies. Filled by runBackup(). -->
     <div class="scope-note" id="bkBaseline" style="display:none"></div>
+    <!-- Personas, when the export was opened from the baseline screen (25463).
+         The baseline is organised by persona and is taken one persona at a
+         time, so the export is too. Hidden everywhere else: on the Policies
+         screen the selection already says what to back up. -->
+    <div id="bkPersonas" style="display:none">
+      <p class="mini" style="margin:10px 0 4px"><b>Personas</b> — which parts of the baseline to take</p>
+      <div class="row" id="bkPersonaList" style="justify-content:flex-start;gap:6px;flex-wrap:wrap"></div>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px">
+        <button type="button" class="btn sm" id="bkPersonaAll">☑ All</button>
+        <button type="button" class="btn sm" id="bkPersonaNone">☐ None</button>
+      </div>
+    </div>
     <p id="bkDesc"></p>
     <label class="chk" style="margin:8px 0"><input type="checkbox" id="bkPolicies" checked> Policy definitions (one JSON per policy + combined file)</label>
     <label class="chk" style="margin:8px 0"><input type="checkbox" id="bkGroups"> Dependencies used by these policies — groups, authentication strengths, named locations, auth contexts, terms of use (per-category folders + MigrationTable.json)</label>
@@ -2598,6 +2859,26 @@
       <span class="mini muted" id="arcWhy" style="margin-right:auto"></span>
       <button class="btn" id="arcCancel">Close</button>
       <button class="btn danger" id="arcGo" disabled>Delete ticked</button>
+    </div>
+  </div>
+</div>
+
+<!-- 🔀 Merge duplicate groups (25477) -->
+<div class="modal-bg" id="gmModal">
+  <div class="modal" style="max-width:min(980px,96vw);width:min(980px,96vw)">
+    <h3>🔀 Groups that share a name</h3>
+    <p class="mini" id="gmSub"></p>
+    <div id="gmBody" style="max-height:60vh;overflow:auto;margin-top:10px"></div>
+    <div id="gmLedger"></div>
+    <div id="gmConfirmWrap" style="display:none">
+      <label class="mini" for="gmConfirm" style="display:block;margin-top:10px">Type <b id="gmWord">MERGE</b> to confirm</label>
+      <input id="gmConfirm" class="txt" placeholder="MERGE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    </div>
+    <div class="row">
+      <button class="btn" id="gmBack" style="display:none">← Back</button>
+      <button class="btn" id="gmCancel">Close</button>
+      <button class="btn primary" id="gmNext" disabled>Review the merge →</button>
+      <button class="btn danger" id="gmGo" style="display:none" disabled>Merge</button>
     </div>
   </div>
 </div>
@@ -2960,10 +3241,13 @@
       permanently gone, and only a JSON backup can recreate it (with a new id).
     </div>
     <div id="delOnWarn" style="display:none"></div>
+    <div id="delPlan">
     <div id="delList" style="max-height:35vh;overflow:auto;margin-top:12px"></div>
     <label class="chk" style="margin:12px 0 6px"><input type="checkbox" id="delBackup" checked> Download a JSON backup of these policies first <span class="mini muted">(recommended)</span></label>
     <label class="mini" for="delConfirm" style="display:block;margin-top:8px">Type <b>DELETE</b> to confirm</label>
     <input id="delConfirm" class="txt" placeholder="DELETE" autocomplete="off" spellcheck="false" style="margin-top:4px">
+    </div>
+    <div id="delLedger"></div>
     <div class="row">
       <button class="btn" id="delCancel">Cancel</button>
       <button class="btn danger" id="delGo" disabled>Delete permanently</button>
@@ -3091,74 +3375,84 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=321"></script>
-<script src="js/selfhost.js?v=321"></script>
-<script src="js/version.js?v=321"></script>
-<script src="js/verdict.js?v=321"></script>
-<script src="js/fork.js?v=321"></script>
-<script src="js/authConfig.js?v=321"></script>
-<script src="js/connection.js?v=321"></script>
-<script src="js/labels.js?v=321"></script>
-<script src="js/capabilities.js?v=321"></script>
-<script src="js/graph.js?v=321"></script>
-<script src="js/model.js?v=321"></script>
-<script src="js/render.js?v=321"></script>
-<script src="js/analyze.js?v=321"></script>
-<script src="js/whatif.js?v=321"></script>
-<script src="js/mslearn.js?v=321"></script>
-<script src="js/gapcheck.js?v=321"></script>
-<script src="js/exclusions.js?v=321"></script>
-<script src="js/cascope.js?v=321"></script>
-<script src="js/validator.js?v=321"></script>
-<script src="js/whatifeval.js?v=321"></script>
-<script src="js/compare.js?v=321"></script>
-<script src="js/whois.js?v=321"></script>
-<script src="js/wave.js?v=321"></script>
-<script src="js/sessionctl.js?v=321"></script>
-<script src="js/spgap.js?v=321"></script>
-<script src="js/groupuse.js?v=321"></script>
-<script src="js/iso3166.js?v=321"></script>
-<script src="js/causes.js?v=321"></script>
-<script src="js/locations.js?v=321"></script>
-<script src="js/authcontexts.js?v=321"></script>
-<script src="js/authstrengths.js?v=321"></script>
-<script src="js/recycle.js?v=321"></script>
-<script src="js/rmau.js?v=321"></script>
-<script src="js/camap.js?v=321"></script>
-<script src="js/rmaudoc.js?v=321"></script>
-<script src="js/termsofuse.js?v=321"></script>
-<script src="js/audit.js?v=321"></script>
-<script src="js/drift.js?v=321"></script>
-<script src="js/guide.js?v=321"></script>
-<script src="js/userimpact.js?v=321"></script>
-<script src="js/smsvoice.js?v=321"></script>
-<script src="js/memberof.js?v=321"></script>
-<script src="js/devcheck.js?v=321"></script>
-<script src="js/licgap.js?v=321"></script>
-<script src="js/teamsdev.js?v=321"></script>
-<script src="js/signinstore.js?v=321"></script>
-<script src="js/signins.js?v=321"></script>
-<script src="js/reportimpact.js?v=321"></script>
-<script src="js/changelog.js?v=321"></script>
-<script src="js/baselineData.js?v=321"></script>
-<script src="js/baselineJoeyData.js?v=321"></script>
-<script src="js/baselineLive.js?v=321"></script>
-<script src="js/baseline.js?v=321"></script>
-<script src="js/baselineCleanup.js?v=321"></script>
-<script src="js/groupTemplates.js?v=321"></script>
-<script src="js/assign.js?v=321"></script>
-<script src="js/cagroups.js?v=321"></script>
-<script src="js/groupsview.js?v=321"></script>
-<script src="js/runledger.js?v=321"></script>
-<script src="js/protect.js?v=321"></script>
-<script src="js/policy-compare.js?v=321"></script>
-<script src="js/import.js?v=321"></script>
-<script src="js/export.js?v=321"></script>
-<script src="js/demo.js?v=321"></script>
-<script src="js/workspace.js?v=321"></script>
-<script src="js/analysis-jobs.js?v=321"></script>
-<script src="js/search-suggest.js?v=321"></script>
-<script src="js/app.js?v=321"></script>
-<script src="js/accessibility.js?v=321"></script>
+<script src="js/branding.js?v=322"></script>
+<script src="js/selfhost.js?v=322"></script>
+<script src="js/version.js?v=322"></script>
+<script src="js/verdict.js?v=322"></script>
+<script src="js/fork.js?v=322"></script>
+<script src="js/authConfig.js?v=322"></script>
+<script src="js/connection.js?v=322"></script>
+<script src="js/labels.js?v=322"></script>
+<script src="js/capabilities.js?v=322"></script>
+<script src="js/graph.js?v=322"></script>
+<script src="js/model.js?v=322"></script>
+<script src="js/render.js?v=322"></script>
+<script src="js/analyze.js?v=322"></script>
+<script src="js/whatif.js?v=322"></script>
+<script src="js/mslearn.js?v=322"></script>
+<script src="js/gapcheck.js?v=322"></script>
+<script src="js/exclusions.js?v=322"></script>
+<script src="js/cascope.js?v=322"></script>
+<script src="js/coverage.js?v=322"></script>
+<script src="js/runmeta.js?v=322"></script>
+<script src="js/overview.js?v=322"></script>
+<script src="js/validator.js?v=322"></script>
+<script src="js/whatifeval.js?v=322"></script>
+<script src="js/builder.js?v=322"></script>
+<script src="js/onboard.js?v=322"></script>
+<script src="js/compare.js?v=322"></script>
+<script src="js/whois.js?v=322"></script>
+<script src="js/wave.js?v=322"></script>
+<script src="js/sessionctl.js?v=322"></script>
+<script src="js/spgap.js?v=322"></script>
+<script src="js/groupuse.js?v=322"></script>
+<script src="js/iso3166.js?v=322"></script>
+<script src="js/causes.js?v=322"></script>
+<script src="js/locations.js?v=322"></script>
+<script src="js/authcontexts.js?v=322"></script>
+<script src="js/authstrengths.js?v=322"></script>
+<script src="js/recycle.js?v=322"></script>
+<script src="js/rmau.js?v=322"></script>
+<script src="js/camap.js?v=322"></script>
+<script src="js/rmaudoc.js?v=322"></script>
+<script src="js/termsofuse.js?v=322"></script>
+<script src="js/audit.js?v=322"></script>
+<script src="js/drift.js?v=322"></script>
+<script src="js/guide.js?v=322"></script>
+<script src="js/userimpact.js?v=322"></script>
+<script src="js/smsvoice.js?v=322"></script>
+<script src="js/memberof.js?v=322"></script>
+<script src="js/devcheck.js?v=322"></script>
+<script src="js/licgap.js?v=322"></script>
+<script src="js/teamsdev.js?v=322"></script>
+<script src="js/signinstore.js?v=322"></script>
+<script src="js/signins.js?v=322"></script>
+<script src="js/reportimpact.js?v=322"></script>
+<script src="js/changelog.js?v=322"></script>
+<script src="js/baselineData.js?v=322"></script>
+<script src="js/baselineJoeyData.js?v=322"></script>
+<script src="js/baselineLive.js?v=322"></script>
+<script src="js/baseline.js?v=322"></script>
+<script src="js/baselineCleanup.js?v=322"></script>
+<script src="js/groupTemplates.js?v=322"></script>
+<script src="js/assign.js?v=322"></script>
+<script src="js/cagroups.js?v=322"></script>
+<script src="js/groupmerge.js?v=322"></script>
+<script src="js/groupsview.js?v=322"></script>
+<script src="js/runledger.js?v=322"></script>
+<script src="js/protect.js?v=322"></script>
+<script src="js/policy-compare.js?v=322"></script>
+<script src="js/import.js?v=322"></script>
+<script src="js/export.js?v=322"></script>
+<script src="js/demo.js?v=322"></script>
+<script src="js/list-detail.js?v=322"></script>
+<script src="js/flat-icons.js?v=322"></script>
+<script src="js/workspace.js?v=322"></script>
+<script src="js/analysis-jobs.js?v=322"></script>
+<script src="js/search-suggest.js?v=322"></script>
+<script src="js/app.js?v=322"></script>
+<script src="js/accessibility.js?v=322"></script>
+<script src="js/workspaces.js?v=322"></script>
+<script src="js/tool-layout.js?v=322"></script>
 </body>
 </html>

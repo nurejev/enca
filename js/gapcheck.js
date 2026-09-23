@@ -181,7 +181,9 @@ const GapCheck = (() => {
   // workload-identity sentinel and must not count.
   const targetsUsers = (p) => {
     const u = U(p);
-    return (u.includeUsers || []).filter((x) => x !== "None").length > 0 ||
+    // the legacy all-guests keyword is not a person the break-glass account
+    // could be, so a guest-only policy is not a "user-targeting" one here
+    return (u.includeUsers || []).filter((x) => x !== "None" && x !== "GuestsOrExternalUsers").length > 0 ||
       (u.includeGroups || []).length > 0 || (u.includeRoles || []).length > 0;
   };
 
@@ -194,7 +196,7 @@ const GapCheck = (() => {
   const CONTROL_LABEL = {
     mfa: "Require MFA", compliantDevice: "Require compliant device",
     domainJoinedDevice: "Require hybrid joined device", approvedApplication: "Require approved client app",
-    compliantApplication: "Require app protection policy", passwordChange: "Require password change",
+    compliantApplication: "Require app protection policy", passwordChange: "Require password change", termsOfUse: "Accept terms of use",
     riskRemediation: "Require risk remediation",
   };
 
@@ -238,9 +240,18 @@ const GapCheck = (() => {
     // scope (baseline/staging tenants) — never as an enforced control.
     const off = INCLUDE_DISABLED ? raws.filter((p) => p.state === "disabled") : [];
 
-    // 1. MFA coverage (report-only and Off aware)
-    const isMfaForAll = (p) => coversEveryone(p) && hasMfa(p);
-    if (!enabled.some(isMfaForAll)) {
+    // 1. MFA coverage (report-only and Off aware). 25469: "for all users" is
+    // only half of it — a policy on All users that asks MFA for ONE app was
+    // enough to clear this check. It has to be All resources as well.
+    const isMfaForAll = (p) => coversEveryone(p) && hasMfa(p) && allApps(p);
+    const partialMfa = enabled.filter((p) => coversEveryone(p) && hasMfa(p) && !allApps(p));
+    const partialOnly = !enabled.some(isMfaForAll) && partialMfa.length && !reportOnly.some(isMfaForAll) && !off.some(isMfaForAll);
+    if (partialOnly) {
+      F(out, "high", "MFA Coverage", "MFA for all users exists only for selected resources", partialMfa[0],
+        `${partialMfa.length} enabled policy(ies) require MFA of all users, but only for the resources they name: ${partialMfa.slice(0, 5).map((p) => p.displayName).join(", ")}${partialMfa.length > 5 ? "…" : ""}. Every other resource — including ones added to the tenant later — accepts a password alone.`,
+        "Where: the MFA policy for all users. Change: Target resources → Include → All resources, keeping any exclusion you truly need. Why: MFA is the base layer every other control stands on; scoping it to named apps leaves the rest of the tenant on passwords.");
+    }
+    if (!enabled.some(isMfaForAll) && !partialOnly) {
       const ro = reportOnly.find(isMfaForAll);
       const offMfa = off.filter(isMfaForAll);
       if (ro) {
@@ -253,13 +264,24 @@ const GapCheck = (() => {
           "Expected in a baseline/staging tenant. To enforce, switch to Report-only, review the sign-in impact for 7–14 days, then set to On — after confirming break-glass exclusions.");
       } else {
         F(out, "critical", "MFA Coverage", "No policy requires MFA for All Users", null,
-          "No enabled or report-only policy requires MFA (or an authentication strength) for All Users, nor for the Global persona (CA000–099) scope — some users can authenticate with only a password.",
+          "No enabled or report-only policy requires MFA (or an authentication strength) of All users on All resources, nor of the Global persona (CA000–099) scope — some users can authenticate with only a password.",
           "Create a baseline policy requiring MFA for All Users and All resources. This is the foundation layer of the Swiss cheese model.");
       }
     }
 
-    // 2. Legacy authentication blocked?
+    // 2. Legacy authentication blocked? 25469: any legacy block used to clear
+    // this, even one scoped to a single group or a single app. Tenant-wide
+    // means everyone, All resources, and BOTH legacy client types.
     const legacyBlock = (p) => targetsLegacy(p) && hasBlock(p);
+    const legacyBothTypes = (p) => { const t = p.conditions?.clientAppTypes || []; return t.includes("exchangeActiveSync") && t.includes("other"); };
+    const legacyTenantWide = (p) => legacyBlock(p) && coversEveryone(p) && allApps(p) && legacyBothTypes(p);
+    const narrowLegacy = enabled.filter((p) => legacyBlock(p) && !legacyTenantWide(p));
+    if (!enabled.some(legacyTenantWide) && narrowLegacy.length) {
+      const why = (p) => [!coversEveryone(p) ? "not all users" : "", !allApps(p) ? "not All resources" : "", !legacyBothTypes(p) ? "not both Exchange ActiveSync and Other clients" : ""].filter(Boolean).join(", ");
+      F(out, "high", "Legacy Authentication", "Legacy authentication is blocked, but not tenant-wide", narrowLegacy[0],
+        `Enabled legacy-auth block(s) exist, but none reaches everyone: ${narrowLegacy.slice(0, 5).map((p) => `${p.displayName} (${why(p)})`).join("; ")}. Anyone outside that scope can still sign in with a legacy protocol, which cannot do MFA.`,
+        "Where: the legacy-auth block. Change: Users → All users (exclude only break-glass), Target resources → All resources, Client apps → both Exchange ActiveSync clients and Other clients. Why: legacy protocols cannot be asked for MFA, so the only safe answer to them is a block that has no gaps.");
+    }
     if (!enabled.some(legacyBlock)) {
       const roLegacy = reportOnly.filter(legacyBlock);
       const offLegacy = off.filter(legacyBlock);
@@ -272,7 +294,7 @@ const GapCheck = (() => {
       } else {
         F(out, "critical", "Legacy Authentication", "No policy blocks legacy authentication", null,
           "No enabled policy blocks legacy authentication protocols (Exchange ActiveSync / Other clients). Legacy auth cannot perform MFA and is the top vector for password spray and credential stuffing.",
-          "Create a policy that blocks the Exchange ActiveSync and Other client app types for All Users.");
+          "Create: a policy with Users → All users (exclude only break-glass), Target resources → All resources, Conditions → Client apps → Exchange ActiveSync clients and Other clients, Grant → Block access. Run it report-only for a week to find the mailboxes and devices still using legacy protocols, move them to modern auth, then switch it On. Why: legacy protocols cannot be asked for MFA at all.");
       }
     }
 
@@ -375,12 +397,12 @@ const GapCheck = (() => {
       if (!raws.filter(isActive).some(usesSignInRisk)) {
         F(out, "medium", "Risk-Based Access", "No policy uses sign-in risk as a condition", null,
           "No enabled or report-only policy conditions on SIGN-IN risk (anomalous travel, token anomalies, password spray detections). Identity Protection signals are computed but nothing acts on them in real time.",
-          "Create a policy requiring MFA (or blocking) on medium+ sign-in risk. Needs Entra ID P2. Start report-only; exclude break-glass accounts.");
+          "Create: a policy for All users (exclude break-glass and guests — their sign-in risk works, but Microsoft recommends always-on MFA for them instead), All resources, Conditions → Sign-in risk → Medium and High, Grant → Require authentication strength (Multifactor authentication) with Sign-in frequency → Every time. Needs Entra ID P2. Start report-only. Why: a risky sign-in is then asked to prove itself before it gets in, instead of just being logged.");
       }
       if (!raws.filter(isActive).some(usesUserRisk)) {
         F(out, "medium", "Risk-Based Access", "No policy uses user risk as a condition", null,
           "No enabled or report-only policy conditions on USER risk (leaked credentials, confirmed compromise). A user Microsoft has flagged as likely compromised authenticates like anyone else.",
-          "Create a policy requiring a secure password change (or block for passwordless accounts) on high user risk. Needs Entra ID P2. Start report-only.");
+          "Create: a policy for All users (exclude break-glass and guests — their user risk lives in their home tenant and they cannot remediate it here), All resources, Conditions → User risk → High, Grant → Require risk remediation. It works for password and passwordless users alike, where Require password change cannot help a passkey user. Needs Entra ID P2. Start report-only.");
       }
     })();
 
@@ -394,6 +416,114 @@ const GapCheck = (() => {
         `Microsoft-managed policies present: ${managed.map((p) => `"${p.displayName}" (${p.state})`).join(", ")}. Microsoft creates these automatically and can move them from report-only to On after a notice period.` +
         (phantom.length ? " Disabled managed policies can be Baseline Security Mode phantom drafts (message center MC1246002) — they may reappear or activate when Microsoft advances the rollout." : ""),
         "Review each managed policy against your own baseline — if your equivalent policy is stronger, the managed one is redundant but harmless; if you disabled one, make sure your own policy actually covers the same gap, because Microsoft disables theirs on the assumption that it does.");
+    })();
+
+    // 9–10 (25473): two baseline controls nothing here looked for.
+    const REG_SEC = "urn:user:registersecurityinfo";
+    (function checkSecurityInfoRegistration() {
+      const acts = (p) => A(p).includeUserActions || [];
+      const guards = (p) => acts(p).includes(REG_SEC) && (hasMfa(p) || hasBlock(p));
+      if (enabled.some(guards)) return;
+      const ro = reportOnly.filter(guards).concat(off.filter(guards));
+      F(out, ro.length ? "low" : "medium", "Security Info Registration",
+        ro.length ? "Security info registration is protected only by a policy that is not On" : "Nothing protects security info registration", ro[0] || null,
+        ro.length
+          ? `${ro.map((p) => p.displayName).join(", ")} protect${ro.length === 1 ? "s" : ""} the Register security information action but ${ro.length === 1 ? "is" : "are"} not enforcing, so today anyone who has a user's password can register their own MFA method for that user from anywhere.`
+          : "No enabled policy targets the Register security information user action. Whoever knows a user's password — and has not been asked for MFA yet, as with every new account — can register their own authenticator for that account from anywhere, and from then on passes MFA as that user. Since 6 July 2026 the same action also covers Windows Hello for Business and macOS Platform SSO credential registration.",
+        "Create: Users → All users (exclude break-glass, and exclude guests — a Temporary Access Pass does not work for them), Target resources → User actions → Register security information, Conditions → Locations → include Any location, exclude All trusted locations, Grant → Require authentication strength (Multifactor authentication) — new users bootstrap with a Temporary Access Pass. Why: it closes the window in which the first person to sign in with a password decides which MFA method the account gets.");
+    })();
+
+    (function checkDeviceCodeFlow() {
+      const dcf = (p) => hasBlock(p) && /deviceCodeFlow/i.test(String(p.conditions?.authenticationFlows?.transferMethods || ""));
+      const wide = (p) => dcf(p) && coversEveryone(p) && allApps(p);
+      if (enabled.some(wide)) return;
+      const narrow = enabled.filter(dcf);
+      const staged = reportOnly.concat(off).filter(dcf);
+      const sev = narrow.length || staged.length ? "low" : "medium";
+      F(out, sev, "Authentication Flows",
+        narrow.length ? "Device code flow is blocked, but not for everyone"
+          : staged.length ? "Device code flow block exists but is not On" : "Device code flow is not blocked",
+        narrow[0] || staged[0] || null,
+        (narrow.length ? `${narrow.map((p) => p.displayName).join(", ")} block${narrow.length === 1 ? "s" : ""} the device code flow for part of the tenant only (not all users on All resources). `
+          : staged.length ? `${staged.map((p) => p.displayName).join(", ")} would block the device code flow but ${staged.length === 1 ? "is" : "are"} not enforcing. ` : "")
+        + "Device code sign-in lets a user approve a sign-in that started on ANOTHER device — which is exactly what device-code phishing abuses: the attacker starts the flow, sends the code, and the user completes MFA for them. Most tenants only need it for a few devices (Teams Rooms on Android, some CLIs).",
+        "Create: Users → All users (exclude break-glass, and the resource accounts of Teams Android devices that still use it), Target resources → All resources, Conditions → Authentication flows → Device code flow, Grant → Block access. Run it report-only first and look at who still uses the flow. Why: blocking the flow removes device-code phishing outright; the few legitimate uses are known and can be excluded by name.");
+    })();
+
+    // 11 (25475): two groups, one name. Every screen, export and catalog shows
+    // groups by display name, so two groups sharing one look like one — and a
+    // policy set that uses one here and the other there splits a persona in
+    // two without anybody seeing it (the CloudFellows baseline had two
+    // CAB-SEC-U-Persona-Externals: the MFA policy on one, CA000's exclusion
+    // on the other, so members of the second got no MFA from either).
+    (function checkDuplicateGroupNames() {
+      const names = ctx.names || {};
+      const uses = new Map();   // id -> Set(policy names)
+      for (const p of raws.filter(isActive)) {
+        for (const id of [...(U(p).includeGroups || []), ...(U(p).excludeGroups || [])]) {
+          if (!uses.has(id)) uses.set(id, new Set());
+          uses.get(id).add(p.displayName || "(unnamed policy)");
+        }
+      }
+      const byName = new Map();
+      for (const id of uses.keys()) {
+        const n = names[id];
+        if (!n || n === id) continue;
+        const k = String(n).trim().toLowerCase();
+        if (!byName.has(k)) byName.set(k, { name: n, ids: [] });
+        byName.get(k).ids.push(id);
+      }
+      for (const { name, ids } of byName.values()) {
+        if (ids.length < 2) continue;
+        const lines = ids.map((id) => `${id} — used by ${[...uses.get(id)].slice(0, 6).join(", ")}${uses.get(id).size > 6 ? ` and ${uses.get(id).size - 6} more` : ""}`);
+        F(out, "high", "Group Hygiene", `${ids.length} different groups are all called "${name}"`, null,
+          `Conditional Access points at ${ids.length} separate groups that share the display name "${name}": ${lines.join("; ")}. Everything that shows a group by name shows them as one, so a policy that includes one and a policy that excludes the other look consistent while they are not — a member of one group is treated by one set of policies and a member of the other by another.`,
+          `Pick the group to keep. Move the members of the other into it, point every policy listed above at the one you keep (include and exclude alike), then delete or rename the other so the name is unique again. Why: a persona is a group; two groups under one name is two personas nobody can tell apart.`);
+      }
+    })();
+
+    // 12 (25475): an ALLOW-LIST block — block All users on All resources,
+    // unconditionally, excluding the groups that are allowed in (CloudFellows
+    // CA099 "block non-persona"). It is only safe when it excludes every group
+    // another policy was written for. Two ways to miss one: a group another
+    // policy INCLUDES, or a group the other All-users policies all agree to
+    // exclude (the shared-device accounts) — both get blocked outright.
+    (function checkAllowListBlocks() {
+      const names = ctx.names || {};
+      const nm = (id) => names[id] && names[id] !== id ? `"${names[id]}"` : id;
+      const uncond = (p) => {
+        const c = p.conditions || {}, loc = c.locations || {}, pl = c.platforms || {}, cat = c.clientAppTypes || [];
+        return !(loc.includeLocations || []).length && !(loc.excludeLocations || []).length
+          && !(pl.includePlatforms || []).length && !(cat.length && !cat.includes("all"))
+          && !(c.signInRiskLevels || []).length && !(c.userRiskLevels || []).length
+          && !c.devices?.deviceFilter && !c.authenticationFlows?.transferMethods;
+      };
+      const lists = raws.filter((p) => isActive(p) && hasBlock(p) && allUsers(p) && allApps(p) && uncond(p) && (U(p).excludeGroups || []).length >= 3);
+      for (const b of lists) {
+        const allowed = new Set(U(b).excludeGroups || []);
+        const others = raws.filter((p) => p.id !== b.id && isActive(p));
+        const missedInc = new Map();
+        for (const p of others) for (const id of U(p).includeGroups || []) {
+          if (allowed.has(id)) continue;
+          if (!missedInc.has(id)) missedInc.set(id, []);
+          missedInc.get(id).push(p.displayName || "(unnamed policy)");
+        }
+        const exclCount = new Map();
+        for (const p of others.filter(allUsers)) for (const id of U(p).excludeGroups || []) exclCount.set(id, (exclCount.get(id) || 0) + 1);
+        const missedExc = [...exclCount].filter(([id, n]) => n >= 2 && !allowed.has(id) && !missedInc.has(id));
+        const ext = U(b).excludeGuestsOrExternalUsers;
+        const extTypes = ext ? String(ext.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()) : [];
+        const blockedTypes = ["serviceProvider", "b2bDirectConnectUser", "otherExternalUser"].filter((t) => !extTypes.includes(t) && !(U(b).excludeUsers || []).includes("GuestsOrExternalUsers"));
+        const TL = { serviceProvider: "service provider (GDAP) admins", b2bDirectConnectUser: "B2B direct connect users", otherExternalUser: "other external users" };
+        if (!missedInc.size && !missedExc.length && !blockedTypes.length) continue;
+        const parts = [];
+        if (missedInc.size) parts.push(`groups other policies INCLUDE but this block does not exclude — their members are blocked from everything: ${[...missedInc].map(([id, ps]) => `${nm(id)} (included by ${ps.slice(0, 3).join(", ")}${ps.length > 3 ? "…" : ""})`).join("; ")}`);
+        if (missedExc.length) parts.push(`groups the other All-users policies exclude but this one does not: ${missedExc.map(([id, n]) => `${nm(id)} (excluded by ${n} policies)`).join("; ")}`);
+        if (blockedTypes.length) parts.push(`identities that can never be in a group, and so are blocked by it: ${blockedTypes.map((t) => TL[t]).join(", ")}`);
+        F(out, missedInc.size || missedExc.length ? "high" : "medium", "Allow-List Block", "Allow-list block does not let in everyone the other policies expect", b,
+          `This policy blocks All users on All resources except ${allowed.size} excluded groups — an allow-list. Anyone outside those groups is shut out the moment it is On. It misses: ${parts.join(". ")}.`,
+          `Where: this policy → Users → Exclude. Change: add ${[...(missedInc.size ? ["each group listed as included elsewhere (or take it out of the policy that includes it, if it only belongs to a rollout)"] : []), ...(missedExc.length ? ["the groups the other All-users policies exclude (typically the shared-device resource accounts)"] : []), ...(blockedTypes.length ? ["Guest or external users → the types listed, if you want them in (service provider users are how a CSP partner administers this tenant)"] : [])].join("; ")}. Why: an allow-list is only as good as its list — whatever is not on it is blocked from every resource.`);
+      }
     })();
 
     // 8. Platform conditions without an unknown-platform block (user-agent spoofing)
@@ -433,7 +563,7 @@ const GapCheck = (() => {
       const names = fociExcluded.map((id) => FOCI[String(id).toLowerCase()]);
       F(out, "critical", "FOCI Token Sharing", `${names.length} excluded app(s) share tokens with the entire FOCI family`, p,
         `Excluded: ${names.join(", ")}. These belong to the FOCI family (Family of Client IDs) — all ${FOCI_COUNT}+ members share refresh tokens, so any family app can obtain an access token for any other. Excluding one effectively excludes ALL of them (Teams, Office, Outlook, OneDrive, Edge, Authenticator, Company Portal, …).`,
-        "Remove the exclusion, or accept that the whole FOCI family bypasses this policy. Prefer a separate targeted policy with reduced controls over excluding FOCI apps from a broad policy.");
+        "Where: this policy → Target resources → Exclude. Change: remove the FOCI app from the exclusion. If that app genuinely needs different treatment, give it its own policy with the controls it can meet instead of excluding it from this one. Why: FOCI apps share refresh tokens, so excluding one app hands the exclusion to the whole family — Teams, Outlook, OneDrive, Edge and the rest.");
     }
 
     // Known CA-bypass apps excluded
@@ -444,7 +574,7 @@ const GapCheck = (() => {
       F(out, "high", "Known CA Bypass Apps", `${bypassExcluded.length} app(s) with documented CA bypass capability excluded`, p,
         "Excluded apps with documented bypass capability: " +
         bypassExcluded.map((x) => `${x.e[0]} — ${x.e[1]}`).join(" · "),
-        "Review each exclusion for a documented business justification. These public clients reach a very broad set of resources; excluding them from CA gives an attacker with a password a wide-open path.");
+        "Where: this policy → Target resources → Exclude. Change: remove each listed app unless someone can name the reason and owns it; where it must stay, cover that app with its own policy that requires at least MFA. Why: these are public clients anyone can sign in with, and they reach hundreds of resources — excluding them turns a stolen password into broad access.");
     }
 
     // Device registration bypass (MSRC VULN-153600, by design)
@@ -463,17 +593,23 @@ const GapCheck = (() => {
       F(out, explicit ? "high" : "medium", "Device Registration Bypass",
         explicit ? "Device registration protected only by controls the service ignores" : "Device Registration Service not covered by this policy's controls", p,
         `This policy relies on ${leans}, but the Device Registration Service ignores location and device-compliance conditions — only MFA / authentication strength is honored (MSRC VULN-153600, confirmed by-design). No separate policy requires MFA for the register-device user action, so device registration currently has no working control from this policy: an attacker can register a device from an untrusted location.`,
-        'Create a dedicated policy requiring MFA or authentication strength for the "Register or join devices" user action. Never rely on location or device compliance to protect device enrollment.');
+        'Create: a policy for All users, Target resources → User actions → Register or join devices, Grant → Require multifactor authentication. Keep the controls on this policy as they are. Why: the device registration service ignores location and device-compliance conditions — only MFA is honoured there — so this policy alone does not stop a device being registered from anywhere.');
     })();
 
     // Swiss cheese: grant OR across controls of differing strength
     (function checkOr() {
       const g = G(p);
       if (g.operator !== "OR") return;
+      // 25479: an authentication strength and a terms-of-use are grant
+      // options too. Read from builtInControls alone, "MFA strength OR
+      // compliant device" had one control and was never judged, and "MFA OR
+      // terms of use" — accept the terms, skip MFA — was invisible.
       const controls = grants(p).filter((c) => c !== "block");
+      if (g.authenticationStrength && !controls.includes("mfa")) controls.push("mfa");
+      if ((g.termsOfUse || []).length) controls.push("termsOfUse");
       if (controls.length <= 1) return;
       const groupsOf = new Set(controls.map((c) => EQUIV_GROUP[c] || `unique:${c}`));
-      const labels = controls.map((c) => CONTROL_LABEL[c] || c);
+      const labels = controls.map((c) => c === "mfa" && g.authenticationStrength ? `Require authentication strength "${g.authenticationStrength.displayName || "…"}"` : CONTROL_LABEL[c] || c);
       // Accepted when EVERY control is a management control: one group (compliant
       // OR hybrid-joined) or the device-trust + app-protection pair — Microsoft's
       // MDM-or-MAM pattern for BYOD, where a managed device satisfies the
@@ -490,9 +626,24 @@ const GapCheck = (() => {
           "No change required. If these controls are meant to be layered on top of MFA, enforce the MFA layer in a separate policy — do not rely on this policy alone for MFA.");
         return;
       }
-      F(out, "high", "Swiss Cheese Model", 'Grant controls use "OR" — weakest control is effective', p,
-        `Requires ${labels.join(" OR ")}. With OR across controls of differing strength, an attacker only needs to satisfy the WEAKEST control and can skip the rest — contradicting the layered (Swiss cheese) defense model.`,
-        'Change the operator to "AND" so all controls must be satisfied, or split into separate policies each requiring a single control.');
+      // 25469: not every OR is a weakest-link hole. MFA OR a compliant /
+      // hybrid-joined device is a Microsoft template ("require compliant or
+      // hybrid joined device or MFA"): an attacker with a password still has
+      // to beat MFA or bring a managed device. MFA OR app protection is the
+      // real downgrade — app protection is met on any phone with the app, no
+      // second factor at all.
+      const ids = new Set(controls);
+      const deviceOrMfa = ids.has("mfa") && [...ids].every((c) => c === "mfa" || EQUIV_GROUP[c] === "device-trust");
+      if (deviceOrMfa) {
+        F(out, "low", "Swiss Cheese Model", 'Grant "OR" between MFA and a managed device — Microsoft template, by design', p,
+          `Requires ${labels.join(" OR ")}. A sign-in passes with MFA, or from a managed device without an MFA prompt. That is Microsoft's own template: a stolen password alone meets neither. It is a choice, not a hole — if your standard is MFA on managed devices too, it does not meet it.`,
+          'No change needed if managed devices without MFA are acceptable to you. If they are not: set "For multiple controls" to "Require all the selected controls" — every user on an unmanaged device is then blocked, so pilot it report-only first.');
+        return;
+      }
+      const soft = controls.filter((c) => EQUIV_GROUP[c] === "app-protection" || c === "passwordChange");
+      F(out, soft.length && ids.has("mfa") && !ids.has("termsOfUse") ? "medium" : "high", "Swiss Cheese Model", 'Grant "OR" lets a sign-in skip MFA', p,
+        `Requires ${labels.join(" OR ")}. With OR, meeting any ONE of them is enough — ${ids.has("termsOfUse") ? "accepting the terms of use is a click, not a second factor, so a stolen password plus that click gets in without MFA" : soft.length ? `${soft.map((c) => CONTROL_LABEL[c] || c).join(" / ")} can be met without a second factor, so a stolen password plus the right app gets in without MFA` : "the easiest of them decides what an attacker has to beat"}.`,
+        'Where: this policy\'s grant. Change: "For multiple controls" → "Require all the selected controls", or move the MFA requirement to its own policy so it is never an alternative. Why: MFA should be required on its own, not offered as one of several ways in.');
     })();
 
     // Swiss cheese: policy with grant controls but no MFA baseline
@@ -503,7 +654,7 @@ const GapCheck = (() => {
       if (grants(p).every((c) => c in EQUIV_GROUP)) return; // pure device-trust/app-protection layer is fine
       F(out, "medium", "Swiss Cheese Model", "Policy grants access without requiring MFA", p,
         `Grants access with: ${grants(p).map((c) => CONTROL_LABEL[c] || c).join(", ")} — but no MFA. Per the Swiss cheese model, MFA should be the baseline layer under everything else.`,
-        "Add MFA (or an authentication strength) as a grant control, or ensure a separate All-Users MFA baseline policy covers these users.");
+        "Check first whether an MFA policy on All resources already reaches these same users — if it does, there is nothing to change, because every applicable policy must be satisfied. If none does: add Require multifactor authentication to this policy's grant (with Require all the selected controls). Why: MFA should sit under every other control, not beside it.");
     })();
 
     // Legacy auth targeted but not blocked — correlated with the tenant's
@@ -528,19 +679,26 @@ const GapCheck = (() => {
       }
     }
 
-    // Guest authentication strength
+    // Guest authentication strength. 25469: this used to fire on EVERY guest
+    // MFA policy ("verify cross-tenant trust", medium) — but a B2B guest who
+    // is not trusted simply registers MFA in your tenant, which is Microsoft's
+    // documented default, not a problem. What IS a problem is a strength whose
+    // every allowed combination needs a method a guest can only complete at
+    // home. The MS Learn tab carries the full guest analysis (trust read from
+    // the tenant, the matrix, the fixes); this is the one-line version.
     (function checkGuestStrength() {
-      if (!targetsGuests(p) || !hasMfa(p)) return;
-      const strength = G(p).authenticationStrength;
-      const pr = strength != null && usesPhishingResistant(p, ctx.strengths);
-      const what = pr ? `phishing-resistant MFA (auth strength "${strength.displayName || strength.id}")`
-        : strength ? `authentication strength "${strength.displayName || strength.id}"` : "MFA";
-      F(out, pr ? "high" : "medium", "Guest Authentication Strength",
-        pr ? "Guests must satisfy phishing-resistant MFA — high blocking risk" : `Guests must satisfy ${strength ? "an authentication strength" : "MFA"} — verify cross-tenant trust`, p,
-        `This policy requires ${what} for guest/external users. Guests authenticate in their HOME tenant — to satisfy this requirement you must trust inbound MFA claims via Cross-Tenant Access Settings, and the guest's home tenant must support the required methods.` +
-        (pr ? " Very few tenants have phishing-resistant methods (FIDO2, Windows Hello for Business, certificates) deployed, so most guests will be unable to comply and will be blocked." : " Without inbound MFA trust configured, guests are blocked (or forced to register MFA in your tenant)."),
-        "Entra admin center → External Identities → Cross-tenant access settings → Inbound → Trust settings: enable 'Trust multi-factor authentication from Entra tenants' (default or per-organization). " +
-        (pr ? "Consider a separate guest policy accepting standard Entra MFA, and scope phishing-resistant requirements to internal users or specific partners that support it." : "Test with a guest from a partner tenant in report-only mode before enforcing."));
+      if (!targetsGuests(p)) return;
+      const ref = G(p).authenticationStrength;
+      if (!ref?.id) return;
+      const asp = ctx.strengths?.get(ref.id);
+      const combos = asp?.allowedCombinations || [];
+      if (!combos.length) return;
+      const HOME = ["fido2", "windowshelloforbusiness", "x509certificatesinglefactor", "x509certificatemultifactor", "devicebasedpush", "hardwareoath"];
+      const homeOnly = (c) => String(c).split(",").some((m) => HOME.includes(m.trim().toLowerCase()));
+      if (combos.some((c) => !homeOnly(c))) return;
+      F(out, "high", "Guest Authentication Strength", "Guests cannot complete this authentication strength in your tenant", p,
+        `This policy requires the strength "${asp.displayName || ref.displayName || ref.id}" of guests, and every combination it allows needs a method a guest can only complete in their HOME tenant (passkey / FIDO2, Windows Hello, certificate, Authenticator phone sign-in, hardware token). In your tenant a guest can only register SMS, voice, Authenticator push or a software token — none of which this strength accepts. Unless you trust MFA from their tenant AND their tenant has deployed one of these methods, they are blocked.`,
+        "Exclude: the guest and external user types from this policy. Create: a guest MFA policy with Require multifactor authentication (or the Multifactor authentication strength). Or, for specific partners who have deployed passkeys: trust their MFA claims in cross-tenant access settings. The 📘 MS Learn tab shows which guest types this reaches and whether trust is on.");
     })();
 
     // Named-location hygiene (data: ctx.namedLocations)
@@ -721,7 +879,12 @@ const GapCheck = (() => {
       "require-compliant-device": (p) => hasCompliance(p),
       "sign-in-risk": (p) => (p.conditions?.signInRiskLevels || []).length > 0 || !!p.conditions?.agentIdRiskLevels,
       "user-risk": (p) => (p.conditions?.userRiskLevels || []).length > 0,
-      "session-sif": (p) => !!(S(p).signInFrequency?.isEnabled || S(p).persistentBrowser?.isEnabled),
+      // 25473: the column says Sign-in frequency, so only sign-in frequency
+      // fills it. "Never persistent browser" used to count too — an admin
+      // persona with only that session control read as having a session
+      // lifetime it does not have. (Admin roles are already bucketed into
+      // this persona structurally, so the matrix is where this gap is told.)
+      "session-sif": (p) => !!S(p).signInFrequency?.isEnabled,
       "block-legacy-auth": (p) => targetsLegacy(p) && hasBlock(p),
       "block-countries": (p) => hasLoc(p) && hasBlock(p),
       "block-non-corp-network": (p) => {
@@ -771,7 +934,7 @@ const GapCheck = (() => {
         if (status === "missing") {
           F(out, severityForGap(id, cid), "Persona Coverage", `${persona}: missing ${clabel}`, null,
             `No enabled policy in the ${persona} persona implements "${clabel}". Personas are matched on policy naming conventions (Claus Jespersen's Zero Trust framework, CA-number blocks) plus structural signals (All-users, roles, guests).`,
-            "Add this control to an existing policy for this persona or deploy a dedicated one. Community baselines to compare against: Kenneth van Surksum, Joey Verlinden, Limon-IT.");
+            (cid === "session-sif" ? "Where: the MFA policy of this persona, or a session policy for the same users. Change: Session → Sign-in frequency → 4 hours (Every time for the admin portals), with Persistent browser session → Never persistent. Why: a short session limits what a stolen token is worth; CIS asks 4 hours or less for admins. " : "Where: the policies of this persona (the CA-number range). Change: add the missing control to the persona's existing policy, or create one for it — the 🧬 Baseline tool shows the catalog policy that provides it. If the persona is covered by a tenant-wide policy under another number, this cell can be read as covered."));
         } else if (status === "off") {
           F(out, "low", "Persona Coverage", `${persona}: ${clabel} deployed but Off`, null,
             `The ${persona} persona has ${offHit.length} policy(ies) implementing "${clabel}", but every one of them is in the Off (disabled) state, so the control is deployed yet not enforcing: ${offHit.slice(0, 5).map((p) => p.displayName).join(", ")}${offHit.length > 5 ? ` and ${offHit.length - 5} more` : ""}.`,
@@ -812,7 +975,7 @@ const GapCheck = (() => {
     // most closely related to — clicking the signal in the scorecard filters
     // the findings list to these. Empty = nothing to drill into.
     const verify = [
-      ["MFA or block on enabled user policies", 3, mfaPct, ["MFA Coverage", "Client App Coverage"]],
+      ["MFA or block on enabled user policies", 3, mfaPct, ["MFA Coverage", "Client App Coverage", "Security Info Registration"]],
       ["Phishing-resistant strength in use", 2, anyPR ? 100 : 0, ["MFA Coverage", "Guest Authentication Strength"]],
       ["Compliant/hybrid device required somewhere", 2, anyCompliant ? 100 : 0, ["Device Registration Bypass", "Persona Coverage"]],
       ["Risk signals used as conditions", 2, anyRisk ? 100 : 0, ["Risk-Based Access"]],
@@ -826,7 +989,7 @@ const GapCheck = (() => {
       ? active.reduce((n, p) => n + (U(p).excludeUsers || []).length + (U(p).excludeGroups || []).length, 0) / active.length : 0;
 
     const least = [
-      ["No privileged/bypass exclusions flagged", 3, cap(100 - roleExcl * 25), ["Known CA Bypass Apps", "FOCI Token Sharing", "Resource Exclusion Bypass"]],
+      ["No privileged/bypass exclusions flagged", 3, cap(100 - roleExcl * 25), ["Known CA Bypass Apps", "FOCI Token Sharing", "Resource Exclusion Bypass", "Group Hygiene", "Allow-List Block"]],
       ["Guests covered by MFA or block", 2, guestCovered ? 100 : 0, ["Guest Authentication Strength", "Persona Coverage"]],
       ["Step-up (authentication context) in use", 1, stepUp ? 100 : 0, ["Protected Actions"]],
       ["Exclusion volume per policy", 2, cap(100 - Math.max(0, avgExc - 2) * 20), ["Swiss Cheese Model", "Break-Glass Coverage"]],
@@ -850,9 +1013,9 @@ const GapCheck = (() => {
     const assume = [
       ["Break-glass identified and excluded everywhere", 3, bgOk ? 100 : bgMissing ? 0 : 50, ["Break-Glass Coverage"]],
       ["Legacy authentication blocked", 3, legacyFull ? 100 : legacyEnabled ? 70 : legacyRO ? 50 : 0, ["Legacy Authentication"]],
-      ["Sign-in frequency in use", 1, anySif ? 100 : 0, []],
+      ["Sign-in frequency in use", 1, anySif ? 100 : 0, ["Persona Coverage"]],
       ["Resilience defaults intact", 1, resilienceOk ? 100 : 0, ["Resilience Defaults"]],
-      ["Block policies deployed", 1, anyBlock ? 100 : 0, ["Platform Bypass", "Legacy Authentication", "Named Locations"]],
+      ["Block policies deployed", 1, anyBlock ? 100 : 0, ["Platform Bypass", "Legacy Authentication", "Named Locations", "Authentication Flows"]],
     ];
 
     const pillar = (label, icon, signals) => {
@@ -978,7 +1141,8 @@ const GapCheck = (() => {
     }
     return [...cats.entries()].map(([cat, items]) => {
       const cards = items.map((f, i) => {
-        const uid = `${cat}:${i}:${f.title}`;
+        // stable across filters: an index shifts when the list is filtered
+        const uid = `${cat}:${f.policyId || "tenant"}:${f.title}`;
         const open = expanded.has(uid);
         return `<div class="list-card ml-card">
           <button class="ml-head ${open ? "open" : ""}" data-gctoggle="${esc(uid)}">

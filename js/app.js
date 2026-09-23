@@ -62,9 +62,17 @@
   let selected = new Set();
   let collapsedGroups = new Set();  // collapsed persona sections in cards view
   let stateFilter = "all", query = "", viewMode = "list", fmt = "png";
+  // T01 persona filter (25431). The CA-range personas currently ticked, by
+  // Render.caGroup key (0, 100, … and 99999 for the unnumbered). Empty means
+  // no persona filter at all, which is what "All personas" clears back to.
+  // A SET, not a single value: "Admins and E-Admins" is a real question, and
+  // the chips show which are on.
+  const personaFilter = new Set();
+  let idFilter = null;   // a Set of policy ids carried in from the Overview (25423), or null
   let currentExport = [];
   let isDemo = false;
   let anReport = null, anFilter = "all", anQuery = "";   // impact analysis state
+  let anCohortOpen = null;   // which cohort row is expanded (beta 25413)
   // Coverage flow (T03): the computed funnel, and whether the licence half
   // was read at all. Held separately from anReport because "not read" is a
   // finding in its own right and must not be inferred from empty rows.
@@ -118,6 +126,18 @@
     const gus = document.querySelector("section.screen.active .gu-sticky");
     document.documentElement.style.setProperty("--gu-strip",
       (gus ? Math.round(gus.getBoundingClientRect().height) : 0) + "px");
+    // And the other end of the page. A list/detail pane is capped at the
+    // screen's height (build 25408) so it can scroll on its own — but a
+    // sticky box cannot hold its offset past the bottom of its own box, so
+    // whatever the page can still scroll AFTER the panes have pinned drags
+    // them up under the toolbar. The footer is the whole of that remainder
+    // once main's bottom padding is taken off these screens, so the pane
+    // height reserves it and the page runs out of scroll exactly as the
+    // panes arrive. Measured because the footer wraps to two and three rows
+    // on a narrow window, which is where the drift was worst.
+    const ft = document.querySelector("footer");
+    document.documentElement.style.setProperty("--ld-foot",
+      (ft ? Math.round(ft.getBoundingClientRect().height) : 48) + "px");
   }
   const stickyNavTop = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sticky-nav")) || 106;
   window.addEventListener("resize", syncStickyTops);
@@ -158,7 +178,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
-    "screen-rollout", "screen-locations", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-help"]);
+    "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -187,6 +207,7 @@
     } catch { /* counting is best-effort */ }
   }
   function show(id) {
+    if (id === "screen-home") { try { renderOverview(); } catch (e) { console.warn("overview:", e); } }
     const transition = shownScreen === id ? screenTransition : ++screenTransition;
     const tabTop = tabViewportTop;
     if (shownScreen && shownScreen !== id) screenScroll[shownScreen] = window.scrollY;
@@ -271,6 +292,8 @@
                         open: () => openAuthStr() },
     toolAuthCtx:      { into: "toolLocations", label: "🎫 Authentication contexts",    where: "the Contexts tab",           build: 25341,
                         open: () => openAuthCtx() },
+    toolBuilder:      { into: "toolLocations", label: "🏗 Policy builder",             where: "the Builder tab",            build: 25437,
+                        open: () => openBuilder() },
     toolTou:          { into: "toolLocations", label: "📜 Terms of use",               where: "the Terms of use tab",       build: 25341,
                         open: () => openTou() },
     toolRecycle:      { into: "toolLocations", label: "♻ Recycle bin",                where: "the Deleted tab",            build: 25341,
@@ -417,6 +440,11 @@
     blocks: {
       tile: "toolLocations", label: "🧩 Policy building blocks",
       tabs: [
+        // 🏗 first (25452, Mihai: "builder should be first"): the policy the
+        // other five tabs are blocks OF. The tile still lands on Locations —
+        // the deep links from the roadmap and the Help mean the named
+        // locations — and the strip remembers the last tab opened.
+        { key: "builder",   icon: "🏗", name: "Builder",     toolbar: "pbToolbar", open: () => openBuilder(), beta: true },
         { key: "locations", icon: "🌐", name: "Locations",   toolbar: "loToolbar", open: () => openLocations() },
         { key: "strengths", icon: "💪", name: "Strengths",   toolbar: "asToolbar", open: () => openAuthStr() },
         { key: "contexts",  icon: "🎫", name: "Contexts",    toolbar: "acToolbar", open: () => openAuthCtx() },
@@ -665,6 +693,8 @@
       if (B.logoWide) { el.style.height = id === "brandLogo" ? "34px" : "56px"; el.style.width = "auto"; }
       else { el.style.height = ""; el.style.width = ""; }
     }));
+    // The sign-in medallion (css/app.css) is for a round mark; a wordmark keeps the flat look.
+    document.documentElement.classList.toggle("brand-wide-logo", !!B.logoWide);
     // Dark mode swaps the DEFAULT logo via a CSS content: rule; flag the root
     // when an override is active so that rule stands down (see app.css).
     const oBrand = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
@@ -836,6 +866,14 @@
   // The client ID is shown in full. Truncating an identifier somebody is meant
   // to check against their own tenant makes it un-checkable, which is worse
   // than not showing it: it looks like verification without being any.
+  // 🪪 the onboarding route (R59) is NOT gated here any more (25455). It used
+  // to be hidden on the publisher's own host, which was a hostname answering a
+  // question about the AUTHORITY: the hosted site's shared registration is the
+  // one that CAN carry the wizard, and the beta host's single-tenant one is the
+  // one that cannot — so the test hid it exactly where it worked and showed it
+  // where it could not. paintRoute() in js/connection.js decides, from the
+  // registration actually in use, and the route now sits inside the ⚙ panel
+  // rather than as a line of its own on the card.
   (function markSelfHostedLogin() {
     try {
       if (deploymentKind() !== "selfhosted") return;
@@ -1559,17 +1597,61 @@
           ? ' <span class="tag block" title="This entry contains a formatting tag. js/changelog.js is plain text — the renderer escapes it, so the tag will show as angle brackets. Remove it and carry the emphasis in the words.">markup — will render literally</span>' : ""}</span></li>`).join("");
   }
   function clRelease(rel) {
-    return `<div class="cl-rel">
+    return `<div class="cl-rel${rel.release ? " cl-major" : ""}">
       <div class="cl-h"><b>${esc(rel.title)}</b>
-        <span class="mini muted">build ${rel.build} · ${esc(rel.date)}</span></div>
+        <span class="mini muted">${rel.release ? `v${esc(rel.release)} · ` : ""}build ${rel.build} · ${esc(rel.date)}</span></div>
+      ${rel.intro ? `<p class="mini cl-intro">${esc(rel.intro)}</p>` : ""}
       <ul class="cl-list">${clEntries(rel)}</ul>
     </div>`;
+  }
+  // ---- major versions: the current one open, every older one archived ----
+  //
+  // ENCA 2.0 (production 322) put a line under the 1.x history: 190-odd
+  // releases of per-build notes are the record, not the news. CHANGELOG_MAJORS
+  // in js/changelog.js names where each major version STARTS, once per channel
+  // series (a production integer and a beta five-digit build, because the two
+  // numberings are never compared with each other — see CL_BETA_SERIES). A
+  // release older than every listed start is "1.x".
+  //
+  // The page shows the current major's releases as before and folds each older
+  // major into one closed <details> — kept, searchable, one click away. The
+  // overlay after sign-in shows the current major only: someone last here on
+  // 1.0.320 is told about 2.0, not handed the tail of the 1.x log as well.
+  const clMajors = () => (typeof CHANGELOG_MAJORS === "undefined" ? [] : CHANGELOG_MAJORS)
+    .slice().sort((a, b) => (CL_BETA_SERIES ? b.beta - a.beta : b.production - a.production));
+  function clMajorOf(rel) {
+    for (const m of clMajors()) {
+      const from = CL_BETA_SERIES ? m.beta : m.production;
+      if (from && rel.build >= from) return m.version;
+    }
+    return "1.x";
+  }
+  function clCurrentMajor() {
+    const vis = clVisible();
+    return vis.length ? clMajorOf(vis[0]) : "1.x";
   }
   function openChangelog() {
     crumb("📋 What's new");
     show("screen-changelog");
-    $("clBody").innerHTML = clVisible().map(clRelease).join("")
-      || '<p class="mini">No changelog entries yet.</p>';
+    const vis = clVisible();
+    const cur = clCurrentMajor();
+    const byMajor = new Map();
+    for (const r of vis) {
+      const m = clMajorOf(r);
+      if (!byMajor.has(m)) byMajor.set(m, []);
+      byMajor.get(m).push(r);
+    }
+    const parts = [];
+    for (const [m, rels] of byMajor) {
+      if (m === cur) { parts.push(rels.map(clRelease).join("")); continue; }
+      const lo = rels[rels.length - 1], hi = rels[0];
+      parts.push(`<details class="cl-archive">
+        <summary><b>📦 Archive — version ${esc(m)}</b>
+          <span class="mini muted">${rels.length} release${rels.length === 1 ? "" : "s"} · build ${lo.build} → ${hi.build} · ${esc(lo.date)} → ${esc(hi.date)}</span></summary>
+        <div class="cl-archive-body">${rels.map(clRelease).join("")}</div>
+      </details>`);
+    }
+    $("clBody").innerHTML = parts.join("") || '<p class="mini">No changelog entries yet.</p>';
     clMarkSeen();
   }
   $("toolChangelog").addEventListener("click", openChangelog);
@@ -1620,12 +1702,16 @@
     // newest release, not the entire history.
     const vis = clVisible();
     if (!vis.length) return;
-    const fresh = seen ? vis.filter((r) => r.build > seen) : [];
+    // Only the current major version: an older major's releases live in the
+    // page's archive fold, and a returning 1.x visitor is told about 2.0.
+    const cur = clCurrentMajor();
+    const fresh = seen ? vis.filter((r) => r.build > seen && clMajorOf(r) === cur) : [];
     const rels = fresh.length ? fresh : [vis[0]];
     const n = rels.reduce((s, r) => s + r.items.length, 0);
     $("newSub").innerHTML = seen
       ? `${n} change${n === 1 ? "" : "s"} since you were last here (build ${seen} → ${CHANGELOG_LATEST}).`
-      : `Here's what the toolset can do as of build ${CHANGELOG_LATEST}.`;
+      : `Here's what the toolset can do as of ${APP_BUILD.label}.`;
+    if (cur !== "1.x") $("newTitle").textContent = `✨ What's new in ${BRANDING.name || "ENCA"} ${cur}`;
     $("newBody").innerHTML = rels.map(clRelease).join("");
     $("newModal").classList.add("open");
   }
@@ -1637,6 +1723,15 @@
   // ---------- Help (a full tool: own screen + tab) ----------
   // Table of contents is built once from the section headings so it can never
   // drift from the sections themselves.
+  // A heading's contents label is its text WITHOUT its chips: the BETA / NEW /
+  // writes-to-tenant tags and the grey help-fold note ("folded into this tool
+  // — build …", "the first tab — T41"). Removing the elements rather than
+  // matching their wording means a new fold note can never leak into the list.
+  function helpTocLabel(h) {
+    const c = h.cloneNode(true);
+    c.querySelectorAll(".tag, .help-fold").forEach((x) => x.remove());
+    return esc(c.textContent.replace(/\s+/g, " ").trim());
+  }
   let helpTocBuilt = false;
   function buildHelpToc() {
     if (helpTocBuilt) return;
@@ -1653,7 +1748,7 @@
     const secs = [...document.querySelectorAll("#screen-help .help-sec > h4, #screen-help .help-sec > h5")]
       .filter((h) => !h.closest("#helpPromote"));
     secs.forEach((h, i) => { h.id = h.id || `help-sec-${i}`; });
-    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}"${h.tagName === "H5" ? ' class="sub"' : ""}>${h.textContent.replace(/\s+(BETA|NEW|writes to tenant|folded into this tool — build \d+)\b/gi, "").trim()}</a>`).join("");
+    $("helpToc").innerHTML = secs.map((h) => `<a href="#${h.id}"${h.tagName === "H5" ? ' class="sub"' : ""}>${helpTocLabel(h)}</a>`).join("");
     // Scroll-spy: highlight the chip for the section currently in view, and keep
     // that chip scrolled into view within the sticky ToC so it stays reachable.
     const links = new Map([...$("helpToc").querySelectorAll("a")].map((a) => [a.getAttribute("href").slice(1), a]));
@@ -1674,6 +1769,7 @@
     show("screen-help");
   }
   $("toolHelp").addEventListener("click", openHelp);
+  $("toolPermissions").addEventListener("click", () => { crumb("🔑 Permissions in this session"); show("screen-permissions"); renderPermissions(); });
   // ToC links scroll to the section without leaving a #hash in the address bar
   $("helpToc").addEventListener("click", (e) => {
     const a = e.target.closest("a"); if (!a) return;
@@ -1705,18 +1801,52 @@
     try { label = Render.caGroup(p.name).label || ""; } catch { /* unnumbered */ }
     return `${p.name} ${label}`.toLowerCase();
   }
+  // the pool every view draws from: all policies, or the ones a finding named
+  function policyPool() {
+    if (!idFilter) return policies;
+    const pool = policies.filter((p) => idFilter.has(p.id));
+    if (!pool.length) idFilter = null;   // the ids are from another snapshot — drop the filter rather than show nothing
+    return idFilter ? pool : policies;
+  }
+  const personaKey = (p) => { try { return String(Render.caGroup(p.name).key); } catch { return "99999"; } };
+  const personaMatch = (p) => !personaFilter.size || personaFilter.has(personaKey(p));
   function visible() {
-    return policies.filter(p => (stateFilter === "all" || p.state === stateFilter)
+    return policyPool().filter(p => (stateFilter === "all" || p.state === stateFilter)
+      && personaMatch(p)
       && (!query || policyHaystack(p).includes(query)));
+  }
+  // What the persona chips count: everything the OTHER filters leave, so a
+  // chip says how many you would get by ticking it — not how many exist in
+  // the tenant, which would promise rows the state filter has already removed.
+  function personaPool() {
+    return policyPool().filter(p => (stateFilter === "all" || p.state === stateFilter)
+      && (!query || policyHaystack(p).includes(query)));
+  }
+  // The chips themselves are Render.personaChips — pure, like the state chips,
+  // and tested in tools/persona-filter.test.cjs. Here we only mount them and
+  // decide whether the bar exists at all.
+  function renderPersonaChips() {
+    const bar = $("personaFilter"); if (!bar) return;
+    const html = Render.personaChips(personaPool(), personaFilter);
+    if (!html) { bar.dataset.has = "0"; bar.style.display = "none"; personaFilter.clear(); return; }
+    bar.dataset.has = "1";
+    if (viewMode !== "analyze") bar.style.display = "";
+    $("personaChips").innerHTML = html;
   }
 
   // ---------- views ----------
   function refreshViews() {
+    const pool = policyPool();
     const vis = visible();
-    $("stateChips").innerHTML = Render.stateChips(policies, stateFilter);
+    $("stateChips").innerHTML = Render.stateChips(pool, stateFilter)
+      + (idFilter ? `<button class="fchip active" data-idclear title="Policies named by the Overview finding you came from">From the Overview: ${pool.length} polic${pool.length === 1 ? "y" : "ies"} ✕</button>` : "");
+    renderPersonaChips();
     $("cardsView").innerHTML = Render.groupedCards(vis, selected, collapsedGroups)
       || '<p class="mini" style="padding:20px">No policies match the current filter.</p>';
-    document.querySelector("#ptable tbody").innerHTML = Render.listRows(policies, selected, stateFilter, query, collapsedGroups);
+    // listRows re-applies state + search to the POOL itself, so it has to be
+    // handed an already-persona-filtered pool or the List view would quietly
+    // ignore the chips while Cards and Matrix honoured them.
+    document.querySelector("#ptable tbody").innerHTML = Render.listRows(pool.filter(personaMatch), selected, stateFilter, query, collapsedGroups);
     $("mtable").innerHTML = Render.matrix(vis.length ? vis : policies);
     // group checkboxes: indeterminate when only part of the group is selected
     document.querySelectorAll("[data-gsel]").forEach(cb => {
@@ -1772,6 +1902,8 @@
     const pSearch = document.querySelector("#screen-list .toolbar .search");
     if (pSearch) pSearch.style.display = isAn ? "none" : "";
     $("stateChips").style.display = isAn ? "none" : "";
+    const pBar = $("personaFilter");
+    if (pBar) pBar.style.display = isAn || pBar.dataset.has !== "1" ? "none" : "";
     $("selAllWrap").style.display = isAn ? "none" : "";
     // The view picker belongs to the policy views, not to this one. Left up it
     // switches AWAY from Gap analyse with nothing highlighted, which reads as a
@@ -1822,6 +1954,7 @@
     // Assign groups stays available with an empty selection: its first step can
     // scope to the whole tenant, which is the point of a blanket exclusion.
     $("selActAssign").disabled = policies.length === 0;
+    $("selActBuild").disabled = policies.length === 0;
     $("selActState").disabled = n === 0;
     $("selActDelete").disabled = n === 0;
     $("selLead").innerHTML = n
@@ -1832,6 +1965,19 @@
       : n === 1
         ? "One policy exports as PNG, multiple as a combined PDF"
         : "Multiple selected — will export as a combined PDF";
+    // Name what Clear would actually take away, so it is never a mystery
+    // button — and grey it out when the view is already everything.
+    const clear = $("clearSelBtn");
+    if (clear) {
+      const parts = [];
+      if (n) parts.push(`the selection (${n})`);
+      if (idFilter) parts.push("the Overview filter");
+      if (personaFilter.size) parts.push(personaFilter.size === 1 ? "the persona filter" : `${personaFilter.size} persona filters`);
+      if (query) parts.push("the search");
+      if (stateFilter !== "all") parts.push(`the ${stateFilter === "on" ? "On" : stateFilter === "report" ? "Report-only" : "Off"} filter`);
+      clear.disabled = !parts.length;
+      clear.title = parts.length ? `Clear ${parts.join(", ")}` : "Nothing to clear — every policy is in view";
+    }
   }
   // #10: warn when directory lookups partially failed and raw GUIDs remain
   function warnUnresolved() {
@@ -1845,24 +1991,41 @@
   }
 
   function showDetail(id, full = false) {
+    if (cardEdit && cardEdit.id !== id) endCardEdit(false);
+    if (cardEdit && cardEdit.id === id && !$("detailModal").classList.contains("open")) endCardEdit(false);
     if (!full && viewMode === "list" && $("screen-list").classList.contains("active")) { Workspace.inspect(id); return; }
     const p = policies.find(x => x.id === id); if (!p) return;
     // The what-if flow is opt-in (a button under the card) so the detail stays
     // compact until you actually want to trace what the policy does.
-    $("detailBody").innerHTML = Render.card(p, tenantName)
+    $("detailBody").innerHTML = `<div class="wc-detail-top"><span class="wc-eyebrow">Policy details</span><button type="button" class="btn sm" data-detail-close aria-label="Close policy details">Close</button></div>`
+      + Render.card(p, tenantName)
+      + `<details class="wc-policy-definition"><summary>Original definition</summary><pre>${esc(JSON.stringify(p.raw,null,2))}</pre></details>`
       + `<div class="pcard-actions">
+           <!-- ✎ Edit led the top strip until 25456, beside Close, while every
+                other verb on this card was down here — so it read as chrome and
+                was missed (Mihai: "the edit button was all the way on top,
+                that's why I missed it"). It is the card's own write verb, so it
+                belongs at the head of the card's own actions, and it is marked
+                primary because on a policy card editing is the thing you came
+                to do. -->
+           <button class="btn primary" data-cedit="edit" title="Edit this policy in place — every box becomes a form, a bar counts what changes, Save writes only the changed sections (R17)">✎ Edit this policy</button>
+           <span class="pa-sep"></span>
            <button class="btn" data-wf="${p.id}">⑃ What-if flow</button>
            <span class="pa-sep"></span>
            <button class="btn" data-pact="document">📄 Documentation</button>
            <button class="btn" data-pact="backup">🗄 Backup</button>
            <button class="btn" data-pact="assign">👥 Assign groups or roles</button>
            <button class="btn" data-pact="state">🎚 Policy state</button>
+           <span class="pa-sep"></span>
+           <button class="btn" data-pbdetail="clone" title="A new policy from this one, with the next free number in its range, in report-only — the 🏗 Policy builder">⧉ Clone in builder</button>
          </div>
          <div class="wf-panel" id="wfPanel" style="display:none"></div>`;
     detailPolicyId = p.id;
     $("detailModal").classList.add("open");
   }
   let detailPolicyId = null;
+  // closing the card ends an edit on it (the builder's own draft comes back)
+  function closeDetail() { $("detailModal").classList.remove("open"); if (typeof cardEdit !== "undefined" && cardEdit) endCardEdit(false); }
 
   // Persona apply flow — a popout of what CA does to a sign-in for this persona,
   // including the Global policies that apply to everyone.
@@ -1887,6 +2050,19 @@
       else { panel.style.display = "none"; b.textContent = "⑃ What-if flow"; }
       return;
     }
+    // ✎ edit in place (25448) — the card's own verbs
+    const ce = e.target.closest("[data-cedit]");
+    if (ce) {
+      const k = ce.dataset.cedit;
+      if (k === "edit") { startCardEdit(); return; }
+      if (!cardEdit) return;
+      if (k === "cancel") { if (cardDiffRows().length && !confirm("Discard the changes on this card? Nothing was written.")) return; endCardEdit(); return; }
+      if (k === "save") { pbWrite(); return; }
+      if (k === "diff" || k === "preflight") { cardEdit.view = cardEdit.view === k ? "" : k; cardEditBar(); return; }
+    }
+    // ⧉ the builder, from the card (25445): a new policy from this one
+    const pb = e.target.closest("[data-pbdetail]");
+    if (pb && detailPolicyId) { closeDetail(); openBuilder({ from: detailPolicyId, as: "clone" }); return; }
     // Per-policy action: act on just this policy. Set the selection to it, close
     // the detail, and run the same tool the selection bar would.
     const act = e.target.closest("[data-pact]");
@@ -1894,7 +2070,7 @@
       const mode = act.dataset.pact;
       selected = new Set([detailPolicyId]);
       refreshViews();
-      $("detailModal").classList.remove("open");
+      closeDetail();
       setToolMode(mode);
       runToolMode(mode);
     }
@@ -2125,10 +2301,11 @@
     // dropped you into 🗂 List Policies. Remember where the read was pressed
     // and go back there; T12 re-scans, because its rows carry the policies.
     const from = isRefresh && HISTORY_SCREENS.has(shownScreen) ? shownScreen : null;
+    ovLoading = true; ovReadError = null;
     show("screen-loading");
     let phase = "loading the Conditional Access policies from your tenant";
     try {
-      const { policies: raw, org, logo, resolve, account } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
+      const { policies: raw, org, logo, resolve, account, context, names } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
@@ -2149,8 +2326,10 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
-      $("anResults").style.display = "none"; $("anStatus").textContent = "";
+      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined;
+      signinContext = { tenantId: account?.tenantId || "", at: Date.now(), demo: false, names: names || {}, ...(context || {}) };
+      // Results belong to the snapshot they were computed from.
+      invalidateToolResults("policies reloaded");
       raw.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
       policyResolve = resolve;
       policies = raw.map((r, i) => buildViewModel(r, resolve, i));
@@ -2174,8 +2353,16 @@
       showSideNav();
       selected = new Set();
       policiesReadAt = Date.now();
+      noteSnapshot();
+      // the one Overview paint for this snapshot — after the identity and the
+      // read time are settled, so the paint is computed from them (25422)
+      ovLoading = false;
+      try { renderOverview(); } catch (e) { console.warn("overview:", e); }
       refreshViews();
       renderPermissions();
+      // 🪪 own registration (R59): the band, the menu row, and the wizard when
+      // the sign-in card asked for it — after the identity is settled
+      try { Onboard.afterSignIn({ tenantId, tenantName, demo: false, account: Graph.account }); } catch (e) { console.warn("onboard:", e); }
       // The read is async: if another tool was opened while it ran (shownScreen
       // is no longer the loading screen), stay there — a refresh must never
       // pull you back to the tool that asked for it. T12 still re-scans, quietly.
@@ -2186,10 +2373,14 @@
         ? `Refreshed from Entra — <span>${policies.length}</span> Conditional Access policies`
         : `Signed in to <span>${esc(tenantName)}</span> — ${policies.length} Conditional Access policies loaded`);
       warnUnresolved();
-      if (!isRefresh) maybeShowWhatsNew();   // after sign-in, never over the login screen
+      // after sign-in, never over the login screen — and never over the 🪪
+      // wizard the sign-in card asked for: it shows when that closes (25439)
+      if (!isRefresh && !Onboard.pending()) maybeShowWhatsNew();
       return true;
     } catch (e) {
       console.error("Failed while " + phase + ":", e); // full details for diagnostics
+      ovLoading = false;
+      if (isRefresh && policies.length) ovReadError = { at: Date.now(), message: e.message || String(e) };
       alert(`Something went wrong while ${phase}.\n\nError: ${e.message || e}\n\n` +
         (phase.startsWith("loading")
           ? "If this mentions 401/403: admin consent for this app may not be granted in your tenant yet."
@@ -2200,13 +2391,24 @@
   }
 
   function loadDemo() {
+    ovLoading = true; ovReadError = null;
     tenantName = DEMO_DATA.tenantName;
     // Demo has no domain. Left over from a signed-in session it would keep
     // answering isBaselineTenant(), and the demo would scope its backup to a
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; anReport = null; anCov = null; caSettingsCache = undefined; authMethodsCache = undefined;
+    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined;
+    {
+      const at = Date.now();
+      const strengths = Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
+      signinContext = { tenantId: "", at, demo: true, names: DEMO_DATA.names || {},
+        namedLocations: { items: DEMO_DATA.namedLocations || [], at, ok: true, error: null },
+        authContexts: { items: [], at, ok: true, error: null },
+        authStrengths: { items: strengths, at, ok: true, error: null } };
+    }
+    invalidateToolResults("demo loaded");
+    $("anResults").style.display = "none"; $("anStatus").textContent = "";
     // The demo gets its own drawer for the group → persona mapping, so playing
     // with it here can never land in a real tenant's saved state.
     try { Baseline.use("demo"); } catch {}
@@ -2222,11 +2424,15 @@
     loadLogSource();
     setAccountBox("demo@contoso.onmicrosoft.com", "Demo Mode");
     showSideNav();
+    noteSnapshot();
+    ovLoading = false;
+    try { renderOverview(); } catch (e) { console.warn("overview:", e); }
     refreshViews();
     renderPermissions();
+    try { Onboard.afterSignIn({ tenantId: "", tenantName, demo: true, account: null }); } catch (e) { console.warn("onboard:", e); }
     show("screen-home");
     toast(`Demo mode — <span>${policies.length}</span> sample policies loaded`);
-    maybeShowWhatsNew();
+    if (!Onboard.pending()) maybeShowWhatsNew();
   }
 
   // ---------- permissions overview (home) ----------
@@ -2360,12 +2566,53 @@
     const inScope = ps.filter(isPersonaBaseline);
     return { policies: inScope, baseline: true, skipped: ps.length - inScope.length };
   }
-  function runBackup() {
-    const picked = exportOrder((selected.size ? [...selected] : visible().map(p => p.id)).map(id => policies.find(p => p.id === id)));
+  // pool: ids to consider, defaulting to the Policies screen's selection (or
+  // everything in view). opts.personas turns on the per-persona chooser — the
+  // baseline screen opens it that way, because the baseline is built and taken
+  // one persona at a time. Everything below this is the SAME export: one
+  // implementation, one zip, one dependency read (25463).
+  let bkPersonaPick = null;          // Set of persona keys, or null when off
+  let bkPool = null;                 // the ids the chooser filters
+  function runBackup(pool, opts = {}) {
+    bkPool = pool || null;
+    bkPersonaPick = opts.personas ? new Set(bkPersonaKeys(pool).map((p) => p.key)) : null;
+    $("bkPersonas").style.display = opts.personas ? "" : "none";
+    document.querySelector("#backupModal h3").textContent = opts.personas ? "⬇ Export baseline (JSON)" : "Backup (JSON)";
+    $("bkGo").textContent = opts.personas ? "Download export" : "Download backup";
+    paintBackup();
+  }
+  // The personas actually present in the pool, with their counts — never the
+  // nine in the registry, so a chooser can not offer an empty box.
+  function bkPersonaKeys(pool) {
+    const ids = pool || (selected.size ? [...selected] : visible().map(p => p.id));
+    const ps = backupScope(ids.map(id => policies.find(p => p.id === id)).filter(Boolean)).policies;
+    const out = [];
+    for (const per of Builder.personas(pbCat())) {
+      const n = ps.filter((p) => { const num = Builder.caNum(p.raw.displayName); return num != null && num >= per.lo && num <= per.hi; }).length;
+      if (n) out.push({ ...per, n });
+    }
+    const un = ps.filter((p) => Builder.caNum(p.raw.displayName) == null).length;
+    if (un) out.push({ key: "__none", label: "— no CA number", lo: -1, hi: -1, n: un });
+    return out;
+  }
+  const bkInPersona = (p, keys) => {
+    const num = Builder.caNum(p.raw.displayName);
+    if (num == null) return keys.has("__none");
+    return Builder.personas(pbCat()).some((per) => keys.has(per.key) && num >= per.lo && num <= per.hi);
+  };
+  function paintBackup() {
+    const picked = exportOrder(((bkPool || (selected.size ? [...selected] : visible().map(p => p.id)))).map(id => policies.find(p => p.id === id)).filter(Boolean));
     if (!picked.length) { toast("Nothing to back up"); return; }
     const scope = backupScope(picked);
-    const ps = scope.policies;
-    if (!ps.length) {
+    const ps = bkPersonaPick ? scope.policies.filter((p) => bkInPersona(p, bkPersonaPick)) : scope.policies;
+    // With the persona chooser open this is not an error and must not bail:
+    // unticking every persona is a thing somebody does on the way to picking
+    // one, and an early return here left the panel showing the PREVIOUS
+    // count with Download still live — it would have exported the last set
+    // rather than the empty one. Paint zero and disable the button instead.
+    // Without the chooser the old behaviour stands: the caller chose a set
+    // that holds no baseline policy, and a toast is the right answer.
+    if (!ps.length && !bkPersonaPick) {
       toast(`Baseline tenant — <span>nothing in scope</span>: none of the ${picked.length} selected polic${picked.length === 1 ? "y is" : "ies are"} a persona baseline policy`);
       return;
     }
@@ -2381,6 +2628,12 @@
         + (scope.skipped ? ` and skipping <b>${scope.skipped}</b> of this tenant's own polic${scope.skipped === 1 ? "y" : "ies"}` : "")
         + `. Dependencies are taken from the baseline policies only — nothing this tenant uses for itself is included.`;
     }
+    if (bkPersonaPick) {
+      $("bkPersonaList").innerHTML = bkPersonaKeys(bkPool).map((per) =>
+        `<label class="chk" style="margin:0"><input type="checkbox" data-bkper="${esc(per.key)}"${bkPersonaPick.has(per.key) ? " checked" : ""}> ${esc(per.label)} <span class="mini muted">${per.n}</span></label>`).join("")
+        || '<span class="mini muted">No persona policies in this tenant.</span>';
+      $("bkGo").disabled = !ps.length;
+    } else $("bkGo").disabled = false;
     $("bkDesc").textContent = `${ps.length} ${ps.length === 1 ? "policy" : "policies"} — referencing ${nDeps} dependencies `
       + `(${dep.groups.length} groups, ${dep.authStrengths.length} auth strengths, ${dep.namedLocations.length} named locations, ${dep.authContexts.length} auth contexts, ${dep.termsOfUse.length} terms of use).`;
     $("backupModal").classList.add("open");
@@ -2418,6 +2671,15 @@
   };
   // terms-of-use agreements need Agreement.Read.All — requested on demand
   const DEP_SCOPES = { termsOfUse: [...AUTH_CONFIG.scopes, "Agreement.Read.All"] };
+  // the persona chooser — repaint rather than reopen: the counts, the
+  // dependency line and the disabled state all move together
+  $("bkPersonaList").addEventListener("change", (e) => {
+    const b = e.target.closest("[data-bkper]"); if (!b || !bkPersonaPick) return;
+    if (b.checked) bkPersonaPick.add(b.dataset.bkper); else bkPersonaPick.delete(b.dataset.bkper);
+    paintBackup();
+  });
+  $("bkPersonaAll").addEventListener("click", () => { if (!bkPersonaPick) return; bkPersonaKeys(bkPool).forEach((p) => bkPersonaPick.add(p.key)); paintBackup(); });
+  $("bkPersonaNone").addEventListener("click", () => { if (!bkPersonaPick) return; bkPersonaPick.clear(); paintBackup(); });
   $("bkCancel").addEventListener("click", () => $("backupModal").classList.remove("open"));
   $("bkGo").addEventListener("click", async () => {
     $("backupModal").classList.remove("open");
@@ -2489,6 +2751,7 @@
   // Help is a tool too, but always sits last (after the + in the tab bar).
   TOOL_TABS.push(["toolChangelog", "📋 What's new"]);
   TOOL_TABS.push(["toolRoadmap", "🗺 Roadmap"]);
+  TOOL_TABS.push(["toolPermissions", "🔑 Permissions in this session"]);
   TOOL_TABS.push(["toolHelp", "❓ Help"]);
   // Browser-style tabs: a tab exists only for a tool you have opened. Home shows
   // no tabs; opening a tool (from the grid or the + menu) adds one; the + opens
@@ -2698,7 +2961,7 @@
   // here. Their open functions (openExport, runBackup, openStateModal) are
   // unchanged and still reached from the bar, the per-policy card actions and
   // the deep links other tools use.
-  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "cards" : viewMode); show("screen-list"); unmountToolTabs("gap"); });
+  $("toolPolicies").addEventListener("click", () => { crumb("🗂 Policies"); setToolMode(""); setView(viewMode === "analyze" ? "list" : viewMode); show("screen-list"); unmountToolTabs("gap"); });
   $("toolAnalyze").addEventListener("click", () => { crumb("🔍 Gap analyse"); setToolMode("document"); setView("analyze"); show("screen-list"); mountToolTabs("gap", "coverage"); });
   $("toolGapCheck").addEventListener("click", () => openGapCheck());
   $("toolExclusions").addEventListener("click", () => { crumb("🚪 Exclusion analyzer"); openExclusions(); });
@@ -2772,6 +3035,9 @@
       + ps.map(p => `<li>${Render.stateChip(p.state)} ${esc(p.name)}</li>`).join("") + "</ul>";
     $("delConfirm").value = "";
     $("delBackup").checked = true;
+    // 25488: the dialog starts on the plan again — a previous run's ledger goes
+    $("delPlan").style.display = ""; $("delLedger").innerHTML = "";
+    $("delGo").style.display = ""; $("delCancel").textContent = "Cancel"; $("delCancel").disabled = false;
     syncDelGo();
     $("delModal").classList.add("open");
   }
@@ -2800,24 +3066,45 @@
         return;
       }
     }
-    $("delGo").disabled = true;
-    try {
-      const results = [];
-      for (let i = 0; i < ps.length; i++) {
-        toast(`Deleting ${i + 1}/${ps.length}…`);
-        try {
-          if (!isDemo) await Graph.gdelete(`/identity/conditionalAccess/policies/${ps[i].id}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
-          results.push({ name: ps[i].name, ok: true });
-        } catch (e) { console.error(e); results.push({ name: ps[i].name, ok: false, err: e.message }); }
+    // 25488, Mihai (screenshot of "Deleting 10/20…" as a toast over the
+    // dialog): the same run layout as import, switch-over and the merges —
+    // a ledger row per policy that fills in as it goes, a Stop that halts
+    // before the next delete, a report at the end, and the dialog stays open
+    // on the outcome instead of vanishing behind a toast.
+    $("delGo").disabled = true; $("delGo").style.display = "none";
+    $("delPlan").style.display = "none"; $("delOnWarn").style.display = "none";
+    $("delCancel").disabled = true;
+    const L = RunLedger.create($("delLedger"), { unit: "policies", title: "delete",
+      items: ps.map((p) => ({ label: p.name, sub: p.state === "on" || p.raw?.state === "enabled" ? "On — enforcement stops" : p.state === "report" || p.raw?.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off" })), onStop: () => {} });
+    const results = [];
+    for (let i = 0; i < ps.length; i++) {
+      if (L.stopped) { L.skip(i, "stopped — not deleted"); results.push({ name: ps[i].name, id: ps[i].id, ok: false, stopped: true }); continue; }
+      L.start(i);
+      try {
+        if (!isDemo) await Graph.gdelete(`/identity/conditionalAccess/policies/${ps[i].id}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+        results.push({ name: ps[i].name, id: ps[i].id, ok: true });
+        L.done(i, isDemo ? "deleted (simulated) · in the recycle bin for 30 days" : "deleted · in the recycle bin for 30 days", "deleted");
+      } catch (e) {
+        console.error(e);
+        results.push({ name: ps[i].name, id: ps[i].id, ok: false, err: e.message || String(e) });
+        L.fail(i, e.message || String(e), "refused");
       }
-      $("delModal").classList.remove("open");
-      const failed = results.filter(r => !r.ok);
-      toast(failed.length
-        ? `Deleted <span>${results.length - failed.length}</span>, <span>${failed.length} failed</span> — see console`
-        : `<span>${results.length}</span> ${results.length === 1 ? "policy" : "policies"} deleted${isDemo ? " (simulated)" : ""}`);
-      selected.clear();
-      if (!isDemo && results.some(r => r.ok)) await loadFromGraph(true); else refreshViews();
-    } finally { $("delGo").disabled = false; }
+    }
+    const report = () => {
+      const ok = results.filter((r) => r.ok), bad = results.filter((r) => !r.ok && !r.stopped), stop = results.filter((r) => r.stopped);
+      return [`# Delete report — ${tenantName || "tenant"}`, "", `_${new Date().toISOString()}_`, "",
+        `- **Deleted:** ${ok.length}`, `- **Failed:** ${bad.length}`, ...(stop.length ? [`- **Stopped, not deleted:** ${stop.length}`] : []), "",
+        ...(ok.length ? ["## Deleted", "", ...ok.map((r) => `- ${r.name} — \`${r.id}\``), ""] : []),
+        ...(bad.length ? ["## Failed", "", ...bad.map((r) => `- ${r.name} — ${r.err}`), ""] : []),
+        ...(stop.length ? ["## Not deleted (stopped)", "", ...stop.map((r) => `- ${r.name}`), ""] : []),
+        "Undo: a deleted policy can be restored for 30 days in ♻️ Recycle bin, with its original id. After that only the JSON backup downloaded before the run can recreate it, with a new id."].join("\n");
+    };
+    L.finish({ report: () => showReport("🗑 Delete report", `CA-Delete-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, report()) });
+    $("delCancel").disabled = false; $("delCancel").textContent = "Close";
+    selected.clear();
+    if (!isDemo && results.some((r) => r.ok)) await loadFromGraph(true); else refreshViews();
+    // the Housekeeping list behind this dialog is stale after a delete
+    if ($("hkModal").classList.contains("open")) renderHkList();
   });
 
   // ---------- housekeeping: review older versions across the loaded inventory ----------
@@ -2826,24 +3113,135 @@
     const n = hkFind().length;
     const b = $("hkBtn"); if (!b) return;
     b.style.display = (n && viewMode !== "analyze") ? "" : "none";
-    b.textContent = `🧹 Housekeeping (${n})`;
+    const sw = Importer.switchCandidates(policies).length;
+    b.textContent = sw ? `🧹 Housekeeping (${n} · ⇄ ${sw})` : `🧹 Housekeeping (${n})`;
     b.title = `${n} older policy version${n === 1 ? "" : "s"} in the loaded inventory — review status, scope and controls`;
+  }
+  // ---- ⇄ switch over (25484) — finish a version change ----------------
+  // A newer version Off while an older one is On or Report-only: the newer
+  // takes the older's state (or Report-only first), is read back, and only
+  // then are the older versions switched Off. Pure logic in
+  // Importer.switchCandidates / switchOver.
+  let hkSwOn = new Set(), hkSwCompared = new Set(), hkSwReport = false, hkSwStep = "list";
+  const W3 = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+  function hkSwitchHtml() {
+    const cands = Importer.switchCandidates(policies);
+    if (!cands.length) return "";
+    const can = (c) => !c.incomplete && (!c.needsCompare || hkSwCompared.has(c.key));
+    for (const k of [...hkSwOn]) { const c = cands.find((x) => x.key === k); if (!c || !can(c)) hkSwOn.delete(k); }
+    const chosen = cands.filter((c) => hkSwOn.has(c.key));
+    const target = (c) => hkSwReport ? "Report-only" : W3[c.targetState];
+    if (hkSwStep === "confirm") {
+      return `<div class="hk-sw" id="hkSw"><b>⇄ Switch over — review</b>
+        <ul class="plist2" style="margin:8px 0">${chosen.map((c) => `<li><div><b>${esc(c.newer.name)}</b> → <b>${target(c)}</b></div>
+          <div class="mini">then Off: ${esc(c.olds.map((o) => o.policy.name).join(", "))}</div></li>`).join("")}</ul>
+        <p class="mini">Each new version is set and READ BACK before its older version is switched Off; a new version that does not read back leaves the older one exactly as it is. For the moment between the two writes both apply — every applicable policy must be met, so nobody gets less protection, at most one prompt more. Undo: the older version back to its state first, then the new one Off.</p>
+        <label class="mini" for="hkSwWord">Type <b>SWITCH</b> to confirm</label>
+        <input id="hkSwWord" class="txt" placeholder="SWITCH" autocomplete="off" spellcheck="false" style="margin:4px 0 8px">
+        <div class="row" style="justify-content:flex-start;margin:0"><button class="btn" data-hksw-back>← Back</button><button class="btn primary" id="hkSwGo" disabled>Switch over ${chosen.length}</button></div>
+        <div id="hkSwLedger"></div></div>`;
+    }
+    return `<div class="hk-sw" id="hkSw"><div><b>⇄ Switch over (${cands.length})</b> <span class="mini">— an older version still On or Report-only beside its newer version (Off, or already On)</span></div>
+      <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0">${cands.map((c) => {
+        const olds = c.olds.map((o) => `${Render.stateChip(o.state)} ${esc(o.policy.name)}`).join("<br>");
+        const why = c.incomplete ? "Policy details are incomplete — switch it in the portal." : c.needsCompare && !hkSwCompared.has(c.key) ? `${c.reasons.join(" ")} Compare the two before ticking.` : c.needsCompare ? "Compared — the differences above are yours to accept." : "Same scope and controls — only the version differs.";
+        return `<li><label class="chk hk-choice"><input type="checkbox" data-hksw="${esc(c.key)}"${hkSwOn.has(c.key) ? " checked" : ""}${can(c) ? "" : " disabled"}>
+          <span class="hk-details"><span>${Render.stateChip(c.newer.state)} <b>${esc(c.newer.name)}</b> → <b>${target(c)}</b></span>
+          <span class="mini">Older: ${olds}</span>
+          <span class="mini"${c.needsCompare && !hkSwCompared.has(c.key) ? ' style="color:var(--off)"' : ""}>${esc(why)}</span></span></label>
+          ${c.olds.map((o) => `<button type="button" class="btn sm hk-compare" data-hk-compare="${esc(o.policy.id)}" data-hk-newer="${esc(c.newer.id)}" data-hksw-key="${esc(c.key)}">Compare${c.olds.length > 1 ? ` v${esc(o.ver)}` : ""}</button>`).join("")}</li>`;
+      }).join("")}</ul>
+      <div class="row" style="justify-content:flex-start;margin:0;gap:10px;flex-wrap:wrap">
+        <label class="chk" style="margin:0"><input type="checkbox" id="hkSwReport"${hkSwReport ? " checked" : ""}> Put the new versions in Report-only first, not in the older version's state</label>
+        <button class="btn primary" data-hksw-review${chosen.length ? "" : " disabled"}>Review switch-over${chosen.length ? ` (${chosen.length})` : ""} →</button></div></div>`;
+  }
+  function paintHkSwitch() {
+    const box = $("hkSw"); if (!box) return;
+    const tmp = document.createElement("div"); tmp.innerHTML = hkSwitchHtml();
+    box.replaceWith(tmp.firstElementChild || document.createElement("div"));
+  }
+  async function hkSwRun() {
+    const cands = Importer.switchCandidates(policies).filter((c) => hkSwOn.has(c.key));
+    if (!cands.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...ML_WRITE])) return;
+    $("hkSwGo").disabled = true;
+    const L = RunLedger.create($("hkSwLedger"), { unit: "switch-overs", title: "switch", items: cands.map((c) => ({ label: c.newer.name, sub: `→ ${hkSwReport ? "Report-only" : W3[c.targetState]}, then ${c.olds.length} older Off` })), onStop: () => {} });
+    let res;
+    if (isDemo) {
+      res = cands.map((c) => ({ key: c.key, ok: true, newerDone: true, target: hkSwReport ? "enabledForReportingButNotEnforced" : c.targetState, oldsOff: c.olds.map((o) => o.policy.name) }));
+      res.forEach((r, i) => L.done(i, "switched (simulated)", "switched"));
+    } else {
+      res = await Importer.switchOver(cands, { reportOnlyFirst: hkSwReport, shouldStop: () => L.stopped,
+        onItem: (i, phase, r) => {
+          if (phase === "start") { L.start(i); return; }
+          if (r.stopped) L.skip(i, r.error);
+          else if (r.ok) L.done(i, `${W3[r.target]} · ${r.oldsOff.length} older Off`, "switched");
+          else if (r.newerDone) L.part(i, r.error, "partly done");
+          else L.fail(i, r.error || "refused", "refused");
+        } });
+    }
+    L.finish({ report: () => showReport("⇄ Switch-over report", `CA-Switch-Over-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, Importer.switchReport({ tenant: tenantName }, cands, res)) });
+    hkSwOn.clear(); hkSwStep = "list";
+    toast(`${res.filter((r) => r.ok).length} of ${res.length} switched${isDemo ? " (simulated)" : ""}`);
+    if (!isDemo && res.some((r) => r.newerDone)) await loadFromGraph(true);
+    // the switched older versions are Off now — show them as what they are
+    if ($("hkModal").classList.contains("open")) renderHkList();
+  }
+
+  // 25486, Mihai (after switching 11 over on Perfetti): "the review checkbox is
+  // not there — there should be an option to confirm reviewed all, and select
+  // all to delete". A Needs-review row could never be ticked, so a version
+  // whose only difference is the one you meant to make (an exclusion added,
+  // a name tidied) could not be cleaned up here at all. Now each such row has
+  // its own Reviewed tick, and the list has Mark all reviewed and Select all.
+  // What stays a HARD block — no tick releases it: the older version still On
+  // or Report-only (switch it over first), incomplete details, or several
+  // policies sharing the highest version. Every delete still goes through the
+  // JSON backup and the typed DELETE.
+  let hkRev = new Set(), hkSel = new Set();
+  const hkHard = (r) => r.reasons.filter((x) => /^Older version is still|incomplete|Multiple policies share/i.test(x));
+  const hkCan = (r) => r.canDelete || (!hkHard(r).length && hkRev.has(r.policy.id));
+  function renderHkList() {
+    const rows = hkFind();
+    for (const id of [...hkSel]) { const r = rows.find((x) => x.policy.id === id); if (!r || !hkCan(r)) hkSel.delete(id); }
+    const reviewable = rows.filter((r) => !r.canDelete && !hkHard(r).length);
+    const open = reviewable.filter((r) => !hkRev.has(r.policy.id)).length;
+    const deletable = rows.filter(hkCan);
+    const bulk = `<div class="row hk-bulk" style="justify-content:flex-start;gap:8px;margin:10px 0 8px;flex-wrap:wrap">
+        <button type="button" class="btn sm" data-hkbulk="review"${open ? "" : " disabled"}>✓ Mark all reviewed${open ? ` (${open})` : ""}</button>
+        <button type="button" class="btn sm" data-hkbulk="all"${deletable.length ? "" : " disabled"}>☑ Select all to delete${deletable.length ? ` (${deletable.length})` : ""}</button>
+        <button type="button" class="btn sm" data-hkbulk="none"${hkSel.size ? "" : " disabled"}>Clear</button>
+        <span class="mini muted">${rows.length - reviewable.length - rows.filter((r) => r.canDelete).length} cannot be deleted yet — the older version is still On or Report-only, or the details are incomplete.</span></div>`;
+    const item = (r) => {
+      const hard = hkHard(r), rev = hkRev.has(r.policy.id), can = hkCan(r);
+      const status = r.canDelete ? "Cleanup candidate" : hard.length ? "Blocked" : rev ? "Reviewed" : "Needs review";
+      const why = r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" ");
+      return `<li><label class="chk hk-choice">
+          <input type="checkbox" data-hk="${esc(r.policy.id)}"${hkSel.has(r.policy.id) ? " checked" : ""}${can ? "" : " disabled"}>
+          <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>
+          <span class="mini">Higher version: <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
+          <span class="mini"><b>${status}</b> — ${esc(why)}${hard.length ? (/^Older version is still/.test(hard[0]) ? " Use ⇄ Switch over above to put it Off first." : " Fix it in the portal first.") : ""}</span></span>
+        </label>
+        <span class="hk-acts">${!r.canDelete && !hard.length ? `<label class="chk mini" style="margin:0"><input type="checkbox" data-hkrev="${esc(r.policy.id)}"${rev ? " checked" : ""}> Reviewed</label>` : ""}
+        <button type="button" class="btn sm hk-compare" data-hk-compare="${esc(r.policy.id)}" data-hk-newer="${esc(r.newer.id)}">Compare versions</button></span></li>`;
+    };
+    const box = $("hkRows");
+    const html = bulk + `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${rows.map(item).join("")}</ul>`;
+    if (box) box.innerHTML = html;
+    syncHkGo();
+    return html;
   }
   function openHousekeeping() {
     const rows = hkFind(), eligible = rows.filter(r => r.canDelete).length;
-    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates. Includes policies outside the current search filter.`;
-    $("hkList").innerHTML = `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">`
-      + rows.map(r => `<li><label class="chk hk-choice">
-          <input type="checkbox" data-hk="${esc(r.policy.id)}" ${r.canDelete ? "" : "disabled"}>
-          <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>
-          <span class="mini">Higher version: <b>${esc(r.newer.name)}</b> ${Render.stateChip(r.newer.state)}</span>
-          <span class="mini"><b>${r.canDelete ? "Cleanup candidate" : "Needs review"}</b> — ${esc(r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" "))}</span></span>
-        </label><button type="button" class="btn sm hk-compare" data-hk-compare="${esc(r.policy.id)}" data-hk-newer="${esc(r.newer.id)}">Compare versions</button></li>`).join("") + "</ul>";
-    syncHkGo();
+    hkSwStep = "list"; hkRev = new Set(); hkSel = new Set();
+    const nSw = Importer.switchCandidates(policies).length;
+    $("hkDesc").textContent = `${rows.length} older versions in the loaded inventory for ${tenantName || "this tenant"}: ${rows.length - eligible} need review, ${eligible} cleanup candidates${nSw ? `, and ${nSw} newer version${nSw === 1 ? "" : "s"} still Off beside an older one that is On — switch ${nSw === 1 ? "it" : "them"} over first` : ""}. Includes policies outside the current search filter.`;
+    $("hkList").innerHTML = hkSwitchHtml() + `<div id="hkRows"></div>`;
+    renderHkList();
     $("hkModal").classList.add("open");
   }
   function syncHkGo() {
-    const n = $("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)").length;
+    const n = hkSel.size;
     $("hkGo").disabled = n === 0;
     $("hkGo").textContent = n ? `Review & delete ${n}` : "Review & delete";
   }
@@ -2852,7 +3250,23 @@
     if (hkComparison) $("hkCompareBody").innerHTML = PolicyCompare.render(hkComparison, { onlyChanges: $("hkCompareOnly").checked, resolve: policyResolve });
   }
   $("hkList").addEventListener("click", e => {
+    const bulk = e.target.closest("[data-hkbulk]");
+    if (bulk) {
+      const rows = hkFind();
+      if (bulk.dataset.hkbulk === "review") {
+        const n = rows.filter((r) => !r.canDelete && !hkHard(r).length && !hkRev.has(r.policy.id)).length;
+        rows.forEach((r) => { if (!r.canDelete && !hkHard(r).length) hkRev.add(r.policy.id); });
+        toast(`<span>${n}</span> marked reviewed — each delete still asks for the backup and a typed DELETE`);
+      } else if (bulk.dataset.hkbulk === "all") rows.filter(hkCan).forEach((r) => hkSel.add(r.policy.id));
+      else hkSel.clear();
+      renderHkList();
+      return;
+    }
+    if (e.target.closest("[data-hksw-review]")) { hkSwStep = "confirm"; paintHkSwitch(); return; }
+    if (e.target.closest("[data-hksw-back]")) { hkSwStep = "list"; paintHkSwitch(); return; }
+    if (e.target.closest("#hkSwGo")) { hkSwRun(); return; }
     const button = e.target.closest("[data-hk-compare]"); if (!button) return;
+    if (button.dataset.hkswKey) { hkSwCompared.add(button.dataset.hkswKey); setTimeout(paintHkSwitch, 0); }
     const older = policies.find(p => p.id === button.dataset.hkCompare), newer = policies.find(p => p.id === button.dataset.hkNewer);
     if (!older || !newer) { openHousekeeping(); toast("Policy inventory changed. Review the updated list."); return; }
     hkComparison = PolicyCompare.compare(older, newer);
@@ -2864,10 +3278,16 @@
   $("hkCompareClose").addEventListener("click", () => { $("hkCompareModal").classList.remove("open"); hkComparison = null; });
   $("hkBtn").addEventListener("click", openHousekeeping);
   $("hkCancel").addEventListener("click", () => $("hkModal").classList.remove("open"));
-  $("hkList").addEventListener("change", (e) => { if (e.target.matches("[data-hk]")) syncHkGo(); });
+  $("hkList").addEventListener("change", (e) => {
+    if (e.target.matches("[data-hk]")) { e.target.checked ? hkSel.add(e.target.dataset.hk) : hkSel.delete(e.target.dataset.hk); syncHkGo(); renderHkList(); }
+    if (e.target.matches("[data-hkrev]")) { const id = e.target.dataset.hkrev; if (e.target.checked) hkRev.add(id); else { hkRev.delete(id); hkSel.delete(id); } renderHkList(); }
+    if (e.target.matches("[data-hksw]")) { e.target.checked ? hkSwOn.add(e.target.dataset.hksw) : hkSwOn.delete(e.target.dataset.hksw); paintHkSwitch(); }
+    if (e.target.id === "hkSwReport") { hkSwReport = e.target.checked; paintHkSwitch(); }
+  });
+  $("hkList").addEventListener("input", (e) => { if (e.target.id === "hkSwWord") $("hkSwGo").disabled = e.target.value.trim().toUpperCase() !== "SWITCH"; });
   $("hkGo").addEventListener("click", () => {
-    const eligible = new Set(hkFind().filter(r => r.canDelete).map(r => r.policy.id));
-    const ids = [...$("hkList").querySelectorAll("[data-hk]:checked:not(:disabled)")].map(cb => cb.dataset.hk);
+    const eligible = new Set(hkFind().filter(hkCan).map(r => r.policy.id));
+    const ids = [...hkSel];
     if (!ids.length) return;
     // Recheck the current inventory by ID; list positions may have changed.
     if (ids.some(id => !eligible.has(id))) { openHousekeeping(); toast("Policy details changed. Review the updated list before continuing."); return; }
@@ -3015,7 +3435,7 @@
     const mergeable = sets.filter((s) => dupPlanFor(s).canRun).length;
     $("dupDesc").innerHTML = dupStep === "plan"
       ? `Review before anything is written in ${esc(tenantName || "this tenant")}.`
-      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${esc(tenantName || "this tenant")}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first — tick <b>Reviewed</b> on one to release it. Includes policies outside the current search filter.`;
+      : `${sets.length} name${sets.length === 1 ? "" : "s"} carried by more than one policy in ${esc(tenantName || "this tenant")}: ${mergeable} can be merged here, ${sets.length - mergeable} need review first — tick <b>Reviewed</b> on one to release it. Includes policies outside the current search filter.${(() => { const nv = new Set(hkFind().map((r) => r.num)).size; return nv ? ` <b>${nv}</b> more CA number${nv === 1 ? " is" : "s are"} in the tenant at two versions — those are not duplicates, they are 🧹 Housekeeping's (switch over, then clean up).` : ""; })()}`;
     $("dupNote").style.display = dupStep === "plan" ? "none" : "";
     $("dupList").innerHTML = dupStep === "plan" ? dupPlanHtml() : sets.map(dupSetHtml).join("")
       || '<p class="mini muted">No duplicates in the loaded inventory.</p>';
@@ -4117,8 +4537,11 @@
           onItem: (i, phase, r) => {
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
-            if (r.stopped) { L.skip(i + 1, "stopped"); stoppedEarly = true; return; }
-            if (r.ok) L.done(i + 1, `${r.matched ? "updated in place" : r.switched ? "switched" : r.shipped ? "created as shipped" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}${(r.agentNotes || []).length ? " · 🤖 written in the documented agent shape" : ""}`, "imported");
+            // 25483: created, not yet visible — the item stays open and is
+            // settled by the second check at the end of the run
+            if (phase === "pending") { L.note(i + 1, "created · Conditional Access has not shown it yet — checked again at the end of the run"); return; }
+            if (r.stopped) { L.skip(i + 1, r.createdId ? r.error : "stopped"); stoppedEarly = true; return; }
+            if (r.ok) L.done(i + 1, `${r.late ? "(on the second check) " : ""}${r.matched ? "updated in place" : r.switched ? "switched" : r.shipped ? "created as shipped" : "created"}, ${r.state === "enabled" ? "On" : r.state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"}${r.disabledOld ? ` · “${r.oldName}” switched Off` : ""}${r.dropped && r.dropped.length ? ` · ${r.dropped.length} unknown app reference${r.dropped.length === 1 ? "" : "s"} dropped` : ""}${(r.agentNotes || []).length ? " · 🤖 written in the documented agent shape" : ""}`, "imported");
             else L.fail(i + 1, r.error || "refused", "refused");
           },
         });
@@ -4251,6 +4674,11 @@
       refs: { include: [], exclude: i % 3 === 1 && i % 5 !== 0 ? ["d1", "d2"].slice(0, (i % 2) + 1) : [] }, refCount: i % 3,
       members: null, memberTotal: null, memberError: null, drift: null,
     }));
+    // 25477: one group name carried by two groups, as the CloudFellows
+    // baseline had it — so 🔀 Duplicate names has something to show in demo.
+    const ext = rows.find((r) => /Persona-Externals$/.test(r.name) && r.id);
+    if (ext) rows.push({ ...ext, id: "g-demo-ext2", sources: ["policy"], dynamic: true, membershipRule: '(user.userType -eq "Member") and (user.companyName -eq "Partner")',
+      refs: { include: [{ id: "d-ca300", name: "CA300-GRANT-Externals-IP-AnyApp-AnyPlatform-MFA-v3.0.1" }], exclude: [] }, refCount: 1 });
     const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
     const expectedTotal = rows.length;
     return { rows, counts, expectedTotal, present: counts.present || 0, baseline: Baseline.activeCatalogId(), other: null,
@@ -4327,6 +4755,7 @@
     $("cgChips").style.display = "flex";
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
     $("cgArchived").style.display = "inline-flex";
+    syncMergeDupBtn();
     $("cgSearch").placeholder = cgTab === "members" ? "Search group, member or UPN…" : "Search group, object ID or member…";
     $("cgSearch").style.display = "";
 
@@ -6622,6 +7051,201 @@ max@contoso.com,"Global, DevOps"</pre>
   // with "X (legacy 2026-08-04)". This is that second visit.
   let arcRows = [];
   $("cgArchived").addEventListener("click", () => openArchived());
+  // ---- 🔀 Merge duplicate groups (25477) ----------------------------------
+  // Mihai: "create merge for duplicate groups and remove one". Pure planning
+  // and the run live in js/groupmerge.js; this is the dialog. The other group
+  // is RENAMED ASIDE by default — "(merged YYYY-MM-DD)", which 🧹 Archived
+  // groups finds and deletes once you are satisfied — or deleted outright
+  // when asked for, behind a typed DELETE.
+  let gmSets = [], gmKeep = new Map(), gmOn = new Set(), gmMembers = new Map(), gmStep = "list", gmRemove = "rename";
+  const gmFind = () => { try { return cgRes ? GroupMerge.duplicateSets(cgRes.rows) : []; } catch (e) { console.warn("group merge:", e.message || e); return []; } };
+  function syncMergeDupBtn() {
+    const b = $("cgMergeDup"); if (!b) return;
+    const n = gmFind().length;
+    b.style.display = n ? "inline-flex" : "none";
+    b.textContent = `🔀 Duplicate names (${n})`;
+  }
+  const gmRaws = () => policies.map((p) => p.raw);
+  const gmPlan = (s) => GroupMerge.plan(s, gmKeep.get(s.key) || s.keepId, gmRaws(), gmMembers, { remove: gmRemove });
+  const gmPlans = () => gmSets.filter((s) => gmOn.has(s.key)).map(gmPlan).filter((p) => p.canRun);
+  async function gmReadMembers(ids) {
+    for (const id of ids) {
+      if (gmMembers.has(id)) continue;
+      if (isDemo) {
+        const row = (cgRes.rows || []).find((r) => r.id === id) || {};
+        const list = id === "g-demo-ext2" ? [{ id: "u-partner-1", type: "user", name: "anna.partner@contoso.example" }] : ((DEMO_DATA.scopeGroups || {})[row.name] || []).map((u) => ({ id: u, type: "user", name: u }));
+        gmMembers.set(id, { ok: true, list });
+        continue;
+      }
+      try {
+        const list = await Graph.ggetAll(`/groups/${id}/members?$select=id,displayName,userPrincipalName&$top=999`);
+        gmMembers.set(id, { ok: true, list: list.map((m) => ({ id: m.id, type: String(m["@odata.type"] || "").replace("#microsoft.graph.", ""), name: m.userPrincipalName || m.displayName || m.id })) });
+      } catch (e) { gmMembers.set(id, { ok: false, error: e.message || String(e), list: [] }); }
+    }
+  }
+  async function openGroupMerge() {
+    gmSets = gmFind();
+    gmKeep = new Map(gmSets.map((s) => [s.key, s.keepId]));
+    gmMembers = new Map(); gmStep = "list"; gmRemove = "rename";
+    $("gmLedger").innerHTML = ""; $("gmConfirmWrap").style.display = "none"; $("gmConfirm").value = "";
+    $("gmSub").textContent = "Reading the members of each group…"; $("gmBody").innerHTML = "";
+    $("gmModal").classList.add("open");
+    await gmReadMembers(gmSets.flatMap((s) => s.members.map((m) => m.id)));
+    // Suggest a keep the merge can actually carry out: two dynamic groups can
+    // only merge into the one that already holds everybody, so the first
+    // candidate (most policies, most members) is tried, then the others.
+    for (const s of gmSets) {
+      const ok = s.members.find((m) => GroupMerge.plan(s, m.id, gmRaws(), gmMembers).canRun);
+      if (ok) gmKeep.set(s.key, ok.id);
+    }
+    gmOn = new Set(gmSets.filter((s) => gmPlan(s).canRun).map((s) => s.key));
+    renderGroupMerge();
+  }
+  function gmSetHtml(s) {
+    const plan = gmPlan(s);
+    const rows = s.members.map((m) => {
+      const keep = m.id === plan.keep.id;
+      const mm = gmMembers.get(m.id);
+      const count = mm ? (mm.ok ? `${mm.list.length} direct member${mm.list.length === 1 ? "" : "s"}` : `members not read — ${esc(mm.error)}`) : "…";
+      // 25480, Mihai: "the policy count is off — used by 4, repoint 8?". Both
+      // numbers were right and read as one: the row counts the policies that
+      // name THIS group, the foot the ones that name the group being retired.
+      // Say it as policies, per group, and let the foot say where they end up.
+      const nPol = new Set([...m.refs.include, ...m.refs.exclude].map((r) => typeof r === "string" ? r : r.id)).size;
+      const refs = `named by ${nPol} polic${nPol === 1 ? "y" : "ies"} (${m.refs.include.length} include · ${m.refs.exclude.length} exclude)`;
+      return `<label class="dup-row${keep ? " keep" : ""}" style="cursor:pointer">
+        <input type="radio" name="gmk-${esc(s.key)}" data-gm-keep="${esc(s.key)}" value="${esc(m.id)}"${keep ? " checked" : ""}>
+        <div class="dup-meta"><span class="dup-name"><code>${esc(m.id)}</code></span>
+          <div class="mini">${m.dynamic ? "dynamic" : "assigned"}${m.roleAssignable ? " · role-assignable" : ""} · ${count} · ${refs} · <b>${keep ? "keep this one" : (gmRemove === "delete" ? "to be deleted" : "to be renamed aside")}</b></div>
+          ${m.dynamic && m.membershipRule ? `<div class="mini muted" style="font-family:var(--mono,monospace)">${esc(m.membershipRule)}</div>` : ""}</div>
+        <div class="dup-assign mini">${esc([...m.refs.include.map((r) => `+ ${typeof r === "string" ? r : r.name || r.id}`), ...m.refs.exclude.map((r) => `− ${typeof r === "string" ? r : r.name || r.id}`)].slice(0, 4).join(" · "))}${m.refCount > 4 ? " …" : ""}</div>
+      </label>`;
+    }).join("");
+    const bad = plan.refusals.length ? `<div class="dup-bad">⚠ ${esc(plan.refusals.map((r) => r.why).join(" "))}</div>` : "";
+    const dyn = plan.fromDynamic.length && plan.moves.length ? `<div class="mini" style="margin-top:6px">Members come from a DYNAMIC group: they are copied into the kept group as fixed members — they stop following that rule.</div>` : "";
+    // A retired dynamic group whose rule differs from the kept one: whoever
+    // that rule would add from tomorrow is no longer reached by the policies.
+    const ruleGap = plan.drops.filter((d) => d.dynamic && d.membershipRule && d.membershipRule.trim() !== String(plan.keep.membershipRule || "").trim());
+    const rules = ruleGap.length ? `<div class="mini" style="margin-top:6px">⚠ The group being retired has its own rule (${esc(ruleGap.map((d) => d.membershipRule).join(" · "))}). People that rule would add from now on are NOT reached by these policies after the merge — ${plan.keep.dynamic ? "widen the kept group's rule to cover them first" : "add them to the kept group as they arrive, or keep the dynamic one instead"}.</div>` : "";
+    return `<div class="dup-set" data-gm-card="${esc(s.key)}">
+      <div class="dup-head">
+        <label class="chk" style="margin:0"><input type="checkbox" data-gm-set="${esc(s.key)}"${gmOn.has(s.key) ? " checked" : ""}${plan.canRun ? "" : " disabled"}></label>
+        <div><b>${esc(s.name)}</b><div class="mini">${s.members.length} groups, one name — pick the one to keep</div></div>
+      </div>
+      ${rows}
+      <div class="dup-opts">${bad}${dyn}${rules}</div>
+      <div class="dup-foot"><span class="arrow">→</span> ${plan.canRun
+        ? (() => {
+            const idOf = (r) => typeof r === "string" ? r : r.id;
+            const keepPols = new Set([...plan.keep.refs.include, ...plan.keep.refs.exclude].map(idOf));
+            const both = plan.edits.filter((e) => keepPols.has(e.id)).length;
+            const after = new Set([...keepPols, ...plan.edits.map((e) => e.id)]).size;
+            return `Move <b>${plan.moves.length}</b> member${plan.moves.length === 1 ? "" : "s"} into the kept group · repoint the <b>${plan.edits.length}</b> polic${plan.edits.length === 1 ? "y" : "ies"} that name <code>${esc(plan.dropIds.map((x) => x.slice(0, 8)).join(", "))}…</code>${both ? ` (${both} of them already name the kept group too — the duplicate reference is dropped)` : ""} · then ${gmRemove === "delete" ? "delete" : "rename aside"} <b>${plan.drops.length}</b> group${plan.drops.length === 1 ? "" : "s"}`
+              + `<div class="mini" style="margin-top:4px">Afterwards <code>${esc(plan.keep.id.slice(0, 8))}…</code> is named by <b>${after}</b> polic${after === 1 ? "y" : "ies"} — its ${keepPols.size} and the ${plan.edits.length} repointed${both ? `, ${both} counted once` : ""}.</div>`;
+          })()
+        : '<span class="muted">nothing will be written for this name until the warning above is resolved</span>'}</div>
+    </div>`;
+  }
+  function gmPlanHtml() {
+    const plans = gmPlans();
+    return `<div class="dup-plan">${plans.map((p) => `<div><b>${esc(p.name)}</b> — keep <code>${esc(p.keep.id)}</code>
+        <div class="mini">1. add ${p.moves.length} member${p.moves.length === 1 ? "" : "s"} to it${p.moves.length ? `: ${esc(p.moves.slice(0, 5).map((m) => m.name).join(", "))}${p.moves.length > 5 ? " …" : ""}` : ""}</div>
+        <div class="mini">2. repoint ${p.edits.length} polic${p.edits.length === 1 ? "y" : "ies"}, each read fresh and read back: ${esc(p.edits.map((e) => `${e.name} (${[e.include ? "include" : "", e.exclude ? "exclude" : ""].filter(Boolean).join(" + ")})`).join("; ")) || "none"}</div>
+        <div class="mini">3. ${p.remove === "delete" ? "DELETE" : "rename aside"} ${esc(p.drops.map((d) => p.remove === "delete" ? d.id : `${d.id} → “${(p.archiveNames.find((a) => a.id === d.id) || {}).to}”`).join(", "))} — only if steps 1 and 2 all landed</div></div>`).join("")}</div>
+      <div style="margin-top:10px"><b class="mini">The other group</b>
+        <label class="chk"><input type="radio" name="gmRemove" value="rename"${gmRemove === "rename" ? " checked" : ""}> <span><b>Rename it aside</b> <span class="why">— “(merged ${new Date().toISOString().slice(0, 10)})”. Nothing is lost: 🧹 Archived groups lists it, checks what else still uses it outside Conditional Access, and deletes it when you are satisfied. Recommended.</span></span></label>
+        <label class="chk"><input type="radio" name="gmRemove" value="delete"${gmRemove === "delete" ? " checked" : ""}> <span><b>Delete it now</b> <span class="why">— an app assignment, licence, access package or Intune assignment outside Conditional Access that uses it breaks, and a deleted security group may not be restorable.</span></span></label></div>
+      <label class="chk"><input type="checkbox" id="gmBackup" checked> Download a JSON backup first — the groups, their members and every affected policy's users block as it is now</label>`;
+  }
+  function renderGroupMerge() {
+    const plans = gmPlans();
+    const blocked = gmSets.filter((s) => !gmPlan(s).canRun).length;
+    $("gmSub").innerHTML = gmStep === "plan"
+      ? `Review before anything is written in ${esc(tenantName || "this tenant")}. Members move first, then the policies; the other group is only touched when both landed.`
+      : `${gmSets.length} name${gmSets.length === 1 ? " is" : "s are"} carried by more than one group${blocked ? ` · ${blocked} need a decision first` : ""}. Keep one group per name: its members stay, the other's are added to it, every Conditional Access policy is pointed at it, and the other group is retired.`;
+    $("gmBody").innerHTML = gmStep === "plan" ? gmPlanHtml() : (gmSets.map(gmSetHtml).join("") || '<p class="mini muted">No group name is carried by more than one group.</p>');
+    $("gmBack").style.display = gmStep === "plan" ? "" : "none";
+    $("gmNext").style.display = gmStep === "plan" ? "none" : "";
+    $("gmGo").style.display = gmStep === "plan" ? "" : "none";
+    $("gmConfirmWrap").style.display = gmStep === "plan" ? "" : "none";
+    $("gmNext").disabled = !plans.length;
+    $("gmNext").textContent = plans.length ? `Review the merge (${plans.length}) →` : "Review the merge →";
+    const word = gmRemove === "delete" ? "DELETE" : "MERGE";
+    $("gmWord").textContent = word; $("gmConfirm").placeholder = word;
+    $("gmGo").textContent = gmRemove === "delete" ? "Merge & delete" : "Merge & rename aside";
+    gmSyncGo();
+  }
+  function gmSyncGo() {
+    const word = gmRemove === "delete" ? "DELETE" : "MERGE";
+    $("gmGo").disabled = gmStep !== "plan" || $("gmConfirm").value.trim().toUpperCase() !== word || !gmPlans().length;
+  }
+  async function gmRun() {
+    const plans = gmPlans();
+    if (!plans.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES, ...ML_WRITE])) return;
+    if ($("gmBackup") && $("gmBackup").checked) {
+      try {
+        const affected = new Set(plans.flatMap((p) => p.edits.map((e) => e.id)));
+        downloadText("CA-Group-Merge-Backup", "json", "application/json", JSON.stringify({
+          tenant: tenantName, exported: new Date().toISOString(),
+          groups: plans.flatMap((p) => [p.keep, ...p.drops].map((g) => ({ id: g.id, name: g.name, dynamic: g.dynamic, membershipRule: g.membershipRule, members: (gmMembers.get(g.id) || {}).list || [] }))),
+          policies: gmRaws().filter((r) => affected.has(r.id)).map((r) => ({ id: r.id, displayName: r.displayName, users: r.conditions?.users || {} })),
+        }, null, 2));
+      } catch (e) { console.error(e); toast("Backup download <span>failed</span> — nothing was merged"); return; }
+    }
+    $("gmGo").disabled = true; $("gmBack").style.display = "none"; $("gmCancel").disabled = true; $("gmConfirm").disabled = true;
+    $("gmBody").innerHTML = "";
+    const L = RunLedger.create($("gmLedger"), { unit: "duplicate names", title: "merge", items: plans.map((p) => ({
+      label: p.name, sub: `keep ${p.keep.id.slice(0, 8)}… · ${p.moves.length} member${p.moves.length === 1 ? "" : "s"} · ${p.edits.length} polic${p.edits.length === 1 ? "y" : "ies"}` })), onStop: () => {} });
+    const results = [];
+    for (let i = 0; i < plans.length; i++) {
+      const p = plans[i];
+      if (L.stopped) { L.skip(i, "stopped — nothing changed"); continue; }
+      L.start(i);
+      let r;
+      if (isDemo) {
+        r = { key: p.key, name: p.name, ok: true, steps: [] };
+        L.done(i, `merged (simulated) · ${p.remove === "delete" ? "deleted" : "renamed aside"} ${p.drops.length}`, "merged");
+      } else {
+        let doneN = 0; const total = p.moves.length + p.edits.length + p.drops.length;
+        r = await GroupMerge.run(p, {
+          addMember: (g, o) => Graph.gpost(`/groups/${g}/members/$ref`, { "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${o}` }),
+          getPolicy: (id) => Graph.gget(`/identity/conditionalAccess/policies/${id}`),
+          patchPolicy: (id, body) => Graph.gpatch(`/identity/conditionalAccess/policies/${id}`, body),
+          readSettled: (id, until) => Importer.readSettled(`/identity/conditionalAccess/policies/${id}`, until),
+          renameGroup: (id, name) => Graph.gpatch(`/groups/${id}`, { displayName: name }),
+          deleteGroup: (id) => Graph.gdelete(`/groups/${id}`),
+          shouldStop: () => L.stopped,
+          onStep: (key, phase, info) => { if (phase === "done" || phase === "fail") { doneN++; L.note(i, `${doneN} of ${total} · ${phase === "fail" ? "✗ " : ""}${info.label || key}${info.error ? ` — ${info.error}` : ""}`); } },
+        });
+        const any = r.steps.some((x) => x.phase === "done");
+        if (r.ok) L.done(i, `${p.moves.length} member${p.moves.length === 1 ? "" : "s"} moved · ${p.edits.length} polic${p.edits.length === 1 ? "y" : "ies"} repointed · ${p.remove === "delete" ? "deleted" : "renamed aside"}`, "merged");
+        else if (r.stopped) any ? L.part(i, r.error || "stopped", "partly done") : L.skip(i, "stopped — nothing changed");
+        else if (any) L.part(i, r.error, "partly done");
+        else L.fail(i, r.error || "refused", "refused");
+      }
+      results.push(r);
+    }
+    L.finish({ report: () => showReport("🔀 Group merge report", `CA-Group-Merge-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`,
+      GroupMerge.report({ tenant: tenantName }, plans, results)) });
+    $("gmCancel").disabled = false; $("gmConfirm").disabled = false;
+    $("gmGo").style.display = "none"; $("gmConfirmWrap").style.display = "none";
+    $("gmSub").textContent = `${results.filter((r) => r.ok).length} of ${plans.length} merged in ${tenantName || "this tenant"}${isDemo ? " (simulated)" : ""}.`;
+    if (!isDemo && results.some((r) => r.steps && r.steps.some((x) => x.phase === "done"))) { cgRes = null; await loadFromGraph(true); }
+  }
+  $("cgMergeDup").addEventListener("click", openGroupMerge);
+  $("gmCancel").addEventListener("click", () => $("gmModal").classList.remove("open"));
+  $("gmBack").addEventListener("click", () => { gmStep = "list"; renderGroupMerge(); });
+  $("gmNext").addEventListener("click", () => { gmStep = "plan"; $("gmConfirm").value = ""; renderGroupMerge(); });
+  $("gmGo").addEventListener("click", gmRun);
+  ["input", "keyup", "paste"].forEach((ev) => $("gmConfirm").addEventListener(ev, () => setTimeout(gmSyncGo, 0)));
+  $("gmBody").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset.gmKeep) { gmKeep.set(t.dataset.gmKeep, t.value); const s = gmSets.find((x) => x.key === t.dataset.gmKeep); if (s && gmPlan(s).canRun) gmOn.add(s.key); else gmOn.delete(t.dataset.gmKeep); renderGroupMerge(); }
+    else if (t.dataset.gmSet) { t.checked ? gmOn.add(t.dataset.gmSet) : gmOn.delete(t.dataset.gmSet); renderGroupMerge(); }
+    else if (t.name === "gmRemove") { gmRemove = t.value; $("gmConfirm").value = ""; renderGroupMerge(); }
+  });
+
   async function openArchived() {
     $("arcSub").textContent = "Looking for groups a recreate left behind…";
     $("arcBody").innerHTML = "";
@@ -8070,8 +8694,33 @@ This is a directory write. Nothing else changes.`)) return;
   // What the cached asGroups list was built for. Going Back and picking a
   // different action has to rebuild it: the two modes hold different rows.
   let asGroupsMode = null;
-  // "groups" | "roles" — the portal's two ways of naming who a policy covers.
+  // "groups" | "roles" | "guests" — the portal's three ways of naming who a
+  // policy covers. The third is one clause per side, not a list of ids.
   let asTarget = "groups", asRoles = [], asRoleQuery = "", asRoleAdminOnly = true;
+  let asGuestTypes = new Set(), asGuestTenantKind = "all", asGuestTenantIds = "";
+  // The tenant ids as the box has them, split and de-duplicated. Anything that
+  // is not a GUID is handed back so the panel can say which line is wrong
+  // rather than sending it to Graph and reporting a 400 per policy.
+  const asGuestTenantParse = () => {
+    const raw = asGuestTenantIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    const ok = [], bad = [];
+    for (const x of raw) (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x) ? ok : bad).push(x);
+    return { ids: [...new Set(ok.map((x) => x.toLowerCase()))], bad };
+  };
+  const asGuestSel = () => ({ types: [...asGuestTypes], tenantKind: asGuestTenantKind, tenantIds: asGuestTenantParse().ids });
+  // For a REMOVE the catalog of all six types is the wrong list: ticking a
+  // type the policies never name does nothing. Show what they ACTUALLY carry
+  // in the bucket being removed from — derived from the policies already
+  // loaded, so no extra read — and pre-tick it, the way the group remove
+  // panel does: the question is which ones to keep.
+  const asGuestPresent = (onInclude) => {
+    const seen = new Set();
+    for (const p of asPolicies) {
+      const u = p.raw?.conditions?.users || {};
+      Assign.guestTypesOf(onInclude ? u.includeGuestsOrExternalUsers : u.excludeGuestsOrExternalUsers).forEach((t) => seen.add(t));
+    }
+    return [...seen];
+  };
   // "selection" = the policies ticked in the list; "all" = every policy loaded
   // from the tenant. Tenant-wide is what you want for a break-glass or
   // service-account exclusion that must never miss a policy.
@@ -8088,6 +8737,7 @@ This is a directory write. Nothing else changes.`)) return;
     asPolicies = asScopePolicies();
     asStep = 0; asAction = null; asGroups = []; asGroupsMode = null; asResults = null; asFound = [];
     asTarget = "groups"; asRoles = []; asRoleQuery = ""; asRoleAdminOnly = true;
+    asGuestTypes = new Set(); asGuestTenantKind = "all"; asGuestTenantIds = "";
     asPlan = []; asPlanCreate = false;
     renderAssign();
     $("assignModal").classList.add("open");
@@ -8235,8 +8885,9 @@ This is a directory write. Nothing else changes.`)) return;
     const asT = $("asTitle");
     // Step 0 is where the target is still being chosen, so name both; after
     // that the title says which one you are actually working on.
-    if (asT) asT.textContent = asStep === 0 ? "Assign groups or roles"
-      : asTarget === "roles" ? "Assign directory roles" : "Assign groups";
+    if (asT) asT.textContent = asStep === 0 ? "Assign groups, roles or guests"
+      : asTarget === "roles" ? "Assign directory roles"
+      : asTarget === "guests" ? "Assign guests & external users" : "Assign groups";
     next.style.display = "inline-flex";
     if (asStep === 0) {
       next.textContent = "Next";
@@ -8247,6 +8898,7 @@ This is a directory write. Nothing else changes.`)) return;
         <h4 class="mini" style="margin:16px 0 8px">ASSIGN</h4>
         <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="groups" ${asTarget === "groups" ? "checked" : ""}> Groups</label>
         <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="roles" ${asTarget === "roles" ? "checked" : ""}> <b>Directory roles</b> <span class="mini muted">— the portal's “Directory roles” under Include/Exclude</span></label>
+        <label class="chk" style="margin:6px 0"><input type="radio" name="asTarget" value="guests" ${asTarget === "guests" ? "checked" : ""}> <b>Guests &amp; external users</b> <span class="mini muted">— B2B guests, direct connect, service provider (CSP/GDAP) users, and which external tenants they come from</span></label>
         <h4 class="mini" style="margin:16px 0 8px">ACTION</h4>` + Assign.actionsFor(asTarget).map((a, i) =>
         a ? `<label class="chk" style="margin:6px 0"><input type="radio" name="asAct" value="${i}" ${asAction === i ? "checked" : ""}> ${assignEsc(a)}</label>` : "").join("");
     } else if (asStep === 1 && asTarget === "roles") {
@@ -8288,6 +8940,56 @@ This is a directory write. Nothing else changes.`)) return;
         <div style="max-height:34vh;overflow:auto">` +
         (vis.map((r) => `<label class="chk" style="margin:5px 0"><input type="checkbox" data-asrole="${esc(r.id)}" ${r.checked ? "checked" : ""}> ${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</label>`).join("")
           || '<p class="mini muted">No role matches that search.</p>') + `</div>`;
+
+    } else if (asStep === 1 && asTarget === "guests") {
+      next.textContent = "Next";
+      const removing = Assign.REMOVE_ACTIONS.has(asAction);
+      const onInclude = asAction === 0 || asAction === 2 || asAction === 5;
+      const present = removing ? asGuestPresent(onInclude) : null;
+      // First time into a remove, tick everything the policies actually have.
+      const mode = `guests:${asAction}:${asScope}:${asPolicies.length}`;
+      if (asGroupsMode !== mode) {
+        asGroupsMode = mode;
+        asGuestTypes = new Set(removing ? present : []);
+      }
+      const pool = removing ? present : Assign.GUEST_TYPES.map(([k]) => k);
+      const byKey = Object.fromEntries(Assign.GUEST_TYPES.map(([k, l, d]) => [k, [l, d]]));
+      const { ids, bad } = asGuestTenantParse();
+      // What the policies in scope carry today, so the choice is made against
+      // the real starting point rather than in the abstract.
+      const clauses = new Map();
+      for (const p of asPolicies) {
+        const u = p.raw?.conditions?.users || {};
+        const b = onInclude ? u.includeGuestsOrExternalUsers : u.excludeGuestsOrExternalUsers;
+        if (!b) continue;
+        const k = Assign.guestClauseLabel(b);
+        clauses.set(k, (clauses.get(k) || 0) + 1);
+      }
+      const none = asPolicies.length - [...clauses.values()].reduce((a, b) => a + b, 0);
+      b.innerHTML = `<h4 class="mini" style="margin-bottom:6px">GUEST / EXTERNAL USER TYPES <span class="muted">(${asGuestTypes.size} selected)</span></h4>
+        <p class="mini muted" style="margin:0 0 8px">${removing
+          ? (present.length
+            ? `The types the ${asPolicies.length === 1 ? "selected policy carries" : "selected policies carry"} on the ${onInclude ? "include" : "exclude"} side, pre-ticked. Untick what should stay. A policy left with no types at all loses the whole clause \u2014 an empty type list is not a valid clause in Graph.`
+            : `None of the ${asPolicies.length === 1 ? "selected policy has" : "selected policies have"} a guest / external-user clause on the ${onInclude ? "include" : "exclude"} side, so there is nothing to remove.`)
+          : "Entra's own list. A clause names one or more of these, and the tenant scope below applies to all of them together."}</p>
+        ${pool.map((k) => {
+          const [label, desc] = byKey[k] || [k, ""];
+          return `<label class="chk" style="margin:5px 0;align-items:flex-start"><input type="checkbox" data-asguest="${esc(k)}" ${asGuestTypes.has(k) ? "checked" : ""}> <span><b>${assignEsc(label)}</b><span class="mini muted" style="display:block">${assignEsc(desc)}</span></span></label>`;
+        }).join("") || '<p class="mini muted">Nothing to show.</p>'}
+        ${removing ? "" : `
+        <h4 class="mini" style="margin:16px 0 6px">FROM WHICH EXTERNAL TENANTS</h4>
+        <label class="chk" style="margin:5px 0"><input type="radio" name="asGuestTenant" value="all" ${asGuestTenantKind === "all" ? "checked" : ""}> <b>All external tenants</b> <span class="mini muted">\u2014 the usual answer</span></label>
+        <label class="chk" style="margin:5px 0"><input type="radio" name="asGuestTenant" value="enumerated" ${asGuestTenantKind === "enumerated" ? "checked" : ""}> Only these tenants <span class="mini muted">\u2014 tenant IDs, one per line</span></label>
+        ${asGuestTenantKind === "enumerated" ? `
+          <textarea id="asGuestTenantIds" class="btn" style="width:100%;min-height:76px;cursor:text;font-family:var(--mono,monospace);font-size:12px" placeholder="72f988bf-86f1-41af-91ab-2d7cd011db47&#10;\u2026one tenant ID per line">${esc(asGuestTenantIds)}</textarea>
+          <p class="mini ${bad.length ? "" : "muted"}" style="margin:6px 0 0${bad.length ? ";color:var(--off)" : ""}">${bad.length
+            ? `Not a tenant ID: ${bad.slice(0, 4).map(assignEsc).join(", ")}${bad.length > 4 ? ` and ${bad.length - 4} more` : ""} \u2014 these must be directory (tenant) GUIDs, not domain names.`
+            : `${ids.length} tenant ID${ids.length === 1 ? "" : "s"}. A tenant ID is a GUID \u2014 the partner's directory ID, not their domain.`}</p>` : ""}
+        <p class="mini" style="margin:10px 0 0;color:var(--report)">\u26a0 The tenant scope is a single value on the clause, not a list that merges. On an <b>ADD</b>, a policy already scoped to something different is <b>left untouched</b> and says so in the result \u2014 re-run those with <b>Set</b> if replacing the scope is what you meant.</p>`}
+        <h4 class="mini" style="margin:16px 0 6px">WHAT THESE POLICIES HAVE NOW <span class="muted">(${onInclude ? "include" : "exclude"} side)</span></h4>
+        ${clauses.size
+          ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${[...clauses].map(([k, n]) => `<li>${assignEsc(k)} <span class="mini muted">\u00d7 ${n}</span></li>`).join("")}${none ? `<li class="mini muted">no clause \u00d7 ${none}</li>` : ""}</ul>`
+          : `<p class="mini muted">None of the ${asPolicies.length} polic${asPolicies.length === 1 ? "y has" : "ies have"} a clause on this side yet.</p>`}`;
 
     } else if (asStep === 1 && Assign.MAPPED_ACTIONS.has(asAction)) {
       next.textContent = "Next";
@@ -8379,9 +9081,10 @@ This is a directory write. Nothing else changes.`)) return;
       next.textContent = "Review →";
       const gsel = asGroups.filter(g => g.checked);
       const rsel = asRoles.filter((r) => r.checked);
-      const isRoles = asTarget === "roles";
-      const notes = (asAction === 2 || (isRoles && asAction === 0)) && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
-        ? `<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected ${isRoles ? "roles" : "groups"}.</p>` : "";
+      const isRoles = asTarget === "roles", isGuests = asTarget === "guests";
+      const onInclude = isGuests && (asAction === 0 || asAction === 2 || asAction === 5);
+      const notes = (asAction === 2 || ((isRoles || isGuests) && asAction === 0)) && asPolicies.some(p => (p.raw.conditions?.users?.includeUsers || []).includes("All"))
+        ? `<p class="mini" style="color:var(--report)">⚠ Policies currently targeting "All users" will switch to the selected ${isRoles ? "roles" : isGuests ? "guest types" : "groups"}.</p>` : "";
       // Replace (0,1) and All-Users (4) rewrite existing assignment, so tenant-
       // wide they get a typed confirmation. Additive (2,3) and REMOVE (5,6) only
       // touch the named groups, so they are safe to run across everything.
@@ -8401,7 +9104,19 @@ This is a directory write. Nothing else changes.`)) return;
         <p style="margin:8px 0"><b>Policies (${asPolicies.length}):</b></p>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px">${asPolicies.map(p => `<li>${assignEsc(p.name)}</li>`).join("")}</ul>
         ${asAction === 4 ? '<p><b>Target:</b> All users (include groups will be cleared)</p>'
-          : isRoles
+          : isGuests
+            ? (() => {
+                const sel = asGuestSel();
+                const labels = sel.types.map((t) => Assign.GUEST_TYPE_LABEL[t] || t);
+                const removing = Assign.REMOVE_ACTIONS.has(asAction);
+                return `<p style="margin:8px 0"><b>Guest / external user type${labels.length === 1 ? "" : "s"} (${labels.length}):</b></p>
+                  <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${labels.map((l) => `<li>${assignEsc(l)}</li>`).join("")}</ul>
+                  ${removing
+                    ? `<p class="mini muted" style="margin:6px 0 0">Taken off the <b>${onInclude ? "include" : "exclude"}</b> side. A policy left with no types loses the clause entirely; the tenant scope of whatever remains is not touched.</p>`
+                    : `<p style="margin:8px 0"><b>External tenants:</b> ${sel.tenantKind === "enumerated" && sel.tenantIds.length ? `${sel.tenantIds.length} named tenant${sel.tenantIds.length === 1 ? "" : "s"}` : "all external tenants"}</p>
+                       <p class="mini muted" style="margin:6px 0 0">Written to the <b>${onInclude ? "include" : "exclude"}</b> side.${asAction === 2 || asAction === 3 ? " Policies already scoped to different external tenants are left untouched and reported as such." : ""}</p>`}`;
+              })()
+            : isRoles
             ? `<p style="margin:8px 0"><b>Directory roles (${rsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${rsel.map(r => `<li>${assignEsc(r.name)}${r.recommended ? ' <span class="tag grant">privileged</span>' : ""}</li>`).join("")}</ul>
                <p class="mini muted" style="margin:6px 0 0">Built-in roles only — Conditional Access does not enforce custom or administrative-unit-scoped roles.</p>`
             : `<p style="margin:8px 0"><b>Groups (${gsel.length}):</b></p><ul class="plist2" style="border:1px solid var(--border);border-radius:8px">${gsel.map(g => `<li>${assignEsc(g.name)} <span class="mini">${assignEsc(g.id)}</span></li>`).join("")}</ul>`}
@@ -8412,20 +9127,23 @@ This is a directory write. Nothing else changes.`)) return;
       back.style.display = "none";
       const nFail = asResults.filter(r => !r.ok).length;
       const nUp = asResults.filter(r => r.ok && r.changed !== false).length;
-      const nSet = asResults.length - nUp - nFail;
+      const nSkip = asResults.filter(r => r.ok && r.skipped).length;
+      const nSet = asResults.length - nUp - nFail - nSkip;
       // "unchanged" here means the group was already where you asked it to be —
       // for an add/remove that IS the intended end state, so it reads green
       // ("already set") not neutral. Only a real failure is red.
       b.innerHTML = `<h4 class="mini">RESULT</h4>
-        <p class="mini">${nUp} updated · ${nSet} already set · ${nFail} failed</p>
+        <p class="mini">${nUp} updated · ${nSet} already set${nSkip ? ` · ${nSkip} left untouched` : ""} · ${nFail} failed</p>
         <div class="row" style="justify-content:flex-start;margin:8px 0 12px">
           <button class="btn" id="asReport">📄 View change report</button>
         </div>
         <ul class="plist2" style="border:1px solid var(--border);border-radius:8px">` +
         asResults.map(r => `<li>${r.ok
-          ? (r.changed === false ? '<span class="tag grant">already set</span>' : '<span class="tag grant">updated</span>')
+          ? (r.skipped ? '<span class="tag">left untouched</span>'
+            : r.changed === false ? '<span class="tag grant">already set</span>' : '<span class="tag grant">updated</span>')
           : '<span class="tag block">failed</span>'} ${assignEsc(r.name)}${
           r.group ? `<div class="mini muted">+ ${assignEsc(r.group)}</div>` : ""}${
+          r.skipped ? `<div class="mini">${assignEsc(r.skipped)}</div>` : ""}${
           r.error ? `<div class="mini">${assignEsc(r.error)}</div>` : ""}</li>`).join("") + "</ul>";
     }
   }
@@ -8436,6 +9154,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (t) { asTarget = t.value; asAction = null; renderAssign(); return; }   // actions differ per target
     const r = e.target.closest('[name="asAct"]'); if (r) { asAction = +r.value; return; }
     if (e.target.id === "asRoleAdminOnly") { asRoleAdminOnly = e.target.checked; renderAssign(); return; }
+    const gt = e.target.closest("[data-asguest]");
+    if (gt) { if (gt.checked) asGuestTypes.add(gt.dataset.asguest); else asGuestTypes.delete(gt.dataset.asguest); renderAssign(); return; }
+    const gtn = e.target.closest('[name="asGuestTenant"]');
+    if (gtn) { asGuestTenantKind = gtn.value; renderAssign(); return; }
     const rr = e.target.closest("[data-asrole]");
     if (rr) { const role = asRoles.find((x) => x.id === rr.dataset.asrole); if (role) role.checked = rr.checked; renderAssign(); return; }
     if (e.target.id === "asPlanCreate") { asPlanCreate = e.target.checked; renderAssign(); return; }
@@ -8452,6 +9174,21 @@ This is a directory write. Nothing else changes.`)) return;
     renderAssign();
   }
   $("asBody").addEventListener("input", (e) => {
+    if (e.target.id === "asGuestTenantIds") {
+      // No re-render: this box is a textarea and rebuilding it under the
+      // typist loses the caret. The hint line is refreshed in place instead.
+      asGuestTenantIds = e.target.value;
+      const { ids, bad } = asGuestTenantParse();
+      const hint = e.target.nextElementSibling;
+      if (hint) {
+        hint.style.color = bad.length ? "var(--off)" : "";
+        hint.classList.toggle("muted", !bad.length);
+        hint.textContent = bad.length
+          ? `Not a tenant ID: ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? ` and ${bad.length - 4} more` : ""} — these must be directory (tenant) GUIDs, not domain names.`
+          : `${ids.length} tenant ID${ids.length === 1 ? "" : "s"}. A tenant ID is a GUID — the partner's directory ID, not their domain.`;
+      }
+      return;
+    }
     if (e.target.id === "asRoleSearch") {
       asRoleQuery = e.target.value; renderAssign();
       const el = $("asRoleSearch"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
@@ -8582,6 +9319,13 @@ This is a directory write. Nothing else changes.`)) return;
         if (!asPlanActionable().length) { toast("Nothing ticked — <span>nothing to restore</span>"); return; }
       } else if (asTarget === "roles") {
         if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
+      } else if (asTarget === "guests") {
+        if (!asGuestTypes.size) { toast("Select at least one <span>guest or external user type</span>"); return; }
+        const { ids, bad } = asGuestTenantParse();
+        if (!Assign.REMOVE_ACTIONS.has(asAction) && asGuestTenantKind === "enumerated") {
+          if (bad.length) { toast(`<span>${esc(bad[0])}</span> is not a tenant ID — these must be directory GUIDs`); return; }
+          if (!ids.length) { toast("Add at least one <span>tenant ID</span>, or choose all external tenants"); return; }
+        }
       } else if (!asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       asStep = 2; renderAssign();
     } else if (asStep === 2) {
@@ -8594,6 +9338,8 @@ This is a directory write. Nothing else changes.`)) return;
         if (!asPlanActionable().length) { toast("Nothing ticked — <span>nothing to restore</span>"); return; }
       } else if (asTarget === "roles") {
         if (!asRoles.some((r) => r.checked)) { toast("Select at least one <span>directory role</span>"); return; }
+      } else if (asTarget === "guests") {
+        if (!asGuestTypes.size) { toast("Select at least one <span>guest or external user type</span>"); return; }
       } else if (asAction !== 4 && !asGroups.some(g => g.checked)) { toast("Select at least one group"); return; }
       openAssignConfirm();
     } else {
@@ -8616,12 +9362,38 @@ This is a directory write. Nothing else changes.`)) return;
     const rsel = asRoles.filter((r) => r.checked);
     const verb = (asTarget === "roles"
       ? (AS_VERB[asAction] || "").replace(/groups/g, "roles")
-      : AS_VERB[asAction]) || Assign.actionsFor(asTarget)[asAction];
+      : asTarget === "guests"
+        ? (AS_VERB[asAction] || "").replace(/include groups/g, "included guests & external users").replace(/exclude groups/g, "excluded guests & external users")
+        : AS_VERB[asAction]) || Assign.actionsFor(asTarget)[asAction];
     const lines = [];
     lines.push(`**${verb}** ${scope}.`);
     lines.push("");
     if (asAction === 4) {
       lines.push("The include assignment becomes **All users** and any include groups are cleared.");
+    } else if (asTarget === "guests") {
+      const sel = asGuestSel();
+      const onInclude = asAction === 0 || asAction === 2 || asAction === 5;
+      const removing = Assign.REMOVE_ACTIONS.has(asAction);
+      lines.push(`Guest / external user type${sel.types.length === 1 ? "" : "s"}, on the **${onInclude ? "include" : "exclude"}** side:`);
+      sel.types.forEach((t) => lines.push(`- ${Assign.GUEST_TYPE_LABEL[t] || t}`));
+      lines.push("");
+      if (removing) {
+        lines.push("A policy left with **no types** loses the guest clause entirely — an empty type list is not a valid clause.");
+      } else {
+        lines.push(`External tenants: **${sel.tenantKind === "enumerated" && sel.tenantIds.length ? `${sel.tenantIds.length} named tenant${sel.tenantIds.length === 1 ? "" : "s"}` : "all external tenants"}**.`);
+        if (asAction === 2 || asAction === 3) {
+          lines.push("");
+          lines.push("_The tenant scope is one value, not a list that merges — policies already scoped to different external tenants are **left untouched** and reported as such._");
+        }
+      }
+      if (!onInclude) {
+        lines.push("");
+        lines.push("⚠ An exclusion **widens** a policy: whoever these types cover stops being subject to it.");
+      }
+      if (onInclude && asPolicies.some((p) => (p.raw.conditions?.users?.includeUsers || []).includes("All"))) {
+        lines.push("");
+        lines.push("⚠ Policies currently including **All users** will switch to covering only these guest types.");
+      }
     } else if (asTarget === "roles") {
       lines.push(`Directory role${rsel.length === 1 ? "" : "s"}:`);
       rsel.forEach((r) => lines.push(`- ${r.name}${r.recommended ? " *(privileged)*" : ""}`));
@@ -8706,7 +9478,15 @@ This is a directory write. Nothing else changes.`)) return;
     const rowsFor = mapped ? asPlanActionable().map((r) => ({ label: r.policy, sub: r.group })) : asPolicies.map((p) => ({ label: p.name }));
     const host = document.createElement("div"); $("asConfirmBody").innerHTML = ""; $("asConfirmBody").appendChild(host);
     const L = RunLedger.create(host, { unit: "policies", items: rowsFor });
-    const onItem = (i, phase, r) => { if (phase === "start") L.start(i); else if (r.ok) L.done(i, r.changed === false ? "already set" : "", r.changed === false ? "unchanged" : "updated"); else if (r.stopped) L.skip(i, "stopped"); else L.fail(i, r.error || "failed"); };
+    const onItem = (i, phase, r) => {
+      if (phase === "start") return L.start(i);
+      // A guest ADD that would have rescoped the policy is NOT "already set" —
+      // nothing was written and the reason is the point.
+      if (r.ok && r.skipped) return L.skip(i, r.skipped);
+      if (r.ok) return L.done(i, r.changed === false ? "already set" : "", r.changed === false ? "unchanged" : "updated");
+      if (r.stopped) return L.skip(i, "stopped");
+      L.fail(i, r.error || "failed");
+    };
     try {
       if (isDemo) {
         asResults = [];
@@ -8716,7 +9496,9 @@ This is a directory write. Nothing else changes.`)) return;
       } else if (mapped) {
         asResults = await runRestore(onItem, () => L.stopped);
       } else {
-        const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id) : gids;
+        const ids = asTarget === "roles" ? asRoles.filter(r => r.checked).map(r => r.id)
+          : asTarget === "guests" ? asGuestSel()
+          : gids;
         asResults = await Assign.apply(asPolicies.map(p => p.id), asAction, ids, null, asTarget, onItem, () => L.stopped);
       }
       L.finish({ report: () => showReport("👥 Group assignment report", "CA-Assign-Report", assignReportMd(asRun)) });
@@ -8726,6 +9508,7 @@ This is a directory write. Nothing else changes.`)) return;
         plan: mapped ? asPlanActionable().map((r) => ({ ...r })) : null,
         groups: asGroups.filter(g => g.checked).map(g => ({ ...g })),
         roles: asRoles.filter(r => r.checked).map(r => ({ ...r })),
+        guests: asTarget === "guests" ? asGuestSel() : null,
         results: asResults, when: new Date() };
       asStep = 3; renderAssign();
       const failed = asResults.filter(r => !r.ok).length;
@@ -8754,9 +9537,12 @@ This is a directory write. Nothing else changes.`)) return;
     const md = (s) => String(s ?? "").replace(/\|/g, "\\|");
     const r = run.results || [];
     const up = r.filter(x => x.ok && x.changed !== false);
-    const unch = r.filter(x => x.ok && x.changed === false);
+    const skipped = r.filter(x => x.ok && x.skipped);
+    const unch = r.filter(x => x.ok && x.changed === false && !x.skipped);
     const fail = r.filter(x => !x.ok);
-    const verb = (run.target === "roles" ? (AS_VERB[run.action] || "").replace(/groups/g, "roles") : AS_VERB[run.action])
+    const verb = (run.target === "roles" ? (AS_VERB[run.action] || "").replace(/groups/g, "roles")
+      : run.target === "guests" ? (AS_VERB[run.action] || "").replace(/include groups/g, "included guests & external users").replace(/exclude groups/g, "excluded guests & external users")
+      : AS_VERB[run.action])
       || Assign.actionsFor(run.target)[run.action];
     const L = [];
     L.push(`# Conditional Access — group assignment report`);
@@ -8770,11 +9556,19 @@ This is a directory write. Nothing else changes.`)) return;
       const created = run.plan.filter((r) => r.state === "nogroup");
       L.push(`- **Mapping:** one group per policy, added to the existing exclusions${created.length ? ` · ${created.length} group(s) created first` : ""}`);
     } else if (run.action !== 4) {
-      L.push(run.target === "roles"
-        ? `- **Directory role(s):** ${(run.roles || []).map(r => `${md(r.name)}${r.recommended ? " *(privileged)*" : ""}`).join(", ") || "—"}`
-        : `- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
+      if (run.target === "roles") {
+        L.push(`- **Directory role(s):** ${(run.roles || []).map(r => `${md(r.name)}${r.recommended ? " *(privileged)*" : ""}`).join(", ") || "—"}`);
+      } else if (run.target === "guests" && run.guests) {
+        const g = run.guests;
+        L.push(`- **Guest / external user type(s):** ${g.types.map(t => md(Assign.GUEST_TYPE_LABEL[t] || t)).join(", ") || "—"}`);
+        if (!Assign.REMOVE_ACTIONS.has(run.action)) {
+          L.push(`- **External tenants:** ${g.tenantKind === "enumerated" && g.tenantIds.length ? g.tenantIds.map(x => `\`${md(x)}\``).join(", ") : "all external tenants"}`);
+        }
+      } else {
+        L.push(`- **Group(s):** ${run.groups.map(g => `${md(g.name)}${g.id ? ` (\`${md(g.id)}\`)` : ""}`).join(", ") || "—"}`);
+      }
     }
-    L.push(`- **Result:** ${up.length} updated · ${unch.length} already set · ${fail.length} failed`);
+    L.push(`- **Result:** ${up.length} updated · ${unch.length} already set${skipped.length ? ` · ${skipped.length} left untouched` : ""} · ${fail.length} failed`);
     if (isDemo) L.push(`- _Demo mode — simulated, nothing was written._`);
     L.push("");
     if (fail.length) {
@@ -8783,12 +9577,20 @@ This is a directory write. Nothing else changes.`)) return;
       fail.forEach(x => L.push(`- ❌ **${md(x.name)}** — ${md(x.error || "unknown error")}`));
       L.push("");
     }
+    // Not a failure and not a no-op: the run deliberately declined to write
+    // these, and the reason is the whole value of the row.
+    if (skipped.length) {
+      L.push("## Left untouched");
+      L.push("");
+      skipped.forEach(x => L.push(`- ⏭ **${md(x.name)}** — ${md(x.skipped)}`));
+      L.push("");
+    }
     L.push("## Every policy");
     L.push("");
     L.push(run.plan ? "| Result | Policy | Group added |" : "| Result | Policy |");
     L.push(run.plan ? "|---|---|---|" : "|---|---|");
     for (const x of r) {
-      const tag = !x.ok ? "❌ failed" : x.changed === false ? "✅ already set" : "✅ updated";
+      const tag = !x.ok ? "❌ failed" : x.skipped ? "⏭ left untouched" : x.changed === false ? "✅ already set" : "✅ updated";
       L.push(run.plan ? `| ${tag} | ${md(x.name)} | ${md(x.group || "—")} |` : `| ${tag} | ${md(x.name)} |`);
     }
     L.push("");
@@ -8838,7 +9640,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("blChips").innerHTML = ""; $("blBody").innerHTML = "";
       return;
     }
-    blResult = Baseline.compare(policies, blCat);
+    blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
     if (!keepView) {
       blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
     }
@@ -8857,11 +9659,147 @@ This is a directory write. Nothing else changes.`)) return;
     $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
     const n = blResult.toImport.length;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
+    // Regenerating the catalog is only meaningful where the catalog is BUILT.
+    $("blCatalogUpdate").style.display = isBaselineTenant() && !isDemo ? "" : "none";
+    $("blExport").style.display = isBaselineTenant() && !isDemo ? "" : "none";
+    if (blCatOpen) renderCatalogUpdate();
   }
+
+  // ---------- Update the catalog from this tenant (25436) ----------------
+  // The baseline tenant is where the catalog is authored, so this is the one
+  // place the comparison runs the other way round: not "is the tenant behind
+  // the catalog" but "what has the catalog not caught up with".
+  //
+  // Holds live per tenant and are keyed by the SIGNATURE of the difference
+  // they were made about, so the 58 dropped exclusion groups stay held while a
+  // later, different change on one of those policies reopens by itself.
+  let blCatOpen = false, blReview = null, blTake = new Set();
+  const HOLD_KEY = () => `enca-baseline-holds:${tenantId || "unknown"}:${blCat}`;
+  const loadHolds = () => { try { return JSON.parse(localStorage.getItem(HOLD_KEY()) || "{}") || {}; } catch { return {}; } };
+  const saveHolds = (h) => { try { localStorage.setItem(HOLD_KEY(), JSON.stringify(h)); } catch { /* private mode */ } };
+
+  function renderCatalogUpdate() {
+    const panel = $("blCatalogPanel");
+    if (!blCatOpen || !blResult) { panel.style.display = "none"; return; }
+    panel.style.display = "";
+    const holds = loadHolds();
+    blReview = Baseline.catalogReview(blResult, holds);
+    const r = blReview;
+    const row = (x, kind) => {
+      const num = `CA${String(x.num).padStart(3, "0")}`;
+      const diff = (x.diff || []).map((d) => `<li><b>${esc(d.label)}</b><div class="mini muted bl-diffv">catalog: ${esc(d.cat)}</div><div class="mini bl-diffv">tenant: ${esc(d.ten)}</div></li>`).join("");
+      const on = blTake.has(x.num);
+      return `<div class="list-card" style="margin:8px 0"><div class="fx-body">
+        <div class="bl-cardhead">
+          <span class="tag ${kind === "added" ? "grant" : kind === "held" ? "" : "block"}">${kind === "added" ? "NEW HERE" : kind === "held" ? "HELD" : "CHANGED"}</span>
+          <b>${esc(num)}</b> <span class="mini bl-cardname">${esc((x.ten && x.ten.name) || (x.cat && x.cat.name) || "")}</span>
+          ${x.reopened ? '<span class="tag new" title="It was held, but the difference is not the one that was held">REOPENED</span>' : ""}
+          ${kind === "changed" ? (x.kind === "renamed" ? '<span class="tag" title="Only the name differs from the catalog; the definition is the same">renamed, same version</span>' : x.kind === "edited" && x.status === "ahead" ? '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows; the chip counts it as newer">same version — edited in place</span>' : x.status === "ahead" ? (x.diff.length === 1 && x.diff[0].field === "name" ? '<span class="tag" title="Only the version in the name moved; the definition is the catalog\'s — taking it updates the entry\'s name and version">newer version only</span>' : '<span class="tag" title="The version in the policy name is newer than the catalog\'s — the chip counts this one">newer version in name</span>') : x.status === "outdated" ? '<span class="tag" title="The version in the name is OLDER than the catalog\'s, yet the definition differs">older version in name</span>' : x.status === "ok" ? (x.diff.some((d) => d.field === "name") ? '<span class="tag" title="Renamed without a version bump">renamed, same version</span>' : '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows">same version — edited in place</span>') : "") : ""}
+        </div>
+        ${diff ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0 0">${diff}</ul>` : ""}
+        ${x.hold ? `<p class="mini" style="margin:8px 0 0">Held: <i>${esc(x.hold.reason)}</i>${x.hold.at ? ` · ${esc(String(x.hold.at).slice(0, 10))}` : ""}</p>` : ""}
+        <div class="bl-cardact">
+          ${kind === "held"
+            ? `<button class="btn sm" data-blunhold="${x.num}">Reopen this decision</button>`
+            : `<label class="chk"><input type="checkbox" data-bltake="${x.num}" ${on ? "checked" : ""}> Take into the catalog</label>
+               <span class="bl-cardor mini muted">or</span>
+               <input type="text" class="bl-why" data-blwhy="${x.num}" aria-label="Reason for holding CA${String(x.num).padStart(3, "0")}" placeholder="hold it, and say why — the reason is kept with the catalog">
+               <button class="btn sm" data-blhold="${x.num}">Hold</button>`}
+        </div>
+      </div></div>`;
+    };
+    const drift = r.drift.length;
+    panel.innerHTML = `<div class="list-card readme"><div class="fx-body">
+      <div style="display:flex;gap:16px;align-items:baseline;justify-content:space-between;flex-wrap:wrap">
+        <h4 style="margin:0">🧱 Update the catalog from this tenant</h4>
+        <button class="btn sm" id="blCatClose">Close</button>
+      </div>
+      <p class="mini" style="margin:8px 0 0">Compared on <b>definition</b>, not on the version in the policy name — so a policy edited without a version bump is caught, and group order, condition order and markdown are not mistaken for changes. Nothing here writes to the tenant or to the repository: it proposes source for you to read and commit.</p>
+      ${(() => {
+        const newer = r.changed.filter((x) => x.kind === "version"), inPlace = r.changed.filter((x) => x.kind === "edited"), renamed = r.changed.filter((x) => x.kind === "renamed");
+        const nameOnly = newer.filter((x) => !x.edited).length;
+        const chip = r.changed.filter((x) => x.status === "ahead").length, older = r.changed.filter((x) => x.status === "outdated").length;
+        const total = r.changed.length + r.added.length;
+        return `<p class="mini" style="margin:6px 0 0"><b>${total}</b> to take · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
+      <p class="mini muted" style="margin:4px 0 0">The <b>${chip}</b> the Newer than baseline chip counts, in three kinds: <b>${newer.length}</b> with a newer version in the name${nameOnly ? ` (${nameOnly} of them the version alone, definition unchanged)` : ""}, <b>${inPlace.length}</b> edited in place at the same version, <b>${renamed.length}</b> renamed at the same version (the definition unchanged — the card shows both names)${older ? `; plus <b>${older}</b> at an OLDER version whose definition differs (the chip counts those as outdated)` : ""}${r.added.length ? `; plus <b>${r.added.length}</b> the catalog does not know at all` : ""}.</p>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn sm" id="blTakeNewer" ${newer.length ? "" : "disabled"} title="The policies whose version in the name is newer than the catalog's">☑ Select the ${newer.length} newer</button>
+        <button class="btn sm" id="blTakeInPlace" ${inPlace.length ? "" : "disabled"} title="Definition differs, version not bumped">☑ Select the ${inPlace.length} edited in place</button>
+        <button class="btn sm" id="blTakeRenamed" ${renamed.length ? "" : "disabled"} title="Only the name differs — take them to update the catalog's names">☑ Select the ${renamed.length} renamed</button>
+        <button class="btn sm" id="blTakeAll" ${total ? "" : "disabled"}>☑ Select all (${total})</button>
+        <button class="btn sm" id="blTakeNone" ${blTake.size ? "" : "disabled"}>☐ Deselect all</button>
+        <span class="mini muted">${blTake.size} selected to take</span>
+      </div>`; })()}
+      ${drift ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">⚠ <b>Serialiser drift on ${drift} of the ${r.unchanged.length} unchanged policies.</b> Their definitions match, but the entry this tool would write differs in wording from the catalog's existing prose — the catalog's strings were produced by a generator that is not in this repository. The comparison is unaffected; the entries you take will simply read a little differently from their neighbours. Worth an eye on the first one you paste.</p>` : ""}
+      ${r.gone.length ? `<p class="mini" style="margin:8px 0 0">Gone from the tenant: ${r.gone.map((g) => `CA${String(g.num).padStart(3, "0")}`).join(", ")} — <b>not</b> removed from the catalog here. Deleting a baseline policy is a decision this tool will not make for you.</p>` : ""}
+    </div></div>
+    ${(() => { const newer = r.changed.filter((x) => x.kind === "version"), inPlace = r.changed.filter((x) => x.kind === "edited"), renamed = r.changed.filter((x) => x.kind === "renamed");
+      const head = (txt, n) => n ? `<h4 class="mini" style="margin:14px 0 2px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">${txt} (${n})</h4>` : "";
+      return head("🆙 Newer version in the name — what the chip counts", newer.length) + newer.map((x) => row(x, "changed")).join("")
+        + head("✏️ Edited in place — definition differs, version not bumped", inPlace.length) + inPlace.map((x) => row(x, "changed")).join("")
+        + head("🏷 Renamed — only the name differs, definition unchanged", renamed.length) + renamed.map((x) => row(x, "changed")).join("")
+        + head("🆕 New here — not in the catalog", r.added.length) + r.added.map((x) => row(x, "added")).join(""); })()}
+    ${r.held.map((x) => row(x, "held")).join("")}
+    <div class="list-card"><div class="fx-body">
+      <button class="btn primary" id="blCatGen" ${blTake.size ? "" : "disabled"}>📄 Generate the catalog source (${blTake.size})</button>
+      <span class="mini muted" style="margin-left:8px">opens as a report — download it, read it, then edit js/baselineData.js by hand</span>
+    </div></div>`;
+  }
+
+  $("blCatalogUpdate").addEventListener("click", () => { blCatOpen = !blCatOpen; blTake.clear(); renderCatalogUpdate(); });
+  // ⬇ Export baseline (25463) — the SAME export 🗄 Backup gives on the
+  // Policies screen, opened from where the baseline is actually worked on and
+  // with the persona chooser on. Mihai: "just like the backup from the
+  // policies section, but now also make available from the baseline page …
+  // options per persona and Dependencies". It hands the whole policy set in:
+  // backupScope() narrows it to the persona baseline here, and the chooser
+  // narrows that. Nothing about the zip, the dependency read or the migration
+  // table changes.
+  $("blExport").addEventListener("click", () => {
+    $("bkGroups").checked = true;        // the dependencies are the point of taking a baseline elsewhere
+    runBackup(policies.map((p) => p.id), { personas: true });
+  });
+  $("blCatalogPanel").addEventListener("click", (e) => {
+    if (e.target.id === "blCatClose") { blCatOpen = false; renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeAll") { [...(blReview.changed || []), ...(blReview.added || [])].forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeNewer") { (blReview.changed || []).filter((x) => x.kind === "version").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeInPlace") { (blReview.changed || []).filter((x) => x.kind === "edited").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeRenamed") { (blReview.changed || []).filter((x) => x.kind === "renamed").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeNone") { blTake.clear(); renderCatalogUpdate(); return; }
+    const hold = e.target.closest("[data-blhold]");
+    if (hold) {
+      const num = +hold.dataset.blhold;
+      const box = $("blCatalogPanel").querySelector(`[data-blwhy="${num}"]`);
+      const reason = (box && box.value.trim()) || "";
+      if (!reason) { toast("Say why it is held — <span>the reason is the point</span>"); if (box) box.focus(); return; }
+      const x = (blReview.changed || []).find((c) => c.num === num);
+      if (!x) return;
+      const holds = loadHolds();
+      holds[String(num)] = { reason, sig: x.sig, at: new Date().toISOString() };
+      saveHolds(holds); blTake.delete(num); renderCatalogUpdate();
+      toast(`CA${String(num).padStart(3, "0")} <span>held</span> — the reason travels with the catalog note`);
+      return;
+    }
+    const un = e.target.closest("[data-blunhold]");
+    if (un) {
+      const holds = loadHolds(); delete holds[String(+un.dataset.blunhold)]; saveHolds(holds); renderCatalogUpdate();
+      return;
+    }
+    if (e.target.id === "blCatGen") {
+      const taken = [...(blReview.changed || []), ...(blReview.added || [])].filter((x) => blTake.has(x.num))
+        .map((x) => ({ num: x.num, ten: x.ten, diff: x.diff || [{ label: "new in this tenant" }] }));
+      const md = "```js\n" + Baseline.catalogSource(blReview, taken, loadHolds(), { tenant: tenantName || tenantId }) + "\n```";
+      showReport("🧱 Proposed baseline catalog", "ENCA-baseline-catalog", md);
+    }
+  });
+  $("blCatalogPanel").addEventListener("change", (e) => {
+    const t = e.target.closest("[data-bltake]");
+    if (t) { const n = +t.dataset.bltake; if (t.checked) blTake.add(n); else blTake.delete(n); renderCatalogUpdate(); }
+  });
   $("blCatalog").addEventListener("click", (e) => {
     const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
     blCat = b.dataset.blcat;
-    blResult = Baseline.compare(policies, blCat);
+    blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
     blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); renderBaseline();
     if (blCat === "joey") blLiveEnsure();
   });
@@ -9116,7 +10054,7 @@ This is a directory write. Nothing else changes.`)) return;
     // the match is re-decided on the fresh catalog (a release that renamed
     // policies can move the coverage either way); a saved choice is untouched
     try { Baseline.autoPick(policies); } catch {}
-    if (blResult && blCat === "joey" && $("screen-baseline").classList.contains("active")) { blResult = Baseline.compare(policies, blCat); renderBaseline(); }
+    if (blResult && blCat === "joey" && $("screen-baseline").classList.contains("active")) { blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() }); renderBaseline(); }
     if (Baseline.activeCatalogId() === "joey") baselineChanged();
   });
   // R36 — the active baseline changed: every cached scan that was taken
@@ -9223,7 +10161,20 @@ This is a directory write. Nothing else changes.`)) return;
   });
 
   // ---------- CA Exclusion analyzer ----------
-  let exModel = null, exUsers = [], exTab = "matrix", exKind = "all", exQuery = "", exPage = 0;
+  // The DEFAULT tab is the list, not the grid (beta 25413). The matrix is the
+  // only view that shows the exception — the policy that does NOT carry the
+  // exclusion every other policy carries — and it is a poor inventory: on the
+  // demo tenant it is 96 cells with 16 marks, and five of the eight exclusions
+  // appear in exactly one policy, which is a list item wearing a grid costume.
+  let exModel = null, exUsers = [], exTab = "entities", exKind = "all", exQuery = "", exPage = 0;
+  // Beta 25412 — every published result carries the descriptor of the run that
+  // made it (js/runmeta.js), and a policy reload, a tenant change or a sign-out
+  // drops the results that belonged to the old snapshot. Before this, Refresh
+  // cleared T03's report and left T09's model, T09's users, the licence result
+  // and its context standing: the screen showed the old snapshot under the new
+  // tenant, and Export CSV wrote the old policies out while the screen said
+  // there were none.
+  let exRunMeta = null, anRunMeta = null, lgRunMeta = null;
   let exFocusRow = null, exFocusCol = null;  // pinned exclusion/user row and/or policy column
   const EX_PAGE = 50;
   // Opening the tool does NOT rescan — the scan (which expands group membership
@@ -9231,6 +10182,13 @@ This is a directory write. Nothing else changes.`)) return;
   // switching tabs and coming back keeps the screen intact.
   function openExclusions() {
     show("screen-exclusions");
+    // A scan in flight owns the screen. Reopening the tool while it runs used
+    // to repaint the idle run prompt UNDER the busy panel (beta 25413 on a
+    // 111-group tenant): since 25412 nothing is published until the run
+    // finishes, so exModel is null for the whole read and every re-entry fell
+    // into the idle branch. Publishing early is what that change fixed — the
+    // screen just has to respect the busy state instead.
+    if (exBusy) return;
     $("exRescan").style.display = exModel ? "" : "none";
     if (!policies.length) { $("exHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("exBody").innerHTML = ""; $("exChips").innerHTML = ""; return; }
     if (exModel) {   // cached — restore the previous screen, no rescan
@@ -9240,33 +10198,63 @@ This is a directory write. Nothing else changes.`)) return;
       return;
     }
     // idle — wait for the user to start the scan
+    exIdle();
+  }
+  // The idle screen, as its own function: invalidating a result (a policy
+  // reload, a tenant change) has to be able to put the tool back to it.
+  function exIdle() {
+    if (!$("exHead") || exBusy) return;
+    $("exRescan").style.display = "none";
     $("exHead").innerHTML = toolHead("toolExclusions") + '<p class="mini" style="margin:6px 0 0">Every exclusion across all policies — users, groups (expanded to their members), roles, guest types, apps and locations.</p>';
     $("exChips").innerHTML = ""; $("exPager").style.display = "none"; $("exHint").style.display = "none";
     $("exBody").innerHTML = '<div class="run-prompt"><button class="btn primary" data-exrun>▶ Run exclusion scan</button><p class="mini muted">Expands group memberships via Microsoft Graph. The result stays until you rescan.</p></div>';
   }
   let exBusy = false;
+  // Export, search, the tab picker and Full screen all act on a published
+  // result. While a read is running there is none, so the toolbar goes away
+  // rather than offering to export the run before it.
+  function exChrome(busy) {
+    const tb = $("exToolbar"); if (tb) tb.style.display = busy ? "none" : "";
+  }
   async function runExclusionScan() {
     if (exBusy) return;
     exBusy = true;
+    exChrome(true);
     const exProg = makeProgress("ex"); exProg.begin();
     $("exRescan").style.display = "";
     $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel("Collecting exclusions…");
     $("exChips").innerHTML = ""; $("exBody").innerHTML = ""; $("exPager").style.display = "none";
-    exTab = "matrix"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
-    Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "matrix"));
+    exTab = "entities"; exKind = "all"; exQuery = ""; exPage = 0; exFocusRow = null; exFocusCol = null; Fs.close(); $("exSearch").value = "";
+    Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === "entities"));
+    // Nothing is published until the whole run succeeds. exModel used to be
+    // assigned before resolution finished while exUsers still held the PREVIOUS
+    // run's rows, so reopening the tool during a slow rescan rendered a partial
+    // model with the old user total and working export buttons.
+    exModel = null; exUsers = []; exRunMeta = null;
     try {
       // the whole tenant's policies — exclusions are a tenant-wide question
-      exModel = Exclusions.collect(policies.map(p => p.raw));
-      await Exclusions.resolve(exModel, { demo: isDemo, signal: exProg.signal, onStatus: (m, done, total) => { exProg.detail(m); if (total) { exProg.st.cap = total; exProg.st.stepLabel = "group"; exProg.tick(done, done); } $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel(esc(m)); } });
-      const result = await AnalysisJobs.run("exclusions", { model: exModel }, { signal: exProg.signal });
+      const draft = Exclusions.collect(policies.map(p => p.raw));
+      await Exclusions.resolve(draft, { demo: isDemo, signal: exProg.signal, onStatus: (m, done, total) => { exProg.detail(m); if (total) { exProg.st.cap = total; exProg.st.stepLabel = "group"; exProg.tick(done, done); } $("exHead").innerHTML = toolHead("toolExclusions") + exProg.panel(esc(m)); } });
+      const result = await AnalysisJobs.run("exclusions", { model: draft }, { signal: exProg.signal });
       exProg.check();
-      exUsers = result;
+      exModel = draft;
+      exRunMeta = RunMeta.of(runContext({ tool: "T09", population: "Every policy in the tenant", completeness: draft.entities.some((e) => e.kind === "group" && e.pathComplete === false) ? "membership exact, some paths unresolved" : "exact" }));
+      // The worker holds a clone of the model, so the per-user state counts and
+      // the not-expanded populations come back beside the rows and are put on
+      // this side's model here.
+      exUsers = result.users || result;
+      exModel.userStates = result.states || null;
+      exModel.unexpanded = result.unexpanded || null;
+      // Published. The screen stops being busy BEFORE it is drawn — the render
+      // and the idle screen both stand aside while a read is in flight, so
+      // rendering from inside the busy window would draw nothing at all.
+      exBusy = false; exChrome(false);
       renderExclusions();
     } catch (e) {
       console.error("Exclusion analyzer failed:", e);
-      exModel = null;
+      exModel = null; exUsers = []; exRunMeta = null;
       $("exHead").innerHTML = `${toolHead("toolExclusions")}<p class="mini" style="color:var(--off)">Failed: ${esc(e.message || e)}</p>`;
-    } finally { exBusy = false; exProg.stop(); }
+    } finally { exBusy = false; exChrome(false); exProg.stop(); }
   }
   $("exRescan").addEventListener("click", runExclusionScan);
   // The filter banner sticks directly under the (sticky) toolbar. The toolbar
@@ -9287,23 +10275,54 @@ This is a directory write. Nothing else changes.`)) return;
     wrap.style.maxHeight = Math.max(280, Math.round(window.innerHeight - chrome - 28)) + "px";
   }
   window.addEventListener("resize", syncExFocusTop);
+  window.addEventListener("resize", () => { if (exModel && !exBusy && exTab === "matrix" && window.innerWidth <= 700) { exTab = "entities"; Object.entries(EX_TABS).forEach(([tab, id]) => $(id).classList.toggle("active", tab === exTab)); renderExclusions(); } });
   function renderExclusions() {
-    if (!exModel) return;
-    $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers));
+    if (exBusy) return;           // the busy panel owns the screen
+    if (!exModel) { exIdle(); return; }
+    $("exHead").innerHTML = Exclusions.renderSummary(Exclusions.summary(exModel, exUsers))
+      + RunMeta.strip(exRunMeta, runContext(), { staleHint: "The policies were reloaded after this scan — rescan to see them." });
     const counts = {};
     exModel.entities.forEach(e => counts[e.kind] = (counts[e.kind] || 0) + 1);
-    $("exChips").innerHTML = exTab !== "users"
+    // Below ~700px the grids are not offered: the list carries the same facts.
+    if (exTab === "matrix" && window.innerWidth <= 700) exTab = "entities";
+    const focus = { row: exFocusRow, col: exFocusCol };
+    $("exChips").innerHTML = (exTab !== "users"
       ? [["all", `All (${exModel.entities.length})`], ...Object.entries(counts).sort((a, b) => Exclusions.KIND[a[0]].order - Exclusions.KIND[b[0]].order)
           .map(([k, n]) => [k, `${Exclusions.KIND[k].icon} ${Exclusions.KIND[k].label} (${n})`])]
           .map(([k, l]) => `<button class="fchip ${exKind === k ? "active" : ""}" data-exk="${k}">${l}</button>`).join("")
-      : "";
+      : "")
+      // What is narrowing the view, as removable chips (25418) — the row and
+      // column pins used to announce themselves in a banner above the grid.
+      + ((exTab === "matrix" || exTab === "users") ? Exclusions.focusChips(exModel, exUsers, focus) : "");
     $("exExpand").style.display = "";
     const full = Fs.isOpen();
-    const focus = { row: exFocusRow, col: exFocusCol };
+    if (exTab === "entities") {
+      $("exPager").style.display="none";$("exHint").style.display="none";$("exExpand").style.display="none";
+      const q=exQuery.toLowerCase();
+      const items=exModel.entities.filter(e=>(exKind==='all'||e.kind===exKind)&&(!q||`${e.name} ${e.id}`.toLowerCase().includes(q))).map(e=>({
+        key:e.key,title:e.name,meta:`${Exclusions.KIND[e.kind]?.label||e.kind} · ${e.policyIds.size} policies`,
+        node:()=>{const n=document.createElement('div');const ps=exModel.policies.filter(p=>e.policyIds.has(p.id));
+          n.innerHTML=`<p class="mini">${esc(Exclusions.KIND[e.kind]?.label||e.kind)} · ${esc(e.id)}</p>
+          ${e.kind==='group'?`<button class="btn" data-exmembers="${esc(e.key)}">View membership evidence</button>`:''}
+          <h3>Excluded from policies</h3><ul>${ps.map(p=>`<li><button class="btn pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</button> <span class="mini">${esc(p.state)}</span></li>`).join('')}</ul>`;return n;}
+      }));
+      if(items.length)ListDetail.mount($("exBody"),items,{key:'exclusion-entities'});else $("exBody").innerHTML='<p class="mini">No exclusions match these filters.</p>';
+      return;
+    }
     if (exTab === "risk") {
       $("exPager").style.display = "none"; $("exHint").style.display = "none";
       $("exExpand").style.display = "none"; $("exChips").innerHTML = "";
       $("exBody").innerHTML = Exclusions.renderRisk(Exclusions.risk(exModel), exQuery);
+      return;
+    }
+    if ((exTab === "matrix" || exTab === "users") && exFocusRow && exFocusCol) {
+      // One row and one policy pinned is a question about one pair, and a grid
+      // with a single mark in it is a poor way to answer it. Draw the answer.
+      $("exPager").style.display = "none"; $("exHint").style.display = "none";
+      const ev = Exclusions.evidence(exModel, exUsers, exFocusRow, exFocusCol, exTab);
+      $("exBody").innerHTML = ev
+        ? `<div class="list-card ex-pair">${exEvidenceHtml(ev, exFocusRow, exFocusCol, { card: true })}</div>`
+        : '<p class="mini" style="padding:20px">That pair is not on this tab — remove one of the chips above.</p>';
       return;
     }
     if (exTab === "matrix") {
@@ -9326,6 +10345,8 @@ This is a directory write. Nothing else changes.`)) return;
     });
   }
   $("exChips").addEventListener("click", (e) => {
+    const un = e.target.closest("[data-exunpin]");
+    if (un) { if (un.dataset.exunpin === "row") exFocusRow = null; else exFocusCol = null; exPage = 0; renderExclusions(); return; }
     const b = e.target.closest("[data-exk]"); if (!b) return;
     // a pinned row may not exist under the new kind filter — drop it
     exKind = b.dataset.exk; exFocusRow = null; renderExclusions();
@@ -9342,10 +10363,19 @@ This is a directory write. Nothing else changes.`)) return;
     const shown = ent.members || [], total = ent.memberTotal;
     $("exMemTitle").textContent = `👥 ${ent.name}`;
     const nested = ent.nested && ent.nested.length ? ent.nested : null;
+    // The question this dialog gets asked most: does this include people who
+    // are only in a group nested inside it? It does — the membership read is
+    // transitive, the same set Entra evaluates — and the PATH is a separate
+    // read with its own completeness, which is what the second line says.
+    const pathPartial = ent.pathComplete === false || ent.unknownPathCount;
     $("exMemSub").innerHTML = `${total == null ? shown.length : total} member${(total ?? shown.length) === 1 ? "" : "s"}`
       + (total != null && total > shown.length ? ` — showing the first ${shown.length}` : "")
       + (nested ? ` · <b>${ent.directCount} direct · ${ent.nestedCount} through ${nested.length} nested group${nested.length === 1 ? "" : "s"}</b>` : "")
-      + ` · excluded from ${ent.policyIds.size} polic${ent.policyIds.size === 1 ? "y" : "ies"}`;
+      + (ent.unknownPathCount ? ` · <span style="color:var(--report)">${ent.unknownPathCount} path not resolved</span>` : "")
+      + ` · excluded from ${ent.policyIds.size} polic${ent.policyIds.size === 1 ? "y" : "ies"}`
+      + `<div class="mini muted" style="margin-top:4px">Transitive membership — everyone Entra evaluates as being in this group, including users who are only members of a group nested inside it. ${pathPartial
+        ? "The count is complete; the route for some of them could not be read (past the 40 nested-group cap, or a read that failed), so they show as <b>path not resolved</b> rather than being guessed at."
+        : "Direct or nested is how each person got in; the count itself is the same either way."}</div>`;
     // direct members first, then the ones who arrive through a nested group,
     // each with the group they came through — that is the gap to see
     const sorted = shown.slice().sort((x, y) => ((y.direct === false ? 0 : 1) - (x.direct === false ? 0 : 1)) || x.name.localeCompare(y.name));
@@ -9366,7 +10396,108 @@ This is a directory write. Nothing else changes.`)) return;
     toast("Member list <span>downloaded</span>");
   });
 
+  // ---- the evidence popover (25417) ----
+  // One card for one row × policy pair, opened from the cell itself. The
+  // reason used to be a hover title: invisible on touch, unreachable by
+  // keyboard, impossible to copy. The card says the same thing and offers the
+  // two actions a person wants next — open the policy, view the members.
+  let exPop = null, exPopAnchor = null;
+  function exPopEl() {
+    if (exPop) return exPop;
+    exPop = document.createElement("div");
+    exPop.id = "exPop"; exPop.className = "ex-pop"; exPop.setAttribute("role", "dialog"); exPop.setAttribute("aria-label", "Cell evidence");
+    exPop.hidden = true;
+    document.body.appendChild(exPop);
+    exPop.addEventListener("click", (e) => {
+      if (e.target.closest("[data-expopclose]")) { closeExPop(true); return; }
+      const m = e.target.closest("[data-exmembers]"); if (m) { closeExPop(); openExMembers(m.dataset.exmembers); return; }
+      const pl = e.target.closest(".pol-link"); if (pl) { closeExPop(); showDetail(pl.dataset.polid); return; }
+      const pin = e.target.closest("[data-expin]");
+      if (pin) { const [what, key] = pin.dataset.expin.split("|"); closeExPop(); if (what === "row") exFocusRow = key; else exFocusCol = key; exPage = 0; renderExclusions(); }
+    });
+    return exPop;
+  }
+  function closeExPop(refocus) {
+    if (!exPop || exPop.hidden) return;
+    exPop.hidden = true;
+    if (refocus && exPopAnchor && exPopAnchor.isConnected) exPopAnchor.focus();
+    exPopAnchor = null;
+  }
+  function exEvidenceHtml(ev, rowKey, pid, opts = {}) {
+    // The matrix has user ROWS too (a directly excluded account), so the
+    // branch is the tab's shape, not the row's kind.
+    const stateChip = ev.excluded === undefined
+      ? (ev.state === "bypass" ? '<span class="vd none">✖ Effective bypass</span>' : ev.state === "configured" ? '<span class="vd unk">○ Configured only</span>' : ev.state === "unknown" ? '<span class="vd unk">? Not established</span>' : '<span class="tag">not excluded</span>')
+      : (ev.excluded ? '<span class="tag block">✗ excluded</span>' : '<span class="tag new">⚠ odd one out</span>');
+    const polState = ev.policy.state === "enabled" ? '<span class="tag block">On</span>' : ev.policy.state === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
+    return `<div class="ex-pop-h"><b>${esc(ev.title)}</b><span class="mini muted">${esc(ev.sub || "")}</span>${opts.card ? "" : '<button type="button" class="ex-pop-x" data-expopclose="1" aria-label="Close">✕</button>'}</div>
+      <div class="ex-pop-b">
+        <div class="mini"><b class="pol-link" data-polid="${esc(ev.policy.id)}">${esc(ev.policy.name)}</b> ${polState} <span class="muted">· ${ev.policy.exclusionCount} exclusion${ev.policy.exclusionCount === 1 ? "" : "s"}</span></div>
+        <div style="margin:6px 0">${stateChip}${ev.coverage ? " " + CaCoverage.chip(ev.coverage.state) : ""}</div>
+        ${ev.lines.map((l) => `<div class="mini">${esc(l)}</div>`).join("")}
+        ${ev.verdict ? `<div class="mini" style="margin-top:6px"><b>${esc(ev.verdict)}</b></div>` : ""}
+        ${ev.coverage && ev.coverage.partial && ev.coverage.partial[0] ? `<div class="mini muted">${esc(ev.coverage.partial[0].name)} does not carry: ${esc(ev.coverage.partial[0].missing.join(", "))}</div>` : ""}
+      </div>
+      <div class="ex-pop-a">
+        <button type="button" class="fchip pol-link" data-polid="${esc(ev.policy.id)}">Open policy</button>
+        ${ev.actions.map((a) => a.kind === "members" ? `<button type="button" class="fchip" data-exmembers="${esc(a.key)}">${esc(a.label)}</button>` : "").join("")}
+        ${opts.card ? "" : `<button type="button" class="fchip" data-expin="row|${esc(rowKey)}">Only this row</button>
+        <button type="button" class="fchip" data-expin="col|${esc(pid)}">Only this policy</button>`}
+      </div>`;
+  }
+  function openExPop(btn) {
+    const [rowKey, pid] = String(btn.dataset.excell).split("|");
+    const ev = Exclusions.evidence(exModel, exUsers, rowKey, pid, exTab);
+    if (!ev) return;
+    const pop = exPopEl();
+    pop.innerHTML = exEvidenceHtml(ev, rowKey, pid);
+    pop.hidden = false;
+    exPopAnchor = btn;
+    // Place it under the cell, kept inside the viewport.
+    const r = btn.getBoundingClientRect(), pw = Math.min(360, window.innerWidth - 16);
+    pop.style.width = pw + "px";
+    let left = Math.max(8, Math.min(r.left + r.width / 2 - pw / 2, window.innerWidth - pw - 8));
+    let top = r.bottom + 6;
+    const ph = pop.offsetHeight;
+    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+    pop.style.left = left + "px"; pop.style.top = top + "px";
+    (pop.querySelector("[data-expopclose]") || pop).focus();
+  }
+  document.addEventListener("click", (e) => { if (exPop && !exPop.hidden && !exPop.contains(e.target) && !e.target.closest("[data-excell]")) closeExPop(); }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && exPop && !exPop.hidden) { e.stopPropagation(); closeExPop(true); } }, true);
+  document.addEventListener("scroll", () => closeExPop(), true);
+
+  // ---- the keyboard grid (25417) ----
+  // Every reactive thing in both grids is a button with a grid position
+  // (data-r, data-c). One of them carries tabindex 0 (the roving one); the
+  // arrow keys walk to the nearest button in that direction.
+  $("exBody").addEventListener("focusin", (e) => {
+    const el = e.target.closest("[data-r][data-c]"); if (!el) return;
+    $("exBody").querySelectorAll('[data-r][data-c][tabindex="0"]').forEach((x) => { if (x !== el) x.setAttribute("tabindex", "-1"); });
+    el.setAttribute("tabindex", "0");
+  });
+  $("exBody").addEventListener("keydown", (e) => {
+    const el = e.target.closest("[data-r][data-c]"); if (!el) return;
+    const dir = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0], Home: [0, -Infinity], End: [0, Infinity] }[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    const r = +el.dataset.r, c = +el.dataset.c;
+    const all = [...$("exBody").querySelectorAll("[data-r][data-c]")];
+    let best = null, bestD = Infinity;
+    for (const x of all) {
+      const xr = +x.dataset.r, xc = +x.dataset.c;
+      const dr = xr - r, dc = xc - c;
+      const ok = dir[0] ? (Math.sign(dr) === Math.sign(dir[0]) && dr !== 0 && xc === c) : (Math.sign(dc) === Math.sign(dir[1]) && dc !== 0 && xr === r);
+      if (!ok) continue;
+      const d = Number.isFinite(dir[1]) && Number.isFinite(dir[0]) ? Math.abs(dr) + Math.abs(dc) : -Math.abs(dc);   // Home/End: farthest
+      if (d < bestD) { bestD = d; best = x; }
+    }
+    if (best) best.focus();
+  });
+
   $("exBody").addEventListener("click", (e) => {
+    const cell = e.target.closest("[data-excell]");
+    if (cell) { e.stopPropagation(); openExPop(cell); return; }
     const mem = e.target.closest("[data-exmembers]");
     if (mem) { e.stopPropagation(); openExMembers(mem.dataset.exmembers); return; }
     if (e.target.closest("[data-exrun]")) { runExclusionScan(); return; }
@@ -9452,10 +10583,14 @@ This is a directory write. Nothing else changes.`)) return;
     }
     return {
       isOpen: () => open,
-      open(title, { controls, body, onChange } = {}) {
+      open(title, { controls, extras, body, onChange } = {}) {
         if (open) this.close();
         $("fsTitle").textContent = title;
         park(controls, $("fsControls"));
+        // Anything else that belongs to the view — a pager, a legend — parks
+        // beside the controls. T09's pager used to stay behind the modal, so
+        // full screen showed page 1 with no way to reach page 2 (25416).
+        (extras || []).forEach((el) => park(el, $("fsControls")));
         park(body, $("fsBody"));
         $("fsModal").classList.add("show");
         document.body.style.overflow = "hidden";
@@ -9495,13 +10630,13 @@ This is a directory write. Nothing else changes.`)) return;
 
   $("exExpand").addEventListener("click", () => {
     Fs.open(exTab === "matrix" ? "Exclusion × policy matrix" : "Effectively excluded users × policy",
-      { controls: $("exToolbar"), body: $("exBody"), onChange: () => renderExclusions() });
+      { controls: $("exToolbar"), extras: [$("exPager")], body: $("exBody"), onChange: () => renderExclusions() });
   });
   $("plFull").addEventListener("click", () => Fs.open("Policy settings matrix", { body: $("matrixView") }));
   $("anFull").addEventListener("click", () => Fs.open("Users × policies impact matrix", { body: $("anMatrixWrap") }));
   $("gcFull").addEventListener("click", () => { const d = $("gcMatrix").querySelector("details"); if (d) d.open = true; Fs.open("Persona × control coverage", { body: $("gcMatrix") }); });
   $("exSearch").addEventListener("input", (e) => { exQuery = e.target.value; exPage = 0; renderExclusions(); });
-  const EX_TABS = { matrix: "exTabMatrix", users: "exTabUsers", risk: "exTabRisk" };
+  const EX_TABS = { entities:"exTabEntities", matrix: "exTabMatrix", users: "exTabUsers", risk: "exTabRisk" };
   for (const [tab, id] of Object.entries(EX_TABS)) {
     $(id).addEventListener("click", () => {
       // matrix rows are keyed by entity, users rows by user id — a pin from one
@@ -11598,7 +12733,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("auHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         ${toolHead("toolAudit")}
-        <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — expand one to see the exact fields that moved.</p>
+        <p style="margin-bottom:4px">Every Conditional Access change in the last ${auRangeLabel(auDays)}, newest first — select one to see the exact fields that moved beside the list.</p>
         <p class="mini muted" style="margin:0">From the Entra directory audit log. Retention is licence-bound (≈30 days on P1/P2), so this is a rolling window, not a full history.</p>
       </div>
       <div style="text-align:right">
@@ -11629,7 +12764,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("auBody").innerHTML = `<div class="list-card"><table class="plist au-sum">
         <thead><tr><th>Resource</th><th style="width:150px">Changes</th><th style="width:120px">People moved</th><th>Changed by</th><th style="width:110px">Last change</th></tr></thead>
         <tbody>${sum.map((s) => {
-          const open = auOpen.has("s:" + s.key);
+          const open = true;
           const K = Audit.KIND[s.kind] || {};
           const detail = open ? `<tr class="au-sumdet"><td colspan="5">
             ${s.kind === "membership" && s.usedBy.length ? `<div class="au-why" style="margin:0 0 8px">This group is used as an <b>${esc(s.usedAs)}</b> on ${s.usedBy.length} polic${s.usedBy.length === 1 ? "y" : "ies"}: ${esc(s.usedBy.slice(0, 6).join(", "))}${s.usedBy.length > 6 ? ` +${s.usedBy.length - 6} more` : ""}</div>` : ""}
@@ -11649,6 +12784,7 @@ This is a directory write. Nothing else changes.`)) return;
         }).join("")}</tbody></table></div>
         <p class="mini muted" style="margin-top:8px">${sum.length} resource${sum.length === 1 ? "" : "s"} touched across ${rows.length} change${rows.length === 1 ? "" : "s"} — click a row for the individual events.</p>
         ${auAgedHtml()}`;
+      ListDetail.pairs('auBody','.au-sumrow','data-ausum','audit-summary');
       return;
     }
 
@@ -11658,7 +12794,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("auBody").innerHTML = (rows.length > CAP
       ? `<p class="mini muted" style="margin-bottom:8px">Showing the ${CAP} most recent of ${rows.length} changes — narrow with the filters or use Summary.</p>` : "")
       + shown.map((x) => {
-      const open = auOpen.has(x.id);
+      const open = true; // full evidence is presented in the selected side panel
       const diff = x.changes.length ? `<div class="au-diff">${x.changes.slice(0, 60).map((c) => `<div>
           <span class="au-op ${c.op}">${c.op}</span>
           <span class="au-path">${esc(c.path || "(value)")}</span>
@@ -11685,6 +12821,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${open ? diff : ""}
       </div>`;
     }).join("") + auAgedHtml();
+    ListDetail.cards('auBody', ':scope > .au-card', {key:'audit-timeline',title:'.au-h b',meta:'.au-sub',identity:'[data-auid]'});
   }
 
   $("auMd").addEventListener("click", () => {
@@ -12678,12 +13815,16 @@ This is a directory write. Nothing else changes.`)) return;
     if (u.lic0) return "nolic";
     return "license";
   }
+  // Beta 25411: these say what was READ. "Access denied" is a read outcome,
+  // not a mailbox purpose, and a mailbox type has never been a reason to drop
+  // Conditional Access from an account — shared mailboxes can need licensing
+  // for size, archive or hold, and should stay sign-in blocked either way.
   const LG_CATS = {
-    license: { label: "to license", pill: "red", hint: "Enabled real users — license these (or exclude them deliberately)" },
+    license: { label: "no premium entitlement", pill: "red", hint: "Enabled member users targeted by a policy with no Entra ID P1/P2 assigned. They may hold other licences — this is the premium entitlement, not a claim that the account is unlicensed." },
     disabled: { label: "disabled — cleanup", pill: "amber", hint: "Disabled accounts — cleanup candidates, not purchases" },
-    nolic: { label: "no licences at all — service account?", pill: "amber", hint: "Enabled accounts holding NO licences at all — usually service accounts or sync artifacts. Exclude or license deliberately." },
-    resource: { label: "shared/resource — never licensed", pill: "green", hint: "Shared / room / equipment mailbox accounts — never licensed; disable or exclude them" },
-    likely: { label: "likely shared/resource", pill: "amber", hint: "A mailbox exists but the account has no licence — almost always shared/room/equipment. Verify in the Exchange admin center." },
+    nolic: { label: "no licences at all — service account?", pill: "amber", hint: "Enabled accounts holding NO licences of any kind — usually service accounts or sync artifacts. Exclude or license deliberately." },
+    resource: { label: "shared/room/equipment mailbox", pill: "green", hint: "userPurpose returned by Graph. Whether it needs a licence depends on the mailbox features in use (size, archive, litigation hold); keep sign-in blocked either way." },
+    likely: { label: "mailbox read denied — unverified", pill: "amber", hint: "A mailbox exists but its purpose could NOT be read (the delegated read was denied). Verify in the Exchange admin center before treating it as a resource account — this is a read outcome, not a classification." },
   };
   const lgProg = makeProgress("lg");
   const LG_GROUP_CAP = 100;    // groups expanded per run
@@ -12890,6 +14031,11 @@ This is a directory write. Nothing else changes.`)) return;
       if (lgAdmin.length) ctx.adminExclude = lgAdmin;
       lgCtx = ctx;
       lgRes = LicGap.analyze(ctx);
+      lgRunMeta = RunMeta.of(runContext({ tool: "T31",
+        population: "Member users, tenant-wide (guests excluded)",
+        options: ["On + Report-only policies", ...(lgAdmin.length ? [`${lgAdmin.length} admin group${lgAdmin.length === 1 ? "" : "s"} excluded`] : [])],
+        policyCount: (ctx.policies || []).length, states: RunMeta.statesOf(ctx.policies || []),
+        completeness: lgRes.p1.approx || lgRes.p2.approx || ctx.usersCapped ? "approximate — something could not be read in full" : "exact" }));
     } catch (e) {
       $("lgBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the tenant failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-lgrun>▶ Try again</button></div></div>`;
       lgProg.stop(); lgBusy = false;
@@ -12902,21 +14048,29 @@ This is a directory write. Nothing else changes.`)) return;
   const lgN = (v, approx) => v == null ? "—" : `${approx ? "≈" : ""}${v.toLocaleString()}`;
   const lgStateTag = (s) => s === "enabled" ? '<span class="tag block">On</span>'
     : s === "enabledForReportingButNotEnforced" ? '<span class="tag new">Report-only</span>' : '<span class="tag">Off</span>';
-  // The one visual that carries the verdict: how much of the targeted
-  // population the seats cover. Green at 100%, amber close, red wide open.
-  function lgBar(targeted, seats) {
+  // The one visual that carries the verdict — and it carries THREE measures
+  // since beta 25411, because it used to draw one and label it another.
+  // Seats PURCHASED is inventory; entitlement ASSIGNED to the targeted users
+  // is what covers them; demand is what the policies oblige. All the seats can
+  // be unassigned, or assigned to people outside the scope, so the old
+  // "500 of 500 targeted users licensed (100%)" could sit directly above a
+  // named list of unlicensed users.
+  function lgBar(targeted, seats, assignedInScope, approx) {
     if (targeted == null || seats == null || !targeted) return "";
     const pct = Math.min(100, seats / targeted * 100);
     const col = pct >= 100 ? "var(--on)" : pct >= 75 ? "var(--report)" : "var(--off)";
-    return `<div class="lg-bar" title="${Math.round(pct)}% of the targeted users are licensed"><div style="width:${pct}%;background:${col}"></div></div>
-      <p class="mini muted" style="margin:2px 0 0">${seats.toLocaleString()} of ${targeted.toLocaleString()} targeted users licensed (${Math.round(pct)}%)</p>`;
+    const aPct = assignedInScope == null ? null : Math.min(100, assignedInScope / targeted * 100);
+    const mark = aPct == null ? "" : `<u style="left:${aPct}%" title="${assignedInScope.toLocaleString()} targeted identities hold the entitlement"></u>`;
+    return `<div class="lg-bar" title="Purchased capacity against estimated demand"><div style="width:${pct}%;background:${col}"></div>${mark}</div>
+      <p class="mini muted" style="margin:2px 0 0">Purchased capacity versus estimated demand — ${seats.toLocaleString()} seats against ${approx ? "≈" : ""}${targeted.toLocaleString()} targeted identities (${Math.round(pct)}%).${assignedInScope == null ? " Assigned entitlement was not read." : ` <b>${assignedInScope.toLocaleString()}</b> of those identities hold it today${targeted - assignedInScope > 0 ? ` — ${(targeted - assignedInScope).toLocaleString()} do not` : ""}.`}</p>`;
   }
 
   function renderLicGap() {
     $("lgRun").style.display = lgRes && !lgBusy ? "" : "none";
     $("lgHead").innerHTML = `${toolHead("toolLicGap")}
       <p style="margin-bottom:4px">Microsoft's licence usage blade counts <b>evaluated</b> users — who happened to trigger a policy last month. The obligation Microsoft licenses on is <b>targeted</b> users: every user a Conditional Access policy is scoped to needs <b>Entra ID P1</b>, and every user targeted by a risk-based policy needs <b>P2</b> — whether they signed in or not. A blade showing "2 of 25, fine" can sit on a tenant targeting every one of its users. This tool counts the targeted number and compares it with the seats the tenant owns.</p>
-      <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>`;
+      <p class="mini muted" style="margin:0">Reads only, covered by the permissions already granted at sign-in — licences, the member-user count, and the members behind every group and role your policies include or exclude.</p>
+      <p class="mini muted" style="margin:6px 0 0"><b>Population:</b> member users, tenant-wide, guests excluded (their licensing follows different rules) · <b>policies:</b> On and Report-only, since the obligation follows targeting rather than enforcement · insider risk counts as a P2 condition here. The Coverage tab can be scoped to named principals and can leave report-only out, so the two tabs answer the same question about different populations on purpose.</p>`;
     if (lgBusy) return;   // the run panel owns lgBody until the read finishes
 
     if (!lgRes) {
@@ -12928,6 +14082,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
 
     const r = lgRes;
+    const lgStrip = RunMeta.strip(lgRunMeta, runContext(), { staleHint: "The policies were reloaded after this count — rescan before quoting these numbers." });
     const gapCard = (label, o, sub) => {
       const cls = o.gap == null ? "" : o.gap > 0 ? "risk" : "";
       const val = o.gap == null ? "—" : o.gap > 0 ? o.gap.toLocaleString() : "0";
@@ -12937,27 +14092,29 @@ This is a directory write. Nothing else changes.`)) return;
 
     const tiles = `<div class="an-cards" style="margin-bottom:12px">
       ${tile(lgN(r.totals.members), "member users")}
-      ${tile(lgN(r.p1.targeted, r.p1.approx), "targeted → need P1")}
-      ${tile(lgN(r.p1.seats), "P1 seats owned")}
+      ${tile(lgN(r.p1.targeted, r.p1.approx), "estimated P1 demand")}
+      ${tile(lgN(r.p1.seats), "P1 seats purchased")}
+      ${tile(r.p1.assignedInScope == null ? "—" : r.p1.assignedInScope.toLocaleString(), "P1 assigned in scope")}
       ${gapCard("P1 gap", r.p1, r.p1.gap != null && r.p1.gap <= 0 ? "covered" : "")}
       ${r.p2.riskCount || (r.p2.seats || 0) > 0 ? `
-        ${tile(lgN(r.p2.targeted, r.p2.approx), "targeted → need P2")}
-        ${tile(lgN(r.p2.seats), "P2 seats owned")}
+        ${tile(lgN(r.p2.targeted, r.p2.approx), "estimated P2 demand")}
+        ${tile(lgN(r.p2.seats), "P2 seats purchased")}
+        ${tile(r.p2.assignedInScope == null ? "—" : r.p2.assignedInScope.toLocaleString(), "P2 assigned in scope")}
         ${gapCard("P2 gap", r.p2, r.p2.gap != null && r.p2.gap <= 0 ? "covered" : "")}` : ""}
     </div>`;
 
     const bars = `<div class="list-card" style="padding:14px 16px">
       ${r.adminExclude ? `<p class="mini" style="margin:0 0 8px"><span class="tag grant">👑 ${r.adminExclude.count.toLocaleString()} admin account${r.adminExclude.count === 1 ? "" : "s"} excluded via ${esc(r.adminExclude.name)}</span> <span class="muted">— a second internal account of a licensed person needs no second licence; document the mapping.</span></p>` : ""}
       <p class="mini" style="margin:0 0 2px"><b>Entra ID P1</b> — any active Conditional Access policy${r.broadest ? ` · broadest: <b class="pol-link" data-polid="${esc(r.broadest.id || "")}" title="Open the policy card">${esc(r.broadest.name)}</b> (${lgN(r.broadest.size, r.broadest.approx)} users)` : ""}</p>
-      ${lgBar(r.p1.targeted, r.p1.seats)}
+      ${lgBar(r.p1.targeted, r.p1.seats, r.p1.assignedInScope, r.p1.approx)}
       <p class="mini" style="margin:12px 0 2px"><b>Entra ID P2</b> — ${r.p2.riskCount ? `${r.p2.riskCount} risk-based polic${r.p2.riskCount === 1 ? "y" : "ies"} (sign-in, user or insider risk)` : "no active risk-based policy"}</p>
       ${r.p2.riskCount
-        ? (lgBar(r.p2.targeted, r.p2.seats) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`)
+        ? (lgBar(r.p2.targeted, r.p2.seats, r.p2.assignedInScope, r.p2.approx) || `<p class="mini muted" style="margin:2px 0 0">No P2 seats to draw the bar with.</p>`)
         : `<p class="mini muted" style="margin:2px 0 0">Nothing creates a P2 obligation today${r.p2.seats ? ` — the ${r.p2.seats.toLocaleString()} P2 seat${r.p2.seats === 1 ? "" : "s"} owned ${r.p2.seats === 1 ? "is" : "are"} not required by Conditional Access` : ""}.${r.disabledRisk ? ` <span style="color:var(--report)">${r.disabledRisk} disabled risk-based polic${r.disabledRisk === 1 ? "y" : "ies"} would create one the day ${r.disabledRisk === 1 ? "it is" : "one is"} switched on.</span>` : ""}</p>`}
       ${r.p1.gap != null && r.p1.gap > 0
         ? `<p class="mini" style="color:var(--off);margin:10px 0 0"><b>Licence gap: ${r.p1.gap.toLocaleString()} users</b> are targeted by Conditional Access without a P1 licence to cover them. The usage blade will not necessarily warn about this — it measures last month's sign-ins, not the targeting.</p>`
         : r.p1.gap != null
-        ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 gap</b> — the seats cover everyone your policies target.</p>` : ""}
+        ? `<p class="mini" style="color:var(--on);margin:10px 0 0"><b>No P1 purchasing shortfall</b> — the seats owned cover the estimated demand.${r.p1.assignedInScope != null && r.p1.targeted != null && r.p1.targeted - r.p1.assignedInScope > 0 ? ` <span style="color:var(--report)">${(r.p1.targeted - r.p1.assignedInScope).toLocaleString()} targeted identit${r.p1.targeted - r.p1.assignedInScope === 1 ? "y does" : "ies do"} not hold the entitlement</span> — an assignment to make, not a purchase.` : ""}</p>` : ""}
       ${r.p2.gap != null && r.p2.gap > 0 ? `<p class="mini" style="color:var(--off);margin:4px 0 0"><b>P2 gap: ${r.p2.gap.toLocaleString()} users</b> targeted by risk-based policies without a P2 licence.</p>` : ""}
       ${r.totals.usersCapped && lgCtx && lgCtx.usersNext ? `<p class="mini" style="margin:10px 0 0"><span class="tag new">partial</span> The named lists cover the first ${(r.totals.usersRead || 0).toLocaleString()} of ${(r.totals.members || 0).toLocaleString()} member users — the gap tiles are exact, the lists are not yet. <button class="btn sm" data-lgmore${lgMoreBusy ? " disabled" : ""}>${lgMoreBusy ? "⏬ Reading…" : `⏬ Read the remaining ~${Math.max(0, (r.totals.members || 0) - (r.totals.usersRead || 0)).toLocaleString()} users`}</button></p>` : ""}
     </div>`;
@@ -13045,7 +14202,7 @@ This is a directory write. Nothing else changes.`)) return;
     </div>`;
 
     const caveats = `<p class="mini muted" style="margin:12px 0 0">${r.caveats.map(esc).join(" · ")}</p>`;
-    $("lgBody").innerHTML = tiles + bars + who + lic + table + why + fix + caveats;
+    $("lgBody").innerHTML = lgStrip + tiles + bars + who + lic + table + why + fix + caveats;
   }
 
   // ---- finish the user read on a big tenant ----
@@ -13478,6 +14635,18 @@ This is a directory write. Nothing else changes.`)) return;
   const HUNT_MIN_CAP = 1000;
   const HUNT_WORKERS = 4;
   const HUNT_DAY_MS = 86400000;
+  // WHAT THE TAB CAN HOLD (25428). HUNT_CAP is a cap per QUERY — 20,000 rows,
+  // and a slice that reaches it is halved and both halves read, so a single
+  // day can legitimately come back as 96 slices of 20,000. Nothing bounded
+  // the TOTAL. On Hunting + non-interactive the enforced read is dominated by
+  // legacy-protocol blocks of service accounts retrying every few seconds:
+  // the window is hundreds of thousands of rows, every one of them shaped
+  // into a record and kept, and the tab dies — the same death T26 1.6/2.x had
+  // (25379) before its read became a stream. This is the ceiling on the rows
+  // a read may KEEP. It does not apply to a streaming read (opts.onRows),
+  // which holds nothing. Reaching it stops the read and reports the window as
+  // truncated — a labelled partial answer instead of a dead tab.
+  const HUNT_ROW_MAX = 50000;
   const HUNT_STRIDE_KEY = (source, kind) => `enca-huntstride:${tenantId || "demo"}:${source}:${kind}`;
   const loadStride = (source, kind) => { try { const v = +localStorage.getItem(HUNT_STRIDE_KEY(source, kind)); return v >= HUNT_MIN_SLICE_MS && v <= HUNT_DAY_MS ? v : HUNT_DAY_MS; } catch { return HUNT_DAY_MS; } };
   const saveStride = (source, kind, v) => { try { localStorage.setItem(HUNT_STRIDE_KEY(source, kind), String(Math.round(v))); } catch { /* private mode */ } };
@@ -13514,7 +14683,10 @@ This is a directory write. Nothing else changes.`)) return;
     const cap0 = opts.cap || Signins.HUNT_CAP;
     const shape = opts.shape || Signins.fromHunting;
     const buildQuery = opts.query || ((from, to, cap, part) => Signins.huntingQuery({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), table: huntTable, interactiveOnly, userId: opts.userId, cap, enforcedOnly: !!opts.enforcedOnly, slim: huntSlim }));
-    let out = [], count = 0, capped = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
+    // The ceiling only matters for a read that KEEPS its rows; a streaming
+    // read (opts.onRows) lets every slice go and is bounded already.
+    const rowMax = opts.onRows ? Infinity : (opts.max || HUNT_ROW_MAX);
+    let out = [], count = 0, capped = false, ceiling = false, splits = 0, lowered = 0, queries = 0, covered = 0, easy = 0;
     // Priming: with several workers every day would start its own descent
     // from 24 hours before the first one had learnt anything. When no stride
     // is known yet, the first worker reads alone until one slice has come
@@ -13540,6 +14712,7 @@ This is a directory write. Nothing else changes.`)) return;
       await readSlice(from, mid, undefined, part); await readSlice(mid, to, undefined, part);
     };
     const readSlice = async (from, to, cap, part) => {
+      if (ceiling) return;
       if (prog.check) prog.check();
       cap = cap || cap0; curPart = part;
       const q = buildQuery(from, to, cap, part);
@@ -13554,7 +14727,7 @@ This is a directory write. Nothing else changes.`)) return;
         if (!opts.query && huntSlim && /semantic|syntax|mv-apply|make_list_if|SEM0|not recognized|unknown function/i.test(String(e.message || ""))) {
           console.warn("hunting: slim query refused, reading full rows", e.message);
           huntSlim = false;
-          return readSlice(from, to, cap);
+          return readSlice(from, to, cap, part);
         }
         if (isSizeError(e)) {
           if (to - from > HUNT_MIN_SLICE_MS) return halve(from, to, part);
@@ -13575,7 +14748,15 @@ This is a directory write. Nothing else changes.`)) return;
       const recs = shape(rows);
       count += recs.length;
       if (opts.onRows) { await opts.onRows(recs, { from, to, part, done, total: slices.length, capped: sliceCapped }); }
-      else out = out.concat(recs);
+      else {
+        // push in a loop, never concat or spread: concat reallocates the
+        // whole array on every slice (quadratic on a long read) and
+        // push(...recs) blows Safari's argument limit (25379).
+        for (const rec of recs) {
+          if (out.length >= rowMax) { ceiling = true; capped = true; break; }
+          out.push(rec);
+        }
+      }
       covered += to - from;
       prog.st.n = count;
       say(from, to, `${rows.length.toLocaleString()} rows`);
@@ -13585,7 +14766,7 @@ This is a directory write. Nothing else changes.`)) return;
     // readSlice) or grow (three easy slices) while the walk is under way;
     // the walk simply continues from where the last slice ended.
     const readDay = async (from, to, part) => {
-      for (let t = from; t < to;) { const end = Math.min(t + stride, to); await readSlice(t, end, undefined, part); t = end; }
+      for (let t = from; t < to && !ceiling;) { const end = Math.min(t + stride, to); await readSlice(t, end, undefined, part); t = end; }
     };
     // Several days at a time (two since 25328, four since 25375). Each
     // hunting query is a round trip of seconds to a minute that the browser
@@ -13597,7 +14778,7 @@ This is a directory write. Nothing else changes.`)) return;
     let next = 0, done = 0;
     const worker = async (w) => {
       if (w && primed) await primed;
-      while (next < slices.length) {
+      while (next < slices.length && !ceiling) {
         const i = next++;
         if (prog.check) prog.check();
         try { await readDay(slices[i][0], slices[i][1], slices[i][2]); } finally { prime(); }
@@ -13614,7 +14795,8 @@ This is a directory write. Nothing else changes.`)) return;
     const bad = settled.find((r) => r.status === "rejected");
     if (bad) throw bad.reason;
     prog.detail("");
-    return { records: out, count, capped, splits, queries };
+    if (ceiling) console.warn(`hunting: stopped at ${rowMax.toLocaleString()} sign-ins kept in the tab`);
+    return { records: out, count, capped, ceiling, splits, queries };
   }
 
   // force: a Rescan means the reader wants the tenant re-read, not our copy.
@@ -13641,24 +14823,37 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const partial = onPartial ? async (rows, done, total) => { check(); await onPartial(rows, done, total); } : null;
     const run = (async () => {
-      let records, capped;
+      let records, capped, ceiling;
       if (isGraphLogSource(source)) {
         records = await prog.fetchAll(ReportImpact.query(days, source === "entraall"), SI_MAX, "sign-ins", partial ? (rows, state) => partial(rows.slice(), state.pages, null) : null);
         capped = !!prog.st.capped;
       } else {
         await requireProduct("p2");
         if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the P1 Entra log remains available");
-        ({ records, capped } = await readSignInsHunting(days, prog, { source, onPartial: partial }));
+        ({ records, capped, ceiling } = await readSignInsHunting(days, prog, { source, onPartial: partial }));
       }
       check();
-      const times = records.map(r => r.createdDateTime).filter(Boolean).sort();
-      const result = { key, days, source, records, capped, complete: !capped, at: Date.now(), oldest: times[0] || null, newest: times.at(-1) || null };
+      // One pass, no second array: the window can be tens of thousands of
+      // records and map + sort over it was a copy nobody read twice.
+      let oldest = null, newest = null;
+      for (const r of records) { const t = r.createdDateTime; if (!t) continue; if (oldest === null || t < oldest) oldest = t; if (newest === null || t > newest) newest = t; }
+      const result = { key, days, source, records, capped, ceiling: !!ceiling, complete: !capped, at: Date.now(), oldest, newest };
       logCache = result; return result;
     })();
     logInflight = { key, days, source, promise: run, prog };
     try { return { ...await run, reused: false }; }
     finally { if (logInflight?.promise === run) logInflight = null; }
   }
+  // Why a window is short, said in the words that match the reason. A Graph
+  // read stops at its own cap; a hunting read stops either because one slice
+  // could not be read whole (the row cap) or because the tab will not hold
+  // more (HUNT_ROW_MAX) — and those two ask for different things of the
+  // reader, so they are not one sentence.
+  const cappedNote = (ceiling, source = logSource) => isGraphLogSource(source)
+    ? `truncated at ${SI_MAX.toLocaleString()} sign-ins`
+    : ceiling
+      ? `stopped at ${HUNT_ROW_MAX.toLocaleString()} sign-ins — more than this window holds in the browser. Read a shorter period, or switch the source off non-interactive.`
+      : "truncated — a day hit the hunting row cap";
   function coverageHtml(c, count) {
     if (!c) return "";
     const time = v => v ? new Date(v).toLocaleString() : "no events";
@@ -13816,7 +15011,7 @@ This is a directory write. Nothing else changes.`)) return;
       } catch (err) { console.warn("sign-ins: suggest failed", err.message); }
     }, 250);
   });
-  let siBusy = false, siCapped = false;
+  let siBusy = false, siCapped = false, siCeiling = false;
   const siOpen = new Set();
   const siProg = makeProgress("si"); siProg.by = "🚦 Sign-in failures";
   const siBusyPanel = () => siProg.panel(
@@ -13860,7 +15055,7 @@ This is a directory write. Nothing else changes.`)) return;
     const runKey = logReadKey(siDays);
     if (siBusy) return;                       // already reading — don't start a second pass
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
-    siBusy = true; siCapped = false;
+    siBusy = true; siCapped = false; siCeiling = false;
     $("siRescan").style.display = "none";
     $("siBody").innerHTML = siBusyPanel();
     try {
@@ -13876,10 +15071,10 @@ This is a directory write. Nothing else changes.`)) return;
         if (!isGraphLogSource(logSource) && siMode !== "reportonly" && !(!force && logCacheUsable(siDays))) {
           if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the source back to the Entra sign-in log, or grant it");
           const h = await readSignInsHunting(siDays, siProg, { enforcedOnly: true });
-          records = h.records; siCapped = h.capped;
+          records = h.records; siCapped = h.capped; siCeiling = !!h.ceiling;
         } else {
           const w = await readSignInWindow(siDays, siProg, force);
-          records = w.records; siCapped = w.capped; reused = w.reused;
+          records = w.records; siCapped = w.capped; siCeiling = !!w.ceiling; reused = w.reused;
         }
         if (siMode !== "reportonly") records = records.filter((r) => r.conditionalAccessStatus === "failure" || Signins.isInterrupt(r));
       } else {
@@ -14012,7 +15207,7 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="mini">${r.policies.length} polic${r.policies.length === 1 ? "y" : "ies"} · ${r.users.length} user${r.users.length === 1 ? "" : "s"} · ${r.apps.length} app${r.apps.length === 1 ? "" : "s"}${r.interrupted ? ` · ${r.interrupted} interrupted` : ""}${r.authGap ? ` · <span style="color:var(--off)" title="The second factor was asked for and never came — a password where MFA or an authentication strength was required">${r.authGap} without the MFA asked</span>` : ""}</div>
         <div class="mini muted">source: ${esc(logSourceLabel())}${r.nonInteractive ? ` · <button class="fchip ${siFilter === "kind:int" ? "active" : ""}" data-sif="kind:int" style="padding:1px 8px;font-size:11px">${r.total - r.nonInteractive} interactive</button> <button class="fchip ${siFilter === "kind:non" ? "active" : ""}" data-sif="kind:non" style="padding:1px 8px;font-size:11px">${r.nonInteractive} non-interactive</button>` : ""}</div>
         ${logCoverageHtml(siDays)}
-        ${siCapped ? `<div class="mini" style="color:var(--off)">window truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()} sign-ins` : " — a day hit the hunting row cap"}</div>` : ""}
+        ${siCapped ? `<div class="mini" style="color:var(--off)">window ${cappedNote(siCeiling)}</div>` : ""}
       </div></div>`;
 
     const chips = [["all", `All (${r.total})`],
@@ -14043,7 +15238,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("siBody").innerHTML = `<div class="list-card si-stickyhost"><table class="plist au-sum">
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
-          const open = siOpen.has("p:" + p.key);
+          const open = true;
           const detail = open ? `<tr class="au-sumdet"><td colspan="6">
             <div class="si-dethead">🚦 <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b><span class="mini muted">${p.rows.length} sign-in${p.rows.length === 1 ? "" : "s"}${siMode === "reportonly" ? " · report-only" : ""}${p.controls.length ? ` · ${esc(p.controls.join(", "))}` : ""}</span><button class="fchip" data-sisum="${esc(p.key)}" title="Collapse this policy">✕</button></div>
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
@@ -14064,6 +15259,7 @@ This is a directory write. Nothing else changes.`)) return;
           </tr>${detail}`;
         }).join("")}</tbody></table></div>
         <p class="mini muted" style="margin-top:8px">${pols.length} polic${pols.length === 1 ? "y" : "ies"} across ${rows.length} failed sign-in${rows.length === 1 ? "" : "s"} — click a row for the individual sign-ins, 🧪 to replay one in What-If.</p>`;
+      ListDetail.pairs('siBody','.au-sumrow','data-sisum','signins-policies');
       return;
     }
 
@@ -14073,7 +15269,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("siBody").innerHTML = (rows.length > CAP
       ? `<p class="mini muted" style="margin-bottom:8px">Showing the ${CAP} most recent of ${rows.length} sign-ins — narrow with the filters or use Per policy.</p>` : "")
       + shown.map((x) => {
-      const open = siOpen.has(x.id);
+      const open = true;
       const detail = open ? `<div class="au-diff">
           ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
@@ -14094,6 +15290,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${detail}
       </div>`;
     }).join("");
+    ListDetail.cards('siBody', ':scope > .au-card', {key:'signins-events',title:'.au-h b',meta:'.au-sub',identity:'[data-siid]'});
   }
 
   $("siCsv").addEventListener("click", () => {
@@ -14131,7 +15328,7 @@ This is a directory write. Nothing else changes.`)) return;
   // verdicts (success/interrupted/failure/notApplied), because the safe
   // answer needs the denominator, not just the failures.
   let riRes = null, riDays = 7, riView = "policies", riQuery = "", riFilter = "all";
-  let riBusy = false, riCapped = false;
+  let riBusy = false, riCapped = false, riCeiling = false;
   let riReadAt = null, riReadTenant = "";
   const riOpen = new Set();
   // Same shared fetch-progress visual as Sign-in failures and Change audit.
@@ -14185,7 +15382,7 @@ This is a directory write. Nothing else changes.`)) return;
     const runKey = logReadKey(riDays);
     if (riBusy) return;
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) return;
-    riBusy = true; riCapped = false; riPartial = null; riPartialAt = 0; riProg.begin();
+    riBusy = true; riCapped = false; riCeiling = false; riPartial = null; riPartialAt = 0; riProg.begin();
     $("riRescan").style.display = "none";
     $("riBody").innerHTML = riBusyPanel();
     // ROW PATH (Entra log, demo, or a hunting engine that refused the summary):
@@ -14236,7 +15433,7 @@ This is a directory write. Nothing else changes.`)) return;
           toast("This tenant's hunting engine refused the summarised query — reading the sign-in rows instead");
           $("riBody").innerHTML = riBusyPanel();
           const rw = await readSignInWindow(riDays, riProg, force, onPartial);
-          riCapped = rw.capped; reused = rw.reused;
+          riCapped = rw.capped; riCeiling = !!rw.ceiling; reused = rw.reused;
           riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
         }
         if (w) {
@@ -14250,7 +15447,7 @@ This is a directory write. Nothing else changes.`)) return;
         }
       } else {
         const rw = await readSignInWindow(riDays, riProg, force, onPartial);
-        riCapped = rw.capped; reused = rw.reused;
+        riCapped = rw.capped; riCeiling = !!rw.ceiling; reused = rw.reused;
         riRes = await AnalysisJobs.run("impact", { records: rw.records, policies: riTenantRo() }, { signal: riProg.signal });
       }
       riReused = reused; riPartial = null;
@@ -14313,7 +15510,7 @@ This is a directory write. Nothing else changes.`)) return;
         ${toolHead("toolImpact")}
         <p style="margin-bottom:4px">The go-live forecast for the last ${rangeLabel(riDays)}: <b>${r.counts.block}</b> polic${r.counts.block === 1 ? "y" : "ies"} would block users, <b>${r.counts.prompt}</b> add prompts only, <b>${r.counts.clean}</b> change nothing, <b>${r.counts.scoped + r.counts.nodata}</b> without evidence.</p>
         ${riReused ? `<p class="mini muted" style="margin:0 0 4px">↺ Reused the sign-in window <b>🚦 Sign-in failures</b> read ${logAgeLabel()} — same query, so it was not read twice. <b>⟳ Rescan</b> re-reads the tenant.</p>` : ""}
-        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}${roCache.parts > 1 ? ` (one per policy per day)` : ""}` : ""}${riCapped ? `, <span style="color:var(--off)">truncated${isGraphLogSource(logSource) ? ` at ${SI_MAX.toLocaleString()}` : " — a day hit the hunting row cap"}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
+        ${isGraphLogSource(logSource) || !roBucketsOk ? logCoverageHtml(riDays) : roCoverageHtml(riDays)}<p class="mini muted" style="margin:0">Across everything in report-only: <b>${r.blockedUsers}</b> user${r.blockedUsers === 1 ? "" : "s"} would be locked out of something, <b>${r.promptedUsers}</b> get new prompts. A verdict is only as good as the window — ${r.records.toLocaleString()} sign-ins ${!isGraphLogSource(logSource) && roBucketsOk && !isDemo ? "summarised by" : "read from"} <b>${esc(logSourceLabel())}</b>${!isGraphLogSource(logSource) && roBucketsOk && !isDemo && roCacheUsable(riDays) ? ` in ${roCache.queries} quer${roCache.queries === 1 ? "y" : "ies"}${roCache.parts > 1 ? ` (one per policy per day)` : ""}` : ""}${riCapped ? `, <span style="color:var(--off)">${cappedNote(riCeiling)}</span>` : ""}${logSource === "huntall" ? " — non-interactive sign-ins included, so a report-only verdict counts token refreshes too" : ""}.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${r.policies.length}<span class="mini" style="font-weight:400"> report-only polic${r.policies.length === 1 ? "y" : "ies"}</span></div>
@@ -14660,10 +15857,14 @@ This is a directory write. Nothing else changes.`)) return;
     const icon = (k) => k === "ip" ? "🖧" : k === "country" ? "🌍" : "🛡";
     const kindLabel = (k) => k === "ip" ? "IP ranges" : k === "country" ? "countries" : "network access";
     const list = (arr) => arr.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>`).join(", ");
-    const actions = (l, canEdit) => canEdit
-      ? `<button class="btn sm" data-loedit="${esc(l.id)}">✎ Edit</button>
+    // "New policy with this location" opens 🏗 the Builder with the
+    // location pre-picked in step 4 (T41) — the block hands itself to the
+    // policy, which is what a building block is for.
+    const build = (l) => `<button class="btn sm" data-pbwith="location" data-id="${esc(l.id)}" data-name="${esc(l.displayName)}" title="Open the Policy builder with this location selected in its conditions">🏗 New policy with this location</button>`;
+    const actions = (l, canEdit) => build(l) + (canEdit
+      ? ` <button class="btn sm" data-loedit="${esc(l.id)}">✎ Edit</button>
          <button class="btn sm danger" data-lodel="${esc(l.id)}">🗑 Delete</button>`
-      : '<span class="mini muted">service-managed</span>';
+      : ' <span class="mini muted">service-managed</span>');
 
     // One badge shape for both views, so the card and the row cannot disagree
     // about whether a location has something wrong with it.
@@ -14707,13 +15908,14 @@ This is a directory write. Nothing else changes.`)) return;
         </div>
         <div class="mini lo-d">${esc(Locations.detail(l))}</div>
         <div class="lo-u">${used.length ? [
-            direct.length ? `Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}: ${list(direct.slice(0, 2))}${direct.length > 2 ? ` <span class="muted">+${direct.length - 2} more</span>` : ""}` : "",
-            implicit.length ? `<span class="lo-imp">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”</span>` : "",
+            direct.length ? `Named by ${direct.length} polic${direct.length === 1 ? "y" : "ies"}: ${list(direct)}` : "",
+            implicit.length ? `<span class="lo-imp">Covered by ${implicit.length} polic${implicit.length === 1 ? "y" : "ies"} using “All trusted locations”: ${list(implicit)}</span>` : "",
           ].filter(Boolean).join("<br>") + ` <span class="lo-more" data-lodet="${esc(l.id)}">details →</span>`
           : '<span class="mini muted">Not referenced by any policy</span>'}</div>
         <div class="lo-act">${actions(l, canEdit)}</div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('loBody', '.lo-grid > .lo-card', {identity:'[data-lodet]'});
   }
   // ---- the findings panel (R37) ----
   // Rendered as markup rather than built node by node, like every other panel
@@ -15213,9 +16415,10 @@ This is a directory write. Nothing else changes.`)) return;
         </div>
         ${c.description ? `<div class="mini lo-d">${esc(c.description)}</div>` : ""}
         <div class="lo-u">${used.length
-          ? `Enforced by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          ? `Enforced by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">No Conditional Access policy enforces this context — callers requesting it get no step-up</span>'}</div>
         <div class="lo-act">
+          <button class="btn sm" data-pbwith="context" data-id="${esc(c.id)}" data-name="${esc(c.displayName || c.id)}" title="Open the Policy builder targeting this authentication context">🏗 New policy with this context</button>
           <button class="btn sm" data-acedit="${esc(c.id)}">✎ Edit</button>
           <button class="btn sm" data-acpub="${esc(c.id)}">${c.isAvailable ? "⏸ Unpublish" : "▶ Publish"}</button>
           <button class="btn sm danger" data-acdel="${esc(c.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
@@ -15223,6 +16426,7 @@ This is a directory write. Nothing else changes.`)) return;
       </div>`;
     }).join("") + `</div>
     <p class="mini muted" style="margin-top:10px">${s.free} free slot${s.free === 1 ? "" : "s"} (of c1–c${AuthContexts.SLOT_MAX}).</p>`;
+    ListDetail.cards('acBody', '.lo-grid > .lo-card', {identity:'[data-acedit]'});
   }
   $("acChips").addEventListener("click", (e) => { const b = e.target.closest("[data-acf]"); if (!b) return; acFilter = b.dataset.acf; renderAuthCtx(); });
   $("acSearch").addEventListener("input", (e) => { acQuery = e.target.value; renderAuthCtx(); });
@@ -15414,17 +16618,18 @@ This is a directory write. Nothing else changes.`)) return;
           ${classTag(AuthStrengths.strengthClass(p))}
         </div>
         ${p.description ? `<div class="mini lo-d">${esc(p.description)}</div>` : ""}
-        <div class="mini" style="margin:6px 0 0">${combos.slice(0, 6).map((c) => `<span class="tag" title="${esc(AuthStrengths.CLASS_LABEL[AuthStrengths.classify(c)])}">${esc(AuthStrengths.comboLabel(c))}</span>`).join(" ")}${combos.length > 6 ? ` <span class="mini muted">+${combos.length - 6} more</span>` : ""}</div>
+        <div class="mini" style="margin:6px 0 0">${combos.map((c) => `<span class="tag" title="${esc(AuthStrengths.CLASS_LABEL[AuthStrengths.classify(c)])}">${esc(AuthStrengths.comboLabel(c))}</span>`).join(" ")}</div>
         ${AuthStrengths.ccSummary(p.combinationConfigurations).map((x) => `<div class="mini" style="margin:4px 0 0">🔧 ${esc(x)}</div>`).join("")}
         <div class="lo-u">${used.length
-          ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          ? `Granted by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">Not granted by any policy</span>'}</div>
-        <div class="lo-act">${builtin
+        <div class="lo-act"><button class="btn sm" data-pbwith="strength" data-id="${esc(p.id)}" data-name="${esc(p.displayName)}" title="Open the Policy builder granting this authentication strength">🏗 New policy with this strength</button>${builtin
           ? '<span class="mini muted">Microsoft-managed</span>'
           : `<button class="btn sm" data-asedit="${esc(p.id)}">✎ Edit</button>
              <button class="btn sm danger" data-asdel="${esc(p.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>`}</div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('astBody', '.lo-grid > .lo-card', {identity:'[data-asedit]'});
   }
   $("asChips").addEventListener("click", (e) => { const b = e.target.closest("[data-asf]"); if (!b) return; asFilter = b.dataset.asf; renderAuthStr(); });
   $("asSearch").addEventListener("input", (e) => { asQuery = e.target.value; renderAuthStr(); });
@@ -15686,9 +16891,10 @@ This is a directory write. Nothing else changes.`)) return;
         </div>
         <div class="mini lo-d">${files.length ? files.map((f, i) => `${esc(f.language || "?")}: ${esc(f.fileName || "file")}${f.fileData?.data ? ` <button class="btn sm" data-tupdf="${esc(a.id)}:${i}" style="font-size:11px;padding:1px 8px">⭳ PDF</button>` : ""}`).join(" · ") : "no files"}</div>
         <div class="lo-u">${used.length
-          ? `Required by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used.slice(0, 3))}${used.length > 3 ? ` <span class="muted">+${used.length - 3} more</span>` : ""}`
+          ? `Required by ${used.length} polic${used.length === 1 ? "y" : "ies"}: ${list(used)}`
           : '<span class="mini muted">Not required by any policy</span>'}</div>
         <div class="lo-act">
+          <button class="btn sm" data-pbwith="tou" data-id="${esc(a.id)}" data-name="${esc(a.displayName)}" title="Open the Policy builder requiring these terms">🏗 New policy with these terms</button>
           <button class="btn sm" data-tuedit="${esc(a.id)}">✎ Edit</button>
           <button class="btn sm" data-tuacc="${esc(a.id)}">👥 Acceptances</button>
           <button class="btn sm danger" data-tudel="${esc(a.id)}" ${del.ok ? "" : `disabled title="${esc(del.why)}"`}>🗑 Delete</button>
@@ -15696,6 +16902,7 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="mini" id="tuAcc-${esc(a.id)}" style="margin-top:6px"></div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('tuBody', '.lo-grid > .lo-card', {identity:'[data-tuedit]'});
   }
   $("tuChips").addEventListener("click", (e) => { const b = e.target.closest("[data-tuf]"); if (!b) return; tuFilter = b.dataset.tuf; renderTou(); });
   $("tuSearch").addEventListener("input", (e) => { tuQuery = e.target.value; renderTou(); });
@@ -15875,6 +17082,727 @@ This is a directory write. Nothing else changes.`)) return;
     };
   };
 
+  // ======================================================================
+  // 🏗 Policy builder (T41, build 25437) — R23 built on R17.
+  //
+  // The sixth tab of 🧩 Policy building blocks, because a policy IS the
+  // thing the other five tabs are blocks of: the picker in step 4 lists the
+  // tenant's named locations, step 3 its authentication contexts, step 5 its
+  // strengths and terms of use — read once per session from the sign-in
+  // context (25425) and never widened. The logic is js/builder.js
+  // (Builder.*, pure); this block owns the DOM, the tenant reads the pickers
+  // need, and the two writes.
+  //
+  // THREE STARTS, ONE DRAFT. ✨ Blank, 🧬 a baseline template, or 🗂 a policy
+  // selected elsewhere: the selection bar's "Open in builder" and the
+  // "New policy with this …" button on a block's detail pane both land in
+  // openBuilder(opts). A selected policy opens as EDIT (the draft PATCHes it,
+  // whole sections, read back) or as CLONE (a new policy with the next free
+  // number in its range). The draft survives a tab switch and is dropped on
+  // sign-out with everything else.
+  //
+  // WRITES: one POST or one PATCH, both under Policy.ReadWrite.ConditionalAccess
+  // consented on the click (preConsent), both read back with the settle
+  // schedule import.js uses, then the policy set is re-read so every tool
+  // sees the new policy. A new policy is born report-only; On needs a typed
+  // ON. The optional exclusion group is created FIRST, so the policy never
+  // references a group that failed to exist.
+  // ======================================================================
+  const PB_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let pbDraft = null, pbBefore = null, pbStep = 1, pbView = "card", pbBusy = false, pbRatio = 56;
+  let pbLocs = null, pbStrengths = null, pbContexts = null, pbTou = null, pbRoles = null, pbPickTimer = null;
+  const pbCat = () => { try { return Baseline.active(); } catch { return null; } };
+  const pbRaws = () => policies.map((p) => p.raw);
+  const pbNameFn = () => (id) => {
+    const r = policyResolve ? policyResolve(id) : null;
+    if (r && r !== id) return r;
+    return (pbDraft && pbDraft.names[id]) || (signinContext && signinContext.names && signinContext.names[id])
+      || (Builder.ROLES.find((x) => x[0] === id) || [])[1] || (Builder.APP_GROUPS.find((x) => x[0] === id) || [])[1] || id;
+  };
+  function pbGroups() {
+    const m = new Map(), nm = pbNameFn();
+    policies.forEach((p) => { const u = (p.raw.conditions || {}).users || {}; [...(u.includeGroups || []), ...(u.excludeGroups || [])].forEach((id) => m.set(id, nm(id))); });
+    Object.entries((pbDraft && pbDraft.names) || {}).forEach(([id, n]) => { if (!m.has(id)) m.set(id, n); });
+    return [...m].map(([id, name]) => ({ id, name }));
+  }
+  const pbCtx = () => ({ raws: pbRaws(), names: pbNameFn(), groups: pbGroups(), locations: pbLocs || [], catalog: pbCat(), hints: pbDraft ? Builder.hints(pbDraft, { raws: pbRaws(), names: pbNameFn(), groups: pbGroups(), locations: pbLocs || [] }) : [] });
+
+  // The blocks, from the sign-in context first (one read at sign-in, 25425),
+  // then Graph for what it does not hold. Terms of use are read only when
+  // step 5 opens: Agreement.Read.All is not a base scope.
+  async function pbLoadContext() {
+    const sc = signinContext || {};
+    const fromCtx = (k) => sc[k] && sc[k].ok && Array.isArray(sc[k].items) ? sc[k].items : null;
+    if (!pbLocs) pbLocs = fromCtx("namedLocations") || (isDemo ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.namedLocations) || []) : await Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []));
+    if (!pbStrengths) pbStrengths = fromCtx("authStrengths") || (isDemo ? [] : await Graph.ggetAll("/policies/authenticationStrengthPolicies").catch(() => []));
+    if (!pbContexts) pbContexts = fromCtx("authContexts") || (isDemo ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.authContexts) || []) : await Graph.ggetAll("/identity/conditionalAccess/authenticationContextClassReferences").catch(() => []));
+    if (!pbRoles) pbRoles = isDemo ? Builder.ROLES.map(([id, displayName]) => ({ id, displayName })) : await Graph.ggetAll("/directoryRoleTemplates?$select=id,displayName").catch(() => Builder.ROLES.map(([id, displayName]) => ({ id, displayName })));
+  }
+  async function pbLoadTou() {
+    if (pbTou) return;
+    if (isDemo) { pbTou = []; return; }
+    try { await Graph.ensureScopes([...AUTH_CONFIG.scopes, "Agreement.Read.All"]); pbTou = await Graph.ggetAll("/identityGovernance/termsOfUse/agreements?$select=id,displayName"); }
+    catch (e) { pbTou = { error: e.message || String(e) }; }
+  }
+
+  // opts: { from: raw | id, as: "edit" | "clone", with: { kind, id, name }, template: entry, fresh: true }
+  function openBuilder(opts) {
+    const o = opts || {};
+    if (cardEdit) endCardEdit(false); // an edit on a card stays on the card
+    crumb("🧩 Policy building blocks");
+    mountToolTabs("blocks", "builder");
+    show("screen-builder");
+    const cat = pbCat();
+    if (o.from) {
+      const raw = typeof o.from === "string" ? (policies.find((p) => p.id === o.from) || {}).raw : o.from;
+      if (raw) {
+        pbDraft = o.as === "clone" ? Builder.cloneOf(raw, pbRaws(), cat) : Builder.fromRaw(raw, cat);
+        pbDraft.mode = o.as === "clone" ? "clone" : "edit";
+        pbBefore = o.as === "clone" ? null : JSON.parse(JSON.stringify(raw));
+        pbStep = 1; pbView = o.as === "clone" ? "card" : "diff";
+      }
+    } else if (o.template) {
+      const live = policies.find((p) => Builder.caNum(p.raw.displayName) === Builder.caNum(o.template.name));
+      if (live) { pbDraft = Builder.cloneOf(live.raw, pbRaws(), cat); pbDraft.number = Builder.caNum(live.raw.displayName); pbDraft.template = { num: o.template.num, name: o.template.name, missing: [], notes: [`Started from ${live.raw.displayName}, which this tenant holds — the template's live counterpart.`] }; }
+      else {
+        const byName = {}; pbGroups().forEach((g) => byName[String(g.name).toLowerCase()] = g.id);
+        pbDraft = Builder.fromTemplate(o.template, byName, cat);
+      }
+      pbBefore = null; pbStep = 1; pbView = "card";
+    } else if (!pbDraft || o.fresh) {
+      pbDraft = Builder.blank();
+      pbDraft.number = Builder.nextNumber(pbDraft.persona, pbRaws(), cat).num;
+      pbBefore = null; pbStep = 1; pbView = "card";
+    }
+    if (o.with) pbApplyWith(o.with);
+    renderBuilder();
+    pbLoadContext().then(renderBuilder).catch((e) => console.warn("builder context:", e));
+  }
+  // A block's detail pane: "New policy with this …" pre-fills the one step
+  // that block belongs to and opens there.
+  function pbApplyWith(w) {
+    if (!w || !w.id) return;
+    if (w.name) pbDraft.names[w.id] = w.name;
+    if (w.kind === "location") { pbDraft.cond.locations.mode = "selected"; pbDraft.cond.locations.include = [w.id]; pbStep = 4; }
+    else if (w.kind === "strength") { pbDraft.grant.mode = "grant"; pbDraft.grant.strength = w.id; pbStep = 5; }
+    else if (w.kind === "context") { pbDraft.apps.target = "contexts"; pbDraft.apps.authContexts = [w.id]; pbStep = 3; }
+    else if (w.kind === "tou") { pbDraft.grant.mode = "grant"; pbDraft.grant.termsOfUse = [w.id]; pbStep = 5; }
+  }
+
+  // ---------- rendering ----------
+  const pbOpt = (list, val, label) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(val) ? " selected" : ""}>${esc(label ? label(l) : l)}</option>`).join("");
+  // A <details> the person opened must still be open after a repaint. Every
+  // tick inside one goes through pbOnChange → pbRepaint, which rewrites the
+  // whole step from the draft — and markup written without `open` comes back
+  // CLOSED, so ticking one guest type folded the panel and the second type
+  // meant opening it again (Mihai, 25457). The open set is what the person
+  // did, which is not in the draft and must not be: it is not part of the
+  // policy. Keyed by hand so a key survives the step being re-ordered, and
+  // kept for the session — a disclosure somebody likes open stays open.
+  const pbDets = new Set();
+  const pbDet = (key, summary, body) => `<details class="pb-det" data-det="${esc(key)}"${pbDets.has(key) ? " open" : ""}><summary>${summary}</summary>${body}</details>`;
+  const pbCk = (path, val, checked, label, extra) => `<label class="pb-ck"><input type="checkbox" data-pbl="${esc(path)}" value="${esc(val)}"${checked ? " checked" : ""}${extra || ""}> ${label}</label>`;
+  const pbChips = (path, ids, nm) => ids.length ? `<div class="pb-chips">${ids.map((id) => `<span class="fchip pb-chip" title="${esc(id)}">${esc(nm(id))} <button type="button" class="pb-x" data-pbrm="${esc(path)}" data-id="${esc(id)}" aria-label="Remove">✕</button></span>`).join("")}</div>` : `<span class="mini muted">none</span>`;
+  // a search box whose results are chips to click; kind decides the read
+  const pbPick = (kind, path, placeholder) => `<div class="pb-pick" data-pbpick="${kind}" data-path="${esc(path)}"><input type="search" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false"><div class="pb-pickres mini muted"></div></div>`;
+
+  // The section forms, by step, for a given draft — the builder composes them
+  // with hints and navigation; the policy card (✎ Edit, 25448) lays the six
+  // out at once. `hints` and `nav` are empty strings here; only steps 1 and 7
+  // (name, state and go) belong to the builder alone.
+  // ---- which external tenants a guest clause reaches (25478) --------------
+  // Mihai: "at service provider no option to only add one or more service
+  // providers". Graph carries ONE tenant list per clause (externalTenants:
+  // all, or enumerated with members), so the choice applies to every type
+  // ticked in that clause — the panel says so rather than letting it look
+  // per-type. The cross-tenant partners the tenant has configured are offered
+  // as one-click picks, service providers marked; any other tenant ID can be
+  // typed in.
+  let pbPartners = null, pbPartnersLoading = false;
+  function pbLoadPartners() {
+    if (pbPartners || pbPartnersLoading) return;
+    pbPartnersLoading = true;
+    (isDemo ? Promise.resolve({ partnersOk: true, partners: (DEMO_DATA.serviceProviders || []).map((x) => ({ ...x, isServiceProvider: true })) }) : Graph.crossTenantTrust())
+      .then((ct) => { pbPartners = ct.partnersOk ? ct.partners : []; })
+      .catch(() => { pbPartners = []; })
+      .finally(() => { pbPartnersLoading = false; if (pbDraft) pbRepaint(); });
+  }
+  const TENANT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function pbTenantsHtml(side, obj) {
+    if (!obj || !obj.guestOrExternalUserTypes) return `<p class="mini muted" style="margin:4px 0 0">Tick a type to choose which external tenants it covers. A clause with no type is not written at all.</p>`;
+    pbLoadPartners();
+    const et = obj.externalTenants || {};
+    const some = String(et.membershipKind || "all").toLowerCase() === "enumerated";
+    const members = et.members || [];
+    const nameOf = (id) => { const x = (pbPartners || []).find((p) => String(p.tenantId).toLowerCase() === String(id).toLowerCase()); return x ? `${x.name}${x.isServiceProvider ? " · service provider" : ""}` : id; };
+    const types = obj.guestOrExternalUserTypes.split(",").map((x) => x.trim()).filter(Boolean);
+    const picks = (pbPartners || []).filter((p) => !members.some((m) => String(m).toLowerCase() === String(p.tenantId).toLowerCase()))
+      .sort((a, b) => (b.isServiceProvider ? 1 : 0) - (a.isServiceProvider ? 1 : 0) || String(a.name).localeCompare(String(b.name)));
+    return `<div class="pb-sub" style="margin-top:8px"><b>External tenants</b>
+      <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbExt-${side}" data-pbext="${side}" value="all"${some ? "" : " checked"}> All external tenants</label>
+        <label class="pb-ck"><input type="radio" name="pbExt-${side}" data-pbext="${side}" value="some"${some ? " checked" : ""}> Only the tenants I choose</label></div>
+      ${some ? `<div class="pb-chips">${members.map((m) => `<span class="fchip pb-chip" title="${esc(m)}">${esc(nameOf(m))} <button type="button" class="pb-x" data-pbtenantrm="${side}" data-id="${esc(m)}" aria-label="Remove">✕</button></span>`).join("") || '<span class="mini" style="color:var(--off)">No tenant chosen yet — pick at least one, or choose All external tenants.</span>'}</div>
+        ${picks.length ? `<div class="pb-row" style="margin-top:6px">${picks.map((p) => `<button type="button" class="btn sm" data-pbtenantadd="${side}" data-id="${esc(p.tenantId)}" title="${esc(p.tenantId)}">＋ ${esc(p.name)}${p.isServiceProvider ? " 🤝" : ""}</button>`).join("")}</div>` : (pbPartners === null ? '<p class="mini muted" style="margin:4px 0 0">Reading the partners in cross-tenant access settings…</p>' : "")}
+        <div class="pb-row" style="margin-top:6px"><input type="text" class="txt" data-pbtenantinput="${side}" placeholder="Tenant ID of another organisation" style="flex:1;min-width:260px"><button type="button" class="btn sm" data-pbtenanttyped="${side}">＋ Add</button></div>` : ""}
+      <p class="mini muted" style="margin:4px 0 0">${some ? `Applies to every type ticked here (${esc(types.join(", "))}) — Entra keeps one tenant list per clause.${types.length > 1 ? " If only Service provider users should be limited to named partners while the other types keep every tenant, they cannot share this side of the policy: untick the other types here and cover them in a separate policy." : ""} 🤝 marks a partner flagged as a service provider (CSP / GDAP) in cross-tenant access settings.` : "Every external tenant, for every type ticked here."}</p></div>`;
+  }
+  function pbSetTenants(side, fn) {
+    const key = side === "include" ? "includeGuests" : "excludeGuests";
+    const c = pbDraft.users[key]; if (!c) return;
+    const et = c.externalTenants || {};
+    const cur = String(et.membershipKind || "all").toLowerCase() === "enumerated" ? (et.members || []).slice() : [];
+    const next = fn(cur);
+    c.externalTenants = next === null
+      ? { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" }
+      : { "@odata.type": "#microsoft.graph.conditionalAccessEnumeratedExternalTenants", membershipKind: "enumerated", members: [...new Set(next.map((x) => String(x).toLowerCase()))] };
+  }
+
+  function pbSectHtml(step, d) {
+    const cat = pbCat(), nm = pbNameFn(), ctx = pbCtx(), P = Builder.personaOf(d.persona, cat);
+    const hints = "", nav = () => "";
+    switch (step) {
+      case 1: {
+        if (d.mode === "edit") {
+          const conv = !d.customName;
+          return `<h4 class="wi-h">Name</h4>
+            ${conv ? `<div class="wi-grid"><label class="wi-f">CA number<input type="number" data-pb="number" value="${d.number == null ? "" : d.number}" min="0" max="1299"></label><label class="wi-f">Descriptive words<input type="text" data-pb="words" value="${esc(d.words)}"></label><label class="wi-f">Version<input type="text" data-pb="version" value="${esc(d.version)}"></label></div>
+            <p class="mini" style="margin:10px 0 0">The name reads <b class="pb-name">${esc(Builder.nameOf(d, cat))}</b>${d.prefix ? ` — the ${esc(d.prefix.trim())} staging prefix stays` : ""}. Persona: ${esc((P || {}).label || "—")} — a policy keeps its persona and range when edited; use Clone for a new number.</p>`
+            : `<label class="wi-f">Policy name<input type="text" data-pb="customName" value="${esc(d.customName)}" style="width:100%"></label><p class="mini muted" style="margin:6px 0 0">This name does not follow the CAnnn-KIND-Persona convention, so it is edited as it is; the persona and number fields apply to convention names only.</p>`}
+            ${d.customName === "" && !conv ? "" : ""}
+            <div class="pb-hint">💡 <span>Renaming changes how 🧬 Baseline and the group rules recognise this policy — the definition is what Save is usually for.</span></div>
+            ${hints}${nav(null, 2)}`;
+        }
+        const nn = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId);
+        return `<h4 class="wi-h">Persona <span class="mini muted">— decides the CA-number range and the persona word in the name</span></h4>
+          <div class="chip-filter pb-personas">${Builder.personas(cat).map((p) => `<button type="button" class="fchip${p.key === d.persona ? " active" : ""}" data-pbpersona="${p.key}" title="CA${String(p.lo).padStart(3, "0")}–CA${String(p.hi).padStart(3, "0")}">${esc(p.label)}</button>`).join("")}</div>
+          <div class="wi-grid" style="margin-top:12px">
+            <label class="wi-f">CA number <span class="mini">${P ? `range CA${String(P.lo).padStart(3, "0")}–CA${String(P.hi).padStart(3, "0")}` : ""} · next free: ${nn.num == null ? "none" : "CA" + String(nn.num).padStart(3, "0")}</span><input type="number" data-pb="number" value="${d.number == null ? "" : d.number}" min="0" max="1299" ${d.mode === "edit" ? "" : ""}></label>
+            <label class="wi-f">Descriptive words <span class="mini">resource · platform · control, as the baseline names them</span><input type="text" data-pb="words" value="${esc(d.words)}" placeholder="${esc(Builder.suggestWords(d))}"></label>
+            <label class="wi-f">Version<input type="text" data-pb="version" value="${esc(d.version)}" placeholder="1.0"></label>
+          </div>
+          <div class="pb-row"><label class="pb-ck"><input type="checkbox" data-pbflag="customName"${d.customName ? " checked" : ""}> Use a name of my own instead of the convention</label>${d.customName !== "" ? `<input type="text" data-pb="customName" value="${esc(d.customName)}" style="flex:1;min-width:280px">` : ""}</div>
+          <p class="mini" style="margin:10px 0 0">The name reads <b class="pb-name">${esc(Builder.nameOf(d, cat))}</b> — the kind (${Builder.kindOf(d)}) follows the controls in step 5.</p>
+          ${nn.taken.length && nn.taken.some(([n]) => n === d.number) ? `<div class="pb-hint warn">⚠ <span>CA${String(d.number).padStart(3, "0")} is taken by ${esc(nn.taken.find(([n]) => n === d.number)[1])}.</span></div>` : ""}
+          ${d.template && d.template.notes.length ? `<div class="pb-hint">🧬 <span><b>The template says:</b> ${d.template.notes.map(esc).join(" · ")}${d.template.missing.length ? `<br><b>Groups the tenant does not hold yet:</b> ${d.template.missing.map(esc).join(", ")} — create them in 👥 CA groups, or pick others in step 2.` : ""}</span></div>` : ""}
+          ${hints}${nav(null, 2)}`;
+      }
+      case 2: {
+        const u = d.users, G = (g) => g ? `<code>${esc(g)}</code>` : "";
+        const guest = (side, obj) => pbDet(`guests:${side}`,
+          `${side === "include" ? "Include" : "Exclude"} guests and external users ${obj && obj.guestOrExternalUserTypes ? `<span class="tag">${esc(obj.guestOrExternalUserTypes.split(",").length)} type${obj.guestOrExternalUserTypes.split(",").length === 1 ? "" : "s"}</span>` : ""}`,
+          `<div class="pb-row">${["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "internalGuest", "serviceProvider", "otherExternalUser"].map((t) => pbCk(`users.${side}Guests.types`, t, obj && String(obj.guestOrExternalUserTypes || "").split(",").map((x) => x.trim()).includes(t), esc(t))).join("")}</div>
+          ${pbTenantsHtml(side, obj)}`);
+        return `<h4 class="wi-h">Include</h4>
+          <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="all"${u.includeAll ? " checked" : ""}> All users</label><label class="pb-ck"><input type="radio" name="pbInc" data-pbflag="includeAll" value="some"${!u.includeAll ? " checked" : ""}> Selected users, groups and roles</label></div>
+          ${u.includeAll ? "" : `<div class="pb-sub"><b>Groups</b> ${P && P.group ? `<button type="button" class="btn sm" data-pbpersonagroup="${esc(P.group)}" title="The baseline's persona group for ${esc(P.label)}">＋ ${esc(P.group)}</button>` : ""}${pbChips("users.includeGroups", u.includeGroups, nm)}${pbPick("groups", "users.includeGroups", "Search groups by name, or paste an object ID…")}</div>
+          <div class="pb-sub"><b>Users</b>${pbChips("users.includeUsers", u.includeUsers, nm)}${pbPick("users", "users.includeUsers", "Search users by name or UPN…")}</div>
+          <div class="pb-sub"><b>Directory roles</b>${pbChips("users.includeRoles", u.includeRoles, nm)}${pbPick("roles", "users.includeRoles", "Search roles…")}</div>`}
+          ${guest("include", u.includeGuests)}
+          <h4 class="wi-h" style="margin-top:16px">Exclude</h4>
+          <div class="pb-sub"><b>Groups</b> ${(() => { const bg = pbGroups().find((g) => Builder.BREAK_GLASS_RE.test(g.name || "")); return bg && !u.excludeGroups.includes(bg.id) ? `<button type="button" class="btn sm" data-pbaddgroup="${esc(bg.id)}" data-name="${esc(bg.name)}" data-path="users.excludeGroups">＋ ${esc(bg.name)}</button>` : ""; })()}${pbChips("users.excludeGroups", u.excludeGroups, nm)}${pbPick("groups", "users.excludeGroups", "Search groups by name, or paste an object ID…")}</div>
+          <div class="pb-sub"><b>Users</b>${pbChips("users.excludeUsers", u.excludeUsers, nm)}${pbPick("users", "users.excludeUsers", "Search users…")}</div>
+          <div class="pb-sub"><b>Directory roles</b>${pbChips("users.excludeRoles", u.excludeRoles, nm)}${pbPick("roles", "users.excludeRoles", "Search roles…")}</div>
+          ${guest("exclude", u.excludeGuests)}
+          ${d.mode !== "edit" ? `<div class="pb-row" style="margin-top:12px"><label class="pb-ck"><input type="checkbox" data-pbflag="createExclusionGroup"${d.createExclusionGroup ? " checked" : ""}> Create the policy's own exclusion group ${G(Builder.exclusionGroupName(d, cat))} and exclude it</label></div><p class="mini muted" style="margin:2px 0 0">Empty, security-enabled, created before the policy so the policy never names a group that failed to exist. Skipped when a group of that name already exists.</p>` : ""}
+          ${hints}${nav(1, 3)}`;
+      }
+      case 3: {
+        const a = d.apps;
+        return `<h4 class="wi-h">Target resources</h4>
+          <div class="pb-row">${[["all", "All resources"], ["selected", "Selected resources"], ["actions", "User actions"], ["contexts", "Authentication context"]].map(([v, l]) => `<label class="pb-ck"><input type="radio" name="pbTarget" data-pb="apps.target" value="${v}"${a.target === v ? " checked" : ""}> ${l}</label>`).join("")}</div>
+          ${a.target === "selected" ? `<div class="pb-sub"><b>Include</b> <span class="mini muted">app groups match as a group — What-If evaluates them by design as not matching a single app</span><div class="pb-row">${Builder.APP_GROUPS.filter((x) => x[0] !== "All").map(([v, l]) => a.includeApplications.includes(v) ? "" : `<button type="button" class="btn sm" data-pbaddapp="${v}" data-name="${esc(l)}" data-path="apps.includeApplications">＋ ${esc(l)}</button>`).join("")}</div>${pbChips("apps.includeApplications", a.includeApplications, nm)}${pbPick("apps", "apps.includeApplications", "Search the tenant's apps by name, or paste an application ID…")}</div>
+            <div class="pb-sub"><b>Exclude</b>${pbChips("apps.excludeApplications", a.excludeApplications, nm)}${pbPick("apps", "apps.excludeApplications", "Search apps to exclude…")}</div>` : ""}
+          ${a.target === "all" ? `<div class="pb-sub"><b>Exclude</b>${pbChips("apps.excludeApplications", a.excludeApplications, nm)}${pbPick("apps", "apps.excludeApplications", "Search apps to exclude from All resources…")}</div>` : ""}
+          ${a.target === "actions" ? `<div class="pb-row">${Builder.USER_ACTIONS.map(([v, l]) => pbCk("apps.userActions", v, a.userActions.includes(v), esc(l))).join("")}</div>` : ""}
+          ${a.target === "contexts" ? `<div class="pb-blocks">${(pbContexts || []).length ? (pbContexts || []).map((c) => `<label class="pb-block${a.authContexts.includes(c.id) ? " picked" : ""}"><input type="checkbox" data-pbl="apps.authContexts" value="${esc(c.id)}"${a.authContexts.includes(c.id) ? " checked" : ""}><span><b>${esc(c.displayName || c.id)}</b> <span class="tag">${esc(c.id)}</span>${c.isAvailable === false ? ' <span class="tag">unpublished</span>' : ""}<span class="mini muted">${esc(c.description || "")}</span></span></label>`).join("") : `<span class="mini muted">No authentication contexts in this tenant — <a href="#" data-tabgo="blocks:contexts">create one in the 🎫 Contexts tab</a>; the draft is kept.</span>`}</div>` : ""}
+          <div class="pb-row" style="margin-top:10px"><label class="wi-f" style="flex:1">Application filter <span class="mini">(optional — a rule over app attributes; include or exclude)</span><span class="pb-row"><select data-pb="apps.filterMode" style="width:auto">${pbOpt([["include", "Include"], ["exclude", "Exclude"]], a.filter ? a.filter.mode : "include")}</select><input type="text" data-pb="apps.filterRule" value="${esc(a.filter ? a.filter.rule : "")}" placeholder='customSecurityAttribute.Contoso_CA_Tier -eq "1"' style="flex:1"></span></label></div>
+          ${hints}${nav(2, 4)}`;
+      }
+      case 4: {
+        const c = d.cond, L = c.locations;
+        const locBlock = (l, path, picked) => `<label class="pb-block${picked ? " picked" : ""}"><input type="checkbox" data-pbl="${path}" value="${esc(l.id)}"${picked ? " checked" : ""}><span><b>${esc(l.displayName)}</b> ${l.isTrusted ? '<span class="tag ok">trusted</span>' : ""}${/countryNamedLocation/.test(l["@odata.type"] || "") ? '<span class="tag">countries</span>' : /compliantNetwork/.test(l["@odata.type"] || "") ? '<span class="tag">network access</span>' : ""}<span class="mini muted">${/countryNamedLocation/.test(l["@odata.type"] || "") ? `${(l.countriesAndRegions || []).length} countr${(l.countriesAndRegions || []).length === 1 ? "y" : "ies"}: ${(l.countriesAndRegions || []).slice(0, 6).join(", ")}` : /compliantNetwork/.test(l["@odata.type"] || "") ? "Global Secure Access compliant network — managed by the service" : `${(l.ipRanges || []).length} range${(l.ipRanges || []).length === 1 ? "" : "s"}: ${(l.ipRanges || []).slice(0, 3).map((r) => r.cidrAddress).join(", ")}`}${(() => { const used = typeof CaUses !== "undefined" ? (CaUses.by("namedLocation", l.id, pbRaws()) || []).length : 0; return used ? ` · used by ${used} polic${used === 1 ? "y" : "ies"}` : ""; })()}</span></span></label>`;
+        return `<h4 class="wi-h">🌐 Locations <span class="mini muted">— the tenant's named locations, the 🌐 Locations tab's own list</span></h4>
+          <div class="pb-row">${[["any", "Any location"], ["selected", "Selected locations"], ["trusted", "All trusted locations only"]].map(([v, l]) => `<label class="pb-ck"><input type="radio" name="pbLoc" data-pb="cond.locations.mode" value="${v}"${L.mode === v ? " checked" : ""}> ${l}</label>`).join("")}<span class="mini muted">·</span><label class="pb-ck"><input type="checkbox" data-pbflag="excludeTrusted"${L.excludeTrusted ? " checked" : ""}> Exclude all trusted locations</label></div>
+          ${L.mode === "selected" ? `<div class="pb-blocks">${(pbLocs || []).map((l) => locBlock(l, "cond.locations.include", L.include.includes(l.id))).join("") || '<span class="mini muted">No named locations yet.</span>'}</div>` : ""}
+          ${pbDet("loc:exclude", `Exclude selected locations ${L.exclude.length ? `<span class="tag">${L.exclude.length}</span>` : ""}`, `<div class="pb-blocks">${(pbLocs || []).map((l) => locBlock(l, "cond.locations.exclude", L.exclude.includes(l.id))).join("")}</div>`)}
+          <div class="pb-row"><a href="#" class="mini" data-tabgo="blocks:locations">＋ New location — opens the 🌐 Locations tab; the draft is kept</a></div>
+          <h4 class="wi-h" style="margin-top:16px">💻 Device platforms</h4>
+          <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbPl" data-pb="cond.platforms.mode" value="any"${c.platforms.mode === "any" ? " checked" : ""}> Any platform</label><label class="pb-ck"><input type="radio" name="pbPl" data-pb="cond.platforms.mode" value="selected"${c.platforms.mode === "selected" ? " checked" : ""}> Selected platforms</label></div>
+          ${c.platforms.mode === "selected" ? `<div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.include", v, c.platforms.include.includes(v), esc(l))).join("")}</div>${pbDet("plat:exclude", `Exclude platforms ${c.platforms.exclude.length ? `<span class="tag">${c.platforms.exclude.length}</span>` : ""}`, `<div class="pb-row">${Builder.PLATFORMS.map(([v, l]) => pbCk("cond.platforms.exclude", v, c.platforms.exclude.includes(v), esc(l))).join("")}</div>`)}` : ""}
+          <h4 class="wi-h" style="margin-top:16px">📲 Client apps</h4>
+          <div class="pb-row">${Builder.CLIENT_APPS.map(([v, l]) => pbCk("cond.clientApps", v, c.clientApps.includes(v), esc(l))).join("")}</div>
+          <h4 class="wi-h" style="margin-top:16px">🎲 Risk, flows and device filter</h4>
+          <div class="pb-row"><span class="mini">Sign-in risk</span>${Builder.RISK.map((r) => pbCk("cond.signInRisk", r, c.signInRisk.includes(r), r)).join("")}<span class="mini" style="margin-left:10px">User risk</span>${Builder.RISK.map((r) => pbCk("cond.userRisk", r, c.userRisk.includes(r), r)).join("")}<span class="mini" style="margin-left:10px">Insider risk</span>${Builder.INSIDER.map((r) => pbCk("cond.insiderRisk", r, c.insiderRisk.includes(r), r)).join("")}</div>
+          <div class="pb-row"><span class="mini">Authentication flows</span>${Builder.FLOWS.map(([v, l]) => pbCk("cond.authFlows", v, c.authFlows.includes(v), esc(l))).join("")}</div>
+          <div class="pb-row"><span class="mini">Device filter</span><select data-pb="cond.deviceFilter.mode" style="width:auto">${pbOpt([["exclude", "Exclude devices matching"], ["include", "Include only devices matching"]], c.deviceFilter.mode)}</select><input type="text" data-pb="cond.deviceFilter.rule" value="${esc(c.deviceFilter.rule)}" placeholder='device.trustType -eq "AzureAD"' style="flex:1;min-width:260px"></div>
+          ${hints}${nav(3, 5)}`;
+      }
+      case 5: {
+        const g = d.grant;
+        const strengths = (pbStrengths || []);
+        const touList = Array.isArray(pbTou) ? pbTou : null;
+        return `<h4 class="wi-h">Access</h4>
+          <div class="pb-row"><label class="pb-ck"><input type="radio" name="pbMode" data-pb="grant.mode" value="grant"${g.mode === "grant" ? " checked" : ""}> Grant access</label><label class="pb-ck"><input type="radio" name="pbMode" data-pb="grant.mode" value="block"${g.mode === "block" ? " checked" : ""}> Block access</label></div>
+          ${g.mode === "grant" ? `<div class="pb-sub"><b>Require</b><div class="pb-row pb-col">${Builder.GRANTS.map(([v, l]) => pbCk("grant.controls", v, g.controls.includes(v), esc(l), v === "approvedApplication" && !g.controls.includes(v) ? " disabled" : "")).join("")}</div></div>
+            <div class="pb-sub"><b>💪 Authentication strength</b> <span class="mini muted">— the 💪 Strengths tab's list</span><div class="pb-blocks">${strengths.map((s) => `<label class="pb-block${g.strength === s.id ? " picked" : ""}"><input type="radio" name="pbStr" data-pb="grant.strength" value="${esc(s.id)}"${g.strength === s.id ? " checked" : ""}><span><b>${esc(s.displayName)}</b> ${s.policyType === "builtIn" ? '<span class="tag">built-in</span>' : ""}<span class="mini muted">${esc((s.allowedCombinations || []).length + " combination" + ((s.allowedCombinations || []).length === 1 ? "" : "s"))}</span></span></label>`).join("")}<label class="pb-block${!g.strength ? " picked" : ""}"><input type="radio" name="pbStr" data-pb="grant.strength" value=""${!g.strength ? " checked" : ""}><span><b>No strength</b><span class="mini muted">the built-in controls above decide</span></span></label></div></div>
+            <div class="pb-sub"><b>📜 Terms of use</b> ${touList ? `<div class="pb-blocks">${touList.map((t) => `<label class="pb-block${g.termsOfUse.includes(t.id) ? " picked" : ""}"><input type="checkbox" data-pbl="grant.termsOfUse" value="${esc(t.id)}"${g.termsOfUse.includes(t.id) ? " checked" : ""}><span><b>${esc(t.displayName)}</b></span></label>`).join("") || '<span class="mini muted">No agreements in this tenant.</span>'}</div>` : pbTou && pbTou.error ? `<span class="mini muted">Not read: ${esc(pbTou.error)}</span>` : `<button type="button" class="btn sm" data-pbact="tou">Read the tenant's agreements</button> <span class="mini muted">asks for Agreement.Read.All, once</span>`}${g.termsOfUse.length && !touList ? pbChips("grant.termsOfUse", g.termsOfUse, nm) : ""}</div>
+            <div class="pb-row"><span class="mini">For multiple controls</span><label class="pb-ck"><input type="radio" name="pbOp" data-pb="grant.operator" value="AND"${g.operator === "AND" ? " checked" : ""}> Require all (AND)</label><label class="pb-ck"><input type="radio" name="pbOp" data-pb="grant.operator" value="OR"${g.operator !== "AND" ? " checked" : ""}> Require one (OR)</label></div>` : `<p class="mini muted" style="margin:6px 0 0">Block wins over every grant. The name becomes CAnnn-BLOCK-…</p>`}
+          ${hints}${nav(4, 6)}`;
+      }
+      case 6: {
+        const s = d.session, sif = s.sif || {};
+        return `<h4 class="wi-h">Session controls</h4>
+          <div class="pb-row"><span class="mini">Sign-in frequency</span><select data-pb="session.sifMode" style="width:auto">${pbOpt([["", "not set"], ["every", "every time"], ["time", "a period"]], s.sif ? (sif.everyTime ? "every" : "time") : "")}</select>${s.sif && !sif.everyTime ? `<input type="number" min="1" data-pb="session.sifValue" value="${esc(sif.value || 1)}" style="width:80px"><select data-pb="session.sifType" style="width:auto">${pbOpt([["hours", "hours"], ["days", "days"]], sif.type || "hours")}</select>` : ""}</div>
+          <div class="pb-row"><span class="mini">Persistent browser session</span><select data-pb="session.persistent" style="width:auto">${pbOpt([["", "not set"], ["always", "always persistent"], ["never", "never persistent"]], s.persistent || "")}</select></div>
+          <div class="pb-row"><label class="pb-ck"><input type="checkbox" data-pbflag="appEnforced"${s.appEnforced ? " checked" : ""}> Use app enforced restrictions</label><label class="pb-ck"><input type="checkbox" data-pbflag="tokenProtection"${s.tokenProtection ? " checked" : ""}> Require token protection for sign-in sessions</label><label class="pb-ck"><input type="checkbox" data-pbflag="resilience"${s.resilience ? " checked" : ""}> Disable resilience defaults</label></div>
+          <div class="pb-row"><span class="mini">Continuous access evaluation</span><select data-pb="session.cae" style="width:auto">${pbOpt([["", "not set"], ["disabled", "disabled"], ["strictLocation", "strictly enforce location policies"]], s.cae || "")}</select><span class="mini" style="margin-left:10px">Defender for Cloud Apps</span><select data-pb="session.mdca" style="width:auto">${pbOpt([["", "not set"], ["monitorOnly", "monitor only"], ["blockDownloads", "block downloads"], ["mcasConfigured", "use custom policy"]], s.mdca || "")}</select></div>
+          ${hints}${nav(5, 7)}`;
+      }
+      case 7: {
+        const v = Builder.validate(d), ops = Builder.willDo(d, ctx);
+        const goLabel = d.mode === "edit" ? "✎ Save changes to the policy" : `＋ Create ${d.state === "enabledForReportingButNotEnforced" ? "in report-only" : d.state === "disabled" ? "Off" : "ON"}`;
+        const nDiff = d.mode === "edit" && pbBefore ? Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(Builder.toRaw(d, cat))).length : 0;
+        const editNote = d.mode === "edit" ? `<div class="pb-hint">${nDiff ? `✎ <span><b>${nDiff} setting${nDiff === 1 ? "" : "s"} change${nDiff === 1 ? "s" : ""}</b> against the policy in the tenant — the ± Diff view lists them. Save sends the sections they are in, whole, and reads the policy back.</span>` : `✓ <span><b>Nothing changes yet</b> — the draft equals the policy in the tenant. Change something in steps 1–6, or Discard.</span>`}</div>` : "";
+        return `<h4 class="wi-h">State</h4>
+          <div class="pb-row">${Builder.STATES.map(([val, l]) => `<label class="pb-ck"><input type="radio" name="pbState" data-pb="state" value="${val}"${d.state === val ? " checked" : ""}> ${l}${val === "enabledForReportingButNotEnforced" ? ' <span class="mini muted">(default)</span>' : ""}</label>`).join("")}</div>
+          ${d.state === "enabled" && (d.mode !== "edit" || (pbBefore && pbBefore.state !== "enabled")) ? `<div class="pb-row"><span class="mini">Type <b>ON</b> to confirm enforcing at once</span><input type="text" data-pb="typedOn" value="${esc(d.typedOn || "")}" placeholder="ON" style="width:90px" autocomplete="off"></div>` : ""}
+          ${editNote}
+          <h4 class="wi-h" style="margin-top:14px">What will happen</h4>${Builder.willHtml(ops)}
+          ${v.bad.length ? `<div class="pb-hint warn">✗ <span>${v.bad.map(esc).join("<br>")}</span></div>` : ""}${v.warn.map((w) => `<div class="pb-hint warn">⚠ <span>${esc(w)}</span></div>`).join("")}
+          ${hints}
+          <div class="pb-row pb-nav"><button class="btn sm" type="button" data-pbgo="6">← 6 · Session</button><button class="btn primary sm" type="button" id="pbGoStep" ${v.ok && (d.mode !== "edit" || nDiff) && (d.state !== "enabled" || d.mode === "edit" && pbBefore && pbBefore.state === "enabled" || d.typedOn === "ON") ? "" : "disabled"}>${goLabel}</button><span class="mini muted">Recovery: a policy created here is restorable for 30 days from ♻ Deleted; an edit can be reverted from its 🕓 Changes entry.</span></div>
+          <div id="pbLedger"></div>`;
+      }
+    }
+    return "";
+  }
+
+  function pbFormHtml(step) {
+    const d = pbDraft, ctx = pbCtx();
+    const hints = Builder.hintsHtml(ctx.hints.filter((h) => h.step === step));
+    const nav = (prev, next) => `<div class="pb-row pb-nav">${prev ? `<button class="btn sm" type="button" data-pbgo="${prev}">← ${prev} · ${Builder.STEPS[prev - 1][1]}</button>` : ""}${next ? `<button class="btn primary sm" type="button" data-pbgo="${next}">Next: ${next} · ${Builder.STEPS[next - 1][1]} →</button>` : ""}<span class="mini muted">${d.mode === "edit" ? "editing the selected policy — nothing is written until Save" : "the draft is kept while you use other tools"}</span></div>`;
+    const navFor = { 1: [null, 2], 2: [1, 3], 3: [2, 4], 4: [3, 5], 5: [4, 6], 6: [5, 7] }[step];
+    return pbSectHtml(step, d) + (step === 7 ? "" : hints + nav(navFor[0], navFor[1]));
+  }
+  function pbPreviewHtml() {
+    const d = pbDraft, cat = pbCat(), ctx = pbCtx(), raw = Builder.toRaw(d, cat);
+    if (pbView === "json") return `<pre class="pb-json">${esc(JSON.stringify(d.mode === "edit" && pbBefore ? Builder.patchBody(pbBefore, d, cat) : raw, null, 2))}</pre><p class="mini muted">${d.mode === "edit" ? "The PATCH body — whole sections, only the ones that changed." : "The exact body that will be POSTed."}</p>`;
+    if (pbView === "preflight") return `<div class="list-card lo-card pb-card"><div class="lo-h"><b>🧪 Preflight</b> <span class="mini muted">— synthetic sign-ins What-If evaluates against the draft and the loaded policies; no read, no write</span></div>${Builder.preflightHtml(Builder.preflight(d, ctx))}<p class="mini muted" style="margin:8px 0 0">For a real person and a real app, use 🧪 What-If itself once the policy exists.</p></div>`;
+    if (pbView === "diff") return `<div class="list-card lo-card pb-card"><div class="lo-h"><b>± Diff</b> <span class="mini muted">— the tenant's policy against the draft</span></div>${pbBefore ? Builder.diffHtml(Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(raw))) : '<p class="mini muted">A diff needs a policy to start from — Open in builder from 🗂 Policies.</p>'}</div>`;
+    // card
+    const vm = buildViewModel({ ...raw, id: d.sourceId || "draft", modifiedDateTime: pbBefore ? pbBefore.modifiedDateTime : "" }, (id, map) => (map && map[id]) || ctx.names(id), 0);
+    return `<div class="pb-cardwrap">${Render.card(vm, tenantName)}</div>${ctx.hints.length ? `<div class="list-card lo-card pb-card"><div class="lo-h"><b>💡 Hints</b> <span class="mini muted">— ${ctx.hints.length} over the loaded policies and the blocks</span></div>${Builder.hintsHtml(ctx.hints)}</div>` : ""}`;
+  }
+
+  function renderBuilder() {
+    if (!pbDraft) return;
+    const d = pbDraft, cat = pbCat(), ctx = pbCtx();
+    const P = Builder.personaOf(d.persona, cat);
+    const modeLine = d.mode === "edit" ? `<b>Editing</b> ${esc(d.sourceName)}` : d.mode === "clone" ? `<b>New policy</b> · cloned from ${esc(d.sourceName)}` : d.template ? `<b>New policy</b> · started from template CA${String(d.template.num).padStart(3, "0")}` : `<b>New policy</b>`;
+    $("pbHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:260px">${toolHead("toolBuilder")}
+      <p class="mini" style="margin:6px 0 0">One guided screen for a policy: start blank, from a baseline template, or from a policy selected anywhere else in ENCA. Every choice is a building block from the tabs beside it, the result is preflighted in What-If before it is written, and a new policy is born in report-only unless you say otherwise.</p></div>
+      <div class="pb-mode">${modeLine} · ${esc(tenantName || "this tenant")}<br>${d.mode === "edit" ? `every step is filled from the policy · <b>nothing is written until Save</b> · ± Diff shows what changes` : P ? `next free number in ${esc(P.label)}: <b>${(() => { const n = Builder.nextNumber(d.persona, pbRaws(), cat, d.sourceId).num; return n == null ? "none" : "CA" + String(n).padStart(3, "0"); })()}</b>` : ""}</div></div>`;
+    // the toolbar: a draft chooses where it starts; an edit has started — it
+    // shows what it edits and a way out, never a "start from" that would drop it
+    $("pbStart").style.display = d.mode === "edit" ? "none" : "";
+    $("pbEditing").style.display = d.mode === "edit" ? "" : "none";
+    if (d.mode === "edit") $("pbEditing").innerHTML = `<span class="pb-from" title="${esc(d.sourceId || "")}">✎ Editing <b>${esc(d.sourceName)}</b></span> <button type="button" class="btn sm" id="pbDiscard" title="Drop the edit — nothing was written">✕ Discard</button>`;
+    $("pbStart").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.pbstart === (d.mode === "edit" || d.mode === "clone" ? "policy" : d.template ? "template" : "blank")));
+    $("pbGo").textContent = d.mode === "edit" ? "✎ Save changes" : "＋ Create in report-only";
+    $("pbGo").disabled = pbBusy || !Builder.validate(d).ok || (d.mode !== "edit" && d.state !== "enabledForReportingButNotEnforced");
+    $("pbGo").title = d.mode === "edit" ? "PATCH the selected policy with the draft — step 7 shows the diff and the plan" : d.state === "enabledForReportingButNotEnforced" ? "POST the policy in report-only, read it back, open it in Policies" : "Another state is chosen in step 7 — create it from there";
+    $("pbBody").innerHTML = `<div class="ld-shell pb-shell" style="--ld-list:${pbRatio}%"><div class="ld-list pb-steps">${Builder.stepsHtml(d, pbStep, ctx, pbFormHtml(pbStep))}</div>
+      <input class="ld-divider" type="range" min="40" max="65" value="${pbRatio}" aria-label="Width of the steps column" title="Drag to give the steps or the preview more width — the same handle every list/detail tool has">
+      <section class="ld-panel" aria-label="Draft preview"><div class="ld-controls"><div class="seg pb-views">${[["card", "🗂 Card"], ["json", "{ } JSON"], ["preflight", "🧪 Preflight"], ["diff", "± Diff"]].map(([k, l]) => `<button type="button" data-pbview="${k}" class="${pbView === k ? "active" : ""}"${k === "diff" && d.mode !== "edit" ? ' title="A diff needs a policy selected elsewhere"' : ""}>${l}</button>`).join("")}</div><span class="mini muted">Preview</span></div>
+      <h2 class="ld-title pb-name">${esc(Builder.nameOf(d, cat))}</h2><div class="ld-content">${pbPreviewHtml()}</div></section></div>`;
+    // the split handle (the shared frame's .ld-divider) was copied in but never
+    // wired here — a slider that did nothing (Mihai, 2026-09-22)
+    const div = $("pbBody").querySelector(".ld-divider");
+    if (div) div.addEventListener("input", () => { pbRatio = +div.value; div.closest(".ld-shell").style.setProperty("--ld-list", pbRatio + "%"); });
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply($("pbBody"));
+    if (typeof syncStickyTops === "function") (window.requestAnimationFrame || setTimeout)(syncStickyTops);
+  }
+
+  // ---------- draft edits (delegated) ----------
+  const pbSet = (path, val) => { const ks = path.split("."); let o = pbDraft; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; };
+  const pbGet = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), pbDraft);
+  function pbToggle(path, val, on) {
+    if (path.endsWith("Guests.types")) {
+      const side = path.startsWith("users.include") ? "includeGuests" : "excludeGuests";
+      const cur = pbDraft.users[side] && pbDraft.users[side].guestOrExternalUserTypes ? pbDraft.users[side].guestOrExternalUserTypes.split(",").map((x) => x.trim()).filter(Boolean) : [];
+      const next = on ? [...new Set([...cur, val])] : cur.filter((x) => x !== val);
+      // 25478: keep the tenant choice. Every tick used to rewrite the clause
+      // with ALL external tenants, so a tenant list picked a moment earlier
+      // vanished the next time a type was ticked.
+      const prev = pbDraft.users[side] && pbDraft.users[side].externalTenants;
+      pbDraft.users[side] = next.length ? { guestOrExternalUserTypes: next.join(","), externalTenants: prev || { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } } : null;
+      return;
+    }
+    const list = pbGet(path) || []; pbSet(path, on ? [...new Set([...list, val])] : list.filter((x) => x !== val));
+  }
+  const pbOnClick = (e) => {
+    if (!pbDraft) return;
+    const st = e.target.closest("[data-pbstep]"); if (st) { pbStep = +st.dataset.pbstep; pbRepaint(); return; }
+    const go = e.target.closest("[data-pbgo]"); if (go) { pbStep = +go.dataset.pbgo; pbRepaint(); window.scrollTo({ top: 0 }); return; }
+    const v = e.target.closest("[data-pbview]"); if (v) { pbView = v.dataset.pbview; pbRepaint(); return; }
+    const per = e.target.closest("[data-pbpersona]"); if (per) { pbDraft.persona = per.dataset.pbpersona; if (pbDraft.mode !== "edit") pbDraft.number = Builder.nextNumber(pbDraft.persona, pbRaws(), pbCat()).num; pbRepaint(); return; }
+    const rm = e.target.closest("[data-pbrm]"); if (rm) { pbToggle(rm.dataset.pbrm, rm.dataset.id, false); pbRepaint(); return; }
+    const ag = e.target.closest("[data-pbaddgroup]"); if (ag) { pbDraft.names[ag.dataset.pbaddgroup] = ag.dataset.name; pbToggle(ag.dataset.path, ag.dataset.pbaddgroup, true); pbRepaint(); return; }
+    const aa = e.target.closest("[data-pbaddapp]"); if (aa) { pbDraft.names[aa.dataset.pbaddapp] = aa.dataset.name; pbToggle(aa.dataset.path, aa.dataset.pbaddapp, true); pbRepaint(); return; }
+    const pg = e.target.closest("[data-pbpersonagroup]"); if (pg) { pbAddPersonaGroup(pg.dataset.pbpersonagroup); return; }
+    const pick = e.target.closest("[data-pbpickid]"); if (pick) { const box = pick.closest(".pb-pick"); pbDraft.names[pick.dataset.pbpickid] = pick.dataset.name; pbToggle(box.dataset.path, pick.dataset.pbpickid, true); pbRepaint(); return; }
+    const act = e.target.closest("[data-pbact]"); if (act && act.dataset.pbact === "tou") { act.disabled = true; pbLoadTou().then(renderBuilder); return; }
+    const ta = e.target.closest("[data-pbtenantadd]"); if (ta) { pbSetTenants(ta.dataset.pbtenantadd, (cur) => [...cur, ta.dataset.id]); pbRepaint(); return; }
+    const tr = e.target.closest("[data-pbtenantrm]"); if (tr) { pbSetTenants(tr.dataset.pbtenantrm, (cur) => cur.filter((x) => x.toLowerCase() !== tr.dataset.id.toLowerCase())); pbRepaint(); return; }
+    const tt = e.target.closest("[data-pbtenanttyped]"); if (tt) {
+      const side = tt.dataset.pbtenanttyped;
+      const inp = tt.parentElement.querySelector(`[data-pbtenantinput="${side}"]`);
+      const ids = String(inp && inp.value || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const bad = ids.filter((x) => !TENANT_RE.test(x));
+      if (!ids.length) return;
+      if (bad.length) { toast(`Not a tenant ID: <span>${esc(bad.join(", "))}</span> — a tenant ID is a GUID`); return; }
+      pbSetTenants(side, (cur) => [...cur, ...ids]); pbRepaint(); return;
+    }
+    if (e.target.closest("#pbGoStep")) { pbWrite(); return; }
+    const tab = e.target.closest("a[data-tabgo]"); if (tab) { e.preventDefault(); }
+  };
+  const pbOnChange = (e) => {
+    if (!pbDraft) return;
+    const t = e.target;
+    if (t.dataset.pbl) { pbToggle(t.dataset.pbl, t.value, t.checked); pbRepaint(); return; }
+    if (t.dataset.pbext) { pbSetTenants(t.dataset.pbext, (cur) => t.value === "all" ? null : cur); pbRepaint(); return; }
+    if (t.dataset.pbflag) {
+      const f = t.dataset.pbflag;
+      if (f === "includeAll") pbDraft.users.includeAll = t.value === "all";
+      else if (f === "customName") pbDraft.customName = t.checked ? Builder.nameOf(pbDraft, pbCat()) : "";
+      else if (f === "excludeTrusted") pbDraft.cond.locations.excludeTrusted = t.checked;
+      else if (f === "createExclusionGroup") pbDraft.createExclusionGroup = t.checked;
+      else if (f === "appEnforced") pbDraft.session.appEnforced = t.checked;
+      else if (f === "tokenProtection") pbDraft.session.tokenProtection = t.checked;
+      else if (f === "resilience") pbDraft.session.resilience = t.checked;
+      pbRepaint(); return;
+    }
+    if (t.dataset.pb) {
+      const p = t.dataset.pb, val = t.value;
+      if (p === "number") pbDraft.number = val === "" ? null : Math.max(0, parseInt(val, 10) || 0);
+      else if (p === "apps.filterMode") pbDraft.apps.filter = { mode: val, rule: (pbDraft.apps.filter || {}).rule || "" };
+      else if (p === "apps.filterRule") pbDraft.apps.filter = val.trim() ? { mode: (pbDraft.apps.filter || {}).mode || "include", rule: val.trim() } : null;
+      else if (p === "grant.strength") pbDraft.grant.strength = val || null;
+      else if (p === "session.sifMode") pbDraft.session.sif = val === "every" ? { everyTime: true } : val === "time" ? { value: 1, type: "hours" } : null;
+      else if (p === "session.sifValue") pbDraft.session.sif = { ...(pbDraft.session.sif || {}), value: Math.max(1, parseInt(val, 10) || 1) };
+      else if (p === "session.sifType") pbDraft.session.sif = { ...(pbDraft.session.sif || {}), type: val };
+      else if (p === "session.persistent" || p === "session.cae" || p === "session.mdca") pbSet(p, val || null);
+      else if (p === "grant.mode") { pbDraft.grant.mode = val; }
+      else pbSet(p, val);
+      if (p === "apps.target" || p === "grant.mode" || p === "cond.locations.mode" || p === "cond.platforms.mode" || p === "state" || p === "session.sifMode" || p === "typedOn") pbRepaint();
+      else pbRepaintPreview();
+    }
+  };
+  // typing in a text field repaints the preview only, so the caret stays
+  const pbOnInput = (e) => {
+    const t = e.target; if (!pbDraft) return;
+    if (t.closest(".pb-pick")) { pbSearch(t.closest(".pb-pick")); return; }
+    if (!t.dataset.pb) return;
+    if (["words", "version", "customName", "cond.deviceFilter.rule", "typedOn"].includes(t.dataset.pb)) {
+      if (t.dataset.pb === "typedOn") { pbDraft.typedOn = t.value.trim(); if (pbSurface === "card") { cardEditBar(); return; } const b = $("pbGoStep"); if (b) b.disabled = !(Builder.validate(pbDraft).ok && pbDraft.typedOn === "ON"); return; }
+      pbSet(t.dataset.pb, t.value); pbRepaintPreview();
+    }
+  };
+  // one set of handlers, two surfaces: the builder's body and the policy card
+  let pbSurface = "builder";
+  function pbRepaint() { if (pbSurface === "card") renderCardEdit(); else renderBuilder(); }
+  // `toggle` does not bubble, so this listens in the CAPTURE phase — which
+  // catches the mouse, the keyboard and a programmatic open alike, where a
+  // click handler on the summary would have to guess the state it is about to
+  // become. Both surfaces: the builder's body and the policy card's edit.
+  const pbDetToggle = (e) => {
+    const d = e.target;
+    if (!d || !d.classList || !d.classList.contains("pb-det") || !d.dataset.det) return;
+    if (d.open) pbDets.add(d.dataset.det); else pbDets.delete(d.dataset.det);
+  };
+  $("pbBody").addEventListener("toggle", pbDetToggle, true);
+  $("detailBody").addEventListener("toggle", pbDetToggle, true);
+  $("pbBody").addEventListener("click", pbOnClick); $("pbBody").addEventListener("change", pbOnChange); $("pbBody").addEventListener("input", pbOnInput);
+  $("detailBody").addEventListener("click", (e) => { if (pbSurface === "card") pbOnClick(e); });
+  $("detailBody").addEventListener("change", (e) => { if (pbSurface === "card") pbOnChange(e); });
+  $("detailBody").addEventListener("input", (e) => { if (pbSurface === "card") pbOnInput(e); });
+  function pbRepaintPreview() {
+    if (pbSurface === "card") { cardEditBar(); return; }
+    const panel = $("pbBody").querySelector(".ld-panel"); if (!panel) return;
+    panel.querySelector(".ld-title").textContent = Builder.nameOf(pbDraft, pbCat());
+    panel.querySelector(".ld-content").innerHTML = pbPreviewHtml();
+    const nm = $("pbBody").querySelector(".pb-form .pb-name"); if (nm) nm.textContent = Builder.nameOf(pbDraft, pbCat());
+    $("pbGo").disabled = pbBusy || !Builder.validate(pbDraft).ok || (pbDraft.mode !== "edit" && pbDraft.state !== "enabledForReportingButNotEnforced");
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply(panel);
+  }
+  // the persona group by NAME: the loaded policies may already name it; else one read
+  async function pbAddPersonaGroup(name) {
+    const known = pbGroups().find((g) => String(g.name).toLowerCase() === name.toLowerCase());
+    if (known) { pbToggle("users.includeGroups", known.id, true); renderBuilder(); return; }
+    if (isDemo) { toast(`Demo — <span>${esc(name)}</span> is not in the sample tenant`); return; }
+    try {
+      const r = await Graph.gget(`/groups?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id,displayName&$top=1`);
+      const g = ((r && r.value) || [])[0];
+      if (!g) { toast(`<span>${esc(name)}</span> does not exist in this tenant — create it in 👥 CA groups first`); return; }
+      pbDraft.names[g.id] = g.displayName; pbToggle("users.includeGroups", g.id, true); renderBuilder();
+    } catch (e) { toast(`Group lookup failed: <span>${esc(e.message || e)}</span>`); }
+  }
+  // the search box: groups / users / roles / apps; a pasted GUID is accepted as is
+  function pbSearch(box) {
+    clearTimeout(pbPickTimer);
+    const q = box.querySelector("input").value.trim(), res = box.querySelector(".pb-pickres"), kind = box.dataset.pbpick;
+    const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const paint = (rows, note) => { res.innerHTML = rows.slice(0, 10).map((r) => `<button type="button" class="fchip" data-pbpickid="${esc(r.id)}" data-name="${esc(r.name)}">${esc(r.name)}${r.sub ? ` <span class="muted">${esc(r.sub)}</span>` : ""}</button>`).join("") + (note ? `<span class="mini muted">${note}</span>` : ""); };
+    if (!q) { res.innerHTML = ""; return; }
+    if (GUID.test(q)) { paint([{ id: q, name: pbNameFn()(q), sub: "by id" }]); return; }
+    if (q.length < 2) return;
+    const local = (kind === "groups" ? pbGroups() : kind === "roles" ? (pbRoles || []).map((r) => ({ id: r.id, name: r.displayName })) : []).filter((x) => String(x.name).toLowerCase().includes(q.toLowerCase()));
+    if (kind === "roles" || isDemo) {
+      const demo = isDemo && kind !== "roles" && typeof DEMO_DATA !== "undefined" ? Object.entries(DEMO_DATA.names || {}).filter(([id, n]) => String(n).toLowerCase().includes(q.toLowerCase()) && (kind === "users" ? /^u-/.test(id) : kind === "apps" ? /^[0-9a-f-]{36}$/i.test(id) && !/^u-/.test(id) : true)).map(([id, name]) => ({ id, name })) : [];
+      paint([...local, ...demo].filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i), local.length + demo.length ? "" : "no match");
+      return;
+    }
+    paint(local, "searching…");
+    pbPickTimer = setTimeout(async () => {
+      try {
+        const f = q.replace(/'/g, "''");
+        let rows = [];
+        if (kind === "groups") rows = ((await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=id,displayName&$top=10`)).value || []).map((g) => ({ id: g.id, name: g.displayName }));
+        else if (kind === "users") rows = ((await Graph.gget(`/users?$filter=startswith(displayName,'${f}') or startswith(userPrincipalName,'${f}')&$select=id,displayName,userPrincipalName&$top=10`)).value || []).map((u) => ({ id: u.id, name: u.displayName || u.userPrincipalName, sub: u.userPrincipalName }));
+        else if (kind === "apps") rows = ((await Graph.gget(`/servicePrincipals?$filter=startswith(displayName,'${f}')&$select=appId,displayName&$top=10`)).value || []).map((s) => ({ id: s.appId, name: s.displayName, sub: s.appId.slice(0, 8) + "…" }));
+        paint([...local, ...rows].filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i), rows.length || local.length ? "" : "no match");
+      } catch (e) { paint(local, `search failed: ${esc(e.message || e)}`); }
+    }, 300);
+  }
+
+  // ---------- toolbar ----------
+  $("pbStart").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pbstart]"); if (!b) return;
+    if (b.dataset.pbstart === "blank") { if (pbDraft && pbDraft.mode !== "new" || pbDraft && pbDraft.template) { if (!confirm("Start a blank draft? The current draft is dropped.")) return; } openBuilder({ fresh: true }); }
+    else if (b.dataset.pbstart === "template") pbOpenTemplatePicker();
+    else if (b.dataset.pbstart === "policy") pbOpenPolicyPicker();
+  });
+  $("pbEditing").addEventListener("click", (e) => { if (e.target.closest("#pbDiscard")) { if (!confirm("Discard this edit? Nothing was written to the policy.")) return; pbDraft = null; pbBefore = null; openBuilder({ fresh: true }); } });
+  $("pbPreflight").addEventListener("click", () => { pbView = "preflight"; renderBuilder(); });
+  $("pbJson").addEventListener("click", () => { if (!pbDraft) return; const cat = pbCat(); downloadText((Builder.nameOf(pbDraft, cat) || "policy").replace(/[^\w.\- ]+/g, "").slice(0, 80), "json", "application/json", JSON.stringify(Builder.toRaw(pbDraft, cat), null, 2)); toast("Draft <span>JSON</span> downloaded — 📥 Import can load it"); });
+  $("pbPlan").addEventListener("click", () => {
+    if (!pbDraft) return;
+    const cat = pbCat(), ctx = pbCtx(), name = Builder.nameOf(pbDraft, cat);
+    const md = [`# Change plan — ${name}`, "", `Tenant: ${tenantName || "—"} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC · ${pbDraft.mode === "edit" ? "EDIT of " + pbDraft.sourceName : "NEW policy"} · state: ${pbDraft.state}`, "",
+      "## What will happen", ...Builder.willDo(pbDraft, ctx).map((o) => `- ${o.op} ${o.what}${o.sub ? " — " + o.sub : ""}`), "",
+      "## Steps", ...Builder.STEPS.map(([n, l]) => `- ${n} · ${l}: ${Builder.summary(pbDraft, n, ctx).replace(/<[^>]+>/g, "")}`), "",
+      ...(ctx.hints.length ? ["## Hints", ...ctx.hints.map((h) => `- ${h.level === "warn" ? "⚠" : "💡"} ${h.text}`), ""] : []),
+      ...(pbDraft.mode === "edit" && pbBefore ? ["## Diff", "| Setting | In the tenant | Draft |", "|---|---|---|", ...Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(Builder.toRaw(pbDraft, cat))).map((r) => `| ${r.path} | ${r.before} | ${r.after} |`), ""] : []),
+      "## Body", "```json", JSON.stringify(pbDraft.mode === "edit" && pbBefore ? Builder.patchBody(pbBefore, pbDraft, cat) : Builder.toRaw(pbDraft, cat), null, 2), "```", ""].join("\n");
+    downloadText(("change-plan-" + name).replace(/[^\w.\- ]+/g, "").slice(0, 80), "md", "text/markdown", md);
+    toast("<span>Change plan</span> downloaded — hand it to a reviewer, then apply it here");
+  });
+  $("pbGo").addEventListener("click", () => { if (!pbDraft) return; if (pbDraft.mode !== "edit" && pbDraft.state !== "enabledForReportingButNotEnforced") { pbStep = 7; renderBuilder(); return; } pbWrite(); });
+
+  // 🧬 a catalog entry, or 🗂 a loaded policy, as the start — small pickers
+  function pbOpenTemplatePicker() {
+    const cat = pbCat(); const list = (cat && cat.policies) || (typeof BASELINE !== "undefined" ? BASELINE.policies : []);
+    const live = new Set(policies.map((p) => Builder.caNum(p.raw.displayName)));
+    pbModal(`🧬 Start from a baseline template`, `<p class="mini muted" style="margin:0 0 8px">${esc(cat && cat.title || "the active baseline")} · a template the tenant already holds starts from that policy; the others seed the number, persona, groups and the template's own words.</p><div class="pb-picklist">${list.map((p) => `<button type="button" class="ld-row" data-pbtpl="${p.num}"><strong>${esc(p.name)}</strong><span class="mini muted">${live.has(Builder.caNum(p.name)) ? "in this tenant — starts from the live policy" : (p.include || []).concat(p.exclude || []).length + " group references · " + esc(String(p.resources || "").replace(/<[^>]+>/g, ""))}</span></button>`).join("")}</div>`,
+      (e) => { const b = e.target.closest("[data-pbtpl]"); if (!b) return false; openBuilder({ template: list.find((p) => String(p.num) === b.dataset.pbtpl) }); return true; });
+  }
+  function pbOpenPolicyPicker() {
+    // TWO VERBS PER ROW (25456). From 25448 this picker offered Clone alone —
+    // so picking the policy you wanted to CHANGE handed you a new one with the
+    // next free number, which is not what anybody means by starting from a
+    // policy (Mihai: "editing a policy should be edit and not replace with a
+    // clone"). The builder's edit mode never went anywhere — mode, pbBefore,
+    // the diff view and the whole-section PATCH are all still here; only this
+    // entry point was taken away. ✎ Edit changes THAT policy, keeping its
+    // number, name and state; ⧉ Clone is the other thing, said next to it.
+    pbModal(`🗂 Start from a policy in this tenant`, `<p class="mini muted" style="margin:0 0 8px">✎ Edit changes that policy itself — same number, same name, and Save writes only the sections that differ. ⧉ Clone leaves it alone and makes a new policy from it, with the next free number in its range, in report-only. The same edit is on the policy's own card.</p><div class="pb-picklist">${policies.map((p) => `<div class="ld-row pb-pickrow"><strong>${esc(p.raw.displayName)}</strong><span class="mini muted">${esc(p.state)}</span><span class="pb-row"><button type="button" class="btn sm primary" data-pbfrom="${esc(p.id)}" data-as="edit">✎ Edit this policy</button><button type="button" class="btn sm" data-pbfrom="${esc(p.id)}" data-as="clone">⧉ Clone into a new policy</button></span></div>`).join("")}</div>`,
+      (e) => { const b = e.target.closest("[data-pbfrom]"); if (!b) return false; openBuilder({ from: b.dataset.pbfrom, as: b.dataset.as }); return true; });
+  }
+  function pbModal(title, body, onClick) {
+    const bg = $("pbModal"); $("pbModalTitle").textContent = title; $("pbModalBody").innerHTML = body; bg.classList.add("open");
+    const h = (e) => { if (onClick(e)) { bg.classList.remove("open"); $("pbModalBody").removeEventListener("click", h); } };
+    $("pbModalBody").addEventListener("click", h);
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply(bg);
+  }
+  $("pbModalClose").addEventListener("click", () => $("pbModal").classList.remove("open"));
+
+  // ---------- the write ----------
+  async function pbWrite() {
+    const d = pbDraft; if (!d || pbBusy) return;
+    const cat = pbCat(), v = Builder.validate(d);
+    if (!v.ok) { pbStep = 7; pbRepaint(); toast(`<span>Not written</span> — ${esc(v.bad[0])}`); return; }
+    if (d.state === "enabled" && !(d.mode === "edit" && pbBefore && pbBefore.state === "enabled") && d.typedOn !== "ON") { pbStep = 7; pbRepaint(); toast(pbSurface === "card" ? "Switching it <span>ON</span> needs the typed ON in the edit bar" : "Creating it <span>ON</span> needs the typed ON in step 7"); return; }
+    const wantGroup = d.mode !== "edit" && d.createExclusionGroup && Builder.exclusionGroupName(d, cat) && !pbGroups().some((g) => String(g.name).toLowerCase() === Builder.exclusionGroupName(d, cat).toLowerCase());
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...PB_WRITE, ...(wantGroup ? ["Group.ReadWrite.All"] : [])])) return;
+    pbBusy = true; pbStep = 7; pbRepaint();
+    const host = pbSurface === "card" ? $("cardEditLedger") : $("pbLedger"); if (host) host.scrollIntoView({ block: "nearest" });
+    const items = [...(wantGroup ? [{ label: `Create group ${Builder.exclusionGroupName(d, cat)}` }] : []), { label: d.mode === "edit" ? `Save ${d.sourceName}` : `Create ${Builder.nameOf(d, cat)}`, sub: d.mode === "edit" ? "PATCH, whole sections" : (Builder.STATES.find((s) => s[0] === d.state) || [])[1] }, { label: "Read it back" }, { label: "Re-read the policy set" }];
+    const L = RunLedger.create(host, { title: d.mode === "edit" ? "Saving the policy" : "Creating the policy", items });
+    let i = 0, createdId = null;
+    try {
+      if (wantGroup) {
+        L.start(i);
+        const gname = Builder.exclusionGroupName(d, cat);
+        if (isDemo) { const id = "g-" + Date.now().toString(36); d.names[id] = gname; d.users.excludeGroups.push(id); L.done(i, "simulated"); }
+        else {
+          const g = await Graph.gpostGroupCreate("/groups", { displayName: gname, mailEnabled: false, mailNickname: gname.replace(/[^A-Za-z0-9]/g, "").slice(0, 60) || "enca", securityEnabled: true, description: `Exclusion group for ${Builder.nameOf(d, cat)} — created by ENCA` });
+          d.names[g.id] = g.displayName; if (!d.users.excludeGroups.includes(g.id)) d.users.excludeGroups.push(g.id); L.done(i, g.id);
+        }
+        i++;
+      }
+      L.start(i);
+      const body = d.mode === "edit" ? Builder.patchBody(pbBefore, d, cat) : Builder.toRaw(d, cat);
+      if (isDemo) { createdId = d.sourceId || ("demo-" + Date.now().toString(36)); L.done(i, "simulated"); i++; L.start(i); L.done(i, "simulated"); i++; L.start(i); L.done(i, "simulated"); }
+      else if (d.mode === "edit") {
+        if (!Object.keys(body).length) { L.skip(i, "nothing changed"); i++; L.skip(i, "—"); i++; L.skip(i, "—"); }
+        else {
+          await Graph.gpatch(`/identity/conditionalAccess/policies/${d.sourceId}`, body, [...AUTH_CONFIG.scopes, ...PB_WRITE]); createdId = d.sourceId; L.done(i, `${Object.keys(body).length} section${Object.keys(body).length === 1 ? "" : "s"}`); i++;
+          L.start(i); const back = await Importer.readSettled(`/identity/conditionalAccess/policies/${d.sourceId}`, (s) => s && Object.keys(body).every((k) => JSON.stringify(Builder.canon(s[k])) === JSON.stringify(Builder.canon(body[k]))));
+          const agree = back && Object.keys(body).every((k) => JSON.stringify(Builder.canon(back[k])) === JSON.stringify(Builder.canon(body[k])));
+          if (agree) L.done(i, "matches the draft"); else L.part(i, "read back differs from the draft — Graph may have normalised a value; compare in 🕓 Changes"); i++;
+          L.start(i); if (pbSurface === "card") closeDetail(); await loadFromGraph(true); L.done(i);
+        }
+      } else {
+        const res = await Graph.gpost("/identity/conditionalAccess/policies", body, [...AUTH_CONFIG.scopes, ...PB_WRITE]); createdId = res && res.id; L.done(i, createdId || ""); i++;
+        L.start(i); const back = await Importer.readSettled(`/identity/conditionalAccess/policies/${createdId}`, (s) => s && s.displayName === body.displayName); L.done(i, back && back.state === body.state ? "state " + back.state : "read"); i++;
+        L.start(i); await loadFromGraph(true); L.done(i);
+      }
+      L.finish();
+      toast(`<span>${esc(Builder.nameOf(d, cat))}</span> ${d.mode === "edit" ? "saved" : "created"}${isDemo ? " (simulated)" : ""}`);
+      if (pbSurface === "card") { const id = createdId || d.sourceId; endCardEdit(false); closeDetail(); if (id && policies.some((x) => x.id === id)) showDetail(id); }
+      else {
+        // 25478, Mihai: "after save the screen returns to the one policy
+        // filtered — I have to clear the filter, filter the persona again,
+        // go to the policy to edit". Every save used to replace the list
+        // with an id filter of ONE policy and reset the state filter. Now
+        // the list comes back exactly as it was left — persona, state,
+        // search — with the saved policy open in the inspector. Only when
+        // those filters would HIDE the policy (a new one outside the persona
+        // you had picked) is it narrowed to that one, and the chip says so.
+        const id = createdId || d.sourceId;
+        pbDraft = null; pbBefore = null;
+        $("toolPolicies").click();
+        if (id && policies.some((x) => x.id === id)) {
+          if (!visible().some((x) => x.id === id)) idFilter = new Set([id]);
+          refreshViews();
+          showDetail(id);
+        } else refreshViews();
+      }
+    } catch (e) {
+      console.error("builder write:", e);
+      L.fail(i, e.message || String(e)); L.finish();
+      toast(`<span>Not written</span> — ${esc(e.message || e)}`);
+    } finally { pbBusy = false; }
+  }
+
+  // ======================================================================
+  // ✎ Edit a policy on its card (R17, build 25448).
+  //
+  // The card is where a policy is READ, so it is where an edit starts: ✎ Edit
+  // turns the six boxes — users, target resources, network, conditions, grant,
+  // session — into the builder's section forms, in the layout the policy was
+  // just read in, with the name editable under the title. A sticky bar counts
+  // the settings that change against the policy in the tenant, holds the
+  // state, shows the diff and the preflight, and saves: the same pbWrite as
+  // the builder — PATCH of whole sections, only the changed ones, read back,
+  // the set re-read, the card re-opened. The builder keeps creation and Clone.
+  // The builder's draft, if any, is stashed for the duration and restored.
+  // 👥 Assign groups or roles stays the bulk tool; the card edits users of ONE
+  // policy inline (Mihai, 2026-09-22).
+  // ======================================================================
+  let cardEdit = null;
+  function startCardEdit() {
+    const p = policies.find((x) => x.id === detailPolicyId); if (!p || cardEdit) return;
+    cardEdit = { id: p.id, stash: pbDraft, stashBefore: pbBefore, view: "" };
+    pbDraft = Builder.fromRaw(p.raw, pbCat()); pbDraft.mode = "edit";
+    pbDraft.customName = p.raw.displayName || ""; // the whole name is the field on the card
+    pbBefore = JSON.parse(JSON.stringify(p.raw));
+    pbSurface = "card";
+    renderCardEdit();
+    pbLoadContext().then(() => { if (cardEdit) renderCardEdit(); }).catch((e) => console.warn("card edit context:", e));
+  }
+  function endCardEdit(repaint = true) {
+    if (!cardEdit) return;
+    pbDraft = cardEdit.stash; pbBefore = cardEdit.stashBefore; pbSurface = "builder";
+    const id = cardEdit.id; cardEdit = null;
+    if (repaint && $("detailModal").classList.contains("open")) showDetail(id);
+  }
+  function cardDiffRows() {
+    return pbBefore ? Builder.diff(Builder.canon({ displayName: pbBefore.displayName, state: pbBefore.state, conditions: pbBefore.conditions, grantControls: pbBefore.grantControls, sessionControls: pbBefore.sessionControls }), Builder.canon(Builder.toRaw(pbDraft, pbCat()))) : [];
+  }
+  function cardEditBar() {
+    const bar = $("cardEditBar"); if (!bar || !pbDraft) return;
+    const d = pbDraft, rows = cardDiffRows(), v = Builder.validate(d), n = rows.length;
+    const turningOn = d.state === "enabled" && pbBefore && pbBefore.state !== "enabled";
+    const canSave = v.ok && n > 0 && (!turningOn || d.typedOn === "ON") && !pbBusy;
+    const changed = new Set(rows.map((r) => r.path.split(".")[0]));
+    bar.querySelector(".ce-count").innerHTML = `✎ Editing · <b>${n} setting${n === 1 ? "" : "s"} change${n === 1 ? "s" : ""}</b>${n ? ` <span class="mini muted">${[...changed].map((k) => ({ displayName: "name", state: "state", conditions: "conditions", grantControls: "grant", sessionControls: "session" }[k] || k)).join(" · ")}</span>` : ' <span class="mini muted">— the card equals the policy in the tenant</span>'}${v.bad.length ? ` <span class="mini" style="color:var(--off)">· ${esc(v.bad[0])}</span>` : ""}`;
+    const on = bar.querySelector(".ce-on"); on.style.display = turningOn ? "" : "none";
+    bar.querySelector("#cardEditSave").disabled = !canSave;
+    // section marks
+    const sects = $("detailBody").querySelectorAll(".sect.ed");
+    const keys = ["users", "apps", "net", "cond", "grant", "session"];
+    const touched = { users: rows.some((r) => /^conditions\.users/.test(r.path)), apps: rows.some((r) => /^conditions\.applications/.test(r.path)), net: rows.some((r) => /^conditions\.locations/.test(r.path)), cond: rows.some((r) => /^conditions\.(platforms|clientAppTypes|signInRiskLevels|userRiskLevels|insiderRiskLevels|devices|authenticationFlows)/.test(r.path)), grant: rows.some((r) => /^grantControls/.test(r.path)), session: rows.some((r) => /^sessionControls/.test(r.path)) };
+    sects.forEach((s, i) => { const k = keys[i]; s.classList.toggle("ed-changed", !!touched[k]); const tag = s.querySelector("h4 .ce-tag"); if (tag) tag.style.display = touched[k] ? "" : "none"; });
+    const nameChanged = rows.some((r) => r.path === "displayName"); const ttl = $("detailBody").querySelector(".ce-name"); if (ttl) ttl.classList.toggle("ed-changed", nameChanged);
+    const extra = $("cardEditExtra");
+    if (extra) extra.innerHTML = cardEdit.view === "diff" ? Builder.diffHtml(rows) : cardEdit.view === "preflight" ? Builder.preflightHtml(Builder.preflight(d, pbCtx())) : "";
+  }
+  function renderCardEdit() {
+    const body = $("detailBody"), d = pbDraft; if (!body || !d || !cardEdit) return;
+    const eyebrow = body.querySelector(".wc-detail-top .wc-eyebrow"); if (eyebrow) eyebrow.textContent = "Policy details · editing";
+    const editBtn = body.querySelector("[data-cedit=\"edit\"]"); if (editBtn) editBtn.style.display = "none";
+    const head = body.querySelector(".pcard-head");
+    if (head && !head.querySelector(".ce-name")) {
+      const h3 = head.querySelector("h3");
+      h3.insertAdjacentHTML("afterend", `<input class="ce-name" type="text" data-pb="customName" value="${esc(d.customName)}" maxlength="256" aria-label="Policy name">`);
+      h3.style.display = "none";
+      const chip = head.querySelector(".state"); if (chip) chip.style.display = "none";
+    }
+    const box = (icon, title, html) => `<div class="sect ed"><h4>${icon} ${esc(title)} <span class="tag ok ce-tag" style="display:none">changed</span></h4><div class="ce-body">${html.replace(/^\s*<h4 class="wi-h">(?:Target resources|Access|Session controls|🌐 Locations[^<]*(?:<span[^<]*<\/span>)?)<\/h4>/, "")}</div></div>`;
+    const four = pbSectHtml(4, d), cut = four.indexOf('<h4 class="wi-h" style="margin-top:16px">💻 Device platforms</h4>');
+    const net = cut >= 0 ? four.slice(0, cut) : four, cond = cut >= 0 ? four.slice(cut) : "";
+    const grid = body.querySelector(".pcard-grid");
+    // 25479: the builder's hints, each under the box it is about — the card
+    // edit showed none, so an OR that skips MFA (or a break-glass group left
+    // out) passed without a word here while the builder flagged it.
+    let hs = [];
+    try { hs = pbCtx().hints || []; } catch (e) { console.warn("card edit hints:", e); }
+    const hintsFor = (step) => { const h = hs.filter((x) => x.step === step); return h.length ? `<div class="ce-hints">${Builder.hintsHtml(h)}</div>` : ""; };
+    grid.innerHTML = box("👤", "Users", pbSectHtml(2, d) + hintsFor(2)) + box("📦", "Target resources", pbSectHtml(3, d) + hintsFor(3)) + box("🌐", "Network", net)
+      + box("⚙", "Conditions", cond + hintsFor(4)) + box("✓", "Grant", pbSectHtml(5, d) + hintsFor(5)) + box("🕐", "Session", pbSectHtml(6, d) + hintsFor(6));
+    let bar = $("cardEditBar");
+    if (!bar) {
+      grid.insertAdjacentHTML("afterend", `<div class="ed-bar" id="cardEditBar"><span class="ce-count"></span><span style="flex:1"></span>
+        <label class="pb-ck"><span class="mini muted">State</span><select data-pb="state">${Builder.STATES.map(([v, l]) => `<option value="${v}"${d.state === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+        <span class="ce-on" style="display:none"><span class="mini">type <b>ON</b> to confirm enforcing</span> <input type="text" data-pb="typedOn" placeholder="ON" style="width:70px" autocomplete="off"></span>
+        <button type="button" class="btn sm" data-cedit="diff">± View diff</button><button type="button" class="btn sm" data-cedit="preflight">🧪 Preflight</button>
+        <button type="button" class="btn sm" data-cedit="cancel">✕ Cancel</button><button type="button" class="btn primary sm" id="cardEditSave" data-cedit="save">✎ Save changes</button></div>
+        <div id="cardEditExtra"></div><div id="cardEditLedger"></div>
+        <p class="mini muted ce-note">Save sends the changed sections whole and reads the policy back; 🕓 Changes shows the same rows afterwards. 👥 Assign groups or roles remains the tool for many policies at once.</p>`);
+      bar = $("cardEditBar");
+      const act = body.querySelector("[data-pact]"); if (act) act.parentElement.style.display = "none";
+      body.querySelectorAll(".wf-panel, details").forEach((n) => n.style.display = "none");
+    } else {
+      const sel = bar.querySelector('select[data-pb="state"]'); if (sel && sel.value !== d.state) sel.value = d.state;
+    }
+    cardEditBar();
+    if (typeof FlatIcons !== "undefined") FlatIcons.apply(grid);
+  }
+  // the selection bar: one policy → edit or clone; more → the first, said so
+  $("selActBuild").addEventListener("click", () => {
+    const ids = [...selected]; if (!ids.length) { openBuilder({ fresh: !pbDraft }); return; }
+    const p = policies.find((x) => x.id === ids[0]); if (!p) return;
+    if (ids.length > 1) toast(`Opening <span>${esc(p.raw.displayName)}</span> — the first of ${ids.length} selected; the builder works on one policy at a time`);
+    openBuilder({ from: p.id, as: "clone" });
+  });
+  // a block's detail pane: "New policy with this …"
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pbwith]"); if (!b) return;
+    e.preventDefault();
+    openBuilder({ with: { kind: b.dataset.pbwith, id: b.dataset.id, name: b.dataset.name }, fresh: !pbDraft || pbDraft.mode === "edit" });
+  });
+
   async function openRecycle(force) {
     crumb("🧩 Policy building blocks");
     mountToolTabs("blocks", "deleted");
@@ -15950,6 +17878,7 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="lo-act"><button class="btn sm lemon" data-rcres="${esc(it.id)}" data-rckind="${kind}">♻ Restore</button></div>
       </div>`;
     }).join("") + `</div>`;
+    ListDetail.cards('rcBody', '.lo-grid > .lo-card', {identity:'[data-rcres]'});
   }
   $("rcChips").addEventListener("click", (e) => { const b = e.target.closest("[data-rcf]"); if (!b) return; rcFilter = b.dataset.rcf; renderRecycle(); });
   $("rcSearch").addEventListener("input", (e) => { rcQuery = e.target.value; renderRecycle(); });
@@ -16647,7 +18576,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (!force && logCacheUsable(woDays) && !logCache.capped) return logCache.records.filter((r) => r.userId === u.id);
     if (!isGraphLogSource(logSource)) {
       if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) { woLogSkipped = "ThreatHunting.Read.All was not granted"; return null; }
-      try { const h = await readSignInsHunting(woDays, woProg, { userId: u.id }); if (h.capped) woLogSkipped = "a day hit the hunting row cap"; return h.records; }
+      try { const h = await readSignInsHunting(woDays, woProg, { userId: u.id }); if (h.capped) woLogSkipped = cappedNote(h.ceiling); return h.records; }
       catch (e) { console.warn("whois: hunting read failed", e.message); woLogSkipped = `could not run the hunting query (${e.message || e})`; return null; }
     }
     const since = new Date(Date.now() - woDays * 86400000).toISOString();
@@ -16962,7 +18891,7 @@ This is a directory write. Nothing else changes.`)) return;
         // A stop here keeps what the group half found: the members, the
         // exclusions, the other waves. Only the sign-in half is missing,
         // and the note says so.
-        try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window capped at ${SI_MAX.toLocaleString()} sign-ins`; }
+        try { const w = await readSignInWindow(wvDays, wvProg, force); records = w.records; if (w.capped) wvLogSkipped = `window ${cappedNote(w.ceiling)}`; }
         catch (e) { if (e && e.stopped) wvLogSkipped = "stopped by you during the sign-in read — the group half is complete, the log half is not"; else { console.warn("wave: sign-in read failed", e.message); wvLogSkipped = `could not read the sign-in log (${e.message || e})`; } }
       }
       if (runKey !== logReadKey(wvDays) || selectedTerm !== $("wvTerm").value.trim() || selectedPick !== wvPick) throw new Error("Read discarded: selected range, source or tenant changed");
@@ -17711,19 +19640,6 @@ This is a directory write. Nothing else changes.`)) return;
     if (meta.children.length) rel.push(`<span class="wo-fact">contains <b>${meta.children.map((x) => esc(x.name)).join(", ")}</b></span>`);
     if (meta.roles.length) rel.push(`<span class="wo-fact warn">holds <b>${meta.roles.map((x) => esc(x.name)).join(", ")}</b></span>`);
 
-    const areaCards = GroupUse.AREAS.map((a) => {
-      if (!guAreas.has(a.id)) return "";
-      const rows = per.get(a.id) || [];
-      const groupsOf = GroupUse.grouped(rows);
-      const empty = res.ran.filter((r) => r.area === a.id && !r.count);
-      return `<div class="list-card wo-card" id="guArea-${a.id}">
-        <h4 class="wo-h" data-wo-fold="area-${a.id}">${a.icon} ${esc(a.label)}
-          <span class="mini muted">${plural(rows.length, "reference")}</span></h4>
-        ${groupsOf.length ? groupsOf.map((g) => guSourceBlock(g, meta.via)).join("")
-          : `<p class="mini muted" style="margin:0">No references found.</p>`}
-        ${empty.length ? `<p class="mini muted" style="margin:10px 0 0">Read and clean: ${empty.map((e) => esc(e.label)).join(", ")}.</p>` : ""}</div>`;
-    }).join("");
-
     // The counts double as jump links, and on an account with hundreds of
     // references they are the only way to navigate — so they ride along in a
     // sticky strip rather than scrolling away with the header. The strip sits
@@ -17742,10 +19658,21 @@ This is a directory write. Nothing else changes.`)) return;
         <h4 class="wo-h" data-wo-fold="about">About this ${esc(meta.principalType)}</h4>
         <p class="mini muted" style="margin:0">Object ID <code>${esc(meta.principalId)}</code></p>
         ${rel.length ? `<div class="wo-facts">${rel.join("")}</div>` : ""}</div>
-      ${areaCards}
+      <div id="guReferenceWorkspace"></div>
       ${guNotReadCard(res)}`;
+    renderGuReferences();
     applyFolds("guBody");
     syncStickyTops();
+  }
+
+  function renderGuReferences(area) {
+    const host=$('guReferenceWorkspace');if(!host||!guRes)return;
+    const rows=guRes.rows.filter(r=>!area||GroupUse.sourceById(r.source)?.area===area);
+    const items=rows.map((r,i)=>({key:`${r.source}:${r.id}:${r.pid}:${r.how}:${i}`,title:r.name,
+      meta:`${GroupUse.sourceById(r.source)?.label||r.source} · ${r.how}`,
+      node:()=>{const n=document.createElement('div');n.innerHTML=guSourceBlock({source:GroupUse.sourceById(r.source)||{label:r.source},rows:[r]},guMeta.via);return n;}}));
+    const reset=document.createElement('button');reset.className='btn sm';reset.textContent='All references';reset.addEventListener('click',()=>renderGuReferences());
+    if(items.length)ListDetail.mount(host,items,{key:'groupuse-references',before:area?[reset]:[]});else host.innerHTML='<p class="mini">No references in this area of the completed read.</p>';
   }
 
   // Shown only when a finished sweep is parked behind this single-group view.
@@ -17823,6 +19750,16 @@ This is a directory write. Nothing else changes.`)) return;
         <p class="mini muted" style="margin:8px 0 0">Click a row to open that group's references — read straight from this sweep, no second scan.</p>
       </div>
       ${guNotReadCard(res)}`;
+    const resultCard=$('guBody').querySelector('.wi-res');
+    if(resultCard&&vis.length){
+      const host=document.createElement('div');if(guShowServices){const services=document.createElement('div');services.innerHTML=guServicesPanel(res);resultCard.before(services);}resultCard.replaceWith(host);
+      ListDetail.mount(host,vis.map(t=>({key:t.id,title:t.name,meta:`${t.total} references · Entra ${t.entra} · Intune ${t.intune} · M365 ${t.m365} · Azure ${t.azure}`,
+        node:()=>{const n=document.createElement('div');const rows=GroupUse.rowsFor(guRes.rows,t.id);const via=new Map([[String(t.id).toLowerCase(),'this group']]);
+          n.innerHTML=`${t.missing?'<p class="mini">Not found in the directory; referenced by '+esc(t.caPolicies.join(', '))+'</p>':''}<button class="btn" data-gugroup="${esc(t.id)}">Open full report & actions</button>`
+            +GroupUse.grouped(rows).map(g=>guSourceBlock(g,via)).join('')
+            +'<p class="mini muted">Sweep evidence only. Use Deep analyze in the full report for inherited references. Check Not read before concluding this group is unused.</p>';return n;}
+      })),{key:'groupuse-sweep'});
+    }
     SearchSuggest.bind($("guSweepSearch"), () => searchFields(guTotals, ["name"]), () => `${tenantId}:${isDemo}:${policiesReadAt}`);
     wireSearchClears();
     applyFolds("guBody");
@@ -17946,6 +19883,7 @@ This is a directory write. Nothing else changes.`)) return;
     // summary chips are filters and jumps, not decoration
     const jump = e.target.closest("[data-gujump]");
     if (jump) {
+      if(jump.dataset.gujump.startsWith("guArea-") && $("guReferenceWorkspace")){renderGuReferences(jump.dataset.gujump.slice(7));$("guReferenceWorkspace").scrollIntoView({block:"start"});return;}
       const el = $(jump.dataset.gujump);
       if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("gu-flash"); setTimeout(() => el.classList.remove("gu-flash"), 1200); }
       return;
@@ -18003,20 +19941,57 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- MS Learn documented exclusion checks ----------
   let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";
+  // The guest reality matrix (25433) — six external user types against the
+  // controls the loaded policies demand. Built from the same inputs as the
+  // findings, so it costs no extra read.
+  let mlMatrix = null, mlDevMatrix = null;
   const mlExpanded = new Set();
+  // WHAT THE RESULT ON SCREEN BELONGS TO (25434). 🛡 Checks' other three tabs
+  // all keep their result across a tab switch — `if (gcResult) { render();
+  // return; }`. This one did not, so leaving 📘 MS Learn and coming back threw
+  // the findings away and ran the whole thing again: a read of the
+  // authentication strengths, of the cross-tenant access settings, of the CA
+  // settings and the authentication methods, then 30 checks over every policy
+  // and the fixes rebuilt — and the severity filter, the expanded findings and
+  // the Suggested fixes tab lost with it. That is the "refresh" Mihai saw.
+  //
+  // A bare `if (mlGroups)` is not enough here: unlike its siblings this tab
+  // runs by ITSELF on open rather than waiting for a button, so a result from
+  // another tenant, another policy snapshot or the other scope must not be
+  // shown as this one's. The key is the same shape the sign-in reads use.
+  let mlKey = null;
+  const mlReadKey = () => JSON.stringify([tenantId, isDemo, policiesReadAt, !!$("mlDisabled").checked]);
   async function openMsLearn() {
     crumb("🛡 Checks");
     show("screen-mslearn");
     mountToolTabs("checks", "mslearn");
-    if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; return; }
-    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
-    $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
-    mlTab = "findings"; mlFixes = null;
-    // baseline tenant → include Off + persona-only; note the scope
+    if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; mlKey = null; return; }
+    // baseline tenant → include Off + persona-only; note the scope.
+    // Before the cache check, because the scope is part of what the result
+    // belongs to — and setting it is idempotent.
     const baseline = isBaselineTenant();
     $("mlDisabled").checked = baseline;
     $("mlDisabled").disabled = baseline;
     $("mlDisabledNote").textContent = scopeNote(checkScope(baseline), policies.filter(p => p.raw.state === "disabled").length);
+    // cached — keep the previous screen, filter, open findings and tab
+    if (mlGroups && mlKey === mlReadKey()) { renderMsLearn(); return; }
+    // 25490, Mihai: "shouldn't the Learn get a scan like Bypass?" It ran by
+    // itself on every open, and by now that is a real read — strengths,
+    // cross-tenant settings, CA settings, authentication methods, the
+    // convention groups and the guest count of every included group (up to
+    // 80 $count calls). Idle until asked, like 🛡 Bypass & Swiss cheese; the
+    // result then stays until a refresh, another tenant or the other scope.
+    mlGroups = null; mlKey = null;
+    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Your policies against the exclusions, limitations and behaviour changes documented on learn.microsoft.com — break-glass, token protection, Teams Rooms and Surface Hub, guests and external users, service providers, retirements — with a matrix for guests and one for shared devices, and a fix per finding.</p>';
+    $("mlChips").innerHTML = "";
+    $("mlBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-mlrun>▶ Run checks</button>
+      <p class="mini muted">Reads through Microsoft Graph: authentication strengths, cross-tenant access settings (the default and every partner), the Conditional Access settings, the authentication methods policy, the break-glass and shared-device groups by name, and the number of guests in each group a policy includes (up to ${GUEST_GROUP_CAP}). Results stay until you refresh.</p></div>`;
+  }
+  async function mlScan() {
+    if (!policies.length) return;
+    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
+    $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
+    mlTab = "findings"; mlFixes = null; mlMatrix = null; mlDevMatrix = null;
     // authentication strengths are needed to detect external authentication
     // methods (EAM) inside strength policies — one read, Policy.Read.All
     mlStrengths = new Map();
@@ -18047,6 +20022,38 @@ This is a directory write. Nothing else changes.`)) return;
     return null;
   }
 
+  // 25472: how many members with userType Guest each included group holds —
+  // the guest checks otherwise only saw guests named by user TYPE, and a
+  // policy scoped to a group of guests (guest admins, a partner group) was
+  // invisible to all of them. One $count per group, 4 at a time, capped:
+  // past the cap the read says it is partial rather than guessing.
+  const GUEST_GROUP_CAP = 80;
+  async function readGuestGroups(ids) {
+    const groups = new Map();
+    if (isDemo) {
+      for (const id of ids) {
+        const n = String(id).replace(/^g-/, "");
+        const m = (DEMO_DATA.scopeGroups || {})[n];
+        if (m && /guest/i.test(n)) groups.set(id, { name: n, guests: m.length });
+      }
+      return { ok: true, groups, partial: false };
+    }
+    const todo = ids.slice(0, GUEST_GROUP_CAP);
+    let failed = 0;
+    await Graph.mapLimit(todo, 4, async (id) => {
+      try {
+        const j = await Graph.gget(`/groups/${id}/transitiveMembers/microsoft.graph.user?$count=true&$filter=userType eq 'Guest'&$select=id&$top=1`);
+        const n = Number(j["@odata.count"] || 0);
+        if (n > 0) {
+          let name = id;
+          try { name = (await Graph.gget(`/groups/${id}?$select=displayName`)).displayName || id; } catch { /* keep the id */ }
+          groups.set(id, { name, guests: n });
+        }
+      } catch { failed++; }
+    });
+    return { ok: true, groups, partial: failed > 0 || ids.length > todo.length };
+  }
+
   async function runMsLearn() {
     const scope = checkScope($("mlDisabled").checked);
 
@@ -18072,14 +20079,30 @@ This is a directory write. Nothing else changes.`)) return;
     // a tenant that has no CSP relationship. { ok: false } means "not read" —
     // the checks then run and say the trust settings were not verified, which
     // is different from saying there is no partner.
-    let partners = { ok: false, list: [], error: "not read" };
-    if (isDemo) partners = { ok: true, list: DEMO_DATA.serviceProviders || [] };
-    else partners = await Graph.serviceProviderPartners();
+    // 25469: the DEFAULT inbound trust and EVERY partner, not only service
+    // providers — the default decides for every organisation without a row
+    // of its own, and reading the SP list alone let a tenant with no CSP
+    // look as if every guest's device and MFA claims were trusted.
+    const crossTenant = isDemo
+      ? { ok: true, defaultOk: true, partnersOk: true, defaultTrust: (DEMO_DATA.crossTenantDefault || {}).inboundTrust || {},
+          dcInboundDefault: (DEMO_DATA.crossTenantDefault || {}).dcInbound || "blocked",
+          partners: (DEMO_DATA.serviceProviders || []).map((x) => ({ ...x, isServiceProvider: true })) }
+      : await Graph.crossTenantTrust();
+    const partners = crossTenant.partnersOk
+      ? { ok: true, list: crossTenant.partners.filter((x) => x.isServiceProvider) }
+      : { ok: false, list: [], error: crossTenant.error || "not read" };
 
     ctx.caSettings = await readCaSettings();
     ctx.authMethods = await readAuthMethods();
-    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners });
+    const guestGroups = await readGuestGroups(MSLearn.guestGroupIds(scope.raws, scope.includeDisabled));
+    const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
     mlGroups = MSLearn.group(findings);
+    // The guest matrix reads the same inputs — no extra tenant call.
+    mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
+    mlDevMatrix = MSLearn.deviceMatrix(scope.raws, { includeDisabled: scope.includeDisabled, groups: ctx });
+    // Stamp what this result belongs to: from here a tab switch renders it
+    // again instead of re-running the whole pass.
+    mlKey = mlReadKey();
     mlFilter = "all"; mlExpanded.clear();
     renderMsLearn();
 
@@ -18095,7 +20118,11 @@ This is a directory write. Nothing else changes.`)) return;
     }
     renderMsLearn();
   }
-  $("mlDisabled").addEventListener("change", () => { runMsLearn(); });
+  // re-run on a scope change only once there is a result to replace
+  $("mlDisabled").addEventListener("change", () => {
+    $("mlDisabledNote").textContent = scopeNote(checkScope($("mlDisabled").checked), policies.filter(p => p.raw.state === "disabled").length);
+    if (mlGroups) mlScan();
+  });
   function renderMsLearn() {
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
@@ -18117,14 +20144,15 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlApply").style.display = "none";
     if (!mlGroups.length) {
       $("mlChips").innerHTML = "";
-      $("mlBody").innerHTML = MSLearn.renderEmpty();
+      $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "") + MSLearn.renderEmpty();
       return;
     }
     const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
-    $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["info", "Info"]]
+    $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
-    $("mlBody").innerHTML = MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
+    $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "")
+      + MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
   }
   $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
   $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
@@ -18134,6 +20162,7 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       if (isDemo) loadDemo(); else await loadFromGraph(true);
       await openMsLearn();
+      await mlScan();          // Refresh asks for the run — the idle prompt is for opening the tab
       toast("MS Learn checks <span>refreshed</span>");
     } catch (e) { toast(`Refresh failed: <span>${esc(e.message || e)}</span>`); }
     finally { btn.disabled = false; btn.textContent = "⟳ Refresh"; }
@@ -18173,6 +20202,38 @@ This is a directory write. Nothing else changes.`)) return;
 
   // a finding card's Fix button jumps to the generated policy
   $("mlBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-mlrun]")) { mlScan(); return; }
+    const dm = e.target.closest("[data-dmcell]");
+    if (dm && mlDevMatrix) {
+      const [row, control] = dm.dataset.dmcell.split("|");
+      const cell = mlDevMatrix.cells.get(`${row}|${control}`);
+      if (cell) {
+        const rl = (MSLearn.DEVICE_ROWS.find((r) => r.key === row) || {}).label || row;
+        const ctl = (mlDevMatrix.controls.find((c) => c.key === control) || {}).label || control;
+        idFilter = new Set(cell.policies.map((x) => x.id));
+        stateFilter = "all";
+        toast(`${esc(rl)} × ${esc(ctl)} — <span>${cell.policies.length}</span> polic${cell.policies.length === 1 ? "y" : "ies"}, opened in Policies`);
+        $("toolPolicies").click();
+        refreshViews();
+      }
+      return;
+    }
+    const gm = e.target.closest("[data-gmcell]");
+    if (gm && mlMatrix) {
+      const [type, control] = gm.dataset.gmcell.split("|");
+      const cell = mlMatrix.cells.get(`${type}|${control}`);
+      if (cell) {
+        const ctl = (mlMatrix.controls.find((c) => c.key === control) || {}).label || control;
+        // The policies behind one cell, by name — the same ids the rest of the
+        // tool deep-links with, so 🗂 Policies can be filtered to them.
+        idFilter = new Set(cell.policies.map((x) => x.id));
+        stateFilter = "all";
+        toast(`${esc(MSLearn.extLabel(type))} × ${esc(ctl)} — <span>${cell.policies.length}</span> polic${cell.policies.length === 1 ? "y" : "ies"}, opened in Policies`);
+        $("toolPolicies").click();
+        refreshViews();
+      }
+      return;
+    }
     if (e.target.closest("[data-mlfix]")) { mlTab = "fixes"; renderMsLearn(); return; }
     const dl = e.target.closest("[data-fxjson]");
     if (!dl || !mlFixes) return;
@@ -18432,7 +20493,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
 
   // ---------- gap analysis (best-practice & bypass checks) ----------
-  let gcResult = null, gcFilter = "all", gcCtx = null, gcMeta = null;
+  let gcResult = null, gcFilter = "all", gcCtx = null, gcMeta = null, gcRunAt = 0;
   let gcCats = null; // category filter set by clicking a scorecard signal/pillar (array or null)
   const gcExpanded = new Set();
   function openGapCheck() {
@@ -18474,6 +20535,9 @@ This is a directory write. Nothing else changes.`)) return;
         ]);
         strengths.forEach(s => gcCtx.strengths.set(s.id, s));
         gcCtx.namedLocations = locations;
+        // 25475: the group names the tenant load already resolved — the
+        // duplicate-name and allow-list checks name groups, not GUIDs.
+        gcCtx.names = { ...((policyResolve && policyResolve.names) || {}), ...gcCtx.names };
         // Customize behavior names a placeholder app: resolve its name for the finding.
         const bs = GapCheck.baselineScopes(gcCtx.caSettings);
         if (bs.mode === "custom") {
@@ -18496,6 +20560,7 @@ This is a directory write. Nothing else changes.`)) return;
   function runGapCheck() {
     const scope = checkScope($("gcDisabled").checked);
     gcResult = GapCheck.run(scope.raws, gcCtx, { includeDisabled: scope.includeDisabled });
+    gcRunAt = Date.now();
     gcMeta = { tenantName, incomplete: gcCtx?.incomplete || null, policyCount: scope.raws.length, includeDisabled: scope.includeDisabled, skipped: scope.skipped };
     gcFilter = "all"; gcCats = null; gcExpanded.clear();
     renderGapCheck();
@@ -18564,6 +20629,13 @@ This is a directory write. Nothing else changes.`)) return;
     gcExpanded.has(id) ? gcExpanded.delete(id) : gcExpanded.add(id);
     renderGapCheck();
   });
+
+  // 📐 CIS Benchmark is not part of the production build (removed in 316; it
+  // stays on the beta channel). The home-page Overview reads the CIS result
+  // and its run time to decide whether a CIS line applies, and only draws one
+  // when the Checks host has a "cis" tab — which it never has here. These two
+  // stay declared so that read is a quiet "never ran", not a ReferenceError.
+  const ciResult = null, ciRunAt = 0;
 
   // ---------- events ----------
   $("signInBtn").addEventListener("click", async () => {
@@ -18707,6 +20779,9 @@ This is a directory write. Nothing else changes.`)) return;
     $("toolNav").style.display = "none";
     hideSideNav();
     policies = []; selected.clear();
+    // the Overview and the previous snapshot belong to that sign-in (25424)
+    policiesReadAt = null; ovPrev = null; ovDiff = null; ovReadError = null; ovLoading = false; idFilter = null; signinContext = null;
+    try { renderOverview(); } catch {}
     // Back to the neutral look — the next person at this browser may not be
     // the same audience.
     try { sessionStorage.removeItem(BRAND_STORE); } catch {}
@@ -18744,7 +20819,19 @@ This is a directory write. Nothing else changes.`)) return;
   wireSearchClears();
 
   $("searchBox").addEventListener("input", (e) => { query = e.target.value.toLowerCase(); refreshViews(); });
+  // Several personas can be on at once; "All personas" is the clear, not a
+  // thirteenth persona. Clicking the only ticked chip unticks it, which is the
+  // way back to everything without reaching for All.
+  $("personaChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-persona]"); if (!b) return;
+    const k = b.dataset.persona;
+    if (k === "all") personaFilter.clear();
+    else if (personaFilter.has(k)) personaFilter.delete(k);
+    else personaFilter.add(k);
+    refreshViews();
+  });
   $("stateChips").addEventListener("click", (e) => {
+    if (e.target.closest("[data-idclear]")) { idFilter = null; refreshViews(); return; }
     const b = e.target.closest("[data-state]"); if (!b) return;
     stateFilter = b.dataset.state; refreshViews();
   });
@@ -18760,7 +20847,26 @@ This is a directory write. Nothing else changes.`)) return;
   $("viewList").addEventListener("click", () => setView("list"));
   $("viewMatrix").addEventListener("click", () => setView("matrix"));
   $("anBack").addEventListener("click", () => setView(viewBeforeAnalyze === "analyze" ? "cards" : (viewBeforeAnalyze || "cards")));
-  $("clearSelBtn").addEventListener("click", () => { selected.clear(); refreshViews(); });
+  // WHAT "CLEAR" CLEARS (25435). It only ever did selected.clear(), so on a
+  // bar reading "2 policies in view · Nothing selected" it did exactly
+  // nothing — while the thing actually narrowing the view (an Overview id
+  // filter, a persona, a search, a state) sat right above it, untouched. A
+  // button that does nothing is not a no-op, it is broken.
+  // It now clears everything narrowing the view, and disables itself when
+  // there is nothing left to clear, so it can never look dead again.
+  function viewNarrowed() {
+    return selected.size > 0 || !!idFilter || personaFilter.size > 0 || !!query || stateFilter !== "all";
+  }
+  $("clearSelBtn").addEventListener("click", () => {
+    if (!viewNarrowed()) return;
+    selected.clear();
+    idFilter = null;
+    personaFilter.clear();
+    stateFilter = "all";
+    query = "";
+    const box = $("searchBox"); if (box) box.value = "";
+    refreshViews();
+  });
 
   // list view: name opens detail, checkbox selects, group header collapses/selects group
   document.querySelector("#ptable tbody").addEventListener("click", (e) => {
@@ -18833,7 +20939,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (!currentDepObj || !currentDepType) return;
     const name = currentDepObj.displayName || "";
     $("depModal").classList.remove("open");
-    $("detailModal").classList.remove("open");
+    closeDetail();
     // open the matching tool pre-filtered to this item
     if (currentDepType === "authStrength") { asQuery = name; $("asSearch").value = name; asFilter = "all"; openAuthStr(); }
     else if (currentDepType === "termsOfUse") { tuQuery = name; $("tuSearch").value = name; tuFilter = "all"; openTou(); }
@@ -18936,7 +21042,8 @@ This is a directory write. Nothing else changes.`)) return;
 
   // detail modal: backdrop closes, dependency chips open settings, Save PNG exports
   $("detailModal").addEventListener("click", (e) => {
-    if (e.target.id === "detailModal") { $("detailModal").classList.remove("open"); return; }
+    if (e.target.closest('[data-detail-close]')) { closeDetail(); return; }
+    if (e.target.id === "detailModal") { closeDetail(); return; }
     const dl = e.target.closest(".dep-link");
     if (dl) { openDepView(dl.dataset.dept, dl.dataset.depid, dl.dataset.deplabel); return; }
     const b = e.target.closest("[data-png]"); if (!b) return;
@@ -18954,7 +21061,13 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- impact analysis (on demand only) ----------
   $("selActAnalyze").addEventListener("click", () => setView("analyze"));
 
+  let anBusyNow = false;
   $("anRun").addEventListener("click", async () => {
+    // The button being enabled is not a busy state: a scope change re-renders
+    // the picks and could enable it mid-run, and a second job then overwrote
+    // the first one's report and progress registry.
+    if (anBusyNow) return;
+    anBusyNow = true;
     const scope = $("anScope").value;
     const includeRO = $("anReportOnly").checked;
     const vms = policies.filter(p => p.raw.state === "enabled" || (includeRO && p.raw.state === "enabledForReportingButNotEnforced"));
@@ -18994,6 +21107,10 @@ This is a directory write. Nothing else changes.`)) return;
       anProg.check();
       anReport = result;
       anCov = null;                       // belongs to the run that just ended
+      anRunMeta = RunMeta.of(runContext({ tool: "T03",
+        population: scope === "named" ? `${anNamed.length} named principal${anNamed.length === 1 ? "" : "s"}` : scope === "guest" ? "Guests only" : scope === "member" ? "Members only" : "All users",
+        options: [includeRO ? "report-only included" : "report-only excluded"],
+        policyCount: vms.length, states: RunMeta.statesOf(vms.map((v) => v.raw)) }));
       // The licence half of the coverage flow. Both reads are already covered
       // by the permissions this tool holds — assignedLicenses rides along on
       // the /users select it was going to do anyway, and /subscribedSkus is one
@@ -19047,9 +21164,15 @@ This is a directory write. Nothing else changes.`)) return;
       status(`Done — ${users.length} users, ${lookup.length} policies.`);
     } catch (e) {
       console.error("Analysis failed:", e);
-      anReport = null; anCov = null;
-      status(`Analysis incomplete: ${e.message || e}`);
-    } finally { anProg.stop(); $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
+      anReport = null; anCov = null; anRunMeta = null;
+      // NOT status(): that calls the same cancellation guard that just threw,
+      // so stopping a run raised a second, uncaught "Read stopped" error and
+      // left the status reading "Evaluating…" instead of saying it stopped.
+      const stopped = /stopped/i.test(e.message || "");
+      $("anStatus").textContent = stopped
+        ? "Stopped — no partial result was published."
+        : `Analysis incomplete: ${e.message || e}`;
+    } finally { anBusyNow = false; anProg.stop(); $("anRun").disabled = false; $("anBusy").style.display = "none"; $("anBusy").innerHTML = ""; }
   });
 
   function refreshGroupSelect() {
@@ -19060,6 +21183,402 @@ This is a directory write. Nothing else changes.`)) return;
   function groupMemberSet() {
     return anGroupSel === "" ? null : anGroups[+anGroupSel]?.users || null;
   }
+  // The context a result is judged against: who we are signed in to and which
+  // policy snapshot is loaded right now.
+  function runContext(extra = {}) {
+    return {
+      tenantId, tenantName, isDemo,
+      snapshot: policiesReadAt || null,
+      policyCount: (policies || []).length,
+      states: RunMeta.statesOf((policies || []).map((p) => p.raw || p)),
+      ...extra,
+    };
+  }
+  // ---- the Overview (25419; render path reworked 25422) ----
+  // The home page once a tenant is loaded. Pure renderers live in
+  // js/overview.js; this builds their input from app state and reads NOTHING
+  // from the tenant. Three rules keep it off the sign-in path:
+  //   1. one paint per snapshot — a fingerprint of what the page is computed
+  //      from is compared first, and an unchanged page is not redrawn;
+  //   2. the derived summary (baseline comparison, exclusion collection) is
+  //      cached on the policy snapshot and the active catalog;
+  //   3. the header, tiles and check rows paint first; the configuration
+  //      checks run after that paint and are dropped if the snapshot moved.
+  let ovLoading = false;      // a policy read is in flight
+  let ovReadError = null;     // { at, message } — a failed re-read while an older snapshot is still loaded
+  let ovPaintKey = "";        // what the last paint was computed from
+  let ovDerived = null;       // { key, baseline, exclusions }
+  let ovSeq = 0;              // the deferred pass belongs to one paint
+  function ovSnapshotKey() {
+    let cat = ""; try { cat = Baseline.activeCatalogId() || ""; } catch {}
+    // states and dates catch a local edit that did not go through a reload
+    return [isDemo ? "demo" : tenantId, policiesReadAt, policies.length, policies.map((p) => p.raw.state + (p.raw.modifiedDateTime || "")).join(","), cat].join("|");
+  }
+  function ovPaintKeyOf(snap) {
+    return [snap, exRunMeta && exRunMeta.id, anRunMeta && anRunMeta.id, lgRunMeta && lgRunMeta.id, gcRunAt, ciRunAt,
+      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f", signinContext && signinContext.at].join("|");
+  }
+  function deriveSummary(key) {
+    if (ovDerived && ovDerived.key === key) return ovDerived;
+    let baseline = null, exclusions = null, controls = [];
+    if (policies.length) {
+      try {
+        const catId = Baseline.activeCatalogId();
+        const cmp = Baseline.compare(policies, catId, { byDefinition: isBaselineTenant() });
+        const c = cmp.counts || {};
+        const cat = Baseline.active() || {};
+        // how the catalog came to be active: chosen for this tenant, matched
+        // from what the tenant holds, or simply the default (25424)
+        let basis = "the default";
+        try { if (Baseline.stored && Baseline.stored()) basis = "chosen for this tenant"; else if (Baseline.isAutoPicked && Baseline.isAutoPicked(catId)) basis = "matched from the tenant's policies"; } catch {}
+        baseline = { label: cat.label || catId, source: cat.source || "", release: cat.release || "", released: cat.released || null, author: cat.author || "", basis,
+          missing: c.missing || 0, outdated: c.outdated || 0, conflict: c.conflict || 0, coverage: cmp.coverage, matched: cmp.covered, total: cmp.baselineTotal };
+      } catch (e) { console.warn("overview baseline:", e); }
+      try {
+        const m = Exclusions.collect(policies.map((p) => p.raw));
+        const byKind = {}; m.entities.forEach((e) => { byKind[e.kind] = (byKind[e.kind] || 0) + 1; });
+        // unique references, their occurrences across policies, and the
+        // policies carrying any — three different numbers, named apart
+        const occurrences = m.entities.reduce((a, e) => a + (e.policyIds ? e.policyIds.size || e.policyIds.length || 0 : 0), 0);
+        exclusions = { entities: m.entities.length, byKind, occurrences, policies: m.policies.filter((p) => p.exclusionCount > 0).length };
+      } catch (e) { console.warn("overview exclusions:", e); }
+      try { controls = Overview.controls(policies.map((p) => p.raw)); } catch (e) { console.warn("overview controls:", e); }
+    }
+    ovDerived = { key, baseline, exclusions, controls };
+    return ovDerived;
+  }
+  // ---- the previous snapshot (25424) ----
+  // One earlier read is kept per tenant for the session, as normalised
+  // definitions keyed by id, so a refresh can say what moved. Cleared on
+  // sign-out and replaced on a tenant, account or demo/live change.
+  let ovPrev = null;    // { key, at, items: Map(id → {name, norm}) }
+  // ---- what sign-in already read beyond the policies (25425) ----
+  // { tenantId, at, demo, names: {id → name},
+  //   namedLocations | authContexts | authStrengths: { items, at, ok, error } | null }
+  // Set at both load sites, cleared at sign-out; the home page's provisional
+  // checks build on the reads that completed and name the ones that did not.
+  let signinContext = null;
+  function contextOf(key) { return signinContext && signinContext[key] && signinContext[key].ok ? signinContext[key] : null; }
+  let ovDiff = null;    // { prevAt, added, removed, modified } | null (no earlier snapshot)
+  function noteSnapshot() {
+    const key = isDemo ? "demo" : (tenantId || tenantName || "");
+    const items = new Map(policies.map((p) => [p.id, { name: p.name, norm: Overview.normalize(p.raw) }]));
+    ovDiff = ovPrev && ovPrev.key === key ? { prevAt: ovPrev.at, ...Overview.diff(ovPrev.items, items) } : null;
+    ovPrev = { key, at: policiesReadAt, items };
+  }
+  let ovMapOpen = false; try { ovMapOpen = localStorage.getItem("enca.ovMapOpen") === "1"; } catch {}
+  function mapInput(d) {
+    const now = Date.now();
+    const dated = (p) => p.raw.modifiedDateTime || p.raw.createdDateTime || null;
+    const ro = policies.filter((p) => p.raw.state === "enabledForReportingButNotEnforced");
+    const roRows = ro.map((p) => ({ id: p.id, name: p.name, modified: dated(p) })).sort((a, b) => (a.modified ? new Date(a.modified).getTime() : -1) - (b.modified ? new Date(b.modified).getTime() : -1));
+    const recent = policies.map((p) => ({ id: p.id, name: p.name, modified: dated(p) })).filter((r) => r.modified && now - new Date(r.modified).getTime() <= 30 * 86400000).sort((a, b) => new Date(b.modified) - new Date(a.modified));
+    const undated = policies.filter((p) => !dated(p)).length;
+    return {
+      reviewQueue: { rows: roRows.slice(0, 6), total: ro.length },
+      recent: { rows: recent.slice(0, 6), undated },
+      exclusions: d.exclusions ? { ...d.exclusions, effective: exModel && exModel.userStates && exModel.userStates.bypass != null ? `${exModel.userStates.bypass} effective bypass${exModel.userStates.bypass === 1 ? "" : "es"} (🚪 run #${exRunMeta && exRunMeta.id || "?"})` : "not checked — needs the 🚪 run" } : null,
+      baseline: d.baseline, controls: d.controls, diff: ovDiff, snapshotAt: policiesReadAt,
+      context: signinContextRows(), open: ovMapOpen, now,
+    };
+  }
+  // what sign-in already read beyond the policies — filled in by 25425; until
+  // then the two settings the tools read on demand
+  function signinContextRows() {
+    const hh = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const row = (label, key, unit) => {
+      const c = signinContext && signinContext[key];
+      if (!c) return { label, text: "not read", state: "none" };
+      if (!c.ok) return { label, text: `read failed at sign-in — ${c.error || "error"}`, state: "none" };
+      return { label, text: `${c.items.length} ${unit}${c.items.length === 1 ? "" : "s"} read at ${hh(c.at)}${signinContext.demo ? " (demo)" : ""}`, state: "read" };
+    };
+    return [
+      row("Named locations", "namedLocations", "location"),
+      row("Authentication strengths", "authStrengths", "strength"),
+      row("Authentication contexts", "authContexts", "context"),
+      { label: "Conditional Access settings", text: caSettingsCache === undefined ? "not read — 🛡 Checks reads them" : caSettingsCache ? "read" : "read failed", state: caSettingsCache ? "read" : "none" },
+      { label: "Licence SKUs", text: lgRes ? `read by 🎫 (run #${lgRunMeta && lgRunMeta.id || "?"})` : "not read — 🎫 Licences and 📐 CIS read them", state: lgRes ? "read" : "none" },
+    ];
+  }
+  function renderOverview(opts = {}) {
+    const host = $("overview"); if (!host) return;
+    // The workspace home (js/workspaces.js) prepends its own layout to the
+    // screen and hides the legacy tiles; the Overview goes between its
+    // heading and its two-column layout, once, the first time it renders.
+    const wc = $("wcHome");
+    if (wc && host.parentElement !== wc) { const lay = wc.querySelector(".wc-home-layout"); if (lay) wc.insertBefore(host, lay); }
+    const leadEl = $("wcHomeLead");
+    // nothing loaded, nothing loading: no Overview at all (the sign-in state)
+    if (!policiesReadAt && !ovLoading) { host.innerHTML = ""; host.hidden = true; ovPaintKey = ""; if (leadEl) leadEl.textContent = ""; return; }
+    const snap = ovSnapshotKey();
+    const key = ovPaintKeyOf(snap);
+    if (!opts.force && key === ovPaintKey && host.innerHTML) return;
+    ovPaintKey = key;
+    const seq = ++ovSeq;
+    const d = deriveSummary(snap);
+    const counts = { total: policies.length, on: 0, report: 0, off: 0 };
+    policies.forEach((p) => { counts[p.state] = (counts[p.state] || 0) + 1; });
+    const status = ovLoading ? { kind: "loading", since: policiesReadAt }
+      : ovReadError ? { kind: "failed", at: ovReadError.at, message: ovReadError.message, since: policiesReadAt }
+      : !policies.length ? { kind: "empty" } : { kind: "loaded" };
+    const base = { tenantName, isDemo, snapshot: policiesReadAt || null };
+    if (leadEl) leadEl.textContent = Overview.lead(base);
+    host.hidden = false;
+    let html = Overview.header({ ...base, counts, status });
+    if (policies.length) {
+      // what the two retirement tools found in THIS tenant, once they have run
+      const impact = {};
+      if (svRes && svRes.summary) { const x = svRes.summary; impact.toolSmsVoice = { text: `${x.blocking + x.migrate} user${x.blocking + x.migrate === 1 ? "" : "s"} still on SMS/voice (${x.blocking} blocking)${svRes.usersPartial ? " — partial read" : ""}` }; }
+      if (moRes && moRes.summary) { const x = moRes.summary; impact.toolMemberOf = { text: `${x.groups} group${x.groups === 1 ? "" : "s"} still using memberOf${x.caPolicies ? `, ${x.caPolicies} in Conditional Access` : ""}${moRes.allSurfaces ? "" : " — not every surface read"}` }; }
+      html += `<div class="db-primary"><section id="ovWorth" class="db-band db-findings" aria-labelledby="ovWorthHeading"><h3 id="ovWorthHeading">Worth a look first</h3><p class="mini muted" role="status">Reviewing the loaded policies…</p></section>`
+        + Overview.tenant({ ...base,
+        policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
+        baseline: d.baseline, exclusions: d.exclusions, showAdvisories: false, now: Date.now() })
+        + `</div>`
+        + Overview.checks(checkRows())
+        + Overview.map(mapInput(d))
+        + Overview.advisories({ impact, now: Date.now() });
+    }
+    host.innerHTML = html;
+    if (!policies.length) return;
+    // the configuration checks after this paint; a paint that came after
+    // this one owns the slot, so a superseded pass draws nothing
+    (window.requestAnimationFrame || setTimeout)(() => setTimeout(() => {
+      if (seq !== ovSeq) return;
+      const slot = $("ovWorth"); if (!slot) return;
+      let worth = null;
+      try { worth = worthItems(policies.map((p) => p.raw)); } catch (e) { console.warn("overview worth:", e); }
+      if (worth) slot.outerHTML = Overview.worth(worth, worthOpts());
+      else slot.innerHTML = '<h3>Worth a look first</h3><div class="mini muted">The configuration checks could not run over this policy set.</div>';
+    }, 0));
+  }
+  // One row per on-demand tool: the last result with the run it came from,
+  // or the fact that it has not run. A missing measure is Unknown, never zero.
+  function checkRows() {
+    const ctx = runContext();
+    const stale = (m) => !!m && RunMeta.stale(m, ctx);
+    return [
+      { tool: "toolExclusions", icon: "🚪", label: "Exclusion analyzer", what: "expand memberships, compare the policies an exclusion leaves", run: "ex", runLabel: "Rescan",
+        never: !exModel, meta: exRunMeta, stale: stale(exRunMeta),
+        // a missing state count is an incomplete result, never a list length (25421)
+        headline: exModel ? ((exModel.userStates || {}).bypass != null ? { n: exModel.userStates.bypass, unit: "effective bypasses" } : { n: "Unknown", unit: "bypass count not established" }) : null },
+      { tool: "toolAnalyze", icon: "🔍", label: "Gap analyse", what: "every user against every policy, gaps and risky bypasses", run: "an", runLabel: "Run again",
+        never: !anReport, meta: anRunMeta, stale: stale(anRunMeta),
+        headline: anReport ? (() => { const s = Analyzer.summary(anReport); return { n: s.risky, unit: `risky bypass${s.risky === 1 ? "" : "es"}${s.unknown ? ` · ${s.unknown} unresolved` : ""}` }; })() : null },
+      { tool: "toolLicGap", icon: "🎫", label: "Licences", what: "P1/P2 demand against seats purchased and assigned", run: "lg", runLabel: "Rescan",
+        never: !lgRes, meta: lgRunMeta, stale: stale(lgRunMeta),
+        headline: lgRes ? (lgRes.p1.gap != null && lgRes.p1.gap > 0 ? { n: `${lgRes.p1.approx ? "≈" : ""}${lgRes.p1.gap.toLocaleString()}`, unit: "P1 seats short" }
+          : lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null && lgRes.p1.targeted - lgRes.p1.assignedInScope > 0 ? { n: (lgRes.p1.targeted - lgRes.p1.assignedInScope).toLocaleString(), unit: "to assign, no purchase" }
+          // every measure read → a real zero; anything unread → Unknown, never zero (25421)
+          : lgRes.p1.gap != null || (lgRes.p1.assignedInScope != null && lgRes.p1.targeted != null) ? { n: "0", unit: "P1 shortfall" }
+          : { n: "Unknown", unit: "incomplete read" }) : null },
+    ];
+  }
+  // ---- Worth a look first (25420) ----
+  // The gap checks, the CIS assessment and the exclusion app-coverage
+  // comparison are all pure over the policy set once their context is in
+  // hand. Here they run over the loaded set with NO tenant read: a full 🛡
+  // result from this session is used as-is; without one, the gap checks run
+  // provisionally (authentication strengths, named locations and the CA
+  // settings unread — the checks that need them stay silent or understate,
+  // never invent) and the band says so. CIS is not guessed at: its
+  // trusted-location and licence controls fail without their reads, so
+  // without a run it only offers the run. Memoised on the policy snapshot.
+  let worthMemo = null;
+  const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  function worthItems(raws) {
+    const key = [policiesReadAt, raws.length, signinContext && signinContext.at, caSettingsCache ? "cs" : ""].join("|");
+    // a 🛡 or 📐 result older than the loaded snapshot is that tool's to keep
+    // (its screen says so); this band does not build on it
+    const fresh = (t) => !!t && (!policiesReadAt || t >= new Date(policiesReadAt).getTime());
+    const gc = fresh(gcRunAt) ? gcResult : null, ci = fresh(ciRunAt) ? ciResult : null;
+    if (worthMemo && worthMemo.key === key && worthMemo.gc === gc && worthMemo.ci === ci) return worthMemo.w;
+    const items = [];
+    const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const slug = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+    let provisional = null, zt = null;
+    // 🛡 Bypass & Swiss cheese
+    let gap = gc;
+    // what sign-in read is used; what it did not read is named (25425)
+    const strengthsCtx = contextOf("authStrengths"), locationsCtx = contextOf("namedLocations");
+    const unread = [];
+    if (!strengthsCtx) unread.push(signinContext && signinContext.authStrengths && !signinContext.authStrengths.ok ? "authentication strengths (read failed at sign-in)" : "authentication strengths");
+    if (!locationsCtx) unread.push(signinContext && signinContext.namedLocations && !signinContext.namedLocations.ok ? "named locations (read failed at sign-in)" : "named locations");
+    if (!caSettingsCache) unread.push("the Conditional Access settings");
+    if (!gap) {
+      const scope = checkScope(isBaselineTenant());
+      const ctx = {
+        strengths: new Map((strengthsCtx ? strengthsCtx.items : []).map((x) => [x.id, x])),
+        namedLocations: locationsCtx ? locationsCtx.items : [],
+        names: signinContext && signinContext.names || {},
+        caSettings: caSettingsCache || null,
+      };
+      gap = GapCheck.run(scope.raws, ctx, { includeDisabled: scope.includeDisabled });
+      provisional = `Over the loaded policies${strengthsCtx || locationsCtx ? `, with ${[strengthsCtx ? "the authentication strengths" : "", locationsCtx ? "the named locations" : ""].filter(Boolean).join(" and ")} read at sign-in` : ""}. Still unread: ${unread.join(", ")} — 🛡 Checks reads what is missing, and the findings that need it are left out here.`;
+    }
+    // a number only from a 🛡 run that read its context in full; a
+    // provisional pass, or a run that reported incomplete context, is
+    // "partial" and shows no score (25421)
+    zt = gc && !provisional && !(gcCtx && gcCtx.incomplete) && gap.zt && gap.zt.overall != null
+      ? { overall: gap.zt.overall, at: hhmm(gcRunAt) } : null;
+    // Every finding carries its evidence state (25423): what it was computed
+    // from, and how complete that was. The snapshot time is the observation.
+    const gapEvidence = provisional
+      ? { state: "partial", label: "Partial context", at: policiesReadAt, note: `${unread.join(", ")} unread` }
+      : gcCtx && gcCtx.incomplete
+        ? { state: "partial", label: "Partial context", at: gcRunAt, note: gcCtx.incomplete }
+        : { state: "snapshot", label: "Policy snapshot", at: gcRunAt, note: `🛡 run at ${hhmm(gcRunAt)}` };
+    const byTitle = new Map();
+    (gap.findings || []).filter((f) => f.severity === "critical" || f.severity === "high").forEach((f) => {
+      const k = `${f.severity}|${f.title}`;
+      const e = byTitle.get(k) || { sev: f.severity, title: f.title, category: f.category, description: f.description, recommendation: f.recommendation, pols: [], ids: [] };
+      if (f.policyId) { e.ids.push(f.policyId); e.pols.push(f.policyName); }
+      byTitle.set(k, e);
+    });
+    [...byTitle.values()].sort((a, b) => SEV_RANK[a.sev] - SEV_RANK[b.sev]).forEach((e) => {
+      items.push({ id: `gap:${slug(e.category)}:${slug(e.title)}`, source: "gap", sev: e.sev, icon: "🛡", toolLabel: "Checks", tool: "toolGapCheck", tab: "checks:bypass", text: e.title,
+        sub: e.ids.length === 1 ? e.pols[0] : e.ids.length > 1 ? `${e.ids.length} policies` : "tenant-wide",
+        policyIds: e.ids, evidence: gapEvidence,
+        detail: { observed: e.description, next: e.recommendation, category: e.category },
+        action: { label: "Open in 🛡 Checks" } });
+    });
+    // 📐 CIS — only where the tab exists for this tenant
+    const cisTab = (TAB_HOSTS.checks.tabs.find((t) => t.key === "cis"));
+    if (cisTab && tabShown(cisTab)) {
+      if (ci) {
+        const s = ci.score || {};
+        const failing = (ci.results || []).filter((r) => r.status === "fail");
+        const l1 = failing.filter((r) => r.level === 1).length;
+        const ev = { state: "snapshot", label: "Policy snapshot", at: ciRunAt, note: `📐 run at ${hhmm(ciRunAt)}` };
+        if (s.fail) items.push({ id: "cis:failing", source: "cis", sev: l1 ? "high" : "medium", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+          text: `${s.fail} CIS control${s.fail === 1 ? "" : "s"} failing${l1 ? ` (${l1} Level 1)` : ""}`,
+          sub: `of ${s.total} assessed${(s.reportonly || s.configured) ? ` · ${(s.reportonly || 0) + (s.configured || 0)} configured but not enforced` : ""}`,
+          policyIds: [], evidence: ev,
+          detail: { observed: `Failing: ${failing.slice(0, 6).map((r) => `${r.id} ${r.title}`).join("; ")}${failing.length > 6 ? ` and ${failing.length - 6} more` : ""}.`,
+            next: "Open the CIS tab for each control's criteria, the policies that came close, and the note on what a report-only or Off policy still lacks. Enforcing a report-only policy needs its sign-in impact reviewed first." },
+          action: { label: "Open the 📐 CIS tab" } });
+        else if (s.reportonly || s.configured) items.push({ id: "cis:staged", source: "cis", sev: "low", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+          text: `${(s.reportonly || 0) + (s.configured || 0)} CIS control${(s.reportonly || 0) + (s.configured || 0) === 1 ? "" : "s"} configured but not enforced`, sub: "report-only or Off — the benchmark counts them as failing",
+          policyIds: [], evidence: ev,
+          detail: { observed: "A policy meeting the control's criteria exists in report-only or Off.", next: "Review the policy's sign-in impact before enforcing; report-only is a staging state, not a rollout that is ready." },
+          action: { label: "Open the 📐 CIS tab" } });
+      } else if (strengthsCtx && locationsCtx && !(ciResult && !ci)) {
+        // the two reads the controls need happened at sign-in; only the
+        // licence SKUs are unread, and CisCheck assesses P2 controls as
+        // applicable when p2 is null — the chip says so
+        let pc = null;
+        try { pc = CisCheck.run(raws, { strengths: new Map(strengthsCtx.items.map((x) => [x.id, x])), namedLocations: locationsCtx.items, p2: null, groupNames: signinContext.names || {} }); } catch (e) { console.warn("overview cis:", e); }
+        if (pc) {
+          const s = pc.score || {};
+          const failing = (pc.results || []).filter((r) => r.status === "fail");
+          const l1 = failing.filter((r) => r.level === 1).length;
+          const ev = { state: "partial", label: "Partial context", at: signinContext.at, note: "licence SKUs unread — P2-only controls assessed as applicable; strengths and locations from sign-in" };
+          if (s.fail) items.push({ id: "cis:failing", source: "cis", sev: l1 ? "high" : "medium", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+            text: `${s.fail} CIS control${s.fail === 1 ? "" : "s"} failing${l1 ? ` (${l1} Level 1)` : ""}`, sub: `of ${s.total} assessed on partial context`,
+            policyIds: [], evidence: ev,
+            detail: { observed: `Failing: ${failing.slice(0, 6).map((r) => `${r.id} ${r.title}`).join("; ")}${failing.length > 6 ? ` and ${failing.length - 6} more` : ""}.`, next: "Run the assessment on the CIS tab for the licence read and each control's evidence." },
+            action: { label: "Assess against 📐 CIS" } });
+        }
+      } else {
+        const prev = ciResult && !ci;
+        items.push({ id: "cis:not-assessed", source: "cis", sev: "info", icon: "📐", toolLabel: "CIS", tool: "toolGapCheck", tab: "checks:cis",
+          text: prev ? "CIS 5.2.2 result is from before the policy reload" : "CIS 5.2.2 not assessed this session", sub: "reads strengths, locations and licence SKUs",
+          policyIds: [], evidence: prev ? { state: "previous", label: "Previous snapshot", at: ciRunAt, note: `📐 run at ${hhmm(ciRunAt)}, policies reloaded since` } : { state: "needed", label: "Run needed", at: null, note: "" },
+          detail: { observed: prev ? "The benchmark was assessed against an earlier policy snapshot." : "The benchmark's trusted-location and licence controls need their reads; without them a fail would be invented.", next: "Run the assessment on the CIS tab." },
+          action: { label: prev ? "Run 📐 CIS again" : "Assess against 📐 CIS" } });
+      }
+    }
+    // 🚪 app exclusions with no equivalent coverage established
+    try {
+      const m = Exclusions.appCoverage(Exclusions.collect(raws));
+      const apps = m.entities.filter((e) => e.kind === "app" && e.uncoveredIn && e.uncoveredIn.length);
+      if (apps.length) {
+        const none = apps.filter((e) => Object.values(e.verdicts || {}).some((v) => v.state === "none")).length;
+        const ids = [...new Set(apps.flatMap((e) => e.uncoveredIn))];
+        items.push({ id: "ex:app-coverage", source: "ex", sev: none ? "high" : "medium", icon: "🚪", toolLabel: "Exclusions", tool: "toolExclusions",
+          text: `${apps.length} app exclusion${apps.length === 1 ? "" : "s"} with no equivalent coverage established`,
+          sub: none ? `${none} reached by no other enforcing policy` : "partial or unresolved by this analysis",
+          policyIds: ids, evidence: { state: "snapshot", label: "Policy snapshot", at: policiesReadAt, note: "compared over the loaded policies; memberships not expanded" },
+          detail: { observed: apps.slice(0, 6).map((e) => `${e.name}: ${e.uncoveredIn.map((pid) => CaCoverage.text(e.verdicts[pid])).join("; ")}`).join(" · ") + (apps.length > 6 ? ` · and ${apps.length - 6} more` : ""),
+            next: "Open the Exclusion analyzer's Apps view for each app's comparison, or run the scan to see who reaches those apps through the gap." },
+          action: { label: "Open 🚪 Exclusions" } });
+      }
+    } catch (e) { console.warn("overview app coverage:", e); }
+    const TOOL_RANK = { toolGapCheck: 0, toolExclusions: 1 };
+    items.sort((a, b) => (SEV_RANK[a.sev] - SEV_RANK[b.sev]) || ((TOOL_RANK[a.tool] ?? 9) - (TOOL_RANK[b.tool] ?? 9)));
+    const w = { items, provisional, zt, snapshotAt: policiesReadAt };
+    worthMemo = { key, gc, ci, w };
+    return w;
+  }
+  // The worth band is redrawn on its own when a finding is opened or the
+  // list expanded: the rest of the page does not move.
+  let ovShowAll = false, ovOpen = null;
+  function worthOpts() {
+    return { showAll: ovShowAll, open: ovOpen, policyOf: (id) => policies.find((p) => p.id === id) || null };
+  }
+  function redrawWorth() {
+    const slot = $("ovWorth"); if (!slot || !worthMemo) return;
+    // the redraw replaces the focused button; put focus back on its successor
+    const had = document.activeElement && slot.contains(document.activeElement) ? document.activeElement.getAttribute("data-ovfind") || (document.activeElement.hasAttribute("data-ovshowall") ? "*" : null) : null;
+    slot.outerHTML = Overview.worth(worthMemo.w, worthOpts());
+    if (had) { const el = had === "*" ? document.querySelector("#ovWorth [data-ovshowall]") : document.querySelector(`#ovWorth [data-ovfind="${CSS.escape(had)}"]`); if (el) el.focus(); }
+  }
+  // The workspace home is built after the app has already drawn once; when it
+  // appears, the Overview moves into it.
+  document.addEventListener("enca:wchome", () => { try { renderOverview({ force: true }); } catch (e) { console.warn("overview:", e); } });
+  document.addEventListener("enca:wchome", () => { try { Onboard.paintBand(); } catch (e) { console.warn("onboard:", e); } });
+  document.addEventListener("enca:onboard-closed", () => { try { maybeShowWhatsNew(); } catch (e) { console.warn("what's new:", e); } });
+  $("overview") && $("overview").addEventListener("click", (e) => {
+    // a tile's secondary link wins over the tile it sits on
+    const also = e.target.closest(".db-also");
+    if (also) { const el = $(also.dataset.ovtool); if (el) el.click(); return; }
+    const st = e.target.closest("[data-ovstate]");
+    if (st) { stateFilter = st.dataset.ovstate; idFilter = null; $("toolPolicies").click(); refreshViews(); return; }
+    // a finding opens its evidence in place; the list expands in place (25423)
+    const f = e.target.closest("[data-ovfind]");
+    if (f) { ovOpen = ovOpen === f.dataset.ovfind ? null : f.dataset.ovfind; redrawWorth(); return; }
+    if (e.target.closest("[data-ovshowall]")) { ovShowAll = !ovShowAll; redrawWorth(); return; }
+    // "show these policies": the list, filtered to the finding's policies
+    const pf = e.target.closest("[data-ovpolicies]");
+    if (pf) { idFilter = new Set(pf.dataset.ovpolicies.split(",").filter(Boolean)); stateFilter = "all"; $("toolPolicies").click(); refreshViews(); return; }
+    if (e.target.closest("[data-ovrefresh]")) { const r = $("refreshBtn"); if (r) r.click(); return; }
+    const t = e.target.closest("[data-ovtool]");
+    if (t) {
+      // a finding that lives on a subtab opens that tab directly
+      if (t.dataset.ovtab) {
+        const [hk, tk] = t.dataset.ovtab.split(":");
+        const tab = TAB_HOSTS[hk] && TAB_HOSTS[hk].tabs.find((x) => x.key === tk);
+        if (tab && tabShown(tab)) { tab.open(); return; }
+      }
+      const el = $(t.dataset.ovtool); if (el) el.click(); return;
+    }
+    const r = e.target.closest("[data-ovrun]");
+    if (!r) return;
+    const which = r.dataset.ovrun;
+    if (which === "ex") { $("toolExclusions").click(); if (!exBusy) runExclusionScan(); }
+    else if (which === "an") { $("toolAnalyze").click(); (window.requestAnimationFrame || setTimeout)(() => $("anRun").click()); }
+    else if (which === "lg") { openLicGap(); if (!lgBusy) lgRun(); }
+  });
+  $("overview") && $("overview").addEventListener("toggle", (e) => {
+    if (e.target && e.target.id === "ovMap") { ovMapOpen = e.target.open; try { localStorage.setItem("enca.ovMapOpen", ovMapOpen ? "1" : "0"); } catch {} }
+  }, true);
+  $("overview") && $("overview").addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ovtool][role=button],[data-ovstate][role=button]")) { e.preventDefault(); e.target.click(); }
+  });
+
+  // One place that drops every tool result bound to the previous snapshot.
+  function invalidateToolResults(why) {
+    anReport = null; anCov = null; anRunMeta = null;
+    exModel = null; exUsers = []; exRunMeta = null;
+    lgRes = null; lgCtx = null; lgRunMeta = null; lgPurpose = null; lgAdmin = [];
+    try {
+      $("anResults").style.display = "none"; $("anStatus").textContent = "";
+      if ($("exBody")) renderExclusions();
+      if ($("lgBody")) renderLicGap();
+      if (!ovLoading) renderOverview();
+    } catch (e) { console.warn("result invalidation:", why, e.message || e); }
+  }
+
   function renderAnalysis() {
     if (!anReport) return;
     const s = Analyzer.summary(anReport);
@@ -19088,18 +21607,25 @@ This is a directory write. Nothing else changes.`)) return;
     // −7 and the list shows 2. Rather than silently recompute the funnel
     // against a different population, say that the list is further narrowed.
     const narrowed = !!(anQuery || anType || anGroupSel !== "");
-    if (cfHost) cfHost.innerHTML = Analyzer.coverageHtml(anCov, anFilter, narrowed);
+    if (cfHost) cfHost.innerHTML = RunMeta.strip(anRunMeta, runContext(), { staleHint: "The policies were reloaded after this run — run again to analyse the current snapshot." })
+      + Analyzer.coverageHtml(anCov, anFilter, narrowed);
     $("anCards").innerHTML = [
       ["all", s.users, "Users", ""],
       ["risky", s.risky, "Risky bypasses", "risk"],
-      ["nomfa", s.noMfa, "No MFA from CA", "gap"],
+      ["nomfa", s.noMfa, "No MFA policy targets them", "gap"],
       ["noenforce", s.noEnforce, "No enforcing policy", "gap"],
     ].map(([f, n, l, cls]) => `<div class="an-card ${cls} ${anFilter === f ? "active" : ""}" data-f="${f}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
     $("anUsersWrap").style.display = anTab === "users" ? "block" : "none";
+    $("anCohortsWrap").style.display = anTab === "cohorts" ? "block" : "none";
     $("anMatrixWrap").style.display = anTab === "matrix" ? "block" : "none";
     $("anFull").style.display = anTab === "matrix" ? "" : "none";
     $("anTabUsers").classList.toggle("active", anTab === "users");
+    $("anTabCohorts").classList.toggle("active", anTab === "cohorts");
     $("anTabMatrix").classList.toggle("active", anTab === "matrix");
+    if (anTab === "cohorts") {
+      $("anCohortsWrap").innerHTML = Analyzer.cohortsHtml(anReport, anMaps, anPols,
+        Analyzer.filterRows(anReport, anFilter, anQuery, groupMemberSet(), anType), anCohortOpen);
+    }
     if (anTab === "users") {
       $("anBody").innerHTML = Analyzer.userRows(anReport, anFilter, anQuery, groupMemberSet(), anType);
     } else {
@@ -19151,6 +21677,13 @@ This is a directory write. Nothing else changes.`)) return;
   $("anSearch").addEventListener("input", (e) => { anQuery = e.target.value.toLowerCase(); anPage = 0; renderAnalysis(); });
   $("anTabUsers").addEventListener("click", () => { anTab = "users"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
   $("anTabMatrix").addEventListener("click", () => { anTab = "matrix"; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
+  $("anTabCohorts").addEventListener("click", () => { anTab = "cohorts"; anCohortOpen = null; if (!anReport) { $("anStatus").textContent = "Run the analysis first."; return; } renderAnalysis(); });
+  // A cohort opens to the users behind it — the outlier is usually one person.
+  $("anCohortsWrap").addEventListener("click", (e) => {
+    const tr = e.target.closest("[data-cohort]"); if (!tr) return;
+    anCohortOpen = anCohortOpen === tr.dataset.cohort ? null : tr.dataset.cohort;
+    renderAnalysis();
+  });
   $("anMPrev").addEventListener("click", () => { anPage--; renderAnalysis(); });
   $("anMNext").addEventListener("click", () => { anPage++; renderAnalysis(); });
   $("anGroup").addEventListener("change", (e) => { anGroupSel = e.target.value; anPage = 0; renderAnalysis(); });
@@ -19238,15 +21771,20 @@ This is a directory write. Nothing else changes.`)) return;
       toast(`Group <span>${g.label}</span> added (${g.users.size} members)`);
     } finally { $("anGroupAdd").disabled = false; }
   });
-  // policy names in analysis (detail lists + matrix column headers) open the policy card
-  function openPolicyByName(name) {
-    const p = policies.find(x => x.name === name);
+  // Policy references in analysis (detail lists + matrix column headers) open
+  // the policy card. Keyed by the immutable ID since beta 25409 — with two
+  // policies sharing a display name the name lookup opened whichever came
+  // first, which could be the one the row was not about. The name stays as a
+  // fallback for anything rendered before the ID travelled.
+  function openPolicyRef(el) {
+    const id = el && el.dataset ? el.dataset.polid : "";
+    const p = (id && policies.find((x) => x.id === id)) || policies.find((x) => x.name === (el && el.dataset ? el.dataset.pol : ""));
     if (p) showDetail(p.id);
   }
 
   $("anBody").addEventListener("click", (e) => {
     const pl = e.target.closest(".pol-link");
-    if (pl) { openPolicyByName(pl.dataset.pol); return; }
+    if (pl) { openPolicyRef(pl); return; }
     const tr = e.target.closest(".urow"); if (!tr) return;
     const next = tr.nextElementSibling;
     if (next && next.classList.contains("detail")) { next.remove(); tr.classList.remove("open"); return; }
@@ -19255,7 +21793,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("anMHead").addEventListener("click", (e) => {
     const pl = e.target.closest(".pol-link");
-    if (pl) openPolicyByName(pl.dataset.pol);
+    if (pl) openPolicyRef(pl);
   });
 
   $("anExport").addEventListener("click", () => {
@@ -19283,12 +21821,18 @@ This is a directory write. Nothing else changes.`)) return;
     };
     if (anFilter !== "all") filterBits.push(FILTER_LABEL[anFilter] || anFilter);
     if (anQuery) filterBits.push(`search: "${anQuery}"`);
+    // The header describes the RUN, read from its descriptor — not the form.
+    // Changing All users to Guests and ticking report-only without rerunning
+    // used to rewrite this line while the file still held the original users
+    // and the original policies.
+    const rm = anRunMeta;
     const meta = {
-      tenant: tenantName || "tenant",
+      tenant: (rm && (rm.isDemo ? "Demo tenant" : rm.tenantName)) || tenantName || "tenant",
       date: new Date().toISOString().slice(0, 10),
       policies: anPols.length,
-      scope: (anScopedTo ? `only ${anScopedTo.join(", ")}` : `${$("anScope").value} users`)
-        + ($("anReportOnly").checked ? ", incl. report-only" : "")
+      scope: (anScopedTo ? `only ${anScopedTo.join(", ")}` : (rm && rm.population) || `${$("anScope").value} users`)
+        + (rm && rm.options.length ? `, ${rm.options.join(", ")}` : "")
+        + (rm ? ` | run #${rm.id}, policies read ${new Date(rm.snapshot || rm.at).toLocaleString()}` : "")
         + (filterBits.length ? ` | filtered: ${filterBits.join(", ")} (${subset.length} of ${anReport.length} users)` : ""),
     };
     // The funnel describes the RUN, not the current filter: computing it from
@@ -20694,12 +23238,13 @@ This is a directory write. Nothing else changes.`)) return;
   });
 
   function syncWorkspace() {
-    Workspace.update({ policies, visible: visible(), selected, view: viewMode, tenant: tenantName, demo: isDemo, readAt: policiesReadAt });
+    Workspace.update({ policies, visible: visible(), selected, view: viewMode, tenant: tenantName, tenantKey: tenantId || tenantName, demo: isDemo, readAt: policiesReadAt });
   }
   function openRollout() { crumb("↗ Guided rollout"); show("screen-rollout"); syncWorkspace(); Workspace.openRollout(); }
   $("toolDeploy").addEventListener("click", openRollout);
   Workspace.init({
     detail: id => showDetail(id, true),
+    dependency: (type,id,label) => openDepView(type,id,label),
     fetchJoey: async onStatus => {
       const status = await BaselineLive.fetchLatest({ force: true, onStatus });
       return { status, bundle: BaselineLive.bundle() };
@@ -20733,13 +23278,22 @@ This is a directory write. Nothing else changes.`)) return;
     if (isDemo || (method === "PATCH" && body.state === "disabled" && Object.keys(body).length === 1)) return;
     const context = `${tenantId}:${policiesReadAt}`;
     const evidence = await readCapabilities(true);
-    let raw = body;
-    if (method === "POST" && /\/restore$/.test(url)) raw = await Graph.gget(url.replace(/\/restore$/, ""));
+    let raw = body, already = [];
+    if (method === "POST" && /\/restore$/.test(url)) {
+      raw = await Graph.gget(url.replace(/\/restore$/, ""));
+      already = Capabilities.requirements(raw);   // restoring what Entra already accepted once
+    }
     if (method === "PATCH") {
       const existing = await Graph.gget(url);
       raw = { ...existing, ...body, conditions: { ...(existing.conditions || {}), ...(body.conditions || {}) } };
+      // 25491: only what this write ADDS has to be proven. An edit of a
+      // policy that already carries an insider-risk condition (CA012, CA013,
+      // CA017) was stopped because Adaptive Protection "could not be
+      // verified" — though Entra had accepted the condition when the policy
+      // was made, and the edit did not touch it.
+      already = Capabilities.requirements(existing);
     }
-    const requirement = Capabilities.check(raw, evidence);
+    const requirement = Capabilities.check(raw, evidence, already);
     if (!requirement.ok) throw new Error(`Policy write stopped: ${requirement.reason}. No premium conditions were removed.`);
     if (method === "POST") {
       const current = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id");

@@ -1,0 +1,107 @@
+/* Shared Workspaces presentation; native layouts keep their own controls,
+   column definitions, status colours and responsive overflow containers. */
+body.workspaces-shell{--wc-panel-radius:10px}
+body.workspaces-shell .screen.tool{min-width:0}
+body.workspaces-shell .screen.tool > .wc-tool-head{
+  background:transparent;border:0;border-radius:0;box-shadow:none;
+  padding:0 0 8px;margin:0;overflow:visible;max-width:none;
+}
+body.workspaces-shell .wc-tool-head .wc-page-title{
+  font-size:clamp(23px,2.1vw,29px);font-weight:650;line-height:1.3;
+  letter-spacing:-.035em;color:var(--ink);margin:0 0 10px;overflow-wrap:anywhere;
+}
+body.workspaces-shell .wc-tool-head .wc-page-title .tag,
+body.workspaces-shell .wc-tool-head .wc-page-title .tool-ver-head{letter-spacing:0;vertical-align:middle}
+body.workspaces-shell .wc-tool-head p{font-size:13px;line-height:1.65;max-width:1100px}
+body.workspaces-shell .wc-tool-head > div:has(> .wc-page-title){flex-wrap:wrap;gap:12px}
+body.workspaces-shell .wc-tool-head > p:first-of-type{color:var(--muted)}
+body.workspaces-shell .wc-tool-head .tool-ver-head{font-size:10px;font-weight:500}
+body.workspaces-shell #anIntro{box-shadow:none;border-radius:var(--wc-panel-radius);padding:20px!important}
+body.workspaces-shell .screen.tool > .tool-tabs-bar{padding:0 0 18px}
+body.workspaces-shell .tool-tabs-bar .tool-tabs{background:transparent;border:0;border-radius:0;gap:5px}
+body.workspaces-shell .tool-tabs-bar .tool-tabs button{
+  border:1px solid transparent;border-radius:6px;padding:9px 12px;font-size:12px;font-weight:500;
+}
+body.workspaces-shell .tool-tabs-bar .tool-tabs button.active{background:var(--wc-active-bg);color:var(--wc-active-ink);border-color:var(--wc-active-bg)}
+body.workspaces-shell .screen.tool > .toolbar{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--wc-panel-radius);
+  padding:12px;margin:16px 0 0;gap:10px;box-shadow:0 4px 12px -10px #0004;
+}
+body.workspaces-shell .screen.tool > .tool-body{margin-top:18px}
+body.workspaces-shell .screen.tool .list-card,
+body.workspaces-shell .screen.tool .scard,
+body.workspaces-shell .screen.tool .review-queue,
+body.workspaces-shell .screen.tool .review-evidence,
+body.workspaces-shell .screen.tool .rollout-content{
+  border-radius:var(--wc-panel-radius);box-shadow:none;border-color:var(--border);
+}
+body.workspaces-shell .screen.tool .btn{border-radius:6px;font-size:12px;min-height:32px}
+body.workspaces-shell .screen.tool .btn.sm{min-height:28px;font-size:11px}
+body.workspaces-shell .screen.tool .search,
+body.workspaces-shell .screen.tool .txt,
+body.workspaces-shell .screen.tool .sel{border-radius:6px;font-size:12px}
+body.workspaces-shell .screen.tool .wi-form{padding:20px}
+body.workspaces-shell .screen.tool .list-card > table > thead th{font-size:11px;letter-spacing:.05em}
+body.workspaces-shell .screen.tool .list-card > table > tbody td{line-height:1.5}
+body.workspaces-shell #selbar{margin:12px 0;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:var(--wc-panel-radius);box-shadow:none}
+body.workspaces-shell #selbar b{color:var(--green)}
+body.workspaces-shell #workspaceCounts{margin:12px 0 18px}
+body.workspaces-shell #policyWorkspace{grid-template-columns:minmax(0,1fr)}
+/* Other tools retain useful inline comparisons and member lists. Their
+   existing popups share the same surfaces; confirmations keep compact sizes. */
+body.workspaces-shell .modal-bg{padding:24px;background:color-mix(in srgb,var(--green-deep) 55%,transparent);backdrop-filter:blur(3px)}
+body.workspaces-shell .modal-bg > .modal{border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--ink);box-shadow:0 24px 80px #0003}
+body.workspaces-shell .modal-bg > .modal.wide{max-width:1240px}
+body.workspaces-shell .modal-bg .btn{border-radius:6px}
+body.workspaces-shell #detailModal{align-items:center;justify-content:center}
+body.workspaces-shell #detailBody{
+  width:min(1280px,100%);max-width:1280px;max-height:calc(100dvh - 48px);
+  padding:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;
+}
+.wc-detail-top{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border)}
+body.workspaces-shell #detailBody .pcard{border:0;border-radius:0;box-shadow:none;overflow:visible}
+body.workspaces-shell #detailBody .pcard-head{background:var(--surface);color:var(--ink);padding:24px;align-items:flex-start;border-bottom:1px solid var(--border)}
+body.workspaces-shell #detailBody .pcard-head > div{min-width:0}
+body.workspaces-shell #detailBody .pcard-head img{display:none}
+body.workspaces-shell #detailBody .pcard-head h3{font-size:22px;font-weight:650;line-height:1.35;letter-spacing:-.025em;overflow-wrap:anywhere}
+body.workspaces-shell #detailBody .pcard-head .meta{font-size:12px;opacity:1;color:var(--muted);line-height:1.6;margin-top:8px}
+body.workspaces-shell #detailBody .pcard-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:20px 24px}
+body.workspaces-shell #detailBody .sect{background:var(--soft2);border:1px solid var(--border);border-radius:8px;padding:16px;min-width:0}
+body.workspaces-shell #detailBody .sect h4{font-size:11px;color:var(--muted);letter-spacing:.07em;margin-bottom:12px}
+body.workspaces-shell #detailBody .sect li{font-size:13px;line-height:1.65}
+body.workspaces-shell #detailBody .sect li.na{color:var(--muted)}
+body.workspaces-shell #detailBody .wc-detail-top .dialog-close{margin:0}
+body.workspaces-shell #detailBody .dep-bar{padding:14px 24px;gap:8px}
+body.workspaces-shell #detailBody .pcard-foot{padding:14px 24px;background:var(--surface);border-top:1px solid var(--border);flex-wrap:wrap}
+body.workspaces-shell #detailBody .pcard-foot .pcard-id{overflow-wrap:anywhere}
+body.workspaces-shell #detailBody .pcard-foot [data-png]{margin-left:auto}
+body.workspaces-shell #detailBody .pcard-actions{position:sticky;bottom:0;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;padding:14px 24px;background:var(--surface);border-top:1px solid var(--border)}
+.wc-policy-definition{padding:16px 24px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+.wc-policy-definition summary{cursor:pointer;font-weight:600;width:fit-content}
+.wc-policy-definition pre{font-size:11px;line-height:1.6;max-height:280px;overflow:auto;background:var(--soft);color:var(--ink);padding:16px;border-radius:8px;margin-top:12px}
+@media(max-width:1000px){body.workspaces-shell #detailBody .pcard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){
+  body.workspaces-shell #tdToolbar > div:has(#tdPrefix){flex-basis:100%!important}
+  body.workspaces-shell #tdPrefix{min-width:0!important;width:100%}
+  body.workspaces-shell .screen.tool > .toolbar{padding:10px;position:static}
+  body.workspaces-shell .screen.tool > .tool-tabs-bar{padding-bottom:14px}
+  body.workspaces-shell .screen.tool .wi-form{padding:16px}
+  body.workspaces-shell .modal-bg{padding:10px}
+  body.workspaces-shell #detailBody{max-height:calc(100dvh - 20px)}
+  .wc-detail-top{padding:12px 16px}
+  body.workspaces-shell #detailBody .pcard-head{padding:20px 16px;flex-wrap:wrap;gap:12px}
+  body.workspaces-shell #detailBody .pcard-head h3{font-size:19px}
+  body.workspaces-shell #detailBody .pcard-head > div{flex-basis:100%!important}
+  body.workspaces-shell #detailBody .pcard-grid{grid-template-columns:minmax(0,1fr);padding:16px;gap:12px}
+  body.workspaces-shell #detailBody .dep-bar,body.workspaces-shell #detailBody .pcard-foot,.wc-policy-definition{padding:14px 16px}
+  body.workspaces-shell #detailBody .pcard-actions{position:static;padding:14px 16px}
+}
+
+/* The head folds (25451): the title line stays, the prose goes. The fold
+   button sits at the end of the title; a meta block beside the title (the
+   builder's mode line, a tool's counts) is not prose and stays. */
+.wc-head-fold{margin-left:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:6px;width:24px;height:24px;line-height:22px;font-size:12px;padding:0;vertical-align:middle;cursor:pointer}
+.wc-head-fold:hover{color:var(--ink);border-color:var(--ink)}
+.wc-tool-head.wc-head-folded p,.wc-tool-head.wc-head-folded ul,.wc-tool-head.wc-head-folded details,.wc-tool-head.wc-head-folded .mini.muted:not(.wc-page-title *){display:none}
+.wc-tool-head.wc-head-folded .pb-mode,.wc-tool-head.wc-head-folded .pb-mode *{display:initial}
+.wc-tool-head.wc-head-folded .wc-page-title{margin-bottom:0}

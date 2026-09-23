@@ -520,17 +520,28 @@ const Graph = (() => {
   // ---------- resolve all GUIDs referenced by the policies into names ----------
   async function buildResolver(policies, onStatus) {
     const names = {}; // guid -> display name
+    // The three reads below used to be reduced to names and thrown away;
+    // since 25425 the responses are KEPT, each with when it was read and
+    // whether it completed, so the home page can build on a read that
+    // already happened instead of calling it unread. A failed read stays
+    // failed here — nothing retries, nothing widens the sign-in scope.
+    const context = { namedLocations: null, authContexts: null, authStrengths: null };
+    const keep = async (key, path) => {
+      const at = Date.now();
+      try { const items = await ggetAll(path); context[key] = { items, at, ok: true, error: null }; return items; }
+      catch (e) { context[key] = { items: null, at, ok: false, error: e && e.message || String(e) }; return []; }
+    };
 
     onStatus?.("Resolving directory roles…");
     try { (await ggetAll("/directoryRoleTemplates")).forEach(r => names[r.id] = r.displayName); } catch {}
 
     onStatus?.("Resolving named locations…");
-    try { (await ggetAll("/identity/conditionalAccess/namedLocations")).forEach(l => names[l.id] = l.displayName); } catch {}
+    (await keep("namedLocations", "/identity/conditionalAccess/namedLocations")).forEach(l => names[l.id] = l.displayName);
 
     onStatus?.("Resolving authentication contexts…");
-    try { (await ggetAll("/identity/conditionalAccess/authenticationContextClassReferences")).forEach(c => names[c.id] = c.displayName); } catch {}
+    (await keep("authContexts", "/identity/conditionalAccess/authenticationContextClassReferences")).forEach(c => names[c.id] = c.displayName);
 
-    try { (await ggetAll("/policies/authenticationStrengthPolicies")).forEach(s => names[s.id] = s.displayName); } catch {}
+    (await keep("authStrengths", "/policies/authenticationStrengthPolicies")).forEach(s => names[s.id] = s.displayName);
 
     // terms of use names (needs Agreement.Read.All; shown as GUID if not granted)
     try { (await ggetAll("/identityGovernance/termsOfUse/agreements")).forEach(a => names[a.id] = a.displayName); } catch {}
@@ -570,7 +581,11 @@ const Graph = (() => {
     // display name, then the first-party fallback map for an id with no
     // service principal here, then the id itself.
     const firstParty = (id) => (typeof firstPartyAppName === "function" ? firstPartyAppName(id) : null);
-    return (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || firstParty(id) || id;
+    const resolve = (id, fallbackMap) => (fallbackMap && fallbackMap[id]) || names[id] || firstParty(id) || id;
+    // carried on the resolver so every existing caller keeps its signature
+    resolve.context = context;
+    resolve.names = names;
+    return resolve;
   }
 
   async function loadTenant(onStatus) {
@@ -593,7 +608,7 @@ const Graph = (() => {
       } catch {}
     }
     const resolve = await buildResolver(policies, onStatus);
-    return { policies, org, logo, resolve, account };
+    return { policies, org, logo, resolve, account, context: resolve.context, names: resolve.names };
   }
 
   // ---- consent / popup handling -------------------------------------------
@@ -666,18 +681,57 @@ const Graph = (() => {
   // Returns { ok: true, list: [...] } or { ok: false, error } — the caller
   // must be able to tell "no partners" from "could not look".
   async function serviceProviderPartners() {
-    try {
-      const rows = await ggetAll("/policies/crossTenantAccessPolicy/partners");
-      const list = rows.filter((r) => r.isServiceProvider === true).map((r) => ({
-        tenantId: r.tenantId,
-        name: r.identitySynchronization?.displayName || r.displayName || r.tenantId,
-        inboundTrust: r.inboundTrust || null,
-      }));
-      return { ok: true, list };
-    } catch (e) {
-      return { ok: false, error: e.message || String(e), list: [] };
-    }
+    const ct = await crossTenantTrust();
+    return ct.partnersOk
+      ? { ok: true, list: ct.partners.filter((r) => r.isServiceProvider) }
+      : { ok: false, error: ct.error, list: [] };
   }
 
-  return { init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
+  // Cross-tenant access settings as the guest checks need them (25469).
+  // TRUST HAS TWO LAYERS, and reading only the partner list was the bug: the
+  // DEFAULT inbound trust decides for every organisation that has no
+  // configuration of its own, and a partner whose inboundTrust is null
+  // INHERITS the default rather than having it switched off. The partner list
+  // used to be filtered to service providers as well, so in a tenant with no
+  // CSP the guest checks saw an empty list and called trust "configured".
+  // Both reads need Policy.Read.All, which the partner read already used.
+  async function crossTenantTrust() {
+    const out = { ok: false, defaultOk: false, partnersOk: false, defaultTrust: null, dcInboundDefault: null, partners: [], error: "" };
+    try {
+      const d = await gget("/policies/crossTenantAccessPolicy/default");
+      out.defaultTrust = d.inboundTrust || {};
+      out.dcInboundDefault = d.b2bDirectConnectInbound?.usersAndGroups?.accessType || null;
+      out.defaultOk = true;
+    } catch (e) { out.error = e.message || String(e); }
+    try {
+      const rows = await ggetAll("/policies/crossTenantAccessPolicy/partners");
+      out.partners = rows.map((r) => ({
+        tenantId: r.tenantId,
+        name: r.identitySynchronization?.displayName || r.displayName || r.tenantId,
+        isServiceProvider: r.isServiceProvider === true,
+        inboundTrust: r.inboundTrust || null,
+        dcInbound: r.b2bDirectConnectInbound?.usersAndGroups?.accessType || null,
+      }));
+      out.partnersOk = true;
+    } catch (e) { out.error = out.error || e.message || String(e); }
+    out.ok = out.defaultOk && out.partnersOk;
+    return out;
+  }
+
+  // Connection metadata is informational: silent token only, no extra consent.
+  async function connectionInfo() {
+    const clientId=AUTH_CONFIG.clientId;
+    try {
+      if (!/^[0-9a-f-]{36}$/i.test(clientId)) throw new Error('Invalid client ID');
+      const result=await msalApp.acquireTokenSilent({scopes:AUTH_CONFIG.scopes,account});
+      const response=await fetch(safeGraphUrl(`/servicePrincipals(appId='${clientId}')?$select=displayName,appOwnerOrganizationId,signInAudience`),{
+        headers:{Authorization:'Bearer '+result.accessToken},signal:AbortSignal.timeout(10000)
+      });
+      if(!response.ok)throw new Error('Registration unavailable');
+      const sp=await response.json();
+      return {clientId,name:sp.displayName,ownerTenantId:sp.appOwnerOrganizationId,audience:sp.signInAudience};
+    } catch { return {clientId,name:'',ownerTenantId:null,audience:null}; }
+  }
+
+  return { connectionInfo, init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, crossTenantTrust, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
 })();

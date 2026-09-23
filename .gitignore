@@ -37,3 +37,11 @@ js/authConfig.local.js
 # roadmap, which is where somebody reading the repo will look. Left untracked
 # on purpose, so the pre-commit check stops asking about it.
 /CONSOLIDATION-PLAN.md
+
+# Review folders. Every review, audit and layout sweep lives under review/<date>/
+# with its screenshots, browser JSON and probe output — 41 MB of evidence written
+# to be read once and superseded. The record of what actually shipped is
+# js/changelog.js, js/promote.js and the roadmap, which is where somebody reading
+# the repo looks; and review/ was deliberately never ported to main anyway.
+# Offline only, same rule as CONSOLIDATION-PLAN.md above.
+/review/

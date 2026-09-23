@@ -1,0 +1,141 @@
+// T08 audit, build 25470 — each test is a defect the audit found in
+// js/gapcheck.js. Run: node --test tools/*.test.cjs
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs"), vm = require("node:vm"), path = require("node:path");
+const root = path.resolve(__dirname, "..");
+const box = { console, Set, Map, JSON, Math, Date, Array, Object, Number, String, RegExp, Error,
+  Render: { caGroup: (n) => { const m = /^CA(\d{3,4})/.exec(n || ""); if (!m) return null; const num = +m[1]; return { num, key: num < 100 ? 0 : Math.floor(num / 100) * 100 }; } },
+  Brand: { generatedBy: () => "" }, toolHead: () => "" };
+vm.createContext(box);
+vm.runInContext(fs.readFileSync(path.join(root, "js/gapcheck.js"), "utf8") + "\n;globalThis.G=GapCheck;", box);
+const { G } = box;
+
+const pol = (displayName, conditions, grantControls, state) => ({
+  id: displayName, displayName, state: state || "enabled",
+  conditions: { users: { includeUsers: ["All"], excludeGroups: ["bg"] }, applications: { includeApplications: ["All"] }, ...conditions },
+  grantControls,
+});
+const run = (ps, ctx) => G.run(ps, ctx || {});
+const titles = (r) => r.findings.map((f) => f.title);
+const MFA_ALL = pol("MFA all", {}, { operator: "OR", builtInControls: ["mfa"] });
+const LEGACY_ALL = pol("Legacy block", { clientAppTypes: ["exchangeActiveSync", "other"] }, { operator: "OR", builtInControls: ["block"] });
+
+test("MFA for all users on ONE app does not count as MFA for all users", () => {
+  const oneApp = pol("MFA one app", { applications: { includeApplications: ["00000002-0000-0ff1-ce00-000000000000"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const r = run([oneApp, LEGACY_ALL]);
+  assert.ok(titles(r).includes("MFA for all users exists only for selected resources"));
+  const ok = run([MFA_ALL, LEGACY_ALL]);
+  assert.ok(!ok.findings.some((f) => f.category === "MFA Coverage"));
+});
+
+test("a legacy block scoped to one group is reported as not tenant-wide", () => {
+  const narrow = pol("Legacy block pilot", { users: { includeGroups: ["pilot"] }, clientAppTypes: ["exchangeActiveSync", "other"] }, { operator: "OR", builtInControls: ["block"] });
+  const r = run([MFA_ALL, narrow]);
+  const f = r.findings.find((x) => x.title === "Legacy authentication is blocked, but not tenant-wide");
+  assert.ok(f);
+  assert.match(f.description, /not all users/);
+  assert.ok(!titles(run([MFA_ALL, LEGACY_ALL])).includes("Legacy authentication is blocked, but not tenant-wide"));
+});
+
+test("MFA OR compliant device is the Microsoft template — low, not high", () => {
+  const p = pol("Template", {}, { operator: "OR", builtInControls: ["mfa", "compliantDevice", "domainJoinedDevice"] });
+  const f = run([p, LEGACY_ALL]).findings.find((x) => x.category === "Swiss Cheese Model" && x.policyId === "Template");
+  assert.equal(f.severity, "low");
+  assert.match(f.title, /Microsoft template/);
+});
+
+test("MFA OR app protection is a real way around MFA", () => {
+  const p = pol("MAM or MFA", {}, { operator: "OR", builtInControls: ["mfa", "compliantApplication"] });
+  const f = run([p, LEGACY_ALL]).findings.find((x) => x.category === "Swiss Cheese Model" && x.policyId === "MAM or MFA");
+  assert.equal(f.severity, "medium");
+  assert.match(f.description, /without a second factor/);
+});
+
+test("guest MFA is not a finding — only a strength guests cannot complete here", () => {
+  const guestMfa = pol("CA400", { users: { includeGuestsOrExternalUsers: { guestOrExternalUserTypes: "b2bCollaborationGuest" } } }, { operator: "OR", builtInControls: ["mfa"] });
+  assert.ok(!run([MFA_ALL, LEGACY_ALL, guestMfa]).findings.some((f) => f.category === "Guest Authentication Strength"));
+  const strengths = new Map([["pr", { id: "pr", displayName: "Phishing-resistant MFA", allowedCombinations: ["fido2", "windowsHelloForBusiness"] }],
+    ["mfa", { id: "mfa", displayName: "Multifactor authentication", allowedCombinations: ["password,sms", "fido2"] }]]);
+  const pr = pol("CA500", { users: { includeGuestsOrExternalUsers: { guestOrExternalUserTypes: "b2bCollaborationGuest" } } }, { operator: "OR", builtInControls: [], authenticationStrength: { id: "pr" } });
+  const m = pol("CA401", { users: { includeGuestsOrExternalUsers: { guestOrExternalUserTypes: "b2bCollaborationGuest" } } }, { operator: "OR", builtInControls: [], authenticationStrength: { id: "mfa" } });
+  const r = run([MFA_ALL, LEGACY_ALL, pr, m], { strengths });
+  const g = r.findings.filter((f) => f.category === "Guest Authentication Strength");
+  assert.equal(g.length, 1);
+  assert.equal(g[0].policyId, "CA500");
+});
+
+test("a guest-only policy is not asked to exclude the break-glass account", () => {
+  const guestOnly = { id: "g", displayName: "Guests only", state: "enabled",
+    conditions: { users: { includeUsers: ["GuestsOrExternalUsers"] }, applications: { includeApplications: ["All"] } },
+    grantControls: { operator: "OR", builtInControls: ["mfa"] } };
+  const r = run([MFA_ALL, LEGACY_ALL, guestOnly]);
+  assert.ok(!r.findings.some((f) => f.category === "Break-Glass Coverage" && f.policyId === "g"));
+});
+
+// ---- 25473: three checks nothing did before ----
+const REG = pol("Reg sec info", { applications: { includeApplications: [], includeUserActions: ["urn:user:registersecurityinfo"] },
+  locations: { includeLocations: ["All"], excludeLocations: ["AllTrusted"] } }, { operator: "OR", builtInControls: ["mfa"] });
+const DCF = pol("Block device code", { authenticationFlows: { transferMethods: "deviceCodeFlow" } }, { operator: "OR", builtInControls: ["block"] });
+const cat = (r, c) => r.findings.filter((f) => f.category === c);
+
+test("security info registration: reported when nothing protects it, quiet when a policy does", () => {
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL]), "Security Info Registration")[0].title, "Nothing protects security info registration");
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, REG]), "Security Info Registration").length, 0);
+  const ro = { ...REG, state: "enabledForReportingButNotEnforced" };
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, ro]), "Security Info Registration")[0].severity, "low");
+});
+
+test("device code flow: medium when unblocked, low when blocked for part of the tenant, quiet when blocked for all", () => {
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL]), "Authentication Flows")[0].severity, "medium");
+  const narrow = { ...DCF, id: "n", conditions: { ...DCF.conditions, users: { includeGroups: ["pilot"] } } };
+  const f = cat(run([MFA_ALL, LEGACY_ALL, narrow]), "Authentication Flows")[0];
+  assert.equal(f.severity, "low"); assert.match(f.title, /not for everyone/);
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, DCF]), "Authentication Flows").length, 0);
+});
+
+test("the Sign-in frequency column counts sign-in frequency only — never persistent browser alone does not fill it", () => {
+  const adminPb = { ...pol("Admins MFA", { users: { includeRoles: ["62e90394-69f5-4237-9190-012177145e10"] } }, { operator: "OR", builtInControls: ["mfa"] }),
+    sessionControls: { persistentBrowser: { isEnabled: true, mode: "never" } } };
+  const r = run([MFA_ALL, LEGACY_ALL, adminPb]);
+  assert.ok(r.findings.some((f) => f.title === "Admins: missing Sign-in frequency"));
+  const withSif = { ...adminPb, sessionControls: { signInFrequency: { isEnabled: true, value: 4, type: "hours" } } };
+  assert.ok(!run([MFA_ALL, LEGACY_ALL, withSif]).findings.some((f) => f.title === "Admins: missing Sign-in frequency"));
+});
+
+// ---- 25475: duplicate group names and allow-list blocks ----
+test("two groups with one display name are reported, naming both ids and their policies", () => {
+  const a = pol("CA300 MFA", { users: { includeGroups: ["ext-1"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const b = pol("CA302 Session", { users: { includeGroups: ["ext-2"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const r = run([MFA_ALL, LEGACY_ALL, a, b], { names: { "ext-1": "CAB-SEC-U-Persona-Externals", "ext-2": "CAB-SEC-U-Persona-Externals" } });
+  const f = cat(r, "Group Hygiene");
+  assert.equal(f.length, 1);
+  assert.match(f[0].description, /ext-1 — used by CA300 MFA; ext-2 — used by CA302 Session/);
+  assert.equal(cat(run([MFA_ALL, LEGACY_ALL, a, b], { names: { "ext-1": "A", "ext-2": "B" } }), "Group Hygiene").length, 0);
+});
+
+test("an allow-list block that misses an included group, a commonly excluded group, and the ungroupable types", () => {
+  const allow = pol("CA099 Block non-persona", { users: { includeUsers: ["All"], excludeGroups: ["bg", "int", "adm"] } }, { operator: "OR", builtInControls: ["block"] });
+  const int = pol("CA200", { users: { includeGroups: ["int", "dg-int"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const x1 = pol("CA000", { users: { includeUsers: ["All"], excludeGroups: ["bg", "rooms"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const x2 = pol("CA007", { users: { includeUsers: ["All"], excludeGroups: ["bg", "rooms"] } }, { operator: "OR", builtInControls: ["mfa"] });
+  const f = cat(run([LEGACY_ALL, allow, int, x1, x2], { names: { "dg-int": "CAD-SEC-U-DG-INT", rooms: "CAB-SEC-U-TeamsSharedDevices" } }), "Allow-List Block");
+  assert.equal(f.length, 1);
+  assert.equal(f[0].severity, "high");
+  assert.match(f[0].description, /CAD-SEC-U-DG-INT" \(included by CA200\)/);
+  assert.match(f[0].description, /CAB-SEC-U-TeamsSharedDevices" \(excluded by 2 policies\)/);
+  assert.match(f[0].description, /service provider \(GDAP\) admins/);
+  // a country block with the same exclusions is not an allow-list
+  const geo = { ...allow, conditions: { ...allow.conditions, locations: { includeLocations: ["All"], excludeLocations: ["nl"] } } };
+  assert.equal(cat(run([LEGACY_ALL, geo, int, x1, x2]), "Allow-List Block").length, 0);
+});
+
+test("25479: OR with an authentication strength or a terms of use is judged too", () => {
+  const sOr = pol("Strength or device", {}, { operator: "OR", builtInControls: ["compliantDevice"], authenticationStrength: { id: "m", displayName: "Multifactor authentication" } });
+  const f1 = run([MFA_ALL, LEGACY_ALL, sOr]).findings.find((x) => x.category === "Swiss Cheese Model" && x.policyId === sOr.id);
+  assert.equal(f1.severity, "low");
+  const tou = pol("MFA or ToU", {}, { operator: "OR", builtInControls: ["mfa"], termsOfUse: ["t1"] });
+  const f2 = run([MFA_ALL, LEGACY_ALL, tou]).findings.find((x) => x.category === "Swiss Cheese Model" && x.policyId === tou.id);
+  assert.equal(f2.severity, "high");
+  assert.match(f2.description, /terms of use is a click/);
+});

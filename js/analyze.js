@@ -72,7 +72,7 @@ const Analyzer = (() => {
       const controls = new Set(g.builtInControls || []);
       if (g.authenticationStrength) controls.add("authStrength:" + (g.authenticationStrength.displayName || g.authenticationStrength.id));
       return {
-        name: p.displayName, seq: vm.seq, enforced: p.state === "enabled",
+        id: p.id, name: p.displayName, seq: vm.seq, state: p.state, enforced: p.state === "enabled",
         includeAll: (u.includeUsers || []).includes("All"),
         incUsers: new Set(u.includeUsers || []), excUsers: new Set(u.excludeUsers || []),
         incGroups: u.includeGroups || [], excGroups: u.excludeGroups || [],
@@ -92,38 +92,20 @@ const Analyzer = (() => {
     });
   }
 
-  // ---------- condition coverage (superset tests) ----------
-  const hasTok = (arr, x) => arr.some(v => String(v).toLowerCase() === String(x).toLowerCase());
-  function dimCovered(incP, excP, incQ, excQ, all) {
-    const pAll = hasTok(incP, all), qAll = hasTok(incQ, all);
-    if (pAll) { if (!qAll) return false; return excQ.every(x => hasTok(excP, x)); }
-    const pSet = incP.filter(x => !hasTok(excP, x));
-    if (qAll) return pSet.every(x => !hasTok(excQ, x));
-    const qSet = incQ.filter(x => !hasTok(excQ, x));
-    return pSet.every(x => hasTok(qSet, x));
-  }
-  function listCovered(lp, lq) {
-    lp = lp.filter(Boolean); lq = lq.filter(Boolean);
-    const pU = !lp.length || lp.includes("all"), qU = !lq.length || lq.includes("all");
-    if (pU) return qU;
-    if (qU) return true;
-    return lp.every(x => lq.includes(x));
-  }
-  function shortfall(P, Q) {
-    const s = [];
-    if (!dimCovered(P.appInc, P.appExc, Q.appInc, Q.appExc, "All")) s.push("applications");
-    if (!dimCovered(P.platInc, P.platExc, Q.platInc, Q.platExc, "all")) s.push("platforms");
-    if (!dimCovered(P.locInc, P.locExc, Q.locInc, Q.locExc, "All")) s.push("locations");
-    if (!listCovered(P.clientApps, Q.clientApps)) s.push("client apps");
-    if (!listCovered(P.signInRisk, Q.signInRisk)) s.push("sign-in risk");
-    if (!listCovered(P.userRisk, Q.userRisk)) s.push("user risk");
-    return s;
-  }
+  // ---------- condition coverage ----------
+  // The superset tests and the control comparison used to live here. They are
+  // js/coverage.js now (CaCoverage), shared with the Exclusion analyzer: two
+  // tools answering "does this policy replace that one?" two different ways is
+  // how one of them ends up quietly answering it wrong.
 
   // ---------- per-user inclusion state ----------
   function stateFor(P, uid, ctx) {
     const r = CaScope.of(P.raw, {
-      kind: "user", id: uid, guest: ctx.guests.has(uid),
+      // upn is here for the scope check, not for display: CaScope reads the
+      // #EXT# marker in it to tell an internal account from a B2B one, which
+      // is what lets a policy scoped to specific external-user types be
+      // resolved instead of returning "unknown" (build 25405).
+      kind: "user", id: uid, guest: ctx.guests.has(uid), upn: (ctx.upns && ctx.upns.get(uid)) || null,
       groupIds: new Set([...ctx.groups].filter(([,members]) => members.has(uid)).map(([id]) => id)),
       roleIds: new Set([...ctx.roles].filter(([,members]) => members.has(uid)).map(([id]) => id)),
       names: ctx.names,
@@ -247,7 +229,8 @@ const Analyzer = (() => {
     const scopeGroups = await resolveScopeGroups(groups, onStatus);
 
     const guests = new Set(users.filter(u => u.userType === "Guest").map(u => u.id));
-    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, names } };
+    const upns = new Map(users.map((u) => [u.id, u.userPrincipalName || ""]));
+    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, upns, names } };
   }
 
   // Demo-mode collection: uses DEMO_DATA instead of Graph.
@@ -258,7 +241,8 @@ const Analyzer = (() => {
     const users = DEMO_DATA.analyzeUsers || [];
     const guests = new Set(users.filter(u => u.userType === "Guest").map(u => u.id));
     const scopeGroups = Object.entries(DEMO_DATA.scopeGroups || {}).map(([label, ids]) => ({ label, category: "Demo", users: new Set(ids) }));
-    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, names: DEMO_DATA.names } };
+    const upns = new Map(users.map((u) => [u.id, u.userPrincipalName || ""]));
+    return { lookup, users, scopeGroups, ctx: { groups, roles, guests, upns, names: DEMO_DATA.names } };
   }
 
   // ---------- evaluation ----------
@@ -270,22 +254,24 @@ const Analyzer = (() => {
         const [st, reason] = stateFor(P, u.id, ctx);
         if (st === "Included") { applied.push(P); if (P.enforced) enforcedIncluded.push(P); }
         else if (st === "Excluded") excluded.push({ P, reason });
-        else if (st === "Unknown") unknown.push({ policy: P.name, reason });
+        else if (st === "Unknown") unknown.push({ policy: P.name, id: P.id, reason });
       }
+      // ONE comparison, shared with the Exclusion analyzer — js/coverage.js.
+      // Four states instead of a boolean, with the missing requirements named:
+      // a replacement sharing one control with the bypassed policy is a
+      // CANDIDATE, not an answer. MFA + compliant device is not covered by MFA
+      // alone, and a condition the comparison cannot model never passes as
+      // coverage — it says so instead.
       const bypassing = excluded.map(({ P, reason }) => {
-        const coveredBy = [], partial = [];
-        for (const Q of enforcedIncluded) {
-          let shares = false;
-          for (const c of P.controls) if (Q.controls.has(c)) { shares = true; break; }
-          if (!shares) continue;
-          const s = shortfall(P, Q);
-          if (P.controls.has("mfa") && !Q.requiresMfa) s.push("MFA is not mandatory");
-          if (Q.raw?.grantControls?.operator === "OR" && Q.controls.size > 1) s.push("alternative grant controls");
-          if (!s.length) { if (!coveredBy.includes(Q.name)) coveredBy.push(Q.name); }
-          else partial.push({ policy: Q.name, shortfall: s });
-        }
-        const covered = coveredBy.length > 0;
-        return { policy: P.name, controls: P.controlsLabel, reason, reportOnly: !P.enforced, covered, coveredBy, partial, risky: P.enforced && !covered };
+        const v = CaCoverage.bestOf(P, enforcedIncluded);
+        return { policy: P.name, policyId: P.id, controls: P.controlsLabel, reason, reportOnly: !P.enforced,
+          verdict: v.state, covered: v.state === "equivalent",
+          coveredBy: v.by.map((x) => x.name), coveredByIds: v.by.map((x) => x.id),
+          partial: v.partial.map((x) => ({ policy: x.name, id: x.id, shortfall: x.missing, unresolved: x.unresolved })),
+          unresolved: v.unresolved || [],
+          // Anything short of established equivalence stays risky. "Could not
+          // tell" is not a reason to stop showing a bypass.
+          risky: P.enforced && v.state !== "equivalent" };
       });
       const mfaVia = enforcedIncluded
         .filter(Q => !Q.isBlock && Q.requiresMfa)
@@ -294,16 +280,20 @@ const Analyzer = (() => {
         id: u.id,
         user: u.displayName || u.userPrincipalName, upn: u.userPrincipalName || "",
         enabled: !!u.accountEnabled, guest: u.userType === "Guest",
-        applied: applied.map(P => ({ policy: P.name, controls: P.controlsLabel, reportOnly: !P.enforced })),
+        applied: applied.map(P => ({ policy: P.name, id: P.id, controls: P.controlsLabel, reportOnly: !P.enforced })),
         enforcedCount: enforcedIncluded.length,
         bypassing, riskyCount: bypassing.filter(b => b.risky).length,
-        unknown, mfaCovered: mfaVia.length ? true : unknown.length ? null : false, mfaVia,
+        unknown, mfaTargeted: mfaVia.length ? true : unknown.length ? null : false, mfaVia,
         // Which licence THIS user's policies oblige. A risk-based policy —
         // one carrying sign-in or user risk conditions — requires Entra ID P2
         // for everyone it targets; everything else requires P1. Report-only
         // counts, because the licensing terms are about targeting rather than
         // enforcement, so this reads `applied` and not `enforcedIncluded`.
-        needsP2: applied.some((P) => P.userRisk.length > 0 || P.signInRisk.length > 0),
+        // Insider risk rides on P2 as well, and 🎫 Licences has always counted
+        // it — the two tabs disagreed about which users need P2 until beta
+        // 25411. The same three conditions decide it in both places now.
+        needsP2: applied.some((P) => P.userRisk.length > 0 || P.signInRisk.length > 0
+          || !!(P.raw && P.raw.conditions && P.raw.conditions.insiderRiskLevels)),
         // Filled by the caller from LicGap.licenceOf once the SKU list is
         // known; null means "not read for this user", never "unlicensed".
         lic: null,
@@ -317,7 +307,7 @@ const Analyzer = (() => {
     return {
       users: report.length,
       noEnforce: report.filter(r => !r.unknown?.length && r.enforcedCount === 0).length,
-      noMfa: report.filter(r => !r.unknown?.length && !r.mfaCovered).length,
+      noMfa: report.filter(r => !r.unknown?.length && !r.mfaTargeted).length,
       unknown: report.filter(r => r.unknown?.length).length,
       risky: report.filter(r => r.riskyCount > 0).length,
     };
@@ -357,9 +347,9 @@ const Analyzer = (() => {
   // Pure over its arguments: no DOM, no Graph, no globals. Testable with node.
   const STAGE_META = [
     { key: "users",    label: "In scope",            hint: "Every user this run judged." },
-    { key: "targeted", label: "Targeted by a policy", hint: "At least one active Conditional Access policy applies to them. Everyone below this line is outside Conditional Access altogether." },
-    { key: "enforced", label: "Covered by an enforced policy", hint: "At least one of those policies is switched On. Report-only policies evaluate and record — they do not protect anybody." },
-    { key: "mfa",      label: "Required to do MFA",  hint: "Some enforced policy demands MFA or an authentication strength of them." },
+    { key: "targeted", label: "Targeted by a policy", hint: "At least one active Conditional Access policy is assigned to them. Below this line no policy in this run addresses them at all." },
+    { key: "enforced", label: "Targeted by an enabled policy", hint: "At least one of those policies is switched On. Report-only evaluates and records — it protects nobody. This is targeting, not observed enforcement." },
+    { key: "mfa",      label: "Targeted by an enabled MFA policy",  hint: "An enabled policy demanding MFA or an authentication strength is assigned to them. Whether it applies to a given sign-in depends on that policy's own conditions — What-If answers the scenario question." },
     { key: "licensed", label: "Licensed for what they are targeted by", hint: "They hold Entra ID P2 where a risk-based policy targets them, P1 otherwise. The obligation follows targeting, not sign-ins." },
   ];
 
@@ -371,7 +361,7 @@ const Analyzer = (() => {
     users:    null,                                                        // the denominator drops nobody
     targeted: (r) => r.applied.length === 0,
     enforced: (r) => r.applied.length > 0 && r.enforcedCount === 0,
-    mfa:      (r) => r.enforcedCount > 0 && !r.mfaCovered,
+    mfa:      (r) => r.enforcedCount > 0 && !r.mfaTargeted,
     licensed: (r) => r.applied.length > 0 && !!r.lic && !(r.needsP2 ? r.lic.p2 : r.lic.p1),
   };
   // The users who DID reach a stage — the other half of every funnel row, so
@@ -379,7 +369,7 @@ const Analyzer = (() => {
   const REACH = {
     targeted: (r) => r.applied.length > 0,
     enforced: (r) => r.enforcedCount > 0,
-    mfa:      (r) => !!r.mfaCovered,
+    mfa:      (r) => !!r.mfaTargeted,
     licensed: (r) => r.applied.length > 0 && !!r.lic && !!(r.needsP2 ? r.lic.p2 : r.lic.p1),
   };
 
@@ -388,7 +378,7 @@ const Analyzer = (() => {
     const inScope   = rows.filter(r => !r.unknown?.length);
     const targeted  = inScope.filter((r) => r.applied.length > 0);
     const enforced  = targeted.filter((r) => r.enforcedCount > 0);
-    const mfa       = enforced.filter((r) => r.mfaCovered);
+    const mfa       = enforced.filter((r) => r.mfaTargeted);
     // Only the targeted can be under-licensed: a user no policy reaches has no
     // Conditional Access obligation, so counting them as unlicensed would
     // invent a gap. Users whose licence is simply unknown (not in the map —
@@ -502,7 +492,7 @@ const Analyzer = (() => {
       if (utype === "guest" && !r.guest) return;
       if (memberSet && !memberSet.has(r.id)) return;
       if (filter === "risky" && !r.riskyCount) return;
-      if (filter === "nomfa" && (r.mfaCovered || r.unknown?.length)) return;
+      if (filter === "nomfa" && (r.mfaTargeted || r.unknown?.length)) return;
       if (filter === "noenforce" && (r.enforcedCount || r.unknown?.length)) return;
       // Coverage-flow drops. Deliberately NOT the same sets as the summary
       // cards above them: "no MFA from CA" counts everyone without MFA
@@ -524,26 +514,40 @@ const Analyzer = (() => {
     return idx;
   }
   function userRows(report, filter, query, memberSet, utype) {
-    const rows = filterRows(report, filter, query, memberSet, utype).map(i => report[i]);
-    return rows.map((r) => {
-      const idx = report.indexOf(r);
+    // filterRows already returns the ORIGINAL indices; looking each row up
+    // again with report.indexOf() made the render quadratic in the number of
+    // users, which on a 50,000-row tenant is 2.5 billion comparisons before a
+    // single cell is drawn.
+    const idxs = filterRows(report, filter, query, memberSet, utype);
+    return idxs.map((idx) => {
+      const r = report[idx];
       return `<tr class="urow" data-user="${idx}">
         <td><span class="caret">▶</span> <span class="uname">${esc(r.user)}</span>${r.guest ? ' <span class="tag new">guest</span>' : ""}${r.enabled ? "" : ' <span class="tag block">disabled</span>'}<div class="uupn">${esc(r.upn)}</div>${r.unknown?.length ? `<div class="mini">${r.unknown.length} policy scopes unresolved</div>` : ""}</td>
         <td class="num">${pill(r.applied.length, "green")}</td>
         <td class="num">${pill(r.enforcedCount, "green")}</td>
         <td class="num">${pill(r.bypassing.length, "amber")}</td>
         <td class="num">${pill(r.riskyCount, "red")}</td>
-        <td>${r.mfaCovered === null ? '<span class="tag">unknown</span>' : r.mfaCovered ? '<span class="tag grant">yes</span>' : '<span class="tag block">no</span>'}</td>
+        <td>${r.mfaTargeted === null ? '<span class="tag">unknown</span>' : r.mfaTargeted ? '<span class="tag grant">targeted</span>' : '<span class="tag block">none</span>'}</td>
       </tr>`;
     }).join("") || `<tr><td colspan="6" class="mini" style="padding:18px">No users match.</td></tr>`;
   }
 
   function userDetail(r) {
-    const pol = (name) => `<span class="pol-link" data-pol="${esc(name)}" title="Show policy card">${esc(name)}</span>`;
-    const ap = r.applied.map(a => `<li>${pol(a.policy)}<div class="mini">${esc(a.controls)}${a.reportOnly ? " · report-only" : ""}</div></li>`).join("") || '<li class="mini">None</li>';
-    const by = r.bypassing.map(b => `<li>${pol(b.policy)} <span class="mini">(${esc(b.reason || "excluded")})</span>
-      ${b.risky ? '<span class="tag block">risky</span>' : b.covered ? `<span class="tag grant">covered</span>` : ""}
-      <div class="mini">${esc(b.controls)}${b.coveredBy.length ? " · covered by: " + esc(b.coveredBy.join(", ")) : ""}${b.partial.length ? " · partial: " + esc(b.partial.map(p => `${p.policy} (missing ${p.shortfall.join(", ")})`).join("; ")) : ""}</div></li>`).join("") || '<li class="mini">None</li>';
+    const pol = (name, id) => `<span class="pol-link" data-polid="${esc(id || "")}" data-pol="${esc(name)}" title="Show policy card">${esc(name)}</span>`;
+    const ap = r.applied.map(a => `<li>${pol(a.policy, a.id)}<div class="mini">${esc(a.controls)}${a.reportOnly ? " · report-only" : ""}</div></li>`).join("") || '<li class="mini">None</li>';
+    // The verdict, and under it the requirement that is not resolved — the
+    // question somebody opening this row is actually asking.
+    const by = r.bypassing.map(b => {
+      const first = (b.partial || [])[0];
+      const detail = b.verdict === "equivalent"
+        ? `covered by ${esc(b.coveredBy.join(", "))}`
+        : first ? `${esc(first.policy)} does not carry: ${esc(first.shortfall.join(", "))}`
+        : b.verdict === "unestablished" ? esc((b.unresolved || [])[0] || "a condition outside this analysis")
+        : "no enabled policy establishes equivalent protection for this user";
+      return `<li>${pol(b.policy, b.policyId)} <span class="mini">(${esc(b.reason || "excluded")})</span>
+      ${CaCoverage.chip(b.verdict)}${b.reportOnly ? ' <span class="tag new">report-only</span>' : ""}
+      <div class="mini">${esc(b.controls)} · ${detail}</div></li>`;
+    }).join("") || '<li class="mini">None</li>';
     return `<tr class="detail"><td colspan="6"><div class="detail-grid">
       ${r.unknown?.length ? `<div class="panel"><div class="panel-h">Unknown scope (${r.unknown.length})</div><ul>${r.unknown.map(x => `<li>${esc(x.policy)}: ${esc(x.reason)}</li>`).join("")}</ul></div>` : ""}
       <div class="panel enforced"><div class="panel-h">Applied policies (${r.applied.length})</div><ul class="plist2">${ap}</ul></div>
@@ -555,14 +559,18 @@ const Analyzer = (() => {
   // ok = applied (enforcing), ro = applied (report-only), no = bypassing, na = not in scope
   const MSYM = { unknown: "?", ok: "✓", ro: "✓", no: "✗", na: "·" };
   function policyMeta(lookup) {
-    return lookup.map(P => ({ name: P.name, seq: P.seq, enforced: P.enforced, controls: P.controlsLabel }));
+    return lookup.map(P => ({ id: P.id, name: P.name, seq: P.seq, enforced: P.enforced, controls: P.controlsLabel }));
   }
   function buildMatrixMaps(report) {
     return report.map(r => {
       const m = {}, why = {};
-      r.applied.forEach(a => m[a.policy] = a.reportOnly ? "ro" : "ok");
-      r.bypassing.forEach(b => { m[b.policy] = "no"; why[b.policy] = b.reason || ""; });
-      (r.unknown || []).forEach(x => { m[x.policy] = "unknown"; why[x.policy] = x.reason; });
+      // Keyed by policy ID, never by display name: two policies may carry the
+      // same name, and when one includes a user and the other excludes them the
+      // name-keyed map kept only the last write — both columns then showed the
+      // excluded state.
+      r.applied.forEach(a => m[a.id] = a.reportOnly ? "ro" : "ok");
+      r.bypassing.forEach(b => { m[b.policyId] = "no"; why[b.policyId] = b.reason || ""; });
+      (r.unknown || []).forEach(x => { m[x.id] = "unknown"; why[x.id] = x.reason; });
       return { m, why };
     });
   }
@@ -570,18 +578,93 @@ const Analyzer = (() => {
     const pages = Math.max(1, Math.ceil(rowIdx.length / pageSize));
     page = Math.min(Math.max(0, page), pages - 1);
     const slice = rowIdx.slice(page * pageSize, (page + 1) * pageSize);
+    // Two policies can share a display name. The column keeps its own ID, and
+    // the header carries a short one so a duplicate pair is tellable apart.
+    const seen = {}; pols.forEach((p) => { seen[p.name] = (seen[p.name] || 0) + 1; });
+    const colLabel = (p) => esc(p.name) + (seen[p.name] > 1 ? ` · ${esc(String(p.id).slice(0, 4))}…` : "");
     const head = `<th class="ucol">User (${rowIdx.length})</th>` + pols.map(p =>
-      `<th class="pcol"><div class="ph pol-link" data-pol="${esc(p.name)}" title="${esc(p.name)} — ${esc(p.controls)} (click for policy card)">${esc(p.name)}${p.enforced ? "" : " [RO]"}</div></th>`).join("");
+      `<th class="pcol"><div class="ph pol-link" data-polid="${esc(p.id)}" data-pol="${esc(p.name)}" title="${esc(p.name)} — ${esc(p.controls)} (click for policy card)">${colLabel(p)}${p.enforced ? "" : " [RO]"}</div></th>`).join("");
     const body = slice.map(i => {
       const r = report[i], { m, why } = maps[i];
       return `<tr><td class="ucol"><span class="uname">${esc(r.user)}</span><div class="uupn">${esc(r.upn)}</div>${r.unknown?.length ? `<div class="mini">${r.unknown.length} policy scopes unresolved</div>` : ""}</td>` +
         pols.map(p => {
-          const s = m[p.name] || "na";
-          const t = why[p.name] ? ` title="${s === "unknown" ? "unknown scope" : "excluded"}: ${esc(why[p.name])}"` : "";
+          const s = m[p.id] || "na";
+          const t = why[p.id] ? ` title="${s === "unknown" ? "unknown scope" : "excluded"}: ${esc(why[p.id])}"` : "";
           return `<td class="cellv ${s}"${t}><span class="cell ${s}">${MSYM[s]}</span></td>`;
         }).join("") + "</tr>";
     }).join("") || `<tr><td class="mini" style="padding:18px">No users match.</td></tr>`;
     return { head, body, pages, page };
+  }
+
+  // ---------- cohorts ----------
+  // The users × policies grid renders one row per user, and on a real tenant
+  // most of those rows are identical to each other: same policies, same
+  // states, nothing to look at. A 50,000-user probe produced 23.6 MB of HTML
+  // before the browser had parsed anything, and paging it is only a slower way
+  // of showing the same thing.
+  //
+  // T09 has always collapsed identical exclusion patterns into one row
+  // (mergeRows); this is the same idea for users. A cohort is a set of users
+  // whose state is identical across every policy in the run — so what is left
+  // on screen is the shape of the tenant and its outliers, which is the thing
+  // worth reading.
+  function cohorts(report, maps, pols, rowIdx) {
+    const groups = new Map();
+    const idxs = rowIdx || report.map((_, i) => i);
+    for (const i of idxs) {
+      const m = (maps[i] || {}).m || {};
+      const sig = pols.map((p) => m[p.id] || "na").join("|");
+      let g = groups.get(sig);
+      if (!g) g = { sig, idx: [], states: pols.map((p) => m[p.id] || "na") }, groups.set(sig, g);
+      g.idx.push(i);
+    }
+    const list = [...groups.values()];
+    list.forEach((g) => {
+      const rows = g.idx.map((i) => report[i]);
+      g.users = g.idx.length;
+      g.risky = rows[0] ? rows[0].riskyCount : 0;
+      g.bypassing = rows[0] ? rows[0].bypassing.length : 0;
+      g.unknown = rows[0] ? (rows[0].unknown || []).length : 0;
+      g.enforced = rows[0] ? rows[0].enforcedCount : 0;
+      g.applied = rows[0] ? rows[0].applied.length : 0;
+      g.mfa = rows[0] ? rows[0].mfaTargeted : null;
+      g.sample = rows.slice(0, 40).map((r) => ({ id: r.id, user: r.user, upn: r.upn, guest: r.guest, enabled: r.enabled }));
+      // What this cohort IS, in the words the rest of the tool uses.
+      g.finding = g.unknown ? "scope unresolved"
+        : g.risky ? `${g.risky} risky bypass${g.risky === 1 ? "" : "es"}`
+        : g.bypassing ? `${g.bypassing} bypass${g.bypassing === 1 ? "" : "es"}, all covered`
+        : !g.applied ? "no policy targets them"
+        : !g.enforced ? "targeted only by report-only policies"
+        : "nothing to look at";
+      g.rank = g.unknown ? 1 : g.risky ? 0 : !g.applied ? 2 : !g.enforced ? 3 : 5;
+    });
+    // Findings first, then the big quiet cohorts; a cohort of one is an
+    // outlier and deliberately sorts above a crowd with nothing in it.
+    return list.sort((a, b) => a.rank - b.rank || b.users - a.users);
+  }
+
+  function cohortsHtml(report, maps, pols, rowIdx, open) {
+    const list = cohorts(report, maps, pols, rowIdx);
+    if (!list.length) return '<p class="mini" style="padding:18px">No users match.</p>';
+    const total = list.reduce((n, g) => n + g.users, 0);
+    const chip = (g) => g.unknown ? '<span class="tag new">unknown</span>'
+      : g.risky ? '<span class="tag block">risky</span>'
+      : g.bypassing ? '<span class="tag">covered bypasses</span>'
+      : !g.applied ? '<span class="tag block">untargeted</span>'
+      : !g.enforced ? '<span class="tag new">report-only</span>' : '<span class="tag ok">clean</span>';
+    const rows = list.map((g, i) => {
+      const isOpen = String(open) === String(i);
+      return `<tr class="urow${isOpen ? " open" : ""}" data-cohort="${i}">
+        <td><span class="caret">▶</span> <span class="uname">${esc(g.finding)}</span> ${chip(g)}
+          <div class="mini">${g.applied} polic${g.applied === 1 ? "y" : "ies"} targeting · ${g.enforced} enabled · MFA ${g.mfa === null ? "unknown" : g.mfa ? "targeted" : "none"}</div></td>
+        <td class="num">${pill(g.users, g.rank <= 1 ? "red" : "green")}</td>
+        <td class="mini">${esc(g.sample.slice(0, 3).map((u) => u.user).join(", "))}${g.users > 3 ? ` +${g.users - 3}` : ""}</td>
+      </tr>` + (isOpen ? `<tr class="detail"><td colspan="3"><ul class="plist2">${
+        g.sample.map((u) => `<li>${esc(u.user)} <span class="uupn">${esc(u.upn)}</span>${u.guest ? ' <span class="tag new">guest</span>' : ""}${u.enabled ? "" : ' <span class="tag block">disabled</span>'}</li>`).join("")
+      }${g.users > g.sample.length ? `<li class="mini">…and ${g.users - g.sample.length} more with the identical state. Use the Users tab and its filters to work through them.</li>` : ""}</ul></td></tr>` : "");
+    }).join("");
+    return `<p class="mini muted" style="margin:0 0 8px"><b>${list.length} cohort${list.length === 1 ? "" : "s"}</b> across ${total.toLocaleString()} user${total === 1 ? "" : "s"} — users whose state is identical across every policy in this run are one row. The outliers are what is worth reading; a cohort of one is an outlier and sorts high.</p>
+      <table class="plist an-table"><thead><tr><th>Cohort</th><th class="num">Users</th><th>Who</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // ---------- standalone shareable HTML export (neutral branding) ----------
@@ -690,29 +773,34 @@ ${cov.total ? `<div class="cf">
 <script>
 const R=${data},P=${polData},G=${grpData};let F="all",Q="",V="users",MP=0,GS=null,T="";const MSZ=50;
 const SYM={unknown:"?",ok:"✓",ro:"✓",no:"✗",na:"·"};
-const MAPS=R.map(r=>{const m={},w={};r.applied.forEach(a=>m[a.policy]=a.reportOnly?"ro":"ok");r.bypassing.forEach(b=>{m[b.policy]="no";w[b.policy]=b.reason||"";});(r.unknown||[]).forEach(x=>{m[x.policy]="unknown";w[x.policy]=x.reason;});return{m,w};});
+const MAPS=R.map(r=>{const m={},w={};r.applied.forEach(a=>m[a.id]=a.reportOnly?"ro":"ok");r.bypassing.forEach(b=>{m[b.policyId]="no";w[b.policyId]=b.reason||"";});(r.unknown||[]).forEach(x=>{m[x.id]="unknown";w[x.id]=x.reason;});return{m,w};});
+const VD={equivalent:["\u2714 Equivalent coverage","grant"],partial:["\u25D0 Partial coverage","new"],none:["\u2716 No equivalent coverage","block"],unestablished:["? Not established",""]};
+const NDUP={};
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const pill=(n,c)=>'<span class="pill '+(n?c:"zero")+'">'+n+'</span>';
 function rows(){return R.map((r,i)=>({r,i})).filter(({r})=>{
- if(F==="risky"&&!r.riskyCount)return false;if(F==="nomfa"&&(r.mfaCovered||r.unknown?.length))return false;if(F==="noenforce"&&(r.enforcedCount||r.unknown?.length))return false;
+ if(F==="risky"&&!r.riskyCount)return false;if(F==="nomfa"&&(r.mfaTargeted||r.unknown?.length))return false;if(F==="noenforce"&&(r.enforcedCount||r.unknown?.length))return false;
  return !Q||r.user.toLowerCase().includes(Q)||r.upn.toLowerCase().includes(Q);})
- .map(({r,i})=>'<tr class="urow" data-i="'+i+'"><td><span class="caret">▶</span> <span class="uname">'+esc(r.user)+'</span>'+(r.guest?' <span class="tag new">guest</span>':'')+(r.enabled?'':' <span class="tag block">disabled</span>')+'<div class="uupn">'+esc(r.upn)+'</div>'+(r.unknown?.length?'<div class="mini">'+r.unknown.length+' policy scopes unresolved</div>':'')+'</td><td class="num">'+pill(r.applied.length,"green")+'</td><td class="num">'+pill(r.enforcedCount,"green")+'</td><td class="num">'+pill(r.bypassing.length,"amber")+'</td><td class="num">'+pill(r.riskyCount,"red")+'</td><td>'+(r.mfaCovered===null?'<span class="tag">unknown</span>':r.mfaCovered?'<span class="tag grant">yes</span>':'<span class="tag block">no</span>')+'</td></tr>').join("")||'<tr><td colspan="6" class="mini" style="padding:18px">No users match.</td></tr>';}
+ .map(({r,i})=>'<tr class="urow" data-i="'+i+'"><td><span class="caret">▶</span> <span class="uname">'+esc(r.user)+'</span>'+(r.guest?' <span class="tag new">guest</span>':'')+(r.enabled?'':' <span class="tag block">disabled</span>')+'<div class="uupn">'+esc(r.upn)+'</div>'+(r.unknown?.length?'<div class="mini">'+r.unknown.length+' policy scopes unresolved</div>':'')+'</td><td class="num">'+pill(r.applied.length,"green")+'</td><td class="num">'+pill(r.enforcedCount,"green")+'</td><td class="num">'+pill(r.bypassing.length,"amber")+'</td><td class="num">'+pill(r.riskyCount,"red")+'</td><td>'+(r.mfaTargeted===null?'<span class="tag">unknown</span>':r.mfaTargeted?'<span class="tag grant">targeted</span>':'<span class="tag block">none</span>')+'</td></tr>').join("")||'<tr><td colspan="6" class="mini" style="padding:18px">No users match.</td></tr>';}
 function detail(r){const ap=r.applied.map(a=>'<li>'+esc(a.policy)+'<div class="mini">'+esc(a.controls)+(a.reportOnly?' · report-only':'')+'</div></li>').join("")||'<li class="mini">None</li>';
- const by=r.bypassing.map(b=>'<li>'+esc(b.policy)+' <span class="mini">('+esc(b.reason||'excluded')+')</span> '+(b.risky?'<span class="tag block">risky</span>':b.covered?'<span class="tag grant">covered</span>':'')+'<div class="mini">'+esc(b.controls)+(b.coveredBy.length?' · covered by: '+esc(b.coveredBy.join(", ")):'')+(b.partial.length?' · partial: '+esc(b.partial.map(p=>p.policy+' (missing '+p.shortfall.join(", ")+')').join("; ")):'')+'</div></li>').join("")||'<li class="mini">None</li>';
+ const by=r.bypassing.map(b=>{const v=VD[b.verdict]||VD.unestablished;const f=(b.partial||[])[0];
+  const d=b.verdict==="equivalent"?'covered by '+esc(b.coveredBy.join(", ")):f?esc(f.policy)+' does not carry: '+esc(f.shortfall.join(", ")):b.verdict==="unestablished"?esc((b.unresolved||[])[0]||'a condition outside this analysis'):'no enabled policy establishes equivalent protection for this user';
+  return '<li>'+esc(b.policy)+' <span class="mini">('+esc(b.reason||'excluded')+')</span> <span class="tag '+v[1]+'">'+v[0]+'</span><div class="mini">'+esc(b.controls)+' \u00b7 '+d+'</div></li>';}).join("")||'<li class="mini">None</li>';
  return '<tr class="detail"><td colspan="6"><div class="detail-grid"><div class="panel enforced"><div class="panel-h">Applied ('+r.applied.length+')</div><ul class="plist2">'+ap+'</ul></div><div class="panel bypass"><div class="panel-h">Bypassing ('+r.bypassing.length+')</div><ul class="plist2">'+by+'</ul></div></div></td></tr>';}
 function fidx(){return R.map((r,i)=>i).filter(i=>{const r=R[i];
  if(T==="member"&&r.guest)return false;if(T==="guest"&&!r.guest)return false;
  if(GS&&!GS.has(r.id))return false;
- if(F==="risky"&&!r.riskyCount)return false;if(F==="nomfa"&&(r.mfaCovered||r.unknown?.length))return false;if(F==="noenforce"&&(r.enforcedCount||r.unknown?.length))return false;
+ if(F==="risky"&&!r.riskyCount)return false;if(F==="nomfa"&&(r.mfaTargeted||r.unknown?.length))return false;if(F==="noenforce"&&(r.enforcedCount||r.unknown?.length))return false;
  return !Q||r.user.toLowerCase().includes(Q)||r.upn.toLowerCase().includes(Q);});}
 const gsel=document.getElementById("gsel");
 G.forEach((g,i)=>{const o=document.createElement("option");o.value=i;o.textContent=(g.category?g.category+" · ":"")+g.label+" ("+g.ids.length+")";gsel.appendChild(o);});
 gsel.addEventListener("change",()=>{GS=gsel.value===""?null:new Set(G[+gsel.value].ids);MP=0;draw();});
 document.getElementById("tsel").addEventListener("change",e=>{T=e.target.value;MP=0;draw();});
+P.forEach(p=>{NDUP[p.name]=(NDUP[p.name]||0)+1;});
 function drawMatrix(){const idx=fidx();const pages=Math.max(1,Math.ceil(idx.length/MSZ));if(MP>=pages)MP=pages-1;if(MP<0)MP=0;
- document.getElementById("mh").innerHTML='<th class="ucol">User ('+idx.length+')</th>'+P.map(p=>'<th class="pcol"><div class="ph" title="'+esc(p.name)+' — '+esc(p.controls)+'">'+esc(p.name)+(p.enforced?'':' [RO]')+'</div></th>').join("");
+ document.getElementById("mh").innerHTML='<th class="ucol">User ('+idx.length+')</th>'+P.map(p=>'<th class="pcol"><div class="ph" title="'+esc(p.name)+' — '+esc(p.controls)+'">'+esc(p.name)+(NDUP[p.name]>1?' \u00b7 '+esc(String(p.id).slice(0,4))+'\u2026':'')+(p.enforced?'':' [RO]')+'</div></th>').join("");
  document.getElementById("mb").innerHTML=idx.slice(MP*MSZ,(MP+1)*MSZ).map(i=>{const r=R[i],mm=MAPS[i];
-  return '<tr><td class="ucol"><span class="uname">'+esc(r.user)+'</span><div class="uupn">'+esc(r.upn)+'</div>'+(r.unknown?.length?'<div class="mini">'+r.unknown.length+' policy scopes unresolved</div>':'')+'</td>'+P.map(p=>{const s=mm.m[p.name]||"na";const t=mm.w[p.name]?' title="'+(s==="unknown"?"unknown scope":"excluded")+': '+esc(mm.w[p.name])+'"':'';
+  return '<tr><td class="ucol"><span class="uname">'+esc(r.user)+'</span><div class="uupn">'+esc(r.upn)+'</div>'+(r.unknown?.length?'<div class="mini">'+r.unknown.length+' policy scopes unresolved</div>':'')+'</td>'+P.map(p=>{const s=mm.m[p.id]||"na";const t=mm.w[p.id]?' title="'+(s==="unknown"?"unknown scope":"excluded")+': '+esc(mm.w[p.id])+'"':'';
   return '<td class="cellv '+s+'"'+t+'><span class="cell '+s+'">'+SYM[s]+'</span></td>';}).join("")+'</tr>';}).join("")||'<tr><td class="mini" style="padding:18px">No users match.</td></tr>';
  document.getElementById("mpage").textContent="Page "+(MP+1)+" / "+pages;}
 const tb=document.getElementById("tb");function draw(){if(V==="users")tb.innerHTML=rows();else drawMatrix();}
@@ -730,5 +818,6 @@ draw();
   }
 
   return { collect, collectNamed, collectDemo, evaluate, summary, coverage, coverageHtml,
-    filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup };
+    filterRows, userRows, userDetail, policyMeta, buildMatrixMaps, matrixTable, exportHtml, resolveGroup,
+    cohorts, cohortsHtml };
 })();

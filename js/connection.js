@@ -50,6 +50,11 @@ const EncaConn = (() => {
   // that cannot be a tenant at all.
   const DOMAIN = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i;
 
+  // The one route into a tenant this copy cannot reach: the script signs in
+  // with Graph PowerShell, which every tenant already has, so it needs no
+  // foothold from us. Kept as one string because the panel offers to copy it.
+  const PS_LINE = "./New-EncaAppRegistration.ps1 -SingleTenant";
+
   // The values this copy was SERVED with, captured before anything here can
   // change them. This is what "Default" restores to, so it has to be read
   // at parse time — after apply() has run, AUTH_CONFIG no longer holds it.
@@ -251,7 +256,52 @@ const EncaConn = (() => {
     }
     const closeForm = () => { form.style.display = "none"; editing = null; };
 
-    paintPicker(); paintCurrent();
+    // ---------- 🪪 the own-registration route (build 25455) ----------
+    // WHY THIS LIVES HERE. It is the third answer to the question this panel
+    // asks, so it belongs in the panel — it was a separate line under the fold
+    // until 25455, and the two contradicted each other on every single-tenant
+    // copy: the panel said "that directory only" and the line below it offered
+    // to sign you in to your own tenant.
+    //
+    // THE RULE IT ENFORCES. The wizard writes an application into the tenant
+    // you are signed in to, so it needs a TOKEN for that tenant — which means
+    // a registration that tenant can reach. A shared authority (organizations
+    // / common) is that foothold. A single-tenant registration owned by
+    // another directory is not, and cannot be made into one: the sign-in it
+    // would start ends in AADSTS50020 before the wizard ever opens. That was
+    // the whole of the bug — the offer was gated on the HOSTNAME
+    // (markOnboardLogin's isProdHost), so it was hidden on the hosted site
+    // where the shared registration would have carried it, and shown on the
+    // beta host where it could not work. The gate is the authority now.
+    //
+    // It is never hidden instead: on a copy that cannot carry the wizard,
+    // "where do I start?" is exactly the question somebody has, and the two
+    // routes that DO work are named.
+    function paintRoute() {
+      const host = $("connRouteBody"), wrap = $("loginOnboard");
+      if (!host || !wrap) return;
+      const c = active();
+      const auth = (c && c.authority) || SHIPPED.authority;
+      const shared = isShared(auth), t = tail(auth) || "(default)";
+      wrap.classList.toggle("blocked", !shared);
+      host.innerHTML = shared
+        ? `<p><a href="#" id="onboardStart">Register ENCA in your own tenant →</a></p>` +
+          `<p>This copy's registration reaches any work or school tenant, so it can sign you in once. The wizard then registers ENCA inside your own directory — single-tenant, the same delegated permissions — and selects it here as the sign-in this browser uses.</p>`
+        : `<p>This copy signs in to <b>one directory only</b> (<code>${esc(t)}</code>), so it cannot sign you in to yours — and the wizard has to be signed in to your tenant before it can write anything there. Two routes:</p>` +
+          `<ol><li>You already have an ENCA registration in your tenant — <b>＋ Add</b> it above, then sign in.</li>` +
+          `<li>You do not — create it from PowerShell, then <b>＋ Add</b> what it prints:<br><code>${esc(PS_LINE)}</code> <button type="button" class="btn sm" id="connPsCopy">Copy</button></li></ol>` +
+          `<p>Signing in to <code>${esc(t)}</code> itself? The wizard is still there as a CHECK of this registration — the account menu's Connected app panel.</p>`;
+    }
+
+    paintPicker(); paintCurrent(); paintRoute();
+    // Delegated, so the Copy button survives a repaint. The onboarding link
+    // itself is handled in js/onboard.js, delegated from the same container.
+    const routeBox = $("loginOnboard");
+    if (routeBox) routeBox.addEventListener("click", async (e) => {
+      const b = e.target.closest("#connPsCopy"); if (!b) return;
+      try { await navigator.clipboard.writeText(PS_LINE); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1500); }
+      catch { window.prompt("Copy the command below:", PS_LINE); }
+    });
     $("connRedirect").innerHTML =
       `Whichever registration you name must have <code>${esc(redirectUri())}</code> as a <b>SPA</b> redirect URI, ` +
       `or Entra refuses the sign-in with <b>AADSTS50011</b>. Nothing here is sent anywhere — the choice lives in this browser only.`;
@@ -283,5 +333,5 @@ const EncaConn = (() => {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();
 
-  return { list, active, activeId, use, save, forget, validate, toAuthority, isShared, tail, redirectUri, shipped: SHIPPED, applied: APPLIED };
+  return { list, active, activeId, use, save, forget, validate, toAuthority, isShared, tail, redirectUri, psLine: PS_LINE, shipped: SHIPPED, applied: APPLIED };
 })();

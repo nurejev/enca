@@ -220,7 +220,7 @@ const CaGroups = (() => {
   // 20 000-group tenant. The search is a net; ARCHIVE_SUFFIX is the sieve.
   async function findArchived(raws) {
     const seen = new Map();
-    for (const term of ["legacy", "nesting", "migrated", "static"]) {
+    for (const term of ["legacy", "nesting", "migrated", "merged", "static"]) {
       try {
         const gs = await Graph.ggetAll(`/groups?$search=${encodeURIComponent(`"displayName:${term}"`)}`
           + "&$select=id,displayName,isAssignableToRole,groupTypes,membershipRule,createdDateTime&$top=999");
@@ -469,7 +469,8 @@ const CaGroups = (() => {
   // role-assignable recreate, "(nesting YYYY-MM-DD)" from the nesting one,
   // "(migrated YYYY-MM-DD)" from the restricted-AU migration, and
   // "-static-<stamp>" from the make-dynamic conversion.
-  const ARCHIVE_SUFFIX = /(\s*\((?:legacy|nesting|migrated)\s+\d{4}-\d{2}-\d{2}\)|-static-[\w.-]+)\s*$/i;
+  // "(merged YYYY-MM-DD)" (25477) is the group a 🔀 duplicate merge renamed aside.
+  const ARCHIVE_SUFFIX = /(\s*\((?:legacy|nesting|migrated|merged)\s+\d{4}-\d{2}-\d{2}\)|-static-[\w.-]+)\s*$/i;
   const isoDay = () => new Date().toISOString().slice(0, 10);
   // The literal this tool writes. ARCHIVE_SUFFIX above is the MATCHER — a
   // RegExp — and interpolating it into a name yields nonsense; keep the two

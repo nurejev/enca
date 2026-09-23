@@ -404,12 +404,20 @@ const WhoIs = (() => {
       if (fc && fc.nodata && log.roEval && log.roEval.get(P.id) && log.roEval.get(P.id).notApplied) fc = { ...fc, nodata: false, scoped: true, notApplied: log.roEval.get(P.id).notApplied, evaluated: log.roEval.get(P.id).total };
       return { ...P, ...st, log: cnt, forecast: fc };
     }).sort((a, b) => {
-      const o = { inc: 0, exc: 1, na: 2 };
+      // "unknown" needs a rank of its own: without one o[a.s] is undefined,
+      // every comparison against it is NaN, and the row lands wherever the
+      // sort happens to leave it. Above "not targeted", because an unresolved
+      // policy is something to look at and an untargeted one is not.
+      const o = { inc: 0, exc: 1, unknown: 2, na: 3 };
       return (o[a.s] - o[b.s]) || (a.seq || "").localeCompare(b.seq || "") || a.name.localeCompare(b.name);
     });
     const reach = rows.filter((r) => r.s === "inc");
     const counts = {
       total: rows.length, reach: reach.length, excluded: rows.filter((r) => r.s === "exc").length, na: rows.filter((r) => r.s === "na").length,
+      // The fourth state. It was counted nowhere, so reach + excluded + na did
+      // not add up to total and the difference was the only sign that a policy
+      // had gone missing from the table (build 25405).
+      unknown: rows.filter((r) => r.s === "unknown").length,
       on: reach.filter((r) => r.state === "on").length, ro: reach.filter((r) => r.state === "ro").length, off: reach.filter((r) => r.state === "off").length,
     };
     // Where she is in the rollout: the highest deploy rung she is in, in the
@@ -436,7 +444,8 @@ const WhoIs = (() => {
   const dot = (cls) => `<span class="wo-dot ${cls}"></span>`;
   const stateHtml = (st) => `<span class="wo-state ${st}">${dot(st)}${STATE_LABEL[st]}</span>`;
   const pill = (n, cls) => `<span class="pill ${n ? cls : "zero"}">${n}</span>`;
-  const polLink = (r) => `<span class="pol-link" data-polid="${esc(r.id)}">${r.seq ? `<b>${esc(r.seq)}</b> ` : ""}${esc(r.name)}</span>`;
+  const policyLabel = (r) => r.name || r.id;
+  const polLink = (r) => `<span class="pol-link" data-polid="${esc(r.id)}" title="${esc(r.name)}">${esc(policyLabel(r))}</span>`;
   // "nested via X" is the line that matters: she is in the group because
   // somebody put her in X, and whoever manages X decides — so it is marked,
   // not muted, wherever a group reason is written
@@ -498,15 +507,15 @@ const WhoIs = (() => {
       : stage.kind === "persona"
         ? `<div class="wo-vt"><span class="k">Persona group</span><span class="v">${esc(stage.groups.map((g) => (g.label || g.name).replace(/^\S+\s/, "")).join(" + "))}</span><span class="s">${esc(stage.groups.map((g) => `${g.name} · ${g.how}`).join(" · "))}</span></div>`
         : `<div class="wo-vt ${res.ladder.hasDg ? "warn" : ""}"><span class="k">Deployment stage</span><span class="v">${res.ladder.hasDg ? "Not in a wave" : "No waves"}</span><span class="s">${res.ladder.hasDg ? "in none of the deploy groups — only what targets All users reaches her" : "the active baseline has no deployment groups"}</span></div>`;
-    const polTile = `<div class="wo-vt"><span class="k">Policies reaching her</span><span class="v">${c.reach} <span class="of">/ ${c.total}</span></span><span class="s">${c.on} enforced · ${c.ro} report-only · ${c.off} off${c.excluded ? ` · <span class="wo-res wb">${c.excluded} excluded</span>` : ""}</span></div>`;
+    const polTile = `<div class="wo-vt"><span class="k">Policies reaching her</span><span class="v">${c.reach} <span class="of">/ ${c.total}</span></span><span class="s">${c.on} enforced · ${c.ro} report-only · ${c.off} off${c.excluded ? ` · <span class="wo-res wb">${c.excluded} excluded</span>` : ""}${c.unknown ? ` · <span class="wo-res int">${c.unknown} unresolved</span>` : ""}</span></div>`;
     const logTile = log
       ? `<div class="wo-vt ${log.rows.length ? "bad" : "ok"}"><span class="k">Sign-ins CA stopped · ${esc(rangeLabel)}</span><span class="v">${log.rows.length}</span><span class="s">${log.blocked} blocked · ${log.interrupted} interrupted · ${log.total} sign-ins read</span></div>`
       : `<div class="wo-vt"><span class="k">Sign-ins CA stopped</span><span class="v muted">—</span><span class="s">sign-in log not read</span></div>`;
     const fcTile = fc
       ? fc.worst === "block"
-        ? `<div class="wo-vt bad"><span class="k">If report-only went live</span><span class="v">Locked out</span><span class="s">by ${esc(fc.block.map((p) => p.name).join(", "))}${fc.prompt.length ? ` · prompts from ${fc.prompt.length} more` : ""}</span></div>`
+        ? `<div class="wo-vt bad"><span class="k">If report-only went live</span><span class="v">Locked out</span><span class="s">by ${esc(fc.block.map(policyLabel).join(", "))}${fc.prompt.length ? ` · prompts from ${fc.prompt.length} more` : ""}</span></div>`
         : fc.worst === "prompt"
-          ? `<div class="wo-vt warn"><span class="k">If report-only went live</span><span class="v">Extra prompts</span><span class="s">from ${esc(fc.prompt.map((p) => p.name).join(", "))}</span></div>`
+          ? `<div class="wo-vt warn"><span class="k">If report-only went live</span><span class="v">Extra prompts</span><span class="s">from ${esc(fc.prompt.map(policyLabel).join(", "))}</span></div>`
           : fc.worst === "clean"
             ? `<div class="wo-vt ok"><span class="k">If report-only went live</span><span class="v">No change</span><span class="s">her sign-ins already satisfy every report-only policy</span></div>`
             : fc.worst === "scoped"
@@ -562,24 +571,32 @@ const WhoIs = (() => {
     };
     const exclRung = (x) => `<div class="wo-rung ${x.bypass ? "excl" : "out"}"><span class="g">${dot(x.bypass ? "off" : "na")}${esc(x.name)}</span>
       <span class="st">Excluded · ${/^nested/.test(x.how) ? `<b class="wo-nest">↪ ${esc(x.how)}</b> <span class="mini muted">— whoever manages that group decides</span>` : `<b>${esc(x.how)}</b>`}</span>
-      <span class="mini muted">${x.dangling ? "no policy references this group" : `from ${x.policies.map((p) => `${esc(p.seq || p.name)}${p.state === "on" ? "" : ` (${STATE_LABEL[p.state]})`}`).join(", ")}`}</span></div>`;
+      <span class="mini muted">${x.dangling ? "no policy references this group" : `from ${x.policies.map((p) => `${esc(p.name)}${p.state === "on" ? "" : ` (${STATE_LABEL[p.state]})`}`).join(", ")}`}</span></div>`;
     const ladderHtml = `<div class="list-card wo-card">
       <h3 class="wo-h" data-wo-fold="ladder">🚀 Deployment groups <span class="mini muted">— ${res.ladder.hasDg ? "the ★ active baseline's deploy groups, membership read transitively" : "the ★ active baseline has no deployment groups; its persona groups are shown"}</span></h3>
       ${res.ladder.deploy.length ? `<div class="wo-ladder">${res.ladder.deploy.map(rung).join("")}</div>` : ""}
       ${res.ladder.persona.length ? `<div class="mini muted" style="margin:10px 0 4px">Persona groups (production)</div><div class="wo-ladder">${res.ladder.persona.map(rung).join("")}</div>` : ""}
       ${res.exclusions.length ? `<div class="mini muted" style="margin:10px 0 4px">Exclusion groups she is in</div><div class="wo-ladder">${res.exclusions.map(exclRung).join("")}</div>` : '<p class="mini muted" style="margin-top:10px">She is in no exclusion group.</p>'}
-      ${res.bypasses.map((x) => `<div class="wo-callout bad"><b>Standing bypass.</b> She is in <b>${esc(x.name)}</b> (${/^nested/.test(x.how) ? `<span class="wo-nest">↪ ${esc(x.how)}</span> — she was never added to the exclusion group itself` : esc(x.how)}), which takes her out of ${x.policies.filter((p) => p.state === "on" && p.targeted).map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.seq ? `${p.seq} ${p.name}` : p.name)}</span>`).join(", ")} while ${x.policies.filter((p) => p.state === "on" && p.targeted).length === 1 ? "it is" : "they are"} <b>enforced</b>. Who put her there and when: <a href="#" class="md-tool" data-tool="toolCompare">⚖ Compare users</a> shows the membership next to a colleague's; <a href="#" class="md-tool" data-tool="toolAudit">🕓 Change audit</a> has the group change if it is inside the retention window.</div>`).join("")}
+      ${res.bypasses.map((x) => `<div class="wo-callout bad"><b>Standing bypass.</b> She is in <b>${esc(x.name)}</b> (${/^nested/.test(x.how) ? `<span class="wo-nest">↪ ${esc(x.how)}</span> — she was never added to the exclusion group itself` : esc(x.how)}), which takes her out of ${x.policies.filter((p) => p.state === "on" && p.targeted).map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(policyLabel(p))}</span>`).join(", ")} while ${x.policies.filter((p) => p.state === "on" && p.targeted).length === 1 ? "it is" : "they are"} <b>enforced</b>. Who put her there and when: <a href="#" class="md-tool" data-tool="toolCompare">⚖ Compare users</a> shows the membership next to a colleague's; <a href="#" class="md-tool" data-tool="toolAudit">🕓 Change audit</a> has the group change if it is inside the retention window.</div>`).join("")}
       ${stage.kind === "none" && res.ladder.hasDg ? `<div class="wo-callout"><b>Not in a wave.</b> None of the deploy groups has her, so only policies scoped to <b>All users</b> (or a role / another group) reach her. If she is supposed to be in the rollout, add her through <a href="#" class="md-tool" data-tool="toolCaGroups">👥 Conditional Access groups</a>.</div>` : ""}
     </div>`;
 
     // ---- policies table
+    // FOUR states, not three. Until build 25405 the chips offered inc / exc /
+    // na and an "unknown" row matched none of them: it was in the table only
+    // under All, so a policy nobody could resolve looked like a policy that
+    // did not exist. The chip appears only when there is something in it —
+    // the invariant that matters is that the chips shown always sum to All,
+    // and a permanent zero chip for a rare state is noise on every other run.
     const chips = [
-      ["reach", `Reaches her ${pill(c.reach, "green")}`], ["exc", `Excluded ${pill(c.excluded, "red")}`], ["na", `Not targeted ${pill(c.na, "zero")}`], ["all", `All ${pill(c.total, "zero")}`],
+      ["reach", `Reaches her ${pill(c.reach, "green")}`], ["exc", `Excluded ${pill(c.excluded, "red")}`],
+      ...(c.unknown ? [["unk", `Unknown scope ${pill(c.unknown, "amber")}`]] : []),
+      ["na", `Not targeted ${pill(c.na, "zero")}`], ["all", `All ${pill(c.total, "zero")}`],
     ].map(([k, l]) => `<button class="fchip${filter === k ? " active" : ""}" data-wo-filter="${k}">${l}</button>`).join("");
     // Second chip row: the policy STATE. The two rows compose (reaches her ×
     // enforced), and the counts on the state chips follow the first row so
     // they say how many of what you are looking at are in each state.
-    const byAssign = res.rows.filter((r) => filter === "all" || (filter === "reach" ? r.s === "inc" : filter === "exc" ? r.s === "exc" : r.s === "na"));
+    const byAssign = res.rows.filter((r) => filter === "all" || (filter === "reach" ? r.s === "inc" : filter === "exc" ? r.s === "exc" : filter === "unk" ? r.s === "unknown" : r.s === "na"));
     const sfilter = opts.stateFilter || "any";
     const sCount = (st) => byAssign.filter((r) => r.state === st).length;
     const stateChips = [
@@ -600,6 +617,7 @@ const WhoIs = (() => {
         ${shown.map((r) => `<tr class="${r.s === "exc" ? "wo-exrow" : r.state === "off" ? "wo-dim" : ""}"><td>${polLink(r)}</td><td>${stateHtml(r.state)}</td><td class="wo-via">${via(r)}</td><td>${controlsHtml(r)}</td><td class="wo-cnt">${logCell(r)}</td><td>${r.state === "ro" && r.s === "inc" ? forecastHtml(r.forecast) : r.state === "off" && r.s === "inc" ? '<span class="mini muted">becomes real when switched On</span>' : '<span class="mini muted">—</span>'}</td></tr>`).join("")
           || `<tr><td colspan="6" class="mini muted" style="padding:14px">Nothing in this filter.</td></tr>`}
       </tbody></table></div>
+      ${c.unknown ? `<div class="wo-callout"><b>${c.unknown} ${c.unknown === 1 ? "policy could" : "policies could"} not be resolved for her.</b> Her scope depends on something this read does not hold — an external-user type or a home tenant the policy names, or a membership list that came back incomplete. ${c.unknown === 1 ? "It is" : "They are"} neither reaching her nor excluding her here; ${c.unknown === 1 ? "it is" : "they are"} <b>unanswered</b>, and the row says which half could not be decided. Microsoft's own What If in the Entra portal is the check that settles it.</div>` : ""}
       <p class="mini muted" style="margin-top:8px">Same include/exclude resolution as ⚖ Compare users — groups expanded transitively, directory roles, guest type. Log and Forecast are this user's own rows from 🚦 Sign-in failures and 🎚 Report-only impact. Policy names open the policy card.</p>
     </div>`;
 
@@ -722,7 +740,7 @@ const WhoIs = (() => {
         <h3 class="wo-h" data-wo-fold="stopped">🚦 Sign-ins Conditional Access stopped · ${esc(rangeLabel)} ${pill(log.rows.length, "red")}</h3>
         ${log.rows.length ? `<div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>When</th><th>App · client</th><th>Policy</th><th>Result</th><th></th></tr></thead><tbody>
           ${rows.map((r) => `<tr><td class="num">${esc(fmtWhen(r.when))}</td><td>${esc(r.app)}<div class="mini muted">${esc([r.browser || r.client, r.os, r.compliant ? "compliant" : r.managed ? "managed" : r.os ? "unmanaged" : "", [r.city, r.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))}</div></td>
-            <td>${r.policies.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>${(p.controls || []).length ? `<div class="mini" style="color:var(--on)">demanded ${esc(p.controls.join(", "))}</div>` : ""}`).join("<br>")}</td>
+            <td>${r.policies.map((p) => `<span class="pol-link" data-polid="${esc(p.id)}" title="${esc(p.name)}">${esc(policyLabel(p))}</span>${(p.controls || []).length ? `<div class="mini" style="color:var(--on)">demanded ${esc(p.controls.join(", "))}</div>` : ""}`).join("<br>")}</td>
             <td><span class="wo-res ${r.interrupted ? "int" : "blk"}">${r.interrupted ? "Interrupted" : "Blocked"}</span><div class="mini muted">${esc(r.failureReason || (typeof Signins !== "undefined" && Signins.codeText ? Signins.codeText(r.errorCode) : "") || "")}${r.errorCode != null ? ` <span class="muted">(${esc(r.errorCode)})</span>` : ""}</div>${r.auth ? `<div class="mini${r.auth.gap ? "" : " muted"}" style="${r.auth.gap ? "color:var(--off)" : ""}" title="${esc(r.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 ${esc(r.auth.summary)}</div>` : ""}</td>
             <td><button class="fchip" data-wo-replay="${esc(r.id)}" title="Prefill 🧪 What-If from this sign-in">🧪 Replay</button></td></tr>`).join("")}
         </tbody></table></div>${log.rows.length > rows.length ? `<p class="mini muted" style="margin-top:6px">${log.rows.length - rows.length} more — export CSV for all.</p>` : ""}`
@@ -731,13 +749,13 @@ const WhoIs = (() => {
       </div>`;
       const ro = log.ro;
       const items = [];
-      if (fc && fc.block.length) fc.block.forEach((p) => items.push(`<div class="wo-callout bad"><b>Locked out</b> — <span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span> would deny ${p.failure} of her sign-ins${(p.denyWhy || []).length ? `: ${p.denyWhy.slice(0, 3).map((d) => `${esc(d.what)}${d.n > 1 ? ` ×${d.n}` : ""}`).join("; ")}` : ""}${(p.samples || []).length ? `<div class="mini muted">e.g. ${p.samples.slice(0, 2).map((s) => esc([s.app, s.browser || s.client, s.os, s.compliant ? "compliant" : s.os ? "unmanaged" : "", [s.city, s.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))).join(" — ")}</div>` : ""}</div>`));
-      if (fc && fc.prompt.length) fc.prompt.forEach((p) => items.push(`<div class="wo-callout"><b>Extra prompts</b> — <span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span> would stop ${p.interrupted} sign-in${p.interrupted === 1 ? "" : "s"} for an extra step${(p.riskWhy || []).length ? ` (${p.riskWhy.map((d) => `${esc(d.what)} ×${d.n}`).join(", ")})` : ""}.</div>`));
-      if (ro) ro.policies.filter((p) => !p.failure && !p.interrupted && p.success).forEach((p) => items.push(`<div class="wo-callout ok"><b>No change</b> — <span class="pol-link" data-polid="${esc(p.id)}">${esc(p.name)}</span>: ${p.success} sign-in${p.success === 1 ? "" : "s"} already satisfied it.</div>`));
+      if (fc && fc.block.length) fc.block.forEach((p) => items.push(`<div class="wo-callout bad"><b>Locked out</b> — <span class="pol-link" data-polid="${esc(p.id)}" title="${esc(p.name)}">${esc(policyLabel(p))}</span> would deny ${p.failure} of her sign-ins${(p.denyWhy || []).length ? `: ${p.denyWhy.slice(0, 3).map((d) => `${esc(d.what)}${d.n > 1 ? ` ×${d.n}` : ""}`).join("; ")}` : ""}${(p.samples || []).length ? `<div class="mini muted">e.g. ${p.samples.slice(0, 2).map((s) => esc([s.app, s.browser || s.client, s.os, s.compliant ? "compliant" : s.os ? "unmanaged" : "", [s.city, s.country].filter(Boolean).join(" ")].filter(Boolean).join(" · "))).join(" — ")}</div>` : ""}</div>`));
+      if (fc && fc.prompt.length) fc.prompt.forEach((p) => items.push(`<div class="wo-callout"><b>Extra prompts</b> — <span class="pol-link" data-polid="${esc(p.id)}" title="${esc(p.name)}">${esc(policyLabel(p))}</span> would stop ${p.interrupted} sign-in${p.interrupted === 1 ? "" : "s"} for an extra step${(p.riskWhy || []).length ? ` (${p.riskWhy.map((d) => `${esc(d.what)} ×${d.n}`).join(", ")})` : ""}.</div>`));
+      if (ro) ro.policies.filter((p) => !p.failure && !p.interrupted && p.success).forEach((p) => items.push(`<div class="wo-callout ok"><b>No change</b> — <span class="pol-link" data-polid="${esc(p.id)}" title="${esc(p.name)}">${esc(policyLabel(p))}</span>: ${p.success} sign-in${p.success === 1 ? "" : "s"} already satisfied it.</div>`));
       const scoped = res.rows.filter((r) => r.state === "ro" && r.s === "inc" && r.forecast && r.forecast.scoped);
-      if (scoped.length) items.push(`<div class="wo-callout ok"><b>Out of scope on her sign-ins</b> — ${scoped.map((r) => `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.seq || r.name)}</span> <span class="muted">(${r.forecast.notApplied.toLocaleString()}×)</span>`).join(", ")} reach${scoped.length === 1 ? "es" : ""} her by assignment and ${scoped.length === 1 ? "was" : "were"} evaluated on her sign-ins, but the conditions never matched — no legacy client, no risk, not that app or platform. Going live changes nothing for her as she signs in today; a different client or a risk event would bring ${scoped.length === 1 ? "it" : "them"} into play.</div>`);
+      if (scoped.length) items.push(`<div class="wo-callout ok"><b>Out of scope on her sign-ins</b> — ${scoped.map((r) => `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</span> <span class="muted">(${r.forecast.notApplied.toLocaleString()}×)</span>`).join(", ")} reach${scoped.length === 1 ? "es" : ""} her by assignment and ${scoped.length === 1 ? "was" : "were"} evaluated on her sign-ins, but the conditions never matched — no legacy client, no risk, not that app or platform. Going live changes nothing for her as she signs in today; a different client or a risk event would bring ${scoped.length === 1 ? "it" : "them"} into play.</div>`);
       const silent = res.rows.filter((r) => r.state === "ro" && r.s === "inc" && r.forecast && r.forecast.nodata);
-      if (silent.length) items.push(`<div class="wo-callout"><b>No data</b> — ${silent.map((r) => `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.seq || r.name)}</span>`).join(", ")} reach${silent.length === 1 ? "es" : ""} her but ${silent.length === 1 ? "does" : "do"} not appear on any of her ${log.total.toLocaleString()} sign-in records — not even as “not applied”. A report-only policy is evaluated on every sign-in it is assigned to, so a policy missing from all of them was created after the window, or the source dropped its verdicts (the hunting adapter is the suspect — switch to the Entra sign-in log and compare). Not evidence of safety.</div>`);
+      if (silent.length) items.push(`<div class="wo-callout"><b>No data</b> — ${silent.map((r) => `<span class="pol-link" data-polid="${esc(r.id)}">${esc(r.name)}</span>`).join(", ")} reach${silent.length === 1 ? "es" : ""} her but ${silent.length === 1 ? "does" : "do"} not appear on any of her ${log.total.toLocaleString()} sign-in records — not even as “not applied”. A report-only policy is evaluated on every sign-in it is assigned to, so a policy missing from all of them was created after the window, or the source dropped its verdicts (the hunting adapter is the suspect — switch to the Entra sign-in log and compare). Not evidence of safety.</div>`);
       const fch = `<div class="list-card wo-card">
         <h3 class="wo-h" data-wo-fold="forecast">🎚 If everything in report-only went live today</h3>
         ${items.join("") || `<p class="mini muted">${c.ro ? "No report-only verdict on her sign-ins in this window." : "No report-only policy reaches her."}</p>`}

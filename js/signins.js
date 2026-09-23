@@ -411,8 +411,14 @@ union${withTotals ? `
 
   // ---- the whole read → per-policy summary + flat rows -----------------
   function build(records, mode) {
+    // Newest first. `when` is an ISO-8601 instant, which sorts correctly as
+    // plain text; localeCompare, which this used, is a collator call per
+    // comparison and the wrong comparison for an instant. Measured on node 22
+    // at 50,000 rows: 15 ms against 19 ms — a tidy-up, not the fix for the
+    // Hunting + non-interactive crash. That one is the ceiling in app.js.
+    const desc = (a, b) => (a === b ? 0 : a < b ? 1 : -1);
     const rows = (records || []).map((r) => parse(r, mode)).filter(Boolean)
-      .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+      .sort((a, b) => desc(String(a.when), String(b.when)));
     const nonInteractive = rows.filter((r) => !r.interactive).length;
     const recNonInteractive = (records || []).filter((r) => !isInteractive(r)).length;
     const byPolicy = new Map();
@@ -444,7 +450,7 @@ union${withTotals ? `
       users: [...e.users.entries()].sort((a, b) => b[1] - a[1]),
       apps: [...e.apps.entries()].sort((a, b) => b[1] - a[1]),
       controls: [...e.controls],
-    })).sort((a, b) => b.count - a.count || String(b.last).localeCompare(String(a.last)));
+    })).sort((a, b) => b.count - a.count || desc(String(a.last), String(b.last)));
     const by = (fn) => rows.reduce((m, r) => { const k = fn(r); m[k] = (m[k] || 0) + 1; return m; }, {});
     return {
       mode,

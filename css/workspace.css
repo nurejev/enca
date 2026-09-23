@@ -33,6 +33,14 @@ html{scrollbar-gutter:stable}
 .policy-workspace #listView{overflow:auto;max-width:100%;margin:0}
 #ptable{min-width:740px}#ptable td{padding:13px 12px;vertical-align:top}#ptable th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:12px}
 #ptable .pname{font:inherit;font-weight:600;color:var(--ink);border:0;background:transparent;cursor:pointer;text-align:left;padding:0;max-width:380px;line-height:1.5}
+/* The policy open in the inspector, marked in the list (25466). An accent
+   bar on the left and a tint across the row — the bar survives a row that is
+   also checkbox-selected, and neither depends on colour alone. Box-shadow
+   rather than a border, so the row does not shift by a pixel when it is
+   picked. */
+#ptable tr.is-inspected>td{background:color-mix(in srgb,var(--accent2) 11%,transparent)}
+#ptable tr.is-inspected>td:first-child{box-shadow:inset 3px 0 0 var(--accent2)}
+#ptable tr.is-inspected .pname{color:var(--accent2);font-weight:700}
 #ptable .pname:hover{color:var(--green);text-decoration:underline}.workspace-native{font-size:11px;color:var(--muted);word-break:break-word;line-height:1.5;margin:5px 0 14px}
 #ptable .workspace-native{max-width:390px;margin:4px 0 0}
 .workspace-inspector{position:sticky;top:calc(var(--sticky-nav,106px) + 80px);padding:22px;border:1px solid var(--border);border-radius:12px;background:var(--surface);max-height:calc(100vh - var(--sticky-nav,106px) - 100px);overflow:auto}

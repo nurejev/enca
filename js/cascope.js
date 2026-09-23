@@ -73,14 +73,60 @@ const CaScope = (() => {
     };
   }
 
+  // Which of Entra's external-user types a principal is, decided from what the
+  // caller already holds: userType (guest) and the UPN. A B2B collaboration
+  // account always carries the #EXT# marker in its UPN, and externalUserState
+  // is set on it where the caller read that field — either is proof.
+  //
+  //   guest false, not B2B  ->  INTERNAL. An account in THIS directory that is
+  //                             not an external identity of any kind.
+  //   guest false, B2B      ->  b2bCollaborationMember  (invited, then Member)
+  //   guest true,  B2B      ->  b2bCollaborationGuest
+  //   guest true,  not B2B  ->  internalGuest
+  //
+  // The other two types Entra offers — serviceProvider (a CSP / GDAP partner
+  // administrator arriving through delegated privileges) and
+  // b2bDirectConnectUser — HOLD NO USER OBJECT IN THIS TENANT AT ALL. That is
+  // what makes this decidable: a principal somebody looked up here by UPN
+  // cannot be either of them, so a policy excluding "Service provider users"
+  // does not reach them, and saying so is a fact rather than a guess.
+  //
+  // Returns null when the caller holds neither userType nor a UPN — then the
+  // honest answer really is "cannot tell", and of() reports it as unknown.
+  const INTERNAL = "internal";
+  function externalTypeOf(s) {
+    if (!s) return null;
+    if (s.guestOrExternalUserType) return s.guestOrExternalUserType;   // the caller knows better than we do
+    if (s.guest == null) return null;                                  // userType was never read
+    const upn = s.upn == null ? null : String(s.upn);
+    const b2b = s.externalUserState != null || (upn !== null && /#EXT#/i.test(upn));
+    if (!b2b && upn === null) return null;                             // no UPN: cannot rule B2B in or out
+    if (!s.guest) return b2b ? "b2bCollaborationMember" : INTERNAL;
+    return b2b ? "b2bCollaborationGuest" : "internalGuest";
+  }
+
   // Restricted guest scopes require both external-user type and home tenant.
   // userType=Guest alone does not identify a service provider or partner tenant.
+  //
+  // WHY THIS RETURNED null FOR EVERY INTERNAL USER UNTIL BUILD 25405, and what
+  // that cost: subject.guestOrExternalUserType is set by nobody. So a policy
+  // whose exclusions name specific external-user types — "Guests & external
+  // users: Service provider users" is the common one, on a tenant with a CSP —
+  // could not be resolved for ANY principal, of() promoted that to state
+  // "unknown", and in 🕵 an unknown row belonged to no filter chip and was
+  // visible only under All. A policy that plainly reached the person was
+  // missing from her list, and the counts did not add up. The type is derived
+  // now, and an internal account is answered with false rather than a shrug.
   function guestMatch(rule, subject) {
     if (!rule) return false;
     if (rule === true) return subject.guest == null ? null : !!subject.guest;
     const types = String(rule.guestOrExternalUserTypes || "").split(",").map(x => x.trim());
-    const type = subject.guestOrExternalUserType;
+    const type = externalTypeOf(subject);
     if (!type) return null;
+    // Not an external identity at all — no restricted guest rule can name it.
+    // (Stated outright, though types.includes would also say false: a reader
+    // should not have to prove that "internal" is absent from Entra's list.)
+    if (type === INTERNAL) return false;
     if (!types.includes(type)) return false;
     const tenants = rule.externalTenants;
     if (!tenants || tenants.membershipKind === "all") return true;
@@ -169,7 +215,7 @@ const CaScope = (() => {
       byAll: !!P.includeAll, inc, exc, via: exc ? (exc.id || s.id) : null };
   }
 
-  return { of, prep, guestMatch, requiresMfa, GUEST_TOKEN };
+  return { of, prep, guestMatch, externalTypeOf, requiresMfa, GUEST_TOKEN, INTERNAL };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = { CaScope };

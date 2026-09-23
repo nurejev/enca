@@ -73,7 +73,8 @@ test('OR alternatives do not establish mandatory MFA',()=>{
  assert.equal(CaScope.requiresMfa({authenticationStrength:{id:'custom',displayName:'MFA'}}),false);
  assert.equal(CaScope.requiresMfa({authenticationStrength:{id:'00000000-0000-0000-0000-000000000004'}}),true);
 });
-function analyzer(Graph){return load('analyze.js','Analyzer',{CaScope,Graph});}
+const CaCoverage=load('coverage.js','CaCoverage',{CaScope});
+function analyzer(Graph){return load('analyze.js','Analyzer',{CaScope,CaCoverage,Graph});}
 const users=[{id:'u1',displayName:'Review user',userType:'Member',accountEnabled:true}];
 test('unread exclusion group aborts coverage instead of showing safe',async()=>{
  const a=analyzer({ggetAll:async url=>{if(url.startsWith('/groups/'))throw Error('403');return url.startsWith('/users?')?users:[];},gpost:async()=>({value:[]})});
@@ -86,7 +87,7 @@ test('unread role members abort coverage',async()=>{
 test('analyzer reports OR MFA optional, AND MFA mandatory',async()=>{
  const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
  for(const operator of ['OR','AND']){
-  const p=policy();p.grantControls={operator,builtInControls:['mfa','compliantDevice']};const c=await a.collect([asVm(p)],'all',()=>{});const r=a.evaluate(c.lookup,c.users,c.ctx);assert.equal(r[0].mfaCovered,operator==='AND');
+  const p=policy();p.grantControls={operator,builtInControls:['mfa','compliantDevice']};const c=await a.collect([asVm(p)],'all',()=>{});const r=a.evaluate(c.lookup,c.users,c.ctx);assert.equal(r[0].mfaTargeted,operator==='AND');
  }
 });
 test('replacement with unresolved break-glass exclusion makes no writes',async()=>{
@@ -162,8 +163,8 @@ test('unresolved external scope stays unknown in coverage, matrix and exported r
  const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
  const p=policy({users:{includeUsers:['All'],excludeGuestsOrExternalUsers:{guestOrExternalUserTypes:'serviceProvider'}}});p.grantControls={builtInControls:['mfa'],operator:'OR'};
  const c=await a.collect([asVm(p)],'all',()=>{});const r=a.evaluate(c.lookup,c.users,c.ctx);
- assert.equal(r[0].mfaCovered,null);assert.equal(r[0].unknown.length,1);assert.equal(a.summary(r).noMfa,0);assert.equal(a.coverage(r,false).unknown,1);assert.equal(a.coverage(r,false).total,0);
- assert.equal(a.buildMatrixMaps(r)[0].m[p.displayName],'unknown');
+ assert.equal(r[0].mfaTargeted,null);assert.equal(r[0].unknown.length,1);assert.equal(a.summary(r).noMfa,0);assert.equal(a.coverage(r,false).unknown,1);assert.equal(a.coverage(r,false).total,0);
+ assert.equal(a.buildMatrixMaps(r)[0].m[p.id],'unknown');
  const html=a.exportHtml({tenant:'Fixture',date:'2026-09-14'},r,a.policyMeta(c.lookup),[],false);
  assert.match(html,/unresolved policy scope/);for(const [,code]of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(code);
 });
@@ -179,7 +180,7 @@ function rolloutHarness(fetchJoey) {
   if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',hidden:false,listeners:{},classList:{contains:()=>true,toggle(){}},setAttribute(){},addEventListener(name,fn){this.listeners[name]=fn;},querySelector(){return null;}});
   return nodes.get(id);
  };
- const workspace=load('workspace.js','Workspace',{APP_BUILD:{isBeta:true},document:{getElementById:node,querySelectorAll:()=>[],addEventListener(){}}});
+ const workspace=load('workspace.js','Workspace',{APP_BUILD:{isBeta:true},Event,document:{getElementById:node,querySelectorAll:()=>[],addEventListener(){},dispatchEvent(){}}});
  workspace.init({action:name=>actions.push(name),impact:()=>null,fetchJoey,prepareJoey:async bundle=>prepared.push(bundle)});
  const update=(tenant='Fixture')=>workspace.update({tenant,demo:true,policies:[],visible:[],selected:new Set(),view:'list',readAt:1});
  update();
@@ -228,4 +229,495 @@ test('shared log-source selectors target existing toolbars',()=>{
   assert.ok(element,`log source toolbar ${id} exists`);
   assert.match(element[0],/class="[^"]*\btoolbar\b/,`${id} is a toolbar`);
  }
+});
+
+// ---- 25409: the shared coverage comparison (js/coverage.js) ----
+// These were the review's behaviour probes P01/P02/P08; they assert the
+// CORRECTED behaviour, so a regression here is a tool telling somebody an
+// exclusion is closed when it is not.
+const vpol=(over={})=>({id:over.id||'q1',displayName:over.name||'Q',state:'enabled',
+ conditions:{users:{includeUsers:['All'],...(over.excludeUsers?{excludeUsers:over.excludeUsers}:{})},
+  applications:{includeApplications:over.apps||['All']},
+  ...(over.platforms?{platforms:{includePlatforms:over.platforms}}:{}),
+  ...(over.deviceFilter?{devices:{deviceFilter:{mode:'include',rule:'device.trustType -eq "AzureAD"'}}}:{})},
+ grantControls:{operator:over.op||'AND',builtInControls:over.controls||['mfa']}});
+
+test('verdict: MFA plus compliant device is not covered by an MFA-only policy',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa','compliantDevice']});
+ const Q=vpol({id:'q',name:'Q',controls:['mfa']});
+ const v=CaCoverage.compare(P,Q);
+ assert.equal(v.state,'partial');
+ assert.ok(v.missing.some(m=>/compliant device/.test(m)),v.missing.join('|'));
+ assert.equal(CaCoverage.bestOf(P,[Q]).state,'partial');
+});
+test('verdict: a replacement that excludes the user, or narrows the platform, is not equivalent',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa']});
+ const excl=CaCoverage.compare(P,vpol({id:'q',name:'Q',controls:['mfa'],excludeUsers:['u1']}));
+ assert.equal(excl.state,'partial');
+ assert.ok(excl.missing.some(m=>/excluded from the replacement/.test(m)));
+ const plat=CaCoverage.compare(P,vpol({id:'q2',name:'Q2',controls:['mfa'],platforms:['windows']}));
+ assert.equal(plat.state,'partial');
+ assert.ok(plat.missing.includes('device platforms'));
+});
+test('verdict: an identical policy is equivalent, and an unmodelled condition is never green',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa']});
+ assert.equal(CaCoverage.compare(P,vpol({id:'q',name:'Q',controls:['mfa']})).state,'equivalent');
+ const u=CaCoverage.compare(P,vpol({id:'q',name:'Q',controls:['mfa'],deviceFilter:true}));
+ assert.equal(u.state,'unestablished');
+ assert.ok(u.unresolved.some(x=>/device filter/.test(x)));
+ assert.equal(CaCoverage.bestOf(P,[vpol({id:'q',name:'Q',controls:['mfa'],deviceFilter:true})]).state,'unestablished');
+});
+test('verdict: an OR grant with several controls does not guarantee the one that matters',()=>{
+ const P=vpol({id:'p',name:'P',controls:['mfa']});
+ const Q=vpol({id:'q',name:'Q',controls:['mfa','compliantDevice'],op:'OR'});
+ const v=CaCoverage.compare(P,Q);
+ assert.equal(v.state,'partial');
+ assert.ok(v.missing.some(m=>/alternative grant controls/.test(m)));
+});
+test('verdict: a bypass with no equivalent replacement stays risky, and unestablished does too',async()=>{
+ const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
+ const bypassed=policy({users:{includeUsers:['All'],excludeUsers:['u1']}});
+ bypassed.id='bypassed';bypassed.displayName='Bypassed';bypassed.grantControls={operator:'AND',builtInControls:['mfa','compliantDevice']};
+ const weaker={...vpol({id:'weaker',name:'Weaker',controls:['mfa']})};
+ const c=await a.collect([asVm(bypassed),asVm(weaker)],'all',()=>{});
+ const r=a.evaluate(c.lookup,c.users,c.ctx);
+ const b=r[0].bypassing.find(x=>x.policyId==='bypassed');
+ assert.equal(b.verdict,'partial');
+ assert.equal(b.covered,false);
+ assert.equal(b.risky,true);
+ assert.ok(b.partial[0].shortfall.some(m=>/compliant device/.test(m)),JSON.stringify(b.partial));
+ assert.equal(b.policyId,'bypassed');
+});
+test('exclusion analyzer: app coverage uses the same comparison and the same words',()=>{
+ const Exclusions=load('exclusions.js','Exclusions',{CaScope,CaCoverage,Graph:{}});
+ const all=policy({users:{includeUsers:['All']},applications:{includeApplications:['All'],excludeApplications:['appX']}});
+ all.id='all';all.displayName='Baseline MFA';all.grantControls={operator:'AND',builtInControls:['mfa']};
+ const narrow=vpol({id:'narrow',name:'App X policy',apps:['appX'],controls:['compliantDevice'],platforms:['windows'],excludeUsers:['u1']});
+ const model=Exclusions.appCoverage(Exclusions.collect([all,narrow]));
+ const app=model.entities.find(e=>e.kind==='app'&&e.id==='appX');
+ assert.ok(app,'the excluded app is an entity');
+ assert.equal(app.verdicts.all.state,'partial');
+ assert.equal(app.coverage.all.length,0);
+ assert.ok(app.uncoveredIn.includes('all'));
+ const missing=app.verdicts.all.partial[0].missing.join(' | ');
+ assert.match(missing,/excluded from the replacement/);
+ assert.match(missing,/device platforms/);
+ assert.match(missing,/MFA is not mandatory/);
+});
+test('exclusion analyzer: a resource collection is not established rather than skipped',()=>{
+ const Exclusions=load('exclusions.js','Exclusions',{CaScope,CaCoverage,Graph:{}});
+ const all=policy({users:{includeUsers:['All']},applications:{includeApplications:['All'],excludeApplications:['Office365']}});
+ all.id='all';all.grantControls={operator:'AND',builtInControls:['mfa']};
+ const model=Exclusions.appCoverage(Exclusions.collect([all]));
+ const app=model.entities.find(e=>e.kind==='app');
+ assert.equal(app.verdicts.all.state,'unestablished');
+ assert.match(app.verdicts.all.unresolved[0],/resource collection/);
+});
+
+// ---- 25410: configured versus effective, the whole external clause, paged provenance ----
+const exModule=(Graph)=>load('exclusions.js','Exclusions',{CaScope,CaCoverage,Graph});
+const expol=(id,name,over={})=>({id,displayName:name,state:over.state||'enabled',
+ conditions:{users:{includeUsers:over.inc||['All'],
+  ...(over.incGroups?{includeGroups:over.incGroups}:{}),
+  ...(over.excUsers?{excludeUsers:over.excUsers}:{}),
+  ...(over.excGroups?{excludeGroups:over.excGroups}:{}),
+  ...(over.excGuests?{excludeGuestsOrExternalUsers:over.excGuests}:{})},
+  applications:{includeApplications:['All']}},
+ grantControls:{operator:'AND',builtInControls:['mfa']}});
+
+test('exclusions: a user the policy never includes is configured, not a bypass',()=>{
+ const E=exModule({});
+ const scoped=expol('p1','Scoped to a group',{inc:[],incGroups:['gUnread'],excUsers:['u1']});
+ const named=expol('p2','Named users',{inc:['u2'],excUsers:['u1']});
+ const all=expol('p3','All users',{excUsers:['u1']});
+ const m=E.collect([scoped,named,all]);
+ const {users,states}=E.effectiveUsers(m);
+ const cells=Object.fromEntries([...users[0].byPolicy].map(([k,v])=>[k,v.state]));
+ assert.equal(cells.p3,'bypass');      // All users, then excluded — a real bypass
+ assert.equal(cells.p2,'configured');  // includes only u2; u1 was never in scope
+ assert.equal(cells.p1,'unknown');     // include side is a group this scan never read
+ assert.equal(states.bypass,1);assert.equal(states.configured,1);assert.equal(states.unknown,1);
+});
+test('exclusions: excluded directory roles are named as not expanded, never as zero',()=>{
+ const E=exModule({});
+ const p=expol('p1','Role exclusion');p.conditions.users.excludeRoles=['62e90394-69f5-4237-9190-012177145e10'];
+ const m=E.collect([p]);
+ const {users,unexpanded}=E.effectiveUsers(m);
+ assert.equal(users.length,0);
+ assert.equal(unexpanded.roles.length,1);
+ assert.equal(E.summary(m,users).unexpandedRoles,1);
+});
+test('exclusions: two external clauses stay two exclusions, and only all-guests is High',()=>{
+ const E=exModule({});
+ const partner=expol('g1','Partner',{excGuests:{guestOrExternalUserTypes:'b2bCollaborationGuest',externalTenants:{membershipKind:'enumerated',members:['t1','t2']}}});
+ const everyone=expol('g2','All external',{excGuests:{guestOrExternalUserTypes:'b2bCollaborationGuest,internalGuest,b2bCollaborationMember,b2bDirectConnectUser,otherExternalUser,serviceProvider'}});
+ const m=E.collect([partner,everyone]);
+ const guests=m.entities.filter(e=>e.kind==='guest');
+ assert.equal(guests.length,2,'two different clauses are two entities');
+ assert.match(guests.find(e=>e.clause.tenants.length).name,/2 named tenants/);
+ const rk=E.risk(m);
+ const flagsOf=(n)=>rk.rows.find(r=>r.name===n).flags.map(f=>f.level+':'+f.text).join(' ');
+ assert.match(flagsOf('All external'),/high:All guests and external users are excluded/);
+ assert.doesNotMatch(flagsOf('Partner'),/high:All guests/);
+ assert.match(flagsOf('Partner'),/medium:Scoped external exclusion/);
+});
+test('exclusions: a direct member on page two stays direct',async()=>{
+ // transitive members: u1 and u2. The direct-member read returns u1 plus a
+ // continuation; before 25410 u2 was reported as coming in through nesting
+ // although no nested group resolved at all.
+ let batchCalls=0;
+ const Graph={
+  async gpost(){return {value:[{id:'g1',displayName:'CA-Exclude'}]};},
+  async ggetAll(url){
+   if(url.includes('/transitiveMembers'))return [{id:'u1'},{id:'u2'}];
+   if(url.includes('/members'))return [{id:'u1',displayName:'User one'},{id:'u2',displayName:'User two'}];
+   return [];
+  },
+  async gbatch(reqs){
+   batchCalls++;
+   return reqs.map(()=>({body:{value:[{id:'u1',displayName:'User one'}],'@odata.nextLink':'https://graph/next'}}));
+  },
+ };
+ const E=exModule(Graph);
+ const m=await E.resolve(E.collect([expol('p1','All users',{excGroups:['g1']})]));
+ const g=m.entities.find(e=>e.kind==='group');
+ assert.equal(g.memberTotal,2);
+ assert.equal(g.directCount,2,'both members are direct once the continuation is followed');
+ assert.equal(g.nestedCount,0);
+ assert.equal(g.pathComplete,true);
+ assert.ok(batchCalls>0);
+});
+
+// ---- 25411: one licence population, three measures, factual mailbox states ----
+const LicGap=load('licgap.js','LicGap',{CaScope,Graph:{},Brand:{generatedBy:()=>'Generated by ENCA'}});
+const P1_PLAN='41781fb2-bc02-4b7c-bd55-b576c07bb09d';
+const lgpol=(id,name,over={})=>({id,displayName:name,state:over.state||'enabled',
+ conditions:{users:{includeUsers:over.inc||['All'],...(over.excUsers?{excludeUsers:over.excUsers}:{})},
+  applications:{includeApplications:['All']},...(over.risk?{signInRiskLevels:['high']}:{})},
+ grantControls:{operator:'AND',builtInControls:['mfa']}});
+
+test('licences: an excluded guest cannot subtract from a member count',()=>{
+ // One member user, one guest excluded from the All-users policy. The guest is
+ // not in the member population, so the policy targets the one member.
+ const ctx={policies:[lgpol('p1','All users',{excUsers:['guest1']})],
+  users:[{id:'m1',userPrincipalName:'m1@x',displayName:'Member one',accountEnabled:true,assignedLicenses:[],assignedPlans:[]}],
+  totalMembers:1,members:{},roleMembers:{},skus:[],names:{}};
+ const res=LicGap.analyze(ctx);
+ const row=res.perPolicy.find(p=>p.id==='p1');
+ assert.equal(row.size,1,'1 member in scope, not 0');
+ assert.equal(res.p1.targeted,1);
+ assert.equal((res.p1.gapUsers||[]).length,1);
+ assert.equal(row.gap,1);
+});
+test('licences: seats purchased and entitlement assigned in scope are separate measures',()=>{
+ const users=[
+  // analyze() reads the per-user verdict the wiring puts there with licenceOf
+  {id:'a',upn:'a@x',name:'A',userPrincipalName:'a@x',displayName:'A',accountEnabled:true,enabled:true,p1:true,p2:false,assignedLicenses:[{skuId:'sku-p1',disabledPlans:[]}],assignedPlans:[]},
+  {id:'b',upn:'b@x',name:'B',userPrincipalName:'b@x',displayName:'B',accountEnabled:true,enabled:true,p1:false,p2:false,assignedLicenses:[],assignedPlans:[]},
+ ];
+ const ctx={policies:[lgpol('p1','All users')],users,totalMembers:2,members:{},roleMembers:{},names:{},
+  skus:[{skuId:'sku-p1',skuPartNumber:'AAD_PREMIUM',prepaidUnits:{enabled:9},consumedUnits:1,capabilityStatus:'Enabled',servicePlans:[{servicePlanId:P1_PLAN,servicePlanName:'AAD_PREMIUM',provisioningStatus:'Success'}]}]};
+ const res=LicGap.analyze(ctx);
+ assert.equal(res.p1.targeted,2);
+ assert.equal(res.p1.seats,9,'nine seats owned');
+ assert.equal(res.p1.assignedInScope,1,'only one targeted identity holds it');
+ assert.ok(res.p1.gap<=0,'no purchasing shortfall');
+ assert.equal((res.p1.gapUsers||[]).length,1,'and still one user to assign to');
+ const md=LicGap.toMd(res,{tenantName:'Fixture'});
+ assert.match(md,/Assigned in scope/);
+ assert.match(md,/Purchasing shortfall is demand against seats OWNED/);
+ assert.doesNotMatch(md,/\| Targeted \| Licensed \| Gap \|/);
+});
+test('licences: a denied mailbox read is reported as denied, never as never-licensed',()=>{
+ const ctx={policies:[lgpol('p1','All users')],
+  users:[{id:'a',userPrincipalName:'shared@x',displayName:'Shared',accountEnabled:true,assignedLicenses:[],assignedPlans:[]}],
+  totalMembers:1,members:{},roleMembers:{},skus:[],names:{}};
+ const res=LicGap.analyze(ctx);
+ res.p1.gapUsers[0].purpose='mailbox-no-access';
+ const md=LicGap.toMd(res,{tenantName:'Fixture'});
+ assert.match(md,/MAILBOX READ DENIED/);
+ assert.match(md,/purpose was NOT established/);
+ assert.doesNotMatch(md,/never licensed/i);
+ assert.doesNotMatch(md,/disable or exclude it/i);
+ res.p1.gapUsers[0].purpose='shared';
+ const md2=LicGap.toMd(res,{tenantName:'Fixture'});
+ assert.match(md2,/userPurpose returned by Graph/);
+ assert.match(md2,/keep sign-in blocked/);
+});
+test('licences and coverage agree that insider risk is a P2 condition',async()=>{
+ const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?users:[],gpost:async()=>({value:[]})});
+ const p=policy();p.conditions.insiderRiskLevels='elevated';p.grantControls={operator:'AND',builtInControls:['mfa']};
+ const c=await a.collect([asVm(p)],'all',()=>{});
+ const r=a.evaluate(c.lookup,c.users,c.ctx);
+ assert.equal(r[0].needsP2,true);
+ assert.equal(JSON.stringify(LicGap.riskKindsOf?LicGap.riskKindsOf(p):['insider risk']),JSON.stringify(['insider risk']));
+});
+
+// ---- 25412: results are bound to the run that made them ----
+const RunMeta=load('runmeta.js','RunMeta',{});
+test('runmeta: a policy reload makes a result stale, a rerender does not',()=>{
+ const ctx={tenantId:'t1',tenantName:'Contoso',snapshot:1000,policies:[{state:'enabled'},{state:'disabled'}]};
+ const m=RunMeta.of({...ctx,tool:'T09',population:'Every policy in the tenant'});
+ assert.equal(m.states.on,1);assert.equal(m.states.off,1);
+ assert.equal(RunMeta.stale(m,ctx),false,'same snapshot, same tenant');
+ assert.equal(RunMeta.stale(m,{...ctx,snapshot:2000}),true,'policies reloaded');
+ assert.equal(RunMeta.stale(m,{...ctx,tenantId:'t2'}),true,'different tenant');
+ const html=RunMeta.strip(m,{...ctx,snapshot:2000},{staleHint:'rescan'});
+ assert.match(html,/runstrip stale/);
+ assert.match(html,/Policy snapshot replaced/);
+ assert.match(html,/#'?\w+/);
+ assert.doesNotMatch(RunMeta.strip(m,ctx),/stale/);
+});
+test('runmeta: two runs get different ids and the descriptor keeps its own snapshot',()=>{
+ const a=RunMeta.of({tenantId:'t1',snapshot:1,policies:[]});
+ const b=RunMeta.of({tenantId:'t1',snapshot:2,policies:[]});
+ assert.notEqual(a.id,b.id);
+ assert.equal(a.snapshot,1);assert.equal(b.snapshot,2);
+});
+
+// ---- 25413: cohorts, and the render that stopped being quadratic ----
+test('cohorts: identical users collapse into one row, outliers sort first',async()=>{
+ const many=Array.from({length:12},(_,i)=>({id:'u'+i,displayName:'User '+i,userType:'Member',accountEnabled:true}));
+ const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?many:[],gpost:async()=>({value:[]})});
+ const p1=policy();p1.id='p1';p1.displayName='All users MFA';
+ const p2=policy({users:{includeUsers:['All'],excludeUsers:['u0']}});p2.id='p2';p2.displayName='Excludes one';
+ p2.grantControls={operator:'AND',builtInControls:['mfa','compliantDevice']};
+ const c=await a.collect([asVm(p1),asVm(p2)],'all',()=>{});
+ const r=a.evaluate(c.lookup,c.users,c.ctx);
+ const maps=a.buildMatrixMaps(r),pols=a.policyMeta(c.lookup);
+ const co=a.cohorts(r,maps,pols);
+ assert.equal(co.length,2,'twelve users, two distinct states');
+ assert.equal(co[0].users,1,'the outlier sorts first');
+ assert.match(co[0].finding,/risky bypass/);
+ assert.equal(co[1].users,11);
+ assert.equal(co[1].finding,'nothing to look at');
+ const html=a.cohortsHtml(r,maps,pols,null,null);
+ assert.match(html,/2 cohorts<\/b> across 12 users/);
+ assert.match(html,/data-cohort="0"/);
+});
+test('user rows keep their original indices without a quadratic lookup',async()=>{
+ const many=Array.from({length:30},(_,i)=>({id:'u'+i,displayName:'User '+i,userPrincipalName:'u'+i+'@x',userType:'Member',accountEnabled:true}));
+ const a=analyzer({ggetAll:async url=>url.startsWith('/users?')?many:[],gpost:async()=>({value:[]})});
+ const c=await a.collect([asVm(policy())],'all',()=>{});
+ const r=a.evaluate(c.lookup,c.users,c.ctx);
+ const idxs=a.filterRows(r,'all','u2',null,'');
+ const html=a.userRows(r,'all','u2',null,'');
+ for(const i of idxs)assert.match(html,new RegExp('data-user="'+i+'"'));
+ assert.equal((html.match(/data-user=/g)||[]).length,idxs.length);
+});
+
+test('exclusions matrix: the policy that does NOT carry the shared exclusion is marked',()=>{
+ const E=exModule({});
+ // four policies exclude the break-glass group, one does not
+ const pols=[1,2,3,4].map(i=>expol('p'+i,'Policy '+i,{excGroups:['g-break']}));
+ pols.push(expol('p5','The odd one out',{excUsers:['someone-else']}));
+ const m=E.collect(pols);
+ const html=E.renderMatrix(m,'all','',true,{});
+ assert.match(html,/cellv dev/,'the missing cell is marked');
+ assert.match(html,/odd one out/i);
+ assert.match(html,/excluded from 4 of 5 policies/);
+ // and with no dominant pattern nothing is marked
+ const flat=E.collect([expol('a','A',{excGroups:['g1']}),expol('b','B',{excGroups:['g2']})]);
+ assert.doesNotMatch(E.renderMatrix(flat,'all','',true,{}),/cellv dev/);
+});
+
+// ---- 25416: the member button is a real control on its own line ----
+test('exclusions matrix: the member button is not inside the clipped sublabel',()=>{
+ const E=exModule({});
+ const m=E.collect([expol('p1','All users',{excGroups:['g1']})]);
+ const g=m.entities.find(e=>e.kind==='group');
+ g.name='CA-Exclude';g.members=[{id:'u1',name:'One',upn:'one@x',direct:true,via:[]},{id:'u2',name:'Two',upn:'two@x',direct:false,via:['Child']}];g.memberTotal=2;g.nested=[{id:'c',name:'Child'}];g.directCount=1;g.nestedCount=1;
+ const html=E.renderMatrix(m,'all','',false,{});
+ assert.match(html,/class="ex-rowact" data-exmembers=/);
+ assert.doesNotMatch(html,/ex-memlink/);
+ // the button follows the sublabel div, it does not sit inside it
+ const i=html.indexOf('class="uupn"'),j=html.indexOf('class="ex-rowact"');
+ assert.ok(i>0&&j>i);
+ assert.ok(html.slice(i,j).includes('</div>'),'sublabel closed before the button');
+});
+
+// ---- 25417: every reactive thing in the grids is a button, and a cell has evidence ----
+test('exclusions grids: rows, columns and marked cells are buttons with grid positions',()=>{
+ const E=exModule({});
+ const m=E.collect([expol('p1','All users',{excUsers:['u1']}),expol('p2','Second',{excUsers:['u1','u2']})]);
+ m.entities.forEach(e=>{e.name=e.id;});
+ const html=E.renderMatrix(m,'all','',false,{});
+ assert.match(html,/<button type="button" class="ph" data-expol="p1" data-r="0" data-c="1" tabindex="0"/);
+ assert.match(html,/<button type="button" class="uname ex-rowbtn" data-exrow="user:u1" data-r="1" data-c="0"/);
+ assert.match(html,/<button type="button" class="cell no" data-excell="user:u1\|p1"/);
+ assert.doesNotMatch(html,/<td class="ucol[^>]*data-exrow=/,'the td no longer carries the row action');
+ assert.match(html,/ex-legend/);
+ const {users}=E.effectiveUsers(m);
+ const r=E.renderUsers(m,users,'',0,50,{});
+ assert.match(r.html,/data-excell="u1\|p2"/);
+ assert.match(r.html,/class="ph" data-expol="p2" data-r="0" data-c="2" tabindex="-1"/);
+});
+test('exclusions evidence: the cell card says the same thing the title used to, plus the verdict',()=>{
+ const E=exModule({});
+ const scoped=expol('p1','Scoped',{inc:['u2'],excUsers:['u1']});
+ const all=expol('p2','All users',{excUsers:['u1']});
+ const m=E.collect([scoped,all]);
+ m.entities.forEach(e=>{e.name='User one';e.upn='u1@x';});
+ const {users}=E.effectiveUsers(m);
+ const evb=E.evidence(m,users,'u1','p2','users');
+ assert.equal(evb.state,'bypass');assert.match(evb.verdict,/effective bypass/);
+ const evc=E.evidence(m,users,'u1','p1','users');
+ assert.equal(evc.state,'configured');assert.match(evc.verdict,/never includes them/);
+ const evm=E.evidence(m,users,'user:u1','p2','matrix');
+ assert.equal(evm.excluded,true);assert.equal(evm.policy.name,'All users');
+ const odd=E.evidence(m,users,'user:u1','p1','matrix');
+ assert.equal(odd.excluded,true);
+ assert.equal(E.evidence(m,users,'nobody','p2','users'),null);
+});
+
+// ---- 25418: the pins are chips, the banner is only the policy strip ----
+test('exclusions: pins render as removable chips and the banner names only the policy',()=>{
+ const E=exModule({});
+ const m=E.collect([expol('p1','All users',{excUsers:['u1']}),expol('p2','Second',{excUsers:['u1']})]);
+ m.entities.forEach(e=>{e.name='User one';});
+ const chips=E.focusChips(m,[],{row:'user:u1',col:'p2'});
+ assert.match(chips,/data-exunpin="row"[^>]*>🔎 User one ✕/);
+ assert.match(chips,/data-exunpin="col"[^>]*>📄 Second ✕/);
+ const html=E.renderMatrix(m,'all','',false,{col:'p2'});
+ assert.match(html,/class="ex-focus"/);assert.match(html,/Open policy/);
+ assert.doesNotMatch(html,/Filtered to|data-exclearfocus/);
+ assert.doesNotMatch(E.renderMatrix(m,'all','',false,{row:'user:u1'}),/class="ex-focus"/);
+});
+
+// ---- 25419: the Overview draws only from what is already loaded ----
+const Overview=load('overview.js','Overview',{});
+test('overview: the tenant band counts states, recent change and labels exclusions as configured',()=>{
+ const now=Date.parse('2026-09-21T12:00:00Z');
+ const html=Overview.tenant({tenantName:'Contoso',snapshot:now,now,
+  policies:[{name:'A',state:'enabled',modified:'2026-09-19T00:00:00Z'},{name:'B',state:'enabledForReportingButNotEnforced',modified:'2026-06-01T00:00:00Z'},{name:'C',state:'disabled',modified:null}],
+  baseline:{label:'Joey 3.2',missing:4,outdated:1,conflict:0,coverage:81},
+  exclusions:{entities:14,byKind:{user:3,group:5,app:1},policies:11}});
+ assert.match(html,/1 last modified 30\+ days ago/);
+ assert.match(html,/date unavailable for 1/);
+ assert.match(html,/last: A, 2 days ago/);
+ assert.match(html,/4 missing · 1 outdated · 0 in conflict · 81% of catalog matched/);
+ assert.match(html,/3 users · 5 groups · 1 app in 11 policies — configured, not effective/);
+ assert.match(html,/rules that still use it stop updating: in <b>43 days<\/b> \(3 Nov 2026\)/);
+ assert.match(html,/most users, internal guests included: in <b>133 days<\/b> \(1 Feb 2027\)/);
+ assert.match(html,/Global Administrators and external users: in <b>283 days<\/b> \(1 Jul 2027\)/);
+ assert.match(html,/checked 2026-09-21/);assert.match(html,/concept-sms-voice-retirement/);
+ assert.equal((html.match(/not assessed/g)||[]).length,2);
+ assert.match(html,/data-ovtool="toolExclusions"/);
+});
+test('overview: exclusion kinds add up to the total, locations and platforms included; unknown kinds are named as other',()=>{
+ assert.equal(Overview.exclusionKinds({user:3,group:5,guest:1,location:3,platform:2}),'3 users · 5 groups · 1 external clause · 3 named locations · 2 device platforms');
+ assert.equal(Overview.exclusionKinds({app:1,zzz:4}),'1 app · 4 other references');
+ assert.equal(Overview.exclusionKinds({}),'');
+});
+test('overview: an advisory shows the tenant impact once the tool has run, and no dated policy is not the same as no change',()=>{
+ const now=Date.parse('2026-09-21T12:00:00Z');
+ const html=Overview.tenant({now,policies:[{name:'A',state:'enabled',modified:null},{name:'B',state:'enabledForReportingButNotEnforced',modified:null}],baseline:null,exclusions:null,
+  impact:{toolSmsVoice:{text:'12 users still on SMS/voice (3 blocking)'}}});
+ assert.match(html,/tenant impact: <b>12 users still on SMS\/voice \(3 blocking\)<\/b>/);
+ assert.match(html,/>Open</);assert.match(html,/>Assess</);
+ assert.match(html,/date unavailable for 2/);assert.doesNotMatch(html,/no dated policy modified/);
+ assert.match(html,/date unavailable for 1/);
+});
+test('overview: check rows say not run, previous snapshot, or the headline with its run (25422)',()=>{
+ const html=Overview.checks([
+  {tool:'toolExclusions',icon:'x',label:'Exclusions',what:'w1',run:'ex',never:false,stale:false,meta:{id:'001',at:Date.now(),completeness:'exact'},headline:{n:5,unit:'effective bypasses'}},
+  {tool:'toolAnalyze',icon:'y',label:'Gap',what:'w2',run:'an',never:false,stale:true,meta:{id:'002',at:Date.now(),completeness:'exact'},headline:{n:3,unit:'risky'}},
+  {tool:'toolLicGap',icon:'z',label:'Licences',what:'w3',run:'lg',never:true,meta:null,headline:null},
+  {tool:'toolLicGap',icon:'z',label:'Licences',what:'w3',run:'lg',never:false,stale:false,meta:{id:'003',at:Date.now(),completeness:'partial — SKU read failed'},headline:{n:'Unknown',unit:'incomplete read'}},
+ ]);
+ assert.match(html,/<b>5<\/b> effective bypasses · run #001 at .* · exact/);
+ assert.match(html,/db-check stale/);assert.match(html,/Previous snapshot · run #002 at .* — policies reloaded since/);assert.match(html,/Run again/);
+ assert.match(html,/db-check never/);assert.match(html,/Not run this session/);assert.match(html,/Run check/);
+ assert.match(html,/db-check partial/);assert.match(html,/<b>Unknown<\/b> incomplete read/);
+ assert.equal((html.match(/data-ovrun=/g)||[]).length,4);
+});
+test('overview: the header keeps four counts and says loading, failed or empty only when it is',()=>{
+ const counts={total:48,on:36,report:9,off:3};
+ const loaded=Overview.header({tenantName:'Contoso',snapshot:Date.now(),counts,status:{kind:'loaded'}});
+ assert.equal((loaded.match(/data-ovstate=/g)||[]).length,4);
+ assert.match(loaded,/<b>48<\/b><span>Policies loaded<\/span>/);assert.match(loaded,/<b>9<\/b><span>Report-only<\/span>/);
+ assert.doesNotMatch(loaded,/db-status/);
+ assert.match(Overview.header({counts,status:{kind:'loading',since:Date.now()}}),/db-status loading[^>]*>Reading policies…/);
+ const failed=Overview.header({counts,status:{kind:'failed',at:Date.now(),message:'403 Forbidden',since:Date.now()}});
+ assert.match(failed,/db-status failed/);assert.match(failed,/403 Forbidden/);assert.match(failed,/data-ovrefresh>Retry/);
+ const empty=Overview.header({tenantName:'Contoso',snapshot:Date.now(),counts:{total:0,on:0,report:0,off:0},status:{kind:'empty'}});
+ assert.match(empty,/0 policies loaded from Contoso at/);assert.match(empty,/data-ovtool="toolBaseline"/);assert.match(empty,/<b>0<\/b><span>Policies loaded/);
+ assert.match(Overview.lead({snapshot:Date.parse('2026-09-21T10:42:00Z')}),/^Policies read .*2026.* · details come from each check’s own run\.$/);
+ assert.equal(Overview.lead({snapshot:null}),'');
+});
+
+// ---- 25420/25423: Worth a look first draws ranked findings with their evidence ----
+const F=(o)=>({id:'gap:x:'+o.text.toLowerCase().replace(/\W+/g,'-'),source:'gap',icon:'s',toolLabel:'Checks',tool:'toolGapCheck',tab:'checks:bypass',policyIds:[],evidence:{state:'snapshot',label:'Policy snapshot',at:Date.parse('2026-09-21T10:42:00Z'),note:'run'},detail:{observed:'obs '+o.text,next:'next'},action:{label:'Open in Checks'},...o});
+test('overview: worth renders ranked lines with severity, evidence chip and tool, three by default, and the provisional note',()=>{
+ const items=[F({sev:'critical',text:'No MFA policy covers all users',sub:'tenant-wide'}),F({sev:'high',text:'Two',sub:'x'}),F({sev:'medium',text:'Three'}),F({sev:'low',text:'Four'})];
+ const html=Overview.worth({items,provisional:'First pass over the loaded policies only.',zt:{overall:42,at:'10:42'}});
+ assert.equal((html.match(/class="db-worth sev-/g)||[]).length,3);
+ assert.match(html,/sev-critical[\s\S]*sev-high[\s\S]*sev-medium/);assert.doesNotMatch(html,/sev-low/);
+ assert.match(html,/data-ovshowall>View all 4 findings/);
+ assert.match(html,/db-ev ok[^>]*>Policy snapshot · /);
+ assert.match(html,/configuration score 42\/100 from the 🛡 run at 10:42 — findings, not effective protection/);
+ assert.match(html,/db-worth-note[^>]*>First pass over the loaded policies only\./);
+ const all=Overview.worth({items,provisional:null,zt:null},{showAll:true});
+ assert.equal((all.match(/class="db-worth sev-/g)||[]).length,4);assert.match(all,/Show the top three/);
+});
+test('overview: an open finding shows its evidence — observed, evidence state, the policies with scope and grant logic, next step, and the carried filter',()=>{
+ const pol={id:'p1',name:'CA200-GRANT-Internals-AllApps-MFA-or-Compliant',state:'on',modified:'2026-08-01',users:{inc:['All users'],exc:['Break-glass (group)']},apps:{inc:['All resources'],exc:['Windows Azure Service Management API']},net:{inc:['Any network or location'],exc:[]},cond:{platforms:[],platformsExc:[]},grant:{mode:'grant',controls:['Require MFA','Require compliant device'],op:'OR'},session:['Sign-in frequency 12 hours']};
+ const it=F({sev:'high',text:'MFA is one of two allowed controls',policyIds:['p1','gone'],evidence:{state:'partial',label:'Partial context',at:1,note:'strengths unread'}});
+ const html=Overview.worth({items:[it]},{open:it.id,policyOf:(id)=>id==='p1'?pol:null});
+ assert.match(html,/db-worth-wrap open/);assert.match(html,/aria-expanded="true"/);
+ assert.match(html,/Observed<\/span><span>obs MFA is one of two allowed controls/);
+ assert.match(html,/db-ev warn[^>]*>Partial context/);assert.match(html,/understated, never invented/);
+ assert.match(html,/CA200-GRANT-Internals-AllApps-MFA-or-Compliant/);assert.match(html,/excluding Break-glass \(group\)/);
+ assert.match(html,/Require MFA, Require compliant device <span class="db-op">OR<\/span> <span class="mini muted">— any one control satisfies it/);
+ assert.match(html,/Sign-in frequency 12 hours/);
+ assert.match(html,/<b>gone<\/b> <span class="mini muted">— not in the loaded snapshot/);
+ assert.match(html,/data-ovpolicies="p1,gone">Show these 2 policies/);
+ assert.match(html,/data-ovtool="toolGapCheck" data-ovtab="checks:bypass">Open in Checks/);
+ assert.match(html,/Next step<\/span><span>next/);
+ const closed=Overview.worth({items:[it]},{open:null});assert.doesNotMatch(closed,/db-evid/);
+});
+test('overview: evidence states — run needed and previous snapshot read as such, tenant-wide findings say so',()=>{
+ const needed=F({sev:'info',text:'CIS not assessed',evidence:{state:'needed',label:'Run needed',at:null,note:''}});
+ const prev=F({sev:'info',text:'CIS old',evidence:{state:'previous',label:'Previous snapshot',at:1,note:'reloaded'}});
+ const html=Overview.worth({items:[needed,prev]},{open:needed.id});
+ assert.match(html,/db-ev na[^>]*>Run needed<\/span>/);assert.match(html,/db-ev warn[^>]*>Previous snapshot · /);
+ assert.match(html,/tenant-wide — no single policy carries this finding/);
+});
+test('overview: worth with nothing to show says so, and no note when the run was full',()=>{
+ const html=Overview.worth({items:[],provisional:null,zt:null});
+ assert.match(html,/Nothing critical or high in the loaded policy set — /);
+ assert.doesNotMatch(html,/on a first pass/);assert.doesNotMatch(html,/db-worth-note/);assert.match(html,/configuration checks — partial/);
+ const html2=Overview.worth({items:[],provisional:'x',zt:null});
+ assert.match(html2,/on a first pass/);
+});
+
+// ---- 25424: the configuration map — pure helpers ----
+test('overview: normalize ignores volatile metadata and key order; diff compares by id and definition',()=>{
+ const a={id:'1',displayName:'A',state:'enabled',conditions:{users:{includeUsers:['All']},applications:{includeApplications:['All']}},modifiedDateTime:'2026-09-01T00:00:00Z','@odata.etag':'x'};
+ const b={'@odata.etag':'y',modifiedDateTime:'2026-09-21T00:00:00Z',conditions:{applications:{includeApplications:['All']},users:{includeUsers:['All']}},state:'enabled',displayName:'A',id:'1'};
+ assert.equal(Overview.normalize(a),Overview.normalize(b));
+ const c={...b,state:'disabled'};assert.notEqual(Overview.normalize(a),Overview.normalize(c));
+ const prev=new Map([['1',{name:'A',norm:Overview.normalize(a)}],['2',{name:'Gone',norm:'x'}]]);
+ const cur=new Map([['1',{name:'A',norm:Overview.normalize(c)}],['3',{name:'New',norm:'y'}]]);
+ const d=Overview.diff(prev,cur);
+ assert.equal(JSON.stringify([d.added.map(x=>x.name),d.removed.map(x=>x.name),d.modified.map(x=>x.name)]),'[["New"],["Gone"],["A"]]');
+});
+test('overview: controls are counted per state and overlap',()=>{
+ const raws=[
+  {state:'enabled',grantControls:{builtInControls:['mfa','compliantDevice'],operator:'OR'},conditions:{},sessionControls:{signInFrequency:{isEnabled:true}}},
+  {state:'enabledForReportingButNotEnforced',grantControls:{builtInControls:['block']},conditions:{clientAppTypes:['exchangeActiveSync','other']}},
+  {state:'disabled',grantControls:{authenticationStrength:{id:'s'}},conditions:{signInRiskLevels:['high'],locations:{includeLocations:['All'],excludeLocations:['x']}}},
+ ];
+ const rows=Object.fromEntries(Overview.controls(raws).map(r=>[r.key,r]));
+ assert.equal(JSON.stringify([rows.mfa.on,rows.mfa.report,rows.mfa.off,rows.device.on,rows.block.report,rows.legacy.report,rows.risk.off,rows.location.off,rows.session.on]),'[1,0,1,1,1,1,1,1,1]');
+});
+test('overview: the map says No earlier snapshot first, then the diff; a missing baseline reads none matched',()=>{
+ const base={reviewQueue:{rows:[{id:'r1',name:'RO one',modified:'2026-06-01T00:00:00Z'}],total:4},recent:{rows:[],undated:2},exclusions:{entities:14,occurrences:19,policies:12,byKind:{}},baseline:null,controls:Overview.controls([]),diff:null,snapshotAt:Date.now(),context:[{label:'Named locations',text:'read at 10:42',state:'read'}],now:Date.parse('2026-09-21T12:00:00Z')};
+ const html=Overview.map(base);
+ assert.match(html,/No earlier snapshot in this session/);assert.match(html,/RO one/);assert.match(html,/112 days ago/);assert.match(html,/and 3 more/);
+ assert.match(html,/Date unavailable for 2 policies/);assert.match(html,/14 unique · 19 occurrences · 12 policies/);assert.match(html,/none matched/);
+ assert.match(html,/Named locations<\/span><b class="ok">read at 10:42/);assert.match(html,/Effective user impact<\/span><b class="na">not checked/);
+ const withDiff=Overview.map({...base,diff:{prevAt:Date.now()-60000,added:[{id:'a',name:'Added'}],removed:[],modified:[{id:'m',name:'Mod'}]},baseline:{label:'CloudFellows',release:'2026.6.1',source:'bundled',author:'CloudFellows',basis:'matched from the tenant’s policies',matched:30,total:36,missing:3,outdated:2,conflict:1}});
+ assert.match(withDiff,/<b>1<\/b> added/);assert.match(withDiff,/<b>1<\/b> modified/);assert.match(withDiff,/data-ovpolicies="a,m">Show the changed policies/);
+ assert.match(withDiff,/CloudFellows 2026\.6\.1/);assert.match(withDiff,/bundled \(CloudFellows\) · matched from the tenant’s policies/);assert.match(withDiff,/30 of 36/);assert.match(withDiff,/3 \/ 2 \/ 1/);
 });

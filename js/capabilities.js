@@ -17,7 +17,24 @@ const Capabilities = (() => {
       // match is unknown, not proof that the product is unlicensed/unconfigured.
       cloudApps: named(/ADALLOM|MCAS|DEFENDER.*CLOUD.*APP/i) || null,
       governance: named(/ENTRA.*GOVERNANCE|AAD.*GOVERNANCE/i) || null,
-      purview: named(/ADAPTIVE.*PROTECTION/i) || null };
+      // 25491: no service plan is NAMED Adaptive Protection — it is part of
+      // Insider Risk Management (Microsoft 365 E5, E5 Compliance, E5 Insider
+      // Risk Management), whose plans are INSIDER_RISK and
+      // INSIDER_RISK_MANAGEMENT. Matching only /ADAPTIVE.*PROTECTION/ left
+      // this unknown in every tenant, so every write to a policy with an
+      // insider-risk condition stopped with "could not be verified".
+      // 25492, Mihai: "this tenant has the Microsoft Purview Suite for
+      // Microsoft 365 Business Premium, so the licence should be covered".
+      // It is — the suite includes Insider Risk Management with adaptive
+      // protection — but a plan-name match alone depends on how Microsoft
+      // names the plans inside each new bundle. The SKU is matched as well:
+      // any Purview suite (Business Premium, enterprise, frontline), the old
+      // E5 Compliance / E5 Insider Risk Management SKUs, and Microsoft 365
+      // E5 / F5 Compliance, which carry the same component.
+      purview: named(/INSIDER_RISK|ADAPTIVE.*PROTECTION/i)
+        || live.some(s => /PURVIEW|INSIDER_RISK|INFORMATION_PROTECTION_COMPLIANCE|^SPE_E5|M365_E5_SUITE|F5_COMP/i.test(s.skuPartNumber || "")) || null,
+      // what was read, so a "could not be verified" can name it
+      _skus: live.map(s => s.skuPartNumber).filter(Boolean) };
   }
   function requirements(raw) {
     const p = raw || {}, c = p.conditions || {}, grants = p.grantControls || {}, sessions = p.sessionControls || {};
@@ -28,10 +45,18 @@ const Capabilities = (() => {
     if (grants.builtInControls?.includes("compliantApplication")) need.add("intune");
     return [...need];
   }
-  function check(raw, evidence) {
+  // `already`: requirements the policy carried BEFORE this write (a PATCH).
+  // Entra accepted those when the policy was made, so an edit that keeps them
+  // — an exclusion added, a name changed — is not blocked on evidence this
+  // tool cannot read; only a requirement the write ADDS must be proven.
+  function check(raw, evidence, already) {
+    const had = new Set(already || []);
     const required = requirements(raw);
-    const missing = required.filter(k => evidence?.[k] !== true);
-    return { ok: !missing.length, required, missing, reason: missing.map(k => `${labels[k]} ${evidence?.[k] === false ? "not present in active subscriptions" : "could not be verified"}`).join("; ") };
+    const missing = required.filter(k => !had.has(k) && evidence?.[k] !== true);
+    const seen = evidence && Array.isArray(evidence._skus) ? evidence._skus : null;
+    return { ok: !missing.length, required, missing, reason: missing.map(k => `${labels[k]} ${evidence?.[k] === false ? "not present in active subscriptions" : seen
+      ? `could not be verified from the active subscriptions (${seen.length ? seen.join(", ") : "none readable"})`
+      : "could not be verified — the subscriptions could not be read (LicenseAssignment.Read.All or Organization.Read.All)"}`).join("; ") };
   }
   function plan(raws, evidence, existingCount) {
     const rows = raws.map(raw => ({ id: raw.id, name: raw.displayName, ...check(raw, evidence) }));
