@@ -138,11 +138,12 @@ const PROMOTE = {
       n: 273,
       title: "⇄ Switch over in Housekeeping, and version names with a hyphen",
       tools: ["Policies"],
-      builds: [25484],
+      builds: [25484, 25486],
       risk: "high",
       what: "js/import.js: switchCandidates(list) — newer version Off while an older one is On / Report-only, grouped per newer version, target state from the older ones (On beats Report-only), housekeeping reasons minus the two the switch resolves, needsCompare, incomplete; switchOver(items, {reportOnlyFirst, readWaits, shouldStop, onItem}) — newer PATCH state + read back, then each older PATCH disabled + read back, partial when an older refuses; switchReport. housekeeping() family() strips -vX as well as spaced vX. js/app.js: the ⇄ section at the top of the Housekeeping list (ticks gated on Compare for pairs that differ, Report-only-first switch, review step with typed SWITCH, RunLedger, report, reload), Housekeeping button shows the switch count, Duplicates intro counts version pairs. index.html: Housekeeping Help.",
       why: "Perfetti, 23 Sep: 8 new versions left Off beside their predecessors by an import that could not verify them, and nothing in ENCA could finish the change. The hyphen bug meant no CloudFellows pair could ever be a Housekeeping cleanup candidate. Risk high: it changes the state of production policies.",
       test: [
+        "25486: 🧹 Housekeeping → ⇄ Switch over a pair → Report: the report is in front, readable, and Download works; the same from 🔀 Duplicate names in CA groups and 👯 Duplicates.",
         "Perfetti: 🧹 Housekeeping shows ⇄ Switch over with the pairs from the 23 Sep import (CA014, CA100, CA101, CA111, CA200, CA302, CA405, CA1007). CA101 cannot be ticked until Compare has been opened for it.",
         "Tick CA200 only, leave Report-only first unticked, Review, type SWITCH, run: CA200 v1.0.1 reads the state CA200 v1.0 had, then v1.0 reads Off — in that order in the portal's audit log.",
         "Afterwards CA200 v1.0 appears below as a Cleanup candidate (Off, same configuration, newer On) — before this build no hyphenated pair ever did.",

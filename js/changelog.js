@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25486, date: "2026-09-23", title: "Reports open on top of the dialog that asked for them",
+    items: [
+      { kind: "fixed", tool: "Policies", text: "📄 A report opened from inside another dialog — the switch-over and clean-up in Housekeeping, merging duplicate policies or groups, re-attaching groups after an import — appeared behind that dialog, where it could not be read or saved. Reports now always open on top." },
+    ],
+  },
+  {
     build: 25485, date: "2026-09-23", title: "MS Learn checks: a matrix for Teams Rooms and Surface Hub",
     items: [
       { kind: "new", tool: "Checks", text: "📘 Below the guest matrix, a second one for shared devices: Teams Rooms on Windows, Teams Rooms on Android with phones and panels, and Surface Hub — against every control the policies that reach their resource accounts demand, straight from Microsoft's support tables. It shows at a glance where a room will stop signing in (MFA, authentication strength, sign-in frequency, token protection, terms of use, a device-code block on Android), where it will prompt, and what the documentation does not cover. A policy that excludes the shared-device group is left out; a cell opens the policies behind it." },
