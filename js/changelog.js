@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 25490, date: "2026-09-23", title: "MS Learn checks wait for Run checks, like Bypass",
+    items: [
+      { kind: "improved", tool: "Checks", text: "📘 The Microsoft Learn tab no longer runs by itself every time it opens — it now reads a fair amount from the tenant (cross-tenant settings, the guests in every included group). Like Bypass & Swiss cheese it waits for ▶ Run checks, says what it will read, and keeps the result until you refresh." },
+    ],
+  },
+  {
     build: 25489, date: "2026-09-23", title: "MS Learn checks: every blocked cell in the matrices is explained below it",
     items: [
       { kind: "improved", tool: "Checks", text: "📘 A blocked cell in the shared-device matrix — terms of use, persistent browser, app enforced restrictions, token protection and the rest on Teams Rooms, phones, panels and Surface Hub — is now a finding below, per policy, saying why the device cannot meet it and what to do: exclude the shared-device group when the policy reaches them through All users, or take the control out when it is the devices' own policy. On the guest side the one cell without a finding, MFA for B2B direct connect without inbound MFA trust, has one too." },

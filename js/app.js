@@ -19940,6 +19940,20 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlDisabledNote").textContent = scopeNote(checkScope(baseline), policies.filter(p => p.raw.state === "disabled").length);
     // cached — keep the previous screen, filter, open findings and tab
     if (mlGroups && mlKey === mlReadKey()) { renderMsLearn(); return; }
+    // 25490, Mihai: "shouldn't the Learn get a scan like Bypass?" It ran by
+    // itself on every open, and by now that is a real read — strengths,
+    // cross-tenant settings, CA settings, authentication methods, the
+    // convention groups and the guest count of every included group (up to
+    // 80 $count calls). Idle until asked, like 🛡 Bypass & Swiss cheese; the
+    // result then stays until a refresh, another tenant or the other scope.
+    mlGroups = null; mlKey = null;
+    $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Your policies against the exclusions, limitations and behaviour changes documented on learn.microsoft.com — break-glass, token protection, Teams Rooms and Surface Hub, guests and external users, service providers, retirements — with a matrix for guests and one for shared devices, and a fix per finding.</p>';
+    $("mlChips").innerHTML = "";
+    $("mlBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-mlrun>▶ Run checks</button>
+      <p class="mini muted">Reads through Microsoft Graph: authentication strengths, cross-tenant access settings (the default and every partner), the Conditional Access settings, the authentication methods policy, the break-glass and shared-device groups by name, and the number of guests in each group a policy includes (up to ${GUEST_GROUP_CAP}). Results stay until you refresh.</p></div>`;
+  }
+  async function mlScan() {
+    if (!policies.length) return;
     $("mlHead").innerHTML = toolHead("toolMsLearn") + '<p class="mini" style="margin:6px 0 0">Running checks…</p>';
     $("mlChips").innerHTML = ""; $("mlBody").innerHTML = "";
     mlTab = "findings"; mlFixes = null; mlMatrix = null; mlDevMatrix = null;
@@ -20069,7 +20083,11 @@ This is a directory write. Nothing else changes.`)) return;
     }
     renderMsLearn();
   }
-  $("mlDisabled").addEventListener("change", () => { runMsLearn(); });
+  // re-run on a scope change only once there is a result to replace
+  $("mlDisabled").addEventListener("change", () => {
+    $("mlDisabledNote").textContent = scopeNote(checkScope($("mlDisabled").checked), policies.filter(p => p.raw.state === "disabled").length);
+    if (mlGroups) mlScan();
+  });
   function renderMsLearn() {
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
@@ -20109,6 +20127,7 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       if (isDemo) loadDemo(); else await loadFromGraph(true);
       await openMsLearn();
+      await mlScan();          // Refresh asks for the run — the idle prompt is for opening the tab
       toast("MS Learn checks <span>refreshed</span>");
     } catch (e) { toast(`Refresh failed: <span>${esc(e.message || e)}</span>`); }
     finally { btn.disabled = false; btn.textContent = "⟳ Refresh"; }
@@ -20148,6 +20167,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   // a finding card's Fix button jumps to the generated policy
   $("mlBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-mlrun]")) { mlScan(); return; }
     const dm = e.target.closest("[data-dmcell]");
     if (dm && mlDevMatrix) {
       const [row, control] = dm.dataset.dmcell.split("|");
