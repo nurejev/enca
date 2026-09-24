@@ -1,7 +1,8 @@
 # ======================================================================
 # 📚 Learn feed: what changed on Microsoft Learn for Conditional Access.
 #
-# Daily. Reads the public MicrosoftDocs/entra-docs repo (git, not the web
+# Weekly (Mondays; it was daily until beta 32311 — Mihai: "the checks will
+# be once a week at most"). Reads the public MicrosoftDocs/entra-docs repo (git, not the web
 # site), runs tools/learn-feed.mjs from the BETA branch against the beta
 # js/mslearn.js, and writes learn-feed.json to the `learn-feed` branch of
 # this repo. The MS Learn tool reads it at run time from
@@ -17,7 +18,7 @@
 # THE GITHUB ISSUE (32306): one open issue labelled `learn-feed` lists what
 # nobody has decided about yet — pages a check relies on that changed after
 # the check was verified, new Conditional Access pages, and Conditional
-# Access entries of the Entra what's-new page. It is rewritten every night,
+# Access entries of the Entra what's-new page. It is rewritten by every weekly run,
 # gets a comment only when something NEW appears (so a notification means
 # something), and closes itself when everything is recorded in
 # js/learntriage.js on beta. The judgement is js/learnfeed.js — the same
@@ -31,7 +32,7 @@ name: learn feed
 
 on:
   schedule:
-    - cron: "17 4 * * *"      # 04:17 UTC daily — after Microsoft's overnight doc syncs
+    - cron: "17 4 * * 1"      # Mondays 04:17 UTC (06:17 Amsterdam) — once a week at most; Run workflow still works by hand
   workflow_dispatch:
     inputs:
       days:
@@ -83,7 +84,7 @@ jobs:
           else
             mkdir feed && git -C feed init --quiet -b learn-feed
             git -C feed remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git"
-            printf '# learn-feed\n\nWritten daily by .github/workflows/learn-feed.yml on main. Data only — never merge this branch.\n' > feed/README.md
+            printf '# learn-feed\n\nWritten weekly by .github/workflows/learn-feed.yml on main. Data only — never merge this branch.\n' > feed/README.md
           fi
 
       - name: Build learn-feed.json
