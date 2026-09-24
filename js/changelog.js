@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32402, date: "2026-09-24", title: "🔒 Break-glass accounts in the restricted unit, and who can manage the units",
+    items: [
+      { kind: "improved", tool: "Protect exclusions", text: "The break-glass group's ACCOUNTS are now a third lock. A group in a restricted unit guards who is in it, not the accounts — a tenant-wide User, Authentication or Privileged Authentication Administrator could still change their methods, disable or delete them. Under the break-glass row each account shows its shape (cloud-only, onmicrosoft.com, enabled), its Global Administrator assignment and the unit it sits in, and an open account can be ticked into the group's unit, read back afterwards." },
+      { kind: "improved", tool: "Protect exclusions", text: "Before an account goes in you confirm what it costs: a Global Administrator inside a restricted unit can have its password and methods reset by nobody, so recovery is the other break-glass account taking it out of the unit, fixing it and putting it back. An account left in the unit after it left the group is shown, with a take-out tick that is never ticked for you." },
+      { kind: "new", tool: "Protect exclusions", text: "Who can manage the units: every restricted unit is checked for a role scoped to it — Groups Administrator where it holds groups, User Administrator where it holds users — and reads correct, role missing, nobody or empty unit. Read PIM adds the eligible assignments." },
+      { kind: "improved", tool: "MS Learn", text: "A break-glass band above the findings says when break-glass accounts sit outside the restricted unit, or the unit lacks its scoped roles, and opens Protect exclusions to fix it." },
+    ],
+  },
+  {
     build: 32401, date: "2026-09-24", title: "Production is build 323 (v2.0.1)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 323, ENCA v2.0.1: Identity Secure Score, Cross-tenant access and Passkeys as tabs of 🛡 Checks, 🧰 Fix on Microsoft Learn findings, the catalog revised 23 September, resizable columns and the full-width Policies list, the redesigned mark and the self-hosting fixes went live. 📰 Learn changes stays on this channel for now. This channel moves to the next cycle and reads v2.0.2-beta.N." },

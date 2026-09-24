@@ -1,5 +1,8 @@
 // ======================================================================
-// 🔒 Protect exclusions 3.0 (T20) — pure: classify, render, report.
+// 🔒 Protect exclusions 3.1 (T20) — pure: classify, render, report.
+// 3.1 (32402): the break-glass group's ACCOUNTS as a third lock and the
+// 🔑 scoped-role check per unit — both drawn by js/bgvault.js, passed in
+// through o.bg / o.bgTile / o.scopeCard.
 //
 // An exclusion group is a Conditional Access bypass, and two things widen it
 // without the policy being touched: a tenant-wide admin ADDING A MEMBER, and
@@ -51,7 +54,14 @@ const Protect = (() => {
     else cat = "open";
     const canVault = vault === "open" && !!dest && dest.source !== "missing" && dest.source !== "unset";
     const canNest = ctx.nestAvail !== false && nest === "allowed";
-    return { prot, ineligible, ra, vault, nest, nested, dest, cat, canVault, canNest, frozen: !!(prot && ra) };
+    // 3.1 (32402): a break-glass group's ACCOUNTS are a third lock. Both group
+    // locks on and an account outside every restricted unit is not "fully
+    // protected" — it is its own category, so the chip and the tile say so.
+    const acc = ctx.bgAcc ? ctx.bgAcc(g.id) : null;
+    const accOpen = acc && acc.state === "read" ? acc.open : 0;
+    const canAcc = !!(acc && acc.state === "read" && acc.canPlace && accOpen);
+    if (cat === "full" && accOpen) cat = "accounts";
+    return { prot, ineligible, ra, vault, nest, nested, dest, cat, canVault, canNest, frozen: !!(prot && ra), accOpen, canAcc };
   }
   // Default ticks: NONE. ⑥ pre-selected every assigned exclusion group, and
   // on a 115-group tenant that read as "Protect 83" under a single visible
@@ -65,9 +75,9 @@ const Protect = (() => {
 
   const CATS = [
     ["all", "All", "zero"], ["attention", "⚠ Not fully protected", "red", "warn"], ["vaultonly", "🔒 Vault only", "amber", "sec"],
-    ["nestonly", "🚫 Nesting only", "amber", "sec"], ["open", "Open", "red", "warn"], ["full", "Fully protected", "green"], ["cannot", "Cannot here", "zero"],
+    ["nestonly", "🚫 Nesting only", "amber", "sec"], ["open", "Open", "red", "warn"], ["accounts", "👤 Accounts open", "red", "warn"], ["full", "Fully protected", "green"], ["cannot", "Cannot here", "zero"],
   ];
-  const matches = (c, k) => k === "all" ? true : k === "attention" ? (c.cat !== "full" && c.cat !== "cannot") : c.cat === k;
+  const matches = (c, k) => k === "all" ? true : k === "attention" ? ((c.cat !== "full" && c.cat !== "cannot") || c.accOpen > 0) : c.cat === k;
 
   // -------------------------------------------------------------- render --
   // cands: the ⑥ candidate list (rmauCands). o: { filter, q, ticks: Map,
@@ -81,7 +91,8 @@ const Protect = (() => {
     // ---- tiles
     const referenced = cands.filter((g) => !g.unused).length;
     const nestedIn = rows.filter((r) => r.c.nested > 0).length;
-    const tiles = nestNA
+    const bgTile = o.bgTile || "";
+    const tiles = (nestNA
       ? `<div class="wo-vt"><span class="k">Exclusion groups</span><span class="v">${cands.length}</span><span class="s">${referenced} referenced by a policy · ${cands.length - referenced} unused, still listed</span></div>
          <div class="wo-vt ok"><span class="k">🔒 In a vault</span><span class="v">${n("full")}</span><span class="s">members guarded by a restricted unit</span></div>
          <div class="wo-vt ${n("open") ? "bad" : "ok"}"><span class="k">🔒 Not in a vault</span><span class="v">${n("open")}</span><span class="s">any Groups Administrator can add a member</span></div>
@@ -91,7 +102,7 @@ const Protect = (() => {
          <div class="wo-vt ok"><span class="k">🔒🚫 Fully protected</span><span class="v">${n("full")}</span><span class="s">in a vault, nesting disabled</span></div>
          <div class="wo-vt ${n("vaultonly") ? "warn" : ""}"><span class="k">🔒 Vault only</span><span class="v">${n("vaultonly")}</span><span class="s">members guarded · nesting still allowed</span></div>
          <div class="wo-vt ${n("nestonly") ? "warn" : ""}"><span class="k">🚫 Nesting only</span><span class="v">${n("nestonly")}</span><span class="s">nesting off · any Groups Administrator can add a member</span></div>
-         <div class="wo-vt ${n("open") ? "bad" : "ok"}"><span class="k">Open</span><span class="v">${n("open")}</span><span class="s">neither lock${n("cannot") ? ` · ${n("cannot")} cannot here` : ""}</span></div>`;
+         <div class="wo-vt ${n("open") ? "bad" : "ok"}"><span class="k">Open</span><span class="v">${n("open")}</span><span class="s">neither lock${n("cannot") ? ` · ${n("cannot")} cannot here` : ""}</span></div>`) + bgTile;
 
     // ---- chips
     const filter = o.filter || "all";
@@ -133,9 +144,19 @@ const Protect = (() => {
       if (c.nest === "unknown") return `<span class="wo-state na">${dot("na")}not reported</span>${c.nested ? `<div class="mini" style="color:var(--report)">↪ ${c.nested} nested group${c.nested === 1 ? "" : "s"} inside</div>` : ""}`;
       return `<span class="mini muted">reading…</span>`;
     };
+    const bgOf = (id) => (o.bg && o.bg.get(id)) || null;
+    // the third lock's tick, on the group row — the accounts panel under the
+    // row has one tick per account; this one ticks every open account at once
+    const accTick = (r) => {
+      const b = bgOf(r.g.id), c = r.c;
+      if (!b || !c.accOpen) return "";
+      const lbl = `vault ${c.accOpen} account${c.accOpen === 1 ? "" : "s"}`;
+      if (!c.canAcc) { const why = typeof BgVault !== "undefined" ? BgVault.placeWhy(b.acc) : ""; return `<label class="pr-tick dis" title="${esc(why)}"><input type="checkbox" disabled> ${lbl} <span class="muted">— ${esc(why)}</span></label>`; }
+      return `<label class="pr-tick"><input type="checkbox" data-pr-accall="${esc(r.g.id)}"${b.ticked && b.ticked >= c.accOpen ? " checked" : ""}> <b>${lbl}</b></label>`;
+    };
     const applyCell = (r) => {
       const { g, c } = r, t = tk(g.id);
-      if (c.cat === "cannot") return c.ra && !c.prot ? `<button class="btn sm" data-pr-migrate="${esc(g.id)}">⑦ Migrate it first</button>` : '<span class="mini muted">—</span>';
+      if (c.cat === "cannot") return (c.ra && !c.prot ? `<button class="btn sm" data-pr-migrate="${esc(g.id)}">⑦ Migrate it first</button>` : '<span class="mini muted">—</span>') + accTick(r);
       if (c.cat === "full") return '<span class="wo-state on">✓ fully protected</span>';
       // A disabled tick says WHY on the tick itself — "see left" sent the
       // reader to a cell that did not say it was the reason (25325).
@@ -155,23 +176,24 @@ const Protect = (() => {
                 : c.nest === "blocked" ? `<label class="pr-tick dis" title="Empty it of the ${c.nested} nested group${c.nested === 1 ? "" : "s"} first — 👥 CA groups shows them"><input type="checkbox" disabled> disable nesting <span class="muted">— blocked by ${c.nested} nested group${c.nested === 1 ? "" : "s"}</span></label>`
                   : c.nest === "reading" ? '<label class="pr-tick dis"><input type="checkbox" disabled> disable nesting <span class="muted">— reading…</span></label>'
                     : '<label class="pr-tick dis" title="The directory did not return the nesting property for this group — the read went to v1.0 and came back without it; nothing can be ticked until it does"><input type="checkbox" disabled> disable nesting <span class="muted">— state not returned by the directory</span></label>';
-      return v + nn;
+      return v + nn + accTick(r);
     };
-    const anyTick = (id) => { const t = tk(id); return !!(t.vault || t.nest); };
+    const anyTick = (id) => { const t = tk(id), b = bgOf(id); return !!(t.vault || t.nest || (b && b.ticked)); };
     const tbody = shown.map((r) => `<tr class="${anyTick(r.g.id) ? "pr-sel" : ""}">
-        <td><input type="checkbox" data-pr-row="${esc(r.g.id)}"${anyTick(r.g.id) ? " checked" : ""}${(r.c.canVault || r.c.canNest) ? "" : ` disabled title="Nothing can be applied to this row — the Apply column says why per lock"`}></td>
+        <td><input type="checkbox" data-pr-row="${esc(r.g.id)}"${anyTick(r.g.id) ? " checked" : ""}${(r.c.canVault || r.c.canNest || r.c.canAcc) ? "" : ` disabled title="Nothing can be applied to this row — the Apply column says why per lock"`}></td>
         <td><b>${esc(r.g.name)}</b>${r.g.manual ? ' <span class="tag" title="Added by hand — stays across a rescan">by hand</span>' : ""}${r.g.dynamic ? ' <span class="tag">dynamic</span>' : ""}<div class="mini muted">${esc(r.g.label || (r.c.dest && r.c.dest.code ? `${r.c.dest.code} · ${r.c.dest.by === "tenant" ? "mapped by you" : /CA\d{3,4}/i.test(r.g.name || "") ? "by CA number" : "by name"}` : r.g.breakGlass ? "break-glass group" : "exclusion group"))}${r.g.manual ? ' <button class="btn sm" data-pr-unadd="' + esc(r.g.id) + '" title="Take it off this list">✕</button>' : ""}</div></td>
         <td class="mini">${(() => { const ex = (r.g.refs && r.g.refs.exclude || []).length, inc = (r.g.refs && r.g.refs.include || []).length; return ex ? `excluded by ${ex}${r.g.breakGlass && inc ? `<div class="muted">included by ${inc}</div>` : ""}` : r.g.breakGlass && inc ? `included by ${inc}<div class="muted">break-glass</div>` : '<span class="muted">not referenced</span>'; })()}</td>
         <td>${vaultCell(r)}</td>
         <td>${nestCell(r)}</td>
         <td>${applyCell(r)}</td>
-      </tr>`).join("");
+      </tr>${bgOf(r.g.id) ? `<tr class="pr-subrow"><td></td><td colspan="5">${bgOf(r.g.id).html}</td></tr>` : ""}`).join("");
 
     // ---- counts for the bar
     const jobs = rows.filter((r) => (tk(r.g.id).vault && r.c.canVault) || (tk(r.g.id).nest && r.c.canNest));
     const nV = jobs.filter((r) => tk(r.g.id).vault && r.c.canVault).length;
     const nN = jobs.filter((r) => tk(r.g.id).nest && r.c.canNest).length;
-    const selectable = shown.filter((r) => r.c.canVault || r.c.canNest);
+    const selectable = shown.filter((r) => r.c.canVault || r.c.canNest || r.c.canAcc);
+    const nA = o.accN || 0, nO = o.accOutN || 0, total = jobs.length + nA + nO;
     const allOn = selectable.length && selectable.every((r) => anyTick(r.g.id));
 
     // ---- settings drawer (ids shared with ⑥ so the existing handlers serve it)
@@ -192,21 +214,24 @@ const Protect = (() => {
           <datalist id="cgRmauAdminList"></datalist></div>
       </div>
       <label class="chk" style="margin-top:12px;display:block"><input type="checkbox" id="cgRmauAck"${s.ack ? " checked" : ""}> I understand that after this, membership of the vaulted groups can <b>only</b> be changed by administrative-unit-scoped roles, and that a group with nesting disabled refuses any group as a member until it is turned back on in the portal.</label>
+      ${nA ? `<label class="chk" style="margin-top:8px;display:block"><input type="checkbox" id="prBgAck"${s.bgAck ? " checked" : ""}> I understand that a <b>Global Administrator inside a restricted unit</b> can have its password and methods reset by <b>nobody</b> until it is taken out of the unit, and that the recovery route is the other break-glass account.</label>` : ""}
+      <p class="mini muted" style="margin:8px 0 0">For the break-glass unit, leave the scoped administrator empty, or give an ELIGIBLE role through PIM with approval, a short activation and an authentication context — not a standing Groups Administrator.</p>
     </details>`;
 
     const ledger = `<div id="prLedger"></div>`;
     const bar = `<div class="pr-barwrap"><div class="cgg-bulk">
-        <span>🔒 <b>${jobs.length ? `Protect ${jobs.length} group${jobs.length === 1 ? "" : "s"}` : "Nothing ticked"}</b></span>
-        <span class="mini" style="opacity:.85">${jobs.length ? `· ${nV} into ${nV === 1 ? "its" : "their"} vault${nV === 1 ? "" : "s"} · ${nN} nesting off` : "tick a row, or the header box for every row that still lacks a lock"}</span>
+        <span>🔒 <b>${jobs.length ? `Protect ${jobs.length} group${jobs.length === 1 ? "" : "s"}` : total ? "Protect" : "Nothing ticked"}</b></span>
+        <span class="mini" style="opacity:.85">${total ? `${jobs.length ? `· ${nV} into ${nV === 1 ? "its" : "their"} vault${nV === 1 ? "" : "s"} · ${nN} nesting off` : ""}${nA ? ` · ${nA} break-glass account${nA === 1 ? "" : "s"} into the unit` : ""}${nO ? ` · ${nO} taken out` : ""}` : "tick a row, or the header box for every row that still lacks a lock"}</span>
         <span style="flex:1"></span>
         <button class="btn" id="cgRmauRecheck">⟳ Re-check</button>
-        <button class="btn primary" id="prGo"${jobs.length && !o.busy ? "" : " disabled"}>Protect ${jobs.length || ""}</button>
+        <button class="btn primary" id="prGo"${total && !o.busy ? "" : " disabled"}>Protect ${total || ""}</button>
       </div></div>`;
 
     return `<div class="list-card wo-card">
-        <div class="wo-verdicts wo-5" style="margin-top:0">${tiles}</div>
+        <div class="wo-verdicts ${bgTile ? "wo-6" : "wo-5"}" style="margin-top:0">${tiles}</div>
         ${banner}
       </div>
+      ${o.scopeCard || ""}
       ${o.results ? resultsHtml(o.results, o) : ""}
       <div class="list-card wo-card">
         <div class="chip-filter" style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">${chips}
@@ -221,7 +246,7 @@ const Protect = (() => {
         ${ledger}
         ${settings}
         ${o.find || ""}
-        <p class="mini muted" style="margin-top:10px">Consents <code>AdministrativeUnit.ReadWrite.All</code> and <code>Group-NestingSupport.ReadWrite.All</code> on demand (plus <code>RoleManagement.ReadWrite.Directory</code> for a scoped administrator). Placing a group needs the Privileged Role Administrator role and an Entra ID P1 licence for administrative-unit administrators. Nothing here recreates a group: where <code>disableNesting</code> cannot be set in place it is reported, never worked around.</p>
+        <p class="mini muted" style="margin-top:10px">Consents <code>AdministrativeUnit.ReadWrite.All</code> and <code>Group-NestingSupport.ReadWrite.All</code> on demand (plus <code>RoleManagement.ReadWrite.Directory</code> for a scoped administrator, and <code>RoleManagement.Read.Directory</code> only when you press 🔑 Read PIM). Placing a group needs the Privileged Role Administrator role and an Entra ID P1 licence for administrative-unit administrators. Nothing here recreates a group: where <code>disableNesting</code> cannot be set in place it is reported, never worked around.</p>
       </div>
       ${bar}`;
   }
@@ -234,8 +259,10 @@ const Protect = (() => {
     const bad = rows.filter((r) => (r.vault && r.vault.state === "failed") || (r.nest && r.nest.state === "failed")).length;
     const na = rows.filter((r) => r.nest && r.nest.state === "unsupported").length;
     const skipped = rows.filter((r) => r.vault && r.vault.state === "skipped").length;
+    const acc = res.accounts || [];
+    const aOk = acc.filter((a) => a.state === "added").length, aOut = acc.filter((a) => a.state === "removed").length, aBad = acc.filter((a) => a.state === "failed").length;
     return `<div class="list-card wo-card"><h3 class="wo-h">✅ Protection applied ${bad ? pill(bad, "red") : ""}</h3>
-      <p class="mini" style="margin:6px 0 0">${vOk} group${vOk === 1 ? "" : "s"} placed in ${res.units && res.units.length ? res.units.map((u) => `<b>${esc(u.name)}</b>${u.created ? " <span class=\"tag grant\">created</span>" : ""}`).join(", ") : "a vault"} · ${nOk} nesting disabled${na ? ` · ${na} nesting not available in this tenant` : ""}${skipped ? ` · ${skipped} skipped (the row says why)` : ""}${bad ? ` · <b style="color:var(--off)">${bad} refused — see the ledger</b>` : ""}.
+      <p class="mini" style="margin:6px 0 0">${vOk} group${vOk === 1 ? "" : "s"} placed in ${res.units && res.units.length ? res.units.map((u) => `<b>${esc(u.name)}</b>${u.created ? " <span class=\"tag grant\">created</span>" : ""}`).join(", ") : "a vault"} · ${nOk} nesting disabled${na ? ` · ${na} nesting not available in this tenant` : ""}${skipped ? ` · ${skipped} skipped (the row says why)` : ""}${bad ? ` · <b style="color:var(--off)">${bad} refused — see the ledger</b>` : ""}${acc.length ? ` · ${aOk} break-glass account${aOk === 1 ? "" : "s"} placed, read back${aOut ? ` · ${aOut} taken out` : ""}${aBad ? ` · <b style="color:var(--off)">${aBad} account${aBad === 1 ? "" : "s"} refused</b>` : ""}` : ""}.
         ${res.admins && res.admins.length ? `<br>Scoped administrators: ${res.admins.map((a) => `${esc(a.upn)} → ${esc(a.au)} ${a.ok ? "✓" : `<span style="color:var(--off)">✗ ${esc(a.error || "")}</span>`}`).join(" · ")}` : ""}</p>
       <p class="mini" style="color:var(--report);margin:8px 0 0">⚠ From now on, membership of the vaulted groups can only be changed by principals holding a role scoped to the unit — including by ⑤ Import members.</p>
       <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="prReport">📄 Change report</button><button class="btn" id="prDismiss">✕ Dismiss</button></div>
@@ -254,6 +281,7 @@ const Protect = (() => {
     if (res.units && res.units.length) { L.push("", `## Administrative units written to`, ""); res.units.forEach((u) => L.push(`- **${u.name}**${u.created ? " _(created by this run — isMemberManagementRestricted, immutable)_" : ""}`)); }
     if (res.admins && res.admins.length) { L.push("", `## Scoped administrators`, ""); res.admins.forEach((a) => L.push(`- ${a.upn} → ${a.au}: ${a.ok ? "granted" : `FAILED — ${a.error}`}`)); }
     if (rows.some((r) => r.nest && r.nest.state === "unsupported")) L.push("", `_Nesting could not be disabled: this directory does not recognise the disableNesting property yet. Nesting stays in sight — 👥 CA groups reads every group's nested groups on each scan, and a nested group inside an exclusion is Needs attention._`);
+    if (typeof BgVault !== "undefined") L.push(...BgVault.reportLines(res.accounts));
     L.push("", `_From now on, membership of the vaulted groups can only be changed by principals holding a role scoped to the unit._`);
     return L.join("\n");
   }

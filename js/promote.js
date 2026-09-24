@@ -117,6 +117,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 293,
+      title: "🔒 Protect exclusions 3.1 — break-glass accounts in the restricted unit, and who can manage the units",
+      tools: ["Protect exclusions", "MS Learn"],
+      builds: [32402],
+      risk: "medium",
+      what: "New js/bgvault.js (pure: accounts, panel, tile, scopes, scopeCard, learnBand, reportLines). js/protect.js: a third lock per break-glass group — cat “accounts” and the 👤 Accounts open chip, the vault-N-accounts tick on the row, the panel as a sub-row, the tile, the scope card, a second acknowledgement in Settings, account counts in the bar and the result. js/app.js: readRestrictedUnits (the one AU read, now with what each unit holds), readBgAccounts (transitive members, each account's own memberOf of restricted units, the unit's users for stale ones), readGaStates (transitiveMemberOf directoryRole; roleAssignmentScheduleInstances and roleEligibilityScheduleInstances only after 🔑 Read PIM), readUnitScopes (scopedRoleMembers per restricted unit, PIM-eligible by directoryScopeId after Read PIM, names by directoryObjects/getByIds), prApply writes accounts with POST administrativeUnits/{id}/members/$ref and reads them back, a stale one with DELETE …/members/{id}/$ref; MS Learn reads the same for the break-glass group and draws a band. Help, tile and css.",
+      why: "Mihai, 24 Sep: the users in CAB-SEC-U-BreakGlass must also be placed in the RMAU — then, while it was being built: also check the scope on the RMAU, groups and user admin. Advice and a mockup came first (the chanceofsecurity.com break-glass post and Microsoft Learn on restricted management AUs), approved with “bouwe”. Medium: it WRITES Global Administrators into a restricted unit, after which nobody can reset them until they are taken out again — the second acknowledgement and the recovery text exist for that; the scope check and the band only read.",
+      test: [
+        "Beta site, demo (?demo=1), 🔒 Protect exclusions → Scan: the break-glass row carries a panel with breakglass-01 in CAB-SEC-RMAU-BreakGlass, breakglass-02 not in a restricted unit and EmergencyAccess-old as in the unit, not in the group; the tile reads 👤 Break-glass accounts 1 / 2; the 🔑 card shows GLO as nobody, ADM as correct (Groups Administrator eligible through a group, User Administrator not needed) and BreakGlass as role missing (no User Administrator).",
+        "Tick vault 1 account on the break-glass row: breakglass-02's own tick follows, the bar says 1 break-glass account into the unit and Protect is enabled; press Protect without the second acknowledgement — Settings opens and a toast asks for it; tick it and run — the ledger has a 👤 breakglass-02 line and the panel shows it protected.",
+        "Real tenant with CAB-SEC-U-BreakGlass in CAB-SEC-RMAU-BreakGlass and one account outside it: the account reads not in a restricted unit; run it; in Entra, Administrative units → CAB-SEC-RMAU-BreakGlass → Users lists it, and the user's Overview says it is a member of a restricted management administrative unit. The panel re-reads and shows it protected.",
+        "Same tenant: as a tenant-wide User Administrator, try to reset that account's authentication methods — refused. Recovery drill: as the other break-glass account (Global Administrator), remove it from the unit, confirm the reset is possible, put it back.",
+        "Scope card: a unit with only groups and a scoped Groups Administrator reads correct; remove the scoped role in Entra and rescan — nobody. Add a User Administrator scoped to the break-glass unit — the row shows it, with the note that the Global Administrators stay out of its reach. Press 🔑 Read PIM, consent RoleManagement.Read.Directory: an eligible scoped assignment appears tagged eligible, and the accounts' Global Administrator column says permanent (or time-bound / activated / eligible).",
+        "A tenant where the account read fails (sign in without Directory.Read.All consent on a fresh app) — the panel says not read, never not in a restricted unit.",
+        "📘 MS Learn on the same tenant with an account outside the unit: a band above the findings (High) names the account; Fix in 🔒 Protect exclusions opens the tool. With every account in the unit and the roles present, no band.",
+      ],
+      files: ["js/bgvault.js", "js/protect.js", "js/app.js", "css/app.css", "index.html", "js/changelog.js", "js/version.js", "js/promote.js", "tools/bgvault.test.cjs"],
+    },
+    {
       n: 292,
       title: "🚚 Waiting for production — newest last, and NEW since your last visit",
       tools: ["Help"],
