@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32403, date: "2026-09-24", title: "📏 Naming — the CA-number convention, checked",
+    items: [
+      { kind: "new", tool: "Checks", text: "A new Naming tab in 🛡 Checks checks the CA-number convention every ENCA tool groups by, over the policies already loaded: policies with no number (with the next free number in the persona the name reads), one number carried by two policies whose names differ beyond the version, numbers outside every persona range, names that say one persona while the number sits in another, and — where the baseline names persona groups — a policy that includes another persona's group. Version pairs stay 🧹 Housekeeping's and same-name pairs 👯 Duplicates'. The free numbers inside each range are listed, folded, as information. Nothing is read or written; Export MD writes the findings." },
+      { kind: "improved", tool: "Roadmap", text: "R25 Naming-convention linter moves to In beta today. R20 Cross-tenant access settings is closed as delivered by R65, the Cross-tenant tab of 🛡 Checks, in production since 323 — it sits under Shipped before with its reference kept." },
+    ],
+  },
+  {
     build: 32402, date: "2026-09-24", title: "🔒 Break-glass accounts in the restricted unit, and who can manage the units",
     items: [
       { kind: "improved", tool: "Protect exclusions", text: "The break-glass group's ACCOUNTS are now a third lock. A group in a restricted unit guards who is in it, not the accounts — a tenant-wide User, Authentication or Privileged Authentication Administrator could still change their methods, disable or delete them. Under the break-glass row each account shows its shape (cloud-only, onmicrosoft.com, enabled), its Global Administrator assignment and the unit it sits in, and an open account can be ticked into the group's unit, read back afterwards." },

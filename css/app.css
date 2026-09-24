@@ -2890,3 +2890,8 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 .bg-who.elig{border-style:dashed}
 .bg-scope-table td{vertical-align:top}
 .ml-ready.bg-learn{border-color:color-mix(in srgb,var(--off) 45%,var(--border));background:color-mix(in srgb,var(--off) 8%,var(--surface))}
+
+/* ---- 📏 Naming (32403, T45) — reuses the xt- cards, tiles and pills ---- */
+.nm-gaps{margin-top:10px}
+.nm-gaps summary{cursor:pointer}
+.nm-gaps p{margin:4px 0 0}

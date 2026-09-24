@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32402"></script>
+<script src="js/popup-guard.js?v=32403"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32402" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32402">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32403" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32403">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32402"></script>
+<script src="js/selfhost-boot.js?v=32403"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32402"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32402"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32402">
-<link rel="stylesheet" href="css/workspaces.css?v=32402">
-<link rel="stylesheet" href="css/tool-layout.css?v=32402">
-<link rel="stylesheet" href="css/list-detail.css?v=32402">
-<link rel="stylesheet" href="css/flat-icons.css?v=32402">
+<script src="js/counter.js?v=32403"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32403"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32403">
+<link rel="stylesheet" href="css/workspaces.css?v=32403">
+<link rel="stylesheet" href="css/tool-layout.css?v=32403">
+<link rel="stylesheet" href="css/list-detail.css?v=32403">
+<link rel="stylesheet" href="css/flat-icons.css?v=32403">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32402" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32403" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32402" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32403" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -281,7 +281,7 @@
     <div class="tools">
       <div class="tool tool-tile" id="toolGapCheck">
         <div class="tool-ic">🛡</div><h3>Checks <span class="tag upd">UPDATED</span></h3>
-        <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all. <b>🔑 Passkeys</b> <span class="tag new">BETA</span> — the policies that require a passkey against the Passkey (FIDO2) method: can the people in scope register and use one — and a Configure panel for the method.</p>
+        <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all. <b>🔑 Passkeys</b> <span class="tag new">BETA</span> — the policies that require a passkey against the Passkey (FIDO2) method: can the people in scope register and use one — and a Configure panel for the method. <b>📏 Naming</b> <span class="tag new">BETA</span> — the CA-number convention checked: unnumbered policies, one number used twice, numbers outside every persona range, and names that say one persona while the number or the assignment says another.</p>
       </div>
       <div class="tool tool-tile" id="toolBaseline">
         <div class="tool-ic">🧬</div><h3>Baseline <span class="tag upd">UPDATED</span></h3>
@@ -1461,6 +1461,18 @@
     <div class="tool-body" id="pkBody"></div>
   </section>
 
+  <!-- ============ 📏 NAMING (T45, build 32403, R25) — a tab of 🛡 Checks ============ -->
+  <section id="screen-naming" class="screen tool">
+    <div class="list-card readme" id="nmHead"></div>
+    <div class="toolbar" id="nmToolbar">
+      <div class="chip-filter" id="nmChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="nmMd">Export MD</button>
+      </div>
+    </div>
+    <div class="tool-body" id="nmBody"></div>
+  </section>
+
   <section id="screen-devcheck" class="screen tool">
     <div class="list-card readme" id="dvHead"></div>
     <div class="toolbar" id="dvToolbar">
@@ -1521,6 +1533,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R25</span> <a href="#" class="md-tool" data-tool="toolNaming">📏 Naming-convention linter</a> <span class="tag ok">in beta today · beta 32403</span></h4>
+            <p class="mini" style="margin:0">A Naming tab in 🛡 Checks holds the CA-number persona ranges every tool here assumes against the policies loaded now: policies with no number, one number carried by two different policies (version pairs excepted — those are Housekeeping's), numbers outside every persona range, names that say one persona while the number says another, and — where the baseline names persona groups — a policy that includes another persona's group. The free numbers inside each range are listed as information. Reads nothing, writes nothing.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R63</span> 📰 Microsoft Learn, watched every week <span class="tag ok">in beta today · beta 32306</span></h4>
             <p class="mini" style="margin:0">The MS Learn checks were only as current as the last time someone read their pages. A weekly run now reads Microsoft's documentation repository for Conditional Access, flags every check whose page changed after it was last read, lists new pages and what's-new entries, and keeps one GitHub issue open while anything is undecided. Each item is decided on the tab, and 📋 Work order turns the decisions into work. Graduates once a few nights of real feed have been triaged and at least one work order has been carried out.</p>
@@ -1583,10 +1599,6 @@
             <p class="mini" style="margin:0">The trusted IP ranges in a tenant are usually older than the offices they describe. Cross the named locations with the sign-in log already read for Report-only impact and Sign-in failures: ranges nobody has signed in from for months, sign-ins from countries no location names, and trusted ranges that no longer match reality — the quiet way a location-based exception outlives its reason.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R20</span> 🤝 Cross-tenant access settings <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Inbound and outbound B2B collaboration, and whether the tenant accepts a partner's MFA and device claims. It sits directly next to Conditional Access — accepting a partner's MFA claim decides whether your own MFA requirement is satisfied by someone else's authentication — and it is invisible in every tool here today.</p>
-          </div>
-          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R21</span> 🎫 CAE and token protection coverage <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Continuous access evaluation and token protection are the newer session controls, and both are easy to leave half-configured: which policies opt in, which silently do not, and which resources support it. The same treatment the persona × control matrix gives the classic grant controls.</p>
           </div>
@@ -1600,10 +1612,6 @@
                     <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R24</span> 🚀 Go-live checklist <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Report-only impact forecasts one policy at a time; a checklist tracks the whole report-only backlog toward enforcement — what is staged, what has enough traffic to judge, what is ready to switch on, with the forecast attached to each. The paperwork of a go-live, kept in the tool that produced the evidence.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R25</span> 📏 Naming-convention linter <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The CA-number persona ranges are a convention every tool here assumes and none of them validates: numbers out of range for their persona, duplicates, gaps, policies whose name says one persona while their assignment says another. Cheap to check, and it keeps the convention that makes everything else legible from quietly rotting.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R26</span> 🇳🇱 Dutch interface <span class="tag">planned</span></h4>
@@ -1643,6 +1651,10 @@
           <div class="list-card rm-card" data-shipped="32316">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R65</span> 🤝 Cross-tenant access, read next to the policies <span class="tag grant">live · beta 32316 · production 323 (v2.0.1)</span></h4>
             <p class="mini" style="margin:0">A Cross-tenant tab in 🛡 Checks runs the checks of the open-source m365-security-toolkit (Charlie Delmotte, MIT): the default policy and every partner entry, trusted MFA and devices, cross-tenant sync, automatic redemption, dead partner tenants and entries that override nothing. ENCA adds where the trust lands — which policies a trusted MFA or device claim from another tenant satisfies. Read-only. Graduates once it has been read on a few real tenants with partner entries, including one with cross-tenant sync and one where a partner tenant no longer exists or the exists check was confirmed to degrade to not checked.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32316">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R20</span> 🤝 Cross-tenant access settings <span class="tag grant">delivered as R65 · beta 32316 · production 323 (v2.0.1)</span></h4>
+            <p class="mini" style="margin:0">Inbound and outbound B2B collaboration and whether the tenant accepts a partner's MFA and device claims, read next to Conditional Access. Built as <span class="rm-ref">R65</span>, the 🤝 Cross-tenant tab of 🛡 Checks, which also follows every accepted claim into the policies it satisfies. Closed on 24 September 2026; the reference is kept so older notes still resolve.</p>
           </div>
           <div class="list-card rm-card" data-shipped="32308">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R64</span> 🏅 Identity Secure Score, next to the policies <span class="tag grant">live · beta 32308 · production 323 (v2.0.1)</span></h4>
@@ -2145,6 +2157,17 @@
         <li><b>Not written here</b> — Temporary Access Pass and certificate-based authentication are reported, not changed; authentication strengths are changed in 🧩 Policy building blocks → 💪 Strengths.</li>
       </ul>
       <p class="help-x">Reading needs <code>Policy.Read.All</code> and <code>Directory.Read.All</code> (part of sign-in) and a role that can read authentication methods — Global Reader, Security Reader or Authentication Policy Administrator. Saving needs <code>Policy.ReadWrite.AuthenticationMethod</code> (asked once, on Save) and the <b>Authentication Policy Administrator</b> role.</p>
+          <h5>📏 Naming <span class="tag new">BETA</span> <span class="help-fold">a tab of this tool — build 32403</span></h5>
+      <p>Every tool in ENCA groups policies by the CA number in the name — CA000–099 Global, CA100–199 Admins, CA200–299 Internals and so on — and until this tab none of them checked that the convention holds. It reads nothing: it works on the policies already loaded, and redraws each time the tab is opened.</p>
+      <ul>
+        <li><b>Number used twice</b> — one CA number carried by policies whose names differ beyond the version. A version pair (CA204 v1.0 beside CA204 v1.1) is not flagged: that is 🧹 Housekeeping's case, and the same name twice is 👯 Duplicates'.</li>
+        <li><b>Name ≠ range</b> — the name says one persona (Admins, Internals, Guests, service accounts, DevOps, emergency access …) and the number sits in another persona's hundred. Guests may sit in Externals or Guest users.</li>
+        <li><b>Name ≠ assignment</b> — the policy includes the persona group of another range, for example an Internals policy that includes CAB-SEC-U-Persona-Admins. Checked only where the active baseline names persona groups (CloudFellows today); elsewhere the tab says it was skipped.</li>
+        <li><b>No persona range</b> — the number falls in a hundred no persona owns (CA1400 and up today). <b>Unnumbered</b> — no CA number at all, so every tool files the policy under Other; where the name reads as a persona, the next free number in that range is suggested.</li>
+        <li><b>Free numbers</b> — the unused numbers below the highest one in each range, folded and labelled as information. They are never counted as findings.</li>
+        <li><b>Read-only.</b> Renaming goes through ✎ Edit on the policy card. <b>Export MD</b> writes the findings for the review record.</li>
+      </ul>
+      <p class="help-x">No extra permission and no read — the policies loaded at sign-in are all it needs.</p>
     </section>
 
 
@@ -2361,10 +2384,10 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T44</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T45</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
-        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T45</code> is next.</li>
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T46</code> is next.</li>
         <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty-one numbers have no tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 25338)</li>
@@ -2391,6 +2414,7 @@
             <li><code>T42</code> 🏅 Identity Secure Score → <b>🛡 Checks</b>, Identity score tab (build 32308 — born there, never a tile)</li>
             <li><code>T43</code> 🤝 Cross-tenant access → <b>🛡 Checks</b>, Cross-tenant tab (build 32316 — born there, never a tile)</li>
             <li><code>T44</code> 🔑 Passkeys → <b>🛡 Checks</b>, Passkeys tab (build 32317 — born there, never a tile)</li>
+            <li><code>T45</code> 📏 Naming → <b>🛡 Checks</b>, Naming tab (build 32403 — born there, never a tile)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The newest two</b> — <code>T40</code> ↗ Guided rollout is a tile of its own; <code>T41</code> 🏗 Policy builder is the one number that never had a tile: it was born as the Builder tab of 🧩 Policy building blocks, and is listed above with the folded tools for that reason.</li>
@@ -3559,94 +3583,95 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32402"></script>
-<script src="js/selfhost.js?v=32402"></script>
-<script src="js/version.js?v=32402"></script>
-<script src="js/verdict.js?v=32402"></script>
-<script src="js/fork.js?v=32402"></script>
-<script src="js/promote.js?v=32402"></script>
-<script src="js/authConfig.js?v=32402"></script>
-<script src="js/connection.js?v=32402"></script>
-<script src="js/labels.js?v=32402"></script>
-<script src="js/capabilities.js?v=32402"></script>
-<script src="js/graph.js?v=32402"></script>
-<script src="js/model.js?v=32402"></script>
-<script src="js/render.js?v=32402"></script>
-<script src="js/analyze.js?v=32402"></script>
-<script src="js/whatif.js?v=32402"></script>
-<script src="js/mslearn.js?v=32402"></script>
-<script src="js/learntriage.js?v=32402"></script>
-<script src="js/learnfeed.js?v=32402"></script>
-<script src="js/gapcheck.js?v=32402"></script>
-<script src="js/cisdata.js?v=32402"></script>
-<script src="js/cischeck.js?v=32402"></script>
-<script src="js/exclusions.js?v=32402"></script>
-<script src="js/cascope.js?v=32402"></script>
-<script src="js/coverage.js?v=32402"></script>
-<script src="js/runmeta.js?v=32402"></script>
-<script src="js/overview.js?v=32402"></script>
-<script src="js/validator.js?v=32402"></script>
-<script src="js/whatifeval.js?v=32402"></script>
-<script src="js/builder.js?v=32402"></script>
-<script src="js/onboard.js?v=32402"></script>
-<script src="js/compare.js?v=32402"></script>
-<script src="js/whois.js?v=32402"></script>
-<script src="js/wave.js?v=32402"></script>
-<script src="js/sessionctl.js?v=32402"></script>
-<script src="js/spgap.js?v=32402"></script>
-<script src="js/groupuse.js?v=32402"></script>
-<script src="js/iso3166.js?v=32402"></script>
-<script src="js/causes.js?v=32402"></script>
-<script src="js/locations.js?v=32402"></script>
-<script src="js/authcontexts.js?v=32402"></script>
-<script src="js/authstrengths.js?v=32402"></script>
-<script src="js/recycle.js?v=32402"></script>
-<script src="js/rmau.js?v=32402"></script>
-<script src="js/camap.js?v=32402"></script>
-<script src="js/rmaudoc.js?v=32402"></script>
-<script src="js/termsofuse.js?v=32402"></script>
-<script src="js/audit.js?v=32402"></script>
-<script src="js/drift.js?v=32402"></script>
-<script src="js/guide.js?v=32402"></script>
-<script src="js/userimpact.js?v=32402"></script>
-<script src="js/smsvoice.js?v=32402"></script>
-<script src="js/memberof.js?v=32402"></script>
-<script src="js/devcheck.js?v=32402"></script>
-<script src="js/idscore.js?v=32402"></script>
-<script src="js/xtenant.js?v=32402"></script>
-<script src="js/passkeys.js?v=32402"></script>
-<script src="js/licgap.js?v=32402"></script>
-<script src="js/teamsdev.js?v=32402"></script>
-<script src="js/signinstore.js?v=32402"></script>
-<script src="js/signins.js?v=32402"></script>
-<script src="js/reportimpact.js?v=32402"></script>
-<script src="js/changelog.js?v=32402"></script>
-<script src="js/baselineData.js?v=32402"></script>
-<script src="js/baselineJoeyData.js?v=32402"></script>
-<script src="js/baselineLive.js?v=32402"></script>
-<script src="js/baseline.js?v=32402"></script>
-<script src="js/baselineCleanup.js?v=32402"></script>
-<script src="js/groupTemplates.js?v=32402"></script>
-<script src="js/assign.js?v=32402"></script>
-<script src="js/cagroups.js?v=32402"></script>
-<script src="js/groupmerge.js?v=32402"></script>
-<script src="js/groupsview.js?v=32402"></script>
-<script src="js/runledger.js?v=32402"></script>
-<script src="js/bgvault.js?v=32402"></script>
-<script src="js/protect.js?v=32402"></script>
-<script src="js/policy-compare.js?v=32402"></script>
-<script src="js/import.js?v=32402"></script>
-<script src="js/export.js?v=32402"></script>
-<script src="js/demo.js?v=32402"></script>
-<script src="js/list-detail.js?v=32402"></script>
-<script src="js/flat-icons.js?v=32402"></script>
-<script src="js/workspace.js?v=32402"></script>
-<script src="js/analysis-jobs.js?v=32402"></script>
-<script src="js/search-suggest.js?v=32402"></script>
-<script src="js/app.js?v=32402"></script>
-<script src="js/col-resize.js?v=32402"></script>
-<script src="js/accessibility.js?v=32402"></script>
-<script src="js/workspaces.js?v=32402"></script>
-<script src="js/tool-layout.js?v=32402"></script>
+<script src="js/branding.js?v=32403"></script>
+<script src="js/selfhost.js?v=32403"></script>
+<script src="js/version.js?v=32403"></script>
+<script src="js/verdict.js?v=32403"></script>
+<script src="js/fork.js?v=32403"></script>
+<script src="js/promote.js?v=32403"></script>
+<script src="js/authConfig.js?v=32403"></script>
+<script src="js/connection.js?v=32403"></script>
+<script src="js/labels.js?v=32403"></script>
+<script src="js/capabilities.js?v=32403"></script>
+<script src="js/graph.js?v=32403"></script>
+<script src="js/model.js?v=32403"></script>
+<script src="js/render.js?v=32403"></script>
+<script src="js/analyze.js?v=32403"></script>
+<script src="js/whatif.js?v=32403"></script>
+<script src="js/mslearn.js?v=32403"></script>
+<script src="js/learntriage.js?v=32403"></script>
+<script src="js/learnfeed.js?v=32403"></script>
+<script src="js/gapcheck.js?v=32403"></script>
+<script src="js/cisdata.js?v=32403"></script>
+<script src="js/cischeck.js?v=32403"></script>
+<script src="js/exclusions.js?v=32403"></script>
+<script src="js/cascope.js?v=32403"></script>
+<script src="js/coverage.js?v=32403"></script>
+<script src="js/runmeta.js?v=32403"></script>
+<script src="js/overview.js?v=32403"></script>
+<script src="js/validator.js?v=32403"></script>
+<script src="js/whatifeval.js?v=32403"></script>
+<script src="js/builder.js?v=32403"></script>
+<script src="js/onboard.js?v=32403"></script>
+<script src="js/compare.js?v=32403"></script>
+<script src="js/whois.js?v=32403"></script>
+<script src="js/wave.js?v=32403"></script>
+<script src="js/sessionctl.js?v=32403"></script>
+<script src="js/spgap.js?v=32403"></script>
+<script src="js/groupuse.js?v=32403"></script>
+<script src="js/iso3166.js?v=32403"></script>
+<script src="js/causes.js?v=32403"></script>
+<script src="js/locations.js?v=32403"></script>
+<script src="js/authcontexts.js?v=32403"></script>
+<script src="js/authstrengths.js?v=32403"></script>
+<script src="js/recycle.js?v=32403"></script>
+<script src="js/rmau.js?v=32403"></script>
+<script src="js/camap.js?v=32403"></script>
+<script src="js/rmaudoc.js?v=32403"></script>
+<script src="js/termsofuse.js?v=32403"></script>
+<script src="js/audit.js?v=32403"></script>
+<script src="js/drift.js?v=32403"></script>
+<script src="js/guide.js?v=32403"></script>
+<script src="js/userimpact.js?v=32403"></script>
+<script src="js/smsvoice.js?v=32403"></script>
+<script src="js/memberof.js?v=32403"></script>
+<script src="js/devcheck.js?v=32403"></script>
+<script src="js/idscore.js?v=32403"></script>
+<script src="js/xtenant.js?v=32403"></script>
+<script src="js/passkeys.js?v=32403"></script>
+<script src="js/naming.js?v=32403"></script>
+<script src="js/licgap.js?v=32403"></script>
+<script src="js/teamsdev.js?v=32403"></script>
+<script src="js/signinstore.js?v=32403"></script>
+<script src="js/signins.js?v=32403"></script>
+<script src="js/reportimpact.js?v=32403"></script>
+<script src="js/changelog.js?v=32403"></script>
+<script src="js/baselineData.js?v=32403"></script>
+<script src="js/baselineJoeyData.js?v=32403"></script>
+<script src="js/baselineLive.js?v=32403"></script>
+<script src="js/baseline.js?v=32403"></script>
+<script src="js/baselineCleanup.js?v=32403"></script>
+<script src="js/groupTemplates.js?v=32403"></script>
+<script src="js/assign.js?v=32403"></script>
+<script src="js/cagroups.js?v=32403"></script>
+<script src="js/groupmerge.js?v=32403"></script>
+<script src="js/groupsview.js?v=32403"></script>
+<script src="js/runledger.js?v=32403"></script>
+<script src="js/bgvault.js?v=32403"></script>
+<script src="js/protect.js?v=32403"></script>
+<script src="js/policy-compare.js?v=32403"></script>
+<script src="js/import.js?v=32403"></script>
+<script src="js/export.js?v=32403"></script>
+<script src="js/demo.js?v=32403"></script>
+<script src="js/list-detail.js?v=32403"></script>
+<script src="js/flat-icons.js?v=32403"></script>
+<script src="js/workspace.js?v=32403"></script>
+<script src="js/analysis-jobs.js?v=32403"></script>
+<script src="js/search-suggest.js?v=32403"></script>
+<script src="js/app.js?v=32403"></script>
+<script src="js/col-resize.js?v=32403"></script>
+<script src="js/accessibility.js?v=32403"></script>
+<script src="js/workspaces.js?v=32403"></script>
+<script src="js/tool-layout.js?v=32403"></script>
 </body>
 </html>

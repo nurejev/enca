@@ -117,6 +117,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 294,
+      title: "📏 Naming — T45, a tab of 🛡 Checks: the CA-number convention checked (R25)",
+      tools: ["Checks"],
+      builds: [32403],
+      risk: "low",
+      what: "js/naming.js (new, pure: analyze, render, chips, toMd, stem) with its script tag; js/app.js: openNaming/renderNaming/nmRebuild, the checks TAB_HOSTS tab (beta: true), the FOLDED entry toolNaming, screen-naming in HISTORY_SCREENS; index.html: screen-naming, the Checks tile line, the Help h5, T45 in Tool numbers, roadmap R25 to In beta today and R20 closed under Shipped before as delivered by R65; tools/naming.test.cjs.",
+      why: "Mihai, 24 Sep: R25 to beta; on the mockup he chose the Checks tab with free numbers folded as information. LOW: read-only, reads nothing, works on the policies loaded at sign-in. Graduates once it has been opened on a CloudFellows tenant and a Joey tenant and every finding it raised was a real naming problem — in particular that no version pair or staging prefix reads as a duplicate.",
+      test: [
+        "Beta site, demo (?demo=1): 🛡 Checks → 📏 Naming opens without a ▶ and lists findings for the demo policies; every policy name is a link that opens its card.",
+        "A CloudFellows tenant with CA204 v1.0 and CA204 v1.1 side by side (or any version pair, with or without a (NEW)/(UP) prefix): neither appears under Number used twice.",
+        "Rename a TEST policy to carry the number of another policy with a different name: both appear under Number used twice, each naming the other.",
+        "A policy named …-Admins-… numbered in the CA200s appears under Name ≠ range; a CA215-Internals policy that includes CAB-SEC-U-Persona-Admins appears under Name ≠ assignment.",
+        "With the Joey catalog active (no persona groups): the note under Findings says Name ≠ assignment was not checked, and no such finding appears.",
+        "Free numbers: the fold lists only numbers below the highest used one per range and the tiles do not count them. Export MD contains the same rows as the screen.",
+      ],
+      files: ["js/naming.js", "js/app.js", "index.html", "tools/naming.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 293,
       title: "🔒 Protect exclusions 3.1 — break-glass accounts in the restricted unit, and who can manage the units",
       tools: ["Protect exclusions", "MS Learn"],

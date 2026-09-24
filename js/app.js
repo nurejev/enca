@@ -182,7 +182,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -315,6 +315,8 @@
                         open: () => openXTenant() },
     toolPasskeys:     { into: "toolGapCheck", label: "🔑 Passkeys",                   where: "the Passkeys tab",           build: 32317,
                         open: () => openPasskeys() },
+    toolNaming:       { into: "toolGapCheck", label: "📏 Naming",                     where: "the Naming tab",             build: 32403,
+                        open: () => openNaming() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
                         open: () => openValidator() },
     toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
@@ -459,6 +461,9 @@
         // 32317 (T44): the policies that require a passkey, against the
         // Passkey (FIDO2) method that decides whether anyone can get one
         { key: "passkeys", icon: "🔑", name: "Passkeys",            toolbar: "pkToolbar", open: () => openPasskeys(), beta: true },
+        // 32403 (T45, R25): the CA-number naming convention, checked over
+        // the policies already loaded — reads nothing
+        { key: "naming", icon: "📏", name: "Naming",               toolbar: "nmToolbar", open: () => openNaming(), beta: true },
       ],
     },
     blocks: {
@@ -22069,6 +22074,38 @@ This is a directory write. Nothing else changes.`)) return;
     showReport("📐 CIS Benchmark alignment", "CA-CIS-Benchmark", CisCheck.toMd(ciResult, ciMeta || { tenantName }));
     toast("CIS Benchmark Markdown <span>downloaded</span>");
   });
+
+  // ---------- 📏 Naming (32403, T45, R25) ----------
+  // The CA-number convention every tool groups by, checked over the policies
+  // already loaded (js/naming.js, pure). Reads nothing, so it renders on open
+  // and again whenever the tab is opened after a reload — no ▶, no cache.
+  let nmFilter = "all", nmModel = null;
+  const NM_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The CA-number naming convention, checked: policies with no number, one number carried by two different policies, numbers in no persona range, names that say one persona while the number or the included persona group says another — and the free numbers inside each range. From the policies already loaded; nothing is read or written.</p>';
+  function nmRebuild() {
+    let cat = null;
+    try { cat = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null; } catch { cat = null; }
+    nmModel = Naming.analyze(policies, {
+      caGroup: Render.caGroup,
+      personaKey: (typeof Baseline !== "undefined" && Baseline.personaKey) ? Baseline.personaKey : null,
+      personaGroups: (cat && cat.personaGroups) || [], catalogLabel: (cat && cat.label) || "", demo: isDemo,
+    });
+  }
+  function openNaming() {
+    crumb("🛡 Checks");
+    show("screen-naming");
+    mountToolTabs("checks", "naming");
+    $("nmHead").innerHTML = toolHead("toolNaming") + NM_HEAD_TEXT;
+    renderNaming();
+  }
+  function renderNaming() {
+    nmRebuild();
+    $("nmChips").innerHTML = Naming.chips(nmModel, nmFilter);
+    $("nmBody").innerHTML = policies.length ? Naming.render(nmModel, { filter: nmFilter })
+      : '<p class="mini" style="padding:16px">No policies loaded — sign in or open the demo first.</p>';
+  }
+  $("nmChips").addEventListener("click", (e) => { const b = e.target.closest("[data-nmf]"); if (!b) return; nmFilter = b.dataset.nmf; renderNaming(); });
+  $("nmBody").addEventListener("click", (e) => { const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid); });
+  $("nmMd").addEventListener("click", () => { if (nmModel) showReport("📏 Naming", `ENCA-naming-${new Date().toISOString().slice(0, 10)}`, Naming.toMd(nmModel, tenantName)); });
 
   // ---------- events ----------
   $("signInBtn").addEventListener("click", async () => {
