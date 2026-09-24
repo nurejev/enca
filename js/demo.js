@@ -225,6 +225,27 @@ const DEMO_DATA = {
   // 25469: the default inbound cross-tenant settings — MFA trusted, device
   // claims not, B2B direct connect blocked (Microsoft's default for it).
   crossTenantDefault: { inboundTrust: { isMfaAccepted: true, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false }, dcInbound: "blocked" },
+  // 🔑 Passkeys (32317): the Passkey (FIDO2) method as v1.0 returns it —
+  // opted in to profiles, targeting only a pilot group, break-glass excluded,
+  // and a pilot profile restricted to Authenticator WITHOUT attestation. Demo
+  // policy d1 requires Phishing-resistant MFA of Global Administrators, whose
+  // one active holder is not in the pilot — the blocking finding the tab is for.
+  passkeys: {
+    fido2: { "@odata.type": "#microsoft.graph.fido2AuthenticationMethodConfiguration", id: "Fido2", state: "enabled", isSelfServiceRegistrationAllowed: true,
+      includeTargets: [{ targetType: "group", id: "g-passkey-pilot", isRegistrationRequired: false, allowedPasskeyProfiles: ["00000000-0000-0000-0000-000000000001", "p-pilot-auth"] }],
+      excludeTargets: [{ targetType: "group", id: "g-breakglass" }],
+      passkeyProfiles: [
+        { id: "00000000-0000-0000-0000-000000000001", name: "Default passkey profile", passkeyTypes: "deviceBound,synced", attestationEnforcement: "disabled",
+          keyRestrictions: { isEnforced: false, enforcementType: "block", aaGuids: [] } },
+        { id: "p-pilot-auth", name: "Pilot — Authenticator only", passkeyTypes: "deviceBound", attestationEnforcement: "disabled",
+          keyRestrictions: { isEnforced: true, enforcementType: "allow", aaGuids: ["90a3ccdf-635c-4729-a248-9b709135078f", "de1e552d-db1d-4423-a619-566b625cdc84"] } },
+      ] },
+    members: { groups: { "g-passkey-pilot": { ids: ["u-eva", "u-milan"], complete: true }, "g-breakglass": { ids: ["u-break1", "u-break2"], complete: true },
+      "g-it-admins": { ids: ["u-admin"], complete: true } },
+      roles: { "62e90394-69f5-4237-9190-012177145e10": { ids: ["u-admin"], complete: true } } },
+    names: { "g-passkey-pilot": "CAB-SEC-U-Passkey-Pilot", "g-breakglass": "CAB-SEC-U-BreakGlass", "g-it-admins": "CAB-SEC-U-Persona-Admins",
+      "u-admin": "Alex Admin", "u-eva": "Eva Employee", "u-milan": "Milan Medewerker", "u-break1": "Break Glass 1", "u-break2": "Break Glass 2" },
+  },
   // 🤝 Cross-tenant access (32316): what /policies/crossTenantAccessPolicy
   // returns, plus the per-partner sync, exists and name reads — example
   // tenants. Northwind is the service provider above; one tenant is gone.

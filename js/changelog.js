@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32317, date: "2026-09-24", title: "🔑 Passkeys in Checks — required, and actually set up",
+    items: [
+      { kind: "new", tool: "Checks", text: "A new Passkeys tab in 🛡 Checks starts from the policies that REQUIRE a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them — and asks the Passkey (FIDO2) method whether the people they reach can get one: the method on, those people targeted, none of them in an excluded group, self-service setup on, and a passkey profile that lets through a key the strength accepts. Gaps are counted in people, by group membership and active role holders." },
+      { kind: "new", tool: "Checks", text: "Warnings for key restrictions without attestation, an allow list with nothing on it, a policy on registering security info that demands a passkey while Temporary Access Pass is off, and a tenant not yet opted in to passkey profiles. The method’s current settings are shown as the portal lays them out, and the whole report exports as Markdown." },
+      { kind: "new", tool: "Checks", text: "✎ Configure changes the method: enabled or disabled, self-service setup, which groups are included with which passkey profiles, exclusions, and the profiles themselves — device-bound or synced, attestation, allow or block lists with Microsoft Authenticator, Windows Hello and YubiKey presets. Before Save it shows the diff, what STOPS working for keys already registered, and which blocking findings the save clears. A ✎ button on a finding opens Configure with that fix already made, and ↩ Restore puts the settings as read before the last save back into Configure." },
+    ],
+  },
+  {
     build: 32316, date: "2026-09-24", title: "🤝 Cross-tenant access in Checks",
     items: [
       { kind: "new", tool: "Checks", text: "A new Cross-tenant tab in 🛡 Checks reviews who other Entra tenants can send in and whose MFA and device claims you trust: the default policy, every partner entry, cross-tenant sync, automatic invitation redemption, service-provider entries and partner entries that override nothing — graded High, Medium and Info. The checks come from Charlie Delmotte's open-source m365-security-toolkit." },

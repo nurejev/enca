@@ -117,6 +117,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 291,
+      title: "🔑 Passkeys — T44, a tab of 🛡 Checks: required passkeys against the Passkey (FIDO2) method, with Configure",
+      tools: ["Checks"],
+      builds: [32317],
+      risk: "high",
+      what: "js/passkeys.js (new, pure: requirement, wanted, analyze, profilesOf, keyAllows, profileMeets, draftFrom, applyOptIn, validate, toBody, applyBody, diff, impact, render, chips, toMd) with its script tag; js/app.js: pkRaw/pkModel state beside xtRaw (reset on both tenant loads), openPasskeys/renderPasskeys/runPasskeys, the ✎ Configure editor (openPkEditor, pkPaintEditor, pkPaintSide, save with a per-tenant restore snapshot in localStorage enca.pkRestore:<tenant>), the checks TAB_HOSTS tab (beta: true), the FOLDED entry, screen-passkeys in HISTORY_SCREENS; index.html: screen-passkeys, pkEditModal, the Checks tile line, the Help h5, T44 in Tool numbers, roadmap R66; js/demo.js DEMO_DATA.passkeys; css/app.css the pk- block; README permission row; tools/passkeys.test.cjs.",
+      why: "Mihai, 24 Sep: in enca we required passkey, we need a check if passkeys are configured and with which settings, an option to configure it; on the mockup he chose a tab in Checks, Configure for the whole method, TAP as a finding only. HIGH: it WRITES a tenant-wide authentication method — a wrong target list, exclusion or key restriction stops passkey sign-in for real people. Mitigations: the diff, the stops-working list and the re-run findings before Save, a confirm on every loss, a read-back, and Restore. Unverified: whether a PATCH carrying passkeyProfiles opts a not-yet-opted-in tenant in (Microsoft documents the opt-in only as a portal banner); whether Graph accepts a client-generated id for a NEW profile; that isRegistrationRequired round-trips unchanged.",
+      test: [
+        "Beta site, a tenant where a policy grants Phishing-resistant MFA to a group, signed in as Global Reader: 🛡 Checks → 🔑 Passkeys → ▶ Read. The Policies that require a passkey table lists that policy and no policy whose strength also allows password + SMS or whose grant offers another control under OR.",
+        "Current settings matches Entra ID → Authentication methods → Passkey (FIDO2): Enabled, each include target with its profiles, the exclusions, Allow self-service set up, and every profile's types, attestation and key restrictions.",
+        "Coverage: take a test user in the policy's group who is NOT in any method include target — the Required, but not targeted finding counts them and show users names them. Put that user in an excluded group of the method — the Excluded from passkeys finding appears instead.",
+        "No common key: with a strength restricted to Authenticator AAGUIDs and a profile that blocks them, the Strength and passkey profile finding appears; allow them in another profile on a target holding the users and ⟳ Refresh — it goes.",
+        "Configure, as Authentication Policy Administrator on a TEST tenant: add a group as include target with a profile, press Save — the consent prompt for Policy.ReadWrite.AuthenticationMethod appears once; the portal then shows the target; the finding the save said it clears is gone; ↩ Restore appears.",
+        "Remove an AAGUID from an Allow list in Configure: the Stops working box names that model before Save and Save asks once more. Save, then ↩ Restore → Save: the portal shows the list as it was.",
+        "Add a new passkey profile and Save: record whether Graph accepts the client-generated id (if it answers 400, the profile create needs another shape — this item stays in beta).",
+        "A tenant NOT opted in to passkey profiles (or a fresh test tenant): the Not opted in info shows, Configure shows tenant-wide attestation and key restrictions; changing attestation writes only isAttestationEnforced. Opt in… then Save on a TEST tenant: record whether the PATCH opts the tenant in (portal shows the Default passkey profile) or is refused.",
+        "Signed in as Global Reader without the Authentication Policy Administrator role: Save fails with the access-denied line; nothing changes. Demo (?demo=1): one Blocks finding for Require MFA for all admins (Alex Admin not in the pilot), a warning for the Authenticator-only pilot profile without attestation, and Configure → add CAB-SEC-U-Persona-Admins → the side says it clears the blocking finding.",
+      ],
+      files: ["js/passkeys.js", "js/app.js", "js/demo.js", "index.html", "css/app.css", "README.md", "tools/passkeys.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 290,
       title: "🤝 Cross-tenant access — T43, a tab of 🛡 Checks (checks from cdell2222/m365-security-toolkit)",
       tools: ["Checks"],

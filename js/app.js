@@ -182,7 +182,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -313,6 +313,8 @@
                         open: () => openIdScore() },
     toolXTenant:      { into: "toolGapCheck", label: "🤝 Cross-tenant access",        where: "the Cross-tenant tab",       build: 32316,
                         open: () => openXTenant() },
+    toolPasskeys:     { into: "toolGapCheck", label: "🔑 Passkeys",                   where: "the Passkeys tab",           build: 32317,
+                        open: () => openPasskeys() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
                         open: () => openValidator() },
     toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
@@ -454,6 +456,9 @@
         // 32316 (T43): who other tenants can send in and whose MFA / device
         // claims are trusted — each trust followed into the policies
         { key: "xtenant", icon: "🤝", name: "Cross-tenant",         toolbar: "xtToolbar", open: () => openXTenant(), beta: true },
+        // 32317 (T44): the policies that require a passkey, against the
+        // Passkey (FIDO2) method that decides whether anyone can get one
+        { key: "passkeys", icon: "🔑", name: "Passkeys",            toolbar: "pkToolbar", open: () => openPasskeys(), beta: true },
       ],
     },
     blocks: {
@@ -2339,6 +2344,9 @@
   // 🤝 Cross-tenant access (32316): the raw reads, kept per tenant and
   // session; the model is rebuilt against the policies loaded now
   let xtRaw = null, xtModel = null, xtBusy = false, xtErr = null, xtFilter = "all", xtStep = "";
+  // 🔑 Passkeys (32317): the raw reads, kept per tenant and session; the
+  // model is rebuilt against the policies loaded now
+  let pkRaw = null, pkModel = null, pkBusy = false, pkErr = null, pkFilter = "all", pkStep = "";
   const isExpanded = new Set();
   async function readCaSettings() {
     if (caSettingsCache !== undefined) return caSettingsCache;
@@ -2381,7 +2389,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null;
+      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null;
       signinContext = { tenantId: account?.tenantId || "", at: Date.now(), demo: false, names: names || {}, ...(context || {}) };
       // Results belong to the snapshot they were computed from.
       invalidateToolResults("policies reloaded");
@@ -2454,7 +2462,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null;
+    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null;
     {
       const at = Date.now();
       const strengths = Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
@@ -2500,7 +2508,7 @@
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
-    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
+    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths; configure the Passkey (FIDO2) method", tools: "Import, Checks → Passkeys", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
@@ -21297,6 +21305,366 @@ This is a directory write. Nothing else changes.`)) return;
   $("xtRefresh").addEventListener("click", () => runXTenant());
   $("xtMd").addEventListener("click", () => { if (xtModel) showReport("🤝 Cross-tenant access", `ENCA-cross-tenant-access-${new Date().toISOString().slice(0, 10)}`, XTenant.toMd(xtModel, tenantName)); });
   $("xtCsv").addEventListener("click", () => { if (xtModel) downloadText("ENCA-cross-tenant-access", "csv", "text/csv", XTenant.toCsv(xtModel)); });
+
+  // ---------- 🔑 Passkeys (32317, T44) ----------
+  // "Our policies REQUIRE a passkey — can those people get one?" Starts from
+  // the policies that require a passkey and asks the Passkey (FIDO2) method
+  // whether the same people can register and use one (js/passkeys.js, pure).
+  // Read on ▶ and kept for the session. ✎ Configure writes the WHOLE method —
+  // state, targets, self-service, passkey profiles — as ONE v1.0 PATCH, after
+  // a diff and an impact list, with the settings as read kept per tenant in
+  // this browser so ↩ Restore can put them back.
+  const PK_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which policies require a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them — and whether the Passkey (FIDO2) authentication method lets the same people register and use one: enabled, targeted, not excluded, self-service on, and a passkey profile that lets through a key the strength accepts. ✎ Configure changes the method, with the diff and what it does to people shown before Save.</p>';
+  const pkRestoreKey = () => `enca.pkRestore:${(signinContext && signinContext.tenantId) || (isDemo ? "demo" : "")}`;
+  function pkSnapshot() { try { return JSON.parse(localStorage.getItem(pkRestoreKey()) || "null"); } catch { return null; } }
+  function pkRebuild() {
+    if (!pkRaw) { pkModel = null; return; }
+    pkModel = Passkeys.analyze(pkRaw.input, policies.map((p) => p.raw), { readAt: pkRaw.at, demo: pkRaw.demo });
+  }
+  function pkPaintButtons() {
+    const has = !!pkRaw;
+    $("pkEdit").style.display = has && pkRaw.input.fido2 ? "" : "none";
+    $("pkMd").style.display = has ? "" : "none";
+    const snap = pkSnapshot();
+    $("pkRestore").style.display = has && snap && snap.fido2 ? "" : "none";
+    if (snap && snap.at) $("pkRestore").title = `Load the method as it was read before the last ENCA save (${new Date(snap.at).toLocaleString()}) into ✎ Configure — you see the diff before anything is written`;
+  }
+  function openPasskeys() {
+    crumb("🛡 Checks");
+    show("screen-passkeys");
+    mountToolTabs("checks", "passkeys");
+    $("pkHead").innerHTML = toolHead("toolPasskeys") + PK_HEAD_TEXT;
+    pkPaintButtons();
+    if (pkRaw) { renderPasskeys(); return; }
+    $("pkChips").innerHTML = "";
+    $("pkBody").innerHTML = pkBusy
+      ? `<p class="mini" style="padding:16px">${esc(pkStep || "Reading the passkey method…")}</p>`
+      : `${pkErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(pkErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-pkrun>▶ Read the passkey setup</button>
+        <p class="mini muted">Reads the Passkey (FIDO2) method (v1.0), the authentication strengths and — to count people rather than guess — the members of the groups and directory roles involved (Policy.Read.All and Directory.Read.All, already granted). Nothing is written until you use ✎ Configure and press Save there.</p></div>`;
+  }
+  function renderPasskeys() {
+    pkRebuild();
+    pkPaintButtons();
+    if (!pkModel) return;
+    $("pkChips").innerHTML = Passkeys.chips(pkModel, pkFilter);
+    $("pkBody").innerHTML = Passkeys.render(pkModel, { filter: pkFilter });
+  }
+  function pkProgress(msg) {
+    pkStep = msg;
+    if (pkBusy && $("screen-passkeys").classList.contains("active") && !pkRaw) $("pkBody").innerHTML = `<p class="mini" style="padding:16px">${esc(msg)}</p>`;
+  }
+  async function pkReadFido2() { return Graph.gget(Passkeys.V1 + Passkeys.FIDO2_PATH); }
+  // group and user names the loaded policies did not already resolve
+  async function pkResolveNames(ids, names) {
+    const miss = [...new Set(ids)].filter((id) => Passkeys.GUID.test(id || "") && !names[id]);
+    for (let i = 0; i < miss.length; i += 1000) {
+      try {
+        const j = await Graph.gpost("/directoryObjects/getByIds", { ids: miss.slice(i, i + 1000), types: ["user", "group"] }, AUTH_CONFIG.scopes);
+        (j.value || []).forEach((o) => { names[o.id] = o.displayName || o.userPrincipalName || o.id; });
+      } catch { /* the id stays */ }
+    }
+    return names;
+  }
+  async function runPasskeys() {
+    if (pkBusy) return;
+    pkBusy = true; pkErr = null; pkStep = "";
+    if ($("screen-passkeys").classList.contains("active")) openPasskeys();
+    try {
+      let input;
+      if (isDemo) {
+        const D = DEMO_DATA.passkeys || {};
+        const S = DEMO_DATA.depSettings || {};
+        input = { fido2: JSON.parse(JSON.stringify((pkRaw && pkRaw.demoFido2) || D.fido2 || null)), methods: DEMO_DATA.authMethodsPolicy || null,
+          strengths: Object.entries(S).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v),
+          members: D.members || {}, names: { ...(DEMO_DATA.names || {}), ...(D.names || {}) }, error: "" };
+      } else {
+        input = { fido2: null, methods: null, strengths: [], members: { groups: {}, roles: {} }, names: { ...((signinContext && signinContext.names) || {}) }, error: "" };
+        pkProgress("Reading the Passkey (FIDO2) method…");
+        try { input.fido2 = await pkReadFido2(); }
+        catch (e) {
+          const m = e && (e.message || String(e));
+          input.error = /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "")
+            ? "access denied: the signed-in account needs Global Reader, Security Reader or Authentication Policy Administrator to read authentication methods" : m;
+        }
+        input.methods = await readAuthMethods();
+        pkProgress("Reading the authentication strengths…");
+        try { input.strengths = [...await Graph.ggetAll("/policies/authenticationStrengthPolicies?$expand=combinationConfigurations")]; }
+        catch { try { input.strengths = [...await Graph.ggetAll("/policies/authenticationStrengthPolicies")]; } catch { input.strengths = []; } }
+        const raws = policies.map((p) => p.raw);
+        const w = Passkeys.wanted(input.fido2, raws, input.strengths);
+        let done = 0;
+        const total = w.groups.length + w.roles.length;
+        const tick = () => pkProgress(`Resolving members — ${++done} of ${total} groups and roles…`);
+        // a null entry is UNRESOLVED and is named as such, never guessed
+        await Graph.mapLimit(w.groups, 4, async (id) => {
+          try { const r = await Graph.readPages(`/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { cap: 20000 }); input.members.groups[id] = { ids: r.items.map((u) => u.id), complete: r.complete }; }
+          catch { input.members.groups[id] = null; }
+          tick();
+        });
+        // A role nobody ever activated has no directoryRole object: 404 = no active holders.
+        await Graph.mapLimit(w.roles, 4, async (id) => {
+          try { const r = await Graph.readPages(`/directoryRoles(roleTemplateId='${id}')/members/microsoft.graph.user?$select=id`, { cap: 20000 }); input.members.roles[id] = { ids: r.items.map((u) => u.id), complete: r.complete }; }
+          catch (e) { input.members.roles[id] = /\(404\)/.test((e && e.message) || "") ? { ids: [], complete: true } : null; }
+          tick();
+        });
+        const f = input.fido2 || {};
+        await pkResolveNames([...(f.includeTargets || []), ...(f.excludeTargets || [])].map((t) => t.id).concat(w.groups), input.names);
+      }
+      pkRaw = { input, at: Date.now(), demo: isDemo, demoFido2: isDemo ? input.fido2 : null };
+      pkRebuild();
+    } catch (e) {
+      pkErr = e && (e.message || String(e));
+      pkRaw = null; pkModel = null;
+    } finally { pkBusy = false; pkStep = ""; }
+    if ($("screen-passkeys").classList.contains("active")) { if (pkRaw) renderPasskeys(); else openPasskeys(); }
+    if (pkModel) toast(`Passkeys <span>${pkModel.counts.high} blocking · ${pkModel.counts.medium} warning${pkModel.counts.medium === 1 ? "" : "s"}</span>`);
+  }
+  const pkUserNames = {};
+  $("pkChips").addEventListener("click", (e) => { const b = e.target.closest("[data-pkf]"); if (!b) return; pkFilter = b.dataset.pkf; renderPasskeys(); });
+  $("pkBody").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-pkrun]")) { runPasskeys(); return; }
+    const u = e.target.closest("[data-pkusers]");
+    if (u) {
+      e.preventDefault();
+      const key = u.dataset.pkusers;
+      const box = [...document.querySelectorAll("[data-pkulist]")].find((x) => x.dataset.pkulist === key);
+      const f = pkModel && pkModel.findings.find((x) => x.key === key);
+      if (!box || !f) return;
+      if (!box.hidden) { box.hidden = true; return; }
+      box.hidden = false; box.textContent = "Resolving names…";
+      const names = { ...((pkRaw && pkRaw.input.names) || {}), ...pkUserNames };
+      if (!isDemo) { await pkResolveNames(f.users, names); Object.assign(pkUserNames, names); }
+      box.innerHTML = f.users.slice(0, 500).map((id) => `<span class="xt-pol">${esc(names[id] || id)}</span>`).join(" ") + (f.users.length > 500 ? ` <span class="mini muted">and ${f.users.length - 500} more — Export MD for the rest of the report</span>` : "");
+      return;
+    }
+    const fx = e.target.closest("[data-pkfix]");
+    if (fx) {
+      const f = pkModel && pkModel.findings.find((x) => x.key === fx.dataset.pkfkey);
+      openPkEditor(f && f.fix);
+    }
+  });
+  $("pkRefresh").addEventListener("click", () => runPasskeys());
+  $("pkMd").addEventListener("click", () => { if (pkModel) showReport("🔑 Passkeys", `ENCA-passkeys-${new Date().toISOString().slice(0, 10)}`, Passkeys.toMd(pkModel, tenantName)); });
+  $("pkEdit").addEventListener("click", () => openPkEditor(null));
+  $("pkRestore").addEventListener("click", () => {
+    const snap = pkSnapshot();
+    if (!snap || !snap.fido2 || !pkRaw) return;
+    let d = Passkeys.draftFrom(snap.fido2);
+    // opting in cannot be undone: a legacy snapshot restores INTO the Default profile
+    if (!d.optedIn && pkModel && pkModel.optedIn) { d = Passkeys.applyOptIn(d); d.optIn = false; d.optedIn = true; }
+    openPkEditor(null, d, `Restoring the settings read ${new Date(snap.at).toLocaleString()}, before the last ENCA save.`);
+  });
+
+  // ---- ✎ Configure ----
+  let pkDraft = null, pkSearch = [];
+  function pkNames() { return { ...((pkRaw && pkRaw.input.names) || {}), ...pkUserNames }; }
+  function openPkEditor(fix, draft, note) {
+    if (!pkRaw || !pkRaw.input.fido2) { toast("Read the passkey setup first — ▶ Read"); return; }
+    const before = pkRaw.input.fido2;
+    const d = draft || Passkeys.draftFrom(before);
+    const profiled = d.optedIn || d.optIn;
+    const defProf = profiled ? [Passkeys.DEFAULT_PROFILE] : [];
+    const k = fix && fix.kind;
+    if (k === "enable") d.state = "enabled";
+    if (k === "selfService") d.selfService = true;
+    if (k === "addAll" && !d.include.some((t) => t.id === Passkeys.ALL)) d.include.push({ id: Passkeys.ALL, reg: false, profiles: defProf.slice() });
+    if (k === "addTargets") for (const g of fix.groups || []) if (!d.include.some((t) => t.id === g)) d.include.push({ id: g, reg: false, profiles: defProf.slice() });
+    if (k === "optIn") Passkeys.applyOptIn(d);
+    pkDraft = d; pkSearch = [];
+    $("pkEditSub").textContent = note || "Changes the Passkey (FIDO2) authentication method for the whole tenant. Nothing is written until Save; the diff and what it does to people are on the right.";
+    pkPaintEditor();
+    $("pkEditModal").classList.add("open");
+    const anchor = { editProfiles: "pkSecProfiles", optIn: "pkSecProfiles", editExclude: "pkSecExclude", editTargets: "pkSecInclude", addTargets: "pkSecInclude", addAll: "pkSecInclude" }[k];
+    if (anchor) setTimeout(() => { const el = $(anchor); if (el) el.scrollIntoView({ block: "start" }); }, 0);
+  }
+  const pkSeg = (name, cur, opts) => `<span class="pk-seg">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? "on" : ""}" data-pkset="${name}" data-pkval="${v}">${l}</button>`).join("")}</span>`;
+  function pkProfileHtml(p, i) {
+    const presets = Object.entries(Passkeys.PRESETS).map(([k, v]) => `<button type="button" class="btn sm" data-pkpreset="${i}|${k}">＋ ${esc(v.label)}</button>`).join("");
+    const chipsA = p.kr.aaguids.map((a) => `<span class="xt-pol">${esc(Passkeys.aagName(a))} <a href="#" data-pkaagrm="${i}|${a}" title="Remove">✕</a></span>`).join(" ");
+    return `<div class="pk-prof">
+      <div class="pk-prof-h">${p.legacy ? "<b>Tenant-wide settings</b> <span class=\"mini muted\">(not opted in to passkey profiles)</span>"
+        : `<input class="pk-pname" data-pkpname="${i}" value="${esc(p.name)}" maxlength="60" ${p.isDefault ? "disabled" : ""}>${p.isDefault ? ' <span class="mini muted">Default — cannot be removed</span>' : ` <a href="#" data-pkprm="${i}">✕ remove</a>`}`}</div>
+      <div class="pk-line">${p.legacy ? "" : `<label class="chk"><input type="checkbox" data-pktype="${i}|deviceBound" ${p.types.includes("deviceBound") ? "checked" : ""}> Device-bound</label>
+        <label class="chk"><input type="checkbox" data-pktype="${i}|synced" ${p.types.includes("synced") ? "checked" : ""}> Synced</label> ·`}
+        <label class="chk"><input type="checkbox" data-pkattest="${i}" ${p.attest ? "checked" : ""}> Enforce attestation</label></div>
+      <div class="pk-line">Key restrictions ${pkSeg(`kr|${i}`, p.kr.on ? p.kr.type : "off", [["off", "Off"], ["allow", "Allow"], ["block", "Block"]])}</div>
+      ${p.kr.on ? `<div class="pk-line">${chipsA || '<span class="mini muted">no AAGUID yet</span>'}</div>
+        <div class="pk-line">${presets} <input class="pk-aag" data-pkaagin="${i}" placeholder="custom AAGUID" spellcheck="false"> <button type="button" class="btn sm" data-pkaagadd="${i}">＋ Add</button></div>` : ""}
+    </div>`;
+  }
+  function pkPaintEditor() {
+    const d = pkDraft; if (!d) return;
+    const nm = pkNames();
+    const name = (id) => id === Passkeys.ALL ? "All users" : (nm[id] || id);
+    const profiled = d.optedIn || d.optIn;
+    const inc = d.include.map((t, i) => `<div class="pk-tgt"><b>${esc(name(t.id))}</b>${profiled ? d.profiles.map((p) => `<label class="chk"><input type="checkbox" data-pkinprof="${i}|${esc(p.id)}" ${t.profiles.includes(p.id) ? "checked" : ""}> ${esc(p.name || "(unnamed)")}</label>`).join("") : ""}<a href="#" class="pk-x" data-pkinrm="${i}" title="Remove">✕</a></div>`).join("") || '<p class="mini muted">No include target.</p>';
+    const exc = d.exclude.map((t, i) => `<div class="pk-tgt"><b>${esc(name(t.id))}</b><span class="mini muted">wins over every include</span><a href="#" class="pk-x" data-pkexrm="${i}" title="Remove">✕</a></div>`).join("") || '<p class="mini muted">Nobody excluded.</p>';
+    const found = pkSearch.map((g) => `<div class="pk-tgt"><span>${esc(g.name)}</span><button type="button" class="btn sm" data-pkaddinc="${esc(g.id)}">＋ Include</button><button type="button" class="btn sm" data-pkaddexc="${esc(g.id)}">＋ Exclude</button></div>`).join("");
+    const profs = d.profiles.map((p, i) => pkProfileHtml(p, i)).join("");
+    $("pkEditForm").innerHTML = `
+      <div class="pk-sec"><div class="xt-tag">Method</div>${pkSeg("state", d.state, [["enabled", "Enabled"], ["disabled", "Disabled"]])}</div>
+      <div class="pk-sec"><div class="xt-tag">Allow self-service set up <span class="mini muted">(tenant-wide)</span></div>${pkSeg("self", d.selfService ? "yes" : "no", [["yes", "Yes"], ["no", "No"]])}</div>
+      <div class="pk-sec" id="pkSecInclude"><div class="xt-tag">Include${profiled ? " → passkey profiles" : ""}</div>${inc}
+        <div class="pk-line" style="margin-top:6px">${d.include.some((t) => t.id === Passkeys.ALL) ? "" : '<button type="button" class="btn sm" data-pkaddall>＋ All users</button>'}
+          <input class="pk-aag" id="pkGrpQ" placeholder="find a group by name or ID" spellcheck="false" autocomplete="off"> <button type="button" class="btn sm" data-pkfind>Find</button></div>${found}</div>
+      <div class="pk-sec" id="pkSecExclude"><div class="xt-tag">Exclude</div>${exc}</div>
+      <div class="pk-sec" id="pkSecProfiles"><div class="xt-tag">${profiled ? `Passkey profiles (${d.profiles.length} of ${Passkeys.MAX_PROFILES})` : "Attestation and key restrictions"}</div>${profs}
+        ${profiled && d.profiles.length < Passkeys.MAX_PROFILES ? '<button type="button" class="btn sm" data-pkpadd>＋ Add passkey profile</button>' : ""}
+        ${profiled ? "" : '<p class="mini" style="margin-top:8px">These two tenant-wide properties are deprecated (removed October 2027). <button type="button" class="btn sm" data-pkoptin>Opt in to passkey profiles…</button> <span class="mini muted">one-way: it cannot be undone</span></p>'}</div>`;
+    pkPaintSide();
+  }
+  function pkPaintSide() {
+    const d = pkDraft; if (!d || !pkRaw) return;
+    const before = pkRaw.input.fido2;
+    const nm = pkNames();
+    const v = Passkeys.validate(d);
+    const body = Passkeys.toBody(before, d);
+    const lines = Passkeys.diff(before, d, nm);
+    const raws = policies.map((p) => p.raw);
+    const after = Passkeys.applyBody(before, body);
+    const mAfter = Passkeys.analyze({ ...pkRaw.input, fido2: after }, raws, {});
+    const im = Passkeys.impact(before, d, nm, pkModel, mAfter);
+    const cls = { "+": "pk-add", "-": "pk-del", "~": "pk-chg", "!": "pk-del" };
+    $("pkEditSide").innerHTML = `
+      <div class="xt-tag">What will be written ${Passkeys.changed(body) ? "(one PATCH)" : ""}</div>
+      <div class="pk-diff">${lines.length ? lines.map((l) => `<div class="${cls[l.s]}">${esc(l.s)} ${esc(l.t)}</div>`).join("") : '<span class="muted">No change yet.</span>'}</div>
+      ${im.lose.length ? `<div class="pk-impact"><div class="xt-tag">⚠ Stops working</div><ul>${im.lose.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      ${im.gain.length ? `<div class="pk-gain"><div class="xt-tag">What changes for people</div><ul>${im.gain.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      ${Passkeys.changed(body) ? `<div class="pk-recov"><div class="xt-tag">↩ Recovery</div>The method as read now is kept in this browser for this tenant; ↩ Restore in the toolbar loads it back into this panel, and Save writes it in one PATCH. Opting in to passkey profiles is the one thing it cannot undo.</div>` : ""}
+      ${v.warnings.length ? `<div style="margin-top:8px">${v.warnings.map((x) => `<div class="mini" style="color:var(--report)">! ${esc(x)}</div>`).join("")}</div>` : ""}`;
+    $("pkEditWarn").innerHTML = v.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join("");
+    $("pkEditSave").disabled = !v.ok || !Passkeys.changed(body);
+    $("pkEditSave").textContent = im.lose.length ? `Save — ${im.lose.length} thing${im.lose.length === 1 ? "" : "s"} stop${im.lose.length === 1 ? "s" : ""} working` : "Save to tenant";
+  }
+  $("pkEditForm").addEventListener("click", async (e) => {
+    const d = pkDraft; if (!d) return;
+    const t = e.target;
+    const profiled = d.optedIn || d.optIn;
+    const defProf = profiled ? [Passkeys.DEFAULT_PROFILE] : [];
+    const set = t.closest("[data-pkset]");
+    if (set) {
+      const [k, i] = set.dataset.pkset.split("|"), v = set.dataset.pkval;
+      if (k === "state") d.state = v;
+      else if (k === "self") d.selfService = v === "yes";
+      else if (k === "kr") { const kr = d.profiles[+i].kr; if (v === "off") kr.on = false; else { kr.on = true; kr.type = v; } }
+      pkPaintEditor(); return;
+    }
+    const a = (sel) => t.closest(sel);
+    let el;
+    if ((el = a("[data-pkinrm]"))) { e.preventDefault(); d.include.splice(+el.dataset.pkinrm, 1); }
+    else if ((el = a("[data-pkexrm]"))) { e.preventDefault(); d.exclude.splice(+el.dataset.pkexrm, 1); }
+    else if (a("[data-pkaddall]")) d.include.push({ id: Passkeys.ALL, reg: false, profiles: defProf.slice() });
+    else if ((el = a("[data-pkaddinc]"))) { const id = el.dataset.pkaddinc; if (!d.include.some((x) => x.id === id)) d.include.push({ id, reg: false, profiles: defProf.slice() }); d.exclude = d.exclude.filter((x) => x.id !== id); }
+    else if ((el = a("[data-pkaddexc]"))) { const id = el.dataset.pkaddexc; if (!d.exclude.some((x) => x.id === id)) d.exclude.push({ id }); }
+    else if (a("[data-pkfind]")) {
+      const q = ($("pkGrpQ").value || "").trim(); if (!q) return;
+      try {
+        pkSearch = isDemo ? Object.entries(pkNames()).filter(([id, n]) => /^g-/.test(id) && n.toLowerCase().includes(q.toLowerCase())).map(([id, n]) => ({ id, name: n })) : await Assign.searchGroups(q, 10);
+        for (const g of pkSearch) pkUserNames[g.id] = g.name;
+      } catch (err) { toast(`Group search failed: <span>${esc(err.message || err)}</span>`); }
+      if (!pkSearch.length) toast("No group starts with that name");
+    }
+    else if ((el = a("[data-pkprm]"))) {
+      e.preventDefault();
+      const p = d.profiles[+el.dataset.pkprm];
+      if (d.include.some((x) => x.profiles.includes(p.id))) { toast("Take this profile off every target first — Microsoft refuses to delete a profile in use"); return; }
+      d.profiles.splice(+el.dataset.pkprm, 1);
+    }
+    else if (a("[data-pkpadd]")) {
+      const id = (crypto.randomUUID && crypto.randomUUID()) || `p-${Date.now()}`;
+      d.profiles.push({ id, name: `Passkey profile ${d.profiles.length + 1}`, types: ["deviceBound"], attest: true, kr: { on: false, type: "allow", aaguids: [] }, isDefault: false, legacy: false });
+    }
+    else if ((el = a("[data-pkpreset]"))) {
+      const [i, k] = el.dataset.pkpreset.split("|");
+      const kr = d.profiles[+i].kr;
+      kr.aaguids = [...new Set([...kr.aaguids, ...Object.keys(Passkeys.PRESETS[k].aaguids)])];
+    }
+    else if ((el = a("[data-pkaagadd]"))) {
+      const i = +el.dataset.pkaagadd;
+      const inp = document.querySelector(`[data-pkaagin="${i}"]`);
+      const v = ((inp && inp.value) || "").trim().toLowerCase();
+      if (!Passkeys.GUID.test(v)) { toast("Not a valid AAGUID — expected 8-4-4-4-12 hex"); return; }
+      const kr = d.profiles[i].kr; if (!kr.aaguids.includes(v)) kr.aaguids.push(v);
+    }
+    else if ((el = a("[data-pkaagrm]"))) {
+      e.preventDefault();
+      const [i, g] = el.dataset.pkaagrm.split("|");
+      const kr = d.profiles[+i].kr; kr.aaguids = kr.aaguids.filter((x) => x !== g);
+    }
+    else if (a("[data-pkoptin]")) {
+      if (!confirm("Opt in to passkey profiles?\n\nThe tenant-wide attestation and key-restriction settings become the Default passkey profile, unchanged. Microsoft does not let a tenant opt out again.\n\nNothing is written until you press Save.")) return;
+      Passkeys.applyOptIn(d);
+    }
+    else return;
+    pkPaintEditor();
+  });
+  $("pkEditForm").addEventListener("change", (e) => {
+    const d = pkDraft; if (!d) return;
+    const t = e.target;
+    if (t.dataset.pkinprof) {
+      const [i, pid] = t.dataset.pkinprof.split("|");
+      const tg = d.include[+i];
+      tg.profiles = t.checked ? [...new Set([...tg.profiles, pid])] : tg.profiles.filter((x) => x !== pid);
+      // keep the profile order stable so the diff does not report a reorder
+      tg.profiles = d.profiles.map((p) => p.id).filter((id) => tg.profiles.includes(id));
+    } else if (t.dataset.pktype) {
+      const [i, ty] = t.dataset.pktype.split("|");
+      const p = d.profiles[+i];
+      p.types = ["deviceBound", "synced"].filter((x) => (x === ty ? t.checked : p.types.includes(x)));
+    } else if (t.dataset.pkattest !== undefined) {
+      d.profiles[+t.dataset.pkattest].attest = t.checked;
+      if (d.profiles[+t.dataset.pkattest].legacy) d.profiles[+t.dataset.pkattest].types = t.checked ? ["deviceBound"] : ["deviceBound", "synced"];
+    } else return;
+    pkPaintEditor();
+  });
+  // names are typed: update the draft and the side, never repaint the field being typed in
+  $("pkEditForm").addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.dataset.pkpname !== undefined && pkDraft) { pkDraft.profiles[+t.dataset.pkpname].name = t.value; pkPaintSide(); }
+  });
+  $("pkEditForm").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (e.target.id === "pkGrpQ") { e.preventDefault(); document.querySelector("[data-pkfind]").click(); }
+    if (e.target.dataset.pkaagin !== undefined) { e.preventDefault(); document.querySelector(`[data-pkaagadd="${e.target.dataset.pkaagin}"]`).click(); }
+  });
+  $("pkEditCancel").addEventListener("click", () => { $("pkEditModal").classList.remove("open"); pkDraft = null; });
+  $("pkEditJson").addEventListener("click", () => {
+    if (!pkDraft || !pkRaw) return;
+    downloadText("ENCA-passkey-method-patch", "json", "application/json", JSON.stringify({ before: pkRaw.input.fido2, patch: Passkeys.toBody(pkRaw.input.fido2, pkDraft) }, null, 2));
+  });
+  $("pkEditSave").addEventListener("click", async () => {
+    const d = pkDraft; if (!d || !pkRaw) return;
+    const before = pkRaw.input.fido2;
+    const v = Passkeys.validate(d);
+    if (!v.ok) { pkPaintSide(); return; }
+    const body = Passkeys.toBody(before, d);
+    if (!Passkeys.changed(body)) return;
+    const im = Passkeys.impact(before, d, pkNames(), null, null);
+    if ((im.lose.length || d.optIn) && !confirm(`Write the Passkey (FIDO2) method?\n\n${[...im.lose, ...(d.optIn ? ["Opting in to passkey profiles cannot be undone."] : [])].map((x) => "• " + x).join("\n")}\n\n↩ Restore can put the settings back afterwards${d.optIn ? " (except the opt-in)" : ""}.`)) return;
+    const scopes = [...AUTH_CONFIG.scopes, ...Passkeys.WRITE_SCOPES];
+    if (!await preConsent(scopes)) return;
+    const btn = $("pkEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      // the settings as read, BEFORE the write — what ↩ Restore loads back
+      try { localStorage.setItem(pkRestoreKey(), JSON.stringify({ at: Date.now(), fido2: before })); } catch { /* restore then unavailable in this browser */ }
+      if (isDemo) {
+        pkRaw.demoFido2 = Passkeys.applyBody(before, body);
+        pkRaw.input.fido2 = pkRaw.demoFido2;
+        toast("Demo — <span>save simulated</span>");
+      } else {
+        await Graph.gpatch(Passkeys.V1 + Passkeys.FIDO2_PATH, body, scopes);
+        // read back what Entra kept — a PATCH can be accepted and recalculated
+        try { pkRaw.input.fido2 = await pkReadFido2(); } catch { pkRaw.input.fido2 = Passkeys.applyBody(before, body); }
+        toast("Passkey (FIDO2) method <span>saved</span>");
+      }
+      $("pkEditModal").classList.remove("open"); pkDraft = null;
+      renderPasskeys();
+    } catch (e) {
+      console.error("Save passkey method failed:", e);
+      const m = e && (e.message || String(e));
+      $("pkEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(/403|forbidden|authorization_requestdenied/i.test(m || "") ? "Access denied — writing the method needs the Authentication Policy Administrator role (and Policy.ReadWrite.AuthenticationMethod)." : m)}</div>`;
+    } finally { btn.disabled = false; pkPaintSide(); }
+  });
 
   function openCis() {
     crumb("🛡 Checks");

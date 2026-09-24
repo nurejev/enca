@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32316"></script>
+<script src="js/popup-guard.js?v=32317"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32316" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32316">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32317" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32317">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32316"></script>
+<script src="js/selfhost-boot.js?v=32317"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32316"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32316"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32316">
-<link rel="stylesheet" href="css/workspaces.css?v=32316">
-<link rel="stylesheet" href="css/tool-layout.css?v=32316">
-<link rel="stylesheet" href="css/list-detail.css?v=32316">
-<link rel="stylesheet" href="css/flat-icons.css?v=32316">
+<script src="js/counter.js?v=32317"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32317"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32317">
+<link rel="stylesheet" href="css/workspaces.css?v=32317">
+<link rel="stylesheet" href="css/tool-layout.css?v=32317">
+<link rel="stylesheet" href="css/list-detail.css?v=32317">
+<link rel="stylesheet" href="css/flat-icons.css?v=32317">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32316" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32317" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32316" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32317" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -281,7 +281,7 @@
     <div class="tools">
       <div class="tool tool-tile" id="toolGapCheck">
         <div class="tool-ic">🛡</div><h3>Checks <span class="tag upd">UPDATED</span></h3>
-        <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all.</p>
+        <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all. <b>🔑 Passkeys</b> <span class="tag new">BETA</span> — the policies that require a passkey against the Passkey (FIDO2) method: can the people in scope register and use one — and a Configure panel for the method.</p>
       </div>
       <div class="tool tool-tile" id="toolBaseline">
         <div class="tool-ic">🧬</div><h3>Baseline <span class="tag upd">UPDATED</span></h3>
@@ -1446,6 +1446,21 @@
     <div class="tool-body" id="xtBody"></div>
   </section>
 
+  <!-- ============ 🔑 PASSKEYS (T44, build 32317) — a tab of 🛡 Checks ============ -->
+  <section id="screen-passkeys" class="screen tool">
+    <div class="list-card readme" id="pkHead"></div>
+    <div class="toolbar" id="pkToolbar">
+      <div class="chip-filter" id="pkChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="pkRefresh" title="Read the passkey method, the strengths and the members again">⟳ Refresh</button>
+        <button class="btn primary" id="pkEdit" style="display:none" title="Change the Passkey (FIDO2) method — diff and impact before Save">✎ Configure</button>
+        <button class="btn" id="pkRestore" style="display:none">↩ Restore</button>
+        <button class="btn" id="pkMd" style="display:none">Export MD</button>
+      </div>
+    </div>
+    <div class="tool-body" id="pkBody"></div>
+  </section>
+
   <section id="screen-devcheck" class="screen tool">
     <div class="list-card readme" id="dvHead"></div>
     <div class="toolbar" id="dvToolbar">
@@ -1506,6 +1521,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R66</span> 🔑 Passkeys: required, and actually set up <span class="tag ok">in beta today · beta 32317</span></h4>
+            <p class="mini" style="margin:0">A Passkeys tab in 🛡 Checks starts from the policies that require a passkey and asks the Passkey (FIDO2) method whether the same people can get one — enabled, targeted, not excluded, self-service on, a passkey profile that lets through a key the strength accepts — counting the people by group and role membership. ✎ Configure changes the whole method (state, targets, self-service, passkey profiles) with a diff, what stops working and what it clears shown before Save, and ↩ Restore. Graduates once it has been read and written on a few real tenants, including one not yet opted in to passkey profiles.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R65</span> 🤝 Cross-tenant access, read next to the policies <span class="tag ok">in beta today · beta 32316</span></h4>
             <p class="mini" style="margin:0">A Cross-tenant tab in 🛡 Checks runs the checks of the open-source m365-security-toolkit (Charlie Delmotte, MIT): the default policy and every partner entry, trusted MFA and devices, cross-tenant sync, automatic redemption, dead partner tenants and entries that override nothing. ENCA adds where the trust lands — which policies a trusted MFA or device claim from another tenant satisfies. Read-only. Graduates once it has been read on a few real tenants with partner entries, including one with cross-tenant sync and one where a partner tenant no longer exists or the exists check was confirmed to degrade to not checked.</p>
@@ -2114,6 +2133,18 @@
         <li><b>Read-only.</b> Nothing is changed; cross-tenant settings are edited in Entra ID → External Identities → Cross-tenant access settings. <b>Export MD</b> and <b>Export CSV</b> write the findings for the review record.</li>
       </ul>
       <p class="help-x">Needs <code>Policy.Read.All</code> (part of sign-in) and a role that can read cross-tenant access settings — Security Reader, Global Reader or Security Administrator; Teams and Global Secure Access administrators cannot read the sync setting. Optional: <code>CrossTenantInformation.ReadBasic.All</code> for partner names.</p>
+          <h5>🔑 Passkeys <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span> <span class="help-fold">a tab of this tool — build 32317</span></h5>
+      <p>Your policies require a passkey — can the people they reach actually get one? The tab starts from the <b>policies</b>: a policy requires a passkey when its grant is an authentication strength whose every allowed combination is phishing-resistant (passkey, Windows Hello for Business, certificate multifactor) with the passkey among them, and nothing else is offered beside it under OR. Then it asks the <b>Passkey (FIDO2)</b> authentication method whether the same people can register and use one.</p>
+      <ul>
+        <li><b>▶ Read the passkey setup</b> — reads the method (Microsoft Graph v1.0, where passkey profiles live), the authentication strengths with their advanced options, and the transitive members of every group and directory role involved, so gaps are counted in people. Directory roles count <i>active</i> holders; PIM-eligible admins join when they activate.</li>
+        <li><b>Blocks</b> — the method is disabled; people in scope are in none of the method's include targets; people in scope are in an <i>excluded</i> group (an exclusion wins over every include — no registration, no sign-in); the strength accepts only certain passkeys (AAGUIDs) and the passkey profiles those people get let none of them through; self-service setup is off; an Allow list with nothing on it. A report-only policy makes the same finding a warning.</li>
+        <li><b>Warnings and info</b> — key restrictions without attestation (the AAGUID list is then a guide, not a control); a policy on <i>Register security information</i> that demands a passkey while Temporary Access Pass is off (nobody can register their first one); part of a scope that could not be read; guests in scope (judged in 📘 Microsoft Learn); not opted in to passkey profiles (the tenant-wide attestation and key-restriction properties are deprecated, removed October 2027); three of three profiles.</li>
+        <li><b>Policies that require a passkey</b> — per policy: the strength and its combinations, how many people it reaches, how many of them cannot get a passkey. <b>Current settings</b> — Enable and target, Exclude, self-service and every profile, laid out as in the portal.</li>
+        <li><b>✎ Configure</b> — the whole method: Enabled or Disabled, Allow self-service set up, include targets (All users or groups) with the passkey profiles each one gets, exclusions, and the profiles themselves — name, device-bound and synced, attestation, key restrictions Allow or Block with Microsoft Authenticator, Windows Hello and YubiKey 5 presets or any AAGUID. A ✎ button on a finding opens it with that change already made. On the right, before Save: the diff, <b>what stops working</b> (a removed AAGUID or an unticked type stops keys already registered — Microsoft applies key restrictions to sign-in, not only registration), what changes for people, and which blocking findings the save clears or opens — the same checks re-run on the settings as they would be. Losses and the opt-in ask once more. Opting in to passkey profiles is its own button: Microsoft does not let a tenant opt out.</li>
+        <li><b>↩ Restore</b> — before every save the method as read is kept in this browser, for this tenant. ↩ Restore loads it back into Configure, where you see the diff and press Save. <b>⬇ Export JSON</b> downloads the settings as read and the PATCH body without writing anything.</li>
+        <li><b>Not written here</b> — Temporary Access Pass and certificate-based authentication are reported, not changed; authentication strengths are changed in 🧩 Policy building blocks → 💪 Strengths.</li>
+      </ul>
+      <p class="help-x">Reading needs <code>Policy.Read.All</code> and <code>Directory.Read.All</code> (part of sign-in) and a role that can read authentication methods — Global Reader, Security Reader or Authentication Policy Administrator. Saving needs <code>Policy.ReadWrite.AuthenticationMethod</code> (asked once, on Save) and the <b>Authentication Policy Administrator</b> role.</p>
     </section>
 
 
@@ -2330,10 +2361,10 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T43</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T44</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
-        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T44</code> is next.</li>
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T45</code> is next.</li>
         <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty-one numbers have no tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 25338)</li>
@@ -2359,6 +2390,7 @@
             <li><code>T41</code> 🏗 Policy builder → <b>🧩 Policy building blocks</b>, Builder tab (build 25437 — born there, never a tile)</li>
             <li><code>T42</code> 🏅 Identity Secure Score → <b>🛡 Checks</b>, Identity score tab (build 32308 — born there, never a tile)</li>
             <li><code>T43</code> 🤝 Cross-tenant access → <b>🛡 Checks</b>, Cross-tenant tab (build 32316 — born there, never a tile)</li>
+            <li><code>T44</code> 🔑 Passkeys → <b>🛡 Checks</b>, Passkeys tab (build 32317 — born there, never a tile)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The newest two</b> — <code>T40</code> ↗ Guided rollout is a tile of its own; <code>T41</code> 🏗 Policy builder is the one number that never had a tile: it was born as the Builder tab of 🧩 Policy building blocks, and is listed above with the folded tools for that reason.</li>
@@ -3225,6 +3257,25 @@
   </div>
 </div>
 
+<!-- ============ 🔑 PASSKEY METHOD EDITOR (T44, build 32317) ============ -->
+<div class="modal-bg" id="pkEditModal">
+  <div class="modal" style="max-width:1040px">
+    <h3>✎ Configure the Passkey (FIDO2) method</h3>
+    <p class="mini" id="pkEditSub" style="margin-bottom:12px"></p>
+    <div class="pk-edit">
+      <div id="pkEditForm"></div>
+      <div id="pkEditSide"></div>
+    </div>
+    <div id="pkEditWarn" style="margin-top:12px"></div>
+    <p class="mini muted" style="margin:10px 0 0">Writes <code>Policy.ReadWrite.AuthenticationMethod</code> (asked once, on Save) and needs the Authentication Policy Administrator role.</p>
+    <div class="row">
+      <button class="btn" id="pkEditCancel">Cancel</button>
+      <button class="btn" id="pkEditJson" title="Download the settings as read and the PATCH body — nothing is written">⬇ Export JSON</button>
+      <button class="btn primary" id="pkEditSave" disabled>Save to tenant</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ TERMS OF USE EDITOR ============ -->
 <div class="modal-bg" id="tuEditModal">
   <div class="modal" style="max-width:600px">
@@ -3506,92 +3557,93 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32316"></script>
-<script src="js/selfhost.js?v=32316"></script>
-<script src="js/version.js?v=32316"></script>
-<script src="js/verdict.js?v=32316"></script>
-<script src="js/fork.js?v=32316"></script>
-<script src="js/promote.js?v=32316"></script>
-<script src="js/authConfig.js?v=32316"></script>
-<script src="js/connection.js?v=32316"></script>
-<script src="js/labels.js?v=32316"></script>
-<script src="js/capabilities.js?v=32316"></script>
-<script src="js/graph.js?v=32316"></script>
-<script src="js/model.js?v=32316"></script>
-<script src="js/render.js?v=32316"></script>
-<script src="js/analyze.js?v=32316"></script>
-<script src="js/whatif.js?v=32316"></script>
-<script src="js/mslearn.js?v=32316"></script>
-<script src="js/learntriage.js?v=32316"></script>
-<script src="js/learnfeed.js?v=32316"></script>
-<script src="js/gapcheck.js?v=32316"></script>
-<script src="js/cisdata.js?v=32316"></script>
-<script src="js/cischeck.js?v=32316"></script>
-<script src="js/exclusions.js?v=32316"></script>
-<script src="js/cascope.js?v=32316"></script>
-<script src="js/coverage.js?v=32316"></script>
-<script src="js/runmeta.js?v=32316"></script>
-<script src="js/overview.js?v=32316"></script>
-<script src="js/validator.js?v=32316"></script>
-<script src="js/whatifeval.js?v=32316"></script>
-<script src="js/builder.js?v=32316"></script>
-<script src="js/onboard.js?v=32316"></script>
-<script src="js/compare.js?v=32316"></script>
-<script src="js/whois.js?v=32316"></script>
-<script src="js/wave.js?v=32316"></script>
-<script src="js/sessionctl.js?v=32316"></script>
-<script src="js/spgap.js?v=32316"></script>
-<script src="js/groupuse.js?v=32316"></script>
-<script src="js/iso3166.js?v=32316"></script>
-<script src="js/causes.js?v=32316"></script>
-<script src="js/locations.js?v=32316"></script>
-<script src="js/authcontexts.js?v=32316"></script>
-<script src="js/authstrengths.js?v=32316"></script>
-<script src="js/recycle.js?v=32316"></script>
-<script src="js/rmau.js?v=32316"></script>
-<script src="js/camap.js?v=32316"></script>
-<script src="js/rmaudoc.js?v=32316"></script>
-<script src="js/termsofuse.js?v=32316"></script>
-<script src="js/audit.js?v=32316"></script>
-<script src="js/drift.js?v=32316"></script>
-<script src="js/guide.js?v=32316"></script>
-<script src="js/userimpact.js?v=32316"></script>
-<script src="js/smsvoice.js?v=32316"></script>
-<script src="js/memberof.js?v=32316"></script>
-<script src="js/devcheck.js?v=32316"></script>
-<script src="js/idscore.js?v=32316"></script>
-<script src="js/xtenant.js?v=32316"></script>
-<script src="js/licgap.js?v=32316"></script>
-<script src="js/teamsdev.js?v=32316"></script>
-<script src="js/signinstore.js?v=32316"></script>
-<script src="js/signins.js?v=32316"></script>
-<script src="js/reportimpact.js?v=32316"></script>
-<script src="js/changelog.js?v=32316"></script>
-<script src="js/baselineData.js?v=32316"></script>
-<script src="js/baselineJoeyData.js?v=32316"></script>
-<script src="js/baselineLive.js?v=32316"></script>
-<script src="js/baseline.js?v=32316"></script>
-<script src="js/baselineCleanup.js?v=32316"></script>
-<script src="js/groupTemplates.js?v=32316"></script>
-<script src="js/assign.js?v=32316"></script>
-<script src="js/cagroups.js?v=32316"></script>
-<script src="js/groupmerge.js?v=32316"></script>
-<script src="js/groupsview.js?v=32316"></script>
-<script src="js/runledger.js?v=32316"></script>
-<script src="js/protect.js?v=32316"></script>
-<script src="js/policy-compare.js?v=32316"></script>
-<script src="js/import.js?v=32316"></script>
-<script src="js/export.js?v=32316"></script>
-<script src="js/demo.js?v=32316"></script>
-<script src="js/list-detail.js?v=32316"></script>
-<script src="js/flat-icons.js?v=32316"></script>
-<script src="js/workspace.js?v=32316"></script>
-<script src="js/analysis-jobs.js?v=32316"></script>
-<script src="js/search-suggest.js?v=32316"></script>
-<script src="js/app.js?v=32316"></script>
-<script src="js/col-resize.js?v=32316"></script>
-<script src="js/accessibility.js?v=32316"></script>
-<script src="js/workspaces.js?v=32316"></script>
-<script src="js/tool-layout.js?v=32316"></script>
+<script src="js/branding.js?v=32317"></script>
+<script src="js/selfhost.js?v=32317"></script>
+<script src="js/version.js?v=32317"></script>
+<script src="js/verdict.js?v=32317"></script>
+<script src="js/fork.js?v=32317"></script>
+<script src="js/promote.js?v=32317"></script>
+<script src="js/authConfig.js?v=32317"></script>
+<script src="js/connection.js?v=32317"></script>
+<script src="js/labels.js?v=32317"></script>
+<script src="js/capabilities.js?v=32317"></script>
+<script src="js/graph.js?v=32317"></script>
+<script src="js/model.js?v=32317"></script>
+<script src="js/render.js?v=32317"></script>
+<script src="js/analyze.js?v=32317"></script>
+<script src="js/whatif.js?v=32317"></script>
+<script src="js/mslearn.js?v=32317"></script>
+<script src="js/learntriage.js?v=32317"></script>
+<script src="js/learnfeed.js?v=32317"></script>
+<script src="js/gapcheck.js?v=32317"></script>
+<script src="js/cisdata.js?v=32317"></script>
+<script src="js/cischeck.js?v=32317"></script>
+<script src="js/exclusions.js?v=32317"></script>
+<script src="js/cascope.js?v=32317"></script>
+<script src="js/coverage.js?v=32317"></script>
+<script src="js/runmeta.js?v=32317"></script>
+<script src="js/overview.js?v=32317"></script>
+<script src="js/validator.js?v=32317"></script>
+<script src="js/whatifeval.js?v=32317"></script>
+<script src="js/builder.js?v=32317"></script>
+<script src="js/onboard.js?v=32317"></script>
+<script src="js/compare.js?v=32317"></script>
+<script src="js/whois.js?v=32317"></script>
+<script src="js/wave.js?v=32317"></script>
+<script src="js/sessionctl.js?v=32317"></script>
+<script src="js/spgap.js?v=32317"></script>
+<script src="js/groupuse.js?v=32317"></script>
+<script src="js/iso3166.js?v=32317"></script>
+<script src="js/causes.js?v=32317"></script>
+<script src="js/locations.js?v=32317"></script>
+<script src="js/authcontexts.js?v=32317"></script>
+<script src="js/authstrengths.js?v=32317"></script>
+<script src="js/recycle.js?v=32317"></script>
+<script src="js/rmau.js?v=32317"></script>
+<script src="js/camap.js?v=32317"></script>
+<script src="js/rmaudoc.js?v=32317"></script>
+<script src="js/termsofuse.js?v=32317"></script>
+<script src="js/audit.js?v=32317"></script>
+<script src="js/drift.js?v=32317"></script>
+<script src="js/guide.js?v=32317"></script>
+<script src="js/userimpact.js?v=32317"></script>
+<script src="js/smsvoice.js?v=32317"></script>
+<script src="js/memberof.js?v=32317"></script>
+<script src="js/devcheck.js?v=32317"></script>
+<script src="js/idscore.js?v=32317"></script>
+<script src="js/xtenant.js?v=32317"></script>
+<script src="js/passkeys.js?v=32317"></script>
+<script src="js/licgap.js?v=32317"></script>
+<script src="js/teamsdev.js?v=32317"></script>
+<script src="js/signinstore.js?v=32317"></script>
+<script src="js/signins.js?v=32317"></script>
+<script src="js/reportimpact.js?v=32317"></script>
+<script src="js/changelog.js?v=32317"></script>
+<script src="js/baselineData.js?v=32317"></script>
+<script src="js/baselineJoeyData.js?v=32317"></script>
+<script src="js/baselineLive.js?v=32317"></script>
+<script src="js/baseline.js?v=32317"></script>
+<script src="js/baselineCleanup.js?v=32317"></script>
+<script src="js/groupTemplates.js?v=32317"></script>
+<script src="js/assign.js?v=32317"></script>
+<script src="js/cagroups.js?v=32317"></script>
+<script src="js/groupmerge.js?v=32317"></script>
+<script src="js/groupsview.js?v=32317"></script>
+<script src="js/runledger.js?v=32317"></script>
+<script src="js/protect.js?v=32317"></script>
+<script src="js/policy-compare.js?v=32317"></script>
+<script src="js/import.js?v=32317"></script>
+<script src="js/export.js?v=32317"></script>
+<script src="js/demo.js?v=32317"></script>
+<script src="js/list-detail.js?v=32317"></script>
+<script src="js/flat-icons.js?v=32317"></script>
+<script src="js/workspace.js?v=32317"></script>
+<script src="js/analysis-jobs.js?v=32317"></script>
+<script src="js/search-suggest.js?v=32317"></script>
+<script src="js/app.js?v=32317"></script>
+<script src="js/col-resize.js?v=32317"></script>
+<script src="js/accessibility.js?v=32317"></script>
+<script src="js/workspaces.js?v=32317"></script>
+<script src="js/tool-layout.js?v=32317"></script>
 </body>
 </html>
