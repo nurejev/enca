@@ -1217,8 +1217,21 @@ const MSLearn = (() => {
         if (!combos.length) return null;
         // Satisfiable here if ANY combination a guest can complete here.
         if (combos.some(comboUsableHere)) return null;
-        const sc = extScope(p, CROSS_TENANT_TYPES);
-        if (!sc) return null;
+        const sc0 = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc0) return null;
+        // 32315 — ONE JUDGEMENT WITH THE GUEST MATRIX. Mihai, on a screenshot:
+        // "there is a high Blocks them, but it is not in the matrix". This
+        // check reported (UP)CA111 as blocking Other external users while the
+        // matrix, for the very same policy and type, said n/a: an
+        // authentication strength applies only to externals who authenticate
+        // with Microsoft Entra ID, so it does not block the others — it
+        // misses them, which is guest-auth-strength-not-universal's finding.
+        // The types reported here are now exactly the ones the matrix's own
+        // verdict() calls blocked or trust for this policy, so a finding
+        // always has its cell and a cell always has its finding.
+        const judged = sc0.types.filter((t) => { const v = verdict(t, "strength", p, ctx).v; return v === "blocked" || v === "trust"; });
+        if (!judged.length) return null;
+        const sc = { ...sc0, types: judged };
         const methods = [...new Set(combos.flatMap(comboMethods).map((m) => HOME_ONLY_METHODS[m]).filter(Boolean))];
         const tap = combos.some((c) => comboMethods(c).some(isNeverForGuests));
         const atHome = combos.some(comboUsableAtHome) && methods.length;
@@ -1842,6 +1855,10 @@ const MSLearn = (() => {
     const dc = type === DIRECT_CONNECT;
     switch (control) {
       case "mfa":
+        // 32315 — same judgement as dc-mfa-needs-trust: with direct connect
+        // blocked inbound (default and every partner) no direct connect user
+        // can arrive, so the check stays quiet and the cell says why.
+        if (dc && dcInboundOpen(ctx) === false) return { v: "na", why: "B2B direct connect is blocked inbound, so no direct connect user can arrive" };
         return dc && guestTrust(ctx, "isMfaAccepted").ok !== true
           ? { v: "trust", why: "B2B direct connect needs inbound MFA trust" } : { v: "ok" };
       case "strength": {

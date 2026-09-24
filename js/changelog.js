@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32315, date: "2026-09-24", title: "MS Learn guest findings and the guest matrix agree",
+    items: [
+      { kind: "fixed", tool: "MS Learn", text: "A policy with an authentication strength that reaches Other external users no longer reports them as High, blocks them. A strength applies only to Entra-authenticated externals, so those users are missed by it, not blocked: the matrix shows n/a and the finding about the strength not reaching every external user covers them." },
+      { kind: "fixed", tool: "MS Learn", text: "With B2B direct connect blocked inbound, the guest matrix no longer shows the MFA cell for direct connect users as needing trust: no direct connect user can arrive, so it shows n/a with that reason, as the findings already did." },
+    ],
+  },
+  {
     build: 32314, date: "2026-09-24", title: "Self-hosting: pinned installs, updated and rolled back on purpose",
     items: [
       { kind: "improved", tool: "Self-hosting", text: "SELF-HOSTING.md has a new section for copies other people rely on: run a pinned image digest instead of a tag, write down what you run now, find the digest of the build you want, deploy it on Docker, compose or Azure Container Apps, check it, and roll back with the digest you wrote down." },

@@ -117,6 +117,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 289,
+      title: "MS Learn: guest findings and the guest matrix give one judgement",
+      tools: ["MS Learn"],
+      builds: [32315],
+      risk: "low",
+      what: "js/mslearn.js: guest-auth-strength-unsatisfiable reports only the types verdict(type, strength) marks blocked or trust, so Other external users (n/a for a strength) drop out of it; verdict(b2bDirectConnectUser, mfa) returns n/a when direct connect is blocked inbound, as dc-mfa-needs-trust already skipped. tools/mslearn-guests.test.cjs: a cross-check test over scopes, grants, sessions and both inbound states.",
+      why: "Mihai: there is something wrong with the engine, a High Blocks them finding (CA111, Other external users) that is not in the matrix. The finding and the matrix judged the same policy separately and disagreed.",
+      test: [
+        "A tenant with a CA111-style policy (All users with every guest type but Other external users excluded, authentication strength required): no High unsatisfiable finding naming Other external users; the not-universal finding is still there; the matrix cell is n/a.",
+        "A policy with a phishing-resistant strength scoped to B2B collaboration guests: still High unsatisfiable, and the matrix cell is blocked.",
+        "Direct connect blocked inbound, an All users MFA policy: the direct connect MFA cell is n/a with the reason; with direct connect allowed for a partner and no MFA trust: trust in the matrix and the dc-mfa-needs-trust finding.",
+      ],
+      files: ["js/mslearn.js", "tools/mslearn-guests.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 288,
       title: "Self-hosting: pinned installs — update and roll back by digest (SELF-HOSTING.md, selfhost/resolve-digest.sh, the update notice)",
       tools: ["Self-hosting"],
