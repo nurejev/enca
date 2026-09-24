@@ -73,7 +73,23 @@
       logo ? `${sel} .logo img, ${sel} .login-card > img{content:url("${logo}")}` : "",
       (logo && b.logoWide) ? `${sel} .logo img{width:auto;height:34px} ${sel} .login-card > img{width:auto;height:56px}` : "",
       (b.hideOrgName === true) ? `${sel} .logo b{display:none}` : "",
+      // The words (build 32310). The logo is swapped above, but the markup's
+      // own org name, footer text and sign-in text are Limon-IT's, and the
+      // body is long enough to paint before the scripts at its end arrive -
+      // so a hard refresh of a branded copy flashed "Limon-IT" beside the
+      // right logo (Dovilo, 24 Sep). They are held invisible (space kept, no
+      // jump) until applyBranding() writes the real text and removes this tag.
+      (b.org || b.orgUrl || b.loginBlurb || b.loginTitle || b.name)
+        ? `${sel} #brandOrg, ${sel} #brandOrgLink, ${sel} #brandFoot, ${sel} #brandLoginTitle, ${sel} #brandLoginBlurb, ${sel} #brandTag{visibility:hidden}` : "",
     ].filter(Boolean).join("\n");
+    // <title> is parsed before this file runs; its last part is the
+    // organisation (Brand.pageTitle's order), so put the right one there now.
+    try {
+      const org = typeof b.org === "string" && b.org.length <= 300 ? b.org : "";
+      if (org && document.title && document.title.includes(" · ")) {
+        const parts = document.title.split(" · "); parts[parts.length - 1] = org; document.title = parts.join(" · ");
+      }
+    } catch { /* app.js sets the title anyway */ }
     if (css) {
       const tag = document.createElement("style");
       tag.id = "selfhostBootCss";

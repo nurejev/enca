@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 285,
+      title: "Self-hosted branding — no Limon-IT flash on a hard refresh",
+      tools: ["Self-hosting"],
+      builds: [32310],
+      risk: "medium",
+      what: "js/selfhost.js: deploymentBrand starts from window.ENCA_BRAND_BOOT (the file the container entrypoint writes into js/selfhost-boot.js), else the enca-selfhost-brand-cache copy, so register() has the brand before app.js first paints; the fetch of selfhost-branding.json still runs and wins, and when it finds no file it now takes a started brand down on the same load (startedBranded). js/selfhost-boot.js: while a boot brand is painting, #brandOrg, #brandOrgLink, #brandFoot, #brandLoginTitle, #brandLoginBlurb and #brandTag are visibility:hidden until applyBranding removes the boot stylesheet, and the document title's organisation part is set at once.",
+      why: "Mihai, Dovilo container with branding: a hard refresh briefly showed Limon-IT instead of Dovilo. Cause: selfhost.js registered no brand until its fetch returned, so app.js's first applyBranding painted the default look and removed the boot stylesheet.",
+      test: [
+        "Self-hosted container with a branding file (Dovilo): hard refresh several times, also in a private window (no cache): the header, sign-in card, footer and tab title show Dovilo from the first frame, never Limon-IT.",
+        "Change the branding file on the host without restarting the container, refresh: the new look shows on that load.",
+        "Remove the branding file (container restarted without it, or a static host): after one refresh the default look shows and stays; no old brand lingers.",
+        "A look applied through the gear in this browser still wins over the deployment file.",
+        "Beta and production sites (no branding file): unchanged, Limon-IT look, no hidden text.",
+      ],
+      files: ["js/selfhost.js", "js/selfhost-boot.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 284,
       title: "🏅 Identity Secure Score — T42, a tab of 🛡 Checks, and the score + Microsoft recommends on the home page",
       tools: ["Checks", "Overview"],

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32310, date: "2026-09-24", title: "A branded self-hosted copy no longer flashes Limon-IT on a hard refresh",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "On a self-hosted copy with its own branding, a hard refresh showed the right logo but the name Limon-IT beside it for a moment, and sometimes the Limon-IT look, until the branding file had been read again. The app now starts from the branding the container wrote into the page (or this browser's copy of it), so the first paint is already the deployment's own name, logo and colours, and the name, footer and sign-in text stay hidden until they are right. The branding file is still read on every load, so a change to it shows without a restart, and a branding that has been removed also disappears on that same load." },
+    ],
+  },
+  {
     build: 32309, date: "2026-09-23", title: "Identity Secure Score: one failing read no longer fails both",
     items: [
       { kind: "fixed", tool: "Checks", text: "Reading the Identity Secure Score could fail as a whole when Microsoft's score history answered 'please try again after some time'. The score history and the recommendations are now read separately and retried a few times when Microsoft asks to try again. If the history still does not answer, the recommendations are shown and the score is added up from them, marked ≈, without the trend." },
