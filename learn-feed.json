@@ -1,0 +1,801 @@
+{
+ "schema": "enca-learn-feed/1",
+ "generated": "2026-09-24T04:31:06.590Z",
+ "windowDays": 60,
+ "source": {
+  "repo": "MicrosoftDocs/entra-docs",
+  "head": "c6f11a0c59",
+  "paths": [
+   "identity/conditional-access/",
+   "id-protection/",
+   "identity/authentication/concept-authentication-strength",
+   "identity/authentication/concept-authentication-strengths",
+   "external-id/authentication-conditional-access"
+  ]
+ },
+ "counts": {
+  "docs": 12,
+  "newDocs": 1,
+  "substantive": 9,
+  "watched": 16,
+  "unwatched": 5
+ },
+ "docs": [
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation",
+   "path": "docs/identity/conditional-access/concept-continuous-access-evaluation.md",
+   "title": "Continuous access evaluation in Microsoft Entra",
+   "kind": "changed",
+   "lastChange": "2026-09-22T15:59:45+01:00",
+   "lines": 3,
+   "bulkOnly": false,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "0ec2a02b41",
+     "date": "2026-09-22T15:59:45+01:00",
+     "subject": "Learn Editor: Update concept-continuous-access-evaluation.md",
+     "add": 0,
+     "del": 3,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/howto-export-risk-data",
+   "path": "docs/id-protection/howto-export-risk-data.md",
+   "title": "Export and use Microsoft Entra ID Protection data",
+   "kind": "changed",
+   "lastChange": "2026-09-10T13:15:00-07:00",
+   "lines": 26,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "526695aaed",
+     "date": "2026-09-10T13:15:00-07:00",
+     "subject": "Map ID Protection diagnostic categories to Log Analytics tables",
+     "add": 18,
+     "del": 8,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows",
+   "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
+   "title": "Token Protection Deployment Guide - Windows",
+   "kind": "changed",
+   "lastChange": "2026-09-10T10:45:39-07:00",
+   "lines": 2,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "bf45f8ce25",
+     "date": "2026-09-10T10:45:39-07:00",
+     "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337",
+     "add": 1,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-teams-devices-device-code-flow",
+   "path": "docs/identity/conditional-access/policy-teams-devices-device-code-flow.md",
+   "title": "Restrict device code flow for Microsoft Teams devices with Conditional Access",
+   "kind": "changed",
+   "lastChange": "2026-09-10T09:42:03-07:00",
+   "lines": 2,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "0740715fcd",
+     "date": "2026-09-10T09:42:03-07:00",
+     "subject": "Confirm merge from repo_sync_working_branch to main to sync with https://github.com/MicrosoftDocs/entra-docs (branch main) (#14334)",
+     "add": 1,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-assignment-network",
+   "path": "docs/identity/conditional-access/concept-assignment-network.md",
+   "title": "Conditional Access Policy: Using Network Signals",
+   "kind": "changed",
+   "lastChange": "2026-08-25T10:22:41-07:00",
+   "lines": 2,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "8d666f6b3e",
+     "date": "2026-08-25T10:22:41-07:00",
+     "subject": "Fix link.",
+     "add": 1,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-apple",
+   "path": "docs/identity/conditional-access/deployment-guide-token-protection-apple.md",
+   "title": "Token Protection Deployment Guide - Apple Platforms",
+   "kind": "changed",
+   "lastChange": "2026-08-18T14:37:01-07:00",
+   "lines": 28,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "fbfb7815a5",
+     "date": "2026-08-18T14:37:01-07:00",
+     "subject": "Update Platform SSO configuration instructions",
+     "add": 2,
+     "del": 2,
+     "bulk": false
+    },
+    {
+     "sha": "c13a041750",
+     "date": "2026-08-14T12:03:35-07:00",
+     "subject": "Update Apple token protection guidance for GA",
+     "add": 8,
+     "del": 16,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength",
+   "path": "docs/identity/conditional-access/policy-guests-mfa-strength.md",
+   "title": "Conditional Access - Authentication strength for external users",
+   "kind": "changed",
+   "lastChange": "2026-08-15T09:19:00-04:00",
+   "lines": 2,
+   "bulkOnly": false,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "a7e4516e6b",
+     "date": "2026-08-15T09:19:00-04:00",
+     "subject": "Update policy-guests-mfa-strength.md",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies",
+   "path": "docs/id-protection/concept-identity-protection-policies.md",
+   "title": "Microsoft Entra ID Protection risk-based access policies",
+   "kind": "changed",
+   "lastChange": "2026-08-14T16:13:02-04:00",
+   "lines": 5,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "39cb88eb19",
+     "date": "2026-08-14T16:13:02-04:00",
+     "subject": "Update attacker-added device remediation details",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "5bb02b95b3",
+     "date": "2026-08-14T12:22:21-04:00",
+     "subject": "Revise attacker-added device risk remediation details",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "d5a63b1a99",
+     "date": "2026-08-07T10:25:33-04:00",
+     "subject": "Update identity protection policies with device disablement",
+     "add": 1,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection",
+   "path": "docs/identity/conditional-access/concept-token-protection.md",
+   "title": "How Token Protection Enhances Conditional Access Policies",
+   "kind": "changed",
+   "lastChange": "2026-08-14T12:03:35-07:00",
+   "lines": 31,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "c13a041750",
+     "date": "2026-08-14T12:03:35-07:00",
+     "subject": "Update Apple token protection guidance for GA",
+     "add": 3,
+     "del": 3,
+     "bulk": false
+    },
+    {
+     "sha": "e4ea0e1b6a",
+     "date": "2026-08-10T10:07:23-07:00",
+     "subject": "Remove image reference from token protection doc",
+     "add": 1,
+     "del": 3,
+     "bulk": false
+    },
+    {
+     "sha": "8d1e15825b",
+     "date": "2026-08-10T09:38:34-07:00",
+     "subject": "Document Token Protection support for web apps",
+     "add": 12,
+     "del": 8,
+     "bulk": false
+    },
+    {
+     "sha": "f95723be0d",
+     "date": "2026-08-06T17:12:17-06:00",
+     "subject": "Add Token Protection deployment guide for web apps (Preview) (#14034)",
+     "add": 1,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
+   "path": "docs/identity/conditional-access/managed-policies.md",
+   "title": "Microsoft-Managed Conditional Access Policies for Enhanced Security",
+   "kind": "changed",
+   "lastChange": "2026-08-07T15:35:07-07:00",
+   "lines": 35,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "e87650702b",
+     "date": "2026-08-07T15:35:07-07:00",
+     "subject": "Revise managed policies activation and remediation details",
+     "add": 4,
+     "del": 4,
+     "bulk": false
+    },
+    {
+     "sha": "98bcdadd5e",
+     "date": "2026-07-28T18:30:54-07:00",
+     "subject": "Fix formatting issues in managed-policies.md",
+     "add": 2,
+     "del": 2,
+     "bulk": false
+    },
+    {
+     "sha": "693b76c873",
+     "date": "2026-07-28T17:26:25-07:00",
+     "subject": "Fix link text for high-risk user remediation",
+     "add": 1,
+     "del": 1,
+     "bulk": true
+    },
+    {
+     "sha": "5faaf56424",
+     "date": "2026-07-28T17:17:58-07:00",
+     "subject": "Add 'Require remediation for high-risk users' policy section",
+     "add": 21,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-web-apps",
+   "path": "docs/identity/conditional-access/deployment-guide-token-protection-web-apps.md",
+   "title": "Token Protection deployment guide - Web apps (Preview)",
+   "kind": "new",
+   "lastChange": "2026-08-06T17:12:17-06:00",
+   "lines": 302,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "f95723be0d",
+     "date": "2026-08-06T17:12:17-06:00",
+     "subject": "Add Token Protection deployment guide for web apps (Preview) (#14034)",
+     "add": 302,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/howto-target-agent-identities",
+   "path": "docs/identity/conditional-access/howto-target-agent-identities.md",
+   "title": "Target agent identities in Conditional Access policies",
+   "kind": "changed",
+   "lastChange": "2026-08-04T12:19:50-04:00",
+   "lines": 9,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "b61cb23bb5",
+     "date": "2026-08-04T12:19:50-04:00",
+     "subject": "Clarify prerequisites for Agent 365 licensing",
+     "add": 3,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "cbbcac9578",
+     "date": "2026-08-03T17:16:53-04:00",
+     "subject": "A365 license requirement",
+     "add": 2,
+     "del": 3,
+     "bulk": false
+    }
+   ]
+  }
+ ],
+ "whatsNew": [
+  {
+   "month": "June 2026",
+   "stage": "Public Preview",
+   "title": "Extended Conditional Access protections for Agent's user accounts",
+   "type": "New feature",
+   "category": "Conditional Access",
+   "primary": true,
+   "text": "Conditional Access now provides broader controls to secure AI agents that have a user account. Administrators can: - Target agent's user accounts with greater precision by including or excluding individual agents or dynamically grouping agents using Custom Security Attributes. - Protect against risky agent activity by applying Conditional Access policies based on Agent Risk. - Require compliant devices for agents running on managed endpoints, including Windows 365 for Agents, ensuring agents can only operate from devices that meet your organization's compliance requirements. - Apply device pla",
+   "links": [
+    "https://learn.microsoft.com/entra/identity/conditional-access/howto-target-agent-identities"
+   ]
+  },
+  {
+   "month": "June 2026",
+   "stage": "General Availability",
+   "title": "Microsoft Entra Backup and Recovery is now available",
+   "type": "New feature",
+   "category": "Entra Backup and Recovery",
+   "primary": false,
+   "text": "Microsoft Entra Backup and Recovery is a built-in solution to help restore your tenant after accidental changes or malicious updates. Always on by default, it automatically backs up critical directory objects — including users, groups, applications, service principals, managed identities, Conditional Access policies, named locations, agent IDs, and authentication and authorization policy, so admins can quickly restore them to a previously known good state. At preview, Entra Backup and Recovery automatically takes daily backup of a tenant's supported directory objects. If a tenant has Microsoft",
+   "links": [
+    "https://learn.microsoft.com/entra/backup/overview"
+   ]
+  },
+  {
+   "month": "April 2026",
+   "stage": "General Availability",
+   "title": "Enforce Conditional Access policies like MFA on every PIM activation",
+   "type": "General Availability",
+   "category": "Privileged Identity Management",
+   "primary": false,
+   "text": "Generally available feature for configuring reauthentication with Conditional Access for Microsoft Entra Privileged Identity Management role activation. For more information see: On activation, require Microsoft Entra Conditional Access authentication context",
+   "links": [
+    "https://learn.microsoft.com/entra/id-governance/privileged-identity-management/groups-role-settings#on-activation-require-microsoft-entra-conditional-access-authentication-context"
+   ]
+  },
+  {
+   "month": "April 2026",
+   "stage": "General Availability",
+   "title": "License Usage",
+   "type": "General Availability",
+   "category": "Reporting",
+   "primary": false,
+   "text": "The License Usage page in the Microsoft Entra admin center helps customers optimize their Entra licenses by providing visibility into feature usage across their tenant. It shows how many Entra ID P1, P2, and Suite licenses you own, along with usage of key features such as Conditional Access and risk‑based Conditional Access mapped to each license type. You can also review usage trends over the past six months. This view gives you a clearer understanding of your license footprint, the value you’re deriving from Entra, and potential over‑usage risks within your tenant. For more information, see:",
+   "links": [
+    "https://learn.microsoft.com/entra/fundamentals/concept-license-usage-insights"
+   ]
+  },
+  {
+   "month": "March 2026",
+   "stage": "Public Preview",
+   "title": "Microsoft Entra Backup and Recovery is now available",
+   "type": "Public Preview",
+   "category": "Entra Backup and Recovery",
+   "primary": false,
+   "text": "Microsoft Entra Backup and Recovery is a built-in solution to help restore your tenant after accidental changes or malicious updates. Always on by default, it automatically backs up critical directory objects — including users, groups, applications, service principals, managed identities, conditional Access policies, named locations, agent IDs, and authentication and authorization policy, so admins can quickly restore them to a previously known good state. At preview, Entra Backup and Recovery automatically takes daily backup of a tenant’s supported directory objects. If a tenant has Microsoft",
+   "links": [
+    "https://learn.microsoft.com/entra/backup/overview"
+   ]
+  },
+  {
+   "month": "March 2026",
+   "stage": "Public Preview",
+   "title": "Passkey Adoption Campaigns with the Conditional Access Optimization Agent",
+   "type": "Public Preview",
+   "category": "Conditional Access",
+   "primary": true,
+   "text": "The Conditional Access Optimization Agent now supports passkey adoption campaigns in public preview, helping organizations roll out phishing‑resistant authentication in a structured and automated way. With this capability, the agent can assess user and device readiness, generate a recommended deployment plan, guide users through required steps, and automatically enforce Conditional Access policies once users are ready. Campaigns progress continuously as prerequisites are met, reducing manual effort for large‑scale passkey rollouts. Passkey adoption campaigns are managed directly from the Micro",
+   "links": [
+    "https://learn.microsoft.com/entra/security-copilot/conditional-access-agent-optimization-passkeys"
+   ]
+  },
+  {
+   "month": "March 2026",
+   "stage": "Public Preview",
+   "title": "Phased Rollout with the Conditional Access Agent",
+   "type": "Public Preview",
+   "category": "Conditional Access",
+   "primary": true,
+   "text": "You can now use the Conditional Access Optimization Agent to safely roll out any report‑only Conditional Access policy in phases. When you initiate the process, the agent analyzes sign‑in data to recommend a low‑risk, staged deployment plan, starting with smaller user groups and gradually expanding, so you can turn policies on with confidence and minimize user impact. For more information, see: Conditional Access Optimization Agent phased rollout.",
+   "links": [
+    "https://learn.microsoft.com/entra/security-copilot/conditional-access-agent-optimization-phased-rollout"
+   ]
+  },
+  {
+   "month": "February 2026",
+   "stage": "General Availability",
+   "title": "External MFA is Generally Available",
+   "type": "New feature",
+   "category": "MFA",
+   "primary": false,
+   "text": "We're excited to announce that external authentication methods in Microsoft Entra ID is now generally available under a new name: External Multifactor Authentication (External MFA). This capability enables organizations to meet multifactor authentication requirements while continuing to use their preferred MFA provider. Microsoft Entra ID remains the identity control plane, performing full policy evaluation and access decisions on every sign in, including real time Conditional Access enforcement and sign in risk assessment. For more information, see How to enable external MFA.",
+   "links": [
+    "https://learn.microsoft.com/entra/identity/authentication/how-to-authentication-external-method-manage"
+   ]
+  },
+  {
+   "month": "January 2026",
+   "stage": "General Availability",
+   "title": "Session Control Conditional Access Policies in Entra External ID",
+   "type": "New feature",
+   "category": "Conditional Access",
+   "primary": true,
+   "text": "EEID admins can configure persistent browser session and sign‑in frequency in Conditional Access. For more information, see Conditional Access: Manage Session Controls Effectively.",
+   "links": [
+    "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-session"
+   ]
+  },
+  {
+   "month": "January 2026",
+   "stage": "General Availability",
+   "title": "Improved enforcement for All resources policies with resource exclusions",
+   "type": "Changed feature",
+   "category": "Conditional Access",
+   "primary": true,
+   "text": "Microsoft Entra Conditional Access is strengthening how policies that target All resources with resource exclusions are enforced in a narrow set of authentication flows. After this change, in user sign‑ins where a client application requests only OIDC or specific directory scopes, Conditional Access policies that target All resources with one or more resource exclusions, or policies that explicitly target Azure AD Graph, will be enforced. This ensures that policies are consistently applied regardless of the scope set requested by the client application. For more information, see: New Condition",
+   "links": [
+    "https://learn.microsoft.com/entra/identity-platform/scopes-oidc#openid-connect-scopes",
+    "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#legacy-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion",
+    "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#new-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion"
+   ]
+  }
+ ],
+ "watched": {
+  "https://learn.microsoft.com/defender-endpoint/mobile-resources-defender-endpoint": {
+   "watched": false,
+   "reason": "not in MicrosoftDocs/entra-docs"
+  },
+  "https://learn.microsoft.com/entra/external-id/authentication-conditional-access": {
+   "watched": true,
+   "path": "docs/external-id/authentication-conditional-access.md",
+   "title": "Authentication and Conditional Access for B2B users",
+   "last": {
+    "sha": "9e6fbb6ce0",
+    "date": "2026-03-27T10:57:39-07:00",
+    "subject": "userstory538966"
+   },
+   "lastSubstantive": {
+    "sha": "9e6fbb6ce0",
+    "date": "2026-03-27T10:57:39-07:00",
+    "subject": "userstory538966"
+   }
+  },
+  "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-b2b": {
+   "watched": true,
+   "path": "docs/id-protection/concept-identity-protection-b2b.md",
+   "title": "Microsoft Entra ID Protection for B2B Users",
+   "last": {
+    "sha": "6ecd8b5185",
+    "date": "2026-02-17T23:14:01Z",
+    "subject": "Merge pull request #8148 from ishibashiayana/patch-1"
+   },
+   "lastSubstantive": {
+    "sha": "6ecd8b5185",
+    "date": "2026-02-17T23:14:01Z",
+    "subject": "Merge pull request #8148 from ishibashiayana/patch-1"
+   }
+  },
+  "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies": {
+   "watched": true,
+   "path": "docs/id-protection/concept-identity-protection-policies.md",
+   "title": "Microsoft Entra ID Protection risk-based access policies",
+   "last": {
+    "sha": "39cb88eb19",
+    "date": "2026-08-14T16:13:02-04:00",
+    "subject": "Update attacker-added device remediation details"
+   },
+   "lastSubstantive": {
+    "sha": "39cb88eb19",
+    "date": "2026-08-14T16:13:02-04:00",
+    "subject": "Update attacker-added device remediation details"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strength-external-users": {
+   "watched": true,
+   "path": "docs/identity/authentication/concept-authentication-strength-external-users.md",
+   "title": "How Conditional Access Authentication Strengths Work for External Users",
+   "last": {
+    "sha": "95d306db83",
+    "date": "2026-06-15T11:45:09-05:00",
+    "subject": "[BULK UPDATE] User Story 573314: Ensure every doc in MSec repos has an author from MSec Docs (entra-docs-pr 4) (#13372)"
+   },
+   "lastSubstantive": {
+    "sha": "6ecd8b5185",
+    "date": "2026-02-17T23:14:01Z",
+    "subject": "Merge pull request #8148 from ishibashiayana/patch-1"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths": {
+   "watched": true,
+   "path": "docs/identity/authentication/concept-authentication-strengths.md",
+   "title": "Overview of Conditional Access Authentication Strengths",
+   "last": {
+    "sha": "f586cd320e",
+    "date": "2026-06-25T17:27:20-06:00",
+    "subject": "Update QR code authentication strength docs and screenshots (#13664)"
+   },
+   "lastSubstantive": {
+    "sha": "f586cd320e",
+    "date": "2026-06-25T17:27:20-06:00",
+    "subject": "Update QR code authentication strength docs and screenshots (#13664)"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/authentication/how-to-authentication-external-method-manage": {
+   "watched": true,
+   "path": "docs/identity/authentication/how-to-authentication-external-method-manage.md",
+   "title": "How to manage external MFA in Microsoft Entra ID",
+   "last": {
+    "sha": "95d306db83",
+    "date": "2026-06-15T11:45:09-05:00",
+    "subject": "[BULK UPDATE] User Story 573314: Ensure every doc in MSec repos has an author from MSec Docs (entra-docs-pr 4) (#13372)"
+   },
+   "lastSubstantive": {
+    "sha": "d2c3dc3d6f",
+    "date": "2026-05-14T10:56:34-07:00",
+    "subject": "Remove DPC branding, rename to system-preferred authentication"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation": {
+   "watched": true,
+   "path": "docs/identity/conditional-access/concept-continuous-access-evaluation.md",
+   "title": "Continuous access evaluation in Microsoft Entra",
+   "last": {
+    "sha": "0ec2a02b41",
+    "date": "2026-09-22T15:59:45+01:00",
+    "subject": "Learn Editor: Update concept-continuous-access-evaluation.md"
+   },
+   "lastSubstantive": {
+    "sha": "0ec2a02b41",
+    "date": "2026-09-22T15:59:45+01:00",
+    "subject": "Learn Editor: Update concept-continuous-access-evaluation.md"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions": {
+   "watched": true,
+   "path": "docs/identity/conditional-access/concept-enforcement-resource-exclusions.md",
+   "title": "Enforcement for baseline scopes in Conditional Access",
+   "last": {
+    "sha": "f172ea737a",
+    "date": "2026-06-19T15:29:23-07:00",
+    "subject": "ca-baseline-scopes-061926"
+   },
+   "lastSubstantive": {
+    "sha": "f172ea737a",
+    "date": "2026-06-19T15:29:23-07:00",
+    "subject": "ca-baseline-scopes-061926"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection": {
+   "watched": true,
+   "path": "docs/identity/conditional-access/concept-token-protection.md",
+   "title": "How Token Protection Enhances Conditional Access Policies",
+   "last": {
+    "sha": "c13a041750",
+    "date": "2026-08-14T12:03:35-07:00",
+    "subject": "Update Apple token protection guidance for GA"
+   },
+   "lastSubstantive": {
+    "sha": "c13a041750",
+    "date": "2026-08-14T12:03:35-07:00",
+    "subject": "Update Apple token protection guidance for GA"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows": {
+   "watched": true,
+   "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
+   "title": "Token Protection Deployment Guide - Windows",
+   "last": {
+    "sha": "bf45f8ce25",
+    "date": "2026-09-10T10:45:39-07:00",
+    "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337"
+   },
+   "lastSubstantive": {
+    "sha": "9152e7784d",
+    "date": "2026-03-24T17:50:52-07:00",
+    "subject": "AI readiness: add Overview heading to CA articles (batch 3)"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app": {
+   "watched": true,
+   "path": "docs/identity/conditional-access/migrate-approved-client-app.md",
+   "title": "Migrate approved client app to application protection policy in Conditional Access",
+   "last": {
+    "sha": "576a252079",
+    "date": "2026-05-29T15:59:46-07:00",
+    "subject": "Update Require approved client app deprecation paragraph (ADO 582972)"
+   },
+   "lastSubstantive": {
+    "sha": "576a252079",
+    "date": "2026-05-29T15:59:46-07:00",
+    "subject": "Update Require approved client app deprecation paragraph (ADO 582972)"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength": {
+   "watched": true,
+   "path": "docs/identity/conditional-access/policy-guests-mfa-strength.md",
+   "title": "Conditional Access - Authentication strength for external users",
+   "last": {
+    "sha": "a7e4516e6b",
+    "date": "2026-08-15T09:19:00-04:00",
+    "subject": "Update policy-guests-mfa-strength.md"
+   },
+   "lastSubstantive": {
+    "sha": "a7e4516e6b",
+    "date": "2026-08-15T09:19:00-04:00",
+    "subject": "Update policy-guests-mfa-strength.md"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/conditional-access/resilience-defaults": {
+   "watched": true,
+   "path": "docs/identity/conditional-access/resilience-defaults.md",
+   "title": "Resilience defaults for Microsoft Entra Conditional Access",
+   "last": {
+    "sha": "eb0854e65d",
+    "date": "2026-03-24T17:51:04-07:00",
+    "subject": "AI readiness: add Overview heading to CA articles (batch 6)"
+   },
+   "lastSubstantive": {
+    "sha": "eb0854e65d",
+    "date": "2026-03-24T17:51:04-07:00",
+    "subject": "AI readiness: add Overview heading to CA articles (batch 6)"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/devices/howto-vm-sign-in-azure-ad-windows": {
+   "watched": true,
+   "path": "docs/identity/devices/howto-vm-sign-in-azure-ad-windows.md",
+   "title": "Sign in to a Windows virtual machine in Azure by using Microsoft Entra ID",
+   "last": {
+    "sha": "111ba9d9ec",
+    "date": "2026-06-18T12:17:03-05:00",
+    "subject": "Learn Editor: Update howto-vm-sign-in-azure-ad-windows.md"
+   },
+   "lastSubstantive": {
+    "sha": "111ba9d9ec",
+    "date": "2026-06-18T12:17:03-05:00",
+    "subject": "Learn Editor: Update howto-vm-sign-in-azure-ad-windows.md"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history": {
+   "watched": true,
+   "path": "docs/identity/hybrid/connect/reference-connect-version-history.md",
+   "title": "Microsoft Entra Connect: Version release history",
+   "last": {
+    "sha": "69d6b1435b",
+    "date": "2026-09-15T22:49:38+03:00",
+    "subject": "Update release date"
+   },
+   "lastSubstantive": {
+    "sha": "69d6b1435b",
+    "date": "2026-09-15T22:49:38+03:00",
+    "subject": "Update release date"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access": {
+   "watched": true,
+   "path": "docs/identity/role-based-access-control/security-emergency-access.md",
+   "title": "Manage emergency access admin accounts",
+   "last": {
+    "sha": "149f9bd83a",
+    "date": "2026-06-04T14:25:57-07:00",
+    "subject": "Polish Conditional Access section and switch em-dashes to colons in audit list"
+   },
+   "lastSubstantive": {
+    "sha": "149f9bd83a",
+    "date": "2026-06-04T14:25:57-07:00",
+    "subject": "Polish Conditional Access section and switch em-dashes to colons in audit list"
+   }
+  },
+  "https://learn.microsoft.com/microsoftteams/rooms/supported-ca-and-compliance-policies": {
+   "watched": false,
+   "reason": "not in MicrosoftDocs/entra-docs"
+  },
+  "https://learn.microsoft.com/partner-center/customers/gdap-faq": {
+   "watched": false,
+   "reason": "not in MicrosoftDocs/entra-docs"
+  },
+  "https://learn.microsoft.com/security/zero-trust/zero-trust-identity-device-access-policies-guest-access": {
+   "watched": false,
+   "reason": "not in MicrosoftDocs/entra-docs"
+  },
+  "https://learn.microsoft.com/surface-hub/conditional-access-for-surface-hub": {
+   "watched": false,
+   "reason": "not in MicrosoftDocs/entra-docs"
+  }
+ },
+ "open": [
+  {
+   "key": "doc:docs/identity/conditional-access/concept-continuous-access-evaluation.md",
+   "kind": "alert",
+   "title": "Continuous access evaluation in Microsoft Entra",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation",
+   "since": "2026-09-22T15:59:45+01:00",
+   "checks": [
+    "cae-disabled"
+   ]
+  },
+  {
+   "key": "doc:docs/identity/hybrid/connect/reference-connect-version-history.md",
+   "kind": "alert",
+   "title": "Microsoft Entra Connect: Version release history",
+   "url": "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history",
+   "since": "2026-09-15T22:49:38+03:00",
+   "checks": [
+    "dirsync-account-mfa"
+   ]
+  },
+  {
+   "key": "doc:docs/identity/conditional-access/deployment-guide-token-protection-web-apps.md",
+   "kind": "new",
+   "title": "Token Protection deployment guide - Web apps (Preview)",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-web-apps",
+   "since": "2026-08-06T17:12:17-06:00",
+   "checks": []
+  },
+  {
+   "key": "wn:June 2026|Extended Conditional Access protections for Agent's user accounts",
+   "kind": "whatsnew",
+   "title": "Extended Conditional Access protections for Agent's user accounts",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/howto-target-agent-identities",
+   "since": null,
+   "checks": []
+  },
+  {
+   "key": "wn:March 2026|Passkey Adoption Campaigns with the Conditional Access Optimization Agent",
+   "kind": "whatsnew",
+   "title": "Passkey Adoption Campaigns with the Conditional Access Optimization Agent",
+   "url": "https://learn.microsoft.com/entra/security-copilot/conditional-access-agent-optimization-passkeys",
+   "since": null,
+   "checks": []
+  },
+  {
+   "key": "wn:March 2026|Phased Rollout with the Conditional Access Agent",
+   "kind": "whatsnew",
+   "title": "Phased Rollout with the Conditional Access Agent",
+   "url": "https://learn.microsoft.com/entra/security-copilot/conditional-access-agent-optimization-phased-rollout",
+   "since": null,
+   "checks": []
+  },
+  {
+   "key": "wn:January 2026|Session Control Conditional Access Policies in Entra External ID",
+   "kind": "whatsnew",
+   "title": "Session Control Conditional Access Policies in Entra External ID",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-session",
+   "since": null,
+   "checks": []
+  },
+  {
+   "key": "wn:January 2026|Improved enforcement for All resources policies with resource exclusions",
+   "kind": "whatsnew",
+   "title": "Improved enforcement for All resources policies with resource exclusions",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#legacy-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion",
+   "since": null,
+   "checks": []
+  }
+ ]
+}
