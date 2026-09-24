@@ -47,7 +47,7 @@
   const PIM_ONLY = new Set(['toolPimBaseline']);
   const PIM_ROSTER = [
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
-      { id: 'toolPimBaseline', name: 'PIM baseline', icon: '🧬', number: 'T48', blurb: blurbs.toolPimBaseline, planned: 'lands in the next build' },
+      { id: 'toolPimBaseline', blurb: blurbs.toolPimBaseline },
       { id: 'toolGapCheck', blurb: 'The MS Learn checks already cover privileged roles and break-glass; a PIM-only catalogue is on the roadmap.', lens: true },
     ] },
     { group: '👁 See what is privileged', tools: [

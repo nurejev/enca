@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32408, date: "2026-09-24", title: "🧬 PIM baseline — the CloudFellows PIM framework against this tenant",
+    items: [
+      { kind: "new", tool: "PIM baseline", text: "Workspace 02's first tool, T48. The reference is a tenant: the CloudFellows PIM framework is created and tested in cloudfellows.dev and its snapshot is the catalog — release 2.0, the Dovilo PIM framework v1.3 with SG-PIM names (SG-PIM-M365-Ops, SG-PIM-M365-SecOps, SG-PIM-AZ-Platform-Owner …), four tiers of PIM settings instead of a row per role, authentication context c1 on Tier 0 instead of require Conditional Access, Privileged Role and Privileged Authentication Administrator moved to Tier 0, eligibility that expires after a year. Press Read this tenant's PIM and every role's settings — activation duration, what activation asks for, authentication context, approval and approvers, permanent limits, alerts — are matched against it, with the tenant's value → the framework's on each row." },
+      { kind: "new", tool: "PIM baseline", text: "PIM groups are matched as a model, never by members: present under the exact name, role-assignable, carrying the roles the framework says, activating under their tier's settings. Findings on a role's row name a permanent active assignment the framework forbids (break-glass and the Global Administrator group are protected and not counted) and a persona group the role should be eligible through but is not. Role-assignable groups the framework does not know are listed, not judged." },
+      { kind: "new", tool: "PIM baseline", text: "Delta config writes the ticked rows as an EasyPIM.Orchestrator file; Baseline config writes the whole framework — which is how the baseline is created in cloudfellows.dev. Both open as a report with the command to run; tools/pim/New-PimBaseline.ps1 creates the missing SG-PIM groups, resolves names to ids and runs Invoke-EasyPIMOrchestrator with -WhatIf first. Read-only: nothing here writes to the tenant." },
+      { kind: "improved", tool: "Help", text: "Workspace 02's Baseline shortcut and card are live; the tool library counts 11 tools." },
+    ],
+  },
+  {
     build: 32407, date: "2026-09-24", title: "🧭 Two workspaces — 01 Conditional Access, 02 PIM-buddy",
     items: [
       { kind: "new", tool: "Help", text: "ENCA is now two workspaces on one shell. The chip beside the ENCA wordmark says which side you are on: 01 · Conditional Access, every tool as before, or 02 · PIM-buddy, everything privileged access. Press the chip, the 01 ⇄ caption at the foot of the rail, ⌘⇧1 / ⌘⇧2, or ⌘K → Switch to, to change sides. The header turns navy on 02 so a screenshot always says where it was taken." },

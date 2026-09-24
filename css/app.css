@@ -2908,3 +2908,32 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 .wl-na{background:var(--soft);color:var(--muted)}
 .wl-tiles{grid-template-columns:repeat(5,minmax(0,1fr))}
 @media (max-width:720px){.wl-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---- 🧬 PIM baseline (32408, T48) — reuses the xt- tiles, cards and tables ---- */
+.pmb-tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
+.pmb-read{margin:0 0 10px}
+.pmb-warn{color:var(--warn-fg);font-weight:600}
+.pmb-tbl{min-width:960px}
+.pmb-tbl td:first-child,.pmb-tbl th:first-child{width:28px;padding-right:0}
+.pmb-tbl input[type=checkbox]{margin:2px 0 0}
+.pmb-via,.pmb-note{color:var(--muted);margin-top:2px;max-width:42ch;white-space:normal}
+.pmb-diffs{margin:0;padding:0 0 0 14px;font-size:12px;line-height:1.45}
+.pmb-diffs li{margin:1px 0}
+.pmb-diffs b{font-weight:600}
+.pmb-arrow{color:var(--muted);padding:0 2px}
+.pmb-findings li{color:var(--crit-fg)}
+.pmb-tier{display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:11px;font-weight:600;border-radius:5px;padding:1px 7px;background:var(--soft);border:1px solid var(--border);white-space:nowrap}
+.pmb-tier-Tier0{background:var(--crit-bg);color:var(--crit-fg);border-color:var(--bad-bd)}
+.pmb-tier-Tier1{background:var(--high-bg);color:var(--high-fg);border-color:var(--warn-bd)}
+.pmb-tier-Tier2{background:var(--warn-bg);color:var(--warn-fg);border-color:var(--warn-bd)}
+.pmb-tier-Reader{background:var(--ok-bg);color:var(--on);border-color:var(--ok-bd)}
+.pmb-ok{background:var(--ok-bg);color:var(--on)}
+.pmb-warn.xt-pill,.xt-pill.pmb-warn{background:var(--warn-bg);color:var(--warn-fg)}
+.pmb-bad{background:var(--bad-bg);color:var(--crit-fg)}
+.pmb-na{background:var(--soft);color:var(--muted)}
+.pmb-bad-txt{color:var(--crit-fg);font-weight:600}
+.pmb-extra{margin:10px 0 0;color:var(--muted)}
+tr.pmb-row.pmb-missing td{background:color-mix(in srgb,var(--bad-bg) 35%,transparent)}
+#pmbTenantNote:empty{display:none}
+@media (max-width:1100px){.pmb-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:720px){.pmb-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}

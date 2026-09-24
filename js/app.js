@@ -181,7 +181,7 @@
   // the site entirely — and after an MSAL popup sign-in the previous entry may
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
-  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
+  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
@@ -2458,7 +2458,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null;
+      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null; pmbRaw = null; pmbRes = null; pmbErr = null;
       signinContext = { tenantId: account?.tenantId || "", at: Date.now(), demo: false, names: names || {}, ...(context || {}) };
       // Results belong to the snapshot they were computed from.
       invalidateToolResults("policies reloaded");
@@ -2531,7 +2531,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null;
+    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null; pmbRaw = null; pmbRes = null; pmbErr = null;
     {
       const at = Date.now();
       const strengths = Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
@@ -2581,7 +2581,7 @@
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
-    { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group", tools: "User or Group analyzer", onDemand: true },
+    { scope: "RoleManagement.Read.Directory", use: "Read directory role assignments and PIM eligibility for a group; read every directory role's PIM settings, the eligible and active assignments and the persona groups' activation settings", tools: "User or Group analyzer, PIM baseline", onDemand: true },
     { scope: "Group-NestingSupport.ReadWrite.All", use: "Set disableNesting so no group can be added as a member of a group (beta) — asked for by every path that CREATES a group, and by the ⑧ Disable nesting step", tools: "CA groups (create, disable nesting), Assign groups, Import, Restricted AUs", onDemand: true },
     { scope: "EntitlementManagement.Read.All", use: "Read access packages and their assignment policies", tools: "User or Group analyzer", onDemand: true },
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "User or Group analyzer, Device reality check", onDemand: true },
@@ -2873,6 +2873,7 @@
     ["toolSignins", "🚦 Sign-in log"],
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolBaseline", "🧬 Baseline"],
+    ["toolPimBaseline", "🧬 PIM baseline"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
@@ -21470,6 +21471,158 @@ This is a directory write. Nothing else changes.`)) return;
   // for the session; "What ENCA sees" is judged again from the policies
   // loaded now every time the tab or the dashboard paints (js/idscore.js).
   // Read-only: status changes stay in the Entra admin center.
+  // ======================================================================
+  // 🧬 PIM baseline (T48, build 32408, R68) — this tenant's PIM against the
+  // CloudFellows PIM framework (js/pimBaselineData.js). The compare, the
+  // export and the screen live in js/pimbaseline.js; this block reads.
+  //
+  // Five reads, all under RoleManagement.Read.Directory (already on the
+  // registration for 🔗 User or Group analyzer) plus Directory.Read.All:
+  //   1. roleDefinitions (names; a catalog role that is not here is missing)
+  //   2. roleManagementPolicyAssignments for the directory, policy and rules
+  //      expanded — one read gives every role's settings, no per-role calls
+  //   3. roleEligibilityScheduleInstances, principal expanded
+  //   4. roleAssignmentScheduleInstances, principal expanded (permanent =
+  //      no endDateTime and not Activated)
+  //   5. groups with isAssignableToRole (the persona groups, and any other)
+  // then, per persona group present, its Member activation policy — batched,
+  // and a 403 there only marks the group settings "not read": PIM for
+  // Groups policies may need RoleManagementPolicy.Read.AzureADGroup on some
+  // tenants, and the role comparison should not fail because of it.
+  // ======================================================================
+  let pmbRaw = null, pmbRes = null, pmbErr = null, pmbBusy = false, pmbFilter = "all", pmbQ = "";
+  const pmbProg = makeProgress("pmb"); pmbProg.by = "🧬 PIM baseline"; pmbProg.stoppable = true;
+  const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">The reference is a tenant: <b>cloudfellows.dev</b>, where the CloudFellows PIM framework is created and tested first. This tool reads the PIM role settings, the eligible and active assignments and the role-assignable groups of the tenant you are signed in to, and matches them against the framework, setting by setting — activation duration, what activation asks for, authentication context, approval and approvers, permanent eligibility and active limits, alerts. PIM groups are matched as a model: present under the exact name, role-assignable, carrying the roles the framework says. <b>Members are never compared.</b> Read-only; <b>⬇ Delta config</b> writes what differs as an EasyPIM.Orchestrator file to run with -WhatIf first, <b>⬇ Baseline config</b> writes the whole framework — which is how the baseline is created in cloudfellows.dev (tools/pim/New-PimBaseline.ps1).</p>`;
+  function pmbTenantNote() {
+    if (isDemo) return "";
+    return isBaselineTenant() ? `<span class="tag ok" title="This is the tenant the catalog is authored in">🧱 baseline tenant</span>` : "";
+  }
+  function openPimBaseline() {
+    crumb("🧬 PIM baseline");
+    show("screen-pimbaseline");
+    $("pmbHead").innerHTML = toolHead("toolPimBaseline") + PMB_HEAD_TEXT;
+    pmbPaint();
+  }
+  function pmbPaint() {
+    $("pmbChips").innerHTML = pmbRes ? PimBaseline.chips(pmbRes, pmbFilter) : "";
+    $("pmbMd").style.display = pmbRes ? "" : "none";
+    $("pmbDelta").style.display = pmbRes ? "" : "none";
+    $("pmbRefresh").textContent = pmbRes ? "⟳ Read again" : "▶ Read this tenant's PIM";
+    $("pmbRefresh").disabled = pmbBusy;
+    $("pmbTenantNote").innerHTML = pmbTenantNote();
+    if (pmbBusy) { $("pmbBody").innerHTML = pmbProg.panel("Reading the tenant's PIM — role settings, assignments, groups…"); return; }
+    if (!pmbRes) {
+      $("pmbBody").innerHTML = `${pmbErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(pmbErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-pmbrun>▶ Read this tenant's PIM</button>
+        <p class="mini muted">Reads the directory roles, every role's PIM settings, the eligible and active assignments and the role-assignable groups through Microsoft Graph — RoleManagement.Read.Directory, read-only, consented once. The signed-in account needs a role that can read PIM: Global Reader, Security Reader, Privileged Role Administrator or similar. Nothing is written.</p></div>`;
+      return;
+    }
+    $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { filter: pmbFilter, q: pmbQ });
+  }
+  function pmbRebuild() {
+    if (!pmbRaw) { pmbRes = null; return; }
+    pmbRes = PimBaseline.compare(PIM_BASELINE, pmbRaw);
+  }
+  async function runPimBaseline() {
+    if (pmbBusy) return;
+    pmbBusy = true; pmbErr = null; pmbProg.begin();
+    if ($("screen-pimbaseline").classList.contains("active")) pmbPaint();
+    try {
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 400));
+        const d = DEMO_DATA.pim;
+        pmbRaw = { roles: d.roleDefinitions, policies: d.policies, eligible: d.eligible, active: d.active, groups: d.groups, groupPolicies: d.groupPolicies, groupPoliciesError: null, names: d.names, readAt: Date.now(), demo: true };
+      } else {
+        const sc = [...AUTH_CONFIG.scopes, ...PIM_READ];
+        if (!await preConsent(sc)) throw new Error("RoleManagement.Read.Directory was not granted");
+        const key = `${tenantId}:${policiesReadAt}`;
+        const roles = await pmbProg.fetchAll("/v1.0/roleManagement/directory/roleDefinitions?$select=id,displayName,isBuiltIn,isPrivileged", 0, "roles");
+        const roleName = {}; roles.forEach((r) => { roleName[r.id] = r.displayName; });
+        pmbProg.detail("role settings");
+        const pa = await pmbProg.fetchAll("/v1.0/policies/roleManagementPolicyAssignments?$filter=scopeId eq '/' and scopeType eq 'DirectoryRole'&$expand=policy($expand=rules)", 0, "role policies");
+        const policies = {};
+        pa.forEach((a) => { const n = roleName[a.roleDefinitionId]; if (n && a.policy && a.policy.rules) policies[n] = a.policy.rules; });
+        pmbProg.detail("eligible assignments");
+        const el = await pmbProg.fetchAll("/roleManagement/directory/roleEligibilityScheduleInstances?$expand=principal($select=id,displayName)", 0, "eligibilities");
+        pmbProg.detail("active assignments");
+        const ac = await pmbProg.fetchAll("/roleManagement/directory/roleAssignmentScheduleInstances?$expand=principal($select=id,displayName)", 0, "assignments");
+        pmbProg.detail("role-assignable groups");
+        const groups = await pmbProg.fetchAll("/v1.0/groups?$filter=isAssignableToRole eq true&$select=id,displayName,isAssignableToRole&$count=true", 0, "groups");
+        pmbProg.check();
+        const names = {};
+        [...el, ...ac].forEach((i) => { if (i.principal && i.principal.id) names[i.principal.id] = i.principal.displayName; });
+        groups.forEach((g) => { names[g.id] = g.displayName; });
+        const kind = (p) => (p && p["@odata.type"] || "").replace("#microsoft.graph.", "");
+        const pType = (p) => ({ user: "User", group: "Group", servicePrincipal: "ServicePrincipal" }[kind(p)] || "User");
+        const inst = (i, assignmentType) => ({ roleName: roleName[i.roleDefinitionId] || i.roleDefinitionId, principalId: i.principalId, principalName: names[i.principalId] || i.principalId, principalType: pType(i.principal), endDateTime: i.endDateTime || null, assignmentType: assignmentType || i.assignmentType || "Assigned" });
+        // The persona groups' own activation policies — Member role, batched.
+        const persona = groups.filter((g) => PIM_BASELINE.groups.some((c) => c.name === g.displayName));
+        let groupPolicies = null, groupPoliciesError = null;
+        if (persona.length) {
+          pmbProg.detail("group activation settings");
+          try {
+            const res = await Graph.gbatch(persona.map((g, i) => ({ id: String(i), url: `/policies/roleManagementPolicyAssignments?$filter=scopeId eq '${g.id}' and scopeType eq 'Group' and roleDefinitionId eq 'member'&$expand=policy($expand=rules)` })), null, { base: "https://graph.microsoft.com/v1.0", scopes: sc, signal: pmbProg.signal });
+            groupPolicies = {};
+            persona.forEach((g, i) => {
+              const r = res[String(i)];
+              if (r && r.body && r.body.value && r.body.value[0] && r.body.value[0].policy) groupPolicies[g.displayName] = r.body.value[0].policy.rules || [];
+              else if (r && r.error) groupPoliciesError = groupPoliciesError || (r.status === 403 ? "access denied on PIM for Groups policies (RoleManagementPolicy.Read.AzureADGroup may be needed)" : String(r.error).slice(0, 120));
+            });
+          } catch (e) { groupPoliciesError = String(e && e.message || e).replace(/\s*·\s*inner:.*$/, "").slice(0, 160); }
+        }
+        pmbProg.check();
+        if (key !== `${tenantId}:${policiesReadAt}`) throw new Error("Read discarded: tenant or policy snapshot changed");
+        pmbRaw = { roles, policies, eligible: el.map((i) => inst(i, "Eligible")), active: ac.map((i) => inst(i)), groups, groupPolicies, groupPoliciesError, names, readAt: Date.now(), demo: false };
+      }
+      pmbRebuild();
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      pmbErr = e && e.stopped ? "stopped — nothing is shown for a partial read"
+        : /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "") ? "access denied: the signed-in account needs Global Reader, Security Reader, Privileged Role Administrator or a similar role, and the tenant must have consented to RoleManagement.Read.Directory"
+        : String(m || "").replace(/\s*·\s*inner:.*$/, "");
+      pmbRaw = null; pmbRes = null;
+    } finally { pmbBusy = false; pmbProg.stop(); }
+    if ($("screen-pimbaseline").classList.contains("active")) pmbPaint();
+    if (pmbRes) toast(`PIM baseline <span>${pmbRes.counts.match} match · ${pmbRes.counts.differs} differ · ${pmbRes.gcounts.present}/${pmbRes.gcounts.total} groups</span>`);
+  }
+  // What the ticked rows say the tenant should become: the delta config.
+  function pmbTicked() {
+    const roles = [], groups = [];
+    document.querySelectorAll("#pmbBody [data-pmbfix]:checked").forEach((c) => { const [k, v] = [c.dataset.pmbfix.split(":")[0], c.dataset.pmbfix.slice(c.dataset.pmbfix.indexOf(":") + 1)]; (k === "role" ? roles : groups).push(v); });
+    return { roles, groups };
+  }
+  function pmbExport(delta) {
+    if (!pmbRes) return;
+    const domain = tenantDomain || (isDemo ? "contoso.nl" : "<tenant domain>");
+    const picked = delta ? pmbTicked() : null;
+    if (delta && !picked.roles.length && !picked.groups.length) { toast("Tick the roles and groups the delta should carry"); return; }
+    const cfg = PimBaseline.toOrchestrator(PIM_BASELINE, { domain, delta: !!delta, roles: picked ? picked.roles : undefined, groups: picked ? picked.groups : undefined });
+    const file = delta ? `pim-delta.${domain}.json` : `pim-baseline.${domain}.json`;
+    const md = [
+      `# 🧬 ${delta ? "Delta config" : "Baseline config"} — ${PIM_BASELINE.label} ${PIM_BASELINE.release}${delta ? ` for ${tenantName || domain}` : ""}`,
+      "",
+      delta ? `Only what differs: ${picked.roles.length} role polic${picked.roles.length === 1 ? "y" : "ies"}, ${picked.groups.length} group${picked.groups.length === 1 ? "" : "s"}. Names, not ids — run \`tools/pim/New-PimBaseline.ps1 -ConfigFile ${file}\` to resolve them in the tenant, then:` : `The whole framework, tenant-neutral. Names, not ids — \`tools/pim/New-PimBaseline.ps1\` creates the SG-PIM groups that are missing, resolves every <id of …> and runs the orchestrator:`,
+      "",
+      "```powershell",
+      PimBaseline.command(file, domain),
+      "```",
+      "",
+      "WhatIf first, every time. Delta changes only what the config names; initial also removes what it does not. Break-glass accounts and SG-PIM-M365-GlobalAdmin are ProtectedUsers.",
+      "",
+      "```json",
+      JSON.stringify(cfg, null, 2),
+      "```",
+    ].join("\n");
+    showReport(delta ? "🧬 PIM delta config (EasyPIM)" : "🧬 PIM baseline config (EasyPIM)", file.replace(/\.json$/, ""), md);
+  }
+  $("toolPimBaseline").addEventListener("click", () => openPimBaseline());
+  $("pmbRefresh").addEventListener("click", () => runPimBaseline());
+  $("pmbMd").addEventListener("click", () => { if (pmbRes) showReport("🧬 PIM baseline", `ENCA-pim-baseline-${new Date().toISOString().slice(0, 10)}`, PimBaseline.toMd(pmbRes, tenantName)); });
+  $("pmbDelta").addEventListener("click", () => pmbExport(true));
+  $("pmbConfig").addEventListener("click", () => pmbExport(false));
+  $("pmbChips").addEventListener("click", (e) => { const b = e.target.closest("[data-pmbf]"); if (!b) return; pmbFilter = b.dataset.pmbf; pmbPaint(); });
+  $("pmbFind").addEventListener("input", () => { pmbQ = $("pmbFind").value; if (pmbRes) $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { filter: pmbFilter, q: pmbQ }); });
+  $("pmbBody").addEventListener("click", (e) => { if (e.target.closest("[data-pmbrun]")) runPimBaseline(); });
+
   function isRebuild() {
     if (!isRaw) { isModel = null; return; }
     isModel = IdScore.model(isRaw.scores, isRaw.recs, policies.map((p) => p.raw), { readAt: isRaw.at, demo: isRaw.demo, scoreErr: isRaw.scoreErr, recsErr: isRaw.recsErr });

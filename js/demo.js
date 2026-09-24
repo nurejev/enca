@@ -621,3 +621,85 @@ const DEMO_DATA = {
     { Timestamp: "2026-07-21T14:03:30Z", ActionType: "Download file blocked", ActivityType: "Download", Application: "Microsoft SharePoint Online", ApplicationId: 20892, AccountObjectId: "u-emp1", AccountDisplayName: "Eva Employee", AccountId: "eva@contoso.com", ObjectName: "Salaries-2026.xlsx", ObjectType: "File", IPAddress: "203.0.113.24", DeviceType: "Desktop", OSPlatform: "Windows", UserAgent: "Edge/126", IsExternalUser: false, AccountType: "Regular", AuditSource: "Defender for Cloud Apps session control", SessionData: { InLineSessionId: "sess-4590" }, RawEventData: { PolicyName: "Block download – unmanaged (guests)", ActionResult: "Blocked" }, AdditionalFields: {} },
   ],
 };
+
+// ---- 🧬 PIM baseline (T48, 32408): the demo tenant's PIM, in the shapes
+// Graph returns them — roleDefinitions, roleManagementPolicy rules per role,
+// eligibility and assignment schedule instances, role-assignable groups.
+// Built from a short spec so the rules look exactly like the tenant's do.
+// The demo carries the framework halfway: five of the seven persona groups,
+// three roles set right, the rest on Entra's defaults, two roles wrong on
+// purpose (Exchange 24 hours, Privileged Role Administrator without
+// approval), one permanent Global Administrator outside the break-glass
+// pair, and one legacy role-assignable group the framework does not know.
+DEMO_DATA.pim = (() => {
+  const rules = (s) => [
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule", id: "Expiration_EndUser_Assignment", isExpirationRequired: true, maximumDuration: s.activation || "PT8H" },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule", id: "Enablement_EndUser_Assignment", enabledRules: s.enablement || ["MultiFactorAuthentication", "Justification"] },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyAuthenticationContextRule", id: "AuthenticationContext_EndUser_Assignment", isEnabled: !!s.ctx, claimValue: s.ctx || null },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyApprovalRule", id: "Approval_EndUser_Assignment", setting: { isApprovalRequired: !!s.approval, isApprovalRequiredForExtension: false, isRequestorJustificationRequired: true, approvalMode: "SingleStage", approvalStages: [{ approvalStageTimeOutInDays: 1, isApproverJustificationRequired: true, escalationTimeInMinutes: 0, primaryApprovers: (s.approvers || []).map((id) => ({ "@odata.type": "#microsoft.graph.groupMembers", groupId: id })), isEscalationEnabled: false, escalationApprovers: [] }] } },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule", id: "Expiration_Admin_Eligibility", isExpirationRequired: s.permEligible === false, maximumDuration: s.maxEligible || "P365D" },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule", id: "Expiration_Admin_Assignment", isExpirationRequired: s.permActive === false, maximumDuration: s.maxActive || "P180D" },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule", id: "Enablement_Admin_Assignment", enabledRules: ["Justification"] },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule", id: "Notification_Admin_Admin_Eligibility", notificationType: "Email", recipientType: "Admin", notificationLevel: s.alertEligible || "All", isDefaultRecipientsEnabled: true, notificationRecipients: s.recipients || [] },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule", id: "Notification_Admin_Admin_Assignment", notificationType: "Email", recipientType: "Admin", notificationLevel: s.alertActive || "All", isDefaultRecipientsEnabled: true, notificationRecipients: s.recipients || [] },
+    { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule", id: "Notification_Admin_EndUser_Assignment", notificationType: "Email", recipientType: "Admin", notificationLevel: s.alertActivation || "All", isDefaultRecipientsEnabled: true, notificationRecipients: s.recipients || [] },
+  ];
+  const G = { approvers: "g-SG-PIM-Approvers", ga: "g-SG-PIM-M365-GlobalAdmin", t0: "g-SG-PIM-M365-Tier0", sec: "g-SG-PIM-M365-SecOps", ops: "g-SG-PIM-M365-Ops", hd: "g-SG-PIM-M365-Helpdesk", legacy: "g-CAB-SEC-U-Admins-Legacy", bg: "g-CAB-SEC-U-BreakGlass" };
+  const names = { [G.approvers]: "SG-PIM-Approvers", [G.ga]: "SG-PIM-M365-GlobalAdmin", [G.t0]: "SG-PIM-M365-Tier0", [G.sec]: "SG-PIM-M365-SecOps", [G.ops]: "SG-PIM-M365-Ops", [G.hd]: "SG-PIM-M365-Helpdesk", [G.legacy]: "CAB-SEC-U-Admins-Legacy", "u-bg1": "BG-Admin-01", "u-bg2": "BG-Admin-02", "u-joey": "Joey Bakker", "u-anna": "Anna de Vries", "u-mihai": "Mihai Monte" };
+  const roles = ["Global Administrator", "Privileged Role Administrator", "Privileged Authentication Administrator", "Conditional Access Administrator", "Security Administrator", "Exchange Administrator", "SharePoint Administrator", "Teams Administrator", "Intune Administrator", "Application Administrator", "Cloud Application Administrator", "Application Developer", "Power Platform Administrator", "Authentication Administrator", "Authentication Policy Administrator", "User Administrator", "Groups Administrator", "License Administrator", "Password Administrator", "Cloud Device Administrator", "Microsoft Entra Joined Device Local Administrator", "Hybrid Identity Administrator", "Directory Writers", "Identity Governance Administrator", "Lifecycle Workflows Administrator", "Service Support Administrator", "Edge Administrator", "Office Apps Administrator", "Guest Inviter", "Compliance Administrator", "Compliance Data Administrator", "Cloud App Security Administrator", "Security Operator", "Helpdesk Administrator", "Message Center Reader", "Global Reader", "Security Reader", "Directory Readers", "Billing Administrator", "Attribute Definition Administrator"];
+  const roleDefinitions = roles.map((n, i) => ({ id: `rd-${i + 1}`, displayName: n, isBuiltIn: true, isPrivileged: i < 24 }));
+  // Entra's tenant default for every role, then the ones this tenant set.
+  const dflt = { activation: "PT8H", enablement: ["MultiFactorAuthentication", "Justification"], permEligible: true, permActive: true, maxEligible: "P365D", maxActive: "P180D", alertEligible: "All", alertActive: "All", alertActivation: "All", recipients: [] };
+  const right = (t) => Object.assign({}, dflt, { permEligible: false, permActive: false, maxActive: "P30D", recipients: ["pim-alerts@contoso.nl"] }, t);
+  const tier0 = () => right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] });
+  const tier1 = () => right({ activation: "PT2H" });
+  const tier2 = () => right({ activation: "PT8H", alertActivation: "Critical" });
+  const reader = () => right({ activation: "PT8H", enablement: ["MultiFactorAuthentication"], permEligible: true, maxActive: "P90D", alertActivation: "Critical", alertEligible: "Critical" });
+  const set = {};
+  // Set right, per tier — the tenant deployed the framework once…
+  ["Conditional Access Administrator", "Security Administrator"].forEach((n) => { set[n] = tier0(); });
+  ["Application Administrator", "Cloud Application Administrator", "Power Platform Administrator", "Authentication Administrator", "Authentication Policy Administrator", "User Administrator", "Groups Administrator", "License Administrator", "Password Administrator", "Cloud Device Administrator", "Microsoft Entra Joined Device Local Administrator", "Identity Governance Administrator", "Lifecycle Workflows Administrator", "Service Support Administrator", "Edge Administrator", "Office Apps Administrator", "Guest Inviter", "Compliance Administrator", "Cloud App Security Administrator"].forEach((n) => { set[n] = tier1(); });
+  ["Helpdesk Administrator"].forEach((n) => { set[n] = tier2(); });
+  ["Global Reader", "Security Reader"].forEach((n) => { set[n] = reader(); });
+  set["Directory Readers"] = right({ activation: "PT8H", enablement: ["MultiFactorAuthentication"], permEligible: true, permActive: true, maxActive: "P90D", alertActivation: "Critical", alertEligible: "Critical" });
+  // …and then drifted, or never finished. Everything not named above sits on
+  // Entra's tenant default (8 hours, MFA + justification, permanent allowed).
+  Object.assign(set, {
+    "Global Administrator": right({ activation: "PT1H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] }),
+    "Conditional Access Administrator": right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] }),
+    "Security Administrator": right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] }),
+    "Privileged Role Administrator": right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: false }),
+    "Exchange Administrator": right({ activation: "PT24H", enablement: ["MultiFactorAuthentication", "Justification"] }),
+    "Intune Administrator": right({ activation: "PT2H", enablement: ["MultiFactorAuthentication"] }),
+  });
+  const policies = {};
+  roles.forEach((n) => { policies[n] = rules(set[n] || dflt); });
+  const inst = (roleName, principalId, principalType, endDateTime, assignmentType) => ({ roleName, principalId, principalName: names[principalId] || principalId, principalType, endDateTime, assignmentType });
+  const far = "2027-09-01T00:00:00Z";
+  const eligible = [
+    inst("Global Administrator", G.ga, "Group", far), inst("Global Administrator", "u-anna", "User", far), inst("Global Administrator", "u-joey", "User", far),
+    inst("Privileged Role Administrator", G.t0, "Group", far), inst("Privileged Authentication Administrator", G.t0, "Group", far),
+    inst("Conditional Access Administrator", G.sec, "Group", far), inst("Security Administrator", G.sec, "Group", far), inst("Compliance Administrator", G.sec, "Group", far), inst("Cloud App Security Administrator", G.sec, "Group", far), inst("Security Operator", G.sec, "Group", far),
+    inst("Exchange Administrator", G.ops, "Group", far), inst("SharePoint Administrator", G.ops, "Group", far), inst("Teams Administrator", G.ops, "Group", far), inst("Intune Administrator", G.ops, "Group", far), inst("Application Administrator", G.ops, "Group", far), inst("User Administrator", G.ops, "Group", far), inst("License Administrator", G.ops, "Group", far), inst("Authentication Administrator", G.ops, "Group", far), inst("Authentication Policy Administrator", G.ops, "Group", far), inst("Power Platform Administrator", G.ops, "Group", far), inst("Identity Governance Administrator", G.ops, "Group", far), inst("Lifecycle Workflows Administrator", G.ops, "Group", far), inst("Service Support Administrator", G.ops, "Group", far), inst("Message Center Reader", G.ops, "Group", far),
+    inst("Helpdesk Administrator", G.hd, "Group", far), inst("Groups Administrator", G.hd, "Group", far), inst("User Administrator", G.hd, "Group", far), inst("Password Administrator", G.hd, "Group", far), inst("License Administrator", G.hd, "Group", far), inst("Authentication Administrator", G.hd, "Group", far), inst("Cloud Device Administrator", G.hd, "Group", far), inst("Message Center Reader", G.hd, "Group", far),
+    inst("Exchange Administrator", "u-joey", "User", null), inst("Global Reader", "u-anna", "User", null), inst("Security Reader", "u-mihai", "User", null),
+  ];
+  const active = [
+    inst("Global Administrator", "u-bg1", "User", null, "Assigned"), inst("Global Administrator", "u-bg2", "User", null, "Assigned"), inst("Global Administrator", "u-joey", "User", null, "Assigned"),
+    inst("User Administrator", G.legacy, "Group", null, "Assigned"), inst("Exchange Administrator", G.legacy, "Group", null, "Assigned"),
+    inst("Directory Readers", G.ops, "Group", null, "Assigned"),
+    inst("Intune Administrator", "u-joey", "User", "2026-09-24T18:00:00Z", "Activated"),
+  ];
+  const groups = [
+    { id: G.ga, displayName: "SG-PIM-M365-GlobalAdmin", isAssignableToRole: true }, { id: G.t0, displayName: "SG-PIM-M365-Tier0", isAssignableToRole: true }, { id: G.sec, displayName: "SG-PIM-M365-SecOps", isAssignableToRole: true }, { id: G.ops, displayName: "SG-PIM-M365-Ops", isAssignableToRole: true }, { id: G.hd, displayName: "SG-PIM-M365-Helpdesk", isAssignableToRole: false },
+    { id: G.legacy, displayName: "CAB-SEC-U-Admins-Legacy", isAssignableToRole: true },
+  ];
+  const groupPolicies = {
+    "SG-PIM-M365-GlobalAdmin": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
+    "SG-PIM-M365-Tier0": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
+    "SG-PIM-M365-SecOps": rules(right({ activation: "PT4H", approval: false })),
+    "SG-PIM-M365-Ops": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
+    "SG-PIM-M365-Helpdesk": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
+  };
+  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names };
+})();
