@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32318"></script>
+<script src="js/popup-guard.js?v=32401"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32318" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32318">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32401" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32401">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32318"></script>
+<script src="js/selfhost-boot.js?v=32401"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32318"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32318"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32318">
-<link rel="stylesheet" href="css/workspaces.css?v=32318">
-<link rel="stylesheet" href="css/tool-layout.css?v=32318">
-<link rel="stylesheet" href="css/list-detail.css?v=32318">
-<link rel="stylesheet" href="css/flat-icons.css?v=32318">
+<script src="js/counter.js?v=32401"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32401"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32401">
+<link rel="stylesheet" href="css/workspaces.css?v=32401">
+<link rel="stylesheet" href="css/tool-layout.css?v=32401">
+<link rel="stylesheet" href="css/list-detail.css?v=32401">
+<link rel="stylesheet" href="css/flat-icons.css?v=32401">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32318" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32401" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32318" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32401" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -1517,29 +1517,13 @@
                sit under Shipped before from the start rather than waiting to age out,
                so Now holds only what is actually moving. rmAgeShipped still sorts
                them newest first. -->
-          <div class="list-card rm-card"><p class="mini" style="margin:0">Everything live is under <b>Shipped before</b>, at the bottom of this page — 45 items, newest first. What is moving now is <b>In beta today</b>, below.</p></div>
+          <div class="list-card rm-card"><p class="mini" style="margin:0">Everything live is under <b>Shipped before</b>, at the bottom of this page — 48 items, newest first. What is moving now is <b>In beta today</b>, below.</p></div>
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R66</span> 🔑 Passkeys: required, and actually set up <span class="tag ok">in beta today · beta 32317</span></h4>
-            <p class="mini" style="margin:0">A Passkeys tab in 🛡 Checks starts from the policies that require a passkey and asks the Passkey (FIDO2) method whether the same people can get one — enabled, targeted, not excluded, self-service on, a passkey profile that lets through a key the strength accepts — counting the people by group and role membership. ✎ Configure changes the whole method (state, targets, self-service, passkey profiles) with a diff, what stops working and what it clears shown before Save, and ↩ Restore. Graduates once it has been read and written on a few real tenants, including one not yet opted in to passkey profiles.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R65</span> 🤝 Cross-tenant access, read next to the policies <span class="tag ok">in beta today · beta 32316</span></h4>
-            <p class="mini" style="margin:0">A Cross-tenant tab in 🛡 Checks runs the checks of the open-source m365-security-toolkit (Charlie Delmotte, MIT): the default policy and every partner entry, trusted MFA and devices, cross-tenant sync, automatic redemption, dead partner tenants and entries that override nothing. ENCA adds where the trust lands — which policies a trusted MFA or device claim from another tenant satisfies. Read-only. Graduates once it has been read on a few real tenants with partner entries, including one with cross-tenant sync and one where a partner tenant no longer exists or the exists check was confirmed to degrade to not checked.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R64</span> 🏅 Identity Secure Score, next to the policies <span class="tag ok">in beta today · beta 32308</span></h4>
-            <p class="mini" style="margin:0">Microsoft Entra's Identity Secure Score on the home page and as a tab of 🛡 Checks: the percentage and its trend, the recommendations behind it, and for every recommendation Conditional Access answers, what ENCA sees — the policy that does it and whether it is On, report-only, built but Off, or missing. Read-only. Graduates once it has been read on a few real tenants, including one where the account lacks the reader role.</p>
-          </div>
-          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R63</span> 📰 Microsoft Learn, watched every week <span class="tag ok">in beta today · beta 32306</span></h4>
             <p class="mini" style="margin:0">The MS Learn checks were only as current as the last time someone read their pages. A weekly run now reads Microsoft's documentation repository for Conditional Access, flags every check whose page changed after it was last read, lists new pages and what's-new entries, and keeps one GitHub issue open while anything is undecided. Each item is decided on the tab, and 📋 Work order turns the decisions into work. Graduates once a few nights of real feed have been triaged and at least one work order has been carried out.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R62</span> 🧰 From finding to catalog, in the baseline tenant <span class="tag ok">in beta today · beta 32303</span></h4>
-            <p class="mini" style="margin:0">A Microsoft Learn finding in the CloudFellows tenant used to mean: open Suggested fixes, apply everything or download JSON, find the changed policies again on the Baseline screen, tick them in 🧱 Update the catalog, and write the reason down yourself. Now each finding carries <b>🧰 Fix</b>, the policy is changed in place with its version bumped, and the changed policies arrive in <b>🧱 Update the catalog</b> already ticked, with the check and its Learn page as the revision note. Findings with no mechanical fix can be accepted with a reason. Graduates once a Fix has run against the real reference tenant and its catalog source has been committed.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R01</span> <a href="#" class="md-tool" data-tool="toolCis">📐 CIS Benchmark alignment</a> <span class="tag ok">in beta today</span> <span class="tag">CloudFellows tenant only</span></h4>
@@ -1652,6 +1636,22 @@
         <h3>Shipped before <span class="rm-when">delivered, and no longer news</span></h3>
         <p class="mini muted" style="margin:0 0 12px">Everything that is live, newest first. A card lands here when it goes live, and a later build ages any other shipped card here too. They are kept rather than deleted — a roadmap that forgets what it delivered is only a wish list — but they stop competing with what is happening now.</p>
         <div id="rmShippedCards">
+          <div class="list-card rm-card" data-shipped="32317">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R66</span> 🔑 Passkeys: required, and actually set up <span class="tag grant">live · beta 32317 · production 323 (v2.0.1)</span></h4>
+            <p class="mini" style="margin:0">A Passkeys tab in 🛡 Checks starts from the policies that require a passkey and asks the Passkey (FIDO2) method whether the same people can get one — enabled, targeted, not excluded, self-service on, a passkey profile that lets through a key the strength accepts — counting the people by group and role membership. ✎ Configure changes the whole method (state, targets, self-service, passkey profiles) with a diff, what stops working and what it clears shown before Save, and ↩ Restore. Graduates once it has been read and written on a few real tenants, including one not yet opted in to passkey profiles.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32316">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R65</span> 🤝 Cross-tenant access, read next to the policies <span class="tag grant">live · beta 32316 · production 323 (v2.0.1)</span></h4>
+            <p class="mini" style="margin:0">A Cross-tenant tab in 🛡 Checks runs the checks of the open-source m365-security-toolkit (Charlie Delmotte, MIT): the default policy and every partner entry, trusted MFA and devices, cross-tenant sync, automatic redemption, dead partner tenants and entries that override nothing. ENCA adds where the trust lands — which policies a trusted MFA or device claim from another tenant satisfies. Read-only. Graduates once it has been read on a few real tenants with partner entries, including one with cross-tenant sync and one where a partner tenant no longer exists or the exists check was confirmed to degrade to not checked.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32308">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R64</span> 🏅 Identity Secure Score, next to the policies <span class="tag grant">live · beta 32308 · production 323 (v2.0.1)</span></h4>
+            <p class="mini" style="margin:0">Microsoft Entra's Identity Secure Score on the home page and as a tab of 🛡 Checks: the percentage and its trend, the recommendations behind it, and for every recommendation Conditional Access answers, what ENCA sees — the policy that does it and whether it is On, report-only, built but Off, or missing. Read-only. Graduates once it has been read on a few real tenants, including one where the account lacks the reader role.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="32303">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R62</span> 🧰 From finding to catalog, in the baseline tenant <span class="tag grant">live · beta 32303 · production 323 (v2.0.1)</span></h4>
+            <p class="mini" style="margin:0">A Microsoft Learn finding in the CloudFellows tenant used to mean: open Suggested fixes, apply everything or download JSON, find the changed policies again on the Baseline screen, tick them in 🧱 Update the catalog, and write the reason down yourself. Now each finding carries <b>🧰 Fix</b>, the policy is changed in place with its version bumped, and the changed policies arrive in <b>🧱 Update the catalog</b> already ticked, with the check and its Learn page as the revision note. Findings with no mechanical fix can be accepted with a reason. Graduates once a Fix has run against the real reference tenant and its catalog source has been committed.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="32301">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R60</span> 🧭 Workspaces: one layout for every tool <span class="tag grant">live · beta 25401 · production 322 (v2.0.0)</span></h4>
             <p class="mini" style="margin:0"><b>The 2.0 interface.</b> A left rail with the tools in work order, a branded header with the logo on its medallion, and every list tool drawn the same way — the list on the left, the selected item in an inspector on the right, the open row kept highlighted, both panes scrolling on their own and handing over to the page at their end. Each tool's head folds away with the ▾ at the end of its title, remembered per tool; flat icons, a contrasting active tool and tab, and tab strips inside the tools that host several. Nothing about what a tool reads or writes changed — only where it sits and how you move between them.</p>
@@ -3557,93 +3557,93 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32318"></script>
-<script src="js/selfhost.js?v=32318"></script>
-<script src="js/version.js?v=32318"></script>
-<script src="js/verdict.js?v=32318"></script>
-<script src="js/fork.js?v=32318"></script>
-<script src="js/promote.js?v=32318"></script>
-<script src="js/authConfig.js?v=32318"></script>
-<script src="js/connection.js?v=32318"></script>
-<script src="js/labels.js?v=32318"></script>
-<script src="js/capabilities.js?v=32318"></script>
-<script src="js/graph.js?v=32318"></script>
-<script src="js/model.js?v=32318"></script>
-<script src="js/render.js?v=32318"></script>
-<script src="js/analyze.js?v=32318"></script>
-<script src="js/whatif.js?v=32318"></script>
-<script src="js/mslearn.js?v=32318"></script>
-<script src="js/learntriage.js?v=32318"></script>
-<script src="js/learnfeed.js?v=32318"></script>
-<script src="js/gapcheck.js?v=32318"></script>
-<script src="js/cisdata.js?v=32318"></script>
-<script src="js/cischeck.js?v=32318"></script>
-<script src="js/exclusions.js?v=32318"></script>
-<script src="js/cascope.js?v=32318"></script>
-<script src="js/coverage.js?v=32318"></script>
-<script src="js/runmeta.js?v=32318"></script>
-<script src="js/overview.js?v=32318"></script>
-<script src="js/validator.js?v=32318"></script>
-<script src="js/whatifeval.js?v=32318"></script>
-<script src="js/builder.js?v=32318"></script>
-<script src="js/onboard.js?v=32318"></script>
-<script src="js/compare.js?v=32318"></script>
-<script src="js/whois.js?v=32318"></script>
-<script src="js/wave.js?v=32318"></script>
-<script src="js/sessionctl.js?v=32318"></script>
-<script src="js/spgap.js?v=32318"></script>
-<script src="js/groupuse.js?v=32318"></script>
-<script src="js/iso3166.js?v=32318"></script>
-<script src="js/causes.js?v=32318"></script>
-<script src="js/locations.js?v=32318"></script>
-<script src="js/authcontexts.js?v=32318"></script>
-<script src="js/authstrengths.js?v=32318"></script>
-<script src="js/recycle.js?v=32318"></script>
-<script src="js/rmau.js?v=32318"></script>
-<script src="js/camap.js?v=32318"></script>
-<script src="js/rmaudoc.js?v=32318"></script>
-<script src="js/termsofuse.js?v=32318"></script>
-<script src="js/audit.js?v=32318"></script>
-<script src="js/drift.js?v=32318"></script>
-<script src="js/guide.js?v=32318"></script>
-<script src="js/userimpact.js?v=32318"></script>
-<script src="js/smsvoice.js?v=32318"></script>
-<script src="js/memberof.js?v=32318"></script>
-<script src="js/devcheck.js?v=32318"></script>
-<script src="js/idscore.js?v=32318"></script>
-<script src="js/xtenant.js?v=32318"></script>
-<script src="js/passkeys.js?v=32318"></script>
-<script src="js/licgap.js?v=32318"></script>
-<script src="js/teamsdev.js?v=32318"></script>
-<script src="js/signinstore.js?v=32318"></script>
-<script src="js/signins.js?v=32318"></script>
-<script src="js/reportimpact.js?v=32318"></script>
-<script src="js/changelog.js?v=32318"></script>
-<script src="js/baselineData.js?v=32318"></script>
-<script src="js/baselineJoeyData.js?v=32318"></script>
-<script src="js/baselineLive.js?v=32318"></script>
-<script src="js/baseline.js?v=32318"></script>
-<script src="js/baselineCleanup.js?v=32318"></script>
-<script src="js/groupTemplates.js?v=32318"></script>
-<script src="js/assign.js?v=32318"></script>
-<script src="js/cagroups.js?v=32318"></script>
-<script src="js/groupmerge.js?v=32318"></script>
-<script src="js/groupsview.js?v=32318"></script>
-<script src="js/runledger.js?v=32318"></script>
-<script src="js/protect.js?v=32318"></script>
-<script src="js/policy-compare.js?v=32318"></script>
-<script src="js/import.js?v=32318"></script>
-<script src="js/export.js?v=32318"></script>
-<script src="js/demo.js?v=32318"></script>
-<script src="js/list-detail.js?v=32318"></script>
-<script src="js/flat-icons.js?v=32318"></script>
-<script src="js/workspace.js?v=32318"></script>
-<script src="js/analysis-jobs.js?v=32318"></script>
-<script src="js/search-suggest.js?v=32318"></script>
-<script src="js/app.js?v=32318"></script>
-<script src="js/col-resize.js?v=32318"></script>
-<script src="js/accessibility.js?v=32318"></script>
-<script src="js/workspaces.js?v=32318"></script>
-<script src="js/tool-layout.js?v=32318"></script>
+<script src="js/branding.js?v=32401"></script>
+<script src="js/selfhost.js?v=32401"></script>
+<script src="js/version.js?v=32401"></script>
+<script src="js/verdict.js?v=32401"></script>
+<script src="js/fork.js?v=32401"></script>
+<script src="js/promote.js?v=32401"></script>
+<script src="js/authConfig.js?v=32401"></script>
+<script src="js/connection.js?v=32401"></script>
+<script src="js/labels.js?v=32401"></script>
+<script src="js/capabilities.js?v=32401"></script>
+<script src="js/graph.js?v=32401"></script>
+<script src="js/model.js?v=32401"></script>
+<script src="js/render.js?v=32401"></script>
+<script src="js/analyze.js?v=32401"></script>
+<script src="js/whatif.js?v=32401"></script>
+<script src="js/mslearn.js?v=32401"></script>
+<script src="js/learntriage.js?v=32401"></script>
+<script src="js/learnfeed.js?v=32401"></script>
+<script src="js/gapcheck.js?v=32401"></script>
+<script src="js/cisdata.js?v=32401"></script>
+<script src="js/cischeck.js?v=32401"></script>
+<script src="js/exclusions.js?v=32401"></script>
+<script src="js/cascope.js?v=32401"></script>
+<script src="js/coverage.js?v=32401"></script>
+<script src="js/runmeta.js?v=32401"></script>
+<script src="js/overview.js?v=32401"></script>
+<script src="js/validator.js?v=32401"></script>
+<script src="js/whatifeval.js?v=32401"></script>
+<script src="js/builder.js?v=32401"></script>
+<script src="js/onboard.js?v=32401"></script>
+<script src="js/compare.js?v=32401"></script>
+<script src="js/whois.js?v=32401"></script>
+<script src="js/wave.js?v=32401"></script>
+<script src="js/sessionctl.js?v=32401"></script>
+<script src="js/spgap.js?v=32401"></script>
+<script src="js/groupuse.js?v=32401"></script>
+<script src="js/iso3166.js?v=32401"></script>
+<script src="js/causes.js?v=32401"></script>
+<script src="js/locations.js?v=32401"></script>
+<script src="js/authcontexts.js?v=32401"></script>
+<script src="js/authstrengths.js?v=32401"></script>
+<script src="js/recycle.js?v=32401"></script>
+<script src="js/rmau.js?v=32401"></script>
+<script src="js/camap.js?v=32401"></script>
+<script src="js/rmaudoc.js?v=32401"></script>
+<script src="js/termsofuse.js?v=32401"></script>
+<script src="js/audit.js?v=32401"></script>
+<script src="js/drift.js?v=32401"></script>
+<script src="js/guide.js?v=32401"></script>
+<script src="js/userimpact.js?v=32401"></script>
+<script src="js/smsvoice.js?v=32401"></script>
+<script src="js/memberof.js?v=32401"></script>
+<script src="js/devcheck.js?v=32401"></script>
+<script src="js/idscore.js?v=32401"></script>
+<script src="js/xtenant.js?v=32401"></script>
+<script src="js/passkeys.js?v=32401"></script>
+<script src="js/licgap.js?v=32401"></script>
+<script src="js/teamsdev.js?v=32401"></script>
+<script src="js/signinstore.js?v=32401"></script>
+<script src="js/signins.js?v=32401"></script>
+<script src="js/reportimpact.js?v=32401"></script>
+<script src="js/changelog.js?v=32401"></script>
+<script src="js/baselineData.js?v=32401"></script>
+<script src="js/baselineJoeyData.js?v=32401"></script>
+<script src="js/baselineLive.js?v=32401"></script>
+<script src="js/baseline.js?v=32401"></script>
+<script src="js/baselineCleanup.js?v=32401"></script>
+<script src="js/groupTemplates.js?v=32401"></script>
+<script src="js/assign.js?v=32401"></script>
+<script src="js/cagroups.js?v=32401"></script>
+<script src="js/groupmerge.js?v=32401"></script>
+<script src="js/groupsview.js?v=32401"></script>
+<script src="js/runledger.js?v=32401"></script>
+<script src="js/protect.js?v=32401"></script>
+<script src="js/policy-compare.js?v=32401"></script>
+<script src="js/import.js?v=32401"></script>
+<script src="js/export.js?v=32401"></script>
+<script src="js/demo.js?v=32401"></script>
+<script src="js/list-detail.js?v=32401"></script>
+<script src="js/flat-icons.js?v=32401"></script>
+<script src="js/workspace.js?v=32401"></script>
+<script src="js/analysis-jobs.js?v=32401"></script>
+<script src="js/search-suggest.js?v=32401"></script>
+<script src="js/app.js?v=32401"></script>
+<script src="js/col-resize.js?v=32401"></script>
+<script src="js/accessibility.js?v=32401"></script>
+<script src="js/workspaces.js?v=32401"></script>
+<script src="js/tool-layout.js?v=32401"></script>
 </body>
 </html>

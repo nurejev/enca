@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32401, date: "2026-09-24", title: "Production is build 323 (v2.0.1)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 323, ENCA v2.0.1: Identity Secure Score, Cross-tenant access and Passkeys as tabs of 🛡 Checks, 🧰 Fix on Microsoft Learn findings, the catalog revised 23 September, resizable columns and the full-width Policies list, the redesigned mark and the self-hosting fixes went live. 📰 Learn changes stays on this channel for now. This channel moves to the next cycle and reads v2.0.2-beta.N." },
+    ],
+  },
+  {
     build: 32318, date: "2026-09-24", title: "Waiting for production ends with the newest work",
     items: [
       { kind: "improved", tool: "Help", text: "The Waiting for production list puts each batch where its NEWEST item is, so the latest work is at the bottom instead of folded into a batch near the top — 290 Cross-tenant and 291 Passkeys sat under Checks next to 280 and looked missing. By number gives the old order back; the choice is remembered in this browser." },
