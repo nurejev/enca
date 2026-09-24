@@ -117,6 +117,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 288,
+      title: "Self-hosting: pinned installs — update and roll back by digest (SELF-HOSTING.md, selfhost/resolve-digest.sh, the update notice)",
+      tools: ["Self-hosting"],
+      builds: [32314],
+      risk: "low",
+      what: "SELF-HOSTING.md: new section Pinned installs: update and roll back (write down the running reference for Docker and Container Apps, resolve the digest, deploy on Docker / compose / Container Apps bash and PowerShell / IaC, check, roll back). selfhost/resolve-digest.sh (new; ghcr.io, docker.io and ACR, read-only, prints image@sha256). js/fork.js: the update window gains a Pinned to a digest step (the platform's command) beside the tag-based ones, because a restart keeps the same build on a pinned instance.",
+      why: "Mihai asked whether the PVM production update runbook works for other self-hosters: the principle does, the tooling did not exist publicly — nothing turned :latest into a digest, and nothing told anyone to write down the running build before updating. Low: documentation, a read-only script, and one more step in a notice shown only on self-hosted production copies.",
+      test: [
+        "On main after promotion: SELF-HOSTING.md renders the new section after Staying up to date; every command block runs as written in bash (and the PowerShell one in PowerShell).",
+        "bash selfhost/resolve-digest.sh prints ghcr.io/nurejev/enca:latest -> sha256:… and the pinned reference; with a tag that does not exist it says so and exits 1; curl …/main/selfhost/resolve-digest.sh | bash works.",
+        "A self-hosted production copy that is builds behind (Docker host, and an *.azurecontainerapps.io host, on Windows and macOS): the update window lists Pinned to a digest with the right command for the platform and shell.",
+        "The image still starts (the script is a plain file in the image; nothing runs it).",
+      ],
+      files: ["SELF-HOSTING.md", "selfhost/resolve-digest.sh", "js/fork.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 287,
       title: "Branded dark mode — the neutral greens follow the brand",
       tools: ["Self-hosting"],

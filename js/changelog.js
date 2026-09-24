@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32314, date: "2026-09-24", title: "Self-hosting: pinned installs, updated and rolled back on purpose",
+    items: [
+      { kind: "improved", tool: "Self-hosting", text: "SELF-HOSTING.md has a new section for copies other people rely on: run a pinned image digest instead of a tag, write down what you run now, find the digest of the build you want, deploy it on Docker, compose or Azure Container Apps, check it, and roll back with the digest you wrote down." },
+      { kind: "new", tool: "Self-hosting", text: "selfhost/resolve-digest.sh turns a tag such as ghcr.io/nurejev/enca:latest into the pinned image reference to deploy. It only asks the registry; it changes nothing." },
+      { kind: "improved", tool: "Self-hosting", text: "The update notice on a self-hosted copy now also covers an instance pinned to a digest, where a restart keeps the same build: it shows how to find the new digest and deploy it." },
+    ],
+  },
+  {
     build: 32313, date: "2026-09-24", title: "A branded look in dark mode no longer keeps ENCA's green edges",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "Under a custom branding in dark mode, a few neutral colours stayed ENCA green because a branding file rarely names them: chip borders, the switch track, not-applicable and faint text, and ghost borders. They are now mixed from the branding's own colours, so a blue brand stays blue throughout. A branding that sets one of them itself still wins, ENCA's own look is unchanged, and meaning colours (green for protected, red for a problem) stay as they are." },

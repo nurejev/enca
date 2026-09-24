@@ -80,7 +80,22 @@
          + "git diff HEAD upstream/main   # the review is the point\n"
          + "git merge upstream/main",
     };
-    if (!IS_ACA) return [docker, fork];
+    // 32314: a PINNED instance (image@sha256:…) is not moved by any of the
+    // commands above — a restart or a pull keeps the same digest, which is
+    // the point of pinning. It needs the new digest, deployed on purpose.
+    // SELF-HOSTING.md → "Pinned installs: update and roll back".
+    const pinned = {
+      title: "Pinned to a digest (image@sha256:…)",
+      note: "a restart keeps the same build — find the new digest and deploy it; note the current one first, it is your way back",
+      cmd: "bash selfhost/resolve-digest.sh ghcr.io/nurejev/enca:latest   # prints image@sha256:<digest>\n"
+         + (IS_ACA
+           ? (IS_WINDOWS
+             ? "az containerapp update -n \"<app-name>\" -g \"<resource-group>\" --image \"ghcr.io/nurejev/enca@sha256:<digest>\""
+             : "az containerapp update -n <app-name> -g <resource-group> --image ghcr.io/nurejev/enca@sha256:<digest>")
+           : "docker pull ghcr.io/nurejev/enca@sha256:<digest>\ndocker rm -f enca   # then the same docker run / compose up -d, with the pinned image")
+         + "\n# Terraform / Bicep: put the digest in your variables and run your pipeline.\n# Details: SELF-HOSTING.md -> Pinned installs: update and roll back",
+    };
+    if (!IS_ACA) return [docker, pinned, fork];
     // Container Apps sets every container's image pull policy to `always`, so
     // ANY command that starts a fresh container re-pulls the tag: a restart,
     // a deactivate/activate, a new revision, or a scale-to-zero cold start.
@@ -112,7 +127,7 @@
              + "#   az containerapp revision copy -n $APP -g $RG\n"
              + "# Already scaled to zero? The next request cold-starts and pulls the\n"
              + "# new image by itself - this is how you make that happen NOW." };
-    return [aca, docker, fork];
+    return [aca, pinned, docker, fork];
   })();
 
   // The titles of every release between here and upstream, newest first —
