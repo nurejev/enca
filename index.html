@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32310"></script>
+<script src="js/popup-guard.js?v=32311"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32310" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32310">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32311" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32311">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32310"></script>
+<script src="js/selfhost-boot.js?v=32311"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32310"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32310"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32310">
-<link rel="stylesheet" href="css/workspaces.css?v=32310">
-<link rel="stylesheet" href="css/tool-layout.css?v=32310">
-<link rel="stylesheet" href="css/list-detail.css?v=32310">
-<link rel="stylesheet" href="css/flat-icons.css?v=32310">
+<script src="js/counter.js?v=32311"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32311"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32311">
+<link rel="stylesheet" href="css/workspaces.css?v=32311">
+<link rel="stylesheet" href="css/tool-layout.css?v=32311">
+<link rel="stylesheet" href="css/list-detail.css?v=32311">
+<link rel="stylesheet" href="css/flat-icons.css?v=32311">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32310" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32311" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32310" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32311" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -565,7 +565,7 @@
       <div class="seg">
         <button class="active" id="mlTabFindings">Findings</button>
         <button id="mlTabFixes">Suggested fixes</button>
-        <button id="mlTabLearn" title="What changed on Microsoft Learn for Conditional Access — read every night, no tenant call">📰 Learn changes</button>
+        <button id="mlTabLearn" title="What changed on Microsoft Learn for Conditional Access — read once a week, no tenant call">📰 Learn changes</button>
       </div>
       <div class="chip-filter" id="mlChips"></div>
       <label class="chk" id="mlDisabledWrap" style="margin:0"><input type="checkbox" id="mlDisabled"> Include Off (disabled) policies <span class="mini" id="mlDisabledNote"></span></label>
@@ -1494,8 +1494,8 @@
             <p class="mini" style="margin:0">Microsoft Entra's Identity Secure Score on the home page and as a tab of 🛡 Checks: the percentage and its trend, the recommendations behind it, and for every recommendation Conditional Access answers, what ENCA sees — the policy that does it and whether it is On, report-only, built but Off, or missing. Read-only. Graduates once it has been read on a few real tenants, including one where the account lacks the reader role.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R63</span> 📰 Microsoft Learn, watched every night <span class="tag ok">in beta today · beta 32306</span></h4>
-            <p class="mini" style="margin:0">The MS Learn checks were only as current as the last time someone read their pages. A nightly run now reads Microsoft's documentation repository for Conditional Access, flags every check whose page changed after it was last read, lists new pages and what's-new entries, and keeps one GitHub issue open while anything is undecided. Each item is decided on the tab, and 📋 Work order turns the decisions into work. Graduates once a few nights of real feed have been triaged and at least one work order has been carried out.</p>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R63</span> 📰 Microsoft Learn, watched every week <span class="tag ok">in beta today · beta 32306</span></h4>
+            <p class="mini" style="margin:0">The MS Learn checks were only as current as the last time someone read their pages. A weekly run now reads Microsoft's documentation repository for Conditional Access, flags every check whose page changed after it was last read, lists new pages and what's-new entries, and keeps one GitHub issue open while anything is undecided. Each item is decided on the tab, and 📋 Work order turns the decisions into work. Graduates once a few nights of real feed have been triaged and at least one work order has been carried out.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R62</span> 🧰 From finding to catalog, in the baseline tenant <span class="tag ok">in beta today · beta 32303</span></h4>
@@ -2012,10 +2012,16 @@
         <li><b>Buildable fixes</b> — where a documented fix exists, apply it in the tenant (creating a service principal or group if the fix needs one). <span class="tag block">writes to tenant</span></li>
         <li><b>🧰 Fix where the finding is <span class="tag new">NEW</span></b> (build 32303) — <b>baseline tenant only</b>. A finding with a fix carries <b>🧰 Fix N</b> on its head and in its detail; the shared-device matrix carries <b>🧰 Fix these</b>, which takes every shared-device finding at once; <b>🧰 Fix all</b> sits in the toolbar. A finding's button applies <i>that finding's</i> change and nothing else. You confirm the list first. Each policy is <b>changed in place</b> — same policy, same ID, same state; only the listed change and the version in its name move — and a companion policy is created Off beside its original. The one exception: a policy still carrying <b>Require approved client app</b> is read-only in Entra, so it is rebuilt — created Off at the bumped version, then the frozen original deleted — and the confirm says so. Nothing else is deleted. The report that opens afterwards keeps every changed section as it was, which is the way back (✎ Edit on the card, or a PATCH of that JSON). The policies are re-read and the checks run again, so what was fixed drops out of the list.</li>
         <li><b>The shared devices' own policy</b> (build 32303) — a policy that <i>includes</i> the shared-device group is theirs, so the Fix takes the unsupported control <b>out</b> rather than excluding them — but only when that group is its only include, and only grant and session controls. A condition (insider risk, the device-code block) is never removed, and a control that is the point of the policy (compliant device, which Surface Hub cannot meet) is named and left for you to decide.</li>
-        <li><b>📰 Learn changes <span class="tag new">NEW</span></b> (build 32306) — the third tab, and it needs no scan and reads nothing from the tenant. Every night a GitHub Action reads Microsoft's own documentation repository (MicrosoftDocs/entra-docs) and writes what changed for Conditional Access: <b>new pages</b>, <b>changed pages</b> with the commit that changed them (typo, link and bulk edits folded away), and the Conditional Access entries of the Entra <b>what's-new</b> page. When GitHub cannot be reached the tab says so and shows the copy shipped with the build. Pages outside that repository (Teams Rooms, Surface Hub, Defender, Partner Center, Zero Trust) are listed as not watched.</li>
-        <li><b>⚠ A check's page changed</b> (build 32306) — every check carries the date its Learn page was last read against it. When Microsoft changes that page afterwards, the check is flagged: a ⚠ count on the tab, <b>⚠ Learn changed</b> on the finding, and a line at the top of the finding linking the change — the advice below it may be out of date until someone reads the page again.</li>
-        <li><b>Deciding, and the 📋 Work order</b> (build 32306) — each item is decided on its row: <b>✓ Re-verified</b> or <b>✎ Check needs a change</b> for a check's page; <b>＋ New check</b>, <b>↗ Extends a check</b>, <b>✓ Already covered</b> or <b>– Not for ENCA</b> for the rest (the last four, and a needed change, ask for a reason or the check). A decision made here is <b>pending</b> on this browser — undo takes it back — until it is recorded in the site's own decisions file; <b>📋 Work order</b> turns the pending decisions and the work they order into a markdown order to hand over. Recorded decisions fold away on every browser, and a page that changes again after its decision is open again.</li>
-        <li><b>The GitHub issue</b> (build 32306) — the same nightly run keeps one issue labelled <b>learn-feed</b> in the ENCA repository listing what is still undecided. It is rewritten every night, gets a comment only when something new appears, and closes by itself when everything is recorded. It uses the same judgement as this tab, so the two always agree.</li>
+        <li><b>📰 Learn changes <span class="tag new">NEW</span></b> (build 32306, explained on the tab since 32311) — the third tab; it needs no scan and reads nothing from the tenant. <b>Once a week</b> a GitHub Action reads Microsoft's own documentation repository (MicrosoftDocs/entra-docs) and lists what changed for Conditional Access. Your part is only to decide what each change means for ENCA, in three steps that the <b>How this works</b> card at the top of the tab repeats:
+          <ol>
+            <li><b>Read</b> — open an item and click <b>see the diff</b> for exactly which lines Microsoft changed.</li>
+            <li><b>Decide</b> — answer the one question on the item with a button. The answer is kept in this browser, and the status bar counts it as <i>decided, not handed over yet</i>; <b>undo</b> takes it back.</li>
+            <li><b>Hand over</b> — <b>📋 Make work order</b> in the status bar gives you a file to hand to Claude in a session. Claude records your answers — then they leave the tab on every device and the GitHub issue — and builds the check changes you asked for.</li>
+          </ol></li>
+        <li><b>What needs an answer</b> — sections marked <b>answer needed</b>: <b>⚠ A check may be out of date</b> (a Learn page one of ENCA's checks is based on changed after the check was last read — is the check still right? ✓ Still correct or ✎ The check needs a change), <b>New pages</b> and <b>What's new</b> (should ENCA do something with it? ＋ Make it a new check, ↗ Add to an existing check, ✓ Already covered or – Not relevant). Sections marked <b>for reading</b> — changed pages no check depends on, typo and link fixes, other services' notes — need nothing. A choice that orders or dismisses work asks for a note: what changed, which check, or why not.</li>
+        <li><b>What each answer leads to</b> — ✓ Still correct, ✓ Already covered and – Not relevant are no work: once handed over the item is recorded and leaves the list, and it comes back only if Microsoft changes the page again. ✎ The check needs a change, ＋ Make it a new check and ↗ Add to an existing check are work: the work order carries each with its Learn page, the diff and your note, and it is built as a beta build with a queue item and a test.</li>
+        <li><b>On the finding itself</b> — a check whose page changed after it was last read carries <b>⚠ Learn changed</b> on its head in Findings, and a line at the top of its detail linking the change; the advice below may be out of date until the page is read again.</li>
+        <li><b>When</b> — when the GitHub issue <b>📰 Learn changes</b> (label <b>learn-feed</b>, in the ENCA repository) gets a new comment, or on a weekly round. The issue lists everything still undecided, is rewritten by every weekly run, gets a comment only when something new appears, and closes by itself when everything is recorded. If GitHub cannot be reached the tab says so and shows the copy shipped with the build. Pages outside that repository (Teams Rooms, Surface Hub, Defender, Partner Center, Zero Trust) are listed as not watched and are still checked by hand.</li>
         <li><b>Ready for the catalog</b> (build 32303) — the policies a Fix changed are marked ready for <b>🧱 Update the catalog</b> on the Baseline screen. A band on this tab counts them and opens the catalog panel with them ticked, each saying which check it answers; the generated catalog source carries the checks, their Learn pages and the changes as its revision note. <b>Clear</b> empties the list; an entry also leaves by itself once the catalog has caught up with that policy.</li>
         <li><b>✓ Accept with a reason</b> (build 32303) — a finding with nothing to fix automatically, such as the baseline-scopes one, can be accepted with a reason. It folds into <b>Accepted</b> under the findings, kept for this tenant; it reopens by itself when a different set of policies matches, and <b>Reopen</b> puts it back.</li>
         <li><b>Which way the policy is wrong <span class="tag new">NEW</span></b> (build 25460) — the external-identity findings come in two kinds and they need opposite fixes, so each one says which it is. <b>🚫 Blocks them</b>: the control cannot be met by an identity this tenant does not manage, so those users are denied access — the policy is too strict, and the remedy takes them out of its scope. <b>🕳 Misses them</b>: the control is not applied to them at all, so the policy asks them for nothing — too loose, and the remedy brings a requirement that reaches them, since excluding people a policy already asks nothing of changes nothing. That is why four of these findings begin “exclude the guest and external user types” and two begin “exclude nothing”. A finding that is genuinely neither carries no badge rather than a guessed one.</li>
@@ -3463,90 +3469,90 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32310"></script>
-<script src="js/selfhost.js?v=32310"></script>
-<script src="js/version.js?v=32310"></script>
-<script src="js/verdict.js?v=32310"></script>
-<script src="js/fork.js?v=32310"></script>
-<script src="js/promote.js?v=32310"></script>
-<script src="js/authConfig.js?v=32310"></script>
-<script src="js/connection.js?v=32310"></script>
-<script src="js/labels.js?v=32310"></script>
-<script src="js/capabilities.js?v=32310"></script>
-<script src="js/graph.js?v=32310"></script>
-<script src="js/model.js?v=32310"></script>
-<script src="js/render.js?v=32310"></script>
-<script src="js/analyze.js?v=32310"></script>
-<script src="js/whatif.js?v=32310"></script>
-<script src="js/mslearn.js?v=32310"></script>
-<script src="js/learntriage.js?v=32310"></script>
-<script src="js/learnfeed.js?v=32310"></script>
-<script src="js/gapcheck.js?v=32310"></script>
-<script src="js/cisdata.js?v=32310"></script>
-<script src="js/cischeck.js?v=32310"></script>
-<script src="js/exclusions.js?v=32310"></script>
-<script src="js/cascope.js?v=32310"></script>
-<script src="js/coverage.js?v=32310"></script>
-<script src="js/runmeta.js?v=32310"></script>
-<script src="js/overview.js?v=32310"></script>
-<script src="js/validator.js?v=32310"></script>
-<script src="js/whatifeval.js?v=32310"></script>
-<script src="js/builder.js?v=32310"></script>
-<script src="js/onboard.js?v=32310"></script>
-<script src="js/compare.js?v=32310"></script>
-<script src="js/whois.js?v=32310"></script>
-<script src="js/wave.js?v=32310"></script>
-<script src="js/sessionctl.js?v=32310"></script>
-<script src="js/spgap.js?v=32310"></script>
-<script src="js/groupuse.js?v=32310"></script>
-<script src="js/iso3166.js?v=32310"></script>
-<script src="js/causes.js?v=32310"></script>
-<script src="js/locations.js?v=32310"></script>
-<script src="js/authcontexts.js?v=32310"></script>
-<script src="js/authstrengths.js?v=32310"></script>
-<script src="js/recycle.js?v=32310"></script>
-<script src="js/rmau.js?v=32310"></script>
-<script src="js/camap.js?v=32310"></script>
-<script src="js/rmaudoc.js?v=32310"></script>
-<script src="js/termsofuse.js?v=32310"></script>
-<script src="js/audit.js?v=32310"></script>
-<script src="js/drift.js?v=32310"></script>
-<script src="js/guide.js?v=32310"></script>
-<script src="js/userimpact.js?v=32310"></script>
-<script src="js/smsvoice.js?v=32310"></script>
-<script src="js/memberof.js?v=32310"></script>
-<script src="js/devcheck.js?v=32310"></script>
-<script src="js/idscore.js?v=32310"></script>
-<script src="js/licgap.js?v=32310"></script>
-<script src="js/teamsdev.js?v=32310"></script>
-<script src="js/signinstore.js?v=32310"></script>
-<script src="js/signins.js?v=32310"></script>
-<script src="js/reportimpact.js?v=32310"></script>
-<script src="js/changelog.js?v=32310"></script>
-<script src="js/baselineData.js?v=32310"></script>
-<script src="js/baselineJoeyData.js?v=32310"></script>
-<script src="js/baselineLive.js?v=32310"></script>
-<script src="js/baseline.js?v=32310"></script>
-<script src="js/baselineCleanup.js?v=32310"></script>
-<script src="js/groupTemplates.js?v=32310"></script>
-<script src="js/assign.js?v=32310"></script>
-<script src="js/cagroups.js?v=32310"></script>
-<script src="js/groupmerge.js?v=32310"></script>
-<script src="js/groupsview.js?v=32310"></script>
-<script src="js/runledger.js?v=32310"></script>
-<script src="js/protect.js?v=32310"></script>
-<script src="js/policy-compare.js?v=32310"></script>
-<script src="js/import.js?v=32310"></script>
-<script src="js/export.js?v=32310"></script>
-<script src="js/demo.js?v=32310"></script>
-<script src="js/list-detail.js?v=32310"></script>
-<script src="js/flat-icons.js?v=32310"></script>
-<script src="js/workspace.js?v=32310"></script>
-<script src="js/analysis-jobs.js?v=32310"></script>
-<script src="js/search-suggest.js?v=32310"></script>
-<script src="js/app.js?v=32310"></script>
-<script src="js/accessibility.js?v=32310"></script>
-<script src="js/workspaces.js?v=32310"></script>
-<script src="js/tool-layout.js?v=32310"></script>
+<script src="js/branding.js?v=32311"></script>
+<script src="js/selfhost.js?v=32311"></script>
+<script src="js/version.js?v=32311"></script>
+<script src="js/verdict.js?v=32311"></script>
+<script src="js/fork.js?v=32311"></script>
+<script src="js/promote.js?v=32311"></script>
+<script src="js/authConfig.js?v=32311"></script>
+<script src="js/connection.js?v=32311"></script>
+<script src="js/labels.js?v=32311"></script>
+<script src="js/capabilities.js?v=32311"></script>
+<script src="js/graph.js?v=32311"></script>
+<script src="js/model.js?v=32311"></script>
+<script src="js/render.js?v=32311"></script>
+<script src="js/analyze.js?v=32311"></script>
+<script src="js/whatif.js?v=32311"></script>
+<script src="js/mslearn.js?v=32311"></script>
+<script src="js/learntriage.js?v=32311"></script>
+<script src="js/learnfeed.js?v=32311"></script>
+<script src="js/gapcheck.js?v=32311"></script>
+<script src="js/cisdata.js?v=32311"></script>
+<script src="js/cischeck.js?v=32311"></script>
+<script src="js/exclusions.js?v=32311"></script>
+<script src="js/cascope.js?v=32311"></script>
+<script src="js/coverage.js?v=32311"></script>
+<script src="js/runmeta.js?v=32311"></script>
+<script src="js/overview.js?v=32311"></script>
+<script src="js/validator.js?v=32311"></script>
+<script src="js/whatifeval.js?v=32311"></script>
+<script src="js/builder.js?v=32311"></script>
+<script src="js/onboard.js?v=32311"></script>
+<script src="js/compare.js?v=32311"></script>
+<script src="js/whois.js?v=32311"></script>
+<script src="js/wave.js?v=32311"></script>
+<script src="js/sessionctl.js?v=32311"></script>
+<script src="js/spgap.js?v=32311"></script>
+<script src="js/groupuse.js?v=32311"></script>
+<script src="js/iso3166.js?v=32311"></script>
+<script src="js/causes.js?v=32311"></script>
+<script src="js/locations.js?v=32311"></script>
+<script src="js/authcontexts.js?v=32311"></script>
+<script src="js/authstrengths.js?v=32311"></script>
+<script src="js/recycle.js?v=32311"></script>
+<script src="js/rmau.js?v=32311"></script>
+<script src="js/camap.js?v=32311"></script>
+<script src="js/rmaudoc.js?v=32311"></script>
+<script src="js/termsofuse.js?v=32311"></script>
+<script src="js/audit.js?v=32311"></script>
+<script src="js/drift.js?v=32311"></script>
+<script src="js/guide.js?v=32311"></script>
+<script src="js/userimpact.js?v=32311"></script>
+<script src="js/smsvoice.js?v=32311"></script>
+<script src="js/memberof.js?v=32311"></script>
+<script src="js/devcheck.js?v=32311"></script>
+<script src="js/idscore.js?v=32311"></script>
+<script src="js/licgap.js?v=32311"></script>
+<script src="js/teamsdev.js?v=32311"></script>
+<script src="js/signinstore.js?v=32311"></script>
+<script src="js/signins.js?v=32311"></script>
+<script src="js/reportimpact.js?v=32311"></script>
+<script src="js/changelog.js?v=32311"></script>
+<script src="js/baselineData.js?v=32311"></script>
+<script src="js/baselineJoeyData.js?v=32311"></script>
+<script src="js/baselineLive.js?v=32311"></script>
+<script src="js/baseline.js?v=32311"></script>
+<script src="js/baselineCleanup.js?v=32311"></script>
+<script src="js/groupTemplates.js?v=32311"></script>
+<script src="js/assign.js?v=32311"></script>
+<script src="js/cagroups.js?v=32311"></script>
+<script src="js/groupmerge.js?v=32311"></script>
+<script src="js/groupsview.js?v=32311"></script>
+<script src="js/runledger.js?v=32311"></script>
+<script src="js/protect.js?v=32311"></script>
+<script src="js/policy-compare.js?v=32311"></script>
+<script src="js/import.js?v=32311"></script>
+<script src="js/export.js?v=32311"></script>
+<script src="js/demo.js?v=32311"></script>
+<script src="js/list-detail.js?v=32311"></script>
+<script src="js/flat-icons.js?v=32311"></script>
+<script src="js/workspace.js?v=32311"></script>
+<script src="js/analysis-jobs.js?v=32311"></script>
+<script src="js/search-suggest.js?v=32311"></script>
+<script src="js/app.js?v=32311"></script>
+<script src="js/accessibility.js?v=32311"></script>
+<script src="js/workspaces.js?v=32311"></script>
+<script src="js/tool-layout.js?v=32311"></script>
 </body>
 </html>

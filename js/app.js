@@ -20251,7 +20251,7 @@ This is a directory write. Nothing else changes.`)) return;
       <button class="btn primary sm" data-catready-open>Open 🧱 Update the catalog →</button></div>`;
   }
   // ---------- 📰 Learn changes (32306) ----------
-  // The nightly Microsoft Learn feed (js/learnfeed.js), read without a scan
+  // The weekly Microsoft Learn feed (js/learnfeed.js), read without a scan
   // and without a tenant call: raw.githubusercontent.com first, the copy
   // shipped with the build when GitHub cannot be reached. Decisions made here
   // are kept on this browser as PENDING until 📋 Work order carries them to a
@@ -20304,7 +20304,8 @@ This is a directory write. Nothing else changes.`)) return;
   function renderLearn() {
     mlTabsPaint();
     $("mlDisabledWrap").style.display = "none"; $("mlApply").style.display = "none"; $("mlFixZip").style.display = "none";
-    $("mlLearnWo").style.display = lfFeed ? "" : "none";
+    // 32311: the hand-over button lives in the tab's own status bar now
+    $("mlLearnWo").style.display = "none";
     if (!lfFeed) {
       $("mlChips").innerHTML = "";
       $("mlBody").innerHTML = lfLoading
@@ -20315,8 +20316,13 @@ This is a directory write. Nothing else changes.`)) return;
     }
     const r = lfResult();
     $("mlChips").innerHTML = LearnFeed.chips(r, lfFilter);
-    $("mlBody").innerHTML = LearnFeed.render(r, { filter: lfFilter, source: lfSource, error: lfError });
+    let howOpen = true; try { howOpen = localStorage.getItem("enca-lf-how") !== "closed"; } catch { /* default open */ }
+    $("mlBody").innerHTML = LearnFeed.render(r, { filter: lfFilter, source: lfSource, error: lfError, howOpen });
   }
+  // How this works stays as the person left it (open until they fold it)
+  $("mlBody").addEventListener("toggle", (e) => {
+    if (e.target && e.target.matches && e.target.matches("[data-lfhow]")) { try { localStorage.setItem("enca-lf-how", e.target.open ? "open" : "closed"); } catch { /* per view */ } }
+  }, true);
   function lfDecide(key, d, why) {
     const r = lfResult(); if (!r) return;
     const item = lfAll(r).find((x) => x.key === key);
@@ -20392,11 +20398,12 @@ This is a directory write. Nothing else changes.`)) return;
     mlTab = "learn"; renderLearn();
     lfLoad().then(() => { if (mlTab === "learn") renderLearn(); });
   });
-  $("mlLearnWo").addEventListener("click", () => {
+  function lfWorkOrder() {
     const r = lfResult(); if (!r) return;
-    const md = LearnFeed.workOrder(r, { date: lfToday(), source: lfSource === "live" ? "nightly feed" : "copy shipped with the build", build: APP_BUILD.label });
+    const md = LearnFeed.workOrder(r, { date: lfToday(), source: lfSource === "live" ? "weekly feed" : "copy shipped with the build", build: APP_BUILD.label });
     showReport("📋 Learn changes — work order", `ENCA-learn-work-order-${lfToday()}`, md);
-  });
+  }
+  $("mlLearnWo").addEventListener("click", lfWorkOrder);
   $("mlChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-lff]"); if (!b) return;
     lfFilter = b.dataset.lff; renderLearn();
@@ -20404,6 +20411,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("mlBody").addEventListener("click", (e) => {
     const go = e.target.closest("[data-lfgo]");
     if (go) { e.preventDefault(); mlTab = "learn"; lfFilter = "alerts"; renderLearn(); return; }
+    if (e.target.closest("[data-lfwo]")) { lfWorkOrder(); return; }
     if (e.target.closest("[data-lfreload]")) { lfLoad(true).then(() => renderLearn()); renderLearn(); return; }
     const u = e.target.closest("[data-lfundo]");
     if (u) { const loc = lfLocalLoad(); delete loc[u.dataset.lfundo]; lfLocalSave(loc); renderLearn(); return; }
@@ -20413,7 +20421,7 @@ This is a directory write. Nothing else changes.`)) return;
     const why = inp ? inp.value.trim() : "";
     // a decision that orders or dismisses work says why, or which check
     if (!why && ["check-change", "extends", "covered", "not-relevant"].includes(dv)) {
-      toast(dv === "check-change" ? "Say <span>what needs to change</span> first" : dv === "not-relevant" ? "Say <span>why</span> it is not for ENCA first" : "Name <span>the check</span> first");
+      toast(dv === "check-change" ? "Write <span>what changed</span> in the note first" : dv === "not-relevant" ? "Write <span>why</span> it is not relevant in the note first" : "Write <span>which check</span> in the note first");
       if (inp) inp.focus();
       return;
     }

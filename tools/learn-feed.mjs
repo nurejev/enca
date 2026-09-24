@@ -2,7 +2,7 @@
 // ======================================================================
 // learn-feed — what changed on Microsoft Learn for Conditional Access.
 //
-// Run daily by .github/workflows/learn-feed.yml (on main — scheduled
+// Run weekly (Mondays, since 32311) by .github/workflows/learn-feed.yml (on main — scheduled
 // workflows only fire from the default branch). Reads a clone of the
 // public MicrosoftDocs/entra-docs repo, never learn.microsoft.com itself,
 // and writes one JSON file the 📚 MS Learn tool reads at run time from

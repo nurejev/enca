@@ -101,3 +101,23 @@ test("js/learntriage.js keys are well-formed", () => {
     assert.ok(LF.DECISIONS[v.d], `${k}: unknown decision ${v.d}`);
   }
 });
+
+test("32311: the tab explains itself — steps, status bar, a question per item, plain button names", () => {
+  const key = "doc:docs/identity/conditional-access/concept-continuous-access-evaluation.md";
+  const r = LF.classify(FEED, CHECKS, { decisions: {} }, { [key]: { d: "reverified", upTo: "2026-09-22T10:00:00Z", at: "2026-09-24" } });
+  const html = LF.render(r, { filter: "all", source: "live", howOpen: true });
+  assert.match(html, /<details class="lf-how" data-lfhow open>/);
+  assert.match(html, /1<\/span><b>Read<\/b>[\s\S]*2<\/span><b>Decide<\/b>[\s\S]*3<\/span><b>Hand over<\/b>/);
+  assert.match(html, /decided, not handed over yet/);
+  assert.match(html, /data-lfwo>📋 Make work order \(1\)/);
+  assert.match(html, /answer needed/);
+  assert.match(html, /for reading/);
+  assert.match(html, /Should ENCA do something with this new page\?/);
+  assert.match(html, /Decided: ✓ Still correct/);
+  assert.match(html, /＋ Make it a new check/);
+  assert.ok(!/Re-verified|Not for ENCA/.test(html), "old button names gone");
+  assert.doesNotMatch(LF.render(r, { howOpen: false }), /data-lfhow open/);
+  assert.strictEqual(r.counts.undecided, 2);
+  assert.strictEqual(r.counts.pending, 1);
+  assert.strictEqual(LF.STALE_DAYS, 8, "weekly feed");
+});

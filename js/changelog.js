@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32311, date: "2026-09-24", title: "📰 Learn changes explains itself — and runs once a week",
+    items: [
+      { kind: "improved", tool: "Checks", text: "The Learn changes tab now says how it works: a card with the three steps (read the change, decide with one button, hand the work order to Claude), when to do it, and what each answer leads to. A status bar shows how many items are left to decide, how many you decided but have not handed over, and the Make work order button." },
+      { kind: "improved", tool: "Checks", text: "Every section says what it is and whether it needs an answer or is only for reading, and every item asks its question in words — Is the check still right? Should ENCA do something with this page? — above buttons that say what they mean: Still correct, The check needs a change, Make it a new check, Add to an existing check, Already covered, Not relevant." },
+      { kind: "improved", tool: "Checks", text: "Microsoft Learn is now read once a week (Mondays) instead of every night, so the GitHub issue and the tab change at most once a week." },
+    ],
+  },
+  {
     build: 32310, date: "2026-09-24", title: "A branded self-hosted copy no longer flashes Limon-IT on a hard refresh",
     items: [
       { kind: "fixed", tool: "Self-hosting", text: "On a self-hosted copy with its own branding, a hard refresh showed the right logo but the name Limon-IT beside it for a moment, and sometimes the Limon-IT look, until the branding file had been read again. The app now starts from the branding the container wrote into the page (or this browser's copy of it), so the first paint is already the deployment's own name, logo and colours, and the name, footer and sign-in text stay hidden until they are right. The branding file is still read on every load, so a change to it shows without a restart, and a branding that has been removed also disappears on that same load." },
