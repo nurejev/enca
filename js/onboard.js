@@ -48,7 +48,7 @@ const Onboard = (() => {
   const GRAPH_APP = "00000003-0000-0000-c000-000000000000";
   // The delegated permissions New-EncaAppRegistration.ps1 requests — KEEP IN
   // STEP with $DelegatedScopes there (tools/onboard.test.cjs checks it).
-  const SCOPES = ["Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "AdministrativeUnit.ReadWrite.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "Group-NestingSupport.ReadWrite.All", "DirectoryRecommendations.Read.All"];
+  const SCOPES = ["Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "AdministrativeUnit.ReadWrite.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "Group-NestingSupport.ReadWrite.All", "DirectoryRecommendations.Read.All", "CrossTenantInformation.ReadBasic.All"];
   // roles that can register an application AND grant tenant-wide consent to
   // delegated Graph permissions (Cloud Application / Application Administrator
   // can, for delegated permissions; Privileged Role Administrator can consent

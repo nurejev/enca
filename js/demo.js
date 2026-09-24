@@ -225,6 +225,30 @@ const DEMO_DATA = {
   // 25469: the default inbound cross-tenant settings — MFA trusted, device
   // claims not, B2B direct connect blocked (Microsoft's default for it).
   crossTenantDefault: { inboundTrust: { isMfaAccepted: true, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false }, dcInbound: "blocked" },
+  // 🤝 Cross-tenant access (32316): what /policies/crossTenantAccessPolicy
+  // returns, plus the per-partner sync, exists and name reads — example
+  // tenants. Northwind is the service provider above; one tenant is gone.
+  xtenant: {
+    default: { inboundTrust: { isMfaAccepted: true, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false },
+      b2bCollaborationInbound: { usersAndGroups: { accessType: "allowed", targets: [{ target: "AllUsers", targetType: "user" }] }, applications: { accessType: "allowed", targets: [{ target: "AllApplications", targetType: "application" }] } },
+      b2bDirectConnectInbound: { usersAndGroups: { accessType: "blocked", targets: [{ target: "AllUsers", targetType: "user" }] }, applications: { accessType: "blocked", targets: [{ target: "AllApplications", targetType: "application" }] } } },
+    partners: [
+      { tenantId: "a3c1e7d2-5b8f-4e21-9c44-0d6b2f8e1a37", isServiceProvider: false, isInMultiTenantOrganization: false,
+        inboundTrust: { isMfaAccepted: true, isCompliantDeviceAccepted: true, isHybridAzureADJoinedDeviceAccepted: false } },
+      { tenantId: "b8e24f10-3c6a-4d9e-a217-6f5c0b9d3e82", isServiceProvider: false, isInMultiTenantOrganization: true,
+        automaticUserConsentSettings: { inboundAllowed: true, outboundAllowed: true },
+        b2bCollaborationInbound: { usersAndGroups: { accessType: "allowed", targets: [{ target: "grp-fab-1", targetType: "group" }, { target: "grp-fab-2", targetType: "group" }] }, applications: { accessType: "allowed", targets: [{ target: "AllApplications", targetType: "application" }] } } },
+      { tenantId: "c4f9a1b0-6e2d-4c7a-8b13-5a0e9d7f2c64", isServiceProvider: false, isInMultiTenantOrganization: false },
+      { tenantId: "7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009", isServiceProvider: true, isInMultiTenantOrganization: false,
+        inboundTrust: { isMfaAccepted: false, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false } },
+    ],
+    sync: { "a3c1e7d2-5b8f-4e21-9c44-0d6b2f8e1a37": null, "b8e24f10-3c6a-4d9e-a217-6f5c0b9d3e82": { displayName: "Fabrikam Holding", userSyncInbound: { isSyncAllowed: true } },
+      "c4f9a1b0-6e2d-4c7a-8b13-5a0e9d7f2c64": null, "7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009": null },
+    exists: { "a3c1e7d2-5b8f-4e21-9c44-0d6b2f8e1a37": true, "b8e24f10-3c6a-4d9e-a217-6f5c0b9d3e82": true, "c4f9a1b0-6e2d-4c7a-8b13-5a0e9d7f2c64": false, "7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009": true },
+    info: { "a3c1e7d2-5b8f-4e21-9c44-0d6b2f8e1a37": { displayName: "Contoso Partner BV", defaultDomainName: "contoso-partner.example" },
+      "b8e24f10-3c6a-4d9e-a217-6f5c0b9d3e82": { displayName: "Fabrikam Holding", defaultDomainName: "fabrikam.example" },
+      "7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009": { displayName: "Northwind Managed Services", defaultDomainName: "northwind-ms.example" } },
+  },
   serviceProviders: [
     { tenantId: "7f1a0c2e-4b55-4a3c-9d10-2f8e6b41c009", name: "Northwind Managed Services",
       inboundTrust: { isMfaAccepted: false, isCompliantDeviceAccepted: false, isHybridAzureADJoinedDeviceAccepted: false } },

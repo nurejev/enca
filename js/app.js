@@ -182,7 +182,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -311,6 +311,8 @@
                         open: () => openDevCheck() },
     toolIdScore:      { into: "toolGapCheck", label: "🏅 Identity Secure Score",      where: "the Identity score tab",     build: 32308,
                         open: () => openIdScore() },
+    toolXTenant:      { into: "toolGapCheck", label: "🤝 Cross-tenant access",        where: "the Cross-tenant tab",       build: 32316,
+                        open: () => openXTenant() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
                         open: () => openValidator() },
     toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
@@ -449,6 +451,9 @@
         // 32308 (T42): Microsoft's own judgement of the identity setup, next
         // to ENCA's reading of the policies — a reference like the other three
         { key: "idscore", icon: "🏅", name: "Identity score",       toolbar: "isToolbar", open: () => openIdScore(), beta: true },
+        // 32316 (T43): who other tenants can send in and whose MFA / device
+        // claims are trusted — each trust followed into the policies
+        { key: "xtenant", icon: "🤝", name: "Cross-tenant",         toolbar: "xtToolbar", open: () => openXTenant(), beta: true },
       ],
     },
     blocks: {
@@ -2331,6 +2336,9 @@
   // 🏅 Identity Secure Score (32308): what Microsoft returned, kept per tenant
   // and session; the model is rebuilt from it against the policies loaded now
   let isRaw = null, isModel = null, isBusy = false, isErr = null, isFilter = "open";
+  // 🤝 Cross-tenant access (32316): the raw reads, kept per tenant and
+  // session; the model is rebuilt against the policies loaded now
+  let xtRaw = null, xtModel = null, xtBusy = false, xtErr = null, xtFilter = "all", xtStep = "";
   const isExpanded = new Set();
   async function readCaSettings() {
     if (caSettingsCache !== undefined) return caSettingsCache;
@@ -2373,7 +2381,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null;
+      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null;
       signinContext = { tenantId: account?.tenantId || "", at: Date.now(), demo: false, names: names || {}, ...(context || {}) };
       // Results belong to the snapshot they were computed from.
       invalidateToolResults("policies reloaded");
@@ -2446,7 +2454,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null;
+    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null;
     {
       const at = Date.now();
       const strengths = Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
@@ -21167,6 +21175,128 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("isRefresh").addEventListener("click", () => runIdScore());
   $("isMd").addEventListener("click", () => { if (isModel) showReport("🏅 Identity Secure Score", `ENCA-identity-secure-score-${new Date().toISOString().slice(0, 10)}`, IdScore.toMd(isModel, tenantName)); });
+
+  // ---------- 🤝 Cross-tenant access (32316, T43) ----------
+  // The checks of Get-CrossTenantAccessReview.ps1 (cdell2222/m365-security-
+  // toolkit, MIT), read in the browser, with each inbound trust followed into
+  // the policies loaded now (js/xtenant.js). Read on ▶ and kept for the
+  // session. Read-only: cross-tenant settings are changed in the portal.
+  let xtOpts = { exists: true, names: false };
+  try { const o = JSON.parse(localStorage.getItem("enca.xtOpts") || "null"); if (o) xtOpts = { exists: o.exists !== false, names: !!o.names }; } catch { /* defaults */ }
+  function xtRebuild() {
+    if (!xtRaw) { xtModel = null; return; }
+    xtModel = XTenant.analyze(xtRaw.input, policies.map((p) => p.raw), { readAt: xtRaw.at, demo: xtRaw.demo });
+  }
+  const XT_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Who other Entra tenants can send into this one, and whose MFA and device claims this tenant has agreed to trust — the default policy, every partner entry, cross-tenant sync and automatic redemption — with each trust followed into the Conditional Access policies it satisfies. Checks adapted from cdell2222/m365-security-toolkit (MIT). Nothing here changes the tenant.</p>';
+  function xtPaintOpts() {
+    $("xtOpts").innerHTML = `<label class="mini xt-opt" title="Asks Microsoft's public sign-in endpoint for each partner tenant ID — the lookup any sign-in page makes. No permission needed."><input type="checkbox" data-xtopt="exists" ${xtOpts.exists ? "checked" : ""}> Check partner tenants still exist</label>`
+      + `<label class="mini xt-opt" title="Looks up each partner's name and default domain. Asks for CrossTenantInformation.ReadBasic.All once (read-only)."><input type="checkbox" data-xtopt="names" ${xtOpts.names ? "checked" : ""}> Show partner names</label>`;
+  }
+  function openXTenant() {
+    crumb("🛡 Checks");
+    show("screen-xtenant");
+    mountToolTabs("checks", "xtenant");
+    $("xtHead").innerHTML = toolHead("toolXTenant") + XT_HEAD_TEXT;
+    xtPaintOpts();
+    if (xtRaw) { renderXTenant(); return; }
+    $("xtChips").innerHTML = ""; $("xtMd").style.display = "none"; $("xtCsv").style.display = "none";
+    $("xtBody").innerHTML = xtBusy
+      ? `<p class="mini" style="padding:16px">${esc(xtStep || "Reading cross-tenant access settings…")}</p>`
+      : `${xtErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(xtErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-xtrun>▶ Read cross-tenant access</button>
+        <p class="mini muted">Reads the cross-tenant access default policy, the partner entries and each partner's cross-tenant sync setting (Policy.Read.All, already granted). The two options in the toolbar add the tenant-exists check and partner names. Exchange organization relationships — the toolkit's second script — have no Graph API and are not read. Results stay until you refresh.</p></div>`;
+  }
+  function renderXTenant() {
+    xtRebuild();
+    if (!xtModel) return;
+    $("xtChips").innerHTML = XTenant.chips(xtModel, xtFilter);
+    $("xtMd").style.display = ""; $("xtCsv").style.display = "";
+    $("xtBody").innerHTML = XTenant.render(xtModel, { filter: xtFilter });
+  }
+  function xtProgress(msg) {
+    xtStep = msg;
+    if (xtBusy && $("screen-xtenant").classList.contains("active") && !xtRaw) $("xtBody").innerHTML = `<p class="mini" style="padding:16px">${esc(msg)}</p>`;
+  }
+  // true = the tenant answers, false = Entra says it does not exist
+  // (AADSTS90002), null = no answer this browser could read. Only false is a
+  // finding; a blocked or timed-out request is "not checked", never "gone".
+  async function xtTenantExists(id) {
+    if (!XTenant.GUID.test(id || "")) return null;
+    try {
+      const r = await fetch(`https://login.microsoftonline.com/${id}/v2.0/.well-known/openid-configuration`, { credentials: "omit", signal: AbortSignal.timeout(10000) });
+      if (r.ok) return true;
+      if (r.status === 400 || r.status === 404) {
+        const t = await r.text().catch(() => "");
+        return /AADSTS90002|invalid_tenant/i.test(t) ? false : null;
+      }
+      return null;
+    } catch { return null; }
+  }
+  async function runXTenant() {
+    if (xtBusy) return;
+    // consent first, while the click is still fresh (see preConsent)
+    const nameSc = [...AUTH_CONFIG.scopes, ...XTenant.NAME_SCOPES];
+    let wantNames = xtOpts.names && !isDemo;
+    if (wantNames && !await preConsent(nameSc)) wantNames = false;
+    xtBusy = true; xtErr = null; xtStep = "";
+    if ($("screen-xtenant").classList.contains("active")) openXTenant();
+    try {
+      let input;
+      if (isDemo) {
+        const D = DEMO_DATA.xtenant || {};
+        input = { defaultOk: true, def: D.default || {}, partnersOk: true, partners: D.partners || [], sync: D.sync || {},
+          exists: xtOpts.exists ? (D.exists || {}) : {}, existsChecked: xtOpts.exists, info: xtOpts.names ? (D.info || {}) : {}, namesRead: xtOpts.names, error: "" };
+      } else {
+        input = { defaultOk: false, def: null, partnersOk: false, partners: [], sync: {}, exists: {}, existsChecked: false, info: {}, namesRead: false, error: "" };
+        xtProgress("Reading the cross-tenant access default policy and partners…");
+        try { input.def = await Graph.gget("/policies/crossTenantAccessPolicy/default"); input.defaultOk = true; }
+        catch (e) { input.error = e.message || String(e); }
+        try { input.partners = [...await Graph.ggetAll("/policies/crossTenantAccessPolicy/partners")]; input.partnersOk = true; }
+        catch (e) { input.error = input.error || e.message || String(e); }
+        if (!input.defaultOk && !input.partnersOk) throw new Error(input.error || "not read");
+        const ids = input.partners.map((p) => p.tenantId).filter((id) => XTenant.GUID.test(id || ""));
+        if (ids.length) {
+          xtProgress(`Reading cross-tenant sync for ${ids.length} partner${ids.length === 1 ? "" : "s"}…`);
+          // 404 = no sync configured for this partner; any other error leaves it unread (shown as ?)
+          await Graph.mapLimit(ids, 4, async (id) => {
+            try { input.sync[id] = await Graph.gget(`/policies/crossTenantAccessPolicy/partners/${id}/identitySynchronization`); }
+            catch (e) { if (/\(404\)/.test(e.message || "")) input.sync[id] = null; }
+          });
+          if (xtOpts.exists) {
+            xtProgress(`Checking that ${ids.length} partner tenant${ids.length === 1 ? "" : "s"} still exist…`);
+            await Graph.mapLimit(ids, 4, async (id) => { input.exists[id] = await xtTenantExists(id); });
+            input.existsChecked = true;
+          }
+          if (wantNames) {
+            xtProgress("Looking up partner names…");
+            await Graph.mapLimit(ids, 4, async (id) => {
+              try { input.info[id] = await Graph.gget(`/tenantRelationships/findTenantInformationByTenantId(tenantId='${id}')`, nameSc); } catch { /* the id stays */ }
+            });
+            input.namesRead = true;
+          }
+        }
+      }
+      xtRaw = { input, at: Date.now(), demo: isDemo };
+      xtRebuild();
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      xtErr = /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "")
+        ? "access denied: the signed-in account needs Security Reader, Global Reader or a similar role that can read cross-tenant access settings"
+        : m;
+      xtRaw = null; xtModel = null;
+    } finally { xtBusy = false; xtStep = ""; }
+    if ($("screen-xtenant").classList.contains("active")) { if (xtRaw) renderXTenant(); else openXTenant(); }
+    if (xtModel) toast(`Cross-tenant access <span>${xtModel.counts.high} high · ${xtModel.counts.medium} medium</span>`);
+  }
+  $("xtChips").addEventListener("click", (e) => { const b = e.target.closest("[data-xtf]"); if (!b) return; xtFilter = b.dataset.xtf; renderXTenant(); });
+  $("xtBody").addEventListener("click", (e) => { if (e.target.closest("[data-xtrun]")) runXTenant(); });
+  $("xtOpts").addEventListener("change", (e) => {
+    const c = e.target.closest("[data-xtopt]"); if (!c) return;
+    xtOpts[c.dataset.xtopt] = c.checked;
+    try { localStorage.setItem("enca.xtOpts", JSON.stringify(xtOpts)); } catch { /* per-viewer convenience only */ }
+  });
+  $("xtRefresh").addEventListener("click", () => runXTenant());
+  $("xtMd").addEventListener("click", () => { if (xtModel) showReport("🤝 Cross-tenant access", `ENCA-cross-tenant-access-${new Date().toISOString().slice(0, 10)}`, XTenant.toMd(xtModel, tenantName)); });
+  $("xtCsv").addEventListener("click", () => { if (xtModel) downloadText("ENCA-cross-tenant-access", "csv", "text/csv", XTenant.toCsv(xtModel)); });
 
   function openCis() {
     crumb("🛡 Checks");

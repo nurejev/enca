@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32316, date: "2026-09-24", title: "🤝 Cross-tenant access in Checks",
+    items: [
+      { kind: "new", tool: "Checks", text: "A new Cross-tenant tab in 🛡 Checks reviews who other Entra tenants can send in and whose MFA and device claims you trust: the default policy, every partner entry, cross-tenant sync, automatic invitation redemption, service-provider entries and partner entries that override nothing — graded High, Medium and Info. The checks come from Charlie Delmotte's open-source m365-security-toolkit." },
+      { kind: "new", tool: "Checks", text: "Each trust is followed into your policies: the default and every partner show which enabled and report-only policies their trusted MFA or device claims satisfy, and trusting MFA or devices from every tenant is High only when an enabled policy relies on it today." },
+      { kind: "new", tool: "Checks", text: "Optional: check that every partner tenant still exists (Microsoft's public sign-in endpoint, no permission needed) and look up partner names (one extra read-only permission, asked once). Export as Markdown or CSV. Nothing is changed in the tenant." },
+    ],
+  },
+  {
     build: 32315, date: "2026-09-24", title: "MS Learn guest findings and the guest matrix agree",
     items: [
       { kind: "fixed", tool: "MS Learn", text: "A policy with an authentication strength that reaches Other external users no longer reports them as High, blocks them. A strength applies only to Entra-authenticated externals, so those users are missed by it, not blocked: the matrix shows n/a and the finding about the strength not reaching every external user covers them." },

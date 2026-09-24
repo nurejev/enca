@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32315"></script>
+<script src="js/popup-guard.js?v=32316"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32315" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32315">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32316" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32316">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32315"></script>
+<script src="js/selfhost-boot.js?v=32316"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32315"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32315"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32315">
-<link rel="stylesheet" href="css/workspaces.css?v=32315">
-<link rel="stylesheet" href="css/tool-layout.css?v=32315">
-<link rel="stylesheet" href="css/list-detail.css?v=32315">
-<link rel="stylesheet" href="css/flat-icons.css?v=32315">
+<script src="js/counter.js?v=32316"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32316"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32316">
+<link rel="stylesheet" href="css/workspaces.css?v=32316">
+<link rel="stylesheet" href="css/tool-layout.css?v=32316">
+<link rel="stylesheet" href="css/list-detail.css?v=32316">
+<link rel="stylesheet" href="css/flat-icons.css?v=32316">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32315" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32316" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32315" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32316" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -374,6 +374,8 @@
         <li><b><a href="https://www.tiagoscarvalho.com/scripts-automation/ca-exclusions-audit" target="_blank" rel="noopener noreferrer">Audit Conditional Access Exclusions with PowerShell</a></b> — by <b>Tiago S. Carvalho</b>.
           The governance flag patterns behind the <b>Risk review</b> in the Exclusion analyzer: privileged roles excluded, all-guest exclusions,
           direct user exclusions, oversized exclusion lists, stale disabled accounts and report-only exclusions.</li>
+        <li><b><a href="https://github.com/cdell2222/m365-security-toolkit" target="_blank" rel="noopener noreferrer">M365 Security Toolkit</a></b> — by <b>Charlie Delmotte</b>. The checks behind the <b>Cross-tenant</b> tab of 🛡 Checks:
+          default and partner cross-tenant access, trusted external MFA and devices, cross-tenant sync, automatic redemption and dead partner entries.</li>
         <li><b>⬇ Export baseline <span class="tag new">NEW</span></b> (build 25463) — on the reference tenant only. The same export 🗄 Backup gives on the Policies screen, opened from here and with a <b>persona chooser</b>: only the personas this tenant holds, each with its count, and the policy and dependency totals move as you tick. <b>Dependencies</b> — groups, authentication strengths, named locations, authentication contexts, terms of use, in per-category folders with the migration table — are ticked when it opens, because a baseline taken elsewhere without them is not taken. With nothing ticked it says zero and will not download.</li>
         <li><b><a href="https://www.chanceofsecurity.com/post/microsoft-entra-conditional-access" target="_blank" rel="noopener noreferrer">Microsoft Entra Conditional Access blog series</a></b> — by <b>Sebastian F. Markdanner</b> (Chance of Security).
           A deep, practical walk-through of designing a persona-based Conditional Access framework; several of his policy designs also informed the CloudFellows baseline bundled here.</li>
@@ -1429,6 +1431,21 @@
     <div class="tool-body" id="isBody"></div>
   </section>
 
+  <!-- ============ 🤝 CROSS-TENANT ACCESS (T43, build 32316) — a tab of 🛡 Checks ============ -->
+  <section id="screen-xtenant" class="screen tool">
+    <div class="list-card readme" id="xtHead"></div>
+    <div class="toolbar" id="xtToolbar">
+      <div class="chip-filter" id="xtChips"></div>
+      <div class="xt-opts" id="xtOpts"></div>
+      <div class="tb-actions">
+        <button class="btn" id="xtRefresh" title="Read the cross-tenant access settings again from Microsoft Graph">⟳ Refresh</button>
+        <button class="btn" id="xtMd" style="display:none">Export MD</button>
+        <button class="btn" id="xtCsv" style="display:none">Export CSV</button>
+      </div>
+    </div>
+    <div class="tool-body" id="xtBody"></div>
+  </section>
+
   <section id="screen-devcheck" class="screen tool">
     <div class="list-card readme" id="dvHead"></div>
     <div class="toolbar" id="dvToolbar">
@@ -1489,6 +1506,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R65</span> 🤝 Cross-tenant access, read next to the policies <span class="tag ok">in beta today · beta 32316</span></h4>
+            <p class="mini" style="margin:0">A Cross-tenant tab in 🛡 Checks runs the checks of the open-source m365-security-toolkit (Charlie Delmotte, MIT): the default policy and every partner entry, trusted MFA and devices, cross-tenant sync, automatic redemption, dead partner tenants and entries that override nothing. ENCA adds where the trust lands — which policies a trusted MFA or device claim from another tenant satisfies. Read-only. Graduates once it has been read on a few real tenants with partner entries, including one with cross-tenant sync and one where a partner tenant no longer exists or the exists check was confirmed to degrade to not checked.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R64</span> 🏅 Identity Secure Score, next to the policies <span class="tag ok">in beta today · beta 32308</span></h4>
             <p class="mini" style="margin:0">Microsoft Entra's Identity Secure Score on the home page and as a tab of 🛡 Checks: the percentage and its trend, the recommendations behind it, and for every recommendation Conditional Access answers, what ENCA sees — the policy that does it and whether it is On, report-only, built but Off, or missing. Read-only. Graduates once it has been read on a few real tenants, including one where the account lacks the reader role.</p>
@@ -2080,6 +2101,19 @@
         <li><b>Read-only.</b> The API can mark a recommendation planned, dismissed or risk-accepted; this tool never does — status changes are made in the Entra admin center. <b>📄 Export MD</b> writes the list for the review record.</li>
       </ul>
       <p class="help-x">Needs <code>DirectoryRecommendations.Read.All</code> (read-only, admin consent once), asked on the click, and a role that can read it — Reports Reader, Security Reader, Global Reader, Security Operator, Security Administrator, Application Administrator or Cloud Application Administrator. The recommendations API is Microsoft Graph beta.</p>
+          <h5>🤝 Cross-tenant access <span class="tag new">BETA</span> <span class="help-fold">a tab of this tool — build 32316</span></h5>
+      <p>How other Microsoft Entra tenants reach into this one — the cross-tenant access default policy and every partner entry — and whose MFA and device decisions this tenant has agreed to trust. The checks are those of <a href="https://github.com/cdell2222/m365-security-toolkit" target="_blank" rel="noopener noreferrer">Get-CrossTenantAccessReview.ps1</a> by Charlie Delmotte (m365-security-toolkit, MIT), reimplemented in the browser.</p>
+      <ul>
+        <li><b>▶ Read cross-tenant access</b> — the tab waits until you ask. It reads the default policy, the partner entries and each partner's cross-tenant sync setting; the result stays for the session until ⟳ Refresh.</li>
+        <li><b>Default policy</b> — guest access and Teams shared-channel (B2B direct connect) access inbound, and whether MFA, compliant devices and hybrid-joined devices from ANY other tenant are trusted. <b>What this trust does to your policies</b> lists the enabled and report-only policies whose MFA, authentication strength or device requirement a B2B user from such a tenant satisfies with a claim made at home.</li>
+        <li><b>Partners</b> — per entry: whether the tenant still exists, guest access inbound, MFA and device trust (marked <i>(default)</i> where the entry inherits it — trust is inherited flag by flag), cross-tenant sync inbound, automatic redemption, CSP and multitenant-organization markers, and <b>Reaches your CA</b>: how many policies its trusted claims satisfy.</li>
+        <li><b>Findings</b> — High, Medium and Info as the script grades them, with two deliberate differences: default MFA or device trust is <b>High</b> only when an enabled policy relies on it today (Medium while nothing does), and guests being invitable from any tenant is <b>Info</b>, because it is Microsoft's default.</li>
+        <li><b>Check partner tenants still exist</b> (on by default) — asks Microsoft's public sign-in endpoint for each partner tenant ID, the same lookup any sign-in page makes; no permission needed. A tenant this browser could not check reads <i>not checked</i>, never gone.</li>
+        <li><b>Show partner names</b> (off by default) — looks up each partner's name and default domain, asking for <code>CrossTenantInformation.ReadBasic.All</code> once. Without it a partner shows its tenant ID, or the name its sync configuration carries.</li>
+        <li><b>Not covered</b> — the toolkit's second script, Get-CrossTenantInventory.ps1, reads Exchange organization relationships (cross-tenant Free/Busy) through the Exchange Online PowerShell module. Microsoft Graph has no API for them, so that stays a PowerShell job.</li>
+        <li><b>Read-only.</b> Nothing is changed; cross-tenant settings are edited in Entra ID → External Identities → Cross-tenant access settings. <b>Export MD</b> and <b>Export CSV</b> write the findings for the review record.</li>
+      </ul>
+      <p class="help-x">Needs <code>Policy.Read.All</code> (part of sign-in) and a role that can read cross-tenant access settings — Security Reader, Global Reader or Security Administrator; Teams and Global Secure Access administrators cannot read the sync setting. Optional: <code>CrossTenantInformation.ReadBasic.All</code> for partner names.</p>
     </section>
 
 
@@ -2296,10 +2330,10 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T42</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T43</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
-        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T42</code> is next.</li>
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T44</code> is next.</li>
         <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty-one numbers have no tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 25338)</li>
@@ -2324,6 +2358,7 @@
             <li><code>T35</code> 📞 Teams devices → <b>👥 Conditional Access groups</b>, the 📞 Rule action on the TeamsSharedDevices row (build 25349)</li>
             <li><code>T41</code> 🏗 Policy builder → <b>🧩 Policy building blocks</b>, Builder tab (build 25437 — born there, never a tile)</li>
             <li><code>T42</code> 🏅 Identity Secure Score → <b>🛡 Checks</b>, Identity score tab (build 32308 — born there, never a tile)</li>
+            <li><code>T43</code> 🤝 Cross-tenant access → <b>🛡 Checks</b>, Cross-tenant tab (build 32316 — born there, never a tile)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The newest two</b> — <code>T40</code> ↗ Guided rollout is a tile of its own; <code>T41</code> 🏗 Policy builder is the one number that never had a tile: it was born as the Builder tab of 🧩 Policy building blocks, and is listed above with the folded tools for that reason.</li>
@@ -3471,91 +3506,92 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32315"></script>
-<script src="js/selfhost.js?v=32315"></script>
-<script src="js/version.js?v=32315"></script>
-<script src="js/verdict.js?v=32315"></script>
-<script src="js/fork.js?v=32315"></script>
-<script src="js/promote.js?v=32315"></script>
-<script src="js/authConfig.js?v=32315"></script>
-<script src="js/connection.js?v=32315"></script>
-<script src="js/labels.js?v=32315"></script>
-<script src="js/capabilities.js?v=32315"></script>
-<script src="js/graph.js?v=32315"></script>
-<script src="js/model.js?v=32315"></script>
-<script src="js/render.js?v=32315"></script>
-<script src="js/analyze.js?v=32315"></script>
-<script src="js/whatif.js?v=32315"></script>
-<script src="js/mslearn.js?v=32315"></script>
-<script src="js/learntriage.js?v=32315"></script>
-<script src="js/learnfeed.js?v=32315"></script>
-<script src="js/gapcheck.js?v=32315"></script>
-<script src="js/cisdata.js?v=32315"></script>
-<script src="js/cischeck.js?v=32315"></script>
-<script src="js/exclusions.js?v=32315"></script>
-<script src="js/cascope.js?v=32315"></script>
-<script src="js/coverage.js?v=32315"></script>
-<script src="js/runmeta.js?v=32315"></script>
-<script src="js/overview.js?v=32315"></script>
-<script src="js/validator.js?v=32315"></script>
-<script src="js/whatifeval.js?v=32315"></script>
-<script src="js/builder.js?v=32315"></script>
-<script src="js/onboard.js?v=32315"></script>
-<script src="js/compare.js?v=32315"></script>
-<script src="js/whois.js?v=32315"></script>
-<script src="js/wave.js?v=32315"></script>
-<script src="js/sessionctl.js?v=32315"></script>
-<script src="js/spgap.js?v=32315"></script>
-<script src="js/groupuse.js?v=32315"></script>
-<script src="js/iso3166.js?v=32315"></script>
-<script src="js/causes.js?v=32315"></script>
-<script src="js/locations.js?v=32315"></script>
-<script src="js/authcontexts.js?v=32315"></script>
-<script src="js/authstrengths.js?v=32315"></script>
-<script src="js/recycle.js?v=32315"></script>
-<script src="js/rmau.js?v=32315"></script>
-<script src="js/camap.js?v=32315"></script>
-<script src="js/rmaudoc.js?v=32315"></script>
-<script src="js/termsofuse.js?v=32315"></script>
-<script src="js/audit.js?v=32315"></script>
-<script src="js/drift.js?v=32315"></script>
-<script src="js/guide.js?v=32315"></script>
-<script src="js/userimpact.js?v=32315"></script>
-<script src="js/smsvoice.js?v=32315"></script>
-<script src="js/memberof.js?v=32315"></script>
-<script src="js/devcheck.js?v=32315"></script>
-<script src="js/idscore.js?v=32315"></script>
-<script src="js/licgap.js?v=32315"></script>
-<script src="js/teamsdev.js?v=32315"></script>
-<script src="js/signinstore.js?v=32315"></script>
-<script src="js/signins.js?v=32315"></script>
-<script src="js/reportimpact.js?v=32315"></script>
-<script src="js/changelog.js?v=32315"></script>
-<script src="js/baselineData.js?v=32315"></script>
-<script src="js/baselineJoeyData.js?v=32315"></script>
-<script src="js/baselineLive.js?v=32315"></script>
-<script src="js/baseline.js?v=32315"></script>
-<script src="js/baselineCleanup.js?v=32315"></script>
-<script src="js/groupTemplates.js?v=32315"></script>
-<script src="js/assign.js?v=32315"></script>
-<script src="js/cagroups.js?v=32315"></script>
-<script src="js/groupmerge.js?v=32315"></script>
-<script src="js/groupsview.js?v=32315"></script>
-<script src="js/runledger.js?v=32315"></script>
-<script src="js/protect.js?v=32315"></script>
-<script src="js/policy-compare.js?v=32315"></script>
-<script src="js/import.js?v=32315"></script>
-<script src="js/export.js?v=32315"></script>
-<script src="js/demo.js?v=32315"></script>
-<script src="js/list-detail.js?v=32315"></script>
-<script src="js/flat-icons.js?v=32315"></script>
-<script src="js/workspace.js?v=32315"></script>
-<script src="js/analysis-jobs.js?v=32315"></script>
-<script src="js/search-suggest.js?v=32315"></script>
-<script src="js/app.js?v=32315"></script>
-<script src="js/col-resize.js?v=32315"></script>
-<script src="js/accessibility.js?v=32315"></script>
-<script src="js/workspaces.js?v=32315"></script>
-<script src="js/tool-layout.js?v=32315"></script>
+<script src="js/branding.js?v=32316"></script>
+<script src="js/selfhost.js?v=32316"></script>
+<script src="js/version.js?v=32316"></script>
+<script src="js/verdict.js?v=32316"></script>
+<script src="js/fork.js?v=32316"></script>
+<script src="js/promote.js?v=32316"></script>
+<script src="js/authConfig.js?v=32316"></script>
+<script src="js/connection.js?v=32316"></script>
+<script src="js/labels.js?v=32316"></script>
+<script src="js/capabilities.js?v=32316"></script>
+<script src="js/graph.js?v=32316"></script>
+<script src="js/model.js?v=32316"></script>
+<script src="js/render.js?v=32316"></script>
+<script src="js/analyze.js?v=32316"></script>
+<script src="js/whatif.js?v=32316"></script>
+<script src="js/mslearn.js?v=32316"></script>
+<script src="js/learntriage.js?v=32316"></script>
+<script src="js/learnfeed.js?v=32316"></script>
+<script src="js/gapcheck.js?v=32316"></script>
+<script src="js/cisdata.js?v=32316"></script>
+<script src="js/cischeck.js?v=32316"></script>
+<script src="js/exclusions.js?v=32316"></script>
+<script src="js/cascope.js?v=32316"></script>
+<script src="js/coverage.js?v=32316"></script>
+<script src="js/runmeta.js?v=32316"></script>
+<script src="js/overview.js?v=32316"></script>
+<script src="js/validator.js?v=32316"></script>
+<script src="js/whatifeval.js?v=32316"></script>
+<script src="js/builder.js?v=32316"></script>
+<script src="js/onboard.js?v=32316"></script>
+<script src="js/compare.js?v=32316"></script>
+<script src="js/whois.js?v=32316"></script>
+<script src="js/wave.js?v=32316"></script>
+<script src="js/sessionctl.js?v=32316"></script>
+<script src="js/spgap.js?v=32316"></script>
+<script src="js/groupuse.js?v=32316"></script>
+<script src="js/iso3166.js?v=32316"></script>
+<script src="js/causes.js?v=32316"></script>
+<script src="js/locations.js?v=32316"></script>
+<script src="js/authcontexts.js?v=32316"></script>
+<script src="js/authstrengths.js?v=32316"></script>
+<script src="js/recycle.js?v=32316"></script>
+<script src="js/rmau.js?v=32316"></script>
+<script src="js/camap.js?v=32316"></script>
+<script src="js/rmaudoc.js?v=32316"></script>
+<script src="js/termsofuse.js?v=32316"></script>
+<script src="js/audit.js?v=32316"></script>
+<script src="js/drift.js?v=32316"></script>
+<script src="js/guide.js?v=32316"></script>
+<script src="js/userimpact.js?v=32316"></script>
+<script src="js/smsvoice.js?v=32316"></script>
+<script src="js/memberof.js?v=32316"></script>
+<script src="js/devcheck.js?v=32316"></script>
+<script src="js/idscore.js?v=32316"></script>
+<script src="js/xtenant.js?v=32316"></script>
+<script src="js/licgap.js?v=32316"></script>
+<script src="js/teamsdev.js?v=32316"></script>
+<script src="js/signinstore.js?v=32316"></script>
+<script src="js/signins.js?v=32316"></script>
+<script src="js/reportimpact.js?v=32316"></script>
+<script src="js/changelog.js?v=32316"></script>
+<script src="js/baselineData.js?v=32316"></script>
+<script src="js/baselineJoeyData.js?v=32316"></script>
+<script src="js/baselineLive.js?v=32316"></script>
+<script src="js/baseline.js?v=32316"></script>
+<script src="js/baselineCleanup.js?v=32316"></script>
+<script src="js/groupTemplates.js?v=32316"></script>
+<script src="js/assign.js?v=32316"></script>
+<script src="js/cagroups.js?v=32316"></script>
+<script src="js/groupmerge.js?v=32316"></script>
+<script src="js/groupsview.js?v=32316"></script>
+<script src="js/runledger.js?v=32316"></script>
+<script src="js/protect.js?v=32316"></script>
+<script src="js/policy-compare.js?v=32316"></script>
+<script src="js/import.js?v=32316"></script>
+<script src="js/export.js?v=32316"></script>
+<script src="js/demo.js?v=32316"></script>
+<script src="js/list-detail.js?v=32316"></script>
+<script src="js/flat-icons.js?v=32316"></script>
+<script src="js/workspace.js?v=32316"></script>
+<script src="js/analysis-jobs.js?v=32316"></script>
+<script src="js/search-suggest.js?v=32316"></script>
+<script src="js/app.js?v=32316"></script>
+<script src="js/col-resize.js?v=32316"></script>
+<script src="js/accessibility.js?v=32316"></script>
+<script src="js/workspaces.js?v=32316"></script>
+<script src="js/tool-layout.js?v=32316"></script>
 </body>
 </html>

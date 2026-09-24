@@ -117,6 +117,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 290,
+      title: "🤝 Cross-tenant access — T43, a tab of 🛡 Checks (checks from cdell2222/m365-security-toolkit)",
+      tools: ["Checks"],
+      builds: [32316],
+      risk: "medium",
+      what: "js/xtenant.js (new, pure: analyze, reachTypes, effTrust, render, chips, toMd, toCsv) with its script tag; js/app.js: xtRaw/xtModel state beside isRaw (reset on both tenant loads), openXTenant/renderXTenant/runXTenant/xtTenantExists, the checks TAB_HOSTS tab (beta: true), the FOLDED entry for the command palette, screen-xtenant in HISTORY_SCREENS, the two options kept per browser in localStorage enca.xtOpts; index.html: screen-xtenant, the Help h5 under 🛡 Checks, the credits line, T43 in Tool numbers, roadmap R65; js/demo.js DEMO_DATA.xtenant; css/app.css the xt- block; CrossTenantInformation.ReadBasic.All added to New-EncaAppRegistration.ps1, js/onboard.js and README; tools/xtenant.test.cjs.",
+      why: "Mihai, 24 Sep: can we add these checks to enca — github.com/cdell2222/m365-security-toolkit; on the mockup he chose a tab in Checks, with the tenant-exists check, partner names and the Reaches your CA column. Medium: one new optional read-only permission and requests from the browser to Microsoft's public sign-in endpoint; nothing is written to the tenant. Unverified: whether that endpoint's NOT-FOUND answer is readable cross-origin — if it is not, a dead partner reads not checked instead of gone, which is the safe direction.",
+      test: [
+        "Beta site, a real tenant with at least two partner entries, signed in as Global Reader or Security Reader: 🛡 Checks → 🤝 Cross-tenant → ▶ Read. The Default policy card matches Entra ID → External Identities → Cross-tenant access settings → Default settings (B2B collaboration inbound, B2B direct connect inbound, Trust settings).",
+        "The Partners table has one row per entry under Organizational settings. Open one partner's Trust settings in the portal: MFA and device trust match, and a partner still on Default settings shows (default) in those columns.",
+        "Exists: every live partner reads ✓, and DevTools → Network shows the openid-configuration requests to login.microsoftonline.com answered 200. Then, in the console, fetch('https://login.microsoftonline.com/00000000-0000-0000-0000-000000000001/v2.0/.well-known/openid-configuration').then(r => r.status) — 400 means a dead partner will read gone; a CORS error means it will read not checked. Record which.",
+        "Tick Show partner names and ⟳ Refresh: the consent prompt for CrossTenantInformation.ReadBasic.All appears once; after it the rows carry the partner's name and default domain. Refuse it on another run: the tab still reads, with IDs.",
+        "Reaches your CA: in a tenant where default MFA trust is on and an enabled policy asks guests for MFA, the default MFA finding is High and names that policy; where only report-only policies or none ask, it is Medium and says so.",
+        "A partner with cross-tenant sync inbound (a multitenant organization) shows Sync in ✓ with a Medium finding; a CSP partner shows Info and no overrides-nothing finding.",
+        "Signed in with an account that cannot read cross-tenant access settings: the tab says access denied and why; the other Checks tabs are unchanged. Switch tenant: the tab goes back to ▶ Read.",
+        "Export MD and Export CSV open the report and download the findings. Demo (?demo=1): four partners — Contoso (device trust, Medium), Fabrikam (sync and auto-redeem, MTO), a gone tenant (High) and Northwind (CSP, Info).",
+      ],
+      files: ["js/xtenant.js", "js/app.js", "js/demo.js", "js/onboard.js", "index.html", "css/app.css", "New-EncaAppRegistration.ps1", "README.md", "tools/xtenant.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 289,
       title: "MS Learn: guest findings and the guest matrix give one judgement",
       tools: ["MS Learn"],
