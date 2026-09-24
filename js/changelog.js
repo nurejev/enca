@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32313, date: "2026-09-24", title: "A branded look in dark mode no longer keeps ENCA's green edges",
+    items: [
+      { kind: "fixed", tool: "Self-hosting", text: "Under a custom branding in dark mode, a few neutral colours stayed ENCA green because a branding file rarely names them: chip borders, the switch track, not-applicable and faint text, and ghost borders. They are now mixed from the branding's own colours, so a blue brand stays blue throughout. A branding that sets one of them itself still wins, ENCA's own look is unchanged, and meaning colours (green for protected, red for a problem) stay as they are." },
+    ],
+  },
+  {
     build: 32312, date: "2026-09-24", title: "The policy list uses the whole width, and every table column can be resized",
     items: [
       { kind: "new", tool: "Workspaces", text: "Every data table in ENCA now has a grip on the right edge of each column header: drag it to make the column wider or narrower, double-click it to fit the column to its widest entry. Widths are remembered per table in this browser, and ↺ in the last header of a resized table puts the tool's own layout back. Matrix grids keep their narrow columns." },

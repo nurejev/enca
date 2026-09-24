@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 287,
+      title: "Branded dark mode — the neutral greens follow the brand",
+      tools: ["Self-hosting"],
+      builds: [32313],
+      risk: "low",
+      what: "css/app.css: under :root[data-brand] in dark (explicit and Auto), --chip-bd, --sw-track, --na, --faint, --ghost-bd and --on-deep-mute are color-mix()ed from the brand's --green, --green-deep, --muted, --ink, --surface and --bg instead of ENCA's literal greens. A branding stylesheet that names one still wins (it is appended later). Without data-brand nothing changes.",
+      why: "Mihai, Dovilo in dark: still showing green. The Protect / CA groups bottom bar already follows the brand since 32307 (queue 283) - verified in a browser with the Dovilo branding: blue - so a container still showing a green bar runs an image from before 32307. This item takes the remaining brand-neutral greens with it.",
+      test: [
+        "Dovilo (or any blue branding), dark theme: chip borders, switch tracks, n/a and faint text and ghost borders are blue-grey, not green; the Protect exclusions and CA groups bottom bar is deep blue.",
+        "Same with Auto theme and the OS in dark.",
+        "ENCA's own look (beta or production, no branding) in dark: unchanged, the same greens as before.",
+        "A branding file that sets --ghost-bd in colorsDark: that value is used.",
+        "Semantic colours unchanged under a branding: the green In a vault card, the UPDATED tag, red Not in a vault.",
+      ],
+      files: ["css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 286,
       title: "🗂 Policies list uses the whole width; every table column resizable",
       tools: ["Policies", "Workspaces"],

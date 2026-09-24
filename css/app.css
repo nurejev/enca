@@ -1382,6 +1382,33 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 /* the publisher's beta host wears the BETA edition (data-beta-mark, set by applyBranding) */
 :root[data-beta-mark][data-theme="dark"] .logo img, :root[data-beta-mark][data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark-beta.svg?v=32302")}
 
+/* A BRANDED look in dark (32313). The neutrals above are ENCA's greens - chip
+   borders, the switch track, n/a and faint text, ghost borders - and a
+   branding file rarely names them, so a blue brand still showed green edges
+   and tracks in dark (Mihai, Dovilo, 24 Sep). Under any branding they are
+   mixed from that brand's own tokens instead; a branding that does name one
+   still wins (its stylesheet comes later). ENCA's own look is untouched:
+   these apply only with data-brand. Semantic colours (ok / warn / bad, the
+   green "in a vault" card, the UPDATED tag) stay semantic. */
+:root[data-brand][data-theme="dark"]{
+  --chip-bd:color-mix(in srgb,var(--green) 35%,var(--surface));
+  --sw-track:color-mix(in srgb,var(--green-deep) 55%,var(--bg));
+  --na:color-mix(in srgb,var(--muted) 45%,var(--surface));
+  --faint:color-mix(in srgb,var(--muted) 75%,var(--surface));
+  --ghost-bd:color-mix(in srgb,var(--muted) 35%,var(--surface));
+  --on-deep-mute:color-mix(in srgb,var(--ink) 65%,var(--green-deep));
+}
+@media (prefers-color-scheme: dark){
+  :root[data-brand]:not([data-theme="light"]):not([data-theme="dark"]){
+    --chip-bd:color-mix(in srgb,var(--green) 35%,var(--surface));
+    --sw-track:color-mix(in srgb,var(--green-deep) 55%,var(--bg));
+    --na:color-mix(in srgb,var(--muted) 45%,var(--surface));
+    --faint:color-mix(in srgb,var(--muted) 75%,var(--surface));
+    --ghost-bd:color-mix(in srgb,var(--muted) 35%,var(--surface));
+    --on-deep-mute:color-mix(in srgb,var(--ink) 65%,var(--green-deep));
+  }
+}
+
 /* the site's own treatment: white card titles, lemon pill, lemon CTA, hero glow */
 :root[data-theme="dark"] .tool-tile h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
 :root[data-theme="dark"] .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
