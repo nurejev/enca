@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 296,
+      title: "🌐 Named locations vs. the sign-in log — a vs. sign-ins view in 🧩 Locations (R19)",
+      tools: ["Policy building blocks"],
+      builds: [32405],
+      risk: "low",
+      what: "js/locsignin.js (new, pure: analyze, render, toMd, inCidr with IPv4/IPv6 BigInt arithmetic, logNames) with its script tag; js/app.js: the signins loView (renderLocations hands over to renderLoSignins, like Compare), runLoSignins over readSignInWindow with its own lsProg (Stop), window chips 1/7/30, Export MD in the view; index.html: the vs. sign-ins button in loViewSeg, the tile blurb, the Locations Help list item, roadmap R19 to In beta today; css/app.css .ls-ctl; tools/locsignin.test.cjs.",
+      why: "Mihai, 24 Sep: R19 to beta; the mockup placed it inside Locations as a view rather than a new tab, and he approved it. LOW: read-only; the only read is the shared sign-in window every sign-in tool already makes. The judgement is only as good as the window — Graph reads stop at 10,000 sign-ins, so on a large tenant a location can read as not seen because it is past the cap; the view says CAPPED when that happens. Graduates once it has been read on a tenant with a trusted office range and a VPN range, and both verdicts matched what the admins know about those offices.",
+      test: [
+        "Beta site, demo (?demo=1): 🧩 Policy building blocks → 🌐 Locations → vs. sign-ins → ▶ Read the sign-ins. HQ egress shows sign-ins from the Amsterdam records, Branch office (unmarked) shows the Rotterdam and Utrecht ones, Blocked countries (empty) reads as no sign-in from these countries, and US / FR / PT appear under Countries no location names.",
+        "A real tenant, Entra sign-in log source, 7 days: a trusted office range that is in daily use shows a non-zero count, users and a last-seen of today; its count carries the (N by Entra) note only when some matches came from ranges rather than from Entra's own record.",
+        "Mark a TEST range that no one uses as trusted: after ⟳ Read again it appears as Trusted, nobody signs in from it — High when a policy uses All trusted locations or names it.",
+        "Switch 🚦 Sign-in log to Defender hunting and read again: the note under Findings says this source carries no location match from Entra; the counts are from range and country matching and should be close to the Entra-log counts for the same window.",
+        "30 days on a large tenant (Graph): the note says CAPPED when the read stopped at 10,000; Stop read during the read leaves the view with the stopped message, not a partial table.",
+      ],
+      files: ["js/locsignin.js", "js/app.js", "index.html", "css/app.css", "tools/locsignin.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 295,
       title: "🎫 CAE & token protection — T46, a tab of 🛡 Checks: coverage per persona (R21)",
       tools: ["Checks"],

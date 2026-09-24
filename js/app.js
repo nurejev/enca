@@ -16224,6 +16224,9 @@ This is a directory write. Nothing else changes.`)) return;
     // Compare view takes over the body until it is closed — it is a different
     // subject (this tenant vs a file), not a filter of the same list.
     if (loCompare) { renderLoCompare(); return; }
+    // R19 (32405): the same locations against the sign-in window — its own
+    // body, like Compare, because it answers a different question
+    if (loView === "signins") { renderLoSignins(); return; }
 
     // The findings panel sits ABOVE the list in both views and is not part of
     // the filtered set: a dangling reference belongs to no location, so a panel
@@ -16307,6 +16310,53 @@ This is a directory write. Nothing else changes.`)) return;
     }).join("") + `</div>`;
     ListDetail.cards('loBody', '.lo-grid > .lo-card', {identity:'[data-lodet]'});
   }
+  // ---- 🌐 vs. sign-ins (R19, 32405) ----
+  // The named locations crossed with the sign-in window every sign-in tool
+  // shares (readSignInWindow: same source, cache and cap). Pure logic in
+  // js/locsignin.js. Read on ▶ only — the window can be minutes of paging.
+  let lsDays = 7, lsRes = null, lsBusy = false, lsErr = null;
+  const lsProg = makeProgress("ls"); lsProg.by = "🌐 Locations vs. sign-ins"; lsProg.stoppable = true;
+  function lsControls() {
+    return `<div class="ls-ctl"><span class="mini">Window</span>${[1, 7, 30].map((d) => `<button class="fchip ${lsDays === d ? "active" : ""}" data-lsdays="${d}">${esc(rangeLabel(d))}</button>`).join("")}
+      <button class="btn sm primary" data-lsrun="1">${lsRes ? "⟳ Read again" : "▶ Read the sign-ins"}</button>${lsRes ? ' <button class="btn sm" data-lsmd="1">Export MD</button>' : ""}
+      <span class="mini muted">Source: ${esc(logSourceLabel())} — shared with 🚦 Sign-in log; change it there.</span></div>`;
+  }
+  function renderLoSignins() {
+    if (lsBusy) { $("loBody").innerHTML = lsProg.panel("Reading the sign-in window for the named locations…", "Shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🕵 — a window one of them already read is reused."); return; }
+    const fresh = lsRes && lsRes.key === logReadKey(lsDays);
+    if (!fresh) {
+      $("loBody").innerHTML = `${lsControls()}${lsErr ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(lsErr)}</p>` : ""}<div class="run-prompt"><p class="mini muted">Crosses every named location with ${esc(rangeLabel(lsDays))} of sign-ins: which trusted or policy-used location nobody signs in from any more, which is seen but used by no policy, and which countries sign-ins come from that no country location names. Reads the sign-in log (AuditLog.Read.All, asked once) or Defender hunting, whichever 🚦 Sign-in log is set to. Nothing is written.</p></div>`;
+      return;
+    }
+    $("loBody").innerHTML = lsControls() + LocSignin.render(lsRes.model);
+  }
+  async function runLoSignins(force) {
+    if (lsBusy) return;
+    lsBusy = true; lsErr = null; lsProg.begin();
+    renderLoSignins();
+    try {
+      let w;
+      if (isDemo) w = { records: demoSignIns(), capped: false };
+      else {
+        if (isGraphLogSource(logSource) && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) throw new Error("AuditLog.Read.All was not granted");
+        w = await readSignInWindow(lsDays, lsProg, force);
+      }
+      const model = LocSignin.analyze({ locations: loList || [], policies: policies.map((p) => p.raw), records: w.records, days: lsDays, capped: !!w.capped,
+        usedBy: (l, raws) => Locations.usedBy(l, raws), source: logSource, demo: isDemo });
+      lsRes = { key: logReadKey(lsDays), model };
+    } catch (e) {
+      lsErr = e && e.stopped ? "stopped — nothing is shown for a partial window" : (e && (e.message || String(e)));
+      lsRes = null;
+    } finally { lsBusy = false; lsProg.stop(); }
+    if ($("screen-locations").classList.contains("active") && loView === "signins") renderLoSignins();
+  }
+  $("loBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-lsrun]")) { runLoSignins(!!lsRes); return; }
+    const d = e.target.closest("[data-lsdays]");
+    if (d) { lsDays = +d.dataset.lsdays; renderLoSignins(); return; }
+    if (e.target.closest("[data-lsmd]") && lsRes) showReport("🌐 Named locations vs. sign-ins", `ENCA-locations-vs-signins-${new Date().toISOString().slice(0, 10)}`, LocSignin.toMd(lsRes.model, tenantName));
+  });
+
   // ---- the findings panel (R37) ----
   // Rendered as markup rather than built node by node, like every other panel
   // in this tool, so the whole body is one assignment and cannot half-update.

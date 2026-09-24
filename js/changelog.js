@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32405, date: "2026-09-24", title: "🌐 Named locations against the sign-in log",
+    items: [
+      { kind: "new", tool: "Policy building blocks", text: "🌐 Locations has a third view, vs. sign-ins, beside Cards and Table. It holds every named location against 1, 7 or 30 days of the sign-in window the sign-in tools already share (same source, same cap, a window already read is reused): how many sign-ins and users each location matched and when it was last seen. It flags trusted ranges nobody signs in from any more (High when a policy relies on them), locations policies name that no sign-in came from, and locations that are seen but used by no policy. A country location with no sign-ins is noted as expected for blocked countries, not flagged." },
+      { kind: "new", tool: "Policy building blocks", text: "Below the table: the countries sign-ins came from that no country location names, with sign-in and user counts. A sign-in counts for a location when Entra's own record names it or when its IP (IPv4 or IPv6) falls in a range or its country is on the list; a capped window says so. Export MD in the view writes it all. Read-only." },
+    ],
+  },
+  {
     build: 32404, date: "2026-09-24", title: "🎫 CAE and token protection, per persona",
     items: [
       { kind: "new", tool: "Checks", text: "A new CAE & tokens tab in 🛡 Checks lays out the two newer session controls per persona: which personas have token protection On or only in report-only, which resources and platforms each policy names, and which policies switch continuous access evaluation off or make it strict. A second table lists every resource that supports token protection — Exchange, SharePoint and Teams on Windows, macOS and iOS; Azure Virtual Desktop, Windows 365 and Windows Cloud Login on Windows; Azure Resource Manager as a browser preview — with the personas protected on each." },

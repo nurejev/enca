@@ -2900,3 +2900,6 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 .tc-pol+.tc-pol{margin-top:4px}
 .tc-on{background:var(--ok-bg);color:var(--on)}
 .tc-ro{background:var(--warn-bg);color:var(--warn-fg)}
+
+/* ---- 🌐 Locations vs. sign-ins (32405, R19) ---- */
+.ls-ctl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:0 0 12px}
