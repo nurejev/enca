@@ -2763,3 +2763,19 @@ td.gm-none{color:var(--muted);font-weight:700}
 .lf-done{margin-top:8px;font-size:12.5px;color:var(--muted)}
 .lf-done b{color:var(--on)}
 @media (max-width:760px){.lf-steps,.lf-after{grid-template-columns:minmax(0,1fr)}.lf-status{grid-template-columns:minmax(0,1fr)}.lf-sech{grid-template-columns:minmax(0,1fr)}}
+
+/* ---- column resize (js/col-resize.js) — a grip on every header's right edge ---- */
+th.cr-th{background-clip:padding-box}
+.cr-grip{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:3;touch-action:none}
+.cr-grip::after{content:"";position:absolute;left:4px;top:28%;height:44%;width:1px;background:var(--border);transition:background .12s}
+th.cr-th:hover>.cr-grip::after{background:var(--muted)}
+.cr-grip:hover::after,.cr-grip.on::after{background:var(--accent2,var(--green));width:3px;left:3px;top:0;height:100%}
+th.cr-th:last-child>.cr-grip{right:0}
+body.cr-dragging{cursor:col-resize;user-select:none}
+table.cr-custom th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.cr-custom td{overflow:hidden;overflow-wrap:anywhere}
+.cr-reset{display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);font:inherit;font-size:12px;line-height:1;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--muted);cursor:pointer;z-index:4;text-transform:none;letter-spacing:0}
+table.cr-custom .cr-reset{display:inline-block}
+.cr-reset:hover{color:var(--ink);border-color:var(--muted)}
+table.cr-custom th:last-child{padding-right:40px}
+table.cr-measuring th,table.cr-measuring td{overflow:visible}

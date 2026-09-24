@@ -39,12 +39,12 @@ const Render = (() => {
   function listRow(p, selected) {
     return `<tr>
         <td><input type="checkbox" data-sel="${esc(p.id)}" aria-label="Select ${esc(p.name)}" ${selected.has(p.id) ? "checked" : ""}></td>
-        <td><button class="pname" data-open="${esc(p.id)}">${esc(p.name)}</button>
+        <td><button class="pname" data-open="${esc(p.id)}" title="${esc(p.name)}">${esc(p.name)}</button>
             <div class="mini">${p.seq}${p.usesNew ? ' · <span class="tag new">uses new CA settings</span>' : ""}</div></td>
         <td>${stateChip(p.state)}</td>
-        <td class="mini">${esc(p.users.inc[0] || "")}${p.users.inc.length > 1 ? ` <span class="muted">+${p.users.inc.length - 1} more</span>` : ""}${p.users.exc.length ? `<br><span class="excl-note">− ${p.users.exc.length} excluded</span>` : ""}</td>
-        <td class="mini">${esc(p.apps.inc.slice(0, 2).join(", "))}${p.apps.inc.length > 2 ? "…" : ""}</td>
-        <td class="mini">${esc(p.grant.controls[0] || "")}</td>
+        <td class="mini" title="${esc(p.users.inc.join(", "))}${p.users.exc.length ? ` — excluded: ${esc(p.users.exc.join(", "))}` : ""}">${esc(p.users.inc[0] || "")}${p.users.inc.length > 1 ? ` <span class="muted">+${p.users.inc.length - 1} more</span>` : ""}${p.users.exc.length ? `<br><span class="excl-note">− ${p.users.exc.length} excluded</span>` : ""}</td>
+        <td class="mini" title="${esc(p.apps.inc.join(", "))}">${esc(p.apps.inc.slice(0, 2).join(", "))}${p.apps.inc.length > 2 ? "…" : ""}</td>
+        <td class="mini" title="${esc(p.grant.controls.join(", "))}">${esc(p.grant.controls[0] || "")}</td>
         <td class="mini">${p.modified}</td>
       </tr>`;
   }

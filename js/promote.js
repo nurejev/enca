@@ -117,6 +117,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 286,
+      title: "🗂 Policies list uses the whole width; every table column resizable",
+      tools: ["Policies", "Workspaces"],
+      builds: [32312],
+      risk: "low",
+      what: "css/workspace.css: #ptable fixed layout with content-based widths (name 39% on one line with ellipsis, State 120px, Users 15%, Resources 16%, Grant 19%, Modified 112px, min-width 1000px), the 380px name cap removed; css/list-detail.css keeps the inspector split on auto layout with wrapping names whatever widths were saved. js/render.js: tooltips with the full name, users, resources and grant. NEW js/col-resize.js: a MutationObserver attaches a grip to every header cell of every table (not .matrix / .mtable / .gc-matrix / .gm / .matrix-wrap tables, merged or two-row headers, data-noresize); drag freezes the table to fixed layout at its current widths, double-click fits one column, ↺ resets; widths saved per table id (or screen + header texts) in localStorage enca-colw:*, keyed by header text. css/app.css: the grip, the reset button, ellipsis headers on a resized table. Help 🧭 Workspaces and navigation documents both.",
+      why: "Mihai, 24 Sep, screenshot of the Policies list: names wrapped over three lines with a lot of white space in Users — use all the width, and make every table column expandable by the user. Mockup shown first (enca-policies-list-mockup.html), approved as shown.",
+      test: [
+        "🗂 Policies, List, a 1920px window: every policy name is on one line; hovering a cut name shows it whole; Report-only fits in State; no column is mostly empty.",
+        "Drag the Users header edge left: Users narrows and the other columns take the room; reload — the widths come back; ↺ in the Modified header restores the defaults and disappears.",
+        "Double-click the Policy header edge: the column fits the longest name on one line and the table scrolls sideways if it has to.",
+        "Open a policy (inspector split): the list shows Policy and State only, names wrap, no sideways scroll — also after resizing columns in the full list.",
+        "👥 CA groups list and 🧬 Baseline table: header grips resize; clicking a header still sorts where it did before; a drag never triggers a sort.",
+        "🔍 Gap analyse Matrix and the 🚪 exclusion grid: no grips, layout unchanged.",
+        "Touch (iPad): dragging a grip resizes the column instead of scrolling the page.",
+      ],
+      files: ["js/col-resize.js", "css/app.css", "css/workspace.css", "css/list-detail.css", "js/render.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 285,
       title: "Self-hosted branding — no Limon-IT flash on a hard refresh",
       tools: ["Self-hosting"],

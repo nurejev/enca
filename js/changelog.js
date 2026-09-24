@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32312, date: "2026-09-24", title: "The policy list uses the whole width, and every table column can be resized",
+    items: [
+      { kind: "new", tool: "Workspaces", text: "Every data table in ENCA now has a grip on the right edge of each column header: drag it to make the column wider or narrower, double-click it to fit the column to its widest entry. Widths are remembered per table in this browser, and ↺ in the last header of a resized table puts the tool's own layout back. Matrix grids keep their narrow columns." },
+      { kind: "improved", tool: "Policies", text: "🗂 The list view uses the whole width: the policy name gets the largest column and stays on one line instead of wrapping over three, State and Modified are only as wide as their values, and Users no longer takes a third of the table. Hover a name, a user list, the resources or the grant for the full text; a narrow window scrolls the table sideways." },
+    ],
+  },
+  {
     build: 32311, date: "2026-09-24", title: "📰 Learn changes explains itself — and runs once a week",
     items: [
       { kind: "improved", tool: "Checks", text: "The Learn changes tab now says how it works: a card with the three steps (read the change, decide with one button, hand the work order to Claude), when to do it, and what each answer leads to. A status bar shows how many items are left to decide, how many you decided but have not handed over, and the Make work order button." },
