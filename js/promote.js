@@ -117,6 +117,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 298,
+      title: "🧭 Workspaces — 01 Conditional Access and 02 PIM-buddy on one shell: the chip switch, a rail, home and library per side, tabs kept across a switch (R67)",
+      tools: ["Help"],
+      builds: [32407],
+      risk: "low",
+      what: "js/workspaces.js: WORKSPACES (01 ca, 02 pim) with shortcuts, title, lead and context per side; PIM_ROSTER (02's groups, blurbs, lens chips, a planned card for T48); the header chip + menu (wcWsChip, wcWsMenu, data-wc-switch) after the wordmark; renderRail / renderChip / renderHome re-run on a switch; tabs of the other side hidden (.toolnav-tab hidden), auto-follow when the app opens a tool of the other side; ?ws=pim, localStorage enca.workspace, per-side enca.wcLibraryOpen:<ws>; ⌘⇧1 / ⌘⇧2; globalThis.Workspaces (current, switch, paletteItems, list). js/app.js cpBuild: one line pulling the Switch to entries. css/workspaces.css: body[data-ws=pim] --wc-brand navy, the chip, menu, rail switch, planned and lens chips, 02 hides #wcHomeLead / #overview / #onboardBand. index.html: Help 🧭 Workspaces bullet, roadmap R67.",
+      why: "Mihai, 24 Sep: ENCA Conditional Access becomes Workspace 01, Workspace 02 becomes PIM-buddy, everything PIM, with T19, T16, T17, T08, T12 and T27 carried over; mockup approved. LOW: presentation only — no read, no write, no change to any tool's screen; a carry-over tool is the same module. The only app.js change is one palette line.",
+      test: [
+        "Beta site, demo (?demo=1): the header shows ENCA and a chip 01 · Conditional Access; the rail is Home, Policies, Sign-ins, Who is…, Checks, Baseline, CA groups, Building blocks, All tools, Help — exactly as before 32407.",
+        "Open CA groups and Policies (two tabs). Press the chip → 02 · PIM-buddy: the header turns navy, the chip reads 02, the rail reads Baseline (greyed, next build), PIM groups, Who holds…, Checks, Restricted AUs, Changes; the home title is Privileged access overview with the PIM lead and a library of 10 tools in four groups; the Policies tab is hidden, the CA groups tab is still there.",
+        "On 02 open Restricted AUs; press ⌘⇧1 (Ctrl+Shift+1 on Windows): back on 01 with the header green, all three tabs showing (CA groups, Policies, Restricted AUs), the screen unchanged. The 01 ⇄ caption at the foot of the rail switches to 02 again.",
+        "On 02 press ⌘K, type switch, Enter: 01. On 02 press ⌘K, type rollout, Enter: Guided rollout opens AND the shell follows to 01 (chip 01, header green), because the screen decides the side.",
+        "Reload with ?ws=pim: starts on 02. Reload without it: starts on the last side used in this browser. A fresh browser starts on 01.",
+        "Sign out and in again: the chip and rail are still there, on the side last used; the Recent tools list is reset as before.",
+        "400px wide: the chip shows only the 02 badge, the menu opens within the screen, no horizontal scroll.",
+      ],
+      files: ["js/workspaces.js", "js/app.js", "css/workspaces.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 297,
       title: "🤖 Workload identities — T47, a tab of 🚦 Sign-in log: the service-principal policies against the service principal sign-ins (R46)",
       tools: ["Sign-in log"],

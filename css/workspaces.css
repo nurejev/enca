@@ -153,3 +153,42 @@ body.workspaces-shell.with-side:not(.wc-wide-logo) #brandLogo{position:absolute;
   border-radius:50%;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow),0 0 0 4px color-mix(in srgb,var(--glow) 45%,transparent)}
 body.workspaces-shell.with-side:not(.wc-wide-logo) #wcRail{padding-top:46px}
 }
+
+/* 32407 (R67): two workspaces on one shell. The header colour is the workspace's
+   — ENCA green for 01, a navy for 02 — so a screenshot always says which side it
+   was taken on; the chip beside the wordmark is the one switch, the rail caption
+   the second. Nothing below touches a tool's own screen. */
+body.workspaces-shell[data-ws="pim"]{--wc-brand:#1e3358}
+.wc-ws{position:relative;display:inline-flex;align-items:center;flex-shrink:0}
+.wc-ws-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid color-mix(in srgb,var(--wc-brand-ink) 28%,var(--wc-brand));background:color-mix(in srgb,var(--wc-brand-ink) 10%,var(--wc-brand));color:var(--wc-brand-ink);border-radius:6px;padding:6px 10px 6px 8px;font:inherit;font-size:12px;font-weight:500;letter-spacing:0;white-space:nowrap;cursor:pointer}
+.wc-ws-chip:hover,.wc-ws-chip[aria-expanded="true"]{background:color-mix(in srgb,var(--wc-brand-ink) 18%,var(--wc-brand))}
+.wc-ws-num{font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--lemon);color:#12331f;border-radius:4px;padding:4px 5px}
+.wc-ws-caret{font-size:10px;opacity:.8}
+.wc-ws-menu{position:absolute;top:calc(100% + 8px);left:0;width:340px;max-width:calc(100vw - 32px);background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:8px;z-index:70;text-align:left;font-weight:400;letter-spacing:0}
+.wc-ws-label,.wc-ws-foot{font-size:11px;color:var(--muted);padding:6px 10px 4px}
+.wc-ws-label{text-transform:uppercase;letter-spacing:.1em;font-weight:600;font-size:10.5px}
+.wc-ws-foot{border-top:1px solid var(--border);margin-top:6px;padding-top:8px;line-height:1.5}
+.wc-ws-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--ink);padding:9px 10px;text-align:left;font:inherit;cursor:pointer}
+.wc-ws-row:hover{background:var(--soft2);border-color:var(--border)}
+.wc-ws-row.cur{background:var(--soft);border-color:var(--border)}
+.wc-ws-sw{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:#fff;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.wc-ws-sw-ca{background:var(--green-deep)}.wc-ws-sw-pim{background:#1e3358}
+.wc-ws-row strong{display:block;font-size:13px;font-weight:600}
+.wc-ws-row small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.wc-ws-keys kbd{font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--border);border-radius:4px;padding:1px 4px;background:var(--soft2);color:var(--muted)}
+.wc-rail-switch{display:inline-flex!important;align-items:center;gap:4px;min-height:0!important;padding:4px 6px!important;margin-top:4px;border:1px solid var(--border)!important;border-radius:6px!important;background:var(--soft2)!important;color:var(--ink)!important;font:700 10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace!important;letter-spacing:.04em}
+.wc-rail-switch:hover{background:var(--soft)!important}
+.wc-ws-dot{width:8px;height:8px;border-radius:2px;background:var(--wc-brand)}
+#wcRail button.wc-planned{opacity:.45;cursor:default}
+#wcRail button.wc-planned:hover{background:transparent;color:var(--muted)}
+.wc-tool.wc-planned{opacity:.6;border-style:dashed;cursor:default}
+.wc-tool.wc-planned:hover{border-color:var(--border);background:var(--surface)}
+.wc-chip{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 6px;line-height:1.4;background:var(--soft);color:var(--muted)}
+.wc-chip.lens{background:var(--blue-bg);color:var(--blue)}
+.wc-tool small{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+/* 02 has no Conditional Access overview above its library: the CA lead, the
+   overview and the onboarding band stay on 01; 02 shows its own lead. */
+#wcPimLead{display:none}
+body.workspaces-shell[data-ws="pim"] #wcHomeLead,body.workspaces-shell[data-ws="pim"] #overview,body.workspaces-shell[data-ws="pim"] #onboardBand,body.workspaces-shell[data-ws="pim"] .wc-session{display:none!important}
+body.workspaces-shell[data-ws="pim"] #wcPimLead{display:block}
+@media(max-width:700px){.wc-ws-chip span:not(.wc-ws-num){display:none}.wc-ws-chip{padding:6px 7px}.wc-ws-menu{left:auto;right:-40px}}

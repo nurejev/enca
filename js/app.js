@@ -13294,6 +13294,9 @@ This is a directory write. Nothing else changes.`)) return;
       if (sc) out.push({ kind: "tool", id: f.into, label: f.label, go: () => openFolded(old),
         hint: `${no ? `${no} · ` : ""}in ${labelFor(f.into)} — ${f.where}`, score: sc - 1 });
     }
+    // 32407: the other workspace is one entry — "Switch to 02 · PIM-buddy" —
+    // owned by js/workspaces.js, which knows which side is showing.
+    if (globalThis.Workspaces && Workspaces.paletteItems) out.push(...Workspaces.paletteItems(q, cpScore));
     // Policies only exist after sign-in; before that the palette is tools only,
     // and the footer says why rather than looking broken.
     for (const p of policies) {

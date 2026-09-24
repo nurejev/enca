@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32407, date: "2026-09-24", title: "🧭 Two workspaces — 01 Conditional Access, 02 PIM-buddy",
+    items: [
+      { kind: "new", tool: "Help", text: "ENCA is now two workspaces on one shell. The chip beside the ENCA wordmark says which side you are on: 01 · Conditional Access, every tool as before, or 02 · PIM-buddy, everything privileged access. Press the chip, the 01 ⇄ caption at the foot of the rail, ⌘⇧1 / ⌘⇧2, or ⌘K → Switch to, to change sides. The header turns navy on 02 so a screenshot always says where it was taken." },
+      { kind: "new", tool: "Help", text: "Each side has its own rail, home page and tool library. 02 offers the PIM baseline (coming in the next build), then the tools that carry over — CA groups as the PIM groups, User or Group analyzer as who holds what, Sign-in log, Changes, Checks and Restricted AUs — each the same screen as on 01, marked PIM lens · roadmap until its PIM-only catalogue and Help text exist. A tool you open on one side keeps its tab, hidden while you are on the other and back when you return. The link ?ws=pim opens 02 directly; the last side you used is remembered in this browser." },
+    ],
+  },
+  {
     build: 32406, date: "2026-09-24", title: "🤖 Workload identities — do the service-principal policies ever fire?",
     items: [
       { kind: "new", tool: "Sign-in log", text: "A new Workload identities tab in 🚦 Sign-in log holds the policies that target service principals against the service principal and managed identity sign-ins. Per principal: what kind it is (single-tenant app registered here, multi-tenant app, managed identity, Microsoft app), its sign-ins, how many came from outside every named location, which policies reach it, and a verdict — blocked, reachable but not targeted, report-only only, covered, or cannot be targeted. Per policy: who it names, who of them signs in, how often it blocked and, for a report-only policy, what it would have blocked." },
