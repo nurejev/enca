@@ -117,6 +117,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 297,
+      title: "🤖 Workload identities — T47, a tab of 🚦 Sign-in log: the service-principal policies against the service principal sign-ins (R46)",
+      tools: ["Sign-in log"],
+      builds: [32406],
+      risk: "medium",
+      what: "js/workloadid.js (new, pure: targets, inScope, fromGraph, fromHunting, huntQuery, kindOf, analyze, render, chips, toMd) with its script tag; js/app.js: openWorkloadId/renderWorkloadId/runWorkloadId with its own source switch (localStorage enca-wlsource:<tenant>) and window, wlHunt (EntraIdSpnSignInEvents, falling back to AADSpnSignInEventsBeta), wlReadPrincipals (directoryObjects/getByIds for the principals, applications(appId=) signInAudience for the ones owned here, up to 300), wlPolicies (the demo keeps its two workload identity policies out of the shared list), the signins TAB_HOSTS tab (beta: true), the FOLDED entry toolWorkloadId, screen-workloadid in HISTORY_SCREENS; js/demo.js DEMO_DATA.workload; index.html: screen-workloadid, the Sign-in log tile line, the Help h5 under Session controls, T47 in Tool numbers, roadmap R46 to In beta today; css/app.css wl- rules; tools/workloadid.test.cjs.",
+      why: "Mihai, 24 Sep: R46 to beta; on the mockup he chose the Entra log as the default source with hunting optional, because the hunting table carries no Conditional Access columns. MEDIUM: read-only, but it reads a sign-in log no other tab reads, on endpoints no other tab has used (the servicePrincipal and managedIdentity event-type filters on the beta signIns endpoint, the SPN hunting table, applications by appId) — none of them run against a live tenant yet, and Graph may refuse the event-type filter or return the service principal fields under other names. Graduates once both sources have been read on a tenant with at least one workload identity policy On and the verdicts matched the portal's Service principal sign-ins view.",
+      test: [
+        "Beta site, demo (?demo=1): 🚦 Sign-in log → 🤖 Workload identities → ▶ Read. svc-backup-graph reads Blocked 1×, svc-payroll-export Covered, app-hr-sync Report-only only, mi-func-invoices and Contoso Ticketing Cannot be targeted; Per policy says CA900 blocked once and names one principal it can never act on.",
+        "A tenant with a workload identity policy On (Workload Identities Premium), Entra log, 7 days: every principal the policy names is listed, including ones with no sign-in; blocked counts match Entra ID → Sign-in logs → Service principal sign-ins filtered on Conditional Access Failure for the same window.",
+        "A report-only workload identity policy: its card says what it WOULD have blocked; compare with the Report-only column of the same sign-ins in the portal.",
+        "Switch the source to Defender hunting (a P2 tenant with hunting access): one query, counts over 30 days, blocked as 53003 totals, and the card says which policy blocked is not in the hunting table. On a tenant whose schema still only has AADSpnSignInEventsBeta the note under the table names that table.",
+        "A single-tenant app no policy scopes, signing in from an IP outside every named location, reads Reachable, not targeted and is counted in the Targetable, not targeted, outside named locations tile. Show Microsoft apps adds the first-party apps as Cannot be targeted.",
+        "Signed in without a reader role for sign-in logs: the prompt says could not be read with Graph's reason; nothing else in the app changes. Stop read during the Entra read leaves the stopped message, not a partial table.",
+      ],
+      files: ["js/workloadid.js", "js/app.js", "js/demo.js", "index.html", "css/app.css", "tools/workloadid.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 296,
       title: "🌐 Named locations vs. the sign-in log — a vs. sign-ins view in 🧩 Locations (R19)",
       tools: ["Policy building blocks"],

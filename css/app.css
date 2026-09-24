@@ -2903,3 +2903,8 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 
 /* ---- 🌐 Locations vs. sign-ins (32405, R19) ---- */
 .ls-ctl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:0 0 12px}
+
+/* ---- 🤖 Workload identities (32406, T47) ---- */
+.wl-na{background:var(--soft);color:var(--muted)}
+.wl-tiles{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media (max-width:720px){.wl-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32405"></script>
+<script src="js/popup-guard.js?v=32406"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32405" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32405">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32406" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32406">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32405"></script>
+<script src="js/selfhost-boot.js?v=32406"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32405"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32405"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32405">
-<link rel="stylesheet" href="css/workspaces.css?v=32405">
-<link rel="stylesheet" href="css/tool-layout.css?v=32405">
-<link rel="stylesheet" href="css/list-detail.css?v=32405">
-<link rel="stylesheet" href="css/flat-icons.css?v=32405">
+<script src="js/counter.js?v=32406"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32406"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32406">
+<link rel="stylesheet" href="css/workspaces.css?v=32406">
+<link rel="stylesheet" href="css/tool-layout.css?v=32406">
+<link rel="stylesheet" href="css/list-detail.css?v=32406">
+<link rel="stylesheet" href="css/flat-icons.css?v=32406">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32405" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32406" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32405" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32406" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -274,7 +274,7 @@
       </div>
       <div class="tool tool-tile" id="toolSignins">
         <div class="tool-ic">🚦</div><h3>Sign-in log <span class="tag upd">UPDATED</span></h3>
-        <p>One read of the sign-in window, three questions of it. <b>🚦 Failures</b> — which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it, per policy: who, on which app, from where, with the controls that weren't met, CSV export and a one-click replay in What-If. <b>🎚 Report-only impact</b> — what happens the day a staged policy goes live, per policy and per user. <b>🛂 Session controls</b> — what a session control actually <i>did</i>, from Defender. Tabs over one window and one consent, so switching costs no second read.</p>
+        <p>One read of the sign-in window, three questions of it. <b>🚦 Failures</b> — which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it, per policy: who, on which app, from where, with the controls that weren't met, CSV export and a one-click replay in What-If. <b>🎚 Report-only impact</b> — what happens the day a staged policy goes live, per policy and per user. <b>🛂 Session controls</b> — what a session control actually <i>did</i>, from Defender. <b>🤖 Workload identities</b> <span class="tag new">BETA</span> — the service-principal policies against the service principal sign-ins: who they reach, what they blocked, and who no policy can reach. Tabs over one window and one consent, so switching costs no second read.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>🧬 Compare against a baseline</h3><p>Measure this tenant against a reference set of policies.</p></div>
@@ -1073,6 +1073,26 @@
     <div class="tool-body" id="scBody"></div>
   </section>
 
+  <!-- ============ 🤖 WORKLOAD IDENTITIES (T47, build 32406, R46) — a tab of 🚦 Sign-in log ============ -->
+  <section id="screen-workloadid" class="screen tool">
+    <div class="list-card readme" id="wlHead"></div>
+    <div class="toolbar" id="wlToolbar">
+      <div class="seg" id="wlSrcSeg"></div>
+      <div class="seg" id="wlDaysSeg">
+        <button data-wldays="1">24 hours</button>
+        <button data-wldays="7" class="active">7 days</button>
+        <button data-wldays="30">30 days</button>
+      </div>
+      <div class="chip-filter" id="wlChips"></div>
+      <label class="mini xt-opt" title="Microsoft's own first-party applications sign in constantly and cannot be targeted by a policy"><input type="checkbox" id="wlMs"> Show Microsoft apps</label>
+      <div class="tb-actions">
+        <button class="btn primary" id="wlRefresh">▶ Read</button>
+        <button class="btn" id="wlMd" style="display:none">Export MD</button>
+      </div>
+    </div>
+    <div class="tool-body" id="wlBody"></div>
+  </section>
+
   <section id="screen-spgap" class="screen tool">
     <div class="list-card readme" id="sgHead"></div>
     <div class="toolbar" id="sgToolbar">
@@ -1547,6 +1567,10 @@
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R46</span> <a href="#" class="md-tool" data-tool="toolWorkloadId">🤖 Workload identity Conditional Access</a> <span class="tag ok">in beta today · beta 32406</span></h4>
+            <p class="mini" style="margin:0">A Workload identities tab in 🚦 Sign-in log holds the policies that target service principals against the service principal sign-ins: which principals each policy reaches, which of them sign in, what was blocked and — from the Entra log — what a report-only policy would have blocked, and the principals signing in from outside every named location that no policy can reach because they are managed identities, Microsoft or multi-tenant apps. Its own source switch: the Entra log for per-policy results, Defender hunting (EntraIdSpnSignInEvents) for 30 days of volume without Conditional Access columns. Read-only.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R19</span> <a href="#" class="md-tool" data-tool="toolLocations">🌐 Named locations vs. the sign-in log</a> <span class="tag ok">in beta today · beta 32405</span></h4>
             <p class="mini" style="margin:0">A third view in 🧩 Policy building blocks → Locations, beside Cards and Table: every named location against 1, 7 or 30 days of the sign-in window the sign-in tools already share — how many sign-ins and users each one matched and when it was last seen, trusted ranges nobody signs in from any more, locations policies name that no sign-in came from, locations seen that no policy uses, and the countries sign-ins came from that no country location names. It reads Entra's own location match where the source carries one and matches IP ranges (IPv4 and IPv6) and countries itself otherwise. Read-only.</p>
           </div>
@@ -1580,10 +1604,6 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R16</span> 🔓 Revoke permissions when done <span class="tag ok">partially done</span></h4>
             <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R46</span> 🤖 Workload identity Conditional Access <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Do the service-principal policies ever fire? Conditional Access for workload identities has its own sign-in log (<code>AADSpnSignInEventsBeta</code> in Defender hunting) and nothing in ENCA reads it. The plan: the WorkloadIDs policies next to that log — which principals each targets, which of those actually sign in, what was blocked, the report-only forecast per policy, and the principals signing in from outside every named location that no policy can reach because they are managed identities or multi-tenant apps. Same hunting scope as R44; needs Workload Identities Premium for the policies to apply at all.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R47</span> 🖥 Device reality check — the Defender half <span class="tag">planned</span></h4>
@@ -2406,10 +2426,10 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T46</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T47</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
-        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T47</code> is next.</li>
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T48</code> is next.</li>
         <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty-one numbers have no tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 25338)</li>
@@ -2436,6 +2456,7 @@
             <li><code>T42</code> 🏅 Identity Secure Score → <b>🛡 Checks</b>, Identity score tab (build 32308 — born there, never a tile)</li>
             <li><code>T43</code> 🤝 Cross-tenant access → <b>🛡 Checks</b>, Cross-tenant tab (build 32316 — born there, never a tile)</li>
             <li><code>T44</code> 🔑 Passkeys → <b>🛡 Checks</b>, Passkeys tab (build 32317 — born there, never a tile)</li>
+            <li><code>T47</code> 🤖 Workload identities → <b>🚦 Sign-in log</b>, Workload identities tab (build 32406 — born there, never a tile)</li>
             <li><code>T46</code> 🎫 CAE &amp; token protection → <b>🛡 Checks</b>, CAE &amp; tokens tab (build 32404 — born there, never a tile)</li>
             <li><code>T45</code> 📏 Naming → <b>🛡 Checks</b>, Naming tab (build 32403 — born there, never a tile)</li>
           </ul>
@@ -2498,6 +2519,17 @@
         <li><b>■ Stop</b> — during the hunt, the slices already read are kept and shown as a <b>partial</b> window, named as such, without reading the sign-in log; during the sign-in read, the Defender half stays and routing is marked missing. The stop lands after the query in flight — a running hunting query cannot be cancelled.</li>
       </ul>
       <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention; the window is read in 4-hour slices of up to 5,000 events each, a slice that takes more than 2 minutes is halved down to 30 minutes and then skipped with a note. <b>Routing comes from the sign-in window</b> 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 and 🌊 share, from whichever <b>sign-in source</b> is chosen there — Entra sign-in log (AuditLog.Read.All) or Defender hunting. Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as <i>no match</i>. Monitor only logs the Login activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
+      <h5>🤖 Workload identities <span class="tag new">BETA</span> <span class="help-fold">a tab of this tool — build 32406</span></h5>
+      <p>Do the service-principal policies ever fire? Conditional Access for workload identities targets service principals, and its evidence is in a sign-in log of its own that the other tabs never read. This tab holds the policies that target workload identities against those sign-ins. It has its <b>own source switch</b>, separate from the user sign-in source of the other tabs:</p>
+      <ul>
+        <li><b>Entra log</b> (default) — the service principal and managed identity sign-ins from the Entra sign-in log (<code>AuditLog.Read.All</code>), capped at 10,000 and 5,000. Each sign-in names the policies that applied, so a block is attributed to its policy and a report-only policy shows what it <i>would</i> have done.</li>
+        <li><b>Defender hunting</b> — <code>EntraIdSpnSignInEvents</code> (the older <code>AADSpnSignInEventsBeta</code> until it retires on 19 October 2026) in one summarised query: 30 days of volume, IPs and countries cheaply. That table has <b>no Conditional Access columns</b>: a block is only error 53003, without the policy that did it, and there is no forecast. Needs Entra ID P2 and hunting access.</li>
+        <li><b>Service principals</b> — every principal that signed in, and every one a policy names that did not: its kind (single-tenant app registered here, multi-tenant, managed identity, Microsoft app — read from the directory, with the application's sign-in audience for the ones registered here), sign-ins, how many came from <b>outside every named location</b>, the policies whose scope it is in, and a verdict: <b>Blocked</b>, <b>Reachable, not targeted</b> (a single-tenant app no policy scopes), <b>Report-only only</b>, <b>Covered, applied</b>, <b>In scope if the attribute filter matches</b>, or <b>Cannot be targeted</b>. Microsoft apps are hidden unless <b>Show Microsoft apps</b> is ticked.</li>
+        <li><b>Per policy</b> — who it names (all owned principals, a list, an attribute filter) and excludes, how many of those sign in, how often it blocked, and for a report-only policy what it would have blocked; named principals the policy can never act on are counted.</li>
+        <li><b>What Microsoft does not enforce</b> — only single-tenant service principals registered in this tenant can be targeted; managed identities, Microsoft and third-party SaaS apps and multi-tenant apps cannot, and a service principal reached through a <i>group</i> is not enforced at all — it must be assigned directly. Creating or changing such a policy needs Workload Identities Premium; existing ones keep working without it.</li>
+        <li><b>Read-only.</b> <b>Export MD</b> writes the principals and the per-policy results.</li>
+      </ul>
+      <p class="help-x">Needs <code>AuditLog.Read.All</code> for the Entra log or <code>ThreatHunting.Read.All</code> for hunting (each asked once), plus <code>Directory.Read.All</code> and <code>Policy.Read.All</code> from sign-in for the principals and the named locations.</p>
     </section>
 
 
@@ -3607,97 +3639,98 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32405"></script>
-<script src="js/selfhost.js?v=32405"></script>
-<script src="js/version.js?v=32405"></script>
-<script src="js/verdict.js?v=32405"></script>
-<script src="js/fork.js?v=32405"></script>
-<script src="js/promote.js?v=32405"></script>
-<script src="js/authConfig.js?v=32405"></script>
-<script src="js/connection.js?v=32405"></script>
-<script src="js/labels.js?v=32405"></script>
-<script src="js/capabilities.js?v=32405"></script>
-<script src="js/graph.js?v=32405"></script>
-<script src="js/model.js?v=32405"></script>
-<script src="js/render.js?v=32405"></script>
-<script src="js/analyze.js?v=32405"></script>
-<script src="js/whatif.js?v=32405"></script>
-<script src="js/mslearn.js?v=32405"></script>
-<script src="js/learntriage.js?v=32405"></script>
-<script src="js/learnfeed.js?v=32405"></script>
-<script src="js/gapcheck.js?v=32405"></script>
-<script src="js/cisdata.js?v=32405"></script>
-<script src="js/cischeck.js?v=32405"></script>
-<script src="js/exclusions.js?v=32405"></script>
-<script src="js/cascope.js?v=32405"></script>
-<script src="js/coverage.js?v=32405"></script>
-<script src="js/runmeta.js?v=32405"></script>
-<script src="js/overview.js?v=32405"></script>
-<script src="js/validator.js?v=32405"></script>
-<script src="js/whatifeval.js?v=32405"></script>
-<script src="js/builder.js?v=32405"></script>
-<script src="js/onboard.js?v=32405"></script>
-<script src="js/compare.js?v=32405"></script>
-<script src="js/whois.js?v=32405"></script>
-<script src="js/wave.js?v=32405"></script>
-<script src="js/sessionctl.js?v=32405"></script>
-<script src="js/spgap.js?v=32405"></script>
-<script src="js/groupuse.js?v=32405"></script>
-<script src="js/iso3166.js?v=32405"></script>
-<script src="js/causes.js?v=32405"></script>
-<script src="js/locations.js?v=32405"></script>
-<script src="js/locsignin.js?v=32405"></script>
-<script src="js/authcontexts.js?v=32405"></script>
-<script src="js/authstrengths.js?v=32405"></script>
-<script src="js/recycle.js?v=32405"></script>
-<script src="js/rmau.js?v=32405"></script>
-<script src="js/camap.js?v=32405"></script>
-<script src="js/rmaudoc.js?v=32405"></script>
-<script src="js/termsofuse.js?v=32405"></script>
-<script src="js/audit.js?v=32405"></script>
-<script src="js/drift.js?v=32405"></script>
-<script src="js/guide.js?v=32405"></script>
-<script src="js/userimpact.js?v=32405"></script>
-<script src="js/smsvoice.js?v=32405"></script>
-<script src="js/memberof.js?v=32405"></script>
-<script src="js/devcheck.js?v=32405"></script>
-<script src="js/idscore.js?v=32405"></script>
-<script src="js/xtenant.js?v=32405"></script>
-<script src="js/passkeys.js?v=32405"></script>
-<script src="js/tokencov.js?v=32405"></script>
-<script src="js/naming.js?v=32405"></script>
-<script src="js/licgap.js?v=32405"></script>
-<script src="js/teamsdev.js?v=32405"></script>
-<script src="js/signinstore.js?v=32405"></script>
-<script src="js/signins.js?v=32405"></script>
-<script src="js/reportimpact.js?v=32405"></script>
-<script src="js/changelog.js?v=32405"></script>
-<script src="js/baselineData.js?v=32405"></script>
-<script src="js/baselineJoeyData.js?v=32405"></script>
-<script src="js/baselineLive.js?v=32405"></script>
-<script src="js/baseline.js?v=32405"></script>
-<script src="js/baselineCleanup.js?v=32405"></script>
-<script src="js/groupTemplates.js?v=32405"></script>
-<script src="js/assign.js?v=32405"></script>
-<script src="js/cagroups.js?v=32405"></script>
-<script src="js/groupmerge.js?v=32405"></script>
-<script src="js/groupsview.js?v=32405"></script>
-<script src="js/runledger.js?v=32405"></script>
-<script src="js/bgvault.js?v=32405"></script>
-<script src="js/protect.js?v=32405"></script>
-<script src="js/policy-compare.js?v=32405"></script>
-<script src="js/import.js?v=32405"></script>
-<script src="js/export.js?v=32405"></script>
-<script src="js/demo.js?v=32405"></script>
-<script src="js/list-detail.js?v=32405"></script>
-<script src="js/flat-icons.js?v=32405"></script>
-<script src="js/workspace.js?v=32405"></script>
-<script src="js/analysis-jobs.js?v=32405"></script>
-<script src="js/search-suggest.js?v=32405"></script>
-<script src="js/app.js?v=32405"></script>
-<script src="js/col-resize.js?v=32405"></script>
-<script src="js/accessibility.js?v=32405"></script>
-<script src="js/workspaces.js?v=32405"></script>
-<script src="js/tool-layout.js?v=32405"></script>
+<script src="js/branding.js?v=32406"></script>
+<script src="js/selfhost.js?v=32406"></script>
+<script src="js/version.js?v=32406"></script>
+<script src="js/verdict.js?v=32406"></script>
+<script src="js/fork.js?v=32406"></script>
+<script src="js/promote.js?v=32406"></script>
+<script src="js/authConfig.js?v=32406"></script>
+<script src="js/connection.js?v=32406"></script>
+<script src="js/labels.js?v=32406"></script>
+<script src="js/capabilities.js?v=32406"></script>
+<script src="js/graph.js?v=32406"></script>
+<script src="js/model.js?v=32406"></script>
+<script src="js/render.js?v=32406"></script>
+<script src="js/analyze.js?v=32406"></script>
+<script src="js/whatif.js?v=32406"></script>
+<script src="js/mslearn.js?v=32406"></script>
+<script src="js/learntriage.js?v=32406"></script>
+<script src="js/learnfeed.js?v=32406"></script>
+<script src="js/gapcheck.js?v=32406"></script>
+<script src="js/cisdata.js?v=32406"></script>
+<script src="js/cischeck.js?v=32406"></script>
+<script src="js/exclusions.js?v=32406"></script>
+<script src="js/cascope.js?v=32406"></script>
+<script src="js/coverage.js?v=32406"></script>
+<script src="js/runmeta.js?v=32406"></script>
+<script src="js/overview.js?v=32406"></script>
+<script src="js/validator.js?v=32406"></script>
+<script src="js/whatifeval.js?v=32406"></script>
+<script src="js/builder.js?v=32406"></script>
+<script src="js/onboard.js?v=32406"></script>
+<script src="js/compare.js?v=32406"></script>
+<script src="js/whois.js?v=32406"></script>
+<script src="js/wave.js?v=32406"></script>
+<script src="js/sessionctl.js?v=32406"></script>
+<script src="js/spgap.js?v=32406"></script>
+<script src="js/groupuse.js?v=32406"></script>
+<script src="js/iso3166.js?v=32406"></script>
+<script src="js/causes.js?v=32406"></script>
+<script src="js/locations.js?v=32406"></script>
+<script src="js/locsignin.js?v=32406"></script>
+<script src="js/workloadid.js?v=32406"></script>
+<script src="js/authcontexts.js?v=32406"></script>
+<script src="js/authstrengths.js?v=32406"></script>
+<script src="js/recycle.js?v=32406"></script>
+<script src="js/rmau.js?v=32406"></script>
+<script src="js/camap.js?v=32406"></script>
+<script src="js/rmaudoc.js?v=32406"></script>
+<script src="js/termsofuse.js?v=32406"></script>
+<script src="js/audit.js?v=32406"></script>
+<script src="js/drift.js?v=32406"></script>
+<script src="js/guide.js?v=32406"></script>
+<script src="js/userimpact.js?v=32406"></script>
+<script src="js/smsvoice.js?v=32406"></script>
+<script src="js/memberof.js?v=32406"></script>
+<script src="js/devcheck.js?v=32406"></script>
+<script src="js/idscore.js?v=32406"></script>
+<script src="js/xtenant.js?v=32406"></script>
+<script src="js/passkeys.js?v=32406"></script>
+<script src="js/tokencov.js?v=32406"></script>
+<script src="js/naming.js?v=32406"></script>
+<script src="js/licgap.js?v=32406"></script>
+<script src="js/teamsdev.js?v=32406"></script>
+<script src="js/signinstore.js?v=32406"></script>
+<script src="js/signins.js?v=32406"></script>
+<script src="js/reportimpact.js?v=32406"></script>
+<script src="js/changelog.js?v=32406"></script>
+<script src="js/baselineData.js?v=32406"></script>
+<script src="js/baselineJoeyData.js?v=32406"></script>
+<script src="js/baselineLive.js?v=32406"></script>
+<script src="js/baseline.js?v=32406"></script>
+<script src="js/baselineCleanup.js?v=32406"></script>
+<script src="js/groupTemplates.js?v=32406"></script>
+<script src="js/assign.js?v=32406"></script>
+<script src="js/cagroups.js?v=32406"></script>
+<script src="js/groupmerge.js?v=32406"></script>
+<script src="js/groupsview.js?v=32406"></script>
+<script src="js/runledger.js?v=32406"></script>
+<script src="js/bgvault.js?v=32406"></script>
+<script src="js/protect.js?v=32406"></script>
+<script src="js/policy-compare.js?v=32406"></script>
+<script src="js/import.js?v=32406"></script>
+<script src="js/export.js?v=32406"></script>
+<script src="js/demo.js?v=32406"></script>
+<script src="js/list-detail.js?v=32406"></script>
+<script src="js/flat-icons.js?v=32406"></script>
+<script src="js/workspace.js?v=32406"></script>
+<script src="js/analysis-jobs.js?v=32406"></script>
+<script src="js/search-suggest.js?v=32406"></script>
+<script src="js/app.js?v=32406"></script>
+<script src="js/col-resize.js?v=32406"></script>
+<script src="js/accessibility.js?v=32406"></script>
+<script src="js/workspaces.js?v=32406"></script>
+<script src="js/tool-layout.js?v=32406"></script>
 </body>
 </html>

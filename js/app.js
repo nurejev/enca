@@ -182,7 +182,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -289,6 +289,8 @@
                         open: () => openImpact() },
     toolSessionCtl:   { into: "toolSignins",  label: "🛂 Session controls",           where: "the Session controls tab",   build: 25339,
                         open: () => openSessionCtl() },
+    toolWorkloadId:   { into: "toolSignins",  label: "🤖 Workload identities",        where: "the Workload identities tab", build: 32406,
+                        open: () => openWorkloadId() },
     toolDrift:        { into: "toolAudit",    label: "📉 Drift watch",                where: "the Snapshot file tab",      build: 25340,
                         open: () => openDrift() },
     toolGuide:        { into: "toolBaseline", label: "📖 Baseline guide",              where: "the Deployment guide tab",   build: 25340,
@@ -366,6 +368,9 @@
         { key: "failures", icon: "🚦", name: "Failures",          toolbar: "siToolbar", open: () => openSignins() },
         { key: "impact",   icon: "🎚", name: "Report-only impact", toolbar: "riToolbar", open: () => openImpact() },
         { key: "session",  icon: "🛂", name: "Session controls",   toolbar: "scToolbar", open: () => openSessionCtl(), beta: true },
+        // 32406 (T47, R46): the workload identity policies against the
+        // service principal sign-ins — its own source switch
+        { key: "workload", icon: "🤖", name: "Workload identities", toolbar: "wlToolbar", open: () => openWorkloadId(), beta: true },
       ],
     },
     // "What changed" asked of two sources. Audit.diff is already the one engine
@@ -22128,6 +22133,152 @@ This is a directory write. Nothing else changes.`)) return;
     showReport("📐 CIS Benchmark alignment", "CA-CIS-Benchmark", CisCheck.toMd(ciResult, ciMeta || { tenantName }));
     toast("CIS Benchmark Markdown <span>downloaded</span>");
   });
+
+  // ---------- 🤖 Workload identities (32406, T47, R46) ----------
+  // Do the service-principal policies ever fire? The WorkloadIDs policies
+  // held against the service principal sign-ins (js/workloadid.js, pure).
+  // Its OWN source switch, not the user sign-in one: the Entra log (default)
+  // names the policy and carries the report-only verdict; Defender hunting
+  // (EntraIdSpnSignInEvents) is 30 days of volume with no CA columns.
+  const WL_SRC_KEY = () => `enca-wlsource:${tenantId || "demo"}`;
+  let wlSrc = "graph", wlDays = 7, wlRes = null, wlBusy = false, wlErr = null, wlFilter = "all", wlShowMs = false;
+  const wlProg = makeProgress("wl"); wlProg.by = "🤖 Workload identities"; wlProg.stoppable = true;
+  let wlHuntTable = "EntraIdSpnSignInEvents";
+  const WL_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Do the service-principal policies ever fire? The policies that target workload identities held against the service principal sign-ins: which principals each one reaches, which of them sign in, what was blocked and what a report-only policy would have done — and the principals no policy can reach (managed identities, Microsoft and multi-tenant apps) signing in from outside every named location. Read-only.</p>';
+  function wlPaintToolbar() {
+    $("wlSrcSeg").innerHTML = [["graph", "Entra log", "Per-policy results and the report-only forecast · AuditLog.Read.All · capped at 10,000 service principal and 5,000 managed identity sign-ins"], ["hunting", "Defender hunting", "30 days of volume, IPs and error 53003 — no policy names · ThreatHunting.Read.All · Entra ID P2"]]
+      .map(([k, l, t]) => `<button class="${wlSrc === k ? "active" : ""}" data-wlsrc="${k}" title="${esc(t)}">${esc(l)}</button>`).join("");
+    [...$("wlDaysSeg").children].forEach((b) => b.classList.toggle("active", +b.dataset.wldays === wlDays));
+    $("wlMs").checked = wlShowMs;
+    $("wlMd").style.display = wlRes ? "" : "none";
+    $("wlRefresh").textContent = wlRes ? "⟳ Read again" : "▶ Read";
+  }
+  function openWorkloadId() {
+    crumb("🚦 Sign-in log");
+    show("screen-workloadid");
+    mountToolTabs("signins", "workload");
+    $("wlHead").innerHTML = toolHead("toolWorkloadId") + WL_HEAD_TEXT;
+    try { const v = localStorage.getItem(WL_SRC_KEY()); if (v === "graph" || v === "hunting") wlSrc = v; } catch { /* default */ }
+    wlPaintToolbar();
+    if (wlBusy) { $("wlBody").innerHTML = wlProg.panel("Reading service principal sign-ins…"); return; }
+    if (wlRes) { renderWorkloadId(); return; }
+    const raws = wlPolicies();
+    const n = raws.filter((p) => WorkloadId.targets(p)).length;
+    $("wlChips").innerHTML = "";
+    $("wlBody").innerHTML = `${wlErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(wlErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-wlrun>▶ Read service principal sign-ins</button>
+      <p class="mini muted">${n} polic${n === 1 ? "y targets" : "ies target"} workload identities. Reads ${esc(rangeLabel(wlDays))} of service principal and managed identity sign-ins from ${wlSrc === "hunting" ? "Defender hunting (ThreatHunting.Read.All)" : "the Entra sign-in log (AuditLog.Read.All)"}, the principals involved (Directory.Read.All, already granted) and the named locations. Nothing is written.</p></div>`;
+  }
+  // the demo keeps its workload identity policies out of the shared policy list
+  function wlPolicies() {
+    const raws = policies.map((p) => p.raw);
+    if (isDemo && DEMO_DATA.workload) raws.push(DEMO_DATA.workload.policy, DEMO_DATA.workload.policyRo);
+    return raws;
+  }
+  function renderWorkloadId() {
+    if (!wlRes) return;
+    const model = WorkloadId.analyze({ ...wlRes.input, policies: wlPolicies(), showMicrosoft: wlShowMs, inCidr: LocSignin.inCidr, demo: isDemo });
+    wlRes.model = model;
+    wlPaintToolbar();
+    $("wlChips").innerHTML = WorkloadId.chips(model, wlFilter);
+    $("wlBody").innerHTML = WorkloadId.render(model, { filter: wlFilter });
+  }
+  async function wlHunt(days) {
+    const to = new Date(), from = new Date(Date.now() - days * 86400000);
+    const body = (table) => ({ Query: WorkloadId.huntQuery(table, from.toISOString(), to.toISOString()), Timespan: `P${Math.max(1, Math.ceil(days))}D` });
+    const noTable = (e, name) => new RegExp(`(resolve|find)[^']*'${name}'`, "i").test((e && e.message) || "");
+    wlProg.start(1, "rows", "query");
+    try { const j = await Graph.gpost("/security/runHuntingQuery", body(wlHuntTable), [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]); wlProg.tick(((j && j.results) || []).length, 1); return (j && j.results) || []; }
+    catch (e) {
+      if (wlHuntTable === "EntraIdSpnSignInEvents" && noTable(e, "EntraIdSpnSignInEvents")) {
+        const j = await Graph.gpost("/security/runHuntingQuery", body("AADSpnSignInEventsBeta"), [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]);
+        wlHuntTable = "AADSpnSignInEventsBeta";
+        return (j && j.results) || [];
+      }
+      throw e;
+    }
+  }
+  async function wlReadPrincipals(ids) {
+    const sps = {};
+    const list = [...new Set(ids)].filter((id) => /^[0-9a-f-]{36}$/i.test(id || ""));
+    for (let i = 0; i < list.length; i += 1000) {
+      try {
+        const j = await Graph.gpost("/directoryObjects/getByIds", { ids: list.slice(i, i + 1000), types: ["servicePrincipal"] }, AUTH_CONFIG.scopes);
+        (j.value || []).forEach((o) => { sps[o.id] = { id: o.id, appId: o.appId, displayName: o.displayName, servicePrincipalType: o.servicePrincipalType, appOwnerOrganizationId: o.appOwnerOrganizationId }; });
+      } catch (e) { console.warn("workload: principals not read", e.message); }
+    }
+    // owned here: is the registration single-tenant? (the signInAudience of
+    // the application object; unread counts as single-tenant)
+    const own = Object.values(sps).filter((s) => s.appOwnerOrganizationId === tenantId && !/managedidentity/i.test(s.servicePrincipalType || "")).slice(0, 300);
+    await Graph.mapLimit(own, 4, async (s) => {
+      try { const a = await Graph.gget(`/applications(appId='${s.appId}')?$select=signInAudience`); s.signInAudience = a && a.signInAudience; } catch { /* stays unread */ }
+    });
+    return sps;
+  }
+  async function runWorkloadId() {
+    if (wlBusy) return;
+    wlBusy = true; wlErr = null; wlProg.begin();
+    const key = JSON.stringify([tenantId, isDemo, wlSrc, wlDays]);
+    if ($("screen-workloadid").classList.contains("active")) $("wlBody").innerHTML = wlProg.panel("Reading service principal sign-ins…", wlSrc === "hunting" ? "One summarised hunting query for the whole window." : "Service principal sign-ins, then managed identity sign-ins, from the Entra log.");
+    try {
+      const notes = [];
+      let rows, sps, locations, capped = false;
+      if (isDemo) {
+        const D = DEMO_DATA.workload;
+        rows = WorkloadId.fromGraph(D.signIns); sps = D.servicePrincipals; locations = DEMO_DATA.namedLocations || [];
+      } else {
+        if (wlSrc === "hunting") {
+          await requireProduct("p2");
+          if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the Entra log source remains available");
+          const r = await wlHunt(wlDays);
+          rows = WorkloadId.fromHunting(r); capped = r.length >= 20000;
+          notes.push(`hunting table ${wlHuntTable}`);
+        } else {
+          if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) throw new Error("AuditLog.Read.All was not granted");
+          const since = new Date(Date.now() - wlDays * 86400000).toISOString();
+          const url = (t) => `/beta/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and signInEventTypes/any(t:t eq '${t}')`)}&$top=999`;
+          const sp = await wlProg.fetchAll(url("servicePrincipal"), SI_MAX, "service principal sign-ins");
+          const spCapped = !!wlProg.st.capped;
+          const mi = await wlProg.fetchAll(url("managedIdentity"), 5000, "managed identity sign-ins");
+          const miCapped = !!wlProg.st.capped;
+          capped = spCapped || miCapped;
+          if (spCapped) notes.push(`service principal sign-ins stopped at ${SI_MAX.toLocaleString()}`);
+          if (miCapped) notes.push("managed identity sign-ins stopped at 5,000");
+          rows = WorkloadId.fromGraph(sp.concat(mi));
+        }
+        wlProg.check();
+        const wanted = rows.map((r) => r.spId).concat(wlPolicies().flatMap((p) => { const t = WorkloadId.targets(p); return t ? t.include.concat(t.exclude) : []; }));
+        wlProg.detail("Reading the service principals…");
+        sps = await wlReadPrincipals(wanted);
+        locations = loList || await Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []);
+      }
+      if (key !== JSON.stringify([tenantId, isDemo, wlSrc, wlDays])) throw new Error("Read discarded: tenant, source or window changed");
+      wlRes = { input: { rows, sps, locations, tenantId: isDemo ? DEMO_DATA.workload.tenantId : tenantId, source: isDemo ? "graph" : wlSrc, days: wlDays, capped, notes } };
+    } catch (e) {
+      wlErr = e && e.stopped ? "stopped — nothing is shown for a partial window" : (e && (e.message || String(e)));
+      wlRes = null;
+    } finally { wlBusy = false; wlProg.stop(); }
+    if ($("screen-workloadid").classList.contains("active")) { if (wlRes) renderWorkloadId(); else openWorkloadId(); }
+  }
+  $("wlSrcSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-wlsrc]"); if (!b || b.dataset.wlsrc === wlSrc) return;
+    if (wlBusy) { toast("Stop the current read before changing the source"); return; }
+    wlSrc = b.dataset.wlsrc; wlRes = null;
+    try { localStorage.setItem(WL_SRC_KEY(), wlSrc); } catch { /* private mode */ }
+    openWorkloadId();
+  });
+  $("wlDaysSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-wldays]"); if (!b) return;
+    if (wlBusy) { toast("Stop the current read before changing the period"); return; }
+    wlDays = +b.dataset.wldays; wlRes = null; openWorkloadId();
+  });
+  $("wlMs").addEventListener("change", (e) => { wlShowMs = e.target.checked; renderWorkloadId(); });
+  $("wlRefresh").addEventListener("click", () => runWorkloadId());
+  $("wlChips").addEventListener("click", (e) => { const b = e.target.closest("[data-wlf]"); if (!b) return; wlFilter = b.dataset.wlf; renderWorkloadId(); });
+  $("wlBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-wlrun]")) { runWorkloadId(); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+  $("wlMd").addEventListener("click", () => { if (wlRes && wlRes.model) showReport("🤖 Workload identities", `ENCA-workload-identities-${new Date().toISOString().slice(0, 10)}`, WorkloadId.toMd(wlRes.model, tenantName)); });
 
   // ---------- 🎫 CAE & token protection (32404, T46, R21) ----------
   // Coverage per persona of the two newer session controls, over the policies

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32406, date: "2026-09-24", title: "🤖 Workload identities — do the service-principal policies ever fire?",
+    items: [
+      { kind: "new", tool: "Sign-in log", text: "A new Workload identities tab in 🚦 Sign-in log holds the policies that target service principals against the service principal and managed identity sign-ins. Per principal: what kind it is (single-tenant app registered here, multi-tenant app, managed identity, Microsoft app), its sign-ins, how many came from outside every named location, which policies reach it, and a verdict — blocked, reachable but not targeted, report-only only, covered, or cannot be targeted. Per policy: who it names, who of them signs in, how often it blocked and, for a report-only policy, what it would have blocked." },
+      { kind: "new", tool: "Sign-in log", text: "Its own source switch. The Entra log (default) names the policy on every sign-in, so blocks are attributed and report-only policies are forecast. Defender hunting reads 30 days of EntraIdSpnSignInEvents in one summarised query, but that table has no Conditional Access columns: a block is only error 53003, without a policy name. Microsoft apps are hidden unless you tick Show Microsoft apps. The tab says what Microsoft does not enforce: managed identities, Microsoft and multi-tenant apps cannot be targeted, and a service principal reached through a group is not enforced. Read-only; Export MD writes it all." },
+    ],
+  },
+  {
     build: 32405, date: "2026-09-24", title: "🌐 Named locations against the sign-in log",
     items: [
       { kind: "new", tool: "Policy building blocks", text: "🌐 Locations has a third view, vs. sign-ins, beside Cards and Table. It holds every named location against 1, 7 or 30 days of the sign-in window the sign-in tools already share (same source, same cap, a window already read is reused): how many sign-ins and users each location matched and when it was last seen. It flags trusted ranges nobody signs in from any more (High when a policy relies on them), locations policies name that no sign-in came from, and locations that are seen but used by no policy. A country location with no sign-ins is noted as expected for blocked countries, not flagged." },
