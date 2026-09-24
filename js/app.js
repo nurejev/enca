@@ -177,7 +177,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -302,6 +302,12 @@
                         open: () => openMsLearn() },
     toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
                         open: () => openDevCheck() },
+    toolIdScore:      { into: "toolGapCheck", label: "🏅 Identity Secure Score",      where: "the Identity score tab",     build: 32308,
+                        open: () => openIdScore() },
+    toolXTenant:      { into: "toolGapCheck", label: "🤝 Cross-tenant access",        where: "the Cross-tenant tab",       build: 32316,
+                        open: () => openXTenant() },
+    toolPasskeys:     { into: "toolGapCheck", label: "🔑 Passkeys",                   where: "the Passkeys tab",           build: 32317,
+                        open: () => openPasskeys() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
                         open: () => openValidator() },
     toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
@@ -435,6 +441,15 @@
         { key: "bypass", icon: "🛡", name: "Bypass & Swiss cheese", toolbar: "gcToolbar", open: () => openGapCheck() },
         { key: "mslearn", icon: "📘", name: "Microsoft Learn",      toolbar: "mlToolbar", open: () => openMsLearn() },
         { key: "intune",  icon: "🖥", name: "Intune reality",       toolbar: "dvToolbar", open: () => openDevCheck() },
+        // 32308 (T42): Microsoft's own judgement of the identity setup, next
+        // to ENCA's reading of the policies — a reference like the other three
+        { key: "idscore", icon: "🏅", name: "Identity score",       toolbar: "isToolbar", open: () => openIdScore(), beta: true },
+        // 32316 (T43): who other tenants can send in and whose MFA / device
+        // claims are trusted — each trust followed into the policies
+        { key: "xtenant", icon: "🤝", name: "Cross-tenant",         toolbar: "xtToolbar", open: () => openXTenant(), beta: true },
+        // 32317 (T44): the policies that require a passkey, against the
+        // Passkey (FIDO2) method that decides whether anyone can get one
+        { key: "passkeys", icon: "🔑", name: "Passkeys",            toolbar: "pkToolbar", open: () => openPasskeys(), beta: true },
       ],
     },
     blocks: {
@@ -684,9 +699,23 @@
     Brand.setActive(B);
     const set = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
     document.title = Brand.pageTitle;
-    set("favicon", (el) => { if (B.favicon) el.href = B.favicon; });
+    // The publisher's beta host wears the BETA edition of the DEFAULT mark
+    // (branding.js betaLogo/betaFavicon). Not under an override or a
+    // self-hosted look - those are somebody's own logo - and not on policy
+    // cards, which read Brand.current.logo and stay plain. data-beta-mark on
+    // <html> lets css/app.css swap the dark BETA mark in dark mode.
+    const betaMark = (() => {
+      try {
+        const o = typeof BrandOverrides !== "undefined" ? BrandOverrides.byKey(activeOverrideKey()) : null;
+        const beta = String((typeof BRANDING !== "undefined" && BRANDING.betaHost) || "").toLowerCase();
+        return !o && !!B.betaLogo && !!beta && (location.hostname || "").toLowerCase() === beta;
+      } catch { return false; }
+    })();
+    document.documentElement.toggleAttribute("data-beta-mark", betaMark);
+    set("favicon", (el) => { const f = betaMark ? (B.betaFavicon || B.favicon) : B.favicon; if (f) el.href = f; });
     ["brandLogo", "brandLogoLogin"].forEach((id) => set(id, (el) => {
-      if (B.logo) el.src = B.logo;
+      const logo = betaMark ? B.betaLogo : B.logo;
+      if (logo) el.src = logo;
       el.alt = B.org || B.name;
       // Wide wordmarks (the default marks are 1:1) keep their aspect: fix the
       // height the layout expects and let the width follow.
@@ -1681,7 +1710,9 @@
     }
     // Newest first: the most recently retired is the most likely to be looked up.
     moved.sort((a, b) => b[0] - a[0]).forEach(([, c]) => host.appendChild(c));
-    box.style.display = moved.length ? "" : "none";
+    // 32303: live cards also sit in the host from the start (index.html), so
+    // the box shows whenever it holds anything, moved now or placed there
+    box.style.display = host.querySelector("[data-shipped]") ? "" : "none";
     rmAged = true;
   }
   function openRoadmap() { crumb("🗺 Roadmap"); show("screen-roadmap"); rmAgeShipped(); }
@@ -2286,6 +2317,16 @@
   }
 
   let caSettingsCache;
+  // 🏅 Identity Secure Score (32308): what Microsoft returned, kept per tenant
+  // and session; the model is rebuilt from it against the policies loaded now
+  let isRaw = null, isModel = null, isBusy = false, isErr = null, isFilter = "open";
+  // 🤝 Cross-tenant access (32316): the raw reads, kept per tenant and
+  // session; the model is rebuilt against the policies loaded now
+  let xtRaw = null, xtModel = null, xtBusy = false, xtErr = null, xtFilter = "all", xtStep = "";
+  // 🔑 Passkeys (32317): the raw reads, kept per tenant and session; the
+  // model is rebuilt against the policies loaded now
+  let pkRaw = null, pkModel = null, pkBusy = false, pkErr = null, pkFilter = "all", pkStep = "";
+  const isExpanded = new Set();
   async function readCaSettings() {
     if (caSettingsCache !== undefined) return caSettingsCache;
     if (isDemo) { caSettingsCache = DEMO_DATA.caSettings || { advancedSettings: null }; return caSettingsCache; }
@@ -2326,7 +2367,7 @@
         }
       }
       tenantLogo = logo || null;
-      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined;
+      isDemo = false; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null;
       signinContext = { tenantId: account?.tenantId || "", at: Date.now(), demo: false, names: names || {}, ...(context || {}) };
       // Results belong to the snapshot they were computed from.
       invalidateToolResults("policies reloaded");
@@ -2398,7 +2439,7 @@
     // catalog it is not.
     tenantDomain = "";
     tenantLogo = null;
-    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined;
+    isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null;
     {
       const at = Date.now();
       const strengths = Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v);
@@ -2444,7 +2485,7 @@
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
     { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
-    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths", tools: "Import", onDemand: true },
+    { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths; configure the Passkey (FIDO2) method", tools: "Import, Checks → Passkeys", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
     { scope: "RoleManagement.ReadWrite.Directory", use: "Grant a directory role scoped to a restricted administrative unit. No longer used to create role-assignable groups — nothing creates those any more — but still requested by the create flows for the scoped-role grant that can follow", tools: "Restricted AUs, CA groups (protect)", onDemand: true },
@@ -9661,6 +9702,8 @@ This is a directory write. Nothing else changes.`)) return;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
     // Regenerating the catalog is only meaningful where the catalog is BUILT.
     $("blCatalogUpdate").style.display = isBaselineTenant() && !isDemo ? "" : "none";
+    { const nR = blCat === "limonit" && isBaselineTenant() ? Object.keys(catReadyLoad()).length : 0;
+      $("blCatalogUpdate").textContent = nR ? `🧱 Update the catalog from this tenant · ${nR} ready from Fix` : "🧱 Update the catalog from this tenant"; }
     $("blExport").style.display = isBaselineTenant() && !isDemo ? "" : "none";
     if (blCatOpen) renderCatalogUpdate();
   }
@@ -9673,7 +9716,17 @@ This is a directory write. Nothing else changes.`)) return;
   // Holds live per tenant and are keyed by the SIGNATURE of the difference
   // they were made about, so the 58 dropped exclusion groups stay held while a
   // later, different change on one of those policies reopens by itself.
-  let blCatOpen = false, blReview = null, blTake = new Set();
+  let blCatOpen = false, blReview = null, blTake = new Set(), blTakeReady = false;
+  // 32303 — arrive from 🧰 Fix: the CloudFellows catalog, the panel open, the
+  // fixed policies ticked. The comparison is re-run on the policies as they
+  // are NOW, so the change that was just written is the change it sees.
+  function openCatalogFromReady() {
+    crumb("🧬 Baseline");
+    openBaseline("limonit");
+    blCatOpen = true; blTake.clear(); blTakeReady = true;
+    renderCatalogUpdate();
+    try { $("blCatalogPanel").scrollIntoView({ block: "start", behavior: "smooth" }); } catch { /* jsdom */ }
+  }
   const HOLD_KEY = () => `enca-baseline-holds:${tenantId || "unknown"}:${blCat}`;
   const loadHolds = () => { try { return JSON.parse(localStorage.getItem(HOLD_KEY()) || "{}") || {}; } catch { return {}; } };
   const saveHolds = (h) => { try { localStorage.setItem(HOLD_KEY(), JSON.stringify(h)); } catch { /* private mode */ } };
@@ -9685,6 +9738,18 @@ This is a directory write. Nothing else changes.`)) return;
     const holds = loadHolds();
     blReview = Baseline.catalogReview(blResult, holds);
     const r = blReview;
+    // 32303 — the policies 🧰 Fix changed. One the catalog no longer differs
+    // from has been taken (the catalog caught up), so it leaves the list — but
+    // only once the policies were read AFTER the fix, never on a stale read.
+    const ready = isBaselineTenant() && blCat === "limonit" ? catReadyLoad() : {};
+    const differs = new Set([...(r.changed || []), ...(r.added || []), ...(r.held || [])].map((x) => x.num));
+    let pruned = false;
+    for (const k of Object.keys(ready)) {
+      if (!differs.has(+k) && policiesReadAt && Date.parse(ready[k].at) < policiesReadAt) { delete ready[k]; pruned = true; }
+    }
+    if (pruned) catReadySave(ready);
+    if (blTakeReady) { Object.keys(ready).forEach((k) => { if (differs.has(+k)) blTake.add(+k); }); blTakeReady = false; }
+    const fromFix = (x) => ready[String(x.num)];
     const row = (x, kind) => {
       const num = `CA${String(x.num).padStart(3, "0")}`;
       const diff = (x.diff || []).map((d) => `<li><b>${esc(d.label)}</b><div class="mini muted bl-diffv">catalog: ${esc(d.cat)}</div><div class="mini bl-diffv">tenant: ${esc(d.ten)}</div></li>`).join("");
@@ -9696,6 +9761,7 @@ This is a directory write. Nothing else changes.`)) return;
           ${x.reopened ? '<span class="tag new" title="It was held, but the difference is not the one that was held">REOPENED</span>' : ""}
           ${kind === "changed" ? (x.kind === "renamed" ? '<span class="tag" title="Only the name differs from the catalog; the definition is the same">renamed, same version</span>' : x.kind === "edited" && x.status === "ahead" ? '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows; the chip counts it as newer">same version — edited in place</span>' : x.status === "ahead" ? (x.diff.length === 1 && x.diff[0].field === "name" ? '<span class="tag" title="Only the version in the name moved; the definition is the catalog\'s — taking it updates the entry\'s name and version">newer version only</span>' : '<span class="tag" title="The version in the policy name is newer than the catalog\'s — the chip counts this one">newer version in name</span>') : x.status === "outdated" ? '<span class="tag" title="The version in the name is OLDER than the catalog\'s, yet the definition differs">older version in name</span>' : x.status === "ok" ? (x.diff.some((d) => d.field === "name") ? '<span class="tag" title="Renamed without a version bump">renamed, same version</span>' : '<span class="tag" title="Same version as the catalog — edited in place, which the name alone never shows">same version — edited in place</span>') : "") : ""}
         </div>
+        ${fromFix(x) ? `<p class="mini bl-fromfix"><span class="tag grant">🧰 from Fix</span> ${esc(fromFix(x).checks.map((c) => c.title).join("; "))}</p>` : ""}
         ${diff ? `<ul class="plist2" style="border:1px solid var(--border);border-radius:8px;margin:8px 0 0">${diff}</ul>` : ""}
         ${x.hold ? `<p class="mini" style="margin:8px 0 0">Held: <i>${esc(x.hold.reason)}</i>${x.hold.at ? ` · ${esc(String(x.hold.at).slice(0, 10))}` : ""}</p>` : ""}
         <div class="bl-cardact">
@@ -9720,9 +9786,11 @@ This is a directory write. Nothing else changes.`)) return;
         const nameOnly = newer.filter((x) => !x.edited).length;
         const chip = r.changed.filter((x) => x.status === "ahead").length, older = r.changed.filter((x) => x.status === "outdated").length;
         const total = r.changed.length + r.added.length;
-        return `<p class="mini" style="margin:6px 0 0"><b>${total}</b> to take · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
+        const nReady = [...r.changed, ...r.added].filter((x) => fromFix(x)).length;
+        return `${nReady ? `<p class="mini" style="margin:6px 0 0"><span class="tag grant">🧰 ${nReady} ready from Fix</span> changed by the MS Learn checks' Fix — each says which check below; the catalog note carries it.</p>` : ""}<p class="mini" style="margin:6px 0 0"><b>${total}</b> to take · <b>${r.gone.length}</b> gone from the tenant · <b>${r.held.length}</b> held · <b>${r.unchanged.length}</b> unchanged</p>
       <p class="mini muted" style="margin:4px 0 0">The <b>${chip}</b> the Newer than baseline chip counts, in three kinds: <b>${newer.length}</b> with a newer version in the name${nameOnly ? ` (${nameOnly} of them the version alone, definition unchanged)` : ""}, <b>${inPlace.length}</b> edited in place at the same version, <b>${renamed.length}</b> renamed at the same version (the definition unchanged — the card shows both names)${older ? `; plus <b>${older}</b> at an OLDER version whose definition differs (the chip counts those as outdated)` : ""}${r.added.length ? `; plus <b>${r.added.length}</b> the catalog does not know at all` : ""}.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px;flex-wrap:wrap">
+        ${nReady ? `<button class="btn sm" id="blTakeReady">☑ Select the ${nReady} from Fix</button>` : ""}
         <button class="btn sm" id="blTakeNewer" ${newer.length ? "" : "disabled"} title="The policies whose version in the name is newer than the catalog's">☑ Select the ${newer.length} newer</button>
         <button class="btn sm" id="blTakeInPlace" ${inPlace.length ? "" : "disabled"} title="Definition differs, version not bumped">☑ Select the ${inPlace.length} edited in place</button>
         <button class="btn sm" id="blTakeRenamed" ${renamed.length ? "" : "disabled"} title="Only the name differs — take them to update the catalog's names">☑ Select the ${renamed.length} renamed</button>
@@ -9746,7 +9814,12 @@ This is a directory write. Nothing else changes.`)) return;
     </div></div>`;
   }
 
-  $("blCatalogUpdate").addEventListener("click", () => { blCatOpen = !blCatOpen; blTake.clear(); renderCatalogUpdate(); });
+  $("blCatalogUpdate").addEventListener("click", () => {
+    blCatOpen = !blCatOpen; blTake.clear();
+    // fixed policies are ticked on open, the same as arriving from the band
+    if (blCatOpen && Object.keys(catReadyLoad()).length) { blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() }); blTakeReady = true; }
+    renderCatalogUpdate();
+  });
   // ⬇ Export baseline (25463) — the SAME export 🗄 Backup gives on the
   // Policies screen, opened from where the baseline is actually worked on and
   // with the persona chooser on. Mihai: "just like the backup from the
@@ -9766,6 +9839,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (e.target.id === "blTakeInPlace") { (blReview.changed || []).filter((x) => x.kind === "edited").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
     if (e.target.id === "blTakeRenamed") { (blReview.changed || []).filter((x) => x.kind === "renamed").forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
     if (e.target.id === "blTakeNone") { blTake.clear(); renderCatalogUpdate(); return; }
+    if (e.target.id === "blTakeReady") { const rd = catReadyLoad(); [...(blReview.changed || []), ...(blReview.added || [])].filter((x) => rd[String(x.num)]).forEach((x) => blTake.add(x.num)); renderCatalogUpdate(); return; }
     const hold = e.target.closest("[data-blhold]");
     if (hold) {
       const num = +hold.dataset.blhold;
@@ -9788,7 +9862,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (e.target.id === "blCatGen") {
       const taken = [...(blReview.changed || []), ...(blReview.added || [])].filter((x) => blTake.has(x.num))
         .map((x) => ({ num: x.num, ten: x.ten, diff: x.diff || [{ label: "new in this tenant" }] }));
-      const md = "```js\n" + Baseline.catalogSource(blReview, taken, loadHolds(), { tenant: tenantName || tenantId }) + "\n```";
+      const rd = catReadyLoad();
+      const why = {};
+      taken.forEach((t) => { const x = rd[String(t.num)]; if (x) why[t.num] = x; });
+      const md = "```js\n" + Baseline.catalogSource(blReview, taken, loadHolds(), { tenant: tenantName || tenantId, why }) + "\n```";
       showReport("🧱 Proposed baseline catalog", "ENCA-baseline-catalog", md);
     }
   });
@@ -19941,6 +20018,9 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- MS Learn documented exclusion checks ----------
   let mlGroups = null, mlFilter = "all", mlStrengths = new Map(), mlFixes = null, mlTab = "findings";
+  // 32303: the run's raw findings, scope and groups, so a finding's own 🧰 Fix
+  // can build ITS fixes alone; mlFixable counts them per check.
+  let mlFindings = null, mlRaws = null, mlCtx = null, mlFixable = new Map();
   // The guest reality matrix (25433) — six external user types against the
   // controls the loaded policies demand. Built from the same inputs as the
   // findings, so it costs no extra read.
@@ -20096,6 +20176,7 @@ This is a directory write. Nothing else changes.`)) return;
     ctx.authMethods = await readAuthMethods();
     const guestGroups = await readGuestGroups(MSLearn.guestGroupIds(scope.raws, scope.includeDisabled));
     const findings = MSLearn.run(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
+    mlFindings = findings; mlRaws = scope.raws; mlCtx = ctx; mlFixable = new Map();
     mlGroups = MSLearn.group(findings);
     // The guest matrix reads the same inputs — no extra tenant call.
     mlMatrix = MSLearn.guestMatrix(scope.raws, mlStrengths, { includeDisabled: scope.includeDisabled, groups: ctx, partners, crossTenant, guestGroups });
@@ -20116,6 +20197,7 @@ This is a directory write. Nothing else changes.`)) return;
         if (ids.length) MSLearn.markUnknownApps(mlFixes, await Graph.existingAppIds(ids));
       } catch (e) { console.warn("App reference check failed:", e.message); }
     }
+    mlFixable = mlFixableCounts();
     renderMsLearn();
   }
   // re-run on a scope change only once there is a result to replace
@@ -20123,6 +20205,39 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlDisabledNote").textContent = scopeNote(checkScope($("mlDisabled").checked), policies.filter(p => p.raw.state === "disabled").length);
     if (mlGroups) mlScan();
   });
+  // ---- 32303: findings accepted with a reason, per tenant -----------------
+  const ML_ACC_KEY = () => `enca-ml-accepted:${tenantId || "unknown"}`;
+  const mlAccLoad = () => { try { return JSON.parse(localStorage.getItem(ML_ACC_KEY()) || "{}") || {}; } catch { return {}; } };
+  const mlAccSave = (a) => { try { localStorage.setItem(ML_ACC_KEY(), JSON.stringify(a)); } catch { /* private mode */ } };
+  // ---- 32303: policies a Fix changed, waiting for 🧱 Update the catalog ----
+  // Kept per tenant until the catalog has caught up with them (the catalog
+  // panel prunes what no longer differs) or someone clears them.
+  const CAT_READY_KEY = () => `enca-catalog-ready:${tenantId || "unknown"}`;
+  function catReadyLoad() { try { return JSON.parse(localStorage.getItem(CAT_READY_KEY()) || "{}") || {}; } catch { return {}; } }
+  function catReadySave(r) { try { localStorage.setItem(CAT_READY_KEY(), JSON.stringify(r)); } catch { /* private mode */ } }
+  function catReadyAdd(fixes) {
+    const r = catReadyLoad(), at = new Date().toISOString();
+    for (const f of fixes) {
+      const m = /CA(\d{1,4})/i.exec(String(f.newName || ""));
+      if (!m) continue;
+      const num = String(parseInt(m[1], 10));
+      const prev = r[num] || { checks: [], changes: [] };
+      const checks = [...prev.checks];
+      for (const c of f.checks || []) if (!checks.some((x) => x.id === c.id)) checks.push({ id: c.id, title: c.title, docUrl: c.docUrl });
+      r[num] = { name: f.newName, checks, changes: [...new Set([...(prev.changes || []), ...(f.changes || [])])], at, companion: !!f.companion };
+    }
+    catReadySave(r);
+  }
+  function mlReadyBand() {
+    if (!isBaselineTenant() || isDemo) return "";
+    const r = catReadyLoad(), n = Object.keys(r).length;
+    if (!n) return "";
+    const nums = Object.keys(r).map(Number).sort((a, b) => a - b).map((x) => `CA${String(x).padStart(3, "0")}`);
+    return `<div class="ml-ready"><div class="grow"><b>🧱 ${n} polic${n === 1 ? "y" : "ies"} ready for the catalog</b>
+      <div class="mini muted">${esc(nums.join(", "))} — changed by 🧰 Fix, each with the check it answers. Kept for this tenant until the catalog has taken them.</div></div>
+      <button class="btn sm" data-catready-clear>Clear</button>
+      <button class="btn primary sm" data-catready-open>Open 🧱 Update the catalog →</button></div>`;
+  }
   function renderMsLearn() {
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
@@ -20130,29 +20245,49 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlTabFixes").textContent = nFix ? `Suggested fixes (${nFix})` : "Suggested fixes";
     $("mlTabFindings").classList.toggle("active", mlTab === "findings");
     $("mlTabFixes").classList.toggle("active", mlTab === "fixes");
-    $("mlHead").innerHTML = MSLearn.renderSummary(mlGroups, MSLearn.checksCount, incDis);
+    // accepted findings fold away while they are about the same policies
+    const acc = mlAccLoad();
+    const accepted = [], active = [];
+    for (const g of mlGroups) {
+      const a = acc[g.check.id];
+      if (a && a.sig === MSLearn.acceptSig(g)) accepted.push({ g, a }); else active.push(g);
+    }
+    $("mlHead").innerHTML = MSLearn.renderSummary(active, MSLearn.checksCount, incDis);
+    const canApply = isBaselineTenant() && !isDemo;
+    const band = mlReadyBand();
 
     if (mlTab === "fixes") {
       $("mlChips").innerHTML = "";
       $("mlFixZip").style.display = nFix ? "" : "none";
       // writing back is offered only in a recognised baseline tenant
-      $("mlApply").style.display = nFix && isBaselineTenant() && !isDemo ? "" : "none";
-      $("mlBody").innerHTML = MSLearn.renderFixes(mlFixes || { fixes: [], skipped: [] });
+      $("mlApply").style.display = nFix && canApply ? "" : "none";
+      $("mlApply").innerHTML = `🧰 Fix all (${nFix}) <span class="tag block">writes</span>`;
+      $("mlBody").innerHTML = band + MSLearn.renderFixes(mlFixes || { fixes: [], skipped: [] });
       return;
     }
     $("mlFixZip").style.display = "none";
-    $("mlApply").style.display = "none";
-    if (!mlGroups.length) {
+    // 🧰 Fix all: the Suggested fixes tab's whole set, from the findings too
+    $("mlApply").style.display = nFix && canApply ? "" : "none";
+    $("mlApply").innerHTML = `🧰 Fix all that can be fixed (${nFix}) <span class="tag block">writes</span>`;
+    // the shared-device band's Fix covers every shared-device finding at once
+    let devFix = 0;
+    if (canApply && mlFindings && mlRaws) {
+      const s = mlSubset("@devices");
+      devFix = s ? s.fixes.length : 0;
+    }
+    const matrices = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix, { fixN: devFix }) : "");
+    if (!active.length) {
       $("mlChips").innerHTML = "";
-      $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "") + MSLearn.renderEmpty();
+      $("mlBody").innerHTML = band + matrices + MSLearn.renderEmpty() + MSLearn.renderAccepted(accepted);
       return;
     }
-    const count = (s) => s === "all" ? mlGroups.length : mlGroups.filter(g => g.check.severity === s).length;
+    const count = (s) => s === "all" ? active.length : active.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
-    $("mlBody").innerHTML = (mlMatrix ? MSLearn.renderGuestMatrix(mlMatrix) : "") + (mlDevMatrix ? MSLearn.renderDeviceMatrix(mlDevMatrix) : "")
-      + MSLearn.renderGroups(mlGroups, mlFilter, mlExpanded);
+    $("mlBody").innerHTML = band + matrices
+      + MSLearn.renderGroups(active, mlFilter, mlExpanded, { canApply, fixable: mlFixable, accept: !isDemo })
+      + MSLearn.renderAccepted(accepted);
   }
   $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
   $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
@@ -20198,6 +20333,36 @@ This is a directory write. Nothing else changes.`)) return;
       b.disabled = false; b.innerHTML = `➕ Create ${esc(name)} <span class="tag block">writes</span>`;
       toast(`Could not create ${esc(name)}: <span>${esc(err.message || err)}</span>`);
     }
+  });
+
+  // 32303 — 🧰 Fix on a finding / on the shared-device band, ✓ Accept with a
+  // reason, and the ready-for-the-catalog band.
+  $("mlBody").addEventListener("click", (e) => {
+    const ap = e.target.closest("[data-mlapply]");
+    if (ap) {
+      e.preventDefault(); e.stopPropagation();
+      const sel = ap.dataset.mlapply;
+      const set = mlSubset(sel);
+      if (!set || !set.fixes.length) { toast("Nothing to fix here any more — <span>run the checks again</span>"); return; }
+      const g = (mlGroups || []).find((x) => x.check.id === sel);
+      openApplyModal(set, sel === "@devices" ? "Shared devices — every finding behind the matrix" : (g ? g.check.title : ""));
+      return;
+    }
+    const ac = e.target.closest("[data-mlaccept]");
+    if (ac) {
+      const id = ac.dataset.mlaccept;
+      const box = $("mlBody").querySelector(`[data-mlwhy="${CSS.escape(id)}"]`);
+      const reason = (box && box.value.trim()) || "";
+      if (!reason) { toast("Say why it is accepted — <span>the reason is the record</span>"); if (box) box.focus(); return; }
+      const g = (mlGroups || []).find((x) => x.check.id === id); if (!g) return;
+      const a = mlAccLoad(); a[id] = { reason, sig: MSLearn.acceptSig(g), at: new Date().toISOString() }; mlAccSave(a);
+      toast(`<span>${esc(g.check.title)}</span> accepted — it reopens by itself if other policies start to match`);
+      renderMsLearn(); return;
+    }
+    const ro = e.target.closest("[data-mlreopen]");
+    if (ro) { const a = mlAccLoad(); delete a[ro.dataset.mlreopen]; mlAccSave(a); renderMsLearn(); return; }
+    if (e.target.closest("[data-catready-clear]")) { catReadySave({}); renderMsLearn(); return; }
+    if (e.target.closest("[data-catready-open]")) { openCatalogFromReady(); return; }
   });
 
   // a finding card's Fix button jumps to the generated policy
@@ -20248,27 +20413,86 @@ This is a directory write. Nothing else changes.`)) return;
   // original goes, so a failure never leaves the control missing entirely.
   // Everything lands Off, and the confirmation lists every create and delete.
   const ML_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
-  function openApplyModal() {
-    if (!mlFixes || !mlFixes.fixes.length) return;
-    const n = mlFixes.fixes.length;
+  // 32303 — WHICH fixes a confirm is about. The Suggested fixes tab applies
+  // them all; a finding's own 🧰 Fix, and the shared-device matrix, apply only
+  // theirs — built from THEIR findings alone, because the tab's drafts merge
+  // every check that touched a policy, and a Fix on one finding must not
+  // quietly write another finding's change into the same policy.
+  let mlApplySet = null, mlApplyLabel = "";
+  function mlSubset(sel) {
+    if (!mlFindings || !mlRaws) return null;
+    const pick = sel === "@devices"
+      ? mlFindings.filter((f) => f.check.needsGroup === "sharedDevices")
+      : mlFindings.filter((f) => f.check.id === sel);
+    const res = MSLearn.buildFixes(pick, mlRaws, mlCtx || {});
+    res.missingApps = [];
+    if (mlFixes && mlFixes.missingApps) {
+      const want = new Set(MSLearn.referencedAppIds(res));
+      res.missingApps = mlFixes.missingApps.filter((m) => want.has(m.appId));
+      const have = new Set((mlFixes.missingApps || []).map((m) => m.appId));
+      res.fixes.forEach((f) => { f.missing = MSLearn.referencedAppIds({ fixes: [f] }).filter((id) => have.has(id)); });
+    }
+    return res;
+  }
+  // Fixable policy count per check — the number on each finding's button.
+  function mlFixableCounts() {
+    const out = new Map();
+    if (!mlFindings || !mlRaws) return out;
+    for (const id of new Set(mlFindings.map((f) => f.check.id))) {
+      const n = MSLearn.buildFixes(mlFindings.filter((f) => f.check.id === id), mlRaws, mlCtx || {}).fixes.length;
+      if (n) out.set(id, n);
+    }
+    return out;
+  }
+  // In place is the baseline tenant's way (Mihai, 2026-09-23: PATCH in place):
+  // same object, same ID, state kept, the version in the name bumped so 🧱
+  // Update the catalog reads it as newer. A companion is a new policy by
+  // definition and is still created, Off.
+  const mlInPlace = () => isBaselineTenant() && !isDemo;
+  // A policy that still carries Require approved client app is READ-ONLY
+  // since 30 June 2026 — Entra refuses every PATCH to it — so its fix is the
+  // old replace: create the rebuilt policy Off, then delete the frozen one.
+  const mlFrozen = (f) => !f.companion && ((f.raw && f.raw.grantControls && f.raw.grantControls.builtInControls) || []).includes("approvedApplication");
+  const mlEditsInPlace = (f) => mlInPlace() && !f.companion && !mlFrozen(f);
+  function openApplyModal(set, label) {
+    mlApplySet = set && set.fixes ? set : mlFixes;
+    mlApplyLabel = label || "";
+    if (!mlApplySet || !mlApplySet.fixes.length) return;
+    const inPlace = mlInPlace();
+    const fx = mlApplySet.fixes, n = fx.length;
+    const nComp = fx.filter((f) => f.companion).length, nEdit = fx.filter((f) => mlEditsInPlace(f)).length, nRep = n - nComp - nEdit;
     $("mlApplyTenant").textContent = tenantName || "this tenant";
-    $("mlApplyDesc").innerHTML = `${n} new polic${n === 1 ? "y" : "ies"} will be created <b>Off (disabled)</b>, `
-      + "each replacing the policy it was built from. Nothing is switched on — review and enable them yourself afterwards.";
-    const miss = mlFixes.missingApps || [];
+    $("mlApplyDesc").innerHTML = (mlApplyLabel ? `<b>${esc(mlApplyLabel)}</b> — ` : "")
+      + (inPlace
+        ? `${nEdit ? `${nEdit} polic${nEdit === 1 ? "y is" : "ies are"} <b>changed in place</b> — same policy, same ID, same state; only the listed change and the version in the name move, which is what 🧱 Update the catalog reads as newer` : ""}${nEdit && nComp ? "; " : ""}${nComp ? `${nComp} companion polic${nComp === 1 ? "y is" : "ies are"} <b>created Off</b> beside the policy ${nComp === 1 ? "it comes" : "they come"} from` : ""}${nRep ? `${nEdit || nComp ? "; " : ""}${nRep} polic${nRep === 1 ? "y is" : "ies are"} <b>rebuilt</b> — created Off at the bumped version, then the original deleted, because a policy still carrying Require approved client app is read-only in Entra` : ". Nothing is deleted"}. <b>Recovery:</b> the report that opens afterwards carries each policy's JSON as it was before; ✎ Edit on its card puts a section back.`
+        : `${n} new polic${n === 1 ? "y" : "ies"} will be created <b>Off (disabled)</b>, each replacing the policy it was built from. Nothing is switched on — review and enable them yourself afterwards.`);
+    const miss = mlApplySet.missingApps || [];
     $("mlApplyList").innerHTML = (miss.length ? `<div class="ml-apply-row">
         <div><span class="ml-op create">CREATE</span> ${miss.length} Microsoft service principal${miss.length === 1 ? "" : "s"} — required before the policies can reference them</div>
         <div class="mini">${miss.map((m) => `${esc(m.label)} (${esc(m.appId)})`).join(" · ")}</div>
-      </div>` : "") + mlFixes.fixes.map((f) => `<div class="ml-apply-row">
+      </div>` : "") + fx.map((f) => mlEditsInPlace(f)
+        ? `<div class="ml-apply-row">
+        <div><span class="ml-op create">CHANGE</span> ${esc(f.originalName)} <span class="mini">→ ${esc(f.newName)} · stays ${esc(f.originalState || "")}</span></div>
+        <div class="mini">${esc(f.changes.join("; "))}</div>
+      </div>`
+        : `<div class="ml-apply-row">
         <div><span class="ml-op create">CREATE</span> ${esc(f.newName)} <span class="mini">· Off</span></div>
-        <div><span class="ml-op delete">DELETE</span> ${esc(f.originalName)} <span class="mini">· currently ${esc(f.originalState)}</span></div>
+        ${f.companion ? `<div class="mini">beside ${esc(f.originalName)}, which is not changed</div>` : `<div><span class="ml-op delete">DELETE</span> ${esc(f.originalName)} <span class="mini">· currently ${esc(f.originalState)}${mlFrozen(f) ? " · read-only since the approved client app retirement, so it cannot be changed in place" : ""}</span></div>`}
         <div class="mini">${f.changes.length} adjustment${f.changes.length === 1 ? "" : "s"}: ${esc(f.changes.join("; "))}</div>
       </div>`).join("");
+    $("mlApplyDeleteRow").style.display = fx.some((f) => !f.companion && !mlEditsInPlace(f)) ? "" : "none";
+    $("mlApplyReadyRow").style.display = isBaselineTenant() ? "" : "none";
+    $("mlApplyReady").checked = true;
     $("mlApplyResult").style.display = "none"; $("mlApplyResult").innerHTML = "";
+    // 32304: the run ledger hides the plan and the ticks while it writes — put
+    // them back for the next confirm (Delete / Ready rows were set above).
+    ["mlApplyDesc", "mlApplyList", "mlApplyOkRow"].forEach((id) => { const el = $(id); if (el) el.style.display = ""; });
+    $("mlApplyResult").classList.add("ml-apply-list"); $("mlApplyGo").style.display = "";
     $("mlApplyOk").checked = false; $("mlApplyDelete").checked = true;
-    $("mlApplyGo").disabled = true; $("mlApplyGo").textContent = "Apply";
+    $("mlApplyGo").disabled = true; $("mlApplyGo").textContent = `Apply ${n}`;
     $("mlApplyModal").classList.add("open");
   }
-  $("mlApply").addEventListener("click", openApplyModal);
+  $("mlApply").addEventListener("click", () => openApplyModal(mlFixes, ""));
   $("mlApplyCancel").addEventListener("click", () => $("mlApplyModal").classList.remove("open"));
   $("mlApplyOk").addEventListener("change", (e) => { $("mlApplyGo").disabled = !e.target.checked; });
   $("mlApplyDelete").addEventListener("change", () => {
@@ -20276,37 +20500,85 @@ This is a directory write. Nothing else changes.`)) return;
     $("mlApplyModal").querySelectorAll(".ml-op.delete").forEach((el) => el.classList.toggle("skip", !del));
   });
   $("mlApplyGo").addEventListener("click", async () => {
-    if (!mlFixes || !$("mlApplyOk").checked) return;
+    const set = mlApplySet;
+    if (!set || !$("mlApplyOk").checked) return;
+    const inPlace = mlInPlace();
     const del = $("mlApplyDelete").checked;
+    const markReady = isBaselineTenant() && $("mlApplyReady").checked;
     // Applying fixes may also have to create service principals, so both write
     // scopes are consented here rather than deep inside the loop.
-    if (!await preConsent([...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess", "Application.ReadWrite.All"])) return;
-    const btn = $("mlApplyGo"); btn.disabled = true;
-    const out = $("mlApplyResult"); out.style.display = ""; out.innerHTML = "";
-    const log = (cls, msg) => { out.insertAdjacentHTML("beforeend", `<div class="ml-apply-row ${cls}">${msg}</div>`); out.scrollTop = out.scrollHeight; };
-    let created = 0, deleted = 0, failed = 0;
+    const scopes = [...AUTH_CONFIG.scopes, "Policy.ReadWrite.ConditionalAccess"];
+    if ((set.missingApps || []).length) scopes.push("Application.ReadWrite.All");
+    if (!await preConsent(scopes)) return;
+    const btn = $("mlApplyGo"); btn.disabled = true; btn.textContent = "Applying…";
+    // 32304 — THE RUN LEDGER, like every other write (📥 Import, 👥 groups,
+    // 🧹 Housekeeping). Mihai, on a screenshot of this dialog mid-run: "this
+    // flow should be the same as the others in groups, imports etc". It was
+    // its own thing — a scrolling log appended BELOW the plan and the two
+    // confirmation ticks, with the progress only in the button text. Now the
+    // plan and the ticks make way for the ledger: the whole list is shown
+    // before the first write, each row turns ✓ / ✗ / ◐ in place with the
+    // reason inline, the header counts, and ■ Stop after this one works.
+    // A clean run closes the dialog and opens the report; one with failures
+    // or a stop stays open so the ✗ rows are read where they happened.
+    ["mlApplyDesc", "mlApplyList", "mlApplyDeleteRow", "mlApplyReadyRow", "mlApplyOkRow"].forEach((id) => { const el = $(id); if (el) el.style.display = "none"; });
+    const out = $("mlApplyResult"); out.style.display = ""; out.classList.remove("ml-apply-list"); out.innerHTML = "";
+    const miss0 = set.missingApps || [];
+    const spRow = miss0.length ? 0 : -1, off = miss0.length ? 1 : 0;
+    const L = RunLedger.create(out, { unit: "policies", title: mlApplyLabel || "MS Learn fixes", items: [
+      ...(miss0.length ? [{ label: `${miss0.length} Microsoft service principal${miss0.length === 1 ? "" : "s"}`, sub: "created first — a policy cannot name an app the tenant has no object for" }] : []),
+      ...set.fixes.map((f) => mlEditsInPlace(f)
+        ? { label: f.originalName, sub: `change in place → ${f.newName} · stays ${f.originalState || ""}` }
+        : f.companion ? { label: f.newName, sub: `new companion, Off · beside ${f.originalName}` }
+        : { label: f.newName, sub: `create Off${del ? `, then delete ${f.originalName}` : ` · ${f.originalName} kept`}` }),
+    ], onStop: () => {} });
+    let created = 0, deleted = 0, failed = 0, patched = 0, stoppedEarly = false;
     const results = [];
     // Step 0: instantiate the Microsoft apps the fixes reference. A policy that
     // names an app with no service principal is rejected outright, so this has
     // to happen before any policy is written.
     const spCreated = [], spFailed = [];
-    for (const m of (mlFixes.missingApps || [])) {
-      btn.textContent = "Creating service principals…";
-      try {
-        const sp = await Graph.createServicePrincipal(m.appId);
-        spCreated.push({ ...m, name: sp.displayName || m.label });
-        log("ok", `✓ Created service principal <b>${esc(sp.displayName || m.label)}</b> (${esc(m.appId)})`);
-      } catch (e) {
-        spFailed.push({ ...m, error: e.message || String(e) });
-        log("bad", `✗ Could not create the service principal for <b>${esc(m.label)}</b> (${esc(m.appId)}): ${esc(e.message || e)} — that app reference will be dropped.`);
+    if (spRow === 0) {
+      L.start(0);
+      for (const m of miss0) {
+        try {
+          const sp = await Graph.createServicePrincipal(m.appId);
+          spCreated.push({ ...m, name: sp.displayName || m.label });
+        } catch (e) {
+          spFailed.push({ ...m, error: e.message || String(e) });
+        }
       }
+      const spNote = `${spCreated.length} created${spFailed.length ? ` · ${spFailed.length} refused (${spFailed.map((x) => x.label).join(", ")}) — ${spFailed.length === 1 ? "that app reference is" : "those app references are"} dropped from the policies` : ""}`;
+      if (!spFailed.length) L.done(0, spNote, "created");
+      else if (spCreated.length) L.part(0, spNote, "partly done");
+      else L.fail(0, spNote, "refused");
     }
     // whatever could not be created must come out of the drafts
-    if (spFailed.length) MSLearn.dropApps(mlFixes, spFailed.map((x) => x.appId));
-    for (const f of mlFixes.fixes) {
-      const rec = { fix: f, created: false, deleted: false, error: null, deleteError: null };
+    if (spFailed.length) MSLearn.dropApps(set, spFailed.map((x) => x.appId));
+    const ready = [];
+    for (let i = 0; i < set.fixes.length; i++) {
+      const f = set.fixes[i], row = i + off;
+      const rec = { fix: f, created: false, deleted: false, patched: false, error: null, deleteError: null };
       results.push(rec);
-      btn.textContent = `Applying ${created + failed + 1}/${mlFixes.fixes.length}…`;
+      if (L.stopped) { stoppedEarly = true; rec.error = "stopped before this policy — nothing changed for it"; rec.stopped = true; L.skip(row, "stopped before this policy — nothing changed", "stopped"); continue; }
+      L.start(row);
+      if (mlEditsInPlace(f)) {
+        // IN PLACE: one PATCH of the sections that changed, name included.
+        try {
+          const body = MSLearn.patchBody(f.raw, f.draft);
+          rec.body = JSON.stringify(body, null, 2);
+          // the same sections as the policy held them — the recovery record
+          rec.before = JSON.stringify(Object.fromEntries(Object.keys(body).map((k) => [k, (f.raw || {})[k] ?? null])), null, 2);
+          await Graph.gpatch(`/identity/conditionalAccess/policies/${f.policyId}`, body, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
+          patched++; rec.patched = true;
+          L.done(row, `now ${f.newName} · ${f.changes.join("; ")}`, "changed");
+          ready.push(f);
+        } catch (e) {
+          failed++; rec.error = e.message || String(e);
+          L.fail(row, `${e.message || e} — the policy was left as it was`, "refused");
+        }
+        continue;
+      }
       try {
         // Entra rejects some payloads without saying why; try the full policy
         // first, then progressively simpler variants, so one awkward property
@@ -20319,38 +20591,51 @@ This is a directory write. Nothing else changes.`)) return;
             if (vi > 0) {
               rec.variantNote = variants[vi].note;
               f.changes.push(variants[vi].note);
-              log("ok", `↻ ${esc(variants[vi].note)}`);
+              L.note(row, `↻ ${variants[vi].note}`);
             }
             break;
           } catch (err) { lastErr = err; res = null; }
         }
         if (!res) throw lastErr;
         created++; rec.created = true; rec.createdId = res && res.id;
-        log("ok", `✓ Created <b>${esc(f.newName)}</b> (Off)`);
-        if (del) {
+        ready.push(f);
+        if (del && !f.companion) {
           try {
             await Graph.gdelete(`/identity/conditionalAccess/policies/${f.policyId}`, [...AUTH_CONFIG.scopes, ...ML_WRITE]);
             deleted++; rec.deleted = true;
-            log("ok", `✓ Deleted <b>${esc(f.originalName)}</b>`);
+            L.done(row, `created Off · ${f.originalName} deleted${rec.variantNote ? ` · ${rec.variantNote}` : ""}`, "replaced");
           } catch (e) {
+            // the replacement landed and the original did not go — neither ✓
+            // nor ✗ is honest for that (25324): partly done
             failed++; rec.deleteError = e.message || String(e);
-            log("bad", `✗ Created the replacement but could NOT delete <b>${esc(f.originalName)}</b>: ${esc(e.message || e)} — both policies now exist, remove the old one manually.`);
+            L.part(row, `created Off, but ${f.originalName} could NOT be deleted: ${e.message || e} — both exist now, remove the old one by hand`, "partly done");
           }
+        } else {
+          L.done(row, `created Off${f.companion ? ` · ${f.originalName} not changed` : ` · ${f.originalName} kept`}${rec.variantNote ? ` · ${rec.variantNote}` : ""}`, "created");
         }
         if (res && res.id) f.createdId = res.id;
       } catch (e) {
         failed++; rec.error = e.message || String(e);
-        log("bad", `✗ Failed to create <b>${esc(f.newName)}</b>: ${esc(e.message || e)} — <b>${esc(f.originalName)}</b> was left untouched.`);
+        L.fail(row, `${e.message || e} — ${f.originalName} was left untouched`, "refused");
       }
     }
-    btn.textContent = "Done";
-    log("", `<b>${created}</b> created · <b>${deleted}</b> deleted · <b>${failed}</b> failed. Reloading policies…`);
-    const mlMd = applyReport(results, { created, deleted, failed, del, spCreated, spFailed });
-    toast(`${created} polic${created === 1 ? "y" : "ies"} created${deleted ? `, ${deleted} removed` : ""}`);
+    if (markReady && ready.length) { catReadyAdd(ready); renderMsLearn(); }
+    const mlMd = applyReport(results, { created, deleted, failed, del, patched, inPlace, spCreated, spFailed });
+    const openReport = () => showReport("📘 MS Learn fixes applied", "CA-MSLearn-Applied", mlMd);
+    L.finish({ report: openReport });
+    toast(`${patched ? `${patched} changed` : ""}${patched && created ? ", " : ""}${created ? `${created} created` : ""}${deleted ? `, ${deleted} removed` : ""}${!patched && !created ? "nothing written" : ""}`);
+    // a clean run closes the dialog; one with failures (or a stop) stays open
+    // so the ✗ rows are read where they happened — the same manners as 📥 Import
+    if (!failed && !stoppedEarly && !spFailed.length) $("mlApplyModal").classList.remove("open");
+    else {
+      btn.style.display = "none";
+      out.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)"><b>${failed} not done${stoppedEarly ? ", stopped early" : ""}</b> — the reasons are on the rows and in the report.${markReady && ready.length ? ` ${ready.length} that landed are marked ready for 🧱 Update the catalog.` : ""}</p>`);
+    }
     try { await loadFromGraph(true); } catch { /* surfaced by loadFromGraph */ }
     show("screen-mslearn");
     await openMsLearn();
-    showReport("📘 MS Learn fixes applied", "CA-MSLearn-Applied", mlMd);
+    if (mlGroups || patched || created) await mlScan();   // the findings they fixed should be gone
+    openReport();
   });
 
   // Markdown record of what the apply actually did — one row per policy, the
@@ -20363,7 +20648,8 @@ This is a directory write. Nothing else changes.`)) return;
     L.push(Brand.generatedBy("Applied"));
     L.push("");
     L.push(`- Created: **${sum.created}** (all in the **Off / disabled** state)`);
-    L.push(`- Deleted: **${sum.deleted}**${sum.del ? "" : " — the originals were kept on purpose"}`);
+    if (sum.inPlace) L.push(`- Changed in place: **${sum.patched || 0}** (same policy, same ID, same state — the version in the name bumped)`);
+    if (!sum.inPlace || sum.deleted) L.push(`- Deleted: **${sum.deleted}**${sum.del ? "" : " — the originals were kept on purpose"}`);
     L.push(`- Failed: **${sum.failed}**`);
     if ((sum.spCreated || []).length) L.push(`- Service principals created: **${sum.spCreated.length}**`);
     if ((sum.spFailed || []).length) L.push(`- Service principals that could NOT be created: **${sum.spFailed.length}**`);
@@ -20386,7 +20672,9 @@ This is a directory write. Nothing else changes.`)) return;
     L.push("| Result | New policy | Replaced | Adjustments |");
     L.push("| --- | --- | --- | --- |");
     for (const r of results) {
-      const result = r.error ? "❌ create failed"
+      const result = r.patched ? "✅ changed in place"
+        : r.error && sum.inPlace && !r.fix.companion ? "❌ change failed"
+        : r.error ? "❌ create failed"
         : r.deleteError ? "⚠ created, delete failed"
         : r.deleted ? "✅ created + original deleted"
         : "✅ created (original kept)";
@@ -20394,14 +20682,29 @@ This is a directory write. Nothing else changes.`)) return;
     }
     L.push("");
 
-    const done = results.filter((r) => r.created);
+    const done = results.filter((r) => r.created || r.patched);
     if (done.length) {
       L.push("## What changed, policy by policy");
       L.push("");
       for (const r of done) {
         L.push(`### ${e(r.fix.newName)}`);
         L.push("");
-        L.push(`Built from **${e(r.fix.originalName)}** (was ${e(r.fix.originalState)}), created **Off**.`);
+        if (r.patched) {
+          L.push(`Changed in place — was **${e(r.fix.originalName)}**, state kept (${e(r.fix.originalState)}).`);
+          L.push("");
+          r.fix.changes.forEach((c) => L.push(`- ${e(c)}`));
+          L.push("");
+          L.push(`Based on: ${e(r.fix.checks.map((c) => c.title).join("; "))}`);
+          L.push("");
+          L.push("To put it back, PATCH these sections as they were:");
+          L.push("");
+          L.push("```json");
+          L.push(r.before || "{}");
+          L.push("```");
+          L.push("");
+          continue;
+        }
+        L.push(r.fix.companion ? `Created **Off** beside **${e(r.fix.originalName)}**, which was not changed.` : `Built from **${e(r.fix.originalName)}** (was ${e(r.fix.originalState)}), created **Off**.`);
         L.push(r.deleted ? "The original policy was deleted." : r.deleteError
           ? `⚠ The original could NOT be deleted: ${e(r.deleteError)} — both policies exist, remove the old one manually.`
           : "The original policy was kept.");
@@ -20628,6 +20931,574 @@ This is a directory write. Nothing else changes.`)) return;
     const id = t.dataset.gctoggle;
     gcExpanded.has(id) ? gcExpanded.delete(id) : gcExpanded.add(id);
     renderGapCheck();
+  });
+
+  // ---------- 🏅 Identity Secure Score (32308, T42) ----------
+  // Entra's Identity Secure Score and its recommendations, read on ▶ and kept
+  // for the session; "What ENCA sees" is judged again from the policies
+  // loaded now every time the tab or the dashboard paints (js/idscore.js).
+  // Read-only: status changes stay in the Entra admin center.
+  function isRebuild() {
+    if (!isRaw) { isModel = null; return; }
+    isModel = IdScore.model(isRaw.scores, isRaw.recs, policies.map((p) => p.raw), { readAt: isRaw.at, demo: isRaw.demo, scoreErr: isRaw.scoreErr, recsErr: isRaw.recsErr });
+  }
+  const IS_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Microsoft Entra\'s own score for the identity setup of this tenant, and the recommendations behind it — with, next to each one Conditional Access answers, what ENCA sees in the policies loaded now: On, report-only, built but Off, or missing. Microsoft recalculates once a day; nothing here changes the tenant.</p>';
+  function openIdScore() {
+    crumb("🛡 Checks");
+    show("screen-idscore");
+    mountToolTabs("checks", "idscore");
+    $("isHead").innerHTML = toolHead("toolIdScore") + IS_HEAD_TEXT;
+    if (isRaw) { renderIdScore(); return; }
+    $("isChips").innerHTML = ""; $("isMd").style.display = "none";
+    $("isBody").innerHTML = isBusy
+      ? '<p class="mini" style="padding:16px">Reading the Identity Secure Score…</p>'
+      : `${isErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(isErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-isrun>▶ Read Identity Secure Score</button>
+        <p class="mini muted">Reads the score history and the recommendations through Microsoft Graph (beta): DirectoryRecommendations.Read.All, read-only, admin consent once. The signed-in account needs a role such as Reports Reader, Security Reader or Global Reader. Results stay until you refresh.</p></div>`;
+  }
+  function renderIdScore() {
+    isRebuild();
+    if (!isModel) return;
+    $("isChips").innerHTML = IdScore.chips(isModel, isFilter);
+    $("isMd").style.display = "";
+    $("isBody").innerHTML = IdScore.render(isModel, { filter: isFilter, expanded: isExpanded });
+  }
+  async function runIdScore() {
+    if (isBusy) return;
+    isBusy = true; isErr = null;
+    if ($("screen-idscore").classList.contains("active")) openIdScore();
+    try { renderOverview({ force: true }); } catch { /* the home is not up */ }
+    try {
+      let scores, recs;
+      if (isDemo) { scores = DEMO_DATA.idScores || []; recs = DEMO_DATA.idRecommendations || []; isRaw = { scores: [...scores], recs: [...recs], at: Date.now(), demo: true }; }
+      else {
+        const sc = [...AUTH_CONFIG.scopes, ...IdScore.SCOPES];
+        if (!await preConsent(sc)) throw new Error("DirectoryRecommendations.Read.All was not granted");
+        // 32309: the two reads stand alone. The first real read failed
+        // whole because tenantSecureScores answered 400 "Please try again
+        // after some time" (UnknownError) — a transient-looking beta error
+        // that took the working recommendations down with it. Each is tried
+        // up to three times on a transient answer, one after the other (the
+        // parallel pair may itself have been the throttle), and a part that
+        // still fails is named on the tab instead of failing the whole read.
+        const transient = (m) => /try again|throttl|too many|\b(429|503|504)\b|UnknownError|timeout|temporar/i.test(m || "");
+        const one = async (path) => {
+          let last = null;
+          for (let i = 0; i < 3; i++) {
+            try { return { ok: true, v: [...await Graph.ggetAll(path, sc)] }; }
+            catch (e) { last = e; if (!transient(e && e.message) || i === 2) break; await new Promise((r) => setTimeout(r, 1500 * (i + 1))); }
+          }
+          return { ok: false, error: last };
+        };
+        const rr = await one("/directory/recommendations");
+        const ss = await one("/directory/recommendations/tenantSecureScores");
+        if (!rr.ok && !ss.ok) throw rr.error || ss.error;
+        const short = (e) => { const m = (e && e.message) || String(e); return /403|forbidden/i.test(m) ? "access denied" : m.replace(/\s*·\s*inner:.*$/, "").slice(0, 160); };
+        scores = ss.ok ? ss.v : []; recs = rr.ok ? rr.v : [];
+        isRaw = { scores, recs, at: Date.now(), demo: false, scoreErr: ss.ok ? null : short(ss.error), recsErr: rr.ok ? null : short(rr.error) };
+      }
+      isRebuild();
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      isErr = /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "")
+        ? "access denied: the signed-in account needs Reports Reader, Security Reader, Global Reader or a similar role, and the tenant must have consented to DirectoryRecommendations.Read.All"
+        : String(m || "").replace(/\s*·\s*inner:.*$/, "");
+      isRaw = null; isModel = null;
+    } finally { isBusy = false; }
+    if ($("screen-idscore").classList.contains("active")) { if (isRaw) renderIdScore(); else openIdScore(); }
+    try { renderOverview({ force: true }); } catch { /* the home is not up */ }
+    if (isRaw) toast(`Identity Secure Score <span>${isModel && isModel.score ? `${isModel.score.pct}%` : "read"}</span>`);
+  }
+  $("isChips").addEventListener("click", (e) => { const b = e.target.closest("[data-isf]"); if (!b) return; isFilter = b.dataset.isf; renderIdScore(); });
+  $("isBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-isrun]")) { runIdScore(); return; }
+    const t = e.target.closest("[data-istoggle]");
+    if (t) { const id = t.dataset.istoggle; if (isExpanded.has(id)) isExpanded.delete(id); else isExpanded.add(id); renderIdScore(); return; }
+    const g = e.target.closest("[data-isgo]");
+    if (g) { const el = $(g.dataset.isgo); if (el) el.click(); }
+  });
+  $("isRefresh").addEventListener("click", () => runIdScore());
+  $("isMd").addEventListener("click", () => { if (isModel) showReport("🏅 Identity Secure Score", `ENCA-identity-secure-score-${new Date().toISOString().slice(0, 10)}`, IdScore.toMd(isModel, tenantName)); });
+
+  // ---------- 🤝 Cross-tenant access (32316, T43) ----------
+  // The checks of Get-CrossTenantAccessReview.ps1 (cdell2222/m365-security-
+  // toolkit, MIT), read in the browser, with each inbound trust followed into
+  // the policies loaded now (js/xtenant.js). Read on ▶ and kept for the
+  // session. Read-only: cross-tenant settings are changed in the portal.
+  let xtOpts = { exists: true, names: false };
+  try { const o = JSON.parse(localStorage.getItem("enca.xtOpts") || "null"); if (o) xtOpts = { exists: o.exists !== false, names: !!o.names }; } catch { /* defaults */ }
+  function xtRebuild() {
+    if (!xtRaw) { xtModel = null; return; }
+    xtModel = XTenant.analyze(xtRaw.input, policies.map((p) => p.raw), { readAt: xtRaw.at, demo: xtRaw.demo });
+  }
+  const XT_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Who other Entra tenants can send into this one, and whose MFA and device claims this tenant has agreed to trust — the default policy, every partner entry, cross-tenant sync and automatic redemption — with each trust followed into the Conditional Access policies it satisfies. Checks adapted from cdell2222/m365-security-toolkit (MIT). Nothing here changes the tenant.</p>';
+  function xtPaintOpts() {
+    $("xtOpts").innerHTML = `<label class="mini xt-opt" title="Asks Microsoft's public sign-in endpoint for each partner tenant ID — the lookup any sign-in page makes. No permission needed."><input type="checkbox" data-xtopt="exists" ${xtOpts.exists ? "checked" : ""}> Check partner tenants still exist</label>`
+      + `<label class="mini xt-opt" title="Looks up each partner's name and default domain. Asks for CrossTenantInformation.ReadBasic.All once (read-only)."><input type="checkbox" data-xtopt="names" ${xtOpts.names ? "checked" : ""}> Show partner names</label>`;
+  }
+  function openXTenant() {
+    crumb("🛡 Checks");
+    show("screen-xtenant");
+    mountToolTabs("checks", "xtenant");
+    $("xtHead").innerHTML = toolHead("toolXTenant") + XT_HEAD_TEXT;
+    xtPaintOpts();
+    if (xtRaw) { renderXTenant(); return; }
+    $("xtChips").innerHTML = ""; $("xtMd").style.display = "none"; $("xtCsv").style.display = "none";
+    $("xtBody").innerHTML = xtBusy
+      ? `<p class="mini" style="padding:16px">${esc(xtStep || "Reading cross-tenant access settings…")}</p>`
+      : `${xtErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(xtErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-xtrun>▶ Read cross-tenant access</button>
+        <p class="mini muted">Reads the cross-tenant access default policy, the partner entries and each partner's cross-tenant sync setting (Policy.Read.All, already granted). The two options in the toolbar add the tenant-exists check and partner names. Exchange organization relationships — the toolkit's second script — have no Graph API and are not read. Results stay until you refresh.</p></div>`;
+  }
+  function renderXTenant() {
+    xtRebuild();
+    if (!xtModel) return;
+    $("xtChips").innerHTML = XTenant.chips(xtModel, xtFilter);
+    $("xtMd").style.display = ""; $("xtCsv").style.display = "";
+    $("xtBody").innerHTML = XTenant.render(xtModel, { filter: xtFilter });
+  }
+  function xtProgress(msg) {
+    xtStep = msg;
+    if (xtBusy && $("screen-xtenant").classList.contains("active") && !xtRaw) $("xtBody").innerHTML = `<p class="mini" style="padding:16px">${esc(msg)}</p>`;
+  }
+  // true = the tenant answers, false = Entra says it does not exist
+  // (AADSTS90002), null = no answer this browser could read. Only false is a
+  // finding; a blocked or timed-out request is "not checked", never "gone".
+  async function xtTenantExists(id) {
+    if (!XTenant.GUID.test(id || "")) return null;
+    try {
+      const r = await fetch(`https://login.microsoftonline.com/${id}/v2.0/.well-known/openid-configuration`, { credentials: "omit", signal: AbortSignal.timeout(10000) });
+      if (r.ok) return true;
+      if (r.status === 400 || r.status === 404) {
+        const t = await r.text().catch(() => "");
+        return /AADSTS90002|invalid_tenant/i.test(t) ? false : null;
+      }
+      return null;
+    } catch { return null; }
+  }
+  async function runXTenant() {
+    if (xtBusy) return;
+    // consent first, while the click is still fresh (see preConsent)
+    const nameSc = [...AUTH_CONFIG.scopes, ...XTenant.NAME_SCOPES];
+    let wantNames = xtOpts.names && !isDemo;
+    if (wantNames && !await preConsent(nameSc)) wantNames = false;
+    xtBusy = true; xtErr = null; xtStep = "";
+    if ($("screen-xtenant").classList.contains("active")) openXTenant();
+    try {
+      let input;
+      if (isDemo) {
+        const D = DEMO_DATA.xtenant || {};
+        input = { defaultOk: true, def: D.default || {}, partnersOk: true, partners: D.partners || [], sync: D.sync || {},
+          exists: xtOpts.exists ? (D.exists || {}) : {}, existsChecked: xtOpts.exists, info: xtOpts.names ? (D.info || {}) : {}, namesRead: xtOpts.names, error: "" };
+      } else {
+        input = { defaultOk: false, def: null, partnersOk: false, partners: [], sync: {}, exists: {}, existsChecked: false, info: {}, namesRead: false, error: "" };
+        xtProgress("Reading the cross-tenant access default policy and partners…");
+        try { input.def = await Graph.gget("/policies/crossTenantAccessPolicy/default"); input.defaultOk = true; }
+        catch (e) { input.error = e.message || String(e); }
+        try { input.partners = [...await Graph.ggetAll("/policies/crossTenantAccessPolicy/partners")]; input.partnersOk = true; }
+        catch (e) { input.error = input.error || e.message || String(e); }
+        if (!input.defaultOk && !input.partnersOk) throw new Error(input.error || "not read");
+        const ids = input.partners.map((p) => p.tenantId).filter((id) => XTenant.GUID.test(id || ""));
+        if (ids.length) {
+          xtProgress(`Reading cross-tenant sync for ${ids.length} partner${ids.length === 1 ? "" : "s"}…`);
+          // 404 = no sync configured for this partner; any other error leaves it unread (shown as ?)
+          await Graph.mapLimit(ids, 4, async (id) => {
+            try { input.sync[id] = await Graph.gget(`/policies/crossTenantAccessPolicy/partners/${id}/identitySynchronization`); }
+            catch (e) { if (/\(404\)/.test(e.message || "")) input.sync[id] = null; }
+          });
+          if (xtOpts.exists) {
+            xtProgress(`Checking that ${ids.length} partner tenant${ids.length === 1 ? "" : "s"} still exist…`);
+            await Graph.mapLimit(ids, 4, async (id) => { input.exists[id] = await xtTenantExists(id); });
+            input.existsChecked = true;
+          }
+          if (wantNames) {
+            xtProgress("Looking up partner names…");
+            await Graph.mapLimit(ids, 4, async (id) => {
+              try { input.info[id] = await Graph.gget(`/tenantRelationships/findTenantInformationByTenantId(tenantId='${id}')`, nameSc); } catch { /* the id stays */ }
+            });
+            input.namesRead = true;
+          }
+        }
+      }
+      xtRaw = { input, at: Date.now(), demo: isDemo };
+      xtRebuild();
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      xtErr = /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "")
+        ? "access denied: the signed-in account needs Security Reader, Global Reader or a similar role that can read cross-tenant access settings"
+        : m;
+      xtRaw = null; xtModel = null;
+    } finally { xtBusy = false; xtStep = ""; }
+    if ($("screen-xtenant").classList.contains("active")) { if (xtRaw) renderXTenant(); else openXTenant(); }
+    if (xtModel) toast(`Cross-tenant access <span>${xtModel.counts.high} high · ${xtModel.counts.medium} medium</span>`);
+  }
+  $("xtChips").addEventListener("click", (e) => { const b = e.target.closest("[data-xtf]"); if (!b) return; xtFilter = b.dataset.xtf; renderXTenant(); });
+  $("xtBody").addEventListener("click", (e) => { if (e.target.closest("[data-xtrun]")) runXTenant(); });
+  $("xtOpts").addEventListener("change", (e) => {
+    const c = e.target.closest("[data-xtopt]"); if (!c) return;
+    xtOpts[c.dataset.xtopt] = c.checked;
+    try { localStorage.setItem("enca.xtOpts", JSON.stringify(xtOpts)); } catch { /* per-viewer convenience only */ }
+  });
+  $("xtRefresh").addEventListener("click", () => runXTenant());
+  $("xtMd").addEventListener("click", () => { if (xtModel) showReport("🤝 Cross-tenant access", `ENCA-cross-tenant-access-${new Date().toISOString().slice(0, 10)}`, XTenant.toMd(xtModel, tenantName)); });
+  $("xtCsv").addEventListener("click", () => { if (xtModel) downloadText("ENCA-cross-tenant-access", "csv", "text/csv", XTenant.toCsv(xtModel)); });
+
+  // ---------- 🔑 Passkeys (32317, T44) ----------
+  // "Our policies REQUIRE a passkey — can those people get one?" Starts from
+  // the policies that require a passkey and asks the Passkey (FIDO2) method
+  // whether the same people can register and use one (js/passkeys.js, pure).
+  // Read on ▶ and kept for the session. ✎ Configure writes the WHOLE method —
+  // state, targets, self-service, passkey profiles — as ONE v1.0 PATCH, after
+  // a diff and an impact list, with the settings as read kept per tenant in
+  // this browser so ↩ Restore can put them back.
+  const PK_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which policies require a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them — and whether the Passkey (FIDO2) authentication method lets the same people register and use one: enabled, targeted, not excluded, self-service on, and a passkey profile that lets through a key the strength accepts. ✎ Configure changes the method, with the diff and what it does to people shown before Save.</p>';
+  const pkRestoreKey = () => `enca.pkRestore:${(signinContext && signinContext.tenantId) || (isDemo ? "demo" : "")}`;
+  function pkSnapshot() { try { return JSON.parse(localStorage.getItem(pkRestoreKey()) || "null"); } catch { return null; } }
+  function pkRebuild() {
+    if (!pkRaw) { pkModel = null; return; }
+    pkModel = Passkeys.analyze(pkRaw.input, policies.map((p) => p.raw), { readAt: pkRaw.at, demo: pkRaw.demo });
+  }
+  function pkPaintButtons() {
+    const has = !!pkRaw;
+    $("pkEdit").style.display = has && pkRaw.input.fido2 ? "" : "none";
+    $("pkMd").style.display = has ? "" : "none";
+    const snap = pkSnapshot();
+    $("pkRestore").style.display = has && snap && snap.fido2 ? "" : "none";
+    if (snap && snap.at) $("pkRestore").title = `Load the method as it was read before the last ENCA save (${new Date(snap.at).toLocaleString()}) into ✎ Configure — you see the diff before anything is written`;
+  }
+  function openPasskeys() {
+    crumb("🛡 Checks");
+    show("screen-passkeys");
+    mountToolTabs("checks", "passkeys");
+    $("pkHead").innerHTML = toolHead("toolPasskeys") + PK_HEAD_TEXT;
+    pkPaintButtons();
+    if (pkRaw) { renderPasskeys(); return; }
+    $("pkChips").innerHTML = "";
+    $("pkBody").innerHTML = pkBusy
+      ? `<p class="mini" style="padding:16px">${esc(pkStep || "Reading the passkey method…")}</p>`
+      : `${pkErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(pkErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-pkrun>▶ Read the passkey setup</button>
+        <p class="mini muted">Reads the Passkey (FIDO2) method (v1.0), the authentication strengths and — to count people rather than guess — the members of the groups and directory roles involved (Policy.Read.All and Directory.Read.All, already granted). Nothing is written until you use ✎ Configure and press Save there.</p></div>`;
+  }
+  function renderPasskeys() {
+    pkRebuild();
+    pkPaintButtons();
+    if (!pkModel) return;
+    $("pkChips").innerHTML = Passkeys.chips(pkModel, pkFilter);
+    $("pkBody").innerHTML = Passkeys.render(pkModel, { filter: pkFilter });
+  }
+  function pkProgress(msg) {
+    pkStep = msg;
+    if (pkBusy && $("screen-passkeys").classList.contains("active") && !pkRaw) $("pkBody").innerHTML = `<p class="mini" style="padding:16px">${esc(msg)}</p>`;
+  }
+  async function pkReadFido2() { return Graph.gget(Passkeys.V1 + Passkeys.FIDO2_PATH); }
+  // group and user names the loaded policies did not already resolve
+  async function pkResolveNames(ids, names) {
+    const miss = [...new Set(ids)].filter((id) => Passkeys.GUID.test(id || "") && !names[id]);
+    for (let i = 0; i < miss.length; i += 1000) {
+      try {
+        const j = await Graph.gpost("/directoryObjects/getByIds", { ids: miss.slice(i, i + 1000), types: ["user", "group"] }, AUTH_CONFIG.scopes);
+        (j.value || []).forEach((o) => { names[o.id] = o.displayName || o.userPrincipalName || o.id; });
+      } catch { /* the id stays */ }
+    }
+    return names;
+  }
+  async function runPasskeys() {
+    if (pkBusy) return;
+    pkBusy = true; pkErr = null; pkStep = "";
+    if ($("screen-passkeys").classList.contains("active")) openPasskeys();
+    try {
+      let input;
+      if (isDemo) {
+        const D = DEMO_DATA.passkeys || {};
+        const S = DEMO_DATA.depSettings || {};
+        input = { fido2: JSON.parse(JSON.stringify((pkRaw && pkRaw.demoFido2) || D.fido2 || null)), methods: DEMO_DATA.authMethodsPolicy || null,
+          strengths: Object.entries(S).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v),
+          members: D.members || {}, names: { ...(DEMO_DATA.names || {}), ...(D.names || {}) }, error: "" };
+      } else {
+        input = { fido2: null, methods: null, strengths: [], members: { groups: {}, roles: {} }, names: { ...((signinContext && signinContext.names) || {}) }, error: "" };
+        pkProgress("Reading the Passkey (FIDO2) method…");
+        try { input.fido2 = await pkReadFido2(); }
+        catch (e) {
+          const m = e && (e.message || String(e));
+          input.error = /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "")
+            ? "access denied: the signed-in account needs Global Reader, Security Reader or Authentication Policy Administrator to read authentication methods" : m;
+        }
+        input.methods = await readAuthMethods();
+        pkProgress("Reading the authentication strengths…");
+        try { input.strengths = [...await Graph.ggetAll("/policies/authenticationStrengthPolicies?$expand=combinationConfigurations")]; }
+        catch { try { input.strengths = [...await Graph.ggetAll("/policies/authenticationStrengthPolicies")]; } catch { input.strengths = []; } }
+        const raws = policies.map((p) => p.raw);
+        const w = Passkeys.wanted(input.fido2, raws, input.strengths);
+        let done = 0;
+        const total = w.groups.length + w.roles.length;
+        const tick = () => pkProgress(`Resolving members — ${++done} of ${total} groups and roles…`);
+        // a null entry is UNRESOLVED and is named as such, never guessed
+        await Graph.mapLimit(w.groups, 4, async (id) => {
+          try { const r = await Graph.readPages(`/groups/${id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { cap: 20000 }); input.members.groups[id] = { ids: r.items.map((u) => u.id), complete: r.complete }; }
+          catch { input.members.groups[id] = null; }
+          tick();
+        });
+        // A role nobody ever activated has no directoryRole object: 404 = no active holders.
+        await Graph.mapLimit(w.roles, 4, async (id) => {
+          try { const r = await Graph.readPages(`/directoryRoles(roleTemplateId='${id}')/members/microsoft.graph.user?$select=id`, { cap: 20000 }); input.members.roles[id] = { ids: r.items.map((u) => u.id), complete: r.complete }; }
+          catch (e) { input.members.roles[id] = /\(404\)/.test((e && e.message) || "") ? { ids: [], complete: true } : null; }
+          tick();
+        });
+        const f = input.fido2 || {};
+        await pkResolveNames([...(f.includeTargets || []), ...(f.excludeTargets || [])].map((t) => t.id).concat(w.groups), input.names);
+      }
+      pkRaw = { input, at: Date.now(), demo: isDemo, demoFido2: isDemo ? input.fido2 : null };
+      pkRebuild();
+    } catch (e) {
+      pkErr = e && (e.message || String(e));
+      pkRaw = null; pkModel = null;
+    } finally { pkBusy = false; pkStep = ""; }
+    if ($("screen-passkeys").classList.contains("active")) { if (pkRaw) renderPasskeys(); else openPasskeys(); }
+    if (pkModel) toast(`Passkeys <span>${pkModel.counts.high} blocking · ${pkModel.counts.medium} warning${pkModel.counts.medium === 1 ? "" : "s"}</span>`);
+  }
+  const pkUserNames = {};
+  $("pkChips").addEventListener("click", (e) => { const b = e.target.closest("[data-pkf]"); if (!b) return; pkFilter = b.dataset.pkf; renderPasskeys(); });
+  $("pkBody").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-pkrun]")) { runPasskeys(); return; }
+    const u = e.target.closest("[data-pkusers]");
+    if (u) {
+      e.preventDefault();
+      const key = u.dataset.pkusers;
+      const box = [...document.querySelectorAll("[data-pkulist]")].find((x) => x.dataset.pkulist === key);
+      const f = pkModel && pkModel.findings.find((x) => x.key === key);
+      if (!box || !f) return;
+      if (!box.hidden) { box.hidden = true; return; }
+      box.hidden = false; box.textContent = "Resolving names…";
+      const names = { ...((pkRaw && pkRaw.input.names) || {}), ...pkUserNames };
+      if (!isDemo) { await pkResolveNames(f.users, names); Object.assign(pkUserNames, names); }
+      box.innerHTML = f.users.slice(0, 500).map((id) => `<span class="xt-pol">${esc(names[id] || id)}</span>`).join(" ") + (f.users.length > 500 ? ` <span class="mini muted">and ${f.users.length - 500} more — Export MD for the rest of the report</span>` : "");
+      return;
+    }
+    const fx = e.target.closest("[data-pkfix]");
+    if (fx) {
+      const f = pkModel && pkModel.findings.find((x) => x.key === fx.dataset.pkfkey);
+      openPkEditor(f && f.fix);
+    }
+  });
+  $("pkRefresh").addEventListener("click", () => runPasskeys());
+  $("pkMd").addEventListener("click", () => { if (pkModel) showReport("🔑 Passkeys", `ENCA-passkeys-${new Date().toISOString().slice(0, 10)}`, Passkeys.toMd(pkModel, tenantName)); });
+  $("pkEdit").addEventListener("click", () => openPkEditor(null));
+  $("pkRestore").addEventListener("click", () => {
+    const snap = pkSnapshot();
+    if (!snap || !snap.fido2 || !pkRaw) return;
+    let d = Passkeys.draftFrom(snap.fido2);
+    // opting in cannot be undone: a legacy snapshot restores INTO the Default profile
+    if (!d.optedIn && pkModel && pkModel.optedIn) { d = Passkeys.applyOptIn(d); d.optIn = false; d.optedIn = true; }
+    openPkEditor(null, d, `Restoring the settings read ${new Date(snap.at).toLocaleString()}, before the last ENCA save.`);
+  });
+
+  // ---- ✎ Configure ----
+  let pkDraft = null, pkSearch = [];
+  function pkNames() { return { ...((pkRaw && pkRaw.input.names) || {}), ...pkUserNames }; }
+  function openPkEditor(fix, draft, note) {
+    if (!pkRaw || !pkRaw.input.fido2) { toast("Read the passkey setup first — ▶ Read"); return; }
+    const before = pkRaw.input.fido2;
+    const d = draft || Passkeys.draftFrom(before);
+    const profiled = d.optedIn || d.optIn;
+    const defProf = profiled ? [Passkeys.DEFAULT_PROFILE] : [];
+    const k = fix && fix.kind;
+    if (k === "enable") d.state = "enabled";
+    if (k === "selfService") d.selfService = true;
+    if (k === "addAll" && !d.include.some((t) => t.id === Passkeys.ALL)) d.include.push({ id: Passkeys.ALL, reg: false, profiles: defProf.slice() });
+    if (k === "addTargets") for (const g of fix.groups || []) if (!d.include.some((t) => t.id === g)) d.include.push({ id: g, reg: false, profiles: defProf.slice() });
+    if (k === "optIn") Passkeys.applyOptIn(d);
+    pkDraft = d; pkSearch = [];
+    $("pkEditSub").textContent = note || "Changes the Passkey (FIDO2) authentication method for the whole tenant. Nothing is written until Save; the diff and what it does to people are on the right.";
+    pkPaintEditor();
+    $("pkEditModal").classList.add("open");
+    const anchor = { editProfiles: "pkSecProfiles", optIn: "pkSecProfiles", editExclude: "pkSecExclude", editTargets: "pkSecInclude", addTargets: "pkSecInclude", addAll: "pkSecInclude" }[k];
+    if (anchor) setTimeout(() => { const el = $(anchor); if (el) el.scrollIntoView({ block: "start" }); }, 0);
+  }
+  const pkSeg = (name, cur, opts) => `<span class="pk-seg">${opts.map(([v, l]) => `<button type="button" class="${cur === v ? "on" : ""}" data-pkset="${name}" data-pkval="${v}">${l}</button>`).join("")}</span>`;
+  function pkProfileHtml(p, i) {
+    const presets = Object.entries(Passkeys.PRESETS).map(([k, v]) => `<button type="button" class="btn sm" data-pkpreset="${i}|${k}">＋ ${esc(v.label)}</button>`).join("");
+    const chipsA = p.kr.aaguids.map((a) => `<span class="xt-pol">${esc(Passkeys.aagName(a))} <a href="#" data-pkaagrm="${i}|${a}" title="Remove">✕</a></span>`).join(" ");
+    return `<div class="pk-prof">
+      <div class="pk-prof-h">${p.legacy ? "<b>Tenant-wide settings</b> <span class=\"mini muted\">(not opted in to passkey profiles)</span>"
+        : `<input class="pk-pname" data-pkpname="${i}" value="${esc(p.name)}" maxlength="60" ${p.isDefault ? "disabled" : ""}>${p.isDefault ? ' <span class="mini muted">Default — cannot be removed</span>' : ` <a href="#" data-pkprm="${i}">✕ remove</a>`}`}</div>
+      <div class="pk-line">${p.legacy ? "" : `<label class="chk"><input type="checkbox" data-pktype="${i}|deviceBound" ${p.types.includes("deviceBound") ? "checked" : ""}> Device-bound</label>
+        <label class="chk"><input type="checkbox" data-pktype="${i}|synced" ${p.types.includes("synced") ? "checked" : ""}> Synced</label> ·`}
+        <label class="chk"><input type="checkbox" data-pkattest="${i}" ${p.attest ? "checked" : ""}> Enforce attestation</label></div>
+      <div class="pk-line">Key restrictions ${pkSeg(`kr|${i}`, p.kr.on ? p.kr.type : "off", [["off", "Off"], ["allow", "Allow"], ["block", "Block"]])}</div>
+      ${p.kr.on ? `<div class="pk-line">${chipsA || '<span class="mini muted">no AAGUID yet</span>'}</div>
+        <div class="pk-line">${presets} <input class="pk-aag" data-pkaagin="${i}" placeholder="custom AAGUID" spellcheck="false"> <button type="button" class="btn sm" data-pkaagadd="${i}">＋ Add</button></div>` : ""}
+    </div>`;
+  }
+  function pkPaintEditor() {
+    const d = pkDraft; if (!d) return;
+    const nm = pkNames();
+    const name = (id) => id === Passkeys.ALL ? "All users" : (nm[id] || id);
+    const profiled = d.optedIn || d.optIn;
+    const inc = d.include.map((t, i) => `<div class="pk-tgt"><b>${esc(name(t.id))}</b>${profiled ? d.profiles.map((p) => `<label class="chk"><input type="checkbox" data-pkinprof="${i}|${esc(p.id)}" ${t.profiles.includes(p.id) ? "checked" : ""}> ${esc(p.name || "(unnamed)")}</label>`).join("") : ""}<a href="#" class="pk-x" data-pkinrm="${i}" title="Remove">✕</a></div>`).join("") || '<p class="mini muted">No include target.</p>';
+    const exc = d.exclude.map((t, i) => `<div class="pk-tgt"><b>${esc(name(t.id))}</b><span class="mini muted">wins over every include</span><a href="#" class="pk-x" data-pkexrm="${i}" title="Remove">✕</a></div>`).join("") || '<p class="mini muted">Nobody excluded.</p>';
+    const found = pkSearch.map((g) => `<div class="pk-tgt"><span>${esc(g.name)}</span><button type="button" class="btn sm" data-pkaddinc="${esc(g.id)}">＋ Include</button><button type="button" class="btn sm" data-pkaddexc="${esc(g.id)}">＋ Exclude</button></div>`).join("");
+    const profs = d.profiles.map((p, i) => pkProfileHtml(p, i)).join("");
+    $("pkEditForm").innerHTML = `
+      <div class="pk-sec"><div class="xt-tag">Method</div>${pkSeg("state", d.state, [["enabled", "Enabled"], ["disabled", "Disabled"]])}</div>
+      <div class="pk-sec"><div class="xt-tag">Allow self-service set up <span class="mini muted">(tenant-wide)</span></div>${pkSeg("self", d.selfService ? "yes" : "no", [["yes", "Yes"], ["no", "No"]])}</div>
+      <div class="pk-sec" id="pkSecInclude"><div class="xt-tag">Include${profiled ? " → passkey profiles" : ""}</div>${inc}
+        <div class="pk-line" style="margin-top:6px">${d.include.some((t) => t.id === Passkeys.ALL) ? "" : '<button type="button" class="btn sm" data-pkaddall>＋ All users</button>'}
+          <input class="pk-aag" id="pkGrpQ" placeholder="find a group by name or ID" spellcheck="false" autocomplete="off"> <button type="button" class="btn sm" data-pkfind>Find</button></div>${found}</div>
+      <div class="pk-sec" id="pkSecExclude"><div class="xt-tag">Exclude</div>${exc}</div>
+      <div class="pk-sec" id="pkSecProfiles"><div class="xt-tag">${profiled ? `Passkey profiles (${d.profiles.length} of ${Passkeys.MAX_PROFILES})` : "Attestation and key restrictions"}</div>${profs}
+        ${profiled && d.profiles.length < Passkeys.MAX_PROFILES ? '<button type="button" class="btn sm" data-pkpadd>＋ Add passkey profile</button>' : ""}
+        ${profiled ? "" : '<p class="mini" style="margin-top:8px">These two tenant-wide properties are deprecated (removed October 2027). <button type="button" class="btn sm" data-pkoptin>Opt in to passkey profiles…</button> <span class="mini muted">one-way: it cannot be undone</span></p>'}</div>`;
+    pkPaintSide();
+  }
+  function pkPaintSide() {
+    const d = pkDraft; if (!d || !pkRaw) return;
+    const before = pkRaw.input.fido2;
+    const nm = pkNames();
+    const v = Passkeys.validate(d);
+    const body = Passkeys.toBody(before, d);
+    const lines = Passkeys.diff(before, d, nm);
+    const raws = policies.map((p) => p.raw);
+    const after = Passkeys.applyBody(before, body);
+    const mAfter = Passkeys.analyze({ ...pkRaw.input, fido2: after }, raws, {});
+    const im = Passkeys.impact(before, d, nm, pkModel, mAfter);
+    const cls = { "+": "pk-add", "-": "pk-del", "~": "pk-chg", "!": "pk-del" };
+    $("pkEditSide").innerHTML = `
+      <div class="xt-tag">What will be written ${Passkeys.changed(body) ? "(one PATCH)" : ""}</div>
+      <div class="pk-diff">${lines.length ? lines.map((l) => `<div class="${cls[l.s]}">${esc(l.s)} ${esc(l.t)}</div>`).join("") : '<span class="muted">No change yet.</span>'}</div>
+      ${im.lose.length ? `<div class="pk-impact"><div class="xt-tag">⚠ Stops working</div><ul>${im.lose.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      ${im.gain.length ? `<div class="pk-gain"><div class="xt-tag">What changes for people</div><ul>${im.gain.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      ${Passkeys.changed(body) ? `<div class="pk-recov"><div class="xt-tag">↩ Recovery</div>The method as read now is kept in this browser for this tenant; ↩ Restore in the toolbar loads it back into this panel, and Save writes it in one PATCH. Opting in to passkey profiles is the one thing it cannot undo.</div>` : ""}
+      ${v.warnings.length ? `<div style="margin-top:8px">${v.warnings.map((x) => `<div class="mini" style="color:var(--report)">! ${esc(x)}</div>`).join("")}</div>` : ""}`;
+    $("pkEditWarn").innerHTML = v.errors.map((x) => `<div class="mini" style="color:var(--off)">✗ ${esc(x)}</div>`).join("");
+    $("pkEditSave").disabled = !v.ok || !Passkeys.changed(body);
+    $("pkEditSave").textContent = im.lose.length ? `Save — ${im.lose.length} thing${im.lose.length === 1 ? "" : "s"} stop${im.lose.length === 1 ? "s" : ""} working` : "Save to tenant";
+  }
+  $("pkEditForm").addEventListener("click", async (e) => {
+    const d = pkDraft; if (!d) return;
+    const t = e.target;
+    const profiled = d.optedIn || d.optIn;
+    const defProf = profiled ? [Passkeys.DEFAULT_PROFILE] : [];
+    const set = t.closest("[data-pkset]");
+    if (set) {
+      const [k, i] = set.dataset.pkset.split("|"), v = set.dataset.pkval;
+      if (k === "state") d.state = v;
+      else if (k === "self") d.selfService = v === "yes";
+      else if (k === "kr") { const kr = d.profiles[+i].kr; if (v === "off") kr.on = false; else { kr.on = true; kr.type = v; } }
+      pkPaintEditor(); return;
+    }
+    const a = (sel) => t.closest(sel);
+    let el;
+    if ((el = a("[data-pkinrm]"))) { e.preventDefault(); d.include.splice(+el.dataset.pkinrm, 1); }
+    else if ((el = a("[data-pkexrm]"))) { e.preventDefault(); d.exclude.splice(+el.dataset.pkexrm, 1); }
+    else if (a("[data-pkaddall]")) d.include.push({ id: Passkeys.ALL, reg: false, profiles: defProf.slice() });
+    else if ((el = a("[data-pkaddinc]"))) { const id = el.dataset.pkaddinc; if (!d.include.some((x) => x.id === id)) d.include.push({ id, reg: false, profiles: defProf.slice() }); d.exclude = d.exclude.filter((x) => x.id !== id); }
+    else if ((el = a("[data-pkaddexc]"))) { const id = el.dataset.pkaddexc; if (!d.exclude.some((x) => x.id === id)) d.exclude.push({ id }); }
+    else if (a("[data-pkfind]")) {
+      const q = ($("pkGrpQ").value || "").trim(); if (!q) return;
+      try {
+        pkSearch = isDemo ? Object.entries(pkNames()).filter(([id, n]) => /^g-/.test(id) && n.toLowerCase().includes(q.toLowerCase())).map(([id, n]) => ({ id, name: n })) : await Assign.searchGroups(q, 10);
+        for (const g of pkSearch) pkUserNames[g.id] = g.name;
+      } catch (err) { toast(`Group search failed: <span>${esc(err.message || err)}</span>`); }
+      if (!pkSearch.length) toast("No group starts with that name");
+    }
+    else if ((el = a("[data-pkprm]"))) {
+      e.preventDefault();
+      const p = d.profiles[+el.dataset.pkprm];
+      if (d.include.some((x) => x.profiles.includes(p.id))) { toast("Take this profile off every target first — Microsoft refuses to delete a profile in use"); return; }
+      d.profiles.splice(+el.dataset.pkprm, 1);
+    }
+    else if (a("[data-pkpadd]")) {
+      const id = (crypto.randomUUID && crypto.randomUUID()) || `p-${Date.now()}`;
+      d.profiles.push({ id, name: `Passkey profile ${d.profiles.length + 1}`, types: ["deviceBound"], attest: true, kr: { on: false, type: "allow", aaguids: [] }, isDefault: false, legacy: false });
+    }
+    else if ((el = a("[data-pkpreset]"))) {
+      const [i, k] = el.dataset.pkpreset.split("|");
+      const kr = d.profiles[+i].kr;
+      kr.aaguids = [...new Set([...kr.aaguids, ...Object.keys(Passkeys.PRESETS[k].aaguids)])];
+    }
+    else if ((el = a("[data-pkaagadd]"))) {
+      const i = +el.dataset.pkaagadd;
+      const inp = document.querySelector(`[data-pkaagin="${i}"]`);
+      const v = ((inp && inp.value) || "").trim().toLowerCase();
+      if (!Passkeys.GUID.test(v)) { toast("Not a valid AAGUID — expected 8-4-4-4-12 hex"); return; }
+      const kr = d.profiles[i].kr; if (!kr.aaguids.includes(v)) kr.aaguids.push(v);
+    }
+    else if ((el = a("[data-pkaagrm]"))) {
+      e.preventDefault();
+      const [i, g] = el.dataset.pkaagrm.split("|");
+      const kr = d.profiles[+i].kr; kr.aaguids = kr.aaguids.filter((x) => x !== g);
+    }
+    else if (a("[data-pkoptin]")) {
+      if (!confirm("Opt in to passkey profiles?\n\nThe tenant-wide attestation and key-restriction settings become the Default passkey profile, unchanged. Microsoft does not let a tenant opt out again.\n\nNothing is written until you press Save.")) return;
+      Passkeys.applyOptIn(d);
+    }
+    else return;
+    pkPaintEditor();
+  });
+  $("pkEditForm").addEventListener("change", (e) => {
+    const d = pkDraft; if (!d) return;
+    const t = e.target;
+    if (t.dataset.pkinprof) {
+      const [i, pid] = t.dataset.pkinprof.split("|");
+      const tg = d.include[+i];
+      tg.profiles = t.checked ? [...new Set([...tg.profiles, pid])] : tg.profiles.filter((x) => x !== pid);
+      // keep the profile order stable so the diff does not report a reorder
+      tg.profiles = d.profiles.map((p) => p.id).filter((id) => tg.profiles.includes(id));
+    } else if (t.dataset.pktype) {
+      const [i, ty] = t.dataset.pktype.split("|");
+      const p = d.profiles[+i];
+      p.types = ["deviceBound", "synced"].filter((x) => (x === ty ? t.checked : p.types.includes(x)));
+    } else if (t.dataset.pkattest !== undefined) {
+      d.profiles[+t.dataset.pkattest].attest = t.checked;
+      if (d.profiles[+t.dataset.pkattest].legacy) d.profiles[+t.dataset.pkattest].types = t.checked ? ["deviceBound"] : ["deviceBound", "synced"];
+    } else return;
+    pkPaintEditor();
+  });
+  // names are typed: update the draft and the side, never repaint the field being typed in
+  $("pkEditForm").addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.dataset.pkpname !== undefined && pkDraft) { pkDraft.profiles[+t.dataset.pkpname].name = t.value; pkPaintSide(); }
+  });
+  $("pkEditForm").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (e.target.id === "pkGrpQ") { e.preventDefault(); document.querySelector("[data-pkfind]").click(); }
+    if (e.target.dataset.pkaagin !== undefined) { e.preventDefault(); document.querySelector(`[data-pkaagadd="${e.target.dataset.pkaagin}"]`).click(); }
+  });
+  $("pkEditCancel").addEventListener("click", () => { $("pkEditModal").classList.remove("open"); pkDraft = null; });
+  $("pkEditJson").addEventListener("click", () => {
+    if (!pkDraft || !pkRaw) return;
+    downloadText("ENCA-passkey-method-patch", "json", "application/json", JSON.stringify({ before: pkRaw.input.fido2, patch: Passkeys.toBody(pkRaw.input.fido2, pkDraft) }, null, 2));
+  });
+  $("pkEditSave").addEventListener("click", async () => {
+    const d = pkDraft; if (!d || !pkRaw) return;
+    const before = pkRaw.input.fido2;
+    const v = Passkeys.validate(d);
+    if (!v.ok) { pkPaintSide(); return; }
+    const body = Passkeys.toBody(before, d);
+    if (!Passkeys.changed(body)) return;
+    const im = Passkeys.impact(before, d, pkNames(), null, null);
+    if ((im.lose.length || d.optIn) && !confirm(`Write the Passkey (FIDO2) method?\n\n${[...im.lose, ...(d.optIn ? ["Opting in to passkey profiles cannot be undone."] : [])].map((x) => "• " + x).join("\n")}\n\n↩ Restore can put the settings back afterwards${d.optIn ? " (except the opt-in)" : ""}.`)) return;
+    const scopes = [...AUTH_CONFIG.scopes, ...Passkeys.WRITE_SCOPES];
+    if (!await preConsent(scopes)) return;
+    const btn = $("pkEditSave"); btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      // the settings as read, BEFORE the write — what ↩ Restore loads back
+      try { localStorage.setItem(pkRestoreKey(), JSON.stringify({ at: Date.now(), fido2: before })); } catch { /* restore then unavailable in this browser */ }
+      if (isDemo) {
+        pkRaw.demoFido2 = Passkeys.applyBody(before, body);
+        pkRaw.input.fido2 = pkRaw.demoFido2;
+        toast("Demo — <span>save simulated</span>");
+      } else {
+        await Graph.gpatch(Passkeys.V1 + Passkeys.FIDO2_PATH, body, scopes);
+        // read back what Entra kept — a PATCH can be accepted and recalculated
+        try { pkRaw.input.fido2 = await pkReadFido2(); } catch { pkRaw.input.fido2 = Passkeys.applyBody(before, body); }
+        toast("Passkey (FIDO2) method <span>saved</span>");
+      }
+      $("pkEditModal").classList.remove("open"); pkDraft = null;
+      renderPasskeys();
+    } catch (e) {
+      console.error("Save passkey method failed:", e);
+      const m = e && (e.message || String(e));
+      $("pkEditWarn").innerHTML = `<div class="mini" style="color:var(--off)">✗ ${esc(/403|forbidden|authorization_requestdenied/i.test(m || "") ? "Access denied — writing the method needs the Authentication Policy Administrator role (and Policy.ReadWrite.AuthenticationMethod)." : m)}</div>`;
+    } finally { btn.disabled = false; pkPaintSide(); }
   });
 
   // 📐 CIS Benchmark is not part of the production build (removed in 316; it
@@ -21216,7 +22087,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function ovPaintKeyOf(snap) {
     return [snap, exRunMeta && exRunMeta.id, anRunMeta && anRunMeta.id, lgRunMeta && lgRunMeta.id, gcRunAt, ciRunAt,
-      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f", signinContext && signinContext.at].join("|");
+      svRes ? 1 : 0, moRes ? 1 : 0, ovLoading ? 1 : 0, ovReadError && ovReadError.at, ovDiff && ovDiff.prevAt, caSettingsCache === undefined ? "u" : caSettingsCache ? "r" : "f", signinContext && signinContext.at, isRaw && isRaw.at, isBusy ? 1 : 0, isErr || ""].join("|");
   }
   function deriveSummary(key) {
     if (ovDerived && ovDerived.key === key) return ovDerived;
@@ -21324,7 +22195,8 @@ This is a directory write. Nothing else changes.`)) return;
     const base = { tenantName, isDemo, snapshot: policiesReadAt || null };
     if (leadEl) leadEl.textContent = Overview.lead(base);
     host.hidden = false;
-    let html = Overview.header({ ...base, counts, status });
+    if (isRaw) isRebuild();
+    let html = Overview.header({ ...base, counts, status, idScore: policies.length ? IdScore.dashboardTile(isModel, { busy: isBusy, error: isErr }) : null });
     if (policies.length) {
       // what the two retirement tools found in THIS tenant, once they have run
       const impact = {};
@@ -21335,6 +22207,7 @@ This is a directory write. Nothing else changes.`)) return;
         policies: policies.map((p) => ({ name: p.name, state: p.raw.state, modified: p.raw.modifiedDateTime || p.raw.createdDateTime || null })),
         baseline: d.baseline, exclusions: d.exclusions, showAdvisories: false, now: Date.now() })
         + `</div>`
+        + IdScore.dashboardRecs(isModel, { busy: isBusy, error: isErr })
         + Overview.checks(checkRows())
         + Overview.map(mapInput(d))
         + Overview.advisories({ impact, now: Date.now() });
@@ -21558,6 +22431,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (which === "ex") { $("toolExclusions").click(); if (!exBusy) runExclusionScan(); }
     else if (which === "an") { $("toolAnalyze").click(); (window.requestAnimationFrame || setTimeout)(() => $("anRun").click()); }
     else if (which === "lg") { openLicGap(); if (!lgBusy) lgRun(); }
+    else if (which === "is") runIdScore();
   });
   $("overview") && $("overview").addEventListener("toggle", (e) => {
     if (e.target && e.target.id === "ovMap") { ovMapOpen = e.target.open; try { localStorage.setItem("enca.ovMapOpen", ovMapOpen ? "1" : "0"); } catch {} }

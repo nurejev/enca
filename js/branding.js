@@ -66,9 +66,17 @@ const BRANDING = {
   // The ?v= is not decoration: these filenames previously held the Limon-IT
   // mark, so without it a returning visitor keeps seeing the old logo out of
   // cache. Bump it with the build whenever the artwork changes.
-  logo: "assets/logo-mark-light.svg?v=25163",
-  logoDark: "assets/logo-mark-dark.svg?v=25163",
-  favicon: "assets/favicon.svg?v=25163",
+  logo: "assets/logo-mark-light.svg?v=32302",
+  logoDark: "assets/logo-mark-dark.svg?v=32302",
+  favicon: "assets/favicon.svg?v=32302",
+  // The BETA edition of the same marks (yellow BETA pill under the shield),
+  // shown in the header, on the sign-in card and as the tab icon ONLY on
+  // `betaHost` and only while no per-audience or self-hosted look is active
+  // (applyBranding in js/app.js). Policy cards and exports keep the plain
+  // mark. A fork can drop these three lines to switch the behaviour off.
+  betaLogo: "assets/logo-mark-light-beta.svg?v=32302",
+  betaLogoDark: "assets/logo-mark-dark-beta.svg?v=32302",
+  betaFavicon: "assets/favicon-beta.svg?v=32302",
 
   // Sign-in screen
   loginTitle: "",            // "" → `${name} — ${longName}`

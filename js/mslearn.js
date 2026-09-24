@@ -129,6 +129,52 @@ const MSLearn = (() => {
     return fn;
   }
 
+  // 32303 — the shared devices' OWN policy (it includes the shared-device
+  // group). Excluding them from it would leave them with nothing, so the fix
+  // takes the unsupported CONTROLS out instead — but only where the group is
+  // the policy's only include: with other people in it, dropping a control
+  // weakens it for them too, and that stays a decision (null = no fix).
+  // Conditions are never removed: insider risk and the device-code block are
+  // CONDITIONS of a block, and dropping the condition would block always.
+  const OWN_REMOVABLE = {
+    mfa: (g) => { g.builtInControls = (g.builtInControls || []).filter((x) => x !== "mfa"); },
+    strength: (g) => { delete g.authenticationStrength; },
+    appProtection: (g) => { g.builtInControls = (g.builtInControls || []).filter((x) => x !== "approvedApplication" && x !== "compliantApplication"); },
+    passwordChange: (g) => { g.builtInControls = (g.builtInControls || []).filter((x) => x !== "passwordChange"); },
+    domainJoinedDevice: (g) => { g.builtInControls = (g.builtInControls || []).filter((x) => x !== "domainJoinedDevice"); },
+    riskRemediation: (g) => { g.builtInControls = (g.builtInControls || []).filter((x) => x !== "riskRemediation"); },
+    termsOfUse: (g) => { g.termsOfUse = []; },
+  };
+  const OWN_SESSION = { signInFrequency: "signInFrequency", persistentBrowser: "persistentBrowser", appEnforced: "applicationEnforcedRestrictions",
+    cloudAppSecurity: "cloudAppSecurity", tokenProtection: "secureSignInSession", cae: "continuousAccessEvaluation", disableResilience: "disableResilienceDefaults" };
+  function ownDeviceFix(d, ctx, res) {
+    const g = ctx && ctx.sharedDevices;
+    if (!g) return null;
+    const u = d.conditions?.users || {};
+    const only = (u.includeGroups || []).length === 1 && u.includeGroups[0] === g.id
+      && !(u.includeUsers || []).filter((x) => x && x !== "None").length && !(u.includeRoles || []).length && !u.includeGuestsOrExternalUsers;
+    if (!only) return null;
+    const all = (res && res.blockedControls) || [];
+    // what can be taken out; the rest (compliant device for Surface Hub, the
+    // conditions of a block) is named and left — a platform exclusion or a
+    // policy of its own is a design decision, not an edit
+    const keys = all.filter((k) => OWN_REMOVABLE[k] || OWN_SESSION[k]);
+    const left = all.filter((k) => !keys.includes(k)).map((k) => (DEVICE_CONTROLS.find((c) => c.key === k) || {}).label || k);
+    if (!keys.length) return null;
+    const gc = d.grantControls || null, sc = d.sessionControls || null;
+    const labels = [];
+    for (const k of keys) {
+      if (OWN_REMOVABLE[k] && gc) OWN_REMOVABLE[k](gc);
+      if (OWN_SESSION[k] && sc) delete sc[OWN_SESSION[k]];
+      labels.push((DEVICE_CONTROLS.find((c) => c.key === k) || {}).label || k);
+    }
+    // a grant policy left asking nothing is not a fix — say so instead
+    if (gc && !(gc.builtInControls || []).length && !gc.authenticationStrength && !(gc.termsOfUse || []).length
+        && !(sc && Object.keys(sc).some((k) => sc[k]))) return null;
+    return [`Removed ${labels.join(", ")} — this is the shared devices' own policy (it includes ${g.name} and no one else), and their resource accounts cannot meet ${labels.length === 1 ? "it" : "them"}`
+      + (left.length ? `. Left as it is: ${left.join(", ")} — not supported on one of the device families, but taking it out would change what the policy is; give that family its own policy or a platform exclusion` : "")];
+  }
+
   // ---- helpers on the raw Graph policy shape (fields may be missing) ----
   const U = (p) => p.conditions?.users || {};
   const A = (p) => p.conditions?.applications || {};
@@ -1145,8 +1191,21 @@ const MSLearn = (() => {
         if (!combos.length) return null;
         // Satisfiable here if ANY combination a guest can complete here.
         if (combos.some(comboUsableHere)) return null;
-        const sc = extScope(p, CROSS_TENANT_TYPES);
-        if (!sc) return null;
+        const sc0 = extScope(p, CROSS_TENANT_TYPES);
+        if (!sc0) return null;
+        // 32315 — ONE JUDGEMENT WITH THE GUEST MATRIX. Mihai, on a screenshot:
+        // "there is a high Blocks them, but it is not in the matrix". This
+        // check reported (UP)CA111 as blocking Other external users while the
+        // matrix, for the very same policy and type, said n/a: an
+        // authentication strength applies only to externals who authenticate
+        // with Microsoft Entra ID, so it does not block the others — it
+        // misses them, which is guest-auth-strength-not-universal's finding.
+        // The types reported here are now exactly the ones the matrix's own
+        // verdict() calls blocked or trust for this policy, so a finding
+        // always has its cell and a cell always has its finding.
+        const judged = sc0.types.filter((t) => { const v = verdict(t, "strength", p, ctx).v; return v === "blocked" || v === "trust"; });
+        if (!judged.length) return null;
+        const sc = { ...sc0, types: judged };
         const methods = [...new Set(combos.flatMap(comboMethods).map((m) => HOME_ONLY_METHODS[m]).filter(Boolean))];
         const tap = combos.some((c) => comboMethods(c).some(isNeverForGuests));
         const atHome = combos.some(comboUsableAtHome) && methods.length;
@@ -1583,11 +1642,11 @@ const MSLearn = (() => {
       remediation: "When the policy reaches the devices through All users: exclude the shared-device group. When it is the devices' own policy (it includes that group): take the unsupported control out of it.",
       remediationParts: [
         ["Exclude", "The shared-device group (CAB-SEC-U-TeamsSharedDevices or your equivalent) from this policy — when it reaches the devices only because it targets All users. The Fix button adds that exclusion."],
-        ["Or remove", "The listed controls from this policy — when it is the policy you made FOR the devices (it includes the shared-device group). Excluding them from their own policy would leave them with none."],
+        ["Or remove", "The listed controls from this policy — when it is the policy you made FOR the devices (it includes the shared-device group). Excluding them from their own policy would leave them with none. The Fix removes them when that group is the policy's ONLY include; with other people in it too, removing a control weakens it for them, so that stays your decision."],
         ["What they can have", "Require device to be marked as compliant, a known named location, and block for everything else. No sign-in frequency, no authentication strength, and do not block device code flow for Android devices."],
       ],
       needsGroup: "sharedDevices",
-      fix: (d, ctx, res) => (res && res.viaGroup ? null : excludeGroupFix("sharedDevices", "shared-device / resource account")(d, ctx)),
+      fix: (d, ctx, res) => (res && res.viaGroup ? ownDeviceFix(d, ctx, res) : excludeGroupFix("sharedDevices", "shared-device / resource account")(d, ctx)),
       detect: (p, ctx) => {
         if (!isActive(p) || !reachesDevices(p, ctx)) return null;
         const g = ctx && ctx.sharedDevices && ctx.sharedDevices.id;
@@ -1597,18 +1656,19 @@ const MSLearn = (() => {
         const covered = new Set(broad ? ["mfa", "strength", "signInFrequency"] : []);
         covered.add("deviceCodeBlock");
         const demands = deviceDemands(p).filter((c) => !covered.has(c));
-        const lines = [];
+        const lines = [], blockedControls = new Set();
         for (const row of DEVICE_ROWS) {
           if (!reachesPlatform(p, row.platform)) continue;
           if (row.key === "surfaceHub" && broad) continue;   // surface-hub-mfa owns these
           const bad = demands.filter((c) => (DEVICE_SUPPORT[row.key] || {})[c] === "blocked");
+          bad.forEach((c) => blockedControls.add(c));
           if (bad.length) lines.push(`${row.label}: ${bad.map((c) => (DEVICE_CONTROLS.find((x) => x.key === c) || {}).label || c).join(", ")}`);
         }
         if (!lines.length) return null;
         return {
           detail: `Policy "${p.displayName}" reaches the shared-device resource accounts ${viaGroup ? "because it INCLUDES the shared-device group — it is their own policy, so take these controls out of it rather than excluding them" : "through All users"} and demands what they cannot meet — ${lines.join("; ")}. Those devices fail to sign in, or sign themselves out, while it applies.`,
           impactedResources: lines.map((l) => l.split(":")[0]),
-          viaGroup,
+          viaGroup, blockedControls: [...blockedControls],
         };
       },
     },
@@ -1755,6 +1815,10 @@ const MSLearn = (() => {
     const dc = type === DIRECT_CONNECT;
     switch (control) {
       case "mfa":
+        // 32315 — same judgement as dc-mfa-needs-trust: with direct connect
+        // blocked inbound (default and every partner) no direct connect user
+        // can arrive, so the check stays quiet and the cell says why.
+        if (dc && dcInboundOpen(ctx) === false) return { v: "na", why: "B2B direct connect is blocked inbound, so no direct connect user can arrive" };
         return dc && guestTrust(ctx, "isMfaAccepted").ok !== true
           ? { v: "trust", why: "B2B direct connect needs inbound MFA trust" } : { v: "ok" };
       case "strength": {
@@ -1941,7 +2005,7 @@ const MSLearn = (() => {
     return { types, controls, cells, groupKnown: !!(ctx.sharedDevices && ctx.sharedDevices.id), groupName: ctx.sharedDevices && ctx.sharedDevices.name };
   }
   const DV_LABEL = { ok: "ok", caution: "prompts", blocked: "blocked", unknown: "?" };
-  function renderDeviceMatrix(m) {
+  function renderDeviceMatrix(m, opts = {}) {
     if (!m || !m.types.length || !m.controls.length) return "";
     const blocked = [...m.cells.values()].filter((c) => c.v === "blocked").length;
     const head = m.controls.map((c) => `<th class="gm-c">${esc(c.label)}</th>`).join("");
@@ -1966,6 +2030,8 @@ const MSLearn = (() => {
         <b>·</b> nothing that reaches these accounts asks for it
       </p>
       ${blocked ? `<p class="mini" style="margin:6px 0 0"><b>${blocked}</b> combination${blocked === 1 ? "" : "s"} these devices cannot meet. Microsoft's advice: exclude the resource accounts from every other policy and give them one of their own — compliant device plus a known location, no sign-in frequency, device code flow not blocked. Each blocked cell is explained below, per policy, with the fix; a cell opens the policies behind it.</p>` : ""}
+      ${blocked && opts.fixN ? `<p style="margin:8px 0 0"><button class="btn lemon sm" data-mlapply="@devices">🧰 Fix these — ${opts.fixN} polic${opts.fixN === 1 ? "y" : "ies"} in this tenant <span class="tag block">writes</span></button>
+        <span class="mini muted" style="margin-left:6px">every shared-device finding at once: the group excluded where a policy reaches them through All users, the control removed from their own policy — you confirm the list first</span></p>` : ""}
     </div></div>`;
   }
 
@@ -2016,7 +2082,8 @@ const MSLearn = (() => {
     </div>`;
   }
 
-  function renderGroups(groups, filter, expanded) {
+  function renderGroups(groups, filter, expanded, opts = {}) {
+    const canApply = !!opts.canApply, fixable = opts.fixable || new Map();
     const shown = filter === "all" ? groups : groups.filter((g) => g.check.severity === filter);
     if (!shown.length) return `<p class="mini" style="padding:20px">No findings match the current filter.</p>`;
     return shown.map((g) => {
@@ -2024,14 +2091,16 @@ const MSLearn = (() => {
       const n = g.policies.length;
       const uniform = new Set(g.policies.map((p) => p.result.detail)).size === 1;
       const resources = [...new Set(g.policies.flatMap((p) => p.result.impactedResources || []))];
+      const nFix = fixable.get(c.id) || 0;
+      const fixBtn = canApply && nFix ? `<button class="btn lemon sm ml-headfix" data-mlapply="${esc(c.id)}" title="Change the ${nFix === 1 ? "policy" : `${nFix} policies`} in place in this tenant — version bumped, state kept">🧰 Fix ${nFix}</button>` : "";
       return `<div class="list-card ml-card">
-        <button class="ml-head ${open ? "open" : ""}" data-mltoggle="${esc(c.id)}">
+        <div class="ml-headrow"><button class="ml-head ${open ? "open" : ""}" data-mltoggle="${esc(c.id)}">
           <span class="caret">▶</span>
           ${sevBadge(c.severity)}
           ${EFFECT[c.id] ? `<span class="ml-eff eff-${EFFECT[c.id]}">${EFFECT_TEXT[EFFECT[c.id]][0]} ${esc(EFFECT_TEXT[EFFECT[c.id]][1])}</span>` : ""}
           <span class="ml-title">${esc(c.title)}</span>
           <span class="mini">${n === 1 ? esc(g.policies[0].name) : `${n} policies affected`}</span>
-        </button>
+        </button>${fixBtn}</div>
         ${open ? `<div class="ml-detail">
           ${EFFECT[c.id] ? `<p class="ml-effect eff-${EFFECT[c.id]}"><b>${EFFECT_TEXT[EFFECT[c.id]][0]} ${esc(EFFECT_TEXT[EFFECT[c.id]][1])}.</b> ${esc(EFFECT_TEXT[EFFECT[c.id]][2])}</p>` : ""}
           ${uniform ? `<h5>Assessment</h5><p>${esc(g.policies[0].result.detail)}</p>` : ""}
@@ -2043,10 +2112,14 @@ const MSLearn = (() => {
           ${Array.isArray(c.remediationParts)
             ? `<dl class="ml-rem">${c.remediationParts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`
             : `<p>${esc(c.remediation)}</p>`}
+          ${canApply && nFix ? `<p style="margin-top:10px"><button class="btn lemon" data-mlapply="${esc(c.id)}">🧰 Fix ${nFix === 1 ? "this policy" : `these ${nFix} policies`} in this tenant <span class="tag block">writes</span></button>
+            <span class="mini" style="margin-left:8px">${typeof c.companion === "function" ? "creates the companion policy beside it, state Off" : "changed in place — same policy, version bumped in the name, state kept"}; you confirm the list first, and they are marked ready for 🧱 Update the catalog</span></p>` : ""}
+          ${!nFix && opts.accept ? `<div class="ml-accept"><input type="text" class="bl-why" data-mlwhy="${esc(c.id)}" aria-label="Why this is accepted" placeholder="no mechanical fix — accept it, and say why (kept for this tenant)">
+            <button class="btn sm" data-mlaccept="${esc(c.id)}">✓ Accept with this reason</button></div>` : ""}
           ${typeof c.companion === "function"
-            ? `<p style="margin-top:10px"><button class="btn lemon" data-mlfix="${esc(c.id)}">🧰 Fix — build the companion policy</button>
+            ? `<p style="margin-top:10px"><button class="btn${canApply && nFix ? "" : " lemon"}" data-mlfix="${esc(c.id)}">🧰 Fix — build the companion policy</button>
             <span class="mini" style="margin-left:8px">prepares the SECOND policy to download (state Off) — this policy is not touched and your tenant is not changed</span></p>`
-            : typeof c.fix === "function" ? `<p style="margin-top:10px"><button class="btn lemon" data-mlfix="${esc(c.id)}">🧰 Fix — build the adjusted policy</button>
+            : typeof c.fix === "function" ? `<p style="margin-top:10px"><button class="btn${canApply && nFix ? "" : " lemon"}" data-mlfix="${esc(c.id)}">🧰 Fix — build the adjusted policy</button>
             <span class="mini" style="margin-left:8px">creates a new policy (version bumped, state Off) to download — your tenant is not changed</span></p>` : ""}
           <a class="ml-doc" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">↗ View the Microsoft Learn documentation</a>
         </div>` : ""}
@@ -2054,6 +2127,16 @@ const MSLearn = (() => {
     }).join("");
   }
 
+
+  // 32303 — findings accepted with a reason, folded under the list. The
+  // reason is the record; Reopen puts the finding back.
+  function renderAccepted(list) {
+    if (!list || !list.length) return "";
+    return `<details class="list-card ml-accepted"><summary class="mini"><b>✓ Accepted (${list.length})</b> — findings with no mechanical fix, accepted with a reason for this tenant</summary>
+      ${list.map(({ g, a }) => `<div class="ml-acc-row"><div><b>${esc(g.check.title)}</b> <span class="mini muted">· ${g.policies.length} polic${g.policies.length === 1 ? "y" : "ies"}${a.at ? ` · ${esc(String(a.at).slice(0, 10))}` : ""}</span>
+        <div class="mini">${esc(a.reason)}</div></div><button class="btn sm" data-mlreopen="${esc(g.check.id)}">Reopen</button></div>`).join("")}
+    </details>`;
+  }
 
   // ======================================================================
   // Suggested fixes — build a NEW policy from an affected one with the
@@ -2159,6 +2242,35 @@ const MSLearn = (() => {
     return d;
   }
 
+  // 32303 — a fix written IN PLACE (the baseline tenant). Only the sections
+  // that differ from the policy as read go in the body, whole. A PATCH that
+  // OMITS a nested key keeps the old value (the 25464 lesson: a strength left
+  // out stays on the policy), so whatever the fix took out of a section is
+  // written as an explicit null. The name always goes: the version bump in it
+  // is what 🧱 Update the catalog reads as newer. State is never sent — the
+  // policy keeps the state it had.
+  function patchBody(raw, draft) {
+    const before = tidy(draftFrom(raw));
+    const out = { displayName: draft.displayName };
+    const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    for (const k of ["conditions", "grantControls", "sessionControls"]) {
+      const a = before[k] ?? null, b = draft[k] ?? null;
+      if (same(a, b)) continue;
+      if (a && b && typeof a === "object" && typeof b === "object") {
+        const v = JSON.parse(JSON.stringify(b));
+        for (const kk of Object.keys(a)) if (!(kk in v) && a[kk] != null) v[kk] = null;
+        out[k] = v;
+      } else out[k] = b;
+    }
+    return out;
+  }
+
+  // 32303 — what a finding group was accepted ABOUT: the check and the exact
+  // policies. A later run that reaches a different set reopens it by itself.
+  function acceptSig(g) {
+    return `${g.check.id}:${g.policies.map((p) => p.id).sort().join(",")}`;
+  }
+
   // findings: the flat list from run(); raws: the raw policies keyed by id.
   // ctx may carry { breakGlass: {id, type, name} } for the break-glass fix.
   function buildFixes(findings, raws, ctx = {}) {
@@ -2173,7 +2285,7 @@ const MSLearn = (() => {
       let entry = byPolicy.get(f.policyId);
       if (!entry) {
         entry = {
-          policyId: f.policyId, originalName: raw.displayName || "(unnamed policy)", originalState: raw.state,
+          policyId: f.policyId, originalName: raw.displayName || "(unnamed policy)", originalState: raw.state, raw,
           // what the live policy targets: by definition those apps resolve in
           // this tenant, so it is the safe fallback if a narrowing fix cannot apply
           originalApps: (raw.conditions?.applications?.includeApplications || []).slice(),
@@ -2431,5 +2543,5 @@ const MSLearn = (() => {
     return [...ids];
   }
 
-  return { deviceMatrix, renderDeviceMatrix, DEVICE_ROWS, guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
+  return { patchBody, acceptSig, renderAccepted, deviceMatrix, renderDeviceMatrix, DEVICE_ROWS, guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length };
 })();

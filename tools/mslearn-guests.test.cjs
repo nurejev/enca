@@ -455,3 +455,59 @@ test("the classification agrees with the remediation text of every classified ch
   assert.equal(M.EFFECT[c.id], "misses");
   assert.match(c.remediation, /^Exclude nothing/, "misses means the advice does NOT start with an exclusion");
 });
+
+// ---- 32315: the findings and the guest matrix are ONE judgement ---------
+// Mihai, on a screenshot: "there is a high Blocks them, but it is not in the
+// matrix" — (UP)CA111 was reported as blocking Other external users with its
+// phishing-resistant strength while the matrix said n/a for that cell. Every
+// guest finding below must have a blocked or trust cell for its types, and
+// every blocked or trust cell (cross-tenant types; service providers have
+// their own checks) must have a finding — over every type and control.
+test("guest findings and the guest matrix agree, type by type", () => {
+  const CHECK_CONTROLS = {
+    "guest-auth-strength-unsatisfiable": ["strength"],
+    "guest-unsupported-grant": ["appProtection", "passwordChange"],
+    "guest-device-grant-needs-trust": ["compliantDevice", "domainJoinedDevice"],
+    "dc-unsupported-control": ["termsOfUse", "signInFrequency", "persistentBrowser", "appEnforced", "cloudAppSecurity"],
+    "dc-mfa-needs-trust": ["mfa", "strength"], // it fires on a strength too
+  };
+  const TYPES = ["b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "otherExternalUser"];
+  const st = strengths("s1", "Phishing-resistant MFA", ["fido2", "windowsHelloForBusiness", "x509CertificateMultiFactor"]);
+  const GRANTS = [
+    { authenticationStrength: { id: "s1" }, builtInControls: [], operator: "AND" },
+    { builtInControls: ["compliantApplication"], operator: "AND" },
+    { builtInControls: ["passwordChange"], operator: "AND" },
+    { builtInControls: ["compliantDevice"], operator: "AND" },
+    { builtInControls: ["mfa"], operator: "AND" },
+  ];
+  const SESSIONS = [null, { signInFrequency: { isEnabled: true, value: 1, type: "hours" } }];
+  const scopes = [
+    { includeUsers: ["All"] },
+    ...TYPES.map((t) => ({ includeUsers: ["None"], includeGuestsOrExternalUsers: GUESTS(t) })),
+    // All users with every type but Other external users carved out — the CA111 shape
+    { includeUsers: ["All"], excludeGuestsOrExternalUsers: GUESTS("b2bCollaborationGuest", "b2bCollaborationMember", "b2bDirectConnectUser", "internalGuest", "serviceProvider") },
+  ];
+  let n = 0;
+  // direct connect blocked inbound (the default) and open inbound
+  const CTS = [CT({}), CT({}, [], { dcInboundDefault: "allowed" })];
+  for (const ct of CTS) for (const users of scopes) for (const g of GRANTS) for (const sess of SESSIONS) {
+    const p = pol(`P${++n}`, { users, applications: { includeApplications: ["All"] } }, g, sess);
+    const opts = { strengths: st, ...ct };
+    const f = run([p], opts).filter((x) => CHECK_CONTROLS[x.check.id]);
+    const m = M.guestMatrix([p], st, opts);
+    const bad = (t, ctls) => ctls.some((c) => { const cell = m.cells.get(`${t}|${c}`); return cell && (cell.v === "blocked" || cell.v === "trust"); });
+    for (const x of f) {
+      const shown = TYPES.filter((t) => x.result.impactedResources.includes(M.extLabel(t)));
+      assert.ok(shown.length, `${p.displayName} ${x.check.id}: names no type`);
+      for (const t of shown) assert.ok(bad(t, CHECK_CONTROLS[x.check.id]), `${p.displayName}: ${x.check.id} reports ${t} but the matrix cell is not blocked/trust`);
+    }
+    for (const [k, cell] of m.cells) {
+      if (cell.v !== "blocked" && cell.v !== "trust") continue;
+      const [t, c] = k.split("|");
+      if (!TYPES.includes(t)) continue;
+      const owners = Object.keys(CHECK_CONTROLS).filter((id) => CHECK_CONTROLS[id].includes(c));
+      assert.ok(f.some((x) => owners.includes(x.check.id) && x.result.impactedResources.includes(M.extLabel(t))),
+        `${p.displayName}: matrix ${k}=${cell.v} has no finding`);
+    }
+  }
+});

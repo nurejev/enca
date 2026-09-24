@@ -126,6 +126,28 @@
   let deploymentBrand = null;   // from /selfhost-branding.json
   let localBrand = null;        // from localStorage
   try { localBrand = cleanBrand((JSON.parse(localStorage.getItem(STORE) || "null") || {}).brand); } catch { /* unreadable */ }
+  // Start from what js/selfhost-boot.js painted with (build 32310): the file
+  // the container start wrote into it (window.ENCA_BRAND_BOOT), else this
+  // browser's cache of the last fetch. Before this, deploymentBrand stayed
+  // null until the fetch below returned, so app.js's first applyBranding()
+  // painted the image's own Limon-IT look over the boot branding - and took
+  // the boot stylesheet away - and the right look only came back when the
+  // fetch landed: a hard refresh flashed Limon-IT (Dovilo, 24 Sep). The fetch
+  // still runs and still wins, so a file changed since the container started
+  // is picked up on this load. Non-production only, like the fetch.
+  try {
+    if (!isProd()) {
+      const boot = (() => {
+        try {
+          const raw = window.ENCA_BRAND_BOOT;
+          if (typeof raw !== "string" || !raw) return null;
+          const j = JSON.parse(raw);
+          return cleanBrand((j && j.brand) || j);
+        } catch { return null; }
+      })();
+      deploymentBrand = boot || cleanBrand((JSON.parse(localStorage.getItem("enca-selfhost-brand-cache") || "null") || {}).brand);
+    }
+  } catch { /* the fetch below still brands the page */ }
 
   function register() {
     if (typeof BRAND_OVERRIDES === "undefined") return;
@@ -143,6 +165,7 @@
   // the red ribbon into a neutral SELF-HOSTED one. The hosted site's identity
   // is js/branding.js and stays there.
   const BOOT_CACHE = "enca-selfhost-brand-cache";
+  const startedBranded = !!deploymentBrand;
   if (!isProd()) fetch("selfhost-branding.json?v=" + Date.now(), { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => {
@@ -155,7 +178,9 @@
         if (deploymentBrand) localStorage.setItem(BOOT_CACHE, JSON.stringify({ v: 1, brand: deploymentBrand }));
         else localStorage.removeItem(BOOT_CACHE);
       } catch { /* private mode */ }
-      if (!deploymentBrand) return;
+      // No file (any more): a brand started from the boot block or the cache
+      // above has to be taken down again on this load, not only the next.
+      if (!deploymentBrand) { if (startedBranded) { register(); rebrand(); } return; }
       register();
       rebrand();
       // A configured instance is not a test site: soften the ribbon, keep it.

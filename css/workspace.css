@@ -32,7 +32,19 @@ html{scrollbar-gutter:stable}
 .policy-workspace.with-inspector{grid-template-columns:minmax(0,1fr) minmax(280px,340px)}
 .policy-workspace #listView{overflow:auto;max-width:100%;margin:0}
 #ptable{min-width:740px}#ptable td{padding:13px 12px;vertical-align:top}#ptable th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:12px}
-#ptable .pname{font:inherit;font-weight:600;color:var(--ink);border:0;background:transparent;cursor:pointer;text-align:left;padding:0;max-width:380px;line-height:1.5}
+#ptable .pname{font:inherit;font-weight:600;color:var(--ink);border:0;background:transparent;cursor:pointer;text-align:left;padding:0;line-height:1.5;display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The list uses the whole width (Mihai, 24 Sep 2026: names wrapped over three
+   lines under a 380px cap while Users held a third of the table for "All
+   users"). Fixed layout with widths by what each column holds: the name takes
+   the largest share and stays on ONE line (full name in its tooltip), State
+   and Modified are as wide as their values, the three summaries share the
+   rest. Every column can be dragged wider or narrower (js/col-resize.js). */
+#ptable{table-layout:fixed;width:100%;min-width:1000px}
+#ptable th:nth-child(1){width:44px}#ptable th:nth-child(2){width:39%}#ptable th:nth-child(3){width:120px}
+#ptable th:nth-child(4){width:15%}#ptable th:nth-child(5){width:16%}#ptable th:nth-child(6){width:19%}#ptable th:nth-child(7){width:112px}
+#ptable td{overflow:hidden}
+#ptable td.mini{white-space:nowrap;text-overflow:ellipsis}
+#ptable tr.grouprow td{white-space:nowrap}
 /* The policy open in the inspector, marked in the list (25466). An accent
    bar on the left and a tint across the row — the bar survives a row that is
    also checkbox-selected, and neither depends on colour alone. Box-shadow
@@ -42,7 +54,7 @@ html{scrollbar-gutter:stable}
 #ptable tr.is-inspected>td:first-child{box-shadow:inset 3px 0 0 var(--accent2)}
 #ptable tr.is-inspected .pname{color:var(--accent2);font-weight:700}
 #ptable .pname:hover{color:var(--green);text-decoration:underline}.workspace-native{font-size:11px;color:var(--muted);word-break:break-word;line-height:1.5;margin:5px 0 14px}
-#ptable .workspace-native{max-width:390px;margin:4px 0 0}
+#ptable .workspace-native{margin:4px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .workspace-inspector{position:sticky;top:calc(var(--sticky-nav,106px) + 80px);padding:22px;border:1px solid var(--border);border-radius:12px;background:var(--surface);max-height:calc(100vh - var(--sticky-nav,106px) - 100px);overflow:auto}
 .workspace-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;letter-spacing:.1em;color:var(--muted);margin-bottom:16px}
 .workspace-inspector h2{font-size:20px;letter-spacing:-.025em;margin-bottom:10px;overflow-wrap:anywhere}.workspace-inspector dt{font-size:11px;color:var(--muted);margin:18px 0 5px}.workspace-inspector dd{margin:0;font-size:13px;line-height:1.55;overflow-wrap:anywhere}.workspace-inspector dl{margin-bottom:24px}.workspace-inspector details,.review-evidence details{border-top:1px solid var(--border);padding-top:16px;margin-top:22px;font-size:12px}.workspace-inspector pre{white-space:pre-wrap;word-break:break-word;max-width:100%;font-size:11px;margin-top:12px}

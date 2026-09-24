@@ -158,8 +158,12 @@ const Overview = (() => {
     if (st.kind === "loading") status = `<div class="db-status loading" role="status">Reading policies…${st.since ? ` The snapshot from ${t(st.since)} stays until the read completes.` : ""}</div>`;
     else if (st.kind === "failed") status = `<div class="db-status failed" role="alert">Policies could not be re-read at ${t(st.at)}${st.message ? ` — ${esc(st.message)}` : ""}.${st.since ? ` Showing the snapshot read at ${t(st.since)}.` : ""} <button type="button" class="fchip" data-ovrefresh>Retry</button></div>`;
     else if (st.kind === "empty") status = `<div class="db-status empty" role="status">0 policies loaded${d.tenantName ? ` from ${esc(d.tenantName)}` : ""}${d.snapshot ? ` at ${t(d.snapshot)}` : ""} — the tenant has no Conditional Access policies, or this account cannot read them. <button type="button" class="fchip" data-ovrefresh>Read again</button> <button type="button" class="fchip" data-ovtool="toolBaseline">Start from a baseline</button> <button type="button" class="fchip" data-ovtool="toolImport">Import</button></div>`;
+    // 32308: the Entra Identity Secure Score as a fifth figure — it opens its
+    // tab when read, and reads it (on this page) when not
+    const is = d.idScore;
+    const isTile = is ? `<button type="button" class="db-count db-is"${is.unread ? ' data-ovrun="is"' : ' data-ovtool="toolGapCheck" data-ovtab="checks:idscore"'} title="Microsoft Entra Identity Secure Score"><b>${esc(is.n)}</b><span>${esc(is.label)}</span><small>${esc(is.sub)}</small>${is.pct != null ? `<i class="db-is-meter"><i style="width:${Math.min(100, is.pct)}%"></i></i>` : ""}</button>` : "";
     return `<div class="db-head">
-      <div class="db-counts">${tile("all", c.total, "Policies loaded", "current snapshot")}${tile("on", c.on, "Enabled", "configured to enforce")}${tile("report", c.report, "Report-only", "evaluation only")}${tile("off", c.off, "Off", "not enforcing")}</div>
+      <div class="db-counts${is ? " five" : ""}">${tile("all", c.total, "Policies loaded", "current snapshot")}${tile("on", c.on, "Enabled", "configured to enforce")}${tile("report", c.report, "Report-only", "evaluation only")}${tile("off", c.off, "Off", "not enforcing")}${isTile}</div>
       ${status}
     </div>`;
   }

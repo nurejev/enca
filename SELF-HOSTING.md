@@ -177,6 +177,63 @@ Or in the portal: **Revisions and replicas → the active revision → Restart**
 
 For a reviewed fork: `git fetch upstream && git merge upstream/main`, re-review the diff, redeploy.
 
+## Pinned installs: update and roll back
+
+For a copy other people rely on, run a **digest**, not a tag. `ghcr.io/nurejev/enca@sha256:…` names exactly one build: it cannot change under you, every replica serves the same thing, and going back is putting the previous digest back. A tag (`:latest`, `:beta`) moves with every push, and on Container Apps with scale-to-zero it moves your instance too (see above).
+
+**1. Write down what you run now.** This is your way back.
+
+Docker:
+
+```bash
+docker image inspect --format '{{index .RepoDigests 0}}' "$(docker inspect enca --format '{{.Image}}')"
+```
+
+Azure Container Apps (bash or PowerShell, the same line):
+
+```bash
+az containerapp show -n <app-name> -g <resource-group> --query "properties.template.containers[0].image" -o tsv
+```
+
+If that prints a tag rather than `…@sha256:…`, the instance is not pinned yet. The steps below pin it.
+
+**2. Find the digest of the build you want.**
+
+```bash
+bash selfhost/resolve-digest.sh ghcr.io/nurejev/enca:latest
+```
+
+It asks the registry one question and prints the pinned reference to deploy. You can run it from a clone or straight from the repo: `curl -fsSL https://raw.githubusercontent.com/nurejev/enca/main/selfhost/resolve-digest.sh | bash`. Without bash, `docker buildx imagetools inspect ghcr.io/nurejev/enca:latest` prints the same `Digest:` line. Check that the build is the one you mean first: the footer of `enca.limon-it.nl` shows what `:latest` currently carries.
+
+**3. Deploy it.**
+
+Docker — pull, then recreate with the same flags as before, pinned:
+
+```bash
+NEW=ghcr.io/nurejev/enca@sha256:<digest>
+docker pull "$NEW"
+docker rm -f enca
+docker run -d --name enca -p 8080:80 --restart unless-stopped <your -e / -v flags> "$NEW"
+```
+
+Compose: put the same reference on the `image:` line of `docker-compose.yml`, then `docker compose up -d`.
+
+Azure Container Apps — a new image reference creates a new revision:
+
+```bash
+az containerapp update -n <app-name> -g <resource-group> --image ghcr.io/nurejev/enca@sha256:<digest>
+```
+
+```powershell
+az containerapp update -n "<app-name>" -g "<resource-group>" --image "ghcr.io/nurejev/enca@sha256:<digest>"
+```
+
+Terraform, Bicep or ARM: put the digest in your variables, and refuse tags there. A pipeline on a schedule or a trigger is how a "pinned" deployment ends up updating itself.
+
+**4. Check it.** The footer shows the new build, sign-in still works, and your branding is still there. On Container Apps, **Revisions and replicas** shows one active revision, Running. A build can ask for a new read permission. The release notes (the 📋 What's new tile) say so, and your app registration may need admin consent for it.
+
+**5. Roll back** — the same command as step 3, with the reference you wrote down in step 1. It brings back exactly the old build, because a digest cannot have changed in the meantime. On Container Apps in single-revision mode (this template's default), that creates a new revision with the old image and replaces the current one.
+
 ## Self-hosted roadmap
 
 What is planned specifically for self-hosted instances — an optional saving/persistence layer (drift snapshots, reports, preferences in a SQLite store next to the container), update-channel choice, and more — lives in the app itself: **🗺 Roadmap → Self-hosted**, items numbered `S01`, `S02`, …

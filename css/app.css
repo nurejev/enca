@@ -1260,6 +1260,16 @@ footer{border-top:1px solid var(--border);background:var(--surface)}
 .ml-card{margin-bottom:14px;overflow:visible}
 .ml-head{width:100%;display:flex;align-items:center;gap:10px;padding:14px 18px;border:0;background:none;text-align:left;font:inherit}
 .ml-head .caret{flex:none}
+.ml-headrow{display:flex;align-items:center;gap:8px}
+.ml-headrow .ml-head{flex:1;min-width:0}
+.ml-headfix{flex:none;margin-right:14px}
+.ml-accept{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin-top:12px}
+.ml-accepted{padding:0}
+.ml-accepted>summary{padding:12px 18px;cursor:pointer}
+.ml-acc-row{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;padding:10px 18px;border-top:1px solid var(--border)}
+.ml-ready{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:12px 16px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--on) 45%,var(--border));background:color-mix(in srgb,var(--on) 10%,var(--surface));border-radius:12px}
+.ml-ready .grow{flex:1 1 260px;min-width:0}
+.bl-fromfix{margin:6px 0 0}
 .ml-head.open .caret{transform:rotate(90deg);color:var(--accent2)}
 .ml-head:hover .ml-title{color:var(--accent2)}
 .ml-title{font-weight:600;font-size:14px}
@@ -1368,7 +1378,36 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
 :root[data-theme="dark"] .selbar, :root[data-theme="dark"] .toast{background:var(--panel-deep,#0d1a12);border:1px solid var(--border)}
 :root[data-theme="dark"] .exp-ic.md{background:#4a5450}
 :root[data-theme="dark"] .fs-bg{background:rgba(0,0,0,.62)}
-:root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25163")}
+:root[data-theme="dark"] .logo img, :root[data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark.svg?v=32302")}
+/* the publisher's beta host wears the BETA edition (data-beta-mark, set by applyBranding) */
+:root[data-beta-mark][data-theme="dark"] .logo img, :root[data-beta-mark][data-theme="dark"] .login-card > img{content:url("../assets/logo-mark-dark-beta.svg?v=32302")}
+
+/* A BRANDED look in dark (32313). The neutrals above are ENCA's greens - chip
+   borders, the switch track, n/a and faint text, ghost borders - and a
+   branding file rarely names them, so a blue brand still showed green edges
+   and tracks in dark (Mihai, Dovilo, 24 Sep). Under any branding they are
+   mixed from that brand's own tokens instead; a branding that does name one
+   still wins (its stylesheet comes later). ENCA's own look is untouched:
+   these apply only with data-brand. Semantic colours (ok / warn / bad, the
+   green "in a vault" card, the UPDATED tag) stay semantic. */
+:root[data-brand][data-theme="dark"]{
+  --chip-bd:color-mix(in srgb,var(--green) 35%,var(--surface));
+  --sw-track:color-mix(in srgb,var(--green-deep) 55%,var(--bg));
+  --na:color-mix(in srgb,var(--muted) 45%,var(--surface));
+  --faint:color-mix(in srgb,var(--muted) 75%,var(--surface));
+  --ghost-bd:color-mix(in srgb,var(--muted) 35%,var(--surface));
+  --on-deep-mute:color-mix(in srgb,var(--ink) 65%,var(--green-deep));
+}
+@media (prefers-color-scheme: dark){
+  :root[data-brand]:not([data-theme="light"]):not([data-theme="dark"]){
+    --chip-bd:color-mix(in srgb,var(--green) 35%,var(--surface));
+    --sw-track:color-mix(in srgb,var(--green-deep) 55%,var(--bg));
+    --na:color-mix(in srgb,var(--muted) 45%,var(--surface));
+    --faint:color-mix(in srgb,var(--muted) 75%,var(--surface));
+    --ghost-bd:color-mix(in srgb,var(--muted) 35%,var(--surface));
+    --on-deep-mute:color-mix(in srgb,var(--ink) 65%,var(--green-deep));
+  }
+}
 
 /* the site's own treatment: white card titles, lemon pill, lemon CTA, hero glow */
 :root[data-theme="dark"] .tool-tile h3, :root[data-theme="dark"] .readme h3{color:var(--lemon)}
@@ -1390,7 +1429,8 @@ table.gc-matrix{border-collapse:collapse;width:100%;min-width:760px}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x{color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-btn:hover,:root:not([data-theme="light"]):not([data-theme="dark"]) .toolnav-tab.active .toolnav-x:hover{background:rgba(0,0,0,.12);color:var(--green-deep)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .fs-bg{background:rgba(0,0,0,.62)}
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark.svg?v=25163")}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark.svg?v=32302")}
+  :root[data-beta-mark]:not([data-theme="light"]):not([data-theme="dark"]) .logo img, :root[data-beta-mark]:not([data-theme="light"]):not([data-theme="dark"]) .login-card > img{content:url("../assets/logo-mark-dark-beta.svg?v=32302")}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .tool-tile h3, :root:not([data-theme="light"]):not([data-theme="dark"]) .readme h3{color:var(--lemon)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .tag.new{background:var(--soft);border-color:var(--ghost-bd);color:var(--lemon);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .btn.primary{background:var(--lemon);border-color:var(--lemon)}
@@ -2245,14 +2285,19 @@ body.cgg-modal-open{overflow:hidden}
 .cgg-bulk .btn{background:rgba(255,255,255,.14);border-color:transparent;color:#fff;padding:5px 12px;min-height:0;font-size:12.5px}
 .cgg-bulk .btn:hover{background:rgba(255,255,255,.26)}
 .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
-/* dark: --green is the pale accent there, so the bar takes the deep
-   green surface with a light border and light text, like a card */
-:root[data-theme="dark"] .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+.cgg-bulk .mini{color:inherit}   /* the (open — tick rows…) hint: --muted is unreadable on the brand surface */
+/* dark: --green is the pale accent there, so the bar takes the deep brand
+   surface with a light border and light text, like a card. Mixed from the
+   brand tokens, never a literal green (Mihai, 32307, on a Dovilo-branded
+   instance: "the bottom bar needs to follow the branding" — #1e4729 kept
+   the ENCA green under a blue brand). ENCA's own palette mixes to the same
+   green it had. */
+:root[data-theme="dark"] .cgg-bulk{background:color-mix(in srgb,var(--green) 18%,var(--green-deep));color:var(--ink);border:1px solid color-mix(in srgb,var(--green) 35%,var(--green-deep))}
 :root[data-theme="dark"] .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
 :root[data-theme="dark"] .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
 :root[data-theme="dark"] .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk{background:#1e4729;color:var(--ink);border:1px solid #3c6b48}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk{background:color-mix(in srgb,var(--green) 18%,var(--green-deep));color:var(--ink);border:1px solid color-mix(in srgb,var(--green) 35%,var(--green-deep))}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn{color:var(--ink);background:rgba(255,255,255,.1)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn:hover{background:rgba(255,255,255,.2)}
   :root:not([data-theme="light"]):not([data-theme="dark"]) .cgg-bulk .btn.primary{background:var(--lemon);color:var(--green-deep)}
@@ -2603,3 +2648,130 @@ td.gm-none{color:var(--muted);font-weight:700}
 #cardEditExtra .pb-diff{margin-top:10px}
 #cardEditExtra .pb-pf{margin-top:10px}
 .ce-note{margin:8px 0 0}
+
+/* ---- 🏅 Identity Secure Score (32308, T42) ---- */
+.db-counts.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.db-is small{max-width:100%}
+.db-is-meter{display:block;width:100%;max-width:140px;height:4px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:4px}
+.db-is-meter>i{display:block;height:100%;background:var(--accent2)}
+.is-dash{margin-bottom:24px}
+.is-dash h3 .mini{font-weight:400;margin-left:6px}
+.is-drow{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:4px 12px;padding:10px 0;border-top:1px solid var(--line);align-items:start}
+.is-dash h3+.is-drow{border-top:0}
+.is-dname{font-weight:600}
+.is-ca{font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;background:var(--warn-bg);color:var(--warn-fg)}
+.is-dash>.fchip{margin-top:8px}
+.is-head{display:flex;flex-wrap:wrap;gap:18px 32px;align-items:center;padding:16px 18px;margin:0 0 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.is-score{min-width:200px}
+.is-pct{font-size:40px;font-weight:700;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
+.is-pct small{font-size:20px;font-weight:600;margin-left:2px;color:var(--muted)}
+.is-lbl{font-weight:600;margin-top:2px}
+.is-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.is-sub .up{color:var(--on)}.is-sub .down{color:var(--off)}
+.is-meter{height:6px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:8px;max-width:260px}
+.is-meter>i{display:block;height:100%;background:var(--accent2);border-radius:99px}
+.is-trend{display:flex;flex-direction:column;gap:2px;color:var(--accent2)}
+.is-facts{display:flex;flex-wrap:wrap;gap:10px 28px;flex:1 1 300px}
+.is-facts>div{display:flex;flex-direction:column;min-width:130px}
+.is-facts b{font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.is-facts span{font-size:12px;color:var(--muted);max-width:26ch}
+.is-tw{overflow-x:auto}
+.is-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.is-tbl th{text-align:left;font-size:11.5px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+.is-tbl td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.is-row.closed td{color:var(--muted)}
+.is-pts{font-variant-numeric:tabular-nums;white-space:nowrap}
+.is-pts b{display:block;color:var(--on);font-size:14px}
+.is-pts small{display:block;color:var(--muted);font-size:11px}
+.is-name{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--ink);text-align:left;cursor:pointer}
+.is-name .caret{display:inline-block;width:1em;color:var(--muted);font-size:10px}
+.is-st{font-size:11.5px;font-weight:700;white-space:nowrap}
+.is-st.st-open{color:var(--off)}.is-st.st-done{color:var(--on)}.is-st.st-parked{color:var(--muted)}
+.is-v{font-size:12.5px}
+.is-v.v-on{color:var(--on)}.is-v.v-report{color:var(--report)}.is-v.v-off{color:var(--warn-fg);font-weight:600}.is-v.v-none{color:var(--off)}
+.is-go{text-align:right;white-space:nowrap}
+.is-det td{background:var(--soft2)}
+.is-det h5{margin:8px 0 3px;font-size:12px}
+.is-det p,.is-det ol{margin:0 0 6px;font-size:12.5px;line-height:1.5;max-width:90ch}
+@media (max-width:900px){.db-counts.five{grid-template-columns:repeat(4,minmax(0,1fr))}.db-counts.five .db-count:nth-child(5){grid-column:1/-1;border-top:1px solid var(--border);border-right:0;padding:12px 0 0}}
+@media (max-width:600px){.is-drow{grid-template-columns:52px minmax(0,1fr)}.is-ca{display:none}}
+.is-partial{margin:-4px 0 12px;padding:8px 12px;border-radius:10px;background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--ink)}
+
+/* ---- column resize (js/col-resize.js) — a grip on every header's right edge ---- */
+th.cr-th{background-clip:padding-box}
+.cr-grip{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:3;touch-action:none}
+.cr-grip::after{content:"";position:absolute;left:4px;top:28%;height:44%;width:1px;background:var(--border);transition:background .12s}
+th.cr-th:hover>.cr-grip::after{background:var(--muted)}
+.cr-grip:hover::after,.cr-grip.on::after{background:var(--accent2,var(--green));width:3px;left:3px;top:0;height:100%}
+th.cr-th:last-child>.cr-grip{right:0}
+body.cr-dragging{cursor:col-resize;user-select:none}
+table.cr-custom th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.cr-custom td{overflow:hidden;overflow-wrap:anywhere}
+.cr-reset{display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);font:inherit;font-size:12px;line-height:1;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--muted);cursor:pointer;z-index:4;text-transform:none;letter-spacing:0}
+table.cr-custom .cr-reset{display:inline-block}
+.cr-reset:hover{color:var(--ink);border-color:var(--muted)}
+table.cr-custom th:last-child{padding-right:40px}
+table.cr-measuring th,table.cr-measuring td{overflow:visible}
+
+/* ---- 🤝 Cross-tenant access (32316, T43) ---- */
+.xt-opts{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center}
+.xt-opt{display:inline-flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap}
+.xt-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.xt-tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.xt-tile b{display:block;font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.xt-tile.h{background:var(--crit-bg);border-color:var(--bad-bd)}
+.xt-tile.m{background:var(--warn-bg);border-color:var(--warn-bd)}
+.xt-card{margin:0 0 12px;padding:14px 16px}
+.xt-card h3{font-size:15px;margin:0 0 8px}
+.xt-card h3 .mini{font-weight:400}
+.xt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+.xt-kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.xt-kv>span:last-child{text-align:right}
+.xt-adds{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--soft2);border:1px solid var(--border)}
+.xt-tag{font-size:10.5px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.xt-pols{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.xt-pol{font-size:12px;background:var(--soft);border-radius:6px;padding:1px 7px;overflow-wrap:anywhere}
+.xt-pill{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;white-space:nowrap}
+.xt-high{background:var(--crit-bg);color:var(--crit-fg)}
+.xt-medium{background:var(--warn-bg);color:var(--warn-fg)}
+.xt-info{background:var(--blue-bg);color:var(--blue)}
+.xt-tw{overflow-x:auto}
+.xt-tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:820px}
+.xt-tbl th{text-align:left;font-size:11.5px;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.xt-tbl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.xt-id{font-family:ui-monospace,Menlo,monospace;font-size:11px}
+.xt-dead{color:var(--off);font-weight:600}
+.xt-f{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.xt-card h3+.xt-f{border-top:0}
+.xt-f>.xt-pill{align-self:start;justify-self:start}
+.xt-f p{margin:2px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45;max-width:95ch}
+.xt-set{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:500}
+@media (max-width:720px){.xt-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.xt-grid{grid-template-columns:minmax(0,1fr)}.xt-f{grid-template-columns:minmax(0,1fr)}}
+
+/* ---- 🔑 Passkeys (32317, T44) — reuses the xt- cards, tiles and pills ---- */
+.xt-tile.pk-on{background:var(--ok-bg);border-color:var(--ok-bd)}
+.pk-okp{background:var(--ok-bg);color:var(--on)}
+.pk-acts{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+.pk-users{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+.pk-edit{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start}
+.pk-sec{margin:0 0 14px}
+.pk-seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;vertical-align:middle}
+.pk-seg button{border:0;border-right:1px solid var(--border);background:var(--surface);color:var(--ink);padding:4px 11px;font-size:12.5px}
+.pk-seg button:last-child{border-right:0}
+.pk-seg button.on{background:var(--green);color:#fff;font-weight:600}
+.pk-tgt{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;border:1px solid var(--border);border-radius:9px;padding:6px 10px;margin:0 0 6px;font-size:13px}
+.pk-tgt b{min-width:180px;overflow-wrap:anywhere}
+.pk-x{margin-left:auto;color:var(--muted);text-decoration:none}
+.pk-prof{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0 0 8px}
+.pk-prof-h{margin:0 0 6px;font-size:13px}
+.pk-pname{font:inherit;font-weight:600;border:1px solid var(--border);border-radius:6px;padding:3px 7px;min-width:220px;background:var(--surface);color:var(--ink)}
+.pk-line{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:6px 0 0;font-size:13px}
+.pk-aag{font:inherit;font-size:12px;border:1px solid var(--border);border-radius:6px;padding:3px 7px;min-width:220px;background:var(--surface);color:var(--ink)}
+.pk-diff{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.6;background:var(--soft2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;overflow-wrap:anywhere}
+.pk-add{color:var(--on)} .pk-del{color:var(--off)} .pk-chg{color:var(--report)}
+.pk-impact,.pk-gain,.pk-recov{margin-top:10px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12.5px;line-height:1.5}
+.pk-impact{border-left:4px solid var(--off);background:var(--bad-bg2)}
+.pk-gain{border-left:4px solid var(--on);background:var(--ok-bg2)}
+.pk-recov{border-left:4px solid var(--accent2);background:var(--soft2)}
+.pk-impact ul,.pk-gain ul{margin:4px 0 0;padding-left:18px}
+@media (max-width:820px){.pk-edit{grid-template-columns:minmax(0,1fr)}}
