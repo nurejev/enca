@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32404, date: "2026-09-24", title: "🎫 CAE and token protection, per persona",
+    items: [
+      { kind: "new", tool: "Checks", text: "A new CAE & tokens tab in 🛡 Checks lays out the two newer session controls per persona: which personas have token protection On or only in report-only, which resources and platforms each policy names, and which policies switch continuous access evaluation off or make it strict. A second table lists every resource that supports token protection — Exchange, SharePoint and Teams on Windows, macOS and iOS; Azure Virtual Desktop, Windows 365 and Windows Cloud Login on Windows; Azure Resource Manager as a browser preview — with the personas protected on each." },
+      { kind: "new", tool: "Checks", text: "Findings: no token protection for the Admins persona, token protection only in report-only, strict location enforcement where the persona has no location-based policy (it changes nothing), live strict enforcement, and a supported resource no policy includes. Per-policy mistakes stay in 📘 Microsoft Learn, where they have a Fix; this tab counts them per policy and points there instead of raising them twice. Reads nothing; Export MD writes the whole view." },
+    ],
+  },
+  {
     build: 32403, date: "2026-09-24", title: "📏 Naming — the CA-number convention, checked",
     items: [
       { kind: "new", tool: "Checks", text: "A new Naming tab in 🛡 Checks checks the CA-number convention every ENCA tool groups by, over the policies already loaded: policies with no number (with the next free number in the persona the name reads), one number carried by two policies whose names differ beyond the version, numbers outside every persona range, names that say one persona while the number sits in another, and — where the baseline names persona groups — a policy that includes another persona's group. Version pairs stay 🧹 Housekeeping's and same-name pairs 👯 Duplicates'. The free numbers inside each range are listed, folded, as information. Nothing is read or written; Export MD writes the findings." },

@@ -182,7 +182,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -315,6 +315,8 @@
                         open: () => openXTenant() },
     toolPasskeys:     { into: "toolGapCheck", label: "🔑 Passkeys",                   where: "the Passkeys tab",           build: 32317,
                         open: () => openPasskeys() },
+    toolTokenCov:     { into: "toolGapCheck", label: "🎫 CAE & token protection",     where: "the CAE & tokens tab",       build: 32404,
+                        open: () => openTokenCov() },
     toolNaming:       { into: "toolGapCheck", label: "📏 Naming",                     where: "the Naming tab",             build: 32403,
                         open: () => openNaming() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
@@ -461,6 +463,8 @@
         // 32317 (T44): the policies that require a passkey, against the
         // Passkey (FIDO2) method that decides whether anyone can get one
         { key: "passkeys", icon: "🔑", name: "Passkeys",            toolbar: "pkToolbar", open: () => openPasskeys(), beta: true },
+        // 32404 (T46, R21): token protection and CAE coverage per persona
+        { key: "tokencov", icon: "🎫", name: "CAE & tokens",         toolbar: "tcToolbar", open: () => openTokenCov(), beta: true },
         // 32403 (T45, R25): the CA-number naming convention, checked over
         // the policies already loaded — reads nothing
         { key: "naming", icon: "📏", name: "Naming",               toolbar: "nmToolbar", open: () => openNaming(), beta: true },
@@ -22074,6 +22078,36 @@ This is a directory write. Nothing else changes.`)) return;
     showReport("📐 CIS Benchmark alignment", "CA-CIS-Benchmark", CisCheck.toMd(ciResult, ciMeta || { tenantName }));
     toast("CIS Benchmark Markdown <span>downloaded</span>");
   });
+
+  // ---------- 🎫 CAE & token protection (32404, T46, R21) ----------
+  // Coverage per persona of the two newer session controls, over the policies
+  // already loaded (js/tokencov.js, pure). The per-policy judgement stays in
+  // 📘 Microsoft Learn — MSLearn.runSome counts those findings without
+  // touching that tab's state. Reads nothing; renders on open.
+  let tcFilter = "all", tcModel = null;
+  const TC_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which personas have token protection, on which of the resources that support it, on which platforms — and where continuous access evaluation is switched off or made strict. From the policies already loaded; per-policy token protection settings are judged, and fixed, in 📘 Microsoft Learn.</p>';
+  function tcRebuild() {
+    const raws = policies.map((p) => p.raw);
+    let learn = [];
+    try { learn = MSLearn.runSome(["token-prot-", "cae-"], raws); } catch { learn = []; }
+    tcModel = TokenCov.analyze(raws, { caGroup: Render.caGroup, learn, demo: isDemo });
+  }
+  function openTokenCov() {
+    crumb("🛡 Checks");
+    show("screen-tokencov");
+    mountToolTabs("checks", "tokencov");
+    $("tcHead").innerHTML = toolHead("toolTokenCov") + TC_HEAD_TEXT;
+    renderTokenCov();
+  }
+  function renderTokenCov() {
+    tcRebuild();
+    $("tcChips").innerHTML = TokenCov.chips(tcModel, tcFilter);
+    $("tcBody").innerHTML = policies.length ? TokenCov.render(tcModel, { filter: tcFilter })
+      : '<p class="mini" style="padding:16px">No policies loaded — sign in or open the demo first.</p>';
+  }
+  $("tcChips").addEventListener("click", (e) => { const b = e.target.closest("[data-tcf]"); if (!b) return; tcFilter = b.dataset.tcf; renderTokenCov(); });
+  $("tcBody").addEventListener("click", (e) => { const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid); });
+  $("tcMd").addEventListener("click", () => { if (tcModel) showReport("🎫 CAE & token protection", `ENCA-cae-token-protection-${new Date().toISOString().slice(0, 10)}`, TokenCov.toMd(tcModel, tenantName)); });
 
   // ---------- 📏 Naming (32403, T45, R25) ----------
   // The CA-number convention every tool groups by, checked over the policies

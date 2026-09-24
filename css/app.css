@@ -2895,3 +2895,8 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 .nm-gaps{margin-top:10px}
 .nm-gaps summary{cursor:pointer}
 .nm-gaps p{margin:4px 0 0}
+
+/* ---- 🎫 CAE & token protection (32404, T46) ---- */
+.tc-pol+.tc-pol{margin-top:4px}
+.tc-on{background:var(--ok-bg);color:var(--on)}
+.tc-ro{background:var(--warn-bg);color:var(--warn-fg)}

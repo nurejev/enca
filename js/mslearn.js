@@ -1798,6 +1798,21 @@ const MSLearn = (() => {
     return findings;
   }
   const suppressedCount = () => LAST_SUPPRESSED;
+  // 32404: the checks whose id starts with one of `prefixes`, over `rawPolicies`,
+  // WITHOUT touching run()'s module state (INCLUDE_DISABLED, GUEST_GROUPS, the
+  // suppressed counts) — so another tab can count these findings (🎫 CAE &
+  // token protection points at them) without changing what this tab shows.
+  function runSome(prefixes, rawPolicies) {
+    const out = [];
+    const ctx = { strengths: new Map(), partners: null, crossTenant: null, raws: rawPolicies };
+    for (const p of rawPolicies || []) for (const chk of CHECKS) {
+      if (!prefixes.some((x) => chk.id.startsWith(x)) || chk.needsServiceProvider) continue;
+      let res = null;
+      try { res = chk.detect(p, ctx); } catch { res = null; }
+      if (res) out.push({ check: { id: chk.id, title: chk.title }, result: res, policyId: p.id, policyName: p.displayName || "(unnamed policy)", policyState: p.state });
+    }
+    return out;
+  }
 
   // ---- the guest reality matrix (25433) --------------------------------
   // The six external user types against the controls THIS tenant's policies
@@ -2586,5 +2601,5 @@ const MSLearn = (() => {
     return [...ids];
   }
 
-  return { patchBody, acceptSig, renderAccepted, deviceMatrix, renderDeviceMatrix, DEVICE_ROWS, guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length, checkDocs: () => CHECKS.filter((c) => c.docUrl).map((c) => ({ id: c.id, title: c.title, docUrl: c.docUrl, verified: c.verified || null })) };
+  return { runSome, patchBody, acceptSig, renderAccepted, deviceMatrix, renderDeviceMatrix, DEVICE_ROWS, guestGroupIds, run, suppressedCount, group, guestMatrix, renderGuestMatrix, extLabel, renderSummary, renderGroups, renderEmpty, buildFixes, renderFixes, bumpVersion, nextFreeNumber, companionName, EFFECT, EFFECT_TEXT, createVariants, referencedAppIds, markUnknownApps, dropApps, pruneUnknownApps, APP_LABEL, CONVENTION, GROUP_PURPOSE, checksCount: CHECKS.length, checkDocs: () => CHECKS.filter((c) => c.docUrl).map((c) => ({ id: c.id, title: c.title, docUrl: c.docUrl, verified: c.verified || null })) };
 })();

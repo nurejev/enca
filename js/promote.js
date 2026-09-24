@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 295,
+      title: "🎫 CAE & token protection — T46, a tab of 🛡 Checks: coverage per persona (R21)",
+      tools: ["Checks"],
+      builds: [32404],
+      risk: "low",
+      what: "js/tokencov.js (new, pure: analyze, render, chips, toMd, RESOURCES) with its script tag; js/mslearn.js: runSome(prefixes, raws) — the named checks without touching run()'s module state; js/app.js: openTokenCov/renderTokenCov/tcRebuild, the checks TAB_HOSTS tab (beta: true), the FOLDED entry toolTokenCov, screen-tokencov in HISTORY_SCREENS; index.html: screen-tokencov, the Checks tile line, the Help h5, T46 in Tool numbers, roadmap R21 to In beta today; css/app.css tc- rules; tools/tokencov.test.cjs.",
+      why: "Mihai, 24 Sep: R21 to beta; on the mockup he chose a tab in Checks over a tab of Session controls. LOW: read-only, reads nothing. The supported-resource table is dated 2026-09-24 and will age — Microsoft adds resources and platforms to token protection. NOTE for the next MS Learn review: the token-prot-apps check in js/mslearn.js still counts Azure Resource Manager as unsupported, while Learn now lists it as a browser preview. Graduates once it has been opened on a tenant with token protection On for at least one persona and the matrix matched the portal.",
+      test: [
+        "Beta site, demo (?demo=1): 🛡 Checks → 🎫 CAE & tokens opens without a ▶; the demo's only token protection policy is Off, so every persona reads none, the Resources table says no persona on every row, and no resource finding appears (there is nothing to compare against).",
+        "A tenant with a token protection policy targeting Exchange, SharePoint and Teams on Windows only: the persona row lists exactly those three and windows; the Resources table shows that persona under Protected (On) for those three rows and nothing for AVD / Windows 365.",
+        "Change a TEST token protection policy to All resources: the row carries a count of 📘 findings and the Findings list says it is fixed in Microsoft Learn; 📘 Microsoft Learn shows the same policy under Token protection: only supported for specific apps. Open 📘 afterwards — its own counts and suppressed line are unchanged by having opened this tab.",
+        "A policy with CAE Disabled appears under Continuous access evaluation for its persona and as a cae-disabled finding; a strict-location CAE policy in a persona without any location-based policy reads as changing nothing.",
+        "No token protection anywhere: the Admins persona finding is Medium, other personas of people are Info, and no resource finding appears. Export MD contains the matrix, the resource table and the findings.",
+      ],
+      files: ["js/tokencov.js", "js/mslearn.js", "js/app.js", "index.html", "css/app.css", "tools/tokencov.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 294,
       title: "📏 Naming — T45, a tab of 🛡 Checks: the CA-number convention checked (R25)",
       tools: ["Checks"],
