@@ -1172,11 +1172,44 @@
       // the batch being worked, and a block with a ticked member opens by
       // itself — a tick is a selection, and a selection you cannot see is a
       // trap when the next thing you press is Export.
+      // NEWEST LAST, AND WHAT IS NEW (32318, Mihai: "why am I missing the
+      // passkeys and the cross-tenant in the log" — 290 and 291 were there,
+      // folded into the Checks batch whose OLDEST item, 280, put it near the
+      // top, while the eye went to the end of the list). A batch now sits at
+      // its NEWEST item, so the list ends with the latest work; "By number"
+      // gives the old order back. Items above the highest number this browser
+      // has seen carry NEW, and their batch opens by itself — the same idea as
+      // What's new. First visit: an item with a build from the last three days
+      // (dates from the changelog) is NEW, so the first view is not all NEW.
+      const PQ_ORDER = "enca.pqOrder", PQ_SEEN = "enca.pqSeen";
+      const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+      const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode — per session only */ } };
+      let pqOrder = lsGet(PQ_ORDER) === "number" ? "number" : "newest";
+      const seenRaw = lsGet(PQ_SEEN);
+      const seenN = seenRaw === null ? null : Number(seenRaw);
+      const recentBuilds = (() => {
+        const out = new Set();
+        const cut = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
+        for (const r of (typeof CHANGELOG !== "undefined" ? CHANGELOG : [])) if (r && r.date && r.date >= cut) { out.add(r.build); (r.builds || []).forEach((b) => out.add(b)); }
+        return out;
+      })();
+      const isNew = (it) => seenN === null ? (it.builds || []).some((b) => recentBuilds.has(b)) : it.n > seenN;
+      const newSet = new Set(items.filter(isNew).map((i) => i.n));
+      const maxN = items.reduce((m, i) => Math.max(m, i.n), 0);
+      // Seen once the list has actually been ON SCREEN — the queue renders at
+      // page load whatever page is open, and loading the site is not seeing it.
+      const markSeen = () => { if (maxN) lsSet(PQ_SEEN, String(Math.max(maxN, seenN || 0))); };
+      if (typeof IntersectionObserver === "function") {
+        const io = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) { markSeen(); io.disconnect(); } });
+        setTimeout(() => io.observe(el), 0);
+      }
+      const newestOf = (bl) => bl.items.reduce((m, i) => Math.max(m, i.n), 0);
+      const orderBlocks = (mode) => mode === "number" ? blocks.slice() : blocks.slice().sort((a, b) => newestOf(a) - newestOf(b));
       const PQ_OPEN = "enca.pqOpen";
       const readOpen = () => { try { return new Set(JSON.parse(localStorage.getItem(PQ_OPEN) || "[]")); } catch { return new Set(); } };
       const writeOpen = (s) => { try { localStorage.setItem(PQ_OPEN, JSON.stringify([...s])); } catch { /* private mode */ } };
       const openKeys = readOpen();
-      blocks.forEach((bl) => { if (bl.items.length > 1 && bl.items.some((i) => picked.has(i.n))) openKeys.add(bl.key); });
+      blocks.forEach((bl) => { if (bl.items.length > 1 && bl.items.some((i) => picked.has(i.n) || newSet.has(i.n))) openKeys.add(bl.key); });
       const buildsShort = (bs) => {
         bs = (bs || []).slice().sort((a, b) => a - b);
         if (bs.length <= 3) return bs.join(", ");
@@ -1194,10 +1227,11 @@
       const rowFor = (it, bl) => {
             const inGroup = !!bl, key = bl ? bl.key : "";
             const hidden = bl && !openKeys.has(key);
-            return `<tr class="pq-row${inGroup ? " pq-member" : ""}" data-pqrow="${it.n}"${inGroup ? ` data-pqof="${esc2(key)}"` : ""}${hidden ? " hidden" : ""}>
+            const fresh = newSet.has(it.n);
+            return `<tr class="pq-row${inGroup ? " pq-member" : ""}${fresh ? " pq-new" : ""}" data-pqrow="${it.n}" data-pqblk="${esc2(bl ? bl.key : "t:" + it.n)}"${inGroup ? ` data-pqof="${esc2(key)}"` : ""}${hidden ? " hidden" : ""}>
               <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="${inGroup ? `Untick to hold item ${it.n} back from its batch` : `Include item ${it.n} in the promotion order`}"></td>
               <td><b style="font-size:15px">${it.n}</b></td>
-              <td><span class="pq-tog" data-pqtog="${it.n}" title="Open — what changed, why, how to test it">▸</span> <b>${esc2(it.title)}</b>
+              <td><span class="pq-tog" data-pqtog="${it.n}" title="Open — what changed, why, how to test it">▸</span> <b>${esc2(it.title)}</b>${fresh ? ' <span class="tag new pq-newtag">NEW</span>' : ""}
                 ${(it.tools || []).length > 1 ? `<span class="mini muted"> · ${(it.tools || []).map(esc2).join(" · ")}</span>` : ""}
                 <div class="pq-detail" data-pqdetail="${it.n}" hidden>${detailFor(it)}</div></td>
               <td>${riskTag(it.risk)}</td>
@@ -1212,10 +1246,11 @@
             const counts = ["high", "medium", "low"].map((r) => [r, bl.items.filter((i) => (i.risk || "low") === r).length]).filter(([, c]) => c).map(([r, c]) => `${c} ${r}`).join(" · ");
             const builds = bl.items.flatMap((i) => i.builds || []);
             const open = openKeys.has(bl.key);
-            return `<tr class="pq-group${bl.named ? " pq-named" : ""}" data-pqhead="${esc2(bl.key)}">
+            const nNew = bl.items.filter((i) => newSet.has(i.n)).length;
+            return `<tr class="pq-group${bl.named ? " pq-named" : ""}${nNew ? " pq-new" : ""}" data-pqhead="${esc2(bl.key)}" data-pqblk="${esc2(bl.key)}">
                 <td><input type="checkbox" data-pqgroup="${esc2(bl.key)}" ${on === ns.length ? "checked" : ""} title="Tick to include all ${ns.length} items of this batch in the promotion order"></td>
                 <td><span class="pq-tog${open ? " open" : ""}" data-pqtogblock="${esc2(bl.key)}" title="${open ? "Fold the batch away" : "Show the items"}">▸</span></td>
-                <td><b>${esc2(g.title)}</b> <span class="tag">${bl.named ? "group" : "tool"} · ${ns.length} items</span>
+                <td><b>${esc2(g.title)}</b> <span class="tag">${bl.named ? "group" : "tool"} · ${ns.length} items</span>${nNew ? ` <span class="tag new pq-newtag">${nNew} NEW</span>` : ""}
                   <span class="mini muted"> · items ${ns.join(", ")}</span>
                   <div class="mini muted" style="margin-top:2px"><span data-pqgroupstate="${esc2(bl.key)}"></span></div>
                   ${g.why ? `<div class="mini" style="margin-top:4px;color:var(--report)"><b>Why together:</b> ${esc2(g.why)}</div>` : ""}</td>
@@ -1237,17 +1272,21 @@
           row's tick takes every item, and each item keeps its own tick so one can be held back. A hand-named <b>group</b> —
           a tool and its Help section, a feature and the fixes it grew — works the same way and says why it belongs together.
           <i>Why</i> says what would have to be true for an item to graduate; <b>How to test it</b> says how to find out, one
-          falsifiable step at a time, and names the tenant a check needs when nobody has it to hand.</p>
+          falsifiable step at a time, and names the tenant a check needs when nobody has it to hand.
+          <b>Newest last</b> (the default) puts each batch at its newest item, so the latest work is at the bottom; <b>By number</b>
+          puts it at its oldest. Items added since your last visit carry <b>NEW</b> and open their batch.</p>
         ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
           <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
           <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
           <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
           <button class="btn sm" id="pqFold" title="Fold every batch and every row">Fold all</button>
+          <span class="pq-order"><span class="mini">Order</span> <button class="fchip ${pqOrder === "newest" ? "active" : ""}" data-pqorder="newest" title="A batch sits at its newest item — the list ends with the latest work">Newest last</button><button class="fchip ${pqOrder === "number" ? "active" : ""}" data-pqorder="number" title="A batch sits at its oldest item, in number order">By number</button></span>
+          ${newSet.size ? `<span class="mini" id="pqNewNote"><b>${newSet.size} new</b> since your last visit · <a href="#" id="pqSeenAll">mark all seen</a></span>` : ""}
           <span class="mini muted">tick what you have verified, export, and hand the file to the working session — it is the order, not the verification</span>
         </div>` : ""}
         <div class="cg-tablewrap"><table class="cg-table pq-table">
           <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:150px">Beta builds</th></tr></thead>
-          <tbody>${blocks.map((bl) => bl.items.length > 1 ? headFor(bl) + bl.items.map((it) => rowFor(it, bl)).join("") : rowFor(bl.items[0], null)).join("")}</tbody></table></div>
+          <tbody>${orderBlocks(pqOrder).map((bl) => bl.items.length > 1 ? headFor(bl) + bl.items.map((it) => rowFor(it, bl)).join("") : rowFor(bl.items[0], null)).join("")}</tbody></table></div>
         ${(PROMOTE.staying || []).length ? `
           <h4 style="margin-top:18px">Staying on this channel</h4>
           <p class="mini muted" style="margin:0 0 6px">Also part of the gap, but permanently: these exist here and are not going to production.</p>
@@ -1279,6 +1318,22 @@
         });
       };
       syncGroups();
+      // ---- order and NEW ----
+      el.querySelectorAll("[data-pqorder]").forEach((b) => b.addEventListener("click", () => {
+        pqOrder = b.dataset.pqorder; lsSet(PQ_ORDER, pqOrder);
+        el.querySelectorAll("[data-pqorder]").forEach((x) => x.classList.toggle("active", x === b));
+        const tb = el.querySelector(".pq-table tbody"); if (!tb) return;
+        const rows = new Map();
+        [...tb.children].forEach((tr) => { const k = tr.dataset.pqblk; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(tr); });
+        for (const bl of orderBlocks(pqOrder)) (rows.get(bl.items.length > 1 ? bl.key : "t:" + bl.items[0].n) || []).forEach((tr) => tb.appendChild(tr));
+      }));
+      const seenAll = el.querySelector("#pqSeenAll");
+      if (seenAll) seenAll.addEventListener("click", (ev) => {
+        ev.preventDefault(); markSeen();
+        el.querySelectorAll(".pq-newtag").forEach((x) => x.remove());
+        el.querySelectorAll("tr.pq-new").forEach((x) => x.classList.remove("pq-new"));
+        const nn = el.querySelector("#pqNewNote"); if (nn) nn.remove();
+      });
       // ---- fold / unfold ----
       // A click anywhere on a row that is not its tick opens it; the batch
       // row shows or hides its members. Open state is remembered per batch.

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32318, date: "2026-09-24", title: "Waiting for production ends with the newest work",
+    items: [
+      { kind: "improved", tool: "Help", text: "The Waiting for production list puts each batch where its NEWEST item is, so the latest work is at the bottom instead of folded into a batch near the top — 290 Cross-tenant and 291 Passkeys sat under Checks next to 280 and looked missing. By number gives the old order back; the choice is remembered in this browser." },
+      { kind: "improved", tool: "Help", text: "Items added since your last visit carry a NEW tag, their batch row says how many and opens by itself, and mark all seen clears them. On a first visit only items built in the last three days are marked." },
+    ],
+  },
+  {
     build: 32317, date: "2026-09-24", title: "🔑 Passkeys in Checks — required, and actually set up",
     items: [
       { kind: "new", tool: "Checks", text: "A new Passkeys tab in 🛡 Checks starts from the policies that REQUIRE a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them — and asks the Passkey (FIDO2) method whether the people they reach can get one: the method on, those people targeted, none of them in an excluded group, self-service setup on, and a passkey profile that lets through a key the strength accepts. Gaps are counted in people, by group membership and active role holders." },

@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 292,
+      title: "🚚 Waiting for production — newest last, and NEW since your last visit",
+      tools: ["Help"],
+      builds: [32318],
+      risk: "low",
+      what: "js/app.js, the queue render in Help: blocks ordered by their NEWEST item (Newest last, default) or their oldest (By number), kept in localStorage enca.pqOrder and applied by moving the tbody rows (data-pqblk per block); items above the highest number seen (enca.pqSeen, written once the list has been on screen, via IntersectionObserver) carry a NEW tag and open their batch, the batch row shows N NEW; first visit marks items with a build dated in the last three days (changelog dates); mark all seen. css/app.css: the lemon bar on new rows. Help paragraph above the list.",
+      why: "Mihai, 24 Sep, screenshot of the queue ending at 289: why am I missing the passkeys and the cross-tenant — 290 and 291 were folded under the Checks batch, which sat at its oldest item 280 near the top. Mockup shown first (review/2026-09-24/queue-order), approved as shown. Low: beta-only display of the queue — production never renders this list, so this item only matters if the queue render is ever ported.",
+      test: [
+        "Beta site, Help → Waiting for production: the list ends with the Checks batch (it holds 291, the highest number), opened, with 290 and 291 tagged NEW and a lemon bar; the toolbar says 2 new since your last visit.",
+        "Click By number: the Checks batch moves back up next to CIS Benchmark and Workspaces; reload — By number is kept. Click Newest last: it goes back to the bottom.",
+        "Reload the page and open Help again: the NEW tags are gone. Clear localStorage enca.pqSeen and reload: items with a build from the last three days are NEW again, older ones are not.",
+        "Load the site on the home page only, then clear nothing and open Help: items that were NEW are still NEW — loading the site without opening the list does not mark them seen.",
+        "Ticks, Export promotion order and Fold all behave as before in both orders; a ticked item's batch still opens by itself.",
+      ],
+      files: ["js/app.js", "css/app.css", "js/changelog.js", "js/version.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 291,
       title: "🔑 Passkeys — T44, a tab of 🛡 Checks: required passkeys against the Passkey (FIDO2) method, with Configure",
       tools: ["Checks"],

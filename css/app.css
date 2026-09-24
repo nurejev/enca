@@ -2869,3 +2869,7 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 .pk-recov{border-left:4px solid var(--accent2);background:var(--soft2)}
 .pk-impact ul,.pk-gain ul{margin:4px 0 0;padding-left:18px}
 @media (max-width:820px){.pk-edit{grid-template-columns:minmax(0,1fr)}}
+
+/* ---- 🚚 queue: newest last and NEW (32318) ---- */
+.pq-order{display:inline-flex;gap:4px;align-items:center}
+.pq-table tr.pq-new>td:first-child{box-shadow:inset 3px 0 0 var(--lemon)}
