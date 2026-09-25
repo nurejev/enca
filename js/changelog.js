@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32414, date: "2026-09-25", title: "🧬 PIM baseline reads a real tenant",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "The first read of a real tenant (cloudfellows.dev) stopped at the first request: Could not find a property named isPrivileged on type unifiedRoleDefinition. The roles read asked v1.0 for a field only beta carries; the demo fakes the field, so every walk since 32408 passed. The field was never used and is gone from the select, and the two schedule-instance reads expand the principal without a nested select (the documented shape) so they cannot fail the same way — the read now runs through roles, role settings, assignments, groups, units and group settings." },
+    ],
+  },
+  {
     build: 32413, date: "2026-09-25", title: "🧬 PIM baseline 0.2 — profiles, and regions from a file",
     items: [
       { kind: "new", tool: "PIM baseline", text: "The framework is applied at a size. A Profile picker in the toolbar (remembered) chooses Small business — four persona groups (GlobalAdmin carrying Global, Privileged Role and Privileged Authentication Administrator; SecOps; Ops, which carries the Helpdesk and AppOps roles too; SecOpsReader), approval only on the GlobalAdmin group where two admins can always give it, Tier 0 roles on justification, context c1 and an alert, Tier 1 and 2 alerting on critical events only, Global Administrator at two hours, three Azure groups (Tenant-Owner, Sub-Owner, Sub-Contributor) — or Large · multi-region: the whole group set at the centre plus regions, and the restricted management unit AU-RM-Admins for every adm- account and PIM-SG group. Compare, Delta config and Baseline config all follow the profile. Large · one region is designed and follows." },
