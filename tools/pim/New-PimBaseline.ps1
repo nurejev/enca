@@ -75,6 +75,14 @@
   Run for real. Without it, -WhatIf.
 .PARAMETER SkipGroups
   Do not create groups; fail on a name that does not resolve.
+.PARAMETER MergeDuplicates
+  When a PIM-SG name exists more than once (a rerun minutes after the first
+  run could miss a group the search index had not caught up with, and made it
+  again), keep the OLDEST group under each name and delete the newer copies
+  that are EMPTY — no members, no owners, no role eligibility or assignment.
+  A newer copy that carries anything is left alone and named. Deleted groups
+  sit in the recycle bin for 30 days (Restore-MgDirectoryDeletedItem).
+  Without the switch the duplicates are listed and the script stops.
 .PARAMETER SkipOrchestrator
   Stop after the groups, the protected list and the resolved file — for the
   baseline tenant, where the role settings are set in the PIM portal and
@@ -117,6 +125,7 @@ param(
   [switch]$Apply,
   [switch]$SkipGroups,
   [switch]$SkipOrchestrator,
+  [switch]$MergeDuplicates,
   [string]$OutFile
 )
 $ErrorActionPreference = 'Stop'
@@ -177,11 +186,43 @@ if ($RenameLegacyPrefix) {
 
 # ---- 2. groups --------------------------------------------------------------
 $ids = @{}
+# A plain displayName filter is a standard query: served from the directory
+# itself, so a group made a minute ago is found. (The first cut asked with
+# ConsistencyLevel eventual, which goes through the search index; a rerun
+# straight after the first run did not see the groups it had just made and
+# made them again — that is where duplicates come from, and why 1c exists.)
 function Resolve-GroupId([string]$name) {
-  $g = Get-MgGroup -Filter "displayName eq '$($name.Replace("'", "''"))'" -Property Id, DisplayName, IsAssignableToRole -ConsistencyLevel eventual -CountVariable c
-  if ($g -is [array]) { if ($g.Count -gt 1) { throw "More than one group is called $name — the framework needs exact, unique names" } ; $g = $g[0] }
-  return $g
+  $g = @(Get-MgGroup -Filter "displayName eq '$($name.Replace("'", "''"))'" -Property Id, DisplayName, IsAssignableToRole, CreatedDateTime -All)
+  if ($g.Count -gt 1) { throw "More than one group is called $name — rerun with -MergeDuplicates (keeps the oldest, deletes the empty newer copies) or merge them by hand" }
+  if ($g.Count -eq 1) { return $g[0] }
+  return $null
 }
+
+# ---- 1c. duplicates ------------------------------------------------------------
+Write-Step "Duplicate PIM-SG names"
+$all = @(Get-MgGroup -Filter "startswith(displayName,'PIM-SG-')" -Property Id, DisplayName, IsAssignableToRole, CreatedDateTime -All)
+$dupes = @($all | Group-Object DisplayName | Where-Object { $_.Count -gt 1 })
+if (-not $dupes) { Write-Ok "every PIM-SG name is unique ($($all.Count) groups)" }
+foreach ($d in $dupes) {
+  $copies = @($d.Group | Sort-Object CreatedDateTime)
+  $keep = $copies[0]
+  Write-Warn2 "$($d.Name) exists $($copies.Count) times"
+  foreach ($c in $copies) {
+    $members = @(Get-MgGroupMember -GroupId $c.Id -All -Property Id).Count
+    $owners = @(Get-MgGroupOwner -GroupId $c.Id -All -Property Id).Count
+    $elig = @(Get-MgRoleManagementDirectoryRoleEligibilityScheduleInstance -Filter "principalId eq '$($c.Id)'" -All).Count
+    $act = @(Get-MgRoleManagementDirectoryRoleAssignmentScheduleInstance -Filter "principalId eq '$($c.Id)'" -All).Count
+    $empty = ($members + $owners + $elig + $act) -eq 0
+    $tag = if ($c.Id -eq $keep.Id) { 'KEEP (oldest)' } elseif ($empty) { 'empty' } else { 'carries something' }
+    Write-Host ("    {0}  created {1:yyyy-MM-dd HH:mm}  members {2}  owners {3}  eligible {4}  active {5}  role-assignable {6}  → {7}" -f $c.Id, $c.CreatedDateTime, $members, $owners, $elig, $act, $c.IsAssignableToRole, $tag)
+    if ($c.Id -eq $keep.Id) { continue }
+    if (-not $MergeDuplicates) { continue }
+    if (-not $empty) { Write-Warn2 "    not deleted: it carries members, owners or a role — move them to $($keep.Id) by hand, then rerun"; continue }
+    Remove-MgGroup -GroupId $c.Id
+    Write-Ok "    deleted the empty copy $($c.Id) (recycle bin, 30 days)"
+  }
+}
+if ($dupes -and -not $MergeDuplicates) { throw "$($dupes.Count) PIM-SG name(s) exist more than once. Rerun with -MergeDuplicates to keep the oldest of each and delete the empty newer copies, or merge them by hand in the portal." }
 Write-Step "Groups"
 foreach ($name in ($wantedGroups + $approverNames | Sort-Object -Unique)) {
   $g = Resolve-GroupId $name

@@ -201,8 +201,11 @@ $tid = $org.Id
 if (-not $Domain) { $Domain = ($org.VerifiedDomains | Where-Object { $_.IsDefault } | Select-Object -First 1).Name }
 Write-Ok "Tenant $($org.DisplayName) ($tid), mail domain $Domain$(if (-not $Apply) { ' — WhatIf: nothing is written' })"
 function G([string]$method, [string]$uri, $body) {
-  # ConsistencyLevel on every read: the $count=true filters need it, the rest ignores it.
-  $p = @{ Method = $method; Uri = $uri; OutputType = 'PSObject'; Headers = @{ ConsistencyLevel = 'eventual' } }
+  # ConsistencyLevel only where $count=true asks for it: the header routes a
+  # read through the search index, which can lag a minute behind a creation —
+  # a rerun would then not see what the last run made and make it again.
+  $p = @{ Method = $method; Uri = $uri; OutputType = 'PSObject' }
+  if ($uri -match '\$count=true') { $p.Headers = @{ ConsistencyLevel = 'eventual' } }
   if ($null -ne $body) { $p.Body = ($body | ConvertTo-Json -Depth 16 -Compress); $p.ContentType = 'application/json' }
   return Invoke-MgGraphRequest @p
 }
@@ -216,7 +219,12 @@ function Esc([string]$s) { return $s.Replace("'", "''") }
 # ---- 2. what the tenant has ------------------------------------------------------
 Write-Step "Reading the tenant"
 $units = @{}; foreach ($u in (GAll "https://graph.microsoft.com/v1.0/directory/administrativeUnits?`$select=id,displayName,membershipType,membershipRule,membershipRuleProcessingState,isMemberManagementRestricted")) { $units[$u.displayName] = $u }
-$groups = @{}; foreach ($g in (GAll "https://graph.microsoft.com/v1.0/groups?`$filter=startswith(displayName,'PIM-SG-') or startswith(displayName,'INT-SG-')&`$select=id,displayName,isAssignableToRole,membershipRule,groupTypes&`$count=true")) { $groups[$g.displayName] = $g }
+$groups = @{}; $dupes = @()
+foreach ($g in (GAll "https://graph.microsoft.com/v1.0/groups?`$filter=startswith(displayName,'PIM-SG-') or startswith(displayName,'INT-SG-')&`$select=id,displayName,isAssignableToRole,membershipRule,groupTypes,createdDateTime")) {
+  if ($groups[$g.displayName]) { $dupes += $g.displayName; if ($g.createdDateTime -lt $groups[$g.displayName].createdDateTime) { $groups[$g.displayName] = $g } }   # the oldest copy is the one that counts
+  else { $groups[$g.displayName] = $g }
+}
+if ($dupes) { throw "These names exist more than once: $(($dupes | Sort-Object -Unique) -join ', '). Run New-PimBaseline.ps1 -MergeDuplicates first (keeps the oldest, deletes the empty copies), then rerun." }
 $roleDefs = @{}; foreach ($d in (GAll "https://graph.microsoft.com/v1.0/roleManagement/directory/roleDefinitions?`$select=id,displayName")) { $roleDefs[$d.displayName] = $d.id }
 Write-Ok "$($units.Count) administrative units, $($groups.Count) PIM-SG / INT-SG groups, $($roleDefs.Count) directory roles"
 

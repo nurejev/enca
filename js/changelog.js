@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32415, date: "2026-09-25", title: "🧬 PIM baseline — duplicate PIM-SG groups: found, explained, merged",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "New-PimBaseline.ps1 stopped on cloudfellows.dev with More than one group is called PIM-SG-AZ-Connectivity-Contributor. The cause was the script's own lookup: it asked Graph with ConsistencyLevel eventual, which serves the read from the search index, and a rerun straight after the first run did not see the groups it had just made — so it made them again. Both scripts now look names up with standard queries, served from the directory itself, and send that header only where a count asks for it." },
+      { kind: "new", tool: "PIM baseline", text: "A Duplicate PIM-SG names step in New-PimBaseline.ps1 lists every name that exists more than once — id, created, members, owners, eligible and active roles, role-assignable — and stops. -MergeDuplicates keeps the oldest of each name, deletes the newer copies that carry nothing (recycle bin, 30 days) and leaves a copy that carries members, owners or a role alone, naming it. New-PimRegions.ps1 refuses to run over duplicates and points at that switch." },
+    ],
+  },
+  {
     build: 32414, date: "2026-09-25", title: "🧬 PIM baseline reads a real tenant",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "The first read of a real tenant (cloudfellows.dev) stopped at the first request: Could not find a property named isPrivileged on type unifiedRoleDefinition. The roles read asked v1.0 for a field only beta carries; the demo fakes the field, so every walk since 32408 passed. The field was never used and is gone from the select, and the two schedule-instance reads expand the principal without a nested select (the documented shape) so they cannot fail the same way — the read now runs through roles, role settings, assignments, groups, units and group settings." },
