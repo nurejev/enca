@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32410, date: "2026-09-25", title: "🧬 PIM baseline — first run on cloudfellows.dev",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "New-PimBaseline.ps1 stopped at Resolving names with Cannot resolve <id of …> on its first run in cloudfellows.dev, after creating all 21 SG-PIM groups: the config's own comment line mentions the phrase <id of …> and the scan took the ellipsis for a name. The notes are dropped before the scan and before the resolved file is written, and a placeholder must start with a letter or digit. Rerun the same command; the groups now resolve instead of being created again." },
+      { kind: "improved", tool: "PIM baseline", text: "The break-glass pattern also matches names starting with BGA (the cloudfellows.dev emergency account is BGA CF DEV), in the script and in the catalog, so the tool marks it protected and the script lists it under break-glass as well as under standing Global Administrators." },
+    ],
+  },
+  {
     build: 32409, date: "2026-09-25", title: "🧬 PIM baseline — the account that builds the baseline tenant is protected",
     items: [
       { kind: "improved", tool: "PIM baseline", text: "tools/pim/New-PimBaseline.ps1 now also puts every user who holds Global Administrator as a standing assignment (permanent or time-bound active, not an activation, not through a group) on the ProtectedUsers list, beside the break-glass accounts — in cloudfellows.dev that is the account you build with, so no orchestrator run, initial included, ever touches it. Each protected account is printed; -ProtectGlobalAdmins:$false keeps a customer tenant's standing Global Administrators out of the list when they are exactly what the framework should remove." },

@@ -98,7 +98,7 @@ param(
   [string]$ConfigFile = (Join-Path $PSScriptRoot 'pim-baseline.json'),
   [Parameter(Mandatory = $true)][string]$TenantId,
   [string]$Domain,
-  [string]$BreakGlassPattern = '^(BG-|BreakGlass|Break-Glass|EmergencyAccess)',
+  [string]$BreakGlassPattern = '^(BG-|BGA\b|BreakGlass|Break-Glass|EmergencyAccess)',
   [bool]$ProtectGlobalAdmins = $true,
   [ValidateSet('delta', 'initial')][string]$Mode = 'delta',
   [switch]$Apply,
@@ -118,7 +118,13 @@ $cfg = $raw | ConvertFrom-Json -Depth 32
 Write-Step "Config $ConfigFile — $($cfg._comment)"
 
 # Every "<id of NAME>" in the file, and the group names the GroupRoles section keys on.
-$placeholders = [regex]::Matches($raw, '<id of ([^>]+)>') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+# The _comment line mentions "<id of …>" as a phrase — ENCA's notes are not
+# placeholders, so they are dropped before the scan and again before the write.
+# (Scanned on the raw text: ConvertTo-Json would write < and > as \u003c and
+# \u003e and the placeholders would stop matching.)
+$scan = [regex]::Replace($raw, '(?m)^\s*"_(comment|protectedNote)"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?\s*\r?\n', '')
+$scan = [regex]::Replace($scan, ',(\s*[}\]])', '$1')   # a note that was the last key leaves a trailing comma
+$placeholders = [regex]::Matches($scan, '<id of ([A-Za-z0-9][^>]*)>') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
 $groupKeys = @()
 if ($cfg.GroupRoles -and $cfg.GroupRoles.Policies) { $groupKeys = @($cfg.GroupRoles.Policies.PSObject.Properties.Name) }
 $approverNames = @()
@@ -202,7 +208,7 @@ if ($ProtectGlobalAdmins) {
 
 # ---- 4. rewrite the file ----------------------------------------------------
 Write-Step "Resolving names"
-$resolved = $raw
+$resolved = $scan
 foreach ($name in $placeholders) {
   if (-not $ids.ContainsKey($name)) {
     $g = Resolve-GroupId $name
@@ -214,7 +220,7 @@ if ($Domain) { $resolved = $resolved -replace '@cloudfellows\.dev"', "@$Domain`"
 $obj = $resolved | ConvertFrom-Json -Depth 32
 $existing = @($obj.ProtectedUsers | Where-Object { $_ -notmatch '^<' })
 $obj.ProtectedUsers = @($existing + $protected | Sort-Object -Unique)
-if ($obj.PSObject.Properties['_protectedNote']) { $obj.PSObject.Properties.Remove('_protectedNote') }
+foreach ($note in @('_comment', '_protectedNote')) { if ($obj.PSObject.Properties[$note]) { $obj.PSObject.Properties.Remove($note) } }
 if (-not $OutFile) { $OutFile = [System.IO.Path]::ChangeExtension($ConfigFile, ".$($Domain).resolved.json") }
 $obj | ConvertTo-Json -Depth 32 | Set-Content -Path $OutFile -Encoding UTF8
 Write-Ok "written $OutFile — $($obj.ProtectedUsers.Count) protected principals"

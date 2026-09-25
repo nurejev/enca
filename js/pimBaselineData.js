@@ -254,7 +254,7 @@ const PIM_BASELINE = {
   // Never touched by a deploy, never counted as drift: the break-glass
   // accounts (permanent Global Administrator, by design — see 🔒 Protect
   // exclusions in Workspace 01) and the Global Administrator group itself.
-  protected: { pattern: "^(BG-|BreakGlass|Break-Glass|EmergencyAccess)", groups: ["SG-PIM-M365-GlobalAdmin"], description: "Break-glass accounts and SG-PIM-M365-GlobalAdmin are ProtectedUsers in the EasyPIM config: a delta or initial run leaves them alone." },
+  protected: { pattern: "^(BG-|BGA\\b|BreakGlass|Break-Glass|EmergencyAccess)", groups: ["SG-PIM-M365-GlobalAdmin"], description: "Break-glass accounts and SG-PIM-M365-GlobalAdmin are ProtectedUsers in the EasyPIM config: a delta or initial run leaves them alone." },
   // Outside PIM, still part of the framework — listed so the export and the
   // Help can say so, never compared.
   outside: [
