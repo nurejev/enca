@@ -1,6 +1,6 @@
 // ======================================================================
-// 🧬 PIM baseline — the CloudFellows PIM framework, release 2.0
-// (js/pimBaselineData.js, T48, build 32408, R68)
+// 🧬 PIM baseline — the CloudFellows PIM framework, release 2.1
+// (js/pimBaselineData.js, T48, build 32408 → 32416, R68)
 //
 // WHAT THIS IS. The reference for Workspace 02: which privileged access
 // groups exist, which Entra roles each one carries, and the PIM role
@@ -55,26 +55,64 @@
 //     this catalog. 1.3's Defender XDR role settings for Ops and Helpdesk are
 //     still the intent; they are not something PIM policies can express.
 //
-// PROFILES AND REGIONS (build 32413). One framework, three sizes — the
-// catalog carries PROFILES: `small` (four persona groups, approval only on
-// the Global Administrator group, no administrative units) and `multi`
+// THE ACTIVATION MODEL (2.1, 25 Sep 2026, after the reliability review).
+// Microsoft offers two ways to make a group of people eligible for an Entra
+// role: active membership of a group that is ELIGIBLE for the role, or
+// eligible membership of a group that holds the role ACTIVE. 2.0 mixed the
+// two (eligible membership AND eligible roles: two activations) while its
+// notes promised one. 2.1 takes the first, which Microsoft recommends for
+// the Exchange, SharePoint and Purview roles Ops, AppOps and SecOps carry:
+//   * persona groups (PIM-SG-M365-*, PIM-SG-AZ-*, PIM-SG-<REG>-Helpdesk/Ops)
+//     have ACTIVE members, assigned by an administrator with a justification
+//     for at most a year (template GroupMember — the yearly review, by the
+//     calendar); nobody is made an eligible member;
+//   * each group is ELIGIBLE for its roles; a person activates the role they
+//     need, under that role's tier (Tier0: context c1 and approval), so the
+//     role's own settings are the gate — never a weaker group setting;
+//   * nothing holds a role permanently active except Directory Readers and
+//     the break-glass accounts.
+// Intune has no PIM of its own, so its role assignments name separate access
+// groups with ELIGIBLE membership (PIM-SG-INT-*, template GroupJIT): there
+// the group activation is the gate. A persona group never sits in an Intune
+// role assignment — its active members would hold the Intune role standing.
+//
+// PROTECTION (2.1). Role-assignable groups already protect themselves and
+// their members: only Privileged Role Administrators, Global Administrators
+// and owners change membership, and only Privileged Authentication
+// Administrators reset a member's credentials. So no PIM-SG group and no
+// adm- account is put in a restricted management AU — Microsoft blocks PIM,
+// access reviews and lifecycle workflows on objects there, and a role-
+// assignable group inside one can no longer have its membership changed.
+// Restricted AUs stay for executives and sensitive groups that are not
+// role-assignable (T27, by hand). Break-glass accounts are protected by
+// explicit object id, never by a name pattern (the pattern only suggests).
+//
+// PROFILES AND REGIONS (build 32413, large in 32416). One framework, three
+// sizes — the catalog carries PROFILES: `small` (four persona groups,
+// approval only on the Global Administrator group, no administrative
+// units), `large` (one region, teams instead of regions: Identity,
+// Workplace, Collaboration, Apps, a service desk and a VIP desk, Audit;
+// ticketing on Tier 0 and 1, approvers PIM-SG-Approvers-Tier0) and `multi`
 // (the whole group set plus one REGION TEMPLATE instantiated per row of a
 // customer's regions.csv: three administrative units, two persona groups and
-// an approver group, AU-scoped eligibilities, the Intune scope groups, tag and
-// role assignments). Regions are never in the catalog — the file is the
-// customer's — only the template is. `large` (one region, teams instead of
-// regions) is designed and follows. cloudfellows.dev carries every profile's
-// objects and two demo regions (EU-NL, EU-DE) so each has a real reference.
+// an approver group, AU-scoped eligibilities, two Intune access groups, the
+// Intune scope groups, tag and role assignments). Regions are never in the
+// catalog — the file is the customer's — only the template is.
+// cloudfellows.dev carries every profile's objects and two demo regions
+// (EU-NL, EU-DE) so each has a real reference.
 //
-// HOW IT IS READ. js/pimbaseline.js turns each role into expected settings
-// (template + override), reads the tenant's roleManagementPolicies and
-// compares setting by setting; groups are compared as a model — present,
-// role-assignable, carrying the roles listed — never by members. The same
-// module writes the catalog out as an EasyPIM.Orchestrator config
-// (PolicyTemplates → EntraRoles.Policies → GroupRoles.Policies →
-// Assignments.EntraRoles → ProtectedUsers), which is how the baseline is
-// CREATED in cloudfellows.dev: tools/pim/New-PimBaseline.ps1 makes the groups
-// and runs Invoke-EasyPIMOrchestrator -WhatIf, then delta.
+// HOW IT IS READ AND WRITTEN. js/pimbaseline.js turns each role into
+// expected settings (template + override), reads the tenant's
+// roleManagementPolicies and compares setting by setting, matching by object
+// id at tenant scope; groups are compared as a model — present,
+// role-assignable, carrying the roles listed, their membership policy —
+// never by members. The same module writes the catalog out as an
+// EasyPIM.Orchestrator config (PolicyTemplates → EntraRoles.Policies →
+// GroupRoles.Policies → Assignments.EntraRoles → ProtectedUsers) and one
+// commented sample per profile (tools/pim/samples, made by
+// tools/pim/generate.cjs). tools/pim/New-PimBaseline.ps1 and
+// New-PimRegions.ps1 write it to a tenant: they plan from reads only, and
+// apply exactly an approved plan file (tools/pim/PimCommon.psm1).
 //
 // PLAIN TEXT in every string here — the notes render escaped.
 // ======================================================================
@@ -82,11 +120,11 @@ const PIM_BASELINE = {
   id: "cloudfellows-pim",
   label: "CloudFellows PIM framework",
   icon: "🧬",
-  release: "2.0",
+  release: "2.1",
   revised: "2026-09-25",
   tenant: "cloudfellows.dev",
   source: "bundled",
-  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026)",
+  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026) → 2.1 (25 Sep 2026: active membership + eligible roles, Intune through eligible access groups, no PIM groups in restricted AUs)",
   // Names the framework depends on beside the groups. The approver group
   // is a plain security group (not role-assignable, not PIM-managed): its
   // members approve, they hold nothing. The mailbox is a shared mailbox in
@@ -96,7 +134,7 @@ const PIM_BASELINE = {
   authContext: { id: "c1", name: "PIM Tier 0 activation", description: "Authentication context c1 is required to activate a Tier 0 role or group. The Conditional Access policy that gates c1 (phishing-resistant MFA, compliant device) lives in Workspace 01." },
   // Exact-match naming contract. A tenant's group counts as the framework's
   // only under this exact name (no prefixes, no suffixes, no version).
-  naming: { pattern: "^PIM-SG-(M365|AZ)-[A-Za-z0-9]+(-[A-Za-z0-9]+)*$", example: "PIM-SG-M365-Ops · PIM-SG-AZ-Platform-Owner" },
+  naming: { pattern: "^PIM-SG-(M365|AZ|INT)-[A-Za-z0-9]+(-[A-Za-z0-9]+)*$", example: "PIM-SG-M365-Ops · PIM-SG-AZ-Platform-Owner · PIM-SG-INT-Ops" },
   // Templates: one set of PIM settings, named. Keys follow EasyPIM's
   // PolicyTemplates so the export is a copy, not a translation.
   templates: {
@@ -161,27 +199,22 @@ const PIM_BASELINE = {
       Notification_EligibleAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "Critical", Recipients: ["pim-alerts"] },
       Notification_ActiveAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
     },
-    // Group activation (PIM for Groups, the Member role). Activating a
-    // persona group grants every role it carries at once, so the group's
-    // own gate is the one that counts for people who work through personas.
-    GroupTier0: {
-      description: "The Global Administrator and Tier 0 groups: two hours, justification, authentication context c1, approval by PIM-SG-Approvers.",
-      ActivationDuration: "PT2H", ActivationRequirement: "Justification", AuthenticationContext_Enabled: true, AuthenticationContext_Value: "c1",
-      ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"], AllowPermanentEligibility: false, MaximumEligibilityDuration: "P365D", AllowPermanentActiveAssignment: false, MaximumActiveAssignmentDuration: "P30D",
+    // PIM for Groups, the Member role. GroupMember is for the persona groups:
+    // membership is ACTIVE, assigned by an administrator for at most a year;
+    // the activation settings only guard against somebody being made an
+    // eligible member anyway (approval, MFA, justification, one hour).
+    GroupMember: {
+      description: "Persona group membership: active, assigned by an administrator with a justification for at most a year (the yearly review); never permanent. Eligible membership is not used — should somebody be made eligible anyway, activation asks MFA, justification and approval by PIM-SG-Approvers, for one hour.",
+      ActivationDuration: "PT1H", ActivationRequirement: "MultiFactorAuthentication,Justification", AuthenticationContext_Enabled: false,
+      ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"], AllowPermanentEligibility: false, MaximumEligibilityDuration: "P365D", AllowPermanentActiveAssignment: false, MaximumActiveAssignmentDuration: "P365D",
       Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
       Notification_EligibleAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
       Notification_ActiveAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
     },
-    GroupTier1: {
-      description: "SecOps and the Azure Owner groups: four hours, MFA and justification, approval by PIM-SG-Approvers.",
-      ActivationDuration: "PT4H", ActivationRequirement: "MultiFactorAuthentication,Justification", AuthenticationContext_Enabled: false,
-      ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"], AllowPermanentEligibility: false, MaximumEligibilityDuration: "P365D", AllowPermanentActiveAssignment: false, MaximumActiveAssignmentDuration: "P30D",
-      Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
-      Notification_EligibleAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
-      Notification_ActiveAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
-    },
-    GroupTier2: {
-      description: "Helpdesk, Ops, AppOps, the readers and the Azure Contributor groups: eight hours, MFA and justification, no approval.",
+    // GroupJIT is for the Intune access groups (PIM-SG-INT-*): Intune has no
+    // PIM, so membership is ELIGIBLE and the activation is the gate.
+    GroupJIT: {
+      description: "Intune access group: eligible membership for at most a year; activation for a shift (eight hours) with MFA and justification; an active assignment by an administrator lasts at most 30 days; nothing permanent.",
       ActivationDuration: "PT8H", ActivationRequirement: "MultiFactorAuthentication,Justification", AuthenticationContext_Enabled: false,
       ApprovalRequired: false, Approvers: [], AllowPermanentEligibility: false, MaximumEligibilityDuration: "P365D", AllowPermanentActiveAssignment: false, MaximumActiveAssignmentDuration: "P30D",
       Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "Critical", Recipients: ["pim-alerts"] },
@@ -243,33 +276,49 @@ const PIM_BASELINE = {
   // role at a scope; T48 lists them and exports them but does not compare
   // them yet (Azure Resource Manager is a different read).
   groups: [
-    { name: "PIM-SG-M365-GlobalAdmin", scope: "m365", persona: "GOD mode", template: "GroupTier0", description: "Global Administrator, and nothing else. Approval, authentication context c1, two hours." },
-    { name: "PIM-SG-M365-Tier0", scope: "m365", persona: "Tier 0", template: "GroupTier0", description: "Privileged Role Administrator and Privileged Authentication Administrator — the two roles that can make a Global Administrator." },
-    { name: "PIM-SG-M365-SecOps", scope: "m365", persona: "Security Operations", template: "GroupTier1", description: "Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance." },
-    { name: "PIM-SG-M365-SecOpsReader", scope: "m365", persona: "Security readers", template: "GroupTier2", description: "Reads the security configuration and reports; changes nothing." },
-    { name: "PIM-SG-M365-Ops", scope: "m365", persona: "IT Operations", template: "GroupTier2", description: "Second line and system administration: users, groups, devices, Intune, the Microsoft 365 workloads." },
-    { name: "PIM-SG-M365-Helpdesk", scope: "m365", persona: "Helpdesk", template: "GroupTier2", description: "First line: supports people with their accounts and their workplace." },
-    { name: "PIM-SG-M365-AppOps", scope: "m365", persona: "Application Operators", template: "GroupTier2", description: "Keeps SharePoint, Exchange, Power Platform and the registered applications working." },
-    { name: "PIM-SG-AZ-Tenant-Owner", scope: "azure", persona: "Azure tenant root", template: "GroupTier0", azure: { role: "Owner", scope: "Tenant Root Group" }, description: "Owner at the tenant root management group." },
-    { name: "PIM-SG-AZ-Platform-Owner", scope: "azure", persona: "Platform", template: "GroupTier1", azure: { role: "Owner", scope: "Platform subscription" } },
-    { name: "PIM-SG-AZ-Platform-Contributor", scope: "azure", persona: "Platform", template: "GroupTier2", azure: { role: "Contributor", scope: "Platform subscription" } },
-    { name: "PIM-SG-AZ-Connectivity-Owner", scope: "azure", persona: "Connectivity", template: "GroupTier1", azure: { role: "Owner", scope: "Connectivity subscription" } },
-    { name: "PIM-SG-AZ-Connectivity-Contributor", scope: "azure", persona: "Connectivity", template: "GroupTier2", azure: { role: "Contributor", scope: "Connectivity subscription" } },
-    { name: "PIM-SG-AZ-Management-Owner", scope: "azure", persona: "Management", template: "GroupTier1", azure: { role: "Owner", scope: "Management subscription" } },
-    { name: "PIM-SG-AZ-Management-Contributor", scope: "azure", persona: "Management", template: "GroupTier2", azure: { role: "Contributor", scope: "Management subscription" } },
-    { name: "PIM-SG-AZ-LandingZone-Owner", scope: "azure", persona: "Landing zone", template: "GroupTier1", azure: { role: "Owner", scope: "Landing zone management group" } },
-    { name: "PIM-SG-AZ-LandingZone-Contributor", scope: "azure", persona: "Landing zone", template: "GroupTier2", azure: { role: "Contributor", scope: "Landing zone management group" } },
-    { name: "PIM-SG-AZ-Corp-Owner", scope: "azure", persona: "Corp landing zone", template: "GroupTier1", azure: { role: "Owner", scope: "Corp subscription" } },
-    { name: "PIM-SG-AZ-Corp-Contributor", scope: "azure", persona: "Corp landing zone", template: "GroupTier2", azure: { role: "Contributor", scope: "Corp subscription" } },
-    { name: "PIM-SG-AZ-Online-Owner", scope: "azure", persona: "Online landing zone", template: "GroupTier1", azure: { role: "Owner", scope: "Online subscription" } },
-    { name: "PIM-SG-AZ-Online-Contributor", scope: "azure", persona: "Online landing zone", template: "GroupTier2", azure: { role: "Contributor", scope: "Online subscription" } },
+    { name: "PIM-SG-M365-GlobalAdmin", scope: "m365", persona: "GOD mode", template: "GroupMember", description: "Eligible for Global Administrator, and nothing else. The role's own Tier0 settings are the gate: one hour, authentication context c1, approval." },
+    { name: "PIM-SG-M365-Tier0", scope: "m365", persona: "Tier 0", template: "GroupMember", description: "Privileged Role Administrator and Privileged Authentication Administrator — the two roles that can make a Global Administrator." },
+    { name: "PIM-SG-M365-SecOps", scope: "m365", persona: "Security Operations", template: "GroupMember", description: "Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance." },
+    { name: "PIM-SG-M365-SecOpsReader", scope: "m365", persona: "Security readers", template: "GroupMember", description: "Reads the security configuration and reports; changes nothing." },
+    { name: "PIM-SG-M365-Ops", scope: "m365", persona: "IT Operations", template: "GroupMember", description: "Second line and system administration: users, groups, devices, Intune, the Microsoft 365 workloads." },
+    { name: "PIM-SG-M365-Helpdesk", scope: "m365", persona: "Helpdesk", template: "GroupMember", description: "First line: supports people with their accounts and their workplace." },
+    { name: "PIM-SG-M365-AppOps", scope: "m365", persona: "Application Operators", template: "GroupMember", description: "Keeps SharePoint, Exchange, Power Platform and the registered applications working." },
+    // Intune access groups: eligible members, the group activation is the
+    // gate (GroupJIT). The profiles' Intune assignments name them.
+    { name: "PIM-SG-INT-Ops", scope: "intune", persona: "Intune operations", template: "GroupJIT", description: "Eligible members activate for a shift to act as Intune Policy and Profile Manager + Application Manager (central Workplace)." },
+    { name: "PIM-SG-INT-HelpDesk", scope: "intune", persona: "Intune first line", template: "GroupJIT", description: "Eligible members activate to act as Intune Help Desk Operator." },
+    { name: "PIM-SG-INT-SecOps", scope: "intune", persona: "Intune endpoint security", template: "GroupJIT", description: "Eligible members activate to act as Intune Endpoint Security Manager." },
+    { name: "PIM-SG-AZ-Tenant-Owner", scope: "azure", persona: "Azure tenant root", template: "GroupMember", azure: { role: "Owner", scope: "Tenant Root Group" }, description: "Owner at the tenant root management group." },
+    { name: "PIM-SG-AZ-Platform-Owner", scope: "azure", persona: "Platform", template: "GroupMember", azure: { role: "Owner", scope: "Platform subscription" } },
+    { name: "PIM-SG-AZ-Platform-Contributor", scope: "azure", persona: "Platform", template: "GroupMember", azure: { role: "Contributor", scope: "Platform subscription" } },
+    { name: "PIM-SG-AZ-Connectivity-Owner", scope: "azure", persona: "Connectivity", template: "GroupMember", azure: { role: "Owner", scope: "Connectivity subscription" } },
+    { name: "PIM-SG-AZ-Connectivity-Contributor", scope: "azure", persona: "Connectivity", template: "GroupMember", azure: { role: "Contributor", scope: "Connectivity subscription" } },
+    { name: "PIM-SG-AZ-Management-Owner", scope: "azure", persona: "Management", template: "GroupMember", azure: { role: "Owner", scope: "Management subscription" } },
+    { name: "PIM-SG-AZ-Management-Contributor", scope: "azure", persona: "Management", template: "GroupMember", azure: { role: "Contributor", scope: "Management subscription" } },
+    { name: "PIM-SG-AZ-LandingZone-Owner", scope: "azure", persona: "Landing zone", template: "GroupMember", azure: { role: "Owner", scope: "Landing zone management group" } },
+    { name: "PIM-SG-AZ-LandingZone-Contributor", scope: "azure", persona: "Landing zone", template: "GroupMember", azure: { role: "Contributor", scope: "Landing zone management group" } },
+    { name: "PIM-SG-AZ-Corp-Owner", scope: "azure", persona: "Corp landing zone", template: "GroupMember", azure: { role: "Owner", scope: "Corp subscription" } },
+    { name: "PIM-SG-AZ-Corp-Contributor", scope: "azure", persona: "Corp landing zone", template: "GroupMember", azure: { role: "Contributor", scope: "Corp subscription" } },
+    { name: "PIM-SG-AZ-Online-Owner", scope: "azure", persona: "Online landing zone", template: "GroupMember", azure: { role: "Owner", scope: "Online subscription" } },
+    { name: "PIM-SG-AZ-Online-Contributor", scope: "azure", persona: "Online landing zone", template: "GroupMember", azure: { role: "Contributor", scope: "Online subscription" } },
   ],
   // Small-business Azure groups: one or two subscriptions, no landing zone.
   // Listed here so the baseline tenant carries them; only the small profile
   // compares them (profiles[].groups picks).
   groupsSmall: [
-    { name: "PIM-SG-AZ-Sub-Owner", scope: "azure", persona: "Subscription owner", template: "GroupTier1", azure: { role: "Owner", scope: "the subscription(s)" }, description: "Owner on the business's subscription(s); approval, four hours." },
-    { name: "PIM-SG-AZ-Sub-Contributor", scope: "azure", persona: "Subscription contributor", template: "GroupTier2", azure: { role: "Contributor", scope: "the subscription(s)" }, description: "Contributor on the subscription(s); eight hours, no approval." },
+    { name: "PIM-SG-AZ-Sub-Owner", scope: "azure", persona: "Subscription owner", template: "GroupMember", azure: { role: "Owner", scope: "the subscription(s)" }, description: "Eligible for Owner on the business's subscription(s); the Azure role's own settings are the gate." },
+    { name: "PIM-SG-AZ-Sub-Contributor", scope: "azure", persona: "Subscription contributor", template: "GroupMember", azure: { role: "Contributor", scope: "the subscription(s)" }, description: "Eligible for Contributor on the subscription(s)." },
+  ],
+  // Large one-region groups: Ops splits into the teams that own the
+  // workloads, the desk gets a VIP variant, auditors their own readers.
+  groupsLarge: [
+    { name: "PIM-SG-M365-Identity", scope: "m365", persona: "Identity team", template: "GroupMember", description: "Users, groups, licences, authentication methods and policy, identity governance, lifecycle workflows." },
+    { name: "PIM-SG-M365-Workplace", scope: "m365", persona: "Endpoint team", template: "GroupMember", description: "Intune, devices, the local administrator on joined devices, Edge." },
+    { name: "PIM-SG-M365-Collab", scope: "m365", persona: "Messaging and collaboration", template: "GroupMember", description: "Exchange, SharePoint, Teams, Office apps, Power Platform, guest invitations." },
+    { name: "PIM-SG-M365-Apps", scope: "m365", persona: "Applications", template: "GroupMember", description: "App registrations and enterprise applications only." },
+    { name: "PIM-SG-M365-ServiceDesk", scope: "m365", persona: "Service desk", template: "GroupMember", description: "First line for everybody but admins and executives: passwords, authentication methods, licences." },
+    { name: "PIM-SG-M365-ServiceDesk-VIP", scope: "m365", persona: "Service desk for executives", template: "GroupMember", description: "The named few who may help executives: the desk roles scoped to AU-RM-Executives, made by hand in 🛡 Restricted AUs (a scoped eligibility EasyPIM cannot write)." },
+    { name: "PIM-SG-M365-Audit", scope: "m365", persona: "Internal audit", template: "GroupMember", description: "Reads everything, changes nothing; its own review cadence." },
   ],
   // ---- PROFILES ------------------------------------------------------
   // The same tiers, roles and names; a profile picks the groups a tenant of
@@ -280,42 +329,101 @@ const PIM_BASELINE = {
     small: {
       label: "Small business",
       size: "25 to 250 people, two to six in IT",
-      description: "Four persona groups instead of seven; approval only on the Global Administrator group, where two admins can always give it; Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and 2 alert on critical events only; three Azure groups, made only when there is Azure. Two hours on Global Administrator.",
-      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-Ops", "PIM-SG-M365-SecOpsReader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"],
-      merge: { "PIM-SG-M365-Tier0": "PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Helpdesk": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps": "PIM-SG-M365-Ops" },
+      description: "Four persona groups instead of seven; approval only on the Global Administrator role, where the other admins can always give it; the other Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and 2 alert on critical events only; Global Administrator for two hours; two Intune access groups; three Azure groups, made only when there is Azure.",
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-Ops", "PIM-SG-M365-SecOpsReader", "PIM-SG-INT-Ops", "PIM-SG-INT-SecOps", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"],
+      merge: { "PIM-SG-M365-Tier0": "PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Helpdesk": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps": "PIM-SG-M365-Ops", "PIM-SG-INT-HelpDesk": "PIM-SG-INT-Ops" },
       templates: {
-        Tier0: { ApprovalRequired: false, Approvers: [], description: "Two hours, justification, authentication context c1, alert on every activation — no approval: the gate is the GlobalAdmin group's." },
+        Tier0: { ApprovalRequired: false, Approvers: [], description: "Two hours, justification, authentication context c1, alert on every activation — no approval, except on Global Administrator itself (its override)." },
         Tier1: { Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "Critical", Recipients: ["pim-alerts"] } },
-        GroupTier1: { ApprovalRequired: false, Approvers: [], description: "SecOps and the subscription Owner group: four hours, MFA and justification, no approval." },
       },
-      roles: { "Global Administrator": { override: { ActivationDuration: "PT2H" }, note: "Two hours in the small profile: the GA does real work here, and the gate is c1 plus the group's approval, not the clock." } },
+      roles: { "Global Administrator": { override: { ActivationDuration: "PT2H", ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"] }, note: "Two hours and approval in the small profile: the GA does real work here; the gate is c1 plus approval by the other admins, not the clock." } },
       regions: false,
       rmau: [],
       intune: {
         assignments: [
-          { name: "INT-RBAC-Ops-All", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-M365-Ops"], scope: "all users and devices", tags: [] },
-          { name: "INT-RBAC-HelpDesk-All", roles: ["Help Desk Operator"], members: ["PIM-SG-M365-Ops"], scope: "all users and devices", tags: [] },
-          { name: "INT-RBAC-SecOps-All", roles: ["Endpoint Security Manager"], members: ["PIM-SG-M365-SecOps"], scope: "all devices", tags: [] },
-          { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: [] },
+          { name: "INT-RBAC-Ops-All", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: [] },
+          { name: "INT-RBAC-HelpDesk-All", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: [] },
+          { name: "INT-RBAC-SecOps-All", roles: ["Endpoint Security Manager"], members: ["PIM-SG-INT-SecOps"], scope: "all devices", tags: [] },
+          { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: [], note: "Read only: standing through the readers' active membership, like Directory Readers." },
         ],
         customRoles: [],
         switches: ["Allow access to unlicensed admins"],
       },
     },
+    large: {
+      label: "Large · one region",
+      size: "one country, several IT teams, a service desk, an ITSM tool",
+      description: "The teams own their roles: Ops becomes Identity, Workplace and Collab, AppOps becomes Apps, the desk gets a VIP variant for executives, auditors their own readers. Ticketing on Tier 0 and Tier 1 activations; Tier 0 approval by a rota of three (PIM-SG-Approvers-Tier0); executives in the restricted AU AU-RM-Executives, filled by hand. No administrative units per region.",
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Tier0", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit", "PIM-SG-M365-Identity", "PIM-SG-M365-Workplace", "PIM-SG-M365-Collab", "PIM-SG-M365-Apps", "PIM-SG-M365-ServiceDesk", "PIM-SG-M365-ServiceDesk-VIP", "PIM-SG-INT-Ops", "PIM-SG-INT-HelpDesk", "PIM-SG-INT-SecOps", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Platform-Owner", "PIM-SG-AZ-Platform-Contributor", "PIM-SG-AZ-Connectivity-Owner", "PIM-SG-AZ-Connectivity-Contributor", "PIM-SG-AZ-Management-Owner", "PIM-SG-AZ-Management-Contributor", "PIM-SG-AZ-LandingZone-Owner", "PIM-SG-AZ-LandingZone-Contributor", "PIM-SG-AZ-Corp-Owner", "PIM-SG-AZ-Corp-Contributor", "PIM-SG-AZ-Online-Owner", "PIM-SG-AZ-Online-Contributor"],
+      merge: {},
+      approvers: "PIM-SG-Approvers-Tier0",
+      templates: {
+        Tier0: { ActivationRequirement: "Justification,Ticketing", Approvers: ["PIM-SG-Approvers-Tier0"], description: "Two hours (Global Administrator one), justification and a ticket, authentication context c1, approval by the Tier 0 rota." },
+        Tier1: { ActivationRequirement: "MultiFactorAuthentication,Justification,Ticketing", description: "Two hours, MFA, justification and a ticket, no approval: the ticket is the gate." },
+        GroupMember: { Approvers: ["PIM-SG-Approvers-Tier0"] },
+      },
+      // Where a role lands when Ops splits into teams (the rest keep `via`).
+      roles: {
+        "User Administrator": { via: ["PIM-SG-M365-Identity"] },
+        "Groups Administrator": { via: ["PIM-SG-M365-Identity"] },
+        "License Administrator": { via: ["PIM-SG-M365-Identity", "PIM-SG-M365-ServiceDesk"] },
+        "Authentication Administrator": { via: ["PIM-SG-M365-Identity", "PIM-SG-M365-ServiceDesk"] },
+        "Authentication Policy Administrator": { via: ["PIM-SG-M365-Identity"] },
+        "Identity Governance Administrator": { via: ["PIM-SG-M365-Identity"] },
+        "Lifecycle Workflows Administrator": { via: ["PIM-SG-M365-Identity"] },
+        "Password Administrator": { via: ["PIM-SG-M365-ServiceDesk"] },
+        "Helpdesk Administrator": { via: ["PIM-SG-M365-ServiceDesk"] },
+        "Service Support Administrator": { via: ["PIM-SG-M365-ServiceDesk"] },
+        "Intune Administrator": { via: ["PIM-SG-M365-Workplace"] },
+        "Cloud Device Administrator": { via: ["PIM-SG-M365-Workplace"] },
+        "Microsoft Entra Joined Device Local Administrator": { via: ["PIM-SG-M365-Workplace"] },
+        "Edge Administrator": { via: ["PIM-SG-M365-Workplace"] },
+        "Exchange Administrator": { via: ["PIM-SG-M365-Collab"] },
+        "SharePoint Administrator": { via: ["PIM-SG-M365-Collab"] },
+        "Teams Administrator": { via: ["PIM-SG-M365-Collab"] },
+        "Office Apps Administrator": { via: ["PIM-SG-M365-Collab"] },
+        "Power Platform Administrator": { via: ["PIM-SG-M365-Collab"] },
+        "Guest Inviter": { via: ["PIM-SG-M365-Collab"] },
+        "Application Administrator": { via: ["PIM-SG-M365-Apps"] },
+        "Cloud Application Administrator": { via: ["PIM-SG-M365-Apps"] },
+        "Application Developer": { via: ["PIM-SG-M365-Apps"] },
+        "Message Center Reader": { via: ["PIM-SG-M365-ServiceDesk", "PIM-SG-M365-Identity", "PIM-SG-M365-Workplace", "PIM-SG-M365-Collab", "PIM-SG-M365-Apps", "PIM-SG-M365-SecOps"] },
+        "Global Reader": { via: ["PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit"] },
+      },
+      regions: false,
+      rmau: [{ name: "AU-RM-Executives", restricted: true, holds: "executives, their devices and sensitive groups that are not role-assignable — filled by hand in 🛡 Restricted AUs; PIM-SG-M365-ServiceDesk-VIP and Identity scoped on it" }],
+      scoped: [
+        { role: "Helpdesk Administrator", group: "PIM-SG-M365-ServiceDesk-VIP", au: "AU-RM-Executives" },
+        { role: "Password Administrator", group: "PIM-SG-M365-ServiceDesk-VIP", au: "AU-RM-Executives" },
+        { role: "Authentication Administrator", group: "PIM-SG-M365-ServiceDesk-VIP", au: "AU-RM-Executives" },
+        { role: "User Administrator", group: "PIM-SG-M365-Identity", au: "AU-RM-Executives" },
+      ],
+      intune: {
+        assignments: [
+          { name: "INT-RBAC-Workplace", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: ["default", "INT-TAG-Workplace"] },
+          { name: "INT-RBAC-HelpDesk", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-HelpDesk"], scope: "all users and devices", tags: ["default"] },
+          { name: "INT-RBAC-SecOps", roles: ["Endpoint Security Manager"], members: ["PIM-SG-INT-SecOps"], scope: "all devices", tags: ["default"] },
+          { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: ["every"] },
+        ],
+        customRoles: [],
+        switches: ["Allow access to unlicensed admins", "Scoped permissions (preview): run the Permissions Assessment Report first; the switch is one-way"],
+      },
+    },
     multi: {
       label: "Large · multi-region",
       size: "several regions, central IT plus local IT per region",
-      description: "The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, and the Intune scope groups, tag and role assignments. Every adm- account and every PIM-SG group sits in the restricted management unit AU-RM-Admins.",
+      description: "The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups (role-assignable groups protect themselves); AU-RM-Executives for executives, by hand.",
       groups: null,
       merge: {},
       templates: {},
       roles: {},
       regions: true,
-      rmau: [{ name: "AU-RM-Admins", restricted: true, holds: "every adm- account and every PIM-SG group; Tier 0 (PIM-SG-M365-Tier0) User Administrator on it so they can still be managed" }],
+      rmau: [],
       intune: {
         assignments: [
-          { name: "INT-RBAC-PolicyProfile-Central", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-M365-Ops"], scope: "all users and devices", tags: ["default"] },
-          { name: "INT-RBAC-SecOps-Central", roles: ["Endpoint Security Manager"], members: ["PIM-SG-M365-SecOps"], scope: "all devices", tags: ["default"] },
+          { name: "INT-RBAC-PolicyProfile-Central", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: ["default"] },
+          { name: "INT-RBAC-HelpDesk-Central", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-HelpDesk"], scope: "all users and devices", tags: ["default"] },
+          { name: "INT-RBAC-SecOps-Central", roles: ["Endpoint Security Manager"], members: ["PIM-SG-INT-SecOps"], scope: "all devices", tags: ["default"] },
           { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: ["every"] },
         ],
         customRoles: ["INT-ROLE-Regional-Ops"],
@@ -337,6 +445,22 @@ const PIM_BASELINE = {
       "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"c@contoso.nl;d@contoso.nl\",Europe/Berlin",
     ].join("\n"),
     codePattern: "^[A-Z]{2,5}(-[A-Z0-9]{2,6}){1,2}$",
+    // What a row may carry. The attribute must exist on users AND devices
+    // (the device unit reads it too), so only extensionAttribute1-15; values
+    // land inside dynamic-membership rules, so a narrow character set — no
+    // quotes, brackets or operators — instead of escaping. Violations exclude
+    // the row; the rest of the file still loads.
+    fields: {
+      attribute: "^extensionAttribute([1-9]|1[0-5])$",
+      value: "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$",
+      devicePrefix: "^[A-Za-z0-9][A-Za-z0-9-]{0,14}$",
+      autopilotTag: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      name: "^[^\u0000-\u001f\"<>]{1,64}$",
+      email: "^[^@\\s\"<>(),;]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$",
+      timezone: "^[A-Za-z_]+(/[A-Za-z0-9_+-]+)*$",
+    },
+    maxRows: 250,
+    maxBytes: 262144,
     template: {
       aus: [
         { name: "AU-<REG>-Users", kind: "dynamic", type: "user", rule: "(user.<attribute> -eq \"<value>\")", note: "P1 per member; one object type per dynamic unit" },
@@ -344,8 +468,10 @@ const PIM_BASELINE = {
         { name: "AU-<REG>-Groups", kind: "assigned", type: "group", note: "dynamic units cannot hold groups; the region adds its own" },
       ],
       groups: [
-        { name: "PIM-SG-<REG>-Helpdesk", persona: "Regional first line", template: "GroupTier2", roleAssignable: true, description: "Password, authentication, licence for the region's people — never for an admin." },
-        { name: "PIM-SG-<REG>-Ops", persona: "Regional second line", template: "GroupTier2", roleAssignable: true, description: "Users, groups and devices of the region; Intune through INT-ROLE-Regional-Ops." },
+        { name: "PIM-SG-<REG>-Helpdesk", persona: "Regional first line", template: "GroupMember", roleAssignable: true, description: "Active members are eligible for password, authentication and licence work on the region's people — never on an admin." },
+        { name: "PIM-SG-<REG>-Ops", persona: "Regional second line", template: "GroupMember", roleAssignable: true, description: "Active members are eligible for the region's users, groups and devices." },
+        { name: "PIM-SG-INT-HelpDesk-<REG>", persona: "Regional Intune first line", template: "GroupJIT", roleAssignable: true, intune: true, description: "Eligible members activate to act as Intune Help Desk Operator on the region's devices." },
+        { name: "PIM-SG-INT-Ops-<REG>", persona: "Regional Intune second line", template: "GroupJIT", roleAssignable: true, intune: true, description: "Eligible members activate to act as INT-ROLE-Regional-Ops on the region's devices." },
         { name: "PIM-SG-<REG>-Approvers", persona: "Regional approvers", template: null, roleAssignable: false, members: "<approvers>", description: "Plain group: the regional IT lead and one central Ops; approves the region's Ops activations when the customer wants a gate." },
       ],
       // Eligible role assignments at AU scope — only roles Entra can scope
@@ -367,12 +493,12 @@ const PIM_BASELINE = {
           { name: "INT-SG-DEV-<REG>-All", type: "device", rule: "(device.enrollmentProfileName -startsWith \"<autopilotTag>\") -or (device.displayName -startsWith \"<devicePrefix>\")" },
         ],
         assignments: [
-          { name: "INT-RBAC-HelpDesk-<REG>", roles: ["Help Desk Operator"], members: ["PIM-SG-<REG>-Helpdesk"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
-          { name: "INT-RBAC-Ops-<REG>", roles: ["INT-ROLE-Regional-Ops"], members: ["PIM-SG-<REG>-Ops"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
+          { name: "INT-RBAC-HelpDesk-<REG>", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-HelpDesk-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
+          { name: "INT-RBAC-Ops-<REG>", roles: ["INT-ROLE-Regional-Ops"], members: ["PIM-SG-INT-Ops-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
         ],
         autopilot: { profile: "Autopilot · <REG>", naming: "<devicePrefix>%SERIAL%", groupTag: "<autopilotTag>" },
       },
-      review: { name: "Access review · <REG>", scope: "PIM-SG-<REG>-Helpdesk, PIM-SG-<REG>-Ops", reviewer: "<itLead>", cadence: "yearly" },
+      review: { name: "Access review · <REG>", scope: "PIM-SG-<REG>-Helpdesk, PIM-SG-<REG>-Ops, PIM-SG-INT-HelpDesk-<REG>, PIM-SG-INT-Ops-<REG>", reviewer: "<itLead>", cadence: "yearly", manual: true },
     },
   },
   // ---- INTUNE RBAC: the one custom role -------------------------------
@@ -397,12 +523,21 @@ const PIM_BASELINE = {
   // Never touched by a deploy, never counted as drift: the break-glass
   // accounts (permanent Global Administrator, by design — see 🔒 Protect
   // exclusions in Workspace 01) and the Global Administrator group itself.
-  protected: { pattern: "^(BG-|BGA\\b|BreakGlass|Break-Glass|EmergencyAccess)", groups: ["PIM-SG-M365-GlobalAdmin"], description: "Break-glass accounts and PIM-SG-M365-GlobalAdmin are ProtectedUsers in the EasyPIM config: a delta or initial run leaves them alone." },
+  protected: { pattern: "^(BG-|BGA\\b|BreakGlass|Break-Glass|EmergencyAccess)", groups: ["PIM-SG-M365-GlobalAdmin"], description: "The name pattern only SUGGESTS break-glass accounts; protection is by explicit object id (the EasyPIM config's ProtectedUsers, the scripts' -ProtectedIds). The framework's scripts never remove an assignment." },
+  // Where each kind of privileged object is protected (2.1). No PIM-SG group
+  // and no adm- account goes into a restricted management AU.
+  protection: [
+    { object: "Admin accounts (adm-) that are active members of a PIM-SG group", how: "Role-assignable group membership: only Privileged Authentication Administrators can reset their credentials or MFA. Nothing else needed.", rmau: false },
+    { object: "PIM-SG groups", how: "Role-assignable: only Privileged Role Administrators, Global Administrators and owners change membership. Never in a restricted management AU — PIM for Groups, access reviews and lifecycle workflows cannot manage objects there, and a role-assignable group inside one can no longer have its membership changed.", rmau: false },
+    { object: "Executives, their devices, sensitive groups that are not role-assignable", how: "AU-RM-Executives, a restricted management AU, filled by hand through 🛡 Restricted AUs (T27) after its scoped administrators are named and tested. Objects there lose access reviews and lifecycle workflows.", rmau: true },
+    { object: "Break-glass accounts", how: "Listed by object id; excluded from every Conditional Access policy but their own; no script touches them.", rmau: false },
+  ],
   // Outside PIM, still part of the framework — listed so the export and the
   // Help can say so, never compared.
   outside: [
     "Access reviews: every eligible assignment and every persona group reviewed yearly (1.3 asked for it on every row).",
-    "Intune RBAC is part of the framework (the profiles' assignments, the region template's tags and scope groups, INT-ROLE-Regional-Ops) and is created by the scripts; T53 reads it. Defender XDR and Purview RBAC stay outside on purpose.",
+    "Intune RBAC is part of the framework (the profiles' assignments to the PIM-SG-INT access groups, the region template's tags and scope groups, INT-ROLE-Regional-Ops) and is created by the scripts; T53 will read it. Defender XDR and Purview RBAC stay outside on purpose.",
+    "People are never in the catalog: active persona members and eligible Intune members are added by an administrator (or an access package) and reviewed yearly.",
     "Azure RBAC: the PIM-SG-AZ-* groups are exported as GroupRoles policies; their Owner and Contributor assignments at subscription scope are Azure Resource Manager, not compared here yet.",
   ],
 };

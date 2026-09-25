@@ -675,21 +675,21 @@ DEMO_DATA.pim = (() => {
   const policies = {};
   roles.forEach((n) => { policies[n] = rules(set[n] || dflt); });
   // Two regions (32413): EU-NL complete but for one rule, EU-DE half built.
-  Object.assign(G, { nlHd: "g-PIM-SG-EU-NL-Helpdesk", nlOps: "g-PIM-SG-EU-NL-Ops", nlAp: "g-PIM-SG-EU-NL-Approvers", nlUsr: "g-INT-SG-USR-EU-NL-All", nlDev: "g-INT-SG-DEV-EU-NL-All", deOps: "g-PIM-SG-EU-DE-Ops" });
-  Object.assign(names, { [G.nlHd]: "PIM-SG-EU-NL-Helpdesk", [G.nlOps]: "PIM-SG-EU-NL-Ops", [G.nlAp]: "PIM-SG-EU-NL-Approvers", [G.nlUsr]: "INT-SG-USR-EU-NL-All", [G.nlDev]: "INT-SG-DEV-EU-NL-All", [G.deOps]: "PIM-SG-EU-DE-Ops" });
+  Object.assign(G, { nlHd: "g-PIM-SG-EU-NL-Helpdesk", nlOps: "g-PIM-SG-EU-NL-Ops", nlAp: "g-PIM-SG-EU-NL-Approvers", nlUsr: "g-INT-SG-USR-EU-NL-All", nlDev: "g-INT-SG-DEV-EU-NL-All", deOps: "g-PIM-SG-EU-DE-Ops", intOps: "g-PIM-SG-INT-Ops", intHdNl: "g-PIM-SG-INT-HelpDesk-EU-NL" });
+  Object.assign(names, { [G.nlHd]: "PIM-SG-EU-NL-Helpdesk", [G.nlOps]: "PIM-SG-EU-NL-Ops", [G.nlAp]: "PIM-SG-EU-NL-Approvers", [G.nlUsr]: "INT-SG-USR-EU-NL-All", [G.nlDev]: "INT-SG-DEV-EU-NL-All", [G.deOps]: "PIM-SG-EU-DE-Ops", [G.intOps]: "PIM-SG-INT-Ops", [G.intHdNl]: "PIM-SG-INT-HelpDesk-EU-NL" });
   const AU = { nlU: "au-eu-nl-users", nlD: "au-eu-nl-devices", nlG: "au-eu-nl-groups", deU: "au-eu-de-users", rm: "au-rm-admins" };
   const aus = [
     { id: AU.nlU, displayName: "AU-EU-NL-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-NL")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
     { id: AU.nlD, displayName: "AU-EU-NL-Devices", membershipType: "Dynamic", membershipRule: '(device.displayName -startsWith "NL-")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
     { id: AU.nlG, displayName: "AU-EU-NL-Groups", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: false },
     { id: AU.deU, displayName: "AU-EU-DE-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-DE")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
-    { id: AU.rm, displayName: "AU-RM-Admins", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: true },
+    { id: AU.rm, displayName: "AU-RM-Executives", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: true },
     { id: "au-nl-office", displayName: "Amsterdam office", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: false },
   ];
   const named = [
     { id: G.nlAp, displayName: "PIM-SG-EU-NL-Approvers", isAssignableToRole: false, membershipRule: null },
-    { id: G.nlUsr, displayName: "INT-SG-USR-EU-NL-All", isAssignableToRole: false, membershipRule: '(user.extensionAttribute1 -eq "EU-NL") -and (user.accountEnabled -eq true)' },
-    { id: G.nlDev, displayName: "INT-SG-DEV-EU-NL-All", isAssignableToRole: false, membershipRule: '(device.enrollmentProfileName -startsWith "EU-NL") -or (device.displayName -startsWith "NL-")' },
+    { id: G.nlUsr, displayName: "INT-SG-USR-EU-NL-All", isAssignableToRole: false, membershipRule: '(user.extensionAttribute1 -eq "EU-NL") -and (user.accountEnabled -eq true)', membershipRuleProcessingState: "On" },
+    { id: G.nlDev, displayName: "INT-SG-DEV-EU-NL-All", isAssignableToRole: false, membershipRule: '(device.enrollmentProfileName -startsWith "EU-NL") -or (device.displayName -startsWith "NL-")', membershipRuleProcessingState: "Paused" },
   ];
   const regionsCsv = ["code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone", "EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@contoso.nl,\"anna@contoso.nl;mihai@contoso.nl\",Europe/Amsterdam", "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"joey@contoso.nl;mihai@contoso.nl\",Europe/Berlin"].join("\n");
   const inst = (roleName, principalId, principalType, endDateTime, assignmentType, directoryScopeId) => ({ roleName, principalId, principalName: names[principalId] || principalId, principalType, endDateTime, assignmentType, directoryScopeId: directoryScopeId || "/" });
@@ -715,13 +715,22 @@ DEMO_DATA.pim = (() => {
     { id: G.ga, displayName: "PIM-SG-M365-GlobalAdmin", isAssignableToRole: true }, { id: G.t0, displayName: "PIM-SG-M365-Tier0", isAssignableToRole: true }, { id: G.sec, displayName: "PIM-SG-M365-SecOps", isAssignableToRole: true }, { id: G.ops, displayName: "PIM-SG-M365-Ops", isAssignableToRole: true }, { id: G.hd, displayName: "PIM-SG-M365-Helpdesk", isAssignableToRole: false },
     { id: G.legacy, displayName: "CAB-SEC-U-Admins-Legacy", isAssignableToRole: true },
     { id: G.nlHd, displayName: "PIM-SG-EU-NL-Helpdesk", isAssignableToRole: true }, { id: G.nlOps, displayName: "PIM-SG-EU-NL-Ops", isAssignableToRole: true }, { id: G.deOps, displayName: "PIM-SG-EU-DE-Ops", isAssignableToRole: true },
+    { id: G.intOps, displayName: "PIM-SG-INT-Ops", isAssignableToRole: true }, { id: G.intHdNl, displayName: "PIM-SG-INT-HelpDesk-EU-NL", isAssignableToRole: true },
   ];
+  // Framework 2.1: persona groups have ACTIVE members for at most a year
+  // (GroupMember); Intune access groups have ELIGIBLE members (GroupJIT).
+  const member = (t) => right(Object.assign({ activation: "PT1H", enablement: ["MultiFactorAuthentication", "Justification"], approval: true, approvers: [G.approvers], maxActive: "P365D" }, t));
+  const jit = (t) => right(Object.assign({ activation: "PT8H", enablement: ["MultiFactorAuthentication", "Justification"], maxActive: "P30D", alertActivation: "Critical" }, t));
   const groupPolicies = {
-    "PIM-SG-M365-GlobalAdmin": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
-    "PIM-SG-M365-Tier0": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
-    "PIM-SG-M365-SecOps": rules(right({ activation: "PT4H", approval: false })),
-    "PIM-SG-M365-Ops": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
-    "PIM-SG-M365-Helpdesk": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
+    "PIM-SG-M365-GlobalAdmin": rules(member()),
+    "PIM-SG-M365-Tier0": rules(member()),
+    "PIM-SG-M365-SecOps": rules(member({ permActive: true })),          // permanent membership allowed — drift
+    "PIM-SG-M365-Ops": rules(member()),
+    "PIM-SG-M365-Helpdesk": rules(member()),
+    "PIM-SG-INT-Ops": rules(jit()),
+    "PIM-SG-EU-NL-Helpdesk": rules(member()),
+    "PIM-SG-EU-NL-Ops": rules(member()),
+    "PIM-SG-INT-HelpDesk-EU-NL": rules(jit()),
   };
-  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv };
+  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, domain: "contoso.nl" };
 })();
