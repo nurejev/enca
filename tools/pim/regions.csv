@@ -1,0 +1,3 @@
+code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone
+EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@cloudfellows.dev,"a@cloudfellows.dev;b@cloudfellows.dev",Europe/Amsterdam
+EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@cloudfellows.dev,"c@cloudfellows.dev;d@cloudfellows.dev",Europe/Berlin

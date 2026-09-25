@@ -674,7 +674,25 @@ DEMO_DATA.pim = (() => {
   });
   const policies = {};
   roles.forEach((n) => { policies[n] = rules(set[n] || dflt); });
-  const inst = (roleName, principalId, principalType, endDateTime, assignmentType) => ({ roleName, principalId, principalName: names[principalId] || principalId, principalType, endDateTime, assignmentType });
+  // Two regions (32413): EU-NL complete but for one rule, EU-DE half built.
+  Object.assign(G, { nlHd: "g-PIM-SG-EU-NL-Helpdesk", nlOps: "g-PIM-SG-EU-NL-Ops", nlAp: "g-PIM-SG-EU-NL-Approvers", nlUsr: "g-INT-SG-USR-EU-NL-All", nlDev: "g-INT-SG-DEV-EU-NL-All", deOps: "g-PIM-SG-EU-DE-Ops" });
+  Object.assign(names, { [G.nlHd]: "PIM-SG-EU-NL-Helpdesk", [G.nlOps]: "PIM-SG-EU-NL-Ops", [G.nlAp]: "PIM-SG-EU-NL-Approvers", [G.nlUsr]: "INT-SG-USR-EU-NL-All", [G.nlDev]: "INT-SG-DEV-EU-NL-All", [G.deOps]: "PIM-SG-EU-DE-Ops" });
+  const AU = { nlU: "au-eu-nl-users", nlD: "au-eu-nl-devices", nlG: "au-eu-nl-groups", deU: "au-eu-de-users", rm: "au-rm-admins" };
+  const aus = [
+    { id: AU.nlU, displayName: "AU-EU-NL-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-NL")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
+    { id: AU.nlD, displayName: "AU-EU-NL-Devices", membershipType: "Dynamic", membershipRule: '(device.displayName -startsWith "NL-")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
+    { id: AU.nlG, displayName: "AU-EU-NL-Groups", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: false },
+    { id: AU.deU, displayName: "AU-EU-DE-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-DE")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
+    { id: AU.rm, displayName: "AU-RM-Admins", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: true },
+    { id: "au-nl-office", displayName: "Amsterdam office", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: false },
+  ];
+  const named = [
+    { id: G.nlAp, displayName: "PIM-SG-EU-NL-Approvers", isAssignableToRole: false, membershipRule: null },
+    { id: G.nlUsr, displayName: "INT-SG-USR-EU-NL-All", isAssignableToRole: false, membershipRule: '(user.extensionAttribute1 -eq "EU-NL") -and (user.accountEnabled -eq true)' },
+    { id: G.nlDev, displayName: "INT-SG-DEV-EU-NL-All", isAssignableToRole: false, membershipRule: '(device.enrollmentProfileName -startsWith "EU-NL") -or (device.displayName -startsWith "NL-")' },
+  ];
+  const regionsCsv = ["code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone", "EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@contoso.nl,\"anna@contoso.nl;mihai@contoso.nl\",Europe/Amsterdam", "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"joey@contoso.nl;mihai@contoso.nl\",Europe/Berlin"].join("\n");
+  const inst = (roleName, principalId, principalType, endDateTime, assignmentType, directoryScopeId) => ({ roleName, principalId, principalName: names[principalId] || principalId, principalType, endDateTime, assignmentType, directoryScopeId: directoryScopeId || "/" });
   const far = "2027-09-01T00:00:00Z";
   const eligible = [
     inst("Global Administrator", G.ga, "Group", far), inst("Global Administrator", "u-anna", "User", far), inst("Global Administrator", "u-joey", "User", far),
@@ -683,6 +701,9 @@ DEMO_DATA.pim = (() => {
     inst("Exchange Administrator", G.ops, "Group", far), inst("SharePoint Administrator", G.ops, "Group", far), inst("Teams Administrator", G.ops, "Group", far), inst("Intune Administrator", G.ops, "Group", far), inst("Application Administrator", G.ops, "Group", far), inst("User Administrator", G.ops, "Group", far), inst("License Administrator", G.ops, "Group", far), inst("Authentication Administrator", G.ops, "Group", far), inst("Authentication Policy Administrator", G.ops, "Group", far), inst("Power Platform Administrator", G.ops, "Group", far), inst("Identity Governance Administrator", G.ops, "Group", far), inst("Lifecycle Workflows Administrator", G.ops, "Group", far), inst("Service Support Administrator", G.ops, "Group", far), inst("Message Center Reader", G.ops, "Group", far),
     inst("Helpdesk Administrator", G.hd, "Group", far), inst("Groups Administrator", G.hd, "Group", far), inst("User Administrator", G.hd, "Group", far), inst("Password Administrator", G.hd, "Group", far), inst("License Administrator", G.hd, "Group", far), inst("Authentication Administrator", G.hd, "Group", far), inst("Cloud Device Administrator", G.hd, "Group", far), inst("Message Center Reader", G.hd, "Group", far),
     inst("Exchange Administrator", "u-joey", "User", null), inst("Global Reader", "u-anna", "User", null), inst("Security Reader", "u-mihai", "User", null),
+    // EU-NL: the first line scoped right, the second line missing Groups Administrator and holding User Administrator tenant-wide
+    inst("Helpdesk Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`), inst("Password Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`), inst("Authentication Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`), inst("License Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`),
+    inst("User Administrator", G.nlOps, "Group", far), inst("Teams Administrator", G.nlOps, "Group", far, undefined, `/administrativeUnits/${AU.nlG}`), inst("Cloud Device Administrator", G.nlOps, "Group", far, undefined, `/administrativeUnits/${AU.nlD}`),
   ];
   const active = [
     inst("Global Administrator", "u-bg1", "User", null, "Assigned"), inst("Global Administrator", "u-bg2", "User", null, "Assigned"), inst("Global Administrator", "u-joey", "User", null, "Assigned"),
@@ -693,6 +714,7 @@ DEMO_DATA.pim = (() => {
   const groups = [
     { id: G.ga, displayName: "PIM-SG-M365-GlobalAdmin", isAssignableToRole: true }, { id: G.t0, displayName: "PIM-SG-M365-Tier0", isAssignableToRole: true }, { id: G.sec, displayName: "PIM-SG-M365-SecOps", isAssignableToRole: true }, { id: G.ops, displayName: "PIM-SG-M365-Ops", isAssignableToRole: true }, { id: G.hd, displayName: "PIM-SG-M365-Helpdesk", isAssignableToRole: false },
     { id: G.legacy, displayName: "CAB-SEC-U-Admins-Legacy", isAssignableToRole: true },
+    { id: G.nlHd, displayName: "PIM-SG-EU-NL-Helpdesk", isAssignableToRole: true }, { id: G.nlOps, displayName: "PIM-SG-EU-NL-Ops", isAssignableToRole: true }, { id: G.deOps, displayName: "PIM-SG-EU-DE-Ops", isAssignableToRole: true },
   ];
   const groupPolicies = {
     "PIM-SG-M365-GlobalAdmin": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
@@ -701,5 +723,5 @@ DEMO_DATA.pim = (() => {
     "PIM-SG-M365-Ops": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
     "PIM-SG-M365-Helpdesk": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
   };
-  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names };
+  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv };
 })();

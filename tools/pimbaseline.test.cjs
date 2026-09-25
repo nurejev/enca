@@ -114,11 +114,93 @@ test("render and toMd hold every role and group and escape names", () => {
   assert.ok(md.split("\n").filter((l) => l.startsWith("| ")).length > CAT.roles.length + CAT.groups.length);
 });
 
-test("the committed tools/pim/pim-baseline.json is the catalog's own export", () => {
+test("the committed tools/pim/pim-baseline.json is the catalog's own export — every profile's groups, for the baseline tenant", () => {
   const file = JSON.parse(read("tools/pim/pim-baseline.json"));
-  const fresh = PB.toOrchestrator(CAT, { domain: "cloudfellows.dev" });
+  const fresh = PB.toOrchestrator(CAT, { domain: "cloudfellows.dev", everyProfile: true });
+  assert.ok(Object.keys(file.GroupRoles.Policies).includes("PIM-SG-AZ-Sub-Owner"), "the small profile's Azure groups are there too");
+  for (const id of ["small", "multi"]) assert.deepEqual(JSON.parse(read(`tools/pim/pim-baseline.${id}.json`)).GroupRoles, PB.toOrchestrator(PB.profile(CAT, id), { domain: "<tenant domain>" }).GroupRoles, id);
   assert.deepEqual(file.PolicyTemplates, fresh.PolicyTemplates);
   assert.deepEqual(file.EntraRoles, fresh.EntraRoles);
   assert.deepEqual(file.GroupRoles, fresh.GroupRoles);
   assert.deepEqual(file.Assignments, fresh.Assignments);
+});
+
+test("profiles: small folds Tier0, Helpdesk and AppOps into four groups and drops approval off the Tier 0 roles; multi is the base plus regions", () => {
+  const small = PB.profile(CAT, "small"), multi = PB.profile(CAT, "multi");
+  assert.deepEqual(small.groups.map((g) => g.name), ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-Ops", "PIM-SG-M365-SecOpsReader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"]);
+  const role = (cat, n) => cat.roles.find((r) => r.name === n);
+  assert.deepEqual(role(small, "Privileged Role Administrator").via, ["PIM-SG-M365-GlobalAdmin"]);
+  assert.deepEqual(role(small, "Helpdesk Administrator").via, ["PIM-SG-M365-Ops"]);
+  assert.deepEqual(role(small, "Exchange Administrator").via, ["PIM-SG-M365-Ops"], "Ops and AppOps collapse to one");
+  assert.equal(PB.expected(small, role(small, "Privileged Role Administrator")).approval, false);
+  assert.equal(PB.expected(small, role(small, "Privileged Role Administrator")).authContext, "c1");
+  assert.equal(PB.expected(small, role(small, "Global Administrator")).activation, "PT2H");
+  assert.equal(PB.expected(small, role(small, "Exchange Administrator")).alertActivation, "Critical");
+  assert.equal(PB.expected(small, small.groups[0]).approval, true, "the GlobalAdmin group keeps its gate");
+  assert.equal(PB.expected(small, small.groups[1]).approval, false, "SecOps has none in a small business");
+  assert.equal(multi.groups.length, CAT.groups.length); assert.ok(multi.profile.regions); assert.equal(multi.profile.rmau[0].name, "AU-RM-Admins");
+  assert.equal(PB.expected(multi, role(multi, "Global Administrator")).activation, "PT1H", "the base stays");
+  const res = PB.compare(small, tenant());
+  assert.equal(res.gcounts.total, 4); assert.equal(res.profile.id, "small");
+  assert.ok(res.rows.find((r) => r.name === "Global Administrator").diffs.some((d) => d.key === "activation"));
+  assert.ok(!res.rows.find((r) => r.name === "Privileged Role Administrator").diffs.some((d) => d.key === "approval"), "the demo's PRA without approval is what the small profile wants");
+  assert.equal(Object.keys(PB.toOrchestrator(small, { domain: "x.nl" }).GroupRoles.Policies).length, 7);
+});
+
+test("regions: the file is parsed with defaults and named errors, a row fills the template, the demo compares per region", () => {
+  const pr = PB.parseRegions(CAT.regions.example, CAT);
+  assert.deepEqual(pr.errors, []); assert.equal(pr.rows.length, 2);
+  assert.deepEqual(pr.rows[0].approvers, ["a@contoso.nl", "b@contoso.nl"]); assert.equal(pr.rows[1].devicePrefix, "DE-");
+  const bad = PB.parseRegions("code,name\nnl,Netherlands\nEU-NL,NL\nEU-NL,Again\nNA-US,", CAT);
+  assert.equal(bad.rows.length, 2); assert.ok(bad.errors.some((e) => /Row 2/.test(e) && /nl/i.test(e))); assert.ok(bad.errors.some((e) => /twice/.test(e)));
+  assert.equal(bad.rows[1].name, "NA-US"); assert.equal(bad.rows[1].value, "NA-US"); assert.equal(bad.rows[1].devicePrefix, "US-");
+  const json = PB.parseRegions(JSON.stringify([{ code: "apac-sg", name: "Singapore", approvers: ["x@y.z"] }]), CAT);
+  assert.equal(json.rows[0].code, "APAC-SG"); assert.deepEqual(json.rows[0].approvers, ["x@y.z"]);
+  assert.ok(PB.parseRegions("", CAT).errors.length);
+  const r = PB.region(CAT, pr.rows[0]);
+  assert.equal(r.aus[0].name, "AU-EU-NL-Users"); assert.equal(r.aus[0].rule, '(user.extensionAttribute1 -eq "EU-NL")');
+  assert.match(r.aus[1].rule, /device\.displayName -startsWith "NL-"/);
+  assert.equal(r.groups[2].members, "a@contoso.nl; b@contoso.nl");
+  assert.equal(r.eligibilities.length, 8); assert.ok(r.eligibilities.every((e) => /^AU-EU-NL-/.test(e.au)));
+  assert.equal(r.intune.assignments[1].roles[0], "INT-ROLE-Regional-Ops"); assert.equal(r.intune.tag.name, "INT-TAG-EU-NL");
+  // the demo tenant
+  const d = DEMO.pim; const t = Object.assign(tenant(), { aus: d.aus, named: d.named });
+  const multi = PB.profile(CAT, "multi");
+  const rows = PB.parseRegions(d.regionsCsv, CAT).rows;
+  const cr = PB.compareRegions(multi, rows, t);
+  assert.equal(cr.totals.regions, 2); assert.equal(cr.central[0].status, "match");
+  const nl = cr.regions[0], de = cr.regions[1];
+  assert.equal(nl.items.find((i) => i.name === "AU-EU-NL-Devices").status, "differs");
+  assert.equal(nl.items.find((i) => i.name === "AU-EU-NL-Users").status, "match");
+  const ua = nl.items.find((i) => /^User Administrator/.test(i.name)); assert.equal(ua.status, "missing"); assert.match(ua.detail, /TENANT scope/);
+  assert.equal(nl.items.find((i) => /^Helpdesk Administrator/.test(i.name)).status, "match");
+  assert.equal(nl.items.find((i) => i.name === "INT-SG-DEV-EU-NL-All").status, "match");
+  assert.equal(nl.items.find((i) => i.name === "INT-TAG-EU-NL").status, "unread");
+  assert.equal(de.items.find((i) => i.name === "PIM-SG-EU-DE-Ops").status, "match");
+  assert.equal(de.items.find((i) => i.name === "AU-EU-DE-Devices").status, "missing");
+  assert.ok(de.items.find((i) => /^Cloud Device Administrator/.test(i.name)).detail.includes("unit is missing"));
+  assert.deepEqual(cr.missingCodes, ["EU-NL", "EU-DE"]);
+  // units not read: everything Entra is "unread", nothing is called missing
+  const un = PB.compareRegions(multi, rows, Object.assign(tenant(), { aus: null, named: [] }));
+  assert.equal(un.auRead, false); assert.ok(un.regions[0].items.filter((i) => i.kind === "au").every((i) => i.status === "unread"));
+  // the base compare keeps the regional groups apart from the extra ones
+  const res = PB.compare(multi, t);
+  assert.deepEqual(res.extraGroups, ["CAB-SEC-U-Admins-Legacy"]); assert.deepEqual(res.regionalGroups, ["PIM-SG-EU-DE-Ops", "PIM-SG-EU-NL-Helpdesk", "PIM-SG-EU-NL-Ops"]);
+  const html = PB.renderRegions(cr); for (const n of ["AU-EU-NL-Users", "PIM-SG-EU-DE-Approvers", "INT-RBAC-Ops-EU-DE", "AU-RM-Admins"]) assert.ok(html.includes(`<b>${n}</b>`), n);
+  assert.match(PB.regionsMd(cr, "Contoso"), /^# 🗺 Regions — Contoso/);
+});
+
+test("regions file: the ticked rows, the template, the Intune role — and the committed template is the catalog's own", () => {
+  const multi = PB.profile(CAT, "multi");
+  const rows = PB.parseRegions(CAT.regions.example, CAT).rows;
+  const f = PB.toRegionsFile(multi, rows, { domain: "contoso.nl", codes: ["EU-DE"] });
+  assert.equal(f.regions.length, 1); assert.equal(f.regions[0].code, "EU-DE"); assert.equal(f.profile, "multi");
+  assert.equal(f.template.eligibilities.length, 8); assert.equal(f.intuneRoles[0].name, "INT-ROLE-Regional-Ops"); assert.equal(f.central.rmau[0].name, "AU-RM-Admins");
+  assert.equal(f.groupTemplates.GroupTier2.ActivationDuration, "PT8H");
+  assert.match(PB.regionsCommand("regions.contoso.nl.json", "contoso.nl"), /New-PimRegions\.ps1 -RegionsFile \.\\regions\.contoso\.nl\.json -TenantId contoso\.nl$/);
+  const tpl = JSON.parse(read("tools/pim/pim-regions-template.json"));
+  assert.deepEqual(tpl.template, CAT.regions.template); assert.deepEqual(tpl.intuneRoles, CAT.intuneRoles);
+  const cf = JSON.parse(read("tools/pim/regions.cloudfellows.dev.json"));
+  assert.deepEqual(cf.regions.map((r) => r.code), ["EU-NL", "EU-DE"]); assert.deepEqual(cf.template, CAT.regions.template);
+  assert.equal(read("tools/pim/regions.csv").split("\n")[0], CAT.regions.columns.join(","));
 });

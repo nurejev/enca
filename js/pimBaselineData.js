@@ -55,6 +55,17 @@
 //     this catalog. 1.3's Defender XDR role settings for Ops and Helpdesk are
 //     still the intent; they are not something PIM policies can express.
 //
+// PROFILES AND REGIONS (build 32413). One framework, three sizes — the
+// catalog carries PROFILES: `small` (four persona groups, approval only on
+// the Global Administrator group, no administrative units) and `multi`
+// (the whole group set plus one REGION TEMPLATE instantiated per row of a
+// customer's regions.csv: three administrative units, two persona groups and
+// an approver group, AU-scoped eligibilities, the Intune scope groups, tag and
+// role assignments). Regions are never in the catalog — the file is the
+// customer's — only the template is. `large` (one region, teams instead of
+// regions) is designed and follows. cloudfellows.dev carries every profile's
+// objects and two demo regions (EU-NL, EU-DE) so each has a real reference.
+//
 // HOW IT IS READ. js/pimbaseline.js turns each role into expected settings
 // (template + override), reads the tenant's roleManagementPolicies and
 // compares setting by setting; groups are compared as a model — present,
@@ -72,7 +83,7 @@ const PIM_BASELINE = {
   label: "CloudFellows PIM framework",
   icon: "🧬",
   release: "2.0",
-  revised: "2026-09-24",
+  revised: "2026-09-25",
   tenant: "cloudfellows.dev",
   source: "bundled",
   lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026)",
@@ -253,6 +264,136 @@ const PIM_BASELINE = {
     { name: "PIM-SG-AZ-Online-Owner", scope: "azure", persona: "Online landing zone", template: "GroupTier1", azure: { role: "Owner", scope: "Online subscription" } },
     { name: "PIM-SG-AZ-Online-Contributor", scope: "azure", persona: "Online landing zone", template: "GroupTier2", azure: { role: "Contributor", scope: "Online subscription" } },
   ],
+  // Small-business Azure groups: one or two subscriptions, no landing zone.
+  // Listed here so the baseline tenant carries them; only the small profile
+  // compares them (profiles[].groups picks).
+  groupsSmall: [
+    { name: "PIM-SG-AZ-Sub-Owner", scope: "azure", persona: "Subscription owner", template: "GroupTier1", azure: { role: "Owner", scope: "the subscription(s)" }, description: "Owner on the business's subscription(s); approval, four hours." },
+    { name: "PIM-SG-AZ-Sub-Contributor", scope: "azure", persona: "Subscription contributor", template: "GroupTier2", azure: { role: "Contributor", scope: "the subscription(s)" }, description: "Contributor on the subscription(s); eight hours, no approval." },
+  ],
+  // ---- PROFILES ------------------------------------------------------
+  // The same tiers, roles and names; a profile picks the groups a tenant of
+  // that size keeps, folds the others' roles into them (`merge`), and carries
+  // the few template settings that change with size. PimBaseline.profile()
+  // derives the catalog T48 compares against.
+  profiles: {
+    small: {
+      label: "Small business",
+      size: "25 to 250 people, two to six in IT",
+      description: "Four persona groups instead of seven; approval only on the Global Administrator group, where two admins can always give it; Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and 2 alert on critical events only; three Azure groups, made only when there is Azure. Two hours on Global Administrator.",
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-Ops", "PIM-SG-M365-SecOpsReader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"],
+      merge: { "PIM-SG-M365-Tier0": "PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Helpdesk": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps": "PIM-SG-M365-Ops" },
+      templates: {
+        Tier0: { ApprovalRequired: false, Approvers: [], description: "Two hours, justification, authentication context c1, alert on every activation — no approval: the gate is the GlobalAdmin group's." },
+        Tier1: { Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "Critical", Recipients: ["pim-alerts"] } },
+        GroupTier1: { ApprovalRequired: false, Approvers: [], description: "SecOps and the subscription Owner group: four hours, MFA and justification, no approval." },
+      },
+      roles: { "Global Administrator": { override: { ActivationDuration: "PT2H" }, note: "Two hours in the small profile: the GA does real work here, and the gate is c1 plus the group's approval, not the clock." } },
+      regions: false,
+      rmau: [],
+      intune: {
+        assignments: [
+          { name: "INT-RBAC-Ops-All", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-M365-Ops"], scope: "all users and devices", tags: [] },
+          { name: "INT-RBAC-HelpDesk-All", roles: ["Help Desk Operator"], members: ["PIM-SG-M365-Ops"], scope: "all users and devices", tags: [] },
+          { name: "INT-RBAC-SecOps-All", roles: ["Endpoint Security Manager"], members: ["PIM-SG-M365-SecOps"], scope: "all devices", tags: [] },
+          { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: [] },
+        ],
+        customRoles: [],
+        switches: ["Allow access to unlicensed admins"],
+      },
+    },
+    multi: {
+      label: "Large · multi-region",
+      size: "several regions, central IT plus local IT per region",
+      description: "The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, and the Intune scope groups, tag and role assignments. Every adm- account and every PIM-SG group sits in the restricted management unit AU-RM-Admins.",
+      groups: null,
+      merge: {},
+      templates: {},
+      roles: {},
+      regions: true,
+      rmau: [{ name: "AU-RM-Admins", restricted: true, holds: "every adm- account and every PIM-SG group; Tier 0 (PIM-SG-M365-Tier0) User Administrator on it so they can still be managed" }],
+      intune: {
+        assignments: [
+          { name: "INT-RBAC-PolicyProfile-Central", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-M365-Ops"], scope: "all users and devices", tags: ["default"] },
+          { name: "INT-RBAC-SecOps-Central", roles: ["Endpoint Security Manager"], members: ["PIM-SG-M365-SecOps"], scope: "all devices", tags: ["default"] },
+          { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: ["every"] },
+        ],
+        customRoles: ["INT-ROLE-Regional-Ops"],
+        switches: ["Allow access to unlicensed admins", "Scoped permissions (preview): run the Permissions Assessment Report first; the switch is one-way"],
+      },
+    },
+  },
+  // ---- REGIONS: the template, never the regions ------------------------
+  // <REG> is the row's code; <attribute>, <value>, <devicePrefix>,
+  // <autopilotTag>, <itLead> and <approvers> come from the same row.
+  regions: {
+    file: "regions.csv",
+    columns: ["code", "name", "attribute", "value", "devicePrefix", "autopilotTag", "itLead", "approvers", "timezone"],
+    required: ["code", "name"],
+    defaults: { attribute: "extensionAttribute1", value: "<code>", devicePrefix: "<last segment of code>-", autopilotTag: "<code>" },
+    example: [
+      "code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone",
+      "EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@contoso.nl,\"a@contoso.nl;b@contoso.nl\",Europe/Amsterdam",
+      "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"c@contoso.nl;d@contoso.nl\",Europe/Berlin",
+    ].join("\n"),
+    codePattern: "^[A-Z]{2,5}(-[A-Z0-9]{2,6}){1,2}$",
+    template: {
+      aus: [
+        { name: "AU-<REG>-Users", kind: "dynamic", type: "user", rule: "(user.<attribute> -eq \"<value>\")", note: "P1 per member; one object type per dynamic unit" },
+        { name: "AU-<REG>-Devices", kind: "dynamic", type: "device", rule: "(device.<attribute> -eq \"<value>\") -or (device.displayName -startsWith \"<devicePrefix>\")", note: "the naming prefix is the second rule for devices without the attribute" },
+        { name: "AU-<REG>-Groups", kind: "assigned", type: "group", note: "dynamic units cannot hold groups; the region adds its own" },
+      ],
+      groups: [
+        { name: "PIM-SG-<REG>-Helpdesk", persona: "Regional first line", template: "GroupTier2", roleAssignable: true, description: "Password, authentication, licence for the region's people — never for an admin." },
+        { name: "PIM-SG-<REG>-Ops", persona: "Regional second line", template: "GroupTier2", roleAssignable: true, description: "Users, groups and devices of the region; Intune through INT-ROLE-Regional-Ops." },
+        { name: "PIM-SG-<REG>-Approvers", persona: "Regional approvers", template: null, roleAssignable: false, members: "<approvers>", description: "Plain group: the regional IT lead and one central Ops; approves the region's Ops activations when the customer wants a gate." },
+      ],
+      // Eligible role assignments at AU scope — only roles Entra can scope
+      // to an administrative unit (Microsoft Learn, September 2026).
+      eligibilities: [
+        { role: "Helpdesk Administrator", group: "PIM-SG-<REG>-Helpdesk", au: "AU-<REG>-Users" },
+        { role: "Password Administrator", group: "PIM-SG-<REG>-Helpdesk", au: "AU-<REG>-Users" },
+        { role: "Authentication Administrator", group: "PIM-SG-<REG>-Helpdesk", au: "AU-<REG>-Users" },
+        { role: "License Administrator", group: "PIM-SG-<REG>-Helpdesk", au: "AU-<REG>-Users" },
+        { role: "User Administrator", group: "PIM-SG-<REG>-Ops", au: "AU-<REG>-Users" },
+        { role: "Groups Administrator", group: "PIM-SG-<REG>-Ops", au: "AU-<REG>-Groups" },
+        { role: "Teams Administrator", group: "PIM-SG-<REG>-Ops", au: "AU-<REG>-Groups" },
+        { role: "Cloud Device Administrator", group: "PIM-SG-<REG>-Ops", au: "AU-<REG>-Devices" },
+      ],
+      intune: {
+        tag: { name: "INT-TAG-<REG>", autoAssignFrom: "INT-SG-DEV-<REG>-All" },
+        groups: [
+          { name: "INT-SG-USR-<REG>-All", type: "user", rule: "(user.<attribute> -eq \"<value>\") -and (user.accountEnabled -eq true)" },
+          { name: "INT-SG-DEV-<REG>-All", type: "device", rule: "(device.enrollmentProfileName -startsWith \"<autopilotTag>\") -or (device.displayName -startsWith \"<devicePrefix>\")" },
+        ],
+        assignments: [
+          { name: "INT-RBAC-HelpDesk-<REG>", roles: ["Help Desk Operator"], members: ["PIM-SG-<REG>-Helpdesk"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
+          { name: "INT-RBAC-Ops-<REG>", roles: ["INT-ROLE-Regional-Ops"], members: ["PIM-SG-<REG>-Ops"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
+        ],
+        autopilot: { profile: "Autopilot · <REG>", naming: "<devicePrefix>%SERIAL%", groupTag: "<autopilotTag>" },
+      },
+      review: { name: "Access review · <REG>", scope: "PIM-SG-<REG>-Helpdesk, PIM-SG-<REG>-Ops", reviewer: "<itLead>", cadence: "yearly" },
+    },
+  },
+  // ---- INTUNE RBAC: the one custom role -------------------------------
+  // Policy and Profile Manager authors tenant-wide; a regional second line
+  // acts on its devices and assigns central policies to its groups, and
+  // cannot author. Resource actions as Intune names them
+  // (deviceManagement/resourceOperations); the script drops any the tenant
+  // does not know and says so.
+  intuneRoles: [
+    { name: "INT-ROLE-Regional-Ops", description: "CloudFellows PIM framework: regional second line. Act on the region's devices, assign central policies and apps to the region's groups; never author a policy, never touch roles, tags or tenant settings.",
+      allowed: [
+        "Microsoft.Intune_ManagedDevices_Read", "Microsoft.Intune_ManagedDevices_Update", "Microsoft.Intune_ManagedDevices_Delete", "Microsoft.Intune_ManagedDevices_SetPrimaryUser", "Microsoft.Intune_ManagedDevices_ViewReports",
+        "Microsoft.Intune_RemoteTasks_SyncDevice", "Microsoft.Intune_RemoteTasks_RebootNow", "Microsoft.Intune_RemoteTasks_SetDeviceName", "Microsoft.Intune_RemoteTasks_CollectDiagnostics", "Microsoft.Intune_RemoteTasks_Wipe", "Microsoft.Intune_RemoteTasks_Retire", "Microsoft.Intune_RemoteTasks_RotateBitLockerKeys", "Microsoft.Intune_RemoteTasks_RotateLocalAdminPassword", "Microsoft.Intune_RemoteTasks_RemoteLock", "Microsoft.Intune_RemoteTasks_LocateDevice", "Microsoft.Intune_RemoteTasks_EnableLostMode", "Microsoft.Intune_RemoteTasks_DisableLostMode",
+        "Microsoft.Intune_DeviceConfigurations_Read", "Microsoft.Intune_DeviceConfigurations_ViewReports", "Microsoft.Intune_DeviceConfigurations_Assign",
+        "Microsoft.Intune_DeviceCompliancePolices_Read", "Microsoft.Intune_DeviceCompliancePolices_ViewReports", "Microsoft.Intune_DeviceCompliancePolices_Assign",
+        "Microsoft.Intune_MobileApps_Read", "Microsoft.Intune_MobileApps_ViewReports", "Microsoft.Intune_MobileApps_Assign", "Microsoft.Intune_ManagedApps_Read",
+        "Microsoft.Intune_EnrollmentProgram_Read", "Microsoft.Intune_EnrollmentProgram_SyncDevice",
+        "Microsoft.Intune_AuditData_Read", "Microsoft.Intune_Organization_Read", "Microsoft.Intune_TermsAndConditions_Read",
+      ],
+      notAllowed: ["create, update or delete any policy, profile, app, script, filter, compliance or endpoint security policy", "roles, scope tags, role assignments", "tenant settings: enrollment restrictions, MDM authority, connectors"] },
+  ],
   // Never touched by a deploy, never counted as drift: the break-glass
   // accounts (permanent Global Administrator, by design — see 🔒 Protect
   // exclusions in Workspace 01) and the Global Administrator group itself.
@@ -261,7 +402,7 @@ const PIM_BASELINE = {
   // Help can say so, never compared.
   outside: [
     "Access reviews: every eligible assignment and every persona group reviewed yearly (1.3 asked for it on every row).",
-    "Defender XDR, Intune and Purview RBAC: the Ops and Helpdesk role settings from 1.3 are workload RBAC, not Entra PIM.",
+    "Intune RBAC is part of the framework (the profiles' assignments, the region template's tags and scope groups, INT-ROLE-Regional-Ops) and is created by the scripts; T53 reads it. Defender XDR and Purview RBAC stay outside on purpose.",
     "Azure RBAC: the PIM-SG-AZ-* groups are exported as GroupRoles policies; their Owner and Contributor assignments at subscription scope are Azure Resource Manager, not compared here yet.",
   ],
 };

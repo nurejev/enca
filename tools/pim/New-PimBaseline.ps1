@@ -75,10 +75,18 @@
   Run for real. Without it, -WhatIf.
 .PARAMETER SkipGroups
   Do not create groups; fail on a name that does not resolve.
+.PARAMETER SkipOrchestrator
+  Stop after the groups, the protected list and the resolved file — for the
+  baseline tenant, where the role settings are set in the PIM portal and
+  EasyPIM is not used (the catalog follows the portal). Needs no EasyPIM module.
 
 .EXAMPLE
   # the baseline tenant, first time: create the groups, see what EasyPIM would do
   .\New-PimBaseline.ps1 -ConfigFile .\pim-baseline.json -TenantId cloudfellows.dev
+
+.EXAMPLE
+  # the baseline tenant without EasyPIM: groups (every profile's), protected list, stop
+  .\New-PimBaseline.ps1 -ConfigFile .\pim-baseline.json -TenantId cloudfellows.dev -SkipOrchestrator
 
 .EXAMPLE
   # then, for real, only what the config names
@@ -108,6 +116,7 @@ param(
   [ValidateSet('delta', 'initial')][string]$Mode = 'delta',
   [switch]$Apply,
   [switch]$SkipGroups,
+  [switch]$SkipOrchestrator,
   [string]$OutFile
 )
 $ErrorActionPreference = 'Stop'
@@ -245,6 +254,11 @@ $obj | ConvertTo-Json -Depth 32 | Set-Content -Path $OutFile -Encoding UTF8
 Write-Ok "written $OutFile — $($obj.ProtectedUsers.Count) protected principals"
 
 # ---- 5. EasyPIM -------------------------------------------------------------
+if ($SkipOrchestrator) {
+  Write-Step "EasyPIM.Orchestrator skipped (-SkipOrchestrator)"
+  Write-Ok "groups and protected principals are done; set the role settings in the PIM portal per tier, or run tools/pim/New-PimRegions.ps1 for the regions. ENCA Workspace 02 → 🧬 PIM baseline → ⟳ Read again shows what still differs."
+  return
+}
 Write-Step "EasyPIM.Orchestrator"
 Import-Module EasyPIM, EasyPIM.Orchestrator -ErrorAction Stop
 $orch = @{ ConfigFilePath = $OutFile; TenantId = $tid; Mode = $Mode }

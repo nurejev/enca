@@ -1,0 +1,253 @@
+{
+  "_comment": "CloudFellows PIM framework 2.0 — the region TEMPLATE (never the regions): what tools/pim/New-PimRegions.ps1 instantiates per row of a regions.csv when the regions file is a CSV. ENCA T48 exports it; do not edit by hand.",
+  "profile": "multi",
+  "template": {
+    "aus": [
+      {
+        "name": "AU-<REG>-Users",
+        "kind": "dynamic",
+        "type": "user",
+        "rule": "(user.<attribute> -eq \"<value>\")",
+        "note": "P1 per member; one object type per dynamic unit"
+      },
+      {
+        "name": "AU-<REG>-Devices",
+        "kind": "dynamic",
+        "type": "device",
+        "rule": "(device.<attribute> -eq \"<value>\") -or (device.displayName -startsWith \"<devicePrefix>\")",
+        "note": "the naming prefix is the second rule for devices without the attribute"
+      },
+      {
+        "name": "AU-<REG>-Groups",
+        "kind": "assigned",
+        "type": "group",
+        "note": "dynamic units cannot hold groups; the region adds its own"
+      }
+    ],
+    "groups": [
+      {
+        "name": "PIM-SG-<REG>-Helpdesk",
+        "persona": "Regional first line",
+        "template": "GroupTier2",
+        "roleAssignable": true,
+        "description": "Password, authentication, licence for the region's people — never for an admin."
+      },
+      {
+        "name": "PIM-SG-<REG>-Ops",
+        "persona": "Regional second line",
+        "template": "GroupTier2",
+        "roleAssignable": true,
+        "description": "Users, groups and devices of the region; Intune through INT-ROLE-Regional-Ops."
+      },
+      {
+        "name": "PIM-SG-<REG>-Approvers",
+        "persona": "Regional approvers",
+        "template": null,
+        "roleAssignable": false,
+        "members": "<approvers>",
+        "description": "Plain group: the regional IT lead and one central Ops; approves the region's Ops activations when the customer wants a gate."
+      }
+    ],
+    "eligibilities": [
+      {
+        "role": "Helpdesk Administrator",
+        "group": "PIM-SG-<REG>-Helpdesk",
+        "au": "AU-<REG>-Users"
+      },
+      {
+        "role": "Password Administrator",
+        "group": "PIM-SG-<REG>-Helpdesk",
+        "au": "AU-<REG>-Users"
+      },
+      {
+        "role": "Authentication Administrator",
+        "group": "PIM-SG-<REG>-Helpdesk",
+        "au": "AU-<REG>-Users"
+      },
+      {
+        "role": "License Administrator",
+        "group": "PIM-SG-<REG>-Helpdesk",
+        "au": "AU-<REG>-Users"
+      },
+      {
+        "role": "User Administrator",
+        "group": "PIM-SG-<REG>-Ops",
+        "au": "AU-<REG>-Users"
+      },
+      {
+        "role": "Groups Administrator",
+        "group": "PIM-SG-<REG>-Ops",
+        "au": "AU-<REG>-Groups"
+      },
+      {
+        "role": "Teams Administrator",
+        "group": "PIM-SG-<REG>-Ops",
+        "au": "AU-<REG>-Groups"
+      },
+      {
+        "role": "Cloud Device Administrator",
+        "group": "PIM-SG-<REG>-Ops",
+        "au": "AU-<REG>-Devices"
+      }
+    ],
+    "intune": {
+      "tag": {
+        "name": "INT-TAG-<REG>",
+        "autoAssignFrom": "INT-SG-DEV-<REG>-All"
+      },
+      "groups": [
+        {
+          "name": "INT-SG-USR-<REG>-All",
+          "type": "user",
+          "rule": "(user.<attribute> -eq \"<value>\") -and (user.accountEnabled -eq true)"
+        },
+        {
+          "name": "INT-SG-DEV-<REG>-All",
+          "type": "device",
+          "rule": "(device.enrollmentProfileName -startsWith \"<autopilotTag>\") -or (device.displayName -startsWith \"<devicePrefix>\")"
+        }
+      ],
+      "assignments": [
+        {
+          "name": "INT-RBAC-HelpDesk-<REG>",
+          "roles": [
+            "Help Desk Operator"
+          ],
+          "members": [
+            "PIM-SG-<REG>-Helpdesk"
+          ],
+          "scopeGroups": [
+            "INT-SG-USR-<REG>-All",
+            "INT-SG-DEV-<REG>-All"
+          ],
+          "tags": [
+            "INT-TAG-<REG>"
+          ]
+        },
+        {
+          "name": "INT-RBAC-Ops-<REG>",
+          "roles": [
+            "INT-ROLE-Regional-Ops"
+          ],
+          "members": [
+            "PIM-SG-<REG>-Ops"
+          ],
+          "scopeGroups": [
+            "INT-SG-USR-<REG>-All",
+            "INT-SG-DEV-<REG>-All"
+          ],
+          "tags": [
+            "INT-TAG-<REG>"
+          ]
+        }
+      ],
+      "autopilot": {
+        "profile": "Autopilot · <REG>",
+        "naming": "<devicePrefix>%SERIAL%",
+        "groupTag": "<autopilotTag>"
+      }
+    },
+    "review": {
+      "name": "Access review · <REG>",
+      "scope": "PIM-SG-<REG>-Helpdesk, PIM-SG-<REG>-Ops",
+      "reviewer": "<itLead>",
+      "cadence": "yearly"
+    }
+  },
+  "central": {
+    "rmau": [
+      {
+        "name": "AU-RM-Admins",
+        "restricted": true,
+        "holds": "every adm- account and every PIM-SG group; Tier 0 (PIM-SG-M365-Tier0) User Administrator on it so they can still be managed"
+      }
+    ]
+  },
+  "groupTemplates": {
+    "GroupTier2": {
+      "description": "Helpdesk, Ops, AppOps, the readers and the Azure Contributor groups: eight hours, MFA and justification, no approval.",
+      "ActivationDuration": "PT8H",
+      "ActivationRequirement": "MultiFactorAuthentication,Justification",
+      "AuthenticationContext_Enabled": false,
+      "ApprovalRequired": false,
+      "Approvers": [],
+      "AllowPermanentEligibility": false,
+      "MaximumEligibilityDuration": "P365D",
+      "AllowPermanentActiveAssignment": false,
+      "MaximumActiveAssignmentDuration": "P30D",
+      "Notification_Activation_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "Critical",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_EligibleAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_ActiveAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      }
+    }
+  },
+  "intuneRoles": [
+    {
+      "name": "INT-ROLE-Regional-Ops",
+      "description": "CloudFellows PIM framework: regional second line. Act on the region's devices, assign central policies and apps to the region's groups; never author a policy, never touch roles, tags or tenant settings.",
+      "allowed": [
+        "Microsoft.Intune_ManagedDevices_Read",
+        "Microsoft.Intune_ManagedDevices_Update",
+        "Microsoft.Intune_ManagedDevices_Delete",
+        "Microsoft.Intune_ManagedDevices_SetPrimaryUser",
+        "Microsoft.Intune_ManagedDevices_ViewReports",
+        "Microsoft.Intune_RemoteTasks_SyncDevice",
+        "Microsoft.Intune_RemoteTasks_RebootNow",
+        "Microsoft.Intune_RemoteTasks_SetDeviceName",
+        "Microsoft.Intune_RemoteTasks_CollectDiagnostics",
+        "Microsoft.Intune_RemoteTasks_Wipe",
+        "Microsoft.Intune_RemoteTasks_Retire",
+        "Microsoft.Intune_RemoteTasks_RotateBitLockerKeys",
+        "Microsoft.Intune_RemoteTasks_RotateLocalAdminPassword",
+        "Microsoft.Intune_RemoteTasks_RemoteLock",
+        "Microsoft.Intune_RemoteTasks_LocateDevice",
+        "Microsoft.Intune_RemoteTasks_EnableLostMode",
+        "Microsoft.Intune_RemoteTasks_DisableLostMode",
+        "Microsoft.Intune_DeviceConfigurations_Read",
+        "Microsoft.Intune_DeviceConfigurations_ViewReports",
+        "Microsoft.Intune_DeviceConfigurations_Assign",
+        "Microsoft.Intune_DeviceCompliancePolices_Read",
+        "Microsoft.Intune_DeviceCompliancePolices_ViewReports",
+        "Microsoft.Intune_DeviceCompliancePolices_Assign",
+        "Microsoft.Intune_MobileApps_Read",
+        "Microsoft.Intune_MobileApps_ViewReports",
+        "Microsoft.Intune_MobileApps_Assign",
+        "Microsoft.Intune_ManagedApps_Read",
+        "Microsoft.Intune_EnrollmentProgram_Read",
+        "Microsoft.Intune_EnrollmentProgram_SyncDevice",
+        "Microsoft.Intune_AuditData_Read",
+        "Microsoft.Intune_Organization_Read",
+        "Microsoft.Intune_TermsAndConditions_Read"
+      ],
+      "notAllowed": [
+        "create, update or delete any policy, profile, app, script, filter, compliance or endpoint security policy",
+        "roles, scope tags, role assignments",
+        "tenant settings: enrollment restrictions, MDM authority, connectors"
+      ]
+    }
+  ],
+  "protected": {
+    "pattern": "^(BG-|BGA\\b|BreakGlass|Break-Glass|EmergencyAccess)",
+    "groups": [
+      "PIM-SG-M365-GlobalAdmin"
+    ],
+    "description": "Break-glass accounts and PIM-SG-M365-GlobalAdmin are ProtectedUsers in the EasyPIM config: a delta or initial run leaves them alone."
+  }
+}

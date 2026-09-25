@@ -22,21 +22,21 @@
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_EligibleAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_ActiveAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       }
     },
@@ -54,21 +54,21 @@
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_EligibleAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_ActiveAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       }
     },
@@ -86,21 +86,21 @@
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "Critical",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_EligibleAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_ActiveAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       }
     },
@@ -118,21 +118,21 @@
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "Critical",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_EligibleAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "Critical",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_ActiveAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       }
     },
@@ -156,21 +156,21 @@
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_EligibleAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_ActiveAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       }
     },
@@ -193,21 +193,21 @@
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_EligibleAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_ActiveAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       }
     },
@@ -225,21 +225,21 @@
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "Critical",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_EligibleAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       },
       "Notification_ActiveAssignment_Alert": {
         "isDefaultRecipientEnabled": "true",
         "notificationLevel": "All",
         "Recipients": [
-          "pim-alerts@cloudfellows.dev"
+          "pim-alerts@<tenant domain>"
         ]
       }
     }
@@ -465,16 +465,6 @@
         "Member": {
           "Template": "GroupTier2"
         }
-      },
-      "PIM-SG-AZ-Sub-Owner": {
-        "Member": {
-          "Template": "GroupTier1"
-        }
-      },
-      "PIM-SG-AZ-Sub-Contributor": {
-        "Member": {
-          "Template": "GroupTier2"
-        }
       }
     }
   },
@@ -544,18 +534,18 @@
         "roleName": "Exchange Administrator",
         "assignments": [
           {
-            "principalId": "<id of PIM-SG-M365-Ops>",
-            "principalType": "Group",
-            "assignmentType": "Eligible",
-            "duration": "P365D",
-            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Exchange Administrator"
-          },
-          {
             "principalId": "<id of PIM-SG-M365-AppOps>",
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
             "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-AppOps carries Exchange Administrator"
+          },
+          {
+            "principalId": "<id of PIM-SG-M365-Ops>",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Exchange Administrator"
           }
         ]
       },
@@ -563,18 +553,18 @@
         "roleName": "SharePoint Administrator",
         "assignments": [
           {
-            "principalId": "<id of PIM-SG-M365-Ops>",
-            "principalType": "Group",
-            "assignmentType": "Eligible",
-            "duration": "P365D",
-            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries SharePoint Administrator"
-          },
-          {
             "principalId": "<id of PIM-SG-M365-AppOps>",
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
             "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-AppOps carries SharePoint Administrator"
+          },
+          {
+            "principalId": "<id of PIM-SG-M365-Ops>",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries SharePoint Administrator"
           }
         ]
       },
@@ -642,18 +632,18 @@
         "roleName": "Power Platform Administrator",
         "assignments": [
           {
-            "principalId": "<id of PIM-SG-M365-Ops>",
-            "principalType": "Group",
-            "assignmentType": "Eligible",
-            "duration": "P365D",
-            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Power Platform Administrator"
-          },
-          {
             "principalId": "<id of PIM-SG-M365-AppOps>",
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
             "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-AppOps carries Power Platform Administrator"
+          },
+          {
+            "principalId": "<id of PIM-SG-M365-Ops>",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Power Platform Administrator"
           }
         ]
       },
@@ -833,18 +823,18 @@
         "roleName": "Office Apps Administrator",
         "assignments": [
           {
-            "principalId": "<id of PIM-SG-M365-Ops>",
-            "principalType": "Group",
-            "assignmentType": "Eligible",
-            "duration": "P365D",
-            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Office Apps Administrator"
-          },
-          {
             "principalId": "<id of PIM-SG-M365-AppOps>",
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
             "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-AppOps carries Office Apps Administrator"
+          },
+          {
+            "principalId": "<id of PIM-SG-M365-Ops>",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Office Apps Administrator"
           }
         ]
       },
@@ -852,18 +842,18 @@
         "roleName": "Guest Inviter",
         "assignments": [
           {
-            "principalId": "<id of PIM-SG-M365-Ops>",
-            "principalType": "Group",
-            "assignmentType": "Eligible",
-            "duration": "P365D",
-            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Guest Inviter"
-          },
-          {
             "principalId": "<id of PIM-SG-M365-AppOps>",
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
             "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-AppOps carries Guest Inviter"
+          },
+          {
+            "principalId": "<id of PIM-SG-M365-Ops>",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Guest Inviter"
           }
         ]
       },
@@ -931,6 +921,13 @@
         "roleName": "Message Center Reader",
         "assignments": [
           {
+            "principalId": "<id of PIM-SG-M365-AppOps>",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-AppOps carries Message Center Reader"
+          },
+          {
             "principalId": "<id of PIM-SG-M365-Helpdesk>",
             "principalType": "Group",
             "assignmentType": "Eligible",
@@ -943,13 +940,6 @@
             "assignmentType": "Eligible",
             "duration": "P365D",
             "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-Ops carries Message Center Reader"
-          },
-          {
-            "principalId": "<id of PIM-SG-M365-AppOps>",
-            "principalType": "Group",
-            "assignmentType": "Eligible",
-            "duration": "P365D",
-            "justification": "CloudFellows PIM framework 2.0: PIM-SG-M365-AppOps carries Message Center Reader"
           },
           {
             "principalId": "<id of PIM-SG-M365-SecOps>",
