@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32412, date: "2026-09-25", title: "🧬 PIM baseline — the names start with the solution: PIM-SG-",
+    items: [
+      { kind: "improved", tool: "PIM baseline", text: "The framework's naming convention is solution first: PIM-SG-M365-Ops, PIM-SG-AZ-Platform-Owner, PIM-SG-Approvers — the way AU-… names an administrative unit and INT-… an Intune object. The catalog, the demo, the exports, the Help and the script all say PIM-SG- now; the first cut of 2.0 said SG-PIM-. New-PimBaseline.ps1 renames groups that still carry the old prefix in place before it does anything else (-RenameLegacyPrefix, default SG-PIM-; same object, same members, same role-assignability), so cloudfellows.dev's 21 groups follow the convention on the next run." },
+    ],
+  },
+  {
     build: 32411, date: "2026-09-25", title: "🔑 Passkeys counts Phishing-resistant MFA + TAP as requiring a passkey",
     items: [
       { kind: "fixed", tool: "Checks", text: "A policy granting Phishing-resistant MFA + TAP — the usual strength for admins — now counts as requiring a passkey. It was left out because a Temporary Access Pass is not phishing-resistant, so the tab said no policy requires a passkey. A TAP is issued per person and expires: it gets someone in to register their first passkey, it does not replace it. The findings say a TAP is accepted, and a new note appears when the strength accepts a TAP but the Temporary Access Pass method is off." },

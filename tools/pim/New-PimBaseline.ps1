@@ -6,14 +6,14 @@
 .DESCRIPTION
   ENCA's 🧬 PIM baseline (T48, Workspace 02) writes the framework, or the delta
   for one tenant, as an EasyPIM.Orchestrator config with NAMES where EasyPIM
-  needs object ids: "<id of SG-PIM-M365-Ops>", "<id of SG-PIM-Approvers>".
+  needs object ids: "<id of PIM-SG-M365-Ops>", "<id of PIM-SG-Approvers>".
   This script turns that file into a runnable one and runs it:
 
     1. Connects to Microsoft Graph (delegated) and, unless -SkipGroups, makes
-       sure every SG-PIM group the config names exists: the persona and Azure
+       sure every PIM-SG group the config names exists: the persona and Azure
        groups as ROLE-ASSIGNABLE security groups (isAssignableToRole cannot be
        switched on later — a group made without it is recreated under another
-       name by you, never by this script), SG-PIM-Approvers as a plain group.
+       name by you, never by this script), PIM-SG-Approvers as a plain group.
     2. Resolves every "<id of …>" to the object id, and adds to ProtectedUsers
        the break-glass accounts (display name or UPN matching
        -BreakGlassPattern) and — unless -ProtectGlobalAdmins:$false — every
@@ -60,6 +60,10 @@
   tenant's default domain.
 .PARAMETER BreakGlassPattern
   Regex over display name and UPN naming the break-glass accounts.
+.PARAMETER RenameLegacyPrefix
+  Groups whose name starts with this prefix are renamed to PIM-SG-… before
+  anything else (default SG-PIM-, the prefix the first cut of 2.0 used; the
+  convention is solution first). Pass '' to skip.
 .PARAMETER ProtectGlobalAdmins
   Also protect the users holding Global Administrator as a standing assignment
   (default on). Pass -ProtectGlobalAdmins:$false to protect the break-glass
@@ -100,6 +104,7 @@ param(
   [string]$Domain,
   [string]$BreakGlassPattern = '^(BG-|BGA\b|BreakGlass|Break-Glass|EmergencyAccess)',
   [bool]$ProtectGlobalAdmins = $true,
+  [string]$RenameLegacyPrefix = 'SG-PIM-',
   [ValidateSet('delta', 'initial')][string]$Mode = 'delta',
   [switch]$Apply,
   [switch]$SkipGroups,
@@ -134,8 +139,8 @@ if ($cfg.PolicyTemplates) {
   }
 }
 $approverNames = $approverNames | Sort-Object -Unique
-$wantedGroups = @($placeholders + $groupKeys | Where-Object { $_ -match '^SG-PIM-' } | Sort-Object -Unique)
-Write-Ok "$($placeholders.Count) names to resolve, $($wantedGroups.Count) SG-PIM groups wanted, approvers: $($approverNames -join ', ')"
+$wantedGroups = @($placeholders + $groupKeys | Where-Object { $_ -match '^PIM-SG-' } | Sort-Object -Unique)
+Write-Ok "$($placeholders.Count) names to resolve, $($wantedGroups.Count) PIM-SG groups wanted, approvers: $($approverNames -join ', ')"
 
 # ---- 1. Graph ---------------------------------------------------------------
 Write-Step "Connecting to Microsoft Graph for $TenantId"
@@ -147,6 +152,20 @@ $tid = $org.Id
 if (-not $Domain) { $Domain = ($org.VerifiedDomains | Where-Object { $_.IsDefault } | Select-Object -First 1).Name }
 Write-Ok "Tenant $($org.DisplayName) ($tid), mail domain $Domain"
 
+# ---- 1b. the old prefix ------------------------------------------------------
+# Framework 2.0 shipped one day as SG-PIM-*; the naming convention is solution
+# first — PIM-SG-*, AU-*, INT-* — so groups made under the old prefix are
+# renamed in place (same object, same members, same role-assignability).
+if ($RenameLegacyPrefix) {
+  Write-Step "Renaming groups from $RenameLegacyPrefix to PIM-SG-"
+  $legacy = Get-MgGroup -Filter "startswith(displayName,'$RenameLegacyPrefix')" -Property Id, DisplayName -All -ConsistencyLevel eventual -CountVariable c
+  foreach ($g in @($legacy)) {
+    $new = $g.DisplayName -replace ('^' + [regex]::Escape($RenameLegacyPrefix)), 'PIM-SG-'
+    if ($PSCmdlet.ShouldProcess($g.DisplayName, "Rename to $new")) { Update-MgGroup -GroupId $g.Id -DisplayName $new; Write-Ok "$($g.DisplayName) → $new" }
+  }
+  if (-not $legacy) { Write-Ok "no group carries $RenameLegacyPrefix" }
+}
+
 # ---- 2. groups --------------------------------------------------------------
 $ids = @{}
 function Resolve-GroupId([string]$name) {
@@ -157,10 +176,10 @@ function Resolve-GroupId([string]$name) {
 Write-Step "Groups"
 foreach ($name in ($wantedGroups + $approverNames | Sort-Object -Unique)) {
   $g = Resolve-GroupId $name
-  $roleAssignable = $name -match '^SG-PIM-(M365|AZ)-'
+  $roleAssignable = $name -match '^PIM-SG-(M365|AZ)-'
   if ($g) {
     if ($roleAssignable -and -not $g.IsAssignableToRole) {
-      Write-Warn2 "$name exists but is NOT role-assignable. isAssignableToRole cannot be switched on afterwards: create SG-PIM-…-v2 by hand or rename this one away and rerun. Resolving to it anyway so WhatIf shows the rest."
+      Write-Warn2 "$name exists but is NOT role-assignable. isAssignableToRole cannot be switched on afterwards: create PIM-SG-…-v2 by hand or rename this one away and rerun. Resolving to it anyway so WhatIf shows the rest."
     }
     $ids[$name] = $g.Id; Write-Ok "$name → $($g.Id)$(if ($g.IsAssignableToRole) { ' (role-assignable)' })"
     continue

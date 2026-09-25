@@ -644,8 +644,8 @@ DEMO_DATA.pim = (() => {
     { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule", id: "Notification_Admin_Admin_Assignment", notificationType: "Email", recipientType: "Admin", notificationLevel: s.alertActive || "All", isDefaultRecipientsEnabled: true, notificationRecipients: s.recipients || [] },
     { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule", id: "Notification_Admin_EndUser_Assignment", notificationType: "Email", recipientType: "Admin", notificationLevel: s.alertActivation || "All", isDefaultRecipientsEnabled: true, notificationRecipients: s.recipients || [] },
   ];
-  const G = { approvers: "g-SG-PIM-Approvers", ga: "g-SG-PIM-M365-GlobalAdmin", t0: "g-SG-PIM-M365-Tier0", sec: "g-SG-PIM-M365-SecOps", ops: "g-SG-PIM-M365-Ops", hd: "g-SG-PIM-M365-Helpdesk", legacy: "g-CAB-SEC-U-Admins-Legacy", bg: "g-CAB-SEC-U-BreakGlass" };
-  const names = { [G.approvers]: "SG-PIM-Approvers", [G.ga]: "SG-PIM-M365-GlobalAdmin", [G.t0]: "SG-PIM-M365-Tier0", [G.sec]: "SG-PIM-M365-SecOps", [G.ops]: "SG-PIM-M365-Ops", [G.hd]: "SG-PIM-M365-Helpdesk", [G.legacy]: "CAB-SEC-U-Admins-Legacy", "u-bg1": "BG-Admin-01", "u-bg2": "BG-Admin-02", "u-joey": "Joey Bakker", "u-anna": "Anna de Vries", "u-mihai": "Mihai Monte" };
+  const G = { approvers: "g-PIM-SG-Approvers", ga: "g-PIM-SG-M365-GlobalAdmin", t0: "g-PIM-SG-M365-Tier0", sec: "g-PIM-SG-M365-SecOps", ops: "g-PIM-SG-M365-Ops", hd: "g-PIM-SG-M365-Helpdesk", legacy: "g-CAB-SEC-U-Admins-Legacy", bg: "g-CAB-SEC-U-BreakGlass" };
+  const names = { [G.approvers]: "PIM-SG-Approvers", [G.ga]: "PIM-SG-M365-GlobalAdmin", [G.t0]: "PIM-SG-M365-Tier0", [G.sec]: "PIM-SG-M365-SecOps", [G.ops]: "PIM-SG-M365-Ops", [G.hd]: "PIM-SG-M365-Helpdesk", [G.legacy]: "CAB-SEC-U-Admins-Legacy", "u-bg1": "BG-Admin-01", "u-bg2": "BG-Admin-02", "u-joey": "Joey Bakker", "u-anna": "Anna de Vries", "u-mihai": "Mihai Monte" };
   const roles = ["Global Administrator", "Privileged Role Administrator", "Privileged Authentication Administrator", "Conditional Access Administrator", "Security Administrator", "Exchange Administrator", "SharePoint Administrator", "Teams Administrator", "Intune Administrator", "Application Administrator", "Cloud Application Administrator", "Application Developer", "Power Platform Administrator", "Authentication Administrator", "Authentication Policy Administrator", "User Administrator", "Groups Administrator", "License Administrator", "Password Administrator", "Cloud Device Administrator", "Microsoft Entra Joined Device Local Administrator", "Hybrid Identity Administrator", "Directory Writers", "Identity Governance Administrator", "Lifecycle Workflows Administrator", "Service Support Administrator", "Edge Administrator", "Office Apps Administrator", "Guest Inviter", "Compliance Administrator", "Compliance Data Administrator", "Cloud App Security Administrator", "Security Operator", "Helpdesk Administrator", "Message Center Reader", "Global Reader", "Security Reader", "Directory Readers", "Billing Administrator", "Attribute Definition Administrator"];
   const roleDefinitions = roles.map((n, i) => ({ id: `rd-${i + 1}`, displayName: n, isBuiltIn: true, isPrivileged: i < 24 }));
   // Entra's tenant default for every role, then the ones this tenant set.
@@ -691,15 +691,15 @@ DEMO_DATA.pim = (() => {
     inst("Intune Administrator", "u-joey", "User", "2026-09-24T18:00:00Z", "Activated"),
   ];
   const groups = [
-    { id: G.ga, displayName: "SG-PIM-M365-GlobalAdmin", isAssignableToRole: true }, { id: G.t0, displayName: "SG-PIM-M365-Tier0", isAssignableToRole: true }, { id: G.sec, displayName: "SG-PIM-M365-SecOps", isAssignableToRole: true }, { id: G.ops, displayName: "SG-PIM-M365-Ops", isAssignableToRole: true }, { id: G.hd, displayName: "SG-PIM-M365-Helpdesk", isAssignableToRole: false },
+    { id: G.ga, displayName: "PIM-SG-M365-GlobalAdmin", isAssignableToRole: true }, { id: G.t0, displayName: "PIM-SG-M365-Tier0", isAssignableToRole: true }, { id: G.sec, displayName: "PIM-SG-M365-SecOps", isAssignableToRole: true }, { id: G.ops, displayName: "PIM-SG-M365-Ops", isAssignableToRole: true }, { id: G.hd, displayName: "PIM-SG-M365-Helpdesk", isAssignableToRole: false },
     { id: G.legacy, displayName: "CAB-SEC-U-Admins-Legacy", isAssignableToRole: true },
   ];
   const groupPolicies = {
-    "SG-PIM-M365-GlobalAdmin": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
-    "SG-PIM-M365-Tier0": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
-    "SG-PIM-M365-SecOps": rules(right({ activation: "PT4H", approval: false })),
-    "SG-PIM-M365-Ops": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
-    "SG-PIM-M365-Helpdesk": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
+    "PIM-SG-M365-GlobalAdmin": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
+    "PIM-SG-M365-Tier0": rules(right({ activation: "PT2H", enablement: ["Justification"], ctx: "c1", approval: true, approvers: [G.approvers] })),
+    "PIM-SG-M365-SecOps": rules(right({ activation: "PT4H", approval: false })),
+    "PIM-SG-M365-Ops": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
+    "PIM-SG-M365-Helpdesk": rules(right({ activation: "PT8H", alertActivation: "Critical" })),
   };
   return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names };
 })();
