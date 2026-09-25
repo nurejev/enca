@@ -14,9 +14,14 @@
        groups as ROLE-ASSIGNABLE security groups (isAssignableToRole cannot be
        switched on later — a group made without it is recreated under another
        name by you, never by this script), SG-PIM-Approvers as a plain group.
-    2. Resolves every "<id of …>" to the object id, and adds the break-glass
-       accounts (display name or UPN matching -BreakGlassPattern) to
-       ProtectedUsers, so no run ever touches them.
+    2. Resolves every "<id of …>" to the object id, and adds to ProtectedUsers
+       the break-glass accounts (display name or UPN matching
+       -BreakGlassPattern) and — unless -ProtectGlobalAdmins:$false — every
+       USER who holds Global Administrator as a standing assignment right now
+       (permanent or time-bound active, not an activation, not through a
+       group). In the baseline tenant that is the account you build with: no
+       run, initial included, ever touches it. Each one is printed; read the
+       list.
     3. Rewrites the alert recipients' domain to -Domain when given.
     4. Writes the resolved config next to the input (…resolved.json).
     5. Runs Invoke-EasyPIMOrchestrator with -WhatIf. Only with -Apply does it
@@ -55,6 +60,11 @@
   tenant's default domain.
 .PARAMETER BreakGlassPattern
   Regex over display name and UPN naming the break-glass accounts.
+.PARAMETER ProtectGlobalAdmins
+  Also protect the users holding Global Administrator as a standing assignment
+  (default on). Pass -ProtectGlobalAdmins:$false to protect the break-glass
+  accounts only — for a customer tenant where the standing Global
+  Administrators are exactly what the framework should remove.
 .PARAMETER Mode
   delta (default) or initial — see IMPACT.
 .PARAMETER Apply
@@ -89,6 +99,7 @@ param(
   [Parameter(Mandatory = $true)][string]$TenantId,
   [string]$Domain,
   [string]$BreakGlassPattern = '^(BG-|BreakGlass|Break-Glass|EmergencyAccess)',
+  [bool]$ProtectGlobalAdmins = $true,
   [ValidateSet('delta', 'initial')][string]$Mode = 'delta',
   [switch]$Apply,
   [switch]$SkipGroups,
@@ -122,7 +133,7 @@ Write-Ok "$($placeholders.Count) names to resolve, $($wantedGroups.Count) SG-PIM
 
 # ---- 1. Graph ---------------------------------------------------------------
 Write-Step "Connecting to Microsoft Graph for $TenantId"
-Import-Module Microsoft.Graph.Groups, Microsoft.Graph.Users, Microsoft.Graph.Identity.DirectoryManagement -ErrorAction Stop
+Import-Module Microsoft.Graph.Groups, Microsoft.Graph.Users, Microsoft.Graph.Identity.DirectoryManagement, Microsoft.Graph.Identity.Governance -ErrorAction Stop
 $scopes = @('Group.ReadWrite.All', 'User.Read.All', 'Directory.Read.All', 'RoleManagement.ReadWrite.Directory', 'RoleManagementPolicy.ReadWrite.Directory', 'RoleManagementPolicy.ReadWrite.AzureADGroup', 'PrivilegedAccess.ReadWrite.AzureADGroup')
 Connect-MgGraph -TenantId $TenantId -Scopes $scopes -NoWelcome
 $org = Get-MgOrganization
@@ -166,6 +177,28 @@ $bg = Get-MgUser -All -Property Id, DisplayName, UserPrincipalName | Where-Objec
 $protected = @()
 foreach ($u in $bg) { $protected += $u.Id; Write-Ok "protected: $($u.DisplayName) ($($u.UserPrincipalName))" }
 if (-not $bg) { Write-Warn2 "no account matched — check the pattern; a run in initial mode would otherwise not spare the emergency accounts" }
+
+# ---- 3b. standing Global Administrators → ProtectedUsers --------------------
+# The account that builds the baseline tenant holds Global Administrator as a
+# standing assignment; the framework says nobody should, and an initial run
+# would act on that. Protect every such USER now (the Global Administrator
+# group is protected by name already; an activation is not standing).
+if ($ProtectGlobalAdmins) {
+  Write-Step "Users holding Global Administrator as a standing assignment"
+  $gaTemplate = '62e90394-69f5-4237-9190-012177145e10'
+  $standing = Get-MgRoleManagementDirectoryRoleAssignmentScheduleInstance -All -Filter "roleDefinitionId eq '$gaTemplate' and assignmentType eq 'Assigned'" -ExpandProperty principal
+  $added = 0
+  foreach ($a in @($standing)) {
+    $pr = $a.Principal
+    if (-not $pr -or $pr.AdditionalProperties['@odata.type'] -ne '#microsoft.graph.user') { continue }
+    if ($protected -notcontains $a.PrincipalId) { $protected += $a.PrincipalId; $added++ }
+    $until = if ($a.EndDateTime) { "until $($a.EndDateTime.ToString('yyyy-MM-dd'))" } else { 'permanent' }
+    Write-Ok "protected: $($pr.AdditionalProperties['displayName']) ($($pr.AdditionalProperties['userPrincipalName'])) — standing Global Administrator, $until"
+  }
+  if (-not $added) { Write-Warn2 "no user holds Global Administrator as a standing assignment (only through a group, or activated) — nothing added" }
+  $me = (Get-MgContext).Account
+  if ($me -and -not ($standing | Where-Object { $_.Principal.AdditionalProperties['userPrincipalName'] -eq $me })) { Write-Warn2 "the signed-in account ($me) is not a standing Global Administrator, so it is not on the list; an initial run would treat its eligibilities like anyone else's" }
+}
 
 # ---- 4. rewrite the file ----------------------------------------------------
 Write-Step "Resolving names"

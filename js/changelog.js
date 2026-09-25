@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32409, date: "2026-09-25", title: "🧬 PIM baseline — the account that builds the baseline tenant is protected",
+    items: [
+      { kind: "improved", tool: "PIM baseline", text: "tools/pim/New-PimBaseline.ps1 now also puts every user who holds Global Administrator as a standing assignment (permanent or time-bound active, not an activation, not through a group) on the ProtectedUsers list, beside the break-glass accounts — in cloudfellows.dev that is the account you build with, so no orchestrator run, initial included, ever touches it. Each protected account is printed; -ProtectGlobalAdmins:$false keeps a customer tenant's standing Global Administrators out of the list when they are exactly what the framework should remove." },
+    ],
+  },
+  {
     build: 32408, date: "2026-09-24", title: "🧬 PIM baseline — the CloudFellows PIM framework against this tenant",
     items: [
       { kind: "new", tool: "PIM baseline", text: "Workspace 02's first tool, T48. The reference is a tenant: the CloudFellows PIM framework is created and tested in cloudfellows.dev and its snapshot is the catalog — release 2.0, the Dovilo PIM framework v1.3 with SG-PIM names (SG-PIM-M365-Ops, SG-PIM-M365-SecOps, SG-PIM-AZ-Platform-Owner …), four tiers of PIM settings instead of a row per role, authentication context c1 on Tier 0 instead of require Conditional Access, Privileged Role and Privileged Authentication Administrator moved to Tier 0, eligibility that expires after a year. Press Read this tenant's PIM and every role's settings — activation duration, what activation asks for, authentication context, approval and approvers, permanent limits, alerts — are matched against it, with the tenant's value → the framework's on each row." },
