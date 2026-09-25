@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32411, date: "2026-09-25", title: "🔑 Passkeys counts Phishing-resistant MFA + TAP as requiring a passkey",
+    items: [
+      { kind: "fixed", tool: "Checks", text: "A policy granting Phishing-resistant MFA + TAP — the usual strength for admins — now counts as requiring a passkey. It was left out because a Temporary Access Pass is not phishing-resistant, so the tab said no policy requires a passkey. A TAP is issued per person and expires: it gets someone in to register their first passkey, it does not replace it. The findings say a TAP is accepted, and a new note appears when the strength accepts a TAP but the Temporary Access Pass method is off." },
+      { kind: "improved", tool: "Checks", text: "A requiring policy whose target resources are None applies to no sign-in. It is now listed with its own note instead of being counted, so the tab no longer reports gaps — or coverage — for a policy that asks nothing of anyone." },
+    ],
+  },
+  {
     build: 32410, date: "2026-09-25", title: "🧬 PIM baseline — first run on cloudfellows.dev",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "New-PimBaseline.ps1 stopped at Resolving names with Cannot resolve <id of …> on its first run in cloudfellows.dev, after creating all 21 SG-PIM groups: the config's own comment line mentions the phrase <id of …> and the scan took the ellipsis for a name. The notes are dropped before the scan and before the resolved file is written, and a placeholder must start with a letter or digit. Rerun the same command; the groups now resolve instead of being created again." },

@@ -21834,7 +21834,7 @@ This is a directory write. Nothing else changes.`)) return;
   // state, targets, self-service, passkey profiles — as ONE v1.0 PATCH, after
   // a diff and an impact list, with the settings as read kept per tenant in
   // this browser so ↩ Restore can put them back.
-  const PK_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which policies require a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them — and whether the Passkey (FIDO2) authentication method lets the same people register and use one: enabled, targeted, not excluded, self-service on, and a passkey profile that lets through a key the strength accepts. ✎ Configure changes the method, with the diff and what it does to people shown before Save.</p>';
+  const PK_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which policies require a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them (a Temporary Access Pass beside them still counts) — and whether the Passkey (FIDO2) authentication method lets the same people register and use one: enabled, targeted, not excluded, self-service on, and a passkey profile that lets through a key the strength accepts. ✎ Configure changes the method, with the diff and what it does to people shown before Save.</p>';
   const pkRestoreKey = () => `enca.pkRestore:${(signinContext && signinContext.tenantId) || (isDemo ? "demo" : "")}`;
   function pkSnapshot() { try { return JSON.parse(localStorage.getItem(pkRestoreKey()) || "null"); } catch { return null; } }
   function pkRebuild() {

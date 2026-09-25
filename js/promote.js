@@ -117,6 +117,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 300,
+      title: "🔑 Passkeys 0.1.1 — Phishing-resistant MFA + TAP counts as requiring a passkey; a policy with target resources None is listed, not counted",
+      tools: ["Checks"],
+      builds: [32411],
+      risk: "low",
+      what: "js/passkeys.js: requirement() accepts temporaryAccessPassOneTime / MultiUse beside the phishing-resistant three (TAP set), marks tap and keeps it out of alternatives; inert when includeApplications is None and there is no user action or authentication context — analyze() skips counting it and adds an inert info finding; a tapoff info finding when the strength accepts a TAP the tenant has disabled; the altNote says a TAP is accepted; COMBO_LABEL names the two TAP combinations. tools/passkeys.test.cjs: two tests. index.html Help and the tab head say how a TAP and None are read.",
+      why: "Mihai, 25 Sep, screenshots on cloudfellows.dev: DEVCF P001 Require MFA for admins grants Phishing-resistant MFA + TAP, and 🔑 Passkeys said No policy requires a passkey. Low: a read-only judgement; Configure is unchanged.",
+      test: [
+        "cloudfellows.dev, 🛡 Checks → 🔑 Passkeys → ⟳ Refresh: DEVCF P001 is in Policies that require a passkey, its strength line lists Temporary Access Pass, and No policy requires a passkey is gone.",
+        "P001's target resources are None today: it shows applies to no sign-in in the table and the Requires a passkey, but applies to no sign-in note; no Required, but not targeted finding is raised for it. Set its resources to All resources (on a test copy): the coverage findings for DEVCF-Persona-Admins appear and count people.",
+        "A policy with Phishing-resistant MFA (no TAP) on the same group behaves as before; a strength with password + SMS beside the passkey is still not listed.",
+        "With the Temporary Access Pass method disabled, a requiring policy whose strength accepts a TAP shows the The strength accepts a Temporary Access Pass, but the method is off note.",
+      ],
+      files: ["js/passkeys.js", "tools/passkeys.test.cjs", "index.html", "js/app.js", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
+    {
       n: 299,
       title: "🧬 PIM baseline — T48, Workspace 02: the CloudFellows PIM framework (SG-PIM, 2.0) against this tenant's PIM, setting by setting; delta and baseline config as EasyPIM.Orchestrator JSON (R68)",
       tools: ["PIM baseline"],

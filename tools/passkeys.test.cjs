@@ -236,3 +236,29 @@ test("render and export do not throw and escape names", () => {
   const n = PK.analyze({ fido2: null, error: "403" }, []);
   assert.ok(PK.render(n, {}).includes("could not be read"));
 });
+
+test("Phishing-resistant MFA + TAP still requires a passkey; TAP is not listed as a way around it", () => {
+  const PRTAP = { id: "s-prtap", displayName: "Phishing-resistant MFA + TAP", allowedCombinations: ["windowsHelloForBusiness", "fido2", "x509CertificateMultiFactor", "temporaryAccessPassOneTime", "temporaryAccessPassMultiUse"] };
+  const S = new Map([[PRTAP.id, PRTAP]]);
+  const r = PK.requirement(pol("P001", { includeGroups: [G_ADM] }, PRTAP), S);
+  assert.ok(r, "required");
+  assert.ok(r.tap);
+  assert.deepStrictEqual(r.alternatives.sort(), ["windowshelloforbusiness", "x509certificatemultifactor"]);
+  const TAPONLY = { id: "t", allowedCombinations: ["fido2", "temporaryAccessPassOneTime", "password,sms"] };
+  assert.strictEqual(PK.requirement(pol("x", {}, TAPONLY), new Map([["t", TAPONLY]])), null, "a weaker combination still makes it optional");
+  const f = fido({ includeTargets: [{ targetType: "group", id: G_PIL, allowedPasskeyProfiles: [PK.DEFAULT_PROFILE] }] });
+  const m = PK.analyze({ fido2: f, strengths: [PRTAP], members, names: {} }, [pol("P001", { includeGroups: [G_ADM] }, PRTAP)]);
+  const x = m.findings.find((y) => y.key === "uncovered:P001");
+  assert.ok(x); assert.match(x.text, /Temporary Access Pass is accepted too/);
+  assert.ok(!m.findings.some((y) => y.key === "none"));
+});
+
+test("a requiring policy whose target resources are None is listed, never counted", () => {
+  const p = pol("P001", { includeGroups: [G_ADM] }, PR);
+  p.conditions.applications = { includeApplications: ["None"] };
+  const f = fido({ includeTargets: [{ targetType: "group", id: G_PIL, allowedPasskeyProfiles: [PK.DEFAULT_PROFILE] }] });
+  const m = run(f, [p]);
+  assert.ok(m.findings.some((y) => y.key === "inert:P001" && y.sev === "info"));
+  assert.ok(!m.findings.some((y) => y.key.startsWith("uncovered") || y.key === "none" || y.key === "ok"));
+  assert.match(PK.render(m, {}), /applies to no sign-in/);
+});
