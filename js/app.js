@@ -181,7 +181,7 @@
   // the site entirely — and after an MSAL popup sign-in the previous entry may
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
-  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline",
+  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
@@ -2878,6 +2878,7 @@
     ["toolBaseline", "🧬 Baseline"],
     ["toolPimBaseline", "🧬 PIM baseline"],
     ["toolIntuneRbac", "📱 Intune RBAC"],
+    ["toolPimRoles", "🎖 Roles & assignments"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
@@ -21524,7 +21525,7 @@ This is a directory write. Nothing else changes.`)) return;
     pmbInt = null; pmbIntErr = null; pmbIntBusy = false; pmbIntRes = null;
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
-    try { prlReset(); } catch { /* defined further down; nothing to reset yet */ }
+    try { prlReset(); prrReset(); } catch { /* defined further down; nothing to reset yet */ }
   }
   const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">This tenant's Privileged Identity Management against the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b>, authored in <b>cloudfellows.dev</b>, in the profile you pick: Small business, Large · one region, or Large · multi-region. The model: people are <b>active members</b> of persona groups for at most a year, each group is <b>eligible</b> for its roles, and a person activates the role under the role's own tier; Intune roles go to access groups whose members are eligible. Setting by setting, and every group as a model matched by id — present once, role-assignable, carrying exactly its roles at tenant scope. <b>Members are never compared.</b> Nothing that could not be read is shown as a match. Read-only: <b>⬇ Delta config</b> and <b>⬇ Baseline config</b> download the framework's config for tools/pim/New-PimBaseline.ps1 (or EasyPIM), <b>🗺 Regions</b> the regions file for New-PimRegions.ps1, and <b>📄 EasyPIM samples</b> a commented config per scenario to copy and edit.</p>`;
   const PMB_INT_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">Intune has no administrative units and no PIM of its own, so the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> draws the same boundaries with Intune's objects: <b>role assignments</b> whose members are the PIM-SG-INT-* access groups (eligible members — activating the group is the gate; a persona group never sits in one), <b>scope groups</b> for who and what an assignment reaches, <b>scope tags</b> for what an admin sees, and one <b>custom role</b>, INT-ROLE-Regional-Ops. Central assignments come from the profile, regional ones from the regions file (🗺 Regions). Read-only through Microsoft Graph (DeviceManagementRBAC.Read.All, consented once); 🚀 Deploy applies what is missing. Defender XDR and Purview RBAC stay outside.</p>`;
@@ -21618,7 +21619,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   // 📱 T53 — the pane and the read.
   function pmbPaintIntune() {
-    if (pmbIntBusy) { $("pmbBody").innerHTML = pmbProg.panel("Reading Intune RBAC — roles, assignments, scope tags, operations…"); return; }
+    if (pmbIntBusy || pmbBusy) { $("pmbBody").innerHTML = pmbProg.panel(pmbBusy ? "Reading the tenant's PIM first — roles, assignments, groups, units…" : "Reading Intune RBAC — roles, assignments, scope tags, operations…"); return; }
     if (!pmbIntRes) {
       $("pmbBody").innerHTML = `${pmbIntErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(pmbIntErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-pmbintrun>▶ Read Intune RBAC</button>
         <p class="mini muted">Reads Intune's role definitions (with the custom role's permissions), role assignments (members, scope groups, scope tags), scope tags and their automatic assignments, and the permission list Intune knows — DeviceManagementRBAC.Read.All, read-only, consented once. ${pmbRaw ? "" : "The tenant's PIM is read first (the groups the assignments name). "}The signed-in account needs an Intune role that can read RBAC (Intune Administrator, Global Reader, Read Only Operator). Profile <b>${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b>${pmbRegionsOn() ? `; regions from the regions file (${pmbRegRows ? pmbRegRows.length : "none loaded yet"})` : ""}.</p></div>`;
@@ -21629,6 +21630,8 @@ This is a directory write. Nothing else changes.`)) return;
   }
   async function runIntuneRbac() {
     if (pmbIntBusy) return;
+    // A PIM read already running (another tool started it) is waited for.
+    for (let i = 0; pmbBusy && i < 600; i++) await new Promise((r) => setTimeout(r, 250));
     if (!pmbRaw) { await runPimBaseline(); if (!pmbRaw) return; }
     const run = pmbRun, session = pmbSessionKey();
     pmbIntBusy = true; pmbIntErr = null; pmbProg.begin();
@@ -22075,7 +22078,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function prlWire() {
     const host = $("ruBody").querySelector("[data-prlplanhost]");
-    if (host && prl.planShown && prlPlanObj) pimPlanWire(host, prlPlanObj, { title: "🛡 Restricted AUs · PIM lens", onDone: () => { setTimeout(async () => { pmbRaw = null; pmbRes = null; prl.members = null; ruList = null; await openRmauTool(true); prlRead(); }, 1500); } });
+    if (host && prl.planShown && prlPlanObj) pimPlanWire(host, prlPlanObj, { title: "🛡 Restricted AUs · PIM lens", onDone: () => { setTimeout(async () => { pmbRaw = null; pmbRes = null; prl.members = null; ruList = null; if ($("screen-rmau").classList.contains("active")) { await openRmauTool(true); prlRead(); } }, 1500); } });
   }
   $("ruBody").addEventListener("click", (e) => {
     if (!prlOn()) return;
@@ -22090,6 +22093,129 @@ This is a directory write. Nothing else changes.`)) return;
     const p = e.target.closest("[data-prlprofile]");
     if (p) { pmbProfileId = p.value; try { localStorage.setItem("enca.pmbProfile", pmbProfileId); } catch { /* storage off */ } pmbSel = null; pmbRegSel = null; pmbRebuild(); prl.sel = null; prl.planShown = false; renderRmau(); }
   });
+
+  // ======================================================================
+  // 🎖 Roles & assignments (T49, beta 32424, R71) — js/pimroles.js models;
+  // this block reads. Reads: role definitions, eligibility and assignment
+  // schedule instances with the principal expanded (RoleManagement.Read.
+  // Directory), the administrative units (their names for a scoped row), the
+  // members of every group that holds a role — PIM for Groups instances,
+  // active and eligible (PrivilegedAssignmentSchedule / PrivilegedEligibility
+  // Schedule .Read.AzureADGroup), falling back to the group's plain members —
+  // and the last 200 activations. A group whose members could not be read is
+  // said, never counted as empty.
+  // ======================================================================
+  let prr = { raw: null, model: null, err: null, busy: false, tab: "roles", filter: "all", q: "", open: new Set(), run: 0 };
+  const prrProg = makeProgress("prr"); prrProg.by = "🎖 Roles & assignments"; prrProg.stoppable = true;
+  const PRR_READ = [...PIM_READ, "AdministrativeUnit.Read.All", "PrivilegedAssignmentSchedule.Read.AzureADGroup", "PrivilegedEligibilitySchedule.Read.AzureADGroup"];
+  const PRR_HEAD = `<p class="mini" style="margin:6px 0 0">Every Entra role anybody holds in this tenant, and per assignment: <b>who</b> (a person, a group, an app), <b>how</b> (eligible · active, permanent or until a date · activated right now), <b>where</b> (tenant-wide or one administrative unit) and <b>until when</b>. A group that holds a role is opened up: its active and eligible members are rows <b>through</b> it. The tier is the CloudFellows PIM framework's; a role the framework does not list has none. Read-only.</p>`;
+  function prrReset() { prr = { raw: null, model: null, err: null, busy: false, tab: prr.tab, filter: "all", q: "", open: new Set(), run: prr.run + 1 }; }
+  function openPimRoles() {
+    crumb("🎖 Roles & assignments");
+    show("screen-pimroles");
+    $("prrHead").innerHTML = toolHead("toolPimRoles") + PRR_HEAD;
+    if (prr.raw) prrRebuild();   // the profile may have changed in 🧬 PIM baseline
+    prrPaint();
+  }
+  function prrPaint() {
+    const m = prr.model;
+    const tabs = [["roles", `🏛 Roles${m ? ` (${m.counts.roles})` : ""}`], ["people", `👤 Who holds what${m ? ` (${m.people.length})` : ""}`], ["scoped", `📍 Scoped${m ? ` (${m.counts.scoped})` : ""}`], ["expiring", `⏳ Ending soon${m ? ` (${m.counts.expiring})` : ""}`]];
+    const filters = prr.tab === "roles" ? [["all", "All"], ["tier0", "Tier 0"], ["permanent", "Permanent active"], ["activated", "Activated now"], ["findings", `Findings${m ? ` (${m.roles.filter((r) => r.findings.length).length})` : ""}`]] : [];
+    $("prrChips").innerHTML = tabs.map(([k, l]) => `<button class="fchip${prr.tab === k ? " active" : ""}" data-prrtab="${k}">${esc(l)}</button>`).join("") + (filters.length ? `<span class="chip-sep"></span>` + filters.map(([k, l]) => `<button class="fchip${prr.filter === k ? " active" : ""}" data-prrf="${k}">${esc(l)}</button>`).join("") : "");
+    $("prrCsv").style.display = m ? "" : "none"; $("prrMd").style.display = m ? "" : "none";
+    $("prrRefresh").textContent = m ? "⟳ Read again" : "▶ Read who holds what"; $("prrRefresh").disabled = prr.busy;
+    if (prr.busy) { $("prrBody").innerHTML = prrProg.panel("Reading roles, assignments and the members of every group that holds one…"); return; }
+    if (!m) { $("prrBody").innerHTML = `${prr.err ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(prr.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-prrrun>▶ Read who holds what</button><p class="mini muted">Reads the role definitions, every eligible and active assignment (principal and scope), the administrative units, the members of each group that holds a role (PIM for Groups, active and eligible) and the last activations — RoleManagement.Read.Directory, AdministrativeUnit.Read.All, PrivilegedAssignmentSchedule.Read.AzureADGroup and PrivilegedEligibilitySchedule.Read.AzureADGroup, read-only, consented once. Nothing is written.</p></div>`; return; }
+    $("prrBody").innerHTML = `<p class="mini pmb-read">${m.demo ? "Demo data · " : ""}Read ${esc(new Date(m.readAt).toLocaleString())} · tiers from ${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}, profile ${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</p>` + PimRoles.render(m, { tab: prr.tab, filter: prr.filter, q: prr.q, open: prr.open });
+  }
+  function prrRebuild() { prr.model = prr.raw ? PimRoles.model(pmbCat(), prr.raw) : null; }
+  async function runPimRoles() {
+    if (prr.busy) return;
+    const run = ++prr.run, session = pmbSessionKey();
+    prr.busy = true; prr.err = null; prrProg.begin();
+    if ($("screen-pimroles").classList.contains("active")) prrPaint();
+    let raw = null, err = null;
+    try {
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 300));
+        const d = DEMO_DATA.pim;
+        const defId = new Map(d.roleDefinitions.map((r) => [r.displayName, r.id]));
+        const principal = (i) => ({ "@odata.type": `#microsoft.graph.${i.principalType === "Group" ? "group" : i.principalType === "ServicePrincipal" ? "servicePrincipal" : "user"}`, displayName: i.principalName });
+        const conv = (i) => ({ roleDefinitionId: defId.get(i.roleName), principalId: i.principalId, principal: principal(i), directoryScopeId: i.directoryScopeId || "/", endDateTime: i.endDateTime, assignmentType: i.assignmentType });
+        raw = { roles: d.roleDefinitions, eligible: d.eligible.map(conv), active: d.active.map(conv), aus: d.aus, groupMembers: d.groupMembers, activations: d.activations.map((a) => Object.assign({ roleDefinitionId: defId.get(a.roleName) }, a)), readAt: Date.now(), demo: true };
+      } else {
+        const sc = [...AUTH_CONFIG.scopes, ...PRR_READ];
+        if (!await preConsent(sc)) throw new Error("the read permissions were not granted");
+        const roles = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleDefinitions?$select=id,displayName,isBuiltIn,templateId,isPrivileged", 0, "roles");
+        prrProg.detail("eligible assignments");
+        const eligible = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleEligibilityScheduleInstances?$expand=principal", 0, "eligibilities");
+        prrProg.detail("active assignments");
+        const active = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleAssignmentScheduleInstances?$expand=principal", 0, "assignments");
+        let aus = null;
+        try { aus = await prrProg.fetchAll("/v1.0/directory/administrativeUnits?$select=id,displayName", 0, "units"); } catch (e) { if (e && e.stopped) throw e; aus = null; }
+        prrProg.check();
+        const isGroup = (i) => /group/i.test(String((i.principal && i.principal["@odata.type"]) || ""));
+        const gids = [...new Set([...eligible, ...active].filter(isGroup).map((i) => i.principalId))];
+        const groupMembers = {};
+        if (gids.length) {
+          prrProg.detail(`members of ${gids.length} group${gids.length === 1 ? "" : "s"}`);
+          const reqs = [];
+          gids.forEach((g, i) => {
+            reqs.push({ id: `a${i}`, url: `/identityGovernance/privilegedAccess/group/assignmentScheduleInstances?$filter=groupId eq '${g}' and accessId eq 'member'` });
+            reqs.push({ id: `e${i}`, url: `/identityGovernance/privilegedAccess/group/eligibilityScheduleInstances?$filter=groupId eq '${g}' and accessId eq 'member'` });
+            reqs.push({ id: `m${i}`, url: `/groups/${g}/members?$select=id,displayName,userPrincipalName&$top=999` });
+          });
+          const res = await Graph.gbatch(reqs, null, { base: "https://graph.microsoft.com/v1.0", scopes: sc, signal: prrProg.signal });
+          const nameIds = new Set();
+          gids.forEach((g, i) => {
+            const A = res[`a${i}`], E = res[`e${i}`], M = res[`m${i}`];
+            const plain = M && M.body && Array.isArray(M.body.value) ? M.body.value : null;
+            const nm = new Map((plain || []).map((x) => [x.id, x]));
+            const toM = (x) => { const p = nm.get(x.principalId); if (!p) nameIds.add(x.principalId); return { principalId: x.principalId, displayName: p ? p.displayName : null, userPrincipalName: p ? p.userPrincipalName : "", type: p && /group/i.test(p["@odata.type"] || "") ? "Group" : "User", endDateTime: x.endDateTime || null }; };
+            if (A && A.body && Array.isArray(A.body.value) && E && E.body && Array.isArray(E.body.value)) groupMembers[g] = { read: true, active: A.body.value.map(toM), eligible: E.body.value.map(toM) };
+            else if (plain) groupMembers[g] = { read: true, active: plain.map((p) => ({ principalId: p.id, displayName: p.displayName, userPrincipalName: p.userPrincipalName, type: /group/i.test(p["@odata.type"] || "") ? "Group" : "User" })), eligible: [], plainOnly: true };
+            else groupMembers[g] = { read: false };
+          });
+          // Eligible members are not in /members: their names in one read.
+          const ids = [...nameIds];
+          for (let k = 0; k < ids.length; k += 1000) {
+            try {
+              const r = await Graph.gpost("/v1.0/directoryObjects/getByIds", { ids: ids.slice(k, k + 1000), types: ["user", "group", "servicePrincipal"] }, sc);
+              const byId = new Map(((r && r.value) || []).map((o) => [o.id, o]));
+              Object.values(groupMembers).forEach((gm) => [...(gm.active || []), ...(gm.eligible || [])].forEach((m) => { const o = byId.get(m.principalId); if (o && !m.displayName) { m.displayName = o.displayName; m.userPrincipalName = o.userPrincipalName || ""; } }));
+            } catch { /* ids stay ids */ }
+          }
+        }
+        prrProg.detail("activations");
+        let activations = null;
+        try {
+          const acts = await Graph.gget("/v1.0/roleManagement/directory/roleAssignmentScheduleRequests?$filter=action eq 'selfActivate'&$expand=principal&$top=200", sc);
+          activations = ((acts && acts.value) || []).map((a) => ({ principalId: a.principalId, principalName: a.principal && (a.principal.displayName || a.principal.userPrincipalName), roleDefinitionId: a.roleDefinitionId, createdDateTime: a.createdDateTime, status: a.status, justification: a.justification }));
+        } catch (e) { activations = null; }
+        raw = { roles, eligible, active, aus, groupMembers, activations, readAt: Date.now(), demo: false };
+      }
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      err = e && e.stopped ? "stopped — nothing is shown for a partial read" : /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "") ? "access denied: the signed-in account needs Global Reader, Security Reader, Privileged Role Administrator or a similar role, and the tenant must have consented to the PIM read permissions" : String(m || "").replace(/\s*·\s*inner:.*$/, "");
+    } finally { if (run === prr.run) { prr.busy = false; prrProg.stop(); } }
+    if (run !== prr.run || session !== pmbSessionKey()) return;
+    if (err) { prr.err = err; prr.raw = null; } else prr.raw = raw;
+    prrRebuild();
+    if ($("screen-pimroles").classList.contains("active")) prrPaint();
+    if (prr.model) toast(`Roles & assignments <span>${prr.model.counts.roles} roles · ${prr.model.counts.people} people</span>`);
+  }
+  $("toolPimRoles").addEventListener("click", () => openPimRoles());
+  $("prrRefresh").addEventListener("click", () => runPimRoles());
+  $("prrChips").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-prrtab]"); if (t) { prr.tab = t.dataset.prrtab; if (prr.tab !== "roles") prr.filter = "all"; prrPaint(); return; }
+    const f = e.target.closest("[data-prrf]"); if (f) { prr.filter = f.dataset.prrf; prrPaint(); }
+  });
+  $("prrFind").addEventListener("input", () => { prr.q = $("prrFind").value; if (prr.model) prrPaint(); });
+  $("prrBody").addEventListener("click", (e) => { if (e.target.closest("[data-prrrun]")) runPimRoles(); });
+  // An opened role stays open across a repaint (the toggle event does not bubble).
+  $("prrBody").addEventListener("toggle", (e) => { const d = e.target; if (d && d.dataset && d.dataset.prrole) { if (d.open) prr.open.add(d.dataset.prrole); else prr.open.delete(d.dataset.prrole); } }, true);
+  $("prrCsv").addEventListener("click", () => { if (prr.model) downloadText("pim-roles", "csv", "text/csv", PimRoles.toCsv(prr.model) + "\n"); });
+  $("prrMd").addEventListener("click", () => { if (prr.model) showReport("🎖 Roles & assignments", `ENCA-pim-roles-${new Date().toISOString().slice(0, 10)}`, PimRoles.toMd(prr.model, tenantName)); });
 
   function isRebuild() {
     if (!isRaw) { isModel = null; return; }

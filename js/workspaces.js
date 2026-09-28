@@ -32,6 +32,7 @@
     toolSmsVoice: 'Assess the impact of SMS and voice retirement.',
     toolMemberOf: 'Find memberOf rules and their dependent services.',
     toolPimBaseline: 'Match this tenant’s PIM role settings and PIM groups against the CloudFellows PIM framework.',
+    toolPimRoles: 'Who holds which Entra role — eligible, active, activated, scoped, expiring — people through groups included.',
     toolIntuneRbac: 'Intune role assignments, scope tags, scope groups and the regional custom role against the framework.',
     toolChangelog: 'Read the release history.',
     toolRoadmap: 'See what is planned and what has shipped.',
@@ -45,7 +46,7 @@
   // "PIM lens" (a PIM-only catalogue, tab strip and Help text for it) is on
   // the roadmap, and the card says so rather than promising it.
   const WS_KEY = 'enca.workspace';
-  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac']);
+  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac', 'toolPimRoles']);
   const PIM_ROSTER = [
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
       { id: 'toolPimBaseline', blurb: blurbs.toolPimBaseline },
@@ -53,6 +54,7 @@
       { id: 'toolGapCheck', blurb: 'The MS Learn checks already cover privileged roles and break-glass; a PIM-only catalogue is on the roadmap.', lens: true },
     ] },
     { group: '👁 See what is privileged', tools: [
+      { id: 'toolPimRoles', blurb: blurbs.toolPimRoles },
       { id: 'toolCaGroups', blurb: 'Role-assignable groups, their members and the roles they carry — the PIM groups of the framework.', lens: true },
       { id: 'toolGroupUse', blurb: 'Pick a user or group: its directory roles and PIM eligibilities, and where else it is used.', lens: true },
       { id: 'toolSignins', blurb: 'Sign-in failures — including the MFA and authentication-context failures at activation time.', lens: true },
@@ -75,7 +77,7 @@
       lead: 'Who can become what, under which rules, and whether this tenant still matches the CloudFellows PIM framework. Reads only — every write keeps the confirmation steps of the tool that makes it.',
       // Same work order: see it (Baseline), the groups that carry it, who
       // holds it, what is wrong with it, then what to protect and what changed.
-      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Restricted AUs'],['toolAudit','🕓','Changes']] },
+      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Restricted AUs'],['toolAudit','🕓','Changes']] },
   };
   let ws = 'ca';
   const recent = [];

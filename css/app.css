@@ -2956,3 +2956,30 @@ tr.pmb-row.pmb-missing td{background:color-mix(in srgb,var(--bad-bg) 35%,transpa
 .pmb-steps code,.pmb-sample code{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--soft2);border:1px solid var(--border);border-radius:4px;padding:0 4px;overflow-wrap:anywhere}
 @media (max-width:1100px){.pmb-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:720px){.pmb-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---- Workspace 02 writes and the PIM tools (32422–) ---- */
+.xt-pill.pmb-info{background:var(--blue-bg);color:var(--blue)}
+.pim-lens h4{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pim-lens h4 .pmb-profile{font-weight:400;letter-spacing:0;text-transform:none}
+.pim-plan{margin-top:12px}
+.pim-kv{display:grid;grid-template-columns:130px minmax(0,1fr);gap:6px 12px;margin:10px 0;font-size:12.5px}
+.pim-kv dt{color:var(--muted);font-weight:600}
+.pim-kv dd{margin:0;overflow-wrap:anywhere}
+.pim-confirm{border:1px dashed var(--off);border-radius:8px;padding:10px 12px;margin-top:10px;display:grid;gap:6px}
+.pim-confirm input[type=text]{border:1px solid var(--border);border-radius:6px;padding:6px 9px;font:inherit;background:var(--surface);color:var(--ink);min-width:0;width:min(280px,100%)}
+details.pr-role{border-top:1px solid var(--line);padding:8px 2px}
+details.pr-role>summary{cursor:pointer;line-height:1.6}
+details.pr-role>summary b{margin-right:4px}
+details.pr-role[open]>summary{margin-bottom:6px}
+.pim-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);margin:0 0 12px}
+.pim-steps button{border:0;border-right:1px solid var(--border);background:transparent;padding:9px 12px;text-align:left;display:flex;gap:8px;align-items:center;color:var(--muted);font:inherit;cursor:pointer}
+.pim-steps button:last-child{border-right:0}
+.pim-steps button b{width:21px;height:21px;border-radius:50%;border:1px solid var(--border);display:grid;place-items:center;font-size:11px;flex-shrink:0}
+.pim-steps button[aria-current="step"]{background:var(--soft2);color:var(--ink);font-weight:600}
+.pim-steps button[aria-current="step"] b{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.pim-steps button.done b{background:var(--ok-bg);color:var(--on);border-color:var(--ok-bg)}
+.pim-steps button[disabled]{cursor:default;opacity:.6}
+.pim-pick{display:grid;gap:6px}
+.pim-pick label{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 11px;border:1px solid var(--line);border-radius:7px;background:var(--soft2);cursor:pointer}
+.pim-pick label small{display:block;color:var(--muted);font-size:11px}
+@media (max-width:760px){.pim-steps{grid-template-columns:1fr 1fr}.pim-kv{grid-template-columns:1fr}}

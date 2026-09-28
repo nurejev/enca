@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32423"></script>
+<script src="js/popup-guard.js?v=32424"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32423" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32423">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32424" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32424">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32423"></script>
+<script src="js/selfhost-boot.js?v=32424"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32423"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32423"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32423">
-<link rel="stylesheet" href="css/workspaces.css?v=32423">
-<link rel="stylesheet" href="css/tool-layout.css?v=32423">
-<link rel="stylesheet" href="css/list-detail.css?v=32423">
-<link rel="stylesheet" href="css/flat-icons.css?v=32423">
+<script src="js/counter.js?v=32424"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32424"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32424">
+<link rel="stylesheet" href="css/workspaces.css?v=32424">
+<link rel="stylesheet" href="css/tool-layout.css?v=32424">
+<link rel="stylesheet" href="css/list-detail.css?v=32424">
+<link rel="stylesheet" href="css/flat-icons.css?v=32424">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32423" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32424" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32423" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32424" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -290,6 +290,10 @@
       <div class="tool tool-tile" id="toolPimBaseline">
         <div class="tool-ic">🧬</div><h3>PIM baseline <span class="tag new">BETA</span></h3>
         <p><b>Workspace 02.</b> Match this tenant's Privileged Identity Management against the <b>CloudFellows PIM framework 2.1</b>, authored in the cloudfellows.dev tenant, <b>in a profile</b> — Small business, Large · one region or Large · multi-region: every role's PIM settings, the PIM-SG persona groups (active members, eligible for their roles), the Intune access groups (eligible members) and their membership policies — members never — and, from your <b>regions.csv</b>, each region's units, groups, scoped eligibilities and Intune scopes. <b>⬇ Delta config</b> and <b>📄 EasyPIM samples</b> write EasyPIM.Orchestrator files; the tools/pim scripts plan and apply them through Connect-Customer. <b>Read-only.</b></p>
+      </div>
+      <div class="tool tool-tile" id="toolPimRoles">
+        <div class="tool-ic">🎖</div><h3>Roles &amp; assignments <span class="tag new">BETA</span></h3>
+        <p><b>Workspace 02.</b> Who holds what: every Entra role anybody holds, and per assignment who (a person, a group, an app), how (eligible, active and permanent, active until a date, activated right now), where (tenant-wide or one administrative unit) and until when. Groups are opened up — their active and eligible members become rows <b>through the group</b> — so "who can become Global Administrator" is answered in people. Tier from the framework, last activation, what ends within 30 days, and findings: permanent active outside the framework, people eligible directly instead of through a PIM-SG group, eligibility that never expires. <b>Read-only.</b></p>
       </div>
       <div class="tool tool-tile" id="toolIntuneRbac">
         <div class="tool-ic">📱</div><h3>Intune RBAC <span class="tag new">BETA</span></h3>
@@ -1452,7 +1456,10 @@
   <section id="screen-pimbaseline" class="screen tool">
     <div class="list-card readme" id="pmbHead"></div>
     <div class="toolbar" id="pmbToolbar">
-      <input class="search" id="pmbFind" type="search" placeholder="Find a role, group, persona or region…" autocomplete="off" spellcheck="false">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="pmbFind" type="search" placeholder="Find a role, group, persona or region…" autocomplete="off" spellcheck="false">
+      </div>
       <label class="pmb-profile tb-scope" title="The size the framework is applied at: the groups kept, the roles folded into them, the settings that change with size"><span>Profile</span><select id="pmbProfile"></select></label>
       <div class="chip-filter" id="pmbChips"></div>
       <span id="pmbTenantNote"></span>
@@ -1465,6 +1472,23 @@
       </div>
     </div>
     <div class="tool-body" id="pmbBody"></div>
+  </section>
+  <!-- ============ 🎖 ROLES & ASSIGNMENTS (T49, build 32424, R71) — Workspace 02, who holds what ============ -->
+  <section id="screen-pimroles" class="screen tool">
+    <div class="list-card readme" id="prrHead"></div>
+    <div class="toolbar" id="prrToolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="prrFind" type="search" placeholder="Find a role, person, group or unit…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="chip-filter" id="prrChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="prrCsv" style="display:none">⬇ CSV</button>
+        <button class="btn" id="prrMd" style="display:none">Export MD</button>
+        <button class="btn primary" id="prrRefresh">▶ Read who holds what</button>
+      </div>
+    </div>
+    <div class="tool-body" id="prrBody"></div>
   </section>
   <section id="screen-idscore" class="screen tool">
     <div class="list-card readme" id="isHead"></div>
@@ -1592,6 +1616,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R71</span> <a href="#" class="md-tool" data-tool="toolPimRoles">🎖 Roles &amp; assignments — who holds what</a> <span class="tag ok">in beta today · beta 32424</span></h4>
+            <p class="mini" style="margin:0">Every Entra role anybody holds, per assignment who, how (eligible, active, activated now), where (tenant or a unit) and until when — groups opened up into the people behind them. Framework tiers, last activation, what ends soon, and the findings: permanent active outside the framework, people eligible directly, eligibility that never ends. Read-only.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R70</span> <a href="#" class="md-tool" data-tool="toolIntuneRbac">📱 Intune RBAC — the framework's Intune side</a> <span class="tag ok">in beta today · beta 32423</span></h4>
             <p class="mini" style="margin:0">Intune has no administrative units and no PIM, so the framework uses Intune's own objects: role assignments held by the PIM-SG-INT access groups, scope groups, scope tags with their automatic assignment and one custom role. Read and matched per profile and per region; the verdicts fill 🗺 Regions' Intune rows. Read-only; 🚀 Deploy applies the gap.</p>
@@ -2466,6 +2494,19 @@
         <li><b>Keys</b> — <b>↑ ↓</b> move, <b>Enter</b> opens, <b>Esc</b> closes, <b>Ctrl/⌘ + K</b> again closes. Clicking outside closes it too.</li>
       </ul>
       <p class="help-x">Navigation only — it opens things, it never changes anything.</p>
+    </section>
+
+    <section class="help-sec">
+      <h4>🎖 Roles &amp; assignments <span class="tag new">BETA</span></h4>
+      <p><b>Workspace 02, T49.</b> Who holds which Entra role in this tenant — read, never changed.</p>
+      <ul>
+        <li><b>🏛 Roles</b> — every role anybody holds, with its tier from the CloudFellows PIM framework (by template id, in the profile 🧬 PIM baseline uses), the counts (eligible, active and how many of those permanent, activated right now, scoped to a unit, people) and the last activation. Open a role for every assignment: who, how it is held, scope and until when. Filters: Tier 0, Permanent active, Activated now, Findings.</li>
+        <li><b>Through groups</b> — a group that holds a role is opened up. Its members come from PIM for Groups: an <b>active member</b> of a group that is eligible for a role is eligible for that role; an <b>eligible member</b> is only eligible, whatever the group holds. When PIM for Groups cannot be read the group's plain members are used (active only); when neither can, the note says so and nobody is counted for it.</li>
+        <li><b>Findings</b> — a permanent active assignment where the tier does not allow one (break-glass accounts, by the framework's pattern or their ids, are not counted); people eligible directly instead of through a PIM-SG group; an eligibility with no end date where the tier caps it at a year.</li>
+        <li><b>👤 Who holds what</b> — each person once, with every role and how; <b>📍 Scoped</b> — every assignment at an administrative unit, by the unit's name; <b>⏳ Ending soon</b> — what ends within 30 days, and eligibilities with no end the tier does not allow.</li>
+        <li><b>⬇ CSV</b> — one line per assignment, people through groups included; <b>Export MD</b> — the per-role table.</li>
+      </ul>
+      <p class="help-x">Read-only — RoleManagement.Read.Directory, AdministrativeUnit.Read.All, PrivilegedAssignmentSchedule.Read.AzureADGroup and PrivilegedEligibilitySchedule.Read.AzureADGroup, consented once. The signed-in account needs a role that can read PIM (Global Reader, Security Reader, Privileged Role Administrator). Azure RBAC comes to this tool as its own tab.</p>
     </section>
 
     <section class="help-sec">
@@ -3718,103 +3759,104 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32423"></script>
-<script src="js/selfhost.js?v=32423"></script>
-<script src="js/version.js?v=32423"></script>
-<script src="js/verdict.js?v=32423"></script>
-<script src="js/fork.js?v=32423"></script>
-<script src="js/promote.js?v=32423"></script>
-<script src="js/authConfig.js?v=32423"></script>
-<script src="js/connection.js?v=32423"></script>
-<script src="js/labels.js?v=32423"></script>
-<script src="js/capabilities.js?v=32423"></script>
-<script src="js/graph.js?v=32423"></script>
-<script src="js/model.js?v=32423"></script>
-<script src="js/render.js?v=32423"></script>
-<script src="js/analyze.js?v=32423"></script>
-<script src="js/whatif.js?v=32423"></script>
-<script src="js/mslearn.js?v=32423"></script>
-<script src="js/learntriage.js?v=32423"></script>
-<script src="js/learnfeed.js?v=32423"></script>
-<script src="js/gapcheck.js?v=32423"></script>
-<script src="js/cisdata.js?v=32423"></script>
-<script src="js/cischeck.js?v=32423"></script>
-<script src="js/exclusions.js?v=32423"></script>
-<script src="js/cascope.js?v=32423"></script>
-<script src="js/coverage.js?v=32423"></script>
-<script src="js/runmeta.js?v=32423"></script>
-<script src="js/overview.js?v=32423"></script>
-<script src="js/validator.js?v=32423"></script>
-<script src="js/whatifeval.js?v=32423"></script>
-<script src="js/builder.js?v=32423"></script>
-<script src="js/onboard.js?v=32423"></script>
-<script src="js/compare.js?v=32423"></script>
-<script src="js/whois.js?v=32423"></script>
-<script src="js/wave.js?v=32423"></script>
-<script src="js/sessionctl.js?v=32423"></script>
-<script src="js/spgap.js?v=32423"></script>
-<script src="js/groupuse.js?v=32423"></script>
-<script src="js/iso3166.js?v=32423"></script>
-<script src="js/causes.js?v=32423"></script>
-<script src="js/locations.js?v=32423"></script>
-<script src="js/locsignin.js?v=32423"></script>
-<script src="js/workloadid.js?v=32423"></script>
-<script src="js/authcontexts.js?v=32423"></script>
-<script src="js/authstrengths.js?v=32423"></script>
-<script src="js/recycle.js?v=32423"></script>
-<script src="js/rmau.js?v=32423"></script>
-<script src="js/camap.js?v=32423"></script>
-<script src="js/rmaudoc.js?v=32423"></script>
-<script src="js/termsofuse.js?v=32423"></script>
-<script src="js/audit.js?v=32423"></script>
-<script src="js/drift.js?v=32423"></script>
-<script src="js/guide.js?v=32423"></script>
-<script src="js/userimpact.js?v=32423"></script>
-<script src="js/smsvoice.js?v=32423"></script>
-<script src="js/memberof.js?v=32423"></script>
-<script src="js/devcheck.js?v=32423"></script>
-<script src="js/idscore.js?v=32423"></script>
-<script src="js/xtenant.js?v=32423"></script>
-<script src="js/passkeys.js?v=32423"></script>
-<script src="js/tokencov.js?v=32423"></script>
-<script src="js/naming.js?v=32423"></script>
-<script src="js/licgap.js?v=32423"></script>
-<script src="js/teamsdev.js?v=32423"></script>
-<script src="js/signinstore.js?v=32423"></script>
-<script src="js/signins.js?v=32423"></script>
-<script src="js/reportimpact.js?v=32423"></script>
-<script src="js/changelog.js?v=32423"></script>
-<script src="js/baselineData.js?v=32423"></script>
-<script src="js/baselineJoeyData.js?v=32423"></script>
-<script src="js/baselineLive.js?v=32423"></script>
-<script src="js/pimBaselineData.js?v=32423"></script>
-<script src="js/pimbaseline.js?v=32423"></script>
-<script src="js/pimplan.js?v=32423"></script>
-<script src="js/pimrmau.js?v=32423"></script>
-<script src="js/intunerbac.js?v=32423"></script>
-<script src="js/baseline.js?v=32423"></script>
-<script src="js/baselineCleanup.js?v=32423"></script>
-<script src="js/groupTemplates.js?v=32423"></script>
-<script src="js/assign.js?v=32423"></script>
-<script src="js/cagroups.js?v=32423"></script>
-<script src="js/groupmerge.js?v=32423"></script>
-<script src="js/groupsview.js?v=32423"></script>
-<script src="js/runledger.js?v=32423"></script>
-<script src="js/bgvault.js?v=32423"></script>
-<script src="js/protect.js?v=32423"></script>
-<script src="js/policy-compare.js?v=32423"></script>
-<script src="js/import.js?v=32423"></script>
-<script src="js/export.js?v=32423"></script>
-<script src="js/demo.js?v=32423"></script>
-<script src="js/list-detail.js?v=32423"></script>
-<script src="js/flat-icons.js?v=32423"></script>
-<script src="js/workspace.js?v=32423"></script>
-<script src="js/analysis-jobs.js?v=32423"></script>
-<script src="js/search-suggest.js?v=32423"></script>
-<script src="js/app.js?v=32423"></script>
-<script src="js/col-resize.js?v=32423"></script>
-<script src="js/accessibility.js?v=32423"></script>
-<script src="js/workspaces.js?v=32423"></script>
-<script src="js/tool-layout.js?v=32423"></script>
+<script src="js/branding.js?v=32424"></script>
+<script src="js/selfhost.js?v=32424"></script>
+<script src="js/version.js?v=32424"></script>
+<script src="js/verdict.js?v=32424"></script>
+<script src="js/fork.js?v=32424"></script>
+<script src="js/promote.js?v=32424"></script>
+<script src="js/authConfig.js?v=32424"></script>
+<script src="js/connection.js?v=32424"></script>
+<script src="js/labels.js?v=32424"></script>
+<script src="js/capabilities.js?v=32424"></script>
+<script src="js/graph.js?v=32424"></script>
+<script src="js/model.js?v=32424"></script>
+<script src="js/render.js?v=32424"></script>
+<script src="js/analyze.js?v=32424"></script>
+<script src="js/whatif.js?v=32424"></script>
+<script src="js/mslearn.js?v=32424"></script>
+<script src="js/learntriage.js?v=32424"></script>
+<script src="js/learnfeed.js?v=32424"></script>
+<script src="js/gapcheck.js?v=32424"></script>
+<script src="js/cisdata.js?v=32424"></script>
+<script src="js/cischeck.js?v=32424"></script>
+<script src="js/exclusions.js?v=32424"></script>
+<script src="js/cascope.js?v=32424"></script>
+<script src="js/coverage.js?v=32424"></script>
+<script src="js/runmeta.js?v=32424"></script>
+<script src="js/overview.js?v=32424"></script>
+<script src="js/validator.js?v=32424"></script>
+<script src="js/whatifeval.js?v=32424"></script>
+<script src="js/builder.js?v=32424"></script>
+<script src="js/onboard.js?v=32424"></script>
+<script src="js/compare.js?v=32424"></script>
+<script src="js/whois.js?v=32424"></script>
+<script src="js/wave.js?v=32424"></script>
+<script src="js/sessionctl.js?v=32424"></script>
+<script src="js/spgap.js?v=32424"></script>
+<script src="js/groupuse.js?v=32424"></script>
+<script src="js/iso3166.js?v=32424"></script>
+<script src="js/causes.js?v=32424"></script>
+<script src="js/locations.js?v=32424"></script>
+<script src="js/locsignin.js?v=32424"></script>
+<script src="js/workloadid.js?v=32424"></script>
+<script src="js/authcontexts.js?v=32424"></script>
+<script src="js/authstrengths.js?v=32424"></script>
+<script src="js/recycle.js?v=32424"></script>
+<script src="js/rmau.js?v=32424"></script>
+<script src="js/camap.js?v=32424"></script>
+<script src="js/rmaudoc.js?v=32424"></script>
+<script src="js/termsofuse.js?v=32424"></script>
+<script src="js/audit.js?v=32424"></script>
+<script src="js/drift.js?v=32424"></script>
+<script src="js/guide.js?v=32424"></script>
+<script src="js/userimpact.js?v=32424"></script>
+<script src="js/smsvoice.js?v=32424"></script>
+<script src="js/memberof.js?v=32424"></script>
+<script src="js/devcheck.js?v=32424"></script>
+<script src="js/idscore.js?v=32424"></script>
+<script src="js/xtenant.js?v=32424"></script>
+<script src="js/passkeys.js?v=32424"></script>
+<script src="js/tokencov.js?v=32424"></script>
+<script src="js/naming.js?v=32424"></script>
+<script src="js/licgap.js?v=32424"></script>
+<script src="js/teamsdev.js?v=32424"></script>
+<script src="js/signinstore.js?v=32424"></script>
+<script src="js/signins.js?v=32424"></script>
+<script src="js/reportimpact.js?v=32424"></script>
+<script src="js/changelog.js?v=32424"></script>
+<script src="js/baselineData.js?v=32424"></script>
+<script src="js/baselineJoeyData.js?v=32424"></script>
+<script src="js/baselineLive.js?v=32424"></script>
+<script src="js/pimBaselineData.js?v=32424"></script>
+<script src="js/pimbaseline.js?v=32424"></script>
+<script src="js/pimplan.js?v=32424"></script>
+<script src="js/pimrmau.js?v=32424"></script>
+<script src="js/intunerbac.js?v=32424"></script>
+<script src="js/pimroles.js?v=32424"></script>
+<script src="js/baseline.js?v=32424"></script>
+<script src="js/baselineCleanup.js?v=32424"></script>
+<script src="js/groupTemplates.js?v=32424"></script>
+<script src="js/assign.js?v=32424"></script>
+<script src="js/cagroups.js?v=32424"></script>
+<script src="js/groupmerge.js?v=32424"></script>
+<script src="js/groupsview.js?v=32424"></script>
+<script src="js/runledger.js?v=32424"></script>
+<script src="js/bgvault.js?v=32424"></script>
+<script src="js/protect.js?v=32424"></script>
+<script src="js/policy-compare.js?v=32424"></script>
+<script src="js/import.js?v=32424"></script>
+<script src="js/export.js?v=32424"></script>
+<script src="js/demo.js?v=32424"></script>
+<script src="js/list-detail.js?v=32424"></script>
+<script src="js/flat-icons.js?v=32424"></script>
+<script src="js/workspace.js?v=32424"></script>
+<script src="js/analysis-jobs.js?v=32424"></script>
+<script src="js/search-suggest.js?v=32424"></script>
+<script src="js/app.js?v=32424"></script>
+<script src="js/col-resize.js?v=32424"></script>
+<script src="js/accessibility.js?v=32424"></script>
+<script src="js/workspaces.js?v=32424"></script>
+<script src="js/tool-layout.js?v=32424"></script>
 </body>
 </html>

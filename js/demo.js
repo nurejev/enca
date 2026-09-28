@@ -774,5 +774,23 @@ DEMO_DATA.pim = (() => {
     ],
     ops,
   };
-  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, rmauMembers, intune, domain: "contoso.nl" };
+  // 🎖 T49 (32424): who is in the groups that hold roles (PIM for Groups
+  // instances — active and eligible members), and the last activations.
+  const U = (id, displayName, upn) => ({ principalId: id, displayName, userPrincipalName: upn, type: "User" });
+  const groupMembers = {
+    [G.ga]: { read: true, active: [U("u-adm-anna", "adm-anna", "adm-anna@contoso.nl"), U("u-adm-mihai", "adm-mihai", "adm-mihai@contoso.nl")], eligible: [] },
+    [G.t0]: { read: true, active: [U("u-adm-anna", "adm-anna", "adm-anna@contoso.nl")], eligible: [] },
+    [G.sec]: { read: true, active: [U("u-adm-mihai", "adm-mihai", "adm-mihai@contoso.nl"), U("u-adm-soc1", "adm-soc-lisa", "adm-soc-lisa@contoso.nl")], eligible: [] },
+    [G.ops]: { read: true, active: [U("u-adm-kees", "adm-kees", "adm-kees@contoso.nl"), U("u-adm-joey", "adm-joey", "adm-joey@contoso.nl")], eligible: [] },
+    [G.hd]: { read: true, active: [U("u-desk1", "adm-desk-sanne", "adm-desk-sanne@contoso.nl"), U("u-desk2", "adm-desk-tim", "adm-desk-tim@contoso.nl")], eligible: [U("u-desk3", "adm-desk-new", "adm-desk-new@contoso.nl")] },
+    [G.legacy]: { read: true, active: [U("u-joey", "Joey Bakker", "joey@contoso.nl"), U("u-kees", "Kees de Wit", "kees@contoso.nl")], eligible: [] },
+    [G.nlHd]: { read: true, active: [U("u-nl-desk", "adm-nl-desk-eva", "adm-nl-desk-eva@contoso.nl")], eligible: [] },
+    [G.nlOps]: { read: true, active: [U("u-nl-ops", "adm-nl-ops-bram", "adm-nl-ops-bram@contoso.nl")], eligible: [] },
+  };
+  const activations = [
+    { principalId: "u-joey", principalName: "Joey Bakker", roleName: "Intune Administrator", createdDateTime: "2026-09-24T10:00:00Z", status: "Provisioned", justification: "Autopilot profile fix" },
+    { principalId: "u-adm-anna", principalName: "adm-anna", roleName: "Global Administrator", createdDateTime: "2026-09-27T08:12:00Z", status: "Provisioned", justification: "Tenant setting change CHG-2291" },
+    { principalId: "u-desk1", principalName: "adm-desk-sanne", roleName: "Helpdesk Administrator", createdDateTime: "2026-09-28T07:40:00Z", status: "Provisioned", justification: "Shift" },
+  ];
+  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, rmauMembers, intune, groupMembers, activations, domain: "contoso.nl" };
 })();

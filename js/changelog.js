@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32424, date: "2026-09-28", title: "🎖 Roles & assignments — who holds what, people through groups included",
+    items: [
+      { kind: "new", tool: "Roles & assignments", text: "A new tool in 02 PIM-buddy lists every Entra role anybody holds, and for each assignment who holds it, how (eligible, active for good or until a date, or activated right now), where (the whole tenant or one administrative unit) and until when. A group that holds a role is opened up: its active and eligible members appear as rows through that group, so you can see in people who is able to become Global Administrator." },
+      { kind: "new", tool: "Roles & assignments", text: "Each role shows its tier from the CloudFellows PIM framework, when it was last activated and by whom, and what is wrong with it: permanent active assignments outside the framework (break-glass accounts excepted), people eligible directly instead of through a PIM-SG group, and eligibilities that never end where the tier allows one year. Separate tabs list who holds what per person, what is scoped to a unit and what ends within 30 days. CSV and Markdown exports." },
+      { kind: "fixed", tool: "Restricted AUs", text: "After applying a fix in the PIM lens, the tool no longer pulls you back to Restricted AUs when you have already moved to another tool; it re-reads only when you are still there." },
+      { kind: "fixed", tool: "PIM baseline", text: "The find box in the PIM baseline toolbar is drawn like every other tool's search box." },
+    ],
+  },
+  {
     build: 32423, date: "2026-09-28", title: "📱 Intune RBAC — the framework's Intune side, read",
     items: [
       { kind: "new", tool: "Intune RBAC", text: "A new tool in 02 PIM-buddy reads Intune's role-based access and matches it against the CloudFellows PIM framework: every role assignment the profile and your regions file expect — its role, the access groups that hold it, the users and devices it reaches and its scope tags — the scope tags and the group each is automatically assigned from, and the regional custom role INT-ROLE-Regional-Ops permission by permission, with the ones it lacks named." },
