@@ -518,8 +518,12 @@ const PimBaseline = (() => {
         }
         items.push({ kind: "intune-group", name: g.name, expect: `dynamic ${g.type} · ${g.rule}`, status, detail });
       });
-      if (r.intune.tag) items.push({ kind: "intune", name: r.intune.tag.name, expect: `scope tag, auto-assigned from ${r.intune.tag.autoAssignFrom}`, status: "unread", detail: "Intune RBAC is not read here yet (T53); New-PimRegions.ps1 compares it" });
-      (r.intune.assignments || []).forEach((a) => items.push({ kind: "intune", name: a.name, expect: `${a.roles.join(" + ")} · members ${a.members.join(", ")} · scope ${a.scopeGroups.join(", ")} · tag ${a.tags.join(", ")}`, status: "unread", detail: "T53" }));
+      // Intune RBAC verdicts come from 📱 T53's read (32423) when it ran;
+      // until then these rows are Not read, never a match.
+      const iv = tenant.intune && tenant.intune.verdicts;
+      const ivOf = (k) => (iv && iv[k]) || { status: "unread", detail: "Intune RBAC not read yet — 📱 Intune RBAC (T53) reads it" };
+      if (r.intune.tag) { const v = ivOf(r.intune.tag.name); items.push({ kind: "intune", name: r.intune.tag.name, expect: `scope tag, auto-assigned from ${r.intune.tag.autoAssignFrom}`, status: v.status, detail: v.detail }); }
+      (r.intune.assignments || []).forEach((a) => (a.roles || []).forEach((role) => { const v = ivOf(`${a.name}|${role}`); items.push({ kind: "intune", name: a.name, expect: `${role} · members ${a.members.join(", ")} · scope ${a.scopeGroups.join(", ")} · tag ${a.tags.join(", ")}`, status: v.status, detail: v.detail }); }));
       const counts = { match: 0, differs: 0, missing: 0, unread: 0, conflict: 0 };
       items.forEach((i) => { counts[i.status]++; });
       const compared = items.length - counts.unread;

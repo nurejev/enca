@@ -744,5 +744,35 @@ DEMO_DATA.pim = (() => {
       { "@odata.type": "#microsoft.graph.user", id: "u-admjoey", displayName: "adm-joey", userPrincipalName: "adm-joey@contoso.nl" },
     ],
   };
-  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, rmauMembers, domain: "contoso.nl" };
+  // 📱 T53 (32423): Intune RBAC as Graph (beta) returns it. The central
+  // Policy and Profile assignment is right, its Application Manager half is
+  // missing, the central desk still hands Help Desk Operator to the legacy
+  // standing group, EU-NL's desk assignment is right and its Ops one missing,
+  // the regional role was made with four of its permissions short.
+  const T = (n) => `Microsoft.Intune_${n}`;
+  const known = ["ManagedDevices_Read", "ManagedDevices_Update", "ManagedDevices_Delete", "ManagedDevices_SetPrimaryUser", "ManagedDevices_ViewReports", "RemoteTasks_SyncDevice", "RemoteTasks_RebootNow", "RemoteTasks_SetDeviceName", "RemoteTasks_Wipe", "RemoteTasks_Retire", "RemoteTasks_RotateBitLockerKeys", "RemoteTasks_RotateLocalAdminPassword", "RemoteTasks_RemoteLock", "RemoteTasks_LocateDevice", "RemoteTasks_EnableLostMode", "RemoteTasks_DisableLostMode", "DeviceConfigurations_Read", "DeviceConfigurations_ViewReports", "DeviceConfigurations_Assign", "DeviceConfigurations_Update", "DeviceCompliancePolices_Read", "DeviceCompliancePolices_ViewReports", "DeviceCompliancePolices_Assign", "MobileApps_Read", "MobileApps_Assign", "ManagedApps_Read", "Organization_Read", "TermsAndConditions_Read"];
+  const ops = [
+    ...known.map((k) => { const [res, act] = k.split("_"); return { id: T(k), resourceName: res.replace(/([a-z])([A-Z])/g, "$1 $2"), actionName: act.replace(/([a-z])([A-Z])/g, "$1 $2") }; }),
+    { id: T("RemoteTasks_CollectDiagnosticLogs"), resourceName: "Remote tasks", actionName: "Collect diagnostics" },
+    { id: T("EnrollmentPrograms_ReadDevice"), resourceName: "Enrollment programs", actionName: "Read device" },
+    { id: T("EnrollmentPrograms_SyncDevice"), resourceName: "Enrollment programs", actionName: "Sync device" },
+    { id: T("AuditData_Read"), resourceName: "Audit data", actionName: "Read" },
+  ];
+  const regionalHas = known.filter((k) => !/Update$|RotateLocalAdminPassword|LocateDevice|TermsAndConditions/.test(k) || k === "ManagedDevices_Update").map(T).concat([T("RemoteTasks_CollectDiagnosticLogs"), T("EnrollmentPrograms_ReadDevice"), T("EnrollmentPrograms_SyncDevice"), T("AuditData_Read")]);
+  const IR = { ppm: "ir-ppm", am: "ir-am", hdo: "ir-hdo", esm: "ir-esm", roo: "ir-roo", reg: "ir-regional-ops" };
+  const builtin = (id, displayName) => ({ id, displayName, isBuiltIn: true, rolePermissions: [] });
+  const intune = {
+    roles: [builtin(IR.ppm, "Policy and Profile manager"), builtin(IR.am, "Application Manager"), builtin(IR.hdo, "Help Desk Operator"), builtin(IR.esm, "Endpoint Security Manager"), builtin(IR.roo, "Read Only Operator"),
+      { id: IR.reg, displayName: "INT-ROLE-Regional-Ops", isBuiltIn: false, description: "CloudFellows PIM framework: regional second line.", rolePermissions: [{ resourceActions: [{ allowedResourceActions: regionalHas, notAllowedResourceActions: [] }] }] }],
+    tags: [{ id: "0", displayName: "Default", isBuiltIn: true }, { id: "1", displayName: "INT-TAG-EU-NL" }],
+    tagTargets: { "0": [], "1": [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: G.nlDev } }] },
+    assignments: [
+      { id: "ia-1", displayName: "INT-RBAC-PolicyProfile-Central", roleDefinition: { id: IR.ppm, displayName: "Policy and Profile manager" }, members: [G.intOps], resourceScopes: [], scopeType: "allDevicesAndLicensedUsers", roleScopeTagIds: ["0"] },
+      { id: "ia-2", displayName: "INT-RBAC-HelpDesk-Central", roleDefinition: { id: IR.hdo, displayName: "Help Desk Operator" }, members: [G.legacy], resourceScopes: [], scopeType: "allDevicesAndLicensedUsers", roleScopeTagIds: ["0"] },
+      { id: "ia-3", displayName: "INT-RBAC-HelpDesk-EU-NL", roleDefinition: { id: IR.hdo, displayName: "Help Desk Operator" }, members: [G.intHdNl], resourceScopes: [G.nlUsr, G.nlDev], scopeType: "resourceScope", roleScopeTagIds: ["1"] },
+      { id: "ia-4", displayName: "Legacy workplace team", roleDefinition: { id: IR.ppm, displayName: "Policy and Profile manager" }, members: [G.legacy], resourceScopes: [], scopeType: "allDevices", roleScopeTagIds: ["0"] },
+    ],
+    ops,
+  };
+  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, rmauMembers, intune, domain: "contoso.nl" };
 })();

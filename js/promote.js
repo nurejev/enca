@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 303,
+      title: "📱 Intune RBAC (T53) — role assignments, scope tags and their automatic assignment, scope groups and INT-ROLE-Regional-Ops read and matched against the framework; 🗺 Regions' Intune rows get verdicts (R70)",
+      tools: ["Intune RBAC", "PIM baseline"],
+      builds: [32423],
+      risk: "low",
+      what: "js/intunerbac.js (new, pure): expected (profile.intune + region template per row; two roles = two assignments), model (beta roleDefinitions + custom roles by id, roleAssignments with $expand=roleDefinition, roleScopeTags + /assignments, resourceOperations), resolveActions (id or Resource/Action), compare (verdicts by name for Regions; other assignments judged on members), plan + bindBuiltIns for 🚀 Deploy, render, toMd. js/pimbaseline.js compareRegions reads tenant.intune.verdicts. js/app.js: openPimBaseline(asIntune), pmbPaintIntune, runIntuneRbac (DeviceManagementRBAC.Read.All), pmbRebuild computes pmbIntRes before the regions. index.html tile toolIntuneRbac (T53), js/workspaces.js roster + rail, js/flat-icons.js, js/demo.js pim.intune. tools/intunerbac.test.cjs (6).",
+      why: "Mihai, 28 Sep: continue the PIM roadmap — T53 Intune RBAC read, turning the regions' Not read rows into verdicts. Low: reads only (the plan it carries is used by 🚀 Deploy, a later item).",
+      test: [
+        "Beta site, demo (?demo=1&ws=pim), profile Large · multi-region → 📱 Intune RBAC (tile, rail Intune or the 📱 chip in 🧬 PIM baseline) → ▶ Read Intune RBAC: tiles 9 assignments expected · 3 match · 2 differ · 7 missing · 1 other assignment, 1 held standing; INT-ROLE-Regional-Ops ≠ Differs, lacks 3 of 31 (RotateLocalAdminPassword, LocateDevice, TermsAndConditions_Read); INT-RBAC-PolicyProfile-Central Policy and Profile Manager ✓, Application Manager ∅; INT-RBAC-HelpDesk-Central ≠ (PIM-SG-INT-HelpDesk does not exist); INT-TAG-EU-NL ✓, INT-TAG-EU-DE ∅; Legacy workplace team listed with held through CAB-SEC-U-Admins-Legacy.",
+        "🗺 Regions after that read: EU-NL's INT-TAG-EU-NL and INT-RBAC-HelpDesk-EU-NL ✓ Match, INT-RBAC-Ops-EU-NL ∅ Missing — no Intune row says Not read. Before the Intune read (sign out and back into the demo) they say Not read.",
+        "Export MD in the Intune pane opens the Intune report; the tool tab reads 📱 Intune RBAC, and 🧬 PIM baseline's tab opens the baseline, not the Intune pane.",
+        "cloudfellows.dev (Intune licensed, Intune Administrator or Global Reader): ▶ Read Intune RBAC asks DeviceManagementRBAC.Read.All once; INT-TAG-EU-NL shows its target (INT-SG-DEV-EU-NL-All after the 32419 run); INT-ROLE-Regional-Ops shows the permissions it lacks by the tenant's own ids, and none says not known to this tenant (the 32421 labels resolve); the central INT-RBAC-* rows say Missing (they were never scripted).",
+        "Offline: node --test tools/intunerbac.test.cjs passes 6.",
+      ],
+      files: ["js/intunerbac.js", "js/pimbaseline.js", "js/app.js", "js/demo.js", "index.html", "js/workspaces.js", "js/flat-icons.js", "js/version.js", "tools/intunerbac.test.cjs"],
+    },
+    {
       n: 302,
       title: "🛡 Restricted AUs — the PIM lens in Workspace 02 (AU-RM-Executives, the scoped desk, no PIM object in a restricted unit) and the shared WhatIf/apply runner for PIM writes (R69)",
       tools: ["Restricted AUs"],

@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32423, date: "2026-09-28", title: "📱 Intune RBAC — the framework's Intune side, read",
+    items: [
+      { kind: "new", tool: "Intune RBAC", text: "A new tool in 02 PIM-buddy reads Intune's role-based access and matches it against the CloudFellows PIM framework: every role assignment the profile and your regions file expect — its role, the access groups that hold it, the users and devices it reaches and its scope tags — the scope tags and the group each is automatically assigned from, and the regional custom role INT-ROLE-Regional-Ops permission by permission, with the ones it lacks named." },
+      { kind: "new", tool: "Intune RBAC", text: "Every other Intune assignment is listed too. Your own assignments are yours, but when one is held by a group that is not a PIM-SG-INT access group, its members hold that Intune role all the time instead of activating it, and the row says so." },
+      { kind: "improved", tool: "PIM baseline", text: "Once Intune RBAC has been read, 🗺 Regions shows each region's scope tag and Intune assignments as Match, Differs or Missing instead of Not read." },
+    ],
+  },
+  {
     build: 32422, date: "2026-09-28", title: "🛡 Restricted AUs — the PIM lens in Workspace 02",
     items: [
       { kind: "new", tool: "Restricted AUs", text: "Opened from 02 PIM-buddy, Restricted AUs shows the framework's view: the restricted unit the profile expects (AU-RM-Executives in Large · one region), whether it exists and is really restricted, and whether the named desk is scoped on it — Helpdesk, Password and Authentication Administrator for the VIP service desk, User Administrator for Identity — eligible at the unit, not tenant-wide." },

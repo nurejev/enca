@@ -2877,6 +2877,7 @@
     ["toolExclusions", "🚪 Exclusion analyzer"],
     ["toolBaseline", "🧬 Baseline"],
     ["toolPimBaseline", "🧬 PIM baseline"],
+    ["toolIntuneRbac", "📱 Intune RBAC"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
@@ -21504,6 +21505,9 @@ This is a directory write. Nothing else changes.`)) return;
   // The selection is state, not the DOM: a filter or a search repaints the
   // table without losing what was ticked, and rows out of view stay ticked.
   let pmbSel = null, pmbRegSel = null, pmbRun = 0;
+  // 📱 T53 Intune RBAC (32423): its own read, its own consent; the result is
+  // compared inside pmbRebuild so 🗺 Regions' Intune rows get verdicts too.
+  let pmbInt = null, pmbIntErr = null, pmbIntBusy = false, pmbIntRes = null, pmbIntFilter = "all";
   try { const v = localStorage.getItem("enca.pmbProfile"); if (v && PIM_BASELINE.profiles[v]) pmbProfileId = v; } catch { /* default */ }
   const pmbCat = () => PimBaseline.profile(PIM_BASELINE, pmbProfileId);
   const PMB_READ = [...PIM_READ, "AdministrativeUnit.Read.All", "RoleManagementPolicy.Read.AzureADGroup"];
@@ -21517,19 +21521,23 @@ This is a directory write. Nothing else changes.`)) return;
     if (pmbBusy) { try { pmbProg.requestStop(); } catch { /* not running */ } }
     pmbBusy = false;
     pmbRaw = null; pmbRes = null; pmbErr = null; pmbReg = null;
+    pmbInt = null; pmbIntErr = null; pmbIntBusy = false; pmbIntRes = null;
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
     try { prlReset(); } catch { /* defined further down; nothing to reset yet */ }
   }
   const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">This tenant's Privileged Identity Management against the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b>, authored in <b>cloudfellows.dev</b>, in the profile you pick: Small business, Large · one region, or Large · multi-region. The model: people are <b>active members</b> of persona groups for at most a year, each group is <b>eligible</b> for its roles, and a person activates the role under the role's own tier; Intune roles go to access groups whose members are eligible. Setting by setting, and every group as a model matched by id — present once, role-assignable, carrying exactly its roles at tenant scope. <b>Members are never compared.</b> Nothing that could not be read is shown as a match. Read-only: <b>⬇ Delta config</b> and <b>⬇ Baseline config</b> download the framework's config for tools/pim/New-PimBaseline.ps1 (or EasyPIM), <b>🗺 Regions</b> the regions file for New-PimRegions.ps1, and <b>📄 EasyPIM samples</b> a commented config per scenario to copy and edit.</p>`;
+  const PMB_INT_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">Intune has no administrative units and no PIM of its own, so the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> draws the same boundaries with Intune's objects: <b>role assignments</b> whose members are the PIM-SG-INT-* access groups (eligible members — activating the group is the gate; a persona group never sits in one), <b>scope groups</b> for who and what an assignment reaches, <b>scope tags</b> for what an admin sees, and one <b>custom role</b>, INT-ROLE-Regional-Ops. Central assignments come from the profile, regional ones from the regions file (🗺 Regions). Read-only through Microsoft Graph (DeviceManagementRBAC.Read.All, consented once); 🚀 Deploy applies what is missing. Defender XDR and Purview RBAC stay outside.</p>`;
   function pmbTenantNote() {
     if (isDemo) return "";
     return isBaselineTenant() ? `<span class="tag ok" title="This is the tenant the catalog is authored in">🧱 baseline tenant</span>` : "";
   }
-  function openPimBaseline() {
-    crumb("🧬 PIM baseline");
+  function openPimBaseline(asIntune) {
+    // 📱 T53 is a pane of this screen with its own tile, number and tab.
+    if (asIntune) pmbFilter = "intune"; else if (pmbFilter === "intune") pmbFilter = "all";
+    crumb(asIntune ? "📱 Intune RBAC" : "🧬 PIM baseline");
     show("screen-pimbaseline");
-    $("pmbHead").innerHTML = toolHead("toolPimBaseline") + PMB_HEAD_TEXT;
+    $("pmbHead").innerHTML = asIntune ? toolHead("toolIntuneRbac") + PMB_INT_HEAD_TEXT : toolHead("toolPimBaseline") + PMB_HEAD_TEXT;
     $("pmbProfile").innerHTML = PimBaseline.profileIds(PIM_BASELINE).map((id) => `<option value="${esc(id)}"${id === pmbProfileId ? " selected" : ""}>${esc(PIM_BASELINE.profiles[id].label)}</option>`).join("");
     pmbPaint();
   }
@@ -21547,9 +21555,9 @@ This is a directory write. Nothing else changes.`)) return;
   function pmbPaint() {
     if (!pmbRegionsOn() && pmbFilter === "regions") pmbFilter = "all";
     if (pmbRes) pmbRes.regionsCount = pmbRegRows ? pmbRegRows.length : undefined;
-    const samplesChip = `<button class="fchip${pmbFilter === "samples" ? " active" : ""}" data-pmbf="samples">📄 EasyPIM samples</button>`;
+    const samplesChip = `<button class="fchip${pmbFilter === "intune" ? " active" : ""}" data-pmbf="intune">📱 Intune RBAC${pmbIntRes ? ` (${pmbIntRes.counts.differs + pmbIntRes.counts.missing + pmbIntRes.counts.conflict})` : ""}</button><button class="fchip${pmbFilter === "samples" ? " active" : ""}" data-pmbf="samples">📄 EasyPIM samples</button>`;
     $("pmbChips").innerHTML = (pmbRes ? PimBaseline.chips(pmbRes, pmbFilter) : (pmbRegionsOn() ? `<button class="fchip${pmbFilter === "regions" ? " active" : ""}" data-pmbf="regions">🗺 Regions${pmbRegRows ? ` (${pmbRegRows.length})` : ""}</button>` : "")) + samplesChip;
-    const regionsPane = pmbFilter === "regions" && pmbRegionsOn(), samplesPane = pmbFilter === "samples";
+    const regionsPane = pmbFilter === "regions" && pmbRegionsOn(), samplesPane = pmbFilter === "samples" || pmbFilter === "intune";
     const nSel = pmbSelected().size;
     $("pmbMd").style.display = pmbRes && !samplesPane ? "" : "none";
     $("pmbDelta").style.display = pmbRes && !regionsPane && !samplesPane ? "" : "none";
@@ -21560,6 +21568,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("pmbRefresh").textContent = pmbRes ? "⟳ Read again" : "▶ Read this tenant's PIM";
     $("pmbRefresh").disabled = pmbBusy;
     $("pmbTenantNote").innerHTML = pmbTenantNote() + `<span class="mini pmb-profile-note">${esc(PIM_BASELINE.profiles[pmbProfileId].size)}</span>`;
+    if (pmbFilter === "intune") { $("pmbMd").style.display = pmbIntRes ? "" : "none"; pmbPaintIntune(); return; }
     if (samplesPane) { pmbPaintSamples(); return; }
     if (pmbBusy) { $("pmbBody").innerHTML = pmbProg.panel("Reading the tenant's PIM — role settings, assignments, groups, units…"); return; }
     if (regionsPane) { pmbPaintRegions(); return; }
@@ -21607,12 +21616,73 @@ This is a directory write. Nothing else changes.`)) return;
     if (!pmbReg) pmbReg = PimBaseline.compareRegions(pmbCat(), pmbRegRows, pmbRaw);
     $("pmbBody").innerHTML = upload + `<p class="mini pmb-read">${pmbReg.demo ? "Demo data · " : ""}Template: <b>${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}</b> · profile <b>${esc(pmbReg.profile.label)}</b>${pmbReg.readAt ? ` · tenant read ${esc(new Date(pmbReg.readAt).toLocaleString())}` : ""}${!pmbReg.auRead ? ` · <span class="pmb-warn">administrative units not read</span>` : ""}${!pmbReg.namedRead ? ` · <span class="pmb-warn">framework groups not read</span>` : ""}</p>` + PimBaseline.renderRegions(pmbReg, { q: pmbQ, selected: pmbRegSelected() });
   }
+  // 📱 T53 — the pane and the read.
+  function pmbPaintIntune() {
+    if (pmbIntBusy) { $("pmbBody").innerHTML = pmbProg.panel("Reading Intune RBAC — roles, assignments, scope tags, operations…"); return; }
+    if (!pmbIntRes) {
+      $("pmbBody").innerHTML = `${pmbIntErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(pmbIntErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-pmbintrun>▶ Read Intune RBAC</button>
+        <p class="mini muted">Reads Intune's role definitions (with the custom role's permissions), role assignments (members, scope groups, scope tags), scope tags and their automatic assignments, and the permission list Intune knows — DeviceManagementRBAC.Read.All, read-only, consented once. ${pmbRaw ? "" : "The tenant's PIM is read first (the groups the assignments name). "}The signed-in account needs an Intune role that can read RBAC (Intune Administrator, Global Reader, Read Only Operator). Profile <b>${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b>${pmbRegionsOn() ? `; regions from the regions file (${pmbRegRows ? pmbRegRows.length : "none loaded yet"})` : ""}.</p></div>`;
+      return;
+    }
+    const chips = [["all", "All"], ["assignments", "Assignments"], ["tags", "Scope tags"], ["differs", "Differs"], ["missing", "Missing"]].map(([k, l]) => `<button class="fchip${pmbIntFilter === k ? " active" : ""}" data-pmbintf="${k}">${esc(l)}</button>`).join("");
+    $("pmbBody").innerHTML = `<p class="mini pmb-read">${pmbIntRes.demo ? "Demo data · " : ""}Profile <b>${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b>${pmbRegionsOn() ? ` · ${pmbRegRows ? pmbRegRows.length : 0} region${pmbRegRows && pmbRegRows.length === 1 ? "" : "s"} from the file` : ""}${pmbIntRes.readAt ? ` · Intune read ${esc(new Date(pmbIntRes.readAt).toLocaleString())}` : ""} · <button class="btn sm" data-pmbintrun>⟳ Read again</button></p><div class="chip-filter">${chips}</div>` + IntuneRbac.render(pmbIntRes, { filter: pmbIntFilter });
+  }
+  async function runIntuneRbac() {
+    if (pmbIntBusy) return;
+    if (!pmbRaw) { await runPimBaseline(); if (!pmbRaw) return; }
+    const run = pmbRun, session = pmbSessionKey();
+    pmbIntBusy = true; pmbIntErr = null; pmbProg.begin();
+    if ($("screen-pimbaseline").classList.contains("active")) pmbPaint();
+    let raw = null, err = null;
+    try {
+      if (isDemo) { await new Promise((r) => setTimeout(r, 300)); raw = Object.assign(JSON.parse(JSON.stringify(DEMO_DATA.pim.intune)), { readAt: Date.now(), demo: true }); }
+      else {
+        const sc = [...AUTH_CONFIG.scopes, "DeviceManagementRBAC.Read.All"];
+        if (!await preConsent(sc)) throw new Error("DeviceManagementRBAC.Read.All was not granted");
+        const B = "https://graph.microsoft.com/beta";
+        const roles = await pmbProg.fetchAll(`${B}/deviceManagement/roleDefinitions`, 0, "roles");
+        pmbProg.detail("custom roles' permissions");
+        const custom = roles.filter((r) => r.isBuiltIn === false);
+        if (custom.length) {
+          const rr = await Graph.gbatch(custom.map((r, i) => ({ id: String(i), url: `/deviceManagement/roleDefinitions/${r.id}` })), null, { base: B, scopes: sc });
+          custom.forEach((r, i) => { const x = rr[String(i)]; if (x && x.body && x.body.id) Object.assign(r, { rolePermissions: x.body.rolePermissions || [], permissions: x.body.permissions || [] }); });
+        }
+        pmbProg.detail("assignments");
+        const list = await pmbProg.fetchAll(`${B}/deviceManagement/roleAssignments`, 0, "assignments");
+        const assignments = [];
+        if (list.length) {
+          const ar = await Graph.gbatch(list.map((a, i) => ({ id: String(i), url: `/deviceManagement/roleAssignments/${a.id}?$expand=roleDefinition($select=id,displayName)` })), null, { base: B, scopes: sc });
+          list.forEach((a, i) => { const x = ar[String(i)]; assignments.push(x && x.body && x.body.id ? x.body : a); });
+        }
+        pmbProg.detail("scope tags");
+        const tags = await pmbProg.fetchAll(`${B}/deviceManagement/roleScopeTags`, 0, "tags");
+        const tagTargets = {};
+        if (tags.length) {
+          const tr = await Graph.gbatch(tags.map((t, i) => ({ id: String(i), url: `/deviceManagement/roleScopeTags/${t.id}/assignments` })), null, { base: B, scopes: sc });
+          tags.forEach((t, i) => { const x = tr[String(i)]; tagTargets[t.id] = x && x.body && Array.isArray(x.body.value) ? x.body.value : null; });
+        }
+        pmbProg.detail("permission list");
+        let ops = [];
+        try { ops = await pmbProg.fetchAll(`${B}/deviceManagement/resourceOperations`, 0, "operations"); } catch (e) { if (e && e.stopped) throw e; ops = []; }
+        raw = { roles, assignments, tags, tagTargets, ops, readAt: Date.now(), demo: false };
+      }
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      err = e && e.stopped ? "stopped — nothing is shown for a partial read" : /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "") ? "access denied: the signed-in account needs an Intune role that can read RBAC, and the tenant must have consented to DeviceManagementRBAC.Read.All (and hold an Intune licence)" : String(m || "").replace(/\s*·\s*inner:.*$/, "");
+    } finally { pmbIntBusy = false; pmbProg.stop(); }
+    if (run !== pmbRun || session !== pmbSessionKey()) return;
+    if (err) { pmbIntErr = err; pmbInt = null; } else { pmbInt = raw; }
+    pmbRebuild();
+    if ($("screen-pimbaseline").classList.contains("active")) pmbPaint();
+    if (pmbIntRes) toast(`Intune RBAC <span>${pmbIntRes.counts.match} match · ${pmbIntRes.counts.differs} differ · ${pmbIntRes.counts.missing} missing</span>`);
+  }
   function pmbLoadRegions(text, source) {
     const r = PimBaseline.parseRegions(text, PIM_BASELINE);
     pmbRegErrors = r.errors; pmbRegWarnings = r.warnings; pmbRegText = text;
     pmbRegRows = r.rows.length ? r.rows : null; pmbReg = null; pmbRegSel = null;
     try { if (!isDemo && tenantId) localStorage.setItem(`enca.pmbRegions:${tenantId}`, pmbRegRows ? text : ""); } catch { /* browser storage off */ }
     if (pmbRegRows) toast(`Regions <span>${pmbRegRows.length} row${pmbRegRows.length === 1 ? "" : "s"} from ${esc(source || "the file")}${r.errors.length ? ` · ${r.errors.length} left out` : ""}</span>`);
+    if (pmbRaw) pmbRebuild();   // 📱 T53's regional verdicts follow the rows
     pmbFilter = "regions"; pmbPaint();
   }
   // Only this tenant's own file (or the demo's) — never the last context's rows.
@@ -21625,8 +21695,17 @@ This is a directory write. Nothing else changes.`)) return;
     const r = PimBaseline.parseRegions(t, PIM_BASELINE);
     pmbRegRows = r.rows.length ? r.rows : null; pmbRegErrors = r.errors; pmbRegWarnings = r.warnings; pmbRegText = t;
   }
+  function pmbGroupIndex() {
+    const byId = new Map();
+    [...((pmbRaw && pmbRaw.groups) || []), ...((pmbRaw && pmbRaw.named) || [])].forEach((g) => { if (g && g.id && !byId.has(g.id)) byId.set(g.id, g); });
+    const by = new Map();
+    for (const g of byId.values()) (by.get(g.displayName) || by.set(g.displayName, []).get(g.displayName)).push(g);
+    return by;
+  }
   function pmbRebuild() {
-    if (!pmbRaw) { pmbRes = null; pmbReg = null; return; }
+    if (!pmbRaw) { pmbRes = null; pmbReg = null; pmbIntRes = null; return; }
+    pmbIntRes = pmbInt ? IntuneRbac.compare(pmbCat(), pmbRegRows, IntuneRbac.model(pmbInt), pmbGroupIndex(), pmbRaw.names || {}) : null;
+    pmbRaw.intune = pmbIntRes ? { verdicts: pmbIntRes.verdicts } : null;
     pmbRes = PimBaseline.compare(pmbCat(), pmbRaw);
     pmbReg = pmbRegRows ? PimBaseline.compareRegions(pmbCat(), pmbRegRows, pmbRaw) : null;
   }
@@ -21782,6 +21861,7 @@ This is a directory write. Nothing else changes.`)) return;
     showReport(`📄 EasyPIM sample · ${PIM_BASELINE.profiles[id].label}`, `easypim.${id}`, ["```jsonc", text, "```"].join("\n"), "jsonc");
   }
   $("toolPimBaseline").addEventListener("click", () => openPimBaseline());
+  $("toolIntuneRbac").addEventListener("click", () => openPimBaseline(true));
   $("pmbRefresh").addEventListener("click", () => runPimBaseline());
   $("pmbProfile").addEventListener("change", () => {
     pmbProfileId = $("pmbProfile").value;
@@ -21811,6 +21891,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
   });
   $("pmbMd").addEventListener("click", () => {
+    if (pmbFilter === "intune" && pmbIntRes) { showReport("📱 Intune RBAC", `ENCA-intune-rbac-${new Date().toISOString().slice(0, 10)}`, IntuneRbac.toMd(pmbIntRes, tenantName)); return; }
     if (pmbFilter === "regions" && pmbReg) { showReport("🗺 Regions", `ENCA-pim-regions-${new Date().toISOString().slice(0, 10)}`, PimBaseline.regionsMd(pmbReg, tenantName)); return; }
     if (pmbRes) showReport("🧬 PIM baseline", `ENCA-pim-baseline-${new Date().toISOString().slice(0, 10)}`, PimBaseline.toMd(pmbRes, tenantName));
   });
@@ -21820,6 +21901,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("pmbFind").addEventListener("input", () => { pmbQ = $("pmbFind").value; if (pmbFilter === "regions") { if (pmbReg) pmbPaintRegions(); } else if (pmbFilter !== "samples" && pmbRes) $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { filter: pmbFilter, q: pmbQ, selected: pmbSelected() }); });
   $("pmbBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-pmbrun]")) { runPimBaseline(); return; }
+    if (e.target.closest("[data-pmbintrun]")) { runIntuneRbac(); return; }
+    const ichip = e.target.closest("[data-pmbintf]"); if (ichip) { pmbIntFilter = ichip.dataset.pmbintf; pmbPaintIntune(); return; }
     const smp = e.target.closest("[data-pmbsample]"); if (smp) { pmbSample(smp.dataset.pmbsample, false); return; }
     const smv = e.target.closest("[data-pmbsampleview]"); if (smv) { pmbSample(smv.dataset.pmbsampleview, true); return; }
     if (e.target.closest("[data-pmbregex]")) { pmbLoadRegions(PIM_BASELINE.regions.example.replace(/contoso\.nl/g, tenantDomain || "contoso.nl"), "the example"); return; }

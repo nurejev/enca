@@ -32,6 +32,7 @@
     toolSmsVoice: 'Assess the impact of SMS and voice retirement.',
     toolMemberOf: 'Find memberOf rules and their dependent services.',
     toolPimBaseline: 'Match this tenant’s PIM role settings and PIM groups against the CloudFellows PIM framework.',
+    toolIntuneRbac: 'Intune role assignments, scope tags, scope groups and the regional custom role against the framework.',
     toolChangelog: 'Read the release history.',
     toolRoadmap: 'See what is planned and what has shipped.',
     toolPermissions: 'View session permissions, consent and revocation guidance.',
@@ -44,10 +45,11 @@
   // "PIM lens" (a PIM-only catalogue, tab strip and Help text for it) is on
   // the roadmap, and the card says so rather than promising it.
   const WS_KEY = 'enca.workspace';
-  const PIM_ONLY = new Set(['toolPimBaseline']);
+  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac']);
   const PIM_ROSTER = [
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
       { id: 'toolPimBaseline', blurb: blurbs.toolPimBaseline },
+      { id: 'toolIntuneRbac', blurb: blurbs.toolIntuneRbac },
       { id: 'toolGapCheck', blurb: 'The MS Learn checks already cover privileged roles and break-glass; a PIM-only catalogue is on the roadmap.', lens: true },
     ] },
     { group: '👁 See what is privileged', tools: [
@@ -73,7 +75,7 @@
       lead: 'Who can become what, under which rules, and whether this tenant still matches the CloudFellows PIM framework. Reads only — every write keeps the confirmation steps of the tool that makes it.',
       // Same work order: see it (Baseline), the groups that carry it, who
       // holds it, what is wrong with it, then what to protect and what changed.
-      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Restricted AUs'],['toolAudit','🕓','Changes']] },
+      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Restricted AUs'],['toolAudit','🕓','Changes']] },
   };
   let ws = 'ca';
   const recent = [];
