@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-09-24T04:31:06.590Z",
+ "generated": "2026-09-28T04:35:47.816Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "c6f11a0c59",
+  "head": "902ee3bc2c",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -16,11 +16,39 @@
  "counts": {
   "docs": 12,
   "newDocs": 1,
-  "substantive": 9,
+  "substantive": 10,
   "watched": 16,
   "unwatched": 5
  },
  "docs": [
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows",
+   "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
+   "title": "Token Protection Deployment Guide - Windows",
+   "kind": "changed",
+   "lastChange": "2026-09-24T11:26:07-07:00",
+   "lines": 10,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "669e5943d6",
+     "date": "2026-09-24T11:26:07-07:00",
+     "subject": "Update deployment-guide-token-protection-windows.md (#14422)",
+     "add": 6,
+     "del": 2,
+     "bulk": false
+    },
+    {
+     "sha": "bf45f8ce25",
+     "date": "2026-09-10T10:45:39-07:00",
+     "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337",
+     "add": 1,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
   {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation",
    "path": "docs/identity/conditional-access/concept-continuous-access-evaluation.md",
@@ -58,26 +86,6 @@
      "add": 18,
      "del": 8,
      "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows",
-   "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
-   "title": "Token Protection Deployment Guide - Windows",
-   "kind": "changed",
-   "lastChange": "2026-09-10T10:45:39-07:00",
-   "lines": 2,
-   "bulkOnly": true,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "bf45f8ce25",
-     "date": "2026-09-10T10:45:39-07:00",
-     "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337",
-     "add": 1,
-     "del": 1,
-     "bulk": true
     }
    ]
   },
@@ -255,7 +263,7 @@
    "title": "Microsoft-Managed Conditional Access Policies for Enhanced Security",
    "kind": "changed",
    "lastChange": "2026-08-07T15:35:07-07:00",
-   "lines": 35,
+   "lines": 8,
    "bulkOnly": false,
    "minor": false,
    "commits": [
@@ -265,30 +273,6 @@
      "subject": "Revise managed policies activation and remediation details",
      "add": 4,
      "del": 4,
-     "bulk": false
-    },
-    {
-     "sha": "98bcdadd5e",
-     "date": "2026-07-28T18:30:54-07:00",
-     "subject": "Fix formatting issues in managed-policies.md",
-     "add": 2,
-     "del": 2,
-     "bulk": false
-    },
-    {
-     "sha": "693b76c873",
-     "date": "2026-07-28T17:26:25-07:00",
-     "subject": "Fix link text for high-risk user remediation",
-     "add": 1,
-     "del": 1,
-     "bulk": true
-    },
-    {
-     "sha": "5faaf56424",
-     "date": "2026-07-28T17:17:58-07:00",
-     "subject": "Add 'Require remediation for high-risk users' policy section",
-     "add": 21,
-     "del": 0,
      "bulk": false
     }
    ]
@@ -611,14 +595,14 @@
    "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
    "title": "Token Protection Deployment Guide - Windows",
    "last": {
-    "sha": "bf45f8ce25",
-    "date": "2026-09-10T10:45:39-07:00",
-    "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337"
+    "sha": "669e5943d6",
+    "date": "2026-09-24T11:26:07-07:00",
+    "subject": "Update deployment-guide-token-protection-windows.md (#14422)"
    },
    "lastSubstantive": {
-    "sha": "9152e7784d",
-    "date": "2026-03-24T17:50:52-07:00",
-    "subject": "AI readiness: add Overview heading to CA articles (batch 3)"
+    "sha": "669e5943d6",
+    "date": "2026-09-24T11:26:07-07:00",
+    "subject": "Update deployment-guide-token-protection-windows.md (#14422)"
    }
   },
   "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app": {
@@ -686,14 +670,14 @@
    "path": "docs/identity/hybrid/connect/reference-connect-version-history.md",
    "title": "Microsoft Entra Connect: Version release history",
    "last": {
-    "sha": "69d6b1435b",
-    "date": "2026-09-15T22:49:38+03:00",
-    "subject": "Update release date"
+    "sha": "d092bc651e",
+    "date": "2026-09-23T16:43:49+03:00",
+    "subject": "Update; - Fixed placement of important badge. - Removed mention of auto upgrade. I think that will be a different release"
    },
    "lastSubstantive": {
-    "sha": "69d6b1435b",
-    "date": "2026-09-15T22:49:38+03:00",
-    "subject": "Update release date"
+    "sha": "d092bc651e",
+    "date": "2026-09-23T16:43:49+03:00",
+    "subject": "Update; - Fixed placement of important badge. - Removed mention of auto upgrade. I think that will be a different release"
    }
   },
   "https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access": {
@@ -730,6 +714,16 @@
  },
  "open": [
   {
+   "key": "doc:docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
+   "kind": "alert",
+   "title": "Token Protection Deployment Guide - Windows",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows",
+   "since": "2026-09-24T11:26:07-07:00",
+   "checks": [
+    "token-prot-devices"
+   ]
+  },
+  {
    "key": "doc:docs/identity/conditional-access/concept-continuous-access-evaluation.md",
    "kind": "alert",
    "title": "Continuous access evaluation in Microsoft Entra",
@@ -744,7 +738,7 @@
    "kind": "alert",
    "title": "Microsoft Entra Connect: Version release history",
    "url": "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history",
-   "since": "2026-09-15T22:49:38+03:00",
+   "since": "2026-09-23T16:43:49+03:00",
    "checks": [
     "dirsync-account-mfa"
    ]
