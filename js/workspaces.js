@@ -57,7 +57,7 @@
     ] },
     { group: '👁 See what is privileged', tools: [
       { id: 'toolPimRoles', blurb: blurbs.toolPimRoles },
-      { id: 'toolCaGroups', blurb: 'PIM groups: every role-assignable group with the roles it holds and its active and eligible members.', lens: 'built' },
+      { id: 'toolCaGroups', name: 'PIM groups', blurb: 'Every role-assignable group with the roles it holds and its active and eligible members.', lens: 'built' },
       { id: 'toolGroupUse', blurb: 'Who holds what for one person or group — every role, through which group, where, until when, and what gates a Tier 0 activation.', lens: 'built' },
       { id: 'toolSignins', blurb: 'Activations & approvals: every activation request, why, and how it ended.', lens: 'built' },
       { id: 'toolAudit', blurb: 'PIM changes: role settings, assignments and activations from the audit log.', lens: 'built' },
@@ -109,6 +109,8 @@
     if (!inWorkspace(id, ws)) setWorkspace(inWorkspace(id, 'pim') ? 'pim' : 'ca', { quiet: true });
     original.click(); // The existing app owns the route, subtab and state.
   }
+  // A tool can carry its own name in a workspace (32430: T12 is ‘PIM groups’ in 02).
+  const nameIn = (id, which) => (which === 'pim' && PIM_ROSTER.flatMap(g => g.tools).find(r => r.id === id)?.name) || tools.find(t => t.id === id)?.name || '';
   const inWorkspace = (id, which) => which === 'pim' ? PIM_ROSTER.some(g => g.tools.some(t => t.id === id)) : !PIM_ONLY.has(id);
   const card = t => t.planned
     ? `<div class="wc-tool wc-planned" aria-disabled="true"><span class="wc-tool-icon" aria-hidden="true">${esc(t.icon || '')}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || '')} · <span class="wc-chip">${esc(t.planned)}</span></small></div>`
@@ -128,7 +130,7 @@
     return PIM_ROSTER.flatMap(g => g.tools.map(r => {
       const t = tools.find(t => t.id === r.id);
       if (!t) return r.planned ? { id: r.id, name: r.name, icon: r.icon, number: r.number, group: g.group, description: r.blurb || '', planned: r.planned } : null;
-      return { ...t, group: g.group, description: r.blurb || t.description, lens: r.lens === 'built' ? 'built' : !!r.lens };
+      return { ...t, name: r.name || t.name, group: g.group, description: r.blurb || t.description, lens: r.lens === 'built' ? 'built' : !!r.lens };
     }).filter(Boolean));
   }
   function renderLauncher() {
@@ -265,7 +267,7 @@
     }
     nav.querySelectorAll('.toolnav-tab [data-nav]').forEach(button=>{
       const t=tools.find(t=>t.id===button.dataset.nav);
-      if(t)button.innerHTML=icon(t.id)+`<span>${esc(t.name)}</span>`;
+      if(t)button.innerHTML=icon(t.id)+`<span>${esc(nameIn(t.id, ws))}</span>`;
       button.setAttribute('aria-current',button.dataset.nav===active&&!home?'page':'false');
       // A tab belongs to the workspace its tool is in; the other side's tabs
       // stay open and come back with the switch (32407).
@@ -274,7 +276,7 @@
     $('wcCloseAll').disabled=!nav.querySelector('[data-close]');
     document.querySelectorAll('#toolNav [data-close]').forEach(button=>{
       const t=tools.find(t=>t.id===button.dataset.close);
-      button.setAttribute('aria-label',`Close ${t?.name || 'tool'} tab`);
+      button.setAttribute('aria-label',`Close ${t ? nameIn(t.id, ws) : 'tool'} tab`);
     });
     if (!$('wcWsMenu').hidden) renderChip();
     // Many workspaces stay on one scrollable row. Re-check after decorating

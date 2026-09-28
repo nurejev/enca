@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32430, date: "2026-09-28", title: "👥 PIM groups and a logo-green header in Workspace 02",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "In 02 PIM-buddy the tool is called PIM groups: on its home card, in the tool library, on its tab and in its head. In 01 it keeps its name, Conditional Access groups. Switching workspace with the tool open renames the tab and head on the spot." },
+      { kind: "improved", tool: "Help", text: "The 02 PIM-buddy header is no longer navy. It is the green of the ENCA shield with a lemon line underneath; 01 keeps its darker green without the line." }
+    ]
+  },
+  {
     build: 32429, date: "2026-09-28", title: "🚀 Deploy — safer before its first real run",
     items: [
       { kind: "fixed", tool: "Deploy", text: "A plan runs once. After a run, or while one is running, typing the domain again no longer arms Apply, and the finished plan cannot be reopened from the steps: a second import is a new Preview from a new read. Running the same plan twice would have made every new group and unit a second time." },

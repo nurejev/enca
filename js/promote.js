@@ -117,6 +117,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 309,
+      title: "👥 T12 is called PIM groups in Workspace 02; 02's header is the logo's green with a lemon rule instead of navy",
+      tools: ["Conditional Access groups", "Help"],
+      builds: [32430],
+      risk: "low",
+      what: "js/workspaces.js: a PIM_ROSTER entry may carry its own name (T12: PIM groups); toolsOf() uses it for the home card and library, nameIn(id, ws) for the tab label and its close button. The blurb loses its PIM groups prefix. js/cagroups.js: the head carries both names in ws-ca / ws-pim spans; css/workspaces.css shows the one of body data-ws. Help T12 lens bullet updated. css/workspaces.css: 02's --wc-brand #1e3358 (navy) → #1e4729 (the shield's middle green) plus an inset 3px lemon rule under the header; the switcher's 02 swatch the same. Chosen as option C from the mockup of four.",
+      why: "Mihai, 28 Sep, with a screenshot of the 02 card: within the PIM workspace they should be called PIM groups. Mihai, same day: the navy on top needs to change, something with the logo colours, a couple of options → go for C. Low: labels and one colour.",
+      test: [
+        "Beta site, demo (?demo=1&ws=pim): the home card reads PIM groups, blurb Every role-assignable group..., T12 · PIM LENS. All tools (library) lists PIM groups; searching pim groups finds it.",
+        "Open it: the tab reads PIM groups and the head reads 👥 PIM groups — Contoso.",
+        "With the tool open, switch to 01 (⌘⇧1): the tab and head read Conditional Access groups; back to 02 (⌘⇧2): PIM groups again. The 01 home card still reads Conditional Access groups.",
+        "On 02 the header is green #1e4729 with a lemon line along its bottom edge; on 01 it is the darker #12331f with no line. Same in light and dark theme. The chip menu swatch for 02 matches; the rail switch dot follows the header. Header height the same on both sides (no jump when switching)."
+      ]
+    },
+    {
       n: 308,
       title: "PIM lenses on the carried-over tools — 🛡 PIM checks (T08), 👥 PIM groups (T12), 🕓 PIM changes (T16), 🚦 Activations & approvals (T17), 🔗 Who holds what (T19) — and ☁ Azure RBAC in 🎖 Roles & assignments (R75)",
       tools: ["Checks", "Conditional Access groups", "Changes", "Sign-in log", "User or Group analyzer", "Roles & assignments"],
@@ -317,7 +332,7 @@ const PROMOTE = {
       why: "Mihai, 24 Sep: ENCA Conditional Access becomes Workspace 01, Workspace 02 becomes PIM-buddy, everything PIM, with T19, T16, T17, T08, T12 and T27 carried over; mockup approved. LOW: presentation only — no read, no write, no change to any tool's screen; a carry-over tool is the same module. The only app.js change is one palette line.",
       test: [
         "Beta site, demo (?demo=1): the header shows ENCA and a chip 01 · Conditional Access; the rail is Home, Policies, Sign-ins, Who is…, Checks, Baseline, CA groups, Building blocks, All tools, Help — exactly as before 32407.",
-        "Open CA groups and Policies (two tabs). Press the chip → 02 · PIM-buddy: the header turns navy, the chip reads 02, the rail reads Baseline (greyed, next build), PIM groups, Who holds…, Checks, Restricted AUs, Changes; the home title is Privileged access overview with the PIM lead and a library of 10 tools in four groups; the Policies tab is hidden, the CA groups tab is still there.",
+        "Open CA groups and Policies (two tabs). Press the chip → 02 · PIM-buddy: the header turns green with a lemon rule (navy until 32430), the chip reads 02, the rail reads Baseline (greyed, next build), PIM groups, Who holds…, Checks, Restricted AUs, Changes; the home title is Privileged access overview with the PIM lead and a library of 10 tools in four groups; the Policies tab is hidden, the CA groups tab is still there.",
         "On 02 open Restricted AUs; press ⌘⇧1 (Ctrl+Shift+1 on Windows): back on 01 with the header green, all three tabs showing (CA groups, Policies, Restricted AUs), the screen unchanged. The 01 ⇄ caption at the foot of the rail switches to 02 again.",
         "On 02 press ⌘K, type switch, Enter: 01. On 02 press ⌘K, type rollout, Enter: Guided rollout opens AND the shell follows to 01 (chip 01, header green), because the screen decides the side.",
         "Reload with ?ws=pim: starts on 02. Reload without it: starts on the last side used in this browser. A fresh browser starts on 01.",

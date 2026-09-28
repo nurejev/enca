@@ -155,10 +155,15 @@ body.workspaces-shell.with-side:not(.wc-wide-logo) #wcRail{padding-top:46px}
 }
 
 /* 32407 (R67): two workspaces on one shell. The header colour is the workspace's
-   — ENCA green for 01, a navy for 02 — so a screenshot always says which side it
+   — ENCA green for 01, a lighter green with a lemon rule for 02 (32430; a navy until then) — so a screenshot always says which side it
    was taken on; the chip beside the wordmark is the one switch, the rail caption
    the second. Nothing below touches a tool's own screen. */
-body.workspaces-shell[data-ws="pim"]{--wc-brand:#1e3358}
+/* 32430 (Mihai: the navy has to go, something with the logo colours — option C):
+   02 is the shield's middle green with a lemon rule under the header. 01 is the
+   shield's deepest green without one, so the rule is what tells them apart. An
+   inset shadow, not a border, so the header keeps its height. */
+body.workspaces-shell[data-ws="pim"]{--wc-brand:#1e4729}
+body.workspaces-shell[data-ws="pim"] header{box-shadow:inset 0 -3px 0 var(--lemon)}
 .wc-ws{position:relative;display:inline-flex;align-items:center;flex-shrink:0}
 .wc-ws-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid color-mix(in srgb,var(--wc-brand-ink) 28%,var(--wc-brand));background:color-mix(in srgb,var(--wc-brand-ink) 10%,var(--wc-brand));color:var(--wc-brand-ink);border-radius:6px;padding:6px 10px 6px 8px;font:inherit;font-size:12px;font-weight:500;letter-spacing:0;white-space:nowrap;cursor:pointer}
 .wc-ws-chip:hover,.wc-ws-chip[aria-expanded="true"]{background:color-mix(in srgb,var(--wc-brand-ink) 18%,var(--wc-brand))}
@@ -172,7 +177,7 @@ body.workspaces-shell[data-ws="pim"]{--wc-brand:#1e3358}
 .wc-ws-row:hover{background:var(--soft2);border-color:var(--border)}
 .wc-ws-row.cur{background:var(--soft);border-color:var(--border)}
 .wc-ws-sw{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:#fff;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
-.wc-ws-sw-ca{background:var(--green-deep)}.wc-ws-sw-pim{background:#1e3358}
+.wc-ws-sw-ca{background:var(--green-deep)}.wc-ws-sw-pim{background:#1e4729;box-shadow:inset 0 -3px 0 var(--lemon)}
 .wc-ws-row strong{display:block;font-size:13px;font-weight:600}
 .wc-ws-row small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .wc-ws-keys kbd{font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--border);border-radius:4px;padding:1px 4px;background:var(--soft2);color:var(--muted)}
@@ -192,3 +197,9 @@ body.workspaces-shell[data-ws="pim"]{--wc-brand:#1e3358}
 body.workspaces-shell[data-ws="pim"] #wcHomeLead,body.workspaces-shell[data-ws="pim"] #overview,body.workspaces-shell[data-ws="pim"] #onboardBand,body.workspaces-shell[data-ws="pim"] .wc-session{display:none!important}
 body.workspaces-shell[data-ws="pim"] #wcPimLead{display:block}
 @media(max-width:700px){.wc-ws-chip span:not(.wc-ws-num){display:none}.wc-ws-chip{padding:6px 7px}.wc-ws-menu{left:auto;right:-40px}}
+
+/* 32430: a tool's own name per workspace, switched by the header's data-ws so an
+   open tab reads right after ⌘⇧1 / ⌘⇧2 without a re-render. */
+.ws-pim{display:none}
+body.workspaces-shell[data-ws="pim"] .ws-pim{display:inline}
+body.workspaces-shell[data-ws="pim"] .ws-ca{display:none}
