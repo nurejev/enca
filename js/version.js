@@ -38,7 +38,7 @@ const APP_BUILD = {
   // 2.0.1 (production 323): the next cycle is 324 — builds 32401+, v2.0.2-beta.N.
   cycle: 324,
   patchBase: 322,
-  build: 32425,
+  build: 32426,
   date: "2026-09-28",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -48,7 +48,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-09-28T12:47Z",
+  released: "2026-09-28T12:51Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
@@ -143,6 +143,7 @@ const TOOL_VERSIONS = {
   // of them was built, and Mihai asks for them by those numbers — so they keep
   // them though they enter in a different order (T53 first, 32423). T52
   // (Regions) stayed a pane of T48 and is not a tool; its number is burnt.
+  toolPimDesigner:  { t: 50, v: "0.1", head: "\ud83e\uddfe Designer \u2014 a customer\u2019s variant", chips: ["BETA", "reads only"], note: "0.1 (32426, Mihai: continue the PIM roadmap — T50 Designer, build a customer's variant of the framework): js/pimdesigner.js — a variant (cloudfellows-pim-variant/1) holds only differences: a tier's settings from fixed value lists (activation, what activation asks, context, approval + approver group, eligibility and active maxima, permanence, the three alert levels), a role moved to another tier, mailbox, authentication context, approver group names. validate() refuses what Entra refuses (MFA with a context, approval with no approver) and warns on a weaker Tier 0; apply() returns the catalog with it, so pmbCat() — and with it T48, T49 and T51 — use it when it is valid and in use for the tenant. Per tenant in localStorage, ⬇ / ⬆ as a file." },
   toolPimDeploy:    { t: 51, v: "0.1", head: "\ud83d\ude80 Deploy \u2014 import from the baseline", chips: ["BETA", "writes to tenant"], note: "0.1 (32425, Mihai, 28 Sep: onboarding and configuration always from the browser, the customer never runs a .ps1 — select and import from the baseline; mockup v4 PIM-buddy Import approved): js/pimdeploy.js builds ONE plan from T48 + Regions + T53 (+ the restricted unit) in the scripts' order and under their guardrails — approver groups, PIM-SG groups (role-assignable, private), units, Intune scope groups, role policies rule by rule (before kept), group eligibilities, scoped eligibilities, membership policies (existing PATCHed, new deferred), Intune (IntuneRbac.plan); nothing removed, conflicts and not-role-assignable block, approval only with an approver that exists or is made, eligibility capped by the role. Screen: Pick (sections with counts, only T48's ticks) → Preview (pimPlanPanel: impact, recovery, irreversible, typed domain, one consent, run ledger, backup) → Verify (read again). ↩ Put back restores a backup file's rules (PIM policy rules only, same tenant). T48's toolbar: 🚀 Import ticked → replaces ⬇ Delta config / Regions file." },
   toolPimRoles:     { t: 49, v: "0.1", head: "\ud83c\udf96 Roles &amp; assignments", chips: ["BETA", "reads only"], note: "0.1 (32424, Mihai: continue the PIM roadmap — T49 Roles & assignments: who holds what, direct and through groups, eligible, active, activated, scoped, expiring): js/pimroles.js models every eligibility and assignment instance (principal expanded) into rows; group principals opened up from PIM for Groups instances (active and eligible members; /members as the fallback, getByIds for eligible members' names); tier from the framework by template id; per-role findings (permanent active outside the framework, people eligible directly, eligibility that never expires where the tier caps it); last activation from selfActivate requests; tabs Roles / Who holds what / Scoped / Ending soon; CSV and MD." },
   toolIntuneRbac:   { t: 53, v: "0.1", head: "\ud83d\udcf1 Intune RBAC", chips: ["BETA", "reads only"], note: "0.1 (32423, Mihai: continue the PIM roadmap — T53 Intune RBAC read, tags, scope groups, assignments, the custom role, turning the regions' Not read rows into verdicts): js/intunerbac.js — expected() from the profile's intune block and the region template per regions.csv row (an assignment naming two roles is two Intune assignments), model() of the beta reads (roleDefinitions + each custom role by id, roleAssignments each with $expand=roleDefinition, roleScopeTags + their assignments, resourceOperations), resolveActions() as New-PimRegions.ps1 (id, or Resource/Action on resourceName/actionName), compare() → verdicts by name that 🗺 Regions reads, other assignments judged on their members (not a PIM-SG-INT group = held standing), plan() for 🚀 Deploy. A pane of T48's screen with its own tile, tab and number." },

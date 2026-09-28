@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32426, date: "2026-09-28", title: "🧾 Designer — a customer's variant of the PIM framework",
+    items: [
+      { kind: "new", tool: "Designer", text: "When a customer needs the CloudFellows PIM framework a little different, the new Designer in 02 PIM-buddy holds exactly those differences as a variant: a tier's settings (how long an activation lasts, what it asks for, approval and by whom, how long eligibility and active assignments may last, the alerts), a role moved to another tier, their own alert mailbox, authentication context and approver groups. Tiers are changed as tiers, never role by role." },
+      { kind: "new", tool: "Designer", text: "Combinations Entra refuses are stopped before they reach a tenant — MFA on activation together with an authentication context, approval with no approver group — and a Tier 0 made weaker gets a warning. Switch the variant on for the tenant and PIM baseline compares against it, Roles & assignments shows its tiers and Deploy imports it. It stays in this browser for the tenant and can be downloaded and loaded into the next one." },
+    ],
+  },
+  {
     build: 32425, date: "2026-09-28", title: "🚀 Deploy — import the PIM framework from the browser, no script",
     items: [
       { kind: "new", tool: "Deploy", text: "Onboarding a tenant onto the CloudFellows PIM framework now happens in the browser, signed in as the tenant's own admin. Pick what to take from the baseline in the tenant's profile — PIM-SG groups, approver groups, role settings, the groups' eligibilities, membership policies, the restricted unit, every region of your regions file, Intune RBAC — each with the number of changes it would make." },

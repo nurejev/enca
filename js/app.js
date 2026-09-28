@@ -181,7 +181,7 @@
   // the site entirely — and after an MSAL popup sign-in the previous entry may
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
-  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimdeploy",
+  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimdeploy", "screen-pimdesigner",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
@@ -2880,6 +2880,7 @@
     ["toolIntuneRbac", "📱 Intune RBAC"],
     ["toolPimRoles", "🎖 Roles & assignments"],
     ["toolPimDeploy", "🚀 Deploy"],
+    ["toolPimDesigner", "🧾 Designer"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
@@ -21511,7 +21512,9 @@ This is a directory write. Nothing else changes.`)) return;
   // compared inside pmbRebuild so 🗺 Regions' Intune rows get verdicts too.
   let pmbInt = null, pmbIntErr = null, pmbIntBusy = false, pmbIntRes = null, pmbIntFilter = "all";
   try { const v = localStorage.getItem("enca.pmbProfile"); if (v && PIM_BASELINE.profiles[v]) pmbProfileId = v; } catch { /* default */ }
-  const pmbCat = () => PimBaseline.profile(PIM_BASELINE, pmbProfileId);
+  // 🧾 T50 (32426): a customer's variant, when it is valid and in use for
+  // this tenant, is folded into the catalog every PIM tool works from.
+  const pmbCat = () => { const c = PimBaseline.profile(PIM_BASELINE, pmbProfileId); const v = pdsActive(); return v ? PimDesigner.apply(c, v) : c; };
   const PMB_READ = [...PIM_READ, "AdministrativeUnit.Read.All", "RoleManagementPolicy.Read.AzureADGroup"];
   const pmbProg = makeProgress("pmb"); pmbProg.by = "🧬 PIM baseline"; pmbProg.stoppable = true;
   const pmbSessionKey = () => (isDemo ? "demo" : `${tenantId}`);
@@ -22358,6 +22361,130 @@ This is a directory write. Nothing else changes.`)) return;
       if (!isDemo && j.meta && j.meta.tenantId && tenantId && j.meta.tenantId !== tenantId) throw new Error(`the backup is of another tenant (${j.meta.domain || j.meta.tenantId})`);
       pdp.plan = PimPlan.restorePlan(j); pdp.restore = j; pdp.step = 2; pdpPaint();
     } catch (err) { toast(`Put back <span>${esc(err.message || err)}</span>`); }
+  });
+
+  // ======================================================================
+  // 🧾 Designer — a customer's variant (T50, beta 32426, R73). js/pimdesigner.js
+  // holds the rules; this block keeps the variant per tenant in this browser
+  // (enca.pimVariant:<tenant>), edits it, and says when it is in use — then
+  // pmbCat() folds it into the catalog 🧬 T48, 🎖 T49 and 🚀 T51 work from.
+  // ======================================================================
+  let pds = { key: null, v: null, use: false, tab: "tiers", tier: "Tier1" };
+  const pdsKey = () => `enca.pimVariant:${isDemo ? "demo" : (tenantId || "none")}`;
+  function pdsLoad() {
+    if (pds.key === pdsKey()) return;
+    pds.key = pdsKey(); pds.v = null; pds.use = false;
+    try { const j = JSON.parse(localStorage.getItem(pds.key) || "null"); if (j && j.variant) { pds.v = j.variant; pds.use = !!j.use; } } catch { /* storage off: no variant */ }
+  }
+  function pdsSave() {
+    try { if (pds.v && !PimDesigner.isEmpty(pds.v)) localStorage.setItem(pds.key, JSON.stringify({ variant: pds.v, use: pds.use })); else localStorage.removeItem(pds.key); } catch { /* storage off: the variant lives for this session */ }
+  }
+  function pdsActive() {
+    try {
+      pdsLoad();
+      if (!pds.use || !pds.v || PimDesigner.isEmpty(pds.v)) return null;
+      return PimDesigner.validate(pds.v, PimBaseline.profile(PIM_BASELINE, pmbProfileId)).errors.length ? null : pds.v;
+    } catch { return null; }
+  }
+  function pdsChanged() {
+    pds.v.updatedAt = new Date().toISOString();
+    pdsSave();
+    try { pmbRebuild(); } catch { /* nothing read yet */ }
+    pdp.plan = null;
+    pdsPaint();
+  }
+  const PDS_HEAD = `<p class="mini" style="margin:6px 0 0">The <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> is the baseline. A <b>variant</b> holds only what a customer needs different — a tier's settings (never role by role), a role in another tier, their alert mailbox, their authentication context, their approver groups. <b>Use for this tenant</b> and 🧬 PIM baseline compares against it, 🎖 Roles &amp; assignments shows its tiers and 🚀 Deploy imports it. Kept in this browser for this tenant; ⬇ Variant file takes it to the next one. Nothing here touches the tenant.</p>`;
+  function openPimDesigner() {
+    crumb("🧾 Designer");
+    show("screen-pimdesigner");
+    $("pdsHead").innerHTML = toolHead("toolPimDesigner") + PDS_HEAD;
+    pdsLoad();
+    pdsPaint();
+  }
+  function pdsPaint() {
+    pdsLoad();
+    const cat = PimBaseline.profile(PIM_BASELINE, pmbProfileId);
+    if (!pds.v) pds.v = PimDesigner.blank(cat, pmbProfileId);
+    const val = PimDesigner.validate(pds.v, cat);
+    const diffs = PimDesigner.diff(cat, pds.v);
+    const tabs = [["tiers", "Tiers"], ["roles", `Role → tier${Object.keys(pds.v.roles).length ? ` (${Object.keys(pds.v.roles).length})` : ""}`], ["names", "Mailbox & approvers"], ["file", `The variant (${diffs.length})`]];
+    $("pdsChips").innerHTML = tabs.map(([k, l]) => `<button class="fchip${pds.tab === k ? " active" : ""}" data-pdstab="${k}">${esc(l)}</button>`).join("");
+    const empty = PimDesigner.isEmpty(pds.v);
+    $("pdsUse").textContent = pds.use ? "✓ In use for this tenant" : "Use for this tenant";
+    $("pdsUse").disabled = empty || val.errors.length > 0;
+    $("pdsExport").disabled = empty; $("pdsDiscard").disabled = empty && !pds.use;
+    const status = `<p class="mini pmb-read">Profile <b>${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b> (as in 🧬 PIM baseline) · ${empty ? "no changes — this is the framework as it is" : `${diffs.length} change${diffs.length === 1 ? "" : "s"}`} · ${pds.use && !val.errors.length && !empty ? `<b>in use</b> for this tenant${pds.v.name ? ` as “${esc(pds.v.name)}”` : ""}` : "not in use"}</p>${val.errors.length ? `<ul class="pmb-diffs pmb-findings">${val.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul><p class="mini pmb-bad-txt">A variant with these errors is never used.</p>` : ""}${val.warnings.length ? `<ul class="pmb-diffs">${val.warnings.map((e) => `<li class="pmb-warnline">${esc(e)}</li>`).join("")}</ul>` : ""}`;
+    let body = "";
+    if (pds.tab === "tiers") {
+      const tiers = Object.keys(cat.templates);
+      if (!tiers.includes(pds.tier)) pds.tier = tiers[0];
+      const T = cat.templates[pds.tier], V = (pds.v.templates[pds.tier] || {}), M = Object.assign({}, T, V);
+      const row = (k) => {
+        const F = PimDesigner.FIELDS[k], changed = k in V;
+        let ctl = "";
+        if (F.values) ctl = `<select data-pdsf="${k}">${F.values.map((x) => `<option value="${x}"${M[k] === x ? " selected" : ""}>${esc(PimBaseline.human(x))}</option>`).join("")}</select>`;
+        else if (F.bool) ctl = `<label class="chk"><input type="checkbox" data-pdsf="${k}"${M[k] ? " checked" : ""}> ${M[k] ? "on" : "off"}</label>`;
+        else if (F.parts) { const have = String(M[k] || "").split(",").map((x) => x.trim()); ctl = F.parts.map((p) => `<label class="chk"><input type="checkbox" data-pdsf="${k}" data-part="${p}"${have.includes(p) ? " checked" : ""}> ${{ MultiFactorAuthentication: "MFA", Justification: "justification", Ticketing: "ticket" }[p]}</label>`).join(" "); }
+        else if (F.group) ctl = `<input type="text" data-pdsf="${k}" value="${esc((M[k] || []).join(", "))}" placeholder="PIM-SG-Approvers" spellcheck="false">`;
+        else if (F.level) ctl = `<select data-pdsf="${k}">${["All", "Critical"].map((x) => `<option${M[k] && M[k].notificationLevel === x ? " selected" : ""}>${x}</option>`).join("")}</select>`;
+        return `<tr class="pmb-row${changed ? " pmb-differs" : ""}"><td><b>${esc(F.label)}</b></td><td class="mini">${esc(PimDesigner.show(k, T[k]))}</td><td>${ctl}</td><td>${changed ? `<button class="btn sm" data-pdsreset="${k}">↺ framework</button>` : ""}</td></tr>`;
+      };
+      body = `<div class="chip-filter">${tiers.map((t) => `<button class="fchip${pds.tier === t ? " active" : ""}" data-pdstier="${t}">${esc(t)}${pds.v.templates[t] ? " •" : ""}</button>`).join("")}</div>
+        <div class="list-card xt-card"><h3>${esc(pds.tier)} <span class="mini">${esc(T.description || "")}</span></h3><div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Setting</th><th>Framework</th><th>This customer</th><th></th></tr></thead><tbody>${Object.keys(PimDesigner.FIELDS).filter((k) => k in T || k === "Approvers").map(row).join("")}</tbody></table></div>
+        <p class="mini">Roles in ${esc(pds.tier)}: ${esc(cat.roles.filter((r) => ((pds.v.roles[r.name] || {}).template || r.template) === pds.tier).map((r) => r.name).join(", ") || (/^Group/.test(pds.tier) ? `the ${pds.tier === "GroupJIT" ? "Intune access" : "persona"} groups' membership` : "none"))}.</p></div>`;
+    } else if (pds.tab === "roles") {
+      body = `<div class="list-card xt-card"><h3>Role → tier <span class="mini">a role moves with all its settings; the few built-in exceptions (Global Administrator's hour) stay with the role</span></h3><div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Role</th><th>Framework</th><th>This customer</th></tr></thead><tbody>${cat.roles.map((r) => { const cur = (pds.v.roles[r.name] || {}).template || r.template; return `<tr class="pmb-row${cur !== r.template ? " pmb-differs" : ""}"><td><b>${esc(r.name)}</b></td><td><span class="pmb-tier pmb-tier-${esc(r.template)}">${esc(r.template)}</span></td><td><select data-pdsrole="${esc(r.name)}">${PimDesigner.ROLE_TIERS.map((t) => `<option${t === cur ? " selected" : ""}>${t}</option>`).join("")}</select></td></tr>`; }).join("")}</tbody></table></div></div>`;
+    } else if (pds.tab === "names") {
+      const approvers = [...new Set(Object.values(cat.templates).flatMap((t) => t.Approvers || []))];
+      body = `<div class="list-card xt-card"><h3>Mailbox, authentication context, approvers</h3><dl class="pim-kv">
+        <dt>Alert mailbox</dt><dd><input type="text" data-pdsname="mailbox" value="${esc(pds.v.mailbox || "")}" placeholder="${esc((cat.notifications && cat.notifications.mailbox) || "pim-alerts")}" spellcheck="false"> <span class="mini">a name in the tenant's domain (soc) or a full address in one of its verified domains</span></dd>
+        <dt>Authentication context</dt><dd><input type="text" data-pdsname="authContext" value="${esc(pds.v.authContext || "")}" placeholder="${esc((cat.authContext && cat.authContext.id) || "c1")}" spellcheck="false"> <span class="mini">the context Tier 0 activation requires; its Conditional Access policy lives in Workspace 01</span></dd>
+        ${approvers.map((a) => `<dt>${esc(a)}</dt><dd><input type="text" data-pdsappr="${esc(a)}" value="${esc(pds.v.approvers[a] || "")}" placeholder="${esc(a)}" spellcheck="false"> <span class="mini">the customer's name for this approver group (PIM-SG-…)</span></dd>`).join("")}
+      </dl></div>`;
+    } else {
+      body = `<div class="list-card xt-card"><h3>The variant</h3><dl class="pim-kv"><dt>Name</dt><dd><input type="text" data-pdsname="name" value="${esc(pds.v.name || "")}" placeholder="Contoso — Tier 1 four hours" spellcheck="false"></dd><dt>Notes</dt><dd><textarea data-pdsname="notes" rows="3" style="width:100%">${esc(pds.v.notes || "")}</textarea></dd><dt>Based on</dt><dd class="mini">${esc(pds.v.base.catalog)} ${esc(pds.v.base.release)} (revised ${esc(pds.v.base.revised)})${pds.v.base.release !== PIM_BASELINE.release ? ` — <span class="pmb-bad-txt">the framework is ${esc(PIM_BASELINE.release)} now: check the changes still make sense</span>` : ""}</dd></dl>
+        <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Where</th><th>What</th><th>Framework</th><th>This customer</th></tr></thead><tbody>${diffs.map((d) => `<tr class="pmb-row"><td><b>${esc(d.where)}</b></td><td>${esc(d.what)}</td><td class="mini">${esc(d.from)}</td><td class="mini"><b>${esc(d.to)}</b></td></tr>`).join("") || `<tr><td colspan="4" class="mini" style="padding:12px">No changes — the framework as it is.</td></tr>`}</tbody></table></div></div>`;
+    }
+    $("pdsBody").innerHTML = status + body;
+  }
+  $("toolPimDesigner").addEventListener("click", () => openPimDesigner());
+  $("pdsChips").addEventListener("click", (e) => { const t = e.target.closest("[data-pdstab]"); if (t) { pds.tab = t.dataset.pdstab; pdsPaint(); } });
+  $("pdsBody").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-pdstier]"); if (t) { pds.tier = t.dataset.pdstier; pdsPaint(); return; }
+    const r = e.target.closest("[data-pdsreset]"); if (r) { pds.v = PimDesigner.reset(pds.v, pds.tier, r.dataset.pdsreset); pdsChanged(); }
+  });
+  $("pdsBody").addEventListener("change", (e) => {
+    const cat = PimBaseline.profile(PIM_BASELINE, pmbProfileId);
+    const el = e.target;
+    if (el.dataset.pdsf) {
+      const k = el.dataset.pdsf, F = PimDesigner.FIELDS[k], T = cat.templates[pds.tier], M = Object.assign({}, T, pds.v.templates[pds.tier] || {});
+      let val;
+      if (F.values) val = el.value;
+      else if (F.bool) val = el.checked;
+      else if (F.parts) { const have = new Set(String(M[k] || "").split(",").map((x) => x.trim()).filter((x) => x && x !== "None")); el.checked ? have.add(el.dataset.part) : have.delete(el.dataset.part); val = F.parts.filter((p) => have.has(p)).join(",") || "None"; }
+      else if (F.group) val = el.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+      else if (F.level) val = Object.assign({}, T[k] || {}, { notificationLevel: el.value });
+      pds.v = PimDesigner.set(pds.v, cat, pds.tier, k, val); pdsChanged(); return;
+    }
+    if (el.dataset.pdsrole) { pds.v = PimDesigner.setRole(pds.v, cat, el.dataset.pdsrole, el.value); pdsChanged(); return; }
+    if (el.dataset.pdsname) { const k = el.dataset.pdsname; pds.v[k] = el.value.trim() || (k === "name" || k === "notes" ? "" : null); pdsChanged(); return; }
+    if (el.dataset.pdsappr) { const a = el.dataset.pdsappr, to = el.value.trim(); if (!to || to === a) delete pds.v.approvers[a]; else pds.v.approvers[a] = to; pdsChanged(); }
+  });
+  $("pdsUse").addEventListener("click", () => { pds.use = !pds.use; pdsSave(); try { pmbRebuild(); } catch { /* not read */ } pdp.plan = null; pdsPaint(); toast(pds.use ? "Variant <span>in use for this tenant</span>" : "Variant <span>not in use — the framework as it is</span>"); });
+  $("pdsExport").addEventListener("click", () => { if (pds.v) downloadText(`pim-variant${pds.v.name ? "." + pds.v.name.replace(/[^\w-]+/g, "-") : ""}`, "json", "application/json", JSON.stringify(pds.v, null, 2) + "\n"); });
+  $("pdsDiscard").addEventListener("click", () => { pds.v = null; pds.use = false; try { localStorage.removeItem(pds.key); } catch { /* none */ } try { pmbRebuild(); } catch { /* not read */ } pdp.plan = null; pdsPaint(); toast("Variant <span>discarded — the framework as it is</span>"); });
+  $("pdsLoad").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      const cat = PimBaseline.profile(PIM_BASELINE, pmbProfileId);
+      const v = Object.assign(PimDesigner.blank(cat, pmbProfileId), j, { templates: j.templates || {}, roles: j.roles || {}, approvers: j.approvers || {} });
+      const val = PimDesigner.validate(v, cat);
+      if (v.schema !== PimDesigner.SCHEMA) throw new Error(`not a variant file (schema ${PimDesigner.SCHEMA})`);
+      pds.v = v; pds.use = false; pds.tab = "file"; pdsChanged();
+      toast(`Variant <span>${esc(v.name || f.name)} loaded — ${val.errors.length ? `${val.errors.length} error(s), not usable yet` : "check it, then Use for this tenant"}</span>`);
+    } catch (err) { toast(`Load <span>${esc(err.message || err)}</span>`); }
   });
 
   function isRebuild() {

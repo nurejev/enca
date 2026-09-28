@@ -32,6 +32,7 @@
     toolSmsVoice: 'Assess the impact of SMS and voice retirement.',
     toolMemberOf: 'Find memberOf rules and their dependent services.',
     toolPimBaseline: 'Match this tenant’s PIM role settings and PIM groups against the CloudFellows PIM framework.',
+    toolPimDesigner: 'A customer’s variant of the framework — tiers, a role’s tier, mailbox, approvers — that Baseline compares against and Deploy imports.',
     toolPimDeploy: 'Import the framework into this tenant from the browser: pick, WhatIf, type the domain, apply — nothing removed.',
     toolPimRoles: 'Who holds which Entra role — eligible, active, activated, scoped, expiring — people through groups included.',
     toolIntuneRbac: 'Intune role assignments, scope tags, scope groups and the regional custom role against the framework.',
@@ -47,7 +48,7 @@
   // "PIM lens" (a PIM-only catalogue, tab strip and Help text for it) is on
   // the roadmap, and the card says so rather than promising it.
   const WS_KEY = 'enca.workspace';
-  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac', 'toolPimRoles', 'toolPimDeploy']);
+  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac', 'toolPimRoles', 'toolPimDeploy', 'toolPimDesigner']);
   const PIM_ROSTER = [
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
       { id: 'toolPimBaseline', blurb: blurbs.toolPimBaseline },
@@ -62,6 +63,7 @@
       { id: 'toolAudit', blurb: 'Directory changes from the audit log — role settings and assignments among them.', lens: true },
     ] },
     { group: '✍️ Manage', tools: [
+      { id: 'toolPimDesigner', blurb: blurbs.toolPimDesigner },
       { id: 'toolPimDeploy', blurb: blurbs.toolPimDeploy },
       { id: 'toolRmau', blurb: 'AU-RM-Executives and the desk scoped on it; no PIM group, adm- account or role holder in any restricted unit.', lens: 'built' },
     ] },

@@ -301,7 +301,7 @@ const PimBaseline = (() => {
     const compared = groups.filter((g) => g.scope !== "azure");
     const gcounts = { total: compared.length, present: compared.filter((g) => g.present).length, missing: compared.filter((g) => !g.present).length, differs: compared.filter((g) => g.status === "differs").length, conflict: groups.filter((g) => g.status === "conflict").length, unread: compared.filter((g) => g.status === "unread").length, azure: groups.length - compared.length, azurePresent: groups.filter((g) => g.scope === "azure" && g.present).length, extra: extraGroups.length };
     const permanentOutside = rows.reduce((n, r) => n + r.permanentOutside, 0);
-    return { catalog: { id: cat.id, label: cat.label, release: cat.release, revised: cat.revised, tenant: cat.tenant }, profile: cat.profile || null, rows, groups, extraGroups, regionalGroups, counts, gcounts, permanentOutside, domain, domainChecked: !!domain, sources: tenant.sources || null, groupPoliciesError: tenant.groupPoliciesError || null, readAt: tenant.readAt || null, demo: !!tenant.demo, tenantId: tenant.tenantId || null };
+    return { catalog: { id: cat.id, label: cat.label, release: cat.release, revised: cat.revised, tenant: cat.tenant, variant: cat.variant || null }, profile: cat.profile || null, rows, groups, extraGroups, regionalGroups, counts, gcounts, permanentOutside, domain, domainChecked: !!domain, sources: tenant.sources || null, groupPoliciesError: tenant.groupPoliciesError || null, readAt: tenant.readAt || null, demo: !!tenant.demo, tenantId: tenant.tenantId || null };
   }
 
   // What the delta takes by default: the rows that differ or are missing.
@@ -809,7 +809,7 @@ const PimBaseline = (() => {
     const can = selectable(res);
     const hit = (s) => !q || String(s).toLowerCase().includes(q);
     const box = (key, label) => `<input type="checkbox" data-pmbfix="${esc(key)}"${sel.has(key) && can.has(key) ? " checked" : ""}${can.has(key) ? "" : " disabled"} aria-label="Take ${esc(label)} into the delta">`;
-    const head = `<p class="mini pmb-read">${res.demo ? "Demo data · " : ""}Baseline: <b>${esc(res.catalog.label)} ${esc(res.catalog.release)}</b>${res.profile ? ` · profile <b>${esc(res.profile.label)}</b>` : ""}, revised ${esc(res.catalog.revised)}, authored in ${esc(res.catalog.tenant)}${res.readAt ? ` · tenant read ${esc(new Date(res.readAt).toLocaleString())}` : ""}${sourcesLine(res)}${res.groupPoliciesError ? ` · <span class="pmb-warn">group settings not read: ${esc(res.groupPoliciesError)}</span>` : ""}</p>`;
+    const head = `<p class="mini pmb-read">${res.demo ? "Demo data · " : ""}Baseline: <b>${esc(res.catalog.label)} ${esc(res.catalog.release)}</b>${res.catalog.variant ? ` with the customer's variant <b>${esc(res.catalog.variant.name)}</b> (${res.catalog.variant.changes} change${res.catalog.variant.changes === 1 ? "" : "s"}, 🧾 Designer)` : ""}${res.profile ? ` · profile <b>${esc(res.profile.label)}</b>` : ""}, revised ${esc(res.catalog.revised)}, authored in ${esc(res.catalog.tenant)}${res.readAt ? ` · tenant read ${esc(new Date(res.readAt).toLocaleString())}` : ""}${sourcesLine(res)}${res.groupPoliciesError ? ` · <span class="pmb-warn">group settings not read: ${esc(res.groupPoliciesError)}</span>` : ""}</p>`;
     let rows = res.rows.filter((r) => hit(r.name + " " + r.template + " " + r.via.join(" ")));
     if (filter === "differs") rows = rows.filter((r) => r.status === "differs");
     else if (filter === "missing") rows = rows.filter((r) => r.status === "missing" || r.status === "unread");

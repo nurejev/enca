@@ -117,6 +117,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 306,
+      title: "🧾 Designer (T50) — a customer's variant of the CloudFellows PIM framework (tiers, role → tier, mailbox, authentication context, approver names), validated, per tenant and as a file; T48 / T49 / T51 use it when it is in use (R73)",
+      tools: ["Designer", "PIM baseline"],
+      builds: [32426],
+      risk: "medium",
+      what: "js/pimdesigner.js (new, pure): blank / validate / apply / diff / set / reset / setRole, schema cloudfellows-pim-variant/1, value lists per field. js/app.js: pds* block (per-tenant localStorage enca.pimVariant:<tenant>, Use for this tenant, ⬇ Variant file, ⬆ Load, ✕ Discard; tabs Tiers / Role → tier / Mailbox & approvers / The variant), pmbCat() applies an in-use valid variant. js/pimbaseline.js: compare() carries catalog.variant, the read line names it. index.html screen-pimdesigner + tile (T50); TOOL_TABS, HISTORY_SCREENS, roster, flat icon. tools/pimdesigner.test.cjs (3).",
+      why: "Mihai, 28 Sep: continue the PIM roadmap — T50 Designer, build a customer's variant of the framework. Medium: nothing is written by the Designer itself, but an in-use variant changes what 🚀 Deploy writes.",
+      test: [
+        "Beta site, demo (?demo=1&ws=pim) → 🧾 Designer: Tiers → Tier1 → Activation 24 h: the row turns amber with ↺ framework, the status says 1 change · not in use; Use for this tenant → ✓ In use; The variant tab lists Tier1 · Activation · 2 h → 24 h.",
+        "🧬 PIM baseline → ▶ Read: the read line says with the customer's variant (1 change, 🧾 Designer); Exchange Administrator (24 h in the demo) no longer lists Activation duration as a difference.",
+        "Tier0 → tick MFA under On activation: Entra refuses the pair error appears and Use for this tenant is disabled; while the error stands, T48 compares against the framework as it is.",
+        "⬇ Variant file downloads JSON with schema cloudfellows-pim-variant/1 and only the changes; ✕ Discard; ⬆ Load that file: it comes back not in use.",
+        "🚀 Deploy with the variant in use: Preview's role settings follow the variant (Tier1 roles PATCHed to 24 h).",
+        "Offline: node --test tools/pimdesigner.test.cjs passes 3.",
+      ],
+      files: ["js/pimdesigner.js", "js/app.js", "js/pimbaseline.js", "index.html", "js/workspaces.js", "js/flat-icons.js", "js/version.js", "tools/pimdesigner.test.cjs"],
+    },
+    {
       n: 305,
       title: "🚀 Deploy (T51) — import the CloudFellows PIM framework from the browser: pick, WhatIf, typed domain, run ledger, verify, backup and ↩ Put back; T48 leads to it instead of the script files (R72)",
       tools: ["Deploy", "PIM baseline"],
