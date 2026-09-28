@@ -792,5 +792,26 @@ DEMO_DATA.pim = (() => {
     { principalId: "u-adm-anna", principalName: "adm-anna", roleName: "Global Administrator", createdDateTime: "2026-09-27T08:12:00Z", status: "Provisioned", justification: "Tenant setting change CHG-2291" },
     { principalId: "u-desk1", principalName: "adm-desk-sanne", roleName: "Helpdesk Administrator", createdDateTime: "2026-09-28T07:40:00Z", status: "Provisioned", justification: "Shift" },
   ];
-  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, rmauMembers, intune, groupMembers, activations, domain: "contoso.nl" };
+  activations.push(
+    { principalId: "u-adm-mihai", principalName: "adm-mihai", roleName: "Privileged Role Administrator", createdDateTime: "2026-09-28T09:05:00Z", status: "PendingApproval", justification: "Assign ServiceDesk-VIP scope", ticketInfo: { ticketNumber: "CHG-2304" } },
+    { principalId: "u-adm-kees", principalName: "adm-kees", roleName: "Exchange Administrator", createdDateTime: "2026-09-26T14:20:00Z", status: "Denied", justification: "mailbox" },
+  );
+  // 🕓 T16's PIM lens (32428): the PIM events of the directory audit log.
+  const ev = (at, activity, by, target, result, reason) => ({ activityDateTime: at, activityDisplayName: activity, loggedByService: "PIM", result: result || "success", resultReason: reason || "", initiatedBy: { user: { userPrincipalName: by } }, targetResources: [{ displayName: target }] });
+  const audit = [
+    ev("2026-09-28T09:05:10Z", "Add member to role requested (PIM activation)", "adm-mihai@contoso.nl", "Privileged Role Administrator", "success", "Pending approval"),
+    ev("2026-09-27T08:12:30Z", "Add member to role completed (PIM activation)", "adm-anna@contoso.nl", "Global Administrator"),
+    ev("2026-09-25T15:40:00Z", "Update role setting in PIM", "adm-anna@contoso.nl", "Exchange Administrator", "success", "Activation maximum duration 24 hours"),
+    ev("2026-09-24T10:00:00Z", "Add member to role completed (PIM activation)", "joey@contoso.nl", "Intune Administrator"),
+    ev("2026-09-22T11:30:00Z", "Add eligible member to role in PIM completed (permanent)", "adm-anna@contoso.nl", "Joey Bakker → Global Administrator"),
+    ev("2026-09-20T09:00:00Z", "Remove member from role in PIM completed (timebound)", "MS-PIM", "adm-kees → Exchange Administrator"),
+  ];
+  // ☁ T49's Azure RBAC tab (32428): PIM for Azure resources, as ARM returns it.
+  const az = (scope, scopeType, role, principal, principalType, extra) => ({ properties: Object.assign({ scope: `/subscriptions/demo/${scope}`, principalId: `p-${principal}`, memberType: "Direct", expandedProperties: { scope: { displayName: scope, type: scopeType }, roleDefinition: { displayName: role, type: "BuiltInRole" }, principal: { displayName: principal, type: principalType } } }, extra || {}) });
+  const azure = {
+    scopes: [{ id: "/providers/Microsoft.Management/managementGroups/contoso", name: "Tenant Root Group", type: "managementgroup" }, { id: "/subscriptions/sub-platform", name: "Platform", type: "subscription" }, { id: "/subscriptions/sub-corp", name: "Corp", type: "subscription" }],
+    eligible: [az("Tenant Root Group", "managementgroup", "Owner", "PIM-SG-AZ-Tenant-Owner", "Group", { endDateTime: "2027-09-01T00:00:00Z" }), az("Platform", "subscription", "Owner", "PIM-SG-AZ-Platform-Owner", "Group", { endDateTime: "2027-09-01T00:00:00Z" }), az("Platform", "subscription", "Contributor", "PIM-SG-AZ-Platform-Contributor", "Group", { endDateTime: "2027-09-01T00:00:00Z" })],
+    active: [az("Corp", "subscription", "Owner", "Joey Bakker", "User", { assignmentType: "Assigned" }), az("Corp", "subscription", "Contributor", "PIM-SG-AZ-Corp-Contributor", "Group", { assignmentType: "Assigned" }), az("Platform", "subscription", "Reader", "SOC readers", "Group", { assignmentType: "Assigned" })],
+  };
+  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, rmauMembers, intune, groupMembers, activations, audit, azure, domain: "contoso.nl" };
 })();

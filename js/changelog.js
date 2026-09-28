@@ -29,6 +29,17 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32428, date: "2026-09-28", title: "PIM lenses on Checks, CA groups, Changes, Sign-in log and User or Group analyzer; Azure RBAC in Roles & assignments",
+    items: [
+      { kind: "new", tool: "Checks", text: "Opened from 02 PIM-buddy, Checks shows the PIM checks above its own tabs: permanent Global Administrators outside the framework, how many people can become Global Administrator, Tier 0 activation without the authentication context or approval, roles held directly instead of through a PIM-SG group, eligibility that never ends, standing Intune roles, PIM objects in restricted units, and whether a Conditional Access policy really enforces the context. Each check passes, fails or says it was not read, with a button to the tool that fixes it." },
+      { kind: "new", tool: "Conditional Access groups", text: "In 02, a PIM groups panel lists every role-assignable group with the roles it holds and its active and eligible members." },
+      { kind: "new", tool: "Changes", text: "In 02, a PIM changes panel shows the last 30 days of PIM events from the audit log: role settings changed, assignments made or removed, activations." },
+      { kind: "new", tool: "Sign-in log", text: "In 02, an Activations & approvals panel lists every role activation request, why it was asked for, and whether it was granted, is waiting for approval, was denied or failed." },
+      { kind: "new", tool: "User or Group analyzer", text: "In 02, Who holds what shows one person or group's roles — directly or through which group, where and until when — and the Conditional Access policies that gate a Tier 0 activation." },
+      { kind: "new", tool: "Roles & assignments", text: "A new Azure RBAC tab reads PIM for Azure resources on every management group and subscription you can see: who is eligible or active for which Azure role, whether the framework's PIM-SG-AZ groups hold theirs, and who holds Owner or User Access Administrator permanently and directly." },
+    ],
+  },
+  {
     build: 32427, date: "2026-09-28", title: "🧬 PIM baseline — 🧱 update the catalog from cloudfellows.dev",
     items: [
       { kind: "new", tool: "PIM baseline", text: "On the baseline tenant, 🧱 Update the catalog lists every PIM setting the portal holds differently from the CloudFellows PIM framework and says where it belongs in the catalog: the tier's template when every role of that tier agrees, the profile's template when the profile already sets that value, or the role's own exception when only some roles do. When a tier is set several different ways, it says so instead of guessing." },

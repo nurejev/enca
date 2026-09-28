@@ -53,14 +53,14 @@
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
       { id: 'toolPimBaseline', blurb: blurbs.toolPimBaseline },
       { id: 'toolIntuneRbac', blurb: blurbs.toolIntuneRbac },
-      { id: 'toolGapCheck', blurb: 'The MS Learn checks already cover privileged roles and break-glass; a PIM-only catalogue is on the roadmap.', lens: true },
+      { id: 'toolGapCheck', blurb: 'The PIM checks: permanent Global Administrators, Tier 0 without context or approval, direct eligibility, expiry, standing Intune roles, the context’s Conditional Access policy.', lens: 'built' },
     ] },
     { group: '👁 See what is privileged', tools: [
       { id: 'toolPimRoles', blurb: blurbs.toolPimRoles },
-      { id: 'toolCaGroups', blurb: 'Role-assignable groups, their members and the roles they carry — the PIM groups of the framework.', lens: true },
-      { id: 'toolGroupUse', blurb: 'Pick a user or group: its directory roles and PIM eligibilities, and where else it is used.', lens: true },
-      { id: 'toolSignins', blurb: 'Sign-in failures — including the MFA and authentication-context failures at activation time.', lens: true },
-      { id: 'toolAudit', blurb: 'Directory changes from the audit log — role settings and assignments among them.', lens: true },
+      { id: 'toolCaGroups', blurb: 'PIM groups: every role-assignable group with the roles it holds and its active and eligible members.', lens: 'built' },
+      { id: 'toolGroupUse', blurb: 'Who holds what for one person or group — every role, through which group, where, until when, and what gates a Tier 0 activation.', lens: 'built' },
+      { id: 'toolSignins', blurb: 'Activations & approvals: every activation request, why, and how it ended.', lens: 'built' },
+      { id: 'toolAudit', blurb: 'PIM changes: role settings, assignments and activations from the audit log.', lens: 'built' },
     ] },
     { group: '✍️ Manage', tools: [
       { id: 'toolPimDesigner', blurb: blurbs.toolPimDesigner },

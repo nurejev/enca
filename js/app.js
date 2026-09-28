@@ -233,6 +233,7 @@
       });
     }
     shownScreen = id;
+    try { pimLensPaint(id); } catch { /* the lenses are wired further down */ }
     if (navSuppress || !HISTORY_SCREENS.has(id)) return;
     // Replace rather than push when the screen has not changed, so clicking the
     // same tool twice does not need two Backs to leave it.
@@ -21530,7 +21531,7 @@ This is a directory write. Nothing else changes.`)) return;
     try { pmbCatSel = null; } catch { /* declared below */ }
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
-    try { prlReset(); prrReset(); pdpReset(); } catch { /* defined further down; nothing to reset yet */ }
+    try { prlReset(); prrReset(); pdpReset(); plxReset(); paz = { raw: null, model: null, err: null, busy: false }; } catch { /* defined further down; nothing to reset yet */ }
   }
   const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">This tenant's Privileged Identity Management against the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b>, authored in <b>cloudfellows.dev</b>, in the profile you pick: Small business, Large · one region, or Large · multi-region. The model: people are <b>active members</b> of persona groups for at most a year, each group is <b>eligible</b> for its roles, and a person activates the role under the role's own tier; Intune roles go to access groups whose members are eligible. Setting by setting, and every group as a model matched by id — present once, role-assignable, carrying exactly its roles at tenant scope. <b>Members are never compared.</b> Nothing that could not be read is shown as a match. Read-only here: <b>🚀 Import ticked →</b> takes the ticked rows (and, on 🗺 Regions, the regions) into <b>🚀 Deploy</b>, which imports them from the browser after a WhatIf — no script to run. <b>⋯ EasyPIM file</b> and <b>📄 EasyPIM samples</b> are for customers who run PIM as code themselves.</p>`;
   const PMB_INT_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">Intune has no administrative units and no PIM of its own, so the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> draws the same boundaries with Intune's objects: <b>role assignments</b> whose members are the PIM-SG-INT-* access groups (eligible members — activating the group is the gate; a persona group never sits in one), <b>scope groups</b> for who and what an assignment reaches, <b>scope tags</b> for what an admin sees, and one <b>custom role</b>, INT-ROLE-Regional-Ops. Central assignments come from the profile, regional ones from the regions file (🗺 Regions). Read-only through Microsoft Graph (DeviceManagementRBAC.Read.All, consented once); 🚀 Deploy applies what is missing. Defender XDR and Purview RBAC stay outside.</p>`;
@@ -22168,11 +22169,18 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function prrPaint() {
     const m = prr.model;
-    const tabs = [["roles", `🏛 Roles${m ? ` (${m.counts.roles})` : ""}`], ["people", `👤 Who holds what${m ? ` (${m.people.length})` : ""}`], ["scoped", `📍 Scoped${m ? ` (${m.counts.scoped})` : ""}`], ["expiring", `⏳ Ending soon${m ? ` (${m.counts.expiring})` : ""}`]];
+    const tabs = [["roles", `🏛 Roles${m ? ` (${m.counts.roles})` : ""}`], ["people", `👤 Who holds what${m ? ` (${m.people.length})` : ""}`], ["scoped", `📍 Scoped${m ? ` (${m.counts.scoped})` : ""}`], ["expiring", `⏳ Ending soon${m ? ` (${m.counts.expiring})` : ""}`], ["azure", `☁ Azure RBAC${paz.model ? ` (${paz.model.rows.length})` : ""}`]];
     const filters = prr.tab === "roles" ? [["all", "All"], ["tier0", "Tier 0"], ["permanent", "Permanent active"], ["activated", "Activated now"], ["findings", `Findings${m ? ` (${m.roles.filter((r) => r.findings.length).length})` : ""}`]] : [];
     $("prrChips").innerHTML = tabs.map(([k, l]) => `<button class="fchip${prr.tab === k ? " active" : ""}" data-prrtab="${k}">${esc(l)}</button>`).join("") + (filters.length ? `<span class="chip-sep"></span>` + filters.map(([k, l]) => `<button class="fchip${prr.filter === k ? " active" : ""}" data-prrf="${k}">${esc(l)}</button>`).join("") : "");
     $("prrCsv").style.display = m ? "" : "none"; $("prrMd").style.display = m ? "" : "none";
     $("prrRefresh").textContent = m ? "⟳ Read again" : "▶ Read who holds what"; $("prrRefresh").disabled = prr.busy;
+    if (prr.tab === "azure") {
+      $("prrCsv").style.display = "none"; $("prrMd").style.display = "none";
+      $("prrBody").innerHTML = paz.busy ? `<p class="mini" style="padding:16px">Reading Azure role assignments — every management group and subscription you can see…</p>`
+        : paz.model ? `<p class="mini pmb-read">${paz.model.demo ? "Demo data · " : ""}Read ${esc(new Date(paz.model.readAt).toLocaleString())} · <button class="btn sm" data-prrazure>⟳ Read again</button></p>` + PimLens.renderAzure(paz.model)
+        : `${paz.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(paz.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-prrazure>▶ Read Azure RBAC</button><p class="mini muted">PIM for Azure resources: the eligible and active role assignments at every management group and subscription the signed-in account can see, through Azure Resource Manager (its own consent, user_impersonation). The framework's PIM-SG-AZ groups are checked for the role it gives them; a person holding Owner or User Access Administrator permanently and directly is a finding. Read-only; at most 60 scopes.</p></div>`;
+      return;
+    }
     if (prr.busy) { $("prrBody").innerHTML = prrProg.panel("Reading roles, assignments and the members of every group that holds one…"); return; }
     if (!m) { $("prrBody").innerHTML = `${prr.err ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(prr.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-prrrun>▶ Read who holds what</button><p class="mini muted">Reads the role definitions, every eligible and active assignment (principal and scope), the administrative units, the members of each group that holds a role (PIM for Groups, active and eligible) and the last activations — RoleManagement.Read.Directory, AdministrativeUnit.Read.All, PrivilegedAssignmentSchedule.Read.AzureADGroup and PrivilegedEligibilitySchedule.Read.AzureADGroup, read-only, consented once. Nothing is written.</p></div>`; return; }
     $("prrBody").innerHTML = `<p class="mini pmb-read">${m.demo ? "Demo data · " : ""}Read ${esc(new Date(m.readAt).toLocaleString())} · tiers from ${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}, profile ${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</p>` + PimRoles.render(m, { tab: prr.tab, filter: prr.filter, q: prr.q, open: prr.open });
@@ -22260,7 +22268,7 @@ This is a directory write. Nothing else changes.`)) return;
     const f = e.target.closest("[data-prrf]"); if (f) { prr.filter = f.dataset.prrf; prrPaint(); }
   });
   $("prrFind").addEventListener("input", () => { prr.q = $("prrFind").value; if (prr.model) prrPaint(); });
-  $("prrBody").addEventListener("click", (e) => { if (e.target.closest("[data-prrrun]")) runPimRoles(); });
+  $("prrBody").addEventListener("click", (e) => { if (e.target.closest("[data-prrrun]")) runPimRoles(); if (e.target.closest("[data-prrazure]")) runPimAzure(); });
   // An opened role stays open across a repaint (the toggle event does not bubble).
   $("prrBody").addEventListener("toggle", (e) => { const d = e.target; if (d && d.dataset && d.dataset.prrole) { if (d.open) prr.open.add(d.dataset.prrole); else prr.open.delete(d.dataset.prrole); } }, true);
   $("prrCsv").addEventListener("click", () => { if (prr.model) downloadText("pim-roles", "csv", "text/csv", PimRoles.toCsv(prr.model) + "\n"); });
@@ -22528,6 +22536,143 @@ This is a directory write. Nothing else changes.`)) return;
       toast(`Variant <span>${esc(v.name || f.name)} loaded — ${val.errors.length ? `${val.errors.length} error(s), not usable yet` : "check it, then Use for this tenant"}</span>`);
     } catch (err) { toast(`Load <span>${esc(err.message || err)}</span>`); }
   });
+
+  // ======================================================================
+  // PIM lenses on the carried-over tools (beta 32428, R75): 🛡 Checks (T08),
+  // 👥 CA groups (T12), 🕓 Changes (T16), 🚦 Sign-in log (T17), 🔗 User or
+  // Group analyzer (T19). Opened from Workspace 02, a folding PIM panel sits
+  // under the tool's head (js/pimlens.js); the tool below works as in 01.
+  // show() calls pimLensPaint for every screen.
+  // ======================================================================
+  const LENS = { "screen-gapcheck": ["checks", "🛡 PIM checks", "The PIM-only catalogue: the checks the CloudFellows PIM framework cares about, from the reads PIM-buddy makes."], "screen-cagroups": ["groups", "👥 PIM groups", "Every role-assignable group — the PIM-SG groups of the framework and any other — with the roles it holds and its members."], "screen-audit": ["audit", "🕓 PIM changes", "Role settings, assignments and activations from the directory audit log (the PIM service), last 30 days."], "screen-signins": ["acts", "🚦 Activations & approvals", "Every role activation request: who, which role, why, and how it ended — granted, waiting for approval, denied or failed."], "screen-groupuse": ["whois", "🔗 Who holds what", "One person or group: every Entra role, directly or through which group, at which scope, until when — and the Conditional Access policies that gate a Tier 0 activation."] };
+  let plx = { open: {}, audit: null, auditErr: null, auditBusy: false, auditF: "all", acts: null, actsErr: null, actsBusy: false, whoQ: "", busy: false };
+  function plxReset() { plx = { open: plx.open, audit: null, auditErr: null, auditBusy: false, auditF: "all", acts: null, actsErr: null, actsBusy: false, whoQ: "", busy: false }; }
+  function pimLensPaint(id) {
+    document.querySelectorAll(".pim-lens-host").forEach((h) => { if (!prlOnSafe() || h.dataset.screen !== id) h.hidden = true; });
+    if (!prlOnSafe() || !LENS[id]) return;
+    const sec = $(id); if (!sec) return;
+    let host = sec.querySelector(".pim-lens-host");
+    if (!host) {
+      host = document.createElement("div"); host.className = "pim-lens-host"; host.dataset.screen = id;
+      const head = sec.querySelector(".readme");
+      if (head) head.after(host); else sec.prepend(host);
+      host.addEventListener("click", plxClick); host.addEventListener("input", plxInput);
+      host.addEventListener("toggle", (e) => { if (e.target.tagName === "DETAILS") plx.open[id] = e.target.open; }, true);
+    }
+    host.hidden = false;
+    const [kind, title, lead] = LENS[id];
+    host.innerHTML = `<details class="cg-panel pim-lens"${plx.open[id] === false ? "" : " open"}><summary><b>PIM LENS · ${esc(title)}</b> <span class="mini">Workspace 02 — the tool below is the same as in 01</span></summary><p class="mini">${esc(lead)}</p>${plxBody(kind)}</details>`;
+  }
+  function prlOnSafe() { try { return prlOn(); } catch { return false; } }
+  const plxReadBtn = (what) => `<div class="run-prompt"><button class="btn primary" data-lensread>▶ Read ${esc(what)}</button></div>`;
+  function plxBody(kind) {
+    if (plx.busy) return `<p class="mini"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading…</p>`;
+    const caPolicies = policies && policies.length ? policies.map((p) => p.raw) : null;
+    if (kind === "checks") {
+      if (!pmbRaw && !prr.raw) return plxReadBtn("what the PIM checks need (PIM, roles and assignments, Intune, restricted units)");
+      const list = PimLens.checks({ cat: pmbCat(), res: pmbRes, roles: prr.model, intune: pmbIntRes, rmau: prl.members && pmbRaw ? PimRmau.check(pmbCat(), prlData()) : null, caPolicies });
+      return PimLens.renderChecks(list) + `<div class="pmb-upload-row"><button class="btn sm" data-lensread>⟳ Read again</button>${caPolicies ? "" : `<span class="mini">Load the Conditional Access policies (🗂 Policies) for the authentication-context check.</span>`}</div>`;
+    }
+    if (kind === "groups") {
+      if (!pmbRaw) return plxReadBtn("the PIM groups");
+      return PimLens.renderGroups(PimLens.groups({ raw: pmbRaw, res: pmbRes, rolesRaw: prr.raw })) + (prr.raw ? "" : `<div class="pmb-upload-row"><button class="btn sm" data-lensread>▶ Read their members</button></div>`);
+    }
+    if (kind === "audit") {
+      if (plx.auditBusy) return `<p class="mini">Reading the audit log…</p>`;
+      if (!plx.audit) return `${plx.auditErr ? `<p class="mini" style="color:var(--off)">${esc(plx.auditErr)}</p>` : ""}${plxReadBtn("PIM changes, last 30 days (AuditLog.Read.All)")}`;
+      return PimLens.renderAudit(plx.audit, plx.auditF);
+    }
+    if (kind === "acts") {
+      if (plx.actsBusy) return `<p class="mini">Reading activation requests…</p>`;
+      if (!plx.acts) return `${plx.actsErr ? `<p class="mini" style="color:var(--off)">${esc(plx.actsErr)}</p>` : ""}${plxReadBtn("activation requests (RoleManagement.Read.Directory)")}`;
+      return PimLens.renderActivations(plx.acts);
+    }
+    if (kind === "whois") {
+      if (!prr.model) return plxReadBtn("who holds what");
+      return `<div class="pmb-upload-row"><input type="search" data-lenswho value="${esc(plx.whoQ)}" placeholder="A person or group — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px"></div><div data-lenswhoout>${PimLens.renderWhois(PimLens.whois({ roles: prr.model, cat: pmbCat(), caPolicies }, plx.whoQ))}</div>`;
+    }
+    return "";
+  }
+  async function plxRead(kind) {
+    if (kind === "audit") {
+      plx.auditBusy = true; plx.auditErr = null; pimLensPaint(shownScreen);
+      try {
+        if (isDemo) { await new Promise((r) => setTimeout(r, 200)); plx.audit = PimLens.audit(DEMO_DATA.pim.audit); }
+        else {
+          const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
+          if (!await preConsent(sc)) throw new Error("AuditLog.Read.All was not granted");
+          const since = new Date(Date.now() - 30 * 86400000).toISOString();
+          plx.audit = PimLens.audit(await Graph.ggetAll(`/v1.0/auditLogs/directoryAudits?$filter=loggedByService eq 'PIM' and activityDateTime ge ${since}&$top=500`, { cap: 3000, scopes: sc }));
+        }
+      } catch (e) { plx.auditErr = `Could not be read — ${String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "")}`; }
+      plx.auditBusy = false; pimLensPaint(shownScreen); return;
+    }
+    if (kind === "acts") {
+      plx.actsBusy = true; plx.actsErr = null; pimLensPaint(shownScreen);
+      try {
+        if (isDemo) { await new Promise((r) => setTimeout(r, 200)); plx.acts = PimLens.activations(DEMO_DATA.pim.activations); }
+        else {
+          const sc = [...AUTH_CONFIG.scopes, ...PIM_READ];
+          if (!await preConsent(sc)) throw new Error("RoleManagement.Read.Directory was not granted");
+          const reqs = await Graph.ggetAll("/v1.0/roleManagement/directory/roleAssignmentScheduleRequests?$filter=action eq 'selfActivate'&$expand=principal,roleDefinition($select=displayName)", { cap: 1000, scopes: sc });
+          plx.acts = PimLens.activations(reqs.map((r) => ({ principalId: r.principalId, principalName: r.principal && (r.principal.displayName || r.principal.userPrincipalName), roleName: r.roleDefinition && r.roleDefinition.displayName, roleDefinitionId: r.roleDefinitionId, status: r.status, justification: r.justification, ticketInfo: r.ticketInfo, createdDateTime: r.createdDateTime })));
+        }
+      } catch (e) { plx.actsErr = `Could not be read — ${String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "")}`; }
+      plx.actsBusy = false; pimLensPaint(shownScreen); return;
+    }
+    plx.busy = true; pimLensPaint(shownScreen);
+    try {
+      if (kind === "checks") { if (!pmbRaw) await runPimBaseline(); if (!prr.raw) await runPimRoles(); if (!pmbInt) { try { await runIntuneRbac(); } catch { /* not read */ } } if (!prl.members) { try { await prlRead(); } catch { /* not read */ } } }
+      else if (kind === "groups") { if (!pmbRaw) await runPimBaseline(); else if (!prr.raw) await runPimRoles(); }
+      else if (kind === "whois") { if (!prr.raw) await runPimRoles(); if (!pmbRaw) await runPimBaseline(); }
+    } finally { plx.busy = false; }
+    pimLensPaint(shownScreen);
+  }
+  function plxClick(e) {
+    const o = e.target.closest("[data-lensopen]"); if (o) { const b = $(o.dataset.lensopen); if (b) b.click(); return; }
+    if (e.target.closest("[data-lensread]")) {
+      const kind = (LENS[shownScreen] || [])[0];
+      if (kind === "checks") { pmbRaw = null; prr.raw = null; prr.model = null; pmbInt = null; pmbIntRes = null; prl.members = null; }
+      if (kind === "audit") plx.audit = null;
+      if (kind === "acts") plx.acts = null;
+      if (kind) plxRead(kind); return;
+    }
+    const f = e.target.closest("[data-lensaudit]"); if (f) { plx.auditF = f.dataset.lensaudit; pimLensPaint(shownScreen); }
+  }
+  let plxWhoTimer = null;
+  function plxInput(e) {
+    if (!e.target.matches("[data-lenswho]")) return;
+    plx.whoQ = e.target.value;
+    clearTimeout(plxWhoTimer);
+    plxWhoTimer = setTimeout(() => { const out = e.target.closest(".pim-lens-host").querySelector("[data-lenswhoout]"); if (out) out.innerHTML = PimLens.renderWhois(PimLens.whois({ roles: prr.model, cat: pmbCat(), caPolicies: policies && policies.length ? policies.map((p) => p.raw) : null }, plx.whoQ)); }, 200);
+  }
+
+  // ☁ Azure RBAC — a tab of 🎖 T49 (32428): PIM for Azure resources through
+  // Azure Resource Manager (its own token and consent, user_impersonation),
+  // every subscription and management group the account can see.
+  let paz = { raw: null, model: null, err: null, busy: false };
+  async function runPimAzure() {
+    if (paz.busy) return;
+    paz.busy = true; paz.err = null; prrPaint();
+    try {
+      let raw;
+      if (isDemo) { await new Promise((r) => setTimeout(r, 200)); raw = Object.assign(JSON.parse(JSON.stringify(DEMO_DATA.pim.azure)), { readAt: Date.now(), demo: true, errors: [] }); }
+      else {
+        if (!await preConsent([...Graph.ARM_SCOPES])) throw new Error("Azure (user_impersonation) was not granted");
+        const scopes = [], errors = [], eligible = [], active = [];
+        try { (await Graph.agetAll("/providers/Microsoft.Management/managementGroups?api-version=2021-04-01")).forEach((m) => scopes.push({ id: m.id, name: (m.properties && m.properties.displayName) || m.name, type: "managementgroup" })); } catch (e) { errors.push(`management groups: ${String(e.message || e).slice(0, 120)}`); }
+        try { (await Graph.agetAll("/subscriptions?api-version=2022-12-01")).forEach((x) => scopes.push({ id: `/subscriptions/${x.subscriptionId}`, name: x.displayName, type: "subscription" })); } catch (e) { errors.push(`subscriptions: ${String(e.message || e).slice(0, 120)}`); }
+        for (const sc of scopes.slice(0, 60)) {
+          try { eligible.push(...await Graph.agetAll(`${sc.id}/providers/Microsoft.Authorization/roleEligibilityScheduleInstances?api-version=2020-10-01&$filter=atScope()`)); } catch (e) { errors.push(`${sc.name} eligible: ${String(e.message || e).slice(0, 90)}`); }
+          try { active.push(...await Graph.agetAll(`${sc.id}/providers/Microsoft.Authorization/roleAssignmentScheduleInstances?api-version=2020-10-01&$filter=atScope()`)); } catch (e) { errors.push(`${sc.name} active: ${String(e.message || e).slice(0, 90)}`); }
+        }
+        if (scopes.length > 60) errors.push(`${scopes.length - 60} scopes beyond the first 60 not read`);
+        raw = { scopes, eligible, active, errors, readAt: Date.now(), demo: false };
+      }
+      paz.raw = raw; paz.model = PimLens.azure(raw, PimBaseline.profile(PIM_BASELINE, pmbProfileId));
+    } catch (e) { paz.err = String((e && e.message) || e); }
+    paz.busy = false; prrPaint();
+  }
 
   function isRebuild() {
     if (!isRaw) { isModel = null; return; }

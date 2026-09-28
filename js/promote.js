@@ -117,6 +117,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 308,
+      title: "PIM lenses on the carried-over tools — 🛡 PIM checks (T08), 👥 PIM groups (T12), 🕓 PIM changes (T16), 🚦 Activations & approvals (T17), 🔗 Who holds what (T19) — and ☁ Azure RBAC in 🎖 Roles & assignments (R75)",
+      tools: ["Checks", "Conditional Access groups", "Changes", "Sign-in log", "User or Group analyzer", "Roles & assignments"],
+      builds: [32428],
+      risk: "low",
+      what: "js/pimlens.js (new, pure): checks / renderChecks, groups / renderGroups, audit / renderAudit, activations / renderActivations, whois / renderWhois, azure / renderAzure. js/app.js: LENS map, pimLensPaint(id) called from show() — a folding .pim-lens-host inserted after the tool's readme only when Workspaces.current() is pim, hidden otherwise; plxRead for the audit (directoryAudits loggedByService eq 'PIM', AuditLog.Read.All), the activation requests (selfActivate, principal + roleDefinition expanded) and the shared reads; runPimAzure (ARM, management groups + subscriptions, atScope instances) and the ☁ tab in prrPaint. js/workspaces.js: the five carry-overs marked PIM lens (built) with PIM blurbs. js/demo.js: audit, azure, two more activations. tools/pimlens.test.cjs (3).",
+      why: "Mihai, 28 Sep: continue the PIM roadmap — PIM lenses on the carry-over tools (T08, T12, T16, T17, T19); the Azure RBAC read. Low: reads only; in Workspace 01 nothing changes.",
+      test: [
+        "Beta site, demo (?demo=1&ws=pim) → 🛡 Checks: the PIM LENS · 🛡 PIM checks panel sits under the head; ▶ Read → 11 failing · 2 passing · 0 not read; the first rows are critical (Joey Bakker; no policy targets c1); Open → on a row opens that tool. Fold the panel, open another tool and come back: it stays folded.",
+        "👥 CA groups: the PIM groups panel lists CAB-SEC-U-Admins-Legacy (not in the framework, User Administrator (active)); PIM-SG-M365-GlobalAdmin 2 active · 0 eligible once Roles & assignments was read. 🕓 Changes → ▶ Read: All (6), Role settings shows Update role setting in PIM. 🚦 Sign-in log → ▶ Read: 5 requests · 3 granted · 1 waiting for approval. 🔗 User or Group analyzer: type anna → adm-anna with Global Administrator through PIM-SG-M365-GlobalAdmin and the no-policy note.",
+        "🎖 Roles & assignments → ☁ Azure RBAC → ▶ Read: 3 scopes · 3 eligible · 3 active · 2 findings (Joey Bakker Owner on Corp; PIM-SG-AZ-Corp-Contributor active); PIM-SG-AZ-Platform-Owner eligible for Owner on Platform.",
+        "Switch to 01 (⌘⇧1) and open 🛡 Checks: no PIM panel; the tool is as before.",
+        "A real tenant: the audit panel asks AuditLog.Read.All once; Azure RBAC asks the Azure consent once and lists scopes it could not read by name.",
+        "Offline: node --test tools/pimlens.test.cjs passes 3.",
+      ],
+      files: ["js/pimlens.js", "js/app.js", "js/demo.js", "js/workspaces.js", "index.html", "js/version.js", "tools/pimlens.test.cjs"],
+    },
+    {
       n: 307,
       title: "🧱 Update the catalog from cloudfellows.dev — the PIM portal's values proposed where the catalog keeps them, and js/pimBaselineData.js written with exactly those values edited (R74)",
       tools: ["PIM baseline"],
