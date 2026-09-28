@@ -474,7 +474,19 @@ function Build-RegionsPlan {
         Add-PimOp $plan "group:$n" 'http' "create dynamic group ${n}: $($g['rule'])" ([ordered]@{ method = 'POST'; uri = "$GraphUrl/groups"; produces = "group:$n"; needs = @('Group.ReadWrite.All'); body = [ordered]@{ displayName = $n; mailEnabled = $false; mailNickname = $nick; securityEnabled = $true; groupTypes = @('DynamicMembership'); membershipRule = $g['rule']; membershipRuleProcessingState = 'On'; description = "CloudFellows PIM framework: Intune scope group, $tagR, $($g['type'])s" } })
         [void]$creating.Add("group:$n")
       }
-      # scope tag + its auto-assignment (repaired on a rerun when the second step did not happen)
+      # scope tag + its auto-assignment (repaired on a rerun when the second step did not happen).
+      # Intune takes only a direct group target here: groupAssignmentTarget + groupId.
+      # Graph's docs show scopeTagGroupAssignmentTarget (entraObjectId, targetType), but the
+      # service answers 400 NotSupported "Role Scope Tags only supports targeting to direct
+      # security group memberships" (cloudfellows.dev, 28 Sep 2026). A target read back in
+      # either shape is sent back as a group target, its assignment filter kept.
+      $tagTarget = {
+        param([string]$gid, $src)
+        $t = [ordered]@{ '@odata.type' = '#microsoft.graph.groupAssignmentTarget'; groupId = $gid }
+        $fid = Get-Key $src 'deviceAndAppManagementAssignmentFilterId'; $fty = "$(Get-Key $src 'deviceAndAppManagementAssignmentFilterType')"
+        if ($fid -and $fty -and $fty -ne 'none') { $t['deviceAndAppManagementAssignmentFilterId'] = $fid; $t['deviceAndAppManagementAssignmentFilterType'] = $fty }
+        return $t
+      }
       $tag = Get-Key $I 'tag'
       $tagRef = $null
       if ($tag) {
@@ -491,14 +503,14 @@ function Build-RegionsPlan {
           foreach ($t0 in $curT) { $tid0 = if (Get-Key $t0 'entraObjectId') { $t0['entraObjectId'] } elseif (Get-Key $t0 'groupId') { $t0['groupId'] } else { $null }; if ($tid0) { $curIds += "$tid0" } else { $odd += "$(Get-Key $t0 '@odata.type')" } }
           if ($odd.Count) { $plan.blocked.Add("Intune scope tag ${tn}: $($odd.Count) auto-assignment target(s) of a kind this script does not know ($($odd -join ', ')) — add $($tag['autoAssignFrom']) by hand"); continue }
           if ($from -and $curIds -notcontains $from) {
-            $keep = @($curT | ForEach-Object { [ordered]@{ target = $_ } })
-            $add = [ordered]@{ target = [ordered]@{ '@odata.type' = '#microsoft.graph.scopeTagGroupAssignmentTarget'; targetType = 'device'; entraObjectId = $from } }
+            $keep = @($curT | ForEach-Object { $k0 = if (Get-Key $_ 'entraObjectId') { "$($_['entraObjectId'])" } else { "$($_['groupId'])" }; [ordered]@{ target = (& $tagTarget $k0 $_) } })
+            $add = [ordered]@{ target = (& $tagTarget $from $null) }
             Add-PimOp $plan "tagassign:$tn" 'http' "auto-assign $tn from $($tag['autoAssignFrom'])$(if ($keep.Count) { " (keeping its $($keep.Count) other target(s))" })" ([ordered]@{ method = 'POST'; uri = "$BetaUrl/deviceManagement/roleScopeTags/$tagRef/assign"; needs = @('DeviceManagementRBAC.ReadWrite.All'); body = [ordered]@{ assignments = @($keep + @($add)) } })
           }
         } else {
           Add-PimOp $plan "tag:$tn" 'http' "create Intune scope tag $tn" ([ordered]@{ method = 'POST'; uri = "$BetaUrl/deviceManagement/roleScopeTags"; produces = "tag:$tn"; needs = @('DeviceManagementRBAC.ReadWrite.All'); body = [ordered]@{ displayName = $tn; description = "CloudFellows PIM framework: $tagR" } })
           $tagRef = "{{tag:$tn}}"
-          if ($from) { Add-PimOp $plan "tagassign:$tn" 'http' "auto-assign $tn from $($tag['autoAssignFrom'])" ([ordered]@{ method = 'POST'; uri = "$BetaUrl/deviceManagement/roleScopeTags/$tagRef/assign"; needs = @('DeviceManagementRBAC.ReadWrite.All'); body = [ordered]@{ assignments = @([ordered]@{ target = [ordered]@{ '@odata.type' = '#microsoft.graph.scopeTagGroupAssignmentTarget'; targetType = 'device'; entraObjectId = $from } }) } }) }
+          if ($from) { Add-PimOp $plan "tagassign:$tn" 'http' "auto-assign $tn from $($tag['autoAssignFrom'])" ([ordered]@{ method = 'POST'; uri = "$BetaUrl/deviceManagement/roleScopeTags/$tagRef/assign"; needs = @('DeviceManagementRBAC.ReadWrite.All'); body = [ordered]@{ assignments = @([ordered]@{ target = (& $tagTarget $from $null) }) } }) }
           else { $plan.findings.Add("${tn}: $($tag['autoAssignFrom']) does not exist and is not planned — the tag is not auto-assigned") }
         }
       }

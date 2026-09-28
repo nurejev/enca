@@ -117,7 +117,7 @@ function Invoke-MgGraphRequest {
       '^/directory/administrativeUnits' { return (& $list $F.aus) }
       '^/deviceManagement/resourceOperations' { if (-not $F.intune.on) { throw 'Response status code does not indicate success: Forbidden (403). Intune not licensed' }; return (& $list @($F.intune.ops | ForEach-Object { @{ id = $_; actionName = 'x' } })) }
       '^/deviceManagement/roleDefinitions' { if (-not $F.intune.on) { throw 'Forbidden (403)' }; return (& $list @($F.intune.roles | ForEach-Object { @{ id = $_.id; displayName = $_.displayName; isBuiltIn = $_.isBuiltIn; rolePermissions = @(@{ resourceActions = @(@{ allowedResourceActions = $_.allowed }) }) } })) }
-      '^/deviceManagement/roleScopeTags/([^/?]+)/assignments' { return (& $list @($F.intune.tagAssign[$Matches[1]] | Where-Object { $_ } | ForEach-Object { @{ id = 'ta'; target = $(if ($_ -is [string]) { @{ '@odata.type' = '#microsoft.graph.scopeTagGroupAssignmentTarget'; targetType = 'device'; entraObjectId = $_ } } else { $_ }) } })) }
+      '^/deviceManagement/roleScopeTags/([^/?]+)/assignments' { return (& $list @($F.intune.tagAssign[$Matches[1]] | Where-Object { $_ } | ForEach-Object { @{ id = 'ta'; target = $(if ($_ -is [string]) { @{ '@odata.type' = '#microsoft.graph.groupAssignmentTarget'; groupId = $_ } } else { $_ }) } })) }
       '^/deviceManagement/roleScopeTags' { if (-not $F.intune.on) { throw 'Forbidden (403)' }; return (& $list $F.intune.tags) }
       '^/deviceManagement/roleAssignments/([^/?]+)' { $id = $Matches[1]; $a = @($F.intune.assignments | Where-Object { $_.id -eq $id })[0]; if (-not $a) { throw 'NotFound (404)' }; $x = ConvertTo-FakeHash $a; $x.roleDefinition = @{ id = $a.roleDefinitionId }; return $x }
       '^/deviceManagement/roleAssignments' { if (-not $F.intune.on) { throw 'Forbidden (403)' }; return (& $list $F.intune.assignments) }
@@ -147,7 +147,11 @@ function Invoke-MgGraphRequest {
     '^PATCH /directory/administrativeUnits/([^/?]+)$' { $a = $F.aus | Where-Object { $_.id -eq $Matches[1] }; foreach ($k in $b.Keys) { $a[$k] = $b[$k] }; return $null }
     '^POST /deviceManagement/roleDefinitions$' { $r = @{ id = (New-FakeId); displayName = $b.displayName; isBuiltIn = $false; allowed = @($b.rolePermissions[0].resourceActions[0].allowedResourceActions) }; $F.intune.roles.Add($r); return @{ id = $r.id } }
     '^POST /deviceManagement/roleScopeTags$' { $t = @{ id = (New-FakeId); displayName = $b.displayName }; $F.intune.tags.Add($t); return @{ id = $t.id } }
-    '^POST /deviceManagement/roleScopeTags/([^/]+)/assign$' { $F.intune.tagAssign[$Matches[1]] = @($b.assignments | ForEach-Object { $_.target }); return $null }
+    '^POST /deviceManagement/roleScopeTags/([^/]+)/assign$' {
+      # as the service does (28 Sep 2026): only direct group targets
+      $bad = @($b.assignments | Where-Object { "$($_.target.'@odata.type')" -ne '#microsoft.graph.groupAssignmentTarget' -or -not $_.target.groupId })
+      if ($bad.Count) { throw ('Response status code does not indicate success: BadRequest (Bad Request). {"error":{"code":"NotSupported","message":"Role Scope Tags only supports targeting to direct security group memberships. Attempted to target ' + "$($bad[0].target.'@odata.type')" + '."}}') }
+      $F.intune.tagAssign[$Matches[1]] = @($b.assignments | ForEach-Object { $_.target }); return $null }
     '^POST /deviceManagement/roleAssignments$' { $a = @{ id = (New-FakeId); displayName = $b.displayName; members = $b.members; resourceScopes = $b.resourceScopes; roleScopeTagIds = $b.roleScopeTagIds; roleDefinitionId = (($b['roleDefinition@odata.bind']) -split '/')[-1] }; $F.intune.assignments.Add($a); return @{ id = $a.id } }
     default { throw "FakeGraph: no route for $Method $u" }
   }

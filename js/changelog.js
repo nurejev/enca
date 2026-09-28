@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32419, date: "2026-09-28", title: "🧬 PIM baseline 0.3.3 — the region's Intune scope tag is assigned to its device group again",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "New-PimRegions.ps1 stopped on cloudfellows.dev when it assigned the new scope tag INT-TAG-EU-NL to its device group: Intune refused the kind of target the script sent (the one Microsoft's reference shows) and accepts only a plain group target. The script now sends that, and keeps any other group already on the tag. Plan and apply again: the rest of EU-NL and all of EU-DE follow." },
+    ],
+  },
+  {
     build: 32418, date: "2026-09-28", title: "🧬 PIM baseline 0.3.2 — the scripts wait for Entra to replicate a group they just made",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "New-PimRegions.ps1 stopped on cloudfellows.dev right after making the EU-NL units and groups: the first eligibility, asked for less than a second after its group was created, came back not found. When a write that names a new group or unit comes back not found, the scripts now wait and try the same call again, for up to two minutes, before they stop. The same applies to New-PimBaseline.ps1. Plan and apply again: what the first run made is found and left alone." },
