@@ -21527,6 +21527,7 @@ This is a directory write. Nothing else changes.`)) return;
     pmbBusy = false;
     pmbRaw = null; pmbRes = null; pmbErr = null; pmbReg = null;
     pmbInt = null; pmbIntErr = null; pmbIntBusy = false; pmbIntRes = null;
+    try { pmbCatSel = null; } catch { /* declared below */ }
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
     try { prlReset(); prrReset(); pdpReset(); } catch { /* defined further down; nothing to reset yet */ }
@@ -21560,7 +21561,8 @@ This is a directory write. Nothing else changes.`)) return;
   function pmbPaint() {
     if (!pmbRegionsOn() && pmbFilter === "regions") pmbFilter = "all";
     if (pmbRes) pmbRes.regionsCount = pmbRegRows ? pmbRegRows.length : undefined;
-    const samplesChip = `<button class="fchip${pmbFilter === "intune" ? " active" : ""}" data-pmbf="intune">📱 Intune RBAC${pmbIntRes ? ` (${pmbIntRes.counts.differs + pmbIntRes.counts.missing + pmbIntRes.counts.conflict})` : ""}</button><button class="fchip${pmbFilter === "samples" ? " active" : ""}" data-pmbf="samples">📄 EasyPIM samples</button>`;
+    const catChip = (isBaselineTenant() || isDemo) ? `<button class="fchip${pmbFilter === "catalog" ? " active" : ""}" data-pmbf="catalog" title="Baseline tenant only: the catalog follows cloudfellows.dev">🧱 Update the catalog</button>` : "";
+    const samplesChip = catChip + `<button class="fchip${pmbFilter === "intune" ? " active" : ""}" data-pmbf="intune">📱 Intune RBAC${pmbIntRes ? ` (${pmbIntRes.counts.differs + pmbIntRes.counts.missing + pmbIntRes.counts.conflict})` : ""}</button><button class="fchip${pmbFilter === "samples" ? " active" : ""}" data-pmbf="samples">📄 EasyPIM samples</button>`;
     $("pmbChips").innerHTML = (pmbRes ? PimBaseline.chips(pmbRes, pmbFilter) : (pmbRegionsOn() ? `<button class="fchip${pmbFilter === "regions" ? " active" : ""}" data-pmbf="regions">🗺 Regions${pmbRegRows ? ` (${pmbRegRows.length})` : ""}</button>` : "")) + samplesChip;
     const regionsPane = pmbFilter === "regions" && pmbRegionsOn(), samplesPane = pmbFilter === "samples" || pmbFilter === "intune";
     const nSel = pmbSelected().size;
@@ -21575,6 +21577,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("pmbRefresh").disabled = pmbBusy;
     $("pmbTenantNote").innerHTML = pmbTenantNote() + `<span class="mini pmb-profile-note">${esc(PIM_BASELINE.profiles[pmbProfileId].size)}</span>`;
     if (pmbFilter === "intune") { $("pmbMd").style.display = pmbIntRes ? "" : "none"; pmbPaintIntune(); return; }
+    if (pmbFilter === "catalog") { $("pmbMd").style.display = "none"; $("pmbImport").style.display = "none"; pmbPaintCatalog(); return; }
     if (samplesPane) { pmbPaintSamples(); return; }
     if (pmbBusy) { $("pmbBody").innerHTML = pmbProg.panel("Reading the tenant's PIM — role settings, assignments, groups, units…"); return; }
     if (regionsPane) { pmbPaintRegions(); return; }
@@ -21622,6 +21625,41 @@ This is a directory write. Nothing else changes.`)) return;
     if (!pmbRaw) { $("pmbBody").innerHTML = upload + `<div class="run-prompt"><button class="btn primary" data-pmbrun>▶ Read this tenant's PIM</button><p class="mini muted">The rows are loaded; the tenant has not been read yet.</p></div>`; return; }
     if (!pmbReg) pmbReg = PimBaseline.compareRegions(pmbCat(), pmbRegRows, pmbRaw);
     $("pmbBody").innerHTML = upload + `<p class="mini pmb-read">${pmbReg.demo ? "Demo data · " : ""}Template: <b>${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}</b> · profile <b>${esc(pmbReg.profile.label)}</b>${pmbReg.readAt ? ` · tenant read ${esc(new Date(pmbReg.readAt).toLocaleString())}` : ""}${!pmbReg.auRead ? ` · <span class="pmb-warn">administrative units not read</span>` : ""}${!pmbReg.namedRead ? ` · <span class="pmb-warn">framework groups not read</span>` : ""}</p>` + PimBaseline.renderRegions(pmbReg, { q: pmbQ, selected: pmbRegSelected() });
+  }
+  // 🧱 Update the catalog from cloudfellows.dev (32427, R74) — js/pimcatalog.js.
+  // The portal there is the source of truth; the proposal says where each
+  // value lives in the catalog, and ⬇ js/pimBaselineData.js writes the file
+  // with exactly the ticked values edited, ready to commit.
+  let pmbCatSel = null;
+  function pmbCatalogProposal() { return pmbRes ? PimCatalog.propose(PIM_BASELINE, PimBaseline.compare(PimBaseline.profile(PIM_BASELINE, pmbProfileId), pmbRaw), pmbProfileId) : null; }
+  function pmbPaintCatalog() {
+    if (!pmbRes) { $("pmbBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-pmbrun>▶ Read this tenant's PIM</button><p class="mini muted">🧱 reads the baseline tenant's PIM and proposes every catalog value the portal says differently.</p></div>`; return; }
+    const p = pmbCatalogProposal();
+    if (!pmbCatSel) pmbCatSel = new Set(p.changes.map((c) => c.id));
+    const show = PimCatalog.show;
+    $("pmbBody").innerHTML = `<div class="list-card xt-card"><h3>🧱 Update the catalog from ${esc(isDemo ? "the demo tenant" : tenantDomain || "this tenant")} <span class="mini">${isBaselineTenant() ? "the baseline tenant — the PIM portal here is the source of truth" : "demo: shown so it can be tried; on a customer tenant this pane does not exist"}</span></h3>
+      <p class="mini">Profile <b>${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b> — every value the portal holds differently from ${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}, placed where the catalog keeps it: a tier's template when every role of the tier agrees (the profile's template when the profile already sets that value), a role's own override when only some do. Alert recipients are this tenant's addresses and are never proposed; a rule the tenant does not carry is never proposed.</p>
+      ${p.notes.length ? `<ul class="pmb-diffs">${p.notes.map((n) => `<li class="pmb-warnline">${esc(n)}</li>`).join("")}</ul>` : ""}
+      <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th></th><th>Where in the catalog</th><th>Setting</th><th>Catalog</th><th>${esc(isDemo ? "Tenant" : "cloudfellows.dev")}</th><th>Read from</th></tr></thead><tbody>${p.changes.map((c) => `<tr class="pmb-row"><td><input type="checkbox" data-pmbcat="${esc(c.id)}"${pmbCatSel.has(c.id) ? " checked" : ""} aria-label="Take into the catalog"></td><td class="mini"><code>${esc(c.path)}</code></td><td>${esc(c.key)}</td><td class="mini">${esc(show(c.from))}</td><td><b>${esc(show(c.to))}</b></td><td class="mini">${esc(c.scope)}</td></tr>`).join("") || `<tr><td colspan="6" class="mini" style="padding:12px">Nothing — the catalog says what the portal says.</td></tr>`}</tbody></table></div>
+      <div class="pmb-upload-row"><button class="btn primary" data-pmbcatfile${p.changes.some((c) => pmbCatSel.has(c.id)) ? "" : " disabled"}>⬇ js/pimBaselineData.js with ${[...pmbCatSel].filter((id) => p.changes.some((c) => c.id === id)).length} value(s) changed</button><button class="btn" data-pmbcatjson>⬇ Revision (JSON)</button><button class="btn" data-pmbcatmd>📄 Revision note</button></div>
+      <p class="mini">The file is this site's own js/pimBaselineData.js with only the ticked values edited in place and <code>revised</code> set to today — comments and layout kept, so its diff shows exactly what the portal said. Commit it on beta with a changelog line; every tenant is then compared against it.</p></div>`;
+  }
+  async function pmbCatalogFile() {
+    const p = pmbCatalogProposal(); if (!p) return;
+    const pick = p.changes.filter((c) => pmbCatSel.has(c.id));
+    try {
+      const r = await fetch(`js/pimBaselineData.js?v=${APP_BUILD.build}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`the site's own catalog could not be read (${r.status})`);
+      const src = await r.text();
+      const out = PimCatalog.applyRevision(src, pick, new Date().toISOString().slice(0, 10));
+      // (No eval here — the page's CSP forbids it; tools/pimcatalog.test.cjs
+      // proves an edited file still loads and differs only where it should.)
+      if (!/const PIM_BASELINE = \{/.test(out) || out.length < src.length * 0.9) throw new Error("the edit went wrong — nothing downloaded");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([out], { type: "text/javascript;charset=utf-8" }));
+      a.download = "pimBaselineData.js"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast(`Catalog <span>pimBaselineData.js with ${pick.length} value(s) from the portal</span>`);
+    } catch (e) { toast(`Catalog <span>${esc(e.message || e)}</span>`); }
   }
   // 📱 T53 — the pane and the read.
   function pmbPaintIntune() {
@@ -21893,6 +21931,7 @@ This is a directory write. Nothing else changes.`)) return;
       $("pmbImport").textContent = `🚀 Import ${pmbSelected().size} ticked →`;
       return;
     }
+    if (t && t.dataset && t.dataset.pmbcat) { if (!pmbCatSel) pmbCatSel = new Set(); t.checked ? pmbCatSel.add(t.dataset.pmbcat) : pmbCatSel.delete(t.dataset.pmbcat); pmbPaintCatalog(); return; }
     if (t && t.dataset && t.dataset.pmbreg) {
       pmbRegSel = pmbRegSelected();
       if (t.checked) pmbRegSel.add(t.dataset.pmbreg); else pmbRegSel.delete(t.dataset.pmbreg);
@@ -21912,6 +21951,9 @@ This is a directory write. Nothing else changes.`)) return;
   $("pmbBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-pmbrun]")) { runPimBaseline(); return; }
     if (e.target.closest("[data-pmbintrun]")) { runIntuneRbac(); return; }
+    if (e.target.closest("[data-pmbcatfile]")) { pmbCatalogFile(); return; }
+    if (e.target.closest("[data-pmbcatjson]")) { const p = pmbCatalogProposal(); if (p) downloadText("pim-catalog-revision", "json", "application/json", JSON.stringify({ schema: "cloudfellows-pim-catalog-revision/1", catalog: `${PIM_BASELINE.label} ${PIM_BASELINE.release}`, profile: pmbProfileId, from: isDemo ? "demo" : tenantDomain, readAt: pmbRaw && pmbRaw.readAt ? new Date(pmbRaw.readAt).toISOString() : null, changes: p.changes.filter((c) => pmbCatSel.has(c.id)), notes: p.notes }, null, 2) + "\n"); return; }
+    if (e.target.closest("[data-pmbcatmd]")) { const p = pmbCatalogProposal(); if (p) showReport("🧱 Catalog revision", `pim-catalog-revision-${new Date().toISOString().slice(0, 10)}`, PimCatalog.toMd(pmbRes, { changes: p.changes.filter((c) => pmbCatSel.has(c.id)), notes: p.notes }, isDemo ? "the demo tenant" : tenantDomain, new Date().toISOString().slice(0, 10))); return; }
     const ichip = e.target.closest("[data-pmbintf]"); if (ichip) { pmbIntFilter = ichip.dataset.pmbintf; pmbPaintIntune(); return; }
     const smp = e.target.closest("[data-pmbsample]"); if (smp) { pmbSample(smp.dataset.pmbsample, false); return; }
     const smv = e.target.closest("[data-pmbsampleview]"); if (smv) { pmbSample(smv.dataset.pmbsampleview, true); return; }

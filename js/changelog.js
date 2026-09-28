@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32427, date: "2026-09-28", title: "🧬 PIM baseline — 🧱 update the catalog from cloudfellows.dev",
+    items: [
+      { kind: "new", tool: "PIM baseline", text: "On the baseline tenant, 🧱 Update the catalog lists every PIM setting the portal holds differently from the CloudFellows PIM framework and says where it belongs in the catalog: the tier's template when every role of that tier agrees, the profile's template when the profile already sets that value, or the role's own exception when only some roles do. When a tier is set several different ways, it says so instead of guessing." },
+      { kind: "new", tool: "PIM baseline", text: "Download the catalog file with the ticked values changed and the revision date set to today. Nothing else in the file moves, so the change shows exactly what the portal said and can be taken into the framework as it is. The revision is also available as a data file and as a note." },
+    ],
+  },
+  {
     build: 32426, date: "2026-09-28", title: "🧾 Designer — a customer's variant of the PIM framework",
     items: [
       { kind: "new", tool: "Designer", text: "When a customer needs the CloudFellows PIM framework a little different, the new Designer in 02 PIM-buddy holds exactly those differences as a variant: a tier's settings (how long an activation lasts, what it asks for, approval and by whom, how long eligibility and active assignments may last, the alerts), a role moved to another tier, their own alert mailbox, authentication context and approver groups. Tiers are changed as tiers, never role by role." },

@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 307,
+      title: "🧱 Update the catalog from cloudfellows.dev — the PIM portal's values proposed where the catalog keeps them, and js/pimBaselineData.js written with exactly those values edited (R74)",
+      tools: ["PIM baseline"],
+      builds: [32427],
+      risk: "low",
+      what: "js/pimcatalog.js (new, pure): propose(PIM_BASELINE, compare result, profile) — SETTINGS → template keys (MAP), grouped per tier: template when every role read agrees (profiles.<p>.templates.<Tier> when the profile sets the key, else templates.<Tier>), roles[\"X\"].override otherwise; recipients/defaults and absent rules skipped; split tiers noted. applyRevision(text, changes, revised) edits the source text in place (block / valueEnd / setIn / locate; adds an absent key, an absent override, an absent profile tier). js/app.js: chip 🧱 Update the catalog (baseline tenant or demo), pmbPaintCatalog, pmbCatalogFile (same-origin fetch of the site's own catalog, no eval — CSP), revision JSON and note. tools/pimcatalog.test.cjs (3).",
+      why: "Mihai, 28 Sep: continue the PIM roadmap — update the catalog from cloudfellows.dev (today by hand). Low: reads only; the output is a file a person commits.",
+      test: [
+        "Beta site, demo (?demo=1&ws=pim), profile Large · one region → 🧬 PIM baseline → ▶ Read → 🧱 Update the catalog: 71 rows, two notes (Tier0 ActivationRequirement and Approvers set 2 different ways); Exchange Administrator's row is roles[\"Exchange Administrator\"].override · ActivationDuration · 2 h → 24 h (demo values).",
+        "⬇ js/pimBaselineData.js downloads pimBaselineData.js; git diff against the repo's file shows only the ticked values and the revised line; node -e loads it (new Function(src + ';return PIM_BASELINE')()).",
+        "Untick all but one row: the file differs in exactly that value and revised.",
+        "cloudfellows.dev (the baseline tenant, 🧱 chip visible; on any other real tenant the chip is absent): after the portal edits Mihai made by hand, the proposal lists them; commit the downloaded file on beta and T48 on cloudfellows.dev reads those roles as Match.",
+        "Offline: node --test tools/pimcatalog.test.cjs passes 3 (override for one role with a 2-line diff; template and profile-template placement; absent keys added; recipients never proposed).",
+      ],
+      files: ["js/pimcatalog.js", "js/app.js", "index.html", "js/version.js", "tools/pimcatalog.test.cjs"],
+    },
+    {
       n: 306,
       title: "🧾 Designer (T50) — a customer's variant of the CloudFellows PIM framework (tiers, role → tier, mailbox, authentication context, approver names), validated, per tenant and as a file; T48 / T49 / T51 use it when it is in use (R73)",
       tools: ["Designer", "PIM baseline"],
