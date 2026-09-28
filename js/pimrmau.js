@@ -50,12 +50,16 @@ const PimRmau = (() => {
     const units = expected.map((u) => {
       const list = byName.get(u.name) || [];
       const t = list[0];
-      const base = { name: u.name, holds: u.holds || "", id: t ? t.id : null, members: null, scoped: [], extraScoped: [] };
+      // The unit's id is used (scoped eligibilities land on it) only when it is
+      // THE unit: present once and restricted — never a duplicate's first copy
+      // or an unrestricted namesake (32429).
+      const base = { name: u.name, holds: u.holds || "", id: null, members: null, scoped: [], extraScoped: [] };
       if (!aus) return Object.assign(base, { status: "unread" });
       if (!list.length) base.status = "missing";
       else if (list.length > 1) Object.assign(base, { status: "conflict", detail: `${list.length} units are called ${u.name} (${list.map((x) => x.id).join(", ")})` });
       else if (u.restricted && !t.isMemberManagementRestricted) Object.assign(base, { status: "unrestricted", detail: "exists, but NOT restricted — the flag is set at creation and can never be changed; rename it away and create a restricted one" });
       else base.status = "present";
+      if (base.status === "present") base.id = t.id;
       if (base.status === "present") {
         const mem = d.members ? d.members[t.id] : undefined;
         if (Array.isArray(mem)) {

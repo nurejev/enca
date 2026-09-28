@@ -212,6 +212,7 @@ const IntuneRbac = (() => {
       const standing = mem.filter((x) => !/^PIM-SG-INT-/.test(x.name));
       res.other.push({ id: a.id, name: a.displayName, role: a.roleName, members: mem.map((x) => x.name), scope: a.scopeType === "resourceScope" ? a.resourceScopes.map(nameOf).join(", ") || "none" : SCOPE_TXT[a.scopeType] || a.scopeType, tags: a.roleScopeTagIds.map((t) => (m.tags.find((x) => x.id === String(t)) || {}).displayName || t), finding: standing.length ? `held through ${standing.map((x) => x.name).join(", ")} — not a PIM-SG-INT access group, so its members hold the Intune role standing` : "" });
     });
+    res.tagIds = allTagIds;
     return res;
   }
 
@@ -254,7 +255,9 @@ const IntuneRbac = (() => {
         PimPlan.add(P, { key: `tagassign:${t.name}`, method: "POST", url: `${BETA}/deviceManagement/roleScopeTags/${t.id}/assign`, needs: W, section: "intune", summary: `auto-assign ${t.name} from ${t.autoAssignFrom}${t.targets.length ? ` (keeping its ${t.targets.length} other target${t.targets.length === 1 ? "" : "s"})` : ""}`, body: { assignments: [...t.targets.map(target), target(from)] } });
       }
     });
-    const allTags = res.items.filter((i) => i.kind === "tag").map((t) => tagRef[t.name]).filter(Boolean);
+    // "every" = every tag the tenant has (Default "0" included) plus the ones
+    // this plan makes — what compare() expects, so Verify can say Match (32429).
+    const allTags = [...new Set([...(res.tagIds || []), DEFAULT_TAG, ...res.items.filter((i) => i.kind === "tag").map((t) => tagRef[t.name]).filter(Boolean)])];
     res.items.filter((i) => i.kind === "assignment").forEach((a) => {
       if (a.status !== "missing" || !take(`assign:${a.key}`)) {
         if (a.status === "differs" && (!sel || sel.has(`assign:${a.key}`))) P.findings.push(`Intune assignment ${a.name} (${a.role}) differs (${a.detail}) — not rewritten: correct it in Intune`);

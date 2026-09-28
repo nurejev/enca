@@ -95,3 +95,11 @@ test("plan: a custom role whose permissions do not all resolve is never created 
   assert.ok(!P.ops.some((o) => o.key.startsWith("introle:")));
   assert.ok(P.blocked.some((b) => /reduced role is never created/.test(b)));
 });
+
+test("review 32429: Reader-All's \"every\" tag list is every tag the tenant has, Default included", () => {
+  const r = IR.compare(LARGE, [], IR.model(clone(DEMO.pim.intune)), groups(), DEMO.pim.names);
+  const P = PP.newPlan({});
+  IR.plan(P, LARGE, r, (n) => `{{group:${n}}}`, null);
+  const ra = P.ops.find((o) => o.key === "intassign:INT-RBAC-Reader-All|Read Only Operator");
+  assert.ok(ra.body.roleScopeTagIds.includes("0") && ra.body.roleScopeTagIds.includes("1") && ra.body.roleScopeTagIds.includes("{{tag:INT-TAG-Workplace}}"));
+});

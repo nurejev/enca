@@ -29,6 +29,18 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32429, date: "2026-09-28", title: "🚀 Deploy — safer before its first real run",
+    items: [
+      { kind: "fixed", tool: "Deploy", text: "A plan runs once. After a run, or while one is running, typing the domain again no longer arms Apply, and the finished plan cannot be reopened from the steps: a second import is a new Preview from a new read. Running the same plan twice would have made every new group and unit a second time." },
+      { kind: "fixed", tool: "Deploy", text: "Approval is only switched on with an approver group that can approve today — it already exists and has at least two members. An approver group made in the same run starts empty, and approval on Global Administrator with nobody to approve would have locked everybody but the break-glass accounts out. The Preview says which roles wait for their approvers." },
+      { kind: "fixed", tool: "Deploy", text: "The domain you type to apply, and the domain alert addresses are held to, are now the tenant's own default domain. An MSP or guest admin used to be asked for their own home domain in every customer." },
+      { kind: "fixed", tool: "Deploy", text: "When a role's settings fail to change, its eligibilities are left out of that run instead of being granted under the old, weaker settings. An eligibility never asks for longer than the maximum this same run sets. A context no switched-on Conditional Access policy enforces is named in the Preview." },
+      { kind: "fixed", tool: "Deploy", text: "The backup now also holds the membership policies changed at run time, and ↩ Put back reads each rule just before writing it back, so it has a backup of its own. A backup that does not say which tenant it is of is refused." },
+      { kind: "fixed", tool: "Restricted AUs", text: "The PIM lens never offers to scope the desk on a unit that is not restricted or exists twice." },
+      { kind: "fixed", tool: "Intune RBAC", text: "The Reader-All assignment Deploy makes carries every scope tag the tenant has, the Default tag included, so readers see everything and the verify step reads Match." },
+    ],
+  },
+  {
     build: 32428, date: "2026-09-28", title: "PIM lenses on Checks, CA groups, Changes, Sign-in log and User or Group analyzer; Azure RBAC in Roles & assignments",
     items: [
       { kind: "new", tool: "Checks", text: "Opened from 02 PIM-buddy, Checks shows the PIM checks above its own tabs: permanent Global Administrators outside the framework, how many people can become Global Administrator, Tier 0 activation without the authentication context or approval, roles held directly instead of through a PIM-SG group, eligibility that never ends, standing Intune roles, PIM objects in restricted units, and whether a Conditional Access policy really enforces the context. Each check passes, fails or says it was not read, with a button to the tool that fixes it." },

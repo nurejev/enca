@@ -31,8 +31,10 @@ test("large profile: groups first, approvers before the policies that name them,
   assert.equal(vip.body.isAssignableToRole, true); assert.equal(vip.body.visibility, "Private");
   const ap = P.ops.find((o) => o.key === "group:PIM-SG-Approvers-Tier0");
   assert.equal(ap.body.isAssignableToRole, undefined, "approvers are a plain group");
-  const pra = P.ops.find((o) => o.key === "rpol:Privileged Role Administrator:Approval_EndUser_Assignment");
-  assert.equal(pra.body.setting.approvalStages[0].primaryApprovers[0].groupId, "{{group:PIM-SG-Approvers-Tier0}}");
+  // Approval is never switched on with an approver group made empty in the same run (review, 32429).
+  assert.ok(!P.ops.some((o) => o.key === "rpol:Privileged Role Administrator:Approval_EndUser_Assignment"));
+  assert.ok(P.findings.some((f) => /Privileged Role Administrator: approval is not switched on yet — PIM-SG-Approvers-Tier0 must exist with at least two members/.test(f)));
+  const pra = P.ops.find((o) => o.key.startsWith("rpol:Privileged Role Administrator:"));
   assert.ok(pra.before, "the rule as it was is kept for the backup");
   const el = P.ops.find((o) => o.key === "elig:User Administrator:PIM-SG-M365-Identity:tenant scope");
   assert.equal(el.body.principalId, "{{group:PIM-SG-M365-Identity}}"); assert.equal(el.body.directoryScopeId, "/");
@@ -95,4 +97,42 @@ test("the whole large plan runs end to end against a fake Graph: created ids flo
   assert.equal(res.failed, 0); assert.equal(res.skipped, 0);
   assert.ok(res.deferred >= 6);
   assert.ok(!JSON.stringify(calls).includes("{{"), "no placeholder reaches Graph");
+});
+
+test("review 32429: approval on with a ready approver group only; eligibilities wait for their role's settings; the planned maximum caps the request", async () => {
+  const r = raw();
+  r.groups.push({ id: "g-ap0", displayName: "PIM-SG-Approvers-Tier0", isAssignableToRole: false });
+  const one = PD.build(LARGE, r, { sections: new Set(["rolePolicies"]), approverMembers: { "PIM-SG-Approvers-Tier0": 1 } });
+  assert.ok(!one.ops.some((o) => o.key === "rpol:Privileged Role Administrator:Approval_EndUser_Assignment"), "one approver is not enough");
+  const three = PD.build(LARGE, r, { sections: new Set(["rolePolicies"]), approverMembers: { "PIM-SG-Approvers-Tier0": 3 } });
+  const pra = three.ops.find((o) => o.key === "rpol:Privileged Role Administrator:Approval_EndUser_Assignment");
+  assert.equal(pra.body.setting.approvalStages[0].primaryApprovers[0].groupId, "g-ap0");
+  // A role whose settings failed to change gets no eligibility in that run.
+  const P = PD.build(LARGE, raw(), { sections: new Set(["groups", "rolePolicies", "eligibilities"]) });
+  const e = P.ops.find((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Collab:tenant scope");
+  assert.ok(e.requires.length && e.requires.every((k) => k.startsWith("rpol:Exchange Administrator:")));
+  let n = 0;
+  const res = await PP.run(P, { send: async (m, u) => { if (m === "PATCH" && P.ops.find((o) => o.url === u && o.key.startsWith("rpol:Exchange Administrator:"))) throw Object.assign(new Error("Graph request failed (400)"), { status: 400 }); return m === "POST" ? { id: `n${++n}` } : null; }, sleep: async () => {} });
+  assert.equal(res.outcome[P.ops.indexOf(e)].status, "skipped");
+  // The maximum a run sets is the cap of the request that follows it.
+  const V = Object.assign({}, LARGE, { templates: Object.assign({}, LARGE.templates, { Tier1: Object.assign({}, LARGE.templates.Tier1, { MaximumEligibilityDuration: "P180D" }) }) });
+  const Q = PD.build(V, raw(), { sections: new Set(["groups", "rolePolicies", "eligibilities"]) });
+  assert.equal(Q.ops.find((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Collab:tenant scope").body.scheduleInfo.expiration.duration, "P180D");
+  // A context no enabled policy enforces is said.
+  const C = PD.build(LARGE, raw(), { sections: new Set(["rolePolicies"]), caPolicies: [] });
+  assert.ok(C.findings.some((f) => /authentication context c1: no enabled Conditional Access policy targets it/.test(f)));
+});
+
+test("review 32429: backups hold PIM policy rules only; the lens never scopes on an unrestricted or duplicate unit", () => {
+  const P = PP.newPlan({});
+  PP.add(P, { key: "introlefix:X", method: "PATCH", url: `${PP.BETA}/deviceManagement/roleDefinitions/r1`, body: {}, before: { a: 1 }, summary: "x" });
+  PP.add(P, { key: "rpol:A:B", method: "PATCH", url: `${PP.V1}/policies/roleManagementPolicies/p/rules/Expiration_EndUser_Assignment`, body: {}, before: { id: "Expiration_EndUser_Assignment" }, summary: "y" });
+  assert.deepEqual(PP.backup(P).rules.map((r) => r.key), ["rpol:A:B"]);
+  const RM = new Function("PimPlan", read("js/pimrmau.js") + ";return PimRmau;")(PP);
+  const d = clone(DEMO.pim);
+  d.aus = d.aus.map((a) => (a.displayName === "AU-RM-Executives" ? Object.assign({}, a, { isMemberManagementRestricted: false }) : a));
+  d.groups.push({ id: "g-vip", displayName: "PIM-SG-M365-ServiceDesk-VIP", isAssignableToRole: true });
+  const c = RM.check(LARGE, { aus: d.aus, members: {}, eligible: d.eligible, active: d.active, groups: d.groups, named: d.named, roles: d.roleDefinitions });
+  assert.equal(c.units[0].status, "unrestricted"); assert.equal(c.units[0].id, null);
+  assert.ok(c.units[0].scoped.every((s) => s.status !== "missing"), "nothing to tick onto the wrong unit");
 });

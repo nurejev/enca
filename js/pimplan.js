@@ -108,7 +108,9 @@ const PimPlan = (() => {
     set("Enablement_EndUser_Assignment", (r) => { r.enabledRules = req.slice(); });
     set("AuthenticationContext_EndUser_Assignment", (r) => { const on = !!T.AuthenticationContext_Enabled; r.isEnabled = on; r.claimValue = on ? String(T.AuthenticationContext_Value || "").split(":")[0] : null; });
     let approverProblem = null;
-    set("Approval_EndUser_Assignment", (r) => {
+    // skipApproval: the approver group cannot approve yet (made in this run,
+    // or fewer than two members) — the approval rule is left as it is (32429).
+    if (!o.skipApproval) set("Approval_EndUser_Assignment", (r) => {
       const need = !!T.ApprovalRequired;
       r.setting = r.setting || {};
       r.setting.isApprovalRequired = need;
@@ -175,6 +177,8 @@ const PimPlan = (() => {
       const rec = { key: op.key, summary: op.summary, status: "not run", at: null, id: null, error: null };
       outcome.push(rec);
       if (h.stopped()) { rec.status = "stopped"; h.onSkip && h.onSkip(i, "stopped"); continue; }
+      const req = (op.requires || []).find((k) => failedKeys.has(k));
+      if (req) { rec.status = "skipped"; rec.error = `${req} failed`; failedKeys.add(op.key); h.onSkip && h.onSkip(i, `left out: ${req.replace(/^[a-z]+:/, "")} did not change — its role would be granted under the old settings`); continue; }
       const dep = uses(op).find((k) => !ids[k]);
       if (dep) { rec.status = "skipped"; rec.error = `${dep} was not made in this run`; failedKeys.add(op.produces || op.key); h.onSkip && h.onSkip(i, `needs ${dep.replace(/^[a-z]+:/, "")}, which was not made`); continue; }
       h.onStart && h.onStart(i);
@@ -211,7 +215,7 @@ const PimPlan = (() => {
         }
       }
       if (attempt && rec.status !== "failed") rec.status += ` after ${attempt} retr${attempt === 1 ? "y" : "ies"}`;
-      if (rec.status === "failed") { failedKeys.add(op.produces || op.key); h.onFail && h.onFail(i, rec.error); }
+      if (rec.status === "failed") { failedKeys.add(op.key); if (op.produces) failedKeys.add(op.produces); h.onFail && h.onFail(i, rec.error); }
       else if (/^deferred/.test(rec.status)) h.onPart && h.onPart(i, rec.status);
       else h.onDone && h.onDone(i, rec.status === "done" ? "" : rec.status);
     }
@@ -221,7 +225,9 @@ const PimPlan = (() => {
   // What the run changed that can be put back: the rules as they were. A
   // create is undone from its object; an eligibility with adminRemove.
   function backup(plan, meta) {
-    return { schema: "cloudfellows-pim-backup/web-1", meta: Object.assign({}, plan.meta || {}, meta || {}), rules: plan.ops.filter((o) => o.before && o.method === "PATCH").map((o) => ({ key: o.key, url: o.url, before: o.before })) };
+    // Only PIM policy rules — what ↩ Put back can write (an Intune role's
+    // permissions are changed in Intune by hand if they must go back).
+    return { schema: "cloudfellows-pim-backup/web-1", meta: Object.assign({}, plan.meta || {}, meta || {}), rules: plan.ops.filter((o) => o.before && o.method === "PATCH" && /\/policies\/roleManagementPolicies\/[^/]+\/rules\//.test(o.url)).map((o) => ({ key: o.key, url: o.url, before: o.before })) };
   }
   // A backup → a plan that PATCHes every rule back.
   function restorePlan(file, needs) {

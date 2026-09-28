@@ -16,6 +16,7 @@
   // administrator invited as a guest carries their own domain, not the
   // tenant's. Empty in the demo and before sign-in.
   let tenantDomains = [];
+  let tenantDefaultDomain = "";   // 32429: the tenant's default verified domain — an MSP admin's sign-in domain is not the customer's
   let tenantId = "";        // for the account menu's Copy tenant ID; "" in the demo
   let capabilityCache = null;
   async function readCapabilities(force = false) {
@@ -2443,6 +2444,7 @@
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
       tenantDomains = (org?.verifiedDomains || []).map((d) => String(d?.name || "").toLowerCase()).filter(Boolean);
+      tenantDefaultDomain = String(((org?.verifiedDomains || []).find((d) => d && d.isDefault) || {}).name || "").toLowerCase();
       // R28 — the group → persona mapping is per tenant, so it is bound HERE
       // and nowhere else: keyed on the tenant id rather than the name, because
       // two customers can share a display name and a mapping landing in the
@@ -21820,7 +21822,7 @@ This is a directory write. Nothing else changes.`)) return;
           } catch (e) { groupPoliciesError = String(e && e.message || e).replace(/\s*·\s*inner:.*$/, "").slice(0, 160); groupPolicies = null; sources.groupPolicies = why(e); }
         } else sources.groupPolicies = "ok";
         pmbProg.check();
-        raw = { roles, policies, policyIds, eligible: el.map((i) => inst(i, "Eligible")), active: ac.map((i) => inst(i)), groups, groupPolicies, groupPolicyIds, groupPoliciesError, names, aus, named, domain: tenantDomain || null, verifiedDomains: (tenantDomains || []).map((x) => String(x.id || x.name || x).toLowerCase()), tenantId, sources, readAt: Date.now(), demo: false };
+        raw = { roles, policies, policyIds, eligible: el.map((i) => inst(i, "Eligible")), active: ac.map((i) => inst(i)), groups, groupPolicies, groupPolicyIds, groupPoliciesError, names, aus, named, domain: pimExpectDomain() || null, verifiedDomains: (tenantDomains || []).map((x) => String(x.id || x.name || x).toLowerCase()), tenantId, sources, readAt: Date.now(), demo: false };
       }
     } catch (e) {
       const m = e && (e.message || String(e));
@@ -21977,7 +21979,10 @@ This is a directory write. Nothing else changes.`)) return;
   // PATCHes is kept as it was, in a backup file the person downloads, and
   // ↩ Put back rewrites those rules from that file.
   // ======================================================================
-  const pimExpectDomain = () => (isDemo ? "contoso.nl" : (tenantDomain || "").toLowerCase());
+  // The domain typed to apply, and the alert domain: the TENANT's default
+  // verified domain. tenantDomain is the signed-in admin's own domain, which
+  // for an MSP or guest admin is the same text in every customer (32429).
+  const pimExpectDomain = () => (isDemo ? "contoso.nl" : (tenantDefaultDomain || (tenantDomains.includes((tenantDomain || "").toLowerCase()) ? tenantDomain : "") || tenantDomains[0] || "").toLowerCase());
   async function pimSend(method, url, body, needs) {
     const scopes = [...AUTH_CONFIG.scopes, ...(needs || [])];
     if (method === "DELETE") { await Graph.gdelete(url, scopes); return null; }
@@ -21987,7 +21992,7 @@ This is a directory write. Nothing else changes.`)) return;
   // A group's Member policy (PIM for Groups) at run time: read by the group's
   // id, the rules the template governs changed one by one. A group that is
   // not in PIM for Groups yet has no policy — deferred, not failed.
-  async function pimGroupPolicyStep(op, ids, send) {
+  async function pimGroupPolicyStep(op, ids, send, late) {
     const gid = op.groupId || ids[`group:${op.group}`];
     if (!gid) throw new Error(`${op.group} has no id`);
     if (isDemo) return /^demo-/.test(String(gid)) ? "deferred — not in PIM for Groups yet (the first member assignment brings it in; plan again then)" : "done";
@@ -21995,12 +22000,14 @@ This is a directory write. Nothing else changes.`)) return;
     const r = await Graph.gget(`https://graph.microsoft.com/v1.0/policies/roleManagementPolicyAssignments?$filter=scopeId eq '${gid}' and scopeType eq 'Group' and roleDefinitionId eq 'member'&$expand=policy($expand=rules)`, sc);
     const pol = r && r.value && r.value[0] && r.value[0].policy;
     if (!pol) return "deferred — not in PIM for Groups yet (the first member assignment brings it in; plan again then)";
+    // Only the approvers THIS template names: one failed approver group must
+    // not fail every other group's policy (32429).
     const approverIds = {};
-    for (const [n, v] of Object.entries(op.approverIds || {})) approverIds[n] = PimPlan.resolve(v, ids);
-    const ch = PimPlan.ruleChanges(pol.rules || [], op.settings, { approverIds, domain: op.domain, verifiedDomains: op.verifiedDomains });
+    for (const n of PimPlan.approverNames(op.settings)) if ((op.approverIds || {})[n]) approverIds[n] = PimPlan.resolve(op.approverIds[n], ids);
+    const ch = PimPlan.ruleChanges(pol.rules || [], op.settings, { approverIds, domain: op.domain, verifiedDomains: op.verifiedDomains, skipApproval: !!op.skipApproval });
     if (ch.problem) throw new Error(ch.problem);
     let n = 0;
-    for (const c of ch.changes) { if (c.missing) continue; await send("PATCH", `${PimPlan.V1}/policies/roleManagementPolicies/${pol.id}/rules/${c.ruleId}`, c.after, ["RoleManagementPolicy.ReadWrite.AzureADGroup"]); n++; }
+    for (const c of ch.changes) { if (c.missing) continue; const url = `${PimPlan.V1}/policies/roleManagementPolicies/${pol.id}/rules/${c.ruleId}`; if (late) late.push({ key: `gpolnew:${op.group}:${c.ruleId}`, url, before: c.before }); await send("PATCH", url, c.after, ["RoleManagementPolicy.ReadWrite.AzureADGroup"]); n++; }
     return n ? `done (${n} rule${n === 1 ? "" : "s"})` : "done (already as the template says)";
   }
   // The WhatIf panel. opts: { title, impact: [...], recovery: [...], irreversible: [...],
@@ -22035,25 +22042,38 @@ This is a directory write. Nothing else changes.`)) return;
     if (!panel) return;
     const typed = panel.querySelector("#pimTyped"), go = panel.querySelector("[data-pimapply]");
     const dom = pimExpectDomain();
-    if (typed && go) typed.addEventListener("input", () => { go.disabled = !dom || typed.value.trim().toLowerCase() !== dom; });
+    // A plan runs ONCE (32429): after its run — or while it runs — the box no
+    // longer arms the button; a second import is a new Preview from a new read.
+    if (plan._applied || plan._running) { if (go) { go.disabled = true; go.textContent = plan._applied ? "✓ Applied — Preview again for another run" : "Running…"; } if (typed) typed.disabled = true; }
+    if (typed && go) typed.addEventListener("input", () => { go.disabled = plan._applied || plan._running || !dom || typed.value.trim().toLowerCase() !== dom; });
     const pj = panel.querySelector("[data-pimplanjson]");
     if (pj) pj.addEventListener("click", () => { downloadText(`pim-plan.${dom || "tenant"}`, "json", "application/json", JSON.stringify(plan, null, 2) + "\n"); });
     if (go) go.addEventListener("click", () => pimApply(panel.querySelector("[data-pimrun]"), plan, opts, go));
   }
   async function pimApply(host, plan, opts, btn) {
+    if (plan._applied || plan._running) return;
+    plan._running = true;
     if (btn) btn.disabled = true;
+    const typedBox = host && host.closest("[data-pimplan]") && host.closest("[data-pimplan]").querySelector("#pimTyped");
+    if (typedBox) typedBox.disabled = true;
     const scopes = [...AUTH_CONFIG.scopes, ...PimPlan.scopesOf(plan)];
-    if (!isDemo && !await preConsent(scopes)) { if (btn) btn.disabled = false; return; }
+    if (!isDemo && !await preConsent(scopes)) { plan._running = false; if (btn) btn.disabled = false; if (typedBox) typedBox.disabled = false; return; }
+    // Put back keeps what it overwrites too: each rule is read just before
+    // the run, so its backup can undo the undo (32429).
+    if (!isDemo) for (const o of plan.ops) if (o.method === "PATCH" && !o.before && /\/policies\/roleManagementPolicies\//.test(o.url)) { try { o.before = PimPlan.ruleBody(await Graph.gget(o.url, scopes)); } catch { /* no before: not in the backup */ } }
+    const late = [];
     const L = RunLedger.create(host, { unit: "operations", title: opts.title || "", items: plan.ops.map((o) => ({ label: o.summary, sub: o.section })) });
     let demoN = 0;
     const send = isDemo ? async (method, url) => { await new Promise((r) => setTimeout(r, 120)); return method === "POST" ? { id: `demo-${++demoN}`, status: /ScheduleRequests/.test(url) ? "Provisioned" : undefined } : null; } : pimSend;
     const res = await PimPlan.run(plan, {
       send, stopped: () => L.stopped,
-      groupPolicy: (op, ids, s) => pimGroupPolicyStep(op, ids, s),
+      groupPolicy: (op, ids, s) => pimGroupPolicyStep(op, ids, s, late),
       onStart: (i) => L.start(i), onDone: (i, note) => L.done(i, note), onFail: (i, why) => L.fail(i, why), onPart: (i, note) => L.part(i, note, "later"), onSkip: (i, why) => L.skip(i, why),
       onWait: (i, s, a) => L.note(i, `not replicated yet — trying again in ${s} s (${a} of ${PimPlan.WAITS.length})`),
     });
-    const bk = PimPlan.backup(plan, { tenant: tenantName || (isDemo ? "Demo tenant" : ""), domain: pimExpectDomain(), appliedAt: new Date().toISOString(), by: `ENCA ${APP_BUILD.label || APP_BUILD.build}` });
+    plan._running = false; plan._applied = true;
+    const bk = PimPlan.backup(plan, { tenant: tenantName || (isDemo ? "Demo tenant" : ""), tenantId: isDemo ? "demo" : tenantId, domain: pimExpectDomain(), appliedAt: new Date().toISOString(), by: `ENCA ${APP_BUILD.label || APP_BUILD.build}` });
+    bk.rules.push(...late);   // membership policies changed at run time (new groups)
     const report = () => {
       const md = [`# ${opts.title || "PIM plan"} — ${tenantName || pimExpectDomain()}`, "", `${isDemo ? "Demo — simulated. " : ""}${res.done} done · ${res.deferred} later · ${res.failed} failed · ${res.skipped} skipped, ${new Date().toLocaleString()}.`, "", "| # | Operation | Outcome |", "|---|---|---|",
         ...res.outcome.map((r, i) => `| ${i + 1} | ${r.summary} | ${r.status}${r.error ? ` — ${r.error}` : ""}${r.id ? ` (id ${r.id})` : ""} |`), "",
@@ -22295,18 +22315,18 @@ This is a directory write. Nothing else changes.`)) return;
   }
   const pdpIntuneOn = () => !pdp.sel || pdp.sel.has("intune");
   function pdpOpts() {
-    return { sections: pdp.sel, only: pdp.onlyOn ? pdp.only : null, rows: pmbRegionsOn() ? pmbRegRows : null, intune: pmbIntRes, intuneModel: pmbInt ? IntuneRbac.model(pmbInt) : null, userIds: pdp.userIds, members: pdp.members, domain: pimExpectDomain(), tenantId: isDemo ? "demo" : tenantId };
+    return { caPolicies: policies && policies.length ? policies.map((p) => p.raw) : null, approverMembers: pdp.approverMembers || null, sections: pdp.sel, only: pdp.onlyOn ? pdp.only : null, rows: pmbRegionsOn() ? pmbRegRows : null, intune: pmbIntRes, intuneModel: pmbInt ? IntuneRbac.model(pmbInt) : null, userIds: pdp.userIds, members: pdp.members, domain: pimExpectDomain(), tenantId: isDemo ? "demo" : tenantId };
   }
   function pdpPaint() {
     const steps = [["1", "Pick", "profile · what to take"], ["2", "Preview", "WhatIf · apply"], ["3", "Verify", "read again · report"]];
     const cur = pdp.step;
     $("pdpChips").innerHTML = "";
     $("pdpRead").textContent = pmbRaw ? "⟳ Read again" : "▶ Read the tenant"; $("pdpRead").disabled = pdp.busy || pmbBusy;
-    const stepper = `<nav class="pim-steps" aria-label="Import steps">${steps.map(([n, l, sub], i) => `<button type="button" data-pdpstep="${n}"${+n === cur ? ' aria-current="step"' : ""}${+n < cur ? ' class="done"' : ""}${+n > cur && !(+n === 2 && pdp.plan) ? " disabled" : ""}><b>${+n < cur ? "✓" : n}</b><span>${esc(l)}<small class="mini" style="display:block;font-weight:400">${esc(sub)}</small></span></button>`).join("")}</nav>`;
+    const stepper = `<nav class="pim-steps" aria-label="Import steps">${steps.map(([n, l, sub], i) => `<button type="button" data-pdpstep="${n}"${+n === cur ? ' aria-current="step"' : ""}${+n < cur ? ' class="done"' : ""}${(+n === 2 && !pdp.plan) || (+n === 3 && cur !== 3) || (+n > cur && +n !== 2) ? " disabled" : ""}><b>${+n < cur ? "✓" : n}</b><span>${esc(l)}<small class="mini" style="display:block;font-weight:400">${esc(sub)}</small></span></button>`).join("")}</nav>`;
     if (pdp.busy || pmbBusy || pmbIntBusy) { $("pdpBody").innerHTML = stepper + pmbProg.panel("Reading what the import needs — PIM, groups, units, Intune…"); return; }
     if (cur === 2 && pdp.plan) {
       $("pdpBody").innerHTML = stepper + `<div class="pmb-upload-row"><button class="btn" data-pdpback>← Back to the pick</button></div>` + pimPlanPanel(pdp.plan, pdpPanelOpts());
-      pimPlanWire($("pdpBody"), pdp.plan, Object.assign(pdpPanelOpts(), { onDone: (r) => { pdp.applied = r; setTimeout(() => pdpVerify(), 1200); } }));
+      pimPlanWire($("pdpBody"), pdp.plan, Object.assign(pdpPanelOpts(), { onDone: (r) => { pdp.applied = r; setTimeout(() => { pdp.plan = null; pdp.restore = null; pdpVerify(); }, 1200); } }));
       return;
     }
     if (cur === 3) {
@@ -22335,7 +22355,7 @@ This is a directory write. Nothing else changes.`)) return;
       <div class="pmb-upload-row"><button class="btn primary" data-pdppreview${n ? "" : " disabled"}>🔎 Preview ${n} operation${n === 1 ? "" : "s"}</button></div></div>`;
   }
   function pdpPanelOpts() {
-    if (pdp.restore) return { title: "↩ Put back from a backup", impact: [`${pdp.plan.ops.length} PIM policy rule${pdp.plan.ops.length === 1 ? "" : "s"} are written back as they were before the run that made the backup${pdp.plan.meta && pdp.plan.meta.appliedAt ? ` (${new Date(pdp.plan.meta.appliedAt).toLocaleString()})` : ""}; activations from then on follow the old settings.`], recovery: ["The rules as they are now are kept in a new backup of this run."], irreversible: [] };
+    if (pdp.restore) return { title: "↩ Put back from a backup", impact: [`${pdp.plan.ops.length} PIM policy rule${pdp.plan.ops.length === 1 ? "" : "s"} are written back as they were before the run that made the backup${pdp.plan.meta && pdp.plan.meta.appliedAt ? ` (${new Date(pdp.plan.meta.appliedAt).toLocaleString()})` : ""}; activations from then on follow the old settings.`], recovery: ["Each rule is read just before it is written back, and those readings are this run's own backup."], irreversible: [] };
     const P = pdp.plan, has = (f) => P.ops.some(f);
     return { title: "🚀 Import from the baseline",
       impact: [has((o) => /^group:/.test(o.key)) ? "New groups start empty: nobody gains or loses access by their creation." : "", has((o) => o.kind === "request") ? "Eligibilities go to groups, never to people: only a group's active members can activate, under the role's own settings." : "", has((o) => o.section === "rolePolicies") ? "Changed role settings apply from the next activation: a request may now need a ticket, approval or the authentication context; active assignments are not cut short." : "", has((o) => o.section === "intune") ? "Intune assignments go to the PIM-SG-INT access groups: nobody holds the Intune role until they activate the group." : ""].filter(Boolean),
@@ -22358,7 +22378,18 @@ This is a directory write. Nothing else changes.`)) return;
   }
   // A region's approvers by address → object ids; the approver groups' members.
   async function pdpResolveApprovers() {
-    pdp.userIds = {}; pdp.members = {};
+    pdp.userIds = {}; pdp.members = {}; pdp.approverMembers = {};
+    // How many people each approver group holds: approval is only switched
+    // on when at least two can approve (32429).
+    const idx0 = pmbGroupIndex();
+    const apNames = [...idx0.keys()].filter((n) => /^PIM-SG-.*Approvers/.test(n) && idx0.get(n).length === 1);
+    if (isDemo) apNames.forEach((n) => { pdp.approverMembers[n] = n === "PIM-SG-EU-NL-Approvers" ? 2 : 0; });
+    else if (apNames.length) {
+      try {
+        const r0 = await Graph.gbatch(apNames.map((n, i) => ({ id: String(i), url: `/groups/${idx0.get(n)[0].id}/members?$select=id&$top=999` })), null, { base: "https://graph.microsoft.com/v1.0", scopes: [...AUTH_CONFIG.scopes] });
+        apNames.forEach((n, i) => { const x = r0[String(i)]; if (x && x.body && Array.isArray(x.body.value)) pdp.approverMembers[n] = x.body.value.length; });
+      } catch { /* unknown counts: approval stays as it is */ }
+    }
     if (!pmbRegionsOn() || !pmbRegRows) return;
     const upns = [...new Set(pmbRegRows.flatMap((r) => r.approvers || []).map((u) => String(u).toLowerCase()))];
     if (isDemo) { const known = { "anna@contoso.nl": "u-anna", "mihai@contoso.nl": "u-mihai", "joey@contoso.nl": "u-joey" }; upns.forEach((u) => { if (known[u]) pdp.userIds[u] = known[u]; }); return; }
@@ -22408,7 +22439,7 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       const j = JSON.parse(await f.text());
       if (!j || j.schema !== "cloudfellows-pim-backup/web-1") throw new Error("not a backup file this tool wrote (schema cloudfellows-pim-backup/web-1)");
-      if (!isDemo && j.meta && j.meta.tenantId && tenantId && j.meta.tenantId !== tenantId) throw new Error(`the backup is of another tenant (${j.meta.domain || j.meta.tenantId})`);
+      if (!isDemo && (!j.meta || !j.meta.tenantId || j.meta.tenantId !== tenantId)) throw new Error(j.meta && j.meta.tenantId ? `the backup is of another tenant (${j.meta.domain || j.meta.tenantId})` : "the backup does not say which tenant it is of — not put back");
       pdp.plan = PimPlan.restorePlan(j); pdp.restore = j; pdp.step = 2; pdpPaint();
     } catch (err) { toast(`Put back <span>${esc(err.message || err)}</span>`); }
   });

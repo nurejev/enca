@@ -145,6 +145,14 @@ const PimDeploy = (() => {
     // ---- role policies -----------------------------------------------------
     const approverIds = {};
     usedApprovers.forEach((n) => { const r = ref(n); if (r) approverIds[n] = r; });
+    // Approval is only switched ON with an approver group that can approve
+    // today: it exists (not made in this run) and has at least two members
+    // when the count was read. Otherwise the approval rule is left as it is
+    // and the plan says so — an approval nobody can give locks the role out
+    // for everybody but break-glass (32429, review).
+    const ready = (n) => { const id = approverIds[n]; if (!id || String(id).startsWith("{{")) return false; const c = (opts.approverMembers || {})[n]; return c === undefined || c >= 2; };
+    const notReady = new Set();
+    const approvalOk = (T) => PimPlan.approverNames(T).every((n) => { const ok = ready(n); if (!ok) notReady.add(n); return ok; });
     if (on("rolePolicies")) res.rows.forEach((row) => {
       if (row.status !== "differs" || !want(`role:${row.name}`)) return;
       const r = cat.roles.find((x) => x.name === row.name);
@@ -152,8 +160,10 @@ const PimDeploy = (() => {
       const pid = (raw.policyIds || {})[row.name];
       const rules = (raw.policies || {})[row.name];
       if (!pid || !rules) { P.findings.push(`${row.name}: its policy id was not read — role settings left out`); return; }
-      const ch = PimPlan.ruleChanges(rules, T, { approverIds, domain, verifiedDomains: raw.verifiedDomains });
+      const okA = approvalOk(T);
+      const ch = PimPlan.ruleChanges(rules, T, { approverIds, domain, verifiedDomains: raw.verifiedDomains, skipApproval: !okA });
       if (ch.problem) { P.blocked.push(`${row.name}: ${ch.problem} (tick Approver groups)`); return; }
+      if (!okA && T.ApprovalRequired && !(row.got && row.got.approval === true)) P.findings.push(`${row.name}: approval is not switched on yet — ${PimPlan.approverNames(T).join(", ")} must exist with at least two members first; add them, then Preview again`);
       ch.changes.forEach((c) => {
         if (c.missing) { P.findings.push(`${row.name}: the policy has no rule ${c.ruleId} — left as it is`); return; }
         PimPlan.add(P, { key: `rpol:${row.name}:${c.ruleId}`, method: "PATCH", url: `${V1}/policies/roleManagementPolicies/${pid}/rules/${c.ruleId}`, needs: ["RoleManagementPolicy.ReadWrite.Directory"], section: "rolePolicies", summary: `${row.name}: ${c.ruleId.replace(/_/g, " ")} → ${r.template}`, body: c.after, before: c.before });
@@ -171,9 +181,16 @@ const PimDeploy = (() => {
       if (scope.includes("{{") === false && !String(gid).startsWith("{{") && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === scope)) return;
       if (!String(gid).startsWith("{{") && active.some((a) => a.principalId === gid && a.roleName === roleName && a.assignmentType !== "Activated" && (a.directoryScopeId || "/") === scope)) P.findings.push(`${gname} holds ${roleName} ACTIVE (2.0 style) — once the eligibility exists, remove the active assignment by hand`);
       if (scope !== "/" && !String(gid).startsWith("{{") && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === "/")) P.findings.push(`${gname} is eligible for ${roleName} at TENANT scope — wider than ${scopeLabel}; remove the tenant-wide one by hand`);
-      const dur = PimPlan.eligibilityDuration((raw.policies || {})[roleName], "P365D");
+      // The maximum this run leaves the role with, not the one it found:
+      // a tighter tier applied first would refuse a longer request (32429).
+      let dur = PimPlan.eligibilityDuration((raw.policies || {})[roleName], "P365D");
+      const planned = P.ops.find((o) => o.key === `rpol:${roleName}:Expiration_Admin_Eligibility`);
+      if (planned) { const d2 = PimPlan.eligibilityDuration([planned.body], dur.duration); if (d2.capped) dur = d2; }
       if (dur.capped) P.findings.push(`${roleName} allows eligibility for at most ${dur.duration}; ${gname} gets that`);
-      PimPlan.add(P, { key: `elig:${roleName}:${gname}:${scopeLabel}`, kind: "request", url: `${V1}/roleManagement/directory/roleEligibilityScheduleRequests`, needs: ["RoleManagement.ReadWrite.Directory"], section, summary: `${gname} eligible for ${roleName} at ${scopeLabel} (${dur.duration})`,
+      // If any of this role's settings fails to change, its eligibilities are
+      // left out: they would be granted under the old, weaker settings.
+      const requires = P.ops.filter((o) => o.key.startsWith(`rpol:${roleName}:`)).map((o) => o.key);
+      PimPlan.add(P, { requires, key: `elig:${roleName}:${gname}:${scopeLabel}`, kind: "request", url: `${V1}/roleManagement/directory/roleEligibilityScheduleRequests`, needs: ["RoleManagement.ReadWrite.Directory"], section, summary: `${gname} eligible for ${roleName} at ${scopeLabel} (${dur.duration})`,
         body: PimPlan.eligibility({ principalId: gid, roleDefinitionId: rid, scope, duration: dur.duration, justification: `${cat.label} ${cat.release}: ${gname} carries ${roleName}${scope === "/" ? "" : ` in ${scopeLabel}`}` }) });
     };
     if (on("eligibilities")) cat.roles.forEach((r) => (r.via || []).forEach((g) => {
@@ -193,12 +210,13 @@ const PimDeploy = (() => {
       const gid = ref(name);
       if (!gid) return;
       const miss = PimPlan.approverNames(T).filter((n) => !approverIds[n]);
-      if (miss.length) { P.blocked.push(`${name} membership policy: approver group ${miss.join(", ")} does not exist and is not in this import — nothing could approve`); return; }
+      if (miss.length) P.findings.push(`${name} membership policy: approver group ${miss.join(", ")} does not exist and is not in this import — its approval rule is left as it is`);
       const newGroup = String(gid).startsWith("{{");
       const rules = newGroup ? null : ((raw.groupPolicies || {})[gid] || (raw.groupPolicies || {})[name]);
       const pid = newGroup ? null : ((raw.groupPolicyIds || {})[gid] || (raw.groupPolicyIds || {})[name]);
       if (rules && pid) {
-        const ch = PimPlan.ruleChanges(rules, T, { approverIds, domain, verifiedDomains: raw.verifiedDomains });
+        const okA = approvalOk(T);
+        const ch = PimPlan.ruleChanges(rules, T, { approverIds, domain, verifiedDomains: raw.verifiedDomains, skipApproval: !okA });
         if (ch.problem) { P.blocked.push(`${name}: ${ch.problem}`); return; }
         ch.changes.forEach((c) => { if (c.missing) return; PimPlan.add(P, { key: `gpol:${name}:${c.ruleId}`, method: "PATCH", url: `${V1}/policies/roleManagementPolicies/${pid}/rules/${c.ruleId}`, needs: ["RoleManagementPolicy.ReadWrite.AzureADGroup"], section, summary: `${name} membership: ${c.ruleId.replace(/_/g, " ")} → ${template}`, body: c.after, before: c.before }); });
       } else deferred.push({ name, template, gid, section, T });
@@ -214,8 +232,12 @@ const PimDeploy = (() => {
     if (on("intune") && !opts.intune) P.findings.push("Intune RBAC was not read — read it in 📱 Intune RBAC to import its objects");
 
     // ---- membership policies of groups PIM for Groups does not know yet ------
-    deferred.forEach((d) => PimPlan.add(P, { key: `gpolnew:${d.name}`, kind: "groupPolicy", group: d.name, groupId: String(d.gid).startsWith("{{") ? null : d.gid, settings: d.T, approverIds, domain, verifiedDomains: raw.verifiedDomains, needs: ["RoleManagementPolicy.ReadWrite.AzureADGroup"], section: d.section, summary: `${d.name} membership policy → ${d.template} (once PIM for Groups knows the group)` }));
+    deferred.forEach((d) => PimPlan.add(P, { key: `gpolnew:${d.name}`, kind: "groupPolicy", group: d.name, groupId: String(d.gid).startsWith("{{") ? null : d.gid, settings: d.T, skipApproval: !approvalOk(d.T), approverIds: Object.fromEntries(Object.entries(approverIds).filter(([n]) => ready(n))), domain, verifiedDomains: raw.verifiedDomains, needs: ["RoleManagementPolicy.ReadWrite.AzureADGroup"], section: d.section, summary: `${d.name} membership policy → ${d.template} (once PIM for Groups knows the group)` }));
 
+    if (notReady.size) P.manual.push(`approvers: ${[...notReady].join(", ")} — at least two people each; approval on the roles and groups that name them is switched on by the next Preview once they are there`);
+    // The authentication context is only a gate when a policy enforces it.
+    const ctxIds = [...new Set(Object.values(cat.templates).filter((t) => t.AuthenticationContext_Enabled).map((t) => String(t.AuthenticationContext_Value || "")))];
+    if (opts.caPolicies && ctxIds.length) ctxIds.forEach((c) => { const on = opts.caPolicies.filter((p) => p.state === "enabled" && ((((p.conditions || {}).applications || {}).includeAuthenticationContextClassReferences) || []).includes(c)); if (!on.length) P.findings.push(`authentication context ${c}: no enabled Conditional Access policy targets it — Tier 0 activation then asks for justification only; build and switch on the context's policy in Workspace 01 before relying on it`); });
     // ---- what a person decides ---------------------------------------------
     res.rows.forEach((r) => { if (r.permanentOutside) P.findings.push(`${r.name}: ${r.permanentOutside} permanent active assignment${r.permanentOutside === 1 ? "" : "s"} outside the framework — make eligible or remove, by hand (never by an import)`); });
     P.manual.push("members: persona groups ACTIVE for at most a year, PIM-SG-INT-* access groups ELIGIBLE — add them in PIM for Groups or with an access package");
