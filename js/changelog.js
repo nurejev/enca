@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32418, date: "2026-09-28", title: "🧬 PIM baseline 0.3.2 — the scripts wait for Entra to replicate a group they just made",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "New-PimRegions.ps1 stopped on cloudfellows.dev right after making the EU-NL units and groups: the first eligibility, asked for less than a second after its group was created, came back not found. When a write that names a new group or unit comes back not found, the scripts now wait and try the same call again, for up to two minutes, before they stop. The same applies to New-PimBaseline.ps1. Plan and apply again: what the first run made is found and left alone." },
+    ],
+  },
+  {
     build: 32417, date: "2026-09-28", title: "🧬 PIM baseline 0.3.1 — Entra roles found by template id, so a renamed role no longer stops the plan",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "New-PimBaseline.ps1 stopped on cloudfellows.dev with role Microsoft Entra Joined Device Local Administrator does not exist in the tenant, although the portal lists it: Graph still carries the role's former name there. The scripts now find the framework's roles by their built-in template id, which a rename never changes, and say which name the tenant uses. Nothing had been written; run the plan again." },

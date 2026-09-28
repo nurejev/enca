@@ -383,6 +383,20 @@ function Add-PimLateBackup([string]$Key, [string]$Uri, $Before) {
 # else goes to -Resolver (the script's own step: a new group's membership
 # policy, a guarded deletion). A resolver result starting with "deferred" is
 # not done, and is counted as such.
+# A write that names an object Entra made a moment ago can come back 404 —
+# SubjectNotFound from PIM, Request_ResourceNotFound from the directory —
+# until the object has replicated (cloudfellows.dev, 28 Sep 2026: an
+# eligibility for PIM-SG-EU-NL-Helpdesk 0.7 s after the group was created).
+# A 404 wrote nothing, so the same call is made again after a wait. Only for
+# http and request operations, and only when the operation names an object
+# this run created ({{...}}) or PIM says the subject is not found; any other
+# failure stops the run as before.
+$script:PimReplicationWaits = @(5, 10, 15, 30, 30, 30)
+function Test-PimNotReplicatedYet([string]$Message, [bool]$UsesNewObject) {
+  if ($Message -notmatch 'NotFound \((Not Found|404)\)|\(404\)') { return $false }
+  if ($Message -match 'SubjectNotFound') { return $true }
+  return $UsesNewObject
+}
 function Invoke-PimPlan($Plan, [string]$OutDir, [scriptblock]$Resolver) {
   foreach ($k in $Plan.resolved.Keys) { $script:Pim.Ids[$k] = $Plan.resolved[$k] }
   $stamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
@@ -397,25 +411,39 @@ function Invoke-PimPlan($Plan, [string]$OutDir, [scriptblock]$Resolver) {
       $outcome.Add($rec)
       if ($stop) { continue }
       $rec.at = (Get-Date).ToUniversalTime().ToString('o')
+      $usesNew = (($o | ConvertTo-Json -Depth 32 -Compress) -match '\{\{')
+      $attempt = 0
       try {
-        switch ($o.kind) {
-          'http' {
-            $r = Invoke-PimWrite $o.method (Resolve-PimPlaceholders $o.uri) $(if ($o.Contains('body')) { Resolve-PimPlaceholders $o.body } else { $null })
-            if ($o.Contains('produces') -and $o.produces) { $id = if ($r -and $r.ContainsKey('id')) { $r['id'] } else { $null }; if (-not $id) { throw "no id came back" }; $script:Pim.Ids[$o.produces] = $id; $rec.id = $id }
-            $rec.status = 'done'
-          }
-          'request' {
-            $body = Resolve-PimPlaceholders $o.body
-            if (-not $body.Contains('scheduleInfo')) { $body['scheduleInfo'] = [ordered]@{} }
-            $body['scheduleInfo']['startDateTime'] = (Get-Date).ToUniversalTime().ToString('o')
-            $r = Invoke-PimWrite 'POST' $o.uri $body
-            $rec.id = $(if ($r) { $r['id'] }); $rec.status = "done ($(if ($r) { $r['status'] }))"
-          }
-          default {
-            if (-not $Resolver) { throw "unknown op kind $($o.kind)" }
-            $rec.status = "$(& $Resolver $o)"
+        while ($true) {
+          try {
+            switch ($o.kind) {
+              'http' {
+                $r = Invoke-PimWrite $o.method (Resolve-PimPlaceholders $o.uri) $(if ($o.Contains('body')) { Resolve-PimPlaceholders $o.body } else { $null })
+                if ($o.Contains('produces') -and $o.produces) { $id = if ($r -and $r.ContainsKey('id')) { $r['id'] } else { $null }; if (-not $id) { throw "no id came back" }; $script:Pim.Ids[$o.produces] = $id; $rec.id = $id }
+                $rec.status = 'done'
+              }
+              'request' {
+                $body = Resolve-PimPlaceholders $o.body
+                if (-not $body.Contains('scheduleInfo')) { $body['scheduleInfo'] = [ordered]@{} }
+                $body['scheduleInfo']['startDateTime'] = (Get-Date).ToUniversalTime().ToString('o')
+                $r = Invoke-PimWrite 'POST' $o.uri $body
+                $rec.id = $(if ($r) { $r['id'] }); $rec.status = "done ($(if ($r) { $r['status'] }))"
+              }
+              default {
+                if (-not $Resolver) { throw "unknown op kind $($o.kind)" }
+                $rec.status = "$(& $Resolver $o)"
+              }
+            }
+            break
+          } catch {
+            $msg = Get-PimGraphError $_
+            if ($o.kind -notin @('http', 'request') -or $attempt -ge $script:PimReplicationWaits.Count -or -not (Test-PimNotReplicatedYet $msg $usesNew)) { throw }
+            $w = $script:PimReplicationWaits[$attempt]; $attempt++
+            Write-PimWould "$($o.summary) — not replicated yet (404), trying again in $w s ($attempt of $($script:PimReplicationWaits.Count))"
+            Start-Sleep -Seconds $w
           }
         }
+        if ($attempt) { $rec.status = "$($rec.status) after $attempt retr$(if ($attempt -eq 1) { 'y' } else { 'ies' })" }
         if ($rec.status -like 'deferred*') { Write-PimWarn "$($o.summary) — $($rec.status)" } else { Write-PimOk "$($o.summary) — $($rec.status)" }
       } catch {
         $rec.status = 'failed'; $rec.error = Get-PimGraphError $_

@@ -5,6 +5,10 @@
 
 $global:FakeCalls = New-Object System.Collections.Generic.List[object]
 $global:FakeFail = @{}     # uri regex → message: a GET matching it throws (403 simulation)
+$global:FakeLag = 0        # a new group is unknown to PIM for this many schedule requests (replication)
+$global:FakeSleeps = New-Object System.Collections.Generic.List[int]
+# The scripts wait for replication with Start-Sleep; the tests record the waits instead.
+function global:Start-Sleep { param([int]$Seconds) $global:FakeSleeps.Add($Seconds) }
 # Built-in roles carry their real template ids (id = templateId, as in Entra).
 $script:FakeRoleTemplates = @{}
 foreach ($x in @((Get-Content (Join-Path (Split-Path -Parent $PSScriptRoot) 'pim-roles.json') -Raw | ConvertFrom-Json -AsHashtable).roles)) { $script:FakeRoleTemplates[$x.name] = $x.templateId }
@@ -54,7 +58,7 @@ function New-FakeTenant {
   foreach ($r in $roles) { $global:Fake.rolePolicies[$r.id] = @{ id = "pol-$($r.id)"; rules = (New-FakeRules) } }
   foreach ($b in @('Help Desk Operator', 'Policy and Profile Manager', 'Application Manager', 'Endpoint Security Manager', 'Read Only Operator')) { $global:Fake.intune.roles.Add(@{ id = "ir-$($b -replace ' ','')"; displayName = $b; isBuiltIn = $true; allowed = @() }) }
   $global:Fake.intune.ops = @('Microsoft.Intune_ManagedDevices_Read', 'Microsoft.Intune_ManagedDevices_Update', 'Microsoft.Intune_ManagedDevices_Delete', 'Microsoft.Intune_ManagedDevices_SetPrimaryUser', 'Microsoft.Intune_ManagedDevices_ViewReports', 'Microsoft.Intune_RemoteTasks_SyncDevice', 'Microsoft.Intune_RemoteTasks_RebootNow', 'Microsoft.Intune_RemoteTasks_SetDeviceName', 'Microsoft.Intune_RemoteTasks_CollectDiagnostics', 'Microsoft.Intune_RemoteTasks_Wipe', 'Microsoft.Intune_RemoteTasks_Retire', 'Microsoft.Intune_RemoteTasks_RotateBitLockerKeys', 'Microsoft.Intune_RemoteTasks_RotateLocalAdminPassword', 'Microsoft.Intune_RemoteTasks_RemoteLock', 'Microsoft.Intune_RemoteTasks_LocateDevice', 'Microsoft.Intune_RemoteTasks_EnableLostMode', 'Microsoft.Intune_RemoteTasks_DisableLostMode', 'Microsoft.Intune_DeviceConfigurations_Read', 'Microsoft.Intune_DeviceConfigurations_ViewReports', 'Microsoft.Intune_DeviceConfigurations_Assign', 'Microsoft.Intune_DeviceCompliancePolices_Read', 'Microsoft.Intune_DeviceCompliancePolices_ViewReports', 'Microsoft.Intune_DeviceCompliancePolices_Assign', 'Microsoft.Intune_MobileApps_Read', 'Microsoft.Intune_MobileApps_ViewReports', 'Microsoft.Intune_MobileApps_Assign', 'Microsoft.Intune_ManagedApps_Read', 'Microsoft.Intune_EnrollmentProgram_Read', 'Microsoft.Intune_EnrollmentProgram_SyncDevice', 'Microsoft.Intune_AuditData_Read', 'Microsoft.Intune_Organization_Read', 'Microsoft.Intune_TermsAndConditions_Read')
-  $global:FakeCalls.Clear(); $global:FakeFail = @{}; $global:FakeBeforeWrite = $null; $global:FakeNoPolicyOnCreate = $false; $global:FakeDisconnected = $false
+  $global:FakeCalls.Clear(); $global:FakeFail = @{}; $global:FakeBeforeWrite = $null; $global:FakeNoPolicyOnCreate = $false; $global:FakeDisconnected = $false; $global:FakeLag = 0; $global:FakeSleeps.Clear()
 }
 function New-FakeId { $global:Fake.seq++; return ('{0:x8}-0000-0000-0000-{1:x12}' -f 0xfeed0000, $global:Fake.seq) }
 function Add-FakeGroup([string]$Name, [bool]$RoleAssignable = $true, [string]$Created = '2026-09-25T10:00:00Z', [string]$Rule = $null, [string]$Id = $null) {
@@ -122,7 +126,7 @@ function Invoke-MgGraphRequest {
   }
   if ($global:FakeBeforeWrite) { & $global:FakeBeforeWrite $Method $u }
   switch -Regex ("$Method $u") {
-    '^POST /groups$' { $g = @{ id = (New-FakeId); displayName = $b.displayName; isAssignableToRole = [bool]$b.isAssignableToRole; createdDateTime = (Get-Date).ToUniversalTime().ToString('o'); membershipRule = $b.membershipRule; membershipRuleProcessingState = $b.membershipRuleProcessingState; groupTypes = $b.groupTypes }; $F.groups.Add($g); if (-not $global:FakeNoPolicyOnCreate) { $F.groupPolicies[$g.id] = @{ id = "gpol-$($g.id)"; rules = (New-FakeRules) } }; return (ConvertTo-FakeHash $g) }
+    '^POST /groups$' { $g = @{ id = (New-FakeId); displayName = $b.displayName; isAssignableToRole = [bool]$b.isAssignableToRole; createdDateTime = (Get-Date).ToUniversalTime().ToString('o'); membershipRule = $b.membershipRule; membershipRuleProcessingState = $b.membershipRuleProcessingState; groupTypes = $b.groupTypes }; $g.lag = $global:FakeLag; $F.groups.Add($g); if (-not $global:FakeNoPolicyOnCreate) { $F.groupPolicies[$g.id] = @{ id = "gpol-$($g.id)"; rules = (New-FakeRules) } }; return (ConvertTo-FakeHash $g) }
     '^PATCH /groups/([^/?]+)$' { $g = $F.groups | Where-Object { $_.id -eq $Matches[1] }; foreach ($k in $b.Keys) { $g[$k] = $b[$k] }; return $null }
     '^DELETE /groups/([^/?]+)$' { $id = $Matches[1]; $F.groups.RemoveAll([Predicate[object]] { param($x) $x.id -eq $id }) | Out-Null; return $null }
     '^POST /groups/([^/?]+)/members/\$ref$' { $gid = $Matches[1]; if (-not $F.members[$gid]) { $F.members[$gid] = @() }; $F.members[$gid] += ($b['@odata.id'] -split '/')[-1]; return $null }
@@ -133,7 +137,10 @@ function Invoke-MgGraphRequest {
       for ($i = 0; $i -lt $pol.rules.Count; $i++) { if ($pol.rules[$i].id -eq $rid) { $pol.rules[$i] = $b } }
       return $null
     }
-    '^POST /roleManagement/directory/roleEligibilityScheduleRequests$' { $F.elig.Add(@{ id = (New-FakeId); principalId = $b.principalId; roleDefinitionId = $b.roleDefinitionId; directoryScopeId = $b.directoryScopeId; scheduleInfo = $b.scheduleInfo }); return @{ id = (New-FakeId); status = 'Provisioned' } }
+    '^POST /roleManagement/directory/roleEligibilityScheduleRequests$' {
+      $lg = @($F.groups | Where-Object { $_.id -eq $b.principalId -and $_.ContainsKey('lag') -and $_.lag -gt 0 })[0]
+      if ($lg) { $lg.lag--; throw 'Response status code does not indicate success: NotFound (Not Found). {"error":{"code":"SubjectNotFound","message":"The subject is not found."}}' }
+      $F.elig.Add(@{ id = (New-FakeId); principalId = $b.principalId; roleDefinitionId = $b.roleDefinitionId; directoryScopeId = $b.directoryScopeId; scheduleInfo = $b.scheduleInfo }); return @{ id = (New-FakeId); status = 'Provisioned' } }
     '^POST /identityGovernance/privilegedAccess/group/assignmentScheduleRequests$' { $F.pgA.Add(@{ id = (New-FakeId); groupId = $b.groupId; principalId = $b.principalId; accessId = $b.accessId }); return @{ id = (New-FakeId); status = 'Provisioned' } }
     '^POST /identityGovernance/privilegedAccess/group/eligibilityScheduleRequests$' { $F.pgE.Add(@{ id = (New-FakeId); groupId = $b.groupId; principalId = $b.principalId; accessId = $b.accessId }); return @{ id = (New-FakeId); status = 'Provisioned' } }
     '^POST /directory/administrativeUnits$' { $a = @{ id = (New-FakeId); displayName = $b.displayName; membershipType = $b.membershipType; membershipRule = $b.membershipRule; membershipRuleProcessingState = $b.membershipRuleProcessingState; isMemberManagementRestricted = [bool]$b.isMemberManagementRestricted }; $F.aus.Add($a); return (ConvertTo-FakeHash $a) }
