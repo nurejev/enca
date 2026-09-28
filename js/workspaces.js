@@ -57,7 +57,7 @@
       { id: 'toolAudit', blurb: 'Directory changes from the audit log — role settings and assignments among them.', lens: true },
     ] },
     { group: '✍️ Manage', tools: [
-      { id: 'toolRmau', blurb: 'Put PIM-managed admin accounts and PIM groups in a restricted management AU so nobody edits them from the side.', lens: true },
+      { id: 'toolRmau', blurb: 'AU-RM-Executives and the desk scoped on it; no PIM group, adm- account or role holder in any restricted unit.', lens: 'built' },
     ] },
     { group: '❓ Help', tools: [
       { id: 'toolHelp' }, { id: 'toolChangelog' }, { id: 'toolRoadmap' }, { id: 'toolPermissions' },
@@ -104,7 +104,7 @@
   const inWorkspace = (id, which) => which === 'pim' ? PIM_ROSTER.some(g => g.tools.some(t => t.id === id)) : !PIM_ONLY.has(id);
   const card = t => t.planned
     ? `<div class="wc-tool wc-planned" aria-disabled="true"><span class="wc-tool-icon" aria-hidden="true">${esc(t.icon || '')}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || '')} · <span class="wc-chip">${esc(t.planned)}</span></small></div>`
-    : `<button type="button" class="wc-tool" data-wc-tool="${esc(t.id)}"><span class="wc-tool-icon" aria-hidden="true">${icon(t.id)}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || t.group)}${t.lens ? ' · <span class="wc-chip lens" title="The same tool as in Workspace 01. A PIM-only catalogue, tab strip and Help text for it is on the roadmap.">PIM lens · roadmap</span>' : ''}</small></button>`;
+    : `<button type="button" class="wc-tool" data-wc-tool="${esc(t.id)}"><span class="wc-tool-icon" aria-hidden="true">${icon(t.id)}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || t.group)}${t.lens === 'built' ? ' · <span class="wc-chip lens" title="The same tool as in Workspace 01, opened here with its PIM lens.">PIM lens</span>' : t.lens ? ' · <span class="wc-chip lens" title="The same tool as in Workspace 01. A PIM-only catalogue, tab strip and Help text for it is on the roadmap.">PIM lens · roadmap</span>' : ''}</small></button>`;
   function readTools() {
     let group = '';
     return [...document.querySelectorAll('#screen-home .tool-sec, #screen-home .tools > .tool[id]')].flatMap(el => {
@@ -120,7 +120,7 @@
     return PIM_ROSTER.flatMap(g => g.tools.map(r => {
       const t = tools.find(t => t.id === r.id);
       if (!t) return r.planned ? { id: r.id, name: r.name, icon: r.icon, number: r.number, group: g.group, description: r.blurb || '', planned: r.planned } : null;
-      return { ...t, group: g.group, description: r.blurb || t.description, lens: !!r.lens };
+      return { ...t, group: g.group, description: r.blurb || t.description, lens: r.lens === 'built' ? 'built' : !!r.lens };
     }).filter(Boolean));
   }
   function renderLauncher() {

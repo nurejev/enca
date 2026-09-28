@@ -732,5 +732,17 @@ DEMO_DATA.pim = (() => {
     "PIM-SG-EU-NL-Ops": rules(member()),
     "PIM-SG-INT-HelpDesk-EU-NL": rules(jit()),
   };
-  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, domain: "contoso.nl" };
+  // 🛡 T27's PIM lens (32422): who sits in the restricted unit. Executives
+  // and their devices belong there; a PIM-SG group and an adm- account do not
+  // (framework 2.1) — the demo carries one of each so the lens has findings.
+  const rmauMembers = {
+    [AU.rm]: [
+      { "@odata.type": "#microsoft.graph.user", id: "u-ceo", displayName: "Claire de Vries (CEO)", userPrincipalName: "claire@contoso.nl" },
+      { "@odata.type": "#microsoft.graph.user", id: "u-cfo", displayName: "Pieter Jansen (CFO)", userPrincipalName: "pieter@contoso.nl" },
+      { "@odata.type": "#microsoft.graph.device", id: "d-exec1", displayName: "NL-EXEC-001" },
+      { "@odata.type": "#microsoft.graph.group", id: G.t0, displayName: "PIM-SG-M365-Tier0", isAssignableToRole: true },
+      { "@odata.type": "#microsoft.graph.user", id: "u-admjoey", displayName: "adm-joey", userPrincipalName: "adm-joey@contoso.nl" },
+    ],
+  };
+  return { roleDefinitions, policies, eligible, active, groups, groupPolicies, names, aus, named, regionsCsv, rmauMembers, domain: "contoso.nl" };
 })();

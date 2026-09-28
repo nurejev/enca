@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32422, date: "2026-09-28", title: "🛡 Restricted AUs — the PIM lens in Workspace 02",
+    items: [
+      { kind: "new", tool: "Restricted AUs", text: "Opened from 02 PIM-buddy, Restricted AUs shows the framework's view: the restricted unit the profile expects (AU-RM-Executives in Large · one region), whether it exists and is really restricted, and whether the named desk is scoped on it — Helpdesk, Password and Authentication Administrator for the VIP service desk, User Administrator for Identity — eligible at the unit, not tenant-wide." },
+      { kind: "new", tool: "Restricted AUs", text: "It also looks inside every restricted unit for what must never be there: a PIM-SG group, any role-assignable group, an adm- account or a person who holds an Entra role. In a restricted unit a role-assignable group can no longer have its members changed, and PIM, access reviews and lifecycle workflows stop working. Tick a row to take that member out; nothing is ticked for you." },
+      { kind: "new", tool: "Restricted AUs", text: "Every fix is previewed first: the operations in order, what changes for people, how to put it back and what cannot be undone. You type the tenant's domain to apply, one permission prompt covers the run, and the run ledger shows each step. Workspace 01 keeps the Conditional Access view of the tool unchanged." },
+    ],
+  },
+  {
     build: 32421, date: "2026-09-28", title: "🧬 PIM baseline 0.3.5 — the regional Intune role's permission list matches what Intune has",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "Five of the 32 permissions in the regional Intune role's template were not names Intune knows, so -FixIntuneRoles stopped on cloudfellows.dev before changing anything. One (Mobile apps: View reports) does not exist and is gone. The other four are now written as the Intune admin center names them, such as Enrollment programs: Read device, and the script looks up the tenant's own identifier for each. If one still cannot be found, the script stops and lists what the tenant has for that area, so the template can be corrected." },

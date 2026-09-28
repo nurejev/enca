@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 302,
+      title: "🛡 Restricted AUs — the PIM lens in Workspace 02 (AU-RM-Executives, the scoped desk, no PIM object in a restricted unit) and the shared WhatIf/apply runner for PIM writes (R69)",
+      tools: ["Restricted AUs"],
+      builds: [32422],
+      risk: "medium",
+      what: "js/pimplan.js (new, pure): the browser port of tools/pim/PimCommon.psm1 — plans of ordered ops with produces/{{placeholders}}, rule-by-rule PATCH with before kept (ruleChanges), eligibility requests capped by the role's own maximum and started now, replication retry 5/10/15/30/30/30 s on a 404 that names a just-created object (or SubjectNotFound), deferred membership policies, skip-on-failed-dependency, backup and restorePlan (PIM policy rules only). js/pimrmau.js (new, pure): check/plan/render of the lens. js/app.js: pimSend / pimGroupPolicyStep / pimPlanPanel / pimPlanWire / pimApply (typed domain, one preConsent of the plan's scopes, RunLedger, report, ⬇ backup) and the lens block (prl*), renderRmau swaps the CA panels for prlPanel() when Workspaces.current() is pim. js/demo.js: rmauMembers (two executives, a device, PIM-SG-M365-Tier0 and adm-joey in AU-RM-Executives). tools/pimplan.test.cjs (11).",
+      why: "Mihai, 28 Sep: continue the whole PIM roadmap in the mockup's order, T27 first; and PIM onboarding/configuration always from the browser, never a .ps1. Medium: the lens writes (create a restricted unit — immutable flag —, scoped eligibilities, take a member out of a restricted unit), each behind a preview and a typed domain; nothing is ticked for a removal.",
+      test: [
+        "Beta site, demo (?demo=1&ws=pim), 🧬 PIM baseline profile Large · one region → 🛡 Restricted AUs: the head starts with PIM lens (Workspace 02); the ONE RESTRICTED AU PER PERSONA panel is gone; ▶ Read for the PIM lens shows tiles 1 / 1 · 0 scoped · 2 PIM objects · 0 regional · 1 restricted; AU-RM-Executives ✓ Present, 3 people · 1 devices · 1 groups; the three ServiceDesk-VIP rows … Blocked (the group does not exist yet), User Administrator → PIM-SG-M365-Identity Blocked.",
+        "⚠ PIM objects inside (2): PIM-SG-M365-Tier0 (a PIM-SG group) and adm-joey (an adm- account), both unticked. Tick PIM-SG-M365-Tier0 → 🔎 Preview 1 change: one operation take PIM-SG-M365-Tier0 out of AU-RM-Executives (removes), Impact names only the removal, Permissions AdministrativeUnit.ReadWrite.All. ▶ Apply stays disabled until contoso.nl is typed; then the ledger shows 1 done (simulated) and 📄 Report lists it.",
+        "Switch the lens profile to Small business: 🔒 Restricted units says No restricted unit in profile Small business; the other two tabs still judge. Switch to 01 Conditional Access and open 🛡 Restricted AUs: the CA panels are back, no PIM lens.",
+        "cloudfellows.dev (a real tenant, Privileged Role Administrator active): profile Large · one region, AU-RM-Executives missing → the unit ticked; after 🚀 Deploy made PIM-SG-M365-ServiceDesk-VIP and -Identity, the four scoped rows ticked. Preview: 5 operations, Cannot be undone names the restricted flag. Apply: the unit is created restricted (Entra → Administrative units shows Restricted management: Yes), the four eligibilities appear under each role's Eligible assignments with scope AU-RM-Executives, and a retry note may show on the first eligibility (not replicated yet). ⟳ Read again: 1 / 1, 4 scoped in place.",
+        "Offline: node --test tools/pimplan.test.cjs passes 11 (rule changes idempotent; approver placeholder; recipient rewrite; duration cap; placeholder + 404 retry 5 s, 10 s; skip on a failed create; no retry on an old object's 404; deferred + Stop; restore refuses a non-rule URL; the lens' checks and plan).",
+      ],
+      files: ["js/pimplan.js", "js/pimrmau.js", "js/app.js", "js/demo.js", "index.html", "js/workspaces.js", "tools/pimplan.test.cjs"],
+    },
+    {
       n: 301,
       title: "🧬 PIM baseline 0.2–0.3 — profiles (Small business, Large · one region, Large · multi-region), 🗺 Regions from the customer's regions.csv, 📄 EasyPIM samples, framework 2.1 after the reliability review; tools/pim plans and applies through Connect-Customer (R68)",
       tools: ["PIM baseline"],

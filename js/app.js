@@ -11679,6 +11679,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("ruHead").innerHTML = `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">
         ${toolHead("toolRmau")}
+        ${prlOn() ? `<p style="margin-bottom:4px"><b>PIM lens (Workspace 02).</b> The CloudFellows PIM framework keeps executives, their devices and sensitive groups that are not role-assignable in <b>AU-RM-Executives</b>, with a named desk scoped on it — and keeps every PIM object <b>out</b> of restricted units: a role-assignable group protects itself, and inside a restricted unit PIM, access reviews and lifecycle workflows stop working.</p>` : ""}
         <p style="margin-bottom:4px">Restricted management administrative units — the vaults that shield objects (here: CA exclusion groups) from tenant-wide administration. Members of a restricted AU answer <b>only</b> to roles scoped to that AU.</p>
         <p class="mini muted" style="margin:0">The <code>isMemberManagementRestricted</code> flag is <b>immutable</b> — set at creation, never changeable. Creating one needs <b>Privileged Role Administrator</b>; touching members of one needs a role <b>scoped to it</b> — a 403 there is the shield working, not a fault. Every write asks for its permission on the click.</p>
       </div>
@@ -11692,8 +11693,11 @@ This is a directory write. Nothing else changes.`)) return;
     const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
       && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
       .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
-    if (!rows.length) { $("ruBody").innerHTML = ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel() + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; return; }
-    $("ruBody").innerHTML = ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel() + `<div class="lo-grid">` + rows.map((au) => {
+    // 32422: opened from Workspace 02, the CA panels (persona vaults, the map,
+    // scoped admins across units) give way to the PIM lens; the unit cards stay.
+    const lead = prlOn() ? prlPanel() : ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel();
+    if (!rows.length) { $("ruBody").innerHTML = lead + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; if (prlOn()) prlWire(); return; }
+    $("ruBody").innerHTML = lead + `<div class="lo-grid">` + rows.map((au) => {
       const open = ruOpen.has(au.id);
       const d = ruDetails[au.id];
       let detail = "";
@@ -11747,7 +11751,7 @@ This is a directory write. Nothing else changes.`)) return;
         </div>
       </div>`;
     }).join("") + `</div>
-    <p class="mini muted" style="margin-top:8px">Click a card header — or <b>👤 Scoped admins</b> — for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;
+    <p class="mini muted" style="margin-top:8px">Click a card header — or <b>👤 Scoped admins</b> — for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;    if (prlOn()) prlWire();
   }
   $("ruChips").addEventListener("click", (e) => { const b = e.target.closest("[data-ruf]"); if (!b) return; ruFilter = b.dataset.ruf; renderRmau(); });
   $("ruSearch").addEventListener("input", (e) => { ruQuery = e.target.value; renderRmau(); });
@@ -21515,6 +21519,7 @@ This is a directory write. Nothing else changes.`)) return;
     pmbRaw = null; pmbRes = null; pmbErr = null; pmbReg = null;
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
+    try { prlReset(); } catch { /* defined further down; nothing to reset yet */ }
   }
   const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">This tenant's Privileged Identity Management against the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b>, authored in <b>cloudfellows.dev</b>, in the profile you pick: Small business, Large · one region, or Large · multi-region. The model: people are <b>active members</b> of persona groups for at most a year, each group is <b>eligible</b> for its roles, and a person activates the role under the role's own tier; Intune roles go to access groups whose members are eligible. Setting by setting, and every group as a model matched by id — present once, role-assignable, carrying exactly its roles at tenant scope. <b>Members are never compared.</b> Nothing that could not be read is shown as a match. Read-only: <b>⬇ Delta config</b> and <b>⬇ Baseline config</b> download the framework's config for tools/pim/New-PimBaseline.ps1 (or EasyPIM), <b>🗺 Regions</b> the regions file for New-PimRegions.ps1, and <b>📄 EasyPIM samples</b> a commented config per scenario to copy and edit.</p>`;
   function pmbTenantNote() {
@@ -21821,6 +21826,186 @@ This is a directory write. Nothing else changes.`)) return;
     if (e.target.closest("[data-pmbregtpl]")) { downloadText("regions", "csv", "text/csv", PIM_BASELINE.regions.example + "\n"); return; }
     if (e.target.closest("[data-pmbregclear]")) { pmbRegRows = null; pmbRegErrors = []; pmbRegWarnings = []; pmbRegText = ""; pmbReg = null; pmbRegSel = null; try { if (!isDemo && tenantId) localStorage.removeItem(`enca.pmbRegions:${tenantId}`); } catch { /* none */ } pmbPaint(); return; }
     if (e.target.closest("[data-pmbregparse]")) { const t = $("pmbRegText") ? $("pmbRegText").value : ""; if (t.trim()) pmbLoadRegions(t, "the pasted rows"); else toast("Paste the rows first"); return; }
+  });
+
+  // ======================================================================
+  // WORKSPACE 02 WRITES — one runner for every PIM plan (beta 32422, R69).
+  //
+  // PIM onboarding runs from the browser; the customer never runs a script
+  // (Mihai, 28 Sep 2026). A tool builds a plan from reads only
+  // (js/pimplan.js), this runner shows it as a WhatIf with its impact and its
+  // recovery, asks for the tenant's domain typed out, asks every permission
+  // the plan needs in one consent while the click is fresh, and applies it
+  // with the run ledger: ✓ done, ◐ deferred (a new group's membership policy),
+  // ✗ failed, – skipped because what it needed was not made. Every rule it
+  // PATCHes is kept as it was, in a backup file the person downloads, and
+  // ↩ Put back rewrites those rules from that file.
+  // ======================================================================
+  const pimExpectDomain = () => (isDemo ? "contoso.nl" : (tenantDomain || "").toLowerCase());
+  async function pimSend(method, url, body, needs) {
+    const scopes = [...AUTH_CONFIG.scopes, ...(needs || [])];
+    if (method === "DELETE") { await Graph.gdelete(url, scopes); return null; }
+    if (method === "PATCH") return Graph.gpatch(url, body, scopes);
+    return Graph.gpost(url, body, scopes);
+  }
+  // A group's Member policy (PIM for Groups) at run time: read by the group's
+  // id, the rules the template governs changed one by one. A group that is
+  // not in PIM for Groups yet has no policy — deferred, not failed.
+  async function pimGroupPolicyStep(op, ids, send) {
+    const gid = op.groupId || ids[`group:${op.group}`];
+    if (!gid) throw new Error(`${op.group} has no id`);
+    if (isDemo) return /^demo-/.test(String(gid)) ? "deferred — not in PIM for Groups yet (the first member assignment brings it in; plan again then)" : "done";
+    const sc = [...AUTH_CONFIG.scopes, "RoleManagementPolicy.ReadWrite.AzureADGroup"];
+    const r = await Graph.gget(`https://graph.microsoft.com/v1.0/policies/roleManagementPolicyAssignments?$filter=scopeId eq '${gid}' and scopeType eq 'Group' and roleDefinitionId eq 'member'&$expand=policy($expand=rules)`, sc);
+    const pol = r && r.value && r.value[0] && r.value[0].policy;
+    if (!pol) return "deferred — not in PIM for Groups yet (the first member assignment brings it in; plan again then)";
+    const approverIds = {};
+    for (const [n, v] of Object.entries(op.approverIds || {})) approverIds[n] = PimPlan.resolve(v, ids);
+    const ch = PimPlan.ruleChanges(pol.rules || [], op.settings, { approverIds, domain: op.domain, verifiedDomains: op.verifiedDomains });
+    if (ch.problem) throw new Error(ch.problem);
+    let n = 0;
+    for (const c of ch.changes) { if (c.missing) continue; await send("PATCH", `${PimPlan.V1}/policies/roleManagementPolicies/${pol.id}/rules/${c.ruleId}`, c.after, ["RoleManagementPolicy.ReadWrite.AzureADGroup"]); n++; }
+    return n ? `done (${n} rule${n === 1 ? "" : "s"})` : "done (already as the template says)";
+  }
+  // The WhatIf panel. opts: { title, impact: [...], recovery: [...], irreversible: [...],
+  //   onDone(result), host }
+  function pimPlanPanel(plan, opts) {
+    const n = plan.ops.length;
+    const sections = {};
+    plan.ops.forEach((o) => { sections[o.section] = (sections[o.section] || 0) + 1; });
+    const scopes = PimPlan.scopesOf(plan);
+    const lines = plan.ops.map((o, i) => `<tr class="pmb-row"><td class="mini">${i + 1}</td><td>${esc(o.summary)}</td><td><span class="pmb-kind">${o.removes ? "removes" : o.kind === "request" ? "add" : o.method === "POST" ? "create" : o.kind === "groupPolicy" ? "policy" : o.method === "PATCH" ? "update" : o.method}</span></td></tr>`).join("");
+    const bl = plan.blocked.length ? `<ul class="pmb-diffs pmb-findings">${plan.blocked.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : "";
+    const fi = plan.findings.length || plan.manual.length ? `<ul class="pmb-diffs">${[...plan.findings, ...plan.manual.map((m) => `by hand — ${m}`)].map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : "";
+    const dom = pimExpectDomain();
+    return `<div class="list-card xt-card pim-plan" data-pimplan>
+      <h3>${esc(opts.title || "WhatIf")} <span class="mini">${n} operation${n === 1 ? "" : "s"}, in the order they run · nothing is written until ▶ Apply</span></h3>
+      ${bl ? `<p class="mini pmb-bad-txt"><b>Blocked</b> — these parts are left out until they are fixed:</p>${bl}` : ""}
+      ${n ? `<div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>#</th><th>Operation</th><th>Kind</th></tr></thead><tbody>${lines}</tbody></table></div>` : `<p class="mini">Nothing to do for what is ticked.</p>`}
+      ${fi ? `<p class="mini"><b>Found, not changed</b>:</p>${fi}` : ""}
+      ${n ? `<dl class="pim-kv">
+        <dt>Impact</dt><dd>${(opts.impact || []).map(esc).join(" ") || "—"}</dd>
+        <dt>Recovery</dt><dd>${(opts.recovery || []).map(esc).join(" ")}</dd>
+        ${(opts.irreversible || []).length ? `<dt>Cannot be undone</dt><dd class="pmb-bad-txt">${opts.irreversible.map(esc).join(" ")}</dd>` : ""}
+        <dt>Permissions</dt><dd class="mini">${esc(scopes.join(", ") || "none beyond sign-in")} — asked once, on ▶ Apply</dd>
+      </dl>
+      <div class="pim-confirm"><label for="pimTyped"><b>Type ${esc(dom || "the tenant's domain")} to apply ${n} operation${n === 1 ? "" : "s"}</b></label>
+        <div class="pmb-upload-row"><input id="pimTyped" type="text" autocomplete="off" spellcheck="false" placeholder="${esc(dom)}"><button class="btn primary" data-pimapply disabled>▶ Apply ${n}${isDemo ? " (simulated)" : ""}</button><button class="btn" data-pimplanjson>⬇ Plan (JSON)</button></div></div>` : ""}
+      <div data-pimrun></div></div>`;
+  }
+  // Wire a rendered plan panel. Returns nothing; calls opts.onDone(result).
+  function pimPlanWire(host, plan, opts) {
+    const panel = host.querySelector("[data-pimplan]");
+    if (!panel) return;
+    const typed = panel.querySelector("#pimTyped"), go = panel.querySelector("[data-pimapply]");
+    const dom = pimExpectDomain();
+    if (typed && go) typed.addEventListener("input", () => { go.disabled = !dom || typed.value.trim().toLowerCase() !== dom; });
+    const pj = panel.querySelector("[data-pimplanjson]");
+    if (pj) pj.addEventListener("click", () => { downloadText(`pim-plan.${dom || "tenant"}`, "json", "application/json", JSON.stringify(plan, null, 2) + "\n"); });
+    if (go) go.addEventListener("click", () => pimApply(panel.querySelector("[data-pimrun]"), plan, opts, go));
+  }
+  async function pimApply(host, plan, opts, btn) {
+    if (btn) btn.disabled = true;
+    const scopes = [...AUTH_CONFIG.scopes, ...PimPlan.scopesOf(plan)];
+    if (!isDemo && !await preConsent(scopes)) { if (btn) btn.disabled = false; return; }
+    const L = RunLedger.create(host, { unit: "operations", title: opts.title || "", items: plan.ops.map((o) => ({ label: o.summary, sub: o.section })) });
+    let demoN = 0;
+    const send = isDemo ? async (method, url) => { await new Promise((r) => setTimeout(r, 120)); return method === "POST" ? { id: `demo-${++demoN}`, status: /ScheduleRequests/.test(url) ? "Provisioned" : undefined } : null; } : pimSend;
+    const res = await PimPlan.run(plan, {
+      send, stopped: () => L.stopped,
+      groupPolicy: (op, ids, s) => pimGroupPolicyStep(op, ids, s),
+      onStart: (i) => L.start(i), onDone: (i, note) => L.done(i, note), onFail: (i, why) => L.fail(i, why), onPart: (i, note) => L.part(i, note, "later"), onSkip: (i, why) => L.skip(i, why),
+      onWait: (i, s, a) => L.note(i, `not replicated yet — trying again in ${s} s (${a} of ${PimPlan.WAITS.length})`),
+    });
+    const bk = PimPlan.backup(plan, { tenant: tenantName || (isDemo ? "Demo tenant" : ""), domain: pimExpectDomain(), appliedAt: new Date().toISOString(), by: `ENCA ${APP_BUILD.label || APP_BUILD.build}` });
+    const report = () => {
+      const md = [`# ${opts.title || "PIM plan"} — ${tenantName || pimExpectDomain()}`, "", `${isDemo ? "Demo — simulated. " : ""}${res.done} done · ${res.deferred} later · ${res.failed} failed · ${res.skipped} skipped, ${new Date().toLocaleString()}.`, "", "| # | Operation | Outcome |", "|---|---|---|",
+        ...res.outcome.map((r, i) => `| ${i + 1} | ${r.summary} | ${r.status}${r.error ? ` — ${r.error}` : ""}${r.id ? ` (id ${r.id})` : ""} |`), "",
+        bk.rules.length ? `The ${bk.rules.length} rule${bk.rules.length === 1 ? "" : "s"} changed were kept as they were: ⬇ Backup downloads them, ↩ Put back (🚀 Deploy) rewrites them.` : "No rule was changed, so there is nothing to put back.",
+        ...(plan.findings.length ? ["", "## Found, not changed", "", ...plan.findings.map((f) => `- ${f}`)] : []),
+        ...(plan.manual.length ? ["", "## By hand", "", ...plan.manual.map((f) => `- ${f}`)] : [])].join("\n");
+      showReport(opts.title || "PIM plan", `pim-outcome.${pimExpectDomain() || "tenant"}`, md);
+    };
+    L.finish({ report });
+    if (bk.rules.length) {
+      const b = document.createElement("button"); b.className = "btn sm"; b.type = "button"; b.textContent = `⬇ Backup (${bk.rules.length} rule${bk.rules.length === 1 ? "" : "s"} as they were)`;
+      b.addEventListener("click", () => downloadText(`pim-backup.${pimExpectDomain() || "tenant"}`, "json", "application/json", JSON.stringify(bk, null, 2) + "\n"));
+      const acts = host.querySelector(".rl-actions"); if (acts) acts.append(" ", b);
+      try { if (!isDemo && tenantId) localStorage.setItem(`enca.pimBackup:${tenantId}`, JSON.stringify(bk)); } catch { /* storage off: the download is the backup */ }
+    }
+    toast(`${esc(opts.title || "PIM plan")} <span>${res.done} done${res.deferred ? ` · ${res.deferred} later` : ""}${res.failed ? ` · ${res.failed} failed` : ""}${isDemo ? " (simulated)" : ""}</span>`);
+    if (opts.onDone) opts.onDone(res);
+  }
+
+  // ======================================================================
+  // 🛡 Restricted AUs — the PIM lens (T27 opened from Workspace 02, 32422).
+  // js/pimrmau.js judges; this block reads what it needs (the 🧬 PIM
+  // baseline read, plus the members of every restricted unit) and hands the
+  // ticked fixes to the runner above.
+  // ======================================================================
+  let prl = { tab: "units", sel: null, members: null, readAt: null, busy: false, err: null, planShown: false };
+  const prlOn = () => typeof Workspaces !== "undefined" && Workspaces.current && Workspaces.current() === "pim";
+  const prlData = () => pmbRaw ? { aus: pmbRaw.aus, members: prl.members, eligible: pmbRaw.eligible, active: pmbRaw.active, groups: pmbRaw.groups, named: pmbRaw.named, roles: pmbRaw.roles, policies: pmbRaw.policies, readAt: prl.readAt, demo: pmbRaw.demo } : null;
+  function prlReset() { prl = { tab: prl.tab, sel: null, members: null, readAt: null, busy: false, err: null, planShown: false }; }
+  async function prlRead() {
+    if (prl.busy) return;
+    prl.busy = true; prl.err = null; renderRmau();
+    try {
+      if (!pmbRaw) await runPimBaseline();
+      if (!pmbRaw) throw new Error(pmbErr || "the PIM read did not finish");
+      const restricted = (pmbRaw.aus || []).filter((a) => a.isMemberManagementRestricted);
+      const members = {};
+      if (isDemo) restricted.forEach((a) => { members[a.id] = ((DEMO_DATA.pim.rmauMembers || {})[a.id] || []).slice(); });
+      else if (restricted.length) {
+        const res = await Graph.gbatch(restricted.map((a, i) => ({ id: String(i), url: `/directory/administrativeUnits/${a.id}/members?$select=id,displayName,userPrincipalName,isAssignableToRole&$top=999` })), null, { base: "https://graph.microsoft.com/v1.0", scopes: [...AUTH_CONFIG.scopes, "AdministrativeUnit.Read.All"] });
+        restricted.forEach((a, i) => { const r = res[String(i)]; members[a.id] = r && r.body && Array.isArray(r.body.value) ? r.body.value : null; });
+      }
+      prl.members = members; prl.readAt = Date.now(); prl.sel = null; prl.planShown = false;
+    } catch (e) { prl.err = String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, ""); }
+    finally { prl.busy = false; }
+    if ($("screen-rmau").classList.contains("active")) renderRmau();
+  }
+  function prlPanel() {
+    const cat = pmbCat();
+    const prof = `<label class="pmb-profile tb-scope" title="The same profile as 🧬 PIM baseline"><span>Profile</span><select data-prlprofile>${PimBaseline.profileIds(PIM_BASELINE).map((id) => `<option value="${esc(id)}"${id === pmbProfileId ? " selected" : ""}>${esc(PIM_BASELINE.profiles[id].label)}</option>`).join("")}</select></label>`;
+    const head = `<div class="cg-panel pim-lens"><h4>PIM LENS · CLOUDFELLOWS PIM FRAMEWORK ${esc(PIM_BASELINE.release)} ${prof}</h4>`;
+    if (prl.busy) return head + `<p class="mini"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading roles, assignments, units and the members of every restricted unit…</p></div>`;
+    const d = prlData();
+    if (!d || !prl.members) return head + `${prl.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(prl.err)}</p>` : ""}<p class="mini">Which restricted units the framework expects in this profile, who is scoped on them, and whether a PIM object sits in any restricted unit — where PIM, access reviews and lifecycle workflows stop working. Reads the same as 🧬 PIM baseline plus the members of each restricted unit (RoleManagement.Read.Directory, AdministrativeUnit.Read.All). Nothing is written until you tick, preview and apply.</p><button class="btn primary" data-prlread>▶ Read for the PIM lens</button></div>`;
+    const res = PimRmau.check(cat, d);
+    if (!prl.sel) prl.sel = PimRmau.defaultSelection(res);
+    const tabs = [["units", `🔒 Restricted units (${res.counts.present}/${res.counts.expected})`], ["violations", `⚠ PIM objects inside (${res.counts.violations})`], ["regional", `📍 Regional units (${res.counts.regional})`]]
+      .map(([k, l]) => `<button class="fchip${prl.tab === k ? " active" : ""}" data-prltab="${k}">${esc(l)}</button>`).join("");
+    const nSel = PimRmau.plan(cat, d, res, prl.sel, {}).ops.length;
+    return head + `<p class="mini">${res.demo ? "Demo data · " : ""}Read ${esc(new Date(res.readAt).toLocaleString())} · <button class="btn sm" data-prlread>⟳ Read again</button></p><div class="chip-filter">${tabs}</div>${PimRmau.render(res, prl.sel, { tab: prl.tab })}
+      <div class="pmb-upload-row"><button class="btn primary" data-prlplan${nSel ? "" : " disabled"}>🔎 Preview ${nSel} change${nSel === 1 ? "" : "s"}</button><span class="mini">Ticked: create the missing unit and the desk scoped on it; a removal only when you tick its row.</span></div>
+      <div data-prlplanhost>${prl.planShown ? prlPlanHtml(cat, d, res) : ""}</div></div>`;
+  }
+  let prlPlanObj = null;
+  function prlPlanHtml(cat, d, res) {
+    prlPlanObj = PimRmau.plan(cat, d, res, prl.sel, { tenantId, domain: pimExpectDomain() });
+    const mk = prlPlanObj.ops.some((o) => o.key.startsWith("au:"));
+    return pimPlanPanel(prlPlanObj, { title: "🛡 Restricted AUs · PIM lens",
+      impact: [mk ? "A new restricted unit starts empty: nobody loses access by its creation." : "", prlPlanObj.ops.some((o) => o.kind === "request") ? "A scoped eligibility lets the group's active members activate that role for the unit's members only, under the role's own PIM settings." : "", prlPlanObj.ops.some((o) => o.removes) ? "Taking a member out of a restricted unit makes it manageable by tenant-wide admins again — which is the point for a PIM object." : ""].filter(Boolean),
+      recovery: [prlPlanObj.ops.some((o) => o.kind === "request") ? "An eligibility is removed in PIM (Entra roles → the role → Eligible → Remove) or with adminRemove." : "", prlPlanObj.ops.some((o) => o.removes) ? "A member taken out is put back from the unit's card below (+ Add)." : "", mk ? "A created unit is deleted from its card below (🗑 Delete) while it is still empty." : ""].filter(Boolean),
+      irreversible: mk ? ["The restricted flag of a created unit: set at creation, never removed."] : [] });
+  }
+  function prlWire() {
+    const host = $("ruBody").querySelector("[data-prlplanhost]");
+    if (host && prl.planShown && prlPlanObj) pimPlanWire(host, prlPlanObj, { title: "🛡 Restricted AUs · PIM lens", onDone: () => { setTimeout(async () => { pmbRaw = null; pmbRes = null; prl.members = null; ruList = null; await openRmauTool(true); prlRead(); }, 1500); } });
+  }
+  $("ruBody").addEventListener("click", (e) => {
+    if (!prlOn()) return;
+    if (e.target.closest("[data-prlread]")) { pmbRaw = pmbRaw && prl.members ? null : pmbRaw; prlRead(); return; }
+    const t = e.target.closest("[data-prltab]"); if (t) { prl.tab = t.dataset.prltab; renderRmau(); return; }
+    if (e.target.closest("[data-prlplan]")) { prl.planShown = true; renderRmau(); const h = $("ruBody").querySelector("[data-prlplanhost]"); if (h && h.scrollIntoView) { try { h.scrollIntoView({ block: "start" }); } catch { /* jsdom */ } } return; }
+  });
+  $("ruBody").addEventListener("change", (e) => {
+    if (!prlOn()) return;
+    const c = e.target.closest("[data-prlsel]");
+    if (c) { if (!prl.sel) prl.sel = new Set(); c.checked ? prl.sel.add(c.dataset.prlsel) : prl.sel.delete(c.dataset.prlsel); prl.planShown = false; renderRmau(); return; }
+    const p = e.target.closest("[data-prlprofile]");
+    if (p) { pmbProfileId = p.value; try { localStorage.setItem("enca.pmbProfile", pmbProfileId); } catch { /* storage off */ } pmbSel = null; pmbRegSel = null; pmbRebuild(); prl.sel = null; prl.planShown = false; renderRmau(); }
   });
 
   function isRebuild() {
