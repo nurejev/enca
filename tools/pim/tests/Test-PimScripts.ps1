@@ -193,6 +193,7 @@ if ((Test-Path $regions) -and (Test-Path $dups)) { . (Join-Path $here 'Test-PimR
 if (Test-Path $regions) { . (Join-Path $here 'Test-PimRoles.inc.ps1') }
 if (Test-Path $regions) { . (Join-Path $here 'Test-PimReplication.inc.ps1') }
 if (Test-Path $regions) { . (Join-Path $here 'Test-PimScopeTags.inc.ps1') }
+if (Test-Path $regions) { . (Join-Path $here 'Test-PimIntuneRole.inc.ps1') }
 
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 Write-Host ("`n# pass {0}`n# fail {1}" -f $script:pass, $script:fail)

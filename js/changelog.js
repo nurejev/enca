@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32420, date: "2026-09-28", title: "🧬 PIM baseline 0.3.4 — the regional Intune role gets its permissions",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "On cloudfellows.dev the custom Intune role INT-ROLE-Regional-Ops had none of its 32 permissions: an early version of the regions script created it empty. New-PimRegions.ps1 now reads the role itself before it compares, says how many permissions are missing, and with the new -FixIntuneRoles adds them. It never removes a permission, keeps any extra one, and writes the old list to the backup file first." },
+    ],
+  },
+  {
     build: 32419, date: "2026-09-28", title: "🧬 PIM baseline 0.3.3 — the region's Intune scope tag is assigned to its device group again",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "New-PimRegions.ps1 stopped on cloudfellows.dev when it assigned the new scope tag INT-TAG-EU-NL to its device group: Intune refused the kind of target the script sent (the one Microsoft's reference shows) and accepts only a plain group target. The script now sends that, and keeps any other group already on the tag. Plan and apply again: the rest of EU-NL and all of EU-DE follow." },

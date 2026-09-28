@@ -36,7 +36,9 @@
   not one) blocks the whole plan — nothing unsafe reaches a membership rule.
   What exists and differs is reported; a unit's or scope group's rule or paused
   processing is changed only with -FixRules; an Intune role assignment that
-  differs is reported, never rewritten. An Intune read that fails blocks the
+  differs is reported, never rewritten; the framework's custom Intune role, when
+  it lacks actions of the template, is reported, and -FixIntuneRoles adds the
+  missing actions (it never removes one). An Intune read that fails blocks the
   plan (leave Intune out with -Include to go on without it) — nothing is
   created after a read that did not work, and the custom role is created with
   every action the template lists or not at all.
@@ -86,6 +88,10 @@
 .PARAMETER FixRules
   Plan a rule rewrite for a unit or scope group whose rule differs from the
   template, and switch paused processing back on.
+.PARAMETER FixIntuneRoles
+  Plan adding the actions the template lists and the framework's custom Intune
+  role (INT-ROLE-*) lacks. Only adds: an action the role has beyond the template
+  is kept and reported. The role's current permissions go to the backup file.
 .PARAMETER AlertDomain
   Domain for alert recipients whose domain is not verified in the tenant.
 .PARAMETER OutDir
@@ -126,6 +132,7 @@ param(
   [string[]]$Only,
   [ValidateSet('Units', 'Groups', 'GroupPolicies', 'Eligibilities', 'Intune')][string[]]$Include = @('Units', 'Groups', 'GroupPolicies', 'Eligibilities', 'Intune'),
   [switch]$FixRules,
+  [switch]$FixIntuneRoles,
   [string]$AlertDomain,
   [string]$OutDir = (Get-Location).Path,
   [switch]$Apply,
@@ -154,6 +161,24 @@ if ($Include -contains 'Intune') { $readNeeds += 'DeviceManagementRBAC.Read.All'
 Assert-PimPermissions $readNeeds 'planning'
 
 function Get-Key($h, [string]$k) { if ($h -is [System.Collections.IDictionary] -and $h.Contains($k)) { return $h[$k] }; return $null }
+# Every action an Intune role definition allows, wherever Intune keeps it:
+# rolePermissions or permissions, as resourceActions.allowedResourceActions or
+# the older actions list.
+function Get-IntuneRoleActions($def) {
+  $acts = New-Object System.Collections.Generic.List[string]; $no = New-Object System.Collections.Generic.List[string]
+  foreach ($prop in @('rolePermissions', 'permissions')) {
+    foreach ($p in @(Get-Key $def $prop)) {
+      if ($p -isnot [System.Collections.IDictionary]) { continue }
+      foreach ($a in @(Get-Key $p 'actions')) { if ($a -and -not $acts.Contains("$a")) { $acts.Add("$a") } }
+      foreach ($ra in @(Get-Key $p 'resourceActions')) {
+        if ($ra -isnot [System.Collections.IDictionary]) { continue }
+        foreach ($a in @(Get-Key $ra 'allowedResourceActions')) { if ($a -and -not $acts.Contains("$a")) { $acts.Add("$a") } }
+        foreach ($a in @(Get-Key $ra 'notAllowedResourceActions')) { if ($a -and -not $no.Contains("$a")) { $no.Add("$a") } }
+      }
+    }
+  }
+  return @{ allowed = $acts.ToArray(); notAllowed = $no.ToArray() }
+}
 function Get-RuleKey([string]$r) { if (-not $r) { return '' }; return (($r -replace '\s+', ' ').Trim().ToLower()) }
 function Get-Esc([string]$s) { return $s.Replace("'", "''") }
 
@@ -334,9 +359,25 @@ function Build-RegionsPlan {
     foreach ($cr in $intuneRoles) {
       $n = $cr['name']; $allowed = @($cr['allowed'])
       if ($intune.roles.ContainsKey($n)) {
-        $have = @($intune.roles[$n][0]['rolePermissions'] | ForEach-Object { $_['resourceActions'] } | ForEach-Object { $_['allowedResourceActions'] } | Where-Object { $_ })
+        # read the role itself: the list may leave its permissions out, and Intune keeps
+        # actions in rolePermissions or permissions, as resourceActions or actions
+        $cur = $intune.roles[$n][0]
+        $full = $null
+        try { $full = Invoke-PimGet "$BetaUrl/deviceManagement/roleDefinitions/$($cur['id'])" }
+        catch { $plan.blocked.Add("Intune role ${n}: the role could not be read ($(Get-PimGraphError $_)) — nothing is compared or changed on a role that was not read"); continue }
+        $got = Get-IntuneRoleActions $full
+        $have = @($got.allowed)
         $miss = @($allowed | Where-Object { $have -notcontains $_ }); $extra = @($have | Where-Object { $allowed -notcontains $_ })
-        if ($miss.Count -or $extra.Count) { $plan.findings.Add("Intune role $n differs from the template — missing: $(if ($miss) { $miss -join ', ' } else { '—' }); extra: $(if ($extra) { $extra -join ', ' } else { '—' }). Not rewritten: correct it in Intune") }
+        if ($extra.Count) { $plan.findings.Add("Intune role $n carries $($extra.Count) action(s) the template does not: $($extra -join ', ') — kept; remove them in Intune if they should go") }
+        if ($miss.Count) {
+          if (-not $FixIntuneRoles) { $plan.findings.Add("Intune role $n lacks $($miss.Count) of the template's $($allowed.Count) actions$(if (-not $have.Count) { ' (it has none at all)' }): $($miss -join ', '). -FixIntuneRoles plans adding them (none removed)") }
+          else {
+            $unknown = @($miss | Where-Object { -not $intune.known.Contains($_) })
+            if ($unknown.Count) { $plan.blocked.Add("Intune role ${n}: the tenant's operation list does not know $($unknown.Count) of the missing actions ($($unknown -join ', ')) — nothing is added; fix the template or add them by hand"); continue }
+            $all = @($have + $miss)
+            Add-PimOp $plan "introlefix:$n" 'http' "Intune role ${n}: add $($miss.Count) missing action(s) → $($all.Count) in all (none removed)" ([ordered]@{ method = 'PATCH'; uri = "$BetaUrl/deviceManagement/roleDefinitions/$($cur['id'])"; needs = @('DeviceManagementRBAC.ReadWrite.All'); body = [ordered]@{ '@odata.type' = '#microsoft.graph.deviceAndAppManagementRoleDefinition'; rolePermissions = @([ordered]@{ resourceActions = @([ordered]@{ allowedResourceActions = $all; notAllowedResourceActions = @($got.notAllowed) }) }) }; before = [ordered]@{ rolePermissions = @(Get-Key $full 'rolePermissions'); permissions = @(Get-Key $full 'permissions') } })
+          }
+        }
         continue
       }
       $unknown = @($allowed | Where-Object { -not $intune.known.Contains($_) })

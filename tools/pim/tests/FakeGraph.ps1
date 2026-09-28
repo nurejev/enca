@@ -6,6 +6,7 @@
 $global:FakeCalls = New-Object System.Collections.Generic.List[object]
 $global:FakeFail = @{}     # uri regex → message: a GET matching it throws (403 simulation)
 $global:FakeLag = 0        # a new group is unknown to PIM for this many schedule requests (replication)
+$global:FakeIntuneListBare = $false  # the Intune role list leaves permissions out (read the role by id)
 $global:FakeSleeps = New-Object System.Collections.Generic.List[int]
 # The scripts wait for replication with Start-Sleep; the tests record the waits instead.
 function global:Start-Sleep { param([int]$Seconds) $global:FakeSleeps.Add($Seconds) }
@@ -58,7 +59,7 @@ function New-FakeTenant {
   foreach ($r in $roles) { $global:Fake.rolePolicies[$r.id] = @{ id = "pol-$($r.id)"; rules = (New-FakeRules) } }
   foreach ($b in @('Help Desk Operator', 'Policy and Profile Manager', 'Application Manager', 'Endpoint Security Manager', 'Read Only Operator')) { $global:Fake.intune.roles.Add(@{ id = "ir-$($b -replace ' ','')"; displayName = $b; isBuiltIn = $true; allowed = @() }) }
   $global:Fake.intune.ops = @('Microsoft.Intune_ManagedDevices_Read', 'Microsoft.Intune_ManagedDevices_Update', 'Microsoft.Intune_ManagedDevices_Delete', 'Microsoft.Intune_ManagedDevices_SetPrimaryUser', 'Microsoft.Intune_ManagedDevices_ViewReports', 'Microsoft.Intune_RemoteTasks_SyncDevice', 'Microsoft.Intune_RemoteTasks_RebootNow', 'Microsoft.Intune_RemoteTasks_SetDeviceName', 'Microsoft.Intune_RemoteTasks_CollectDiagnostics', 'Microsoft.Intune_RemoteTasks_Wipe', 'Microsoft.Intune_RemoteTasks_Retire', 'Microsoft.Intune_RemoteTasks_RotateBitLockerKeys', 'Microsoft.Intune_RemoteTasks_RotateLocalAdminPassword', 'Microsoft.Intune_RemoteTasks_RemoteLock', 'Microsoft.Intune_RemoteTasks_LocateDevice', 'Microsoft.Intune_RemoteTasks_EnableLostMode', 'Microsoft.Intune_RemoteTasks_DisableLostMode', 'Microsoft.Intune_DeviceConfigurations_Read', 'Microsoft.Intune_DeviceConfigurations_ViewReports', 'Microsoft.Intune_DeviceConfigurations_Assign', 'Microsoft.Intune_DeviceCompliancePolices_Read', 'Microsoft.Intune_DeviceCompliancePolices_ViewReports', 'Microsoft.Intune_DeviceCompliancePolices_Assign', 'Microsoft.Intune_MobileApps_Read', 'Microsoft.Intune_MobileApps_ViewReports', 'Microsoft.Intune_MobileApps_Assign', 'Microsoft.Intune_ManagedApps_Read', 'Microsoft.Intune_EnrollmentProgram_Read', 'Microsoft.Intune_EnrollmentProgram_SyncDevice', 'Microsoft.Intune_AuditData_Read', 'Microsoft.Intune_Organization_Read', 'Microsoft.Intune_TermsAndConditions_Read')
-  $global:FakeCalls.Clear(); $global:FakeFail = @{}; $global:FakeBeforeWrite = $null; $global:FakeNoPolicyOnCreate = $false; $global:FakeDisconnected = $false; $global:FakeLag = 0; $global:FakeSleeps.Clear()
+  $global:FakeCalls.Clear(); $global:FakeFail = @{}; $global:FakeBeforeWrite = $null; $global:FakeNoPolicyOnCreate = $false; $global:FakeDisconnected = $false; $global:FakeLag = 0; $global:FakeSleeps.Clear(); $global:FakeIntuneListBare = $false
 }
 function New-FakeId { $global:Fake.seq++; return ('{0:x8}-0000-0000-0000-{1:x12}' -f 0xfeed0000, $global:Fake.seq) }
 function Add-FakeGroup([string]$Name, [bool]$RoleAssignable = $true, [string]$Created = '2026-09-25T10:00:00Z', [string]$Rule = $null, [string]$Id = $null) {
@@ -68,6 +69,14 @@ function Add-FakeGroup([string]$Name, [bool]$RoleAssignable = $true, [string]$Cr
   return $g
 }
 function Get-FakeTagIds([string]$TagId) { return @($global:Fake.intune.tagAssign[$TagId] | Where-Object { $_ } | ForEach-Object { if ($_ -is [string]) { $_ } elseif ($_.entraObjectId) { $_.entraObjectId } else { $_.groupId } }) }
+# An Intune role definition as Graph returns it. shape 'actions': the actions in
+# permissions[].actions, rolePermissions empty (a form Intune also returns).
+function Get-FakeIntuneRole($r) {
+  $x = @{ id = $r.id; displayName = $r.displayName; isBuiltIn = $r.isBuiltIn }
+  if ($r.ContainsKey('shape') -and $r.shape -eq 'actions') { $x.rolePermissions = @(); $x.permissions = @(@{ actions = @($r.allowed) }) }
+  else { $x.rolePermissions = @(@{ resourceActions = @(@{ allowedResourceActions = @($r.allowed); notAllowedResourceActions = @() }) }) }
+  return $x
+}
 function Get-FakeWrites { return @($global:FakeCalls | Where-Object { $_.Method -ne 'GET' }) }
 
 function Get-MgContext {
@@ -116,7 +125,8 @@ function Invoke-MgGraphRequest {
       '^/directory/administrativeUnits/([^/?]+)/members' { return @{ value = @() } }
       '^/directory/administrativeUnits' { return (& $list $F.aus) }
       '^/deviceManagement/resourceOperations' { if (-not $F.intune.on) { throw 'Response status code does not indicate success: Forbidden (403). Intune not licensed' }; return (& $list @($F.intune.ops | ForEach-Object { @{ id = $_; actionName = 'x' } })) }
-      '^/deviceManagement/roleDefinitions' { if (-not $F.intune.on) { throw 'Forbidden (403)' }; return (& $list @($F.intune.roles | ForEach-Object { @{ id = $_.id; displayName = $_.displayName; isBuiltIn = $_.isBuiltIn; rolePermissions = @(@{ resourceActions = @(@{ allowedResourceActions = $_.allowed }) }) } })) }
+      '^/deviceManagement/roleDefinitions/([^/?]+)$' { if (-not $F.intune.on) { throw 'Forbidden (403)' }; $id = $Matches[1]; $r = @($F.intune.roles | Where-Object { $_.id -eq $id })[0]; if (-not $r) { throw 'NotFound (404)' }; return (ConvertTo-FakeHash (Get-FakeIntuneRole $r)) }
+      '^/deviceManagement/roleDefinitions' { if (-not $F.intune.on) { throw 'Forbidden (403)' }; return (& $list @($F.intune.roles | ForEach-Object { $x = Get-FakeIntuneRole $_; if ($global:FakeIntuneListBare) { $x.Remove('rolePermissions'); $x.Remove('permissions') }; $x })) }
       '^/deviceManagement/roleScopeTags/([^/?]+)/assignments' { return (& $list @($F.intune.tagAssign[$Matches[1]] | Where-Object { $_ } | ForEach-Object { @{ id = 'ta'; target = $(if ($_ -is [string]) { @{ '@odata.type' = '#microsoft.graph.groupAssignmentTarget'; groupId = $_ } } else { $_ }) } })) }
       '^/deviceManagement/roleScopeTags' { if (-not $F.intune.on) { throw 'Forbidden (403)' }; return (& $list $F.intune.tags) }
       '^/deviceManagement/roleAssignments/([^/?]+)' { $id = $Matches[1]; $a = @($F.intune.assignments | Where-Object { $_.id -eq $id })[0]; if (-not $a) { throw 'NotFound (404)' }; $x = ConvertTo-FakeHash $a; $x.roleDefinition = @{ id = $a.roleDefinitionId }; return $x }
@@ -145,6 +155,7 @@ function Invoke-MgGraphRequest {
     '^POST /identityGovernance/privilegedAccess/group/eligibilityScheduleRequests$' { $F.pgE.Add(@{ id = (New-FakeId); groupId = $b.groupId; principalId = $b.principalId; accessId = $b.accessId }); return @{ id = (New-FakeId); status = 'Provisioned' } }
     '^POST /directory/administrativeUnits$' { $a = @{ id = (New-FakeId); displayName = $b.displayName; membershipType = $b.membershipType; membershipRule = $b.membershipRule; membershipRuleProcessingState = $b.membershipRuleProcessingState; isMemberManagementRestricted = [bool]$b.isMemberManagementRestricted }; $F.aus.Add($a); return (ConvertTo-FakeHash $a) }
     '^PATCH /directory/administrativeUnits/([^/?]+)$' { $a = $F.aus | Where-Object { $_.id -eq $Matches[1] }; foreach ($k in $b.Keys) { $a[$k] = $b[$k] }; return $null }
+    '^PATCH /deviceManagement/roleDefinitions/([^/]+)$' { $id = $Matches[1]; $r = @($F.intune.roles | Where-Object { $_.id -eq $id })[0]; if (-not $r) { throw 'NotFound (404)' }; $r.allowed = @($b.rolePermissions[0].resourceActions[0].allowedResourceActions); $r.shape = 'resourceActions'; return $null }
     '^POST /deviceManagement/roleDefinitions$' { $r = @{ id = (New-FakeId); displayName = $b.displayName; isBuiltIn = $false; allowed = @($b.rolePermissions[0].resourceActions[0].allowedResourceActions) }; $F.intune.roles.Add($r); return @{ id = $r.id } }
     '^POST /deviceManagement/roleScopeTags$' { $t = @{ id = (New-FakeId); displayName = $b.displayName }; $F.intune.tags.Add($t); return @{ id = $t.id } }
     '^POST /deviceManagement/roleScopeTags/([^/]+)/assign$' {
