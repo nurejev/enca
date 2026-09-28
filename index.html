@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32424"></script>
+<script src="js/popup-guard.js?v=32425"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32424" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32424">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32425" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32425">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32424"></script>
+<script src="js/selfhost-boot.js?v=32425"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32424"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32424"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32424">
-<link rel="stylesheet" href="css/workspaces.css?v=32424">
-<link rel="stylesheet" href="css/tool-layout.css?v=32424">
-<link rel="stylesheet" href="css/list-detail.css?v=32424">
-<link rel="stylesheet" href="css/flat-icons.css?v=32424">
+<script src="js/counter.js?v=32425"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32425"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32425">
+<link rel="stylesheet" href="css/workspaces.css?v=32425">
+<link rel="stylesheet" href="css/tool-layout.css?v=32425">
+<link rel="stylesheet" href="css/list-detail.css?v=32425">
+<link rel="stylesheet" href="css/flat-icons.css?v=32425">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32424" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32425" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32424" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32425" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -289,7 +289,11 @@
       </div>
       <div class="tool tool-tile" id="toolPimBaseline">
         <div class="tool-ic">🧬</div><h3>PIM baseline <span class="tag new">BETA</span></h3>
-        <p><b>Workspace 02.</b> Match this tenant's Privileged Identity Management against the <b>CloudFellows PIM framework 2.1</b>, authored in the cloudfellows.dev tenant, <b>in a profile</b> — Small business, Large · one region or Large · multi-region: every role's PIM settings, the PIM-SG persona groups (active members, eligible for their roles), the Intune access groups (eligible members) and their membership policies — members never — and, from your <b>regions.csv</b>, each region's units, groups, scoped eligibilities and Intune scopes. <b>⬇ Delta config</b> and <b>📄 EasyPIM samples</b> write EasyPIM.Orchestrator files; the tools/pim scripts plan and apply them through Connect-Customer. <b>Read-only.</b></p>
+        <p><b>Workspace 02.</b> Match this tenant's Privileged Identity Management against the <b>CloudFellows PIM framework 2.1</b>, authored in the cloudfellows.dev tenant, <b>in a profile</b> — Small business, Large · one region or Large · multi-region: every role's PIM settings, the PIM-SG persona groups (active members, eligible for their roles), the Intune access groups (eligible members) and their membership policies — members never — and, from your <b>regions.csv</b>, each region's units, groups, scoped eligibilities and Intune scopes. <b>🚀 Import ticked →</b> takes what differs into 🚀 Deploy — onboarding from the browser, no script. <b>Read-only</b> itself.</p>
+      </div>
+      <div class="tool tool-tile" id="toolPimDeploy">
+        <div class="tool-ic">🚀</div><h3>Deploy — import from the baseline <span class="tag new">BETA</span></h3>
+        <p><b>Workspace 02 — onboarding from the browser, no script.</b> Pick what to take from the CloudFellows PIM framework in the tenant's profile — PIM-SG groups, approver groups, role settings, group eligibilities, membership policies, the restricted unit, every region of your regions file, Intune RBAC — read the WhatIf (every operation in order, what changes for people, how to put it back), type the tenant's domain and apply. The run ledger shows each step; every rule changed is kept in a backup that <b>↩ Put back</b> restores. Nothing is ever removed. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolPimRoles">
         <div class="tool-ic">🎖</div><h3>Roles &amp; assignments <span class="tag new">BETA</span></h3>
@@ -1464,14 +1468,28 @@
       <div class="chip-filter" id="pmbChips"></div>
       <span id="pmbTenantNote"></span>
       <div class="tb-actions">
-        <button class="btn" id="pmbRegionsFile" style="display:none" title="The ticked regions, the template and the Intune role as the file tools/pim/New-PimRegions.ps1 creates them from">⬇ Regions file</button>
-        <button class="btn" id="pmbConfig" title="The whole framework in this profile as an EasyPIM.Orchestrator config — how the baseline is created in cloudfellows.dev">⬇ Baseline config</button>
-        <button class="btn" id="pmbDelta" style="display:none" title="Only the ticked roles and groups, as an EasyPIM.Orchestrator config for this tenant">⬇ Delta config</button>
+        <button class="btn" id="pmbRegionsFile" hidden title="The ticked regions as a file — for the framework's own maintenance on cloudfellows.dev">⬇ Regions file</button>
+        <button class="btn" id="pmbDelta" hidden title="Only the ticked roles and groups, as an EasyPIM.Orchestrator config">⬇ Delta config</button>
         <button class="btn" id="pmbMd" style="display:none">Export MD</button>
-        <button class="btn primary" id="pmbRefresh">▶ Read this tenant's PIM</button>
+        <button class="btn" id="pmbConfig" title="The whole framework in this profile as an EasyPIM.Orchestrator config — for customers who run PIM as code themselves">⋯ EasyPIM file</button>
+        <button class="btn" id="pmbRefresh">▶ Read this tenant's PIM</button>
+        <button class="btn primary" id="pmbImport" style="display:none" title="Import the ticked rows into this tenant — WhatIf first, in 🚀 Deploy">🚀 Import ticked →</button>
       </div>
     </div>
     <div class="tool-body" id="pmbBody"></div>
+  </section>
+  <!-- ============ 🚀 DEPLOY — IMPORT FROM THE BASELINE (T51, build 32425, R72) — Workspace 02, onboarding from the browser ============ -->
+  <section id="screen-pimdeploy" class="screen tool">
+    <div class="list-card readme" id="pdpHead"></div>
+    <div class="toolbar" id="pdpToolbar">
+      <label class="pmb-profile tb-scope" title="The same profile as 🧬 PIM baseline"><span>Profile</span><select id="pdpProfile"></select></label>
+      <div class="chip-filter" id="pdpChips"></div>
+      <div class="tb-actions">
+        <label class="btn" title="A backup file a run of this tool downloaded: every rule it changed, as it was">↩ Put back… <input type="file" id="pdpRestore" accept=".json" hidden></label>
+        <button class="btn primary" id="pdpRead">▶ Read the tenant</button>
+      </div>
+    </div>
+    <div class="tool-body" id="pdpBody"></div>
   </section>
   <!-- ============ 🎖 ROLES & ASSIGNMENTS (T49, build 32424, R71) — Workspace 02, who holds what ============ -->
   <section id="screen-pimroles" class="screen tool">
@@ -1616,6 +1634,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R72</span> <a href="#" class="md-tool" data-tool="toolPimDeploy">🚀 Deploy — import the PIM framework from the browser</a> <span class="tag ok">in beta today · beta 32425</span></h4>
+            <p class="mini" style="margin:0">Onboarding without a script: pick what to take from the CloudFellows PIM framework in the tenant's profile, read the WhatIf, type the domain, apply with the run ledger, read again. The scripts' operations and guardrails, in the browser: nothing removed, conflicts stop what needs them, approvers exist before approval is on, eligibility capped by the role, a backup of every rule changed and ↩ Put back.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R71</span> <a href="#" class="md-tool" data-tool="toolPimRoles">🎖 Roles &amp; assignments — who holds what</a> <span class="tag ok">in beta today · beta 32424</span></h4>
             <p class="mini" style="margin:0">Every Entra role anybody holds, per assignment who, how (eligible, active, activated now), where (tenant or a unit) and until when — groups opened up into the people behind them. Framework tiers, last activation, what ends soon, and the findings: permanent active outside the framework, people eligible directly, eligibility that never ends. Read-only.</p>
@@ -2497,6 +2519,20 @@
     </section>
 
     <section class="help-sec">
+      <h4>🚀 Deploy — import from the baseline <span class="tag new">BETA</span></h4>
+      <p><b>Workspace 02, T51 — onboarding from the browser.</b> A customer never runs a script: the framework is imported here, signed in as the tenant's own admin (Privileged Role Administrator for groups, roles and units; an Intune role for Intune).</p>
+      <ul>
+        <li><b>① Pick</b> — the profile (the same as 🧬 PIM baseline) and what to take, each with the number of changes it would make now: PIM-SG groups (role-assignable, private, created empty), approver groups (plain), role settings (rule by rule, only the rules that differ), group eligibilities (each persona group eligible for its roles at tenant scope, a year), membership policies (GroupMember / GroupJIT), the restricted unit and the desk scoped on it (off until ticked — its flag can never be removed), the regions of your regions file (units, groups, scoped eligibilities, Intune scope groups, the approvers the file names), Intune RBAC (read it first) and the Azure groups (off until ticked). Opened from 🧬 PIM baseline's <b>🚀 Import ticked →</b>, only the ticked rows are taken unless you untick that.</li>
+        <li><b>② Preview</b> — every operation in the order it runs: approvers, groups, units, role settings, eligibilities, membership policies, Intune; what changes for people; how to put it back; what cannot be undone; the permissions it will ask. Found, not changed lists what a person decides (a permanent Global Administrator outside the framework, a unit whose rule differs, a 2.0-style active group assignment); By hand lists the members, the approvers, the Autopilot profiles and access reviews. Type the tenant's domain to apply.</li>
+        <li><b>The run</b> — one permission prompt, then the run ledger: ✓ done, ◐ later, ✗ failed, – skipped because what it needed was not made. A write that names a group or unit made seconds earlier and comes back not found is tried again after 5, 10, 15 and 30 seconds (Entra replicates). A new group's membership policy is <b>later</b>: PIM for Groups takes a group in when its first member is assigned — add the members, then Preview again.</li>
+        <li><b>③ Verify</b> — the tenant is read again and the counts shown; 🧬 PIM baseline and 🎖 Roles &amp; assignments open from there.</li>
+        <li><b>Backup and ↩ Put back</b> — every rule a run changes is kept as it was; <b>⬇ Backup</b> after the run downloads it. <b>↩ Put back…</b> in the toolbar reads that file (only this tool's backups, only for the tenant they came from, only PIM policy rules) and previews writing those rules back.</li>
+        <li><b>Never</b> — an assignment removed, a person added to a group (except a region's approvers, from the addresses in its file), a break-glass account touched, approval switched on without an approver group, a reduced custom Intune role created.</li>
+      </ul>
+      <p class="help-x">Writes to the tenant, after the WhatIf and the typed domain. The framework's PowerShell (tools/pim) is kept for its own maintenance on cloudfellows.dev; no customer route uses it.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>🎖 Roles &amp; assignments <span class="tag new">BETA</span></h4>
       <p><b>Workspace 02, T49.</b> Who holds which Entra role in this tenant — read, never changed.</p>
       <ul>
@@ -2538,8 +2574,8 @@
         <li><b>🗺 Regions</b> (multi-region profile) — regions are never in the catalog; upload the customer's <code>regions.csv</code> (columns code, name, attribute, value, devicePrefix, autopilotTag, itLead, approvers, timezone — JSON accepted, approvers as a list or a;b). Every field is checked: the attribute must be extensionAttribute1 to 15, the value may not carry a quote (it goes inside a membership rule), addresses must be addresses; a row with an error is left out here and shown. Each row is instantiated from the region template: <b>AU-&lt;code&gt;-Users</b> and <b>-Devices</b> (dynamic), <b>AU-&lt;code&gt;-Groups</b>; the persona groups <b>PIM-SG-&lt;code&gt;-Helpdesk</b> and <b>-Ops</b> (active members) with eight eligibilities scoped to the region's units; the Intune access groups <b>PIM-SG-INT-HelpDesk/Ops-&lt;code&gt;</b> (eligible members); the plain <b>-Approvers</b> group; the Intune scope groups, the tag <b>INT-TAG-&lt;code&gt;</b> (auto-assigned from the device scope group as a direct group target, the only kind Intune takes for a scope tag) and the assignments, under the custom role INT-ROLE-Regional-Ops. New-PimRegions.ps1 reads that role itself and compares its actions with the template (31 actions; where Microsoft's id is not certain the template names the permission as the admin center does, for example Enrollment programs/Read device, and the script takes the tenant's own id for it — an action the tenant does not list stops the plan and names what the tenant has for that resource); one it lacks is reported, and <code>-FixIntuneRoles</code> adds the missing actions (never removes one, the old list goes to the backup) <b>INT-RBAC-HelpDesk/Ops-&lt;code&gt;</b>. Units are compared by rule and by processing state (paused is a finding), eligibilities by group id and scope (one also held tenant-wide is a finding). The rows stay in this browser per tenant and are cleared on sign-out and tenant switch.</li>
         <li><b>📄 EasyPIM samples</b> — one commented EasyPIM.Orchestrator config per profile (small, large, multi-region), the same text as <code>tools/pim/samples/easypim.&lt;profile&gt;.jsonc</code>. Every value to change says EDIT (the alert mailbox, the people's object ids, the break-glass ids); the people come as Assignments.Groups — active members for persona groups, eligible for the Intune access groups. The pane lists the steps.</li>
         <li><b>Filters</b> — All, Differs, Missing, Match, Groups, Assignments (rows with a finding), 🗺 Regions, 📄 EasyPIM samples; the find box narrows by role, group, persona or region. Ticks survive a filter change or a new read.</li>
-        <li><b>⬇ Delta config</b> — the ticked rows (differing and missing rows come ticked; conflicts and Azure never) as a file, with a report beside it that names the tenant, profile, catalog release, read time and the file's SHA-256. <b>⬇ Baseline config</b> — the whole framework in the profile the same way. <b>Export MD</b> is the gap report.</li>
-        <li><b>The scripts</b> (tools/pim) — <code>Find-PimDuplicates.ps1</code> (a name that exists twice: deletes only copies nothing uses), <code>New-PimBaseline.ps1</code> (groups, membership policies, eligibilities, people; role policies with -Include RolePolicies) and <code>New-PimRegions.ps1</code> (the regions file). They use the Graph connection of <code>Connect-Customer.ps1 -Customer &lt;KEY&gt; -Services Graph</code> (or run it with -Customer), check the tenant against Customers.json and stop with the exact <code>-AddGraphScopes</code> line when the app lacks a permission. Without -Apply they only read and write a <b>plan file</b>; <code>-Apply -PlanFile</code> runs exactly that plan: you type the domain to confirm, the tenant is checked once more against the plan (a change since stops the run), and every rule about to change is backed up first. A write that names a group or unit made moments before can meet a 404 while Entra replicates it; the scripts wait and try the same call again (5 s up to two minutes in all), and only then stop. Nothing is ever removed except duplicate copies the plan names.</li>
+        <li><b>🚀 Import ticked →</b> — the ticked rows (differing and missing rows come ticked; conflicts and Azure never) open in <b>🚀 Deploy</b>, which imports them from the browser after a WhatIf and the tenant's domain typed out; on 🗺 Regions the button takes the regions. <b>⋯ EasyPIM file</b> — the whole framework in the profile as an EasyPIM.Orchestrator config, for a customer who runs PIM as code. <b>Export MD</b> is the gap report.</li>
+        <li><b>No script for a customer</b> — onboarding and configuration run from the browser (🚀 Deploy). The PowerShell in tools/pim is kept for the framework's own maintenance on cloudfellows.dev and is not part of a customer's route.</li>
         <li><b>On the baseline tenant</b> a 🧱 chip says so. Updating the catalog from cloudfellows.dev (🧱 Update the catalog, as 🧬 Baseline has it) is the next step on the roadmap.</li>
       </ul>
       <p class="help-x">Read-only. Nothing here writes to the tenant; the configs and samples it writes are files for EasyPIM and for the scripts under tools/pim, which plan first and apply only an approved plan.</p>
@@ -3759,104 +3795,105 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32424"></script>
-<script src="js/selfhost.js?v=32424"></script>
-<script src="js/version.js?v=32424"></script>
-<script src="js/verdict.js?v=32424"></script>
-<script src="js/fork.js?v=32424"></script>
-<script src="js/promote.js?v=32424"></script>
-<script src="js/authConfig.js?v=32424"></script>
-<script src="js/connection.js?v=32424"></script>
-<script src="js/labels.js?v=32424"></script>
-<script src="js/capabilities.js?v=32424"></script>
-<script src="js/graph.js?v=32424"></script>
-<script src="js/model.js?v=32424"></script>
-<script src="js/render.js?v=32424"></script>
-<script src="js/analyze.js?v=32424"></script>
-<script src="js/whatif.js?v=32424"></script>
-<script src="js/mslearn.js?v=32424"></script>
-<script src="js/learntriage.js?v=32424"></script>
-<script src="js/learnfeed.js?v=32424"></script>
-<script src="js/gapcheck.js?v=32424"></script>
-<script src="js/cisdata.js?v=32424"></script>
-<script src="js/cischeck.js?v=32424"></script>
-<script src="js/exclusions.js?v=32424"></script>
-<script src="js/cascope.js?v=32424"></script>
-<script src="js/coverage.js?v=32424"></script>
-<script src="js/runmeta.js?v=32424"></script>
-<script src="js/overview.js?v=32424"></script>
-<script src="js/validator.js?v=32424"></script>
-<script src="js/whatifeval.js?v=32424"></script>
-<script src="js/builder.js?v=32424"></script>
-<script src="js/onboard.js?v=32424"></script>
-<script src="js/compare.js?v=32424"></script>
-<script src="js/whois.js?v=32424"></script>
-<script src="js/wave.js?v=32424"></script>
-<script src="js/sessionctl.js?v=32424"></script>
-<script src="js/spgap.js?v=32424"></script>
-<script src="js/groupuse.js?v=32424"></script>
-<script src="js/iso3166.js?v=32424"></script>
-<script src="js/causes.js?v=32424"></script>
-<script src="js/locations.js?v=32424"></script>
-<script src="js/locsignin.js?v=32424"></script>
-<script src="js/workloadid.js?v=32424"></script>
-<script src="js/authcontexts.js?v=32424"></script>
-<script src="js/authstrengths.js?v=32424"></script>
-<script src="js/recycle.js?v=32424"></script>
-<script src="js/rmau.js?v=32424"></script>
-<script src="js/camap.js?v=32424"></script>
-<script src="js/rmaudoc.js?v=32424"></script>
-<script src="js/termsofuse.js?v=32424"></script>
-<script src="js/audit.js?v=32424"></script>
-<script src="js/drift.js?v=32424"></script>
-<script src="js/guide.js?v=32424"></script>
-<script src="js/userimpact.js?v=32424"></script>
-<script src="js/smsvoice.js?v=32424"></script>
-<script src="js/memberof.js?v=32424"></script>
-<script src="js/devcheck.js?v=32424"></script>
-<script src="js/idscore.js?v=32424"></script>
-<script src="js/xtenant.js?v=32424"></script>
-<script src="js/passkeys.js?v=32424"></script>
-<script src="js/tokencov.js?v=32424"></script>
-<script src="js/naming.js?v=32424"></script>
-<script src="js/licgap.js?v=32424"></script>
-<script src="js/teamsdev.js?v=32424"></script>
-<script src="js/signinstore.js?v=32424"></script>
-<script src="js/signins.js?v=32424"></script>
-<script src="js/reportimpact.js?v=32424"></script>
-<script src="js/changelog.js?v=32424"></script>
-<script src="js/baselineData.js?v=32424"></script>
-<script src="js/baselineJoeyData.js?v=32424"></script>
-<script src="js/baselineLive.js?v=32424"></script>
-<script src="js/pimBaselineData.js?v=32424"></script>
-<script src="js/pimbaseline.js?v=32424"></script>
-<script src="js/pimplan.js?v=32424"></script>
-<script src="js/pimrmau.js?v=32424"></script>
-<script src="js/intunerbac.js?v=32424"></script>
-<script src="js/pimroles.js?v=32424"></script>
-<script src="js/baseline.js?v=32424"></script>
-<script src="js/baselineCleanup.js?v=32424"></script>
-<script src="js/groupTemplates.js?v=32424"></script>
-<script src="js/assign.js?v=32424"></script>
-<script src="js/cagroups.js?v=32424"></script>
-<script src="js/groupmerge.js?v=32424"></script>
-<script src="js/groupsview.js?v=32424"></script>
-<script src="js/runledger.js?v=32424"></script>
-<script src="js/bgvault.js?v=32424"></script>
-<script src="js/protect.js?v=32424"></script>
-<script src="js/policy-compare.js?v=32424"></script>
-<script src="js/import.js?v=32424"></script>
-<script src="js/export.js?v=32424"></script>
-<script src="js/demo.js?v=32424"></script>
-<script src="js/list-detail.js?v=32424"></script>
-<script src="js/flat-icons.js?v=32424"></script>
-<script src="js/workspace.js?v=32424"></script>
-<script src="js/analysis-jobs.js?v=32424"></script>
-<script src="js/search-suggest.js?v=32424"></script>
-<script src="js/app.js?v=32424"></script>
-<script src="js/col-resize.js?v=32424"></script>
-<script src="js/accessibility.js?v=32424"></script>
-<script src="js/workspaces.js?v=32424"></script>
-<script src="js/tool-layout.js?v=32424"></script>
+<script src="js/branding.js?v=32425"></script>
+<script src="js/selfhost.js?v=32425"></script>
+<script src="js/version.js?v=32425"></script>
+<script src="js/verdict.js?v=32425"></script>
+<script src="js/fork.js?v=32425"></script>
+<script src="js/promote.js?v=32425"></script>
+<script src="js/authConfig.js?v=32425"></script>
+<script src="js/connection.js?v=32425"></script>
+<script src="js/labels.js?v=32425"></script>
+<script src="js/capabilities.js?v=32425"></script>
+<script src="js/graph.js?v=32425"></script>
+<script src="js/model.js?v=32425"></script>
+<script src="js/render.js?v=32425"></script>
+<script src="js/analyze.js?v=32425"></script>
+<script src="js/whatif.js?v=32425"></script>
+<script src="js/mslearn.js?v=32425"></script>
+<script src="js/learntriage.js?v=32425"></script>
+<script src="js/learnfeed.js?v=32425"></script>
+<script src="js/gapcheck.js?v=32425"></script>
+<script src="js/cisdata.js?v=32425"></script>
+<script src="js/cischeck.js?v=32425"></script>
+<script src="js/exclusions.js?v=32425"></script>
+<script src="js/cascope.js?v=32425"></script>
+<script src="js/coverage.js?v=32425"></script>
+<script src="js/runmeta.js?v=32425"></script>
+<script src="js/overview.js?v=32425"></script>
+<script src="js/validator.js?v=32425"></script>
+<script src="js/whatifeval.js?v=32425"></script>
+<script src="js/builder.js?v=32425"></script>
+<script src="js/onboard.js?v=32425"></script>
+<script src="js/compare.js?v=32425"></script>
+<script src="js/whois.js?v=32425"></script>
+<script src="js/wave.js?v=32425"></script>
+<script src="js/sessionctl.js?v=32425"></script>
+<script src="js/spgap.js?v=32425"></script>
+<script src="js/groupuse.js?v=32425"></script>
+<script src="js/iso3166.js?v=32425"></script>
+<script src="js/causes.js?v=32425"></script>
+<script src="js/locations.js?v=32425"></script>
+<script src="js/locsignin.js?v=32425"></script>
+<script src="js/workloadid.js?v=32425"></script>
+<script src="js/authcontexts.js?v=32425"></script>
+<script src="js/authstrengths.js?v=32425"></script>
+<script src="js/recycle.js?v=32425"></script>
+<script src="js/rmau.js?v=32425"></script>
+<script src="js/camap.js?v=32425"></script>
+<script src="js/rmaudoc.js?v=32425"></script>
+<script src="js/termsofuse.js?v=32425"></script>
+<script src="js/audit.js?v=32425"></script>
+<script src="js/drift.js?v=32425"></script>
+<script src="js/guide.js?v=32425"></script>
+<script src="js/userimpact.js?v=32425"></script>
+<script src="js/smsvoice.js?v=32425"></script>
+<script src="js/memberof.js?v=32425"></script>
+<script src="js/devcheck.js?v=32425"></script>
+<script src="js/idscore.js?v=32425"></script>
+<script src="js/xtenant.js?v=32425"></script>
+<script src="js/passkeys.js?v=32425"></script>
+<script src="js/tokencov.js?v=32425"></script>
+<script src="js/naming.js?v=32425"></script>
+<script src="js/licgap.js?v=32425"></script>
+<script src="js/teamsdev.js?v=32425"></script>
+<script src="js/signinstore.js?v=32425"></script>
+<script src="js/signins.js?v=32425"></script>
+<script src="js/reportimpact.js?v=32425"></script>
+<script src="js/changelog.js?v=32425"></script>
+<script src="js/baselineData.js?v=32425"></script>
+<script src="js/baselineJoeyData.js?v=32425"></script>
+<script src="js/baselineLive.js?v=32425"></script>
+<script src="js/pimBaselineData.js?v=32425"></script>
+<script src="js/pimbaseline.js?v=32425"></script>
+<script src="js/pimplan.js?v=32425"></script>
+<script src="js/pimrmau.js?v=32425"></script>
+<script src="js/intunerbac.js?v=32425"></script>
+<script src="js/pimroles.js?v=32425"></script>
+<script src="js/pimdeploy.js?v=32425"></script>
+<script src="js/baseline.js?v=32425"></script>
+<script src="js/baselineCleanup.js?v=32425"></script>
+<script src="js/groupTemplates.js?v=32425"></script>
+<script src="js/assign.js?v=32425"></script>
+<script src="js/cagroups.js?v=32425"></script>
+<script src="js/groupmerge.js?v=32425"></script>
+<script src="js/groupsview.js?v=32425"></script>
+<script src="js/runledger.js?v=32425"></script>
+<script src="js/bgvault.js?v=32425"></script>
+<script src="js/protect.js?v=32425"></script>
+<script src="js/policy-compare.js?v=32425"></script>
+<script src="js/import.js?v=32425"></script>
+<script src="js/export.js?v=32425"></script>
+<script src="js/demo.js?v=32425"></script>
+<script src="js/list-detail.js?v=32425"></script>
+<script src="js/flat-icons.js?v=32425"></script>
+<script src="js/workspace.js?v=32425"></script>
+<script src="js/analysis-jobs.js?v=32425"></script>
+<script src="js/search-suggest.js?v=32425"></script>
+<script src="js/app.js?v=32425"></script>
+<script src="js/col-resize.js?v=32425"></script>
+<script src="js/accessibility.js?v=32425"></script>
+<script src="js/workspaces.js?v=32425"></script>
+<script src="js/tool-layout.js?v=32425"></script>
 </body>
 </html>

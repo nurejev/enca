@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32425, date: "2026-09-28", title: "🚀 Deploy — import the PIM framework from the browser, no script",
+    items: [
+      { kind: "new", tool: "Deploy", text: "Onboarding a tenant onto the CloudFellows PIM framework now happens in the browser, signed in as the tenant's own admin. Pick what to take from the baseline in the tenant's profile — PIM-SG groups, approver groups, role settings, the groups' eligibilities, membership policies, the restricted unit, every region of your regions file, Intune RBAC — each with the number of changes it would make." },
+      { kind: "new", tool: "Deploy", text: "Preview lists every operation in the order it runs, what changes for people, how to put it back and what cannot be undone. Type the tenant's domain to apply; one permission prompt covers the run and the run ledger shows each step, waiting and trying again when Entra has not caught up with a group it just made. Afterwards the tool reads the tenant again and shows what now matches." },
+      { kind: "new", tool: "Deploy", text: "Nothing is ever removed. A name that exists twice, or a group that should be role-assignable and is not, stops what depends on it; approval is only switched on with an approver group that exists or is made in the same run; eligibilities never ask for longer than the role allows; people are never added for you. Every rule changed is kept as it was: download the backup after the run, and ↩ Put back writes those rules back." },
+      { kind: "improved", tool: "PIM baseline", text: "The toolbar leads to Deploy: 🚀 Import ticked takes the rows you ticked (on 🗺 Regions, the regions) into it. The delta and regions files for the scripts are gone from the toolbar; the whole framework as an EasyPIM file stays under ⋯ EasyPIM file for customers who run PIM as code." },
+    ],
+  },
+  {
     build: 32424, date: "2026-09-28", title: "🎖 Roles & assignments — who holds what, people through groups included",
     items: [
       { kind: "new", tool: "Roles & assignments", text: "A new tool in 02 PIM-buddy lists every Entra role anybody holds, and for each assignment who holds it, how (eligible, active for good or until a date, or activated right now), where (the whole tenant or one administrative unit) and until when. A group that holds a role is opened up: its active and eligible members appear as rows through that group, so you can see in people who is able to become Global Administrator." },

@@ -32,6 +32,7 @@
     toolSmsVoice: 'Assess the impact of SMS and voice retirement.',
     toolMemberOf: 'Find memberOf rules and their dependent services.',
     toolPimBaseline: 'Match this tenant’s PIM role settings and PIM groups against the CloudFellows PIM framework.',
+    toolPimDeploy: 'Import the framework into this tenant from the browser: pick, WhatIf, type the domain, apply — nothing removed.',
     toolPimRoles: 'Who holds which Entra role — eligible, active, activated, scoped, expiring — people through groups included.',
     toolIntuneRbac: 'Intune role assignments, scope tags, scope groups and the regional custom role against the framework.',
     toolChangelog: 'Read the release history.',
@@ -46,7 +47,7 @@
   // "PIM lens" (a PIM-only catalogue, tab strip and Help text for it) is on
   // the roadmap, and the card says so rather than promising it.
   const WS_KEY = 'enca.workspace';
-  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac', 'toolPimRoles']);
+  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac', 'toolPimRoles', 'toolPimDeploy']);
   const PIM_ROSTER = [
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
       { id: 'toolPimBaseline', blurb: blurbs.toolPimBaseline },
@@ -61,6 +62,7 @@
       { id: 'toolAudit', blurb: 'Directory changes from the audit log — role settings and assignments among them.', lens: true },
     ] },
     { group: '✍️ Manage', tools: [
+      { id: 'toolPimDeploy', blurb: blurbs.toolPimDeploy },
       { id: 'toolRmau', blurb: 'AU-RM-Executives and the desk scoped on it; no PIM group, adm- account or role holder in any restricted unit.', lens: 'built' },
     ] },
     { group: '❓ Help', tools: [
@@ -74,10 +76,10 @@
       // then what to change (Baseline, CA groups, Building blocks).
       shortcuts: [['toolPolicies','🗂','Policies'],['toolSignins','🚦','Sign-ins'],['toolWhoIs','🕵','Who is…'],['toolGapCheck','🛡','Checks'],['toolBaseline','🧬','Baseline'],['toolCaGroups','👥','CA groups'],['toolLocations','🧩','Building blocks']] },
     pim: { num: '02', name: 'PIM-buddy', title: 'Privileged access overview', context: 'Privileged Identity Management / Workspace 02',
-      lead: 'Who can become what, under which rules, and whether this tenant still matches the CloudFellows PIM framework. Reads only — every write keeps the confirmation steps of the tool that makes it.',
+      lead: 'Who can become what, under which rules, and whether this tenant still matches the CloudFellows PIM framework. Onboarding runs here, in the browser: 🚀 Deploy imports from the baseline after a WhatIf and the tenant\'s domain typed out.',
       // Same work order: see it (Baseline), the groups that carry it, who
       // holds it, what is wrong with it, then what to protect and what changed.
-      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Restricted AUs'],['toolAudit','🕓','Changes']] },
+      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Restricted AUs'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
   };
   let ws = 'ca';
   const recent = [];

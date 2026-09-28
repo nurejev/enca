@@ -181,7 +181,7 @@
   // the site entirely — and after an MSAL popup sign-in the previous entry may
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
-  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles",
+  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimdeploy",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
@@ -2879,6 +2879,7 @@
     ["toolPimBaseline", "🧬 PIM baseline"],
     ["toolIntuneRbac", "📱 Intune RBAC"],
     ["toolPimRoles", "🎖 Roles & assignments"],
+    ["toolPimDeploy", "🚀 Deploy"],
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
@@ -21525,9 +21526,9 @@ This is a directory write. Nothing else changes.`)) return;
     pmbInt = null; pmbIntErr = null; pmbIntBusy = false; pmbIntRes = null;
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
-    try { prlReset(); prrReset(); } catch { /* defined further down; nothing to reset yet */ }
+    try { prlReset(); prrReset(); pdpReset(); } catch { /* defined further down; nothing to reset yet */ }
   }
-  const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">This tenant's Privileged Identity Management against the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b>, authored in <b>cloudfellows.dev</b>, in the profile you pick: Small business, Large · one region, or Large · multi-region. The model: people are <b>active members</b> of persona groups for at most a year, each group is <b>eligible</b> for its roles, and a person activates the role under the role's own tier; Intune roles go to access groups whose members are eligible. Setting by setting, and every group as a model matched by id — present once, role-assignable, carrying exactly its roles at tenant scope. <b>Members are never compared.</b> Nothing that could not be read is shown as a match. Read-only: <b>⬇ Delta config</b> and <b>⬇ Baseline config</b> download the framework's config for tools/pim/New-PimBaseline.ps1 (or EasyPIM), <b>🗺 Regions</b> the regions file for New-PimRegions.ps1, and <b>📄 EasyPIM samples</b> a commented config per scenario to copy and edit.</p>`;
+  const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">This tenant's Privileged Identity Management against the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b>, authored in <b>cloudfellows.dev</b>, in the profile you pick: Small business, Large · one region, or Large · multi-region. The model: people are <b>active members</b> of persona groups for at most a year, each group is <b>eligible</b> for its roles, and a person activates the role under the role's own tier; Intune roles go to access groups whose members are eligible. Setting by setting, and every group as a model matched by id — present once, role-assignable, carrying exactly its roles at tenant scope. <b>Members are never compared.</b> Nothing that could not be read is shown as a match. Read-only here: <b>🚀 Import ticked →</b> takes the ticked rows (and, on 🗺 Regions, the regions) into <b>🚀 Deploy</b>, which imports them from the browser after a WhatIf — no script to run. <b>⋯ EasyPIM file</b> and <b>📄 EasyPIM samples</b> are for customers who run PIM as code themselves.</p>`;
   const PMB_INT_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">Intune has no administrative units and no PIM of its own, so the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> draws the same boundaries with Intune's objects: <b>role assignments</b> whose members are the PIM-SG-INT-* access groups (eligible members — activating the group is the gate; a persona group never sits in one), <b>scope groups</b> for who and what an assignment reaches, <b>scope tags</b> for what an admin sees, and one <b>custom role</b>, INT-ROLE-Regional-Ops. Central assignments come from the profile, regional ones from the regions file (🗺 Regions). Read-only through Microsoft Graph (DeviceManagementRBAC.Read.All, consented once); 🚀 Deploy applies what is missing. Defender XDR and Purview RBAC stay outside.</p>`;
   function pmbTenantNote() {
     if (isDemo) return "";
@@ -21561,11 +21562,12 @@ This is a directory write. Nothing else changes.`)) return;
     const regionsPane = pmbFilter === "regions" && pmbRegionsOn(), samplesPane = pmbFilter === "samples" || pmbFilter === "intune";
     const nSel = pmbSelected().size;
     $("pmbMd").style.display = pmbRes && !samplesPane ? "" : "none";
-    $("pmbDelta").style.display = pmbRes && !regionsPane && !samplesPane ? "" : "none";
-    $("pmbDelta").textContent = `⬇ Delta config (${nSel})`;
+    // 32425: onboarding is 🚀 Deploy, from the browser. The delta and regions
+    // files are no longer offered on this toolbar (the functions stay for the
+    // framework's own maintenance); an EasyPIM file stays for PIM-as-code.
+    $("pmbImport").style.display = pmbRes && !samplesPane ? "" : "none";
+    $("pmbImport").textContent = regionsPane ? `🚀 Import regions →` : `🚀 Import ${nSel} ticked →`;
     $("pmbConfig").style.display = regionsPane || samplesPane ? "none" : "";
-    $("pmbRegionsFile").style.display = regionsPane && pmbRegRows ? "" : "none";
-    if (regionsPane && pmbRegRows) $("pmbRegionsFile").textContent = `⬇ Regions file (${pmbRegSelected().size})`;
     $("pmbRefresh").textContent = pmbRes ? "⟳ Read again" : "▶ Read this tenant's PIM";
     $("pmbRefresh").disabled = pmbBusy;
     $("pmbTenantNote").innerHTML = pmbTenantNote() + `<span class="mini pmb-profile-note">${esc(PIM_BASELINE.profiles[pmbProfileId].size)}</span>`;
@@ -21593,7 +21595,8 @@ This is a directory write. Nothing else changes.`)) return;
         <ul class="pmb-diffs">${S.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
         <div class="pmb-upload-row"><button class="btn primary" data-pmbsample="${esc(id)}">⬇ easypim.${esc(id)}.jsonc</button><button class="btn" data-pmbsampleview="${esc(id)}">View</button></div></div>`;
     }).join("");
-    $("pmbBody").innerHTML = `<div class="list-card xt-card"><h3>📄 EasyPIM Orchestrator samples <span class="mini">copy, edit, plan, apply</span></h3>
+    $("pmbBody").innerHTML = `<div class="list-card xt-card"><h3>📄 EasyPIM Orchestrator samples <span class="mini">only for customers who run PIM as code</span></h3>
+      <p class="mini"><b>Onboarding a tenant does not need these:</b> 🚀 Deploy imports the framework from the browser. These files are for a customer who keeps PIM in EasyPIM or a pipeline and applies it there; the steps below are how the framework's maintainers use them on cloudfellows.dev.</p>
       <ol class="mini pmb-steps">
         <li>Download the sample for the scenario and save it as <code>pim.&lt;customer&gt;.jsonc</code>. Every value to change says <b>EDIT</b>: the alert mailbox, the people (object ids of their adm- accounts) and the break-glass ids. <code>&lt;id of NAME&gt;</code> may stay — it is resolved in the tenant.</li>
         <li>Connect once: <code>.\\Connect-Customer.ps1 -Customer &lt;KEY&gt; -Services Graph</code>. The scripts check the tenant against Customers.json and, when the app lacks a Graph permission, stop with the <code>-AddGraphScopes</code> line that adds it.</li>
@@ -21608,7 +21611,7 @@ This is a directory write. Nothing else changes.`)) return;
     const R = PIM_BASELINE.regions;
     const notes = [...pmbRegErrors.map((e) => `<li>${esc(e)}</li>`), ...pmbRegWarnings.map((w) => `<li class="pmb-warnline">${esc(w)}</li>`)].join("");
     const upload = `<div class="list-card xt-card pmb-upload"><h3>🗺 The regions file <span class="mini">never in the catalog — yours, one row per region</span></h3>
-      <p class="mini">Columns <code>${esc(R.columns.join(","))}</code>. <b>code</b> is continent-country (EU-NL); <b>attribute</b> is extensionAttribute1 to 15 (it must exist on users and devices both) and <b>value</b> what it holds for the region (letters, digits, space, dot, dash — it goes inside a membership rule); <b>devicePrefix</b> the Autopilot naming template (NL-); <b>itLead</b> reviews the region's access; <b>approvers</b> (a;b) fill PIM-SG-&lt;code&gt;-Approvers. Every row becomes three administrative units, two persona groups (active members), two Intune access groups (eligible members), an approver group, ${R.template.eligibilities.length} eligibilities scoped to the region's units, two Intune scope groups, a scope tag and two Intune role assignments. JSON with the same fields is accepted too, approvers as a list. A row with an error is left out here and listed; New-PimRegions.ps1 refuses the whole file until it is fixed.</p>
+      <p class="mini">Columns <code>${esc(R.columns.join(","))}</code>. <b>code</b> is continent-country (EU-NL); <b>attribute</b> is extensionAttribute1 to 15 (it must exist on users and devices both) and <b>value</b> what it holds for the region (letters, digits, space, dot, dash — it goes inside a membership rule); <b>devicePrefix</b> the Autopilot naming template (NL-); <b>itLead</b> reviews the region's access; <b>approvers</b> (a;b) fill PIM-SG-&lt;code&gt;-Approvers. Every row becomes three administrative units, two persona groups (active members), two Intune access groups (eligible members), an approver group, ${R.template.eligibilities.length} eligibilities scoped to the region's units, two Intune scope groups, a scope tag and two Intune role assignments. JSON with the same fields is accepted too, approvers as a list. A row with an error is left out here and listed. The file stays in this browser for this tenant; <b>🚀 Import regions →</b> takes the regions into 🚀 Deploy.</p>
       <div class="pmb-upload-row"><label class="btn">📂 Choose regions.csv <input type="file" id="pmbRegFile" accept=".csv,.txt,.json" hidden></label><button class="btn" data-pmbregex>Use the example</button><button class="btn" data-pmbregtpl>⬇ regions.csv template</button>${pmbRegRows ? `<button class="btn" data-pmbregclear>Clear</button>` : ""}<span class="mini">${pmbRegRows ? `${pmbRegRows.length} region${pmbRegRows.length === 1 ? "" : "s"} loaded${isDemo ? " (demo)" : ""}` : "no file yet"}${pmbRegErrors.length ? ` · <span class="pmb-bad-txt">${pmbRegErrors.length} error${pmbRegErrors.length === 1 ? "" : "s"}</span>` : ""}${pmbRegWarnings.length ? ` · ${pmbRegWarnings.length} warning${pmbRegWarnings.length === 1 ? "" : "s"}` : ""}</span></div>
       <textarea id="pmbRegText" class="pmb-csv" rows="${Math.min(8, Math.max(3, (pmbRegText.split("\n").length || 3)))}" spellcheck="false" placeholder="…or paste the rows here">${esc(pmbRegText)}</textarea>
       <div class="pmb-upload-row"><button class="btn sm" data-pmbregparse>Read the rows</button>${notes ? `<ul class="pmb-diffs pmb-findings">${notes}</ul>` : ""}</div></div>`;
@@ -21723,7 +21726,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (isDemo) {
         await new Promise((r) => setTimeout(r, 400));
         const d = DEMO_DATA.pim;
-        raw = { roles: d.roleDefinitions, policies: d.policies, eligible: d.eligible, active: d.active, groups: d.groups, groupPolicies: d.groupPolicies, groupPoliciesError: null, names: d.names, aus: d.aus, named: d.named, domain: d.domain, tenantId: "demo", sources: { roles: "ok", policies: "ok", eligible: "ok", active: "ok", groups: "ok", groupPolicies: "ok", aus: "ok", named: "ok" }, readAt: Date.now(), demo: true };
+        raw = { roles: d.roleDefinitions, policies: d.policies, policyIds: Object.fromEntries(Object.keys(d.policies).map((n, i) => [n, `pol-role-${i + 1}`])), eligible: d.eligible, active: d.active, groups: d.groups, groupPolicies: d.groupPolicies, groupPolicyIds: Object.fromEntries(Object.keys(d.groupPolicies).map((n, i) => [n, `pol-group-${i + 1}`])), groupPoliciesError: null, names: d.names, aus: d.aus, named: d.named, domain: d.domain, verifiedDomains: ["contoso.nl"], tenantId: "demo", sources: { roles: "ok", policies: "ok", eligible: "ok", active: "ok", groups: "ok", groupPolicies: "ok", aus: "ok", named: "ok" }, readAt: Date.now(), demo: true };
       } else {
         const sc = [...AUTH_CONFIG.scopes, ...PMB_READ];
         if (!await preConsent(sc)) throw new Error("RoleManagement.Read.Directory was not granted");
@@ -21733,8 +21736,8 @@ This is a directory write. Nothing else changes.`)) return;
         const roleName = {}; roles.forEach((r) => { roleName[r.id] = r.displayName; });
         pmbProg.detail("role settings");
         const pa = await pmbProg.fetchAll("/v1.0/policies/roleManagementPolicyAssignments?$filter=scopeId eq '/' and scopeType eq 'DirectoryRole'&$expand=policy($expand=rules)", 0, "role policies"); sources.policies = "ok";
-        const policies = {};
-        pa.forEach((a) => { const n = roleName[a.roleDefinitionId]; if (n && a.policy && a.policy.rules) policies[n] = a.policy.rules; });
+        const policies = {}, policyIds = {};
+        pa.forEach((a) => { const n = roleName[a.roleDefinitionId]; if (n && a.policy && a.policy.rules) { policies[n] = a.policy.rules; policyIds[n] = a.policyId || a.policy.id; } });
         pmbProg.detail("eligible assignments");
         const el = await pmbProg.fetchAll("/roleManagement/directory/roleEligibilityScheduleInstances?$expand=principal", 0, "eligibilities"); sources.eligible = "ok";
         pmbProg.detail("active assignments");
@@ -21760,7 +21763,7 @@ This is a directory write. Nothing else changes.`)) return;
         // Every PIM-SG group's Member policy — persona, Intune access and
         // regional groups alike — keyed by group id.
         const pimGroups = groups.filter((g) => /^PIM-SG-/.test(g.displayName));
-        let groupPolicies = null, groupPoliciesError = null;
+        let groupPolicies = null, groupPoliciesError = null; const groupPolicyIds = {};
         if (pimGroups.length) {
           pmbProg.detail("group membership settings");
           try {
@@ -21768,14 +21771,14 @@ This is a directory write. Nothing else changes.`)) return;
             groupPolicies = {};
             pimGroups.forEach((g, i) => {
               const r = res[String(i)];
-              if (r && r.body && r.body.value && r.body.value[0] && r.body.value[0].policy) groupPolicies[g.id] = r.body.value[0].policy.rules || [];
+              if (r && r.body && r.body.value && r.body.value[0] && r.body.value[0].policy) { groupPolicies[g.id] = r.body.value[0].policy.rules || []; groupPolicyIds[g.id] = r.body.value[0].policyId || r.body.value[0].policy.id; }
               else if (r && r.error) groupPoliciesError = groupPoliciesError || (r.status === 403 ? "access denied on PIM for Groups policies (RoleManagementPolicy.Read.AzureADGroup)" : String(r.error).slice(0, 120));
             });
             sources.groupPolicies = groupPoliciesError ? (/denied/.test(groupPoliciesError) ? "access denied (some)" : "error (some)") : "ok";
           } catch (e) { groupPoliciesError = String(e && e.message || e).replace(/\s*·\s*inner:.*$/, "").slice(0, 160); groupPolicies = null; sources.groupPolicies = why(e); }
         } else sources.groupPolicies = "ok";
         pmbProg.check();
-        raw = { roles, policies, eligible: el.map((i) => inst(i, "Eligible")), active: ac.map((i) => inst(i)), groups, groupPolicies, groupPoliciesError, names, aus, named, domain: tenantDomain || null, tenantId, sources, readAt: Date.now(), demo: false };
+        raw = { roles, policies, policyIds, eligible: el.map((i) => inst(i, "Eligible")), active: ac.map((i) => inst(i)), groups, groupPolicies, groupPolicyIds, groupPoliciesError, names, aus, named, domain: tenantDomain || null, verifiedDomains: (tenantDomains || []).map((x) => String(x.id || x.name || x).toLowerCase()), tenantId, sources, readAt: Date.now(), demo: false };
       }
     } catch (e) {
       const m = e && (e.message || String(e));
@@ -21884,13 +21887,13 @@ This is a directory write. Nothing else changes.`)) return;
     if (t && t.dataset && t.dataset.pmbfix && pmbRes) {
       pmbSel = pmbSelected();
       if (t.checked) pmbSel.add(t.dataset.pmbfix); else pmbSel.delete(t.dataset.pmbfix);
-      $("pmbDelta").textContent = `⬇ Delta config (${pmbSelected().size})`;
+      $("pmbImport").textContent = `🚀 Import ${pmbSelected().size} ticked →`;
       return;
     }
     if (t && t.dataset && t.dataset.pmbreg) {
       pmbRegSel = pmbRegSelected();
       if (t.checked) pmbRegSel.add(t.dataset.pmbreg); else pmbRegSel.delete(t.dataset.pmbreg);
-      $("pmbRegionsFile").textContent = `⬇ Regions file (${pmbRegSelected().size})`;
+      /* 32425: the regions are imported in 🚀 Deploy */
     }
   });
   $("pmbMd").addEventListener("click", () => {
@@ -21899,6 +21902,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (pmbRes) showReport("🧬 PIM baseline", `ENCA-pim-baseline-${new Date().toISOString().slice(0, 10)}`, PimBaseline.toMd(pmbRes, tenantName));
   });
   $("pmbDelta").addEventListener("click", () => pmbExport(true));
+  $("pmbImport").addEventListener("click", () => { if (pmbFilter === "regions") openPimDeploy(null); else openPimDeploy(pmbSelected()); });
   $("pmbConfig").addEventListener("click", () => pmbExport(false));
   $("pmbChips").addEventListener("click", (e) => { const b = e.target.closest("[data-pmbf]"); if (!b) return; pmbFilter = b.dataset.pmbf; pmbPaint(); });
   $("pmbFind").addEventListener("input", () => { pmbQ = $("pmbFind").value; if (pmbFilter === "regions") { if (pmbReg) pmbPaintRegions(); } else if (pmbFilter !== "samples" && pmbRes) $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { filter: pmbFilter, q: pmbQ, selected: pmbSelected() }); });
@@ -22216,6 +22220,145 @@ This is a directory write. Nothing else changes.`)) return;
   $("prrBody").addEventListener("toggle", (e) => { const d = e.target; if (d && d.dataset && d.dataset.prrole) { if (d.open) prr.open.add(d.dataset.prrole); else prr.open.delete(d.dataset.prrole); } }, true);
   $("prrCsv").addEventListener("click", () => { if (prr.model) downloadText("pim-roles", "csv", "text/csv", PimRoles.toCsv(prr.model) + "\n"); });
   $("prrMd").addEventListener("click", () => { if (prr.model) showReport("🎖 Roles & assignments", `ENCA-pim-roles-${new Date().toISOString().slice(0, 10)}`, PimRoles.toMd(prr.model, tenantName)); });
+
+  // ======================================================================
+  // 🚀 Deploy — import from the baseline (T51, beta 32425, R72).
+  // The customer never runs a script: pick → WhatIf → typed domain → apply
+  // → verify, all here. js/pimdeploy.js builds the plan from what 🧬 T48,
+  // 🗺 Regions and 📱 T53 read; the runner above (pimPlanPanel / pimApply)
+  // shows and applies it. ↩ Put back reads a backup file a run downloaded
+  // and rewrites those rules.
+  // ======================================================================
+  let pdp = { step: 1, sel: null, only: null, onlyOn: false, plan: null, restore: null, busy: false, err: null, userIds: {}, members: {}, verify: null, applied: null };
+  function pdpReset() { pdp = { step: 1, sel: null, only: null, onlyOn: false, plan: null, restore: null, busy: false, err: null, userIds: {}, members: {}, verify: null, applied: null }; }
+  const PDP_HEAD = `<p class="mini" style="margin:6px 0 0"><b>Onboarding from the browser.</b> Take the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> into this tenant in its profile: pick what to import, read the WhatIf — every operation in the order it runs, what changes for people, how to put it back — type the tenant's domain and apply. The same operations and guardrails as the framework's scripts, without them: nothing is ever removed, a name that exists twice or a group that should be role-assignable and is not stops what needs it, approval is only switched on with an approver group that exists, eligibilities never exceed what the role allows, people are never added for you. Signed in as the tenant's own admin (Privileged Role Administrator for groups, roles and units; an Intune role for Intune).</p>`;
+  function openPimDeploy(fromT48) {
+    crumb("🚀 Deploy");
+    show("screen-pimdeploy");
+    $("pdpHead").innerHTML = toolHead("toolPimDeploy") + PDP_HEAD;
+    $("pdpProfile").innerHTML = PimBaseline.profileIds(PIM_BASELINE).map((id) => `<option value="${esc(id)}"${id === pmbProfileId ? " selected" : ""}>${esc(PIM_BASELINE.profiles[id].label)}</option>`).join("");
+    if (fromT48) { pdp.only = fromT48; pdp.onlyOn = true; pdp.step = 1; pdp.plan = null; pdp.restore = null; }
+    pdpPaint();
+  }
+  const pdpIntuneOn = () => !pdp.sel || pdp.sel.has("intune");
+  function pdpOpts() {
+    return { sections: pdp.sel, only: pdp.onlyOn ? pdp.only : null, rows: pmbRegionsOn() ? pmbRegRows : null, intune: pmbIntRes, intuneModel: pmbInt ? IntuneRbac.model(pmbInt) : null, userIds: pdp.userIds, members: pdp.members, domain: pimExpectDomain(), tenantId: isDemo ? "demo" : tenantId };
+  }
+  function pdpPaint() {
+    const steps = [["1", "Pick", "profile · what to take"], ["2", "Preview", "WhatIf · apply"], ["3", "Verify", "read again · report"]];
+    const cur = pdp.step;
+    $("pdpChips").innerHTML = "";
+    $("pdpRead").textContent = pmbRaw ? "⟳ Read again" : "▶ Read the tenant"; $("pdpRead").disabled = pdp.busy || pmbBusy;
+    const stepper = `<nav class="pim-steps" aria-label="Import steps">${steps.map(([n, l, sub], i) => `<button type="button" data-pdpstep="${n}"${+n === cur ? ' aria-current="step"' : ""}${+n < cur ? ' class="done"' : ""}${+n > cur && !(+n === 2 && pdp.plan) ? " disabled" : ""}><b>${+n < cur ? "✓" : n}</b><span>${esc(l)}<small class="mini" style="display:block;font-weight:400">${esc(sub)}</small></span></button>`).join("")}</nav>`;
+    if (pdp.busy || pmbBusy || pmbIntBusy) { $("pdpBody").innerHTML = stepper + pmbProg.panel("Reading what the import needs — PIM, groups, units, Intune…"); return; }
+    if (cur === 2 && pdp.plan) {
+      $("pdpBody").innerHTML = stepper + `<div class="pmb-upload-row"><button class="btn" data-pdpback>← Back to the pick</button></div>` + pimPlanPanel(pdp.plan, pdpPanelOpts());
+      pimPlanWire($("pdpBody"), pdp.plan, Object.assign(pdpPanelOpts(), { onDone: (r) => { pdp.applied = r; setTimeout(() => pdpVerify(), 1200); } }));
+      return;
+    }
+    if (cur === 3) {
+      const v = pdp.verify;
+      $("pdpBody").innerHTML = stepper + `<div class="list-card xt-card"><h3>Verify <span class="mini">${v ? `read again ${esc(new Date(v.at).toLocaleString())}` : "reading…"}</span></h3>${pdp.applied ? `<p class="mini">The run: ${pdp.applied.done} done · ${pdp.applied.deferred} later · ${pdp.applied.failed} failed · ${pdp.applied.skipped} skipped.${pdp.applied.deferred ? " The later ones are membership policies of new groups: PIM for Groups takes a group in when its first member is assigned — add the members, then Preview again." : ""}${isDemo ? " Demo: the run was simulated and the demo tenant does not change, so the read below shows the same state as before." : ""}</p>` : ""}${v && v.res ? `<dl class="pim-kv"><dt>🧬 Roles</dt><dd>${v.res.counts.roles} compared · <b>${v.res.counts.match} match</b> · ${v.res.counts.differs} differ · ${v.res.counts.missing} missing</dd><dt>🧬 Groups</dt><dd>${v.res.gcounts.present} / ${v.res.gcounts.total} present · ${v.res.gcounts.differs} differ${v.res.gcounts.unread ? ` · ${v.res.gcounts.unread} membership policies not read yet` : ""}</dd>${pmbIntRes ? `<dt>📱 Intune</dt><dd>${pmbIntRes.counts.match} match · ${pmbIntRes.counts.differs} differ · ${pmbIntRes.counts.missing} missing</dd>` : ""}</dl>` : v && v.err ? `<p class="mini" style="color:var(--off)">${esc(v.err)}</p>` : ""}
+        <div class="pmb-upload-row"><button class="btn" data-pdpopen="toolPimBaseline">🧬 Open PIM baseline</button><button class="btn" data-pdpopen="toolPimRoles">🎖 Who holds what</button><button class="btn primary" data-pdpstep="1">Pick again</button></div>
+        <p class="mini"><b>Left for people:</b> the members of the groups (persona groups active, PIM-SG-INT access groups eligible), the approvers, and what the WhatIf listed under By hand.</p></div>`;
+      return;
+    }
+    // step 1 — pick
+    if (!pmbRaw) {
+      $("pdpBody").innerHTML = stepper + `${pmbErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(pmbErr)}</p>` : ""}${pdp.err ? `<p class="mini" style="color:var(--off)">${esc(pdp.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-pdpread>▶ Read the tenant</button><p class="mini muted">Reads what the import compares against — the same reads as 🧬 PIM baseline, 📱 Intune RBAC and, for regions, who the approvers in your regions file are. Read-only; nothing is written until you apply a WhatIf. Profile <b>${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b>.</p></div>`;
+      return;
+    }
+    let secs = [];
+    try { secs = PimDeploy.sections(pmbCat(), pmbRaw, Object.assign(pdpOpts(), { sections: null })); } catch (e) { pdp.err = String(e.message || e); }
+    if (!pdp.sel) pdp.sel = new Set(secs.filter((x) => x.defaultOn).map((x) => x.key));
+    const K = { create: "create", add: "add", update: "update", later: "later" };
+    const pick = secs.map((x) => `<label><input type="checkbox" data-pdpsec="${esc(x.key)}"${pdp.sel.has(x.key) ? " checked" : ""}><span><b>${esc(x.label)}</b>${x.key === "intune" && !pmbIntRes ? ` <span class="mini pmb-warn">Intune RBAC not read</span>` : ""}${x.key === "regions" && !pmbRegRows ? ` <span class="mini pmb-warn">no regions file loaded (🗺 Regions in 🧬 PIM baseline)</span>` : ""}<small>${esc(x.what)}</small></span><span class="mini">${x.n ? Object.entries(x.kinds).map(([k, n]) => `${n} ${K[k] || k}`).join(" · ") : "nothing to do"}</span></label>`).join("");
+    const n = PimDeploy.build(pmbCat(), pmbRaw, pdpOpts()).ops.length;
+    const reads = `<dl class="pim-kv"><dt>🧬 PIM</dt><dd>read ${esc(new Date(pmbRaw.readAt).toLocaleString())}${pmbRes ? ` · ${pmbRes.counts.match} of ${pmbRes.counts.roles} roles match · ${pmbRes.gcounts.present}/${pmbRes.gcounts.total} groups` : ""}</dd><dt>📱 Intune</dt><dd>${pmbIntRes ? `read · ${pmbIntRes.counts.missing} missing · ${pmbIntRes.counts.differs} differ` : `not read — <button class="btn sm" data-pdpintune>▶ Read Intune RBAC</button>`}</dd>${pmbRegionsOn() ? `<dt>🗺 Regions</dt><dd>${pmbRegRows ? `${pmbRegRows.length} from the file${Object.keys(pdp.userIds).length ? ` · ${Object.keys(pdp.userIds).length} approvers found` : ""}` : "no file — load it in 🧬 PIM baseline → 🗺 Regions"}</dd>` : ""}</dl>`;
+    $("pdpBody").innerHTML = stepper + `<div class="list-card xt-card"><h3>What to take from the baseline <span class="mini">profile ${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</span></h3>${reads}
+      ${pdp.only && pdp.only.size ? `<label class="chk"><input type="checkbox" data-pdponly${pdp.onlyOn ? " checked" : ""}> Only the ${pdp.only.size} row${pdp.only.size === 1 ? "" : "s"} ticked in 🧬 PIM baseline (roles and groups; units, regions and Intune as picked below)</label>` : ""}
+      <div class="pim-pick">${pick}</div>
+      <p class="mini">Nothing is removed. Break-glass accounts and people are never in a plan. The restricted unit is off until you tick it: its flag can never be removed.</p>
+      <div class="pmb-upload-row"><button class="btn primary" data-pdppreview${n ? "" : " disabled"}>🔎 Preview ${n} operation${n === 1 ? "" : "s"}</button></div></div>`;
+  }
+  function pdpPanelOpts() {
+    if (pdp.restore) return { title: "↩ Put back from a backup", impact: [`${pdp.plan.ops.length} PIM policy rule${pdp.plan.ops.length === 1 ? "" : "s"} are written back as they were before the run that made the backup${pdp.plan.meta && pdp.plan.meta.appliedAt ? ` (${new Date(pdp.plan.meta.appliedAt).toLocaleString()})` : ""}; activations from then on follow the old settings.`], recovery: ["The rules as they are now are kept in a new backup of this run."], irreversible: [] };
+    const P = pdp.plan, has = (f) => P.ops.some(f);
+    return { title: "🚀 Import from the baseline",
+      impact: [has((o) => /^group:/.test(o.key)) ? "New groups start empty: nobody gains or loses access by their creation." : "", has((o) => o.kind === "request") ? "Eligibilities go to groups, never to people: only a group's active members can activate, under the role's own settings." : "", has((o) => o.section === "rolePolicies") ? "Changed role settings apply from the next activation: a request may now need a ticket, approval or the authentication context; active assignments are not cut short." : "", has((o) => o.section === "intune") ? "Intune assignments go to the PIM-SG-INT access groups: nobody holds the Intune role until they activate the group." : ""].filter(Boolean),
+      recovery: [has((o) => o.before) ? "Every rule changed is kept as it was: ⬇ Backup after the run, ↩ Put back (toolbar) restores it." : "", has((o) => /^group:|^au:/.test(o.key)) ? "A created group or unit is deleted in Entra while it is still empty." : "", has((o) => o.kind === "request") ? "An eligibility is removed in PIM (the role → Eligible assignments → Remove)." : ""].filter(Boolean),
+      irreversible: has((o) => o.body && o.body.isMemberManagementRestricted) ? ["The restricted flag of a created unit."] : [] };
+  }
+  async function pdpReadAll() {
+    if (pdp.busy) return;
+    pdp.busy = true; pdp.err = null; pdpPaint();
+    try {
+      for (let i = 0; pmbBusy && i < 600; i++) await new Promise((r) => setTimeout(r, 250));
+      pmbRaw = null; await runPimBaseline();
+      if (!pmbRaw) throw new Error(pmbErr || "the PIM read did not finish");
+      if (pdpIntuneOn()) { try { await runIntuneRbac(); } catch { /* shown on the pick as not read */ } }
+      await pdpResolveApprovers();
+    } catch (e) { pdp.err = String((e && e.message) || e); }
+    finally { pdp.busy = false; }
+    pdp.plan = null; pdp.restore = null; pdp.step = 1;
+    if ($("screen-pimdeploy").classList.contains("active")) pdpPaint();
+  }
+  // A region's approvers by address → object ids; the approver groups' members.
+  async function pdpResolveApprovers() {
+    pdp.userIds = {}; pdp.members = {};
+    if (!pmbRegionsOn() || !pmbRegRows) return;
+    const upns = [...new Set(pmbRegRows.flatMap((r) => r.approvers || []).map((u) => String(u).toLowerCase()))];
+    if (isDemo) { const known = { "anna@contoso.nl": "u-anna", "mihai@contoso.nl": "u-mihai", "joey@contoso.nl": "u-joey" }; upns.forEach((u) => { if (known[u]) pdp.userIds[u] = known[u]; }); return; }
+    if (!upns.length) return;
+    const sc = [...AUTH_CONFIG.scopes];
+    const r = await Graph.gbatch(upns.map((u, i) => ({ id: String(i), url: `/users/${encodeURIComponent(u)}?$select=id,userPrincipalName` })), null, { base: "https://graph.microsoft.com/v1.0", scopes: sc });
+    upns.forEach((u, i) => { const x = r[String(i)]; if (x && x.body && x.body.id) pdp.userIds[u] = x.body.id; });
+    const idx = pmbGroupIndex();
+    const aps = [...idx.keys()].filter((n) => /^PIM-SG-.+-Approvers$/.test(n)).map((n) => idx.get(n)[0]).filter(Boolean);
+    if (aps.length) {
+      const m = await Graph.gbatch(aps.map((g, i) => ({ id: String(i), url: `/groups/${g.id}/members?$select=id&$top=999` })), null, { base: "https://graph.microsoft.com/v1.0", scopes: sc });
+      aps.forEach((g, i) => { const x = m[String(i)]; pdp.members[g.id] = x && x.body && Array.isArray(x.body.value) ? x.body.value.map((o) => o.id) : []; });
+    }
+  }
+  async function pdpVerify() {
+    pdp.step = 3; pdp.verify = null;
+    if ($("screen-pimdeploy").classList.contains("active")) pdpPaint();
+    try {
+      pmbRaw = null; await runPimBaseline();
+      if (pdpIntuneOn() && pmbInt) { pmbInt = null; await runIntuneRbac(); }
+      pdp.verify = { at: Date.now(), res: pmbRes };
+    } catch (e) { pdp.verify = { at: Date.now(), err: String((e && e.message) || e) }; }
+    if ($("screen-pimdeploy").classList.contains("active")) pdpPaint();
+  }
+  $("toolPimDeploy").addEventListener("click", () => openPimDeploy());
+  $("pdpRead").addEventListener("click", () => pdpReadAll());
+  $("pdpProfile").addEventListener("change", () => {
+    pmbProfileId = $("pdpProfile").value;
+    try { localStorage.setItem("enca.pmbProfile", pmbProfileId); } catch { /* storage off */ }
+    pmbSel = null; pmbRegSel = null; pmbRebuild(); pdp.sel = null; pdp.plan = null; pdp.only = null; pdp.onlyOn = false; pdp.step = 1; pdpPaint();
+  });
+  $("pdpBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-pdpread]")) { pdpReadAll(); return; }
+    if (e.target.closest("[data-pdpintune]")) { runIntuneRbac().then(() => pdpPaint()); setTimeout(pdpPaint, 50); return; }
+    if (e.target.closest("[data-pdppreview]")) { pdp.restore = null; pdp.plan = PimDeploy.build(pmbCat(), pmbRaw, pdpOpts()); pdp.step = 2; pdpPaint(); return; }
+    if (e.target.closest("[data-pdpback]")) { pdp.step = 1; pdp.plan = null; pdp.restore = null; pdpPaint(); return; }
+    const st = e.target.closest("[data-pdpstep]"); if (st && !st.disabled) { const n = +st.dataset.pdpstep; if (n === 1) { pdp.plan = null; pdp.restore = null; } pdp.step = n; pdpPaint(); return; }
+    const op = e.target.closest("[data-pdpopen]"); if (op) { $(op.dataset.pdpopen).click(); }
+  });
+  $("pdpBody").addEventListener("change", (e) => {
+    const c = e.target.closest("[data-pdpsec]"); if (c) { if (!pdp.sel) pdp.sel = new Set(); c.checked ? pdp.sel.add(c.dataset.pdpsec) : pdp.sel.delete(c.dataset.pdpsec); pdpPaint(); return; }
+    if (e.target.closest("[data-pdponly]")) { pdp.onlyOn = e.target.checked; pdpPaint(); }
+  });
+  $("pdpRestore").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      if (!j || j.schema !== "cloudfellows-pim-backup/web-1") throw new Error("not a backup file this tool wrote (schema cloudfellows-pim-backup/web-1)");
+      if (!isDemo && j.meta && j.meta.tenantId && tenantId && j.meta.tenantId !== tenantId) throw new Error(`the backup is of another tenant (${j.meta.domain || j.meta.tenantId})`);
+      pdp.plan = PimPlan.restorePlan(j); pdp.restore = j; pdp.step = 2; pdpPaint();
+    } catch (err) { toast(`Put back <span>${esc(err.message || err)}</span>`); }
+  });
 
   function isRebuild() {
     if (!isRaw) { isModel = null; return; }
