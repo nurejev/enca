@@ -21641,7 +21641,8 @@ This is a directory write. Nothing else changes.`)) return;
         const sc = [...AUTH_CONFIG.scopes, ...PMB_READ];
         if (!await preConsent(sc)) throw new Error("RoleManagement.Read.Directory was not granted");
         const sources = {};
-        const roles = await pmbProg.fetchAll("/v1.0/roleManagement/directory/roleDefinitions?$select=id,displayName,isBuiltIn", 0, "roles"); sources.roles = "ok";
+        // Built-in roles are matched on template id — a renamed role keeps it.
+        const roles = PimBaseline.canonRoles(PIM_BASELINE, await pmbProg.fetchAll("/v1.0/roleManagement/directory/roleDefinitions?$select=id,displayName,isBuiltIn,templateId", 0, "roles")); sources.roles = "ok";
         const roleName = {}; roles.forEach((r) => { roleName[r.id] = r.displayName; });
         pmbProg.detail("role settings");
         const pa = await pmbProg.fetchAll("/v1.0/policies/roleManagementPolicyAssignments?$filter=scopeId eq '/' and scopeType eq 'DirectoryRole'&$expand=policy($expand=rules)", 0, "role policies"); sources.policies = "ok";

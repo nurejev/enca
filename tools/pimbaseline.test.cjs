@@ -310,3 +310,51 @@ test("the committed files under tools/pim are exactly what tools/pim/generate.cj
   const { files } = require("./pim/generate.cjs");
   for (const [name, body] of Object.entries(files())) assert.equal(read(`tools/pim/${name}`), body, `tools/pim/${name} is stale — run node tools/pim/generate.cjs`);
 });
+
+// 32417 — cloudfellows.dev: New-PimBaseline.ps1 stopped at "role 'Microsoft Entra
+// Joined Device Local Administrator' does not exist in the tenant": the tenant's
+// role definition still carried a former name. Built-in roles match on template id.
+test("roles by template id: every framework role carries its built-in template id; regions only name catalog roles", () => {
+  const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const ids = new Set();
+  for (const r of CAT.roles) { assert.match(String(r.templateId), GUID, `${r.name}: templateId`); assert.ok(!ids.has(r.templateId), `${r.name}: templateId twice`); ids.add(r.templateId); }
+  for (const id of PB.profileIds(CAT)) for (const r of PB.profile(CAT, id).roles) assert.match(String(r.templateId), GUID, `${id} ${r.name}: templateId survives the profile`);
+  assert.equal(CAT.roles.find((r) => r.name === "Microsoft Entra Joined Device Local Administrator").templateId, "9f06204d-73c1-4d4c-880a-6edb90606fd8");
+  const names = new Set(CAT.roles.map((r) => r.name));
+  const regionRoles = [...new Set([...read("tools/pim/pim-regions-template.json").matchAll(/"role": "([^"]+)"/g)].map((m) => m[1]))];
+  assert.ok(regionRoles.length >= 5, "the region template names roles");
+  for (const n of regionRoles) assert.ok(names.has(n), `region role ${n} is a catalog role (so the scripts know its template id)`);
+  const pr = JSON.parse(read("tools/pim/pim-roles.json"));
+  assert.equal(pr.roles.length, CAT.roles.length);
+  assert.deepEqual(pr.roles.find((r) => r.templateId === "9f06204d-73c1-4d4c-880a-6edb90606fd8").formerNames, ["Azure AD Joined Device Local Administrator"]);
+});
+
+test("roles by template id: a tenant that still shows a former name compares under the catalog name, with a finding for EasyPIM", () => {
+  const EJ = "Microsoft Entra Joined Device Local Administrator", OLD = "Azure AD Joined Device Local Administrator", TPL = "9f06204d-73c1-4d4c-880a-6edb90606fd8";
+  const t = tenant();
+  t.roles = t.roles.map((r) => (r.displayName === EJ ? { ...r, id: TPL, templateId: TPL, displayName: OLD } : r));
+  // what the read did before 32417: the role is Missing
+  assert.equal(row(PB.compare(MULTI, t), EJ).status, "missing");
+  // the read now: built-in roles take the catalog name by template id
+  const canon = PB.canonRoles(CAT, t.roles);
+  const def = canon.find((r) => r.id === TPL);
+  assert.equal(def.displayName, EJ); assert.equal(def.tenantName, OLD);
+  assert.equal(canon.filter((r) => r.tenantName).length, 1, "only the renamed role changes");
+  const r = row(PB.compare(MULTI, { ...t, roles: canon }), EJ);
+  assert.notEqual(r.status, "missing");
+  assert.ok(r.findings.some((f) => f.includes(`this tenant calls it ${OLD}`) && f.includes("EasyPIM")), r.findings.join(" | "));
+  // a custom role wearing the catalog name keeps its own identity: two definitions, a Conflict
+  const custom = PB.canonRoles(CAT, [...t.roles, { id: "custom-1", displayName: EJ, isBuiltIn: false, templateId: "custom-1" }]);
+  assert.equal(custom.find((x) => x.id === "custom-1").displayName, EJ);
+  assert.equal(custom.find((x) => x.id === "custom-1").tenantName, undefined);
+  assert.equal(row(PB.compare(MULTI, { ...t, roles: custom }), EJ).status, "conflict");
+  // a role the catalog does not know is left alone
+  const other = PB.canonRoles(CAT, [{ id: "x", templateId: "11111111-2222-3333-4444-555555555555", displayName: "Something Else", isBuiltIn: true }]);
+  assert.equal(other[0].displayName, "Something Else"); assert.equal(other[0].tenantName, undefined);
+});
+
+test("roles by template id: the in-browser read asks for templateId and canonicalises before keying policies", () => {
+  const app = read("js/app.js");
+  assert.match(app, /roleDefinitions\?\$select=id,displayName,isBuiltIn,templateId"/);
+  assert.match(app, /PimBaseline\.canonRoles\(PIM_BASELINE, await pmbProg\.fetchAll\("\/v1\.0\/roleManagement\/directory\/roleDefinitions/);
+});

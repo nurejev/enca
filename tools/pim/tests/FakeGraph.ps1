@@ -5,6 +5,9 @@
 
 $global:FakeCalls = New-Object System.Collections.Generic.List[object]
 $global:FakeFail = @{}     # uri regex → message: a GET matching it throws (403 simulation)
+# Built-in roles carry their real template ids (id = templateId, as in Entra).
+$script:FakeRoleTemplates = @{}
+foreach ($x in @((Get-Content (Join-Path (Split-Path -Parent $PSScriptRoot) 'pim-roles.json') -Raw | ConvertFrom-Json -AsHashtable).roles)) { $script:FakeRoleTemplates[$x.name] = $x.templateId }
 
 function New-FakeRules([hashtable]$o = @{}) {
   $d = @{ act = 'PT8H'; en = @('MultiFactorAuthentication', 'Justification'); ctx = $false; appr = $false; permE = $true; maxE = 'P365D'; permA = $true; maxA = 'P180D'; lvl = 'All'; rec = @() }
@@ -24,9 +27,18 @@ function New-FakeRules([hashtable]$o = @{}) {
 }
 
 function New-FakeTenant {
-  param([string[]]$Scopes, [string[]]$RoleNames, [switch]$NoIntune)
+  # -RenamedRoles: catalog name → the display name this tenant still shows (a
+  # former name); -CustomRoles: custom role definitions, e.g. one wearing a
+  # built-in role's name.
+  param([string[]]$Scopes, [string[]]$RoleNames, [switch]$NoIntune, [hashtable]$RenamedRoles = @{}, [string[]]$CustomRoles = @())
   $script:n = 0
-  $roles = @(foreach ($r in $RoleNames) { $script:n++; @{ id = ('{0:x8}-0000-0000-0000-{1:x12}' -f 0x10000000, $script:n); displayName = $r; isBuiltIn = $true; templateId = $null } })
+  $roles = @(foreach ($r in $RoleNames) {
+      $script:n++
+      $t = $script:FakeRoleTemplates[$r]
+      $id = if ($t) { $t } else { '{0:x8}-0000-0000-0000-{1:x12}' -f 0x10000000, $script:n }
+      @{ id = $id; displayName = $(if ($RenamedRoles.ContainsKey($r)) { $RenamedRoles[$r] } else { $r }); isBuiltIn = $true; templateId = $id }
+    })
+  $roles += @(foreach ($c in $CustomRoles) { $script:n++; $id = '{0:x8}-0000-0000-0000-{1:x12}' -f 0x20000000, $script:n; @{ id = $id; displayName = $c; isBuiltIn = $false; templateId = $id } })
   $ga = $roles | Where-Object { $_.displayName -eq 'Global Administrator' }
   if ($ga) { $ga.id = '62e90394-69f5-4237-9190-012177145e10' }
   $global:Fake = @{

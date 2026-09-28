@@ -249,6 +249,7 @@
     }
   },
   // Every Entra role under the framework and the tier it activates under. The inline settings are the few deliberate exceptions.
+  // EasyPIM finds a role by display name; a tenant can still carry a former one (Azure AD Joined Device Local Administrator). The resolved config of step 2 uses the names THIS tenant has.
   "EntraRoles": {
     "Policies": {
       "Global Administrator": {

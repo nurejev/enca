@@ -163,6 +163,7 @@ function Build-RestorePlan {
 # ---- the baseline plan: reads only ----------------------------------------------------
 function Build-BaselinePlan {
   $plan = New-PimPlan 'baseline' $ConfigFile
+  $script:RoleIx = $null
   $rawText = Get-Content -LiteralPath $ConfigFile -Raw -Encoding UTF8
   $edits = @([regex]::Matches((Remove-PimJsonComments $rawText), '"<EDIT:[^"]*"') | ForEach-Object { $_.Value } | Sort-Object -Unique)
   if ($edits.Count) { $plan.blocked.Add("The config still has $($edits.Count) EDIT placeholder(s) — replace them first: $($edits -join ', ')"); return $plan }
@@ -249,8 +250,16 @@ function Build-BaselinePlan {
 
   # -- role definitions, role policies, schedules
   $defs = @(Invoke-PimGet "$GraphUrl/roleManagement/directory/roleDefinitions?`$select=id,displayName,isBuiltIn,templateId" -All)
-  $roleId = @{}
-  foreach ($d in $defs) { $k = $d['displayName']; if ($roleId.ContainsKey($k)) { $roleId[$k] = 'CONFLICT' } elseif ($d['isBuiltIn']) { $roleId[$k] = $d['id'] } else { $roleId[$k] = "CUSTOM:$($d['id'])" } }
+  # built-in roles by template id first — a renamed role keeps it (PimCommon, Resolve-PimRole)
+  $roleIx = New-PimRoleIndex $defs; $script:RoleIx = $roleIx
+  $noted = New-Object System.Collections.Generic.HashSet[string]
+  $roleOf = {
+    param([string]$n)
+    $x = Resolve-PimRole $roleIx $n
+    if ($x.Contains('problem')) { return $x }
+    foreach ($t in $x.notes) { if ($noted.Add($t)) { $plan.findings.Add($t) } }
+    return $x
+  }
   $rolePol = @{}
   foreach ($a in @(Invoke-PimGet "$GraphUrl/policies/roleManagementPolicyAssignments?`$filter=scopeId eq '/' and scopeType eq 'DirectoryRole'&`$expand=policy(`$expand=rules)" -All)) { $rolePol[$a['roleDefinitionId']] = $a['policy'] }
   $eligSched = @(Invoke-PimGet "$GraphUrl/roleManagement/directory/roleEligibilitySchedules?`$select=id,principalId,roleDefinitionId,directoryScopeId,scheduleInfo" -All)
@@ -258,9 +267,9 @@ function Build-BaselinePlan {
 
   if ($Include -contains 'Eligibilities') {
     foreach ($r in $roleAssign) {
-      $rn = "$($r['roleName'])"; $rid = $roleId[$rn]
-      if (-not $rid) { $plan.blocked.Add("role '$rn' does not exist in the tenant"); continue }
-      if ($rid -eq 'CONFLICT' -or $rid -like 'CUSTOM:*') { $plan.blocked.Add("role '$rn' is ambiguous in the tenant (a custom role carries the name) — not assigned"); continue }
+      $rn = "$($r['roleName'])"; $rx = & $roleOf $rn
+      if ($rx.Contains('problem')) { $plan.blocked.Add($rx.problem); continue }
+      $rid = $rx.id
       foreach ($a in @($r['assignments'])) {
         $gn = Get-NameRef $a['principalId']; if (-not $gn) { $gn = Get-Key $a 'principalName' }
         $gid = if ($gn) { & $ref $gn } elseif (Test-Guid $a['principalId']) { $a['principalId'] } else { $null }
@@ -317,8 +326,9 @@ function Build-BaselinePlan {
   # -- role policies (opt-in)
   if ($Include -contains 'RolePolicies') {
     foreach ($rn in ($rolePolicies.Keys | Sort-Object)) {
-      $rid = $roleId[$rn]
-      if (-not $rid -or $rid -eq 'CONFLICT' -or $rid -like 'CUSTOM:*') { $plan.blocked.Add("role policy '$rn': the role is missing or ambiguous"); continue }
+      $rx = & $roleOf $rn
+      if ($rx.Contains('problem')) { $plan.blocked.Add("role policy — $($rx.problem)"); continue }
+      $rid = $rx.id
       $pol = $rolePol[$rid]; if (-not $pol) { $plan.findings.Add("role policy '$rn' was not read — left out"); continue }
       $settings = & $settingsOf $rolePolicies[$rn]
       if (-not (& $approversOk "role policy $rn" $settings)) { continue }
@@ -332,8 +342,9 @@ function Build-BaselinePlan {
   foreach ($d in $deferred) { Add-PimOp $plan "gpolnew:$($d.name)" 'groupPolicy' "$($d.name) membership policy → $($d.template) (once the group is in PIM for Groups)" ([ordered]@{ group = $d.name; settings = $d.settings }) }
 
   # -- findings, never changes
-  $ga = $roleId['Global Administrator']
-  if ($ga -and $ga -notlike 'CUSTOM:*' -and $ga -ne 'CONFLICT') {
+  $gx = Resolve-PimRole $roleIx 'Global Administrator'
+  $ga = if ($gx.Contains('problem')) { $null } else { $gx.id }
+  if ($ga) {
     $st = @(Invoke-PimGet "$GraphUrl/roleManagement/directory/roleAssignmentScheduleInstances?`$filter=roleDefinitionId eq '$ga' and assignmentType eq 'Assigned'&`$expand=principal" -All)
     foreach ($s in $st) {
       $p = $s['principal']; if (-not $p -or "$($p['@odata.type'])" -ne '#microsoft.graph.user') { continue }
@@ -371,6 +382,13 @@ function Write-ResolvedConfig($plan) {
   $txt = [regex]::Replace($txt, '"([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})"', { param($m) if ($ctx.Domains -contains $m.Groups[2].Value.ToLower()) { $m.Value } else { '"' + $m.Groups[1].Value + '@' + $AlertDomain + '"' } })
   $o = $txt | ConvertFrom-Json -AsHashtable -Depth 64
   foreach ($k in @($o.Keys | Where-Object { $_ -like '_*' })) { $o.Remove($k) }
+  # EasyPIM looks roles up by display name: give it the name this tenant uses
+  $renamed = [ordered]@{}
+  $tenantNameOf = { param([string]$n) if (-not $script:RoleIx) { return $n }; $x = Resolve-PimRole $script:RoleIx $n; if ($x.Contains('problem')) { return $n }; if ($x.tenantName -ne $n) { $renamed[$n] = $x.tenantName }; return $x.tenantName }
+  foreach ($r in @(Get-Key (Get-Key $o 'Assignments') 'EntraRoles')) { if ($r -is [System.Collections.IDictionary] -and $r.Contains('roleName')) { $r['roleName'] = & $tenantNameOf "$($r['roleName'])" } }
+  $rp = Get-Key (Get-Key $o 'EntraRoles') 'Policies'
+  if ($rp -is [System.Collections.IDictionary]) { foreach ($k in @($rp.Keys)) { $t = & $tenantNameOf "$k"; if ($t -ne $k) { $v = $rp[$k]; $rp.Remove($k); $rp[$t] = $v } } }
+  foreach ($k in $renamed.Keys) { Write-PimOk "EasyPIM name: $k → $($renamed[$k]) (what this tenant calls it)" }
   ($o | ConvertTo-Json -Depth 64) | Set-Content -LiteralPath $WriteResolved -Encoding UTF8
   $u = @($open | Sort-Object -Unique)
   if ($u.Count) { Write-PimWarn "resolved config written, but $($u.Count) group(s) do not exist yet ($($u -join ', ')) — apply the plan, then write it again" }

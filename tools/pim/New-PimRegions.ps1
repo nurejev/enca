@@ -300,8 +300,9 @@ function Build-RegionsPlan {
   $uref = { param($n) if ($auOf.ContainsKey($n)) { $auOf[$n] } elseif ($creating.Contains("au:$n")) { "{{au:$n}}" } else { $null } }
 
   $defs = @(Invoke-PimGet "$GraphUrl/roleManagement/directory/roleDefinitions?`$select=id,displayName,isBuiltIn,templateId" -All)
-  $roleId = @{}
-  foreach ($d in $defs) { $k = $d['displayName']; if ($roleId.ContainsKey($k)) { $roleId[$k] = 'CONFLICT' } elseif ($d['isBuiltIn']) { $roleId[$k] = $d['id'] } else { $roleId[$k] = "CUSTOM:$($d['id'])" } }
+  # built-in roles by template id first — a renamed role keeps it (PimCommon, Resolve-PimRole)
+  $roleIx = New-PimRoleIndex $defs
+  $noted = New-Object System.Collections.Generic.HashSet[string]
   $rolePol = @{}
   foreach ($a in @(Invoke-PimGet "$GraphUrl/policies/roleManagementPolicyAssignments?`$filter=scopeId eq '/' and scopeType eq 'DirectoryRole'&`$expand=policy(`$expand=rules)" -All)) { $rolePol[$a['roleDefinitionId']] = $a['policy'] }
   $eligSched = @(Invoke-PimGet "$GraphUrl/roleManagement/directory/roleEligibilitySchedules?`$select=id,principalId,roleDefinitionId,directoryScopeId,scheduleInfo" -All)
@@ -429,9 +430,10 @@ function Build-RegionsPlan {
     if ($Include -contains 'Eligibilities') {
       foreach ($e in @($R['eligibilities'])) {
         $rn = "$($e['role'])"; $gn = "$($e['group'])"; $an = "$($e['au'])"
-        $rid = $roleId[$rn]
-        if (-not $rid) { $plan.blocked.Add("role '$rn' does not exist in the tenant"); continue }
-        if ($rid -eq 'CONFLICT' -or $rid -like 'CUSTOM:*') { $plan.blocked.Add("role '$rn' is ambiguous in the tenant (a custom role carries the name) — not assigned"); continue }
+        $rx = Resolve-PimRole $roleIx $rn
+        if ($rx.Contains('problem')) { $plan.blocked.Add($rx.problem); continue }
+        foreach ($t in $rx.notes) { if ($noted.Add($t)) { $plan.findings.Add($t) } }
+        $rid = $rx.id
         $gid = & $gref $gn; $aid = & $uref $an
         if (-not $gid -or -not $aid) { $plan.findings.Add("$gn → $rn at ${an}: left out, $(if (-not $gid) { $gn } else { $an }) does not exist and is not planned"); continue }
         $scope = "/administrativeUnits/$aid"

@@ -24,7 +24,7 @@
   Nothing here removes an assignment, a member or a group.
 #>
 Set-StrictMode -Version 3
-$script:Pim = @{ Applying = $false; Writes = 0; Ids = @{}; Ctx = $null; Log = New-Object System.Collections.Generic.List[object]; LateBackup = New-Object System.Collections.Generic.List[object]; LateBackupFile = $null }
+$script:Pim = @{ Applying = $false; Writes = 0; Ids = @{}; Ctx = $null; Log = New-Object System.Collections.Generic.List[object]; LateBackup = New-Object System.Collections.Generic.List[object]; LateBackupFile = $null; RoleCatalog = $null }
 
 function Write-PimStep([string]$t) { Write-Host "▶ $t" -ForegroundColor Cyan }
 function Write-PimOk([string]$t) { Write-Host "  ✓ $t" -ForegroundColor Green }
@@ -456,6 +456,63 @@ function Get-PimApplyCommand([string]$Self, [System.Collections.IDictionary]$Bou
   $parts.Add('-Apply'); $parts.Add('-PlanFile ' + (& $q $PlanFile))
   return ($parts -join ' ')
 }
+# ---- Entra roles: built-in roles by template id ------------------------------------------
+# Microsoft renames built-in roles; the template id stays, and a tenant can
+# still carry the former display name (cloudfellows.dev, 28 Sep 2026: the
+# role the catalog calls Microsoft Entra Joined Device Local Administrator
+# was not found by that name). pim-roles.json — generated from the catalog —
+# gives every framework role its template id and former names. A role the
+# catalog knows is found by template id among the BUILT-IN definitions, so a
+# custom role wearing its name is never picked; any other name is looked up
+# by display name, and a custom role or a doubled name blocks.
+function Get-PimRoleCatalog {
+  if ($null -eq $script:Pim.RoleCatalog) {
+    $p = Join-Path $PSScriptRoot 'pim-roles.json'
+    $script:Pim.RoleCatalog = if (Test-Path -LiteralPath $p) { Read-PimJsonFile $p } else { @{ roles = @() } }
+  }
+  return $script:Pim.RoleCatalog
+}
+function New-PimRoleIndex([object[]]$Defs) {
+  $byName = @{}; $byTemplate = @{}; $known = @{}
+  foreach ($d in $Defs) {
+    $n = "$($d['displayName'])"
+    if (-not $byName.ContainsKey($n)) { $byName[$n] = New-Object System.Collections.Generic.List[object] }
+    $byName[$n].Add($d)
+    if ($d['isBuiltIn']) {
+      $t = if ($d.Contains('templateId') -and $d['templateId']) { "$($d['templateId'])" } else { "$($d['id'])" }
+      $byTemplate[$t.ToLower()] = $d
+    }
+  }
+  foreach ($r in @((Get-PimRoleCatalog)['roles'])) {
+    if (-not $r -or -not $r['templateId']) { continue }
+    $t = "$($r['templateId'])".ToLower()
+    $known["$($r['name'])"] = $t
+    if ($r.Contains('formerNames')) { foreach ($f in @($r['formerNames'])) { if ($f) { $known["$f"] = $t } } }
+  }
+  return @{ byName = $byName; byTemplate = $byTemplate; known = $known }
+}
+# @{ id; tenantName; how = 'template'|'name'; notes = @(...) } or @{ problem = '...' }
+function Resolve-PimRole($Index, [string]$Name) {
+  # .ToArray(): @() around a List read out of a dictionary trips PowerShell's binder
+  # (assigned, not the output of an if: that would unroll a one-element array)
+  $same = [object[]]@(); if ($Index['byName'].ContainsKey($Name)) { $same = $Index['byName'][$Name].ToArray() }
+  if ($Index['known'].ContainsKey($Name)) {
+    $t = $Index['known'][$Name]
+    if ($Index['byTemplate'].ContainsKey($t)) {
+      $d = $Index['byTemplate'][$t]
+      $notes = New-Object System.Collections.Generic.List[string]
+      $tn = "$($d['displayName'])"
+      if ($tn -ne $Name) { $notes.Add("role '$Name' is called '$tn' in this tenant — matched by its template id $t; EasyPIM looks roles up by name (-WriteResolved writes '$tn')") }
+      if (@($same | Where-Object { $_['id'] -ne $d['id'] }).Count) { $notes.Add("another role definition is also called '$Name' — the built-in one was used (template id $t); tools that look roles up by name, EasyPIM among them, cannot tell them apart") }
+      return @{ id = "$($d['id'])"; tenantName = $tn; how = 'template'; notes = $notes.ToArray() }
+    }
+  }
+  if (-not $same.Count) { return @{ problem = "role '$Name' does not exist in the tenant" } }
+  if ($same.Count -gt 1) { return @{ problem = "role '$Name' is ambiguous in the tenant ($($same.Count) role definitions carry the name) — not assigned" } }
+  if (-not $same[0]['isBuiltIn']) { return @{ problem = "role '$Name' is ambiguous in the tenant (a custom role carries the name) — not assigned" } }
+  return @{ id = "$($same[0]['id'])"; tenantName = "$($same[0]['displayName'])"; how = 'name'; notes = @() }
+}
+
 function Get-PimWriteTest { return $script:Pim.Writes }
 function Get-PimIds { return $script:Pim.Ids }
 Export-ModuleMember -Function *

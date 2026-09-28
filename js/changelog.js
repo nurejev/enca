@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32417, date: "2026-09-28", title: "🧬 PIM baseline 0.3.1 — Entra roles found by template id, so a renamed role no longer stops the plan",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "New-PimBaseline.ps1 stopped on cloudfellows.dev with role Microsoft Entra Joined Device Local Administrator does not exist in the tenant, although the portal lists it: Graph still carries the role's former name there. The scripts now find the framework's roles by their built-in template id, which a rename never changes, and say which name the tenant uses. Nothing had been written; run the plan again." },
+      { kind: "improved", tool: "PIM baseline", text: "The compare recognises a renamed built-in role the same way instead of calling it Missing, and notes the tenant's name. The resolved config for EasyPIM, which looks roles up by name, carries the names the tenant uses; a custom role wearing a built-in role's name is never used." },
+    ],
+  },
+  {
     build: 32416, date: "2026-09-25", title: "🧬 PIM baseline 0.3 — the review fixed, framework 2.1, EasyPIM samples, scripts on Connect-Customer",
     items: [
       { kind: "improved", tool: "PIM baseline", text: "Framework 2.1 settles the activation model: people are ACTIVE members of a persona group for at most a year and the group is ELIGIBLE for its roles, so one activation, under the role's own tier — Tier 0 keeps authentication context c1 and approval. Intune roles go to separate access groups (PIM-SG-INT-*) whose members are ELIGIBLE, because Intune has no PIM of its own. No PIM-SG group or adm- account goes into a restricted management unit any more; break-glass accounts are protected by object id, never by name." },

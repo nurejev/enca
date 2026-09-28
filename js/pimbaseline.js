@@ -193,6 +193,21 @@ const PimBaseline = (() => {
   //   named:[{id, displayName, isAssignableToRole, membershipRule, membershipRuleProcessingState}] | null,
   //   groupPolicies:{ [groupId or groupName]: rules[] } | null, groupPoliciesError,
   //   domain, names:{id:name}, sources:{…}, readAt, demo }
+  // Built-in roles by template id. Microsoft renames roles; the template id
+  // stays, and a tenant can still carry the former display name (cloudfellows.dev
+  // read "Microsoft Entra Joined Device Local Administrator" as its 1.3 name).
+  // Every built-in role whose template id the catalog knows takes the catalog
+  // name; tenantName keeps what the tenant calls it. Roles the catalog does not
+  // know, and custom roles, keep their own names.
+  function canonRoles(cat, roles) {
+    const byTpl = new Map();
+    (cat.roles || []).forEach((r) => { if (r.templateId) byTpl.set(String(r.templateId).toLowerCase(), r.name); });
+    return (roles || []).map((r) => {
+      if (r.isBuiltIn === false) return r;
+      const name = byTpl.get(String(r.templateId || r.id || "").toLowerCase());
+      return name && name !== r.displayName ? { ...r, displayName: name, tenantName: r.displayName } : r;
+    });
+  }
   function groupIndex(tenant) {
     const byId = new Map();
     [...(tenant.groups || []), ...(tenant.named || [])].forEach((g) => { if (g && g.id && !byId.has(g.id)) byId.set(g.id, g); });
@@ -231,6 +246,7 @@ const PimBaseline = (() => {
       else { got = gotOf(tenant.policies[item.name]); diffs = diff(exp, got); status = diffs.length ? "differs" : "match"; }
       const findings = [];
       if (conflict) findings.push(conflict);
+      if (defs.length === 1 && defs[0].tenantName) findings.push(`this tenant calls it ${defs[0].tenantName} — matched by its template id; EasyPIM looks roles up by name, so its config needs that name (New-PimBaseline.ps1 -WriteResolved writes it)`);
       if (!exp.permActive && permOutside.length) findings.push(`${permOutside.length} permanent active outside the framework: ${permOutside.map((a) => a.principalName || a.principalId).join(", ")}`);
       if (byNameOnly.length) findings.push(`${byNameOnly.length} permanent active treated as break-glass by name only — list their object ids to protect them: ${byNameOnly.map((a) => a.principalName || a.principalId).join(", ")}`);
       if (defs.length) (item.via || []).forEach((g) => {
@@ -695,7 +711,7 @@ const PimBaseline = (() => {
     const C = {
       _meta: ["Where the sample comes from. Leave it; EasyPIM ignores it."],
       PolicyTemplates: ["The tiers. A role or group names one; change a tier here, not per role.", `EDIT: every "pim-alerts@${domain}" → your alert mailbox (a shared mailbox read by real people, or the SOC).`],
-      EntraRoles: ["Every Entra role under the framework and the tier it activates under. The inline settings are the few deliberate exceptions."],
+      EntraRoles: ["Every Entra role under the framework and the tier it activates under. The inline settings are the few deliberate exceptions.", "EasyPIM finds a role by display name; a tenant can still carry a former one (Azure AD Joined Device Local Administrator). The resolved config of step 2 uses the names THIS tenant has."],
       GroupRoles: ["The groups' PIM for Groups Member policy. GroupMember = persona groups (members ACTIVE, at most a year); GroupJIT = Intune access groups (members ELIGIBLE, activate for a shift)."],
       "  EntraRoles": ["The model: each persona group is ELIGIBLE for its roles at tenant scope. Leave these; people never get a role directly."],
       "  Groups": ["People. EDIT every principalId: the object id of the person's adm- account.", "Persona groups: assignmentType Active, a year (the yearly review). Intune access groups: Eligible — that activation is the gate.", "Delete the rows you do not need; copy a row for each extra person."],
@@ -828,5 +844,5 @@ const PimBaseline = (() => {
     return L.join("\n");
   }
 
-  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, parseCsv, parseRegions, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
+  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, canonRoles, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, parseCsv, parseRegions, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
 })();
