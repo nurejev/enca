@@ -179,6 +179,36 @@ function Get-IntuneRoleActions($def) {
   }
   return @{ allowed = $acts.ToArray(); notAllowed = $no.ToArray() }
 }
+# Template entries → this tenant's operation ids. An entry is an id the tenant
+# lists ("Microsoft.Intune_ManagedDevices_Read") or "Resource/Action" as the admin
+# center and Microsoft's built-in role tables name it ("Enrollment programs/Read
+# device"), matched on resourceName and actionName. What does not resolve comes
+# back with the tenant's operations for that resource, so the template can be fixed.
+function Resolve-IntuneTemplateActions([string[]]$Entries, $Intune) {
+  $norm = { param([string]$x) (($x -replace '\s+', ' ').Trim().TrimEnd('.')).ToLowerInvariant() }
+  $byName = @{}
+  foreach ($op in @($Intune.ops)) { $rn = Get-Key $op 'resourceName'; $an = Get-Key $op 'actionName'; if ($rn -and $an -and $op['id']) { $byName["$(& $norm $rn)|$(& $norm $an)"] = "$($op['id'])" } }
+  $ids = New-Object System.Collections.Generic.List[string]; $unknown = New-Object System.Collections.Generic.List[object]
+  foreach ($e in $Entries) {
+    if (-not $e) { continue }
+    $id = $null
+    if ($Intune.known.Contains("$e")) { $id = "$e" }
+    elseif ($e -match '^\s*([^/]+?)\s*/\s*(.+?)\s*$') { $k = "$(& $norm $Matches[1])|$(& $norm $Matches[2])"; if ($byName.ContainsKey($k)) { $id = $byName[$k] } }
+    if ($id) { if (-not $ids.Contains($id)) { $ids.Add($id) }; continue }
+    # what the tenant has for that resource
+    $res = if ($e -match '^\s*([^/]+?)\s*/') { & $norm $Matches[1] } elseif ($e -match '^Microsoft\.Intune_([^_]+)_') { $Matches[1].ToLowerInvariant() } else { '' }
+    $key = $res -replace '\s', ''
+    $word = @($res -split '\s+' | Where-Object { $_.Length -ge 4 })[0]
+    $show = { param($ops) @($ops | Select-Object -First 12 | ForEach-Object { "$(Get-Key $_ 'resourceName')/$(Get-Key $_ 'actionName') = $($_['id'])" }) }
+    $cand = @()
+    if ($key) {
+      $cand = & $show @($Intune.ops | Where-Object { $rn = "$(Get-Key $_ 'resourceName')"; ($rn -replace '\s', '').ToLowerInvariant() -eq $key -or "$($_['id'])".ToLowerInvariant().StartsWith("microsoft.intune_${key}_") })
+      if (-not $cand.Count -and $word) { $cand = & $show @($Intune.ops | Where-Object { "$(Get-Key $_ 'resourceName')".ToLowerInvariant().Contains($word) -or "$($_['id'])".ToLowerInvariant().Contains($word) }) }
+    }
+    $unknown.Add(@{ entry = "$e"; hint = $(if ($cand.Count) { "this tenant lists for that resource: $($cand -join ', ')" } else { 'the tenant lists nothing for that resource' }) })
+  }
+  return @{ ids = $ids.ToArray(); unknown = $unknown.ToArray() }
+}
 function Get-RuleKey([string]$r) { if (-not $r) { return '' }; return (($r -replace '\s+', ' ').Trim().ToLower()) }
 function Get-Esc([string]$s) { return $s.Replace("'", "''") }
 
@@ -341,10 +371,11 @@ function Build-RegionsPlan {
       $iTags = @(Invoke-PimGet "$BetaUrl/deviceManagement/roleScopeTags" -All)
       $iOps = @(Invoke-PimGet "$BetaUrl/deviceManagement/resourceOperations" -All)
       $iAssign = @(Invoke-PimGet "$BetaUrl/deviceManagement/roleAssignments" -All)
-      $intune = @{ roles = @{}; tags = @{}; known = New-Object System.Collections.Generic.HashSet[string]; assign = @{} }
+      $intune = @{ roles = @{}; tags = @{}; known = New-Object System.Collections.Generic.HashSet[string]; assign = @{}; ops = @() }
       foreach ($ir in $iRoles) { $k = $ir['displayName']; if (-not $intune.roles.ContainsKey($k)) { $intune.roles[$k] = New-Object System.Collections.Generic.List[object] }; $intune.roles[$k].Add($ir) }
       foreach ($t in $iTags) { $k = $t['displayName']; if (-not $intune.tags.ContainsKey($k)) { $intune.tags[$k] = New-Object System.Collections.Generic.List[object] }; $intune.tags[$k].Add($t) }
-      foreach ($op in $iOps) { foreach ($v in @($op['id'], (Get-Key $op 'actionName'))) { if ($v) { [void]$intune.known.Add("$v") } } }
+      $intune.ops = @($iOps)
+      foreach ($op in $iOps) { if ($op['id']) { [void]$intune.known.Add("$($op['id'])") } }
       foreach ($a in $iAssign) { $k = $a['displayName']; if (-not $intune.assign.ContainsKey($k)) { $intune.assign[$k] = New-Object System.Collections.Generic.List[object] }; $intune.assign[$k].Add($a) }
     } catch {
       $plan.blocked.Add("Intune could not be read ($(Get-PimGraphError $_)) — nothing Intune is planned after a read that did not work. Fix it (DeviceManagementRBAC.Read.All, an Intune licence), or leave Intune out: -Include Units,Groups,GroupPolicies,Eligibilities")
@@ -352,12 +383,19 @@ function Build-RegionsPlan {
     }
   }
 
-  # -- the custom Intune role(s): every action or none
+  # -- the custom Intune role(s): every action or none. A template entry is an
+  # operation id the tenant lists, or the permission as the admin center names it,
+  # "Resource/Action" (resourceName/actionName in deviceManagement/resourceOperations),
+  # resolved to this tenant's id. An entry that resolves to nothing blocks creating
+  # or completing the role, and the tenant's operations for that resource are listed.
   $iRoleRef = @{}
   if ($intune) {
     foreach ($b in @($intune.roles.Keys)) { if ($intune.roles[$b].Count -gt 1) { $plan.findings.Add("Intune role $b exists $($intune.roles[$b].Count) times") }; $iRoleRef[$b] = $intune.roles[$b][0]['id'] }
     foreach ($cr in $intuneRoles) {
-      $n = $cr['name']; $allowed = @($cr['allowed'])
+      $n = $cr['name']
+      $rs = Resolve-IntuneTemplateActions @($cr['allowed']) $intune
+      $allowed = @($rs.ids); $unres = @($rs.unknown)
+      $unresText = ($unres | ForEach-Object { "$($_.entry) → $($_.hint)" }) -join '; '
       if ($intune.roles.ContainsKey($n)) {
         # read the role itself: the list may leave its permissions out, and Intune keeps
         # actions in rolePermissions or permissions, as resourceActions or actions
@@ -369,20 +407,22 @@ function Build-RegionsPlan {
         $have = @($got.allowed)
         $miss = @($allowed | Where-Object { $have -notcontains $_ }); $extra = @($have | Where-Object { $allowed -notcontains $_ })
         if ($extra.Count) { $plan.findings.Add("Intune role $n carries $($extra.Count) action(s) the template does not: $($extra -join ', ') — kept; remove them in Intune if they should go") }
-        if ($miss.Count) {
-          if (-not $FixIntuneRoles) { $plan.findings.Add("Intune role $n lacks $($miss.Count) of the template's $($allowed.Count) actions$(if (-not $have.Count) { ' (it has none at all)' }): $($miss -join ', '). -FixIntuneRoles plans adding them (none removed)") }
-          else {
-            $unknown = @($miss | Where-Object { -not $intune.known.Contains($_) })
-            if ($unknown.Count) { $plan.blocked.Add("Intune role ${n}: the tenant's operation list does not know $($unknown.Count) of the missing actions ($($unknown -join ', ')) — nothing is added; fix the template or add them by hand"); continue }
+        $total = $allowed.Count + $unres.Count
+        if ($miss.Count -or $unres.Count) {
+          if (-not $FixIntuneRoles) {
+            $plan.findings.Add("Intune role $n lacks $($miss.Count + $unres.Count) of the template's $total actions$(if (-not $have.Count) { ' (it has none at all)' })$(if ($miss.Count) { ": $($miss -join ', ')" }). -FixIntuneRoles plans adding them (none removed)$(if ($unres.Count) { ". Not known to this tenant yet, so they would block: $unresText" })")
+          } elseif ($unres.Count) {
+            $plan.blocked.Add("Intune role ${n}: $($unres.Count) template action(s) do not resolve to an operation this tenant lists — nothing is added. $unresText")
+            continue
+          } else {
             $all = @($have + $miss)
             Add-PimOp $plan "introlefix:$n" 'http' "Intune role ${n}: add $($miss.Count) missing action(s) → $($all.Count) in all (none removed)" ([ordered]@{ method = 'PATCH'; uri = "$BetaUrl/deviceManagement/roleDefinitions/$($cur['id'])"; needs = @('DeviceManagementRBAC.ReadWrite.All'); body = [ordered]@{ '@odata.type' = '#microsoft.graph.deviceAndAppManagementRoleDefinition'; rolePermissions = @([ordered]@{ resourceActions = @([ordered]@{ allowedResourceActions = $all; notAllowedResourceActions = @($got.notAllowed) }) }) }; before = [ordered]@{ rolePermissions = @(Get-Key $full 'rolePermissions'); permissions = @(Get-Key $full 'permissions') } })
           }
         }
         continue
       }
-      $unknown = @($allowed | Where-Object { -not $intune.known.Contains($_) })
-      if ($unknown.Count -eq $allowed.Count -and $allowed.Count) { $plan.blocked.Add("Intune role ${n}: the tenant's operation list recognises none of its $($allowed.Count) actions — the list may use another form; create the role by hand from the template, then plan again"); continue }
-      if ($unknown.Count) { $plan.blocked.Add("Intune role ${n}: the tenant does not know $($unknown.Count) of its actions ($($unknown -join ', ')) — a reduced role is never created; fix the template, then plan again"); continue }
+      if ($unres.Count -and -not $allowed.Count) { $plan.blocked.Add("Intune role ${n}: none of its $($unres.Count) actions resolve to an operation this tenant lists — create the role by hand from the template, then plan again. $unresText"); continue }
+      if ($unres.Count) { $plan.blocked.Add("Intune role ${n}: $($unres.Count) of its actions do not resolve to an operation this tenant lists — a reduced role is never created; fix the template, then plan again. $unresText"); continue }
       Add-PimOp $plan "introle:$n" 'http' "create Intune custom role $n ($($allowed.Count) actions)" ([ordered]@{ method = 'POST'; uri = "$BetaUrl/deviceManagement/roleDefinitions"; produces = "introle:$n"; needs = @('DeviceManagementRBAC.ReadWrite.All'); body = [ordered]@{ '@odata.type' = '#microsoft.graph.deviceAndAppManagementRoleDefinition'; displayName = $n; description = "$($cr['description'])"; isBuiltIn = $false; rolePermissions = @([ordered]@{ resourceActions = @([ordered]@{ allowedResourceActions = $allowed; notAllowedResourceActions = @() }) }) } })
       $iRoleRef[$n] = "{{introle:$n}}"
     }

@@ -506,19 +506,23 @@ const PIM_BASELINE = {
   // ---- INTUNE RBAC: the one custom role -------------------------------
   // Policy and Profile Manager authors tenant-wide; a regional second line
   // acts on its devices and assigns central policies to its groups, and
-  // cannot author. Resource actions as Intune names them
-  // (deviceManagement/resourceOperations); the script drops any the tenant
-  // does not know and says so.
+  // cannot author. Each entry is an operation id as Intune names it
+  // (deviceManagement/resourceOperations) or, where the id is not certain,
+  // the permission as the admin center and Microsoft's built-in role tables
+  // name it, "Resource/Action"; New-PimRegions.ps1 resolves it to the
+  // tenant's id (resourceName/actionName) and creates or completes the role
+  // only when every entry resolves. Mobile apps has no View reports action
+  // (cloudfellows.dev, 28 Sep 2026: five ids of 2.0 were unknown there).
   intuneRoles: [
     { name: "INT-ROLE-Regional-Ops", description: "CloudFellows PIM framework: regional second line. Act on the region's devices, assign central policies and apps to the region's groups; never author a policy, never touch roles, tags or tenant settings.",
       allowed: [
         "Microsoft.Intune_ManagedDevices_Read", "Microsoft.Intune_ManagedDevices_Update", "Microsoft.Intune_ManagedDevices_Delete", "Microsoft.Intune_ManagedDevices_SetPrimaryUser", "Microsoft.Intune_ManagedDevices_ViewReports",
-        "Microsoft.Intune_RemoteTasks_SyncDevice", "Microsoft.Intune_RemoteTasks_RebootNow", "Microsoft.Intune_RemoteTasks_SetDeviceName", "Microsoft.Intune_RemoteTasks_CollectDiagnostics", "Microsoft.Intune_RemoteTasks_Wipe", "Microsoft.Intune_RemoteTasks_Retire", "Microsoft.Intune_RemoteTasks_RotateBitLockerKeys", "Microsoft.Intune_RemoteTasks_RotateLocalAdminPassword", "Microsoft.Intune_RemoteTasks_RemoteLock", "Microsoft.Intune_RemoteTasks_LocateDevice", "Microsoft.Intune_RemoteTasks_EnableLostMode", "Microsoft.Intune_RemoteTasks_DisableLostMode",
+        "Microsoft.Intune_RemoteTasks_SyncDevice", "Microsoft.Intune_RemoteTasks_RebootNow", "Microsoft.Intune_RemoteTasks_SetDeviceName", "Remote tasks/Collect diagnostics", "Microsoft.Intune_RemoteTasks_Wipe", "Microsoft.Intune_RemoteTasks_Retire", "Microsoft.Intune_RemoteTasks_RotateBitLockerKeys", "Microsoft.Intune_RemoteTasks_RotateLocalAdminPassword", "Microsoft.Intune_RemoteTasks_RemoteLock", "Microsoft.Intune_RemoteTasks_LocateDevice", "Microsoft.Intune_RemoteTasks_EnableLostMode", "Microsoft.Intune_RemoteTasks_DisableLostMode",
         "Microsoft.Intune_DeviceConfigurations_Read", "Microsoft.Intune_DeviceConfigurations_ViewReports", "Microsoft.Intune_DeviceConfigurations_Assign",
         "Microsoft.Intune_DeviceCompliancePolices_Read", "Microsoft.Intune_DeviceCompliancePolices_ViewReports", "Microsoft.Intune_DeviceCompliancePolices_Assign",
-        "Microsoft.Intune_MobileApps_Read", "Microsoft.Intune_MobileApps_ViewReports", "Microsoft.Intune_MobileApps_Assign", "Microsoft.Intune_ManagedApps_Read",
-        "Microsoft.Intune_EnrollmentProgram_Read", "Microsoft.Intune_EnrollmentProgram_SyncDevice",
-        "Microsoft.Intune_AuditData_Read", "Microsoft.Intune_Organization_Read", "Microsoft.Intune_TermsAndConditions_Read",
+        "Microsoft.Intune_MobileApps_Read", "Microsoft.Intune_MobileApps_Assign", "Microsoft.Intune_ManagedApps_Read",
+        "Enrollment programs/Read device", "Enrollment programs/Sync device",
+        "Audit data/Read", "Microsoft.Intune_Organization_Read", "Microsoft.Intune_TermsAndConditions_Read",
       ],
       notAllowed: ["create, update or delete any policy, profile, app, script, filter, compliance or endpoint security policy", "roles, scope tags, role assignments", "tenant settings: enrollment restrictions, MDM authority, connectors"] },
   ],

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32421, date: "2026-09-28", title: "🧬 PIM baseline 0.3.5 — the regional Intune role's permission list matches what Intune has",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "Five of the 32 permissions in the regional Intune role's template were not names Intune knows, so -FixIntuneRoles stopped on cloudfellows.dev before changing anything. One (Mobile apps: View reports) does not exist and is gone. The other four are now written as the Intune admin center names them, such as Enrollment programs: Read device, and the script looks up the tenant's own identifier for each. If one still cannot be found, the script stops and lists what the tenant has for that area, so the template can be corrected." },
+    ],
+  },
+  {
     build: 32420, date: "2026-09-28", title: "🧬 PIM baseline 0.3.4 — the regional Intune role gets its permissions",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "On cloudfellows.dev the custom Intune role INT-ROLE-Regional-Ops had none of its 32 permissions: an early version of the regions script created it empty. New-PimRegions.ps1 now reads the role itself before it compares, says how many permissions are missing, and with the new -FixIntuneRoles adds them. It never removes a permission, keeps any extra one, and writes the old list to the backup file first." },
