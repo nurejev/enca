@@ -168,6 +168,7 @@ const PimPlan = (() => {
   // onDone(i, note), onFail(i, why), onPart(i, note), onSkip(i, why),
   // onWait(i, seconds, attempt).
   async function run(plan, hooks) {
+    if ((plan.blocked || []).length) throw new Error("Plan is blocked — resolve the listed items and create a new preview before applying");
     const ids = Object.assign({}, plan.resolved || {});
     const h = Object.assign({ sleep: (ms) => new Promise((r) => setTimeout(r, ms)), stopped: () => false }, hooks);
     const outcome = [];

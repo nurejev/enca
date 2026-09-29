@@ -1,7 +1,7 @@
 // ======================================================================
 // CloudFellows PIM framework 2.1 — EasyPIM Orchestrator sample
 // Scenario: Large organisation, several regions (central IT plus local IT per region)
-// Profile: Large · multi-region — The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups (role-assignable groups protect themselves); AU-RM-Executives for executives, by hand.
+// Profile: Large · multi-region — The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. This profile does not define AU-RM-Executives; executive protection is a separate customer extension.
 //
 // The model (2.1): people are ACTIVE members of persona groups for at most
 // a year; each group is ELIGIBLE for its Entra roles; a person activates

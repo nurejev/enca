@@ -136,3 +136,17 @@ test("review 32429: backups hold PIM policy rules only; the lens never scopes on
   assert.equal(c.units[0].status, "unrestricted"); assert.equal(c.units[0].id, null);
   assert.ok(c.units[0].scoped.every((s) => s.status !== "missing"), "nothing to tick onto the wrong unit");
 });
+
+test("approval readiness requires a known count of at least two users", () => {
+  const r = raw();
+  r.groups.push({ id: "ready-approvers", displayName: "PIM-SG-Approvers-Tier0", isAssignableToRole: false });
+  const key = "rpol:Privileged Role Administrator:Approval_EndUser_Assignment";
+  for (const count of [undefined, null, NaN, -1, 0, 1, "2"]) {
+    const plan = PD.build(LARGE, r, { sections: new Set(["rolePolicies", "groupPolicies"]), approverMembers: { "PIM-SG-Approvers-Tier0": count } });
+    assert.ok(!plan.ops.some(o => o.key === key), `must not enable approval for count ${count}`);
+    assert.ok(plan.manual.some(x => x.includes("PIM-SG-Approvers-Tier0")));
+    assert.ok(plan.ops.filter(o => o.kind === "groupPolicy" && o.settings.ApprovalRequired).every(o => o.skipApproval));
+  }
+  const ready = PD.build(LARGE, r, { sections: new Set(["rolePolicies"]), approverMembers: { "PIM-SG-Approvers-Tier0": 2 } });
+  assert.ok(ready.ops.some(o => o.key === key));
+});

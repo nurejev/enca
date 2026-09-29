@@ -172,3 +172,12 @@ test("T27 lens: a tenant-wide desk is flagged, a restricted regional unit is fla
   assert.equal(small.units.length, 0, "small business expects no restricted unit");
   assert.ok(PR.render(small, new Set(), { tab: "units" }).includes("No restricted unit"));
 });
+
+test("a blocked plan cannot send any tenant changes", async () => {
+  const plan = PP.newPlan({});
+  plan.blocked.push("duplicate principal name");
+  PP.add(plan, { key: "group:X", method: "POST", url: `${PP.V1}/groups`, body: { displayName: "X" } });
+  let sends = 0;
+  await assert.rejects(PP.run(plan, { send: async () => { sends++; } }), /Plan is blocked/);
+  assert.equal(sends, 0);
+});

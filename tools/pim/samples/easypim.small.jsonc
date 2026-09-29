@@ -1,7 +1,7 @@
 // ======================================================================
 // CloudFellows PIM framework 2.1 — EasyPIM Orchestrator sample
 // Scenario: Small business (25–250 people, two to six in IT)
-// Profile: Small business — Four persona groups instead of seven; approval only on the Global Administrator role, where the other admins can always give it; the other Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and 2 alert on critical events only; Global Administrator for two hours; two Intune access groups; three Azure groups, made only when there is Azure.
+// Profile: Small business — Four persona groups instead of seven; among Tier 0 roles, approval only on Global Administrator through customer-selected approvers; the other Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and Tier 2 activation alerts are Critical; assignment alerts remain All; Global Administrator for two hours; two Intune access groups; three Azure groups, made only when there is Azure.
 //
 // The model (2.1): people are ACTIVE members of persona groups for at most
 // a year; each group is ELIGIBLE for its Entra roles; a person activates

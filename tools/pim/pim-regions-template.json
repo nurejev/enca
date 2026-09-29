@@ -67,7 +67,7 @@
         "template": null,
         "roleAssignable": false,
         "members": "<approvers>",
-        "description": "Plain group: the regional IT lead and one central Ops; approves the region's Ops activations when the customer wants a gate."
+        "description": "Plain security group populated from the region's approver input. An optional regional approval gate must be configured explicitly; the default templates do not reference this group."
       }
     ],
     "eligibilities": [

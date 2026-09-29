@@ -4,8 +4,8 @@
 // Intune has no administrative units and no PIM of its own, so the
 // CloudFellows PIM framework draws the same boundaries with Intune's own
 // objects: ROLE ASSIGNMENTS whose members are the PIM-SG-INT-* access groups
-// (eligible members — activating the group is the gate; a persona group
-// never sits in one, its active members would hold the role standing),
+// (eligible members — activating the group is the gate; SecOpsReader is
+// the explicit standing Read Only Operator exception),
 // SCOPE GROUPS (who and what an assignment reaches), SCOPE TAGS (which
 // objects an admin sees) and one CUSTOM ROLE, INT-ROLE-Regional-Ops.
 //

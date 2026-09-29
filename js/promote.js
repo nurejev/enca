@@ -117,6 +117,20 @@ const PROMOTE = {
 
   items: [
     {
+      n: 310,
+      title: "PimBuddy documentation alignment and deployment readiness corrections",
+      tools: ["PIM baseline", "Deploy"],
+      builds: [32431],
+      what: "Catalog explanations and both Word references aligned; effective baseline settings unchanged. Unknown approver counts no longer pass; count users rather than arbitrary directory objects. A blocked plan cannot be armed or run. Documentation contract tests detect future catalog drift.",
+      why: "The application and customer documentation must describe the same baseline and current deployment limits. Full automatic onboarding remains pending.",
+      test: [
+        "Local: run the PIM and Intune suites plus tools/pimdocs.test.cjs. Unknown, null, invalid and insufficient approver counts must not enable approval; two users may enable the rule.",
+        "Demo browser: enter the tenant domain on an unblocked preview and observe Apply enable; add a blocker and observe Apply remain disabled. The shared runner must reject the same blocked plan without a send.",
+        "Live tenant pending: deny the approver membership read, then preview. Approval must remain unchanged and the manual readiness item must remain visible. Repeat with two actual approver users and verify the intended approval rule.",
+        "Review both Word files: all three model inventories and remaining manual dependencies match the current catalog. Do not describe this build as full automatic onboarding."
+      ]
+    },
+    {
       n: 309,
       title: "👥 T12 is called PIM groups in Workspace 02; 02's header is the logo's green with a lemon rule instead of navy",
       tools: ["Conditional Access groups", "Help"],

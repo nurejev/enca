@@ -147,10 +147,10 @@ const PimDeploy = (() => {
     usedApprovers.forEach((n) => { const r = ref(n); if (r) approverIds[n] = r; });
     // Approval is only switched ON with an approver group that can approve
     // today: it exists (not made in this run) and has at least two members
-    // when the count was read. Otherwise the approval rule is left as it is
+    // with a successfully read count. Otherwise the approval rule is left as it is
     // and the plan says so — an approval nobody can give locks the role out
     // for everybody but break-glass (32429, review).
-    const ready = (n) => { const id = approverIds[n]; if (!id || String(id).startsWith("{{")) return false; const c = (opts.approverMembers || {})[n]; return c === undefined || c >= 2; };
+    const ready = (n) => { const id = approverIds[n]; if (!id || String(id).startsWith("{{")) return false; const c = (opts.approverMembers || {})[n]; return Number.isInteger(c) && c >= 2; };
     const notReady = new Set();
     const approvalOk = (T) => PimPlan.approverNames(T).every((n) => { const ok = ready(n); if (!ok) notReady.add(n); return ok; });
     if (on("rolePolicies")) res.rows.forEach((row) => {

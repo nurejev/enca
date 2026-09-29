@@ -22023,7 +22023,7 @@ This is a directory write. Nothing else changes.`)) return;
     const dom = pimExpectDomain();
     return `<div class="list-card xt-card pim-plan" data-pimplan>
       <h3>${esc(opts.title || "WhatIf")} <span class="mini">${n} operation${n === 1 ? "" : "s"}, in the order they run · nothing is written until ▶ Apply</span></h3>
-      ${bl ? `<p class="mini pmb-bad-txt"><b>Blocked</b> — these parts are left out until they are fixed:</p>${bl}` : ""}
+      ${bl ? `<p class="mini pmb-bad-txt"><b>Blocked</b> — resolve these items and create a new preview before applying:</p>${bl}` : ""}
       ${n ? `<div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>#</th><th>Operation</th><th>Kind</th></tr></thead><tbody>${lines}</tbody></table></div>` : `<p class="mini">Nothing to do for what is ticked.</p>`}
       ${fi ? `<p class="mini"><b>Found, not changed</b>:</p>${fi}` : ""}
       ${n ? `<dl class="pim-kv">
@@ -22045,13 +22045,13 @@ This is a directory write. Nothing else changes.`)) return;
     // A plan runs ONCE (32429): after its run — or while it runs — the box no
     // longer arms the button; a second import is a new Preview from a new read.
     if (plan._applied || plan._running) { if (go) { go.disabled = true; go.textContent = plan._applied ? "✓ Applied — Preview again for another run" : "Running…"; } if (typed) typed.disabled = true; }
-    if (typed && go) typed.addEventListener("input", () => { go.disabled = plan._applied || plan._running || !dom || typed.value.trim().toLowerCase() !== dom; });
+    if (typed && go) typed.addEventListener("input", () => { go.disabled = plan.blocked.length > 0 || plan._applied || plan._running || !dom || typed.value.trim().toLowerCase() !== dom; });
     const pj = panel.querySelector("[data-pimplanjson]");
     if (pj) pj.addEventListener("click", () => { downloadText(`pim-plan.${dom || "tenant"}`, "json", "application/json", JSON.stringify(plan, null, 2) + "\n"); });
     if (go) go.addEventListener("click", () => pimApply(panel.querySelector("[data-pimrun]"), plan, opts, go));
   }
   async function pimApply(host, plan, opts, btn) {
-    if (plan._applied || plan._running) return;
+    if (plan.blocked.length || plan._applied || plan._running) return;
     plan._running = true;
     if (btn) btn.disabled = true;
     const typedBox = host && host.closest("[data-pimplan]") && host.closest("[data-pimplan]").querySelector("#pimTyped");
@@ -22304,7 +22304,7 @@ This is a directory write. Nothing else changes.`)) return;
   // ======================================================================
   let pdp = { step: 1, sel: null, only: null, onlyOn: false, plan: null, restore: null, busy: false, err: null, userIds: {}, members: {}, verify: null, applied: null };
   function pdpReset() { pdp = { step: 1, sel: null, only: null, onlyOn: false, plan: null, restore: null, busy: false, err: null, userIds: {}, members: {}, verify: null, applied: null }; }
-  const PDP_HEAD = `<p class="mini" style="margin:6px 0 0"><b>Onboarding from the browser.</b> Take the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> into this tenant in its profile: pick what to import, read the WhatIf — every operation in the order it runs, what changes for people, how to put it back — type the tenant's domain and apply. The same operations and guardrails as the framework's scripts, without them: nothing is ever removed, a name that exists twice or a group that should be role-assignable and is not stops what needs it, approval is only switched on with an approver group that exists, eligibilities never exceed what the role allows, people are never added for you. Signed in as the tenant's own admin (Privileged Role Administrator for groups, roles and units; an Intune role for Intune).</p>`;
+  const PDP_HEAD = `<p class="mini" style="margin:6px 0 0"><b>Onboarding from the browser.</b> Take the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> into this tenant in its profile: pick what to import, read the WhatIf — every operation in the order it runs, what changes for people, how to put it back — type the tenant's domain and apply. No local scripts are needed for the operations offered here. Nothing is removed; duplicate names or an incompatible role-assignable flag block Apply. Approval is enabled only after an existing approver group is read with at least two user members. Eligibilities are capped by the role settings. Persona membership remains separate; regional approvers can be added from the selected regions file. Signed in as the tenant's own admin (Privileged Role Administrator for groups, roles and units; an Intune role for Intune).</p>`;
   function openPimDeploy(fromT48) {
     crumb("🚀 Deploy");
     show("screen-pimdeploy");
@@ -22358,7 +22358,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (pdp.restore) return { title: "↩ Put back from a backup", impact: [`${pdp.plan.ops.length} PIM policy rule${pdp.plan.ops.length === 1 ? "" : "s"} are written back as they were before the run that made the backup${pdp.plan.meta && pdp.plan.meta.appliedAt ? ` (${new Date(pdp.plan.meta.appliedAt).toLocaleString()})` : ""}; activations from then on follow the old settings.`], recovery: ["Each rule is read just before it is written back, and those readings are this run's own backup."], irreversible: [] };
     const P = pdp.plan, has = (f) => P.ops.some(f);
     return { title: "🚀 Import from the baseline",
-      impact: [has((o) => /^group:/.test(o.key)) ? "New groups start empty: nobody gains or loses access by their creation." : "", has((o) => o.kind === "request") ? "Eligibilities go to groups, never to people: only a group's active members can activate, under the role's own settings." : "", has((o) => o.section === "rolePolicies") ? "Changed role settings apply from the next activation: a request may now need a ticket, approval or the authentication context; active assignments are not cut short." : "", has((o) => o.section === "intune") ? "Intune assignments go to the PIM-SG-INT access groups: nobody holds the Intune role until they activate the group." : ""].filter(Boolean),
+      impact: [has((o) => /^group:/.test(o.key)) ? "New groups start empty: nobody gains or loses access by their creation." : "", has((o) => o.kind === "request") ? "Eligibilities go to groups, never to people: only a group's active members can activate, under the role's own settings." : "", has((o) => o.section === "rolePolicies") ? "Changed role settings apply from the next activation: a request may now need a ticket, approval or the authentication context; active assignments are not cut short." : "", has((o) => o.section === "intune") ? "Operational Intune assignments use PIM-SG-INT access groups with eligible membership. The SecOpsReader assignment is the standing read-only exception: active persona members receive its Intune reader access." : ""].filter(Boolean),
       recovery: [has((o) => o.before) ? "Every rule changed is kept as it was: ⬇ Backup after the run, ↩ Put back (toolbar) restores it." : "", has((o) => /^group:|^au:/.test(o.key)) ? "A created group or unit is deleted in Entra while it is still empty." : "", has((o) => o.kind === "request") ? "An eligibility is removed in PIM (the role → Eligible assignments → Remove)." : ""].filter(Boolean),
       irreversible: has((o) => o.body && o.body.isMemberManagementRestricted) ? ["The restricted flag of a created unit."] : [] };
   }
@@ -22380,14 +22380,15 @@ This is a directory write. Nothing else changes.`)) return;
   async function pdpResolveApprovers() {
     pdp.userIds = {}; pdp.members = {}; pdp.approverMembers = {};
     // How many people each approver group holds: approval is only switched
-    // on when at least two can approve (32429).
+    // on when at least two users were read. Fetch only the threshold of two;
+    // gbatch adds the ConsistencyLevel header required by the user cast.
     const idx0 = pmbGroupIndex();
     const apNames = [...idx0.keys()].filter((n) => /^PIM-SG-.*Approvers/.test(n) && idx0.get(n).length === 1);
     if (isDemo) apNames.forEach((n) => { pdp.approverMembers[n] = n === "PIM-SG-EU-NL-Approvers" ? 2 : 0; });
     else if (apNames.length) {
       try {
-        const r0 = await Graph.gbatch(apNames.map((n, i) => ({ id: String(i), url: `/groups/${idx0.get(n)[0].id}/members?$select=id&$top=999` })), null, { base: "https://graph.microsoft.com/v1.0", scopes: [...AUTH_CONFIG.scopes] });
-        apNames.forEach((n, i) => { const x = r0[String(i)]; if (x && x.body && Array.isArray(x.body.value)) pdp.approverMembers[n] = x.body.value.length; });
+        const r0 = await Graph.gbatch(apNames.map((n, i) => ({ id: String(i), url: `/groups/${idx0.get(n)[0].id}/members/microsoft.graph.user?$select=id&$top=2&$count=true` })), null, { base: "https://graph.microsoft.com/v1.0", scopes: [...AUTH_CONFIG.scopes] });
+        apNames.forEach((n, i) => { const x = r0[String(i)]; if (x && !x.error && x.body && Array.isArray(x.body.value)) pdp.approverMembers[n] = x.body.value.length; });
       } catch { /* unknown counts: approval stays as it is */ }
     }
     if (!pmbRegionsOn() || !pmbRegRows) return;

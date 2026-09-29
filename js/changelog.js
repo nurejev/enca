@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32431, date: "2026-09-29", title: "PimBuddy baseline and documentation alignment",
+    items: [
+      { kind: "fixed", tool: "Deploy", text: "An unknown approver count no longer enables approval. Readiness requires at least two users in an existing approver group. Blocked plans cannot be applied, including through the shared runner." },
+      { kind: "fixed", tool: "PIM baseline", text: "Descriptions now match the model mappings, activation alerts, standing Intune reader exception, optional executive unit and browser deployment scope. Baseline settings and assignments are unchanged." },
+      { kind: "improved", tool: "Help", text: "The baseline reference and administrator handover are aligned with build 32431. The complete Deploy my model experience remains a target; people, context enforcement, reviews and Azure provisioning still have separate steps." }
+    ]
+  },
+  {
     build: 32430, date: "2026-09-28", title: "👥 PIM groups and a logo-green header in Workspace 02",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "In 02 PIM-buddy the tool is called PIM groups: on its home card, in the tool library, on its tab and in its head. In 01 it keeps its name, Conditional Access groups. Switching workspace with the tool open renames the tab and head on the spot." },
