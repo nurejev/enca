@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32432, date: "2026-09-30", title: "Fill the deploy groups from the region groups",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "New Fill from regions button: tick regions and countries, read their users, and see per deploy group who is added and who is taken out, and why, before anything is written. Second accounts with a main account go to ADM, without one to SA; users without an Intune licence to SA; guests to GUESTUSERS; External in extensionAttribute10 to EXT; everybody else to INT; all of them to GLO; the main account of a second account to DevOps. Add and fix is the default and only touches users read from the ticked groups. JSON backup, typed domain, run ledger, read-back and Undo this run. Beta." },
+    ],
+  },
+  {
     build: 32431, date: "2026-09-29", title: "PimBuddy baseline and documentation alignment",
     items: [
       { kind: "fixed", tool: "Deploy", text: "An unknown approver count no longer enables approval. Readiness requires at least two users in an existing approver group. Blocked plans cannot be applied, including through the shared runner." },
