@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32433, date: "2026-09-30", title: "Build check no longer blocks on the PimBuddy documents",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "The automated check on the PimBuddy Word documents now asks for a new review only when the PIM model changes, not on every new build. Build 32432 failed the build pipeline for that reason alone, so its container image was not published." },
+    ],
+  },
+  {
     build: 32432, date: "2026-09-30", title: "Fill the deploy groups from the region groups",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "New Fill from regions button: tick regions and countries, read their users, and see per deploy group who is added and who is taken out, and why, before anything is written. Second accounts with a main account go to ADM, without one to SA; users without an Intune licence to SA; guests to GUESTUSERS; External in extensionAttribute10 to EXT; everybody else to INT; all of them to GLO; the main account of a second account to DevOps. Add and fix is the default and only touches users read from the ticked groups. JSON backup, typed domain, run ledger, read-back and Undo this run. Beta." },

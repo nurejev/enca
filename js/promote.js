@@ -117,6 +117,20 @@ const PROMOTE = {
 
   items: [
     {
+      n: 312,
+      title: "CI: the PimBuddy Word-document gate asks for a review on catalog changes, not on every build",
+      tools: ["PIM baseline"],
+      builds: [32433],
+      risk: "low",
+      what: "tools/pimdocs.test.cjs: the reviewed build in docs/handovers/pimbuddy-documentation-contract.json must be at most the application build (was: equal to it), and each Word document must name that reviewed build (was: the current build). Checksums and the catalog-contract test are unchanged; the catalog test is what forces a docs review. docs/handovers/README.md says so.",
+      why: "Mihai, 30 Sep: the docker image workflow failed on beta 32432 (checks failed, publish skipped) because the gate from 32431 compared the reviewed build to the app build with strictEqual, so every build bump failed CI until both Word files were re-stamped. Chose option 2 (loosen) over re-reviewing on every build.",
+      test: [
+        "Local: node --test tools/*.test.cjs — all pass, including pimdocs (3 of 3), with version.js at 32433 and the contract at 32431.",
+        "Negative: set build in the contract JSON to 99999 → the reviewed-build test fails; change one catalog group description in js/pimBaselineData.js → the catalog-contract test fails. Revert both.",
+        "GitHub Actions: after the push to origin beta:beta, the docker image run shows checks green and publish run; ghcr.io/nurejev/enca:beta is updated."
+      ]
+    },
+    {
       n: 311,
       title: "🌍 Fill from regions — the CAD-SEC-U-DG deploy groups filled from the region and country member groups (T12 5.16.0, R76)",
       tools: ["Conditional Access groups", "Help"],
