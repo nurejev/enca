@@ -269,7 +269,7 @@ const PimBaseline = (() => {
     const groups = cat.groups.map((g) => {
       const list = resolve(g.name);
       const carries = sortStr(carriesByGroup[g.name] || []);
-      const base = { name: g.name, scope: g.scope, persona: g.persona, template: g.template, description: g.description || "", azure: g.azure || null, carries, has: [], scopedOnly: [], missingRoles: g.scope === "m365" ? carries.slice() : [], extraRoles: [], diffs: [], settings: "unread", ids: list.map((x) => x.id) };
+      const base = { name: g.name, scope: g.scope, persona: g.persona, template: g.template, description: g.description || "", azure: g.azure || null, xdr: g.xdr || null, carries, has: [], scopedOnly: [], missingRoles: g.scope === "m365" ? carries.slice() : [], extraRoles: [], diffs: [], settings: "unread", ids: list.map((x) => x.id) };
       if (!list.length) return Object.assign(base, { present: false, roleAssignable: null, status: "missing" });
       if (list.length > 1) return Object.assign(base, { present: true, roleAssignable: list.every((x) => x.isAssignableToRole !== false), status: "conflict", missingRoles: [], conflict: `${list.length} groups are called ${g.name} (${list.map((x) => x.id).join(", ")}) — resolve with tools/pim/Find-PimDuplicates.ps1 before anything else` });
       const tg = list[0];
@@ -493,7 +493,7 @@ const PimBaseline = (() => {
             else { status = "unread"; detail = "membership settings (PIM for Groups) not read"; }
           }
         } else status = (!g.roleAssignable && !namedRead) ? "unread" : "missing";
-        items.push({ kind: g.intune ? "intune-access" : "group", name: g.name, expect: g.roleAssignable ? `role-assignable · ${g.template === "GroupJIT" ? "eligible members (GroupJIT)" : "active members (GroupMember)"}` : `plain · members ${g.members || "—"}`, status, detail, note: g.description || "" });
+        items.push({ kind: g.intune ? "intune-access" : "group", name: g.name, expect: g.roleAssignable ? `role-assignable · ${/^GroupJIT/.test(g.template) ? `eligible members (${g.template})` : "active members (GroupMember)"}` : `plain · members ${g.members || "—"}`, status, detail, note: g.description || "" });
       });
       r.eligibilities.forEach((e) => {
         const auId = auIds[e.au], gid = groupIds[e.group];
@@ -649,9 +649,13 @@ const PimBaseline = (() => {
         ["PIM-SG-M365-SecOpsReader", "Active", "adm- account of IT, the auditor, the MSP's reviewer"],
         ["PIM-SG-INT-Ops", "Eligible", "adm- account of each person in IT (Intune: activate the group)"],
         ["PIM-SG-INT-SecOps", "Eligible", "adm- account of the security-minded admin"],
+        ["PIM-SG-XDR-Admin", "Eligible", "adm- account of the security-minded admin (Defender XDR Administrator: two hours, approval)"],
+        ["PIM-SG-XDR-Operator-T3", "Eligible", "adm- account of each person in IT (Defender XDR Operator T3: activate the group)"],
+        ["PIM-SG-XDR-Reader", "Eligible", "adm- account of IT, the auditor, the MSP's reviewer (Defender XDR Reader)"],
       ],
       notes: [
         "Approval only on Global Administrator itself (the override below): the other admins approve, so there must be at least two.",
+        "Defender XDR: the PIM-SG-XDR groups are the Entra side only. Create the three roles (Administrator, Operator T3, Reader) and their assignments at scope All, each naming its group, in the Defender portal, then activate unified RBAC per workload — EasyPIM and ENCA never touch the portal.",
         "PIM-SG-Approvers = the admins; an approval nobody can give is a control that gets switched off.",
         "The three Azure groups are created only when there is Azure; delete their blocks otherwise.",
       ],
@@ -673,9 +677,15 @@ const PimBaseline = (() => {
         ["PIM-SG-INT-Ops", "Eligible", "adm- account of each endpoint engineer (Intune: activate the group)"],
         ["PIM-SG-INT-HelpDesk", "Eligible", "adm- account of each service-desk agent"],
         ["PIM-SG-INT-SecOps", "Eligible", "adm- account of each SOC engineer"],
+        ["PIM-SG-XDR-Admin", "Eligible", "adm- account of each SOC engineer who administers Defender (Defender XDR Administrator: two hours, the Tier 0 rota approves)"],
+        ["PIM-SG-XDR-Operator-T3", "Eligible", "adm- account of each endpoint engineer (Defender XDR Operator T3)"],
+        ["PIM-SG-XDR-Operator-T2", "Eligible", "adm- account of each second-line engineer (Defender XDR Operator T2)"],
+        ["PIM-SG-XDR-Operator-T1", "Eligible", "adm- account of each service-desk agent (Defender XDR Operator T1)"],
+        ["PIM-SG-XDR-Reader", "Eligible", "adm- account of each SOC analyst and internal auditor (Defender XDR Reader)"],
       ],
       notes: [
         "Ticketing is on for Tier 0 and Tier 1: every activation carries the ITSM reference.",
+        "Defender XDR: the PIM-SG-XDR groups are the Entra side only. Create the five roles and their assignments at scope All, each naming its group, in the Defender portal, then activate unified RBAC per workload — EasyPIM and ENCA never touch the portal.",
         "PIM-SG-Approvers-Tier0 is the rota: three named people (security lead, IT manager, a deputy) — a plain group, never role-assignable, never the requester.",
         "ServiceDesk-VIP and Identity get their desk roles SCOPED to AU-RM-Executives. EasyPIM writes Entra role assignments at tenant scope only, so make those in 🛡 Restricted AUs (T27) or the portal — they are not in this file.",
         "AU-RM-Executives (restricted management) is filled by hand with the executives and their devices. Never put a PIM-SG group or an adm- account in a restricted AU.",
@@ -693,8 +703,14 @@ const PimBaseline = (() => {
         ["PIM-SG-M365-SecOpsReader", "Active", "adm- account of each SOC analyst"],
         ["PIM-SG-INT-Ops", "Eligible", "adm- account of each central Workplace engineer (Intune: activate the group)"],
         ["PIM-SG-INT-SecOps", "Eligible", "adm- account of each central SOC engineer"],
+        ["PIM-SG-XDR-Admin", "Eligible", "adm- account of each central SOC engineer who administers Defender (Defender XDR Administrator: two hours, approval)"],
+        ["PIM-SG-XDR-Operator-T3", "Eligible", "adm- account of each central second-line engineer (Defender XDR Operator T3)"],
+        ["PIM-SG-XDR-Operator-T2", "Eligible", "adm- account of the second line between the desk and Ops (Defender XDR Operator T2)"],
+        ["PIM-SG-XDR-Operator-T1", "Eligible", "adm- account of the central desk (Defender XDR Operator T1)"],
+        ["PIM-SG-XDR-Reader", "Eligible", "adm- account of each SOC analyst (Defender XDR Reader)"],
       ],
       notes: [
+        "Defender XDR: the PIM-SG-XDR groups are central and the Entra side only — no regional XDR groups. Create the five roles and their assignments at scope All, each naming its group, in the Defender portal, then activate unified RBAC per workload — EasyPIM and ENCA never touch the portal.",
         "This file is the CENTRE. The regions are not in it: EasyPIM writes Entra role assignments at tenant scope only (directoryScopeId \"/\"), and every regional eligibility is scoped to the region's administrative unit.",
         "Regions: fill regions.csv (one row per region) and run tools/pim/New-PimRegions.ps1 — units, PIM-SG-<REG>-Helpdesk / -Ops, PIM-SG-INT-*-<REG>, the scoped eligibilities, the Intune scope groups, tag and assignments.",
         "Regional people: active members of PIM-SG-<REG>-Helpdesk / -Ops, eligible members of PIM-SG-INT-HelpDesk-<REG> / -Ops-<REG> — add them with an Assignments.Groups block per group, as below, once the groups exist.",
@@ -716,9 +732,9 @@ const PimBaseline = (() => {
       _meta: ["Where the sample comes from. Leave it; EasyPIM ignores it."],
       PolicyTemplates: ["The tiers. A role or group names one; change a tier here, not per role.", `EDIT: every "pim-alerts@${domain}" → your alert mailbox (a shared mailbox read by real people, or the SOC).`],
       EntraRoles: ["Every Entra role under the framework and the tier it activates under. The inline settings are the few deliberate exceptions.", "EasyPIM finds a role by display name; a tenant can still carry a former one (Azure AD Joined Device Local Administrator). The resolved config of step 2 uses the names THIS tenant has."],
-      GroupRoles: ["The groups' PIM for Groups Member policy. GroupMember = persona groups (members ACTIVE, at most a year); GroupJIT = Intune access groups (members ELIGIBLE, activate for a shift)."],
+      GroupRoles: ["The groups' PIM for Groups Member policy. GroupMember = persona groups (members ACTIVE, at most a year); GroupJIT = Intune and Defender XDR access groups (members ELIGIBLE, activate for a shift); GroupJITTier0 = PIM-SG-XDR-Admin (eligible, two hours, context c1 and approval)."],
       "  EntraRoles": ["The model: each persona group is ELIGIBLE for its roles at tenant scope. Leave these; people never get a role directly."],
-      "  Groups": ["People. EDIT every principalId: the object id of the person's adm- account.", "Persona groups: assignmentType Active, a year (the yearly review). Intune access groups: Eligible — that activation is the gate.", "Delete the rows you do not need; copy a row for each extra person."],
+      "  Groups": ["People. EDIT every principalId: the object id of the person's adm- account.", "Persona groups: assignmentType Active, a year (the yearly review). Intune and Defender XDR access groups: Eligible — that activation is the gate.", "Delete the rows you do not need; copy a row for each extra person."],
       ProtectedUsers: ["Never touched by EasyPIM. EDIT: the object ids of your break-glass accounts — by id, never by name."],
     };
     const lines = JSON.stringify(cfg, null, 2).split("\n");
@@ -824,7 +840,7 @@ const PimBaseline = (() => {
     const showGroup = (g) => filter === "all" || filter === "groups" || (filter === "missing" ? !g.present || g.status === "unread" : filter === "conflict" ? g.status === "conflict" : filter === "differs" ? g.status === "differs" : false);
     const groupTable = (filter !== "all" && filter !== "groups" && filter !== "missing" && filter !== "differs" && filter !== "conflict") ? "" : `<div class="list-card xt-card"><h3>PIM groups <span class="mini">the model, never the members · exact names, matched by id</span></h3><div class="xt-tw"><table class="xt-tbl pmb-tbl">
       <thead><tr><th></th><th>Group</th><th>Persona</th><th>Membership</th><th>In tenant</th><th>Role-assignable</th><th>Carries</th><th>Verdict</th><th>Differences</th></tr></thead>
-      <tbody>${groups.filter(showGroup).map((g) => `<tr class="pmb-row pmb-${g.status}"><td>${box(`group:${g.name}`, g.name)}</td><td><b>${esc(g.name)}</b>${g.description ? `<div class="mini pmb-note">${esc(g.description)}</div>` : ""}</td><td>${esc(g.persona)}${g.azure ? `<div class="mini">${esc(g.azure.role)} · ${esc(g.azure.scope)}</div>` : ""}</td><td><span class="pmb-tier">${g.template === "GroupJIT" ? "eligible · JIT" : "active · 1 year"}</span></td><td>${g.present ? (g.ids.length > 1 ? `<span class="pmb-bad-txt">${g.ids.length}×</span>` : "✓") : "<span class=\"pmb-bad-txt\">no</span>"}</td><td>${g.present ? (g.roleAssignable ? "✓" : "<span class=\"pmb-bad-txt\">no</span>") : "—"}</td><td>${g.scope === "azure" ? `<span class="mini">Azure RBAC · not compared</span>` : g.scope === "intune" ? `<span class="mini">Intune role through T53</span>` : `${g.has.filter((r) => g.carries.includes(r)).length} / ${g.carries.length}${g.missingRoles.length ? `<div class="mini pmb-bad-txt">missing: ${esc(g.missingRoles.join(", "))}</div>` : ""}${g.scopedOnly.length ? `<div class="mini">only at an AU: ${esc(g.scopedOnly.join(", "))}</div>` : ""}`}${g.extraRoles.length ? `<div class="mini pmb-bad-txt">also holds: ${esc(g.extraRoles.join(", "))}</div>` : ""}</td><td>${pill(g.status)}</td><td>${g.conflict ? `<div class="mini pmb-bad-txt">${esc(g.conflict)}</div>` : ""}${g.present && g.roleAssignable === false ? `<div class="mini pmb-bad-txt">not role-assignable: a group made without isAssignableToRole cannot be made one later — recreate it</div>` : ""}${diffCell(g.diffs)}${g.present && g.settings === "unread" && !g.conflict && g.scope !== "azure" ? `<div class="mini">membership settings (PIM for Groups) not read</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="mini" style="padding:14px">Nothing under this filter.</td></tr>`}</tbody></table></div>${res.extraGroups.length ? `<p class="mini pmb-extra">Role-assignable groups in the tenant that are not in the framework: ${esc(res.extraGroups.join(", "))}. Not a difference — a tenant's own groups are its own — but every one of them can hold a role, so 👥 CA groups and 🛡 Restricted AUs should know them.</p>` : ""}${res.regionalGroups && res.regionalGroups.length ? `<p class="mini pmb-extra">Regional groups in the tenant: ${esc(res.regionalGroups.join(", "))} — compared under 🗺 Regions against the regions file.</p>` : ""}</div>`;
+      <tbody>${groups.filter(showGroup).map((g) => `<tr class="pmb-row pmb-${g.status}"><td>${box(`group:${g.name}`, g.name)}</td><td><b>${esc(g.name)}</b>${g.description ? `<div class="mini pmb-note">${esc(g.description)}</div>` : ""}</td><td>${esc(g.persona)}${g.azure ? `<div class="mini">${esc(g.azure.role)} · ${esc(g.azure.scope)}</div>` : ""}${g.xdr ? `<div class="mini">${esc(g.xdr.role)} · scope ${esc(g.xdr.scope)}</div>` : ""}</td><td><span class="pmb-tier">${/^GroupJIT/.test(g.template) ? "eligible · JIT" : "active · 1 year"}</span></td><td>${g.present ? (g.ids.length > 1 ? `<span class="pmb-bad-txt">${g.ids.length}×</span>` : "✓") : "<span class=\"pmb-bad-txt\">no</span>"}</td><td>${g.present ? (g.roleAssignable ? "✓" : "<span class=\"pmb-bad-txt\">no</span>") : "—"}</td><td>${g.scope === "azure" ? `<span class="mini">Azure RBAC · not compared</span>` : g.scope === "intune" ? `<span class="mini">Intune role through T53</span>` : g.scope === "xdr" ? `<span class="mini">Defender XDR · assigned in the portal</span>` : `${g.has.filter((r) => g.carries.includes(r)).length} / ${g.carries.length}${g.missingRoles.length ? `<div class="mini pmb-bad-txt">missing: ${esc(g.missingRoles.join(", "))}</div>` : ""}${g.scopedOnly.length ? `<div class="mini">only at an AU: ${esc(g.scopedOnly.join(", "))}</div>` : ""}`}${g.extraRoles.length ? `<div class="mini pmb-bad-txt">also holds: ${esc(g.extraRoles.join(", "))}</div>` : ""}</td><td>${pill(g.status)}</td><td>${g.conflict ? `<div class="mini pmb-bad-txt">${esc(g.conflict)}</div>` : ""}${g.present && g.roleAssignable === false ? `<div class="mini pmb-bad-txt">not role-assignable: a group made without isAssignableToRole cannot be made one later — recreate it</div>` : ""}${diffCell(g.diffs)}${g.present && g.settings === "unread" && !g.conflict && g.scope !== "azure" ? `<div class="mini">membership settings (PIM for Groups) not read</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="mini" style="padding:14px">Nothing under this filter.</td></tr>`}</tbody></table></div>${res.extraGroups.length ? `<p class="mini pmb-extra">Role-assignable groups in the tenant that are not in the framework: ${esc(res.extraGroups.join(", "))}. Not a difference — a tenant's own groups are its own — but every one of them can hold a role, so 👥 CA groups and 🛡 Restricted AUs should know them.</p>` : ""}${res.regionalGroups && res.regionalGroups.length ? `<p class="mini pmb-extra">Regional groups in the tenant: ${esc(res.regionalGroups.join(", "))} — compared under 🗺 Regions against the regions file.</p>` : ""}</div>`;
     return head + roleTable + groupTable;
   }
 
@@ -843,7 +859,7 @@ const PimBaseline = (() => {
     L.push("");
     L.push("| Group | Persona | Membership | In tenant | Role-assignable | Carries | Verdict |");
     L.push("|---|---|---|---|---|---|---|");
-    res.groups.forEach((g) => L.push(`| ${g.name} | ${g.persona} | ${g.template === "GroupJIT" ? "eligible · JIT" : "active · 1 year"} | ${g.present ? (g.ids.length > 1 ? `${g.ids.length}×` : "yes") : "no"} | ${g.present ? (g.roleAssignable ? "yes" : "no") : "—"} | ${g.scope === "azure" ? "Azure RBAC, not compared" : g.scope === "intune" ? "Intune (T53)" : `${g.has.filter((r) => g.carries.includes(r)).length}/${g.carries.length}${g.missingRoles.length ? ` (missing ${g.missingRoles.join(", ")})` : ""}`}${g.extraRoles.length ? ` (also holds ${g.extraRoles.join(", ")})` : ""} | ${STATUS[g.status].label}${g.conflict ? ` — ${g.conflict}` : ""}${g.diffs.length ? ` — ${g.diffs.map((d) => `${d.label}: ${d.tenant} → ${d.baseline}`).join("; ")}` : ""} |`));
+    res.groups.forEach((g) => L.push(`| ${g.name} | ${g.persona} | ${/^GroupJIT/.test(g.template) ? "eligible · JIT" : "active · 1 year"} | ${g.present ? (g.ids.length > 1 ? `${g.ids.length}×` : "yes") : "no"} | ${g.present ? (g.roleAssignable ? "yes" : "no") : "—"} | ${g.scope === "azure" ? "Azure RBAC, not compared" : g.scope === "intune" ? "Intune (T53)" : g.scope === "xdr" ? "Defender XDR, assigned in the portal" : `${g.has.filter((r) => g.carries.includes(r)).length}/${g.carries.length}${g.missingRoles.length ? ` (missing ${g.missingRoles.join(", ")})` : ""}`}${g.extraRoles.length ? ` (also holds ${g.extraRoles.join(", ")})` : ""} | ${STATUS[g.status].label}${g.conflict ? ` — ${g.conflict}` : ""}${g.diffs.length ? ` — ${g.diffs.map((d) => `${d.label}: ${d.tenant} → ${d.baseline}`).join("; ")}` : ""} |`));
     if (res.extraGroups.length) { L.push(""); L.push(`Role-assignable groups not in the framework: ${res.extraGroups.join(", ")}.`); }
     return L.join("\n");
   }

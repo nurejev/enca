@@ -10,12 +10,17 @@
 // runner (js/pimplan.js, js/app.js pimApply) shows as a WhatIf and applies
 // after the tenant's domain is typed.
 //
-// Order: approver groups → persona and Intune access groups → units →
-// Intune scope groups → role policies (they name the approvers) → group
-// eligibilities (tenant scope) → scoped eligibilities (a unit) → membership
-// policies of existing groups → Intune (custom role, tags, assignments) →
-// membership policies of new groups (deferred until PIM for Groups knows
-// the group).
+// Order: approver groups → persona, Intune and Defender XDR access groups →
+// units → Intune scope groups → role policies (they name the approvers) →
+// group eligibilities (tenant scope) → scoped eligibilities (a unit) →
+// membership policies of existing groups → Intune (custom role, tags,
+// assignments) → membership policies of new groups (deferred until PIM for
+// Groups knows the group).
+//
+// Defender XDR (2.2) is the ENTRA SIDE only: its section creates the
+// PIM-SG-XDR-* groups and their membership policies. The portal roles and
+// the assignments that name the groups are made in the Defender portal by
+// hand — listed under By hand, never planned, never read back.
 //
 // Guardrails, all of them the scripts':
 //   * nothing is removed; a permanent assignment outside the framework, an
@@ -45,10 +50,11 @@ const PimDeploy = (() => {
     ["approvers", "Approver groups", "plain security groups; members are added by you (a region's from its regions file)"],
     ["rolePolicies", "Role settings", "rule by rule, only the rules that differ; the rules as they were go into the backup"],
     ["eligibilities", "Group eligibilities", "each persona group eligible for its roles at tenant scope, one year"],
-    ["groupPolicies", "Membership policies", "GroupMember / GroupJIT on every PIM-SG group; a new group's policy follows once PIM for Groups knows it"],
+    ["groupPolicies", "Membership policies", "GroupMember / GroupJIT on every persona and Intune group; a new group's policy follows once PIM for Groups knows it"],
     ["rmau", "Restricted unit", "AU-RM-Executives and the desk scoped on it — the restricted flag cannot be undone"],
     ["regions", "Regions", "per row of the regions file: units, groups, scoped eligibilities, Intune scope groups"],
     ["intune", "Intune RBAC", "custom role, scope tags, role assignments to the PIM-SG-INT access groups"],
+    ["xdr", "Defender XDR groups", "PIM-SG-XDR-* groups and their membership policies only; the roles and assignments are made in the Defender portal"],
     ["azure", "Azure groups", "PIM-SG-AZ-* groups only; their Azure role assignments are made in Azure"],
   ];
   const DEFAULT_OFF = new Set(["rmau", "azure"]);
@@ -94,7 +100,7 @@ const PimDeploy = (() => {
     };
     if (on("approvers")) [...usedApprovers].filter((n) => approverNames.has(n) || /Approvers/.test(n)).sort().forEach((n) => createGroup(n, false, `${cat.label} ${cat.release}: approves activations; a plain group, never role-assignable.`, "approvers"));
     res.groups.forEach((g) => {
-      const sec = g.scope === "azure" ? "azure" : "groups";
+      const sec = g.scope === "azure" ? "azure" : g.scope === "xdr" ? "xdr" : "groups";
       if (!on(sec) || !want(`group:${g.name}`)) return;
       if (g.status === "conflict") { P.blocked.push(g.conflict || `${g.name} is in conflict`); return; }
       if (!g.present) createGroup(g.name, true, `${cat.label} ${cat.release}: ${g.persona}. ${g.description || ""}`.trim(), sec);
@@ -222,9 +228,12 @@ const PimDeploy = (() => {
       } else deferred.push({ name, template, gid, section, T });
     };
     if (on("groupPolicies")) {
-      res.groups.filter((g) => g.scope !== "azure" || on("azure")).forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "groupPolicies"); });
+      res.groups.filter((g) => g.scope !== "xdr" && (g.scope !== "azure" || on("azure"))).forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "groupPolicies"); });
       if (on("regions")) regs.forEach((R) => R.groups.filter((g) => g.template).forEach((g) => gpolFor(g.name, g.template, "regions")));
     }
+    // The Defender XDR groups' policies travel with their section, not with
+    // Membership policies: ticking Defender XDR groups is one decision.
+    if (on("xdr")) res.groups.filter((g) => g.scope === "xdr").forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "xdr"); });
 
     // ---- Intune ------------------------------------------------------------
     if (on("intune") && opts.intune) IntuneRbac.plan(P, cat, opts.intune, ref, opts.intuneSel || null);
@@ -240,7 +249,9 @@ const PimDeploy = (() => {
     if (opts.caPolicies && ctxIds.length) ctxIds.forEach((c) => { const on = opts.caPolicies.filter((p) => p.state === "enabled" && ((((p.conditions || {}).applications || {}).includeAuthenticationContextClassReferences) || []).includes(c)); if (!on.length) P.findings.push(`authentication context ${c}: no enabled Conditional Access policy targets it — Tier 0 activation then asks for justification only; build and switch on the context's policy in Workspace 01 before relying on it`); });
     // ---- what a person decides ---------------------------------------------
     res.rows.forEach((r) => { if (r.permanentOutside) P.findings.push(`${r.name}: ${r.permanentOutside} permanent active assignment${r.permanentOutside === 1 ? "" : "s"} outside the framework — make eligible or remove, by hand (never by an import)`); });
-    P.manual.push("members: persona groups ACTIVE for at most a year, PIM-SG-INT-* access groups ELIGIBLE — add them in PIM for Groups or with an access package");
+    P.manual.push("members: persona groups ACTIVE for at most a year, PIM-SG-INT-* and PIM-SG-XDR-* access groups ELIGIBLE — add them in PIM for Groups or with an access package");
+    const xdrGroups = res.groups.filter((g) => g.scope === "xdr");
+    if (on("xdr") && xdrGroups.length) P.manual.push(`Defender XDR: in the Defender portal (Permissions → Roles) create the ${xdrGroups.length} roles with the framework document's permission sets and one assignment each at scope All naming its group — ${xdrGroups.map((g) => `${g.name} → ${(g.xdr && g.xdr.role) || g.persona}`).join(", ")} — then activate unified RBAC per workload; nothing here reads or writes the portal`);
     if (on("approvers")) P.manual.push(`the approvers in ${[...usedApprovers].join(", ")} — at least two people who never approve their own activation`);
     if (region) P.manual.push("per region: the Autopilot profile (naming, group tag) and the yearly access review by the region's IT lead");
     ((cat.profile && cat.profile.intune && cat.profile.intune.switches) || []).forEach((s) => { if (on("intune")) P.manual.push(`Intune: ${s}`); });
@@ -250,7 +261,7 @@ const PimDeploy = (() => {
   // What each section would do now — the counts on the pick.
   function sections(cat, raw, opts = {}) {
     const all = build(cat, raw, Object.assign({}, opts, { sections: null }));
-    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : true;
+    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : k === "xdr" ? cat.groups.some((g) => g.scope === "xdr") : true;
     return SECTIONS.filter(([k]) => has(k)).map(([key, label, what]) => {
       const ops = all.ops.filter((o) => o.section === key);
       const kinds = {};

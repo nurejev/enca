@@ -34,7 +34,7 @@ test("catalog: every role names a template, every via a group of its profile, na
 
 test("2.1 model: persona groups have active members, Intune access groups eligible ones, nothing in a restricted AU", () => {
   assert.ok(!Object.keys(CAT.templates).some((k) => /^GroupTier/.test(k)), "the 2.0 group tiers are gone");
-  for (const g of PB.allGroups(CAT)) assert.equal(g.template, g.scope === "intune" ? "GroupJIT" : "GroupMember", g.name);
+  for (const g of PB.allGroups(CAT)) assert.equal(g.template, g.scope === "intune" ? "GroupJIT" : g.scope === "xdr" ? (g.name === "PIM-SG-XDR-Admin" ? "GroupJITTier0" : "GroupJIT") : "GroupMember", g.name);
   const m = PB.fromTemplate(CAT.templates.GroupMember), j = PB.fromTemplate(CAT.templates.GroupJIT);
   assert.equal(m.permActive, false); assert.equal(m.maxActive, "P365D"); assert.equal(m.approval, true, "eligible membership, if anyone is made eligible anyway, needs approval");
   assert.equal(j.permActive, false); assert.equal(j.activation, "PT8H");
@@ -294,7 +294,7 @@ test("EasyPIM samples: one per scenario, parse once the comments are stripped, e
       assert.ok(names.has(g.groupId.replace(/^<id of |>$/g, "")), `${id}: ${g.groupId}`);
       for (const a of g.assignments) {
         assert.match(a.principalId, /^<EDIT: /);
-        assert.equal(a.assignmentType, /^<id of PIM-SG-INT-/.test(g.groupId) ? "Eligible" : "Active", `${id} ${g.groupId}`);
+        assert.equal(a.assignmentType, /^<id of PIM-SG-(INT|XDR)-/.test(g.groupId) ? "Eligible" : "Active", `${id} ${g.groupId}`);
       }
     }
     assert.ok(j.ProtectedUsers.some((p) => /EDIT: object id of break-glass/.test(p)));
@@ -357,4 +357,50 @@ test("roles by template id: the in-browser read asks for templateId and canonica
   const app = read("js/app.js");
   assert.match(app, /roleDefinitions\?\$select=id,displayName,isBuiltIn,templateId"/);
   assert.match(app, /PimBaseline\.canonRoles\(PIM_BASELINE, await pmbProg\.fetchAll\("\/v1\.0\/roleManagement\/directory\/roleDefinitions/);
+});
+
+// ---- 2.2: Defender XDR access groups, the Entra side only (2 Oct 2026) ----
+test("2.2 catalog: five PIM-SG-XDR access groups, eligible members, Admin on the Tier 0 gate, per profile as decided", () => {
+  const xdr = CAT.groups.filter((g) => g.scope === "xdr");
+  assert.deepEqual(xdr.map((g) => g.name), ["PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2", "PIM-SG-XDR-Operator-T1", "PIM-SG-XDR-Reader"]);
+  for (const g of xdr) {
+    assert.match(g.name, new RegExp(CAT.naming.pattern));
+    assert.ok(g.xdr && /^Defender XDR /.test(g.xdr.role) && g.xdr.scope === "All", `${g.name}: names its portal role`);
+    assert.ok(!CAT.roles.some((r) => (r.via || []).includes(g.name)), `${g.name}: carries no Entra role`);
+  }
+  // The Admin group: Tier 0's gate on a group — eligible, two hours, c1 without MFA-on-activation, approval.
+  const a = PB.fromTemplate(CAT.templates.GroupJITTier0);
+  assert.equal(a.activation, "PT2H"); assert.equal(a.authContext, "c1"); assert.ok(!a.enablement.includes("MultiFactorAuthentication"));
+  assert.equal(a.approval, true); assert.deepEqual(a.approvers, ["PIM-SG-Approvers"]); assert.equal(a.permActive, false); assert.equal(a.permEligible, false);
+  const j = PB.fromTemplate(CAT.templates.GroupJIT);
+  assert.equal(j.activation, "PT8H", "operators and the reader take the framework's shift, not the document's ten hours");
+  // Profiles: small keeps three (T1 and T2 fold into T3), large five with the Tier 0 rota, multi five centrally.
+  const names = (p) => p.groups.filter((g) => g.scope === "xdr").map((g) => g.name);
+  assert.deepEqual(names(SMALL), ["PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Reader"]);
+  assert.equal(CAT.profiles.small.merge["PIM-SG-XDR-Operator-T1"], "PIM-SG-XDR-Operator-T3"); assert.equal(CAT.profiles.small.merge["PIM-SG-XDR-Operator-T2"], "PIM-SG-XDR-Operator-T3");
+  assert.equal(names(LARGE).length, 5); assert.equal(names(MULTI).length, 5);
+  const lg = PB.fromTemplate(LARGE.templates.GroupJITTier0);
+  assert.deepEqual(lg.approvers, ["PIM-SG-Approvers-Tier0"]); assert.ok(lg.enablement.includes("Ticketing"));
+  assert.ok(!JSON.stringify(CAT.regions.template).includes("PIM-SG-XDR"), "no regional XDR groups: that is the portal's device-group scoping, excluded");
+  assert.match(CAT.outside.join(" "), /Defender XDR \(2\.2\).*never read or written here/);
+});
+
+test("2.2 compare and exports: an XDR group is a model without Entra roles; the portal side is named, never compared", () => {
+  const t = tenant();
+  const id = "g-xdr-t1";
+  t.groups.push({ id, displayName: "PIM-SG-XDR-Operator-T1", isAssignableToRole: true });
+  t.groupPolicies[id] = clone(t.groupPolicies["PIM-SG-INT-Ops"]);
+  t.eligible.push({ principalId: id, principalName: "PIM-SG-XDR-Operator-T1", roleName: "Security Reader", directoryScopeId: "/", principalType: "Group" });
+  const res = PB.compare(LARGE, t);
+  const g = grp(res, "PIM-SG-XDR-Operator-T1");
+  assert.equal(g.present, true); assert.deepEqual(g.carries, []); assert.deepEqual(g.missingRoles, []);
+  assert.deepEqual(g.extraRoles, ["Security Reader"], "an Entra role on an XDR group is a finding"); assert.equal(g.status, "differs");
+  assert.equal(grp(res, "PIM-SG-XDR-Admin").status, "missing");
+  const html = PB.render(res, { filter: "groups" });
+  assert.ok(html.includes("Defender XDR · assigned in the portal") && html.includes("Defender XDR Operator T1 · scope All") && html.includes("eligible · JIT"));
+  assert.match(PB.toMd(res, "contoso"), /PIM-SG-XDR-Operator-T1 \| Helpdesk \| eligible · JIT \| yes \| yes \| Defender XDR, assigned in the portal/);
+  const cfg = PB.toOrchestrator(LARGE, { domain: "contoso.nl" });
+  assert.equal(cfg.GroupRoles.Policies["PIM-SG-XDR-Admin"].Member.Template, "GroupJITTier0");
+  assert.equal(cfg.PolicyTemplates.GroupJITTier0.AuthenticationContext_Value, "c1");
+  for (const id2 of PB.profileIds(CAT)) assert.match(PB.toSample(CAT, id2), /Defender XDR: the PIM-SG-XDR groups are .*Entra side only/);
 });

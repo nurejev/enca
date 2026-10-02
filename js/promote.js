@@ -117,6 +117,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 313,
+      title: "Defender XDR access groups — the Entra side of the CloudFellows PIM framework (2.2)",
+      tools: ["PIM baseline", "Deploy"],
+      builds: [32434],
+      risk: "medium",
+      what: "js/pimBaselineData.js is release 2.2: five groups of scope xdr — PIM-SG-XDR-Admin, -Operator-T3, -Operator-T2, -Operator-T1, -Reader — with eligible members (GroupJIT; Admin under the new template GroupJITTier0: PT2H, justification, context c1, approval by PIM-SG-Approvers, the Tier 0 rota and a ticket in the large profile), an xdr field naming the portal role and scope, the naming pattern (M365|AZ|INT|XDR), the small profile with three of them (T1 and T2 merged into T3), large with five, multi central. js/pimbaseline.js: the group row shows the portal role, membership reads eligible · JIT for every GroupJIT* template, Carries reads Defender XDR · assigned in the portal, the EasyPIM samples carry the groups and a portal note. js/pimdeploy.js: section xdr (the groups and their membership policies, on by default), By hand lines for the portal roles, assignments and unified RBAC activation, members eligible. Help for T48, T51 and T53; tools/pim regenerated; the documentation contract refreshed after both Word documents were reviewed (baseline v1.2, handover v1.3).",
+      why: "Mihai, 2 Oct: the XDR PIM redesign stays excluded for now, but the XDR setup of the M365 RBAC Baseline V2.0 (the v1.3 lineage, version 1.4 added the XDR groups) comes into PIM-buddy — the Entra side only, the XDR side is done separately. Mockup first (Defender XDR Access Groups), decisions taken on the page: the document's tier names, eight-hour shifts instead of the document's ten, c1 + approval on Admin, three groups in the small profile. Medium: a new group family and a new membership template reach Deploy's write path; nothing is removed and the Defender portal is never touched.",
+      test: [
+        "Demo (?demo=1), Workspace 02 → 🧬 PIM baseline, profile Large · one region: the PIM groups table lists PIM-SG-XDR-Admin, -Operator-T3, -T2, -T1 and -Reader with persona, the portal role (Defender XDR … · scope All), membership eligible · JIT, Carries = Defender XDR · assigned in the portal; Small business lists Admin, Operator-T3 and Reader only; Export MD carries the same rows.",
+        "cloudfellows.dev, read: the five rows read Missing (or Match once the groups exist); 🚀 Import ticked → opens Deploy with the section Defender XDR groups ticked and counted (5 create, 5 later) and the By hand list naming the five portal roles and assignments.",
+        "cloudfellows.dev, apply with Privileged Role Administrator active: Preview shows the five group creates in the groups pass; after the typed domain the run makes them role-assignable and private; Verify reads them present; a second Preview plans the five membership policies (GroupJIT ×4, GroupJITTier0 on Admin: PT2H, justification, context c1, approval by PIM-SG-Approvers-Tier0 with a ticket) once PIM for Groups knows the groups.",
+        "T48 after the apply: every PIM-SG-XDR row reads Match on presence, role-assignable and membership policy; put an Entra role on PIM-SG-XDR-Reader by hand → the row reads Differs with also holds; remove it.",
+        "The Defender side, by hand: Permissions → Roles → the five roles with the document's permission sets and one assignment each at scope All naming its PIM-SG-XDR group, unified RBAC activated; an eligible member activates PIM-SG-XDR-Operator-T1 in PIM and, minutes later, sees the portal with the T1 permissions and nothing more.",
+        "📄 EasyPIM samples: each profile's sample lists the XDR groups under GroupRoles (GroupJITTier0 among the PolicyTemplates where Admin is in) and as eligible Assignments.Groups, with the portal note; tools/pim/samples match node tools/pim/generate.cjs.",
+        "node --test tools/*.test.cjs — all pass, pimdocs included (the contract snapshot is build 32434; both Word documents name it)."
+      ]
+    },
+    {
       n: 312,
       title: "CI: the PimBuddy Word-document gate asks for a review on catalog changes, not on every build",
       tools: ["PIM baseline"],

@@ -51,9 +51,13 @@
 //   * PERMANENT ACTIVE IS NOT ALLOWED — except Directory Readers (1.3 marked
 //     it "Perm" for all of IT), and the break-glass accounts, which are
 //     ProtectedUsers and never touched.
-//   * DEFENDER, INTUNE AND PURVIEW RBAC are outside Entra PIM and outside
-//     this catalog. 1.3's Defender XDR role settings for Ops and Helpdesk are
-//     still the intent; they are not something PIM policies can express.
+//   * INTUNE AND DEFENDER XDR RBAC are outside Entra PIM, so the catalog
+//     carries their ENTRA SIDE only: access groups with eligible members
+//     (PIM-SG-INT-* since 2.1, PIM-SG-XDR-* since 2.2) that the product's own
+//     role assignments name. Intune's assignments are in the catalog too (T53
+//     reads them, Deploy writes them); Defender's roles and assignments are
+//     made in the Defender portal and never read or written here. Purview
+//     RBAC stays outside.
 //
 // THE ACTIVATION MODEL (2.1, 25 Sep 2026, after the reliability review).
 // Microsoft offers two ways to make a group of people eligible for an Entra
@@ -75,6 +79,25 @@
 // groups with ELIGIBLE membership (PIM-SG-INT-*, template GroupJIT): there
 // the group activation is the gate. SecOpsReader is the deliberate exception:
 // its active members hold the Read Only Operator assignment standing.
+//
+// DEFENDER XDR, THE ENTRA SIDE (2.2, 2 Oct 2026). The M365 RBAC Baseline
+// V2.0 (the 1.3 lineage; its version 1.4 added the XDR groups) defines five
+// Defender XDR roles — Administrator, Reader, Operator T1, T2 and T3 — each
+// assigned at scope All to a PIM group of the same name. 2.2 carries those
+// five groups as PIM-SG-XDR-* access groups with ELIGIBLE members, as the
+// Intune groups: T1 is the desk, T3 the second line (the document's own
+// numbers, kept because the portal roles carry them), Reader for the
+// readers, Admin for SecOps. Operators and Reader activate under GroupJIT
+// (eight hours, the framework's shift, not the document's ten); Admin — the
+// role that can hand out the other four — under GroupJITTier0, Tier 0's
+// gate on a group: two hours, justification and context c1, approval. The
+// small profile keeps Admin, Operator-T3 and Reader (T1 and T2 fold into T3
+// as the desk folds into Ops); the large profiles keep all five, the
+// multi-region profile centrally — no regional XDR groups. The roles, their
+// permissions, the assignments and the data sources live in the Defender
+// portal and are made there, separately: Deploy lists that work under By
+// hand and nothing reads the portal back (Mihai, 2 Oct 2026: "we only need
+// the entra side to be included. the xdr side is done separately").
 //
 // PROTECTION (2.1). Role-assignable groups already protect themselves and
 // their members: only Privileged Role Administrators, Global Administrators
@@ -120,21 +143,21 @@ const PIM_BASELINE = {
   id: "cloudfellows-pim",
   label: "CloudFellows PIM framework",
   icon: "🧬",
-  release: "2.1",
-  revised: "2026-09-25",
+  release: "2.2",
+  revised: "2026-10-02",
   tenant: "cloudfellows.dev",
   source: "bundled",
-  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026) → 2.1 (25 Sep 2026: active membership + eligible roles, Intune through eligible access groups, no PIM groups in restricted AUs)",
+  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026) → 2.1 (25 Sep 2026: active membership + eligible roles, Intune through eligible access groups, no PIM groups in restricted AUs) → 2.2 (2 Oct 2026: the five Defender XDR access groups PIM-SG-XDR-* on the Entra side; the portal roles and assignments stay separate)",
   // Names the framework depends on beside the groups. The approver group
   // is a plain security group (not role-assignable, not PIM-managed): its
   // members approve, they hold nothing. The mailbox is a shared mailbox in
   // the tenant's own domain.
   approvers: { name: "PIM-SG-Approvers", description: "Approves Tier 0 and SecOps activations. Plain security group, members from IT and Security; never role-assignable." },
   notifications: { mailbox: "pim-alerts", description: "Shared mailbox pim-alerts@<tenant domain> receives every PIM alert (eligible, active and activation), so the audit trail has one inbox." },
-  authContext: { id: "c1", name: "PIM Tier 0 activation", description: "Authentication context c1 is required to activate a Tier 0 role. GroupMember and GroupJIT do not require c1. The Conditional Access policy that gates c1 (phishing-resistant MFA, compliant device) lives in Workspace 01." },
+  authContext: { id: "c1", name: "PIM Tier 0 activation", description: "Authentication context c1 is required to activate a Tier 0 role. GroupMember and GroupJIT do not require c1; GroupJITTier0 (the Defender XDR administrator group) does. The Conditional Access policy that gates c1 (phishing-resistant MFA, compliant device) lives in Workspace 01." },
   // Exact-match naming contract. A tenant's group counts as the framework's
   // only under this exact name (no prefixes, no suffixes, no version).
-  naming: { pattern: "^PIM-SG-(M365|AZ|INT)-[A-Za-z0-9]+(-[A-Za-z0-9]+)*$", example: "PIM-SG-M365-Ops · PIM-SG-AZ-Platform-Owner · PIM-SG-INT-Ops" },
+  naming: { pattern: "^PIM-SG-(M365|AZ|INT|XDR)-[A-Za-z0-9]+(-[A-Za-z0-9]+)*$", example: "PIM-SG-M365-Ops · PIM-SG-AZ-Platform-Owner · PIM-SG-INT-Ops · PIM-SG-XDR-Operator-T1" },
   // Templates: one set of PIM settings, named. Keys follow EasyPIM's
   // PolicyTemplates so the export is a copy, not a translation.
   templates: {
@@ -221,6 +244,19 @@ const PIM_BASELINE = {
       Notification_EligibleAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
       Notification_ActiveAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
     },
+    // GroupJITTier0 (2.2) is for the one Defender XDR access group that can
+    // hand out every other Defender role, PIM-SG-XDR-Admin: eligible
+    // membership like GroupJIT, with the Tier 0 gate on the activation — two
+    // hours, justification and context c1, approval by the approver group.
+    // Defender has no PIM of its own, so the group activation is the gate.
+    GroupJITTier0: {
+      description: "Defender XDR administrator group: eligible membership for at most a year; activation for two hours with justification, authentication context c1 and approval by PIM-SG-Approvers; an active assignment by an administrator lasts at most 30 days; nothing permanent; every alert.",
+      ActivationDuration: "PT2H", ActivationRequirement: "Justification", AuthenticationContext_Enabled: true, AuthenticationContext_Value: "c1",
+      ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"], AllowPermanentEligibility: false, MaximumEligibilityDuration: "P365D", AllowPermanentActiveAssignment: false, MaximumActiveAssignmentDuration: "P30D",
+      Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
+      Notification_EligibleAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
+      Notification_ActiveAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
+    },
   },
   // Entra roles under the framework, by their exact Microsoft display names
   // (2026). `templateId` is the built-in role's template id — what the
@@ -290,6 +326,16 @@ const PIM_BASELINE = {
     { name: "PIM-SG-INT-Ops", scope: "intune", persona: "Intune operations", template: "GroupJIT", description: "Eligible members activate for a shift to act as Intune Policy and Profile Manager + Application Manager (central Workplace)." },
     { name: "PIM-SG-INT-HelpDesk", scope: "intune", persona: "Intune first line", template: "GroupJIT", description: "Eligible members activate to act as Intune Help Desk Operator." },
     { name: "PIM-SG-INT-SecOps", scope: "intune", persona: "Intune endpoint security", template: "GroupJIT", description: "Eligible members activate to act as Intune Endpoint Security Manager." },
+    // Defender XDR access groups (2.2): eligible members, the group
+    // activation is the gate — Defender has no PIM of its own. `xdr` names
+    // the portal role the group is meant for; that role, its permissions and
+    // the assignment that names the group are made in the Defender portal,
+    // never here (nothing reads the portal back).
+    { name: "PIM-SG-XDR-Admin", scope: "xdr", persona: "Security Operations", template: "GroupJITTier0", xdr: { role: "Defender XDR Administrator", scope: "All" }, description: "Eligible members activate for two hours, with approval and context c1, to act as Defender XDR Administrator: every read and manage permission in Security operations, Security posture and Authorization and settings — the role that can hand out the other four. Made in the Defender portal; the group is the framework's." },
+    { name: "PIM-SG-XDR-Operator-T3", scope: "xdr", persona: "IT Operations", template: "GroupJIT", xdr: { role: "Defender XDR Operator T3", scope: "All" }, description: "Eligible members activate for a shift to act as Defender XDR Operator T3, the second line: alerts, response, basic and advanced live response, file collection and the email actions; vulnerability management read with exception, remediation and application handling, security baselines assessment, Secure Score read and manage; authorization read-only." },
+    { name: "PIM-SG-XDR-Operator-T2", scope: "xdr", persona: "Second line", template: "GroupJIT", xdr: { role: "Defender XDR Operator T2", scope: "All" }, description: "Eligible members activate for a shift to act as Defender XDR Operator T2: the T1 permissions plus vulnerability management read, exception and remediation handling and Secure Score read and manage; authorization read-only. The framework document names no persona for it — the tier between the desk and Ops." },
+    { name: "PIM-SG-XDR-Operator-T1", scope: "xdr", persona: "Helpdesk", template: "GroupJIT", xdr: { role: "Defender XDR Operator T1", scope: "All" }, description: "Eligible members activate for a shift to act as Defender XDR Operator T1, the desk: security data basics read; alerts, response, basic live response, file collection, email quarantine and email advanced actions manage; email content and headers read; posture and authorization read-only." },
+    { name: "PIM-SG-XDR-Reader", scope: "xdr", persona: "Security readers", template: "GroupJIT", xdr: { role: "Defender XDR Reader", scope: "All" }, description: "Eligible members activate for a shift to act as Defender XDR Reader: Security operations, Security posture and Authorization and settings, all read-only." },
     { name: "PIM-SG-AZ-Tenant-Owner", scope: "azure", persona: "Azure tenant root", template: "GroupMember", azure: { role: "Owner", scope: "Tenant Root Group" }, description: "Owner at the tenant root management group." },
     { name: "PIM-SG-AZ-Platform-Owner", scope: "azure", persona: "Platform", template: "GroupMember", azure: { role: "Owner", scope: "Platform subscription" } },
     { name: "PIM-SG-AZ-Platform-Contributor", scope: "azure", persona: "Platform", template: "GroupMember", azure: { role: "Contributor", scope: "Platform subscription" } },
@@ -331,9 +377,9 @@ const PIM_BASELINE = {
     small: {
       label: "Small business",
       size: "25 to 250 people, two to six in IT",
-      description: "Four persona groups instead of seven; among Tier 0 roles, approval only on Global Administrator through customer-selected approvers; the other Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and Tier 2 activation alerts are Critical; assignment alerts remain All; Global Administrator for two hours; two Intune access groups; three Azure groups, made only when there is Azure.",
-      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-Ops", "PIM-SG-M365-SecOpsReader", "PIM-SG-INT-Ops", "PIM-SG-INT-SecOps", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"],
-      merge: { "PIM-SG-M365-Tier0": "PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Helpdesk": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps": "PIM-SG-M365-Ops", "PIM-SG-INT-HelpDesk": "PIM-SG-INT-Ops" },
+      description: "Four persona groups instead of seven; among Tier 0 roles, approval only on Global Administrator through customer-selected approvers; the other Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and Tier 2 activation alerts are Critical; assignment alerts remain All; Global Administrator for two hours; two Intune access groups; three Defender XDR access groups (Admin on the Tier 0 gate, Operator-T3 for all of IT, Reader — T1 and T2 fold into T3 as the desk folds into Ops); three Azure groups, made only when there is Azure.",
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-Ops", "PIM-SG-M365-SecOpsReader", "PIM-SG-INT-Ops", "PIM-SG-INT-SecOps", "PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Reader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"],
+      merge: { "PIM-SG-M365-Tier0": "PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Helpdesk": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps": "PIM-SG-M365-Ops", "PIM-SG-INT-HelpDesk": "PIM-SG-INT-Ops", "PIM-SG-XDR-Operator-T1": "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2": "PIM-SG-XDR-Operator-T3" },
       templates: {
         Tier0: { ApprovalRequired: false, Approvers: [], description: "Two hours, justification, authentication context c1, alert on every activation — no approval, except on Global Administrator itself (its override)." },
         Tier1: { Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "Critical", Recipients: ["pim-alerts"] } },
@@ -355,14 +401,15 @@ const PIM_BASELINE = {
     large: {
       label: "Large · one region",
       size: "one country, several IT teams, a service desk, an ITSM tool",
-      description: "The teams own their roles: Ops becomes Identity, Workplace and Collab, AppOps becomes Apps, the desk gets a VIP variant for executives, auditors their own readers. Ticketing on Tier 0 and Tier 1 activations; Tier 0 approval by a rota of three (PIM-SG-Approvers-Tier0); executives in the restricted AU AU-RM-Executives, filled by hand. No administrative units per region.",
-      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Tier0", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit", "PIM-SG-M365-Identity", "PIM-SG-M365-Workplace", "PIM-SG-M365-Collab", "PIM-SG-M365-Apps", "PIM-SG-M365-ServiceDesk", "PIM-SG-M365-ServiceDesk-VIP", "PIM-SG-INT-Ops", "PIM-SG-INT-HelpDesk", "PIM-SG-INT-SecOps", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Platform-Owner", "PIM-SG-AZ-Platform-Contributor", "PIM-SG-AZ-Connectivity-Owner", "PIM-SG-AZ-Connectivity-Contributor", "PIM-SG-AZ-Management-Owner", "PIM-SG-AZ-Management-Contributor", "PIM-SG-AZ-LandingZone-Owner", "PIM-SG-AZ-LandingZone-Contributor", "PIM-SG-AZ-Corp-Owner", "PIM-SG-AZ-Corp-Contributor", "PIM-SG-AZ-Online-Owner", "PIM-SG-AZ-Online-Contributor"],
+      description: "The teams own their roles: Ops becomes Identity, Workplace and Collab, AppOps becomes Apps, the desk gets a VIP variant for executives, auditors their own readers. Ticketing on Tier 0 and Tier 1 activations; Tier 0 approval by a rota of three (PIM-SG-Approvers-Tier0); executives in the restricted AU AU-RM-Executives, filled by hand. No administrative units per region. All five Defender XDR access groups, Admin on the Tier 0 rota.",
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Tier0", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit", "PIM-SG-M365-Identity", "PIM-SG-M365-Workplace", "PIM-SG-M365-Collab", "PIM-SG-M365-Apps", "PIM-SG-M365-ServiceDesk", "PIM-SG-M365-ServiceDesk-VIP", "PIM-SG-INT-Ops", "PIM-SG-INT-HelpDesk", "PIM-SG-INT-SecOps", "PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2", "PIM-SG-XDR-Operator-T1", "PIM-SG-XDR-Reader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Platform-Owner", "PIM-SG-AZ-Platform-Contributor", "PIM-SG-AZ-Connectivity-Owner", "PIM-SG-AZ-Connectivity-Contributor", "PIM-SG-AZ-Management-Owner", "PIM-SG-AZ-Management-Contributor", "PIM-SG-AZ-LandingZone-Owner", "PIM-SG-AZ-LandingZone-Contributor", "PIM-SG-AZ-Corp-Owner", "PIM-SG-AZ-Corp-Contributor", "PIM-SG-AZ-Online-Owner", "PIM-SG-AZ-Online-Contributor"],
       merge: {},
       approvers: "PIM-SG-Approvers-Tier0",
       templates: {
         Tier0: { ActivationRequirement: "Justification,Ticketing", Approvers: ["PIM-SG-Approvers-Tier0"], description: "Two hours (Global Administrator one), justification and a ticket, authentication context c1, approval by the Tier 0 rota." },
         Tier1: { ActivationRequirement: "MultiFactorAuthentication,Justification,Ticketing", description: "Two hours, MFA, justification and a ticket, no approval; ticket information is required but is not validated against an ITSM system." },
         GroupMember: { Approvers: ["PIM-SG-Approvers-Tier0"] },
+        GroupJITTier0: { ActivationRequirement: "Justification,Ticketing", Approvers: ["PIM-SG-Approvers-Tier0"], description: "Two hours, justification and a ticket, authentication context c1, approval by the Tier 0 rota — the Defender XDR administrator group." },
       },
       // Where a role lands when Ops splits into teams (the rest keep `via`).
       roles: {
@@ -414,7 +461,7 @@ const PIM_BASELINE = {
     multi: {
       label: "Large · multi-region",
       size: "several regions, central IT plus local IT per region",
-      description: "The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. This profile does not define AU-RM-Executives; executive protection is a separate customer extension.",
+      description: "The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Intune and Defender XDR access groups, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. This profile does not define AU-RM-Executives; executive protection is a separate customer extension.",
       groups: null,
       merge: {},
       templates: {},
@@ -542,8 +589,8 @@ const PIM_BASELINE = {
   // Help can say so, never compared.
   outside: [
     "Access reviews: review every eligible assignment and persona group yearly. Review schedules are not created by Deploy; assignment expiry is not an access review.",
-    "Intune RBAC is part of the framework: Deploy plans supported roles, tags and assignments; T53 reads and compares them. Privileged access uses PIM-SG-INT groups; SecOpsReader has the explicit standing Read Only Operator exception. Defender XDR and Purview workload RBAC remain separate.",
-    "People are never in the catalog: active persona members and eligible Intune members are added by an administrator (or an access package) and reviewed yearly.",
+    "Intune RBAC is part of the framework: Deploy plans supported roles, tags and assignments; T53 reads and compares them. Privileged access uses PIM-SG-INT groups; SecOpsReader has the explicit standing Read Only Operator exception. Defender XDR (2.2): the five PIM-SG-XDR access groups are the framework's Entra side — Deploy creates them and their membership policies, T48 compares them; the Defender XDR roles, their permissions, the assignments that name the groups and the data sources are made in the Defender portal, separately, and are never read or written here. Purview workload RBAC remains separate.",
+    "People are never in the catalog: active persona members and eligible Intune and Defender XDR members are added by an administrator (or an access package) and reviewed yearly.",
     "Azure RBAC: Deploy creates optional PIM-SG-AZ groups only. ARM assignments and Azure PIM policies at management group or subscription scopes are separate. Roles and assignments offers an Azure RBAC read; Baseline does not provision ARM assignments.",
   ],
 };

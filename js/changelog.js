@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32434, date: "2026-10-02", title: "Defender XDR access groups — the Entra side of the PIM framework",
+    items: [
+      { kind: "new", tool: "PIM baseline", text: "The CloudFellows PIM framework is 2.2: the five Defender XDR roles of the framework document — Administrator, Operator T3, T2, T1 and Reader — now have their groups in the catalog, PIM-SG-XDR-Admin, -Operator-T3, -Operator-T2, -Operator-T1 and -Reader. They work like the Intune access groups: members are ELIGIBLE and activate the group for a shift (eight hours, MFA and justification); the Admin group, which can hand out the other four in Defender, activates for two hours with authentication context c1 and approval (the new membership template GroupJITTier0). Small business keeps Admin, Operator-T3 and Reader; the large profiles keep all five, the multi-region profile centrally. The group row names the portal role and its scope, Carries reads Defender XDR, assigned in the portal, and an Entra role found on one of these groups is a finding." },
+      { kind: "improved", tool: "PIM baseline", text: "The Defender XDR roles themselves, their permissions, the assignments that name the groups and the data sources are made in the Defender portal and stay yours: nothing here reads or writes the portal. The EasyPIM samples carry the groups as eligible Assignments.Groups and say so; Purview RBAC stays outside the framework. Both PimBuddy Word documents were reviewed for 2.2 and the documentation contract refreshed." },
+      { kind: "new", tool: "Deploy", text: "Pick has a section of its own, Defender XDR groups: the PIM-SG-XDR-* groups (role-assignable, private, created empty) and their membership policies, on by default, one tick. By hand then lists the portal work — the roles with the document's permission sets and one assignment each at scope All naming its group, then unified RBAC activated per workload — and reminds you that the XDR groups' members are eligible, like the Intune groups." },
+    ],
+  },
+  {
     build: 32433, date: "2026-09-30", title: "Build check no longer blocks on the PimBuddy documents",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "The automated check on the PimBuddy Word documents now asks for a new review only when the PIM model changes, not on every new build. Build 32432 failed the build pipeline for that reason alone, so its container image was not published." },

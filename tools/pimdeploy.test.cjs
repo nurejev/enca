@@ -150,3 +150,25 @@ test("approval readiness requires a known count of at least two users", () => {
   const ready = PD.build(LARGE, r, { sections: new Set(["rolePolicies"]), approverMembers: { "PIM-SG-Approvers-Tier0": 2 } });
   assert.ok(ready.ops.some(o => o.key === key));
 });
+
+// ---- 2.2: the Defender XDR groups travel as one section; the portal is never in the plan ----
+test("2.2 xdr section: the PIM-SG-XDR groups and their policies, on by default, nothing for the Defender portal but a By hand line", () => {
+  const r = raw();
+  const secs = PD.sections(LARGE, r, {});
+  const x = secs.find((s) => s.key === "xdr");
+  assert.ok(x && x.defaultOn, "Defender XDR groups is a section of its own, on by default");
+  assert.equal(x.kinds.create, 5, "five groups to make"); assert.equal(x.kinds.later, 5, "five membership policies once PIM for Groups knows them");
+  assert.equal(PD.sections(SMALL, r, {}).find((s) => s.key === "xdr").kinds.create, 3, "small: Admin, Operator-T3, Reader");
+  const P = PD.build(LARGE, r, { sections: new Set(["xdr"]), domain: "contoso.nl" });
+  assert.deepEqual(P.blocked, []);
+  const groups = P.ops.filter((o) => o.key.startsWith("group:")).map((o) => o.key);
+  assert.deepEqual(groups.sort(), ["group:PIM-SG-XDR-Admin", "group:PIM-SG-XDR-Operator-T1", "group:PIM-SG-XDR-Operator-T2", "group:PIM-SG-XDR-Operator-T3", "group:PIM-SG-XDR-Reader"]);
+  for (const o of P.ops) { assert.equal(o.section, "xdr"); assert.ok(!/defender|security\.microsoft|roleManagement\/defender/i.test(o.url || ""), "nothing in the plan touches the Defender portal"); }
+  const adm = P.ops.find((o) => o.key === "gpolnew:PIM-SG-XDR-Admin");
+  assert.equal(adm.settings.AuthenticationContext_Value, "c1"); assert.equal(adm.settings.ActivationDuration, "PT2H"); assert.equal(adm.skipApproval, true, "no approver group with two members yet → approval waits, as everywhere");
+  assert.ok(P.manual.some((m) => /Defender XDR: in the Defender portal .*PIM-SG-XDR-Admin → Defender XDR Administrator/.test(m)));
+  assert.ok(P.manual.some((m) => /PIM-SG-INT-\* and PIM-SG-XDR-\* access groups ELIGIBLE/.test(m)));
+  // Unticked: no XDR group, no XDR policy, even with Membership policies on.
+  const Q = PD.build(LARGE, r, { sections: new Set(["groups", "groupPolicies"]), domain: "contoso.nl" });
+  assert.ok(!Q.ops.some((o) => /PIM-SG-XDR/.test(o.key)));
+});
