@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32438, date: "2026-10-05", title: "Deploy — no change for activation rules in another order",
+    items: [
+      { kind: "fixed", tool: "Deploy", text: "Deploy no longer plans a change when a role or group asks for the same activation requirements in a different order (MFA and justification against justification and MFA). On cloudfellows.dev that was 9 of the 245 operations in one Preview, among them the GlobalAdmin and Ops membership policies." },
+    ],
+  },
+  {
     build: 32437, date: "2026-10-05", title: "PIM framework 3.0 — the scripts follow",
     items: [
       { kind: "fixed", tool: "PIM baseline", text: "The PowerShell scripts for the baseline tenant understand job groups: New-PimBaseline.ps1 makes a job group active in its roles when the file says Active, and New-PimRegions.ps1 makes the regional desk and Ops groups active at their own units instead of eligible. Both report a 2.x eligibility left on a job group, and leave a role out with a clear message when its policy still requires an end date on active assignments." },

@@ -120,7 +120,7 @@ const PROMOTE = {
       n: 315,
       title: "PIM framework 3.0 — job groups, direct groups, Exchange RBAC access groups (T48 0.7.0, T51 0.3.0, R79)",
       tools: ["PIM baseline", "Deploy"],
-      builds: [32436, 32437],
+      builds: [32436, 32437, 32438],
       risk: "high",
       what: "Catalog 3.0 in js/pimBaselineData.js: every M365 group has path job or direct; GroupJITTier1 (4 h, MFA and justification; Critical activation alerts in small, a ticket in large); SecOps-Direct, Ops-Direct, AppOps-Direct, Collab-Direct; Exchange, SharePoint, Conditional Access, Security and Compliance roles on direct groups; PIM-SG-EXO-* access groups; regional Helpdesk and Ops job groups. js/pimbaseline.js: isJob, jobOverrides (every job-held role expects Allow permanent active), compare by path, regions active at the unit, export Active and permanent. js/pimdeploy.js: active requests for job groups after their role rules, a finding per existing job group about active members, an Exchange RBAC section. Demo tenant on the 3.0 shape. Both Word documents reviewed for 3.0 and the contract refreshed at 32436.",
       why: "Mihai, 4-5 Oct: one activation should give the whole job; Exchange and SharePoint as Microsoft suggests; 4 hours; Exchange RBAC now. Risk is high because Deploy now writes permanent active assignments to groups: a job group that still has ACTIVE members gives them every role of the job standing. The baseline tenant cloudfellows.dev was migrated with tools/pim Invoke-PimBaselineSetup.ps1 before this build.",
