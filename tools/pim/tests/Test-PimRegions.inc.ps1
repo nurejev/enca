@@ -32,7 +32,7 @@ Test-It 'regions: planning makes zero writes; units, groups, scoped eligibilitie
   Assert-True ($keys -contains 'member:PIM-SG-EU-NL-Approvers:aaaaaaaa-0000-0000-0000-000000000004') 'first approver (JSON list)'
   Assert-True ($keys -contains 'member:PIM-SG-EU-NL-Approvers:aaaaaaaa-0000-0000-0000-000000000005') 'second approver (JSON list)'
   Assert-True ($keys -contains 'member:PIM-SG-EU-DE-Approvers:aaaaaaaa-0000-0000-0000-000000000005') 'approver from a JSON string'
-  $el = @($p.ops | Where-Object { $_.key -eq 'elig:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
+  $el = @($p.ops | Where-Object { $_.key -eq 'act:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
   Assert-Eq $el.body.directoryScopeId '/administrativeUnits/{{au:AU-EU-NL-Users}}' 'eligibility scoped to the region unit'
   $au = @($p.ops | Where-Object { $_.key -eq 'au:AU-EU-NL-Users' })[0]
   Assert-Eq $au.body.membershipRule '(user.extensionAttribute1 -eq "EU-NL")' 'the unit rule from the row'
@@ -79,13 +79,16 @@ Test-It 'regions: apply the approved plan, then planning again finds nothing; an
   Assert-Eq $auU.membershipRule '(user.extensionAttribute1 -eq "EU-NL")' 'dynamic rule'
   $hd = $F.groups | Where-Object { $_.displayName -eq 'PIM-SG-EU-NL-Helpdesk' }
   Assert-True $hd.isAssignableToRole 'persona group role-assignable'
-  Assert-True (@($F.elig | Where-Object { $_.principalId -eq $hd.id -and $_.directoryScopeId -eq "/administrativeUnits/$($auU.id)" }).Count -eq 4) 'first line: four roles on the users unit'
-  Assert-True (-not @($F.elig | Where-Object { $_.principalId -eq $hd.id -and $_.directoryScopeId -eq '/' }).Count) 'nothing tenant-wide'
+  # 3.0: the regional desk is a job group — ACTIVE at its unit, never eligible, never tenant-wide
+  Assert-True (@($F.active | Where-Object { $_.principalId -eq $hd.id -and $_.directoryScopeId -eq "/administrativeUnits/$($auU.id)" }).Count -eq 4) 'first line: four roles active on the users unit'
+  Assert-True (-not @($F.elig | Where-Object { $_.principalId -eq $hd.id }).Count) 'no eligibility on a job group'
+  Assert-True (-not @($F.active | Where-Object { $_.principalId -eq $hd.id -and $_.directoryScopeId -eq '/' }).Count) 'nothing tenant-wide'
   $jit = $F.groupPolicies[($F.groups | Where-Object { $_.displayName -eq 'PIM-SG-INT-Ops-EU-NL' }).id].rules
   Assert-Eq ($jit | Where-Object { $_.id -eq 'Expiration_EndUser_Assignment' }).maximumDuration 'PT8H' 'GroupJIT: a shift'
   Assert-Eq ($jit | Where-Object { $_.id -eq 'Expiration_Admin_Assignment' }).maximumDuration 'P30D' 'GroupJIT: active at most 30 days'
   $mem = $F.groupPolicies[$hd.id].rules
-  Assert-Eq ($mem | Where-Object { $_.id -eq 'Expiration_Admin_Assignment' }).maximumDuration 'P365D' 'GroupMember: active at most a year'
+  Assert-Eq ($mem | Where-Object { $_.id -eq 'Expiration_EndUser_Assignment' }).maximumDuration 'PT4H' 'GroupJITTier1: one activation of four hours'
+  Assert-Eq ($mem | Where-Object { $_.id -eq 'Expiration_Admin_Assignment' }).maximumDuration 'P30D' 'GroupJITTier1: active assignment at most 30 days'
   $apg = $F.groups | Where-Object { $_.displayName -eq 'PIM-SG-EU-NL-Approvers' }
   Assert-Eq ((@($F.members[$apg.id]) | Sort-Object) -join ',') 'aaaaaaaa-0000-0000-0000-000000000004,aaaaaaaa-0000-0000-0000-000000000005' 'approvers are members'
   $tag = $F.intune.tags | Where-Object { $_.displayName -eq 'INT-TAG-EU-NL' }

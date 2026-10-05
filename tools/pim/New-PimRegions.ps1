@@ -518,6 +518,21 @@ function Build-RegionsPlan {
         $gid = & $gref $gn; $aid = & $uref $an
         if (-not $gid -or -not $aid) { $plan.findings.Add("$gn → $rn at ${an}: left out, $(if (-not $gid) { $gn } else { $an }) does not exist and is not planned"); continue }
         $scope = "/administrativeUnits/$aid"
+        # 3.0: a regional job group (path job) holds the role ACTIVE, permanently, at its unit
+        $isJob = @(@($R['groups']) | Where-Object { "$($_['name'])" -eq $gn -and "$($_['path'])" -eq 'job' }).Count -gt 0
+        if ($isJob) {
+          if ($idOf.ContainsKey($gn)) {
+            if (@($eligSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq '/' }).Count) { $plan.findings.Add("$gn is eligible for $rn at TENANT scope — wider than the region; the scoped one does not replace it: remove the tenant-wide one by hand") }
+            if (@($activeSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq '/' -and "$($_['assignmentType'])" -ne 'Activated' }).Count) { $plan.findings.Add("$gn holds $rn ACTIVE at TENANT scope — wider than the region; remove the tenant-wide one by hand") }
+            if (@($activeSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq $scope -and "$($_['assignmentType'])" -ne 'Activated' }).Count) { continue }
+            if (@($eligSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq $scope }).Count) { $plan.findings.Add("$gn is still ELIGIBLE for $rn at $an (2.x) — a job group holds it ACTIVE; remove the eligibility once the active one exists (Set-PimFramework30.ps1 -Phase Retire)") }
+          }
+          $pol = $rolePol[$rid]
+          $arule = if ($pol) { @($pol['rules'] | Where-Object { $_['id'] -eq 'Expiration_Admin_Assignment' })[0] } else { $null }
+          if ($arule -and $arule['isExpirationRequired']) { $plan.findings.Add("$rn requires an end date on active assignments — allow permanent active first (T51 Role settings, or New-PimBaseline.ps1 -Include RolePolicies), then plan again; $gn → $rn at $an left out"); continue }
+          Add-PimOp $plan "act:${rn}:${gn}:$an" 'request' "$gn ACTIVE in $rn at $an (permanent — its eligible members get it on activation)" ([ordered]@{ uri = "$GraphUrl/roleManagement/directory/roleAssignmentScheduleRequests"; needs = @('RoleManagement.ReadWrite.Directory'); body = [ordered]@{ action = 'adminAssign'; principalId = $gid; roleDefinitionId = $rid; directoryScopeId = $scope; justification = "CloudFellows PIM framework 3.0: job group $gn holds $rn in $an"; scheduleInfo = [ordered]@{ expiration = [ordered]@{ type = 'noExpiration' } } } })
+          continue
+        }
         if ($idOf.ContainsKey($gn)) {
           $wide = @($eligSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq '/' })
           if ($wide.Count) { $plan.findings.Add("$gn is eligible for $rn at TENANT scope — wider than the region; the scoped one does not replace it: remove the tenant-wide one by hand") }

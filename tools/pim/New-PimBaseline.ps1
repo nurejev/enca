@@ -275,7 +275,19 @@ function Build-BaselinePlan {
         $gid = if ($gn) { & $ref $gn } elseif (Test-Guid $a['principalId']) { $a['principalId'] } else { $null }
         if (-not $gid -and $gn -and $Include -notcontains 'Groups') { $plan.findings.Add("$rn → ${gn}: left out, the group does not exist (Groups not included)"); continue }
         if (-not $gid) { $plan.blocked.Add("${rn}: principal '$($a['principalId'])' cannot be resolved"); continue }
-        if ("$($a['assignmentType'])" -ne 'Eligible') { $plan.findings.Add("$rn → $gn is '$($a['assignmentType'])' in the config; framework 2.1 makes groups ELIGIBLE — left out"); continue }
+        if ("$($a['assignmentType'])" -eq 'Active') {
+          # 3.0: a job group holds the role ACTIVE, permanently; its eligible members activate the group
+          if (@($activeSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq '/' -and "$($_['assignmentType'])" -ne 'Activated' }).Count) { continue }
+          if (@($eligSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq '/' }).Count) { $plan.findings.Add("$gn is still ELIGIBLE for $rn (2.x) — a job group holds it ACTIVE; remove the eligibility once the active one exists (Set-PimFramework30.ps1 -Phase Retire)") }
+          $pol = $rolePol[$rid]
+          $arule = if ($pol) { @($pol['rules'] | Where-Object { $_['id'] -eq 'Expiration_Admin_Assignment' })[0] } else { $null }
+          if ($arule -and $arule['isExpirationRequired']) { $plan.findings.Add("$rn requires an end date on active assignments — the framework allows permanent active for roles a job group holds: plan with -Include RolePolicies, apply, then plan again; $gn → $rn left out"); continue }
+          $just = if (Get-Key $a 'justification') { "$($a['justification'])" } else { "CloudFellows PIM framework 3.0: job group $gn holds $rn" }
+          $exp = if (Get-Key $a 'permanent') { [ordered]@{ type = 'noExpiration' } } else { [ordered]@{ type = 'afterDuration'; duration = $(if (Get-Key $a 'duration') { "$($a['duration'])" } else { 'P365D' }) } }
+          Add-PimOp $plan "act:${rn}:$gn" 'request' "$gn ACTIVE in $rn at tenant scope ($(if (Get-Key $a 'permanent') { 'permanent' } else { $exp.duration }))" ([ordered]@{ uri = "$GraphUrl/roleManagement/directory/roleAssignmentScheduleRequests"; body = [ordered]@{ action = 'adminAssign'; principalId = $gid; roleDefinitionId = $rid; directoryScopeId = '/'; justification = $just; scheduleInfo = [ordered]@{ expiration = $exp } } })
+          continue
+        }
+        if ("$($a['assignmentType'])" -ne 'Eligible') { $plan.findings.Add("$rn → $gn is '$($a['assignmentType'])' in the config — left out"); continue }
         $has = @($eligSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['directoryScopeId'])" -eq '/' })
         if ($has.Count) { continue }
         $act = @($activeSched | Where-Object { $_['principalId'] -eq $gid -and $_['roleDefinitionId'] -eq $rid -and "$($_['assignmentType'])" -ne 'Activated' })

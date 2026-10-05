@@ -149,7 +149,9 @@ Test-It 'baseline: EDIT placeholders block; a filled-in sample plans people as a
   $people = @($p.ops | Where-Object { $_.key -like 'person:*' })
   Assert-True ($people.Count -ge 5) 'people planned'
   Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-INT-Ops:*' -and $_.uri -like '*eligibilityScheduleRequests' }).Count) 'Intune access group: eligible'
-  Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-M365-Ops:*' -and $_.uri -like '*assignmentScheduleRequests' }).Count) 'persona group: active'
+  # 3.0: people are ELIGIBLE in a job group (Ops) and ACTIVE in a direct group (GlobalAdmin)
+  Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-M365-Ops:*' -and $_.uri -like '*eligibilityScheduleRequests' }).Count) 'job group: eligible'
+  Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-M365-GlobalAdmin:*' -and $_.uri -like '*/group/assignmentScheduleRequests' }).Count) 'direct group: active'
   Assert-True (Test-Path (Join-Path $tmp 'resolved.json')) 'resolved config for EasyPIM'
   $r = Get-Content (Join-Path $tmp 'resolved.json') -Raw
   Assert-True ($r -notmatch '"_meta"') 'the _ keys are stripped for EasyPIM'

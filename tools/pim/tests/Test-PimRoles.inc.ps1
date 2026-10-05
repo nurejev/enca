@@ -16,8 +16,9 @@ Test-It 'roles: a built-in role the tenant still calls by its former name is fou
   Assert-True ($txt -match "is called 'Azure AD Joined Device Local Administrator' in this tenant") "the finding names the tenant's name`n$txt"
   Assert-True ((Get-Plans 'baseline')[-1].LastWriteTime -ge $t0) 'a plan written'
   $p = Get-Content (Get-Plans 'baseline')[-1].FullName -Raw | ConvertFrom-Json -AsHashtable
-  $el = @($p.ops | Where-Object { $_.key -like 'elig:Microsoft Entra Joined Device Local Administrator:*' })
-  Assert-True $el.Count 'the renamed role''s eligibilities planned'
+  # 3.0: in the small profile the role is held by the Ops job group — an ACTIVE assignment
+  $el = @($p.ops | Where-Object { $_.key -like 'elig:Microsoft Entra Joined Device Local Administrator:*' -or $_.key -like 'act:Microsoft Entra Joined Device Local Administrator:*' })
+  Assert-True $el.Count 'the renamed role''s assignments planned'
   foreach ($o in $el) { Assert-Eq $o.body.roleDefinitionId $ejdla 'the built-in role, by template id' }
   $r = Get-Content $res -Raw | ConvertFrom-Json -AsHashtable
   $names = @($r.Assignments.EntraRoles | ForEach-Object { $_.roleName })
@@ -33,7 +34,7 @@ Test-It 'roles: applying with the former name in the tenant makes the eligibilit
   New-FakeTenant -Scopes $allScopes -RoleNames $roleNames -RenamedRoles $renamed
   Invoke-Quiet { & $baseline -ConfigFile $small -TenantId fake.dev -OutDir $tmp }
   Invoke-Quiet { & $baseline -ConfigFile $small -TenantId fake.dev -OutDir $tmp -Apply -PlanFile (Get-Plans 'baseline')[-1].FullName -Yes }
-  Assert-True (@($global:Fake.elig | Where-Object { $_.roleDefinitionId -eq $ejdla -and $_.directoryScopeId -eq '/' }).Count) 'eligible on the built-in role'
+  Assert-True (@($global:Fake.elig.ToArray() + $global:Fake.active.ToArray() | Where-Object { $_.roleDefinitionId -eq $ejdla -and $_.directoryScopeId -eq '/' }).Count) 'assigned on the built-in role'
   $global:FakeCalls.Clear()
   $n = @(Get-Plans 'baseline').Count
   $txt = Get-RunText { & $baseline -ConfigFile $small -TenantId fake.dev -OutDir $tmp }
@@ -48,8 +49,8 @@ Test-It 'roles: a custom role wearing a built-in role''s name is never used — 
   Assert-True ($txt -notmatch 'THREW') "planned`n$txt"
   Assert-True ($txt -match "another role definition is also called 'Microsoft Entra Joined Device Local Administrator'") "the clash reported`n$txt"
   $p = Get-Content (Get-Plans 'baseline')[-1].FullName -Raw | ConvertFrom-Json -AsHashtable
-  $el = @($p.ops | Where-Object { $_.key -like 'elig:Microsoft Entra Joined Device Local Administrator:*' })
-  Assert-True $el.Count 'eligibilities planned'
+  $el = @($p.ops | Where-Object { $_.key -like 'elig:Microsoft Entra Joined Device Local Administrator:*' -or $_.key -like 'act:Microsoft Entra Joined Device Local Administrator:*' })
+  Assert-True $el.Count 'assignments planned'
   foreach ($o in $el) { Assert-Eq $o.body.roleDefinitionId $ejdla 'the built-in role, not the custom one' }
   $rp = @($p.ops | Where-Object { $_.key -like 'rpol:Microsoft Entra Joined Device Local Administrator:*' })
   Assert-True $rp.Count 'role policy planned'
@@ -77,7 +78,7 @@ Test-It 'roles: New-PimRegions finds a renamed regional role by template id' {
   Assert-True ($txt -notmatch 'THREW') "planned`n$txt"
   Assert-True ($txt -match "is called 'Helpdesk Administrator \(former name\)' in this tenant") "finding`n$txt"
   $p = Get-Content (Get-Plans 'regions')[-1].FullName -Raw | ConvertFrom-Json -AsHashtable
-  $el = @($p.ops | Where-Object { $_.key -eq 'elig:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
+  $el = @($p.ops | Where-Object { $_.key -eq 'act:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
   Assert-Eq $el.body.roleDefinitionId '729827e3-9c14-49f7-bb1b-9608f156bbb8' 'the built-in Helpdesk Administrator, by template id'
   Assert-Eq (Get-FakeWrites).Count 0 'writes'
 }
