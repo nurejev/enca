@@ -1,0 +1,215 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "122d5247a9dafa7dae0059b1931cb76fb014de6d6ceedd6b0f5e8c4acd4dc6b9",
+  "ops": [
+    {
+      "key": "gpol:PIM-SG-M365-AppOps:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-AppOps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:22.1046280Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Apps:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Apps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:08:22.5488010Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Collab membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:08:22.9414250Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:23.3564880Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Identity:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Identity membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:08:23.8407500Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Ops membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:24.3291390Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:08:24.7332380Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-ServiceDesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:08:25.1640360Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk-VIP:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-ServiceDesk-VIP membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:08:25.6119240Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Workplace:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Workplace membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:08:26.0223250Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Expiration_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:26.4640040Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:27.0915760Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Approval_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:27.7426580Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Expiration_Admin_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:28.2529560Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Expiration_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:28.6228790Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:29.7474600Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Approval_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:30.4979340Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Expiration_Admin_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:31.1848370Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Expiration_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:31.6666670Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:32.3003730Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Approval_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:32.9021440Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Expiration_Admin_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:33.3303320Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Expiration_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:38.2485840Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:38.9302940Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Approval_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:39.5330440Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Expiration_Admin_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:08:39.9527030Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

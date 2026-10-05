@@ -1,0 +1,175 @@
+{
+  "schema": "cloudfellows-pim-backup/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "createdAt": "2026-10-05T09:56:35.3645790Z",
+  "items": [
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_4894aa31-c95d-43e1-9c1d-0162c7bbed6b_bf1face2-6ab0-4d34-8320-51f45b8c478d/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_da57349f-8054-46d3-9507-22f2b06986a3_4a061b11-3174-419b-8b87-0023292b911f/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-INT-HelpDesk-EU-NL:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_59043acb-2448-4f7d-8840-44bf4b29fdbb_5da7a430-4668-4ea7-a823-7b0f09cbbbe8/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-INT-Ops-EU-NL:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_2d5dc6c0-7a43-45e6-b8a6-70db6c567b2d_a6444576-e877-48a7-8439-5142c230128a/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_44b7454c-7930-40a3-ba02-5975a282f611_355b2d87-4fda-4995-89ae-4f3c4be155d4/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_cfea0001-91fd-44ca-8da7-3762de71f635_45b403a2-12ef-4007-9068-d0179de7a65f/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-INT-HelpDesk-EU-DE:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_02803560-38b1-44ad-a956-ad7add8b299f_8979b976-7266-442e-9331-eb045b873e1c/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-INT-Ops-EU-DE:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_b35facd3-3220-4544-aa77-be7f6490e3a9_13062726-4617-48b9-ae23-5751edfed34a/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    }
+  ]
+}

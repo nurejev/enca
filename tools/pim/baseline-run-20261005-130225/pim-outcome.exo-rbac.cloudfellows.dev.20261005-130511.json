@@ -1,0 +1,39 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "6b27f828bf7c5f3ccbaa2b19915273680c2a790ee3f61d16827cfcc3408d31d6",
+  "ops": [
+    {
+      "key": "exo:PIM-SG-EXO-HelpDesk",
+      "summary": "PIM-SG-EXO-HelpDesk → Exchange role group Help Desk",
+      "status": "done",
+      "at": "2026-10-05T11:05:11.2826560Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "exo:PIM-SG-EXO-Hygiene",
+      "summary": "PIM-SG-EXO-Hygiene → Exchange role group Hygiene Management",
+      "status": "done",
+      "at": "2026-10-05T11:05:12.0898190Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "exo:PIM-SG-EXO-Reader",
+      "summary": "PIM-SG-EXO-Reader → Exchange role group View-Only Organization Management",
+      "status": "done",
+      "at": "2026-10-05T11:05:12.5476200Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "exo:PIM-SG-EXO-Recipients",
+      "summary": "PIM-SG-EXO-Recipients → Exchange role group Recipient Management",
+      "status": "done",
+      "at": "2026-10-05T11:05:13.0714090Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

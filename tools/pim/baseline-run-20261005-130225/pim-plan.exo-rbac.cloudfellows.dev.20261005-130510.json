@@ -1,0 +1,52 @@
+{
+  "schema": "cloudfellows-pim-plan/2.1",
+  "kind": "exo-rbac",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "tenantName": "CloudFellows.dev",
+  "domain": "cloudfellows.dev",
+  "createdAt": "2026-10-05T11:05:08.5383420Z",
+  "createdBy": "app 190755aa-b093-4790-847f-5d132c37a842",
+  "source": {
+    "path": "/Users/mihaimonte/REPO/enca/tools/pim/framework-3.0.baseline.json",
+    "sha256": "2fe10a160e22980230a6b3875102fb32884fcc49281b8109d0f0d9844d189cb2"
+  },
+  "resolved": {},
+  "ops": [
+    {
+      "key": "exo:PIM-SG-EXO-HelpDesk",
+      "kind": "exoMember",
+      "summary": "PIM-SG-EXO-HelpDesk → Exchange role group Help Desk",
+      "roleGroup": "Help Desk",
+      "groupId": "b9207e1a-2fa2-49c4-ad8d-2895e63164b5",
+      "group": "PIM-SG-EXO-HelpDesk"
+    },
+    {
+      "key": "exo:PIM-SG-EXO-Hygiene",
+      "kind": "exoMember",
+      "summary": "PIM-SG-EXO-Hygiene → Exchange role group Hygiene Management",
+      "roleGroup": "Hygiene Management",
+      "groupId": "f8b0d4ae-24af-45de-ab92-3e61a62f922d",
+      "group": "PIM-SG-EXO-Hygiene"
+    },
+    {
+      "key": "exo:PIM-SG-EXO-Reader",
+      "kind": "exoMember",
+      "summary": "PIM-SG-EXO-Reader → Exchange role group View-Only Organization Management",
+      "roleGroup": "View-Only Organization Management",
+      "groupId": "3ffcba0f-e3ec-4cfb-bfc4-a98c886dd58e",
+      "group": "PIM-SG-EXO-Reader"
+    },
+    {
+      "key": "exo:PIM-SG-EXO-Recipients",
+      "kind": "exoMember",
+      "summary": "PIM-SG-EXO-Recipients → Exchange role group Recipient Management",
+      "roleGroup": "Recipient Management",
+      "groupId": "d2a92f60-58c3-4d11-909e-e49d432fc369",
+      "group": "PIM-SG-EXO-Recipients"
+    }
+  ],
+  "findings": [],
+  "blocked": [],
+  "backup": [],
+  "hash": "6b27f828bf7c5f3ccbaa2b19915273680c2a790ee3f61d16827cfcc3408d31d6"
+}

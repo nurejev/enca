@@ -1,0 +1,71 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "05c950bc28b307b60d30a5667a2d965a1f13373fcd83e52bd80ff8f7a3b0550e",
+  "ops": [
+    {
+      "key": "gpol:PIM-SG-M365-AppOps-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-AppOps-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:03.6046580Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Audit:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Audit membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:04.5101300Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Collab-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:05.2063720Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-GlobalAdmin:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-GlobalAdmin membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:05.9132160Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Ops-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:06.5273300Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOps-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:07.2201130Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOpsReader:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOpsReader membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:08.1558640Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Tier0:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Tier0 membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:07:08.7641520Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

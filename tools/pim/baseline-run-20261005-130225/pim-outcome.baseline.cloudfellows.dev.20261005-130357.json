@@ -1,0 +1,471 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "ae56db74f11c06586b284ffc9291825d3017fe919a3a96dc0afb20689f2052c9",
+  "ops": [
+    {
+      "key": "group:PIM-SG-EXO-HelpDesk",
+      "summary": "create role-assignable group PIM-SG-EXO-HelpDesk",
+      "status": "done",
+      "at": "2026-10-05T11:03:57.0235830Z",
+      "id": "b9207e1a-2fa2-49c4-ad8d-2895e63164b5",
+      "error": null
+    },
+    {
+      "key": "group:PIM-SG-EXO-Hygiene",
+      "summary": "create role-assignable group PIM-SG-EXO-Hygiene",
+      "status": "done",
+      "at": "2026-10-05T11:03:57.1390930Z",
+      "id": "f8b0d4ae-24af-45de-ab92-3e61a62f922d",
+      "error": null
+    },
+    {
+      "key": "group:PIM-SG-EXO-Reader",
+      "summary": "create role-assignable group PIM-SG-EXO-Reader",
+      "status": "done",
+      "at": "2026-10-05T11:03:57.2664300Z",
+      "id": "3ffcba0f-e3ec-4cfb-bfc4-a98c886dd58e",
+      "error": null
+    },
+    {
+      "key": "group:PIM-SG-EXO-Recipients",
+      "summary": "create role-assignable group PIM-SG-EXO-Recipients",
+      "status": "done",
+      "at": "2026-10-05T11:03:57.3884880Z",
+      "id": "d2a92f60-58c3-4d11-909e-e49d432fc369",
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Connectivity-Contributor:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Connectivity-Contributor membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:03:57.5178440Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Connectivity-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Connectivity-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:03:58.0840680Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Corp-Contributor:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Corp-Contributor membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:03:58.8449070Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Corp-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Corp-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:03:59.4032760Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-LandingZone-Contributor:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-LandingZone-Contributor membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:00.0876940Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-LandingZone-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-LandingZone-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:00.8227270Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Management-Contributor:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Management-Contributor membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:01.6204700Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Management-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Management-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:02.2505000Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Online-Contributor:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Online-Contributor membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:02.8813550Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Online-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Online-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:03.8845000Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Platform-Contributor:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Platform-Contributor membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:06.4795620Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Platform-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Platform-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:07.2606190Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Sub-Contributor:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Sub-Contributor membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:08.0233650Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Sub-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Sub-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:08.8589910Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-AZ-Tenant-Owner:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-AZ-Tenant-Owner membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:09.6843050Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-HelpDesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-HelpDesk membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:04:10.6622910Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-Ops membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:04:11.1293180Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-SecOps:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-SecOps membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:04:11.6722290Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-AppOps:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-AppOps membership policy: Expiration_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:04:12.2912450Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-AppOps:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-AppOps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:04:12.7549270Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-AppOps-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-AppOps-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:13.3024660Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Apps:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Apps membership policy: Expiration_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:14.6990920Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Apps:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Apps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:15.1122150Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Audit:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Audit membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:15.5270970Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Collab membership policy: Expiration_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:16.0871070Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Collab membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:16.6926620Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Collab-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:17.1264740Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-GlobalAdmin:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-GlobalAdmin membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:17.8240820Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Helpdesk:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Helpdesk membership policy: Expiration_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:04:18.6182770Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:04:19.0984940Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Identity:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Identity membership policy: Expiration_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:19.5106760Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Identity:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Identity membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:19.9864870Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Ops membership policy: Expiration_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:04:20.4509080Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Ops membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "status": "done",
+      "at": "2026-10-05T11:04:20.9727020Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Ops-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:21.5593310Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOps membership policy: Expiration_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:22.3552180Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:23.0917070Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOps-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:23.4289350Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOpsReader:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOpsReader membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:24.0920910Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-ServiceDesk membership policy: Expiration_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:24.6541320Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-ServiceDesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:25.1295480Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk-VIP:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-ServiceDesk-VIP membership policy: Expiration_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:25.5433420Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk-VIP:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-ServiceDesk-VIP membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:25.9392500Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Tier0:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Tier0 membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:04:26.5092560Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Workplace:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Workplace membership policy: Expiration_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:27.4982740Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Workplace:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Workplace membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "status": "done",
+      "at": "2026-10-05T11:04:27.8507510Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-XDR-Operator-T1:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-XDR-Operator-T1 membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:04:28.4808360Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-XDR-Operator-T2:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-XDR-Operator-T2 membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:04:28.8280210Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-XDR-Operator-T3:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-XDR-Operator-T3 membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:04:29.3170390Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-XDR-Reader:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-XDR-Reader membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:04:29.7855690Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-HelpDesk",
+      "summary": "PIM-SG-EXO-HelpDesk membership policy → GroupJIT (once the group is in PIM for Groups)",
+      "status": "done (5 rule(s))",
+      "at": "2026-10-05T11:04:30.1078910Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Hygiene",
+      "summary": "PIM-SG-EXO-Hygiene membership policy → GroupJIT (once the group is in PIM for Groups)",
+      "status": "done (5 rule(s))",
+      "at": "2026-10-05T11:04:33.3936100Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Reader",
+      "summary": "PIM-SG-EXO-Reader membership policy → GroupJIT (once the group is in PIM for Groups)",
+      "status": "done (5 rule(s))",
+      "at": "2026-10-05T11:04:37.3603690Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Recipients",
+      "summary": "PIM-SG-EXO-Recipients membership policy → GroupJIT (once the group is in PIM for Groups)",
+      "status": "done (5 rule(s))",
+      "at": "2026-10-05T11:04:40.8125150Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

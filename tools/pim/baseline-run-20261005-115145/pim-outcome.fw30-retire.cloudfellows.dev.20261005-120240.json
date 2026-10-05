@@ -1,0 +1,471 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "009ba7bbbbefce7bef3525399101253a59f0a53bc56caac096e31a8dcfbc27e8",
+  "ops": [
+    {
+      "key": "ret:PIM-SG-M365-AppOps:f28a1f50-f6e7-4571-818b-6a12f2af6b6c:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for SharePoint Administrator at / — PIM-SG-M365-AppOps-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:02:40.1012640Z",
+      "id": "500907b5-38c4-47be-aa46-9e0647395768",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:cf1c38e5-3621-4004-a7cb-879624dced7c:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Application Developer at / — the group holds it actively now",
+      "status": "failed",
+      "at": "2026-10-05T10:02:40.9016980Z",
+      "id": null,
+      "error": "Response status code does not indicate success: BadRequest (Bad Request). POST https://graph.microsoft.com/v1.0/roleManagement/directory/roleEligibilityScheduleRequests HTTP/1.1 400 Bad Request Transfer-Encoding: chunked Vary: Accept-Encoding Strict-Transport-Security: max-age=31536000 request-id: 36e27e3f-2663-449e-a35d-f8b0c7391bda client-request-id: b51471b6-8453-493e-bf1f-e18eeee08d6d x-ms-ags-diagnostic: {\"ServerInfo\":{\"DataCenter\":\"Germany West Central\",\"Slice\":\"E\",\"Ring\":\"4\",\"ScaleUnit\":\"004\",\"RoleInstance\":\"FR2PEPF00001BC1\"}} Date: Mon, 05 Oct 2026 10:02:44 GMT Content-Type: application/json {\"error\":{\"code\":\"ActiveDurationTooShort\",\"message\":\"The Active duration is too short. Miniumum Required is 5 minutes.\",\"innerError\":{\"date\":\"2026-10-05T10:02:44\",\"request-id\":\"36e27e3f-2663-449e-a35d-f8b0c7391bda\",\"client-request-id\":\"b51471b6-8453-493e-bf1f-e18eeee08d6d\"}}}"
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:158c047a-c907-4556-b7ef-446551a6b5f7:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Cloud Application Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:2b745bdf-0803-4d80-aa65-822c4493daac:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Office Apps Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:29232cdf-9323-42fd-ade2-1d097af3e4de:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Exchange Administrator at / — PIM-SG-M365-AppOps-Direct carries it per role now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:95e79109-95c0-4d8e-aee3-d01accf2d47b:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Guest Inviter at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:11648597-926c-4cf3-9c36-bcebb0ba8dcc:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Power Platform Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:9f06204d-73c1-4d4c-880a-6edb90606fd8:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Azure AD Joined Device Local Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:729827e3-9c14-49f7-bb1b-9608f156bbb8:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Helpdesk Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:7698a772-787b-4ac8-901f-60d6b08affd2:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Cloud Device Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:fe930be7-5e62-47db-91af-98c3a49a38b1:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for User Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:966707d0-3269-4727-9be2-8c3a10f19b9d:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Password Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for License Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:fdd7a751-b60b-444a-984c-02652fe8fa1c:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Groups Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:c4e39bd9-1100-46d3-8c65-fb160da0071f:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Authentication Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:f28a1f50-f6e7-4571-818b-6a12f2af6b6c:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for SharePoint Administrator at / — PIM-SG-M365-Ops-Direct carries it per role now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:9f06204d-73c1-4d4c-880a-6edb90606fd8:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Azure AD Joined Device Local Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Application Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:0526716b-113d-4c15-b2c8-68e3c22b9f80:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Authentication Policy Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:2b745bdf-0803-4d80-aa65-822c4493daac:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Office Apps Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:45d8d3c5-c802-45c6-b32a-1d70b5e1e86e:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Identity Governance Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:3a2c62db-5318-420d-8d74-23affee5d9d5:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Intune Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:fe930be7-5e62-47db-91af-98c3a49a38b1:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for User Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:29232cdf-9323-42fd-ade2-1d097af3e4de:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Exchange Administrator at / — PIM-SG-M365-Ops-Direct carries it per role now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:95e79109-95c0-4d8e-aee3-d01accf2d47b:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Guest Inviter at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:69091246-20e8-4a56-aa4d-066075b2a7a8:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Teams Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for License Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:11648597-926c-4cf3-9c36-bcebb0ba8dcc:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Power Platform Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:c4e39bd9-1100-46d3-8c65-fb160da0071f:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Authentication Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:f023fd81-a637-4b56-95fd-791ac0226033:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Service Support Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:3f1acade-1e04-4fbc-9b69-f0302cd84aef:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Edge Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:59d46f88-662b-457b-bceb-5c3809e5908f:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Lifecycle Workflows Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:194ae4cb-b126-40b2-bd5b-6091b380977d:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Security Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:5f2222b1-57c3-48ba-8ad5-d4759f1fde6f:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Security Operator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:e6d1a23a-da11-4be4-9570-befc86d067a7:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Compliance Data Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:17315797-102d-40b4-93e0-432062caca18:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Compliance Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:892c5842-a9a6-463a-8041-72aa08ca3cf6:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Cloud App Security Administrator at / — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:b1be1c3e-b65d-4f19-8427-f6fa0d97feb9:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Conditional Access Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:729827e3-9c14-49f7-bb1b-9608f156bbb8:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for Helpdesk Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:966707d0-3269-4727-9be2-8c3a10f19b9d:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for Password Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for License Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:c4e39bd9-1100-46d3-8c65-fb160da0071f:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for Authentication Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:7698a772-787b-4ac8-901f-60d6b08affd2:/administrativeUnits/40c102a2-72ac-43ca-b6b1-88466d17ede5",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for Cloud Device Administrator at /administrativeUnits/40c102a2-72ac-43ca-b6b1-88466d17ede5 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:fe930be7-5e62-47db-91af-98c3a49a38b1:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for User Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:69091246-20e8-4a56-aa4d-066075b2a7a8:/administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for Teams Administrator at /administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:fdd7a751-b60b-444a-984c-02652fe8fa1c:/administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for Groups Administrator at /administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:729827e3-9c14-49f7-bb1b-9608f156bbb8:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for Helpdesk Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:966707d0-3269-4727-9be2-8c3a10f19b9d:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for Password Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for License Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:c4e39bd9-1100-46d3-8c65-fb160da0071f:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for Authentication Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:7698a772-787b-4ac8-901f-60d6b08affd2:/administrativeUnits/ac1f825a-c648-4c39-9b56-c0c9066de206",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for Cloud Device Administrator at /administrativeUnits/ac1f825a-c648-4c39-9b56-c0c9066de206 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:fe930be7-5e62-47db-91af-98c3a49a38b1:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for User Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:69091246-20e8-4a56-aa4d-066075b2a7a8:/administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for Teams Administrator at /administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:fdd7a751-b60b-444a-984c-02652fe8fa1c:/administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for Groups Administrator at /administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84 — the group holds it actively now",
+      "status": "not run",
+      "at": null,
+      "id": null,
+      "error": null
+    }
+  ]
+}

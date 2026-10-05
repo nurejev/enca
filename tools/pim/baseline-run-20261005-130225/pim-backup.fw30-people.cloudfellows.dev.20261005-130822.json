@@ -1,0 +1,616 @@
+{
+  "schema": "cloudfellows-pim-backup/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "createdAt": "2026-10-05T11:08:22.0807100Z",
+  "items": [
+    {
+      "key": "gpol:PIM-SG-M365-AppOps:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_8dd46809-e120-4e8a-9002-27bc3ee766dd_16217d8a-bd4b-403b-8508-ce5b69959c32/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Apps:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_e66e92ed-9594-4199-97b0-e2f988555a8f_93524624-621e-4520-990f-453a45fa60a6/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_6d0ee0fb-4d94-423b-8d7e-7d0426f4500c_486566d3-194f-4795-9787-8cc3cddb91c0/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Helpdesk:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_bd0c0341-7c8c-488e-af97-4a1cdc19c638_012df8cc-2344-4d4c-b8e2-90baa952445b/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Identity:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_7f5f54b2-e6cc-479e-b6bb-a183cacfec75_1727ad20-5262-4af5-a7ba-6f893e36fc98/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_abef40ef-2584-4c42-8203-1221c029d4d1_ad338647-acaf-4800-8989-92b3389851bc/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_2d9cc375-7a77-4ee3-8836-d3817440bd94_5322f695-3286-4c72-b4ec-ecef80321363/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_abae7003-d692-461e-8f54-174c2b334484_7a2ea7e1-789e-46aa-805b-29aebf37bfd2/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk-VIP:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_311e19ca-589b-4c90-975c-e1de499b6746_12282467-213e-4b13-bb24-2dca85b56985/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Workplace:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_bf03dc64-c1b2-4f57-bcd6-197c6a239b38_54440e2b-3816-4cfe-a3c6-2667238e4d25/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Expiration_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_4894aa31-c95d-43e1-9c1d-0162c7bbed6b_bf1face2-6ab0-4d34-8320-51f45b8c478d/rules/Expiration_EndUser_Assignment",
+      "before": {
+        "id": "Expiration_EndUser_Assignment",
+        "maximumDuration": "PT1H",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_4894aa31-c95d-43e1-9c1d-0162c7bbed6b_bf1face2-6ab0-4d34-8320-51f45b8c478d/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Approval_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_4894aa31-c95d-43e1-9c1d-0162c7bbed6b_bf1face2-6ab0-4d34-8320-51f45b8c478d/rules/Approval_EndUser_Assignment",
+      "before": {
+        "id": "Approval_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyApprovalRule",
+        "setting": {
+          "isRequestorJustificationRequired": true,
+          "approvalMode": "SingleStage",
+          "approvalStages": [
+            {
+              "approvalStageTimeOutInDays": 1,
+              "escalationApprovers": [],
+              "isEscalationEnabled": false,
+              "escalationTimeInMinutes": 0,
+              "isApproverJustificationRequired": true,
+              "primaryApprovers": [
+                {
+                  "description": "PIM-SG-Approvers",
+                  "groupId": "0ed527c4-1e33-4195-8fb4-306378663336",
+                  "@odata.type": "#microsoft.graph.groupMembers"
+                }
+              ]
+            }
+          ],
+          "isApprovalRequired": true,
+          "isApprovalRequiredForExtension": false
+        }
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_4894aa31-c95d-43e1-9c1d-0162c7bbed6b_bf1face2-6ab0-4d34-8320-51f45b8c478d/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P365D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Expiration_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_da57349f-8054-46d3-9507-22f2b06986a3_4a061b11-3174-419b-8b87-0023292b911f/rules/Expiration_EndUser_Assignment",
+      "before": {
+        "id": "Expiration_EndUser_Assignment",
+        "maximumDuration": "PT1H",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_da57349f-8054-46d3-9507-22f2b06986a3_4a061b11-3174-419b-8b87-0023292b911f/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Approval_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_da57349f-8054-46d3-9507-22f2b06986a3_4a061b11-3174-419b-8b87-0023292b911f/rules/Approval_EndUser_Assignment",
+      "before": {
+        "id": "Approval_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyApprovalRule",
+        "setting": {
+          "isRequestorJustificationRequired": true,
+          "approvalMode": "SingleStage",
+          "approvalStages": [
+            {
+              "approvalStageTimeOutInDays": 1,
+              "escalationApprovers": [],
+              "isEscalationEnabled": false,
+              "escalationTimeInMinutes": 0,
+              "isApproverJustificationRequired": true,
+              "primaryApprovers": [
+                {
+                  "description": "PIM-SG-Approvers",
+                  "groupId": "0ed527c4-1e33-4195-8fb4-306378663336",
+                  "@odata.type": "#microsoft.graph.groupMembers"
+                }
+              ]
+            }
+          ],
+          "isApprovalRequired": true,
+          "isApprovalRequiredForExtension": false
+        }
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_da57349f-8054-46d3-9507-22f2b06986a3_4a061b11-3174-419b-8b87-0023292b911f/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P365D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Expiration_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_44b7454c-7930-40a3-ba02-5975a282f611_355b2d87-4fda-4995-89ae-4f3c4be155d4/rules/Expiration_EndUser_Assignment",
+      "before": {
+        "id": "Expiration_EndUser_Assignment",
+        "maximumDuration": "PT1H",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_44b7454c-7930-40a3-ba02-5975a282f611_355b2d87-4fda-4995-89ae-4f3c4be155d4/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Approval_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_44b7454c-7930-40a3-ba02-5975a282f611_355b2d87-4fda-4995-89ae-4f3c4be155d4/rules/Approval_EndUser_Assignment",
+      "before": {
+        "id": "Approval_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyApprovalRule",
+        "setting": {
+          "isRequestorJustificationRequired": true,
+          "approvalMode": "SingleStage",
+          "approvalStages": [
+            {
+              "approvalStageTimeOutInDays": 1,
+              "escalationApprovers": [],
+              "isEscalationEnabled": false,
+              "escalationTimeInMinutes": 0,
+              "isApproverJustificationRequired": true,
+              "primaryApprovers": [
+                {
+                  "description": "PIM-SG-Approvers",
+                  "groupId": "0ed527c4-1e33-4195-8fb4-306378663336",
+                  "@odata.type": "#microsoft.graph.groupMembers"
+                }
+              ]
+            }
+          ],
+          "isApprovalRequired": true,
+          "isApprovalRequiredForExtension": false
+        }
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_44b7454c-7930-40a3-ba02-5975a282f611_355b2d87-4fda-4995-89ae-4f3c4be155d4/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P365D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Expiration_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_cfea0001-91fd-44ca-8da7-3762de71f635_45b403a2-12ef-4007-9068-d0179de7a65f/rules/Expiration_EndUser_Assignment",
+      "before": {
+        "id": "Expiration_EndUser_Assignment",
+        "maximumDuration": "PT1H",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_cfea0001-91fd-44ca-8da7-3762de71f635_45b403a2-12ef-4007-9068-d0179de7a65f/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Approval_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_cfea0001-91fd-44ca-8da7-3762de71f635_45b403a2-12ef-4007-9068-d0179de7a65f/rules/Approval_EndUser_Assignment",
+      "before": {
+        "id": "Approval_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyApprovalRule",
+        "setting": {
+          "isRequestorJustificationRequired": true,
+          "approvalMode": "SingleStage",
+          "approvalStages": [
+            {
+              "approvalStageTimeOutInDays": 1,
+              "escalationApprovers": [],
+              "isEscalationEnabled": false,
+              "escalationTimeInMinutes": 0,
+              "isApproverJustificationRequired": true,
+              "primaryApprovers": [
+                {
+                  "description": "PIM-SG-Approvers",
+                  "groupId": "0ed527c4-1e33-4195-8fb4-306378663336",
+                  "@odata.type": "#microsoft.graph.groupMembers"
+                }
+              ]
+            }
+          ],
+          "isApprovalRequired": true,
+          "isApprovalRequiredForExtension": false
+        }
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_cfea0001-91fd-44ca-8da7-3762de71f635_45b403a2-12ef-4007-9068-d0179de7a65f/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P365D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    }
+  ]
+}

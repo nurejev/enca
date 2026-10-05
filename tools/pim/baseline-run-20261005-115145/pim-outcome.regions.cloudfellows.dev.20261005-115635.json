@@ -1,0 +1,71 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "aef00d6145a323cf2d59f1de7a2147e7d2757f626d65e6479ffefbb0f7cc20e4",
+  "ops": [
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:56:35.3691900Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:56:36.0087950Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-HelpDesk-EU-NL:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-HelpDesk-EU-NL membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T09:56:36.7617500Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-Ops-EU-NL:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-Ops-EU-NL membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T09:56:37.2475510Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:56:37.6377550Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:56:38.1378070Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-HelpDesk-EU-DE:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-HelpDesk-EU-DE membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T09:56:39.0992370Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-Ops-EU-DE:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-Ops-EU-DE membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T09:56:39.4832740Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

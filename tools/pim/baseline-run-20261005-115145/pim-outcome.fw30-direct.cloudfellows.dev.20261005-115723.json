@@ -1,0 +1,175 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "ff9e07fdebc5f8938dad50060d9638edcda35fd0ff7bb36bb82067ef83562be5",
+  "ops": [
+    {
+      "key": "gpol:PIM-SG-M365-AppOps-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-AppOps-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:23.1319060Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Audit:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Audit membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:23.8851120Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Collab-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:24.7609700Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-GlobalAdmin:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-GlobalAdmin membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:25.3144680Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Ops-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:26.1207250Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps-Direct:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOps-Direct membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:26.8819890Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOpsReader:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-SecOpsReader membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:27.5662190Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Tier0:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-M365-Tier0 membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T09:57:33.0873640Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-AppOps-Direct:Exchange Administrator:/",
+      "summary": "PIM-SG-M365-AppOps-Direct eligible for Exchange Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:33.7620370Z",
+      "id": "5a8b69d4-b8c6-4775-8976-ffc147aa012f",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-AppOps-Direct:SharePoint Administrator:/",
+      "summary": "PIM-SG-M365-AppOps-Direct eligible for SharePoint Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:35.1487270Z",
+      "id": "cb43d3ef-6060-4720-843e-e353d34f10e4",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-Audit:Global Reader:/",
+      "summary": "PIM-SG-M365-Audit eligible for Global Reader at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:36.2185400Z",
+      "id": "817491b3-9aa2-4a87-887c-da85549b2775",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-Collab-Direct:Exchange Administrator:/",
+      "summary": "PIM-SG-M365-Collab-Direct eligible for Exchange Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:37.3896900Z",
+      "id": "81e36222-23f9-44a2-a126-8abb3b01457c",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-Collab-Direct:SharePoint Administrator:/",
+      "summary": "PIM-SG-M365-Collab-Direct eligible for SharePoint Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:38.4279020Z",
+      "id": "a5ab26a0-d5e9-4ab2-b972-7cb604cdf346",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-GlobalAdmin:Privileged Role Administrator:/",
+      "summary": "PIM-SG-M365-GlobalAdmin eligible for Privileged Role Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:39.5208650Z",
+      "id": "cd011676-4173-464a-92e9-20a003dec08a",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-GlobalAdmin:Privileged Authentication Administrator:/",
+      "summary": "PIM-SG-M365-GlobalAdmin eligible for Privileged Authentication Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:40.6955450Z",
+      "id": "9e94643c-9adc-4a7d-9df4-15f13e0d1d8e",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-Ops-Direct:Exchange Administrator:/",
+      "summary": "PIM-SG-M365-Ops-Direct eligible for Exchange Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:41.8367440Z",
+      "id": "f4d7ae11-8b54-4fc9-9d3c-52eb52d14dd6",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-Ops-Direct:SharePoint Administrator:/",
+      "summary": "PIM-SG-M365-Ops-Direct eligible for SharePoint Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:42.8614080Z",
+      "id": "7905c837-83af-4ed9-8b2d-f063a5cdb282",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-SecOps-Direct:Conditional Access Administrator:/",
+      "summary": "PIM-SG-M365-SecOps-Direct eligible for Conditional Access Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:43.9473290Z",
+      "id": "b5ccde7e-a7a3-472a-8d65-007ed36d501f",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-SecOps-Direct:Security Administrator:/",
+      "summary": "PIM-SG-M365-SecOps-Direct eligible for Security Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:45.0591830Z",
+      "id": "4b6fc8fd-7801-4fb1-91ba-f5b83ec1c620",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-SecOps-Direct:Compliance Administrator:/",
+      "summary": "PIM-SG-M365-SecOps-Direct eligible for Compliance Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:46.3989700Z",
+      "id": "6511b7db-dbde-4a7d-a386-77ac8ed9012b",
+      "error": null
+    },
+    {
+      "key": "elig:PIM-SG-M365-SecOps-Direct:Compliance Data Administrator:/",
+      "summary": "PIM-SG-M365-SecOps-Direct eligible for Compliance Data Administrator at / (1 year)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:57:47.4382980Z",
+      "id": "61053e13-06a5-4de9-9f38-4ce33259873d",
+      "error": null
+    }
+  ]
+}

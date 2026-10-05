@@ -1,0 +1,427 @@
+{
+  "schema": "cloudfellows-pim-backup/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "createdAt": "2026-10-05T11:04:43.5525620Z",
+  "items": [
+    {
+      "key": "gpolnew:PIM-SG-EXO-HelpDesk:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_b9207e1a-2fa2-49c4-ad8d-2895e63164b5_707a26f7-e617-480f-b112-673623e184e8/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-HelpDesk:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_b9207e1a-2fa2-49c4-ad8d-2895e63164b5_707a26f7-e617-480f-b112-673623e184e8/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P180D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-HelpDesk:Notification_Admin_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_b9207e1a-2fa2-49c4-ad8d-2895e63164b5_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Assignment"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-HelpDesk:Notification_Admin_Admin_Eligibility",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_b9207e1a-2fa2-49c4-ad8d-2895e63164b5_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Eligibility",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Eligibility",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Eligibility"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-HelpDesk:Notification_Admin_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_b9207e1a-2fa2-49c4-ad8d-2895e63164b5_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_EndUser_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_EndUser_Assignment"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Hygiene:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_f8b0d4ae-24af-45de-ab92-3e61a62f922d_707a26f7-e617-480f-b112-673623e184e8/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Hygiene:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_f8b0d4ae-24af-45de-ab92-3e61a62f922d_707a26f7-e617-480f-b112-673623e184e8/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P180D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Hygiene:Notification_Admin_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_f8b0d4ae-24af-45de-ab92-3e61a62f922d_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Assignment"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Hygiene:Notification_Admin_Admin_Eligibility",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_f8b0d4ae-24af-45de-ab92-3e61a62f922d_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Eligibility",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Eligibility",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Eligibility"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Hygiene:Notification_Admin_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_f8b0d4ae-24af-45de-ab92-3e61a62f922d_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_EndUser_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_EndUser_Assignment"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Reader:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_3ffcba0f-e3ec-4cfb-bfc4-a98c886dd58e_707a26f7-e617-480f-b112-673623e184e8/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Reader:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_3ffcba0f-e3ec-4cfb-bfc4-a98c886dd58e_707a26f7-e617-480f-b112-673623e184e8/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P180D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Reader:Notification_Admin_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_3ffcba0f-e3ec-4cfb-bfc4-a98c886dd58e_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Assignment"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Reader:Notification_Admin_Admin_Eligibility",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_3ffcba0f-e3ec-4cfb-bfc4-a98c886dd58e_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Eligibility",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Eligibility",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Eligibility"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Reader:Notification_Admin_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_3ffcba0f-e3ec-4cfb-bfc4-a98c886dd58e_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_EndUser_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_EndUser_Assignment"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Recipients:Enablement_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_d2a92f60-58c3-4d11-909e-e49d432fc369_707a26f7-e617-480f-b112-673623e184e8/rules/Enablement_EndUser_Assignment",
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Recipients:Expiration_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_d2a92f60-58c3-4d11-909e-e49d432fc369_707a26f7-e617-480f-b112-673623e184e8/rules/Expiration_Admin_Assignment",
+      "before": {
+        "id": "Expiration_Admin_Assignment",
+        "maximumDuration": "P180D",
+        "isExpirationRequired": true,
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyExpirationRule"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Recipients:Notification_Admin_Admin_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_d2a92f60-58c3-4d11-909e-e49d432fc369_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Assignment"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Recipients:Notification_Admin_Admin_Eligibility",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_d2a92f60-58c3-4d11-909e-e49d432fc369_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_Admin_Eligibility",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Eligibility",
+          "caller": "Admin",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_Admin_Eligibility"
+      }
+    },
+    {
+      "key": "gpolnew:PIM-SG-EXO-Recipients:Notification_Admin_EndUser_Assignment",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_d2a92f60-58c3-4d11-909e-e49d432fc369_707a26f7-e617-480f-b112-673623e184e8/rules/Notification_Admin_EndUser_Assignment",
+      "before": {
+        "notificationLevel": "All",
+        "recipientType": "Admin",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "notificationType": "Email",
+        "notificationRecipients": [],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule",
+        "isDefaultRecipientsEnabled": true,
+        "id": "Notification_Admin_EndUser_Assignment"
+      }
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "schema": "cloudfellows-pim-plan/2.1",
+  "kind": "repair",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "tenantName": "CloudFellows.dev",
+  "domain": "cloudfellows.dev",
+  "createdAt": "2026-10-05T09:56:50.0793300Z",
+  "createdBy": "app 190755aa-b093-4790-847f-5d132c37a842",
+  "source": {
+    "path": "/Users/mihaimonte/REPO/enca/tools/pim/regions.cloudfellows.dev.json",
+    "sha256": "fcd9c2d1462e4471fcc068f3ab680534670187ea69336b368aff1eae86951c1e"
+  },
+  "resolved": {},
+  "ops": [
+    {
+      "key": "aufix:AU-EU-NL-Users",
+      "kind": "http",
+      "summary": "AU-EU-NL-Users → rule (user.extensionAttribute1 -eq \"EU-NL\") -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-NL\"))",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/directory/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "needs": [
+        "AdministrativeUnit.ReadWrite.All"
+      ],
+      "body": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-NL\") -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\")",
+        "membershipRuleProcessingState": "On"
+      },
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-NL\")",
+        "membershipRuleProcessingState": "On"
+      }
+    },
+    {
+      "key": "grfix:INT-SG-USR-EU-NL-All",
+      "kind": "http",
+      "summary": "INT-SG-USR-EU-NL-All → rule (user.extensionAttribute1 -eq \"EU-NL\") -and (user.accountEnabled -eq true) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-NL\") -and (user.accountEnabled -eq true))",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/groups/37efc3f5-dae3-4848-9c12-83d576de2009",
+      "needs": [
+        "Group.ReadWrite.All"
+      ],
+      "body": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-NL\") -and (user.accountEnabled -eq true) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\")",
+        "membershipRuleProcessingState": "On"
+      },
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-NL\") -and (user.accountEnabled -eq true)",
+        "membershipRuleProcessingState": "On"
+      }
+    },
+    {
+      "key": "aufix:AU-EU-DE-Users",
+      "kind": "http",
+      "summary": "AU-EU-DE-Users → rule (user.extensionAttribute1 -eq \"EU-DE\") -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-DE\"))",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/directory/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "needs": [
+        "AdministrativeUnit.ReadWrite.All"
+      ],
+      "body": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-DE\") -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\")",
+        "membershipRuleProcessingState": "On"
+      },
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-DE\")",
+        "membershipRuleProcessingState": "On"
+      }
+    },
+    {
+      "key": "grfix:INT-SG-USR-EU-DE-All",
+      "kind": "http",
+      "summary": "INT-SG-USR-EU-DE-All → rule (user.extensionAttribute1 -eq \"EU-DE\") -and (user.accountEnabled -eq true) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-DE\") -and (user.accountEnabled -eq true))",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/groups/14becf5d-4d92-40ae-a1aa-fd4087a6a892",
+      "needs": [
+        "Group.ReadWrite.All"
+      ],
+      "body": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-DE\") -and (user.accountEnabled -eq true) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\")",
+        "membershipRuleProcessingState": "On"
+      },
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-DE\") -and (user.accountEnabled -eq true)",
+        "membershipRuleProcessingState": "On"
+      }
+    }
+  ],
+  "findings": [
+    "PIM-SG-Approvers has 0 member(s) — Tier 0 approval needs at least two people who never approve their own activation; add them in the portal, then Preview in T51 again",
+    "PIM-SG-Approvers-Tier0 does not exist — Deploy creates it, and Tier 0 approval stays OFF until it has two members",
+    "pim-alerts@cloudfellows.dev does not exist — every PIM alert recipient in the catalog resolves to it; create the shared mailbox in Exchange first"
+  ],
+  "blocked": [],
+  "backup": [],
+  "hash": "7f038d427a05789d31f14ce515c33eabd9944d4ef3fdf178cd36331b0d97da40"
+}

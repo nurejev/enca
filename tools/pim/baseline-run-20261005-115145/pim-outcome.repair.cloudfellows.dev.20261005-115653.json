@@ -1,0 +1,39 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "7f038d427a05789d31f14ce515c33eabd9944d4ef3fdf178cd36331b0d97da40",
+  "ops": [
+    {
+      "key": "aufix:AU-EU-NL-Users",
+      "summary": "AU-EU-NL-Users → rule (user.extensionAttribute1 -eq \"EU-NL\") -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-NL\"))",
+      "status": "done",
+      "at": "2026-10-05T09:56:53.0803780Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "grfix:INT-SG-USR-EU-NL-All",
+      "summary": "INT-SG-USR-EU-NL-All → rule (user.extensionAttribute1 -eq \"EU-NL\") -and (user.accountEnabled -eq true) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-NL\") -and (user.accountEnabled -eq true))",
+      "status": "done",
+      "at": "2026-10-05T09:56:53.5337800Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "aufix:AU-EU-DE-Users",
+      "summary": "AU-EU-DE-Users → rule (user.extensionAttribute1 -eq \"EU-DE\") -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-DE\"))",
+      "status": "done",
+      "at": "2026-10-05T09:56:53.9058790Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "grfix:INT-SG-USR-EU-DE-All",
+      "summary": "INT-SG-USR-EU-DE-All → rule (user.extensionAttribute1 -eq \"EU-DE\") -and (user.accountEnabled -eq true) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\") (was: (user.extensionAttribute1 -eq \"EU-DE\") -and (user.accountEnabled -eq true))",
+      "status": "done",
+      "at": "2026-10-05T09:56:54.3724400Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

@@ -27,6 +27,10 @@ function Invoke-MgGraphRequest {
   return (FakeBase -Method $Method -Uri $Uri -Body $Body)
 }
 function global:Read-Host { 'fake.dev' }
+# Exchange Online, faked: role group → members (by group id)
+$global:RoleGroups = @{}
+function global:Get-RoleGroupMember { param($Identity, $ResultSize, $ErrorAction) @($global:RoleGroups[$Identity] | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ Name = $_; ExternalDirectoryObjectId = $_ } }) }
+function global:Add-RoleGroupMember { param($Identity, $Member, [switch]$BypassSecurityGroupManagerCheck, $ErrorAction) if (-not $global:RoleGroups[$Identity]) { $global:RoleGroups[$Identity] = @() }; $global:RoleGroups[$Identity] += $Member }
 $cfg = Get-Content ./pim-baseline.json -Raw | ConvertFrom-Json -AsHashtable
 $d = Get-Content ./framework-3.0.baseline.json -Raw | ConvertFrom-Json -AsHashtable
 $roles = @(@($cfg.EntraRoles.Policies.Keys) + @(@($d.groups) + @($d.regionGroups) | % { $_.roles | % { $_.role } }) | Sort-Object -Unique)
@@ -34,7 +38,7 @@ $scopes = @('Directory.Read.All', 'Group.ReadWrite.All', 'RoleManagement.ReadWri
 New-FakeTenant -Scopes $scopes -RoleNames $roles
 $reg = Join-Path $tmp 'regions.test.json'
 @{ regions = @(@{ code = 'EU-NL'; name = 'Netherlands'; attribute = 'extensionAttribute1'; value = 'EU-NL'; devicePrefix = 'NL-'; autopilotTag = 'EU-NL'; itLead = 'approver.a@fake.dev'; approvers = 'approver.a@fake.dev;approver.b@fake.dev' }) } | ConvertTo-Json -Depth 5 | Set-Content $reg
-& ./Invoke-PimBaselineSetup.ps1 -TenantId fake.dev -ProtectedIds 'aaaaaaaa-0000-0000-0000-000000000003' -RegionsFile $reg -OutDir (Join-Path $tmp 'run1') -Yes -DeferWaitSeconds 0 -Stages Config,Regions,Repair,Direct,People,Jobs,Retire *> (Join-Path $tmp 'run1.log')
+& ./Invoke-PimBaselineSetup.ps1 -TenantId fake.dev -ProtectedIds 'aaaaaaaa-0000-0000-0000-000000000003' -RegionsFile $reg -OutDir (Join-Path $tmp 'run1') -Yes -DeferWaitSeconds 0 -Stages Config,Exchange,Regions,Repair,Direct,People,Jobs,Retire *> (Join-Path $tmp 'run1.log')
 $fail = 0
 function Check($c, [string]$m) { if ($c) { Write-Host "ok   $m" -ForegroundColor Green } else { Write-Host "FAIL $m" -ForegroundColor Red; $script:fail++ } }
 $id = { param($n) ($global:Fake.groups | Where-Object displayName -eq $n).id }
@@ -44,8 +48,12 @@ foreach ($n in @('PIM-SG-M365-Ops-Direct', 'PIM-SG-M365-Collab-Direct', 'PIM-SG-
 Check ((& $act 'PIM-SG-M365-Ops').Count -eq 22 -and (& $elig 'PIM-SG-M365-Ops').Count -eq 0) 'Ops: 22 roles active, no eligibilities'
 Check ((& $elig 'PIM-SG-M365-Ops-Direct').Count -eq 2 -and (& $act 'PIM-SG-M365-Ops-Direct').Count -eq 0) 'Ops-Direct: Exchange and SharePoint eligible, nothing active'
 Check (@(& $act 'PIM-SG-EU-NL-Helpdesk' | Where-Object { $_.directoryScopeId -like '/administrativeUnits/*' }).Count -eq 4 -and @(& $act 'PIM-SG-EU-NL-Helpdesk' | Where-Object { $_.directoryScopeId -eq '/' }).Count -eq 0) 'EU-NL desk: 4 roles at its unit, none tenant-wide'
+Check ((& $id 'PIM-SG-EXO-Recipients') -and @($global:RoleGroups['Recipient Management']) -contains (& $id 'PIM-SG-EXO-Recipients')) 'PIM-SG-EXO-Recipients is in Recipient Management'
+Check (@($global:RoleGroups['View-Only Organization Management']) -contains (& $id 'PIM-SG-EXO-Reader')) 'PIM-SG-EXO-Reader is in View-Only Organization Management'
+$opsPol = $global:Fake.groupPolicies[(& $id 'PIM-SG-M365-Ops')]
+Check ((@($opsPol.rules | Where-Object { $_.id -eq 'Expiration_EndUser_Assignment' })[0]).maximumDuration -eq 'PT4H') 'Ops activation lasts 4 hours'
 Check ((& $elig 'PIM-SG-M365-GlobalAdmin').Count -eq 3 -and (& $act 'PIM-SG-M365-GlobalAdmin').Count -eq 0) 'GlobalAdmin: per role only'
 $second = (& ./Invoke-PimBaselineSetup.ps1 -TenantId fake.dev -ProtectedIds 'aaaaaaaa-0000-0000-0000-000000000003' -RegionsFile $reg -OutDir (Join-Path $tmp 'run2') -Yes -DeferWaitSeconds 0 *>&1 | Out-String)
-Check (([regex]::Matches($second, 'nothing to do')).Count -ge 6) 'a second run has nothing to do in any stage'
+Check (([regex]::Matches($second, 'nothing to do')).Count -ge 7) 'a second run has nothing to do in any stage'
 Pop-Location
 if ($fail) { exit 1 }

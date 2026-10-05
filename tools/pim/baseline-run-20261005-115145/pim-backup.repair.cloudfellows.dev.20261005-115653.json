@@ -1,0 +1,39 @@
+{
+  "schema": "cloudfellows-pim-backup/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "createdAt": "2026-10-05T09:56:53.0784390Z",
+  "items": [
+    {
+      "key": "aufix:AU-EU-NL-Users",
+      "uri": "https://graph.microsoft.com/v1.0/directory/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-NL\")",
+        "membershipRuleProcessingState": "On"
+      }
+    },
+    {
+      "key": "grfix:INT-SG-USR-EU-NL-All",
+      "uri": "https://graph.microsoft.com/v1.0/groups/37efc3f5-dae3-4848-9c12-83d576de2009",
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-NL\") -and (user.accountEnabled -eq true)",
+        "membershipRuleProcessingState": "On"
+      }
+    },
+    {
+      "key": "aufix:AU-EU-DE-Users",
+      "uri": "https://graph.microsoft.com/v1.0/directory/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-DE\")",
+        "membershipRuleProcessingState": "On"
+      }
+    },
+    {
+      "key": "grfix:INT-SG-USR-EU-DE-All",
+      "uri": "https://graph.microsoft.com/v1.0/groups/14becf5d-4d92-40ae-a1aa-fd4087a6a892",
+      "before": {
+        "membershipRule": "(user.extensionAttribute1 -eq \"EU-DE\") -and (user.accountEnabled -eq true)",
+        "membershipRuleProcessingState": "On"
+      }
+    }
+  ]
+}

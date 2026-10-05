@@ -1,0 +1,20 @@
+{
+  "tenant": "cloudfellows.dev",
+  "at": "2026-10-05T08:54:27.1936850Z",
+  "group": "PIM-SG-EXO-Test",
+  "groupId": "75f6ca6d-b0c5-494a-b956-29139928dc67",
+  "roleGroup": "View-Only Organization Management",
+  "attempts": [
+    {
+      "member": "75f6ca6d-b0c5-494a-b956-29139928dc67",
+      "ok": true,
+      "error": null
+    }
+  ],
+  "accepted": true,
+  "members": [
+    "GlobalReaders_-1050651340 (RoleGroup)",
+    "HelpdeskAdmins_1747774665 (RoleGroup)",
+    "75f6ca6d-b0c5-494a-b956-29139928dc67 (ExchangeSecurityGroup)"
+  ]
+}

@@ -1,0 +1,661 @@
+{
+  "schema": "cloudfellows-pim-plan/2.1",
+  "kind": "fw30-people",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "tenantName": "CloudFellows.dev",
+  "domain": "cloudfellows.dev",
+  "createdAt": "2026-10-05T10:48:49.1370920Z",
+  "createdBy": "app 190755aa-b093-4790-847f-5d132c37a842",
+  "source": {
+    "path": "/Users/mihaimonte/REPO/enca/tools/pim/framework-3.0.baseline.json",
+    "sha256": "cc8b07dab9b2807bd945a1a354e40e5e19b9297306c9c5c4d1e16bea5c27683c"
+  },
+  "resolved": {
+    "group:PIM-SG-AZ-Online-Contributor": "573e9dc8-2418-4342-a448-f0da4aed84fe",
+    "group:PIM-SG-M365-Collab-Direct": "3706f0e7-2305-4bb1-9582-e23dd52551d8",
+    "group:PIM-SG-AZ-Tenant-Owner": "a4254823-a4a9-4dc4-a9cd-e993e586ceb2",
+    "group:PIM-SG-AZ-LandingZone-Contributor": "ece6d7a0-ae98-4360-9349-ebe9736673c9",
+    "group:PIM-SG-AZ-Corp-Contributor": "39696e95-90ea-40a2-9767-f74e7068c4e1",
+    "group:PIM-SG-M365-AppOps": "8dd46809-e120-4e8a-9002-27bc3ee766dd",
+    "group:PIM-SG-M365-Ops-Direct": "daae1525-a412-4db5-b491-ef145b3fa01c",
+    "group:PIM-SG-AZ-Sub-Contributor": "1bf1ff4a-a158-487d-8109-148a1ca26616",
+    "group:PIM-SG-M365-Identity": "7f5f54b2-e6cc-479e-b6bb-a183cacfec75",
+    "group:PIM-SG-Approvers": "0ed527c4-1e33-4195-8fb4-306378663336",
+    "group:PIM-SG-M365-ServiceDesk-VIP": "311e19ca-589b-4c90-975c-e1de499b6746",
+    "group:PIM-SG-EU-NL-Approvers": "c6481696-e0f0-41f5-a33f-2ac0e8a2b1ec",
+    "group:PIM-SG-M365-Workplace": "bf03dc64-c1b2-4f57-bcd6-197c6a239b38",
+    "group:PIM-SG-EU-DE-Helpdesk": "44b7454c-7930-40a3-ba02-5975a282f611",
+    "group:PIM-SG-M365-AppOps-Direct": "45bc41f7-17aa-494a-8013-be6ae24f81e9",
+    "group:PIM-SG-INT-HelpDesk": "636a8143-b581-40ce-a6c0-9c3e64220fda",
+    "group:PIM-SG-EU-NL-Ops": "da57349f-8054-46d3-9507-22f2b06986a3",
+    "group:PIM-SG-AZ-Corp-Owner": "66ebb00f-e3e5-4771-a4fa-b4762d2221c6",
+    "group:PIM-SG-M365-ServiceDesk": "abae7003-d692-461e-8f54-174c2b334484",
+    "group:PIM-SG-XDR-Admin": "12221d92-b222-4438-b0d0-dd8be8c35da1",
+    "group:PIM-SG-INT-Ops": "58edf59c-800f-4eae-9be2-21d10303139a",
+    "group:PIM-SG-AZ-Online-Owner": "1ab4c131-bfd3-465c-a220-4b69399b3ec7",
+    "group:PIM-SG-AZ-Platform-Owner": "69635079-b8bb-4167-8bb7-89b01b70cda8",
+    "group:PIM-SG-M365-Audit": "363d7424-8006-4f57-a5da-45b47aa0abfe",
+    "group:PIM-SG-INT-SecOps": "cf729267-c3e2-4c5a-ac46-b71589e2cdc5",
+    "group:PIM-SG-EU-DE-Ops": "cfea0001-91fd-44ca-8da7-3762de71f635",
+    "group:PIM-SG-XDR-Reader": "51ef8f4c-97f7-48f3-86f8-453f788b245d",
+    "group:PIM-SG-EU-NL-Helpdesk": "4894aa31-c95d-43e1-9c1d-0162c7bbed6b",
+    "group:PIM-SG-XDR-Operator-T3": "b23218bc-9265-4407-b20c-d2978b5bef9f",
+    "group:PIM-SG-INT-HelpDesk-EU-NL": "59043acb-2448-4f7d-8840-44bf4b29fdbb",
+    "group:PIM-SG-XDR-Operator-T2": "0899c575-81b1-452d-8471-c57295d9fba0",
+    "group:PIM-SG-INT-Ops-EU-NL": "2d5dc6c0-7a43-45e6-b8a6-70db6c567b2d",
+    "group:PIM-SG-M365-Tier0": "e2dfa539-dc8a-4fea-a4bb-7c8fcb45715c",
+    "group:PIM-SG-AZ-Platform-Contributor": "0bed4d65-f2f1-4a7f-80e8-de4b3ec12514",
+    "group:PIM-SG-M365-GlobalAdmin": "6f0142ca-5d42-4bc2-a5fa-81d5e0d92c70",
+    "group:PIM-SG-AZ-Management-Contributor": "5981d826-1b5a-411c-a369-461556702fd7",
+    "group:PIM-SG-XDR-Operator-T1": "1e1715b9-2bed-47e4-846a-70cb047e213c",
+    "group:PIM-SG-M365-SecOps-Direct": "9c484822-0c2d-4c7c-8052-e1584cd713e9",
+    "group:PIM-SG-AZ-Sub-Owner": "e224538e-9bc4-4546-93e0-11aad238e635",
+    "group:PIM-SG-M365-Apps": "e66e92ed-9594-4199-97b0-e2f988555a8f",
+    "group:PIM-SG-M365-Collab": "6d0ee0fb-4d94-423b-8d7e-7d0426f4500c",
+    "group:PIM-SG-AZ-Connectivity-Contributor": "fbbcda9d-dd6d-4096-9b84-1bea54bf997b",
+    "group:PIM-SG-AZ-LandingZone-Owner": "4b7862c9-2376-4882-a1b9-99709fae65e0",
+    "group:PIM-SG-M365-Ops": "abef40ef-2584-4c42-8203-1221c029d4d1",
+    "group:PIM-SG-EU-DE-Approvers": "2fa9c992-6573-490e-9323-dedf5a4f63fb",
+    "group:PIM-SG-INT-HelpDesk-EU-DE": "02803560-38b1-44ad-a956-ad7add8b299f",
+    "group:PIM-SG-AZ-Management-Owner": "e240a67b-7d0d-4eb4-abf6-ee98da0e9e97",
+    "group:PIM-SG-M365-Helpdesk": "bd0c0341-7c8c-488e-af97-4a1cdc19c638",
+    "group:PIM-SG-M365-SecOpsReader": "7aa3ec82-edc9-4270-8647-46b75124fdb6",
+    "group:PIM-SG-AZ-Connectivity-Owner": "e263b799-8fe1-48b3-afb4-3558f94961cd",
+    "group:PIM-SG-M365-SecOps": "2d9cc375-7a77-4ee3-8836-d3817440bd94",
+    "group:PIM-SG-INT-Ops-EU-DE": "b35facd3-3220-4544-aa77-be7f6490e3a9"
+  },
+  "ops": [
+    {
+      "key": "gpol:PIM-SG-M365-AppOps:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-AppOps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_8dd46809-e120-4e8a-9002-27bc3ee766dd_16217d8a-bd4b-403b-8508-ce5b69959c32/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Apps:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-Apps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_e66e92ed-9594-4199-97b0-e2f988555a8f_93524624-621e-4520-990f-453a45fa60a6/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Collab:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-Collab membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_6d0ee0fb-4d94-423b-8d7e-7d0426f4500c_486566d3-194f-4795-9787-8cc3cddb91c0/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Helpdesk:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_bd0c0341-7c8c-488e-af97-4a1cdc19c638_012df8cc-2344-4d4c-b8e2-90baa952445b/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Identity:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-Identity membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_7f5f54b2-e6cc-479e-b6bb-a183cacfec75_1727ad20-5262-4af5-a7ba-6f893e36fc98/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Ops:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-Ops membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_abef40ef-2584-4c42-8203-1221c029d4d1_ad338647-acaf-4800-8989-92b3389851bc/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-SecOps:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-SecOps membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_2d9cc375-7a77-4ee3-8836-d3817440bd94_5322f695-3286-4c72-b4ec-ecef80321363/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-ServiceDesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_abae7003-d692-461e-8f54-174c2b334484_7a2ea7e1-789e-46aa-805b-29aebf37bfd2/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-ServiceDesk-VIP:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-ServiceDesk-VIP membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_311e19ca-589b-4c90-975c-e1de499b6746_12282467-213e-4b13-bb24-2dca85b56985/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-M365-Workplace:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-M365-Workplace membership policy: Enablement_EndUser_Assignment → GroupJITTier1.large",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_bf03dc64-c1b2-4f57-bcd6-197c6a239b38_54440e2b-3816-4cfe-a3c6-2667238e4d25/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification",
+          "Ticketing"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_4894aa31-c95d-43e1-9c1d-0162c7bbed6b_bf1face2-6ab0-4d34-8320-51f45b8c478d/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_da57349f-8054-46d3-9507-22f2b06986a3_4a061b11-3174-419b-8b87-0023292b911f/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_44b7454c-7930-40a3-ba02-5975a282f611_355b2d87-4fda-4995-89ae-4f3c4be155d4/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Enablement_EndUser_Assignment",
+      "kind": "http",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Enablement_EndUser_Assignment → GroupJITTier1.multi",
+      "method": "PATCH",
+      "uri": "https://graph.microsoft.com/v1.0/policies/roleManagementPolicies/Group_cfea0001-91fd-44ca-8da7-3762de71f635_45b403a2-12ef-4007-9068-d0179de7a65f/rules/Enablement_EndUser_Assignment",
+      "body": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "Justification",
+          "MultiFactorAuthentication"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      },
+      "before": {
+        "id": "Enablement_EndUser_Assignment",
+        "target": {
+          "inheritableSettings": [],
+          "level": "Assignment",
+          "caller": "EndUser",
+          "operations": [
+            "all"
+          ],
+          "enforcedSettings": []
+        },
+        "enabledRules": [
+          "MultiFactorAuthentication",
+          "Justification"
+        ],
+        "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyEnablementRule"
+      }
+    }
+  ],
+  "findings": [],
+  "blocked": [],
+  "backup": [],
+  "hash": "94acf332fba007912d8ce4ff8d6e55fefa05cb0da1a3b4bd1984fde2c2ff57b5"
+}

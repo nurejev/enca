@@ -16,10 +16,15 @@
   Config   New-PimBaseline.ps1       Every global group (incl. the four new
                                      -Direct groups, approvers, INT, XDR, AZ) and
                                      every membership policy — with the 3.0
-                                     templates (job groups GroupJITTier1, direct
-                                     groups GroupMember). Uses a config generated
+                                     templates (job groups GroupJITTier1, 4 h; direct
+                                     groups GroupMember; access groups GroupJIT). Uses a config generated
                                      from pim-baseline.json + framework-3.0.baseline.json;
                                      the 2.x group→role eligibilities are left out.
+  Exchange Set-PimExchangeRbac.ps1    PIM-SG-EXO-* access groups into their Exchange
+                                     role groups (Recipient Management, Help Desk,
+                                     Hygiene Management, View-Only Organization
+                                     Management). Needs Exchange connected first:
+                                     Connect-Customer.ps1 -Customer DEVCF -Services Exchange
   Regions  New-PimRegions.ps1        Units, regional groups (job groups on
                                      GroupJITTier1.multi), regional Intune — from
                                      regions.cloudfellows.dev.json. No regional
@@ -62,7 +67,7 @@ param(
   [string]$ConnectScript,
   [string]$TenantId,
   [Parameter(Mandatory)][string[]]$ProtectedIds,
-  [ValidateSet('Config', 'Regions', 'Repair', 'Direct', 'People', 'Jobs', 'Retire')][string[]]$Stages = @('Config', 'Regions', 'Repair', 'Direct', 'People', 'Jobs', 'Retire'),
+  [ValidateSet('Config', 'Exchange', 'Regions', 'Repair', 'Direct', 'People', 'Jobs', 'Retire')][string[]]$Stages = @('Config', 'Exchange', 'Regions', 'Repair', 'Direct', 'People', 'Jobs', 'Retire'),
   [string]$RegionsFile = (Join-Path $PSScriptRoot 'regions.cloudfellows.dev.json'),
   [string]$OutDir,
   [int]$DeferWaitSeconds = 120,
@@ -72,12 +77,13 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'PimCommon.psm1') -Force -DisableNameChecking
-$order = @('Config', 'Regions', 'Repair', 'Direct', 'People', 'Jobs', 'Retire')
+$order = @('Config', 'Exchange', 'Regions', 'Repair', 'Direct', 'People', 'Jobs', 'Retire')
 $Stages = @($order | Where-Object { $Stages -contains $_ })
 foreach ($p in $ProtectedIds) { if ($p -notmatch '^[0-9a-fA-F-]{36}$') { throw "-ProtectedIds '$p' is not an object id. Nothing was read or written." } }
-$need = @{ Config = 'New-PimBaseline.ps1'; Regions = 'New-PimRegions.ps1'; Repair = 'Repair-PimBaseline.ps1'; Direct = 'Set-PimFramework30.ps1'; People = 'Set-PimFramework30.ps1'; Jobs = 'Set-PimFramework30.ps1'; Retire = 'Set-PimFramework30.ps1' }
+$need = @{ Config = 'New-PimBaseline.ps1'; Exchange = 'Set-PimExchangeRbac.ps1'; Regions = 'New-PimRegions.ps1'; Repair = 'Repair-PimBaseline.ps1'; Direct = 'Set-PimFramework30.ps1'; People = 'Set-PimFramework30.ps1'; Jobs = 'Set-PimFramework30.ps1'; Retire = 'Set-PimFramework30.ps1' }
 foreach ($f in @('framework-3.0.baseline.json', 'pim-baseline.json', 'pim-regions-template.json')) { if (-not (Test-Path (Join-Path $PSScriptRoot $f))) { throw "$f is missing next to this script. Nothing was read or written." } }
 if ($Stages -contains 'Repair' -and -not (Test-Path (Join-Path $PSScriptRoot 'Repair-PimBaseline.ps1'))) { Write-PimWarn 'Repair-PimBaseline.ps1 is not in tools/pim — stage Repair is skipped'; $Stages = @($Stages | Where-Object { $_ -ne 'Repair' }) }
+if ($Stages -contains 'Exchange' -and -not (Get-Command Get-RoleGroupMember -ErrorAction SilentlyContinue)) { throw 'Stage Exchange needs Exchange Online connected in this session: run  Connect-Customer.ps1 -Customer DEVCF -Services Exchange  first (or leave Exchange out with -Stages). Nothing was read or written.' }
 if ($Stages -contains 'Regions' -and -not (Test-Path -LiteralPath $RegionsFile)) { throw "Regions file not found: $RegionsFile. Nothing was read or written." }
 $stamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
 if (-not $OutDir) { $OutDir = Join-Path (Get-Location).Path "baseline-run-$stamp" }
@@ -111,6 +117,7 @@ $tplFile = Join-Path $OutDir 'pim-regions-template.fw30.json'
 
 $stageDef = [ordered]@{
   Config  = @{ kind = 'baseline'; args = @{ ConfigFile = $cfgFile; Include = @('Groups', 'GroupPolicies', 'Eligibilities') }; impact = 'creates missing groups (4 new -Direct groups); sets every membership policy to its 3.0 template'; undo = 'New-PimBaseline.ps1 -RestoreFrom the backup (rules); delete new groups' }
+  Exchange = @{ kind = 'exo-rbac'; args = @{}; impact = 'PIM-SG-EXO-* access groups into their Exchange role groups (empty until someone is made eligible)'; undo = 'Remove-RoleGroupMember (listed in the outcome)' }
   Regions = @{ kind = 'regions'; args = @{ RegionsFile = $RegionsFile; TemplateFile = $tplFile; Include = @('Units', 'Groups', 'GroupPolicies', 'Intune') }; impact = 'missing units, regional groups and regional Intune; regional job groups on GroupJITTier1.multi'; undo = 'the outcome file lists every object' }
   Repair  = @{ kind = 'repair'; args = @{ RegionsFile = $RegionsFile }; impact = 'central Intune assignments get every scope tag; adm- accounts leave regional user units'; undo = 'Repair-PimBaseline.ps1 -RestoreFrom the backup' }
   Direct  = @{ kind = 'fw30-direct'; args = @{ Phase = 'Direct'; ProtectedIds = $ProtectedIds; RegionsFile = $RegionsFile }; impact = 'direct groups eligible per role; people copied into them (additive)'; undo = 'remove the eligibilities / memberships listed in the outcome' }
@@ -150,11 +157,20 @@ function Invoke-Stage([string]$name) {
     $oc = Get-Newest "pim-outcome.$($d.kind).*.json" $t1
     if (-not $oc) { throw "stage $name wrote no outcome file — read the lines above. Stopped." }
     $ops = @((Read-PimJsonFile $oc.FullName)['ops'])
-    $failed = @($ops | Where-Object { $_['status'] -eq 'failed' }).Count
+    $failedOps = @($ops | Where-Object { $_['status'] -eq 'failed' })
+    # PIM refuses to remove an assignment younger than 5 minutes (ActiveDurationTooShort):
+    # nothing was written for it, so wait and plan the stage again
+    $young = @($failedOps | Where-Object { "$($_['error'])" -match 'ActiveDurationTooShort' })
+    $failed = $failedOps.Count - $young.Count
     $deferred = @($ops | Where-Object { "$($_['status'])" -like 'deferred*' }).Count
     if ($failed) { throw "stage ${name}: $failed operation(s) failed — see $($oc.Name). Stopped; nothing after it ran." }
-    if (-not $deferred) { Write-PimOk "stage $name applied ($($ops.Count) operation(s))"; return }
-    if ($round -lt $MaxDeferRounds) { Write-PimWarn "stage ${name}: $deferred operation(s) deferred (new groups reach PIM after a few minutes) — waiting $DeferWaitSeconds s"; Start-Sleep -Seconds $DeferWaitSeconds }
+    if (-not $deferred -and -not $young.Count) { Write-PimOk "stage $name applied ($($ops.Count) operation(s))"; return }
+    if ($round -lt $MaxDeferRounds) {
+      $wait = if ($young.Count) { [Math]::Max($DeferWaitSeconds, 330) } else { $DeferWaitSeconds }
+      $why = if ($young.Count) { 'PIM will not remove an assignment younger than 5 minutes' } else { "$deferred operation(s) deferred (new groups reach PIM after a few minutes)" }
+      Write-PimWarn "stage ${name}: $why — waiting $wait s, then planning again"
+      Start-Sleep -Seconds $wait
+    }
   }
   throw "stage ${name} still defers after $MaxDeferRounds rounds — run this script again in a few minutes (it picks up where it stopped)."
 }

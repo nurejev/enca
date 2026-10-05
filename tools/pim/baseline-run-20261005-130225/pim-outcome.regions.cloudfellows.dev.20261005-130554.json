@@ -1,0 +1,167 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "43c6eec1f96fdcb71e737a57a8c5a22942c1649faee55ba26c9871324914f4cf",
+  "ops": [
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Expiration_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:54.6134960Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:55.1111050Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Approval_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:55.6351540Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Helpdesk:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-NL-Helpdesk membership policy: Expiration_Admin_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:56.4730780Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Expiration_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:57.3477960Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:57.7250240Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Approval_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:58.1101140Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-NL-Ops:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-NL-Ops membership policy: Expiration_Admin_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:05:58.9280790Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-HelpDesk-EU-NL:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-HelpDesk-EU-NL membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:05:59.5653010Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-Ops-EU-NL:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-Ops-EU-NL membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:06:00.0329000Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Expiration_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:00.5215270Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:00.9436990Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Approval_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:01.3382130Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Helpdesk:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-DE-Helpdesk membership policy: Expiration_Admin_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:02.0308220Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Expiration_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Expiration_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:02.6427160Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Enablement_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:03.0731020Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Approval_EndUser_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Approval_EndUser_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:03.5073360Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-EU-DE-Ops:Expiration_Admin_Assignment",
+      "summary": "PIM-SG-EU-DE-Ops membership policy: Expiration_Admin_Assignment → GroupMember",
+      "status": "done",
+      "at": "2026-10-05T11:06:04.2795530Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-HelpDesk-EU-DE:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-HelpDesk-EU-DE membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:06:05.0365070Z",
+      "id": null,
+      "error": null
+    },
+    {
+      "key": "gpol:PIM-SG-INT-Ops-EU-DE:Enablement_EndUser_Assignment",
+      "summary": "PIM-SG-INT-Ops-EU-DE membership policy: Enablement_EndUser_Assignment → GroupJIT",
+      "status": "done",
+      "at": "2026-10-05T11:06:05.3660630Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

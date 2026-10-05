@@ -1,0 +1,679 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "d5db6c63cce0acd16b933b498c26c7dab95e6327d0190872dc00828df5a56582",
+  "ops": [
+    {
+      "key": "act:PIM-SG-M365-AppOps:Cloud Application Administrator:/",
+      "summary": "PIM-SG-M365-AppOps ACTIVE in Cloud Application Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:35.9159780Z",
+      "id": "4ec3dd1f-bdf9-4d50-a184-baf3165eb4f1",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-AppOps:Application Developer:/",
+      "summary": "PIM-SG-M365-AppOps ACTIVE in Application Developer at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:39.2170140Z",
+      "id": "f3043ebf-daf0-4060-862c-916b956e04c9",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-AppOps:Power Platform Administrator:/",
+      "summary": "PIM-SG-M365-AppOps ACTIVE in Power Platform Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:40.4485170Z",
+      "id": "97ca15c8-5a5d-4f8b-8eb6-15735e682e43",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-AppOps:Office Apps Administrator:/",
+      "summary": "PIM-SG-M365-AppOps ACTIVE in Office Apps Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:41.5739950Z",
+      "id": "85bf69af-a424-4e1d-aae9-3f256e7a7f75",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-AppOps:Guest Inviter:/",
+      "summary": "PIM-SG-M365-AppOps ACTIVE in Guest Inviter at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:42.7189060Z",
+      "id": "d3eabd20-7780-4547-bdcf-e0aac9c6ab44",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-AppOps:Message Center Reader:/",
+      "summary": "PIM-SG-M365-AppOps ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:44.4482630Z",
+      "id": "1b7f0150-3f69-49c0-81b3-e3e6d22b3643",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Apps:Application Administrator:/",
+      "summary": "PIM-SG-M365-Apps ACTIVE in Application Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:45.8292630Z",
+      "id": "7a90486a-2141-4a02-a4ec-0259a4c09a9b",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Apps:Cloud Application Administrator:/",
+      "summary": "PIM-SG-M365-Apps ACTIVE in Cloud Application Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:47.0188260Z",
+      "id": "1b15153b-a0f1-4fa8-bf4c-cbcd3137cd5f",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Apps:Application Developer:/",
+      "summary": "PIM-SG-M365-Apps ACTIVE in Application Developer at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:48.5244510Z",
+      "id": "c9300fe7-8fc9-47a8-97e2-fbe2c30d8aa6",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Apps:Message Center Reader:/",
+      "summary": "PIM-SG-M365-Apps ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:49.8622490Z",
+      "id": "0c139bf5-198a-46ff-9e71-5ecff568c923",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Collab:Teams Administrator:/",
+      "summary": "PIM-SG-M365-Collab ACTIVE in Teams Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:51.2657680Z",
+      "id": "93964ff2-2b56-4b4a-b806-f97bd20ea767",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Collab:Power Platform Administrator:/",
+      "summary": "PIM-SG-M365-Collab ACTIVE in Power Platform Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:52.6139550Z",
+      "id": "630ca6ba-631f-4955-b64b-8db27d710b4e",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Collab:Office Apps Administrator:/",
+      "summary": "PIM-SG-M365-Collab ACTIVE in Office Apps Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:53.9059180Z",
+      "id": "cdc8f9fc-132f-44b8-90c1-2c06e44b15ba",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Collab:Guest Inviter:/",
+      "summary": "PIM-SG-M365-Collab ACTIVE in Guest Inviter at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:55.1734300Z",
+      "id": "0f81842b-d137-4daa-8e40-ad1b0386a3d5",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Collab:Message Center Reader:/",
+      "summary": "PIM-SG-M365-Collab ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:56.5213820Z",
+      "id": "1216447b-d0dd-4145-98ff-f9ad883ef397",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:Authentication Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in Authentication Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:57.9148390Z",
+      "id": "0b2a5b18-0178-4b5d-97c9-78844fa7087c",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:User Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in User Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:58.8599730Z",
+      "id": "52cb4441-f98c-4d72-9a01-6562eb396f95",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:Groups Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in Groups Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T09:59:59.6762480Z",
+      "id": "a4f72c4c-da71-48b7-ac52-78d705c9efc8",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:License Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in License Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:02.4997440Z",
+      "id": "f4ae86be-5fc1-494d-b41b-707a47a667d9",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:Password Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in Password Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:03.9367020Z",
+      "id": "5006232b-834f-4f85-beb1-01cac31dac30",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:Cloud Device Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in Cloud Device Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:04.8707880Z",
+      "id": "26620ae8-bda3-491e-8069-287ca5e5e2c7",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:Microsoft Entra Joined Device Local Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in Microsoft Entra Joined Device Local Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:06.2181430Z",
+      "id": "8f15cc33-114f-4039-a206-03cbb1866070",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:Helpdesk Administrator:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in Helpdesk Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:07.0338570Z",
+      "id": "9c02891e-60ea-431a-9e79-8a0acb6a4095",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Helpdesk:Message Center Reader:/",
+      "summary": "PIM-SG-M365-Helpdesk ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:08.6460910Z",
+      "id": "90965d3d-60b5-41d2-946f-d399adee7a10",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:Authentication Administrator:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in Authentication Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:09.5865400Z",
+      "id": "7866115b-222f-4a81-ba7e-ee425e4361df",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:Authentication Policy Administrator:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in Authentication Policy Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:10.8589950Z",
+      "id": "8bff7c46-f1c4-4e9c-8d53-2e0ba24b7b1a",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:User Administrator:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in User Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:12.2744630Z",
+      "id": "22a1fc07-44a4-4e50-8ea1-13afa8a59c31",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:Groups Administrator:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in Groups Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:13.9299530Z",
+      "id": "317d2b34-de99-4aa8-b2b1-6cf937706b57",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:License Administrator:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in License Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:14.7959320Z",
+      "id": "bcf1b5fc-5324-4088-8089-7529e823ff0e",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:Identity Governance Administrator:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in Identity Governance Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:16.1944750Z",
+      "id": "5ac41d63-1de8-412a-9b1b-2c9563d6957f",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:Lifecycle Workflows Administrator:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in Lifecycle Workflows Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:24.8529770Z",
+      "id": "7d1c1bf4-ec6c-4c90-b6d9-8e7f65770345",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Identity:Message Center Reader:/",
+      "summary": "PIM-SG-M365-Identity ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:25.7933420Z",
+      "id": "75861a17-1de8-43ca-b9c7-216f9624fb33",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Teams Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Teams Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:26.8893890Z",
+      "id": "d10c8716-1998-4436-b055-d883e44a72c6",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Intune Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Intune Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:28.1642970Z",
+      "id": "6da5b112-fa68-44be-b524-3dd57681819a",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Application Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Application Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:29.9446630Z",
+      "id": "83c4688d-d35d-40c9-8302-f8bcce894330",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Cloud Application Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Cloud Application Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:31.0141720Z",
+      "id": "96d913f9-4d0f-4064-b9c4-69933633fe8e",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Application Developer:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Application Developer at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:32.0023020Z",
+      "id": "1becc26f-8ce3-4392-a190-6886d6d68827",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Power Platform Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Power Platform Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:32.9561640Z",
+      "id": "1ff85bd0-a473-4435-b13f-529404b15bd1",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Authentication Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Authentication Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:33.8695290Z",
+      "id": "8849c378-df3b-477d-8b42-61513a0f70bc",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Authentication Policy Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Authentication Policy Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:34.7402650Z",
+      "id": "52c3b58a-30e0-47ce-b31a-6f0b2bb5f5b7",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:User Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in User Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:35.6488600Z",
+      "id": "6a700abd-c48e-42e0-a684-43df548a98b7",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Groups Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Groups Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:37.0120770Z",
+      "id": "0c39b25a-5668-48c0-b70e-b3ab02a98d28",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:License Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in License Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:38.3530800Z",
+      "id": "9bd01807-1c8d-4ad3-96ed-d385055e8f9c",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Password Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Password Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:39.4479590Z",
+      "id": "71cf9ef6-83f3-4565-b829-6292e8c33dd9",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Cloud Device Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Cloud Device Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:40.7690530Z",
+      "id": "91364909-7bb4-4029-8860-19c8683ba612",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Microsoft Entra Joined Device Local Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Microsoft Entra Joined Device Local Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:41.9435160Z",
+      "id": "99b1b1bd-3ce2-45da-bdf9-964e923a0ccb",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Identity Governance Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Identity Governance Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:42.7777110Z",
+      "id": "a88f2745-f9b2-4803-a60e-c1f281bc65d8",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Lifecycle Workflows Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Lifecycle Workflows Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:44.1018010Z",
+      "id": "113e377e-db58-49bc-8166-a7e30a83038a",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Service Support Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Service Support Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:45.0456260Z",
+      "id": "58d7a8d2-2a10-4eaf-b754-b6efbf2642e4",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Edge Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Edge Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:46.0777730Z",
+      "id": "2e4acbbc-df98-4db9-9d4c-996e4801be0b",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Office Apps Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Office Apps Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:47.0307730Z",
+      "id": "1eb31735-d348-4d32-a576-1be859048eb6",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Guest Inviter:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Guest Inviter at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:48.5258620Z",
+      "id": "f6d1e613-695a-462d-8f3a-a49e8b38063e",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Helpdesk Administrator:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Helpdesk Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:49.7806150Z",
+      "id": "5b65b429-dbc6-4096-a24d-72aba577c826",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Ops:Message Center Reader:/",
+      "summary": "PIM-SG-M365-Ops ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:51.0933750Z",
+      "id": "c6c287bd-9ec9-4969-ae29-013519537819",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-SecOps:Cloud App Security Administrator:/",
+      "summary": "PIM-SG-M365-SecOps ACTIVE in Cloud App Security Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:52.4046570Z",
+      "id": "e3993484-4865-47f5-a628-9a79279b941a",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-SecOps:Security Operator:/",
+      "summary": "PIM-SG-M365-SecOps ACTIVE in Security Operator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:53.3921740Z",
+      "id": "b5314f21-1807-4ff1-9bba-f76f777341d9",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-SecOps:Message Center Reader:/",
+      "summary": "PIM-SG-M365-SecOps ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:54.6956980Z",
+      "id": "d764dfd4-f032-4e22-8600-5ebb7dc1fd2c",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-ServiceDesk:Authentication Administrator:/",
+      "summary": "PIM-SG-M365-ServiceDesk ACTIVE in Authentication Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:56.0847530Z",
+      "id": "3906d457-c7e9-47ee-bae2-2aab4ed5ee1a",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-ServiceDesk:License Administrator:/",
+      "summary": "PIM-SG-M365-ServiceDesk ACTIVE in License Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:57.0232020Z",
+      "id": "fbc7ca2e-f3fe-48d3-9b9b-14afc3d841f3",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-ServiceDesk:Password Administrator:/",
+      "summary": "PIM-SG-M365-ServiceDesk ACTIVE in Password Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:58.3253360Z",
+      "id": "afd59371-4a43-4e95-b696-ff8843317bfc",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-ServiceDesk:Service Support Administrator:/",
+      "summary": "PIM-SG-M365-ServiceDesk ACTIVE in Service Support Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:00:59.3194000Z",
+      "id": "7114fe2d-bf5a-4721-b143-63f8fb606a5d",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-ServiceDesk:Helpdesk Administrator:/",
+      "summary": "PIM-SG-M365-ServiceDesk ACTIVE in Helpdesk Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:00.5446760Z",
+      "id": "0cde2464-f691-44cc-bb64-98b894202b72",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-ServiceDesk:Message Center Reader:/",
+      "summary": "PIM-SG-M365-ServiceDesk ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:01.4137850Z",
+      "id": "8152b3f1-a485-4c30-9f99-75526ded7296",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Workplace:Intune Administrator:/",
+      "summary": "PIM-SG-M365-Workplace ACTIVE in Intune Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:02.5721700Z",
+      "id": "2609ba00-53c6-415e-9b7a-fe4d92712679",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Workplace:Cloud Device Administrator:/",
+      "summary": "PIM-SG-M365-Workplace ACTIVE in Cloud Device Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:03.4971130Z",
+      "id": "d71348dd-193a-453d-8964-363c72e8d2db",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Workplace:Microsoft Entra Joined Device Local Administrator:/",
+      "summary": "PIM-SG-M365-Workplace ACTIVE in Microsoft Entra Joined Device Local Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:04.7009570Z",
+      "id": "a00c7988-5f2f-4ebd-a996-ac9207dc42ef",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Workplace:Edge Administrator:/",
+      "summary": "PIM-SG-M365-Workplace ACTIVE in Edge Administrator at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:05.7735520Z",
+      "id": "fc8e7c0e-4f29-4c94-b702-7dce025af3f7",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-M365-Workplace:Message Center Reader:/",
+      "summary": "PIM-SG-M365-Workplace ACTIVE in Message Center Reader at / (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:06.6987540Z",
+      "id": "16f7a404-ec3c-4084-b126-1c88f4ce9d4d",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Helpdesk:Helpdesk Administrator:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk ACTIVE in Helpdesk Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:07.7751950Z",
+      "id": "796adf2f-233a-4582-b70c-2f2bf2cd2dc6",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Helpdesk:Password Administrator:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk ACTIVE in Password Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:09.0133960Z",
+      "id": "21a2f8c0-847c-4812-8171-5b4bc39ffcb5",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Helpdesk:Authentication Administrator:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk ACTIVE in Authentication Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:10.2608440Z",
+      "id": "5b65d1f5-5fe2-46d0-9337-1441359ded44",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Helpdesk:License Administrator:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk ACTIVE in License Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:11.6977660Z",
+      "id": "13f53671-b82b-497b-b4ce-cfa3ddd8dfcc",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Ops:User Administrator:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Ops ACTIVE in User Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:14.0016120Z",
+      "id": "e99d055b-c72c-400a-9169-1643b15239f7",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Ops:Groups Administrator:/administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46",
+      "summary": "PIM-SG-EU-NL-Ops ACTIVE in Groups Administrator at /administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:14.9113190Z",
+      "id": "16b75c8a-7595-42d6-91a0-6202a21c9f82",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Ops:Teams Administrator:/administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46",
+      "summary": "PIM-SG-EU-NL-Ops ACTIVE in Teams Administrator at /administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:16.4244620Z",
+      "id": "84aa503e-5321-45d6-b945-3fba317a1d93",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-NL-Ops:Cloud Device Administrator:/administrativeUnits/40c102a2-72ac-43ca-b6b1-88466d17ede5",
+      "summary": "PIM-SG-EU-NL-Ops ACTIVE in Cloud Device Administrator at /administrativeUnits/40c102a2-72ac-43ca-b6b1-88466d17ede5 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:17.7129070Z",
+      "id": "ba6fa591-4b36-4d48-9502-943d7198e83a",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Helpdesk:Helpdesk Administrator:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk ACTIVE in Helpdesk Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:18.9926170Z",
+      "id": "170ef433-ae22-450a-8794-78fbd08009b3",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Helpdesk:Password Administrator:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk ACTIVE in Password Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:19.9774500Z",
+      "id": "9df4b67d-e527-4869-b34e-49801185690c",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Helpdesk:Authentication Administrator:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk ACTIVE in Authentication Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:21.1209470Z",
+      "id": "ce193d1a-2ad9-4c96-9ad5-0f6778b455dc",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Helpdesk:License Administrator:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk ACTIVE in License Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:22.5478270Z",
+      "id": "829cce28-33f8-4f12-9696-7207532670d2",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Ops:User Administrator:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Ops ACTIVE in User Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:23.8518630Z",
+      "id": "18c0ccf3-5f34-4fc9-a916-28434ccafb34",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Ops:Groups Administrator:/administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84",
+      "summary": "PIM-SG-EU-DE-Ops ACTIVE in Groups Administrator at /administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:25.4596410Z",
+      "id": "38c7ca08-b941-421d-a748-2e05aa0429ec",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Ops:Teams Administrator:/administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84",
+      "summary": "PIM-SG-EU-DE-Ops ACTIVE in Teams Administrator at /administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:26.5668580Z",
+      "id": "158eb104-6746-49db-b7ef-a858127368f9",
+      "error": null
+    },
+    {
+      "key": "act:PIM-SG-EU-DE-Ops:Cloud Device Administrator:/administrativeUnits/ac1f825a-c648-4c39-9b56-c0c9066de206",
+      "summary": "PIM-SG-EU-DE-Ops ACTIVE in Cloud Device Administrator at /administrativeUnits/ac1f825a-c648-4c39-9b56-c0c9066de206 (permanent — its eligible members get it on activation)",
+      "status": "done (Provisioned)",
+      "at": "2026-10-05T10:01:29.3662640Z",
+      "id": "c4965152-ac8e-49cb-bfa3-4b412c163c0c",
+      "error": null
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "schema": "cloudfellows-pim-framework/3.0-baseline",
   "release": "3.0",
-  "revised": "2026-10-04",
-  "note": "The baseline tenant carries the union of the small, large and multi-region designs. Direct groups: people ACTIVE, group ELIGIBLE per role. Job groups: people ELIGIBLE, group ACTIVE (permanent) in every role. Regional groups come from regionGroups, once per row of the regions file.",
+  "revised": "2026-10-05",
+  "note": "The baseline tenant carries the union of the small, large and multi-region designs. Direct groups: people ACTIVE, group ELIGIBLE per role. Job groups: people ELIGIBLE, group ACTIVE (permanent) in every role. Regional groups come from regionGroups, once per row of the regions file. Access groups (path \"access\") are eligible-member groups that sit in a product role group: PIM-SG-EXO-* in Exchange Online role groups (Set-PimExchangeRbac.ps1).",
   "templates": {
     "GroupMember": {
       "ActivationDuration": "PT1H",
@@ -39,7 +39,7 @@
       }
     },
     "GroupJITTier1.small": {
-      "ActivationDuration": "PT2H",
+      "ActivationDuration": "PT4H",
       "ActivationRequirement": "MultiFactorAuthentication,Justification",
       "AuthenticationContext_Enabled": false,
       "ApprovalRequired": false,
@@ -71,7 +71,7 @@
       }
     },
     "GroupJITTier1.large": {
-      "ActivationDuration": "PT2H",
+      "ActivationDuration": "PT4H",
       "ActivationRequirement": "MultiFactorAuthentication,Justification,Ticketing",
       "AuthenticationContext_Enabled": false,
       "ApprovalRequired": false,
@@ -103,7 +103,7 @@
       }
     },
     "GroupJITTier1.multi": {
-      "ActivationDuration": "PT2H",
+      "ActivationDuration": "PT4H",
       "ActivationRequirement": "MultiFactorAuthentication,Justification",
       "AuthenticationContext_Enabled": false,
       "ApprovalRequired": false,
@@ -115,6 +115,38 @@
       "Notification_Activation_Alert": {
         "isDefaultRecipientEnabled": true,
         "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_EligibleAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_ActiveAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      }
+    },
+    "GroupJIT": {
+      "ActivationDuration": "PT8H",
+      "ActivationRequirement": "MultiFactorAuthentication,Justification",
+      "AuthenticationContext_Enabled": false,
+      "ApprovalRequired": false,
+      "Approvers": [],
+      "AllowPermanentEligibility": false,
+      "MaximumEligibilityDuration": "P365D",
+      "AllowPermanentActiveAssignment": false,
+      "MaximumActiveAssignmentDuration": "P30D",
+      "Notification_Activation_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "Critical",
         "Recipients": [
           "pim-alerts"
         ]
@@ -724,12 +756,57 @@
         }
       ],
       "template": "GroupJITTier1.large"
+    },
+    {
+      "name": "PIM-SG-EXO-HelpDesk",
+      "path": "access",
+      "persona": "First line: view and change recipient properties",
+      "profiles": [
+        "large",
+        "multi"
+      ],
+      "template": "GroupJIT",
+      "roles": [],
+      "exchangeRoleGroup": "Help Desk"
+    },
+    {
+      "name": "PIM-SG-EXO-Hygiene",
+      "path": "access",
+      "persona": "Security operations: anti-spam, anti-malware, connection filtering",
+      "profiles": [
+        "large",
+        "multi"
+      ],
+      "template": "GroupJIT",
+      "roles": [],
+      "exchangeRoleGroup": "Hygiene Management"
+    },
+    {
+      "name": "PIM-SG-EXO-Reader",
+      "path": "access",
+      "persona": "Auditors and readers: the whole Exchange configuration, read only",
+      "profiles": [
+        "large",
+        "multi"
+      ],
+      "template": "GroupJIT",
+      "roles": [],
+      "exchangeRoleGroup": "View-Only Organization Management"
+    },
+    {
+      "name": "PIM-SG-EXO-Recipients",
+      "path": "access",
+      "persona": "Desk and collaboration: mailboxes, contacts, distribution groups, mailbox permissions",
+      "profiles": [
+        "small",
+        "large",
+        "multi"
+      ],
+      "template": "GroupJIT",
+      "roles": [],
+      "exchangeRoleGroup": "Recipient Management"
     }
   ],
-  "exchangeRbacTest": {
-    "group": "PIM-SG-EXO-Test",
-    "roleGroup": "View-Only Organization Management"
-  },
   "regionGroups": [
     {
       "name": "PIM-SG-<REG>-Helpdesk",

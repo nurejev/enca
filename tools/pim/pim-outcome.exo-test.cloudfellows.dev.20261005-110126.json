@@ -1,0 +1,15 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "cbe8bf5455da66e05dd4fafe5ff25515b108f6c598fada54da24e13753440993",
+  "ops": [
+    {
+      "key": "del:PIM-SG-EXO-Test",
+      "summary": "delete test group PIM-SG-EXO-Test",
+      "status": "done",
+      "at": "2026-10-05T09:01:26.5471680Z",
+      "id": null,
+      "error": null
+    }
+  ]
+}

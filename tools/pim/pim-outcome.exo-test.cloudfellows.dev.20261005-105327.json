@@ -1,0 +1,15 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "9351e64eb6e5515330e824c75ecdef98d1bda80cc5163d23ed7e32b8f164e9a6",
+  "ops": [
+    {
+      "key": "group:PIM-SG-EXO-Test",
+      "summary": "create role-assignable test group PIM-SG-EXO-Test (no members)",
+      "status": "done",
+      "at": "2026-10-05T08:53:27.0072080Z",
+      "id": "75f6ca6d-b0c5-494a-b956-29139928dc67",
+      "error": null
+    }
+  ]
+}
