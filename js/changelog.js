@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32437, date: "2026-10-05", title: "PIM framework 3.0 — the scripts follow",
+    items: [
+      { kind: "fixed", tool: "PIM baseline", text: "The PowerShell scripts for the baseline tenant understand job groups: New-PimBaseline.ps1 makes a job group active in its roles when the file says Active, and New-PimRegions.ps1 makes the regional desk and Ops groups active at their own units instead of eligible. Both report a 2.x eligibility left on a job group, and leave a role out with a clear message when its policy still requires an end date on active assignments." },
+      { kind: "fixed", tool: "Help", text: "The time shown under the version on the sign-in screen is the time this build was made again; 32436 still showed the time of the build before it." },
+    ],
+  },
+  {
     build: 32436, date: "2026-10-05", title: "PIM framework 3.0 — one activation per job",
     items: [
       { kind: "new", tool: "PIM baseline", text: "The CloudFellows PIM framework is 3.0. Most admin work now runs through job groups: people are eligible members, the group holds every role of the job permanently, and one activation of four hours gives the whole job. Tier 0 and the Exchange, SharePoint and Purview roles stay per role on direct groups (people active members, the group eligible for each role), because Microsoft documents that activation through a group can take hours to reach those portals." },

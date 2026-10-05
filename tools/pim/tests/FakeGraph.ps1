@@ -159,6 +159,10 @@ function Invoke-MgGraphRequest {
       $lg = @($F.groups | Where-Object { $_.id -eq $b.principalId -and $_.ContainsKey('lag') -and $_.lag -gt 0 })[0]
       if ($lg) { $lg.lag--; throw 'Response status code does not indicate success: NotFound (Not Found). {"error":{"code":"SubjectNotFound","message":"The subject is not found."}}' }
       $F.elig.Add(@{ id = (New-FakeId); principalId = $b.principalId; roleDefinitionId = $b.roleDefinitionId; directoryScopeId = $b.directoryScopeId; scheduleInfo = $b.scheduleInfo }); return @{ id = (New-FakeId); status = 'Provisioned' } }
+    '^POST /roleManagement/directory/roleAssignmentScheduleRequests$' {
+      $lg = @($F.groups | Where-Object { $_.id -eq $b.principalId -and $_.ContainsKey('lag') -and $_.lag -gt 0 })[0]
+      if ($lg) { $lg.lag--; throw 'Response status code does not indicate success: NotFound (Not Found). {"error":{"code":"SubjectNotFound","message":"The subject is not found."}}' }
+      $F.active.Add(@{ id = (New-FakeId); principalId = $b.principalId; roleDefinitionId = $b.roleDefinitionId; directoryScopeId = $b.directoryScopeId; assignmentType = 'Assigned'; scheduleInfo = $b.scheduleInfo }); return @{ id = (New-FakeId); status = 'Provisioned' } }
     '^POST /identityGovernance/privilegedAccess/group/assignmentScheduleRequests$' { $F.pgA.Add(@{ id = (New-FakeId); groupId = $b.groupId; principalId = $b.principalId; accessId = $b.accessId }); return @{ id = (New-FakeId); status = 'Provisioned' } }
     '^POST /identityGovernance/privilegedAccess/group/eligibilityScheduleRequests$' { $F.pgE.Add(@{ id = (New-FakeId); groupId = $b.groupId; principalId = $b.principalId; accessId = $b.accessId }); return @{ id = (New-FakeId); status = 'Provisioned' } }
     '^POST /directory/administrativeUnits$' { $a = @{ id = (New-FakeId); displayName = $b.displayName; membershipType = $b.membershipType; membershipRule = $b.membershipRule; membershipRuleProcessingState = $b.membershipRuleProcessingState; isMemberManagementRestricted = [bool]$b.isMemberManagementRestricted }; $F.aus.Add($a); return (ConvertTo-FakeHash $a) }

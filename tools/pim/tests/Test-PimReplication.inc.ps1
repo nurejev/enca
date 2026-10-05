@@ -13,10 +13,10 @@ Test-It 'replication: a new group PIM does not know yet is waited for — the el
   Assert-True ($txt -match 'not replicated yet \(404\), trying again in 5 s') "the wait is shown`n$txt"
   $o = Get-LastOutcome 'regions'
   Assert-Eq @($o.ops | Where-Object { $_.status -eq 'failed' -or $_.status -eq 'not run' }).Count 0 'nothing failed, nothing left out'
-  $first = @($o.ops | Where-Object { $_.key -eq 'elig:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
+  $first = @($o.ops | Where-Object { $_.key -eq 'act:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
   Assert-True ($first.status -like 'done*after 2 retries') "the first eligibility of the new group: done after two tries ($($first.status))"
   $hd = $global:Fake.groups | Where-Object { $_.displayName -eq 'PIM-SG-EU-NL-Helpdesk' }
-  Assert-Eq @($global:Fake.elig | Where-Object { $_.principalId -eq $hd.id }).Count 4 'all four Helpdesk eligibilities exist, once each'
+  Assert-Eq @($global:Fake.active | Where-Object { $_.principalId -eq $hd.id }).Count 4 'all four Helpdesk assignments exist, once each (3.0: active at the unit)'
   Assert-Eq ($global:FakeSleeps[0..1] -join ',') '5,10' 'waits 5 s, then 10 s'
 }
 
@@ -28,11 +28,11 @@ Test-It 'replication: a subject that never appears fails after the last wait; th
   $o = Get-LastOutcome 'regions'
   $failed = @($o.ops | Where-Object { $_.status -eq 'failed' })
   Assert-Eq $failed.Count 1 'one operation failed'
-  Assert-Eq $failed[0].key 'elig:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' 'the first eligibility'
+  Assert-Eq $failed[0].key 'act:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' 'the first eligibility'
   Assert-True ($failed[0].error -match 'SubjectNotFound') 'the Graph error is kept'
   Assert-Eq ($global:FakeSleeps -join ',') '5,10,15,30,30,30' 'six waits, two minutes in all, then it gives up'
   Assert-True (@($o.ops | Where-Object { $_.status -eq 'not run' }).Count -gt 10) 'the rest is not run'
-  Assert-Eq $global:Fake.elig.Count 0 'no eligibility made'
+  Assert-Eq ($global:Fake.elig.Count + $global:Fake.active.Count) 0 'no assignment made'
   Assert-True ($txt -match 'THREW') "the run ends with an error`n$txt"
 }
 
