@@ -1,0 +1,790 @@
+{
+  "schema": "cloudfellows-pim-framework/3.0-baseline",
+  "release": "3.0",
+  "revised": "2026-10-04",
+  "note": "The baseline tenant carries the union of the small, large and multi-region designs. Direct groups: people ACTIVE, group ELIGIBLE per role. Job groups: people ELIGIBLE, group ACTIVE (permanent) in every role. Regional groups come from regionGroups, once per row of the regions file.",
+  "templates": {
+    "GroupMember": {
+      "ActivationDuration": "PT1H",
+      "ActivationRequirement": "MultiFactorAuthentication,Justification",
+      "AuthenticationContext_Enabled": false,
+      "ApprovalRequired": true,
+      "Approvers": [
+        "PIM-SG-Approvers"
+      ],
+      "AllowPermanentEligibility": false,
+      "MaximumEligibilityDuration": "P365D",
+      "AllowPermanentActiveAssignment": false,
+      "MaximumActiveAssignmentDuration": "P365D",
+      "Notification_Activation_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_EligibleAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_ActiveAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      }
+    },
+    "GroupJITTier1.small": {
+      "ActivationDuration": "PT2H",
+      "ActivationRequirement": "MultiFactorAuthentication,Justification",
+      "AuthenticationContext_Enabled": false,
+      "ApprovalRequired": false,
+      "Approvers": [],
+      "AllowPermanentEligibility": false,
+      "MaximumEligibilityDuration": "P365D",
+      "AllowPermanentActiveAssignment": false,
+      "MaximumActiveAssignmentDuration": "P30D",
+      "Notification_Activation_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "Critical",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_EligibleAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_ActiveAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      }
+    },
+    "GroupJITTier1.large": {
+      "ActivationDuration": "PT2H",
+      "ActivationRequirement": "MultiFactorAuthentication,Justification,Ticketing",
+      "AuthenticationContext_Enabled": false,
+      "ApprovalRequired": false,
+      "Approvers": [],
+      "AllowPermanentEligibility": false,
+      "MaximumEligibilityDuration": "P365D",
+      "AllowPermanentActiveAssignment": false,
+      "MaximumActiveAssignmentDuration": "P30D",
+      "Notification_Activation_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_EligibleAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_ActiveAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      }
+    },
+    "GroupJITTier1.multi": {
+      "ActivationDuration": "PT2H",
+      "ActivationRequirement": "MultiFactorAuthentication,Justification",
+      "AuthenticationContext_Enabled": false,
+      "ApprovalRequired": false,
+      "Approvers": [],
+      "AllowPermanentEligibility": false,
+      "MaximumEligibilityDuration": "P365D",
+      "AllowPermanentActiveAssignment": false,
+      "MaximumActiveAssignmentDuration": "P30D",
+      "Notification_Activation_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_EligibleAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      },
+      "Notification_ActiveAssignment_Alert": {
+        "isDefaultRecipientEnabled": true,
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts"
+        ]
+      }
+    }
+  },
+  "protectedGroups": [
+    "PIM-SG-M365-GlobalAdmin",
+    "PIM-SG-M365-Tier0",
+    "PIM-SG-Approvers",
+    "PIM-SG-Approvers-Tier0"
+  ],
+  "executiveUnit": "AU-RM-Executives",
+  "groups": [
+    {
+      "name": "PIM-SG-M365-AppOps-Direct",
+      "path": "direct",
+      "persona": "Exchange and SharePoint",
+      "profiles": [
+        "multi"
+      ],
+      "template": "GroupMember",
+      "roles": [
+        {
+          "role": "Exchange Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "SharePoint Administrator",
+          "scope": "/"
+        }
+      ],
+      "copyPeopleFrom": "PIM-SG-M365-AppOps",
+      "new": true
+    },
+    {
+      "name": "PIM-SG-M365-Audit",
+      "path": "direct",
+      "persona": "Internal audit",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Global Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupMember"
+    },
+    {
+      "name": "PIM-SG-M365-Collab-Direct",
+      "path": "direct",
+      "persona": "Exchange and SharePoint",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Exchange Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "SharePoint Administrator",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupMember",
+      "copyPeopleFrom": "PIM-SG-M365-Collab",
+      "new": true
+    },
+    {
+      "name": "PIM-SG-M365-GlobalAdmin",
+      "path": "direct",
+      "persona": "Tier 0 identity",
+      "profiles": [
+        "large",
+        "multi",
+        "small"
+      ],
+      "roles": [
+        {
+          "role": "Global Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Privileged Role Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Privileged Authentication Administrator",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupMember"
+    },
+    {
+      "name": "PIM-SG-M365-Ops-Direct",
+      "path": "direct",
+      "persona": "Exchange and SharePoint",
+      "profiles": [
+        "multi",
+        "small"
+      ],
+      "roles": [
+        {
+          "role": "Exchange Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "SharePoint Administrator",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupMember",
+      "copyPeopleFrom": "PIM-SG-M365-Ops",
+      "new": true
+    },
+    {
+      "name": "PIM-SG-M365-SecOps-Direct",
+      "path": "direct",
+      "persona": "Security, per role",
+      "profiles": [
+        "large",
+        "multi",
+        "small"
+      ],
+      "roles": [
+        {
+          "role": "Conditional Access Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Security Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Compliance Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Compliance Data Administrator",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupMember",
+      "copyPeopleFrom": "PIM-SG-M365-SecOps",
+      "new": true
+    },
+    {
+      "name": "PIM-SG-M365-SecOpsReader",
+      "path": "direct",
+      "persona": "Readers",
+      "profiles": [
+        "large",
+        "multi",
+        "small"
+      ],
+      "roles": [
+        {
+          "role": "Global Reader",
+          "scope": "/"
+        },
+        {
+          "role": "Security Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupMember"
+    },
+    {
+      "name": "PIM-SG-M365-Tier0",
+      "path": "direct",
+      "persona": "Tier 0 identity",
+      "profiles": [
+        "large",
+        "multi"
+      ],
+      "roles": [
+        {
+          "role": "Privileged Role Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Privileged Authentication Administrator",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupMember"
+    },
+    {
+      "name": "PIM-SG-M365-AppOps",
+      "path": "job",
+      "persona": "Applications and collaboration",
+      "profiles": [
+        "multi"
+      ],
+      "template": "GroupJITTier1.multi",
+      "roles": [
+        {
+          "role": "Cloud Application Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Application Developer",
+          "scope": "/"
+        },
+        {
+          "role": "Power Platform Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Office Apps Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Guest Inviter",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ],
+      "directPair": "PIM-SG-M365-AppOps-Direct"
+    },
+    {
+      "name": "PIM-SG-M365-Apps",
+      "path": "job",
+      "persona": "Applications",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Application Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Cloud Application Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Application Developer",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupJITTier1.large"
+    },
+    {
+      "name": "PIM-SG-M365-Collab",
+      "path": "job",
+      "persona": "Collaboration",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Teams Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Power Platform Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Office Apps Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Guest Inviter",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupJITTier1.large",
+      "directPair": "PIM-SG-M365-Collab-Direct"
+    },
+    {
+      "name": "PIM-SG-M365-Helpdesk",
+      "path": "job",
+      "persona": "Global first line",
+      "profiles": [
+        "multi"
+      ],
+      "template": "GroupJITTier1.multi",
+      "roles": [
+        {
+          "role": "Authentication Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "User Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Groups Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "License Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Password Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Cloud Device Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Microsoft Entra Joined Device Local Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Helpdesk Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ]
+    },
+    {
+      "name": "PIM-SG-M365-Identity",
+      "path": "job",
+      "persona": "Identity team",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Authentication Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Authentication Policy Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "User Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Groups Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "License Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Identity Governance Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Lifecycle Workflows Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        },
+        {
+          "role": "User Administrator",
+          "scope": "AU-RM-Executives"
+        }
+      ],
+      "template": "GroupJITTier1.large"
+    },
+    {
+      "name": "PIM-SG-M365-Ops",
+      "path": "job",
+      "persona": "IT operations",
+      "profiles": [
+        "multi",
+        "small"
+      ],
+      "roles": [
+        {
+          "role": "Teams Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Intune Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Application Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Cloud Application Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Application Developer",
+          "scope": "/"
+        },
+        {
+          "role": "Power Platform Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Authentication Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Authentication Policy Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "User Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Groups Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "License Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Password Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Cloud Device Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Microsoft Entra Joined Device Local Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Identity Governance Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Lifecycle Workflows Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Service Support Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Edge Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Office Apps Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Guest Inviter",
+          "scope": "/"
+        },
+        {
+          "role": "Helpdesk Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupJITTier1.multi",
+      "directPair": "PIM-SG-M365-Ops-Direct",
+      "note": "multi uses 16 of these 22 roles; the baseline tenant holds the small set, so a multi compare sees 6 extra"
+    },
+    {
+      "name": "PIM-SG-M365-SecOps",
+      "path": "job",
+      "persona": "Security operations",
+      "profiles": [
+        "large",
+        "multi",
+        "small"
+      ],
+      "roles": [
+        {
+          "role": "Cloud App Security Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Security Operator",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupJITTier1.large",
+      "directPair": "PIM-SG-M365-SecOps-Direct"
+    },
+    {
+      "name": "PIM-SG-M365-ServiceDesk",
+      "path": "job",
+      "persona": "Service desk",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Authentication Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "License Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Password Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Service Support Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Helpdesk Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupJITTier1.large"
+    },
+    {
+      "name": "PIM-SG-M365-ServiceDesk-VIP",
+      "path": "job",
+      "persona": "Executive desk",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Helpdesk Administrator",
+          "scope": "AU-RM-Executives"
+        },
+        {
+          "role": "Password Administrator",
+          "scope": "AU-RM-Executives"
+        },
+        {
+          "role": "Authentication Administrator",
+          "scope": "AU-RM-Executives"
+        }
+      ],
+      "template": "GroupJITTier1.large"
+    },
+    {
+      "name": "PIM-SG-M365-Workplace",
+      "path": "job",
+      "persona": "Endpoint team",
+      "profiles": [
+        "large"
+      ],
+      "roles": [
+        {
+          "role": "Intune Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Cloud Device Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Microsoft Entra Joined Device Local Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Edge Administrator",
+          "scope": "/"
+        },
+        {
+          "role": "Message Center Reader",
+          "scope": "/"
+        }
+      ],
+      "template": "GroupJITTier1.large"
+    }
+  ],
+  "exchangeRbacTest": {
+    "group": "PIM-SG-EXO-Test",
+    "roleGroup": "View-Only Organization Management"
+  },
+  "regionGroups": [
+    {
+      "name": "PIM-SG-<REG>-Helpdesk",
+      "path": "job",
+      "persona": "Regional first line",
+      "profiles": [
+        "multi"
+      ],
+      "template": "GroupJITTier1.multi",
+      "roles": [
+        {
+          "role": "Helpdesk Administrator",
+          "scope": "AU-<REG>-Users"
+        },
+        {
+          "role": "Password Administrator",
+          "scope": "AU-<REG>-Users"
+        },
+        {
+          "role": "Authentication Administrator",
+          "scope": "AU-<REG>-Users"
+        },
+        {
+          "role": "License Administrator",
+          "scope": "AU-<REG>-Users"
+        }
+      ]
+    },
+    {
+      "name": "PIM-SG-<REG>-Ops",
+      "path": "job",
+      "persona": "Regional second line",
+      "profiles": [
+        "multi"
+      ],
+      "template": "GroupJITTier1.multi",
+      "roles": [
+        {
+          "role": "User Administrator",
+          "scope": "AU-<REG>-Users"
+        },
+        {
+          "role": "Groups Administrator",
+          "scope": "AU-<REG>-Groups"
+        },
+        {
+          "role": "Teams Administrator",
+          "scope": "AU-<REG>-Groups"
+        },
+        {
+          "role": "Cloud Device Administrator",
+          "scope": "AU-<REG>-Devices"
+        }
+      ]
+    }
+  ],
+  "regionCodePattern": "^[A-Z]{2,5}(-[A-Z0-9]{2,6}){0,2}$"
+}
