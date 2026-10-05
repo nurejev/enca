@@ -115,9 +115,79 @@ const PROMOTE = {
   // the last of them ships.
   groups: {},
 
+  // WORKSPACES (32439, Mihai: "split the work order of the beta to main for
+  // Conditional Access and PIM-buddy, so it can be checked and exported
+  // without mistakes that another workspace gets promoted").
+  //
+  // Every item and every staying entry carries `ws`: one of the keys below. A
+  // test fails the suite when one is missing, so a new item cannot arrive
+  // unlabelled. An order is made for ONE workspace (plus platform): the tool
+  // offers only that workspace's ticks, and buildOrder refuses anything else.
+  //
+  // `platform` is shell work both workspaces need (sign-in, the Overview,
+  // shared CSS, the queue itself). It can be ticked from either side.
+  //
+  // `owns` names the files that belong to a workspace alone. An order for
+  // another workspace lists them under NEVER PORT, beside every file that only
+  // that workspace's queued items touch. `mainChecks` are the greps a port of
+  // ANOTHER workspace's order must come out clean on, once it is on main.
+  //
+  // `requires` on an item names the items it cannot work without. Pointing
+  // into another workspace is the dangerous case — the order check blocks the
+  // export and says which item needs what (314 is the first: the unit
+  // inventory reads the PIM lens of 302 and the regions of 301).
+  //
+  // A workspace is a guard about the BUILD, never the host: a tool hidden on
+  // the production host is still in every copy that serves the build (the
+  // betaOnly lesson of 18 Sep 2026). Keeping PIM-buddy off main means its
+  // files are not ported, and the order says which ones.
+  workspaces: {
+    ca: {
+      num: "01", label: "Conditional Access",
+      owns: [],
+    },
+    pim: {
+      num: "02", label: "PIM-buddy",
+      owns: ["js/pim*.js", "js/intunerbac.js", "tools/pim/", "tools/pim*.test.cjs", "tools/pim*.cjs", "tools/intunerbac.test.cjs", "docs/handovers/"],
+      mainChecks: [
+        "grep -nE 'pmb[A-Z]|pimPlan|pimApply|prlOn|pimLensPaint|PIM-SG' js/*.js index.html  (expect nothing)",
+        "grep -n 'src=\"js/pim' index.html  (expect nothing)",
+        "whole-page boot on main: no workspace chip, no 02 in the rail, no console errors",
+      ],
+    },
+    platform: {
+      num: "", label: "Platform",
+      owns: [],
+    },
+  },
+
   items: [
     {
+      n: 316,
+      ws: "platform",
+      title: "🚚 Waiting for production — its own tool (beta site, cloudfellows.dev only), one promotion order per workspace",
+      tools: ["Help"],
+      builds: [32439],
+      risk: "low",
+      files: ["js/promote.js", "js/app.js", "js/workspaces.js", "js/flat-icons.js", "css/app.css", "index.html", "tools/promote-ws.test.cjs", "js/version.js", "js/changelog.js"],
+      what: "js/promote.js: ws on every item and staying entry (ca, pim, platform); PROMOTE.workspaces with owns and mainChecks; requires on items (every PIM-buddy item needs 298; 314 needs 301 and 302); pure checkOrder(ns, ws) — blocks (no workspace, another workspace, a requires into another workspace, shipped since the tick), warns (unticked requires, files and tools shared with the other workspace, items with no files), never port; buildOrder(ns, build, ws) refuses what the check blocks and writes the workspace, a fingerprint, the excluded items, never port, shared files, the check and the after-port greps; file enca-promotion-order-<ws>-<date>.md. js/app.js: isCisTenant renamed isPublisherTenant (verified domains first, never the demo); promoteShown() = PROMOTE present AND deploymentKind() beta AND isPublisherTenant(); the #toolPromote tile is hidden unless it holds (syncGatedTiles on sign-in and sign-out, the tab closed on loss); openPromote with the workspace switch (starts on the current workspace) and the order check; renderSideNav and the palette skip a hidden tile. js/workspaces.js: toolPromote in 02's Help group, toolsOf skips hidden tiles, the home redraws on a new session. index.html: tile after Roadmap, screen-promote, the Help section gone. tools/promote-ws.test.cjs.",
+      why: "Mihai, 5 Oct: split the work order of beta to main for Conditional Access and PIM-buddy so it can be checked and exported without promoting the other workspace; make Waiting for production a separate button next to Help and Roadmap, only on beta and only cloudfellows.dev; one build. Mockup first (ENCA promotion order per workspace), approved. Low: nothing here writes to a tenant, and nothing of the tool ports.",
+      carveout: "The tool is beta-only like the queue itself: do not port #toolPromote, screen-promote, openPromote, renderPromotionQueue, promoteShown, syncGatedTiles or the toolPromote lines in js/workspaces.js and js/flat-icons.js. Main has no isCisTenant (the CIS block left at 316), so the rename has nothing to land on. Proof on main: grep -nE 'toolPromote|screen-promote|pqBody|promoteShown' index.html js/*.js gives nothing.",
+      test: [
+        "Local: node --test tools/promote-ws.test.cjs and the whole suite pass; node tools/check-plain-text.js is clean.",
+        "Beta site, signed in to cloudfellows.dev: the Help group (home library, sidebar, All tools) shows 🚚 Waiting for production between Roadmap and Permissions; ⌘K finds it; Help has no Waiting for production section any more.",
+        "Beta site, signed in to any other tenant, and ?demo=1: no tile in the library or sidebar, ⌘K finds nothing for waiting or promote. A cloudfellows.dev account invited as a guest into another tenant: the same, and no CIS tab under Checks.",
+        "Open it from 01: the 01 Conditional Access button is selected and no PIM-buddy item (298-310, 312, 313, 315) is listed. Switch to 02 PIM-buddy from the tool's own buttons: only PIM-buddy and platform items. Opened from workspace 02 it starts on 02.",
+        "In 01, tick 311 and 300: the order check reads ✓ and warns that js/app.js and index.html are also changed by the other workspace and that Conditional Access groups is also changed by 308 and 309; Export writes enca-promotion-order-ca-<date>.md with workspace: ca, a fingerprint, the Never port list and the after-port greps.",
+        "In 01, tick 314: the check blocks the export (314 needs 301 and 302 of 02 PIM-buddy) and the Export button is disabled.",
+        "Ticks made in 02 stay ticked when you go to 01, are counted there as ticked in another workspace, and are not in the 01 file. Clear ticks in 01 leaves the 02 ticks alone.",
+        "Sign out while the tab is open, sign in to another tenant: the tab is gone and the tile is hidden."
+      ]
+    },
+    {
       n: 315,
+      ws: "pim",
+      requires: [298],
       title: "PIM framework 3.0 — job groups, direct groups, Exchange RBAC access groups (T48 0.7.0, T51 0.3.0, R79)",
       tools: ["PIM baseline", "Deploy"],
       builds: [32436, 32437, 32438],
@@ -136,6 +206,9 @@ const PROMOTE = {
     },
     {
       n: 314,
+      ws: "ca",
+      requires: [301, 302],
+      requiresWhy: "ruInvLens() reads prlOn() from 302 and the inventory passes pmbReg (the regions file of 301) to its judge, so this item does not port on its own: promote 301 and 302 with it, or port it with those two branches cut.",
       title: "Administrative units — T27 covers regular units too (inventory, findings, move into a restricted unit)",
       tools: ["Administrative units"],
       builds: [32435],
@@ -156,6 +229,8 @@ const PROMOTE = {
     },
     {
       n: 313,
+      ws: "pim",
+      requires: [298],
       title: "Defender XDR access groups — the Entra side of the CloudFellows PIM framework (2.2)",
       tools: ["PIM baseline", "Deploy"],
       builds: [32434],
@@ -174,6 +249,8 @@ const PROMOTE = {
     },
     {
       n: 312,
+      ws: "pim",
+      requires: [298],
       title: "CI: the PimBuddy Word-document gate asks for a review on catalog changes, not on every build",
       tools: ["PIM baseline"],
       builds: [32433],
@@ -188,6 +265,7 @@ const PROMOTE = {
     },
     {
       n: 311,
+      ws: "ca",
       title: "🌍 Fill from regions — the CAD-SEC-U-DG deploy groups filled from the region and country member groups (T12 5.16.0, R76)",
       tools: ["Conditional Access groups", "Help"],
       builds: [32432],
@@ -204,6 +282,8 @@ const PROMOTE = {
     },
     {
       n: 310,
+      ws: "pim",
+      requires: [298],
       title: "PimBuddy documentation alignment and deployment readiness corrections",
       tools: ["PIM baseline", "Deploy"],
       builds: [32431],
@@ -218,6 +298,8 @@ const PROMOTE = {
     },
     {
       n: 309,
+      ws: "pim",
+      requires: [298],
       title: "👥 T12 is called PIM groups in Workspace 02; 02's header is the logo's green with a lemon rule instead of navy",
       tools: ["Conditional Access groups", "Help"],
       builds: [32430],
@@ -233,6 +315,8 @@ const PROMOTE = {
     },
     {
       n: 308,
+      ws: "pim",
+      requires: [298],
       title: "PIM lenses on the carried-over tools — 🛡 PIM checks (T08), 👥 PIM groups (T12), 🕓 PIM changes (T16), 🚦 Activations & approvals (T17), 🔗 Who holds what (T19) — and ☁ Azure RBAC in 🎖 Roles & assignments (R75)",
       tools: ["Checks", "Conditional Access groups", "Changes", "Sign-in log", "User or Group analyzer", "Roles & assignments"],
       builds: [32428],
@@ -251,6 +335,8 @@ const PROMOTE = {
     },
     {
       n: 307,
+      ws: "pim",
+      requires: [298],
       title: "🧱 Update the catalog from cloudfellows.dev — the PIM portal's values proposed where the catalog keeps them, and js/pimBaselineData.js written with exactly those values edited (R74)",
       tools: ["PIM baseline"],
       builds: [32427],
@@ -268,6 +354,8 @@ const PROMOTE = {
     },
     {
       n: 306,
+      ws: "pim",
+      requires: [298],
       title: "🧾 Designer (T50) — a customer's variant of the CloudFellows PIM framework (tiers, role → tier, mailbox, authentication context, approver names), validated, per tenant and as a file; T48 / T49 / T51 use it when it is in use (R73)",
       tools: ["Designer", "PIM baseline"],
       builds: [32426],
@@ -286,6 +374,8 @@ const PROMOTE = {
     },
     {
       n: 305,
+      ws: "pim",
+      requires: [298],
       title: "🚀 Deploy (T51) — import the CloudFellows PIM framework from the browser: pick, WhatIf, typed domain, run ledger, verify, backup and ↩ Put back; T48 leads to it instead of the script files (R72)",
       tools: ["Deploy", "PIM baseline"],
       builds: [32425, 32429],
@@ -307,6 +397,8 @@ const PROMOTE = {
     },
     {
       n: 304,
+      ws: "pim",
+      requires: [298],
       title: "🎖 Roles & assignments (T49) — who holds which Entra role, direct and through groups, eligible / active / activated, scoped, ending soon, with framework tiers and findings (R71)",
       tools: ["Roles & assignments"],
       builds: [32424],
@@ -325,6 +417,8 @@ const PROMOTE = {
     },
     {
       n: 303,
+      ws: "pim",
+      requires: [298],
       title: "📱 Intune RBAC (T53) — role assignments, scope tags and their automatic assignment, scope groups and INT-ROLE-Regional-Ops read and matched against the framework; 🗺 Regions' Intune rows get verdicts (R70)",
       tools: ["Intune RBAC", "PIM baseline"],
       builds: [32423, 32429],
@@ -342,6 +436,8 @@ const PROMOTE = {
     },
     {
       n: 302,
+      ws: "pim",
+      requires: [298],
       title: "🛡 Restricted AUs — the PIM lens in Workspace 02 (AU-RM-Executives, the scoped desk, no PIM object in a restricted unit) and the shared WhatIf/apply runner for PIM writes (R69)",
       tools: ["Restricted AUs"],
       builds: [32422, 32424, 32429],
@@ -359,6 +455,8 @@ const PROMOTE = {
     },
     {
       n: 301,
+      ws: "pim",
+      requires: [298],
       title: "🧬 PIM baseline 0.2–0.3 — profiles (Small business, Large · one region, Large · multi-region), 🗺 Regions from the customer's regions.csv, 📄 EasyPIM samples, framework 2.1 after the reliability review; tools/pim plans and applies through Connect-Customer (R68)",
       tools: ["PIM baseline"],
       builds: [32413, 32414, 32415, 32416, 32417, 32418, 32419, 32420, 32421, 32424, 32425],
@@ -388,6 +486,7 @@ const PROMOTE = {
     },
     {
       n: 300,
+      ws: "ca",
       title: "🔑 Passkeys 0.1.1 — Phishing-resistant MFA + TAP counts as requiring a passkey; a policy with target resources None is listed, not counted",
       tools: ["Checks"],
       builds: [32411],
@@ -404,6 +503,8 @@ const PROMOTE = {
     },
     {
       n: 299,
+      ws: "pim",
+      requires: [298],
       title: "🧬 PIM baseline — T48, Workspace 02: the CloudFellows PIM framework (PIM-SG, 2.0) against this tenant's PIM, setting by setting; delta and baseline config as EasyPIM.Orchestrator JSON (R68)",
       tools: ["PIM baseline"],
       builds: [32408, 32409, 32410, 32412],
@@ -424,6 +525,7 @@ const PROMOTE = {
     },
     {
       n: 298,
+      ws: "pim",
       title: "🧭 Workspaces — 01 Conditional Access and 02 PIM-buddy on one shell: the chip switch, a rail, home and library per side, tabs kept across a switch (R67)",
       tools: ["Help"],
       builds: [32407],
@@ -443,6 +545,7 @@ const PROMOTE = {
     },
     {
       n: 297,
+      ws: "ca",
       title: "🤖 Workload identities — T47, a tab of 🚦 Sign-in log: the service-principal policies against the service principal sign-ins (R46)",
       tools: ["Sign-in log"],
       builds: [32406],
@@ -461,6 +564,7 @@ const PROMOTE = {
     },
     {
       n: 296,
+      ws: "ca",
       title: "🌐 Named locations vs. the sign-in log — a vs. sign-ins view in 🧩 Locations (R19)",
       tools: ["Policy building blocks"],
       builds: [32405],
@@ -478,6 +582,7 @@ const PROMOTE = {
     },
     {
       n: 295,
+      ws: "ca",
       title: "🎫 CAE & token protection — T46, a tab of 🛡 Checks: coverage per persona (R21)",
       tools: ["Checks"],
       builds: [32404],
@@ -495,6 +600,7 @@ const PROMOTE = {
     },
     {
       n: 294,
+      ws: "ca",
       title: "📏 Naming — T45, a tab of 🛡 Checks: the CA-number convention checked (R25)",
       tools: ["Checks"],
       builds: [32403],
@@ -513,6 +619,7 @@ const PROMOTE = {
     },
     {
       n: 293,
+      ws: "ca",
       title: "🔒 Protect exclusions 3.1 — break-glass accounts in the restricted unit, and who can manage the units",
       tools: ["Protect exclusions", "MS Learn"],
       builds: [32402],
@@ -532,6 +639,7 @@ const PROMOTE = {
     },
     {
       n: 292,
+      ws: "platform",
       title: "🚚 Waiting for production — newest last, and NEW since your last visit",
       tools: ["Help"],
       builds: [32318],
@@ -549,6 +657,7 @@ const PROMOTE = {
     },
     {
       n: 282,
+      ws: "ca",
       title: "📰 Learn changes — the nightly Microsoft Learn watch in the MS Learn tool, per-check verified dates, triage, 📋 Work order and the GitHub issue",
       tools: ["Checks"],
       builds: [32306, 32311],
@@ -570,11 +679,12 @@ const PROMOTE = {
     },
     {
       n: 224,
+      ws: "ca",
       title: "📐 CIS Benchmark (T21) — beta AND the CloudFellows tenant only; production 316 removes it from that build",
       tools: ["CIS Benchmark"],
       builds: [25391],
       risk: "low",
-      what: "js/app.js: tenantDomains (the organization's verified domains, read where tenantName and tenantDomain are), isCisTenant(), and a per-tab `only` predicate honoured by tabShown(), openFolded() and the command-palette builder beside the existing betaOnly check; the CIS tab and the toolCis FOLDED entry carry only: () => isCisTenant(). index.html: the tool-number row and the R01 roadmap card say so. PRODUCTION SIDE, already committed on main as build 316: js/cischeck.js, js/cisdata.js, their script tags, the screen-cis section, the FOLDED and TAB_HOSTS entries, the whole CIS block in js/app.js and screen-cis in HISTORY_SCREENS are gone from that build; T21 keeps its number in the map and in TOOL_VERSIONS.",
+      what: "js/app.js: tenantDomains (the organization's verified domains, read where tenantName and tenantDomain are), isCisTenant() (renamed isPublisherTenant in 32439, item 316), and a per-tab `only` predicate honoured by tabShown(), openFolded() and the command-palette builder beside the existing betaOnly check; the CIS tab and the toolCis FOLDED entry carry only: () => isCisTenant(). index.html: the tool-number row and the R01 roadmap card say so. PRODUCTION SIDE, already committed on main as build 316: js/cischeck.js, js/cisdata.js, their script tags, the screen-cis section, the FOLDED and TAB_HOSTS entries, the whole CIS block in js/app.js and screen-cis in HISTORY_SCREENS are gone from that build; T21 keeps its number in the map and in TOOL_VERSIONS.",
       why: "Mihai, 18 Sep: the CIS tool ended up in main and in the self-hosted image, and it should be beta-only and only in the cloudfellows.dev tenant. The guard was betaOnly plus isProdHost, which asks WHERE THIS BUILD IS SERVED FROM - and a build anyone may serve cannot be kept clean that way, which is exactly how it reached a customer's instance. Two answers, one each: out of the production build, and behind a tenant test on beta. LOW on this channel (it only hides a tab); the production half ships as its own build 316.",
       test: [
         "Beta, signed into the CloudFellows tenant: Checks shows four tabs with CIS 5.2.2 among them, the command palette finds CIS Benchmark and T21, and the R01 roadmap link opens it.",
@@ -588,6 +698,7 @@ const PROMOTE = {
     },
     {
       n: 34,
+      ws: "ca",
       title: "CIS Benchmark Help section",
       tools: ["CIS Benchmark"],
       builds: [25079],
@@ -608,14 +719,17 @@ const PROMOTE = {
   // js/changelog.js and nowhere else. This section is the diff, not a history.
   staying: [
     {
+      ws: "platform",
       title: "\u2699 The beta host's own single-tenant app registration (AUTH_HOSTS)",
       why: "Beta-only by design, and permanently \u2014 it was queue item 229 until build 25407, which is the wrong list for something that can never be ticked. AUTH_HOSTS in js/authConfig.js names the PUBLISHER'S OWN tenant and registration and is keyed on this site's hostname. In a production build, or in the :latest image, the key can never match and the block is nothing but somebody else's tenant ID shipped to every copy. When js/authConfig.js is ported, take the header comment and the js/connection.js precedence note and leave AUTH_HOSTS behind; main keeps the plain two-argument Object.assign. The \u2699 connection picker it defaults FROM (item 228) is in production since build 321.",
     },
     {
+      ws: "platform",
       title: "🚚 This promotion queue",
       why: "Beta-only by design — js/promote.js and the Help section that renders it exist to describe the gap, so they have no meaning in production.",
     },
     {
+      ws: "ca",
       title: "📐 CIS Benchmark",
       why: "Stays on the beta channel until its verdicts have been checked against enough real tenants. Scoring a tenant against a benchmark is the kind of output people quote in an audit, so it graduates late rather than early.",
     },
@@ -638,19 +752,102 @@ const PROMOTE = {
 // it shipped since the tick — is named rather than quietly dropped: an order
 // that silently shrank is the same lie as a range that silently shrank.
 // ======================================================================
-PROMOTE.buildOrder = function (pickedNs, appBuild) {
+// ---- workspaces: pure helpers, used by the tool and by the tests ----
+// Bookkeeping files are per channel and never "shared" in the sense that
+// matters: every item touches them and every port rewrites them.
+PROMOTE.BOOKKEEPING = ["js/version.js", "js/changelog.js", "js/promote.js"];
+PROMOTE.wsOf = (it) => (it && Object.prototype.hasOwnProperty.call(PROMOTE.workspaces, it.ws)) ? it.ws : null;
+// An order for `ws` may carry that workspace's items and platform's.
+PROMOTE.inOrder = (it, ws) => { const w = PROMOTE.wsOf(it); return !!w && (w === ws || w === "platform"); };
+PROMOTE.wsLabel = (ws) => { const w = PROMOTE.workspaces[ws]; return w ? `${w.num ? w.num + " " : ""}${w.label}` : String(ws); };
+PROMOTE.globMatch = (pattern, file) => {
+  const f = String(file).replace(/\s*\(.*\)\s*$/, "").trim();
+  if (pattern.endsWith("/")) return f.startsWith(pattern);
+  if (!pattern.includes("*")) return f === pattern;
+  const re = new RegExp("^" + pattern.split("*").map((x) => x.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("[^/]*") + "$");
+  return re.test(f);
+};
+// A short checksum of what the order is, so a session handed the file can see
+// it was not edited into another order on the way (FNV-1a, 32 bits).
+PROMOTE.fingerprint = (ws, ns) => {
+  const str = `${ws}|${[...ns].sort((a, b) => a - b).join(",")}|${PROMOTE.productionBuild}`;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, "0");
+};
+
+// THE ORDER CHECK. Pure: the ticked numbers and the workspace in, a verdict
+// out. `blocks` stop the export; `warns` travel into the order file.
+PROMOTE.checkOrder = function (pickedNs, ws) {
+  const all = PROMOTE.items || [];
+  const byN = new Map(all.map((i) => [i.n, i]));
   const ns = [...new Set((pickedNs || []).map(Number))].sort((a, b) => a - b);
-  if (!ns.length) throw new Error("Nothing is ticked — an empty order is not an order.");
-  const items = ns.map((n) => {
-    const it = (PROMOTE.items || []).find((i) => i.n === n);
-    if (!it) throw new Error(`Item ${n} is not in the queue — it may have shipped since the tick. Untick it and export again.`);
-    return it;
-  });
+  const out = { ws, ns: [], blocks: [], warns: [], unlabelled: [], foreign: [], gone: [], shared: [], sameTool: [], neverPort: [], excluded: [] };
+  if (!PROMOTE.workspaces[ws]) { out.blocks.push(`Unknown workspace ${ws}.`); return out; }
+  out.unlabelled = all.filter((i) => !PROMOTE.wsOf(i)).map((i) => i.n);
+  if (out.unlabelled.length) out.blocks.push(`Item${out.unlabelled.length === 1 ? "" : "s"} ${out.unlabelled.join(", ")} carr${out.unlabelled.length === 1 ? "ies" : "y"} no workspace. Label ${out.unlabelled.length === 1 ? "it" : "them"} in js/promote.js before any order is exported.`);
+  for (const n of ns) {
+    const it = byN.get(n);
+    if (!it) { out.gone.push(n); continue; }
+    if (!PROMOTE.inOrder(it, ws)) { out.foreign.push(n); continue; }
+    out.ns.push(n);
+  }
+  if (out.gone.length) out.blocks.push(`Item${out.gone.length === 1 ? "" : "s"} ${out.gone.join(", ")} ${out.gone.length === 1 ? "is" : "are"} no longer queued — shipped since the tick. Untick and export again.`);
+  if (out.foreign.length) out.blocks.push(`Item${out.foreign.length === 1 ? "" : "s"} ${out.foreign.join(", ")} belong${out.foreign.length === 1 ? "s" : ""} to another workspace and cannot be in a ${PROMOTE.wsLabel(ws)} order.`);
+  if (!out.ns.length && !out.foreign.length && !out.gone.length) out.blocks.push("Nothing is ticked in this workspace — an empty order is not an order.");
+  const picked = out.ns.map((n) => byN.get(n));
+  const other = all.filter((i) => PROMOTE.wsOf(i) && !PROMOTE.inOrder(i, ws));
+  out.excluded = other.map((i) => i.n).sort((a, b) => a - b);
+  // requires: into another workspace blocks; inside this one, unticked, warns
+  for (const it of picked) {
+    const deps = (it.requires || []).map((r) => byN.get(r)).filter(Boolean);   // a shipped dependency is no gap
+    const away = deps.filter((d) => !PROMOTE.inOrder(d, ws));
+    const unticked = deps.filter((d) => PROMOTE.inOrder(d, ws) && !out.ns.includes(d.n));
+    if (away.length) out.blocks.push(`Item ${it.n} needs ${away.length === 1 ? "item" : "items"} ${away.map((d) => d.n).join(", ")} of ${[...new Set(away.map((d) => PROMOTE.wsLabel(d.ws)))].join(" and ")}.${it.requiresWhy ? " " + it.requiresWhy : ""}`);
+    if (unticked.length) out.warns.push(`Item ${it.n} needs ${unticked.length === 1 ? "item" : "items"} ${unticked.map((d) => d.n).join(", ")}, not ticked. Tick ${unticked.length === 1 ? "it" : "them"}, or the port must leave out what ${it.n} takes from ${unticked.length === 1 ? "it" : "them"}.`);
+  }
+  // shared files and tools with the other workspace's queued items
+  const book = new Set(PROMOTE.BOOKKEEPING);
+  const clean = (f) => String(f).replace(/\s*\(.*\)\s*$/, "").trim();
+  const mine = new Map();
+  picked.forEach((it) => (it.files || []).map(clean).filter((f) => !book.has(f)).forEach((f) => { if (!mine.has(f)) mine.set(f, []); mine.get(f).push(it.n); }));
+  for (const [f, ours] of mine) {
+    const theirs = other.filter((i) => (i.files || []).map(clean).includes(f)).map((i) => i.n);
+    if (theirs.length) out.shared.push({ file: f, ours, theirs });
+  }
+  if (out.shared.length) out.warns.push(`${out.shared.length} file${out.shared.length === 1 ? " is" : "s are"} also changed by the other workspace (${out.shared.map((x) => x.file).join(", ")}). Port by marker, never the whole file.`);
+  const unknownFiles = picked.filter((it) => !(it.files || []).length).map((it) => it.n);
+  if (unknownFiles.length) out.warns.push(`Item${unknownFiles.length === 1 ? "" : "s"} ${unknownFiles.join(", ")} list${unknownFiles.length === 1 ? "s" : ""} no files, so shared files cannot be checked for ${unknownFiles.length === 1 ? "it" : "them"}. Read the builds' commits.`);
+  const toolsOther = new Map();
+  other.forEach((i) => (i.tools || []).filter((t) => t !== "Help").forEach((t) => { if (!toolsOther.has(t)) toolsOther.set(t, []); toolsOther.get(t).push(i.n); }));
+  const seenTool = new Set();
+  picked.forEach((it) => (it.tools || []).forEach((t) => { if (toolsOther.has(t) && !seenTool.has(t)) { seenTool.add(t); out.sameTool.push({ tool: t, ours: picked.filter((p) => (p.tools || []).includes(t)).map((p) => p.n), theirs: toolsOther.get(t) }); } }));
+  if (out.sameTool.length) out.warns.push(out.sameTool.map((x) => `${x.tool}: item${x.theirs.length === 1 ? "" : "s"} ${x.theirs.join(", ")} of the other workspace change${x.theirs.length === 1 ? "s" : ""} it too — those parts stay on beta.`).join(" "));
+  // never port: what the other workspaces own, and files only their items touch
+  const owns = Object.entries(PROMOTE.workspaces).filter(([k]) => k !== ws && k !== "platform").flatMap(([, w]) => w.owns || []);
+  const usedHere = new Set(all.filter((i) => PROMOTE.inOrder(i, ws)).flatMap((i) => (i.files || []).map(clean)));
+  const onlyThere = [...new Set(other.flatMap((i) => (i.files || []).map(clean)))].filter((f) => !book.has(f) && !usedHere.has(f) && !owns.some((g) => PROMOTE.globMatch(g, f)));
+  out.neverPort = [...owns, ...onlyThere.sort()];
+  out.mainChecks = Object.entries(PROMOTE.workspaces).filter(([k]) => k !== ws && k !== "platform").flatMap(([, w]) => w.mainChecks || []);
+  return out;
+};
+
+// THE ORDER FILE, for one workspace. Refuses whatever the check blocks.
+PROMOTE.buildOrder = function (pickedNs, appBuild, ws) {
+  ws = ws || "ca";
+  const chk = PROMOTE.checkOrder(pickedNs, ws);
+  if (chk.blocks.length) throw new Error(chk.blocks.join(" "));
+  const ns = chk.ns;
+  const items = ns.map((n) => (PROMOTE.items || []).find((i) => i.n === n));
+  const scope = (PROMOTE.items || []).filter((i) => PROMOTE.inOrder(i, ws));
   const when = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  const fp = PROMOTE.fingerprint(ws, ns);
   const L = [];
-  L.push("# ENCA promotion order");
+  L.push(`# ENCA promotion order · WORKSPACE ${PROMOTE.wsLabel(ws)}`);
   L.push("");
   L.push(`Generated ${when} on ${appBuild ? appBuild.label : ""} · production is ${PROMOTE.productionBuild}`);
+  L.push(`workspace: ${ws}`);
+  L.push(`fingerprint: ${fp}  (workspace + items + production build)`);
   L.push("");
   L.push(`PROMOTE ITEMS: ${ns.join(", ")}`);
   L.push("");
@@ -659,49 +856,71 @@ PROMOTE.buildOrder = function (pickedNs, appBuild) {
   L.push("the production commit — the queue's own rule. Items promote together");
   L.push("where their builds interleave; the session decides the cut.");
   L.push("");
-  // Groups: a batch that goes out whole is one line; a batch that goes out
-  // incomplete names what is held back, so the session knows it is a
-  // decision and does not "helpfully" port the rest.
+  L.push("## Guard");
+  L.push(`- Every item in this order is ${ws === "platform" ? "platform" : `${PROMOTE.wsLabel(ws)} or platform`}. Refuse the whole order if it names anything else, or if the fingerprint does not match.`);
+  if (chk.excluded.length) L.push(`- Queued on beta and NOT in this order (other workspace): ${chk.excluded.join(", ")}. Port nothing of them "for completeness".`);
+  L.push("");
+  if (chk.neverPort.length) {
+    L.push("## Never port: the other workspace's files (where main has its own copy, it keeps it)");
+    chk.neverPort.forEach((f) => L.push(`- ${f}`));
+    L.push("");
+  }
+  if (chk.shared.length || chk.sameTool.length) {
+    L.push("## Shared with the other workspace: port by marker only");
+    chk.shared.forEach((x) => L.push(`- ${x.file}: take the parts of ${x.ours.join(", ")}; leave the parts of ${x.theirs.join(", ")}`));
+    chk.sameTool.forEach((x) => L.push(`- tool ${x.tool}: this order ${x.ours.join(", ")}; leave ${x.theirs.join(", ")} on beta`));
+    L.push("");
+  }
+  if (chk.warns.length) {
+    L.push("## Order check");
+    chk.warns.forEach((w) => L.push(`- ${w}`));
+    L.push("");
+  }
+  // Groups and tool batches, scoped to this workspace: a member of the other
+  // workspace is never "held back" here, it was never offered.
   const gids = [...new Set(items.map((i) => i.group).filter(Boolean))];
   for (const gid of gids) {
     const g = (PROMOTE.groups || {})[gid] || { title: gid };
-    const members = (PROMOTE.items || []).filter((i) => i.group === gid).map((i) => i.n).sort((a, b) => a - b);
+    const members = scope.filter((i) => i.group === gid).map((i) => i.n).sort((a, b) => a - b);
     const going = members.filter((n) => ns.includes(n));
     const held = members.filter((n) => !ns.includes(n));
     L.push(`GROUP ${gid} — ${g.title}: ${held.length ? `INCOMPLETE — promoting ${going.join(", ")}; held back ${held.join(", ")} (deliberate; do not port them)` : `whole (${going.join(", ")})`}`);
   }
-  // Tool batches (25319): the queue folds items on the same tool under one
-  // row whose tick takes them all, so a tool's run going out with a member
-  // held back is the same kind of decision as an incomplete group — name it,
-  // so the session does not port the missing version "for completeness".
-  // Same home rule as the queue: first tool, or "Several tools" at three+.
-  const all = PROMOTE.items || [];
-  const gc = {}; all.forEach((i) => { if (i.group) gc[i.group] = (gc[i.group] || 0) + 1; });
+  const gc = {}; scope.forEach((i) => { if (i.group) gc[i.group] = (gc[i.group] || 0) + 1; });
   const homeOf = (i) => (i.group && gc[i.group] > 1) ? null : (((i.tools || []).length >= 3) ? "Several tools" : ((i.tools || [])[0] || "Several tools"));
   const homes = [...new Set(items.map(homeOf).filter(Boolean))];
+  let batchLines = 0;
   for (const h of homes) {
-    const members = all.filter((i) => homeOf(i) === h).map((i) => i.n).sort((a, b) => a - b);
+    const members = scope.filter((i) => homeOf(i) === h).map((i) => i.n).sort((a, b) => a - b);
     if (members.length < 2) continue;
     const going = members.filter((n) => ns.includes(n));
     const held = members.filter((n) => !ns.includes(n));
     L.push(`TOOL ${h}: ${held.length ? `INCOMPLETE — promoting ${going.join(", ")}; held back ${held.join(", ")} (deliberate; do not port them)` : `whole (${going.join(", ")})`}`);
+    batchLines++;
   }
-  if (gids.length || homes.length) L.push("");
+  if (gids.length || batchLines) L.push("");
   for (const it of items) {
     L.push(`## Item ${it.n} — ${it.title}`);
+    L.push(`- workspace: ${it.ws}`);
     L.push(`- tools: ${(it.tools || []).join(", ")}`);
     L.push(`- beta builds: ${(it.builds || []).join(", ")}`);
     L.push(`- risk: ${it.risk}`);
     if (it.group) L.push(`- group: ${it.group}`);
+    if ((it.requires || []).length) L.push(`- requires: ${it.requires.join(", ")}`);
     L.push(`- files: ${(it.files || []).join(", ")}`);
     // A carve-out is the one thing in this file that is an instruction rather
     // than a fact: the item does NOT port verbatim, and the port is wrong if
-    // this line is not read. It goes above the files for that reason.
+    // this line is not read. It goes above the test steps for that reason.
     if (it.carveout) L.push(`- CARVE-OUT: ${it.carveout}`);
     L.push("");
   }
+  if ((chk.mainChecks || []).length) {
+    L.push("## After the port, on main");
+    chk.mainChecks.forEach((c) => L.push(`- ${c}`));
+    L.push("");
+  }
   L.push("```json");
-  L.push(JSON.stringify({ order: ns, generated: when, betaBuild: appBuild ? appBuild.build : null, productionBuild: PROMOTE.productionBuild }));
+  L.push(JSON.stringify({ order: ns, workspace: ws, fingerprint: fp, generated: when, betaBuild: appBuild ? appBuild.build : null, productionBuild: PROMOTE.productionBuild }));
   L.push("```");
-  return { filename: `enca-promotion-order-${when.slice(0, 10)}.md`, text: L.join("\n") };
+  return { filename: `enca-promotion-order-${ws}-${when.slice(0, 10)}.md`, text: L.join("\n"), check: chk };
 };

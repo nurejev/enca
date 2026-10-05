@@ -184,7 +184,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimdeploy", "screen-pimdesigner",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
-    "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
+    "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-promote", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -310,7 +310,7 @@
     toolMsLearn:      { into: "toolGapCheck", label: "📘 MS Learn checks",            where: "the Microsoft Learn tab",    build: 25342,
                         open: () => openMsLearn() },
     toolCis:          { into: "toolGapCheck", label: "📐 CIS Benchmark",              where: "the CIS 5.2.2 tab",          build: 25342,
-                        open: () => openCis(), betaOnly: true, only: () => isCisTenant() },
+                        open: () => openCis(), betaOnly: true, only: () => isPublisherTenant() },
     toolDevCheck:     { into: "toolGapCheck", label: "🖥 Device reality check",       where: "the Intune reality tab",     build: 25342,
                         open: () => openDevCheck() },
     toolIdScore:      { into: "toolGapCheck", label: "🏅 Identity Secure Score",      where: "the Identity score tab",     build: 32308,
@@ -459,7 +459,7 @@
       tabs: [
         { key: "bypass", icon: "🛡", name: "Bypass & Swiss cheese", toolbar: "gcToolbar", open: () => openGapCheck() },
         { key: "mslearn", icon: "📘", name: "Microsoft Learn",      toolbar: "mlToolbar", open: () => openMsLearn() },
-        { key: "cis",     icon: "📐", name: "CIS 5.2.2",            toolbar: "ciToolbar", open: () => openCis(), beta: true, betaOnly: true, only: () => isCisTenant() },
+        { key: "cis",     icon: "📐", name: "CIS 5.2.2",            toolbar: "ciToolbar", open: () => openCis(), beta: true, betaOnly: true, only: () => isPublisherTenant() },
         { key: "intune",  icon: "🖥", name: "Intune reality",       toolbar: "dvToolbar", open: () => openDevCheck() },
         // 32308 (T42): Microsoft's own judgement of the identity setup, next
         // to ENCA's reading of the policies — a reference like the other three
@@ -508,8 +508,16 @@
   // of production entirely now (316), and here it is shown only in the tenant
   // whose benchmark work it is. Demo mode is not that tenant: the beta site is
   // reachable by anyone, and ?demo=1 must not be the window next to the door.
-  const CIS_TENANT = /(^|\.)cloudfellows\.dev$/i;
-  const isCisTenant = () => CIS_TENANT.test(String(tenantDomain || "")) || tenantDomains.some((d) => CIS_TENANT.test(d));
+  // 32439 (Mihai: agreed): the test is about OUR OWN TENANT, not about CIS, so
+  // it is named for that and shared — 📐 CIS and 🚚 Waiting for production both
+  // stand on it. The organization's verified domains decide; the signed-in
+  // account's domain counts only when those could not be read, so a
+  // cloudfellows.dev administrator invited into a customer tenant is in the
+  // customer tenant. Demo is never this tenant.
+  const PUBLISHER_TENANT = /(^|\.)cloudfellows\.dev$/i;
+  const isPublisherTenant = () => !isDemo && (tenantDomains.length
+    ? tenantDomains.some((d) => PUBLISHER_TENANT.test(d))
+    : PUBLISHER_TENANT.test(String(tenantDomain || "")));
   // `only` is the per-tab version of the same idea: a predicate read at render
   // time, so signing into another tenant in the same session is enough.
   const tabShown = (t) => (!t.betaOnly || !isProdHost()) && (!t.only || t.only());
@@ -1116,14 +1124,42 @@
   // referred to out loud: "push number 3 to main". Rendered only on a
   // non-production host — the same test the BETA ribbon uses — so a customer
   // on the production site never sees a list of things they do not have.
-  (function renderPromotionQueue() {
+  // ---- 🚚 WAITING FOR PRODUCTION — its own tool since 32439 ----
+  // Mihai: "make Waiting for production a separate button, next to Help,
+  // Roadmap etc., only shown on beta and only cloudfellows.dev". Three gates,
+  // all needed: the publisher's BETA host (deploymentKind, not "anything but
+  // production" — a self-hosted or forked copy of a beta build showed the
+  // queue until this build), the publisher's own TENANT (isPublisherTenant,
+  // the CIS test), and the queue's own file, which no production build carries.
+  // The tile is HIDDEN, not removed, so the sidebar, the workspaces library and
+  // ⌘K all read one answer from it.
+  const promoteShown = () => typeof PROMOTE !== "undefined" && deploymentKind() === "beta" && isPublisherTenant();
+  function syncGatedTiles(on) {
+    const t = $("toolPromote");
+    if (!t) return;
+    t.hidden = !(on === undefined ? promoteShown() : on && promoteShown());
+    // Signing into another tenant with the tab open must not leave it open.
+    if (t.hidden) { try { if (openTabs.includes("toolPromote")) closeTab("toolPromote"); } catch { /* tab strip not ready yet */ } }
+  }
+  // Which workspace's order is on screen. Opened from 02 it starts on 02's.
+  let pqWs = null;
+  function openPromote(ws) {
+    if (!promoteShown()) { toast("🚚 Waiting for production is shown on the beta site, signed in to cloudfellows.dev."); return; }
+    const cur = (globalThis.Workspaces && Workspaces.current && Workspaces.current()) || "ca";
+    // Always the workspace you are in: from 02 the tool opens on PIM-buddy's
+    // order, so the order on screen is never the other side's by surprise.
+    pqWs = PROMOTE.workspaces[ws] ? ws : (cur === "pim" ? "pim" : "ca");
+    crumb("🚚 Waiting for production");
+    show("screen-promote");
+    renderPromotionQueue();
+  }
+  $("toolPromote") && $("toolPromote").addEventListener("click", () => openPromote());
+  function renderPromotionQueue() {
     try {
-      const host = (location.hostname || "").toLowerCase();
-      const prod = ((typeof BRANDING !== "undefined" && BRANDING.host) || "").toLowerCase();
-      if (!prod || host === prod) return;                 // production: stay hidden
       if (typeof PROMOTE === "undefined") return;
-      const el = document.getElementById("helpPromote");
+      const el = document.getElementById("pqBody");
       if (!el) return;
+      const ws = PROMOTE.workspaces[pqWs] ? pqWs : "ca";
 
       const RISK = {
         high:   { label: "high",   cls: "block", note: "a real problem in production until it lands" },
@@ -1131,7 +1167,12 @@
         low:    { label: "low",    cls: "",      note: "convenience or documentation" },
       };
       const esc2 = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-      const items = (PROMOTE.items || []).slice().sort((a, b) => a.n - b.n);
+      const allItems = (PROMOTE.items || []).slice().sort((a, b) => a.n - b.n);
+      // ONE WORKSPACE AT A TIME (32439): only this order's items are listed,
+      // ticked and exported — platform items appear in both. The ticks of the
+      // other workspace stay stored and are counted, never exported from here.
+      const items = allItems.filter((i) => PROMOTE.inOrder(i, ws));
+      const unlabelled = allItems.filter((i) => !PROMOTE.wsOf(i));
       // Ticks for the promotion order. Persisted per item NUMBER, so a tick
       // survives a reload and dies with its item: numbers no longer in the
       // queue are pruned on render, because a shipped item must not stay
@@ -1141,7 +1182,7 @@
       const writePicks = (ns) => { try { localStorage.setItem(PQ_KEY, JSON.stringify(ns)); } catch { /* private mode — ticks live for the session only */ } };
       const picked = (() => {
         const raw = new Set(readPicks());
-        const live = new Set(items.map((i) => i.n));
+        const live = new Set(allItems.map((i) => i.n));
         const kept = [...raw].filter((n) => live.has(n));
         if (kept.length !== raw.size) writePicks(kept);
         return new Set(kept);
@@ -1274,8 +1315,15 @@
                 <td class="mini">${buildsShort(builds)}</td>
               </tr>`;
       };
+      const wsCount = (k) => allItems.filter((i) => PROMOTE.inOrder(i, k) && (k === "platform" || PROMOTE.wsOf(i) === k)).length;
+      const inThis = (ns) => ns.filter((n) => items.some((i) => i.n === n));
+      const elsewhere = () => readPicks().filter((n) => !items.some((i) => i.n === n));
       el.innerHTML = `
-        <h4>🚚 Waiting for production <span class="tag new">BETA CHANNEL</span></h4>
+        <div class="seg pq-ws" role="tablist" aria-label="Workspace">${Object.keys(PROMOTE.workspaces).map((k) => `<button type="button" role="tab" data-pqws="${k}" aria-selected="${k === ws}" class="${k === ws ? "active" : ""}">${esc2(PROMOTE.wsLabel(k))} <span class="mini">${wsCount(k)}</span></button>`).join("")}</div>
+        <p class="mini" style="margin:8px 0 12px"><b>One order per workspace.</b> This list, its ticks and the export cover <b>${esc2(PROMOTE.wsLabel(ws))}</b>${ws === "platform" ? "" : " and the platform items both workspaces need"} — nothing of the other workspace can be ticked here, and the order file refuses itself if it ever names one.</p>
+        ${unlabelled.length ? `<div class="pq-check"><p class="mini" style="color:var(--off);margin:0"><b>Items ${unlabelled.map((i) => i.n).join(", ")} carry no workspace.</b> No order can be exported until each has ws in js/promote.js.</p></div>` : ""}
+        <div class="pq-check" id="pqCheck"></div>
+        <details class="pq-about"><summary class="mini"><b>About this list</b></summary>
         <p>Production is <b>${esc2(PROMOTE.productionBuild)}</b>; this site is <b>${esc2(APP_BUILD.label)}</b>.
           <b>This is the gap, and only the gap</b> — what exists here and not there. Nothing that has already
           shipped appears below; for that, read <b>📋 What's new</b>. Each row is one promotable <b>change to the
@@ -1290,11 +1338,11 @@
           <i>Why</i> says what would have to be true for an item to graduate; <b>How to test it</b> says how to find out, one
           falsifiable step at a time, and names the tenant a check needs when nobody has it to hand.
           <b>Newest last</b> (the default) puts each batch at its newest item, so the latest work is at the bottom; <b>By number</b>
-          puts it at its oldest. Items added since your last visit carry <b>NEW</b> and open their batch.</p>
+          puts it at its oldest. Items added since your last visit carry <b>NEW</b> and open their batch.</p></details>
         ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
-          <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
-          <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
-          <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
+          <span class="mini" id="pqPickCount"></span>
+          <button class="btn sm primary" id="pqExport" disabled>⭳ Export ${esc2(PROMOTE.wsLabel(ws))} order</button>
+          <button class="btn sm" id="pqClear">Clear ticks</button>
           <button class="btn sm" id="pqFold" title="Fold every batch and every row">Fold all</button>
           <span class="pq-order"><span class="mini">Order</span> <button class="fchip ${pqOrder === "newest" ? "active" : ""}" data-pqorder="newest" title="A batch sits at its newest item — the list ends with the latest work">Newest last</button><button class="fchip ${pqOrder === "number" ? "active" : ""}" data-pqorder="number" title="A batch sits at its oldest item, in number order">By number</button></span>
           ${newSet.size ? `<span class="mini" id="pqNewNote"><b>${newSet.size} new</b> since your last visit · <a href="#" id="pqSeenAll">mark all seen</a></span>` : ""}
@@ -1303,22 +1351,38 @@
         <div class="cg-tablewrap"><table class="cg-table pq-table">
           <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:150px">Beta builds</th></tr></thead>
           <tbody>${orderBlocks(pqOrder).map((bl) => bl.items.length > 1 ? headFor(bl) + bl.items.map((it) => rowFor(it, bl)).join("") : rowFor(bl.items[0], null)).join("")}</tbody></table></div>
-        ${(PROMOTE.staying || []).length ? `
+        ${(PROMOTE.staying || []).filter((sv) => PROMOTE.inOrder(sv, ws)).length ? `
           <h4 style="margin-top:18px">Staying on this channel</h4>
           <p class="mini muted" style="margin:0 0 6px">Also part of the gap, but permanently: these exist here and are not going to production.</p>
-          <ul>${PROMOTE.staying.map((sv) => `<li><b>${esc2(sv.title)}</b> — ${esc2(sv.why)}</li>`).join("")}</ul>` : ""}
+          <ul>${PROMOTE.staying.filter((sv) => PROMOTE.inOrder(sv, ws)).map((sv) => `<li><b>${esc2(sv.title)}</b> — ${esc2(sv.why)}</li>`).join("")}</ul>` : ""}
         <p class="mini muted" style="margin-top:14px"><b>Promoting one of these is four steps, not one:</b> remove the row and bump the production build here; set the roadmap card on <b>main</b> to <code>live · build NNN</code>; set the <b>same card on this channel</b> to <code>live · beta NNNNN · production NNN</code>; and add the changelog entry on both. The third is the one that gets missed — each channel carries its own roadmap, so promoting touches main's copy and this one keeps claiming the work is beta-only. A shipped card here that says <code>live · beta NNNNN</code> with no production clause is either a tool that genuinely has not been promoted, or that step being skipped.</p>
         <p class="help-x">This list is written by hand — the app is static files in a browser and cannot read git or diff two branches. It is maintained alongside <b>📋 What's new</b>; if an entry looks stale, trust the changelog and the build numbers over this table.</p>`;
-      el.style.display = "";
-
+      // ---- the order check, repainted on every tick ----
+      const syncCheck = () => {
+        const box = el.querySelector("#pqCheck"); if (!box) return;
+        const ns = inThis(readPicks());
+        if (!ns.length) { box.innerHTML = `<p class="mini muted" style="margin:0">Order check: nothing ticked in ${esc2(PROMOTE.wsLabel(ws))} yet.</p>`; return null; }
+        const c = PROMOTE.checkOrder(ns, ws);
+        const line = (cls, mark, html) => `<li class="pq-ck ${cls}"><span class="pq-ckm" aria-hidden="true">${mark}</span><span>${html}</span></li>`;
+        const rows = [];
+        if (!c.blocks.length) rows.push(line("ok", "✓", `${c.ns.length} item${c.ns.length === 1 ? "" : "s"} ticked, all ${esc2(PROMOTE.wsLabel(ws))}${ws === "platform" ? "" : " or platform"}. Nothing of the other workspace is in this order.`));
+        c.blocks.forEach((b) => rows.push(line("block", "✗", `<b>Blocks the export.</b> ${esc2(b)}`)));
+        c.warns.forEach((w) => rows.push(line("warn", "!", esc2(w))));
+        if (c.neverPort.length) rows.push(line("info", "⊘", `<b>Never port</b> (the other workspace's files; where main has its own copy, it keeps it): ${c.neverPort.map((f) => `<code>${esc2(f)}</code>`).join(" ")}`));
+        box.innerHTML = `<h4 style="margin:0 0 6px">Order check · ${esc2(PROMOTE.wsLabel(ws))}</h4><ul class="pq-cklist">${rows.join("")}</ul>`;
+        return c;
+      };
       // ---- the tick wiring ----
       const syncBar = () => {
-        const ns = readPicks();
+        const ns = inThis(readPicks()), away = elsewhere();
         const c = el.querySelector("#pqPickCount"), ex = el.querySelector("#pqExport"), cl = el.querySelector("#pqClear");
-        if (c) c.innerHTML = `<b>${ns.length}</b> of ${items.length} ticked for promotion`;
-        if (ex) ex.disabled = !ns.length;
+        const chk = syncCheck();
+        if (c) c.innerHTML = `<b>${ns.length}</b> of ${items.length} ticked for this order${away.length ? ` · <span class="muted">${away.length} ticked in another workspace, not in this order</span>` : ""}`;
+        if (ex) ex.disabled = !ns.length || !!(chk && chk.blocks.length) || !!unlabelled.length;
         if (cl) cl.disabled = !ns.length;
       };
+      syncBar();
+      el.querySelectorAll("[data-pqws]").forEach((b) => b.addEventListener("click", () => { pqWs = b.dataset.pqws; renderPromotionQueue(); }));
       // A group's tick reflects its members: checked when all are ticked,
       // indeterminate when some are, and the state line says how many.
       const syncGroups = () => {
@@ -1402,7 +1466,7 @@
       const exBtn = el.querySelector("#pqExport");
       if (exBtn) exBtn.addEventListener("click", () => {
         try {
-          const o = PROMOTE.buildOrder(readPicks(), APP_BUILD);
+          const o = PROMOTE.buildOrder(inThis(readPicks()), APP_BUILD, ws);
           const a = document.createElement("a");
           a.href = URL.createObjectURL(new Blob([o.text], { type: "text/markdown" }));
           a.download = o.filename;
@@ -1412,12 +1476,13 @@
       });
       const clBtn = el.querySelector("#pqClear");
       if (clBtn) clBtn.addEventListener("click", () => {
-        writePicks([]);
+        // Clears THIS workspace's ticks only; the other order is left alone.
+        writePicks(elsewhere());
         el.querySelectorAll("[data-pqpick]").forEach((cb) => { cb.checked = false; });
         syncBar(); syncGroups();
       });
     } catch (e) { console.warn("promotion queue not rendered:", e.message); }
-  })();
+  }
 
   // ---------- theme: Auto (device) → Light → Dark ----------
   // Auto leaves data-theme off so the CSS prefers-color-scheme block decides;
@@ -2895,6 +2960,7 @@
   // Help is a tool too, but always sits last (after the + in the tab bar).
   TOOL_TABS.push(["toolChangelog", "📋 What's new"]);
   TOOL_TABS.push(["toolRoadmap", "🗺 Roadmap"]);
+  TOOL_TABS.push(["toolPromote", "🚚 Waiting for production"]);
   TOOL_TABS.push(["toolPermissions", "🔑 Permissions in this session"]);
   TOOL_TABS.push(["toolHelp", "❓ Help"]);
   // Browser-style tabs: a tab exists only for a tool you have opened. Home shows
@@ -3024,7 +3090,7 @@
         const h = el.querySelector("h3");
         cur = { title: h ? h.textContent : "", ids: [] };
         secs.push(cur);
-      } else if (cur && el.id) cur.ids.push(el.id);
+      } else if (cur && el.id && !el.hidden) cur.ids.push(el.id);   // a gated tile (🚚) is hidden, not absent
     });
     // Every label is "<emoji> <name>" from the tool list; the split lets the
     // collapsed rail keep the icon and drop the text. The FULL label rides
@@ -3063,11 +3129,13 @@
   // Shown at sign-in (real or demo), hidden at sign-out — the sign-in screen
   // keeps its centred card and none of the console shell exists before auth.
   function showSideNav() {
+    syncGatedTiles();
     renderSideNav();
     $("sideNav").style.display = "";
     document.body.classList.add("with-side");
   }
   function hideSideNav() {
+    syncGatedTiles(false);
     $("sideNav").style.display = "none";
     document.body.classList.remove("with-side");
   }
@@ -13886,6 +13954,7 @@ This is a directory write. Nothing else changes.`)) return;
     for (const [id, label] of TOOL_TABS) {
       const el = $(id);
       if (!el) continue;                                  // tool not on this build
+      if (el.hidden) continue;                            // a gated tile: not for this host or tenant
       // R33 — "T07" finds the tool, and so does "7": somebody quoting a number
       // out of a note or a support case should not have to remember the prefix.
       // An exact number match outranks everything, because a query that IS a

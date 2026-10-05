@@ -1848,6 +1848,21 @@ footer #buildStampFoot{color:var(--muted);font-size:12px;font-family:ui-monospac
 /* Promotion queue: the per-item test checklist. Folded away by default — the
    table is read to decide WHAT to promote, and the steps are read once that
    decision is made. */
+/* 32439 — 🚚 Waiting for production as its own tool: the workspace switch and the order check */
+.pq-ws{flex-wrap:wrap;width:fit-content;max-width:100%;margin:0 0 4px}
+.pq-ws button{min-height:36px}
+.pq-ws button .mini{opacity:.8;margin-left:4px;font-variant-numeric:tabular-nums}
+.pq-check{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:10px 12px;margin:0 0 12px}
+.pq-cklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.pq-ck{display:flex;gap:8px;font-size:13px;line-height:1.45}
+.pq-ckm{flex:0 0 16px;font-weight:700;text-align:center}
+.pq-ck.ok .pq-ckm{color:var(--on)}
+.pq-ck.block .pq-ckm,.pq-ck.block b{color:var(--off)}
+.pq-ck.warn .pq-ckm{color:var(--report)}
+.pq-ck.info .pq-ckm{color:var(--muted)}
+.pq-ck code{font-size:12px}
+.pq-about{margin:0 0 10px}
+.pq-about summary{cursor:pointer;color:var(--accent2)}
 .pq-test{margin-top:6px}
 .pq-test summary{cursor:pointer;color:var(--accent2);list-style:none}
 .pq-test summary::-webkit-details-marker{display:none}

@@ -38,6 +38,7 @@
     toolIntuneRbac: 'Intune role assignments, scope tags, scope groups and the regional custom role against the framework.',
     toolChangelog: 'Read the release history.',
     toolRoadmap: 'See what is planned and what has shipped.',
+    toolPromote: 'What is on beta and not yet in production, one order per workspace. Beta site, cloudfellows.dev only.',
     toolPermissions: 'View session permissions, consent and revocation guidance.',
     toolHelp: 'Find guidance, permissions and release information.',
   };
@@ -68,7 +69,7 @@
       { id: 'toolRmau', blurb: 'AU-RM-Executives and the desk scoped on it; no PIM group, adm- account or role holder in any restricted unit.', lens: 'built' },
     ] },
     { group: '❓ Help', tools: [
-      { id: 'toolHelp' }, { id: 'toolChangelog' }, { id: 'toolRoadmap' }, { id: 'toolPermissions' },
+      { id: 'toolHelp' }, { id: 'toolChangelog' }, { id: 'toolRoadmap' }, { id: 'toolPromote' }, { id: 'toolPermissions' },
     ] },
   ];
   const WORKSPACES = {
@@ -125,9 +126,12 @@
     });
   }
   // The tools a workspace offers, in its own order and with its own words.
+  // A gated tile (🚚 Waiting for production, 32439) is hidden rather than
+  // absent: asked at render time, so a sign-in to another tenant is enough.
+  const gated = (id) => !!($(id) && $(id).hidden);
   function toolsOf(which) {
-    if (which !== 'pim') return tools.filter(t => !PIM_ONLY.has(t.id));
-    return PIM_ROSTER.flatMap(g => g.tools.map(r => {
+    if (which !== 'pim') return tools.filter(t => !PIM_ONLY.has(t.id) && !gated(t.id));
+    return PIM_ROSTER.flatMap(g => g.tools.filter(r => !gated(r.id)).map(r => {
       const t = tools.find(t => t.id === r.id);
       if (!t) return r.planned ? { id: r.id, name: r.name, icon: r.icon, number: r.number, group: g.group, description: r.blurb || '', planned: r.planned } : null;
       return { ...t, name: r.name || t.name, group: g.group, description: r.blurb || t.description, lens: r.lens === 'built' ? 'built' : !!r.lens };
@@ -214,7 +218,7 @@
     const context = Workspace.context;
     const key = signedIn && context ? `${context.demo}:${context.key}` : '';
     if (key !== sessionKey) {
-      sessionKey = key; ListDetail.reset(); recent.length = 0; lastActive = null; renderRecent();
+      sessionKey = key; ListDetail.reset(); recent.length = 0; lastActive = null; renderHome();
     }
     const theme = $('themeBtn');
     if (signedIn && theme.parentElement !== $('acctMenu')) {

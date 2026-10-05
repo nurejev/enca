@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32439, date: "2026-10-05", title: "Waiting for production: its own tool, one order per workspace",
+    items: [
+      { kind: "improved", tool: "Help", text: "🚚 Waiting for production is its own tool in the Help group, beside What's new and Roadmap, instead of a section at the bottom of Help. It shows only on the beta site and only when the signed-in tenant is cloudfellows.dev. A self-hosted or forked copy of a beta build no longer shows it, and neither does the demo." },
+      { kind: "improved", tool: "Help", text: "The promotion order is made for one workspace at a time: 01 Conditional Access, 02 PIM-buddy or Platform. Only that workspace's items, plus the platform items both need, can be ticked and exported. Opened from 02 it starts on PIM-buddy's order." },
+      { kind: "new", tool: "Help", text: "An order check runs on every tick. It blocks the export when an item needs one from the other workspace, lists the files the other workspace also changes (port those by marker), the tools both change, and the files never to port. The exported file names its workspace, carries a fingerprint, lists the other workspace's items it leaves out, and ends with the checks to run on main after the port." },
+      { kind: "improved", tool: "CIS Benchmark", text: "The CIS tab and the new tool use one test for the publisher's own tenant: the organisation's verified domains. A cloudfellows.dev administrator invited into another tenant no longer sees either there." },
+    ],
+  },
+  {
     build: 32438, date: "2026-10-05", title: "Deploy — no change for activation rules in another order",
     items: [
       { kind: "fixed", tool: "Deploy", text: "Deploy no longer plans a change when a role or group asks for the same activation requirements in a different order (MFA and justification against justification and MFA). On cloudfellows.dev that was 9 of the 245 operations in one Preview, among them the GlobalAdmin and Ops membership policies." },
