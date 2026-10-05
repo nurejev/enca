@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32436, date: "2026-10-05", title: "PIM framework 3.0 — one activation per job",
+    items: [
+      { kind: "new", tool: "PIM baseline", text: "The CloudFellows PIM framework is 3.0. Most admin work now runs through job groups: people are eligible members, the group holds every role of the job permanently, and one activation of four hours gives the whole job. Tier 0 and the Exchange, SharePoint and Purview roles stay per role on direct groups (people active members, the group eligible for each role), because Microsoft documents that activation through a group can take hours to reach those portals." },
+      { kind: "new", tool: "PIM baseline", text: "New groups: SecOps-Direct, Ops-Direct, AppOps-Direct and Collab-Direct for the per-role path, and Exchange RBAC access groups PIM-SG-EXO-Recipients, -HelpDesk, -Hygiene and -Reader, each meant for one Exchange role group. The regional Helpdesk and Ops groups are job groups that hold their roles at the region's own units." },
+      { kind: "improved", tool: "PIM baseline", text: "The comparison checks each group the way it is meant to work: a job group must hold its roles active, a direct group must be eligible. A job group that is still eligible for a role from 2.x is reported, and a job group holding its roles is no longer counted as permanent access outside the framework. The EasyPIM files carry the new shape." },
+      { kind: "improved", tool: "Deploy", text: "Deploy makes job groups active in their roles once each role allows it, and keeps direct groups eligible. For every existing job group it warns that active members would hold the roles standing, so make them eligible first. A new section creates the Exchange RBAC groups; adding them to their Exchange role groups is listed under By hand." },
+    ],
+  },
+  {
     build: 32435, date: "2026-10-05", title: "Administrative units — regular units too",
     items: [
       { kind: "new", tool: "Administrative units", text: "Restricted AUs is now Administrative units, and covers every unit in the tenant, restricted and regular. ▶ Check every unit reads each unit's members and who holds a role at its scope, active and eligible, and shows them in one table: kind, membership (assigned, dynamic users or dynamic devices, with the rule and whether it is processing), members, roles and findings. Filter by Restricted, Regular or With findings; a unit's name opens its card with the roles and findings above the members." },

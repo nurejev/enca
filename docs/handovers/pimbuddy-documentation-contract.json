@@ -1,25 +1,26 @@
 {
-  "build": 32434,
-  "reviewed": "2026-10-02",
+  "build": 32436,
+  "reviewed": "2026-10-05",
   "documents": [
     {
       "path": "docs/handovers/PimBuddy_Baseline_Design_and_Object_Reference.docx",
-      "sha256": "ec7473b7baf458bce20abda07d9e25a34c393359ec794c62c0000c805831c76d"
+      "sha256": "6663db32fb3d46bf9939d1a009fa549bab43526f1f2982d7148255f614db63e9"
     },
     {
       "path": "docs/handovers/PimBuddy_Admin_Handover.docx",
-      "sha256": "f6a1122d970782402e4a24aabd9f7a5b580a949e9cf5686302f35f85e13db8d3"
+      "sha256": "0b7c0a118d9cb3146a2b4837b5e0d19034ca38d062ce38a01916d9f8ca20181e"
     }
   ],
   "catalog": {
-    "release": "2.2",
-    "revised": "2026-10-02",
+    "release": "3.0",
+    "revised": "2026-10-05",
     "profiles": {
       "small": {
         "groups": [
           {
             "name": "PIM-SG-M365-GlobalAdmin",
             "scope": "m365",
+            "path": "direct",
             "persona": "GOD mode",
             "template": "GroupMember",
             "description": "Eligible for Global Administrator. The small model also maps Privileged Role Administrator and Privileged Authentication Administrator to this group. Activation uses each role's effective model policy; Global Administrator is two hours in small and one hour otherwise."
@@ -27,23 +28,52 @@
           {
             "name": "PIM-SG-M365-SecOps",
             "scope": "m365",
+            "path": "job",
             "persona": "Security Operations",
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance."
+          },
+          {
+            "name": "PIM-SG-M365-SecOps-Direct",
+            "scope": "m365",
+            "path": "direct",
+            "persona": "Security, per role",
             "template": "GroupMember",
-            "description": "Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance."
+            "description": "Direct group: active members, eligible per role for Conditional Access, Security and the two Compliance administrators — Tier 0 and Purview roles, activated one at a time."
           },
           {
             "name": "PIM-SG-M365-Ops",
             "scope": "m365",
+            "path": "job",
             "persona": "IT Operations",
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Second line and system administration: users, groups, devices, Intune, the Microsoft 365 workloads."
+          },
+          {
+            "name": "PIM-SG-M365-Ops-Direct",
+            "scope": "m365",
+            "path": "direct",
+            "persona": "Exchange and SharePoint",
             "template": "GroupMember",
-            "description": "Second line and system administration: users, groups, devices, Intune, the Microsoft 365 workloads."
+            "description": "Direct group: active members, eligible per role for Exchange and SharePoint Administrator — next to the Ops job group."
           },
           {
             "name": "PIM-SG-M365-SecOpsReader",
             "scope": "m365",
+            "path": "direct",
             "persona": "Security readers",
             "template": "GroupMember",
             "description": "Reads the security configuration and reports; changes nothing."
+          },
+          {
+            "name": "PIM-SG-EXO-Recipients",
+            "scope": "exchange",
+            "persona": "Recipients",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "Recipient Management"
+            },
+            "description": "Eligible members activate for mailboxes, contacts, distribution groups and mailbox permissions — without Exchange Administrator."
           },
           {
             "name": "PIM-SG-INT-Ops",
@@ -168,7 +198,7 @@
             "templateId": "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9",
             "template": "Tier0",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "note": "Can switch every Conditional Access policy off — approval, as in 1.3.",
             "override": {}
@@ -178,7 +208,7 @@
             "templateId": "194ae4cb-b126-40b2-bd5b-6091b380977d",
             "template": "Tier0",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "note": "Manages Conditional Access and Defender — approval, as in 1.3.",
             "override": {}
@@ -188,7 +218,7 @@
             "templateId": "29232cdf-9323-42fd-ade2-1d097af3e4de",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-Ops"
+              "PIM-SG-M365-Ops-Direct"
             ],
             "override": {}
           },
@@ -197,7 +227,7 @@
             "templateId": "f28a1f50-f6e7-4571-818b-6a12f2af6b6c",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-Ops"
+              "PIM-SG-M365-Ops-Direct"
             ],
             "override": {}
           },
@@ -208,7 +238,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Intune Administrator",
@@ -217,7 +250,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Application Administrator",
@@ -226,7 +262,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Cloud Application Administrator",
@@ -235,7 +274,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Application Developer",
@@ -244,7 +286,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Power Platform Administrator",
@@ -253,7 +298,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Authentication Administrator",
@@ -262,7 +310,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Authentication Policy Administrator",
@@ -271,7 +322,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "User Administrator",
@@ -280,7 +334,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Groups Administrator",
@@ -289,7 +346,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "License Administrator",
@@ -298,7 +358,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Password Administrator",
@@ -307,7 +370,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Cloud Device Administrator",
@@ -316,7 +382,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Microsoft Entra Joined Device Local Administrator",
@@ -329,7 +398,10 @@
               "PIM-SG-M365-Ops"
             ],
             "note": "1.3 named it Azure AD Joined Device Local Administrator; Microsoft renamed it.",
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Hybrid Identity Administrator",
@@ -352,7 +424,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Lifecycle Workflows Administrator",
@@ -361,7 +436,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Service Support Administrator",
@@ -370,7 +448,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Edge Administrator",
@@ -379,7 +460,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Office Apps Administrator",
@@ -388,7 +472,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Guest Inviter",
@@ -397,14 +484,17 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Compliance Administrator",
             "templateId": "17315797-102d-40b4-93e0-432062caca18",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "override": {}
           },
@@ -413,7 +503,7 @@
             "templateId": "e6d1a23a-da11-4be4-9570-befc86d067a7",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "override": {}
           },
@@ -424,7 +514,10 @@
             "via": [
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Security Operator",
@@ -433,7 +526,10 @@
             "via": [
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Helpdesk Administrator",
@@ -443,7 +539,10 @@
               "PIM-SG-M365-Ops"
             ],
             "note": "Eight hours, as in 1.3: a shift, not a task.",
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Message Center Reader",
@@ -453,7 +552,10 @@
               "PIM-SG-M365-Ops",
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Global Reader",
@@ -686,6 +788,39 @@
               ]
             }
           },
+          "GroupJITTier1": {
+            "description": "Job group: eligible membership for at most a year; one activation of four hours with MFA and justification gives every role of the job; an active assignment by an administrator lasts at most 30 days; nothing permanent for people.",
+            "ActivationDuration": "PT4H",
+            "ActivationRequirement": "MultiFactorAuthentication,Justification",
+            "AuthenticationContext_Enabled": false,
+            "ApprovalRequired": false,
+            "Approvers": [],
+            "AllowPermanentEligibility": false,
+            "MaximumEligibilityDuration": "P365D",
+            "AllowPermanentActiveAssignment": false,
+            "MaximumActiveAssignmentDuration": "P30D",
+            "Notification_Activation_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "Critical",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            },
+            "Notification_EligibleAssignment_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            },
+            "Notification_ActiveAssignment_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            }
+          },
           "GroupJITTier0": {
             "description": "Defender XDR administrator group: eligible membership for at most a year; activation for two hours with justification, authentication context c1 and approval by PIM-SG-Approvers; an active assignment by an administrator lasts at most 30 days; nothing permanent; every alert.",
             "ActivationDuration": "PT2H",
@@ -792,6 +927,7 @@
           {
             "name": "PIM-SG-M365-GlobalAdmin",
             "scope": "m365",
+            "path": "direct",
             "persona": "GOD mode",
             "template": "GroupMember",
             "description": "Eligible for Global Administrator. The small model also maps Privileged Role Administrator and Privileged Authentication Administrator to this group. Activation uses each role's effective model policy; Global Administrator is two hours in small and one hour otherwise."
@@ -799,6 +935,7 @@
           {
             "name": "PIM-SG-M365-Tier0",
             "scope": "m365",
+            "path": "direct",
             "persona": "Tier 0",
             "template": "GroupMember",
             "description": "Privileged Role Administrator and Privileged Authentication Administrator — the roles that manage privileged role assignments and privileged authentication methods."
@@ -806,13 +943,23 @@
           {
             "name": "PIM-SG-M365-SecOps",
             "scope": "m365",
+            "path": "job",
             "persona": "Security Operations",
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance."
+          },
+          {
+            "name": "PIM-SG-M365-SecOps-Direct",
+            "scope": "m365",
+            "path": "direct",
+            "persona": "Security, per role",
             "template": "GroupMember",
-            "description": "Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance."
+            "description": "Direct group: active members, eligible per role for Conditional Access, Security and the two Compliance administrators — Tier 0 and Purview roles, activated one at a time."
           },
           {
             "name": "PIM-SG-M365-SecOpsReader",
             "scope": "m365",
+            "path": "direct",
             "persona": "Security readers",
             "template": "GroupMember",
             "description": "Reads the security configuration and reports; changes nothing."
@@ -820,6 +967,7 @@
           {
             "name": "PIM-SG-M365-Audit",
             "scope": "m365",
+            "path": "direct",
             "persona": "Internal audit",
             "template": "GroupMember",
             "description": "Reads everything, changes nothing; its own review cadence."
@@ -827,44 +975,98 @@
           {
             "name": "PIM-SG-M365-Identity",
             "scope": "m365",
+            "path": "job",
             "persona": "Identity team",
-            "template": "GroupMember",
-            "description": "Users, groups, licences, authentication methods and policy, identity governance, lifecycle workflows."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Users, groups, licences, authentication methods and policy, identity governance, lifecycle workflows."
           },
           {
             "name": "PIM-SG-M365-Workplace",
             "scope": "m365",
+            "path": "job",
             "persona": "Endpoint team",
-            "template": "GroupMember",
-            "description": "Intune, devices, the local administrator on joined devices, Edge."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Intune, devices, the local administrator on joined devices, Edge."
           },
           {
             "name": "PIM-SG-M365-Collab",
             "scope": "m365",
+            "path": "job",
             "persona": "Messaging and collaboration",
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Exchange, SharePoint, Teams, Office apps, Power Platform, guest invitations."
+          },
+          {
+            "name": "PIM-SG-M365-Collab-Direct",
+            "scope": "m365",
+            "path": "direct",
+            "persona": "Exchange and SharePoint",
             "template": "GroupMember",
-            "description": "Exchange, SharePoint, Teams, Office apps, Power Platform, guest invitations."
+            "description": "Direct group: active members, eligible per role for Exchange and SharePoint Administrator — next to the Collab job group."
+          },
+          {
+            "name": "PIM-SG-EXO-Recipients",
+            "scope": "exchange",
+            "persona": "Recipients",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "Recipient Management"
+            },
+            "description": "Eligible members activate for mailboxes, contacts, distribution groups and mailbox permissions — without Exchange Administrator."
+          },
+          {
+            "name": "PIM-SG-EXO-HelpDesk",
+            "scope": "exchange",
+            "persona": "Exchange first line",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "Help Desk"
+            },
+            "description": "Eligible members activate to view and change recipient properties."
+          },
+          {
+            "name": "PIM-SG-EXO-Hygiene",
+            "scope": "exchange",
+            "persona": "Mail hygiene",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "Hygiene Management"
+            },
+            "description": "Eligible members activate for anti-spam, anti-malware and connection filtering."
+          },
+          {
+            "name": "PIM-SG-EXO-Reader",
+            "scope": "exchange",
+            "persona": "Exchange readers",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "View-Only Organization Management"
+            },
+            "description": "Eligible members activate to read the whole Exchange configuration."
           },
           {
             "name": "PIM-SG-M365-Apps",
             "scope": "m365",
+            "path": "job",
             "persona": "Applications",
-            "template": "GroupMember",
-            "description": "App registrations and enterprise applications only."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. App registrations and enterprise applications only."
           },
           {
             "name": "PIM-SG-M365-ServiceDesk",
             "scope": "m365",
+            "path": "job",
             "persona": "Service desk",
-            "template": "GroupMember",
-            "description": "First line for everybody but admins and executives: passwords, authentication methods, licences."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. First line for everybody but admins and executives: passwords, authentication methods, licences."
           },
           {
             "name": "PIM-SG-M365-ServiceDesk-VIP",
             "scope": "m365",
+            "path": "job",
             "persona": "Service desk for executives",
-            "template": "GroupMember",
-            "description": "The named few who may help executives: the desk roles scoped to the optional AU-RM-Executives. Deploy can create the empty unit and scoped eligibilities; populate it only after testing the scoped administrators."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. The named few who may help executives: the desk roles scoped to the optional AU-RM-Executives. Deploy can create the empty unit and scoped eligibilities; populate it only after testing the scoped administrators."
           },
           {
             "name": "PIM-SG-INT-Ops",
@@ -1112,7 +1314,7 @@
             "templateId": "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9",
             "template": "Tier0",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "note": "Can switch every Conditional Access policy off — approval, as in 1.3.",
             "override": {}
@@ -1122,7 +1324,7 @@
             "templateId": "194ae4cb-b126-40b2-bd5b-6091b380977d",
             "template": "Tier0",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "note": "Manages Conditional Access and Defender — approval, as in 1.3.",
             "override": {}
@@ -1132,7 +1334,7 @@
             "templateId": "29232cdf-9323-42fd-ade2-1d097af3e4de",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-Collab"
+              "PIM-SG-M365-Collab-Direct"
             ],
             "override": {}
           },
@@ -1141,7 +1343,7 @@
             "templateId": "f28a1f50-f6e7-4571-818b-6a12f2af6b6c",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-Collab"
+              "PIM-SG-M365-Collab-Direct"
             ],
             "override": {}
           },
@@ -1152,7 +1354,10 @@
             "via": [
               "PIM-SG-M365-Collab"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Intune Administrator",
@@ -1161,7 +1366,10 @@
             "via": [
               "PIM-SG-M365-Workplace"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Application Administrator",
@@ -1170,7 +1378,10 @@
             "via": [
               "PIM-SG-M365-Apps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Cloud Application Administrator",
@@ -1179,7 +1390,10 @@
             "via": [
               "PIM-SG-M365-Apps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Application Developer",
@@ -1188,7 +1402,10 @@
             "via": [
               "PIM-SG-M365-Apps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Power Platform Administrator",
@@ -1197,7 +1414,10 @@
             "via": [
               "PIM-SG-M365-Collab"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Authentication Administrator",
@@ -1207,7 +1427,10 @@
               "PIM-SG-M365-Identity",
               "PIM-SG-M365-ServiceDesk"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Authentication Policy Administrator",
@@ -1216,7 +1439,10 @@
             "via": [
               "PIM-SG-M365-Identity"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "User Administrator",
@@ -1225,7 +1451,10 @@
             "via": [
               "PIM-SG-M365-Identity"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Groups Administrator",
@@ -1234,7 +1463,10 @@
             "via": [
               "PIM-SG-M365-Identity"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "License Administrator",
@@ -1244,7 +1476,10 @@
               "PIM-SG-M365-Identity",
               "PIM-SG-M365-ServiceDesk"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Password Administrator",
@@ -1253,7 +1488,10 @@
             "via": [
               "PIM-SG-M365-ServiceDesk"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Cloud Device Administrator",
@@ -1262,7 +1500,10 @@
             "via": [
               "PIM-SG-M365-Workplace"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Microsoft Entra Joined Device Local Administrator",
@@ -1275,7 +1516,10 @@
               "PIM-SG-M365-Workplace"
             ],
             "note": "1.3 named it Azure AD Joined Device Local Administrator; Microsoft renamed it.",
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Hybrid Identity Administrator",
@@ -1298,7 +1542,10 @@
             "via": [
               "PIM-SG-M365-Identity"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Lifecycle Workflows Administrator",
@@ -1307,7 +1554,10 @@
             "via": [
               "PIM-SG-M365-Identity"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Service Support Administrator",
@@ -1316,7 +1566,10 @@
             "via": [
               "PIM-SG-M365-ServiceDesk"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Edge Administrator",
@@ -1325,7 +1578,10 @@
             "via": [
               "PIM-SG-M365-Workplace"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Office Apps Administrator",
@@ -1334,7 +1590,10 @@
             "via": [
               "PIM-SG-M365-Collab"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Guest Inviter",
@@ -1343,14 +1602,17 @@
             "via": [
               "PIM-SG-M365-Collab"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Compliance Administrator",
             "templateId": "17315797-102d-40b4-93e0-432062caca18",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "override": {}
           },
@@ -1359,7 +1621,7 @@
             "templateId": "e6d1a23a-da11-4be4-9570-befc86d067a7",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "override": {}
           },
@@ -1370,7 +1632,10 @@
             "via": [
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Security Operator",
@@ -1379,7 +1644,10 @@
             "via": [
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Helpdesk Administrator",
@@ -1389,7 +1657,10 @@
               "PIM-SG-M365-ServiceDesk"
             ],
             "note": "Eight hours, as in 1.3: a shift, not a task.",
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Message Center Reader",
@@ -1403,7 +1674,10 @@
               "PIM-SG-M365-ServiceDesk",
               "PIM-SG-M365-Workplace"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Global Reader",
@@ -1639,6 +1913,39 @@
               ]
             }
           },
+          "GroupJITTier1": {
+            "description": "Job group: four hours, MFA, justification and a ticket; the ticket is required but not validated.",
+            "ActivationDuration": "PT4H",
+            "ActivationRequirement": "MultiFactorAuthentication,Justification,Ticketing",
+            "AuthenticationContext_Enabled": false,
+            "ApprovalRequired": false,
+            "Approvers": [],
+            "AllowPermanentEligibility": false,
+            "MaximumEligibilityDuration": "P365D",
+            "AllowPermanentActiveAssignment": false,
+            "MaximumActiveAssignmentDuration": "P30D",
+            "Notification_Activation_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            },
+            "Notification_EligibleAssignment_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            },
+            "Notification_ActiveAssignment_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            }
+          },
           "GroupJITTier0": {
             "description": "Two hours, justification and a ticket, authentication context c1, approval by the Tier 0 rota — the Defender XDR administrator group.",
             "ActivationDuration": "PT2H",
@@ -1781,6 +2088,7 @@
           {
             "name": "PIM-SG-M365-GlobalAdmin",
             "scope": "m365",
+            "path": "direct",
             "persona": "GOD mode",
             "template": "GroupMember",
             "description": "Eligible for Global Administrator. The small model also maps Privileged Role Administrator and Privileged Authentication Administrator to this group. Activation uses each role's effective model policy; Global Administrator is two hours in small and one hour otherwise."
@@ -1788,6 +2096,7 @@
           {
             "name": "PIM-SG-M365-Tier0",
             "scope": "m365",
+            "path": "direct",
             "persona": "Tier 0",
             "template": "GroupMember",
             "description": "Privileged Role Administrator and Privileged Authentication Administrator — the roles that manage privileged role assignments and privileged authentication methods."
@@ -1795,13 +2104,15 @@
           {
             "name": "PIM-SG-M365-SecOps",
             "scope": "m365",
+            "path": "job",
             "persona": "Security Operations",
-            "template": "GroupMember",
-            "description": "Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Manages the security configuration: Conditional Access, Defender, Purview, Cloud App Security, compliance."
           },
           {
             "name": "PIM-SG-M365-SecOpsReader",
             "scope": "m365",
+            "path": "direct",
             "persona": "Security readers",
             "template": "GroupMember",
             "description": "Reads the security configuration and reports; changes nothing."
@@ -1809,23 +2120,50 @@
           {
             "name": "PIM-SG-M365-Ops",
             "scope": "m365",
+            "path": "job",
             "persona": "IT Operations",
-            "template": "GroupMember",
-            "description": "Second line and system administration: users, groups, devices, Intune, the Microsoft 365 workloads."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Second line and system administration: users, groups, devices, Intune, the Microsoft 365 workloads."
           },
           {
             "name": "PIM-SG-M365-Helpdesk",
             "scope": "m365",
+            "path": "job",
             "persona": "Helpdesk",
-            "template": "GroupMember",
-            "description": "First line: supports people with their accounts and their workplace."
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. First line: supports people with their accounts and their workplace."
           },
           {
             "name": "PIM-SG-M365-AppOps",
             "scope": "m365",
+            "path": "job",
             "persona": "Application Operators",
+            "template": "GroupJITTier1",
+            "description": "Job group: eligible members, one activation gives every role of the job. Keeps SharePoint, Exchange, Power Platform and the registered applications working."
+          },
+          {
+            "name": "PIM-SG-M365-SecOps-Direct",
+            "scope": "m365",
+            "path": "direct",
+            "persona": "Security, per role",
             "template": "GroupMember",
-            "description": "Keeps SharePoint, Exchange, Power Platform and the registered applications working."
+            "description": "Direct group: active members, eligible per role for Conditional Access, Security and the two Compliance administrators — Tier 0 and Purview roles, activated one at a time."
+          },
+          {
+            "name": "PIM-SG-M365-Ops-Direct",
+            "scope": "m365",
+            "path": "direct",
+            "persona": "Exchange and SharePoint",
+            "template": "GroupMember",
+            "description": "Direct group: active members, eligible per role for Exchange and SharePoint Administrator — next to the Ops job group."
+          },
+          {
+            "name": "PIM-SG-M365-AppOps-Direct",
+            "scope": "m365",
+            "path": "direct",
+            "persona": "Exchange and SharePoint",
+            "template": "GroupMember",
+            "description": "Direct group: active members, eligible per role for Exchange and SharePoint Administrator — next to the AppOps job group."
           },
           {
             "name": "PIM-SG-INT-Ops",
@@ -1902,6 +2240,46 @@
               "scope": "All"
             },
             "description": "Eligible members activate for a shift to act as Defender XDR Reader: Security operations, Security posture and Authorization and settings, all read-only."
+          },
+          {
+            "name": "PIM-SG-EXO-Recipients",
+            "scope": "exchange",
+            "persona": "Recipients",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "Recipient Management"
+            },
+            "description": "Eligible members activate for mailboxes, contacts, distribution groups and mailbox permissions — without Exchange Administrator."
+          },
+          {
+            "name": "PIM-SG-EXO-HelpDesk",
+            "scope": "exchange",
+            "persona": "Exchange first line",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "Help Desk"
+            },
+            "description": "Eligible members activate to view and change recipient properties."
+          },
+          {
+            "name": "PIM-SG-EXO-Hygiene",
+            "scope": "exchange",
+            "persona": "Mail hygiene",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "Hygiene Management"
+            },
+            "description": "Eligible members activate for anti-spam, anti-malware and connection filtering."
+          },
+          {
+            "name": "PIM-SG-EXO-Reader",
+            "scope": "exchange",
+            "persona": "Exchange readers",
+            "template": "GroupJIT",
+            "exchange": {
+              "roleGroup": "View-Only Organization Management"
+            },
+            "description": "Eligible members activate to read the whole Exchange configuration."
           },
           {
             "name": "PIM-SG-AZ-Tenant-Owner",
@@ -2073,7 +2451,7 @@
             "templateId": "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9",
             "template": "Tier0",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "note": "Can switch every Conditional Access policy off — approval, as in 1.3.",
             "override": {}
@@ -2083,7 +2461,7 @@
             "templateId": "194ae4cb-b126-40b2-bd5b-6091b380977d",
             "template": "Tier0",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "note": "Manages Conditional Access and Defender — approval, as in 1.3.",
             "override": {}
@@ -2093,8 +2471,8 @@
             "templateId": "29232cdf-9323-42fd-ade2-1d097af3e4de",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-AppOps",
-              "PIM-SG-M365-Ops"
+              "PIM-SG-M365-AppOps-Direct",
+              "PIM-SG-M365-Ops-Direct"
             ],
             "override": {}
           },
@@ -2103,8 +2481,8 @@
             "templateId": "f28a1f50-f6e7-4571-818b-6a12f2af6b6c",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-AppOps",
-              "PIM-SG-M365-Ops"
+              "PIM-SG-M365-AppOps-Direct",
+              "PIM-SG-M365-Ops-Direct"
             ],
             "override": {}
           },
@@ -2115,7 +2493,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Intune Administrator",
@@ -2124,7 +2505,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Application Administrator",
@@ -2133,7 +2517,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Cloud Application Administrator",
@@ -2142,7 +2529,10 @@
             "via": [
               "PIM-SG-M365-AppOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Application Developer",
@@ -2151,7 +2541,10 @@
             "via": [
               "PIM-SG-M365-AppOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Power Platform Administrator",
@@ -2161,7 +2554,10 @@
               "PIM-SG-M365-AppOps",
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Authentication Administrator",
@@ -2171,7 +2567,10 @@
               "PIM-SG-M365-Helpdesk",
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Authentication Policy Administrator",
@@ -2180,7 +2579,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "User Administrator",
@@ -2190,7 +2592,10 @@
               "PIM-SG-M365-Helpdesk",
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Groups Administrator",
@@ -2199,7 +2604,10 @@
             "via": [
               "PIM-SG-M365-Helpdesk"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "License Administrator",
@@ -2209,7 +2617,10 @@
               "PIM-SG-M365-Helpdesk",
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Password Administrator",
@@ -2218,7 +2629,10 @@
             "via": [
               "PIM-SG-M365-Helpdesk"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Cloud Device Administrator",
@@ -2227,7 +2641,10 @@
             "via": [
               "PIM-SG-M365-Helpdesk"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Microsoft Entra Joined Device Local Administrator",
@@ -2241,7 +2658,10 @@
               "PIM-SG-M365-Ops"
             ],
             "note": "1.3 named it Azure AD Joined Device Local Administrator; Microsoft renamed it.",
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Hybrid Identity Administrator",
@@ -2264,7 +2684,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Lifecycle Workflows Administrator",
@@ -2273,7 +2696,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Service Support Administrator",
@@ -2282,7 +2708,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Edge Administrator",
@@ -2291,7 +2720,10 @@
             "via": [
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Office Apps Administrator",
@@ -2301,7 +2733,10 @@
               "PIM-SG-M365-AppOps",
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Guest Inviter",
@@ -2311,14 +2746,17 @@
               "PIM-SG-M365-AppOps",
               "PIM-SG-M365-Ops"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Compliance Administrator",
             "templateId": "17315797-102d-40b4-93e0-432062caca18",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "override": {}
           },
@@ -2327,7 +2765,7 @@
             "templateId": "e6d1a23a-da11-4be4-9570-befc86d067a7",
             "template": "Tier1",
             "via": [
-              "PIM-SG-M365-SecOps"
+              "PIM-SG-M365-SecOps-Direct"
             ],
             "override": {}
           },
@@ -2338,7 +2776,10 @@
             "via": [
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Security Operator",
@@ -2347,7 +2788,10 @@
             "via": [
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Helpdesk Administrator",
@@ -2357,7 +2801,10 @@
               "PIM-SG-M365-Helpdesk"
             ],
             "note": "Eight hours, as in 1.3: a shift, not a task.",
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Message Center Reader",
@@ -2369,7 +2816,10 @@
               "PIM-SG-M365-Ops",
               "PIM-SG-M365-SecOps"
             ],
-            "override": {}
+            "override": {
+              "AllowPermanentActiveAssignment": true
+            },
+            "jobHeld": true
           },
           {
             "name": "Global Reader",
@@ -2604,6 +3054,39 @@
               ]
             }
           },
+          "GroupJITTier1": {
+            "description": "Job group: eligible membership for at most a year; one activation of four hours with MFA and justification gives every role of the job; an active assignment by an administrator lasts at most 30 days; nothing permanent for people.",
+            "ActivationDuration": "PT4H",
+            "ActivationRequirement": "MultiFactorAuthentication,Justification",
+            "AuthenticationContext_Enabled": false,
+            "ApprovalRequired": false,
+            "Approvers": [],
+            "AllowPermanentEligibility": false,
+            "MaximumEligibilityDuration": "P365D",
+            "AllowPermanentActiveAssignment": false,
+            "MaximumActiveAssignmentDuration": "P30D",
+            "Notification_Activation_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            },
+            "Notification_EligibleAssignment_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            },
+            "Notification_ActiveAssignment_Alert": {
+              "isDefaultRecipientEnabled": true,
+              "notificationLevel": "All",
+              "Recipients": [
+                "pim-alerts"
+              ]
+            }
+          },
           "GroupJITTier0": {
             "description": "Defender XDR administrator group: eligible membership for at most a year; activation for two hours with justification, authentication context c1 and approval by PIM-SG-Approvers; an active assignment by an administrator lasts at most 30 days; nothing permanent; every alert.",
             "ActivationDuration": "PT2H",
@@ -2779,16 +3262,18 @@
           {
             "name": "PIM-SG-<REG>-Helpdesk",
             "persona": "Regional first line",
-            "template": "GroupMember",
+            "path": "job",
+            "template": "GroupJITTier1",
             "roleAssignable": true,
-            "description": "Active members are eligible for password, authentication and licence work on the region's people — never on an admin."
+            "description": "Job group: eligible members; one activation gives password, authentication and licence work on the region's people — never on an admin."
           },
           {
             "name": "PIM-SG-<REG>-Ops",
             "persona": "Regional second line",
-            "template": "GroupMember",
+            "path": "job",
+            "template": "GroupJITTier1",
             "roleAssignable": true,
-            "description": "Active members are eligible for the region's users, groups and devices."
+            "description": "Job group: eligible members; one activation gives the region's users, groups and devices."
           },
           {
             "name": "PIM-SG-INT-HelpDesk-<REG>",

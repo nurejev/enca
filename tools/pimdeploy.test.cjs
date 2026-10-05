@@ -36,8 +36,12 @@ test("large profile: groups first, approvers before the policies that name them,
   assert.ok(P.findings.some((f) => /Privileged Role Administrator: approval is not switched on yet — PIM-SG-Approvers-Tier0 must exist with at least two members/.test(f)));
   const pra = P.ops.find((o) => o.key.startsWith("rpol:Privileged Role Administrator:"));
   assert.ok(pra.before, "the rule as it was is kept for the backup");
-  const el = P.ops.find((o) => o.key === "elig:User Administrator:PIM-SG-M365-Identity:tenant scope");
+  // 3.0: a job group holds its roles ACTIVE, permanently — never an eligibility.
+  const el = P.ops.find((o) => o.key === "act:User Administrator:PIM-SG-M365-Identity:tenant scope");
   assert.equal(el.body.principalId, "{{group:PIM-SG-M365-Identity}}"); assert.equal(el.body.directoryScopeId, "/");
+  assert.equal(el.body.scheduleInfo.expiration.type, "noExpiration");
+  assert.match(el.url, /roleAssignmentScheduleRequests$/);
+  assert.ok(!P.ops.some((o) => o.key === "elig:User Administrator:PIM-SG-M365-Identity:tenant scope"));
   assert.ok(!P.ops.some((o) => o.method === "DELETE" || o.removes));
   assert.ok(P.ops.some((o) => o.kind === "groupPolicy" && o.group === "PIM-SG-M365-Identity"), "a new group's membership policy is deferred");
   assert.ok(P.findings.some((f) => /Global Administrator: 1 permanent active .* by hand/.test(f)));
@@ -69,7 +73,8 @@ test("regions: units, groups, scoped eligibilities by placeholder; an existing u
   assert.ok(k.includes("au:AU-EU-DE-Devices") && k.includes("au:AU-EU-DE-Groups"));
   assert.ok(!k.includes("au:AU-EU-NL-Users"), "exists");
   assert.ok(P.findings.some((f) => /AU-EU-NL-Devices differs from the template/.test(f)));
-  const de = P.ops.find((o) => o.key === "elig:Cloud Device Administrator:PIM-SG-EU-DE-Ops:AU-EU-DE-Devices");
+  const de = P.ops.find((o) => o.key === "act:Cloud Device Administrator:PIM-SG-EU-DE-Ops:AU-EU-DE-Devices");
+  assert.equal(de.body.scheduleInfo.expiration.type, "noExpiration", "the regional job group is active at its unit");
   assert.equal(de.body.directoryScopeId, "/administrativeUnits/{{au:AU-EU-DE-Devices}}");
   assert.ok(k.includes("group:INT-SG-DEV-EU-DE-All"));
   assert.deepEqual(P.ops.find((o) => o.key === "group:INT-SG-DEV-EU-DE-All").body.groupTypes, ["DynamicMembership"]);
@@ -84,7 +89,7 @@ test("rmau is off unless ticked; ticked it makes the restricted unit and scopes 
   const P = PD.build(LARGE, r, { sections: new Set(["groups", "rmau"]) });
   const u = P.ops.find((o) => o.key === "au:AU-RM-Executives");
   assert.equal(u.body.isMemberManagementRestricted, true);
-  const vip = P.ops.find((o) => o.key === "elig:Helpdesk Administrator:PIM-SG-M365-ServiceDesk-VIP:AU-RM-Executives");
+  const vip = P.ops.find((o) => o.key === "act:Helpdesk Administrator:PIM-SG-M365-ServiceDesk-VIP:AU-RM-Executives");
   assert.equal(vip.body.directoryScopeId, "/administrativeUnits/{{au:AU-RM-Executives}}");
   assert.equal(vip.body.principalId, "{{group:PIM-SG-M365-ServiceDesk-VIP}}");
   assert.equal(PD.sections(SMALL, r, {}).find((x) => x.key === "rmau"), undefined, "small has no restricted unit");
@@ -109,7 +114,7 @@ test("review 32429: approval on with a ready approver group only; eligibilities 
   assert.equal(pra.body.setting.approvalStages[0].primaryApprovers[0].groupId, "g-ap0");
   // A role whose settings failed to change gets no eligibility in that run.
   const P = PD.build(LARGE, raw(), { sections: new Set(["groups", "rolePolicies", "eligibilities"]) });
-  const e = P.ops.find((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Collab:tenant scope");
+  const e = P.ops.find((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Collab-Direct:tenant scope");
   assert.ok(e.requires.length && e.requires.every((k) => k.startsWith("rpol:Exchange Administrator:")));
   let n = 0;
   const res = await PP.run(P, { send: async (m, u) => { if (m === "PATCH" && P.ops.find((o) => o.url === u && o.key.startsWith("rpol:Exchange Administrator:"))) throw Object.assign(new Error("Graph request failed (400)"), { status: 400 }); return m === "POST" ? { id: `n${++n}` } : null; }, sleep: async () => {} });
@@ -117,7 +122,7 @@ test("review 32429: approval on with a ready approver group only; eligibilities 
   // The maximum a run sets is the cap of the request that follows it.
   const V = Object.assign({}, LARGE, { templates: Object.assign({}, LARGE.templates, { Tier1: Object.assign({}, LARGE.templates.Tier1, { MaximumEligibilityDuration: "P180D" }) }) });
   const Q = PD.build(V, raw(), { sections: new Set(["groups", "rolePolicies", "eligibilities"]) });
-  assert.equal(Q.ops.find((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Collab:tenant scope").body.scheduleInfo.expiration.duration, "P180D");
+  assert.equal(Q.ops.find((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Collab-Direct:tenant scope").body.scheduleInfo.expiration.duration, "P180D");
   // A context no enabled policy enforces is said.
   const C = PD.build(LARGE, raw(), { sections: new Set(["rolePolicies"]), caPolicies: [] });
   assert.ok(C.findings.some((f) => /authentication context c1: no enabled Conditional Access policy targets it/.test(f)));
@@ -171,4 +176,26 @@ test("2.2 xdr section: the PIM-SG-XDR groups and their policies, on by default, 
   // Unticked: no XDR group, no XDR policy, even with Membership policies on.
   const Q = PD.build(LARGE, r, { sections: new Set(["groups", "groupPolicies"]), domain: "contoso.nl" });
   assert.ok(!Q.ops.some((o) => /PIM-SG-XDR/.test(o.key)));
+});
+
+test("3.0: job groups active (after their role allows permanent active), direct groups eligible, Exchange RBAC by hand", () => {
+  const P = PD.build(SMALL, raw(), { domain: "contoso.nl" });
+  const teams = P.ops.find((o) => o.key === "act:Teams Administrator:PIM-SG-M365-Ops:tenant scope");
+  assert.ok(teams, "Ops holds Teams Administrator actively");
+  assert.deepEqual(teams.requires, P.ops.filter((o) => o.key.startsWith("rpol:Teams Administrator:")).map((o) => o.key), "the role's settings change first");
+  assert.equal(SMALL.roles.find((r) => r.name === "Teams Administrator").override.AllowPermanentActiveAssignment, true, "a job-held role allows permanent active");
+  // A tenant whose policy still requires an end date gets that rule changed before the request.
+  const r = raw();
+  const rule = r.policies["Teams Administrator"].find((x) => x.id === "Expiration_Admin_Assignment");
+  rule.isExpirationRequired = true; rule.maximumDuration = "P30D";
+  const Q = PD.build(SMALL, r, { domain: "contoso.nl" });
+  assert.equal(Q.ops.find((o) => o.key === "rpol:Teams Administrator:Expiration_Admin_Assignment").body.isExpirationRequired, false);
+  assert.ok(Q.ops.find((o) => o.key === "act:Teams Administrator:PIM-SG-M365-Ops:tenant scope").requires.includes("rpol:Teams Administrator:Expiration_Admin_Assignment"));
+  const r0 = raw(); r0.eligible = r0.eligible.filter((a) => a.principalName !== "PIM-SG-M365-Ops-Direct");
+  assert.ok(PD.build(SMALL, r0, { domain: "contoso.nl" }).ops.some((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Ops-Direct:tenant scope"), "Exchange stays per role");
+  assert.ok(!P.ops.some((o) => /^act:(Exchange|SharePoint|Global|Privileged|Conditional Access|Security Administrator|Compliance)/.test(o.key)), "no Tier 0, Exchange, SharePoint or Purview role is ever held by a job group");
+  assert.ok(P.ops.some((o) => o.key === "group:PIM-SG-EXO-Recipients" && o.section === "exchange"));
+  assert.ok(P.manual.some((m) => /PIM-SG-EXO-Recipients → Recipient Management/.test(m)));
+  assert.ok(!JSON.stringify(P.ops).includes("outlook.office"), "nothing in a plan touches Exchange itself");
+  assert.ok(P.findings.some((f) => /^PIM-SG-M365-Ops: if it has ACTIVE members, they hold every role of the job standing/.test(f)), "an existing job group with active members is warned about");
 });

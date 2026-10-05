@@ -117,6 +117,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 315,
+      title: "PIM framework 3.0 — job groups, direct groups, Exchange RBAC access groups (T48 0.7.0, T51 0.3.0, R79)",
+      tools: ["PIM baseline", "Deploy"],
+      builds: [32436],
+      risk: "high",
+      what: "Catalog 3.0 in js/pimBaselineData.js: every M365 group has path job or direct; GroupJITTier1 (4 h, MFA and justification; Critical activation alerts in small, a ticket in large); SecOps-Direct, Ops-Direct, AppOps-Direct, Collab-Direct; Exchange, SharePoint, Conditional Access, Security and Compliance roles on direct groups; PIM-SG-EXO-* access groups; regional Helpdesk and Ops job groups. js/pimbaseline.js: isJob, jobOverrides (every job-held role expects Allow permanent active), compare by path, regions active at the unit, export Active and permanent. js/pimdeploy.js: active requests for job groups after their role rules, a finding per existing job group about active members, an Exchange RBAC section. Demo tenant on the 3.0 shape. Both Word documents reviewed for 3.0 and the contract refreshed at 32436.",
+      why: "Mihai, 4-5 Oct: one activation should give the whole job; Exchange and SharePoint as Microsoft suggests; 4 hours; Exchange RBAC now. Risk is high because Deploy now writes permanent active assignments to groups: a job group that still has ACTIVE members gives them every role of the job standing. The baseline tenant cloudfellows.dev was migrated with tools/pim Invoke-PimBaselineSetup.ps1 before this build.",
+      test: [
+        "Demo (02 PIM-buddy, 🧬 PIM baseline, multi): PIM-SG-M365-Ops reads eligible · job and active 16-ish of its roles, with still eligible (2.x): Teams Administrator in red; Teams Administrator row has the finding PIM-SG-M365-Ops is still ELIGIBLE for it; Ops-Direct reads active · per role and Match; PIM-SG-EXO-Recipients reads Exchange role group Recipient Management · made in Exchange.",
+        "cloudfellows.dev (migrated): T48 small, large and multi — no row says not held through a job group or still eligible (2.x); Intune Administrator has no permanent active outside the framework finding although PIM-SG-M365-Ops holds it permanently.",
+        "cloudfellows.dev, T51 Deploy small, Preview only: no op of the form act: on Exchange, SharePoint, Global, Privileged, Conditional Access, Security Administrator or Compliance; the findings list PIM-SG-M365-Ops: if it has ACTIVE members; Exchange RBAC groups section shows the four groups and the By hand line names their role groups.",
+        "A test tenant without 3.0 (2.2 shape): T51 Preview lists act: requests for the job groups, each requiring its rpol: ops; apply with Privileged Role Administrator active; the job groups show Active · Permanent in Entra; the old eligibilities are reported, not removed.",
+        "EasyPIM samples: job groups Active and permanent under Assignments.EntraRoles; people Eligible in job groups, Active in direct groups; node tools/pim/generate.cjs leaves no diff.",
+        "node --test tools/*.test.cjs — all pass, pimdocs included (contract snapshot 32436; both Word documents name it and describe the job and direct paths)."
+      ]
+    },
+    {
       n: 314,
       title: "Administrative units — T27 covers regular units too (inventory, findings, move into a restricted unit)",
       tools: ["Administrative units"],

@@ -34,9 +34,13 @@ test("how a person holds a role through a group follows both: an eligible member
   const hd = role(m, "Helpdesk Administrator");
   const newbie = hd.rows.find((r) => r.principal === "adm-desk-new");
   assert.equal(newbie.how, "eligible"); assert.equal(newbie.viaHow, "eligible member");
-  // Directory Readers is held ACTIVE by PIM-SG-M365-Ops: its active members hold it active.
+  // Directory Readers is held ACTIVE by PIM-SG-M365-Ops: its active member holds it active,
+  // its eligible member (3.0 job group) only eligible — one activation away.
   const dr = role(m, "Directory Readers");
-  assert.ok(dr.rows.filter((r) => r.via === "PIM-SG-M365-Ops").every((r) => r.how === "active"));
+  assert.equal(dr.rows.find((r) => r.via === "PIM-SG-M365-Ops" && r.principal === "adm-joey").how, "active");
+  assert.equal(dr.rows.find((r) => r.via === "PIM-SG-M365-Ops" && r.principal === "adm-kees").how, "eligible");
+  // 3.0: a job group's eligible member is eligible for every role the group holds.
+  assert.equal(role(m, "Intune Administrator").rows.find((r) => r.via === "PIM-SG-M365-Ops" && r.principal === "adm-kees").how, "eligible");
 });
 
 test("scoped rows carry the unit's name; ending-soon and never-ending are counted; a group not read is said", () => {

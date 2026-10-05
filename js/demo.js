@@ -676,8 +676,8 @@ DEMO_DATA.pim = (() => {
     { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule", id: "Notification_Admin_Admin_Assignment", notificationType: "Email", recipientType: "Admin", notificationLevel: s.alertActive || "All", isDefaultRecipientsEnabled: true, notificationRecipients: s.recipients || [] },
     { "@odata.type": "#microsoft.graph.unifiedRoleManagementPolicyNotificationRule", id: "Notification_Admin_EndUser_Assignment", notificationType: "Email", recipientType: "Admin", notificationLevel: s.alertActivation || "All", isDefaultRecipientsEnabled: true, notificationRecipients: s.recipients || [] },
   ];
-  const G = { approvers: "g-PIM-SG-Approvers", ga: "g-PIM-SG-M365-GlobalAdmin", t0: "g-PIM-SG-M365-Tier0", sec: "g-PIM-SG-M365-SecOps", ops: "g-PIM-SG-M365-Ops", hd: "g-PIM-SG-M365-Helpdesk", legacy: "g-CAB-SEC-U-Admins-Legacy", bg: "g-CAB-SEC-U-BreakGlass" };
-  const names = { [G.approvers]: "PIM-SG-Approvers", [G.ga]: "PIM-SG-M365-GlobalAdmin", [G.t0]: "PIM-SG-M365-Tier0", [G.sec]: "PIM-SG-M365-SecOps", [G.ops]: "PIM-SG-M365-Ops", [G.hd]: "PIM-SG-M365-Helpdesk", [G.legacy]: "CAB-SEC-U-Admins-Legacy", "u-bg1": "BG-Admin-01", "u-bg2": "BG-Admin-02", "u-joey": "Joey Bakker", "u-anna": "Anna de Vries", "u-mihai": "Mihai Monte" };
+  const G = { approvers: "g-PIM-SG-Approvers", ga: "g-PIM-SG-M365-GlobalAdmin", t0: "g-PIM-SG-M365-Tier0", sec: "g-PIM-SG-M365-SecOps", secD: "g-PIM-SG-M365-SecOps-Direct", ops: "g-PIM-SG-M365-Ops", opsD: "g-PIM-SG-M365-Ops-Direct", hd: "g-PIM-SG-M365-Helpdesk", legacy: "g-CAB-SEC-U-Admins-Legacy", bg: "g-CAB-SEC-U-BreakGlass" };
+  const names = { [G.approvers]: "PIM-SG-Approvers", [G.ga]: "PIM-SG-M365-GlobalAdmin", [G.t0]: "PIM-SG-M365-Tier0", [G.sec]: "PIM-SG-M365-SecOps", [G.ops]: "PIM-SG-M365-Ops", [G.opsD]: "PIM-SG-M365-Ops-Direct", [G.secD]: "PIM-SG-M365-SecOps-Direct", [G.hd]: "PIM-SG-M365-Helpdesk", [G.legacy]: "CAB-SEC-U-Admins-Legacy", "u-bg1": "BG-Admin-01", "u-bg2": "BG-Admin-02", "u-joey": "Joey Bakker", "u-anna": "Anna de Vries", "u-mihai": "Mihai Monte" };
   const roles = ["Global Administrator", "Privileged Role Administrator", "Privileged Authentication Administrator", "Conditional Access Administrator", "Security Administrator", "Exchange Administrator", "SharePoint Administrator", "Teams Administrator", "Intune Administrator", "Application Administrator", "Cloud Application Administrator", "Application Developer", "Power Platform Administrator", "Authentication Administrator", "Authentication Policy Administrator", "User Administrator", "Groups Administrator", "License Administrator", "Password Administrator", "Cloud Device Administrator", "Microsoft Entra Joined Device Local Administrator", "Hybrid Identity Administrator", "Directory Writers", "Identity Governance Administrator", "Lifecycle Workflows Administrator", "Service Support Administrator", "Edge Administrator", "Office Apps Administrator", "Guest Inviter", "Compliance Administrator", "Compliance Data Administrator", "Cloud App Security Administrator", "Security Operator", "Helpdesk Administrator", "Message Center Reader", "Global Reader", "Security Reader", "Directory Readers", "Billing Administrator", "Attribute Definition Administrator"];
   const roleDefinitions = roles.map((n, i) => ({ id: `rd-${i + 1}`, displayName: n, isBuiltIn: true, isPrivileged: i < 24 }));
   // Entra's tenant default for every role, then the ones this tenant set.
@@ -704,6 +704,8 @@ DEMO_DATA.pim = (() => {
     "Exchange Administrator": right({ activation: "PT24H", enablement: ["MultiFactorAuthentication", "Justification"] }),
     "Intune Administrator": right({ activation: "PT2H", enablement: ["MultiFactorAuthentication"] }),
   });
+  // 3.0: the roles the job groups hold allow a permanent active assignment.
+  ["Cloud App Security Administrator", "Security Operator", "Intune Administrator", "Application Administrator", "Cloud Application Administrator", "Power Platform Administrator", "Authentication Administrator", "Authentication Policy Administrator", "User Administrator", "Groups Administrator", "License Administrator", "Password Administrator", "Cloud Device Administrator", "Identity Governance Administrator", "Lifecycle Workflows Administrator", "Service Support Administrator", "Helpdesk Administrator", "Teams Administrator", "Message Center Reader"].forEach((n) => { if (set[n]) set[n] = Object.assign({}, set[n], { permActive: true }); });
   const policies = {};
   roles.forEach((n) => { policies[n] = rules(set[n] || dflt); });
   // Two regions (32413): EU-NL complete but for one rule, EU-DE half built.
@@ -726,25 +728,32 @@ DEMO_DATA.pim = (() => {
   const regionsCsv = ["code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone", "EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@contoso.nl,\"anna@contoso.nl;mihai@contoso.nl\",Europe/Amsterdam", "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"joey@contoso.nl;mihai@contoso.nl\",Europe/Berlin"].join("\n");
   const inst = (roleName, principalId, principalType, endDateTime, assignmentType, directoryScopeId) => ({ roleName, principalId, principalName: names[principalId] || principalId, principalType, endDateTime, assignmentType, directoryScopeId: directoryScopeId || "/" });
   const far = "2027-09-01T00:00:00Z";
+  // Framework 3.0: direct groups ELIGIBLE per role, job groups ACTIVE in
+  // every role of the job. Drift kept on purpose: Ops is still eligible for
+  // Teams Administrator (2.x) and does not hold it, AppOps-Direct is missing,
+  // EU-NL Ops holds User Administrator tenant-wide and lacks Groups Administrator.
   const eligible = [
     inst("Global Administrator", G.ga, "Group", far), inst("Global Administrator", "u-anna", "User", far), inst("Global Administrator", "u-joey", "User", far),
     inst("Privileged Role Administrator", G.t0, "Group", far), inst("Privileged Authentication Administrator", G.t0, "Group", far),
-    inst("Conditional Access Administrator", G.sec, "Group", far), inst("Security Administrator", G.sec, "Group", far), inst("Compliance Administrator", G.sec, "Group", far), inst("Cloud App Security Administrator", G.sec, "Group", far), inst("Security Operator", G.sec, "Group", far),
-    inst("Exchange Administrator", G.ops, "Group", far), inst("SharePoint Administrator", G.ops, "Group", far), inst("Teams Administrator", G.ops, "Group", far), inst("Intune Administrator", G.ops, "Group", far), inst("Application Administrator", G.ops, "Group", far), inst("User Administrator", G.ops, "Group", far), inst("License Administrator", G.ops, "Group", far), inst("Authentication Administrator", G.ops, "Group", far), inst("Authentication Policy Administrator", G.ops, "Group", far), inst("Power Platform Administrator", G.ops, "Group", far), inst("Identity Governance Administrator", G.ops, "Group", far), inst("Lifecycle Workflows Administrator", G.ops, "Group", far), inst("Service Support Administrator", G.ops, "Group", far), inst("Message Center Reader", G.ops, "Group", far),
-    inst("Helpdesk Administrator", G.hd, "Group", far), inst("Groups Administrator", G.hd, "Group", far), inst("User Administrator", G.hd, "Group", far), inst("Password Administrator", G.hd, "Group", far), inst("License Administrator", G.hd, "Group", far), inst("Authentication Administrator", G.hd, "Group", far), inst("Cloud Device Administrator", G.hd, "Group", far), inst("Message Center Reader", G.hd, "Group", far),
+    inst("Conditional Access Administrator", G.secD, "Group", far), inst("Security Administrator", G.secD, "Group", far), inst("Compliance Administrator", G.secD, "Group", far),
+    inst("Exchange Administrator", G.opsD, "Group", far), inst("SharePoint Administrator", G.opsD, "Group", far),
+    inst("Teams Administrator", G.ops, "Group", far),
     inst("Exchange Administrator", "u-joey", "User", null), inst("Global Reader", "u-anna", "User", null), inst("Security Reader", "u-mihai", "User", null),
-    // EU-NL: the first line scoped right, the second line missing Groups Administrator and holding User Administrator tenant-wide
-    inst("Helpdesk Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`), inst("Password Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`), inst("Authentication Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`), inst("License Administrator", G.nlHd, "Group", far, undefined, `/administrativeUnits/${AU.nlU}`),
-    inst("User Administrator", G.nlOps, "Group", far), inst("Teams Administrator", G.nlOps, "Group", far, undefined, `/administrativeUnits/${AU.nlG}`), inst("Cloud Device Administrator", G.nlOps, "Group", far, undefined, `/administrativeUnits/${AU.nlD}`),
   ];
+  const held = (roleName, gid, scope) => inst(roleName, gid, "Group", null, "Assigned", scope);
   const active = [
     inst("Global Administrator", "u-bg1", "User", null, "Assigned"), inst("Global Administrator", "u-bg2", "User", null, "Assigned"), inst("Global Administrator", "u-joey", "User", null, "Assigned"),
     inst("User Administrator", G.legacy, "Group", null, "Assigned"), inst("Exchange Administrator", G.legacy, "Group", null, "Assigned"),
     inst("Directory Readers", G.ops, "Group", null, "Assigned"),
     inst("Intune Administrator", "u-joey", "User", "2026-09-24T18:00:00Z", "Activated"),
+    ...["Cloud App Security Administrator", "Security Operator", "Message Center Reader"].map((r) => held(r, G.sec)),
+    ...["Intune Administrator", "Application Administrator", "User Administrator", "License Administrator", "Authentication Administrator", "Authentication Policy Administrator", "Power Platform Administrator", "Identity Governance Administrator", "Lifecycle Workflows Administrator", "Service Support Administrator", "Message Center Reader"].map((r) => held(r, G.ops)),
+    ...["Helpdesk Administrator", "Groups Administrator", "User Administrator", "Password Administrator", "License Administrator", "Authentication Administrator", "Cloud Device Administrator", "Message Center Reader"].map((r) => held(r, G.hd)),
+    ...["Helpdesk Administrator", "Password Administrator", "Authentication Administrator", "License Administrator"].map((r) => held(r, G.nlHd, `/administrativeUnits/${AU.nlU}`)),
+    held("User Administrator", G.nlOps), held("Teams Administrator", G.nlOps, `/administrativeUnits/${AU.nlG}`), held("Cloud Device Administrator", G.nlOps, `/administrativeUnits/${AU.nlD}`),
   ];
   const groups = [
-    { id: G.ga, displayName: "PIM-SG-M365-GlobalAdmin", isAssignableToRole: true }, { id: G.t0, displayName: "PIM-SG-M365-Tier0", isAssignableToRole: true }, { id: G.sec, displayName: "PIM-SG-M365-SecOps", isAssignableToRole: true }, { id: G.ops, displayName: "PIM-SG-M365-Ops", isAssignableToRole: true }, { id: G.hd, displayName: "PIM-SG-M365-Helpdesk", isAssignableToRole: false },
+    { id: G.ga, displayName: "PIM-SG-M365-GlobalAdmin", isAssignableToRole: true }, { id: G.t0, displayName: "PIM-SG-M365-Tier0", isAssignableToRole: true }, { id: G.sec, displayName: "PIM-SG-M365-SecOps", isAssignableToRole: true }, { id: G.secD, displayName: "PIM-SG-M365-SecOps-Direct", isAssignableToRole: true }, { id: G.opsD, displayName: "PIM-SG-M365-Ops-Direct", isAssignableToRole: true }, { id: G.ops, displayName: "PIM-SG-M365-Ops", isAssignableToRole: true }, { id: G.hd, displayName: "PIM-SG-M365-Helpdesk", isAssignableToRole: false },
     { id: G.legacy, displayName: "CAB-SEC-U-Admins-Legacy", isAssignableToRole: true },
     { id: G.nlHd, displayName: "PIM-SG-EU-NL-Helpdesk", isAssignableToRole: true }, { id: G.nlOps, displayName: "PIM-SG-EU-NL-Ops", isAssignableToRole: true }, { id: G.deOps, displayName: "PIM-SG-EU-DE-Ops", isAssignableToRole: true },
     { id: G.intOps, displayName: "PIM-SG-INT-Ops", isAssignableToRole: true }, { id: G.intHdNl, displayName: "PIM-SG-INT-HelpDesk-EU-NL", isAssignableToRole: true },
@@ -753,15 +762,19 @@ DEMO_DATA.pim = (() => {
   // (GroupMember); Intune access groups have ELIGIBLE members (GroupJIT).
   const member = (t) => right(Object.assign({ activation: "PT1H", enablement: ["MultiFactorAuthentication", "Justification"], approval: true, approvers: [G.approvers], maxActive: "P365D" }, t));
   const jit = (t) => right(Object.assign({ activation: "PT8H", enablement: ["MultiFactorAuthentication", "Justification"], maxActive: "P30D", alertActivation: "Critical" }, t));
+  // 3.0 job groups: eligible members, one activation of four hours.
+  const job = (t) => right(Object.assign({ activation: "PT4H", enablement: ["MultiFactorAuthentication", "Justification"], maxActive: "P30D" }, t));
   const groupPolicies = {
     "PIM-SG-M365-GlobalAdmin": rules(member()),
     "PIM-SG-M365-Tier0": rules(member()),
-    "PIM-SG-M365-SecOps": rules(member({ permActive: true })),          // permanent membership allowed — drift
-    "PIM-SG-M365-Ops": rules(member()),
-    "PIM-SG-M365-Helpdesk": rules(member()),
+    "PIM-SG-M365-SecOps": rules(job({ permActive: true })),             // permanent membership allowed — drift
+    "PIM-SG-M365-SecOps-Direct": rules(member()),
+    "PIM-SG-M365-Ops": rules(job()),
+    "PIM-SG-M365-Ops-Direct": rules(member()),
+    "PIM-SG-M365-Helpdesk": rules(job()),
     "PIM-SG-INT-Ops": rules(jit()),
-    "PIM-SG-EU-NL-Helpdesk": rules(member()),
-    "PIM-SG-EU-NL-Ops": rules(member()),
+    "PIM-SG-EU-NL-Helpdesk": rules(job()),
+    "PIM-SG-EU-NL-Ops": rules(job()),
     "PIM-SG-INT-HelpDesk-EU-NL": rules(jit()),
   };
   // 🛡 T27's PIM lens (32422): who sits in the restricted unit. Executives
@@ -812,12 +825,14 @@ DEMO_DATA.pim = (() => {
   const groupMembers = {
     [G.ga]: { read: true, active: [U("u-adm-anna", "adm-anna", "adm-anna@contoso.nl"), U("u-adm-mihai", "adm-mihai", "adm-mihai@contoso.nl")], eligible: [] },
     [G.t0]: { read: true, active: [U("u-adm-anna", "adm-anna", "adm-anna@contoso.nl")], eligible: [] },
-    [G.sec]: { read: true, active: [U("u-adm-mihai", "adm-mihai", "adm-mihai@contoso.nl"), U("u-adm-soc1", "adm-soc-lisa", "adm-soc-lisa@contoso.nl")], eligible: [] },
-    [G.ops]: { read: true, active: [U("u-adm-kees", "adm-kees", "adm-kees@contoso.nl"), U("u-adm-joey", "adm-joey", "adm-joey@contoso.nl")], eligible: [] },
-    [G.hd]: { read: true, active: [U("u-desk1", "adm-desk-sanne", "adm-desk-sanne@contoso.nl"), U("u-desk2", "adm-desk-tim", "adm-desk-tim@contoso.nl")], eligible: [U("u-desk3", "adm-desk-new", "adm-desk-new@contoso.nl")] },
+    [G.sec]: { read: true, active: [], eligible: [U("u-adm-mihai", "adm-mihai", "adm-mihai@contoso.nl"), U("u-adm-soc1", "adm-soc-lisa", "adm-soc-lisa@contoso.nl")] },
+    [G.secD]: { read: true, active: [U("u-adm-mihai", "adm-mihai", "adm-mihai@contoso.nl")], eligible: [] },
+    [G.ops]: { read: true, active: [U("u-adm-joey", "adm-joey", "adm-joey@contoso.nl")], eligible: [U("u-adm-kees", "adm-kees", "adm-kees@contoso.nl")] },
+    [G.opsD]: { read: true, active: [U("u-adm-kees", "adm-kees", "adm-kees@contoso.nl")], eligible: [] },
+    [G.hd]: { read: true, active: [], eligible: [U("u-desk1", "adm-desk-sanne", "adm-desk-sanne@contoso.nl"), U("u-desk2", "adm-desk-tim", "adm-desk-tim@contoso.nl"), U("u-desk3", "adm-desk-new", "adm-desk-new@contoso.nl")] },
     [G.legacy]: { read: true, active: [U("u-joey", "Joey Bakker", "joey@contoso.nl"), U("u-kees", "Kees de Wit", "kees@contoso.nl")], eligible: [] },
-    [G.nlHd]: { read: true, active: [U("u-nl-desk", "adm-nl-desk-eva", "adm-nl-desk-eva@contoso.nl")], eligible: [] },
-    [G.nlOps]: { read: true, active: [U("u-nl-ops", "adm-nl-ops-bram", "adm-nl-ops-bram@contoso.nl")], eligible: [] },
+    [G.nlHd]: { read: true, active: [], eligible: [U("u-nl-desk", "adm-nl-desk-eva", "adm-nl-desk-eva@contoso.nl")] },
+    [G.nlOps]: { read: true, active: [], eligible: [U("u-nl-ops", "adm-nl-ops-bram", "adm-nl-ops-bram@contoso.nl")] },
   };
   const activations = [
     { principalId: "u-joey", principalName: "Joey Bakker", roleName: "Intune Administrator", createdDateTime: "2026-09-24T10:00:00Z", status: "Provisioned", justification: "Autopilot profile fix" },
