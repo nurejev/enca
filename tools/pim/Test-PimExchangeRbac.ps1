@@ -19,9 +19,15 @@
   the manual part of the test (section 9, test 6 of the framework 3.0 design
   note). RECOVERY: -Cleanup.
 
-  Needs: Microsoft.Graph.Authentication and ExchangeOnlineManagement, an admin
-  with Privileged Role Administrator (to create a role-assignable group) and
-  Exchange Organization Management (for Add-RoleGroupMember).
+  Needs: Microsoft.Graph.Authentication and ExchangeOnlineManagement. Connect
+  Exchange FIRST, in the same PowerShell session:
+      Connect-Customer.ps1 -Customer DEVCF -Services Exchange
+  The script connects Graph itself (-Customer). The Graph identity creates the
+  role-assignable group (Privileged Role Administrator or the app's
+  RoleManagement.ReadWrite.Directory + Group.ReadWrite.All); the Exchange
+  identity runs Add-RoleGroupMember (Organization Management). The Graph
+  writes go through the same approved-apply gate as the other scripts: you
+  type the tenant's default domain first.
 
 .EXAMPLE
   .\Test-PimExchangeRbac.ps1 -Customer DEVCF
@@ -45,7 +51,7 @@ Import-Module (Join-Path $PSScriptRoot 'PimCommon.psm1') -Force -DisableNameChec
 $GraphUrl = 'https://graph.microsoft.com/v1.0'
 if ($Apply -and $Cleanup) { throw 'Use -Apply or -Cleanup, not both.' }
 $ctx = Connect-PimTenant -Customer $Customer -ConnectScript $ConnectScript -TenantId $TenantId -Interactive:$Interactive -DelegatedScopes @('Directory.Read.All', 'Group.ReadWrite.All', 'RoleManagement.ReadWrite.Directory')
-$found = @(Invoke-PimGet "$GraphUrl/groups?`$filter=displayName eq '$GroupName'&`$select=id,displayName,isAssignableToRole" -All)
+$found = @(Invoke-PimGet "$GraphUrl/groups?`$filter=startswith(displayName,'$GroupName')&`$select=id,displayName,isAssignableToRole&`$top=999" -All | Where-Object { "$($_['displayName'])" -eq $GroupName })
 if ($found.Count -gt 1) { throw "$GroupName exists $($found.Count) times — remove the copies first." }
 $grp = if ($found.Count) { $found[0] } else { $null }
 if ($grp -and -not $grp['isAssignableToRole']) { throw "$GroupName exists but is not role-assignable — the test needs a role-assignable group. Rename it away first." }
@@ -57,20 +63,33 @@ if (-not $Apply -and -not $Cleanup) {
   Write-Host "  Run again with -Apply. Impact: an EMPTY group gets read-only Exchange rights. Recovery: -Cleanup."
   return
 }
-if (-not (Get-Command Connect-ExchangeOnline -ErrorAction SilentlyContinue)) { throw 'ExchangeOnlineManagement is not installed: Install-Module ExchangeOnlineManagement -Scope CurrentUser' }
-if (-not (Get-Command Get-RoleGroup -ErrorAction SilentlyContinue)) { Connect-ExchangeOnline -Organization $ctx.DefaultDomain -ShowBanner:$false }
+if (-not (Get-Command Get-RoleGroup -ErrorAction SilentlyContinue)) { throw 'Exchange Online is not connected in this session. Run  Connect-Customer.ps1 -Customer DEVCF -Services Exchange  first, then this script again. Nothing was written.' }
+try { $null = Get-RoleGroup -Identity $RoleGroup -ErrorAction Stop } catch { throw "Exchange cannot read role group '$RoleGroup' with this connection: $($_.Exception.Message). Nothing was written." }
+# Graph writes run through the approved-apply gate (PimCommon): a one-op plan, typed domain, outcome file
+function Invoke-GraphOp([string]$Key, [string]$Summary, [System.Collections.IDictionary]$Spec) {
+  $plan = New-PimPlan 'exo-test' $null
+  Add-PimOp $plan $Key 'http' $Summary $Spec
+  Show-PimPlan $plan
+  Confirm-PimApply $plan
+  $plan.hash = Get-PimPlanHash $plan
+  $r = Invoke-PimPlan $plan $OutDir $null
+  if ($r.failed) { throw "$Summary failed — see $($r.file). Nothing else was done." }
+  return (Get-PimIds)[$Key]
+}
 
 if ($Cleanup) {
   if (-not $grp) { Write-PimOk "$GroupName does not exist — nothing to clean up"; return }
   try { Remove-RoleGroupMember -Identity $RoleGroup -Member $grp['id'] -Confirm:$false -BypassSecurityGroupManagerCheck; Write-PimOk "removed from $RoleGroup" } catch { Write-PimWarn "not in $RoleGroup ($($_.Exception.Message))" }
-  $null = Invoke-PimWrite 'DELETE' "$GraphUrl/groups/$($grp['id'])" $null
+  $null = Invoke-GraphOp "del:$GroupName" "delete test group $GroupName" ([ordered]@{ method = 'DELETE'; uri = "$GraphUrl/groups/$($grp['id'])" })
   Write-PimOk "$GroupName deleted (restorable for 30 days from deleted groups)"
   return
 }
 
 if (-not $grp) {
-  $grp = Invoke-PimWrite 'POST' "$GraphUrl/groups" ([ordered]@{ displayName = $GroupName; mailEnabled = $false; mailNickname = ($GroupName -replace '[^A-Za-z0-9]', '').ToLower(); securityEnabled = $true; groupTypes = @(); isAssignableToRole = $true; visibility = 'Private'; description = 'CloudFellows PIM framework 3.0 — Exchange RBAC test. Delete with Test-PimExchangeRbac.ps1 -Cleanup.' })
-  Write-PimOk "created $GroupName ($($grp['id'])); waiting 60 s for it to reach Exchange"
+  $newId = Invoke-GraphOp "group:$GroupName" "create role-assignable test group $GroupName (no members)" ([ordered]@{ method = 'POST'; uri = "$GraphUrl/groups"; produces = "group:$GroupName"; body = [ordered]@{ displayName = $GroupName; mailEnabled = $false; mailNickname = ($GroupName -replace '[^A-Za-z0-9]', '').ToLower(); securityEnabled = $true; groupTypes = @(); isAssignableToRole = $true; visibility = 'Private'; description = 'CloudFellows PIM framework 3.0 — Exchange RBAC test. Delete with Test-PimExchangeRbac.ps1 -Cleanup.' } })
+  if (-not $newId) { throw "the group was created but no id came back — look for $GroupName in Entra, then run again" }
+  $grp = @{ id = $newId; displayName = $GroupName }
+  Write-PimOk "created $GroupName ($newId); waiting 60 s for it to reach Exchange"
   Start-Sleep -Seconds 60
 }
 $result = [ordered]@{ tenant = $ctx.DefaultDomain; at = (Get-Date).ToUniversalTime().ToString('o'); group = $GroupName; groupId = $grp['id']; roleGroup = $RoleGroup; attempts = @(); accepted = $false; members = @() }
