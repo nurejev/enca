@@ -2887,7 +2887,7 @@
     ["toolCaGroups", "👥 Conditional Access groups"],
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
-    ["toolRmau", "🛡 Restricted AUs"],
+    ["toolRmau", "🛡 Administrative units"],
     ["toolUserImpact", "🗣 User impact brief"],
     ["toolImport", "📥 Import"],
     ["toolDeploy", "↗ Guided rollout"],
@@ -6927,7 +6927,7 @@ max@contoso.com,"Global, DevOps"</pre>
           const noPersona = skipped.filter((x) => !noUnit.includes(x));
           const list = (xs, suffix) => `<ul class="wi-list" style="margin:6px 0 0">${xs.map((x) => `<li><div class="wi-why">⊘ <b>${esc(x.name)}</b>${suffix(x)}</div></li>`).join("")}</ul>`;
           return `<p class="mini" style="color:var(--off);margin:8px 0 0"><b>${skipped.length} skipped</b> — nothing was filed elsewhere on their behalf, because putting an Admins exclusion group into the Global vault would hand the Global vault's administrators control of it.</p>
-            ${noUnit.length ? `<p class="mini" style="margin:8px 0 0">${noUnit.length} because <b>the persona unit does not exist yet</b> — create it in <b>🛡 Restricted AUs</b>, then run this again.</p>${list(noUnit, (x) => ` → ${esc(x.auName)}`)}` : ""}
+            ${noUnit.length ? `<p class="mini" style="margin:8px 0 0">${noUnit.length} because <b>the persona unit does not exist yet</b> — create it in <b>🛡 Administrative units</b>, then run this again.</p>${list(noUnit, (x) => ` → ${esc(x.auName)}`)}` : ""}
             ${noPersona.length ? `<p class="mini" style="margin:8px 0 0">${noPersona.length} because <b>the name carries no CA number the baseline recognises</b> and no fallback unit was chosen. Pick one above, or place them by hand once you have decided who should manage them.</p>${list(noPersona, () => "")}` : ""}`;
         })()}
         <p class="mini" style="color:var(--report)">⚠ From now on, membership of these groups can only be changed by principals holding a role <b>scoped to this administrative unit</b> — including by this tool's own ⑤ Import members.</p>
@@ -6982,9 +6982,9 @@ max@contoso.com,"Global, DevOps"</pre>
           : (t.statusError || g.statusUnknown) ? '<span class="muted">unknown</span>'
           : '<span style="color:var(--report)">unprotected</span>'}</td>
         <td class="mini">${prot || g.roleAssignable ? '<span class="muted">—</span>'
-          : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>${dest.by === "tenant" ? ' <span class="tag" title="This tenant states where this group belongs — its name carries no CA number. Change it in 🛡 Restricted AUs → 🏷 Group personas.">mapped here</span>' : ""}`
-          : dest.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(dest.auName)}</b> does not exist — create it in 🛡 Restricted AUs first, or this group is skipped</span>`
-          : dest.source === "unset" ? '<span style="color:var(--report)">unmapped — no CA number in the name and no mapping for it. <b>Map it once</b> in 🛡 Restricted AUs → 🏷 Group personas and every tool routes it afterwards; or pick a fallback unit above, or it is skipped.</span>'
+          : dest.source === "persona" ? `→ <b>${esc(dest.auName)}</b>${dest.by === "tenant" ? ' <span class="tag" title="This tenant states where this group belongs — its name carries no CA number. Change it in 🛡 Administrative units → 🏷 Group personas.">mapped here</span>' : ""}`
+          : dest.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(dest.auName)}</b> does not exist — create it in 🛡 Administrative units first, or this group is skipped</span>`
+          : dest.source === "unset" ? '<span style="color:var(--report)">unmapped — no CA number in the name and no mapping for it. <b>Map it once</b> in 🛡 Administrative units → 🏷 Group personas and every tool routes it afterwards; or pick a fallback unit above, or it is skipped.</span>'
           : `<span style="color:var(--report)">→ <b>${esc(dest.auName)}</b> (fallback — unmapped, and no CA number in the name)</span>`}</td>
       </tr>`;
     }).join("");
@@ -7100,7 +7100,7 @@ max@contoso.com,"Global, DevOps"</pre>
           auName: x.dest.auName || "(none chosen)",
           error: unset
             ? "its name carries no CA number the baseline recognises, and no fallback unit was chosen"
-            : `its persona unit ${x.dest.auName} does not exist — create it in 🛡 Restricted AUs, then protect this group` });
+            : `its persona unit ${x.dest.auName} does not exist — create it in 🛡 Administrative units, then protect this group` });
         L.skip(idx(x.g), unset ? "no persona and no fallback chosen" : `${x.dest.auName} does not exist yet`);
       }
       const doable = plan.filter((x) => x.dest.source !== "missing" && x.dest.source !== "unset");
@@ -9186,7 +9186,7 @@ This is a directory write. Nothing else changes.`)) return;
         if (!r.roleAssignable) return "";
         const prot = (cgProt && cgProt.get(r.id)) || (cgRmau && cgRmau.status ? cgRmau.status.get(r.id) : null);
         if (!prot) return "";
-        return `<p class="mini" style="color:var(--off)">🧊 <b>frozen — its members cannot be changed by anyone.</b> It is role-assignable <i>and</i> already in the restricted unit <b>${esc(prot.auName)}</b>. Only Global Administrator and Privileged Role Administrator may edit a role-assignable group's members, and that unit blocks both; neither flag can be undone. Remove it from the unit first (🛡 Restricted AUs), then convert it with ⑦ Migrate.</p>`;
+        return `<p class="mini" style="color:var(--off)">🧊 <b>frozen — its members cannot be changed by anyone.</b> It is role-assignable <i>and</i> already in the restricted unit <b>${esc(prot.auName)}</b>. Only Global Administrator and Privileged Role Administrator may edit a role-assignable group's members, and that unit blocks both; neither flag can be undone. Remove it from the unit first (🛡 Administrative units), then convert it with ⑦ Migrate.</p>`;
       })()}
       ${cgRowActions(r)}
       ${list(r.refs.include, "Included in")}
@@ -11882,12 +11882,12 @@ This is a directory write. Nothing else changes.`)) return;
   // admin's 403 here is by design, not a bug).
   const RU_WRITE = ["AdministrativeUnit.ReadWrite.All"];
   const RU_ROLE_WRITE = ["RoleManagement.ReadWrite.Directory"];
-  let ruList = null, ruDetails = {}, ruFilter = "restricted", ruQuery = "", ruEditing = null, ruDeleting = null;
+  let ruList = null, ruDetails = {}, ruFilter = "all", ruQuery = "", ruEditing = null, ruDeleting = null;
   const ruOpen = new Set();
   let ruRoleNames = null;   // activated directory-role id → displayName
 
   async function openRmauTool(force) {
-    crumb("🛡 Restricted AUs");
+    crumb("🛡 Administrative units");
     show("screen-rmau");
     if (ruList && !force) { renderRmau(); return; }
     $("ruHead").innerHTML = toolHead("toolRmau") + '<p class="mini" style="margin:6px 0 0">Reading administrative units…</p>';
@@ -11895,8 +11895,8 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       ruList = isDemo
         ? ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnits) || [])
-        : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,visibility,isMemberManagementRestricted");
-      ruDetails = {}; ruOpen.clear();
+        : await Graph.ggetAll("/administrativeUnits?$select=id,displayName,description,visibility,isMemberManagementRestricted,membershipType,membershipRule,membershipRuleProcessingState");
+      ruDetails = {}; ruOpen.clear(); ruInvReset();
       renderRmau();
     } catch (e) {
       console.error("Restricted AUs failed:", e);
@@ -11949,6 +11949,149 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) { d.error = e.message || String(e); }
     ruDetails[id] = d;
     return d;
+  }
+
+  // ---------- 32435 · the inventory: every unit, restricted and regular ----------
+  // T27 2.0 (Mihai 5 Oct, from the mockup: "T27 should also handle regular admin
+  // units"; decisions A–D as recommended). js/auinv.js judges; this block reads:
+  // the members of every unit (one paged read per unit, at most AU_INV_MAX
+  // objects in all — a unit past it is read in part and said so) and who holds a
+  // role at each unit's scope, active AND eligible (the PIM schedule instances,
+  // RoleManagement.Read.Directory). Without PIM — no licence, or the consent
+  // refused — the unit's scoped role members are read instead, active only, and
+  // the panel says eligible ones are not counted. In 02 PIM-buddy the PIM
+  // baseline's own read is reused and the regions file joins the judgement.
+  // Reads only; the one write is Move to a restricted unit, one member at a time.
+  const AU_INV_MAX = 200000;
+  let ruInv = { busy: false, stop: false, data: null, err: null, progress: "", open: false };
+  let ruInvRun = 0;     // a read that outlives its context publishes nothing
+  function ruInvReset() { ruInvRun++; ruInv = { busy: false, stop: false, data: null, err: null, progress: "", open: ruInv.open }; }
+  function ruInvLens() { return prlOn() ? "pim" : "ca"; }
+  function ruInvRes() {
+    if (!ruInv.data) return null;
+    const d = { ...ruInv.data, aus: ruList || ruInv.data.aus, policies: policies.map((p) => p.raw), lens: ruInvLens(),
+      regions: ruInvLens() === "pim" ? pmbReg : null };
+    return AuInv.model(d);
+  }
+  async function ruInvRoles() {
+    // In the PIM lens the 🧬 read already holds every instance with its scope.
+    if (prlOn() && pmbRaw && Array.isArray(pmbRaw.eligible) && Array.isArray(pmbRaw.active)) {
+      const tpl = {}; (pmbRaw.roles || []).forEach((r) => { tpl[r.id] = r.templateId || r.id; });
+      const map = (a, state) => ({ directoryScopeId: a.directoryScopeId, roleName: a.roleName, roleTemplateId: tpl[a.roleId] || a.roleId, principalId: a.principalId, principalName: a.principalName, principalType: a.principalType, state, endDateTime: a.endDateTime, assignmentType: a.assignmentType });
+      return { list: [...pmbRaw.eligible.map((a) => map(a, "eligible")), ...pmbRaw.active.map((a) => map(a, "active"))].filter((a) => AuInv.auOfScope(a.directoryScopeId)), eligibleRead: true };
+    }
+    if (isDemo) return { list: ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnitRoles) || []).slice(), eligibleRead: true };
+    const kind = (p) => String((p && p["@odata.type"]) || "").replace("#microsoft.graph.", "");
+    const pType = (p) => ({ user: "User", group: "Group", servicePrincipal: "ServicePrincipal" }[kind(p)] || "User");
+    try {
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...PIM_READ])) throw new Error("RoleManagement.Read.Directory was not granted");
+      const defs = await Graph.ggetAll("https://graph.microsoft.com/v1.0/roleManagement/directory/roleDefinitions?$select=id,displayName,templateId");
+      const nm = {}, tp = {}; defs.forEach((r) => { nm[r.id] = r.displayName; tp[r.id] = r.templateId || r.id; });
+      const stop = () => ruInv.stop;
+      ruInv.progress = "roles at unit scope — eligible"; renderRmau();
+      const el = await Graph.ggetAll("/roleManagement/directory/roleEligibilityScheduleInstances?$expand=principal", { shouldStop: stop });
+      ruInv.progress = "roles at unit scope — active"; renderRmau();
+      const ac = await Graph.ggetAll("/roleManagement/directory/roleAssignmentScheduleInstances?$expand=principal", { shouldStop: stop });
+      const map = (i, state) => ({ directoryScopeId: i.directoryScopeId || "/", roleName: nm[i.roleDefinitionId] || i.roleDefinitionId, roleTemplateId: tp[i.roleDefinitionId] || i.roleDefinitionId, principalId: i.principalId, principalName: (i.principal && (i.principal.displayName || i.principal.userPrincipalName)) || i.principalId, principalType: pType(i.principal), state, endDateTime: i.endDateTime || null, assignmentType: i.assignmentType || (state === "eligible" ? "Eligible" : "Assigned") });
+      return { list: [...el.map((i) => map(i, "eligible")), ...ac.map((i) => map(i, "active"))].filter((a) => AuInv.auOfScope(a.directoryScopeId)), eligibleRead: true };
+    } catch (e) {
+      if (e && e.stopped) throw e;
+      // Fallback: the units' scoped role members — active only.
+      const note = /premium|license|licence/i.test(String(e && e.message)) ? "PIM needs Entra ID P2" : /not granted|consent|denied|403|forbidden/i.test(String(e && e.message)) ? "the PIM read was refused" : "the PIM read failed";
+      ruInv.progress = "roles at unit scope — scoped role members"; renderRmau();
+      if (!ruRoleNames) { ruRoleNames = {}; try { (await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId")).forEach((r) => { ruRoleNames[r.id] = r.displayName; ruRoleNames["tpl:" + r.id] = r.roleTemplateId; }); } catch { /* names stay ids */ } }
+      const list = [];
+      for (const au of ruList || []) {
+        if (ruInv.stop) { const x = new Error("stopped"); x.stopped = true; throw x; }
+        try {
+          (await Graph.ggetAll(`/administrativeUnits/${au.id}/scopedRoleMembers`)).forEach((r) => list.push({ directoryScopeId: AuInv.scopeOf(au.id), roleName: ruRoleNames[r.roleId] || r.roleId, roleTemplateId: ruRoleNames["tpl:" + r.roleId] || null, principalId: (r.roleMemberInfo || {}).id, principalName: (r.roleMemberInfo || {}).displayName || (r.roleMemberInfo || {}).id, principalType: "User", state: "active", endDateTime: null, assignmentType: "Assigned" }));
+        } catch { /* that unit's roles stay unknown — counted as none */ }
+      }
+      return { list, eligibleRead: false, eligibleNote: note };
+    }
+  }
+  async function ruInvRead() {
+    if (ruInv.busy || !ruList) return;
+    ruInv = { busy: true, stop: false, data: null, err: null, progress: "members", open: true };
+    const run = ++ruInvRun;
+    const gone = () => ruInv.stop || run !== ruInvRun;
+    renderRmau();
+    const members = {};
+    let budget = AU_INV_MAX;
+    try {
+      if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "AdministrativeUnit.Read.All"])) throw new Error("AdministrativeUnit.Read.All was not granted");
+      const units = ruList.slice();
+      for (let i = 0; i < units.length; i++) {
+        if (gone()) { const x = new Error("stopped"); x.stopped = true; throw x; }
+        const au = units[i];
+        ruInv.progress = `members — unit ${i + 1} of ${units.length}`; renderRmau();
+        if (isDemo) { const dd = ((typeof DEMO_DATA !== "undefined" && DEMO_DATA.adminUnitDetails) || {})[au.id]; members[au.id] = { list: dd ? (dd.members || []).slice() : [], error: null, capped: false }; continue; }
+        if (budget <= 0) { members[au.id] = { list: [], error: null, capped: true }; continue; }
+        try {
+          const list = await Graph.ggetAll(`/administrativeUnits/${au.id}/members?$select=id,displayName,userPrincipalName,isAssignableToRole,mailEnabled,securityEnabled,groupTypes&$top=999`, { cap: budget, shouldStop: gone });
+          budget -= list.length;
+          members[au.id] = { list, error: null, capped: !!(list.readState && list.readState.capped) };
+        } catch (e) {
+          if (e && e.stopped) throw e;
+          members[au.id] = { list: null, error: au.visibility === "HiddenMembership" ? "hidden membership — needs Member.Read.Hidden" : String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "").slice(0, 160), capped: false };
+        }
+      }
+      const roles = await ruInvRoles();
+      if (!ruList || gone()) { const x = new Error("stopped"); x.stopped = true; throw x; }
+      ruInv.data = { aus: ruList, members, assignments: roles.list, eligibleRead: roles.eligibleRead, eligibleNote: roles.eligibleNote || "", readAt: Date.now(), demo: isDemo };
+      ruFilter = AuInv.model({ ...ruInv.data, policies: policies.map((p) => p.raw), lens: ruInvLens() }).findings.length ? "findings" : ruFilter;
+    } catch (e) {
+      if (run !== ruInvRun) return;
+      ruInv.err = e && e.stopped ? "stopped — nothing is judged on a partial read" : String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "");
+    } finally { if (run === ruInvRun) { ruInv.busy = false; ruInv.progress = ""; } }
+    if ($("screen-rmau").classList.contains("active")) renderRmau();
+  }
+  function ruInvPanel() {
+    const head = `<div class="cg-panel" id="ruInvPanel"><h4>INVENTORY — EVERY UNIT, RESTRICTED AND REGULAR</h4>`;
+    if (ruInv.busy) return head + `<p class="mini"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading ${esc(ruInv.progress)}… <button class="btn sm" data-auinvstop>■ Stop</button></p></div>`;
+    const res = ruInvRes();
+    if (!res) return head + `${ruInv.err ? `<p class="mini" style="color:var(--off)">Not read — ${esc(ruInv.err)}</p>` : ""}<p class="mini" style="margin:0 0 8px">Reads the members of every unit and who holds a role at each unit's scope — active and eligible — and judges each one: a Conditional Access group a scoped admin can change, a role held directly and permanently, two regional desks on the same people, a paused rule, a role on an empty unit, a unit nothing uses${prlOn() ? ", a role held outside a PIM-SG group, and a unit that differs from the regions file" : ""}. Reads only (AdministrativeUnit.Read.All, RoleManagement.Read.Directory).</p><button class="btn primary" data-auinvread>▶ Check every unit</button></div>`;
+    const c = res.counts;
+    const tiles = `<div class="xt-tiles pmb-tiles"><div class="xt-tile"><b>${c.total}</b>units read</div><div class="xt-tile"><b>${c.restricted} · ${c.regular}</b>restricted · regular</div><div class="xt-tile"><b>${c.holders}</b>roles at unit scope${ruInv.data.eligibleRead ? " (active + eligible)" : " (active only)"}</div><div class="xt-tile${c.high ? " h" : c.other ? " m" : ""}"><b>${c.high} high · ${c.other} other</b>findings on ${c.withFindings} unit${c.withFindings === 1 ? "" : "s"}</div></div>`;
+    const notes = res.notes.length ? `<p class="mini pmb-warn">${res.notes.map(esc).join(" ")}</p>` : "";
+    const missing = res.regionsMissing.length ? `<p class="mini">The regions file builds ${res.regionsMissing.length} unit${res.regionsMissing.length === 1 ? "" : "s"} the tenant does not have: ${esc(res.regionsMissing.map((r) => r.name).join(", "))} — 🚀 Deploy creates them.</p>` : "";
+    return head + `<p class="mini">${res.demo ? "Demo data · " : ""}Read ${esc(new Date(res.readAt).toLocaleString())} · <button class="btn sm" data-auinvread>⟳ Check again</button> <button class="btn sm" data-auinvtoggle>${ruInv.open ? "▴ Hide the table" : "▾ Show the table"}</button></p>${tiles}${notes}${missing}${ruInv.open ? AuInv.renderTable(res, { filter: ruFilter, q: ruQuery, open: ruOpen }) : ""}<p class="mini muted" style="margin:6px 0 0">A unit's name opens its card below, with the findings and what to do about them.</p></div>`;
+  }
+  // The group's persona vault, when it exists and is restricted — the
+  // pre-selected destination of a move; otherwise the person picks.
+  function ruInvVaultFor(groupName) {
+    const code = Rmau.codeForGroup(groupName);
+    if (!code) return "";
+    const v = (ruList || []).filter(Rmau.isRestricted).find((a) => String(a.displayName).toLowerCase() === Rmau.auName(code).toLowerCase());
+    return v ? v.id : "";
+  }
+  async function ruInvMove(auId, groupId, targetId) {
+    const res = ruInvRes(); if (!res) return;
+    const u = res.units.find((x) => x.id === auId);
+    const f = u && u.findings.find((x) => x.id === "ca-group-writable" && x.groupId === groupId);
+    if (!f) return;
+    const target = (ruList || []).filter(Rmau.isRestricted).find((a) => a.id === targetId);
+    if (!target) { toast("Pick the restricted unit to move it into first"); return; }
+    const holders = res.units.find((x) => x.id === target.id);
+    const nobody = holders && holders.holdersRead && !holders.holders.length;
+    const ok = confirm(`Move ${f.groupName} into the restricted unit ${target.displayName}?\n\n`
+      + `What changes: ${f.groupName} is added to ${target.displayName}. From then on only roles scoped to ${target.displayName} can change its members — roles scoped to ${u.name}, and tenant-wide roles, can no longer. It stays in ${u.name}, and every policy keeps referencing it.`
+      + (nobody ? `\n\nWARNING: nobody holds a role at ${target.displayName}'s scope, so after this nobody can change ${f.groupName}'s members until one is granted.` : "")
+      + `\n\nTo put it back: take it out of ${target.displayName} on that unit's card (✕) — that needs Privileged Role Administrator or a role scoped to ${target.displayName}.`);
+    if (!ok) return;
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...RU_WRITE])) return;
+    try {
+      if (!isDemo) await Graph.gpost(`/administrativeUnits/${target.id}/members/$ref`, { "@odata.id": `https://graph.microsoft.com/beta/groups/${groupId}` });
+      // Seen at once, without waiting for the directory: the group now sits in a
+      // restricted unit, so the finding goes.
+      const m = ruInv.data.members[target.id];
+      if (m && Array.isArray(m.list) && !m.list.some((x) => x.id === groupId)) m.list.push({ id: groupId, displayName: f.groupName, "@odata.type": "#microsoft.graph.group" });
+      delete ruDetails[target.id];
+      toast(`<span>${esc(f.groupName)}</span> is in ${esc(target.displayName)} now${isDemo ? " (simulated)" : ""}`);
+    } catch (e) {
+      toast(`Move failed: <span>${esc(/already exist|conflicting/i.test(e.message || "") ? "it is already in that unit" : (e.message || e))}</span>`);
+    }
+    renderRmau();
   }
 
   // ---------- baseline: one restricted AU per persona ----------
@@ -12110,22 +12253,29 @@ This is a directory write. Nothing else changes.`)) return;
       <div style="flex:1;min-width:260px">
         ${toolHead("toolRmau")}
         ${prlOn() ? `<p style="margin-bottom:4px"><b>PIM lens (Workspace 02).</b> The CloudFellows PIM framework keeps executives, their devices and sensitive groups that are not role-assignable in <b>AU-RM-Executives</b>, with a named desk scoped on it — and keeps every PIM object <b>out</b> of restricted units: a role-assignable group protects itself, and inside a restricted unit PIM, access reviews and lifecycle workflows stop working.</p>` : ""}
-        <p style="margin-bottom:4px">Restricted management administrative units — the vaults that shield objects (here: CA exclusion groups) from tenant-wide administration. Members of a restricted AU answer <b>only</b> to roles scoped to that AU.</p>
-        <p class="mini muted" style="margin:0">The <code>isMemberManagementRestricted</code> flag is <b>immutable</b> — set at creation, never changeable. Creating one needs <b>Privileged Role Administrator</b>; touching members of one needs a role <b>scoped to it</b> — a 403 there is the shield working, not a fault. Every write asks for its permission on the click.</p>
+        <p style="margin-bottom:4px">Every administrative unit in the tenant, restricted and regular: what it holds, who can act inside it, and what it holds that it should not. A <b>regular</b> unit hands whoever holds a role at its scope the objects inside it; a <b>restricted</b> one shuts tenant-wide roles out, so its members answer <b>only</b> to roles scoped to that unit — the vaults that shield CA exclusion groups.</p>
+        <p class="mini muted" style="margin:0">The <code>isMemberManagementRestricted</code> flag is <b>immutable</b> — set at creation, never changeable, so a regular unit is never made restricted: its objects are moved into a restricted one. Creating a restricted unit needs <b>Privileged Role Administrator</b>; touching members of one needs a role <b>scoped to it</b> — a 403 there is the shield working, not a fault. Every write asks for its permission on the click.</p>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${su.restricted}<span class="mini" style="font-weight:400"> restricted</span></div>
-        <div class="mini">${su.standard} standard AU${su.standard === 1 ? "" : "s"} in the tenant</div>
+        <div class="mini">${su.standard} regular AU${su.standard === 1 ? "" : "s"} in the tenant</div>
       </div></div>`;
-    $("ruChips").innerHTML = [["restricted", `🔒 Restricted (${su.restricted})`], ["all", `All AUs (${su.total})`]]
+    const inv = ruInvRes();
+    const invOf = new Map(inv ? inv.units.map((u) => [u.id, u]) : []);
+    if (ruFilter === "findings" && !inv) ruFilter = "all";
+    $("ruChips").innerHTML = [["all", `All (${su.total})`], ["restricted", `🔒 Restricted (${su.restricted})`], ["regular", `Regular (${su.standard})`], ...(inv ? [["findings", `⚠ With findings (${inv.counts.withFindings})`]] : [])]
       .map(([k, l]) => `<button class="fchip ${ruFilter === k ? "active" : ""}" data-ruf="${k}">${esc(l)}</button>`).join("");
     const q = ruQuery.toLowerCase();
-    const rows = (ruList || []).filter((a) => (ruFilter === "all" || Rmau.isRestricted(a))
-      && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q)))
-      .sort((a, b) => (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
+    const sevRank = (a) => { const u = invOf.get(a.id); return u && u.top ? ["high", "medium", "low", "info"].indexOf(u.top) : 9; };
+    const rows = (ruList || []).filter((a) => {
+      const u = invOf.get(a.id);
+      if (u) return AuInv.matches(u, ruFilter, q) || (!!q && `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q) && AuInv.matches(u, ruFilter, ""));
+      return (ruFilter === "all" || (ruFilter === "restricted" ? Rmau.isRestricted(a) : ruFilter === "regular" ? !Rmau.isRestricted(a) : true))
+        && (!q || `${a.displayName} ${a.description || ""}`.toLowerCase().includes(q));
+    }).sort((a, b) => sevRank(a) - sevRank(b) || (Rmau.isRestricted(b) ? 1 : 0) - (Rmau.isRestricted(a) ? 1 : 0) || (a.displayName || "").localeCompare(b.displayName || ""));
     // 32422: opened from Workspace 02, the CA panels (persona vaults, the map,
     // scoped admins across units) give way to the PIM lens; the unit cards stay.
-    const lead = prlOn() ? prlPanel() : ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel();
+    const lead = prlOn() ? prlPanel() + ruInvPanel() : ruInvPanel() + ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel();
     if (!rows.length) { $("ruBody").innerHTML = lead + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; if (prlOn()) prlWire(); return; }
     $("ruBody").innerHTML = lead + `<div class="lo-grid">` + rows.map((au) => {
       const open = ruOpen.has(au.id);
@@ -12149,6 +12299,7 @@ This is a directory write. Nothing else changes.`)) return;
           // pushed off the bottom of the card — you scrolled past everything to
           // reach the one control that does something.
           detail = `<div style="margin-top:8px">
+            ${invOf.get(au.id) ? AuInv.renderUnit(invOf.get(au.id), { targets: (ruList || []).filter(Rmau.isRestricted).map((a) => ({ id: a.id, name: a.displayName || a.id })), suggest: ruInvVaultFor, eligibleNote: ruInv.data && !ruInv.data.eligibleRead ? `active only — ${ruInv.data.eligibleNote || "eligible not read"}` : "" }) : ""}
             <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Members (${(d.members || []).length})${nFrozen ? ` <span class="tag block" style="text-transform:none;letter-spacing:normal">🧊 ${nFrozen} frozen</span>` : ""}</div>
             ${ruPgRow(au, d)}
             <div style="display:flex;gap:6px;margin:6px 0 6px"><input data-ruaddbox="${esc(au.id)}" list="ruGroupSug" placeholder="…or any other group, by name — or a user UPN" spellcheck="false" autocomplete="off" style="flex:1"><button class="btn sm" data-ruadd="${esc(au.id)}">+ Add</button></div>
@@ -12165,7 +12316,8 @@ This is a directory write. Nothing else changes.`)) return;
         <div class="lo-h" data-ruopen="${esc(au.id)}" style="cursor:pointer">
           <span class="lo-ic">${Rmau.isRestricted(au) ? "🔒" : "📁"}</span>
           <b>${esc(au.displayName || "(unnamed)")}</b>
-          ${Rmau.isRestricted(au) ? '<span class="tag grant">restricted</span>' : '<span class="tag">standard</span>'}
+          ${Rmau.isRestricted(au) ? '<span class="tag grant">restricted</span>' : '<span class="tag">regular</span>'}
+          ${invOf.get(au.id) ? `<span class="tag">${esc(invOf.get(au.id).membership)}</span>${invOf.get(au.id).findings.length ? ` <span class="auinv-sev auinv-${esc(invOf.get(au.id).top)}">${invOf.get(au.id).findings.length} finding${invOf.get(au.id).findings.length === 1 ? "" : "s"}</span>` : ""}` : ""}
           ${au.visibility === "HiddenMembership" ? '<span class="tag">hidden membership</span>' : ""}
         </div>
         ${au.description ? `<div class="mini lo-d">${esc(au.description)}</div>` : ""}
@@ -12184,6 +12336,31 @@ This is a directory write. Nothing else changes.`)) return;
     <p class="mini muted" style="margin-top:8px">Click a card header — or <b>👤 Scoped admins</b> — for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;    if (prlOn()) prlWire();
   }
   $("ruChips").addEventListener("click", (e) => { const b = e.target.closest("[data-ruf]"); if (!b) return; ruFilter = b.dataset.ruf; renderRmau(); });
+  $("ruBody").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-auinvread]")) { ruInvRead(); return; }
+    if (e.target.closest("[data-auinvstop]")) { ruInv.stop = true; return; }
+    if (e.target.closest("[data-auinvtoggle]")) { ruInv.open = !ruInv.open; renderRmau(); return; }
+    const o = e.target.closest("[data-auinvopen]");
+    if (o) {
+      const id = o.dataset.auinvopen;
+      // The card has to be on screen to be opened: a filter or a search that
+      // hides it is lifted first.
+      if (!(ruList || []).some((a) => a.id === id)) return;
+      if (ruQuery) { ruQuery = ""; const sb = $("ruSearch"); if (sb) sb.value = ""; }
+      ruFilter = "all";
+      ruOpen.add(id); renderRmau();
+      const card = $("ruBody").querySelector(`[data-ruopen="${CSS && CSS.escape ? CSS.escape(id) : id}"]`);
+      if (card && card.scrollIntoView) { try { card.scrollIntoView({ block: "start" }); } catch { /* jsdom */ } }
+      await ruLoadDetail(id); renderRmau();
+      return;
+    }
+    const m = e.target.closest("[data-auinvmove]");
+    if (m) {
+      const [auId, groupId] = m.dataset.auinvmove.split("|");
+      const sel = [...$("ruBody").querySelectorAll("[data-auinvtarget]")].find((x) => x.dataset.auinvtarget === m.dataset.auinvmove);
+      await ruInvMove(auId, groupId, sel ? sel.value : "");
+    }
+  });
   $("ruSearch").addEventListener("input", (e) => { ruQuery = e.target.value; renderRmau(); });
 
   // ---- type-ahead for the two boxes on an AU card ----
@@ -13325,7 +13502,8 @@ This is a directory write. Nothing else changes.`)) return;
         }
       } finally { btn.disabled = false; btn.textContent = label; }
     }
-    showReport("🛡 Restricted AUs", "CA-RestrictedAUs", Rmau.toMd(ruList, ruDetails, { tenantName, personaMap: CaMap.toMdSection() }));
+    const inv = ruInvRes();
+    showReport("🛡 Administrative units", "CA-AdministrativeUnits", Rmau.toMd(ruList, ruDetails, { tenantName, personaMap: CaMap.toMdSection(), inventory: inv ? AuInv.toMd(inv, { readAt: inv.readAt }) : "" }));
   });
 
   // ---------- shared fetch-progress visual ----------
@@ -21957,6 +22135,9 @@ This is a directory write. Nothing else changes.`)) return;
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
     try { prlReset(); prrReset(); pdpReset(); plxReset(); paz = { raw: null, model: null, err: null, busy: false }; } catch { /* defined further down; nothing to reset yet */ }
+    // 32435: 🛡 Administrative units' list and inventory belong to the context
+    // they were read in — a read in flight is stopped and its result dropped.
+    try { if (ruInv.busy) ruInv.stop = true; ruList = null; ruDetails = {}; ruInvReset(); } catch { /* not declared yet */ }
   }
   const PMB_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">This tenant's Privileged Identity Management against the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b>, authored in <b>cloudfellows.dev</b>, in the profile you pick: Small business, Large · one region, or Large · multi-region. The model: people are <b>active members</b> of persona groups for at most a year, each group is <b>eligible</b> for its roles, and a person activates the role under the role's own tier; Intune and Defender XDR roles go to access groups (PIM-SG-INT-*, PIM-SG-XDR-*) whose members are eligible — the Defender roles themselves are made in the Defender portal and never read here. Setting by setting, and every group as a model matched by id — present once, role-assignable, carrying exactly its roles at tenant scope. <b>Members are never compared.</b> Nothing that could not be read is shown as a match. Read-only here: <b>🚀 Import ticked →</b> takes the ticked rows (and, on 🗺 Regions, the regions) into <b>🚀 Deploy</b>, which imports them from the browser after a WhatIf — no script to run. <b>⋯ EasyPIM file</b> and <b>📄 EasyPIM samples</b> are for customers who run PIM as code themselves.</p>`;
   const PMB_INT_HEAD_TEXT = `<p class="mini" style="margin:6px 0 0">Intune has no administrative units and no PIM of its own, so the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> draws the same boundaries with Intune's objects: <b>role assignments</b> whose members are the PIM-SG-INT-* access groups (eligible members — activating the group is the gate; a persona group never sits in one), <b>scope groups</b> for who and what an assignment reaches, <b>scope tags</b> for what an admin sees, and one <b>custom role</b>, INT-ROLE-Regional-Ops. Central assignments come from the profile, regional ones from the regions file (🗺 Regions). Read-only through Microsoft Graph (DeviceManagementRBAC.Read.All, consented once); 🚀 Deploy applies what is missing. Defender XDR and Purview RBAC stay outside.</p>`;
@@ -22036,7 +22217,7 @@ This is a directory write. Nothing else changes.`)) return;
         <li>Plan (reads only, writes a plan file): <code>.\\tools\\pim\\New-PimBaseline.ps1 -ConfigFile .\\pim.&lt;customer&gt;.jsonc -Customer &lt;KEY&gt;</code>. Read the plan.</li>
         <li>Apply exactly that plan with the command it prints (<code>… -Apply -PlanFile &lt;the plan&gt;</code>). EasyPIM instead: add <code>-WriteResolved .\\pim.&lt;customer&gt;.resolved.json</code> to the planning run and give that file to <code>Invoke-EasyPIMOrchestrator -Mode delta -WhatIf</code>, then without -WhatIf — never <code>-Mode initial</code> on a live tenant.</li>
       </ol>
-      <p class="mini">EasyPIM writes Entra role assignments at tenant scope only, so what is scoped to an administrative unit — the regions, ServiceDesk-VIP — is not in these files: regions go through regions.csv and New-PimRegions.ps1, the VIP scope through 🛡 Restricted AUs.</p></div>` + cards;
+      <p class="mini">EasyPIM writes Entra role assignments at tenant scope only, so what is scoped to an administrative unit — the regions, ServiceDesk-VIP — is not in these files: regions go through regions.csv and New-PimRegions.ps1, the VIP scope through 🛡 Administrative units.</p></div>` + cards;
   }
   // The Regions pane: the file first, then every region against the tenant.
   function pmbPaintRegions() {
@@ -22517,7 +22698,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
 
   // ======================================================================
-  // 🛡 Restricted AUs — the PIM lens (T27 opened from Workspace 02, 32422).
+  // 🛡 Administrative units — the PIM lens (T27 opened from Workspace 02, 32422).
   // js/pimrmau.js judges; this block reads what it needs (the 🧬 PIM
   // baseline read, plus the members of every restricted unit) and hands the
   // ticked fixes to the runner above.
@@ -22564,14 +22745,14 @@ This is a directory write. Nothing else changes.`)) return;
   function prlPlanHtml(cat, d, res) {
     prlPlanObj = PimRmau.plan(cat, d, res, prl.sel, { tenantId, domain: pimExpectDomain() });
     const mk = prlPlanObj.ops.some((o) => o.key.startsWith("au:"));
-    return pimPlanPanel(prlPlanObj, { title: "🛡 Restricted AUs · PIM lens",
+    return pimPlanPanel(prlPlanObj, { title: "🛡 Administrative units · PIM lens",
       impact: [mk ? "A new restricted unit starts empty: nobody loses access by its creation." : "", prlPlanObj.ops.some((o) => o.kind === "request") ? "A scoped eligibility lets the group's active members activate that role for the unit's members only, under the role's own PIM settings." : "", prlPlanObj.ops.some((o) => o.removes) ? "Taking a member out of a restricted unit makes it manageable by tenant-wide admins again — which is the point for a PIM object." : ""].filter(Boolean),
       recovery: [prlPlanObj.ops.some((o) => o.kind === "request") ? "An eligibility is removed in PIM (Entra roles → the role → Eligible → Remove) or with adminRemove." : "", prlPlanObj.ops.some((o) => o.removes) ? "A member taken out is put back from the unit's card below (+ Add)." : "", mk ? "A created unit is deleted from its card below (🗑 Delete) while it is still empty." : ""].filter(Boolean),
       irreversible: mk ? ["The restricted flag of a created unit: set at creation, never removed."] : [] });
   }
   function prlWire() {
     const host = $("ruBody").querySelector("[data-prlplanhost]");
-    if (host && prl.planShown && prlPlanObj) pimPlanWire(host, prlPlanObj, { title: "🛡 Restricted AUs · PIM lens", onDone: () => { setTimeout(async () => { pmbRaw = null; pmbRes = null; prl.members = null; ruList = null; if ($("screen-rmau").classList.contains("active")) { await openRmauTool(true); prlRead(); } }, 1500); } });
+    if (host && prl.planShown && prlPlanObj) pimPlanWire(host, prlPlanObj, { title: "🛡 Administrative units · PIM lens", onDone: () => { setTimeout(async () => { pmbRaw = null; pmbRes = null; prl.members = null; ruList = null; if ($("screen-rmau").classList.contains("active")) { await openRmauTool(true); prlRead(); } }, 1500); } });
   }
   $("ruBody").addEventListener("click", (e) => {
     if (!prlOn()) return;

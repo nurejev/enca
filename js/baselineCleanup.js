@@ -135,7 +135,7 @@ const BaselineCleanup = (() => {
 
     // groups second pass: a group inside a unit that STAYS is refused
     for (const r of groupRows) {
-      if (r.inAu && !safeAuIds.has(r.inAu.auId)) r.why.push(`sits in the restricted unit “${r.inAu.auName}”, which stays — remove it there first (🛡 Restricted AUs)`);
+      if (r.inAu && !safeAuIds.has(r.inAu.auId)) r.why.push(`sits in the restricted unit “${r.inAu.auName}”, which stays — remove it there first (🛡 Administrative units)`);
       r.safe = r.why.length === 0;
       delete r.ownSafe;
     }

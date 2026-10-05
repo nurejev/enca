@@ -1,5 +1,5 @@
 // ======================================================================
-// 🛡 Restricted AUs — the PIM lens (T27 in Workspace 02, beta 32422, R69).
+// 🛡 Administrative units — the PIM lens (T27 in Workspace 02, beta 32422, R69).
 // Pure: no DOM, no Graph. js/app.js reads, this module judges and plans.
 //
 // What the CloudFellows PIM framework 2.1 says about restricted management

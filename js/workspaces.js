@@ -25,7 +25,7 @@
     toolCaGroups: 'Inspect and manage Conditional Access groups.',
     toolProtect: 'Manage protection of exclusion groups.',
     toolLocations: 'Manage named locations, strengths, contexts and terms of use.',
-    toolRmau: 'Inspect and manage restricted administrative units.',
+    toolRmau: 'Every administrative unit, restricted and regular: what it holds, who can act inside it, and what it should not hold.',
     toolUserImpact: 'Prepare a policy-based user impact brief.',
     toolImport: 'Import policies and dependencies with the existing review steps.',
     toolDeploy: 'Prepare a rollout using the existing guided workflow.',
@@ -81,7 +81,7 @@
       lead: 'Who can become what, under which rules, and whether this tenant still matches the CloudFellows PIM framework. Onboarding runs here, in the browser: 🚀 Deploy imports from the baseline after a WhatIf and the tenant\'s domain typed out.',
       // Same work order: see it (Baseline), the groups that carry it, who
       // holds it, what is wrong with it, then what to protect and what changed.
-      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Restricted AUs'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
+      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Admin units'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
   };
   let ws = 'ca';
   const recent = [];

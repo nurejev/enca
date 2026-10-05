@@ -129,8 +129,8 @@ const Protect = (() => {
       if (c.vault === "unknown") return `<span class="wo-state na">${dot("na")}unknown</span><div class="mini muted">the administrative units could not be read</div>`;
       const d = c.dest || {};
       const where = d.source === "persona" ? `→ <b>${esc(d.auName)}</b> <span class="muted">(${d.by === "tenant" ? "mapped by you" : /CA\d{3,4}/i.test(g.name || "") ? "by CA number" : "by name"})</span>`
-        : d.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(d.auName)}</b> does not exist — create it in 🛡 Restricted AUs first</span>`
-          : d.source === "unset" ? `<span style="color:var(--report)">unmapped — no CA number in the name and no mapping. Map it once in 🛡 Restricted AUs → 🏷 Group personas, or pick a fallback unit in Settings</span>`
+        : d.source === "missing" ? `<span style="color:var(--off)">→ <b>${esc(d.auName)}</b> does not exist — create it in 🛡 Administrative units first</span>`
+          : d.source === "unset" ? `<span style="color:var(--report)">unmapped — no CA number in the name and no mapping. Map it once in 🛡 Administrative units → 🏷 Group personas, or pick a fallback unit in Settings</span>`
             : `<span style="color:var(--report)">→ <b>${esc(d.auName)}</b> (fallback)</span>`;
       return `<span class="wo-state off">${dot("off")}unprotected</span><div class="mini">${where}</div>`;
     };
@@ -164,7 +164,7 @@ const Protect = (() => {
       const vWhy = c.prot ? "already"
         : c.vault === "unknown" ? "units not read"
           : d.source === "unset" ? "no vault to put it in — map it, or pick a fallback unit in Settings"
-            : d.source === "missing" ? `${d.auName} does not exist yet — create it in 🛡 Restricted AUs`
+            : d.source === "missing" ? `${d.auName} does not exist yet — create it in 🛡 Administrative units`
               : "nothing to apply";
       const v = c.canVault ? `<label class="pr-tick"><input type="checkbox" data-pr-tick="vault" data-pr-id="${esc(g.id)}"${t.vault ? " checked" : ""}> place in vault</label>`
         : `<label class="pr-tick dis" title="${esc(vWhy)}"><input type="checkbox" disabled> place in vault <span class="muted">— ${esc(vWhy)}</span></label>`;

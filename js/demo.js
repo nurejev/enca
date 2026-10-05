@@ -332,7 +332,22 @@ const DEMO_DATA = {
   // Named locations for the best-practice location checks.
   adminUnits: [
     { id: "au-1", displayName: "RMAU — CA exclusion groups", description: "Restricted management administrative unit protecting Conditional Access exclusion groups.", isMemberManagementRestricted: true, visibility: null },
-    { id: "au-2", displayName: "Helpdesk NL", description: "Standard administrative unit for the Dutch helpdesk scope.", isMemberManagementRestricted: false, visibility: null },
+    { id: "au-2", displayName: "Helpdesk NL", description: "Regular administrative unit for the Dutch helpdesk scope.", isMemberManagementRestricted: false, visibility: null, membershipType: "Assigned" },
+    // 32435 · regular units for the inventory: two regional desks that share
+    // people, a paused rule, a unit nothing uses and an empty one with a role.
+    { id: "au-3", displayName: "AU-EU-Users", description: "Europe — users by country.", isMemberManagementRestricted: false, visibility: null, membershipType: "Dynamic", membershipRule: 'user.usageLocation -in ["NL","BE","DE","FR"]', membershipRuleProcessingState: "On" },
+    { id: "au-4", displayName: "AU-NA-Users", description: "North America — users by country.", isMemberManagementRestricted: false, visibility: null, membershipType: "Dynamic", membershipRule: 'user.usageLocation -in ["US","CA","MX"]', membershipRuleProcessingState: "Paused" },
+    { id: "au-5", displayName: "AU-Legacy-HR", description: "Left over from the 2024 HR pilot.", isMemberManagementRestricted: false, visibility: null, membershipType: "Assigned" },
+    { id: "au-6", displayName: "AU-Site-Warehouse", description: "", isMemberManagementRestricted: false, visibility: null, membershipType: "Assigned" },
+  ],
+  // Roles held at a unit's scope, as the PIM schedule instances return them.
+  adminUnitRoles: [
+    { directoryScopeId: "/administrativeUnits/au-1", roleName: "Groups Administrator", roleTemplateId: "fdd7a751-b60b-444a-984c-02652fe8fa1c", principalId: "u-admin", principalName: "Alex Admin", principalType: "User", state: "eligible", endDateTime: "2027-03-31T00:00:00Z", assignmentType: "Eligible" },
+    { directoryScopeId: "/administrativeUnits/au-2", roleName: "Groups Administrator", roleTemplateId: "fdd7a751-b60b-444a-984c-02652fe8fa1c", principalId: "u-hd1", principalName: "Hanna Helpdesk", principalType: "User", state: "active", endDateTime: null, assignmentType: "Assigned" },
+    { directoryScopeId: "/administrativeUnits/au-2", roleName: "Helpdesk Administrator", roleTemplateId: "729827e3-9c14-49f7-bb1b-9608f156bbb8", principalId: "g-hd-nl", principalName: "SG-Helpdesk-NL", principalType: "Group", state: "eligible", endDateTime: null, assignmentType: "Eligible" },
+    { directoryScopeId: "/administrativeUnits/au-3", roleName: "Helpdesk Administrator", roleTemplateId: "729827e3-9c14-49f7-bb1b-9608f156bbb8", principalId: "g-hd-eu", principalName: "PIM-SG-EU-ServiceDesk", principalType: "Group", state: "eligible", endDateTime: null, assignmentType: "Eligible" },
+    { directoryScopeId: "/administrativeUnits/au-4", roleName: "Helpdesk Administrator", roleTemplateId: "729827e3-9c14-49f7-bb1b-9608f156bbb8", principalId: "g-hd-na", principalName: "PIM-SG-NA-ServiceDesk", principalType: "Group", state: "eligible", endDateTime: null, assignmentType: "Eligible" },
+    { directoryScopeId: "/administrativeUnits/au-6", roleName: "Password Administrator", roleTemplateId: "966707d0-3269-4727-9be2-8c3a10f19b9d", principalId: "g-site", principalName: "PIM-SG-Site-Warehouse", principalType: "Group", state: "eligible", endDateTime: null, assignmentType: "Eligible" },
   ],
   adminUnitDetails: {
     "au-1": {
@@ -344,7 +359,24 @@ const DEMO_DATA = {
         { id: "srm-1", roleId: "role-ga", _roleName: "Groups Administrator", _principal: "Alex Admin", roleMemberInfo: { id: "u-admin", displayName: "Alex Admin" } },
       ],
     },
-    "au-2": { members: [], scoped: [] },
+    "au-2": {
+      members: [
+        { id: "g-CAB-SEC-U-CA212-Exclusion", displayName: "CAB-SEC-U-CA212-Exclusion", "@odata.type": "#microsoft.graph.group", isAssignableToRole: false, mailEnabled: false, groupTypes: [] },
+        { id: "u-emp1", displayName: "Eva de Vries", userPrincipalName: "eva@contoso.com", "@odata.type": "#microsoft.graph.user" },
+      ],
+      scoped: [{ id: "srm-2", roleId: "role-ga", _roleName: "Groups Administrator", _principal: "Hanna Helpdesk", roleMemberInfo: { id: "u-hd1", displayName: "Hanna Helpdesk" } }],
+    },
+    "au-3": { members: [
+      { id: "u-emp1", displayName: "Eva de Vries", userPrincipalName: "eva@contoso.com", "@odata.type": "#microsoft.graph.user" },
+      { id: "u-emp2", displayName: "Milan Jansen", userPrincipalName: "milan@contoso.com", "@odata.type": "#microsoft.graph.user" },
+      { id: "u-emp3", displayName: "Sofie Peeters", userPrincipalName: "sofie@contoso.com", "@odata.type": "#microsoft.graph.user" },
+    ], scoped: [] },
+    "au-4": { members: [
+      { id: "u-emp2", displayName: "Milan Jansen", userPrincipalName: "milan@contoso.com", "@odata.type": "#microsoft.graph.user" },
+      { id: "u-emp4", displayName: "Jordan Lee", userPrincipalName: "jordan@contoso.com", "@odata.type": "#microsoft.graph.user" },
+    ], scoped: [] },
+    "au-5": { members: [{ id: "u-emp5", displayName: "Noor Bakker", userPrincipalName: "noor@contoso.com", "@odata.type": "#microsoft.graph.user" }], scoped: [] },
+    "au-6": { members: [], scoped: [] },
   },
   // Baseline scopes setting as the portal API returns it when nothing was ever
   // selected — Microsoft's default, which since June 2026 means enforced.

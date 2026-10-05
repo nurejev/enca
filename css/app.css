@@ -3014,3 +3014,21 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .dg-table td{padding:7px 10px}
 .dg-apply h4{margin:10px 0 4px}
 @media (max-width:640px){.dg-cty{padding-left:0}}
+/* 🛡 Administrative units — the inventory (T27 2.0, 32435) */
+.auinv-tbl td{vertical-align:top}
+.auinv-row.on td{background:var(--soft)}
+.auinv-name{all:unset;cursor:pointer;font-weight:600;color:var(--ink);overflow-wrap:anywhere;border-radius:4px}
+.auinv-name:hover{text-decoration:underline}
+.auinv-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.auinv-sev{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;white-space:nowrap}
+.auinv-high{background:var(--crit-bg);color:var(--crit-fg)}
+.auinv-medium{background:var(--warn-bg);color:var(--warn-fg)}
+.auinv-low{background:var(--soft);color:var(--ink)}
+.auinv-info{background:var(--soft2);color:var(--muted,var(--ink))}
+.auinv-unit{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0 0 12px;background:var(--soft2)}
+.auinv-rule{font-family:var(--mono,ui-monospace,monospace);font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-top:4px;overflow-wrap:anywhere}
+.auinv-f{display:flex;flex-direction:column;gap:4px;border-radius:8px;padding:8px 10px;margin:6px 0 0;background:var(--surface);border:1px solid var(--line)}
+.auinv-f-high{border-color:var(--bad-bd);background:var(--bad-bg2)}
+.auinv-f-medium{border-color:var(--warn-bd);background:var(--warn-bg2)}
+.auinv-move{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.auinv-move select{max-width:100%}

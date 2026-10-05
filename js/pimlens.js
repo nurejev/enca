@@ -67,7 +67,7 @@ const PimLens = (() => {
     } else add("intune-standing", "high", "Intune roles are held through PIM-SG-INT access groups", "📱 Intune RBAC not read", "unread", "toolIntuneRbac");
     // 5. Restricted units
     if (ctx.rmau) add("rmau-pim", "high", "No PIM object in a restricted unit", ctx.rmau.violations.length ? `${ctx.rmau.violations.length}: ${ctx.rmau.violations.map((v) => `${v.memberName} in ${v.auName}`).join(", ")}` : "none", ctx.rmau.violations.length ? "fail" : "pass", "toolRmau");
-    else add("rmau-pim", "high", "No PIM object in a restricted unit", "🛡 Restricted AUs' PIM lens not read", "unread", "toolRmau");
+    else add("rmau-pim", "high", "No PIM object in a restricted unit", "🛡 Administrative units' PIM lens not read", "unread", "toolRmau");
     // 6. The context is enforced by Conditional Access
     const ctxId = (ctx.cat && ctx.cat.authContext && ctx.cat.authContext.id) || "c1";
     const gate = (ctx.caPolicies || []).filter((p) => ((((p.conditions || {}).applications || {}).includeAuthenticationContextClassReferences) || []).includes(ctxId));

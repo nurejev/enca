@@ -84,7 +84,7 @@ const BgVault = (() => {
   // why an open account cannot be ticked — on the tick itself
   function placeWhy(acc) {
     if (acc.canPlace) return "";
-    if (acc.unit && acc.unit.missing) return `${acc.unit.name} does not exist yet — create it in 🛡 Restricted AUs`;
+    if (acc.unit && acc.unit.missing) return `${acc.unit.name} does not exist yet — create it in 🛡 Administrative units`;
     return "the group is in no restricted unit and has no break-glass vault to follow — put the group in its vault first";
   }
 
@@ -216,7 +216,7 @@ const BgVault = (() => {
       ${res.rows.length ? `<div class="cg-tablewrap"><table class="cg-table bg-scope-table">
         <thead><tr><th>Restricted unit</th><th>Groups Administrator</th><th>User Administrator</th><th>Other roles</th><th style="width:26%">Verdict</th></tr></thead>
         <tbody>${body}</tbody></table></div>` : '<p class="mini muted">No restricted management administrative units in this tenant yet.</p>'}
-      <p class="mini muted" style="margin:8px 0 0">Active assignments are read from each unit's scoped role members. ${res.pim ? "PIM-eligible assignments are included (tagged eligible)." : 'PIM-eligible assignments need <b>RoleManagement.Read.Directory</b> — <button class="btn sm" data-pr-pim>🔑 Read PIM</button>'} A Groups Administrator is granted from Settings below; a User Administrator from 🛡 Restricted AUs → the unit → Scoped administrators.</p>
+      <p class="mini muted" style="margin:8px 0 0">Active assignments are read from each unit's scoped role members. ${res.pim ? "PIM-eligible assignments are included (tagged eligible)." : 'PIM-eligible assignments need <b>RoleManagement.Read.Directory</b> — <button class="btn sm" data-pr-pim>🔑 Read PIM</button>'} A Groups Administrator is granted from Settings below; a User Administrator from 🛡 Administrative units → the unit → Scoped administrators.</p>
     </div>`;
   }
 

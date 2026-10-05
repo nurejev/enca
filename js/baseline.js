@@ -740,7 +740,7 @@ const Baseline = (() => {
     if (!cat) return "";
     const on = isActive(cat.id);
     const auto = on && isAutoPicked(cat.id);
-    const tools = `👥 Conditional Access groups (① Check, ② Create), 🔒 Protect exclusions, 🛡 Restricted AUs (persona vaults, ＋ Bulk add, persona chips), the exclusion-restore action and 📖 Baseline guide all work against <b>${esc(cat.label)}</b> for this tenant.`;
+    const tools = `👥 Conditional Access groups (① Check, ② Create), 🔒 Protect exclusions, 🛡 Administrative units (persona vaults, ＋ Bulk add, persona chips), the exclusion-restore action and 📖 Baseline guide all work against <b>${esc(cat.label)}</b> for this tenant.`;
     let line;
     const held = (s) => s.map((x) => `<b>${x.own}</b> under ${esc(x.label)} names`).join(" and ");
     if (auto) {
@@ -842,7 +842,7 @@ const Baseline = (() => {
           ${few(p.groupsTo.filter((g) => !g.exists), (g) => `<div class="mini muted">＋ ${esc(g.name)}</div>`, 5)}
         </div>
         <div>
-          <b>🛡 Persona vaults 🛡 Restricted AUs expect</b>
+          <b>🛡 Persona vaults 🛡 Administrative units expect</b>
           <div class="mini">${p.from.vaults.length} units → <b>${p.vaults.length}</b>: ${p.vaults.length - vMissing - vClash.length} present, <b>${vMissing} missing</b>${vClash.length ? `, <span style="color:var(--off)">${vClash.length} name taken by a non-restricted unit</span>` : ""}.</div>
           ${few(p.vaults, (v) => `<div class="mini muted">${v.status === "present" ? "✓" : v.status === "missing" ? "＋" : "⚠"} ${esc(v.name)} <span class="muted">(${esc(v.label)})</span></div>`, 8)}
         </div>

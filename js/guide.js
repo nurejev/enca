@@ -137,7 +137,7 @@ const Guide = (() => {
     {
       id: "groups", icon: "👥", title: "Groups and their vaults", check: ["groups", "aus"],
       why: "Policies reference groups BY ID, so the groups must exist before any policy that assigns them — importing first would create policies that target nothing. And the exclusion groups are the keys to every door: whoever edits one walks through the policy it bypasses. That is why each persona's exclusions go into their own RESTRICTED administrative unit before the policies make those groups worth attacking — one vault per persona, so a scoped administrator for DevOps cannot touch the Admins exclusions.",
-      links: [["toolCaGroups", "👥 Conditional Access groups"], ["toolRmau", "🛡 Restricted AUs"]],
+      links: [["toolCaGroups", "👥 Conditional Access groups"], ["toolRmau", "🛡 Administrative units"]],
     },
     {
       id: "deps", icon: "🌐", title: "Named locations, strengths, contexts", check: ["locations", "strengths", "contexts"],

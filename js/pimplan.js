@@ -4,7 +4,7 @@
 //
 // WHY IT EXISTS. PIM onboarding runs from the browser (Mihai, 28 Sep 2026:
 // "the customer never runs a .ps1 — select and import from the baseline in
-// their tenant"). Every Workspace 02 tool that writes — 🛡 Restricted AUs'
+// their tenant"). Every Workspace 02 tool that writes — 🛡 Administrative units'
 // PIM lens (T27), 🚀 Deploy (T51) — builds a PLAN here from reads only, shows
 // it as a WhatIf, and applies exactly that plan through Graph with the run
 // ledger. The rules are the scripts' rules, ported, so a tenant ends up the

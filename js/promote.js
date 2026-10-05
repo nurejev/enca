@@ -117,6 +117,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 314,
+      title: "Administrative units — T27 covers regular units too (inventory, findings, move into a restricted unit)",
+      tools: ["Administrative units"],
+      builds: [32435],
+      risk: "medium",
+      what: "T27 is renamed Administrative units (number kept) and gains an inventory of every unit, restricted and regular: js/auinv.js (pure) models kind, membership type and rule, processing state, members, and roles at each unit's scope, active and eligible (PIM schedule instances; fallback to scopedRoleMembers, active only, said in the panel), and judges: ca-group-writable (high with a scoped Groups or User Administrator, medium otherwise; not for role-assignable groups or groups also in a restricted unit), holder-direct-standing (CA lens), holder-not-pim-group (PIM lens), overlap (regular units with desks on both), rule-paused, scoped-empty, unused, vault-closed, region-differs and region-unknown (PIM lens with a regions file). js/app.js: ruInvRead / ruInvRoles / ruInvPanel / ruInvMove, filters All / Restricted / Regular / With findings, the inventory above the unit's members in its card, reset on sign-in, sign-out and demo, a run counter so a read from an old context publishes nothing. One write: Move to a restricted unit (POST members/$ref on the restricted unit, the group stays in the regular one). Rename in the tile, Help, palette, rail and every live cross-reference; the catalog and EasyPIM samples keep the old name until the next docs review. Demo data: four regular units and roles at unit scope. tools/auinv.test.cjs (20).",
+      why: "Mihai, 5 Oct: T27 should also handle regular admin units. Mockup first (T27 Administrative units), decisions A-D as recommended: rename and keep the number, read-only for regular units apart from the move, the PIM lens adds the regions file, eligible roles counted. Medium: reads only, except one member add into a restricted unit, which narrows who can change the group's members and is undone by taking it out again.",
+      test: [
+        "Demo (?demo=1), 01 → 🛡 Administrative units: the tile, crumb and Help say Administrative units; chips All (6) / Restricted (1) / Regular (5); ▶ Check every unit reads, the chip With findings appears and is selected; the table lists Helpdesk NL first with High (CAB-SEC-U-CA212-Exclusion, Groups Administrator scoped), AU-EU-Users and AU-NA-Users with Overlaps, AU-NA-Users with Rule processing is Paused, AU-Legacy-HR Nothing uses this unit, AU-Site-Warehouse A role is scoped on an empty unit.",
+        "Click Helpdesk NL in the table: its card opens and scrolls into view, roles at its scope (Hanna Helpdesk, active · permanent; SG-Helpdesk-NL eligible) and the findings sit above the members; Move to a restricted unit → the confirmation names the target unit, what changes and how to put it back; OK → the toast says it is in the unit (simulated) and the High finding is gone.",
+        "Export MD: the document starts with Inventory — every unit, the table and the findings, then the per-unit sections; a regular unit's section reads Members, a restricted one Protected members.",
+        "Real tenant (cloudfellows.dev), signed in with Global Reader: ▶ Check every unit asks for AdministrativeUnit.Read.All and RoleManagement.Read.Directory once; roles at unit scope show eligible ones (the AU-RM-Executives desk) with active + eligible in the tile; a unit with hidden membership reads not read with the Member.Read.Hidden reason, never judged on members.",
+        "A tenant without Entra ID P2 (or with RoleManagement.Read.Directory refused): the tile says active only and the note names why; the scoped role members still appear.",
+        "Live move, on a test group only: put a test group excluded by a report-only policy into a regular unit with Groups Administrator scoped; the inventory reports it High; Move to a restricted unit → it lands in the persona vault (or the picked unit); Check again → the finding is gone; as the scoped Groups Administrator of the regular unit, adding a member to that group is refused; take it out of the restricted unit again from its card (✕) with Privileged Role Administrator.",
+        "02 PIM-buddy (?demo=1&ws=pim): the PIM lens panel comes first, then the inventory; a holder that is not a PIM-SG group (SG-Helpdesk-NL, Hanna Helpdesk) is a finding; load the regions file in 🧬 PIM baseline → 🗺 Regions, then Check again: a regional unit that differs is reported and the units the file builds but the tenant lacks are listed under the tiles.",
+        "Switch tenant or demo while the inventory is reading: nothing from the old read appears afterwards; ■ Stop ends the read with stopped, nothing judged.",
+        "node --test tools/*.test.cjs — all pass; node tools/check-plain-text.js clean."
+      ]
+    },
+    {
       n: 313,
       title: "Defender XDR access groups — the Entra side of the CloudFellows PIM framework (2.2)",
       tools: ["PIM baseline", "Deploy"],

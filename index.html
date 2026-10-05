@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32434"></script>
+<script src="js/popup-guard.js?v=32435"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32434" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32434">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32435" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32435">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32434"></script>
+<script src="js/selfhost-boot.js?v=32435"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32434"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32434"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32434">
-<link rel="stylesheet" href="css/workspaces.css?v=32434">
-<link rel="stylesheet" href="css/tool-layout.css?v=32434">
-<link rel="stylesheet" href="css/list-detail.css?v=32434">
-<link rel="stylesheet" href="css/flat-icons.css?v=32434">
+<script src="js/counter.js?v=32435"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32435"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32435">
+<link rel="stylesheet" href="css/workspaces.css?v=32435">
+<link rel="stylesheet" href="css/tool-layout.css?v=32435">
+<link rel="stylesheet" href="css/list-detail.css?v=32435">
+<link rel="stylesheet" href="css/flat-icons.css?v=32435">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32434" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32435" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32434" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32435" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -323,8 +323,8 @@
         <p><b>🏗 Builder</b> <span class="tag new">BETA</span> — one guided screen for a policy, blank, from a baseline template, or from a policy selected elsewhere, preflighted in What-If and born report-only. The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges — and, in the <b>vs. sign-ins</b> view <span class="tag new">BETA</span>, which trusted or policy-used location nobody signs in from any more. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolRmau">
-        <div class="tool-ic">🛡</div><h3>Restricted AUs <span class="tag upd">UPDATED</span></h3>
-        <p><b>In 02 PIM-buddy: the PIM lens</b> — AU-RM-Executives and the desk scoped on it, and no PIM object in any restricted unit, fixed from a preview. Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
+        <div class="tool-ic">🛡</div><h3>Administrative units <span class="tag upd">UPDATED</span></h3>
+        <p><b>Every unit, restricted and regular</b> — what it holds, who holds a role at its scope (active and eligible), and what it holds that it should not: a CA group a scoped admin can change, a role held directly and permanently, two desks on the same people, a paused rule, a unit nothing uses. <b>In 02 PIM-buddy: the PIM lens</b> — AU-RM-Executives and the desk scoped on it, no PIM object in any restricted unit, and the units against your regions file. Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
       </div>
       <div class="tool tool-tile" id="toolDeploy"><div class="tool-ic">↗</div><h3>Guided rollout <span class="tag new">NEW</span></h3><p>CloudFellows from a backup ZIP, Joey via Fetch latest. Review the import, observed impact and enforcement with the existing confirmations.</p></div>
       <div class="tool tool-tile" id="toolImport">
@@ -1654,6 +1654,10 @@
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R78</span> <a href="#" class="md-tool" data-tool="toolRmau">🛡 Administrative units — regular units too</a> <span class="tag ok">in beta today · beta 32435</span></h4>
+            <p class="mini" style="margin:0">T27 was about restricted units only. A regular unit matters as much for the opposite reason: whoever holds a role at its scope can act on what is inside. The tool now reads every unit — membership and rule, members, roles at its scope active and eligible — and reports a CA group a scoped admin can change, roles held directly and permanently, regional desks that share people, paused rules and units nothing uses; in Workspace 02 also holders outside a PIM-SG group and units that differ from the regions file. One write: move a CA group into a restricted unit.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R77</span> <a href="#" class="md-tool" data-tool="toolPimBaseline">🛡 Defender XDR access groups — the Entra side (framework 2.2)</a> <span class="tag ok">in beta today · beta 32434</span></h4>
             <p class="mini" style="margin:0">The five Defender XDR roles of the framework document — Administrator, Operator T3, T2, T1, Reader — get their groups in the catalog as PIM-SG-XDR-*: eligible members, GroupJIT for a shift, GroupJITTier0 (two hours, context c1, approval) for Admin. 🧬 PIM baseline compares them, 🚀 Deploy creates them and their membership policies, the EasyPIM samples carry them. The roles, their permissions and the assignments that name the groups stay in the Defender portal: made there by hand, listed under By hand, never read back. Purview stays outside.</p>
           </div>
@@ -1686,7 +1690,7 @@
             <p class="mini" style="margin:0">Intune has no administrative units and no PIM, so the framework uses Intune's own objects: role assignments held by the PIM-SG-INT access groups, scope groups, scope tags with their automatic assignment and one custom role. Read and matched per profile and per region; the verdicts fill 🗺 Regions' Intune rows. Read-only; 🚀 Deploy applies the gap.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R69</span> <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs — the PIM lens</a> <span class="tag ok">in beta today · beta 32422</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R69</span> <a href="#" class="md-tool" data-tool="toolRmau">🛡 Administrative units — the PIM lens</a> <span class="tag ok">in beta today · beta 32422</span></h4>
             <p class="mini" style="margin:0">Workspace 02's first lens on a carried-over tool, and the first PIM write from the browser. The restricted unit the profile expects (AU-RM-Executives) with its desk scoped on it, and no PIM object in any restricted unit. Every fix goes through the runner all PIM-buddy writes share: a WhatIf with impact and recovery, the tenant's domain typed out, one consent, the run ledger, a backup of every rule changed.</p>
           </div>
           <div class="list-card rm-card">
@@ -1971,7 +1975,7 @@
             <p class="mini" style="margin:6px 0 0">It types the <b>name</b> and fills the code in — a type-ahead over the full ISO list, matching on country name, adding the code as a chip you can see and remove. Codes typed directly keep working, but anything that is not a real ISO code is rejected at entry rather than accepted and discovered later. Worth doing for the same reason the CA-number routing exists: the tool knows the right answer, so the human should not have to be the one who remembers it.</p>
           </div>
           <div class="list-card rm-card">
-            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Restricted AUs</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="SECURITY.md" id="rmSecLink" target="_blank" rel="noopener">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
+            <p class="mini" style="margin:0"><a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> (the go-live forecast) · <a href="#" class="md-tool" data-tool="toolAuthStr">💪 Authentication strength advanced options</a> (AAGUIDs, certificate restrictions) · <a href="#" class="md-tool" data-tool="toolRmau">🛡 Administrative units</a>, <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> and the <b>⌨️ command palette</b> (all out of BETA) · 🔒 the <a href="SECURITY.md" id="rmSecLink" target="_blank" rel="noopener">security &amp; risk documentation</a>, readable before sign-in · one progress visual for every long read. The full record lives in <a href="#" class="md-tool" data-tool="toolChangelog">📋 What's new</a>.</p>
           </div>
           <div class="list-card rm-card" data-shipped="25058">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R02</span> <a href="#" class="md-tool" data-tool="toolDrift">📉 Drift watch</a> <span class="tag grant">live · build 267</span></h4>
@@ -2020,7 +2024,7 @@
           <div class="list-card rm-card" data-shipped="25153">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R28</span> <a href="#" class="md-tool" data-tool="toolRmau">🏷 Custom groups in the persona vaults</a> <span class="tag grant">live · beta 25153 · production 290</span></h4>
             <p class="mini" style="margin:0">Everything that routed a group to a vault read the <b>CA number in its name</b>. That worked for the baseline and for nothing else: a tenant's own exclusion group — <code>SEC-VIP-Exceptions</code>, <code>Contractors-NoMFA</code> — matched no persona, so ⑥ Protect skipped it unless a fallback unit was chosen by hand, ＋ Bulk add never offered it, and the break-glass case had to be special-cased by name to work at all. Most tenants have groups that predate the baseline, and telling them the naming is wrong is not a feature.</p>
-            <p class="mini" style="margin:6px 0 0">Now there is a <b>per-tenant mapping</b>: say once in 🛡 Restricted AUs → <b>🏷 Group personas</b> that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards. One function decides — <code>CaMap.codeOf</code>, this tenant's mapping first and the CA number second — and ⑥ Protect, ＋ Bulk add, the persona chips, 📥 Import, the 🛡 Markdown report and the restricted-unit pages in 📄 Create documentation all go through it, so none of them can hold a different opinion about where a group belongs.</p>
+            <p class="mini" style="margin:6px 0 0">Now there is a <b>per-tenant mapping</b>: say once in 🛡 Administrative units → <b>🏷 Group personas</b> that <code>Contractors-NoMFA</code> belongs to Externals, and every tool routes it there afterwards. One function decides — <code>CaMap.codeOf</code>, this tenant's mapping first and the CA number second — and ⑥ Protect, ＋ Bulk add, the persona chips, 📥 Import, the 🛡 Markdown report and the restricted-unit pages in 📄 Create documentation all go through it, so none of them can hold a different opinion about where a group belongs.</p>
             <p class="mini" style="margin:6px 0 0"><b>The two things it must not do, built in rather than promised.</b> It does not <b>guess</b>: matching is the group's object id or its display name compared case-insensitively, and nothing is inferred from a prefix or a word — a mapping nobody stated is how a group ends up in the wrong vault silently, and a vault is an authorisation boundary, so the cost of a wrong guess is one persona's scoped administrator holding another's exclusions. And it does not <b>hide the unmapped</b>: 🔎 Find the unmapped groups lists every group the policies reference that nothing places, with a persona one click away, and ⑥ Protect says <i>unmapped</i> on the row rather than skipping it in silence.</p>
             <p class="mini" style="margin:6px 0 0"><b>Held back from production 287</b>, while the seven items around it went: it is the only one of them that changes where a <b>write</b> puts a group object, and a persona vault is an authorisation boundary — file a group in the wrong one and that persona's scoped administrator can edit another persona's exclusions. An empty mapping leaves every existing routing decision byte-for-byte as it was, so the risk is entirely in what an operator states rather than in what the code assumes. It reached <b>production 290</b>, one release behind its neighbours. Queue item 67.</p>
             <p class="mini" style="margin:6px 0 0"><b>Kept with the tenant, not in the code</b> — the browser's own storage under the tenant id, so it survives a release and never becomes our list of everybody's group names. Nothing is written to the directory and nothing leaves the machine, which also means it does not follow you to another browser: <b>⭳ Export / ⭱ Import</b> is the way round that, and it is why filing a group from the unmapped list records the <b>object id</b> as well as the name — an id survives a rename in Entra, a typed name does not.</p>
@@ -2034,7 +2038,7 @@
           </div>
           <div class="list-card rm-card" data-shipped="25253">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R36</span> <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Joey Verlinden baseline as a first-class baseline</a> <span class="tag grant">live · beta 25253 · production 306</span></h4>
-            <p class="mini" style="margin:0">Until beta 25243 (finished in 25246), <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compared: it told you which of his 36 policies a tenant had and what differed, while <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> all stopped at the CloudFellows catalog. Now there is an <b>★ active baseline</b> per tenant — chosen by a button in the Baseline tool, never by merely looking at a comparison — and every tool downstream works against the one you picked. The switch is preceded by a <b>dry run</b> that reads the tenant and shows what would change — expected groups, expected vaults, which groups stop or start being routed, which conventions move — before offering the ★ Switch button, and a 🧹 <b>leftovers</b> list afterwards that reads what the previous baseline had created and deletes only what has stopped doing anything: ① Check and ② Create build his “&lt;policy name&gt; - Exclude” groups, 🛡 Restricted AUs offers his personas as vaults, ⑥ Protect and ＋ Bulk add route his groups into them, the exclusion-restore action names his groups, and the guide's readiness checks count his objects. Each of those screens says which baseline it is working against.</p>
+            <p class="mini" style="margin:0">Until beta 25243 (finished in 25246), <a href="#" class="md-tool" data-tool="toolBaselineJoey">🧩 Baseline (Joey Verlinden)</a> only compared: it told you which of his 36 policies a tenant had and what differed, while <b>group checks, group creation, persona checks, restricted-AU creation and placement</b> all stopped at the CloudFellows catalog. Now there is an <b>★ active baseline</b> per tenant — chosen by a button in the Baseline tool, never by merely looking at a comparison — and every tool downstream works against the one you picked. The switch is preceded by a <b>dry run</b> that reads the tenant and shows what would change — expected groups, expected vaults, which groups stop or start being routed, which conventions move — before offering the ★ Switch button, and a 🧹 <b>leftovers</b> list afterwards that reads what the previous baseline had created and deletes only what has stopped doing anything: ① Check and ② Create build his “&lt;policy name&gt; - Exclude” groups, 🛡 Administrative units offers his personas as vaults, ⑥ Protect and ＋ Bulk add route his groups into them, the exclusion-restore action names his groups, and the guide's readiness checks count his objects. Each of those screens says which baseline it is working against.</p>
             <p class="mini" style="margin:6px 0 0"><b>Read live.</b> The catalog is now fetched from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> once per session — the latest release, its <code>Config/ConditionalAccess</code> listing and every policy JSON — and the summary card says which release and commit it read. The hand-checked snapshot (2026.6.1 at <code>38469a4</code>) stays as the fallback, and the first live read already showed why: the repository ships 38 files at that tag where the snapshot lists 36.</p>
             <p class="mini" style="margin:6px 0 0"><b>The three things that made it more than plumbing, and how each landed.</b> His exclusion groups are named after the <b>policy</b>, not the CA number, so the routing rule for his baseline is an <b>exact match</b> against a policy name the catalog knows — the shape <span class="rm-ref">R28</span> established: one function deciding, an exact match, the unmapped left visible. His <b>personas</b> (Global / Admins / Internals / ServiceAccounts / Guests / Agents) are a separate vault list under his prefix — <code>CA-RMAU-&lt;Persona&gt;-Exclusions</code>, ENCA's convention because his baseline defines no units — sharing a code with a CloudFellows persona only where it means the same thing, so the R28 mapping is kept per baseline. And the <b>live fetch is a trust boundary</b>: unauthenticated GitHub is rate-limited and a release can be malformed, so every file is validated before it is believed, a read that fails leaves the snapshot in place and states the reason on the card, and the two new hosts are the only widening of the content-security policy, written down beside it.</p>
             <p class="mini" style="margin:6px 0 0"><b>R36.1 (beta 25249) — deployed on, not chosen.</b> A tenant that never chose a baseline now gets the one it <b>holds most of by name</b> as the active one for the session — the card says the counts, 📌 Keep saves it, a saved choice is never overridden — instead of defaulting to CloudFellows while 26 policies carried his names. The CloudFellows 🚨 E-Admins policies are expected under every catalog as a shared section. And the live read now brings <code>Config/Groups</code> and <code>Config/NamedLocations</code> with the policies, so <b>📥 Import baseline takes the repository read directly</b>, no zip, with a third assignment mode — <b>🔀 Switch baseline</b> — that creates his groups and <b>copies the members of the CloudFellows counterparts across</b> (break-glass, same-CA-number exclusion, persona include) before the policies land Off; the old groups stay as the rollback and surface in 🧹 leftovers.</p>
@@ -2118,7 +2122,7 @@
         <li><b>PNG</b> — a single image of the selection.</li>
         <li><b>PNG bundle</b> — a zip with one image per policy.</li>
         <li><b>Include restricted administrative units</b> — available for Word, PDF, Markdown and the PNG bundle. It adds an overview plus one page per restricted unit: persona and CA range, protected groups, every tenant policy that includes or excludes them, scoped administrators and whether the role definition can change group membership. Findings name a unit with nobody scoped, an empty unit, a frozen role-assignable group, and anything that could not be read.</li>
-        <li><b>The integration is optional and fails soft.</b> Create documentation reads the units itself; it never depends on the Restricted AUs screen having run. If the unit list, one unit, scoped roles or role definitions are unavailable, the unknown part is labelled rather than guessed. The Conditional Access policy document still exports — an optional appendix may lose detail, but it cannot break the main tool.</li>
+        <li><b>The integration is optional and fails soft.</b> Create documentation reads the units itself; it never depends on the Administrative units screen having run. If the unit list, one unit, scoped roles or role definitions are unavailable, the unknown part is labelled rather than guessed. The Conditional Access policy document still exports — an optional appendix may lose detail, but it cannot break the main tool.</li>
       </ul>
       <p><b>On a baseline tenant</b> (the 🧪 badge in the header) this documents the <b>baseline catalog</b>, not the tenant — the same rule 🗄 Backup follows, through the same code. The export is scoped to the <b>persona CAxxx policies</b>, the modal says how many of the tenant's own are being left out, and the scope is carried into the file itself: a line on the PDF cover, a quote under the Markdown header, the Word title, a <code>SCOPE.txt</code> beside the images in the PNG bundle. A document is read by somebody who was not in the room when it was made, and a policy that is absent leaves no trace of its absence.</p>
       <p>The <b>restricted-unit appendix is not filtered</b> there: on a baseline tenant those units are the baseline's own persona vaults, so they are documented as they stand — scoped administrators included. The modal says so at the point of choosing, rather than leaving you to work out why one half of the document is narrowed and the other is not. <b>PNG is the exception</b>: loose images have no cover, header or companion file, so they cannot state their own scope — the modal warns when you pick it on a baseline tenant, and the PNG bundle is the one to reach for instead.</p>
@@ -2493,9 +2497,14 @@
     </section>
 
     <section class="help-sec">
-      <h4>🛡 Restricted AUs</h4>
-      <p>Restricted management administrative units — the vaults that shield your Conditional Access exclusion groups from tenant-wide administrators. Members of a restricted AU answer <b>only</b> to roles scoped to that AU; a Global Administrator can read them but not change their membership.</p>
+      <h4>🛡 Administrative units <span class="tag upd">UPDATED</span></h4>
+      <p>Every administrative unit in the tenant, restricted and regular. A <b>regular</b> unit hands whoever holds a role at its scope the objects inside it; a <b>restricted</b> one — the vault that shields your Conditional Access exclusion groups — shuts tenant-wide roles out, so its members answer <b>only</b> to roles scoped to that unit; a Global Administrator can read them but not change their membership. Until build 32435 this tool was called Restricted AUs.</p>
       <ul>
+        <li><b>Inventory — every unit</b> <span class="tag new">NEW</span> — press <b>▶ Check every unit</b>. It reads the members of every unit (one paged read per unit, at most 200,000 objects in all; a unit past that is read in part and said so) and who holds a role at each unit's scope, <b>active and eligible</b>, from PIM (RoleManagement.Read.Directory). Without PIM — no Entra ID P2, or the consent refused — it reads the units' scoped role members instead, active only, and says eligible ones are not counted. A unit with hidden membership needs Member.Read.Hidden; without it the unit is listed as not read and never judged on what it holds. The table shows kind, membership (assigned, dynamic users, dynamic devices, with the rule's processing state), members, roles and findings; a unit's name opens its card, where the roles and findings sit above the members. Filters: All, Restricted, Regular, With findings. Reads only.</li>
+        <li><b>What it finds</b> — <b>High</b>: a group that Conditional Access policies exclude or include, sitting in a regular unit where Groups Administrator or User Administrator is scoped — its holders can add someone to an exclusion group, or take someone out of an include group, and so take them out of those policies (<b>Medium</b> when no such role is scoped there yet: one grant away). Not reported for a role-assignable group (no unit-scoped role can change one) or a group that is also in a restricted unit (roles scoped to a regular unit cannot change an object in a restricted one). <b>Medium</b>: a role held at the unit's scope directly by a user, active and permanent; two regular units, each with a role scoped on it, that share users; a dynamic rule whose processing is paused; a restricted unit nobody holds a role on (its members are frozen until Global Administrator or Privileged Role Administrator assigns somebody). <b>Low</b>: a role scoped on an empty unit. <b>Info</b>: a regular unit nothing uses.</li>
+        <li><b>Move to a restricted unit</b> — the one write, offered on a CA-group finding. The group goes into its persona vault when that exists, otherwise into the restricted unit you pick. The confirmation says what changes (only roles scoped to the restricted unit can change its members from then on; it stays in the regular unit and every policy keeps it), warns when nobody holds a role on the target, and how to put it back. Microsoft 365, mail-enabled and distribution groups cannot be members of a restricted unit, and the finding says so instead of offering the move. A regular unit itself can never be made restricted — the flag is set at creation.</li>
+        <li><b>In 02 PIM-buddy</b> — the inventory reuses 🧬 PIM baseline's read, reports a role at a unit's scope held by anything but a PIM-SG group, and, with a regions file loaded, a unit that differs from what the file builds, a unit named like a region that the file does not build, and the units the file builds that do not exist (🚀 Deploy creates them).</li>
+        <li><b>Export MD</b> starts with the inventory and its findings when it was read.</li>
         <li><b>The PIM lens (Workspace 02)</b> — opened from 02 PIM-buddy, the Conditional Access panels give way to the CloudFellows PIM framework's view, in the profile 🧬 PIM baseline uses. <b>🔒 Restricted units</b>: the unit the profile expects — AU-RM-Executives in Large · one region — present once and restricted, with the desk scoped on it: each role eligible for its group at the unit (directoryScopeId /administrativeUnits/&lt;id&gt;), never tenant-wide. A group that does not exist yet blocks its row until 🚀 Deploy makes it. <b>⚠ PIM objects inside</b>: every restricted unit is searched for a PIM-SG group, any role-assignable group, an adm- account or a person holding an Entra role — none belongs there, because a role-assignable group protects itself and inside a restricted unit its membership can no longer be changed, and PIM, access reviews and lifecycle workflows stop working. <b>📍 Regional units</b>: AU-&lt;code&gt;-Users / -Devices / -Groups must never be restricted. Fixes are ticked (a removal only by you), previewed with impact, recovery and what cannot be undone, and applied after you type the tenant's domain; one permission prompt covers the run and the run ledger shows every step. Reads the same as 🧬 PIM baseline plus the members of each restricted unit.</li>
         <li><b>The baseline check comes first.</b> The tool opens with a panel that looks for the nine units the baseline expects — <code>CAB-SEC-RMAU-GLO / ADM / INT / EXT / GUESTUSERS / GUESTAdmins / SA / WLI / DevOps / FW-Exclusions</code> plus <code>CAB-SEC-RMAU-BreakGlass</code> — and marks each one <i>present</i>, <i>missing</i>, or a name clash. <b>One unit per persona</b> is the whole point: with a single shared vault, whoever may manage the Admins exclusions may equally manage the Externals exclusions, and the separation you built the personas for stops at the AU boundary.</li>
         <li><b>Create the missing ones</b> — tick them, or take all. Each is created with the restricted flag set, and <b>you are granted Groups Administrator scoped to it in the same step</b>. That second half is not a convenience: an administrative unit with no scoped administrator is a vault nobody can open, because the restricted flag is precisely what shuts out the tenant-wide roles. Creation and the role grant are reported separately, so a unit that exists but has no administrator is visible as the half-outcome it is rather than counted as a success.</li>
@@ -2531,7 +2540,7 @@
       <h4>🧭 Workspaces &amp; navigation</h4>
       <p>From 2.0, once you are signed in, ENCA is laid out as workspaces: a rail of shortcuts on the left, a branded header across the top, a strip of open tools under it, and the tool itself below. The tools, their data and their confirmation steps are the same as before; this is how you move between them.</p>
       <ul>
-        <li><b>Two workspaces <span class="tag new">NEW</span></b> (build 32407) — the chip beside the wordmark says which side you are on: <b>01 · Conditional Access</b>, every tool as before, or <b>02 · PIM-buddy</b>, everything privileged access. Press the chip (or the <b>01 ⇄</b> caption at the foot of the rail, or <kbd>⌘⇧1</kbd> / <kbd>⌘⇧2</kbd>, or <kbd>⌘K</kbd> → <i>Switch to</i>) to change sides. On 02 the header is a lighter green with a lemon line under it (build 32430; navy before), so a screenshot always says where it was taken. Each side has its own rail, home page and tool library; a tool you open on one side keeps its tab, hidden while you are on the other and back when you return. A tool that lives on both sides — 👥 CA groups, 🔗 User or Group analyzer, 🚦 Sign-in log, 🕓 Changes, 🛡 Checks, 🛡 Restricted AUs — is the same screen from either side, with a <i>PIM lens · roadmap</i> chip on 02 until its PIM-only catalogue and Help text exist. The link <code>?ws=pim</code> opens 02 directly; the last side you used is remembered in this browser.</li>
+        <li><b>Two workspaces <span class="tag new">NEW</span></b> (build 32407) — the chip beside the wordmark says which side you are on: <b>01 · Conditional Access</b>, every tool as before, or <b>02 · PIM-buddy</b>, everything privileged access. Press the chip (or the <b>01 ⇄</b> caption at the foot of the rail, or <kbd>⌘⇧1</kbd> / <kbd>⌘⇧2</kbd>, or <kbd>⌘K</kbd> → <i>Switch to</i>) to change sides. On 02 the header is a lighter green with a lemon line under it (build 32430; navy before), so a screenshot always says where it was taken. Each side has its own rail, home page and tool library; a tool you open on one side keeps its tab, hidden while you are on the other and back when you return. A tool that lives on both sides — 👥 CA groups, 🔗 User or Group analyzer, 🚦 Sign-in log, 🕓 Changes, 🛡 Checks, 🛡 Administrative units — is the same screen from either side, with a <i>PIM lens · roadmap</i> chip on 02 until its PIM-only catalogue and Help text exist. The link <code>?ws=pim</code> opens 02 directly; the last side you used is remembered in this browser.</li>
         <li><b>The rail</b> — <b>Home</b>, then the tools in the order the work happens: <b>Policies</b>, <b>Sign-ins</b> and <b>Who is…</b> (what exists and who it reaches), <b>Checks</b> (what is wrong with it), then <b>Baseline</b>, <b>CA groups</b> and <b>Building blocks</b> — 🧩 Policy building blocks (what to change). Below the divider, <b>All tools</b> and <b>Help</b>. The tool you are in is highlighted. On a narrow window the rail becomes a bar along the bottom with fewer shortcuts; the rest stay under All tools.</li>
         <li><b>All tools</b> — in the rail and in the header. Opens the tool library: every tool in its group, searchable by name, task or tool number (<code>T14</code>).</li>
         <li><b>The header</b> — your logo on a round medallion hanging over the header's lower edge above the rail (a wide wordmark logo, or a narrow window, keeps the flat logo), the product name, and the account button naming the tenant, with <i>Demo</i> when you are on sample data. The account menu holds the connected app registration, <b>Theme</b>, <b>Close all workspaces</b> and sign-out. Header text switches between dark and light to stay readable on whatever colours the branding sets.</li>
@@ -2798,8 +2807,8 @@
       <h5>🧩 Baseline (Joey Verlinden) <span class="help-fold">folded into this tool — build 25338</span></h5>
       <p>The same comparison view against the community Conditional Access Baseline by Joey Verlinden — a different catalog, the same table. Since beta 25243 (roadmap R36) it is a <b>first-class baseline</b>: not only compared against, but the one every downstream tool can work against.</p>
       <ul>
-        <li><b>★ Active baseline</b> — the summary card says which of the two baselines this tenant works against. The button under it runs a <b>dry run first</b>: it reads the tenant's groups and administrative units and shows what the switch would change — how many groups ① Check / ② Create would expect and how many exist, which persona vaults 🛡 Restricted AUs would expect and which are present, which groups would stop or start being routed by ⑥ Protect and ＋ Bulk add, and the conventions that change (exclusion-group shape, break-glass name, fallback unit). Only under that card is the ★ Switch button; nothing is written by either step. The choice is kept per tenant in the browser (like the R28 group personas), defaults to CloudFellows, and is <b>never</b> changed by merely looking at a comparison — looking at Joey's table must not change where a write puts a group.</li>
-        <li><b>What follows the choice</b> — 👥 Conditional Access groups ① Check and ② Create (his “&lt;policy name&gt; - Exclude” groups plus CA-BreakGlassAccounts - Exclude and CA-ServiceAccounts, as templates), 🔒 Protect exclusions and 🛡 Restricted AUs (his personas as vaults: CA-RMAU-Global / Admins / Internals / ServiceAccounts / Guests / Agents-Exclusions and CA-RMAU-BreakGlass — ENCA's convention under his prefix, because his baseline defines no administrative units), ＋ Bulk add and the persona chips, the exclusion-restore action in 🗂 Assign, the persona picker, the 📘 MS Learn break-glass fix, and 📖 Baseline guide's readiness checks. Each of those screens carries a <i>Working against …</i> chip with a link back here.</li>
+        <li><b>★ Active baseline</b> — the summary card says which of the two baselines this tenant works against. The button under it runs a <b>dry run first</b>: it reads the tenant's groups and administrative units and shows what the switch would change — how many groups ① Check / ② Create would expect and how many exist, which persona vaults 🛡 Administrative units would expect and which are present, which groups would stop or start being routed by ⑥ Protect and ＋ Bulk add, and the conventions that change (exclusion-group shape, break-glass name, fallback unit). Only under that card is the ★ Switch button; nothing is written by either step. The choice is kept per tenant in the browser (like the R28 group personas), defaults to CloudFellows, and is <b>never</b> changed by merely looking at a comparison — looking at Joey's table must not change where a write puts a group.</li>
+        <li><b>What follows the choice</b> — 👥 Conditional Access groups ① Check and ② Create (his “&lt;policy name&gt; - Exclude” groups plus CA-BreakGlassAccounts - Exclude and CA-ServiceAccounts, as templates), 🔒 Protect exclusions and 🛡 Administrative units (his personas as vaults: CA-RMAU-Global / Admins / Internals / ServiceAccounts / Guests / Agents-Exclusions and CA-RMAU-BreakGlass — ENCA's convention under his prefix, because his baseline defines no administrative units), ＋ Bulk add and the persona chips, the exclusion-restore action in 🗂 Assign, the persona picker, the 📘 MS Learn break-glass fix, and 📖 Baseline guide's readiness checks. Each of those screens carries a <i>Working against …</i> chip with a link back here.</li>
         <li><b>🧹 What the other baseline left behind</b> — the switch writes nothing, so the previous baseline's exclusion groups, persona units and policies are all still in the tenant afterwards. The second button on the non-active card reads them and lists them in three sections with a verdict each: a <b>group</b> is safe to delete only when no policy references it, it has no members and it is not inside a unit that stays; a <b>unit</b> only when every member is an old-baseline group that is itself safe; a <b>policy</b> only when it is Off. Everything else is listed with the reason and cannot be ticked — a referenced group would leave a policy pointing at nothing, a guarding unit would open a vault, a policy that is On is still enforcing — and names the tool that deals with it. Break-glass groups are never offered, and a group every baseline shares — an E-Admins group, a <code>CAD-SEC-U-DG-*</code> deploy group — is not listed at all: it serves the new baseline as it served the old one. Deletion runs behind a typed DELETE, units first, then groups, then policies, with a change report; permissions are asked for on the click.</li>
         <li><b>The naming contract</b> — his groups carry the policy NAME, not a CA number, so a group is routed to a persona by an <b>exact, case-insensitive match</b> against a policy name the catalog knows, and nothing else. A group that matches nothing stays visible as unmapped, and the tenant's own mapping (🏷 Group personas, which is kept per baseline) can place it. His personas do not map onto the CloudFellows CA ranges — his CA300 block is service accounts — so the vaults are his, not a rename of ours. The groups every baseline shares are routed by the same exact rule: <code>Emergency_Access1</code>, <code>Emergency_Access2</code> and <code>CAB-SEC-U-BreakGlass</code> to CA-RMAU-BreakGlass, a <code>CAD-SEC-U-DG-&lt;CODE&gt;</code> deploy group to the unit of the persona its code names when his catalog has that persona (ADM, INT, SA, GUESTUSERS, GLO, AGENTS) — never a guess for any other code.</li>
         <li><b>📡 Live from the repository</b> — the catalog is read from <a href="https://github.com/j0eyv/ConditionalAccessBaseline" target="_blank" rel="noopener noreferrer">github.com/j0eyv/ConditionalAccessBaseline</a> once per session: the latest release, its file listing and every policy JSON in Config/ConditionalAccess, and the card says which release and commit it read. The bundled snapshot (2026.6.1 at 38469a4) is the fallback: a read that fails — GitHub's unauthenticated rate limit, a moved folder, a malformed release — leaves it in place and <b>says so</b> on the card rather than falling back quietly. Every file is validated before it is believed, nothing from it is executed, and a CA number used by more than one file in the repository is shown as such rather than silently de-duplicated. Each of those files is then compared against a policy of its OWN in the tenant: release 2026.6.1 numbers both the AnyPlatform and the iOS/Android copy CA005, and a tenant holding both gets two matched rows rather than one match and one policy reported as new while it sits two lines above.</li>
@@ -2901,8 +2910,8 @@
       <ul>
         <li><b>One row per group, two locks.</b> <b>🔒 Members — restricted unit</b>: in which vault it sits, or <i>unprotected</i> with where it would go. <b>🚫 Nesting</b>: disabled, allowed (with the number of nested groups already inside), <i>never</i> for a dynamic-membership group (its rule picks users or devices; a group can never be added), <i>impossible</i> for a role-assignable one, or <i>not returned by the directory</i>. Chips filter by state: not fully protected, vault only, nesting only, open, fully protected, cannot here.</li>
         <li><b>Nothing is pre-ticked.</b> A tick is something you did: a row, the header box (ticks every lock that is still open), or a selection carried over from the CA groups list. The bar counts exactly the ticks.</li>
-        <li><b>A greyed tick says why, on the tick itself</b> — <i>no vault to put it in — map it, or pick a fallback unit in Settings</i>; <i>CAB-SEC-RMAU-INT-Exclusions does not exist yet — create it in 🛡 Restricted AUs</i>; <i>blocked by 2 nested groups</i> (empty it first — 👥 CA groups shows them); <i>already</i>; <i>never nests (dynamic)</i>; <i>state not returned by the directory</i>. The row tick explains itself on hover.</li>
-        <li><b>Each group goes to its own persona vault.</b> The destination is read from the group's name — the <b>CA number</b> (<code>CA001</code> to <code>CAB-SEC-RMAU-GLO-Exclusions</code>, <code>CA101</code> to ADM, <code>CA1001</code> to DevOps), or, for the baseline's own groups, the <b>persona in the name</b> (<code>CAB-SEC-U-Persona-Admins</code>, <code>CAD-SEC-U-DG-INT</code>) and break-glass by intent (<code>BreakGlass</code>, <code>Emergency_Access1</code>) — or from what you said once in 🛡 Restricted AUs → 🏷 Group personas. Under Joey Verlinden's baseline the groups every baseline shares are placed too: the E-Admins groups in CA-RMAU-BreakGlass, a deploy group in its persona's unit when his catalog has that persona. Shown per row before you write. A tenant's own group that names no persona stays <b>unmapped</b> and says so; the <b>fallback unit</b> in Settings is used only for those, and only if you pick it — it is unset by default, because defaulting to the first unit in the list means Global on most tenants. Nothing is filed by proximity.</li>
+        <li><b>A greyed tick says why, on the tick itself</b> — <i>no vault to put it in — map it, or pick a fallback unit in Settings</i>; <i>CAB-SEC-RMAU-INT-Exclusions does not exist yet — create it in 🛡 Administrative units</i>; <i>blocked by 2 nested groups</i> (empty it first — 👥 CA groups shows them); <i>already</i>; <i>never nests (dynamic)</i>; <i>state not returned by the directory</i>. The row tick explains itself on hover.</li>
+        <li><b>Each group goes to its own persona vault.</b> The destination is read from the group's name — the <b>CA number</b> (<code>CA001</code> to <code>CAB-SEC-RMAU-GLO-Exclusions</code>, <code>CA101</code> to ADM, <code>CA1001</code> to DevOps), or, for the baseline's own groups, the <b>persona in the name</b> (<code>CAB-SEC-U-Persona-Admins</code>, <code>CAD-SEC-U-DG-INT</code>) and break-glass by intent (<code>BreakGlass</code>, <code>Emergency_Access1</code>) — or from what you said once in 🛡 Administrative units → 🏷 Group personas. Under Joey Verlinden's baseline the groups every baseline shares are placed too: the E-Admins groups in CA-RMAU-BreakGlass, a deploy group in its persona's unit when his catalog has that persona. Shown per row before you write. A tenant's own group that names no persona stays <b>unmapped</b> and says so; the <b>fallback unit</b> in Settings is used only for those, and only if you pick it — it is unset by default, because defaulting to the first unit in the list means Global on most tenants. Nothing is filed by proximity.</li>
         <li><b>👤 The break-glass accounts are a third lock</b> <span class="tag upd">UPDATED</span> — the group in a vault guards who is <i>in</i> it, not the accounts: a tenant-wide User, Authentication or Privileged Authentication Administrator can still change their methods, disable or delete them. Under the break-glass row a panel lists every user in the group (read through nested groups) with its <b>shape</b> (cloud-only, an onmicrosoft.com sign-in name, enabled), its <b>Global Administrator</b> assignment (active; permanent, time-bound, activated or eligible once PIM is read) and the <b>restricted unit it sits in</b>. An open account is ticked into the unit the group sits in (or the break-glass vault it would go to) — one tick per account, or <i>vault N accounts</i> on the group row — and read back through the account's own memberOf. An account in the unit but no longer in the group is shown as <i>in the unit · not in the group</i>, with a <i>take out of the unit</i> tick that is never ticked for you. A second acknowledgement is required: <b>a Global Administrator inside a restricted unit can have its password and methods reset by nobody</b> — no unit-scoped role may change a Global Administrator — so recovery is the other break-glass account taking it out of the unit (audited), fixing it and putting it back. The <b>👤 Break-glass accounts</b> tile counts them, and a group whose accounts are open is <i>👤 Accounts open</i>, not fully protected.</li>
         <li><b>🔑 Who can manage the units</b> <span class="tag upd">UPDATED</span> — a restricted unit blocks every tenant-wide role, Global Administrator included, so each restricted unit is checked for a role <b>scoped to it</b>: <b>Groups Administrator</b> where it holds groups, <b>User Administrator</b> where it holds users. Verdicts: <i>correct</i>, <i>role missing</i>, <i>nobody</i> (no scoped role at all), <i>empty unit</i>. Active assignments come from the unit's scoped role members; PIM-eligible ones are added (tagged eligible) once <b>🔑 Read PIM</b> has granted <code>RoleManagement.Read.Directory</code>. A User Administrator on the break-glass unit manages its ordinary users only — the Global Administrators stay out of its reach, and the row says so.</li>
         <li><b>Break-glass groups are candidates on any reference</b> — included by the break-glass policy and excluded by none, they used to be missed; the group holding the accounts that bypass every policy belongs in the break-glass vault whatever it is called.</li>
@@ -3876,109 +3885,110 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32434"></script>
-<script src="js/selfhost.js?v=32434"></script>
-<script src="js/version.js?v=32434"></script>
-<script src="js/verdict.js?v=32434"></script>
-<script src="js/fork.js?v=32434"></script>
-<script src="js/promote.js?v=32434"></script>
-<script src="js/authConfig.js?v=32434"></script>
-<script src="js/connection.js?v=32434"></script>
-<script src="js/labels.js?v=32434"></script>
-<script src="js/capabilities.js?v=32434"></script>
-<script src="js/graph.js?v=32434"></script>
-<script src="js/model.js?v=32434"></script>
-<script src="js/render.js?v=32434"></script>
-<script src="js/analyze.js?v=32434"></script>
-<script src="js/whatif.js?v=32434"></script>
-<script src="js/mslearn.js?v=32434"></script>
-<script src="js/learntriage.js?v=32434"></script>
-<script src="js/learnfeed.js?v=32434"></script>
-<script src="js/gapcheck.js?v=32434"></script>
-<script src="js/cisdata.js?v=32434"></script>
-<script src="js/cischeck.js?v=32434"></script>
-<script src="js/exclusions.js?v=32434"></script>
-<script src="js/cascope.js?v=32434"></script>
-<script src="js/coverage.js?v=32434"></script>
-<script src="js/runmeta.js?v=32434"></script>
-<script src="js/overview.js?v=32434"></script>
-<script src="js/validator.js?v=32434"></script>
-<script src="js/whatifeval.js?v=32434"></script>
-<script src="js/builder.js?v=32434"></script>
-<script src="js/onboard.js?v=32434"></script>
-<script src="js/compare.js?v=32434"></script>
-<script src="js/whois.js?v=32434"></script>
-<script src="js/wave.js?v=32434"></script>
-<script src="js/sessionctl.js?v=32434"></script>
-<script src="js/spgap.js?v=32434"></script>
-<script src="js/groupuse.js?v=32434"></script>
-<script src="js/iso3166.js?v=32434"></script>
-<script src="js/causes.js?v=32434"></script>
-<script src="js/locations.js?v=32434"></script>
-<script src="js/locsignin.js?v=32434"></script>
-<script src="js/workloadid.js?v=32434"></script>
-<script src="js/authcontexts.js?v=32434"></script>
-<script src="js/authstrengths.js?v=32434"></script>
-<script src="js/recycle.js?v=32434"></script>
-<script src="js/rmau.js?v=32434"></script>
-<script src="js/camap.js?v=32434"></script>
-<script src="js/rmaudoc.js?v=32434"></script>
-<script src="js/termsofuse.js?v=32434"></script>
-<script src="js/audit.js?v=32434"></script>
-<script src="js/drift.js?v=32434"></script>
-<script src="js/guide.js?v=32434"></script>
-<script src="js/userimpact.js?v=32434"></script>
-<script src="js/smsvoice.js?v=32434"></script>
-<script src="js/memberof.js?v=32434"></script>
-<script src="js/devcheck.js?v=32434"></script>
-<script src="js/idscore.js?v=32434"></script>
-<script src="js/xtenant.js?v=32434"></script>
-<script src="js/passkeys.js?v=32434"></script>
-<script src="js/tokencov.js?v=32434"></script>
-<script src="js/naming.js?v=32434"></script>
-<script src="js/licgap.js?v=32434"></script>
-<script src="js/teamsdev.js?v=32434"></script>
-<script src="js/signinstore.js?v=32434"></script>
-<script src="js/signins.js?v=32434"></script>
-<script src="js/reportimpact.js?v=32434"></script>
-<script src="js/changelog.js?v=32434"></script>
-<script src="js/baselineData.js?v=32434"></script>
-<script src="js/baselineJoeyData.js?v=32434"></script>
-<script src="js/baselineLive.js?v=32434"></script>
-<script src="js/pimBaselineData.js?v=32434"></script>
-<script src="js/pimbaseline.js?v=32434"></script>
-<script src="js/pimplan.js?v=32434"></script>
-<script src="js/pimrmau.js?v=32434"></script>
-<script src="js/intunerbac.js?v=32434"></script>
-<script src="js/pimroles.js?v=32434"></script>
-<script src="js/pimdeploy.js?v=32434"></script>
-<script src="js/pimdesigner.js?v=32434"></script>
-<script src="js/pimcatalog.js?v=32434"></script>
-<script src="js/pimlens.js?v=32434"></script>
-<script src="js/baseline.js?v=32434"></script>
-<script src="js/baselineCleanup.js?v=32434"></script>
-<script src="js/groupTemplates.js?v=32434"></script>
-<script src="js/assign.js?v=32434"></script>
-<script src="js/cagroups.js?v=32434"></script>
-<script src="js/groupmerge.js?v=32434"></script>
-<script src="js/dgfill.js?v=32434"></script>
-<script src="js/groupsview.js?v=32434"></script>
-<script src="js/runledger.js?v=32434"></script>
-<script src="js/bgvault.js?v=32434"></script>
-<script src="js/protect.js?v=32434"></script>
-<script src="js/policy-compare.js?v=32434"></script>
-<script src="js/import.js?v=32434"></script>
-<script src="js/export.js?v=32434"></script>
-<script src="js/demo.js?v=32434"></script>
-<script src="js/list-detail.js?v=32434"></script>
-<script src="js/flat-icons.js?v=32434"></script>
-<script src="js/workspace.js?v=32434"></script>
-<script src="js/analysis-jobs.js?v=32434"></script>
-<script src="js/search-suggest.js?v=32434"></script>
-<script src="js/app.js?v=32434"></script>
-<script src="js/col-resize.js?v=32434"></script>
-<script src="js/accessibility.js?v=32434"></script>
-<script src="js/workspaces.js?v=32434"></script>
-<script src="js/tool-layout.js?v=32434"></script>
+<script src="js/branding.js?v=32435"></script>
+<script src="js/selfhost.js?v=32435"></script>
+<script src="js/version.js?v=32435"></script>
+<script src="js/verdict.js?v=32435"></script>
+<script src="js/fork.js?v=32435"></script>
+<script src="js/promote.js?v=32435"></script>
+<script src="js/authConfig.js?v=32435"></script>
+<script src="js/connection.js?v=32435"></script>
+<script src="js/labels.js?v=32435"></script>
+<script src="js/capabilities.js?v=32435"></script>
+<script src="js/graph.js?v=32435"></script>
+<script src="js/model.js?v=32435"></script>
+<script src="js/render.js?v=32435"></script>
+<script src="js/analyze.js?v=32435"></script>
+<script src="js/whatif.js?v=32435"></script>
+<script src="js/mslearn.js?v=32435"></script>
+<script src="js/learntriage.js?v=32435"></script>
+<script src="js/learnfeed.js?v=32435"></script>
+<script src="js/gapcheck.js?v=32435"></script>
+<script src="js/cisdata.js?v=32435"></script>
+<script src="js/cischeck.js?v=32435"></script>
+<script src="js/exclusions.js?v=32435"></script>
+<script src="js/cascope.js?v=32435"></script>
+<script src="js/coverage.js?v=32435"></script>
+<script src="js/runmeta.js?v=32435"></script>
+<script src="js/overview.js?v=32435"></script>
+<script src="js/validator.js?v=32435"></script>
+<script src="js/whatifeval.js?v=32435"></script>
+<script src="js/builder.js?v=32435"></script>
+<script src="js/onboard.js?v=32435"></script>
+<script src="js/compare.js?v=32435"></script>
+<script src="js/whois.js?v=32435"></script>
+<script src="js/wave.js?v=32435"></script>
+<script src="js/sessionctl.js?v=32435"></script>
+<script src="js/spgap.js?v=32435"></script>
+<script src="js/groupuse.js?v=32435"></script>
+<script src="js/iso3166.js?v=32435"></script>
+<script src="js/causes.js?v=32435"></script>
+<script src="js/locations.js?v=32435"></script>
+<script src="js/locsignin.js?v=32435"></script>
+<script src="js/workloadid.js?v=32435"></script>
+<script src="js/authcontexts.js?v=32435"></script>
+<script src="js/authstrengths.js?v=32435"></script>
+<script src="js/recycle.js?v=32435"></script>
+<script src="js/rmau.js?v=32435"></script>
+<script src="js/auinv.js?v=32435"></script>
+<script src="js/camap.js?v=32435"></script>
+<script src="js/rmaudoc.js?v=32435"></script>
+<script src="js/termsofuse.js?v=32435"></script>
+<script src="js/audit.js?v=32435"></script>
+<script src="js/drift.js?v=32435"></script>
+<script src="js/guide.js?v=32435"></script>
+<script src="js/userimpact.js?v=32435"></script>
+<script src="js/smsvoice.js?v=32435"></script>
+<script src="js/memberof.js?v=32435"></script>
+<script src="js/devcheck.js?v=32435"></script>
+<script src="js/idscore.js?v=32435"></script>
+<script src="js/xtenant.js?v=32435"></script>
+<script src="js/passkeys.js?v=32435"></script>
+<script src="js/tokencov.js?v=32435"></script>
+<script src="js/naming.js?v=32435"></script>
+<script src="js/licgap.js?v=32435"></script>
+<script src="js/teamsdev.js?v=32435"></script>
+<script src="js/signinstore.js?v=32435"></script>
+<script src="js/signins.js?v=32435"></script>
+<script src="js/reportimpact.js?v=32435"></script>
+<script src="js/changelog.js?v=32435"></script>
+<script src="js/baselineData.js?v=32435"></script>
+<script src="js/baselineJoeyData.js?v=32435"></script>
+<script src="js/baselineLive.js?v=32435"></script>
+<script src="js/pimBaselineData.js?v=32435"></script>
+<script src="js/pimbaseline.js?v=32435"></script>
+<script src="js/pimplan.js?v=32435"></script>
+<script src="js/pimrmau.js?v=32435"></script>
+<script src="js/intunerbac.js?v=32435"></script>
+<script src="js/pimroles.js?v=32435"></script>
+<script src="js/pimdeploy.js?v=32435"></script>
+<script src="js/pimdesigner.js?v=32435"></script>
+<script src="js/pimcatalog.js?v=32435"></script>
+<script src="js/pimlens.js?v=32435"></script>
+<script src="js/baseline.js?v=32435"></script>
+<script src="js/baselineCleanup.js?v=32435"></script>
+<script src="js/groupTemplates.js?v=32435"></script>
+<script src="js/assign.js?v=32435"></script>
+<script src="js/cagroups.js?v=32435"></script>
+<script src="js/groupmerge.js?v=32435"></script>
+<script src="js/dgfill.js?v=32435"></script>
+<script src="js/groupsview.js?v=32435"></script>
+<script src="js/runledger.js?v=32435"></script>
+<script src="js/bgvault.js?v=32435"></script>
+<script src="js/protect.js?v=32435"></script>
+<script src="js/policy-compare.js?v=32435"></script>
+<script src="js/import.js?v=32435"></script>
+<script src="js/export.js?v=32435"></script>
+<script src="js/demo.js?v=32435"></script>
+<script src="js/list-detail.js?v=32435"></script>
+<script src="js/flat-icons.js?v=32435"></script>
+<script src="js/workspace.js?v=32435"></script>
+<script src="js/analysis-jobs.js?v=32435"></script>
+<script src="js/search-suggest.js?v=32435"></script>
+<script src="js/app.js?v=32435"></script>
+<script src="js/col-resize.js?v=32435"></script>
+<script src="js/accessibility.js?v=32435"></script>
+<script src="js/workspaces.js?v=32435"></script>
+<script src="js/tool-layout.js?v=32435"></script>
 </body>
 </html>
