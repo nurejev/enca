@@ -199,3 +199,11 @@ test("3.0: job groups active (after their role allows permanent active), direct 
   assert.ok(!JSON.stringify(P.ops).includes("outlook.office"), "nothing in a plan touches Exchange itself");
   assert.ok(P.findings.some((f) => /^PIM-SG-M365-Ops: if it has ACTIVE members, they hold every role of the job standing/.test(f)), "an existing job group with active members is warned about");
 });
+
+test("32438: the same activation requirements in another order are no change (cloudfellows.dev plan, 5 Oct)", () => {
+  const T = { ActivationRequirement: "MultiFactorAuthentication,Justification", ActivationDuration: "PT4H" };
+  const rules = [{ id: "Enablement_EndUser_Assignment", enabledRules: ["MultiFactorAuthentication", "Justification"] }, { id: "Expiration_EndUser_Assignment", isExpirationRequired: true, maximumDuration: "PT4H" }];
+  assert.ok(!PP.ruleChanges(rules, T, {}).changes.some((c) => c.ruleId === "Enablement_EndUser_Assignment"), "order only");
+  const more = [{ id: "Enablement_EndUser_Assignment", enabledRules: ["MultiFactorAuthentication", "Justification", "Ticketing"] }];
+  assert.deepEqual(PP.ruleChanges(more, T, {}).changes.find((c) => c.ruleId === "Enablement_EndUser_Assignment").after.enabledRules, ["Justification", "MultiFactorAuthentication"], "a real difference still changes");
+});

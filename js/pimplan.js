@@ -105,7 +105,8 @@ const PimPlan = (() => {
     };
     const req = String(T.ActivationRequirement || "None").split(",").map((s) => s.trim()).filter((s) => s && s !== "None").sort();
     set("Expiration_EndUser_Assignment", (r) => { r.isExpirationRequired = true; r.maximumDuration = String(T.ActivationDuration || "PT8H"); });
-    set("Enablement_EndUser_Assignment", (r) => { r.enabledRules = req.slice(); });
+    // Graph returns enabledRules in no fixed order: the same set is no change (32438)
+    set("Enablement_EndUser_Assignment", (r) => { const cur = (r.enabledRules || []).map(String); if (cur.length !== req.length || [...cur].sort().join("|") !== req.join("|")) r.enabledRules = req.slice(); });
     set("AuthenticationContext_EndUser_Assignment", (r) => { const on = !!T.AuthenticationContext_Enabled; r.isEnabled = on; r.claimValue = on ? String(T.AuthenticationContext_Value || "").split(":")[0] : null; });
     let approverProblem = null;
     // skipApproval: the approver group cannot approve yet (made in this run,
