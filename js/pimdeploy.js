@@ -49,12 +49,13 @@ const PimDeploy = (() => {
     ["groups", "PIM-SG groups", "role-assignable, private — created empty"],
     ["approvers", "Approver groups", "plain security groups; members are added by you (a region's from its regions file)"],
     ["rolePolicies", "Role settings", "rule by rule, only the rules that differ; the rules as they were go into the backup"],
-    ["eligibilities", "Group eligibilities", "each persona group eligible for its roles at tenant scope, one year"],
+    ["eligibilities", "Group assignments", "job groups ACTIVE, permanently, in their roles; direct groups ELIGIBLE per role for a year (3.0)"],
     ["groupPolicies", "Membership policies", "GroupMember / GroupJIT on every persona and Intune group; a new group's policy follows once PIM for Groups knows it"],
     ["rmau", "Restricted unit", "AU-RM-Executives and the desk scoped on it — the restricted flag cannot be undone"],
     ["regions", "Regions", "per row of the regions file: units, groups, scoped eligibilities, Intune scope groups"],
     ["intune", "Intune RBAC", "custom role, scope tags, role assignments to the PIM-SG-INT access groups"],
     ["xdr", "Defender XDR groups", "PIM-SG-XDR-* groups and their membership policies only; the roles and assignments are made in the Defender portal"],
+    ["exchange", "Exchange RBAC groups", "PIM-SG-EXO-* groups and their membership policies; each joins its Exchange role group in Exchange (By hand, or tools/pim Set-PimExchangeRbac.ps1)"],
     ["azure", "Azure groups", "PIM-SG-AZ-* groups only; their Azure role assignments are made in Azure"],
   ];
   const DEFAULT_OFF = new Set(["rmau", "azure"]);
@@ -100,7 +101,7 @@ const PimDeploy = (() => {
     };
     if (on("approvers")) [...usedApprovers].filter((n) => approverNames.has(n) || /Approvers/.test(n)).sort().forEach((n) => createGroup(n, false, `${cat.label} ${cat.release}: approves activations; a plain group, never role-assignable.`, "approvers"));
     res.groups.forEach((g) => {
-      const sec = g.scope === "azure" ? "azure" : g.scope === "xdr" ? "xdr" : "groups";
+      const sec = g.scope === "azure" ? "azure" : g.scope === "xdr" ? "xdr" : g.scope === "exchange" ? "exchange" : "groups";
       if (!on(sec) || !want(`group:${g.name}`)) return;
       if (g.status === "conflict") { P.blocked.push(g.conflict || `${g.name} is in conflict`); return; }
       if (!g.present) createGroup(g.name, true, `${cat.label} ${cat.release}: ${g.persona}. ${g.description || ""}`.trim(), sec);
@@ -184,8 +185,23 @@ const PimDeploy = (() => {
       if (!rid) { P.blocked.push(`${roleName}: no built-in role with that name was read`); return; }
       const gid = ref(gname);
       if (!gid) { P.findings.push(`${gname} → ${roleName}: left out — the group does not exist and is not in this import`); return; }
-      if (scope.includes("{{") === false && !String(gid).startsWith("{{") && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === scope)) return;
-      if (!String(gid).startsWith("{{") && active.some((a) => a.principalId === gid && a.roleName === roleName && a.assignmentType !== "Activated" && (a.directoryScopeId || "/") === scope)) P.findings.push(`${gname} holds ${roleName} ACTIVE (2.0 style) — once the eligibility exists, remove the active assignment by hand`);
+      const isNew = String(gid).startsWith("{{");
+      const job = PimBaseline.isJob(cat, gname);
+      if (job) {
+        // 3.0: a job group holds the role ACTIVE, permanently; its eligible
+        // members activate the group. Its 2.x eligibility is reported, never
+        // removed by an import (tools/pim Set-PimFramework30.ps1 -Phase Retire).
+        if (!isNew && active.some((a) => a.principalId === gid && a.roleName === roleName && a.assignmentType !== "Activated" && (a.directoryScopeId || "/") === scope)) return;
+        if (!isNew && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === scope)) P.findings.push(`${gname} is still ELIGIBLE for ${roleName} at ${scopeLabel} (2.x) — once the active assignment exists, remove the eligibility (Set-PimFramework30.ps1 -Phase Retire, or by hand)`);
+        const requires = P.ops.filter((o) => o.key.startsWith(`rpol:${roleName}:`)).map((o) => o.key);
+        // An ACTIVE member of a group that holds roles actively holds them standing.
+        if (!isNew && !P.findings.some((f) => f.startsWith(`${gname}: if it has ACTIVE members`))) P.findings.push(`${gname}: if it has ACTIVE members, they hold every role of the job standing once this run makes the group active — make them ELIGIBLE members first (PIM for Groups, or tools/pim Set-PimFramework30.ps1 -Phase People); 🎖 Roles & assignments shows who is active`);
+        PimPlan.add(P, { requires, key: `act:${roleName}:${gname}:${scopeLabel}`, kind: "request", url: `${V1}/roleManagement/directory/roleAssignmentScheduleRequests`, needs: ["RoleManagement.ReadWrite.Directory"], section, summary: `${gname} ACTIVE in ${roleName} at ${scopeLabel} (permanent — its eligible members get it on activation)`,
+          body: PimPlan.eligibility({ principalId: gid, roleDefinitionId: rid, scope, permanent: true, justification: `${cat.label} ${cat.release}: job group ${gname} holds ${roleName}${scope === "/" ? "" : ` in ${scopeLabel}`}` }) });
+        return;
+      }
+      if (scope.includes("{{") === false && !isNew && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === scope)) return;
+      if (!isNew && active.some((a) => a.principalId === gid && a.roleName === roleName && a.assignmentType !== "Activated" && (a.directoryScopeId || "/") === scope)) P.findings.push(`${gname} holds ${roleName} ACTIVE — a direct group is eligible per role; once the eligibility exists, remove the active assignment by hand`);
       if (scope !== "/" && !String(gid).startsWith("{{") && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === "/")) P.findings.push(`${gname} is eligible for ${roleName} at TENANT scope — wider than ${scopeLabel}; remove the tenant-wide one by hand`);
       // The maximum this run leaves the role with, not the one it found:
       // a tighter tier applied first would refuse a longer request (32429).
@@ -228,12 +244,13 @@ const PimDeploy = (() => {
       } else deferred.push({ name, template, gid, section, T });
     };
     if (on("groupPolicies")) {
-      res.groups.filter((g) => g.scope !== "xdr" && (g.scope !== "azure" || on("azure"))).forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "groupPolicies"); });
+      res.groups.filter((g) => g.scope !== "xdr" && g.scope !== "exchange" && (g.scope !== "azure" || on("azure"))).forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "groupPolicies"); });
       if (on("regions")) regs.forEach((R) => R.groups.filter((g) => g.template).forEach((g) => gpolFor(g.name, g.template, "regions")));
     }
     // The Defender XDR groups' policies travel with their section, not with
     // Membership policies: ticking Defender XDR groups is one decision.
     if (on("xdr")) res.groups.filter((g) => g.scope === "xdr").forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "xdr"); });
+    if (on("exchange")) res.groups.filter((g) => g.scope === "exchange").forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "exchange"); });
 
     // ---- Intune ------------------------------------------------------------
     if (on("intune") && opts.intune) IntuneRbac.plan(P, cat, opts.intune, ref, opts.intuneSel || null);
@@ -250,6 +267,8 @@ const PimDeploy = (() => {
     // ---- what a person decides ---------------------------------------------
     res.rows.forEach((r) => { if (r.permanentOutside) P.findings.push(`${r.name}: ${r.permanentOutside} permanent active assignment${r.permanentOutside === 1 ? "" : "s"} outside the framework — make eligible or remove, by hand (never by an import)`); });
     P.manual.push("members: persona groups ACTIVE for at most a year, PIM-SG-INT-* and PIM-SG-XDR-* access groups ELIGIBLE — add them in PIM for Groups or with an access package");
+    const exoGroups = res.groups.filter((g) => g.scope === "exchange");
+    if (on("exchange") && exoGroups.length) P.manual.push(`Exchange RBAC: add each group to its Exchange Online role group — ${exoGroups.map((g) => `${g.name} → ${(g.exchange && g.exchange.roleGroup) || "?"}`).join(", ")} — with Add-RoleGroupMember -Member <group id> (tools/pim Set-PimExchangeRbac.ps1 does exactly that); the browser cannot reach Exchange`);
     const xdrGroups = res.groups.filter((g) => g.scope === "xdr");
     if (on("xdr") && xdrGroups.length) P.manual.push(`Defender XDR: in the Defender portal (Permissions → Roles) create the ${xdrGroups.length} roles with the framework document's permission sets and one assignment each at scope All naming its group — ${xdrGroups.map((g) => `${g.name} → ${(g.xdr && g.xdr.role) || g.persona}`).join(", ")} — then activate unified RBAC per workload; nothing here reads or writes the portal`);
     if (on("approvers")) P.manual.push(`the approvers in ${[...usedApprovers].join(", ")} — at least two people who never approve their own activation`);
@@ -261,7 +280,7 @@ const PimDeploy = (() => {
   // What each section would do now — the counts on the pick.
   function sections(cat, raw, opts = {}) {
     const all = build(cat, raw, Object.assign({}, opts, { sections: null }));
-    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : k === "xdr" ? cat.groups.some((g) => g.scope === "xdr") : true;
+    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : k === "xdr" ? cat.groups.some((g) => g.scope === "xdr") : k === "exchange" ? cat.groups.some((g) => g.scope === "exchange") : true;
     return SECTIONS.filter(([k]) => has(k)).map(([key, label, what]) => {
       const ops = all.ops.filter((o) => o.section === key);
       const kinds = {};
