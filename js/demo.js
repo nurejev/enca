@@ -230,6 +230,38 @@ const DEMO_DATA = {
   // and a pilot profile restricted to Authenticator WITHOUT attestation. Demo
   // policy d1 requires Phishing-resistant MFA of Global Administrators, whose
   // one active holder is not in the pilot — the blocking finding the tab is for.
+  // 🤖 Workload identities (32406, R46): one demo-only workload identity
+  // policy (kept here, NOT in the policy list — adding it there would change
+  // every other tool's demo), the service principals and their sign-ins in
+  // the Graph servicePrincipal / managedIdentity record shape.
+  workload: {
+    tenantId: "demo-tenant",
+    policy: { id: "demo-wid-900", displayName: "CA900-WorkloadIDs-BlockOutsideTrusted-v1.0", state: "enabled",
+      conditions: { clientApplications: { includeServicePrincipals: ["sp-payroll", "sp-backup", "sp-mi-func"] }, applications: { includeApplications: ["All"] }, locations: { includeLocations: ["All"], excludeLocations: ["AllTrusted"] } },
+      grantControls: { operator: "OR", builtInControls: ["block"] } },
+    policyRo: { id: "demo-wid-901", displayName: "CA901-WorkloadIDs-BlockHighRisk-v1.0", state: "enabledForReportingButNotEnforced",
+      conditions: { clientApplications: { includeServicePrincipals: ["ServicePrincipalsInMyTenant"] }, applications: { includeApplications: ["All"] }, servicePrincipalRiskLevels: ["high"] },
+      grantControls: { operator: "OR", builtInControls: ["block"] } },
+    servicePrincipals: {
+      "sp-payroll": { id: "sp-payroll", appId: "a0000000-0000-0000-0000-000000000001", displayName: "svc-payroll-export", servicePrincipalType: "Application", appOwnerOrganizationId: "demo-tenant", signInAudience: "AzureADMyOrg" },
+      "sp-backup": { id: "sp-backup", appId: "a0000000-0000-0000-0000-000000000002", displayName: "svc-backup-graph", servicePrincipalType: "Application", appOwnerOrganizationId: "demo-tenant", signInAudience: "AzureADMyOrg" },
+      "sp-hrsync": { id: "sp-hrsync", appId: "a0000000-0000-0000-0000-000000000003", displayName: "app-hr-sync", servicePrincipalType: "Application", appOwnerOrganizationId: "demo-tenant", signInAudience: "AzureADMyOrg" },
+      "sp-mi-func": { id: "sp-mi-func", appId: "a0000000-0000-0000-0000-000000000004", displayName: "mi-func-invoices", servicePrincipalType: "ManagedIdentity", appOwnerOrganizationId: null },
+      "sp-ticket": { id: "sp-ticket", appId: "a0000000-0000-0000-0000-000000000005", displayName: "Contoso Ticketing", servicePrincipalType: "Application", appOwnerOrganizationId: "e5d0c1b2-0000-4000-8000-00000000abcd" },
+    },
+    signIns: [
+      { createdDateTime: "2026-07-21T06:00:00Z", servicePrincipalId: "sp-payroll", servicePrincipalName: "svc-payroll-export", appId: "a0000000-0000-0000-0000-000000000001", ipAddress: "203.0.113.40", location: { countryOrRegion: "NL" }, status: { errorCode: 0 }, conditionalAccessStatus: "notApplied", signInEventTypes: ["servicePrincipal"], resourceDisplayName: "Microsoft Graph",
+        appliedConditionalAccessPolicies: [{ id: "demo-wid-900", result: "notApplied" }, { id: "demo-wid-901", result: "reportOnlyNotApplied" }] },
+      { createdDateTime: "2026-07-21T07:00:00Z", servicePrincipalId: "sp-payroll", servicePrincipalName: "svc-payroll-export", appId: "a0000000-0000-0000-0000-000000000001", ipAddress: "203.0.113.40", location: { countryOrRegion: "NL" }, status: { errorCode: 0 }, conditionalAccessStatus: "notApplied", signInEventTypes: ["servicePrincipal"], resourceDisplayName: "Microsoft Graph",
+        appliedConditionalAccessPolicies: [{ id: "demo-wid-900", result: "notApplied" }, { id: "demo-wid-901", result: "reportOnlyNotApplied" }] },
+      { createdDateTime: "2026-07-21T08:10:00Z", servicePrincipalId: "sp-backup", servicePrincipalName: "svc-backup-graph", appId: "a0000000-0000-0000-0000-000000000002", ipAddress: "192.0.2.80", location: { countryOrRegion: "US" }, status: { errorCode: 53003 }, conditionalAccessStatus: "failure", signInEventTypes: ["servicePrincipal"], resourceDisplayName: "Microsoft Graph",
+        appliedConditionalAccessPolicies: [{ id: "demo-wid-900", result: "failure" }, { id: "demo-wid-901", result: "reportOnlyNotApplied" }] },
+      { createdDateTime: "2026-07-21T09:00:00Z", servicePrincipalId: "sp-hrsync", servicePrincipalName: "app-hr-sync", appId: "a0000000-0000-0000-0000-000000000003", ipAddress: "192.0.2.81", location: { countryOrRegion: "US" }, status: { errorCode: 0 }, conditionalAccessStatus: "notApplied", signInEventTypes: ["servicePrincipal"], resourceDisplayName: "Office 365 Exchange Online",
+        appliedConditionalAccessPolicies: [{ id: "demo-wid-901", result: "reportOnlyNotApplied" }] },
+      { createdDateTime: "2026-07-21T09:05:00Z", servicePrincipalId: "sp-mi-func", servicePrincipalName: "mi-func-invoices", appId: "a0000000-0000-0000-0000-000000000004", ipAddress: "192.0.2.90", location: { countryOrRegion: "IE" }, status: { errorCode: 0 }, conditionalAccessStatus: "notApplied", signInEventTypes: ["managedIdentity"], resourceDisplayName: "Azure Key Vault", appliedConditionalAccessPolicies: [] },
+      { createdDateTime: "2026-07-21T10:00:00Z", servicePrincipalId: "sp-ticket", servicePrincipalName: "Contoso Ticketing", appId: "a0000000-0000-0000-0000-000000000005", ipAddress: "192.0.2.99", location: { countryOrRegion: "US" }, status: { errorCode: 0 }, conditionalAccessStatus: "notApplied", signInEventTypes: ["servicePrincipal"], resourceDisplayName: "Microsoft Graph", appliedConditionalAccessPolicies: [] },
+    ],
+  },
   passkeys: {
     fido2: { "@odata.type": "#microsoft.graph.fido2AuthenticationMethodConfiguration", id: "Fido2", state: "enabled", isSelfServiceRegistrationAllowed: true,
       includeTargets: [{ targetType: "group", id: "g-passkey-pilot", isRegistrationRequired: false, allowedPasskeyProfiles: ["00000000-0000-0000-0000-000000000001", "p-pilot-auth"] }],

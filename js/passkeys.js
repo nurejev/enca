@@ -61,10 +61,17 @@ const Passkeys = (() => {
   const MAX_PROFILES = 3;
   const REG_ACTION = "urn:user:registersecurityinfo";
   const PR = new Set(["fido2", "windowshelloforbusiness", "x509certificatemultifactor"]);
+  // A Temporary Access Pass beside them does not make a passkey optional: it
+  // is issued per person by an administrator and expires — the way IN to the
+  // first registration, not a way AROUND the passkey. So "Phishing-resistant
+  // MFA + TAP" (the usual admin strength) still REQUIRES a passkey (Mihai,
+  // 25 Sep: P001 with that strength read as "No policy requires a passkey").
+  const TAP = new Set(["temporaryaccesspassonetime", "temporaryaccesspassmultiuse"]);
   const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const SEV_RANK = { high: 0, medium: 1, info: 2, ok: 3 };
   const SEV_LABEL = { high: "Blocks", medium: "Warning", info: "Info", ok: "OK" };
-  const COMBO_LABEL = { fido2: "Passkey (FIDO2)", windowshelloforbusiness: "Windows Hello for Business", x509certificatemultifactor: "Certificate (multifactor)" };
+  const COMBO_LABEL = { fido2: "Passkey (FIDO2)", windowshelloforbusiness: "Windows Hello for Business", x509certificatemultifactor: "Certificate (multifactor)",
+    temporaryaccesspassonetime: "Temporary Access Pass (one-time)", temporaryaccesspassmultiuse: "Temporary Access Pass (multi-use)" };
   // AAGUIDs worth a name on screen and one-click in the editor. The
   // Authenticator pair is Microsoft's own list (how-to-enable-authenticator-
   // passkey); the rest are vendor-published values.
@@ -154,10 +161,16 @@ const Passkeys = (() => {
     if (low(g.operator) === "or" && others.length) return null;
     const s = (strengths && strengths.get(ref.id)) || ref;
     const combos = (s.allowedCombinations || ref.allowedCombinations || []).map(low);
-    if (!combos.length || !combos.includes("fido2") || !combos.every((c) => PR.has(c))) return null;
+    if (!combos.length || !combos.includes("fido2") || !combos.every((c) => PR.has(c) || TAP.has(c))) return null;
     const apps = (p.conditions && p.conditions.applications) || {};
-    return { strengthId: ref.id, strength: s.displayName || ref.displayName || ref.id, combos,
-      alternatives: combos.filter((c) => c !== "fido2"), aaguids: strengthAaguids(s),
+    // A policy whose target resources are None (no app, no user action, no
+    // authentication context) applies to no sign-in at all: it is listed,
+    // never counted as a gap and never as coverage.
+    const inc = (apps.includeApplications || []).filter((a) => a && low(a) !== "none");
+    const inert = !inc.length && !(apps.includeUserActions || []).length && !(apps.includeAuthenticationContextClassReferences || []).length;
+    return { strengthId: ref.id, strength: s.displayName || ref.displayName || ref.id, combos, inert,
+      tap: combos.some((c) => TAP.has(c)),
+      alternatives: combos.filter((c) => c !== "fido2" && !TAP.has(c)), aaguids: strengthAaguids(s),
       registration: (apps.includeUserActions || []).map(low).includes(REG_ACTION) };
   }
 
@@ -236,7 +249,8 @@ const Passkeys = (() => {
       const row = { id: raw.id, name, state: raw.state, ...req, all: sc.all, guests: sc.guests, unresolved: sc.unresolved,
         requiredN: sc.all ? null : [...sc.inc].filter((x) => !sc.exc.has(x)).length,
         uncovered: [], excluded: [], noKey: [], allUncoveredGroups: [], excludedGroups: [], allNoKey: false };
-      if (!sc.all) {
+      if (req.inert) { /* applies to no sign-in: nothing to count */ }
+      else if (!sc.all) {
         const R = [...sc.inc].filter((x) => !sc.exc.has(x));
         for (const uid of R) {
           if (methodExc.has(uid)) { row.excluded.push(uid); continue; }
@@ -257,9 +271,10 @@ const Passkeys = (() => {
     const polName = (r) => r.name;
     const reqEnforced = required.filter((r) => r.state === "enabled");
     const sevFor = (rows) => rows.some((r) => r.state === "enabled") ? "high" : "medium";
-    const altNote = (r) => r.alternatives.length
+    const tapNote = (r) => r.tap ? " A Temporary Access Pass is accepted too, but only for someone an administrator issues one to, for as long as it lasts — it gets a person in to register, it does not replace the passkey." : "";
+    const altNote = (r) => (r.alternatives.length
       ? ` The strength also accepts ${r.alternatives.map((c) => COMBO_LABEL[c] || c).join(" and ")}, so anyone with ${r.alternatives.length === 1 ? "that" : "one of those"} registered still gets in.`
-      : " The strength accepts nothing but a passkey.";
+      : " The strength accepts nothing but a passkey" + (r.tap ? " — apart from a Temporary Access Pass." : ".")) + tapNote(r);
 
     // 0. could not read
     if (!f) {
@@ -274,6 +289,12 @@ const Passkeys = (() => {
     if (f && enabled) {
       // 2. required, not targeted
       for (const r of required) {
+        if (r.inert) {
+          add("info", "inert:" + r.id, `Requires a passkey, but applies to no sign-in — ${r.name}`,
+            "Its target resources are None: no cloud app, no user action and no authentication context, so this policy asks nothing of anyone today. Pick the resources it is meant to protect (All resources for an admin persona) and the checks above count its people.",
+            { policies: [r.name] });
+          continue;
+        }
         if (r.uncovered.length) {
           add(r.state === "enabled" ? "high" : "medium", "uncovered:" + r.id, `Required, but not targeted by the passkey method — ${r.name}`,
             `${plural(r.uncovered.length, "user")} in this policy's scope ${r.uncovered.length === 1 ? "is" : "are"} in none of the method's include targets, so ${r.uncovered.length === 1 ? "they cannot" : "they cannot"} register a passkey.${polRoles(r.id).length ? " The policy names directory roles, and a role cannot be a method target — target a group that holds those admins." : ""}${altNote(r)}`,
@@ -343,6 +364,11 @@ const Passkeys = (() => {
           "Someone with no passkey yet cannot satisfy these policies to register their first one; registering a passkey also needs MFA in the last five minutes. Microsoft's way in is a Temporary Access Pass. Enable it in Entra ID → Authentication methods → Temporary Access Pass for the people onboarding (ENCA does not write that method).",
           { policies: reg.map(polName) });
       }
+      // 8b. the strength counts on a TAP the tenant cannot issue
+      const withTap = required.filter((r) => r.tap && !r.inert);
+      if (withTap.length && tap && tap !== "enabled" && !reg.length) add("info", "tapoff", "The strength accepts a Temporary Access Pass, but the method is off",
+        "A TAP is how someone with no passkey yet gets in to register one. With the Temporary Access Pass method disabled, a new person in scope has no way in until it is enabled (Entra ID → Authentication methods → Temporary Access Pass; ENCA does not write that method).",
+        { policies: withTap.map(polName) });
       // 9. certificate alternative switched off
       const cba = methodState("X509Certificate");
       const withCba = required.filter((r) => r.alternatives.includes("x509certificatemultifactor"));
@@ -352,8 +378,8 @@ const Passkeys = (() => {
     if (f && enabled && !required.length) add("info", "none", "No policy requires a passkey",
       "The method is on, but no enabled or report-only policy grants only phishing-resistant combinations with a passkey among them. Policies that merely ALLOW a passkey beside weaker methods are not listed here.");
     const blocking = findings.filter((x) => x.sev === "high").length;
-    if (f && enabled && required.length && !blocking) add("ok", "ok", "Everyone required a passkey can register and use one",
-      `Method on, self-service ${selfService ? "on" : "off"}, every user in scope of the ${plural(required.length, "requiring policy", "requiring policies")} is targeted, none is excluded, and a profile lets a key through that the strength accepts.`);
+    if (f && enabled && required.some((r) => !r.inert) && !blocking) add("ok", "ok", "Everyone required a passkey can register and use one",
+      `Method on, self-service ${selfService ? "on" : "off"}, every user in scope of the ${plural(required.filter((r) => !r.inert).length, "requiring policy", "requiring policies")} is targeted, none is excluded, and a profile lets a key through that the strength accepts.`);
 
     findings.sort((a, b) => SEV_RANK[a.sev] - SEV_RANK[b.sev]);
     const counts = { high: 0, medium: 0, info: 0, ok: 0 };
@@ -570,7 +596,7 @@ const Passkeys = (() => {
     const nm = (id) => (m.names && m.names[id]) || id;
     const rows = m.required.map((r) => {
       const who = r.all ? "All users" : `${r.requiredN} user${r.requiredN === 1 ? "" : "s"}`;
-      const gap = r.all
+      const gap = r.inert ? '<span class="muted">applies to no sign-in</span>' : r.all
         ? (r.allUncoveredGroups.length || r.excludedGroups.length || r.allNoKey ? '<span class="xt-dead">see findings</span>' : "✓")
         : (r.uncovered.length + r.excluded.length + r.noKey.length ? `<span class="xt-dead">${r.uncovered.length + r.excluded.length + r.noKey.length} cannot</span>` : "✓");
       return `<tr><td>${esc(r.name)}${r.state !== "enabled" ? ' <span class="mini muted">(report-only)</span>' : ""}${r.registration ? '<br><span class="mini muted">user action: register security info</span>' : ""}</td>

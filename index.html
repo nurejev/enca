@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=323"></script>
+<script src="js/popup-guard.js?v=324"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=323" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=323">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=324" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=324">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=323"></script>
+<script src="js/selfhost-boot.js?v=324"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=323"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=323"></script>
-<link rel="stylesheet" href="css/workspace.css?v=323">
-<link rel="stylesheet" href="css/workspaces.css?v=323">
-<link rel="stylesheet" href="css/tool-layout.css?v=323">
-<link rel="stylesheet" href="css/list-detail.css?v=323">
-<link rel="stylesheet" href="css/flat-icons.css?v=323">
+<script src="js/counter.js?v=324"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=324"></script>
+<link rel="stylesheet" href="css/workspace.css?v=324">
+<link rel="stylesheet" href="css/workspaces.css?v=324">
+<link rel="stylesheet" href="css/tool-layout.css?v=324">
+<link rel="stylesheet" href="css/list-detail.css?v=324">
+<link rel="stylesheet" href="css/flat-icons.css?v=324">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=323" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=324" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=323" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=324" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -274,14 +274,14 @@
       </div>
       <div class="tool tool-tile" id="toolSignins">
         <div class="tool-ic">🚦</div><h3>Sign-in log <span class="tag upd">UPDATED</span></h3>
-        <p>One read of the sign-in window, three questions of it. <b>🚦 Failures</b> — which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it, per policy: who, on which app, from where, with the controls that weren't met, CSV export and a one-click replay in What-If. <b>🎚 Report-only impact</b> — what happens the day a staged policy goes live, per policy and per user. <b>🛂 Session controls</b> — what a session control actually <i>did</i>, from Defender. Tabs over one window and one consent, so switching costs no second read.</p>
+        <p>One read of the sign-in window, three questions of it. <b>🚦 Failures</b> — which sign-ins Conditional Access failed <b>or interrupted</b> and which policy did it, per policy: who, on which app, from where, with the controls that weren't met, CSV export and a one-click replay in What-If. <b>🎚 Report-only impact</b> — what happens the day a staged policy goes live, per policy and per user. <b>🛂 Session controls</b> — what a session control actually <i>did</i>, from Defender. <b>🤖 Workload identities</b> <span class="tag new">BETA</span> — the service-principal policies against the service principal sign-ins: who they reach, what they blocked, and who no policy can reach. Tabs over one window and one consent, so switching costs no second read.</p>
       </div>
     </div>
     <div class="tool-sec"><h3>🧬 Compare against a baseline</h3><p>Measure this tenant against a reference set of policies.</p></div>
     <div class="tools">
       <div class="tool tool-tile" id="toolGapCheck">
         <div class="tool-ic">🛡</div><h3>Checks <span class="tag upd">UPDATED</span></h3>
-        <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all. <b>🔑 Passkeys</b> <span class="tag new">BETA</span> — the policies that require a passkey against the Passkey (FIDO2) method: can the people in scope register and use one — and a Configure panel for the method.</p>
+        <p>What is wrong with this baseline, judged against four references — each its own tab, each asking for its own permissions on its own run. <b>🛡 Bypass &amp; Swiss cheese</b> — known Conditional Access bypasses and the holes a stack of policies leaves between them: MFA coverage, FOCI token sharing, break-glass coverage, bypass apps, the persona × control matrix. <b>📘 Microsoft Learn</b> — the exclusions and limitations Microsoft documents, with buildable fixes. <b>📐 CIS 5.2.2</b> — the 17 automated Conditional Access recommendations of the CIS Microsoft 365 Foundations Benchmark, per control. <b>🖥 Intune reality</b> — the other half of a require-compliant-device grant: whether the policy's scope is actually assigned an Intune compliance policy at all. <b>🔑 Passkeys</b> <span class="tag new">BETA</span> — the policies that require a passkey against the Passkey (FIDO2) method: can the people in scope register and use one — and a Configure panel for the method. <b>🎫 CAE &amp; token protection</b> <span class="tag new">BETA</span> — which personas have token protection, on which supported resources and platforms, and where continuous access evaluation is switched off or strict.</p>
       </div>
       <div class="tool tool-tile" id="toolBaseline">
         <div class="tool-ic">🧬</div><h3>Baseline <span class="tag upd">UPDATED</span></h3>
@@ -295,12 +295,12 @@
         <p>One read, then everything is a row: every group the baseline expects or a policy references, with its status, members (direct and nested), the policies that use it and its protection — and a detail panel for the one you click: members as a tree with add and remove, policies, protection, history. Create, assign, protect, migrate, import and compare from the rows you tick. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolProtect">
-        <div class="tool-ic">🔒</div><h3>Protect exclusions</h3>
-        <p>Two locks per CA exclusion group on one row: a <b>restricted management administrative unit</b> so only AU-scoped roles can change the members, and <b>nesting disabled</b> so no group can be put inside — with what each group still lacks pre-ticked. <span class="tag block">writes to tenant</span></p>
+        <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag upd">UPDATED</span></h3>
+        <p>Two locks per CA exclusion group on one row: a <b>restricted management administrative unit</b> so only AU-scoped roles can change the members, and <b>nesting disabled</b> so no group can be put inside. The break-glass group's <b>accounts</b> go into the unit too, and every unit is checked for a scoped Groups and User Administrator. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolLocations">
         <div class="tool-ic">🧩</div><h3>Policy building blocks <span class="tag upd">UPDATED</span></h3>
-        <p><b>🏗 Builder</b> <span class="tag new">BETA</span> — one guided screen for a policy, blank, from a baseline template, or from a policy selected elsewhere, preflighted in What-If and born report-only. The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
+        <p><b>🏗 Builder</b> <span class="tag new">BETA</span> — one guided screen for a policy, blank, from a baseline template, or from a policy selected elsewhere, preflighted in What-If and born report-only. The four kinds of object a policy <i>references</i>, each on its own tab, plus the bin they land in when deleted. <b>🌐 Locations</b> — IP ranges and countries, with what is wrong with them: dangling references, empty country locations, overly broad ranges — and, in the <b>vs. sign-ins</b> view <span class="tag new">BETA</span>, which trusted or policy-used location nobody signs in from any more. <b>💪 Strengths</b> and <b>🎫 Contexts</b> — the authentication strengths a policy grants and the contexts it is scoped to. <b>📜 Terms of use</b> — the agreements it requires. <b>♻ Deleted</b> — everything still inside the 30-day restore window, policies and locations, with one-click restore. Every tab says which policies use each row, from one shared lookup, and refuses a delete that would leave a policy pointing at nothing. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs</h3>
@@ -681,7 +681,7 @@
   <section id="screen-protect" class="screen tool" data-no-toolbar="Its controls belong to the result: the scan prompt and the per-group ticks are drawn by renderProtect, which serves this screen and 👥 CA groups ⑥ from the same code and the same body element, so a toolbar here would have to exist on one of the two and not the other.">
     <div class="list-card readme" id="prHead">
       <h3 data-tool-head="toolProtect"></h3>
-      <p style="margin-bottom:4px">An exclusion group is a Conditional Access bypass, and two things widen it without the policy being touched: a tenant-wide admin <b>adding a member</b>, and somebody <b>nesting a group</b> inside it. Two locks, one row per group: a <b>restricted management administrative unit</b> for the first (only AU-scoped roles may change the members), <b>disableNesting</b> for the second (no group can be added as a member). The table says which lock each group still lacks; the ticks are pre-set to exactly that.</p>
+      <p style="margin-bottom:4px">An exclusion group is a Conditional Access bypass, and two things widen it without the policy being touched: a tenant-wide admin <b>adding a member</b>, and somebody <b>nesting a group</b> inside it. Two locks, one row per group: a <b>restricted management administrative unit</b> for the first (only AU-scoped roles may change the members), <b>disableNesting</b> for the second (no group can be added as a member). The table says which lock each group still lacks; nothing is ticked for you. The break-glass group gets a third lock — its <b>accounts</b> go into the unit too — and <b>🔑 Who can manage the units</b> checks that each restricted unit has a scoped Groups and User Administrator.</p>
       <p class="mini muted" style="margin:0">Same engines as <b>👥 CA groups → ⑥ Protect</b> and <b>⑧ Disable nesting</b>; nothing here recreates a group. Needs Privileged Role Administrator for the units, an Entra ID P1 licence for administrative-unit administrators, and a directory that has the nesting property — where it does not, the screen says so once and nesting stays in sight instead.</p>
     </div>
     <div class="tool-body" id="prBody"></div>
@@ -1051,6 +1051,26 @@
     <div class="tool-body" id="scBody"></div>
   </section>
 
+  <!-- ============ 🤖 WORKLOAD IDENTITIES (T47, build 324, R46) — a tab of 🚦 Sign-in log ============ -->
+  <section id="screen-workloadid" class="screen tool">
+    <div class="list-card readme" id="wlHead"></div>
+    <div class="toolbar" id="wlToolbar">
+      <div class="seg" id="wlSrcSeg"></div>
+      <div class="seg" id="wlDaysSeg">
+        <button data-wldays="1">24 hours</button>
+        <button data-wldays="7" class="active">7 days</button>
+        <button data-wldays="30">30 days</button>
+      </div>
+      <div class="chip-filter" id="wlChips"></div>
+      <label class="mini xt-opt" title="Microsoft's own first-party applications sign in constantly and cannot be targeted by a policy"><input type="checkbox" id="wlMs"> Show Microsoft apps</label>
+      <div class="tb-actions">
+        <button class="btn primary" id="wlRefresh">▶ Read</button>
+        <button class="btn" id="wlMd" style="display:none">Export MD</button>
+      </div>
+    </div>
+    <div class="tool-body" id="wlBody"></div>
+  </section>
+
   <section id="screen-spgap" class="screen tool">
     <div class="list-card readme" id="sgHead"></div>
     <div class="toolbar" id="sgToolbar">
@@ -1080,6 +1100,7 @@
       <div class="seg" id="loViewSeg">
         <button class="active" data-loview="cards">List & details</button>
         <button data-loview="table">Table</button>
+        <button data-loview="signins" title="The same locations against the sign-in log — which ones nobody signs in from any more">vs. sign-ins <span class="tag new">BETA</span></button>
       </div>
       <div class="chip-filter" id="loChips"></div>
       <div class="tb-actions">
@@ -1439,6 +1460,18 @@
     <div class="tool-body" id="pkBody"></div>
   </section>
 
+  <!-- ============ 🎫 CAE & TOKEN PROTECTION (T46, build 324, R21) — a tab of 🛡 Checks ============ -->
+  <section id="screen-tokencov" class="screen tool">
+    <div class="list-card readme" id="tcHead"></div>
+    <div class="toolbar" id="tcToolbar">
+      <div class="chip-filter" id="tcChips"></div>
+      <div class="tb-actions">
+        <button class="btn" id="tcMd">Export MD</button>
+      </div>
+    </div>
+    <div class="tool-body" id="tcBody"></div>
+  </section>
+
   <section id="screen-devcheck" class="screen tool">
     <div class="list-card readme" id="dvHead"></div>
     <div class="toolbar" id="dvToolbar">
@@ -1519,10 +1552,6 @@
             <p class="mini" style="margin:0">End every session least-privileged: one click that drops the consented write scopes when the work is finished, so a delegated grant collected for an afternoon of changes does not linger on the account afterwards. The natural closing move of the consent-on-the-click model the tool already uses. <b>First step shipped:</b> the Permissions panel's <i>🔒 How to revoke</i> guide documents the three revocation routes with ready-to-run PowerShell and their consequences — what remains is doing it in one click, which needs careful design (see the guide for why the app deliberately holds no revoke rights itself).</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R46</span> 🤖 Workload identity Conditional Access <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Do the service-principal policies ever fire? Conditional Access for workload identities has its own sign-in log (<code>AADSpnSignInEventsBeta</code> in Defender hunting) and nothing in ENCA reads it. The plan: the WorkloadIDs policies next to that log — which principals each targets, which of those actually sign in, what was blocked, the report-only forecast per policy, and the principals signing in from outside every named location that no policy can reach because they are managed identities or multi-tenant apps. Same hunting scope as R44; needs Workload Identities Premium for the policies to apply at all.</p>
-          </div>
-          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R47</span> 🖥 Device reality check — the Defender half <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">🖥 checks the Intune half: is the scope of a compliant-device policy actually assigned a compliance policy. The Defender half is the fleet as Defender for Endpoint sees it (<code>DeviceInfo</code>): join type, sensor health, onboarding, exposure — held against every compliant / hybrid-device policy. The findings only the fleet side can give: devices that can never be compliant because they are not joined, a hybrid-join grant that permanently excludes cloud-native laptops, and “compliant” devices with high exposure. A second tab on the existing tool.</p>
           </div>
@@ -1553,16 +1582,8 @@
             <p class="mini" style="margin:0">For anyone who looks after more than one tenant: sign into each in turn and hold the results side by side — baseline coverage, CIS score, gap count, drift since last visit, one row per customer. One screen that answers “which of my tenants is worst off this month” without opening thirteen browser tabs. Pairs with Drift watch: a snapshot per tenant, reviewed on a schedule you keep rather than infrastructure you run.</p>
           </div>
           <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R19</span> 🌐 Named locations vs. the sign-in log <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">The trusted IP ranges in a tenant are usually older than the offices they describe. Cross the named locations with the sign-in log already read for Report-only impact and Sign-in failures: ranges nobody has signed in from for months, sign-ins from countries no location names, and trusted ranges that no longer match reality — the quiet way a location-based exception outlives its reason.</p>
-          </div>
-          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R20</span> 🤝 Cross-tenant access settings <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">Inbound and outbound B2B collaboration, and whether the tenant accepts a partner's MFA and device claims. It sits directly next to Conditional Access — accepting a partner's MFA claim decides whether your own MFA requirement is satisfied by someone else's authentication — and it is invisible in every tool here today.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R21</span> 🎫 CAE and token protection coverage <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Continuous access evaluation and token protection are the newer session controls, and both are easy to leave half-configured: which policies opt in, which silently do not, and which resources support it. The same treatment the persona × control matrix gives the classic grant controls.</p>
           </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R22</span> 📋 Change plan export <span class="tag">planned</span></h4>
@@ -1610,6 +1631,18 @@
         <h3>Shipped before <span class="rm-when">delivered, and no longer news</span></h3>
         <p class="mini muted" style="margin:0 0 12px">Everything that is live, newest first. A card lands here when it goes live, and a later build ages any other shipped card here too. They are kept rather than deleted — a roadmap that forgets what it delivered is only a wish list — but they stop competing with what is happening now.</p>
         <div id="rmShippedCards">
+          <div class="list-card rm-card" data-shipped="324">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R46</span> 🤖 Workload identity Conditional Access <span class="tag grant">live · build 324 · v2.0.2</span></h4>
+            <p class="mini" style="margin:0">A Workload identities tab in 🚦 Sign-in log holds the policies that target service principals against the service principal sign-ins: which principals each policy reaches, which of them sign in, what was blocked and — from the Entra log — what a report-only policy would have blocked, and the principals signing in from outside every named location that no policy can reach because they are managed identities, Microsoft or multi-tenant apps. Its own source switch: the Entra log for per-policy results, Defender hunting (EntraIdSpnSignInEvents) for 30 days of volume without Conditional Access columns. Read-only.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="324">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R19</span> 🌐 Named locations vs. the sign-in log <span class="tag grant">live · build 324 · v2.0.2</span></h4>
+            <p class="mini" style="margin:0">A third view in 🧩 Policy building blocks → Locations, beside Cards and Table: every named location against 1, 7 or 30 days of the sign-in window the sign-in tools already share — how many sign-ins and users each one matched and when it was last seen, trusted ranges nobody signs in from any more, locations policies name that no sign-in came from, locations seen that no policy uses, and the countries sign-ins came from that no country location names. It reads Entra's own location match where the source carries one and matches IP ranges (IPv4 and IPv6) and countries itself otherwise. Read-only.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="324">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R21</span> 🎫 CAE and token protection coverage <span class="tag grant">live · build 324 · v2.0.2</span></h4>
+            <p class="mini" style="margin:0">A CAE &amp; tokens tab in 🛡 Checks lays the two newer session controls out per persona: which personas have token protection, on which of the resources that support it and on which platforms, which are only in report-only, and where continuous access evaluation is switched off or made strict. The supported-resource list is dated against Microsoft Learn. Per-policy mistakes stay in 📘 Microsoft Learn, where they have a Fix — this tab counts them and points there. Reads nothing, writes nothing.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="323">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R66</span> 🔑 Passkeys: required, and actually set up <span class="tag grant">live · build 323 · v2.0.1</span></h4>
             <p class="mini" style="margin:0">A Passkeys tab in 🛡 Checks starts from the policies that require a passkey and asks the Passkey (FIDO2) method whether the same people can get one — enabled, targeted, not excluded, self-service on, a passkey profile that lets through a key the strength accepts — counting the people by group and role membership. ✎ Configure changes the whole method (state, targets, self-service, passkey profiles) with a diff, what stops working and what it clears shown before Save, and ↩ Restore. Graduates once it has been read and written on a few real tenants, including one not yet opted in to passkey profiles.</p>
@@ -2086,7 +2119,7 @@
       </ul>
       <p class="help-x">Needs <code>Policy.Read.All</code> (part of sign-in) and a role that can read cross-tenant access settings — Security Reader, Global Reader or Security Administrator; Teams and Global Secure Access administrators cannot read the sync setting. Optional: <code>CrossTenantInformation.ReadBasic.All</code> for partner names.</p>
           <h5>🔑 Passkeys <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span> <span class="help-fold">a tab of this tool — build 323</span></h5>
-      <p>Your policies require a passkey — can the people they reach actually get one? The tab starts from the <b>policies</b>: a policy requires a passkey when its grant is an authentication strength whose every allowed combination is phishing-resistant (passkey, Windows Hello for Business, certificate multifactor) with the passkey among them, and nothing else is offered beside it under OR. Then it asks the <b>Passkey (FIDO2)</b> authentication method whether the same people can register and use one.</p>
+      <p>Your policies require a passkey — can the people they reach actually get one? The tab starts from the <b>policies</b>: a policy requires a passkey when its grant is an authentication strength whose every allowed combination is phishing-resistant (passkey, Windows Hello for Business, certificate multifactor) with the passkey among them, and nothing else is offered beside it under OR. A Temporary Access Pass beside them does not change that — it is the way in for the first registration, issued per person and time-limited, so "Phishing-resistant MFA + TAP" counts as requiring a passkey. A policy whose target resources are None is listed but applies to no sign-in, so it is not counted. Then it asks the <b>Passkey (FIDO2)</b> authentication method whether the same people can register and use one.</p>
       <ul>
         <li><b>▶ Read the passkey setup</b> — reads the method (Microsoft Graph v1.0, where passkey profiles live), the authentication strengths with their advanced options, and the transitive members of every group and directory role involved, so gaps are counted in people. Directory roles count <i>active</i> holders; PIM-eligible admins join when they activate.</li>
         <li><b>Blocks</b> — the method is disabled; people in scope are in none of the method's include targets; people in scope are in an <i>excluded</i> group (an exclusion wins over every include — no registration, no sign-in); the strength accepts only certain passkeys (AAGUIDs) and the passkey profiles those people get let none of them through; self-service setup is off; an Allow list with nothing on it. A report-only policy makes the same finding a warning.</li>
@@ -2097,6 +2130,15 @@
         <li><b>Not written here</b> — Temporary Access Pass and certificate-based authentication are reported, not changed; authentication strengths are changed in 🧩 Policy building blocks → 💪 Strengths.</li>
       </ul>
       <p class="help-x">Reading needs <code>Policy.Read.All</code> and <code>Directory.Read.All</code> (part of sign-in) and a role that can read authentication methods — Global Reader, Security Reader or Authentication Policy Administrator. Saving needs <code>Policy.ReadWrite.AuthenticationMethod</code> (asked once, on Save) and the <b>Authentication Policy Administrator</b> role.</p>
+          <h5>🎫 CAE &amp; token protection <span class="tag new">BETA</span> <span class="help-fold">a tab of this tool — build 324</span></h5>
+      <p>Continuous access evaluation and token protection are the two newer session controls, and both are easy to leave half-done. 📘 Microsoft Learn already judges each token protection policy — its apps, platforms, client apps and device filter — and every policy that switches CAE off, with a Fix. This tab shows <b>coverage</b> instead: the same treatment the persona × control matrix gives the classic grant controls. It reads nothing and redraws each time the tab is opened.</p>
+      <ul>
+        <li><b>Per persona</b> — for every persona with active (On or report-only) policies: the token protection policies and their state, the resources and platforms each one names, and any policy that customises CAE. A policy with findings in 📘 Microsoft Learn carries a count; the findings themselves are not repeated.</li>
+        <li><b>Resources that support token protection</b> — Exchange Online, SharePoint Online and Teams on Windows, macOS and iOS; Azure Virtual Desktop, Windows 365 and Windows Cloud Login on Windows; Azure Resource Manager as a browser preview for the Azure, Intune and Entra admin portals. Each row lists the personas protected On and in report-only. The list is dated and checked against Microsoft Learn.</li>
+        <li><b>Findings</b> — no token protection for the Admins persona (Medium) or another persona of people (Info); token protection only in report-only; a token protection policy with Microsoft Learn findings; CAE switched off (fixed in 📘); strict location enforcement where the persona has no location-based policy, so it changes nothing; strict location enforcement that is live (check the IP-mismatch workbook); a supported resource no token protection policy includes.</li>
+        <li><b>Read-only.</b> <b>Export MD</b> writes the matrix, the resource table and the findings.</li>
+      </ul>
+      <p class="help-x">No extra permission and no read — the policies loaded at sign-in are all it needs.</p>
     </section>
 
 
@@ -2313,10 +2355,10 @@
 
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T44</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T47</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
-        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T45</code> is next.</li>
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T48</code> is next. <code>T45</code> 📏 Naming is on the beta channel only.</li>
         <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty-one numbers have no tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 311)</li>
@@ -2343,6 +2385,8 @@
             <li><code>T42</code> 🏅 Identity Secure Score → <b>🛡 Checks</b>, Identity score tab (build 323 — born there, never a tile)</li>
             <li><code>T43</code> 🤝 Cross-tenant access → <b>🛡 Checks</b>, Cross-tenant tab (build 323 — born there, never a tile)</li>
             <li><code>T44</code> 🔑 Passkeys → <b>🛡 Checks</b>, Passkeys tab (build 323 — born there, never a tile)</li>
+            <li><code>T46</code> 🎫 CAE &amp; token protection → <b>🛡 Checks</b>, CAE &amp; tokens tab (build 324 — born there, never a tile)</li>
+            <li><code>T47</code> 🤖 Workload identities → <b>🚦 Sign-in log</b>, Workload identities tab (build 324 — born there, never a tile)</li>
           </ul>
           Each of them still has its own section in this Help — under the tool that hosts it now — and every in-app link or ⌘K search written against the old tile still lands on it, on the right tab.</li>
         <li><b>The newest two</b> — <code>T40</code> ↗ Guided rollout is a tile of its own; <code>T41</code> 🏗 Policy builder is the one number that never had a tile: it was born as the Builder tab of 🧩 Policy building blocks, and is listed above with the folded tools for that reason.</li>
@@ -2403,6 +2447,17 @@
         <li><b>■ Stop</b> — during the hunt, the slices already read are kept and shown as a <b>partial</b> window, named as such, without reading the sign-in log; during the sign-in read, the Defender half stays and routing is marked missing. The stop lands after the query in flight — a running hunting query cannot be cancelled.</li>
       </ul>
       <p class="help-x">Read-only. Defender activity comes from advanced hunting through Microsoft Graph — <code>POST /security/runHuntingQuery</code> over <code>CloudAppEvents</code> filtered to the session / access control audit source, delegated <b>ThreatHunting.Read.All</b>, the signed-in user needing Security Reader, Global Reader, Security Operator, Security Administrator or a Defender RBAC role with hunting access; 30-day retention; the window is read in 4-hour slices of up to 5,000 events each, a slice that takes more than 2 minutes is halved down to 30 minutes and then skipped with a note. <b>Routing comes from the sign-in window</b> 🚦 Sign-in failures, 🎚 Report-only impact, 🕵 and 🌊 share, from whichever <b>sign-in source</b> is chosen there — Entra sign-in log (AuditLog.Read.All) or Defender hunting. Join: same user, same app, newest routing sign-in within 8 hours; a user-only fallback is labelled; no match is shown as <i>no match</i>. Monitor only logs the Login activity only — a policy on Monitor only never blocks anything, and the tool says so.</p>
+      <h5>🤖 Workload identities <span class="tag new">BETA</span> <span class="help-fold">a tab of this tool — build 324</span></h5>
+      <p>Do the service-principal policies ever fire? Conditional Access for workload identities targets service principals, and its evidence is in a sign-in log of its own that the other tabs never read. This tab holds the policies that target workload identities against those sign-ins. It has its <b>own source switch</b>, separate from the user sign-in source of the other tabs:</p>
+      <ul>
+        <li><b>Entra log</b> (default) — the service principal and managed identity sign-ins from the Entra sign-in log (<code>AuditLog.Read.All</code>), capped at 10,000 and 5,000. Each sign-in names the policies that applied, so a block is attributed to its policy and a report-only policy shows what it <i>would</i> have done.</li>
+        <li><b>Defender hunting</b> — <code>EntraIdSpnSignInEvents</code> (the older <code>AADSpnSignInEventsBeta</code> until it retires on 19 October 2026) in one summarised query: 30 days of volume, IPs and countries cheaply. That table has <b>no Conditional Access columns</b>: a block is only error 53003, without the policy that did it, and there is no forecast. Needs Entra ID P2 and hunting access.</li>
+        <li><b>Service principals</b> — every principal that signed in, and every one a policy names that did not: its kind (single-tenant app registered here, multi-tenant, managed identity, Microsoft app — read from the directory, with the application's sign-in audience for the ones registered here), sign-ins, how many came from <b>outside every named location</b>, the policies whose scope it is in, and a verdict: <b>Blocked</b>, <b>Reachable, not targeted</b> (a single-tenant app no policy scopes), <b>Report-only only</b>, <b>Covered, applied</b>, <b>In scope if the attribute filter matches</b>, or <b>Cannot be targeted</b>. Microsoft apps are hidden unless <b>Show Microsoft apps</b> is ticked.</li>
+        <li><b>Per policy</b> — who it names (all owned principals, a list, an attribute filter) and excludes, how many of those sign in, how often it blocked, and for a report-only policy what it would have blocked; named principals the policy can never act on are counted.</li>
+        <li><b>What Microsoft does not enforce</b> — only single-tenant service principals registered in this tenant can be targeted; managed identities, Microsoft and third-party SaaS apps and multi-tenant apps cannot, and a service principal reached through a <i>group</i> is not enforced at all — it must be assigned directly. Creating or changing such a policy needs Workload Identities Premium; existing ones keep working without it.</li>
+        <li><b>Read-only.</b> <b>Export MD</b> writes the principals and the per-policy results.</li>
+      </ul>
+      <p class="help-x">Needs <code>AuditLog.Read.All</code> for the Entra log or <code>ThreatHunting.Read.All</code> for hunting (each asked once), plus <code>Directory.Read.All</code> and <code>Policy.Read.All</code> from sign-in for the principals and the named locations.</p>
     </section>
 
 
@@ -2554,20 +2609,22 @@
     </section>
 
         <section class="help-sec">
-      <h4>🔒 Protect exclusions <span class="tag block">writes to tenant</span></h4>
+      <h4>🔒 Protect exclusions <span class="tag upd">UPDATED</span> <span class="tag block">writes to tenant</span></h4>
       <p>An exclusion group is exposed in two ways, and one lock does not cover the other: <b>who can change its members</b> (a restricted management administrative unit — the vault) and <b>whether a group can be nested into it</b> (the group's <code>disableNesting</code> setting — otherwise anyone who can edit some other group can put that group inside the exclusion and walk through the policy). This tool shows <b>both locks per group in one table</b> and applies either or both in one run. It is the standalone version of Conditional Access groups → ⑥ Protect and shares that scan and selection.</p>
       <ul>
         <li><b>One row per group, two locks.</b> <b>🔒 Members — restricted unit</b>: in which vault it sits, or <i>unprotected</i> with where it would go. <b>🚫 Nesting</b>: disabled, allowed (with the number of nested groups already inside), <i>never</i> for a dynamic-membership group (its rule picks users or devices; a group can never be added), <i>impossible</i> for a role-assignable one, or <i>not returned by the directory</i>. Chips filter by state: not fully protected, vault only, nesting only, open, fully protected, cannot here.</li>
         <li><b>Nothing is pre-ticked.</b> A tick is something you did: a row, the header box (ticks every lock that is still open), or a selection carried over from the CA groups list. The bar counts exactly the ticks.</li>
         <li><b>A greyed tick says why, on the tick itself</b> — <i>no vault to put it in — map it, or pick a fallback unit in Settings</i>; <i>CAB-SEC-RMAU-INT-Exclusions does not exist yet — create it in 🛡 Restricted AUs</i>; <i>blocked by 2 nested groups</i> (empty it first — 👥 CA groups shows them); <i>already</i>; <i>never nests (dynamic)</i>; <i>state not returned by the directory</i>. The row tick explains itself on hover.</li>
         <li><b>Each group goes to its own persona vault.</b> The destination is read from the group's name — the <b>CA number</b> (<code>CA001</code> to <code>CAB-SEC-RMAU-GLO-Exclusions</code>, <code>CA101</code> to ADM, <code>CA1001</code> to DevOps), or, for the baseline's own groups, the <b>persona in the name</b> (<code>CAB-SEC-U-Persona-Admins</code>, <code>CAD-SEC-U-DG-INT</code>) and break-glass by intent (<code>BreakGlass</code>, <code>Emergency_Access1</code>) — or from what you said once in 🛡 Restricted AUs → 🏷 Group personas. Under Joey Verlinden's baseline the groups every baseline shares are placed too: the E-Admins groups in CA-RMAU-BreakGlass, a deploy group in its persona's unit when his catalog has that persona. Shown per row before you write. A tenant's own group that names no persona stays <b>unmapped</b> and says so; the <b>fallback unit</b> in Settings is used only for those, and only if you pick it — it is unset by default, because defaulting to the first unit in the list means Global on most tenants. Nothing is filed by proximity.</li>
+        <li><b>👤 The break-glass accounts are a third lock</b> <span class="tag upd">UPDATED</span> — the group in a vault guards who is <i>in</i> it, not the accounts: a tenant-wide User, Authentication or Privileged Authentication Administrator can still change their methods, disable or delete them. Under the break-glass row a panel lists every user in the group (read through nested groups) with its <b>shape</b> (cloud-only, an onmicrosoft.com sign-in name, enabled), its <b>Global Administrator</b> assignment (active; permanent, time-bound, activated or eligible once PIM is read) and the <b>restricted unit it sits in</b>. An open account is ticked into the unit the group sits in (or the break-glass vault it would go to) — one tick per account, or <i>vault N accounts</i> on the group row — and read back through the account's own memberOf. An account in the unit but no longer in the group is shown as <i>in the unit · not in the group</i>, with a <i>take out of the unit</i> tick that is never ticked for you. A second acknowledgement is required: <b>a Global Administrator inside a restricted unit can have its password and methods reset by nobody</b> — no unit-scoped role may change a Global Administrator — so recovery is the other break-glass account taking it out of the unit (audited), fixing it and putting it back. The <b>👤 Break-glass accounts</b> tile counts them, and a group whose accounts are open is <i>👤 Accounts open</i>, not fully protected.</li>
+        <li><b>🔑 Who can manage the units</b> <span class="tag upd">UPDATED</span> — a restricted unit blocks every tenant-wide role, Global Administrator included, so each restricted unit is checked for a role <b>scoped to it</b>: <b>Groups Administrator</b> where it holds groups, <b>User Administrator</b> where it holds users. Verdicts: <i>correct</i>, <i>role missing</i>, <i>nobody</i> (no scoped role at all), <i>empty unit</i>. Active assignments come from the unit's scoped role members; PIM-eligible ones are added (tagged eligible) once <b>🔑 Read PIM</b> has granted <code>RoleManagement.Read.Directory</code>. A User Administrator on the break-glass unit manages its ordinary users only — the Global Administrators stay out of its reach, and the row says so.</li>
         <li><b>Break-glass groups are candidates on any reference</b> — included by the break-glass policy and excluded by none, they used to be missed; the group holding the accounts that bypass every policy belongs in the break-glass vault whatever it is called.</li>
         <li><b>Role-assignable groups are refused</b> — their membership is already limited to Global Administrator / Privileged Role Administrator, and a restricted AU blocks those same two, so a group with both has nobody who can edit its members; <b>⑦ Migrate it first</b> is offered on the row. <b>🧊 frozen</b> — a group that already has both (inherited from before the guard, or from the portal) is a dead end and is called out wherever it appears: take it out of the unit to restore the two roles, then migrate.</li>
         <li><b>The run</b> — the run ledger with both locks as notes per group: added to the vault (or already there), nesting disabled and <b>read back</b> — a tenant whose directory does not return the property is told so once, tenant-wide, rather than per row. Scoped administrators are granted on every unit the run wrote to, each grant reported separately. Explicit acknowledgement before anything is written; Markdown change report after.</li>
         <li><b>Groups no policy references are listed too</b>, marked <i>not referenced</i>, never pre-selected and not swept up by select-all: a baseline exclusion group can sit in a unit, or be frozen inside one, long after its policy was retired. Protection is read in one call for the whole tenant; if that read fails the column says <i>unknown</i>, never “unprotected”.</li>
         <li><b>Search</b> — the box narrows the groups already found; select-all applies to what is visible.</li>
       </ul>
-      <p class="help-x">Needs <code>AdministrativeUnit.ReadWrite.All</code> and <code>Group.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role for the unit and Entra ID P1 for administrative-unit administrators. Nesting is read and written on Graph v1.0 — some tenants answer without the property on beta. See the CA groups section above for the migration and the vault design.</p>
+      <p class="help-x">📘 MS Learn shows the same break-glass verdict as a band above its findings — accounts outside the restricted unit (High), or the unit's missing scoped roles — with <i>Fix in 🔒 Protect exclusions</i>; the fix is only ever made here. Needs <code>AdministrativeUnit.ReadWrite.All</code> and <code>Group.ReadWrite.All</code> (on demand), the <b>Privileged Role Administrator</b> role for the unit and Entra ID P1 for administrative-unit administrators. Nesting is read and written on Graph v1.0 — some tenants answer without the property on beta. See the CA groups section above for the migration and the vault design.</p>
     </section>
 
     <section class="help-sec">
@@ -2586,6 +2643,7 @@
         <li><b>The untrusted check stays quiet on purpose</b> — the trusted flag only changes behaviour when something actually consumes “All trusted locations”, so in a tenant where nothing does, the check says nothing at all. And a <b>deliberate block list is untrusted on purpose</b>: where a Block policy names the location, or its name says so, nothing is raised; everywhere else the finding names that as a valid reason to leave it exactly as it is. A check that cries wolf about the normal case is worse than no check.</li>
         <li><b>Export MD</b> — findings first with the full text of each (what was found, why it matters, what closes it, which policies are involved), then the full inventory with usage.</li>
         <li><b>⭳ Export JSON</b> — the configuration of every location as a snapshot file. Nothing is stored server-side, so this is how you keep a record of what the ranges looked like on a given day.</li>
+        <li><b>vs. sign-ins</b> <span class="tag new">BETA</span> <span class="help-fold">build 324</span> — the third view beside Cards and Table: every named location against 1, 7 or 30 days of sign-ins, read on <b>▶ Read the sign-ins</b> from the same window 🚦 Sign-in log, 🎚 Report-only impact and 🕵 share (the same source setting, the same cap, a window one of them already read is reused). Per location: how many sign-ins matched, from how many users, when it was last seen, and a finding — <b>Trusted, nobody signs in from it</b> (High when a policy relies on it), <b>Used by policy, not seen</b>, <b>Seen, no policy uses it</b>, and for a country location with no sign-ins, a note that this is expected for a list of blocked countries. Below it, the <b>countries sign-ins came from that no country location names</b>. A sign-in matches when Entra's own record names the location (networkLocationDetails, Entra log sources) or when its IP falls in one of the ranges (IPv4 and IPv6) or its country is on the list; a country location looked up by Authenticator GPS only counts Entra's own match. A capped window says so, because a location missing from a capped read may just be past the cap. <b>Export MD</b> in the view writes the table and the findings. Read-only.</li>
         <li><b>⇄ Compare…</b> — load an earlier JSON export and see what moved since: locations whose <b>ranges, countries or trusted flag</b> changed, ones in the file that are gone from the tenant, and ones created since. Matched by display name, because an id from another tenant means nothing here. A flipped trusted flag is the one worth looking at first — it silently changes which policies match.</li>
       </ul>
       <p class="help-x">Reading is read-only; create, edit and delete write to the tenant and ask for Policy.ReadWrite.ConditionalAccess when you run them.</p>
@@ -3509,88 +3567,92 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=323"></script>
-<script src="js/selfhost.js?v=323"></script>
-<script src="js/version.js?v=323"></script>
-<script src="js/verdict.js?v=323"></script>
-<script src="js/fork.js?v=323"></script>
-<script src="js/authConfig.js?v=323"></script>
-<script src="js/connection.js?v=323"></script>
-<script src="js/labels.js?v=323"></script>
-<script src="js/capabilities.js?v=323"></script>
-<script src="js/graph.js?v=323"></script>
-<script src="js/model.js?v=323"></script>
-<script src="js/render.js?v=323"></script>
-<script src="js/analyze.js?v=323"></script>
-<script src="js/whatif.js?v=323"></script>
-<script src="js/mslearn.js?v=323"></script>
-<script src="js/gapcheck.js?v=323"></script>
-<script src="js/exclusions.js?v=323"></script>
-<script src="js/cascope.js?v=323"></script>
-<script src="js/coverage.js?v=323"></script>
-<script src="js/runmeta.js?v=323"></script>
-<script src="js/overview.js?v=323"></script>
-<script src="js/validator.js?v=323"></script>
-<script src="js/whatifeval.js?v=323"></script>
-<script src="js/builder.js?v=323"></script>
-<script src="js/onboard.js?v=323"></script>
-<script src="js/compare.js?v=323"></script>
-<script src="js/whois.js?v=323"></script>
-<script src="js/wave.js?v=323"></script>
-<script src="js/sessionctl.js?v=323"></script>
-<script src="js/spgap.js?v=323"></script>
-<script src="js/groupuse.js?v=323"></script>
-<script src="js/iso3166.js?v=323"></script>
-<script src="js/causes.js?v=323"></script>
-<script src="js/locations.js?v=323"></script>
-<script src="js/authcontexts.js?v=323"></script>
-<script src="js/authstrengths.js?v=323"></script>
-<script src="js/recycle.js?v=323"></script>
-<script src="js/rmau.js?v=323"></script>
-<script src="js/camap.js?v=323"></script>
-<script src="js/rmaudoc.js?v=323"></script>
-<script src="js/termsofuse.js?v=323"></script>
-<script src="js/audit.js?v=323"></script>
-<script src="js/drift.js?v=323"></script>
-<script src="js/guide.js?v=323"></script>
-<script src="js/userimpact.js?v=323"></script>
-<script src="js/smsvoice.js?v=323"></script>
-<script src="js/memberof.js?v=323"></script>
-<script src="js/devcheck.js?v=323"></script>
-<script src="js/idscore.js?v=323"></script>
-<script src="js/xtenant.js?v=323"></script>
-<script src="js/passkeys.js?v=323"></script>
-<script src="js/licgap.js?v=323"></script>
-<script src="js/teamsdev.js?v=323"></script>
-<script src="js/signinstore.js?v=323"></script>
-<script src="js/signins.js?v=323"></script>
-<script src="js/reportimpact.js?v=323"></script>
-<script src="js/changelog.js?v=323"></script>
-<script src="js/baselineData.js?v=323"></script>
-<script src="js/baselineJoeyData.js?v=323"></script>
-<script src="js/baselineLive.js?v=323"></script>
-<script src="js/baseline.js?v=323"></script>
-<script src="js/baselineCleanup.js?v=323"></script>
-<script src="js/groupTemplates.js?v=323"></script>
-<script src="js/assign.js?v=323"></script>
-<script src="js/cagroups.js?v=323"></script>
-<script src="js/groupmerge.js?v=323"></script>
-<script src="js/groupsview.js?v=323"></script>
-<script src="js/runledger.js?v=323"></script>
-<script src="js/protect.js?v=323"></script>
-<script src="js/policy-compare.js?v=323"></script>
-<script src="js/import.js?v=323"></script>
-<script src="js/export.js?v=323"></script>
-<script src="js/demo.js?v=323"></script>
-<script src="js/list-detail.js?v=323"></script>
-<script src="js/flat-icons.js?v=323"></script>
-<script src="js/workspace.js?v=323"></script>
-<script src="js/analysis-jobs.js?v=323"></script>
-<script src="js/search-suggest.js?v=323"></script>
-<script src="js/app.js?v=323"></script>
-<script src="js/col-resize.js?v=323"></script>
-<script src="js/accessibility.js?v=323"></script>
-<script src="js/workspaces.js?v=323"></script>
-<script src="js/tool-layout.js?v=323"></script>
+<script src="js/branding.js?v=324"></script>
+<script src="js/selfhost.js?v=324"></script>
+<script src="js/version.js?v=324"></script>
+<script src="js/verdict.js?v=324"></script>
+<script src="js/fork.js?v=324"></script>
+<script src="js/authConfig.js?v=324"></script>
+<script src="js/connection.js?v=324"></script>
+<script src="js/labels.js?v=324"></script>
+<script src="js/capabilities.js?v=324"></script>
+<script src="js/graph.js?v=324"></script>
+<script src="js/model.js?v=324"></script>
+<script src="js/render.js?v=324"></script>
+<script src="js/analyze.js?v=324"></script>
+<script src="js/whatif.js?v=324"></script>
+<script src="js/mslearn.js?v=324"></script>
+<script src="js/gapcheck.js?v=324"></script>
+<script src="js/exclusions.js?v=324"></script>
+<script src="js/cascope.js?v=324"></script>
+<script src="js/coverage.js?v=324"></script>
+<script src="js/runmeta.js?v=324"></script>
+<script src="js/overview.js?v=324"></script>
+<script src="js/validator.js?v=324"></script>
+<script src="js/whatifeval.js?v=324"></script>
+<script src="js/builder.js?v=324"></script>
+<script src="js/onboard.js?v=324"></script>
+<script src="js/compare.js?v=324"></script>
+<script src="js/whois.js?v=324"></script>
+<script src="js/wave.js?v=324"></script>
+<script src="js/sessionctl.js?v=324"></script>
+<script src="js/spgap.js?v=324"></script>
+<script src="js/groupuse.js?v=324"></script>
+<script src="js/iso3166.js?v=324"></script>
+<script src="js/causes.js?v=324"></script>
+<script src="js/locations.js?v=324"></script>
+<script src="js/locsignin.js?v=324"></script>
+<script src="js/workloadid.js?v=324"></script>
+<script src="js/authcontexts.js?v=324"></script>
+<script src="js/authstrengths.js?v=324"></script>
+<script src="js/recycle.js?v=324"></script>
+<script src="js/rmau.js?v=324"></script>
+<script src="js/camap.js?v=324"></script>
+<script src="js/rmaudoc.js?v=324"></script>
+<script src="js/termsofuse.js?v=324"></script>
+<script src="js/audit.js?v=324"></script>
+<script src="js/drift.js?v=324"></script>
+<script src="js/guide.js?v=324"></script>
+<script src="js/userimpact.js?v=324"></script>
+<script src="js/smsvoice.js?v=324"></script>
+<script src="js/memberof.js?v=324"></script>
+<script src="js/devcheck.js?v=324"></script>
+<script src="js/idscore.js?v=324"></script>
+<script src="js/xtenant.js?v=324"></script>
+<script src="js/passkeys.js?v=324"></script>
+<script src="js/tokencov.js?v=324"></script>
+<script src="js/licgap.js?v=324"></script>
+<script src="js/teamsdev.js?v=324"></script>
+<script src="js/signinstore.js?v=324"></script>
+<script src="js/signins.js?v=324"></script>
+<script src="js/reportimpact.js?v=324"></script>
+<script src="js/changelog.js?v=324"></script>
+<script src="js/baselineData.js?v=324"></script>
+<script src="js/baselineJoeyData.js?v=324"></script>
+<script src="js/baselineLive.js?v=324"></script>
+<script src="js/baseline.js?v=324"></script>
+<script src="js/baselineCleanup.js?v=324"></script>
+<script src="js/groupTemplates.js?v=324"></script>
+<script src="js/assign.js?v=324"></script>
+<script src="js/cagroups.js?v=324"></script>
+<script src="js/groupmerge.js?v=324"></script>
+<script src="js/groupsview.js?v=324"></script>
+<script src="js/runledger.js?v=324"></script>
+<script src="js/bgvault.js?v=324"></script>
+<script src="js/protect.js?v=324"></script>
+<script src="js/policy-compare.js?v=324"></script>
+<script src="js/import.js?v=324"></script>
+<script src="js/export.js?v=324"></script>
+<script src="js/demo.js?v=324"></script>
+<script src="js/list-detail.js?v=324"></script>
+<script src="js/flat-icons.js?v=324"></script>
+<script src="js/workspace.js?v=324"></script>
+<script src="js/analysis-jobs.js?v=324"></script>
+<script src="js/search-suggest.js?v=324"></script>
+<script src="js/app.js?v=324"></script>
+<script src="js/col-resize.js?v=324"></script>
+<script src="js/accessibility.js?v=324"></script>
+<script src="js/workspaces.js?v=324"></script>
+<script src="js/tool-layout.js?v=324"></script>
 </body>
 </html>

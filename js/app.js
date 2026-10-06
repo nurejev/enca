@@ -177,7 +177,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -284,6 +284,8 @@
                         open: () => openImpact() },
     toolSessionCtl:   { into: "toolSignins",  label: "🛂 Session controls",           where: "the Session controls tab",   build: 25339,
                         open: () => openSessionCtl() },
+    toolWorkloadId:   { into: "toolSignins",  label: "🤖 Workload identities",        where: "the Workload identities tab", build: 32406,
+                        open: () => openWorkloadId() },
     toolDrift:        { into: "toolAudit",    label: "📉 Drift watch",                where: "the Snapshot file tab",      build: 25340,
                         open: () => openDrift() },
     toolGuide:        { into: "toolBaseline", label: "📖 Baseline guide",              where: "the Deployment guide tab",   build: 25340,
@@ -308,6 +310,8 @@
                         open: () => openXTenant() },
     toolPasskeys:     { into: "toolGapCheck", label: "🔑 Passkeys",                   where: "the Passkeys tab",           build: 32317,
                         open: () => openPasskeys() },
+    toolTokenCov:     { into: "toolGapCheck", label: "🎫 CAE & token protection",     where: "the CAE & tokens tab",       build: 32404,
+                        open: () => openTokenCov() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
                         open: () => openValidator() },
     toolWave:         { into: "toolWhoIs",    label: "🌊 Who is the wave to CA",       where: "the A group subject",        build: 25347,
@@ -354,6 +358,9 @@
         { key: "failures", icon: "🚦", name: "Failures",          toolbar: "siToolbar", open: () => openSignins() },
         { key: "impact",   icon: "🎚", name: "Report-only impact", toolbar: "riToolbar", open: () => openImpact() },
         { key: "session",  icon: "🛂", name: "Session controls",   toolbar: "scToolbar", open: () => openSessionCtl(), beta: true },
+        // 32406 (T47, R46): the workload identity policies against the
+        // service principal sign-ins — its own source switch
+        { key: "workload", icon: "🤖", name: "Workload identities", toolbar: "wlToolbar", open: () => openWorkloadId(), beta: true },
       ],
     },
     // "What changed" asked of two sources. Audit.diff is already the one engine
@@ -450,6 +457,8 @@
         // 32317 (T44): the policies that require a passkey, against the
         // Passkey (FIDO2) method that decides whether anyone can get one
         { key: "passkeys", icon: "🔑", name: "Passkeys",            toolbar: "pkToolbar", open: () => openPasskeys(), beta: true },
+        // 32404 (T46, R21): token protection and CAE coverage per persona
+        { key: "tokencov", icon: "🎫", name: "CAE & tokens",         toolbar: "tcToolbar", open: () => openTokenCov(), beta: true },
       ],
     },
     blocks: {
@@ -1151,11 +1160,44 @@
       // the batch being worked, and a block with a ticked member opens by
       // itself — a tick is a selection, and a selection you cannot see is a
       // trap when the next thing you press is Export.
+      // NEWEST LAST, AND WHAT IS NEW (32318, Mihai: "why am I missing the
+      // passkeys and the cross-tenant in the log" — 290 and 291 were there,
+      // folded into the Checks batch whose OLDEST item, 280, put it near the
+      // top, while the eye went to the end of the list). A batch now sits at
+      // its NEWEST item, so the list ends with the latest work; "By number"
+      // gives the old order back. Items above the highest number this browser
+      // has seen carry NEW, and their batch opens by itself — the same idea as
+      // What's new. First visit: an item with a build from the last three days
+      // (dates from the changelog) is NEW, so the first view is not all NEW.
+      const PQ_ORDER = "enca.pqOrder", PQ_SEEN = "enca.pqSeen";
+      const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+      const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode — per session only */ } };
+      let pqOrder = lsGet(PQ_ORDER) === "number" ? "number" : "newest";
+      const seenRaw = lsGet(PQ_SEEN);
+      const seenN = seenRaw === null ? null : Number(seenRaw);
+      const recentBuilds = (() => {
+        const out = new Set();
+        const cut = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
+        for (const r of (typeof CHANGELOG !== "undefined" ? CHANGELOG : [])) if (r && r.date && r.date >= cut) { out.add(r.build); (r.builds || []).forEach((b) => out.add(b)); }
+        return out;
+      })();
+      const isNew = (it) => seenN === null ? (it.builds || []).some((b) => recentBuilds.has(b)) : it.n > seenN;
+      const newSet = new Set(items.filter(isNew).map((i) => i.n));
+      const maxN = items.reduce((m, i) => Math.max(m, i.n), 0);
+      // Seen once the list has actually been ON SCREEN — the queue renders at
+      // page load whatever page is open, and loading the site is not seeing it.
+      const markSeen = () => { if (maxN) lsSet(PQ_SEEN, String(Math.max(maxN, seenN || 0))); };
+      if (typeof IntersectionObserver === "function") {
+        const io = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) { markSeen(); io.disconnect(); } });
+        setTimeout(() => io.observe(el), 0);
+      }
+      const newestOf = (bl) => bl.items.reduce((m, i) => Math.max(m, i.n), 0);
+      const orderBlocks = (mode) => mode === "number" ? blocks.slice() : blocks.slice().sort((a, b) => newestOf(a) - newestOf(b));
       const PQ_OPEN = "enca.pqOpen";
       const readOpen = () => { try { return new Set(JSON.parse(localStorage.getItem(PQ_OPEN) || "[]")); } catch { return new Set(); } };
       const writeOpen = (s) => { try { localStorage.setItem(PQ_OPEN, JSON.stringify([...s])); } catch { /* private mode */ } };
       const openKeys = readOpen();
-      blocks.forEach((bl) => { if (bl.items.length > 1 && bl.items.some((i) => picked.has(i.n))) openKeys.add(bl.key); });
+      blocks.forEach((bl) => { if (bl.items.length > 1 && bl.items.some((i) => picked.has(i.n) || newSet.has(i.n))) openKeys.add(bl.key); });
       const buildsShort = (bs) => {
         bs = (bs || []).slice().sort((a, b) => a - b);
         if (bs.length <= 3) return bs.join(", ");
@@ -1173,10 +1215,11 @@
       const rowFor = (it, bl) => {
             const inGroup = !!bl, key = bl ? bl.key : "";
             const hidden = bl && !openKeys.has(key);
-            return `<tr class="pq-row${inGroup ? " pq-member" : ""}" data-pqrow="${it.n}"${inGroup ? ` data-pqof="${esc2(key)}"` : ""}${hidden ? " hidden" : ""}>
+            const fresh = newSet.has(it.n);
+            return `<tr class="pq-row${inGroup ? " pq-member" : ""}${fresh ? " pq-new" : ""}" data-pqrow="${it.n}" data-pqblk="${esc2(bl ? bl.key : "t:" + it.n)}"${inGroup ? ` data-pqof="${esc2(key)}"` : ""}${hidden ? " hidden" : ""}>
               <td><input type="checkbox" data-pqpick="${it.n}" ${picked.has(it.n) ? "checked" : ""} title="${inGroup ? `Untick to hold item ${it.n} back from its batch` : `Include item ${it.n} in the promotion order`}"></td>
               <td><b style="font-size:15px">${it.n}</b></td>
-              <td><span class="pq-tog" data-pqtog="${it.n}" title="Open — what changed, why, how to test it">▸</span> <b>${esc2(it.title)}</b>
+              <td><span class="pq-tog" data-pqtog="${it.n}" title="Open — what changed, why, how to test it">▸</span> <b>${esc2(it.title)}</b>${fresh ? ' <span class="tag new pq-newtag">NEW</span>' : ""}
                 ${(it.tools || []).length > 1 ? `<span class="mini muted"> · ${(it.tools || []).map(esc2).join(" · ")}</span>` : ""}
                 <div class="pq-detail" data-pqdetail="${it.n}" hidden>${detailFor(it)}</div></td>
               <td>${riskTag(it.risk)}</td>
@@ -1191,10 +1234,11 @@
             const counts = ["high", "medium", "low"].map((r) => [r, bl.items.filter((i) => (i.risk || "low") === r).length]).filter(([, c]) => c).map(([r, c]) => `${c} ${r}`).join(" · ");
             const builds = bl.items.flatMap((i) => i.builds || []);
             const open = openKeys.has(bl.key);
-            return `<tr class="pq-group${bl.named ? " pq-named" : ""}" data-pqhead="${esc2(bl.key)}">
+            const nNew = bl.items.filter((i) => newSet.has(i.n)).length;
+            return `<tr class="pq-group${bl.named ? " pq-named" : ""}${nNew ? " pq-new" : ""}" data-pqhead="${esc2(bl.key)}" data-pqblk="${esc2(bl.key)}">
                 <td><input type="checkbox" data-pqgroup="${esc2(bl.key)}" ${on === ns.length ? "checked" : ""} title="Tick to include all ${ns.length} items of this batch in the promotion order"></td>
                 <td><span class="pq-tog${open ? " open" : ""}" data-pqtogblock="${esc2(bl.key)}" title="${open ? "Fold the batch away" : "Show the items"}">▸</span></td>
-                <td><b>${esc2(g.title)}</b> <span class="tag">${bl.named ? "group" : "tool"} · ${ns.length} items</span>
+                <td><b>${esc2(g.title)}</b> <span class="tag">${bl.named ? "group" : "tool"} · ${ns.length} items</span>${nNew ? ` <span class="tag new pq-newtag">${nNew} NEW</span>` : ""}
                   <span class="mini muted"> · items ${ns.join(", ")}</span>
                   <div class="mini muted" style="margin-top:2px"><span data-pqgroupstate="${esc2(bl.key)}"></span></div>
                   ${g.why ? `<div class="mini" style="margin-top:4px;color:var(--report)"><b>Why together:</b> ${esc2(g.why)}</div>` : ""}</td>
@@ -1216,17 +1260,21 @@
           row's tick takes every item, and each item keeps its own tick so one can be held back. A hand-named <b>group</b> —
           a tool and its Help section, a feature and the fixes it grew — works the same way and says why it belongs together.
           <i>Why</i> says what would have to be true for an item to graduate; <b>How to test it</b> says how to find out, one
-          falsifiable step at a time, and names the tenant a check needs when nobody has it to hand.</p>
+          falsifiable step at a time, and names the tenant a check needs when nobody has it to hand.
+          <b>Newest last</b> (the default) puts each batch at its newest item, so the latest work is at the bottom; <b>By number</b>
+          puts it at its oldest. Items added since your last visit carry <b>NEW</b> and open their batch.</p>
         ${items.length ? `<div class="tb-actions" style="margin:0 0 8px">
           <span class="mini" id="pqPickCount"><b>${picked.size}</b> of ${items.length} ticked for promotion</span>
           <button class="btn sm" id="pqExport" ${picked.size ? "" : "disabled"}>⭳ Export promotion order</button>
           <button class="btn sm" id="pqClear" ${picked.size ? "" : "disabled"}>Clear ticks</button>
           <button class="btn sm" id="pqFold" title="Fold every batch and every row">Fold all</button>
+          <span class="pq-order"><span class="mini">Order</span> <button class="fchip ${pqOrder === "newest" ? "active" : ""}" data-pqorder="newest" title="A batch sits at its newest item — the list ends with the latest work">Newest last</button><button class="fchip ${pqOrder === "number" ? "active" : ""}" data-pqorder="number" title="A batch sits at its oldest item, in number order">By number</button></span>
+          ${newSet.size ? `<span class="mini" id="pqNewNote"><b>${newSet.size} new</b> since your last visit · <a href="#" id="pqSeenAll">mark all seen</a></span>` : ""}
           <span class="mini muted">tick what you have verified, export, and hand the file to the working session — it is the order, not the verification</span>
         </div>` : ""}
         <div class="cg-tablewrap"><table class="cg-table pq-table">
           <thead><tr><th style="width:34px" title="Tick to include in the promotion order"></th><th style="width:44px">#</th><th>Change</th><th style="width:90px">Risk</th><th style="width:150px">Beta builds</th></tr></thead>
-          <tbody>${blocks.map((bl) => bl.items.length > 1 ? headFor(bl) + bl.items.map((it) => rowFor(it, bl)).join("") : rowFor(bl.items[0], null)).join("")}</tbody></table></div>
+          <tbody>${orderBlocks(pqOrder).map((bl) => bl.items.length > 1 ? headFor(bl) + bl.items.map((it) => rowFor(it, bl)).join("") : rowFor(bl.items[0], null)).join("")}</tbody></table></div>
         ${(PROMOTE.staying || []).length ? `
           <h4 style="margin-top:18px">Staying on this channel</h4>
           <p class="mini muted" style="margin:0 0 6px">Also part of the gap, but permanently: these exist here and are not going to production.</p>
@@ -1258,6 +1306,22 @@
         });
       };
       syncGroups();
+      // ---- order and NEW ----
+      el.querySelectorAll("[data-pqorder]").forEach((b) => b.addEventListener("click", () => {
+        pqOrder = b.dataset.pqorder; lsSet(PQ_ORDER, pqOrder);
+        el.querySelectorAll("[data-pqorder]").forEach((x) => x.classList.toggle("active", x === b));
+        const tb = el.querySelector(".pq-table tbody"); if (!tb) return;
+        const rows = new Map();
+        [...tb.children].forEach((tr) => { const k = tr.dataset.pqblk; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(tr); });
+        for (const bl of orderBlocks(pqOrder)) (rows.get(bl.items.length > 1 ? bl.key : "t:" + bl.items[0].n) || []).forEach((tr) => tb.appendChild(tr));
+      }));
+      const seenAll = el.querySelector("#pqSeenAll");
+      if (seenAll) seenAll.addEventListener("click", (ev) => {
+        ev.preventDefault(); markSeen();
+        el.querySelectorAll(".pq-newtag").forEach((x) => x.remove());
+        el.querySelectorAll("tr.pq-new").forEach((x) => x.classList.remove("pq-new"));
+        const nn = el.querySelector("#pqNewNote"); if (nn) nn.remove();
+      });
       // ---- fold / unfold ----
       // A click anywhere on a row that is not its tick opens it; the batch
       // row shows or hides its members. Open state is remembered per batch.
@@ -2921,7 +2985,7 @@
         const h = el.querySelector("h3");
         cur = { title: h ? h.textContent : "", ids: [] };
         secs.push(cur);
-      } else if (cur && el.id) cur.ids.push(el.id);
+      } else if (cur && el.id && !el.hidden) cur.ids.push(el.id);   // a gated tile (🚚) is hidden, not absent
     });
     // Every label is "<emoji> <name>" from the tool list; the split lets the
     // collapsed rail keep the icon and drop the text. The FULL label rides
@@ -6271,7 +6335,9 @@ max@contoso.com,"Global, DevOps"</pre>
   // this screen's. Ticks belong to one scan: a rescan resets them to what
   // each row lacks. The nesting state comes from the same v1.0 read the
   // groups list does (loadNestingStates), on the rows the table shows.
-  const prState = { filter: "all", ticks: null, forScan: null, results: null, busy: false, settingsOpen: false };
+  const prState = { filter: "all", ticks: null, forScan: null, results: null, busy: false, settingsOpen: false,
+    // 3.1 (32402): break-glass accounts ticked into their unit / out of it
+    acc: new Set(), accOut: new Set(), bgAck: false };
   function prRows() {
     const ids = new Set(rmauCands().map((g) => g.id));
     return [...(cgRes ? cgRes.rows : []).filter((r) => r.id && ids.has(r.id)), ...[...cgManual.protect.values()].filter((g) => ids.has(g.id))];
@@ -6284,7 +6350,153 @@ max@contoso.com,"Global, DevOps"</pre>
     const anyRead = cands.some((g) => nOf(g.id) !== undefined);
     const nestAvail = !CaGroups.nestingSupported() ? false : known ? true : anyRead ? false : null;
     return { status: t.status, statusError: t.statusError || null, nestingOf: nOf, nestedOf: (id) => ((byId.get(id) || {}).nestedGroups || []).length,
-      ineligible: cgAuIneligible, target: (g) => rmauTarget(t, g), nestAvail };
+      ineligible: cgAuIneligible, target: (g) => rmauTarget(t, g), nestAvail,
+      bgAcc: (id) => (t.extras && t.extras.bg && t.extras.bg.get(id)) || null };
+  }
+
+  // ---------- T20 3.1 (32402): break-glass accounts + scoped roles ----------
+  // The accounts in the break-glass group are a third lock (js/bgvault.js
+  // says why); the scoped roles on every restricted unit are a check. Both
+  // are read after the first paint, like the nesting state, and re-read after
+  // a run — the screen shows what came back, never what was sent.
+  const PIM_READ = ["RoleManagement.Read.Directory"];
+  const GA_KINDS_ACTIVE = ["permanent", "timebound", "activated", "active"];
+  const prIsBg = (g) => !!(g && g.id && (g.breakGlass || Rmau.BREAKGLASS_NAME.test(g.name || "")));
+  // where a break-glass group's accounts belong: the unit the group already
+  // sits in, else the break-glass vault the group itself would go to
+  function bgUnitFor(t, g) {
+    const p = t.status && t.status.get(g.id);
+    if (p) return { id: p.auId, name: p.auName };
+    const d = rmauTarget(t, g);
+    if (d.source === "persona" && d.auId) return { id: d.auId, name: d.auName };
+    if (d.source === "missing") return { id: null, name: d.auName, missing: true };
+    return null;
+  }
+  const USER_SEL = "$select=id,displayName,userPrincipalName,accountEnabled,onPremisesSyncEnabled";
+  // Global Administrator per user. Active through transitiveMemberOf rides
+  // Directory.Read.All (a group-based assignment counts); permanence and
+  // eligibility only with RoleManagement.Read.Directory.
+  async function readGaStates(ids, pim) {
+    const out = new Map();
+    await Promise.all([...new Set(ids)].map(async (id) => {
+      let active;
+      try {
+        const roles = await Graph.ggetAll(`/users/${id}/transitiveMemberOf/microsoft.graph.directoryRole?$select=id,roleTemplateId`);
+        active = roles.some((r) => String(r.roleTemplateId || "").toLowerCase() === BgVault.GA);
+      } catch { out.set(id, { kind: "unknown" }); return; }
+      if (!pim) { out.set(id, { kind: active ? "active" : "none" }); return; }
+      const opts = { scopes: [...AUTH_CONFIG.scopes, ...PIM_READ] };
+      const f = encodeURIComponent(`principalId eq '${id}' and roleDefinitionId eq '${BgVault.GA}'`);
+      try {
+        const asg = await Graph.ggetAll(`/roleManagement/directory/roleAssignmentScheduleInstances?$filter=${f}`, opts);
+        const a = asg.find((x) => x.assignmentType !== "Activated") || asg[0];
+        if (a) { out.set(id, { kind: a.assignmentType === "Activated" ? "activated" : a.endDateTime ? "timebound" : "permanent", end: a.endDateTime || null }); return; }
+        if (active) { out.set(id, { kind: "active" }); return; }        // through a group
+        const el = await Graph.ggetAll(`/roleManagement/directory/roleEligibilityScheduleInstances?$filter=${f}`, opts);
+        out.set(id, { kind: el.length ? "eligible" : "none" });
+      } catch { out.set(id, { kind: active ? "active" : "none" }); }
+    }));
+    return out;
+  }
+  async function readBgAccounts(t, g, pim) {
+    const unit = bgUnitFor(t, g);
+    let members = null, error = null;
+    try { members = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?${USER_SEL}`); }
+    catch (e) { error = GroupUse.shortErr(e); }
+    let unitUsers = null;
+    if (unit && unit.id) { try { unitUsers = await Graph.ggetAll(`/administrativeUnits/${unit.id}/members/microsoft.graph.user?${USER_SEL}`); } catch { unitUsers = null; } }
+    // Per account, not from the scan's map: $expand on the units returns the
+    // first 20 members of each, which is not an answer about these accounts.
+    let prot = null;
+    if (members) {
+      prot = new Map();
+      await Promise.all(members.map(async (m) => {
+        try {
+          const aus = (await Graph.ggetAll(`/users/${m.id}/memberOf/microsoft.graph.administrativeUnit?$select=id,displayName,isMemberManagementRestricted`)).filter((a) => a.isMemberManagementRestricted === true);
+          const pick = (unit && unit.id && aus.find((a) => a.id === unit.id)) || aus[0];
+          prot.set(m.id, pick ? { auId: pick.id, auName: pick.displayName } : null);
+        } catch { /* left out: that account reads "unknown", never "open" */ }
+      }));
+    }
+    const ga = members ? await readGaStates([...members, ...(unitUsers || [])].map((m) => m.id), pim) : null;
+    return BgVault.accounts({ members, error, prot, unit, unitUsers, ga, pim });
+  }
+  async function readUnitScopes(t, pim) {
+    const gaIds = new Set();
+    for (const a of (t.extras && t.extras.bg ? t.extras.bg.values() : [])) for (const r of [...(a.rows || []), ...(a.stale || [])]) if (GA_KINDS_ACTIVE.includes(r.ga.kind)) gaIds.add(r.id);
+    const units = (t.unitsAll || []).map((u) => ({ ...u, gaUsers: (u.userIds || []).filter((id) => gaIds.has(id)).length }));
+    const dirRoles = new Map();
+    try { (await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId")).forEach((r) => dirRoles.set(r.id, r)); } catch { /* names fall back */ }
+    const byTemplate = new Map([...dirRoles.values()].map((r) => [String(r.roleTemplateId || "").toLowerCase(), r.displayName]));
+    const scoped = new Map(), elig = [];
+    await Promise.all(units.map(async (u) => {
+      const s = { active: null, eligible: null, error: null };
+      try {
+        s.active = (await Graph.ggetAll(`/administrativeUnits/${u.id}/scopedRoleMembers`)).map((x) => {
+          const r = dirRoles.get(x.roleId) || {}, i = x.roleMemberInfo || {};
+          return { roleTemplateId: String(r.roleTemplateId || "").toLowerCase(), roleName: r.displayName || "directory role", who: i.displayName, upn: i.userPrincipalName || "" };
+        });
+      } catch (e) { s.error = GroupUse.shortErr(e); }
+      if (pim && s.active) {
+        try {
+          const f = encodeURIComponent(`directoryScopeId eq '/administrativeUnits/${u.id}'`);
+          s.eligible = (await Graph.ggetAll(`/roleManagement/directory/roleEligibilityScheduleInstances?$filter=${f}`, { scopes: [...AUTH_CONFIG.scopes, ...PIM_READ] }))
+            .map((x) => { const a = { roleTemplateId: String(x.roleDefinitionId || "").toLowerCase(), principalId: x.principalId }; a.roleName = byTemplate.get(a.roleTemplateId) || "custom role"; elig.push(a); return a; });
+        } catch { s.eligible = null; }
+      }
+      scoped.set(u.id, s);
+    }));
+    // one call for the eligible principals' names
+    const pids = [...new Set(elig.map((a) => a.principalId).filter(Boolean))];
+    if (pids.length) {
+      try {
+        const objs = await Graph.gpost("/directoryObjects/getByIds", { ids: pids.slice(0, 1000), types: ["user", "group", "servicePrincipal"] });
+        const nm = new Map(((objs && objs.value) || []).map((o) => [o.id, o]));
+        elig.forEach((a) => { const o = nm.get(a.principalId) || {}; a.who = o.displayName || a.principalId; a.upn = o.userPrincipalName || ""; a.whoType = /group/i.test(o["@odata.type"] || "") ? "group" : /serviceprincipal/i.test(o["@odata.type"] || "") ? "app" : "user"; });
+      } catch { elig.forEach((a) => { a.who = a.principalId; }); }
+    }
+    return BgVault.scopes({ units, scoped, pim });
+  }
+  function prDemoExtras() {
+    const bgu = { id: "au-demo-bg", name: "CAB-SEC-RMAU-BreakGlass" };
+    const u = (id, n, upn, extra) => ({ id, displayName: n, userPrincipalName: upn, accountEnabled: true, onPremisesSyncEnabled: false, ...(extra || {}) });
+    const b1 = u("u-break1", "breakglass-01", "breakglass-01@contoso.onmicrosoft.com"), b2 = u("u-break2", "breakglass-02", "breakglass-02@contoso.onmicrosoft.com");
+    const old = u("u-ea-old", "EmergencyAccess-old", "ea-old@contoso.com", { accountEnabled: false, onPremisesSyncEnabled: true });
+    const bg = new Map();
+    rmauCands().filter(prIsBg).forEach((g) => bg.set(g.id, BgVault.accounts({ members: [b1, b2], prot: new Map([["u-break1", { auId: bgu.id, auName: bgu.name }], ["u-break2", null]]), unit: bgu, unitUsers: [b1, old],
+      ga: new Map([["u-break1", { kind: "permanent" }], ["u-break2", { kind: "permanent" }], ["u-ea-old", { kind: "eligible" }]]), pim: true })));
+    const GRP = BgVault.ROLES.groups.id;
+    const scopes = BgVault.scopes({ pim: true, units: [{ ...bgu, groups: 1, users: 2, gaUsers: 1 }, { id: "au-demo-glo", name: "CAB-SEC-RMAU-GLO-Exclusions", groups: 6, users: 0 }, { id: "au-demo-adm", name: "CAB-SEC-RMAU-ADM-Exclusions", groups: 4, users: 0 }],
+      scoped: new Map([[bgu.id, { active: [{ roleTemplateId: GRP, roleName: "Groups Administrator", who: "Alex Admin", upn: "alex.admin@contoso.com" }], eligible: [] }],
+        ["au-demo-glo", { active: [], eligible: [] }], ["au-demo-adm", { active: [], eligible: [{ roleTemplateId: GRP, roleName: "Groups Administrator", who: "IAM team", whoType: "group" }] }]]) });
+    return { state: "done", bg, scopes, pim: true };
+  }
+  async function prLoadExtras(t, onStep) {
+    if (isDemo) { t.extras = prDemoExtras(); return; }
+    const pim = Graph.hasScopes(PIM_READ);
+    const ex = { state: "reading", bg: new Map(), scopes: { state: "reading" }, pim };
+    t.extras = ex;
+    for (const g of rmauCands().filter(prIsBg)) ex.bg.set(g.id, await readBgAccounts(t, g, pim));
+    ex.state = "done";
+    if (onStep) onStep();                     // the accounts are on screen before the roles are read
+    ex.scopes = await readUnitScopes(t, pim);
+  }
+  // the open accounts of one group, ticked or unticked together
+  function prSetAcc(gid, on) {
+    const a = cgRmau && cgRmau.extras && cgRmau.extras.bg.get(gid);
+    if (!a || a.state !== "read" || !a.canPlace) return;
+    a.rows.filter((r) => r.state === "open").forEach((r) => on ? prState.acc.add(r.id) : prState.acc.delete(r.id));
+  }
+  // what the ticks amount to, deduplicated across break-glass groups
+  function prAccJobs() {
+    const ex = cgRmau && cgRmau.extras; if (!ex || !ex.bg) return { add: [], out: [] };
+    const add = new Map(), out = new Map();
+    for (const a of ex.bg.values()) {
+      if (a.state !== "read") continue;
+      if (a.canPlace) a.rows.filter((r) => r.state === "open" && prState.acc.has(r.id)).forEach((r) => { if (!add.has(r.id)) add.set(r.id, { u: r, unit: a.unit }); });
+      a.stale.filter((r) => prState.accOut.has(r.id)).forEach((r) => { if (!out.has(r.id)) out.set(r.id, { u: r, unit: a.unit }); });
+    }
+    return { add: [...add.values()], out: [...out.values()] };
   }
   function renderProtect() {
     if (rmauBusy) { rmauBody().innerHTML = rmauBusyPanel(); return; }
@@ -6297,15 +6509,26 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     const t = cgRmau, cands = rmauCands(), ctx = prCtx(t);
     if (prState.forScan !== t || !prState.ticks) {
-      prState.forScan = t; prState.ticks = new Map(); prState.results = null; prState.runEl = null;
+      prState.forScan = t; prState.ticks = new Map(); prState.results = null; prState.runEl = null; prState.acc = new Set(); prState.accOut = new Set();
       cands.forEach((g) => prState.ticks.set(g.id, Protect.defaultTicks(g, Protect.classify(g, ctx), t.pre)));
     }
     // a group whose nesting state arrived after the first render gets its default nest tick once
     cands.forEach((g) => { const k = prState.ticks.get(g.id); if (k && k.nest === undefined) { const c = Protect.classify(g, ctx); if (c.nest !== "reading") k.nest = Protect.defaultTicks(g, c, t.pre).nest; } });
     const unmatched = cands.filter((g) => !t.status.get(g.id) && !g.roleAssignable && !cgAuIneligible(g)).filter((g) => { const s = rmauTarget(t, g).source; return s === "unset" || s.startsWith("fallback"); }).length;
+    // 3.1: the accounts panel under each break-glass row, its tile, the scope card
+    const ex = t.extras;
+    const bgMap = new Map(), bgAccs = [];
+    for (const g of cands.filter(prIsBg)) {
+      const acc = (ex && ex.bg.get(g.id)) || { state: ex && ex.state === "done" ? "unknown" : "reading", error: (ex && ex.error) || "not read", rows: [], stale: [], open: 0, total: 0 };
+      bgAccs.push(acc);
+      const ticked = acc.state === "read" && acc.canPlace ? acc.rows.filter((r) => r.state === "open" && prState.acc.has(r.id)).length : 0;
+      bgMap.set(g.id, { acc, ticked, html: BgVault.panel(acc, { gid: g.id, ticks: prState.acc, outTicks: prState.accOut }) });
+    }
+    const aj = prAccJobs();
     rmauBody().innerHTML = Protect.render(cands, ctx, {
+      bg: bgMap, bgTile: BgVault.tile(bgAccs), scopeCard: BgVault.scopeCard(ex ? ex.scopes : { state: "reading" }), accN: aj.add.length, accOutN: aj.out.length,
       filter: prState.filter, q: t.q, ticks: prState.ticks, busy: prState.busy, results: prState.results,
-      settings: { rmaus: t.rmaus, auChoice: t.auChoice, auName: t.auName, admin: t.admin, adminCount: CaGroups.adminList(t.admin).length, ack: t.ack, unmatched, open: prState.settingsOpen },
+      settings: { rmaus: t.rmaus, auChoice: t.auChoice, auName: t.auName, admin: t.admin, adminCount: CaGroups.adminList(t.admin).length, ack: t.ack, unmatched, open: prState.settingsOpen, bgAck: prState.bgAck },
       find: cgFindPanel("protect", t.find, "Not on the list? Search the whole directory", "The table holds what the policies point at. A group of your own — a break-glass group no policy references yet, an exclusion group named outside the baseline — is reached by searching for it here, and is then checked exactly like a scanned one."),
     });
     // the run ledger outlives the re-render that shows the result
@@ -6315,6 +6538,13 @@ max@contoso.com,"Global, DevOps"</pre>
     const still = () => rmauStandalone && shownScreen === "screen-protect";
     if (rows.some((r) => r.nesting === undefined)) loadNestingStates(rows).then(() => { if (still()) renderProtect(); }).catch((e) => console.warn("protect: nesting read failed", e.message));
     if (rows.some((r) => r.nestedGroups === undefined && !(r.sources || []).includes("tenant"))) loadNestedGroups(rows).then(() => { if (still()) renderProtect(); }).catch((e) => console.warn("protect: nested-group read failed", e.message));
+    if (!t.extras) {
+      prLoadExtras(t, () => { if (still()) renderProtect(); }).then(() => { if (still()) renderProtect(); }).catch((e) => {
+        console.warn("protect: break-glass / scope read failed", e.message);
+        t.extras = { state: "done", error: e.message || String(e), bg: new Map(), scopes: { rows: [], bad: 0, warn: 0, pim: false } };
+        if (still()) renderProtect();
+      });
+    }
   }
   // one group's second lock: PATCH on v1.0 and read it back — never a recreate
   async function prDisableNesting(g) {
@@ -6336,16 +6566,21 @@ max@contoso.com,"Global, DevOps"</pre>
     t.ack = true; t.admin = (rmauBody().querySelector("#cgRmauAdmin")?.value || "").trim();
     const cands = rmauCands(), ctx = prCtx(t);
     const jobs = cands.map((g) => { const c = Protect.classify(g, ctx), k = prState.ticks.get(g.id) || {}; return { g, c, doVault: !!(k.vault && c.canVault), doNest: !!(k.nest && c.canNest) }; }).filter((j) => j.doVault || j.doNest);
-    if (!jobs.length) return;
-    const scopes = [...AUTH_CONFIG.scopes, ...(jobs.some((j) => j.doVault) ? RMAU_WRITE : []), ...(jobs.some((j) => j.doNest) ? CaGroups.NEST_WRITE_SCOPES : []), ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
+    const aj = prAccJobs(), accAll = [...aj.add.map((j) => ({ ...j, op: "add" })), ...aj.out.map((j) => ({ ...j, op: "out" }))];
+    if (!jobs.length && !accAll.length) return;
+    if (aj.add.length && !rmauBody().querySelector("#prBgAck")?.checked) { prState.settingsOpen = true; renderProtect(); toast("Tick the <span>break-glass acknowledgement</span> under Settings first — a Global Administrator in a restricted unit can be reset by nobody"); return; }
+    const scopes = [...AUTH_CONFIG.scopes, ...(jobs.some((j) => j.doVault) || accAll.length ? RMAU_WRITE : []), ...(jobs.some((j) => j.doNest) ? CaGroups.NEST_WRITE_SCOPES : []), ...(t.admin ? ["RoleManagement.ReadWrite.Directory"] : [])];
     if (!isDemo && !await preConsent(scopes)) return;
     prState.busy = true; t.busy = true; prState.results = null; renderProtect();
     const host = document.createElement("div"); prState.runEl = host;
     rmauBody().querySelector("#prLedger").appendChild(host);
-    const L = RunLedger.create(host, { unit: "groups", items: jobs.map((j) => ({ label: j.g.name, sub: [j.doVault ? `vault → ${(j.c.dest && j.c.dest.auName) || "new unit"}` : "", j.doNest ? "nesting off" : ""].filter(Boolean).join(" · ") })), onStop: () => {} });
+    const L = RunLedger.create(host, { unit: accAll.length && !jobs.length ? "accounts" : "items", items: [
+      ...jobs.map((j) => ({ label: j.g.name, sub: [j.doVault ? `vault → ${(j.c.dest && j.c.dest.auName) || "new unit"}` : "", j.doNest ? "nesting off" : ""].filter(Boolean).join(" · ") })),
+      ...accAll.map((j) => ({ label: `👤 ${j.u.name}`, sub: j.op === "add" ? `account → ${j.unit.name}` : `account out of ${j.unit.name}` })),
+    ], onStop: () => {} });
     const pre = document.createElement("div"); pre.className = "rl-pre mini"; host.prepend(pre);
     const say = (h) => pre.insertAdjacentHTML("beforeend", h);
-    const rows = [];
+    const rows = [], accRes = [];
     try {
       // the fallback unit is created only if something actually needs it
       let fallback = null;
@@ -6389,18 +6624,49 @@ max@contoso.com,"Global, DevOps"</pre>
         if (bad) L.fail(i, notes.join(" · "), "refused"); else L.done(i, notes.join(" · "), (res.vault && res.vault.state === "added") || (res.nest && res.nest.state === "disabled") ? "protected" : "unchanged");
         rows.push(res);
       }
+      // 3.1: the break-glass accounts — in, read back through the account's
+      // own memberOf; or out, when a stale one was ticked by hand
+      for (let k = 0; k < accAll.length; k++) {
+        const i = jobs.length + k, j = accAll[k], base = { name: j.u.name, upn: j.u.upn, auName: j.unit.name };
+        if (L.stopped) continue;
+        L.start(i);
+        try {
+          if (j.op === "add") {
+            L.note(i, `placing in ${j.unit.name}…`);
+            if (!isDemo) {
+              await Graph.gpost(`/administrativeUnits/${j.unit.id}/members/$ref`, { "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${j.u.id}` });
+              const back = await Graph.ggetAll(`/users/${j.u.id}/memberOf/microsoft.graph.administrativeUnit?$select=id`);
+              if (!back.some((a) => a.id === j.unit.id)) throw new Error("Entra accepted the change but the unit did not read back as holding the account");
+            }
+            accRes.push({ ...base, state: "added" }); prState.acc.delete(j.u.id);
+            L.done(i, `✓ in ${j.unit.name}, read back`, "protected");
+          } else {
+            L.note(i, `taking out of ${j.unit.name}…`);
+            if (!isDemo) await Graph.gdelete(`/administrativeUnits/${j.unit.id}/members/${j.u.id}/$ref`);
+            accRes.push({ ...base, state: "removed" }); prState.accOut.delete(j.u.id);
+            L.done(i, `taken out of ${j.unit.name}`, "changed");
+          }
+        } catch (err) {
+          if (j.op === "add" && /added object references already exist/i.test(err.message || "")) { accRes.push({ ...base, state: "already" }); prState.acc.delete(j.u.id); L.done(i, `already in ${j.unit.name}`, "unchanged"); }
+          else { accRes.push({ ...base, state: "failed", error: GroupUse.shortErr(err) }); L.fail(i, GroupUse.shortErr(err), "refused"); }
+        }
+      }
       L.finish();
       t.units = [...units.values()]; t.au = t.units.length === 1 ? t.units[0] : null;
       if (t.units.length) await rmauGrantAdmins(t, say);
-      prState.results = { rows, units: t.units, admins: t.adminResults || [] };
+      prState.results = { rows, units: t.units, admins: t.adminResults || [], accounts: accRes };
       const vOk = rows.filter((r) => r.vault && r.vault.state === "added").length, nOk = rows.filter((r) => r.nest && r.nest.state === "disabled").length;
-      toast(`<span>${vOk}</span> placed in a vault · <span>${nOk}</span> nesting disabled${isDemo ? " (simulated)" : ""}`);
+      const aOk = accRes.filter((a) => a.state === "added").length;
+      toast(`<span>${vOk}</span> placed in a vault · <span>${nOk}</span> nesting disabled${accRes.length ? ` · <span>${aOk}</span> break-glass account${aOk === 1 ? "" : "s"} in the unit` : ""}${isDemo ? " (simulated)" : ""}`);
       rows.forEach((r) => { const k = prState.ticks.get(r.id); if (k) { if (r.vault && r.vault.state !== "failed") k.vault = false; if (r.nest && r.nest.state !== "failed") k.nest = false; } });
     } catch (e) {
       console.error("Protect 3.0 failed:", e);
       say(`<div style="color:var(--off)">✗ ${esc(e.message || e)}<br><span class="muted">Creating a restricted management administrative unit needs the Privileged Role Administrator role.</span></div>`);
-      prState.results = { rows, units: t.units || [], admins: t.adminResults || [] };
+      prState.results = { rows, units: t.units || [], admins: t.adminResults || [], accounts: accRes };
     } finally { prState.busy = false; t.busy = false; }
+    // read the accounts and the scoped roles again: what came back, not what was sent
+    if (accAll.length && !isDemo) t.extras = null;
+    else if (accAll.length && isDemo && t.extras) accRes.filter((a) => a.state === "added").forEach((a) => { for (const x of t.extras.bg.values()) (x.rows || []).forEach((r) => { if (r.upn === a.upn && r.state === "open") { r.state = "in"; r.au = { auId: x.unit.id, auName: x.unit.name }; x.open--; x.protectedN++; } }); });
     renderProtect();
   }
   $("prBody").addEventListener("click", async (e) => {
@@ -6411,21 +6677,35 @@ max@contoso.com,"Global, DevOps"</pre>
     if (e.target.id === "prDismiss") { prState.results = null; prState.runEl = null; renderProtect(); return; }
     const mg = e.target.closest("[data-pr-migrate]"); if (mg) { cgGoTab("migrate", [rmauCands().find((g) => g.id === mg.dataset.prMigrate)?.name].filter(Boolean)); return; }
     const un = e.target.closest("[data-pr-unadd]"); if (un) { cgManual.protect.delete(un.dataset.prUnadd); prState.ticks.delete(un.dataset.prUnadd); renderProtect(); return; }
+    if (e.target.closest("[data-pr-pim]")) {
+      // permanence, eligibility and PIM-eligible scoped roles — asked for from a click, never during a scan
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...PIM_READ])) return;
+      if (cgRmau) { cgRmau.extras = null; renderProtect(); }
+      return;
+    }
   });
   $("prBody").addEventListener("change", (e) => {
     if (!rmauStandalone || !prState.ticks) return;
     const tk = e.target.closest("[data-pr-tick]");
     if (tk) { const k = prState.ticks.get(tk.dataset.prId) || {}; k[tk.dataset.prTick] = tk.checked; prState.ticks.set(tk.dataset.prId, k); renderProtect(); return; }
+    const at = e.target.closest("[data-pr-acc]");
+    if (at) { if (at.checked) prState.acc.add(at.dataset.prAcc); else prState.acc.delete(at.dataset.prAcc); renderProtect(); return; }
+    const ao = e.target.closest("[data-pr-accout]");
+    if (ao) { if (ao.checked) prState.accOut.add(ao.dataset.prAccout); else prState.accOut.delete(ao.dataset.prAccout); renderProtect(); return; }
+    const aa = e.target.closest("[data-pr-accall]");
+    if (aa) { prSetAcc(aa.dataset.prAccall, aa.checked); renderProtect(); return; }
+    if (e.target.id === "prBgAck") { prState.bgAck = e.target.checked; return; }
     const row = e.target.closest("[data-pr-row]");
     if (row) {
       const t = cgRmau, ctx = prCtx(t), g = rmauCands().find((x) => x.id === row.dataset.prRow); if (!g) return;
       const c = Protect.classify(g, ctx);
       prState.ticks.set(g.id, row.checked ? { vault: c.canVault, nest: c.canNest } : { vault: false, nest: false });
+      if (c.canAcc) prSetAcc(g.id, row.checked);
       renderProtect(); return;
     }
     if (e.target.closest("[data-pr-all]")) {
       const t = cgRmau, ctx = prCtx(t), on = e.target.checked;
-      rmauCands().forEach((g) => { const c = Protect.classify(g, ctx); if (c.canVault || c.canNest) prState.ticks.set(g.id, on ? { vault: c.canVault, nest: c.canNest } : { vault: false, nest: false }); });
+      rmauCands().forEach((g) => { const c = Protect.classify(g, ctx); if (c.canVault || c.canNest) prState.ticks.set(g.id, on ? { vault: c.canVault, nest: c.canNest } : { vault: false, nest: false }); if (c.canAcc) prSetAcc(g.id, on); });
       renderProtect(); return;
     }
     if (e.target.id === "cgRmauAck" && cgRmau) cgRmau.ack = e.target.checked;
@@ -6467,7 +6747,7 @@ max@contoso.com,"Global, DevOps"</pre>
       } else {
         status(`Reading administrative unit membership…`, 1, 2);
         let map = new Map();
-        try { map = await readProtectionMap(); }
+        try { const rr = await readRestrictedUnits(); map = rr.map; st.protAll = rr.map; st.unitsAll = rr.units; }
         catch (e) {
           // A failed read must not read as "nothing is protected" — that is the
           // reassuring answer, and it would be a guess.
@@ -6516,15 +6796,24 @@ max@contoso.com,"Global, DevOps"</pre>
   // separately would have made the scan cost grow with the baseline.
   //
   // Returns groupId -> { auId, auName } for RESTRICTED units only.
-  async function readProtectionMap() {
-    const map = new Map();
+  async function readProtectionMap() { return (await readRestrictedUnits()).map; }
+  // 32402: the same one read, plus what each restricted unit holds — the
+  // 🔑 scope check needs to know whether a unit holds groups, users or both.
+  // $expand returns the first 20 members of each unit, so the counts say
+  // "capped" when they may be short; the "holds any" answer is still right.
+  async function readRestrictedUnits() {
+    const map = new Map(), units = [];
     const aus = await Graph.ggetAll(
       "/administrativeUnits?$select=id,displayName,isMemberManagementRestricted&$expand=members($select=id)");
+    const ty = (m) => String(m["@odata.type"] || "").toLowerCase();
     for (const a of aus) {
       if (a.isMemberManagementRestricted !== true) continue;
-      for (const m of a.members || []) map.set(m.id, { auId: a.id, auName: a.displayName });
+      const ms = a.members || [];
+      const users = ms.filter((m) => ty(m).includes("user"));
+      units.push({ id: a.id, name: a.displayName, groups: ms.filter((m) => ty(m).includes("group")).length, users: users.length, userIds: users.map((m) => m.id), capped: ms.length >= 20 });
+      for (const m of ms) map.set(m.id, { auId: a.id, auName: a.displayName });
     }
-    return map;
+    return { map, units };
   }
 
   // Where does a group go? Each exclusion group is routed to ITS OWN persona
@@ -12953,6 +13242,7 @@ This is a directory write. Nothing else changes.`)) return;
     for (const [id, label] of TOOL_TABS) {
       const el = $(id);
       if (!el) continue;                                  // tool not on this build
+      if (el.hidden) continue;                            // a gated tile: not for this host or tenant
       // R33 — "T07" finds the tool, and so does "7": somebody quoting a number
       // out of a note or a support case should not have to remember the prefix.
       // An exact number match outranks everything, because a query that IS a
@@ -15911,6 +16201,9 @@ This is a directory write. Nothing else changes.`)) return;
     // Compare view takes over the body until it is closed — it is a different
     // subject (this tenant vs a file), not a filter of the same list.
     if (loCompare) { renderLoCompare(); return; }
+    // R19 (32405): the same locations against the sign-in window — its own
+    // body, like Compare, because it answers a different question
+    if (loView === "signins") { renderLoSignins(); return; }
 
     // The findings panel sits ABOVE the list in both views and is not part of
     // the filtered set: a dangling reference belongs to no location, so a panel
@@ -15994,6 +16287,53 @@ This is a directory write. Nothing else changes.`)) return;
     }).join("") + `</div>`;
     ListDetail.cards('loBody', '.lo-grid > .lo-card', {identity:'[data-lodet]'});
   }
+  // ---- 🌐 vs. sign-ins (R19, 32405) ----
+  // The named locations crossed with the sign-in window every sign-in tool
+  // shares (readSignInWindow: same source, cache and cap). Pure logic in
+  // js/locsignin.js. Read on ▶ only — the window can be minutes of paging.
+  let lsDays = 7, lsRes = null, lsBusy = false, lsErr = null;
+  const lsProg = makeProgress("ls"); lsProg.by = "🌐 Locations vs. sign-ins"; lsProg.stoppable = true;
+  function lsControls() {
+    return `<div class="ls-ctl"><span class="mini">Window</span>${[1, 7, 30].map((d) => `<button class="fchip ${lsDays === d ? "active" : ""}" data-lsdays="${d}">${esc(rangeLabel(d))}</button>`).join("")}
+      <button class="btn sm primary" data-lsrun="1">${lsRes ? "⟳ Read again" : "▶ Read the sign-ins"}</button>${lsRes ? ' <button class="btn sm" data-lsmd="1">Export MD</button>' : ""}
+      <span class="mini muted">Source: ${esc(logSourceLabel())} — shared with 🚦 Sign-in log; change it there.</span></div>`;
+  }
+  function renderLoSignins() {
+    if (lsBusy) { $("loBody").innerHTML = lsProg.panel("Reading the sign-in window for the named locations…", "Shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🕵 — a window one of them already read is reused."); return; }
+    const fresh = lsRes && lsRes.key === logReadKey(lsDays);
+    if (!fresh) {
+      $("loBody").innerHTML = `${lsControls()}${lsErr ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(lsErr)}</p>` : ""}<div class="run-prompt"><p class="mini muted">Crosses every named location with ${esc(rangeLabel(lsDays))} of sign-ins: which trusted or policy-used location nobody signs in from any more, which is seen but used by no policy, and which countries sign-ins come from that no country location names. Reads the sign-in log (AuditLog.Read.All, asked once) or Defender hunting, whichever 🚦 Sign-in log is set to. Nothing is written.</p></div>`;
+      return;
+    }
+    $("loBody").innerHTML = lsControls() + LocSignin.render(lsRes.model);
+  }
+  async function runLoSignins(force) {
+    if (lsBusy) return;
+    lsBusy = true; lsErr = null; lsProg.begin();
+    renderLoSignins();
+    try {
+      let w;
+      if (isDemo) w = { records: demoSignIns(), capped: false };
+      else {
+        if (isGraphLogSource(logSource) && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) throw new Error("AuditLog.Read.All was not granted");
+        w = await readSignInWindow(lsDays, lsProg, force);
+      }
+      const model = LocSignin.analyze({ locations: loList || [], policies: policies.map((p) => p.raw), records: w.records, days: lsDays, capped: !!w.capped,
+        usedBy: (l, raws) => Locations.usedBy(l, raws), source: logSource, demo: isDemo });
+      lsRes = { key: logReadKey(lsDays), model };
+    } catch (e) {
+      lsErr = e && e.stopped ? "stopped — nothing is shown for a partial window" : (e && (e.message || String(e)));
+      lsRes = null;
+    } finally { lsBusy = false; lsProg.stop(); }
+    if ($("screen-locations").classList.contains("active") && loView === "signins") renderLoSignins();
+  }
+  $("loBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-lsrun]")) { runLoSignins(!!lsRes); return; }
+    const d = e.target.closest("[data-lsdays]");
+    if (d) { lsDays = +d.dataset.lsdays; renderLoSignins(); return; }
+    if (e.target.closest("[data-lsmd]") && lsRes) showReport("🌐 Named locations vs. sign-ins", `ENCA-locations-vs-signins-${new Date().toISOString().slice(0, 10)}`, LocSignin.toMd(lsRes.model, tenantName));
+  });
+
   // ---- the findings panel (R37) ----
   // Rendered as markup rather than built node by node, like every other panel
   // in this tool, so the whole body is one assignment and cannot half-update.
@@ -20152,6 +20492,13 @@ This is a directory write. Nothing else changes.`)) return;
       } catch { /* GapCheck optional */ }
     }
     ctx.sharedDevices = await findGroupByConvention(MSLearn.CONVENTION.sharedDevices);
+    // 32402: the break-glass ACCOUNTS and their unit's scoped roles — a
+    // tenant-level finding, shown as a band above the findings; the fix is
+    // 🔒 Protect exclusions', never a second write path here.
+    mlBg = null;
+    if (ctx.breakGlass && ctx.breakGlass.type === "group" && !isDemo) {
+      try { mlBg = await readBgForLearn(ctx.breakGlass); } catch (e) { console.warn("MS Learn: break-glass accounts read failed", e.message); }
+    }
 
     // Which partners hold delegated administration here, and does this tenant
     // trust their MFA and device claims? The service provider checks use it
@@ -20228,6 +20575,17 @@ This is a directory write. Nothing else changes.`)) return;
     }
     catReadySave(r);
   }
+  let mlBg = null;
+  async function readBgForLearn(bg) {
+    const rr = await readRestrictedUnits();
+    const t = { status: new Map([[bg.id, rr.map.get(bg.id) || null]]), protAll: rr.map, unitsAll: rr.units, rmaus: rr.units.map((u) => ({ id: u.id, name: u.name })), auChoice: "" };
+    const pim = Graph.hasScopes(PIM_READ);
+    const acc = await readBgAccounts(t, { id: bg.id, name: bg.name }, pim);
+    t.extras = { bg: new Map([[bg.id, acc]]) };
+    const sc = acc.unit && acc.unit.id ? await readUnitScopes({ ...t, unitsAll: rr.units.filter((u) => u.id === acc.unit.id) }, pim) : null;
+    return { acc, scope: (sc && sc.rows[0]) || null, name: bg.name };
+  }
+  const mlBgBand = () => mlBg ? BgVault.learnBand(mlBg.acc, mlBg.scope, mlBg.name) : "";
   function mlReadyBand() {
     if (!isBaselineTenant() || isDemo) return "";
     const r = catReadyLoad(), n = Object.keys(r).length;
@@ -20254,7 +20612,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
     $("mlHead").innerHTML = MSLearn.renderSummary(active, MSLearn.checksCount, incDis);
     const canApply = isBaselineTenant() && !isDemo;
-    const band = mlReadyBand();
+    const band = mlBgBand() + mlReadyBand();
 
     if (mlTab === "fixes") {
       $("mlChips").innerHTML = "";
@@ -20291,6 +20649,8 @@ This is a directory write. Nothing else changes.`)) return;
   }
   $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
   $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
+  // 32402: the break-glass band's way to the fix
+  $("mlBody").addEventListener("click", (e) => { if (e.target.closest("[data-ml-bg-open]")) openProtect(); });
   // Refresh: re-read the tenant, then re-run the MS Learn checks.
   $("mlRefresh").addEventListener("click", async () => {
     const btn = $("mlRefresh"); btn.disabled = true; btn.textContent = "⟳ Refreshing…";
@@ -21149,7 +21509,7 @@ This is a directory write. Nothing else changes.`)) return;
   // state, targets, self-service, passkey profiles — as ONE v1.0 PATCH, after
   // a diff and an impact list, with the settings as read kept per tenant in
   // this browser so ↩ Restore can put them back.
-  const PK_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which policies require a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them — and whether the Passkey (FIDO2) authentication method lets the same people register and use one: enabled, targeted, not excluded, self-service on, and a passkey profile that lets through a key the strength accepts. ✎ Configure changes the method, with the diff and what it does to people shown before Save.</p>';
+  const PK_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which policies require a passkey — an authentication strength that allows only phishing-resistant methods, a passkey among them (a Temporary Access Pass beside them still counts) — and whether the Passkey (FIDO2) authentication method lets the same people register and use one: enabled, targeted, not excluded, self-service on, and a passkey profile that lets through a key the strength accepts. ✎ Configure changes the method, with the diff and what it does to people shown before Save.</p>';
   const pkRestoreKey = () => `enca.pkRestore:${(signinContext && signinContext.tenantId) || (isDemo ? "demo" : "")}`;
   function pkSnapshot() { try { return JSON.parse(localStorage.getItem(pkRestoreKey()) || "null"); } catch { return null; } }
   function pkRebuild() {
@@ -21507,6 +21867,182 @@ This is a directory write. Nothing else changes.`)) return;
   // when the Checks host has a "cis" tab — which it never has here. These two
   // stay declared so that read is a quiet "never ran", not a ReferenceError.
   const ciResult = null, ciRunAt = 0;
+
+  // ---------- 🤖 Workload identities (32406, T47, R46) ----------
+  // Do the service-principal policies ever fire? The WorkloadIDs policies
+  // held against the service principal sign-ins (js/workloadid.js, pure).
+  // Its OWN source switch, not the user sign-in one: the Entra log (default)
+  // names the policy and carries the report-only verdict; Defender hunting
+  // (EntraIdSpnSignInEvents) is 30 days of volume with no CA columns.
+  const WL_SRC_KEY = () => `enca-wlsource:${tenantId || "demo"}`;
+  let wlSrc = "graph", wlDays = 7, wlRes = null, wlBusy = false, wlErr = null, wlFilter = "all", wlShowMs = false;
+  const wlProg = makeProgress("wl"); wlProg.by = "🤖 Workload identities"; wlProg.stoppable = true;
+  let wlHuntTable = "EntraIdSpnSignInEvents";
+  const WL_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Do the service-principal policies ever fire? The policies that target workload identities held against the service principal sign-ins: which principals each one reaches, which of them sign in, what was blocked and what a report-only policy would have done — and the principals no policy can reach (managed identities, Microsoft and multi-tenant apps) signing in from outside every named location. Read-only.</p>';
+  function wlPaintToolbar() {
+    $("wlSrcSeg").innerHTML = [["graph", "Entra log", "Per-policy results and the report-only forecast · AuditLog.Read.All · capped at 10,000 service principal and 5,000 managed identity sign-ins"], ["hunting", "Defender hunting", "30 days of volume, IPs and error 53003 — no policy names · ThreatHunting.Read.All · Entra ID P2"]]
+      .map(([k, l, t]) => `<button class="${wlSrc === k ? "active" : ""}" data-wlsrc="${k}" title="${esc(t)}">${esc(l)}</button>`).join("");
+    [...$("wlDaysSeg").children].forEach((b) => b.classList.toggle("active", +b.dataset.wldays === wlDays));
+    $("wlMs").checked = wlShowMs;
+    $("wlMd").style.display = wlRes ? "" : "none";
+    $("wlRefresh").textContent = wlRes ? "⟳ Read again" : "▶ Read";
+  }
+  function openWorkloadId() {
+    crumb("🚦 Sign-in log");
+    show("screen-workloadid");
+    mountToolTabs("signins", "workload");
+    $("wlHead").innerHTML = toolHead("toolWorkloadId") + WL_HEAD_TEXT;
+    try { const v = localStorage.getItem(WL_SRC_KEY()); if (v === "graph" || v === "hunting") wlSrc = v; } catch { /* default */ }
+    wlPaintToolbar();
+    if (wlBusy) { $("wlBody").innerHTML = wlProg.panel("Reading service principal sign-ins…"); return; }
+    if (wlRes) { renderWorkloadId(); return; }
+    const raws = wlPolicies();
+    const n = raws.filter((p) => WorkloadId.targets(p)).length;
+    $("wlChips").innerHTML = "";
+    $("wlBody").innerHTML = `${wlErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(wlErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-wlrun>▶ Read service principal sign-ins</button>
+      <p class="mini muted">${n} polic${n === 1 ? "y targets" : "ies target"} workload identities. Reads ${esc(rangeLabel(wlDays))} of service principal and managed identity sign-ins from ${wlSrc === "hunting" ? "Defender hunting (ThreatHunting.Read.All)" : "the Entra sign-in log (AuditLog.Read.All)"}, the principals involved (Directory.Read.All, already granted) and the named locations. Nothing is written.</p></div>`;
+  }
+  // the demo keeps its workload identity policies out of the shared policy list
+  function wlPolicies() {
+    const raws = policies.map((p) => p.raw);
+    if (isDemo && DEMO_DATA.workload) raws.push(DEMO_DATA.workload.policy, DEMO_DATA.workload.policyRo);
+    return raws;
+  }
+  function renderWorkloadId() {
+    if (!wlRes) return;
+    const model = WorkloadId.analyze({ ...wlRes.input, policies: wlPolicies(), showMicrosoft: wlShowMs, inCidr: LocSignin.inCidr, demo: isDemo });
+    wlRes.model = model;
+    wlPaintToolbar();
+    $("wlChips").innerHTML = WorkloadId.chips(model, wlFilter);
+    $("wlBody").innerHTML = WorkloadId.render(model, { filter: wlFilter });
+  }
+  async function wlHunt(days) {
+    const to = new Date(), from = new Date(Date.now() - days * 86400000);
+    const body = (table) => ({ Query: WorkloadId.huntQuery(table, from.toISOString(), to.toISOString()), Timespan: `P${Math.max(1, Math.ceil(days))}D` });
+    const noTable = (e, name) => new RegExp(`(resolve|find)[^']*'${name}'`, "i").test((e && e.message) || "");
+    wlProg.start(1, "rows", "query");
+    try { const j = await Graph.gpost("/security/runHuntingQuery", body(wlHuntTable), [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]); wlProg.tick(((j && j.results) || []).length, 1); return (j && j.results) || []; }
+    catch (e) {
+      if (wlHuntTable === "EntraIdSpnSignInEvents" && noTable(e, "EntraIdSpnSignInEvents")) {
+        const j = await Graph.gpost("/security/runHuntingQuery", body("AADSpnSignInEventsBeta"), [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]);
+        wlHuntTable = "AADSpnSignInEventsBeta";
+        return (j && j.results) || [];
+      }
+      throw e;
+    }
+  }
+  async function wlReadPrincipals(ids) {
+    const sps = {};
+    const list = [...new Set(ids)].filter((id) => /^[0-9a-f-]{36}$/i.test(id || ""));
+    for (let i = 0; i < list.length; i += 1000) {
+      try {
+        const j = await Graph.gpost("/directoryObjects/getByIds", { ids: list.slice(i, i + 1000), types: ["servicePrincipal"] }, AUTH_CONFIG.scopes);
+        (j.value || []).forEach((o) => { sps[o.id] = { id: o.id, appId: o.appId, displayName: o.displayName, servicePrincipalType: o.servicePrincipalType, appOwnerOrganizationId: o.appOwnerOrganizationId }; });
+      } catch (e) { console.warn("workload: principals not read", e.message); }
+    }
+    // owned here: is the registration single-tenant? (the signInAudience of
+    // the application object; unread counts as single-tenant)
+    const own = Object.values(sps).filter((s) => s.appOwnerOrganizationId === tenantId && !/managedidentity/i.test(s.servicePrincipalType || "")).slice(0, 300);
+    await Graph.mapLimit(own, 4, async (s) => {
+      try { const a = await Graph.gget(`/applications(appId='${s.appId}')?$select=signInAudience`); s.signInAudience = a && a.signInAudience; } catch { /* stays unread */ }
+    });
+    return sps;
+  }
+  async function runWorkloadId() {
+    if (wlBusy) return;
+    wlBusy = true; wlErr = null; wlProg.begin();
+    const key = JSON.stringify([tenantId, isDemo, wlSrc, wlDays]);
+    if ($("screen-workloadid").classList.contains("active")) $("wlBody").innerHTML = wlProg.panel("Reading service principal sign-ins…", wlSrc === "hunting" ? "One summarised hunting query for the whole window." : "Service principal sign-ins, then managed identity sign-ins, from the Entra log.");
+    try {
+      const notes = [];
+      let rows, sps, locations, capped = false;
+      if (isDemo) {
+        const D = DEMO_DATA.workload;
+        rows = WorkloadId.fromGraph(D.signIns); sps = D.servicePrincipals; locations = DEMO_DATA.namedLocations || [];
+      } else {
+        if (wlSrc === "hunting") {
+          await requireProduct("p2");
+          if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted; the Entra log source remains available");
+          const r = await wlHunt(wlDays);
+          rows = WorkloadId.fromHunting(r); capped = r.length >= 20000;
+          notes.push(`hunting table ${wlHuntTable}`);
+        } else {
+          if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) throw new Error("AuditLog.Read.All was not granted");
+          const since = new Date(Date.now() - wlDays * 86400000).toISOString();
+          const url = (t) => `/beta/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and signInEventTypes/any(t:t eq '${t}')`)}&$top=999`;
+          const sp = await wlProg.fetchAll(url("servicePrincipal"), SI_MAX, "service principal sign-ins");
+          const spCapped = !!wlProg.st.capped;
+          const mi = await wlProg.fetchAll(url("managedIdentity"), 5000, "managed identity sign-ins");
+          const miCapped = !!wlProg.st.capped;
+          capped = spCapped || miCapped;
+          if (spCapped) notes.push(`service principal sign-ins stopped at ${SI_MAX.toLocaleString()}`);
+          if (miCapped) notes.push("managed identity sign-ins stopped at 5,000");
+          rows = WorkloadId.fromGraph(sp.concat(mi));
+        }
+        wlProg.check();
+        const wanted = rows.map((r) => r.spId).concat(wlPolicies().flatMap((p) => { const t = WorkloadId.targets(p); return t ? t.include.concat(t.exclude) : []; }));
+        wlProg.detail("Reading the service principals…");
+        sps = await wlReadPrincipals(wanted);
+        locations = loList || await Graph.ggetAll("/identity/conditionalAccess/namedLocations").catch(() => []);
+      }
+      if (key !== JSON.stringify([tenantId, isDemo, wlSrc, wlDays])) throw new Error("Read discarded: tenant, source or window changed");
+      wlRes = { input: { rows, sps, locations, tenantId: isDemo ? DEMO_DATA.workload.tenantId : tenantId, source: isDemo ? "graph" : wlSrc, days: wlDays, capped, notes } };
+    } catch (e) {
+      wlErr = e && e.stopped ? "stopped — nothing is shown for a partial window" : (e && (e.message || String(e)));
+      wlRes = null;
+    } finally { wlBusy = false; wlProg.stop(); }
+    if ($("screen-workloadid").classList.contains("active")) { if (wlRes) renderWorkloadId(); else openWorkloadId(); }
+  }
+  $("wlSrcSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-wlsrc]"); if (!b || b.dataset.wlsrc === wlSrc) return;
+    if (wlBusy) { toast("Stop the current read before changing the source"); return; }
+    wlSrc = b.dataset.wlsrc; wlRes = null;
+    try { localStorage.setItem(WL_SRC_KEY(), wlSrc); } catch { /* private mode */ }
+    openWorkloadId();
+  });
+  $("wlDaysSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-wldays]"); if (!b) return;
+    if (wlBusy) { toast("Stop the current read before changing the period"); return; }
+    wlDays = +b.dataset.wldays; wlRes = null; openWorkloadId();
+  });
+  $("wlMs").addEventListener("change", (e) => { wlShowMs = e.target.checked; renderWorkloadId(); });
+  $("wlRefresh").addEventListener("click", () => runWorkloadId());
+  $("wlChips").addEventListener("click", (e) => { const b = e.target.closest("[data-wlf]"); if (!b) return; wlFilter = b.dataset.wlf; renderWorkloadId(); });
+  $("wlBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-wlrun]")) { runWorkloadId(); return; }
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
+  });
+  $("wlMd").addEventListener("click", () => { if (wlRes && wlRes.model) showReport("🤖 Workload identities", `ENCA-workload-identities-${new Date().toISOString().slice(0, 10)}`, WorkloadId.toMd(wlRes.model, tenantName)); });
+
+  // ---------- 🎫 CAE & token protection (32404, T46, R21) ----------
+  // Coverage per persona of the two newer session controls, over the policies
+  // already loaded (js/tokencov.js, pure). The per-policy judgement stays in
+  // 📘 Microsoft Learn — MSLearn.runSome counts those findings without
+  // touching that tab's state. Reads nothing; renders on open.
+  let tcFilter = "all", tcModel = null;
+  const TC_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">Which personas have token protection, on which of the resources that support it, on which platforms — and where continuous access evaluation is switched off or made strict. From the policies already loaded; per-policy token protection settings are judged, and fixed, in 📘 Microsoft Learn.</p>';
+  function tcRebuild() {
+    const raws = policies.map((p) => p.raw);
+    let learn = [];
+    try { learn = MSLearn.runSome(["token-prot-", "cae-"], raws); } catch { learn = []; }
+    tcModel = TokenCov.analyze(raws, { caGroup: Render.caGroup, learn, demo: isDemo });
+  }
+  function openTokenCov() {
+    crumb("🛡 Checks");
+    show("screen-tokencov");
+    mountToolTabs("checks", "tokencov");
+    $("tcHead").innerHTML = toolHead("toolTokenCov") + TC_HEAD_TEXT;
+    renderTokenCov();
+  }
+  function renderTokenCov() {
+    tcRebuild();
+    $("tcChips").innerHTML = TokenCov.chips(tcModel, tcFilter);
+    $("tcBody").innerHTML = policies.length ? TokenCov.render(tcModel, { filter: tcFilter })
+      : '<p class="mini" style="padding:16px">No policies loaded — sign in or open the demo first.</p>';
+  }
+  $("tcChips").addEventListener("click", (e) => { const b = e.target.closest("[data-tcf]"); if (!b) return; tcFilter = b.dataset.tcf; renderTokenCov(); });
+  $("tcBody").addEventListener("click", (e) => { const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid); });
+  $("tcMd").addEventListener("click", () => { if (tcModel) showReport("🎫 CAE & token protection", `ENCA-cae-token-protection-${new Date().toISOString().slice(0, 10)}`, TokenCov.toMd(tcModel, tenantName)); });
 
   // ---------- events ----------
   $("signInBtn").addEventListener("click", async () => {
