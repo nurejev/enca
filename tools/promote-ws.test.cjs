@@ -73,26 +73,40 @@ test("an unticked requires in the same workspace warns, ticked it is quiet", () 
   assert.ok(!c2.warns.some((w) => /needs item 298/.test(w)));
 });
 
+// The three tests below stand on their own items rather than on whatever is
+// queued today: the queue empties with every promotion (32501 took 300 and
+// the last platform items to production 324), and a test that needs item 300
+// to exist would fail on the day it ships.
+const withFixtures = () => {
+  const Q = load();
+  Q.items.push(
+    { n: 90001, ws: "ca", title: "fixture ca", tools: ["Checks"], builds: [1], risk: "low", test: ["x"], files: ["js/app.js", "js/version.js", "js/changelog.js", "js/promote.js"] },
+    { n: 90002, ws: "pim", title: "fixture pim", tools: ["Checks"], builds: [2], risk: "low", test: ["x"], files: ["js/app.js", "js/version.js"] },
+    { n: 90003, ws: "platform", title: "fixture platform", tools: ["Help"], builds: [3], risk: "low", test: ["x"], files: ["js/app.js"] },
+  );
+  return Q;
+};
+
 test("shared files and tools are named; bookkeeping files never count as shared", () => {
-  const c = P.checkOrder([300], "ca");
+  const Q = withFixtures();
+  const c = Q.checkOrder([90001], "ca");
   const files = c.shared.map((x) => x.file);
   assert.ok(files.includes("js/app.js"));
-  for (const b of P.BOOKKEEPING) assert.ok(!files.includes(b), `${b} reported as shared`);
-  assert.ok(c.sameTool.some((x) => x.tool === "Checks" && x.theirs.includes(308)));
+  for (const b of Q.BOOKKEEPING) assert.ok(!files.includes(b), `${b} reported as shared`);
+  assert.ok(c.sameTool.some((x) => x.tool === "Checks" && x.theirs.includes(90002)));
 });
 
 test("platform items can be ticked from either workspace; a platform order holds platform only", () => {
-  const plat = byWs("platform");
-  assert.ok(plat.length);
-  assert.strictEqual(P.checkOrder([plat[0]], "ca").blocks.length, 0);
-  assert.strictEqual(P.checkOrder([plat[0]], "pim").blocks.length, 0);
-  assert.ok(P.checkOrder([byWs("ca")[0]], "platform").foreign.length === 1);
+  const Q = withFixtures();
+  assert.strictEqual(Q.checkOrder([90003], "ca").blocks.length, 0);
+  assert.strictEqual(Q.checkOrder([90003], "pim").blocks.length, 0);
+  assert.ok(Q.checkOrder([90001], "platform").foreign.length === 1);
 });
 
 test("an unlabelled item stops every order", () => {
-  const Q = load();
+  const Q = withFixtures();
   Q.items.push({ n: 99999, title: "x", tools: [], builds: [], risk: "low", test: ["x"] });
-  const c = Q.checkOrder([Q.items.find((i) => i.ws === "platform").n], "ca");
+  const c = Q.checkOrder([90003], "ca");
   assert.ok(c.blocks.some((b) => /99999 carries no workspace/.test(b)));
 });
 

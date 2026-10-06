@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32501, date: "2026-10-06", title: "Production is build 324 (v2.0.2)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 324, ENCA v2.0.2: the CAE & tokens tab in 🛡 Checks, the Workload identities tab in 🚦 Sign-in log, the vs. sign-ins view in 🌐 Locations, break-glass accounts and scoped unit roles in 🔒 Protect exclusions, and the Passkeys fix for Phishing-resistant MFA + TAP — the Workspace 01 order, queue 292, 293, 295, 296, 297, 300 and 316. 294 Naming and 282 Learn changes stay on this channel, and nothing of Workspace 02 went. R21, R19 and R46 are live." },
+    ],
+  },
+  {
     build: 32439, date: "2026-10-05", title: "Waiting for production: its own tool, one order per workspace",
     items: [
       { kind: "improved", tool: "Help", text: "🚚 Waiting for production is its own tool in the Help group, beside What's new and Roadmap, instead of a section at the bottom of Help. It shows only on the beta site and only when the signed-in tenant is cloudfellows.dev. A self-hosted or forked copy of a beta build no longer shows it, and neither does the demo." },
