@@ -7759,7 +7759,6 @@ max@contoso.com,"Global, DevOps"</pre>
     const tickedRows = rows.filter((r) => dg.ticked.has(r.id));
     return `<div class="dg-presets mini"><span>Tick:</span>
         <button class="btn sm" data-dg-preset="list">The region list</button>
-        <button class="btn sm" data-dg-preset="pilot">🧪 Pilot only (Belgium)</button>
         <button class="btn sm" data-dg-preset="none">None</button>
         <span class="muted">${tickedRows.length} groups ticked · up to ${dgNum(cnt(tickedRows))} users (a user in two groups counts once)</span></div>
       ${dg.src.missing.length ? `<details class="dg-note warn"><summary>⚠ ${dg.src.missing.length} group${dg.src.missing.length === 1 ? "" : "s"} on the region list ${dg.src.missing.length === 1 ? "is" : "are"} not in this tenant</summary>${esc(dg.src.missing.map((m) => m.name).join(", "))}</details>` : ""}
@@ -8088,10 +8087,11 @@ max@contoso.com,"Global, DevOps"</pre>
     const b = e.target.closest("button"); if (!b || !dg) return;
     if (b.dataset.dgPreset) {
       const P = b.dataset.dgPreset, rows = dg.src.rows;
-      dg.ticked = new Set(P === "none" ? [] : P === "pilot" ? rows.filter((r) => r.tag === "PILOT").map((r) => r.id) : rows.filter((r) => r.ticked).map((r) => r.id));
-      // A pilot is the pilot's people: the tenant-wide guest and second-account
-      // reads would put everybody else's guests and admins in the run too.
-      if (P === "pilot" || P === "none") { dg.guests = false; dg.second = false; } else { dg.guests = true; dg.second = true; }
+      dg.ticked = new Set(P === "none" ? [] : rows.filter((r) => r.ticked).map((r) => r.id));
+      // None also unticks the tenant-wide guest and second-account reads — a
+      // hand-picked country is that country's people, not everybody's guests
+      // and admins. (5.16.1: the Belgium pilot preset is gone, Mihai 9 Oct.)
+      if (P === "none") { dg.guests = false; dg.second = false; } else { dg.guests = true; dg.second = true; }
       renderDgFill();
     } else if (b.dataset.dgFix != null) { dg.opts.fix = b.dataset.dgFix === "1"; dgSavePrefs(); renderDgFill(); }
     else if (b.dataset.dgFilter) { dg.filter = b.dataset.dgFilter; renderDgFill(); }

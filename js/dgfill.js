@@ -67,7 +67,7 @@ const DgFill = (() => {
   // ticked. SK, NE, KZ, BY, SZ are the tenant's country groups he did NOT
   // list: shown, unticked ("add them unticked").
   const REGIONS = [
-    { region: "Euro", groups: [["GB", "UK"], ["BE", "Belgium", "PILOT"], ["NL", "Netherlands"], ["LU", "Luxembourg"], ["CZ", "Czech"], ["POL-Warszawa", "PVM Polska (Warsaw)"], ["POL-SKARB", "PVM Production (Skarbimierz)"], ["PL", "Poland (rest)"], ["DK", "Denmark"], ["FR", "France"], ["CH", "Switzerland"], ["ES", "Spain"], ["PT", "Portugal"], ["GR", "Greece"], ["DE", "Germany"]] },
+    { region: "Euro", groups: [["GB", "UK"], ["BE", "Belgium"], ["NL", "Netherlands"], ["LU", "Luxembourg"], ["CZ", "Czech"], ["POL-Warszawa", "PVM Polska (Warsaw)"], ["POL-SKARB", "PVM Production (Skarbimierz)"], ["PL", "Poland (rest)"], ["DK", "Denmark"], ["FR", "France"], ["CH", "Switzerland"], ["ES", "Spain"], ["PT", "Portugal"], ["GR", "Greece"], ["DE", "Germany"]] },
     { region: "North America / Mexico", groups: [["US", "North America"], ["MX", "Mexico"], ["CA", "Canada"]] },
     { region: "Asia Pacific", groups: [["CN", "China"], ["ID", "Indonesia"], ["VN", "Vietnam"], ["PH", "Philippines"], ["JP", "Japan"], ["MY", "Malaysia"], ["TH", "Thailand"], ["KR", "South Korea"], ["AU", "Australia"], ["SG", "Singapore"], ["HK", "Hong Kong"]] },
     { region: "Italy", groups: [["IT", "Italy"]] },

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32502, date: "2026-10-09", title: "Fill from regions: no pilot country",
+    items: [
+      { kind: "improved", tool: "CA groups", text: "🌍 Fill from regions no longer marks Belgium as the pilot. Belgium is an ordinary Euro country, and the Pilot only (Belgium) preset is gone — Tick offers The region list and None. To try one country first, press None and tick that country; None still leaves out the tenant-wide guests and second accounts." },
+    ],
+  },
+  {
     build: 32501, date: "2026-10-06", title: "Production is build 324 (v2.0.2)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 324, ENCA v2.0.2: the CAE & tokens tab in 🛡 Checks, the Workload identities tab in 🚦 Sign-in log, the vs. sign-ins view in 🌐 Locations, break-glass accounts and scoped unit roles in 🔒 Protect exclusions, and the Passkeys fix for Phishing-resistant MFA + TAP — the Workspace 01 order, queue 292, 293, 295, 296, 297, 300 and 316. 294 Naming and 282 Learn changes stay on this channel, and nothing of Workspace 02 went. R21, R19 and R46 are live." },
