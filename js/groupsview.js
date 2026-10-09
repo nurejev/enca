@@ -275,6 +275,7 @@ const GroupsView = (() => {
     if (r.memberError) return `<p class="mini" style="color:var(--off)">Could not read the members: ${esc(r.memberError)}</p>`;
     const addBox = o.engine ? '<p class="mini muted">Add and remove from the matrix below while Compare is open.</p>' : r.dynamic ? '<p class="mini muted">Dynamic group — the rule decides the membership.</p>'
       : `<div class="cgg-add"><input id="cgAddUser" class="txt" list="cgUserSug" placeholder="Add a member — name or UPN" spellcheck="false" autocomplete="off"><input id="cgAddGroup" type="hidden" value="${esc(r.name)}"><button class="btn primary" id="cgAddGo">＋ Add</button></div>
+        <p class="mini muted" style="margin:0 0 2px">Several at once: separate with <b>;</b> <b>,</b> or a new line — a column pasted from Excel or an Outlook To line works too.</p>
         <div id="cgAddLog" class="mini" style="margin:4px 0 6px">${o.addMsg ? `<span style="${o.addMsg.bad ? "color:var(--off)" : ""}">${o.addMsg.html}</span>` : ""}</div>`;
     // 5.10: find + order. A 10,530-member group showed as a wall of 500 names
     // with no way to answer "is Jonathan in here" short of scrolling. The box
@@ -387,5 +388,27 @@ const GroupsView = (() => {
     return `<div class="cgg-wrap">${list(model, o)}${drawer(model, o)}</div>`;
   }
 
-  return { classify, chips, render, bulkBar, memberTree, CHIPS };
+  // 5.17 (32503, Mihai 9 Oct: can I add multiple users in a row with ;
+  // separation?): the drawer's add box takes a LIST. Separators are ; , tab
+  // and new line — a column pasted from Excel arrives as lines. An Outlook To
+  // line ("Jansen, Eva" <eva@x.com>; …) gives the addresses in the brackets,
+  // and its names are dropped first because they carry commas of their own.
+  // The same entry twice (any case) is kept once, in the order typed.
+  function splitMembers(text) {
+    let s = String(text || "");
+    const out = [], seen = new Set();
+    const keep = (t) => {
+      t = String(t || "").trim().replace(/^["']+|["']+$/g, "").trim();
+      if (!t || seen.has(t.toLowerCase())) return;
+      seen.add(t.toLowerCase()); out.push(t);
+    };
+    if (/<[^<>\s]+@[^<>\s]+>/.test(s)) {
+      // name <addr> pairs first; whatever is left is a plain list
+      s = s.replace(/[^;<>\r\n]*<([^<>\s]+@[^<>\s]+)>/g, (m, a) => `;${a};`);
+    }
+    s.split(/[;,\t\r\n]+/).forEach(keep);
+    return out;
+  }
+
+  return { classify, chips, render, bulkBar, memberTree, splitMembers, CHIPS };
 })();

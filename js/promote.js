@@ -163,6 +163,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 317,
+      ws: "ca",
+      title: "👥 CA groups — add several members at once in the drawer (T12 5.17.0)",
+      tools: ["Conditional Access groups", "Help"],
+      builds: [32503],
+      risk: "medium",
+      what: "The drawer's Add a member box (and the Compare panel's ＋ Add bar) take a list: ; , tab or new line, an Excel column paste turned into a ; list, an Outlook To line read for the addresses in its brackets; duplicates once. GroupsView.splitMembers (pure) parses; cgAddMany in js/app.js looks every entry up in one Graph $batch and adds the new ones in another (20 a request), one result line per entry, problems first, failures left in the box. Button reads ＋ Add N; suggestions only for one name. Remove refuses a list. A just-added member gets direct: true and joins directIds (single add too).",
+      why: "Mihai, 9 Oct: can I add multiple users in a row with ; separation? — the box took the whole text as one UPN and failed. Built from the mockup he approved. Medium: a missing convenience; the CSV import already covered bulk adds.",
+      test: [
+        "Local: node --test tools/cg-addmany.test.cjs — 5 pass. Demo (?demo=1): 👥 CA groups → CAD-SEC-U-DG-INT → type eva@pvm.com; max@pvm.com, Joe Bloggs — the button reads ＋ Add 3; Add → 2 of 3 added, Joe Bloggs not found and left in the box, eva and max listed under the direct members. Add eva@pvm.com; MAX@pvm.com again → 0 of 2 added, 2 already in.",
+        "Demo: paste three lines (a@x.com, b@x.com, a@x.com) into the box → it reads a@x.com; b@x.com and the button ＋ Add 2.",
+        "Live tenant, a test group: add three real UPNs and one made-up one in one go → three ✓ lines, one ✗ not found, the made-up one stays in the box; the portal shows the three as direct members. Add the same three again → already a member, nothing written.",
+        "Live: paste an Outlook To line with a name containing a comma (\"Jansen, Eva\" <eva@…>) → only the address is used.",
+        "Live: type two UPNs and press − Remove in the Compare panel → refused with the one-at-a-time line; nothing removed."
+      ]
+    },
+    {
       n: 315,
       ws: "pim",
       requires: [298],

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32503, date: "2026-10-09", title: "CA groups: add several members at once",
+    items: [
+      { kind: "improved", tool: "CA groups", text: "The Add a member box in a group's drawer takes a list: separate users with ; , or a new line, paste a column from Excel, or paste an Outlook To line. The button says how many it will add, and every user gets a line of its own — added, already a member, or not found — so one bad entry does not stop the others; what did not go in stays in the box to fix and retry. Remove still asks for one user at a time." },
+      { kind: "fixed", tool: "CA groups", text: "A member you just added shows under the direct members straight away; on a group whose nesting was read, she was listed nowhere until the re-read caught up." },
+    ],
+  },
+  {
     build: 32502, date: "2026-10-09", title: "Fill from regions: no pilot country",
     items: [
       { kind: "improved", tool: "CA groups", text: "🌍 Fill from regions no longer marks Belgium as the pilot. Belgium is an ordinary Euro country, and the Pilot only (Belgium) preset is gone — Tick offers The region list and None. To try one country first, press None and tick that country; None still leaves out the tenant-wide guests and second accounts." },

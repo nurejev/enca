@@ -8809,10 +8809,32 @@ max@contoso.com,"Global, DevOps"</pre>
   // row opens, because the hits belong to one group and one query
   let cgMemQ = "", cgMemSort = "", cgMemHits = null;
 
+  // 5.17: the box takes a list, so the button says how many it will add, and
+  // the directory suggestions only make sense while there is one name in it.
+  const cgSplit = (v) => (typeof GroupsView !== "undefined" && GroupsView.splitMembers) ? GroupsView.splitMembers(v) : [String(v || "").trim()].filter(Boolean);
+  function cgAddCount() {
+    const n = cgSplit($("cgAddUser")?.value).length, b = $("cgAddGo");
+    if (b) b.textContent = n > 1 ? `＋ Add ${n}` : "＋ Add";
+    return n;
+  }
+  // A text box drops the line breaks of a pasted Excel column and glues the
+  // names together, so a multi-line paste is turned into a ; list on the way in.
+  function cgAddPaste(e) {
+    if (e.target.id !== "cgAddUser") return;
+    const t = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+    if (!/[\r\n\t]/.test(t.trim())) return;
+    e.preventDefault();
+    const box = e.target, list = cgSplit(t).join("; ");
+    const a = box.selectionStart ?? box.value.length, z = box.selectionEnd ?? box.value.length;
+    const before = box.value.slice(0, a).replace(/[\s;,]*$/, ""), after = box.value.slice(z).replace(/^[\s;,]*/, "");
+    box.value = [before, list, after].filter(Boolean).join("; ");
+    cgAddCount();
+  }
   function cgAddSuggest(e) {
     if (e.target.id !== "cgAddUser") return;
     const term = String(e.target.value || "").trim();
     clearTimeout(cgAddTimer);
+    if (cgAddCount() > 1) { const dl = $("cgUserSug"); if (dl) dl.innerHTML = ""; return; }
     // Selecting from a <datalist> fires `input` just like typing does. Without
     // this the pick re-runs the query, the options are rewritten, and the
     // browser reopens the dropdown over a field you have already filled — so
@@ -8834,7 +8856,8 @@ max@contoso.com,"Global, DevOps"</pre>
 
   async function cgAddMember() {
     const uBox = $("cgAddUser"), gBox = $("cgAddGroup"), log = $("cgAddLog");
-    const upn = (uBox?.value || "").trim(), gName = (gBox?.value || "").trim();
+    const list = cgSplit(uBox?.value);
+    const upn = list[0] || "", gName = (gBox?.value || "").trim();
     const say = (html, bad) => {
       cgAddMsg = { html, bad: !!bad };
       const el = $("cgAddLog");
@@ -8845,6 +8868,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
     cgAddGroup = gName;
+    if (list.length > 1) { await cgAddMany(list, row, say); return; }
 
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     say("Adding…");
@@ -8863,7 +8887,11 @@ max@contoso.com,"Global, DevOps"</pre>
       // Re-read that one group so the matrix shows the result. Directory writes
       // are not read-your-writes consistent, so add the row locally too and let
       // the re-read confirm it rather than contradict it.
-      const fresh = { id: user.id, name: user.displayName || upn, upn: user.userPrincipalName || upn, disabled: false };
+      // direct: a just-added member is a DIRECT member — without the flag a
+      // group whose nesting was read (directIds set) listed her nowhere until
+      // the re-read caught up (5.17)
+      const fresh = { id: user.id, name: user.displayName || upn, upn: user.userPrincipalName || upn, disabled: false, direct: true, via: [] };
+      if (row.directIds) row.directIds.add(user.id);
       row.members = [...(row.members || []), fresh];
       row.memberTotal = (row.memberTotal || 0) + 1;
       say(`✓ <b>${esc(fresh.name)}</b> added to <b>${esc(gName)}</b>.`);
@@ -8881,6 +8909,78 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   }
 
+  // 5.17 (32503): several users in one go. One $batch looks every entry up,
+  // one $batch adds the ones that are new (20 a request, Graph.gbatch), and
+  // every entry gets its own line — a user that is not found or fails does not
+  // stop the others. What did not go in stays in the box to fix and retry.
+  async function cgAddMany(list, row, say) {
+    const gName = row.name;
+    if (row.dynamic) { say(`<b>${esc(gName)}</b> is a dynamic group — its membership is decided by the rule, not by hand.`, true); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    const res = list.map((q) => ({ q, user: null, state: "", msg: "" }));
+    say(`Looking up ${res.length} users…`);
+    // demo: an entry without an @ stands in for a user the tenant does not have
+    if (isDemo) res.forEach((r) => { if (r.q.includes("@")) r.user = { id: "demo-" + r.q.toLowerCase(), displayName: r.q.split("@")[0], userPrincipalName: r.q }; else { r.state = "bad"; r.msg = "not found — use the UPN, a name only works from the suggestions"; } });
+    else {
+      const got = await Graph.gbatch(res.map((r, i) => ({ id: i, url: `/users/${encodeURIComponent(r.q)}?$select=id,displayName,userPrincipalName` })));
+      res.forEach((r, i) => {
+        const g = got[i] || {};
+        if (g.body && g.body.id) { r.user = g.body; return; }
+        r.state = "bad";
+        r.msg = (g.status === 404 || /notfound|does not exist/i.test(`${g.code} ${g.error}`))
+          ? (r.q.includes("@") ? "not found in the tenant" : "not found — use the UPN, a name only works from the suggestions")
+          : `lookup failed: ${g.error || "no response"}`;
+      });
+    }
+    // already in, or the same person typed twice (alias and UPN)
+    const have = new Set((row.members || []).map((m) => m.id)), seen = new Set();
+    res.forEach((r) => {
+      if (!r.user) return;
+      if (have.has(r.user.id)) { r.state = "same"; r.msg = "already a member"; }
+      else if (seen.has(r.user.id)) { r.state = "same"; r.msg = "listed twice — added once"; }
+      else seen.add(r.user.id);
+    });
+    const todo = res.filter((r) => r.user && !r.state);
+    if (todo.length) {
+      say(`Adding ${todo.length} to <b>${esc(gName)}</b>…`);
+      if (isDemo) todo.forEach((r) => { r.state = "ok"; });
+      else {
+        const out = await Graph.gbatch(todo.map((r, i) => ({ id: i, method: "POST", url: `/groups/${row.id}/members/$ref`,
+          body: { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${r.user.id}` } })),
+          (d, n) => say(`Adding to <b>${esc(gName)}</b>… ${d} of ${n}`),
+          { scopes: [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"] });
+        todo.forEach((r, i) => {
+          const o = out[i] || { error: "no response" };
+          if (!o.error) r.state = "ok";
+          else if (/already exist/i.test(o.error)) { r.state = "same"; r.msg = "already a member"; }
+          else { r.state = "bad"; r.msg = `add failed: ${o.error}`; }
+        });
+      }
+      const fresh = todo.filter((r) => r.state === "ok").map((r) => ({ id: r.user.id, name: r.user.displayName || r.q, upn: r.user.userPrincipalName || r.q, disabled: false, direct: true, via: [] }));
+      if (row.directIds) fresh.forEach((m) => row.directIds.add(m.id));
+      row.members = [...(row.members || []), ...fresh];
+      row.memberTotal = (row.memberTotal || 0) + fresh.length;
+    }
+    const ok = res.filter((r) => r.state === "ok"), bad = res.filter((r) => r.state === "bad"), same = res.filter((r) => r.state === "same");
+    const line = (r) => {
+      const nm = r.user ? (r.user.displayName || r.q) : r.q, up = r.user ? (r.user.userPrincipalName || r.q) : "";
+      const who = up && up.toLowerCase() !== String(nm).toLowerCase() ? `${esc(nm)} <span class="muted">${esc(up)}</span>` : esc(nm);
+      return r.state === "ok" ? `<div>✓ ${who} — added</div>`
+        : r.state === "same" ? `<div class="muted">= ${who} — ${esc(r.msg)}</div>`
+        : `<div style="color:var(--off)">✗ ${who} — ${esc(r.msg)}</div>`;
+    };
+    // problems first; a long run folds the successes into one line
+    const lines = [...bad, ...same].map(line).concat(ok.length > 12 ? [`<div>✓ ${ok.length} users added</div>`] : ok.map(line));
+    const head = `<b>${ok.length} of ${res.length} added</b> to <b>${esc(gName)}</b>${same.length ? ` · ${same.length} already in` : ""}${bad.length ? ` · <span style="color:var(--off)">${bad.length} need${bad.length === 1 ? "s" : ""} a look — left in the box</span>` : ""}`;
+    cgAddMsg = { html: `${head}<div style="margin-top:4px;max-height:220px;overflow:auto">${lines.join("")}</div>`, bad: false };
+    const keep = bad.map((r) => r.q).join("; ");
+    const restore = () => { const b = $("cgAddUser"); if (b) b.value = keep; cgAddCount(); const el = $("cgAddLog"); if (el) el.innerHTML = `<span>${cgAddMsg.html}</span>`; };
+    cgRerenderMembers(); restore();
+    if (!isDemo && ok.length) {
+      try { await CaGroups.loadMembers([row], {}); cgRerenderMembers(); restore(); } catch { /* the optimistic rows stand */ }
+    }
+  }
+
   // Remove a member — the mirror of cgAddMember, and the one write in this
   // matrix that can lock somebody out (a member taken out of an EXCLUSION
   // group is suddenly inside the policy). So it always confirms, names both
@@ -8893,6 +8993,7 @@ max@contoso.com,"Global, DevOps"</pre>
     };
     who = (who || "").trim(); gName = (gName || "").trim();
     if (!who) { say("Type a user first.", true); return; }
+    if (!byId && cgSplit(who).length > 1) { say("Remove takes one user at a time — it asks before each one, because a removal from an exclusion group puts that person back inside the policy.", true); return; }
     if (!gName) { say("Pick a group.", true); return; }
     const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
@@ -9018,13 +9119,13 @@ This is a directory write. Nothing else changes.`)) return;
     const addBar = `<div class="cg-panel">
         <h4>ADD OR REMOVE A MEMBER <span class="tag upd">UPDATED</span></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
+          <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN; several: a; b; c" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
           <span class="mini muted">to</span>
           <input id="cgAddGroup" class="txt" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px;letter-spacing:normal;font-weight:400" value="${esc(cgAddGroup || "")}">
           <button class="btn primary" id="cgAddGo">＋ Add</button>
           <button class="btn" id="cgAddRm" title="Remove the user from the group — asks first, and says what the group is used for">− Remove</button>
         </div>
-        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. To remove, use <b>− Remove</b> here or hover a ● in the matrix and click the ×; both ask first and say whether the group is an exclusion. ${m.cols.length === 1
+        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. To add several at once, separate them with ; , or a new line — a column pasted from Excel works too. To remove, use <b>− Remove</b> here or hover a ● in the matrix and click the ×; both ask first and say whether the group is an exclusion. ${m.cols.length === 1
           ? `Only <b>${esc(m.cols[0].name)}</b> is loaded here, so it is filled in for you — read more groups above to add to another.`
           : `The group list is the ${m.cols.length} groups whose members are loaded here, so the matrix can show the result immediately.`}</p>
         <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
@@ -9513,6 +9614,8 @@ This is a directory write. Nothing else changes.`)) return;
     await openCaGroups(true);
   });
   $("cgBody").addEventListener("input", cgAddSuggest);
+  $("cgBody").addEventListener("paste", cgAddPaste);
+  $("cgList").addEventListener("paste", cgAddPaste);
   $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgList").addEventListener("input", cgAddSuggest);
   $("cgList").addEventListener("input", (e) => { if (e.target.id !== "cgMemQ") return; cgMemQ = e.target.value; cgMemRefresh(); });
