@@ -45,3 +45,9 @@ js/authConfig.local.js
 # the repo looks; and review/ was deliberately never ported to main anyway.
 # Offline only, same rule as CONSOLIDATION-PLAN.md above.
 /review/
+
+# PimBuddy handovers — offline only, same rule as the customer branding above.
+# The Word handovers, their README and the documentation contract are customer
+# documentation: never published to the repo, the beta site or the image.
+# tools/pimdocs.test.cjs runs where the folder exists and skips where it does not.
+/docs/handovers/

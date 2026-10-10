@@ -8,7 +8,16 @@ const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { contract } = require('./pimdocs-contract.cjs');
 const root = path.resolve(__dirname, '..');
-const snap = JSON.parse(fs.readFileSync(path.join(root, 'docs/handovers/pimbuddy-documentation-contract.json'), 'utf8'));
+// docs/handovers/ is offline only (gitignored): the PimBuddy handovers are customer
+// documentation and are never published. Where the folder is absent (CI, the beta
+// site, a fresh clone) this gate skips; on the machine that holds them it runs in full.
+const contractPath = path.join(root, 'docs/handovers/pimbuddy-documentation-contract.json');
+const offline = !fs.existsSync(contractPath);
+if (offline) {
+  test('PimBuddy handover gate (docs/handovers/ is offline only — not present here)', { skip: true }, () => {});
+  return;
+}
+const snap = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 const current = JSON.parse(JSON.stringify(contract()));
 const xml = name => execFileSync('unzip', ['-p', path.join(root, name), 'word/document.xml'], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
 const text = value => value.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');

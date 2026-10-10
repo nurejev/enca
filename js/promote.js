@@ -148,7 +148,7 @@ const PROMOTE = {
     },
     pim: {
       num: "02", label: "PIM-buddy",
-      owns: ["js/pim*.js", "js/intunerbac.js", "tools/pim/", "tools/pim*.test.cjs", "tools/pim*.cjs", "tools/intunerbac.test.cjs", "docs/handovers/"],
+      owns: ["js/pim*.js", "js/intunerbac.js", "tools/pim/", "tools/pim*.test.cjs", "tools/pim*.cjs", "tools/intunerbac.test.cjs"],
       mainChecks: [
         "grep -nE 'pmb[A-Z]|pimPlan|pimApply|prlOn|pimLensPaint|PIM-SG' js/*.js index.html  (expect nothing)",
         "grep -n 'src=\"js/pim' index.html  (expect nothing)",
