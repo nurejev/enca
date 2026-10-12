@@ -1,36 +1,81 @@
-// 🌍 Fill deploy groups from regions (js/dgfill.js, beta 32432).
+// 🌍 Fill deploy groups from regions (js/dgfill.js, beta 32432; generic, CSV region list, 32509).
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const DG = require("../js/dgfill.js");
 
-const run = (over, opts) => { const d = DG.demo(); return DG.plan({ sources: DG.classifySources(d.groups).rows.filter((r) => r.ticked), members: d.members, guests: d.guests, second: d.second, mains: d.mains, targets: d.targets, ...(over || {}) }, opts); };
+// The demo tenant opens the way a real one does after its import: the region
+// list is a CSV (d.csv), matched to the tenant's groups by check().
+const srcOf = (d) => DG.classifySources(DG.check(DG.parseCsv(d.csv).rows, d.groups, d.opts), d.groups, d.opts);
+const run = (over, opts) => { const d = DG.demo(); return DG.plan({ sources: srcOf(d).rows.filter((r) => r.ticked), members: d.members, guests: d.guests, second: d.second, mains: d.mains, targets: d.targets, ...(over || {}) }, { ...d.opts, ...(opts || {}) }); };
 const row = (p, id) => p.rows.find((r) => r.id === id);
 
-test("sources: country groups found by rule, region list ticked, Unlicensed ticked, DISABELD/TEST ignored", () => {
-  const P = DG.DEFAULTS.prefix;
-  const rule = (cc) => `(user.usageLocation -eq "${cc}") and (user.assignedPlans -any (assignedPlan.servicePlanId -eq "x"))`;
-  const { rows, missing } = DG.classifySources([
-    { id: "1", displayName: P + "UAE", membershipRule: rule("AE") },
-    { id: "2", displayName: P + "SK", membershipRule: rule("SK") },
-    { id: "3", displayName: P + "NL-Breda", membershipRule: '(user.usageLocation -eq "NL") and (user.city -eq "Breda")' },
-    { id: "4", displayName: P + "Unlicensed-L-P", membershipRule: '(user.userType -ne "Guest") and (user.accountEnabled -eq true)' },
-    { id: "5", displayName: P + "DISABELD", membershipRule: "(user.accountEnabled -eq false)" },
-    { id: "6", displayName: P + "TEST", membershipRule: '(user.displayName -match "^a")' },
-    { id: "7", displayName: P + "POL-SKARB", membershipRule: '(user.city -eq "Skarbimierz Osiedle")' },
-    { id: "8", displayName: "Other-group", membershipRule: "" },
-  ]);
-  const by = (n) => rows.find((r) => r.suffix === n);
-  assert.equal(by("UAE").kind, "country"); assert.equal(by("UAE").country, "AE"); assert.equal(by("UAE").region, "BAMSCA"); assert.ok(by("UAE").ticked);
-  assert.equal(by("SK").region, "Not in your region list"); assert.equal(by("SK").ticked, false);
-  assert.equal(by("NL-Breda").kind, "site"); assert.equal(by("NL-Breda").ticked, false);
-  assert.equal(by("Unlicensed-L-P").kind, "unlicensed"); assert.ok(by("Unlicensed-L-P").ticked);
-  assert.equal(by("DISABELD").kind, "ignored"); assert.equal(by("TEST").kind, "ignored");
-  assert.equal(by("POL-SKARB").kind, "site"); assert.ok(by("POL-SKARB").ticked, "on Mihai's list");
-  assert.ok(!rows.some((r) => r.name === "Other-group"));
-  assert.ok(missing.some((m) => m.name === P + "NL"), "a listed group the tenant lacks is reported");
-  assert.equal(rows.find((r) => r.suffix === "BE"), undefined);
+test("nothing tenant-specific in the code: no prefix, no domains, no region list", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "js", "dgfill.js"), "utf8").replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(src, /perfetti|pvm/i);
+  assert.equal(DG.DEFAULTS.prefix, ""); assert.equal(DG.DEFAULTS.mainDomain, ""); assert.deepEqual(DG.DEFAULTS.secondDomains, []);
+  assert.equal(DG.REGIONS, undefined);
+});
+
+test("parseCsv: header, , or ;, quotes, ticked and mode, errors per line", () => {
+  const a = DG.parseCsv("\uFEFFregion;group;label;ticked;mode\r\nEurope;\"SG; NL\";Netherlands;nee;\nEurope;SG-Unl-*;;yes;SA\n\n# note\nAsia;;x;;\nAsia;SG-IN;;maybe;\nAsia;SG-JP;;;delete");
+  assert.deepEqual(a.rows.map((r) => [r.line, r.group, r.ticked, r.mode]), [[2, "SG; NL", false, ""], [3, "SG-Unl-*", true, "sa-only"]]);
+  assert.deepEqual(a.errors.map((e) => e.line), [6, 7, 8]);
+  assert.match(DG.parseCsv("name,where\nx,y").errors[0].why, /no “group” column/);
+  assert.match(DG.parseCsv("").errors[0].why, /empty/);
+  assert.equal(DG.parseCsv("group\nSG-A").rows[0].region, "Sources", "region and the rest are optional");
+});
+
+test("toCsv round-trips through parseCsv; the template parses clean", () => {
+  const list = [{ region: "Europe, west", group: 'SG "NL"', label: "", ticked: false, mode: "ignore" }, { region: "Asia", group: "SG-IN", label: "India", ticked: true, mode: "" }];
+  const back = DG.parseCsv(DG.toCsv(list)).rows.map(({ region, group, label, ticked, mode }) => ({ region, group, label, ticked, mode }));
+  assert.deepEqual(back, list);
+  const t = DG.parseCsv(DG.TEMPLATE); assert.equal(t.errors.length, 0); assert.ok(t.rows.length >= 5);
+});
+
+test("check(): by name any case, by object id, by trailing *; missing, ambiguous, duplicate and deploy groups", () => {
+  const G = [{ id: "11111111-2222-3333-4444-555555555555", displayName: "SG-NL" }, { id: "b", displayName: "SG-Unl-A" }, { id: "c", displayName: "SG-Unl-B" },
+    { id: "d", displayName: "Twin" }, { id: "e", displayName: "twin" }, { id: "f", displayName: "CAD-SEC-U-DG-INT" }, { id: "g", displayName: "My-INT" }];
+  const L = [{ line: 2, group: "sg-nl" }, { line: 3, group: "11111111-2222-3333-4444-555555555555" }, { line: 4, group: "SG-Unl-*" }, { line: 5, group: "Gone" },
+    { line: 6, group: "Twin" }, { line: 7, group: "CAD-SEC-U-DG-INT" }, { line: 8, group: "My-INT" }];
+  const c = DG.check(L, G, {});
+  assert.deepEqual(c.map((x) => x.status), ["ok", "duplicate", "ok", "missing", "ambiguous", "target", "ok"]);
+  assert.equal(c[2].groups.length, 2);
+  assert.equal(DG.check(L, G, { targetNames: { INT: "My-INT" } })[6].status, "target", "a renamed deploy group is a target too");
+});
+
+test("sources: CSV order and regions, sa-only and ignore, prefix extras unticked, missing reported", () => {
+  const d = DG.demo();
+  const s = srcOf(d);
+  const by = (n) => s.rows.find((r) => r.name === n);
+  assert.deepEqual([...new Set(s.rows.map((r) => r.region))], ["Europe", "Italy", "Americas", "Asia", "No Intune licence", "Not in your region list", "Ignored"]);
+  assert.equal(by("DEMO-USERS-NL").label, "Netherlands"); assert.ok(by("DEMO-USERS-NL").ticked);
+  assert.equal(by("DEMO-USERS-Unlicensed-Q-T").kind, "unlicensed"); assert.ok(by("DEMO-USERS-Unlicensed-Q-T").ticked);
+  assert.equal(by("DEMO-USERS-DISABLED").kind, "ignored"); assert.equal(by("DEMO-USERS-DISABLED").ticked, false);
+  assert.equal(by("DEMO-USERS-SK").region, "Not in your region list"); assert.equal(by("DEMO-USERS-SK").ticked, false);
+  assert.equal(srcOf({ ...d, opts: { ...d.opts, prefix: "" } }).rows.some((r) => r.name === "DEMO-USERS-SK"), false, "no prefix, no extras");
+  const m = DG.classifySources(DG.check([{ line: 2, region: "X", group: "Nope" }], d.groups, d.opts), [], d.opts);
+  assert.deepEqual(m.missing.map((x) => x.name), ["Nope"]);
+});
+
+test("settings: deploy group names per tenant", () => {
+  const T = DG.targets({ targetNames: { SA: "My-SA" } });
+  assert.equal(T.find((t) => t.key === "SA").name, "My-SA"); assert.equal(T.find((t) => t.key === "GLO").name, "CAD-SEC-U-DG-GLO");
+  const d = DG.demo(); delete d.targets.SA;
+  const p = run({ targets: d.targets }, { targetNames: { SA: "My-SA" } });
+  assert.equal(p.refusals.find((r) => r.key === "SA").name, "My-SA");
+});
+
+test("settings: no second-account domains turns 0a/0b/5 off; empty external prefix turns rule 2 off; another attribute", () => {
+  const off = run(null, { secondDomains: [] });
+  assert.equal(row(off, "u-svc"), undefined, "second accounts are not read as such");
+  assert.ok(!off.rows.some((r) => (r.add || []).includes("DevOps")));
+  const noExt = run(null, { extPrefix: "" });
+  assert.deepEqual(row(noExt, "u-marco").add.sort(), ["GLO", "INT"]);
+  const d = DG.demo(); d.members.get("src-BE")[0].onPremisesExtensionAttributes = { extensionAttribute3: "Extern" };
+  const a3 = run({ members: d.members }, { extAttr: "extensionAttribute3", extPrefix: "extern" });
+  assert.deepEqual(row(a3, "u-pieter").add.sort(), ["EXT", "GLO"]);
 });
 
 test("rules 1–4: guest, External*, member; everybody of them into GLO", () => {
@@ -46,11 +91,11 @@ test("rule 0a/0b/5: paired second account → ADM only, unpaired → SA only, th
   assert.deepEqual(row(p, "u-anna-adm").add, [], "already in ADM — not added again");
   assert.deepEqual(row(p, "u-anna-adm").keep, ["ADM"]);
   assert.deepEqual(row(p, "u-svc").add, ["SA"]);
-  assert.deepEqual(row(p, "u-raj-adm").add, ["ADM"], "onmicrosoft.com second account pairs on the part before the @");
+  assert.deepEqual(row(p, "u-raj-adm").add, ["ADM"], "a second account in the other second domain pairs on the part before the @");
   assert.ok(row(p, "u-anna").add.includes("DevOps"));
   assert.ok(row(p, "u-raj").add.includes("DevOps"));
   assert.ok(!row(p, "u-svc").add.includes("GLO"), "second accounts get nothing else");
-  assert.deepEqual(p.unpaired, ["svc-build@pvmict.com"]);
+  assert.deepEqual(p.unpaired, ["svc-build@contoso-adm.com"]);
 });
 
 test("a guest whose UPN ends in the onmicrosoft.com domain is a guest, not a second account", () => {
@@ -60,7 +105,7 @@ test("a guest whose UPN ends in the onmicrosoft.com domain is a guest, not a sec
   assert.ok(!p.unpaired.some((u) => /#EXT#/.test(u)));
 });
 
-test("rule 0c: a user only in an Unlicensed group goes to SA and is FIXED out of GLO and INT", () => {
+test("rule 0c: a user only in an sa-only source goes to SA and is FIXED out of GLO and INT", () => {
   const p = run();
   const r = row(p, "u-rtan");
   assert.deepEqual(r.add, ["SA"]);
@@ -105,7 +150,7 @@ test("disabled accounts are skipped entirely — no add, no remove", () => {
   assert.equal(r.rule, "skip"); assert.deepEqual(r.add, []); assert.deepEqual(r.remove, []);
 });
 
-test("a Pole in both -PL and POL-SKARB counts once", () => {
+test("a user in two ticked groups counts once", () => {
   const p = run();
   assert.equal(p.rows.filter((r) => r.id === "u-jan").length, 1);
   assert.equal(p.adds.INT.filter((x) => x === "u-jan").length, 1);
@@ -147,9 +192,9 @@ test("request(): POST $ref for adds, DELETE $ref for removals", () => {
 test("report and CSV carry every change; the report is plain Markdown", () => {
   const d = DG.demo(); const p = run();
   const md = DG.report({ tenant: "Contoso" }, p, d.targets);
-  assert.match(md, /CAD-SEC-U-DG-SA/); assert.match(md, /svc-build@pvmict.com/);
+  assert.match(md, /CAD-SEC-U-DG-SA/); assert.match(md, /svc-build@contoso-adm.com/);
   const c = DG.csv(p);
-  assert.match(c, /r\.tan@perfettivanmelle\.com/);
+  assert.match(c, /r\.tan@contoso\.com/);
   assert.equal(c.split("\r\n").length, p.rows.length + 1);
 });
 

@@ -12,10 +12,10 @@ const U = (id, upn, o) => Object.assign({ id, userPrincipalName: upn, displayNam
 const set = (...a) => new Set(a);
 function fixture(extra) {
   const users = [
-    U("a", "anna@perfettivanmelle.com"), U("b", "bob@perfettivanmelle.com"), U("c", "cid@perfettivanmelle.com"),
-    U("d", "dee@perfettivanmelle.com"), U("e", "ext@perfettivanmelle.com", { onPremisesExtensionAttributes: { extensionAttribute10: "External contractor" } }),
-    U("g", "gary_x#EXT#@t.onmicrosoft.com", { userType: "Guest" }), U("s", "anna@pvmict.com"), U("z", "zed@perfettivanmelle.com", { accountEnabled: false }),
-    U("bg", "breakglass@perfettivanmelle.com"),
+    U("a", "anna@contoso.com"), U("b", "bob@contoso.com"), U("c", "cid@contoso.com"),
+    U("d", "dee@contoso.com"), U("e", "ext@contoso.com", { onPremisesExtensionAttributes: { extensionAttribute10: "External contractor" } }),
+    U("g", "gary_x#EXT#@t.onmicrosoft.com", { userType: "Guest" }), U("s", "anna@contoso-adm.com"), U("z", "zed@contoso.com", { accountEnabled: false }),
+    U("bg", "breakglass@contoso.com"),
   ];
   const groups = [
     { key: "GLO", name: "CAD-SEC-U-DG-GLO", id: "g-glo", direct: set("bg"), nested: set("a", "b", "c", "g") },
@@ -39,10 +39,10 @@ function fixture(extra) {
   ]);
   const roleMembers = new Map([["r-ga", set("c")]]);
   const sources = [
-    { id: "s-nl", name: "PVM-UG-CORP-MEM-USERS-NL", label: "Netherlands", ticked: true, memberIds: set("a", "b", "d") },
-    { id: "s-de", name: "PVM-UG-CORP-MEM-USERS-DE", label: "Germany", ticked: false, memberIds: set("c") },
+    { id: "s-nl", name: "DEMO-USERS-NL", label: "Netherlands", ticked: true, memberIds: set("a", "b", "d") },
+    { id: "s-de", name: "DEMO-USERS-DE", label: "Germany", ticked: false, memberIds: set("c") },
   ];
-  return Object.assign({ users, groups, policies, exclGroups, roleMembers, sources, opts: DgFill.DEFAULTS, mains: new Map([["anna@perfettivanmelle.com", users[0]]]) }, extra || {});
+  return Object.assign({ users, groups, policies, exclGroups, roleMembers, sources, opts: { ...DgFill.DEFAULTS, mainDomain: "contoso.com", secondDomains: ["contoso-adm.com"] }, mains: new Map([["anna@contoso.com", users[0]]]) }, extra || {});
 }
 
 test("coverage counts ENABLED users only and splits left out in two", () => {
@@ -138,7 +138,7 @@ test("html: app view carries the drill-throughs, the export carries none and no 
   const app = DeployDash.html(m, { app: true, list: "leftout" });
   assert.match(app, /data-dd-wave="g-glo"/);
   assert.match(app, /data-dd-group="g-int"/);
-  assert.match(app, /data-dd-who="dee@perfettivanmelle.com"/);
+  assert.match(app, /data-dd-who="dee@contoso.com"/);
   assert.match(app, /NOT YET · 1 locked out/);
   assert.match(app, /data-dd-list="leftout"/);
   const narrowed = DeployDash.html(m, { app: true, group: "INT" });
@@ -148,7 +148,7 @@ test("html: app view carries the drill-throughs, the export carries none and no 
   assert.doesNotMatch(x, /<script/);
   assert.doesNotMatch(x, /data-dd-/);
   assert.match(x, /Left out — 3 enabled users/);
-  assert.match(x, /dee@perfettivanmelle.com/);
+  assert.match(x, /dee@contoso.com/);
   assert.match(x, /2026-10-12/);
   assert.match(x, /<title>Deployment dashboard — Contoso<\/title>/);
 });
@@ -159,5 +159,5 @@ test("csv: one row per group, then the left-out rows", () => {
   const lines = csv.split("\r\n");
   assert.equal(lines[0].split(",")[0], "deploy_group");
   assert.equal(lines.filter((l) => l.startsWith("CAD-SEC-U-DG-")).length, 5);
-  assert.ok(lines.some((l) => l.startsWith("dee@perfettivanmelle.com,")));
+  assert.ok(lines.some((l) => l.startsWith("dee@contoso.com,")));
 });
