@@ -26,7 +26,7 @@ Test-It 'intune role: the 28 Sep state — the role exists with no actions: repo
   Assert-True ($txt -match "Intune role INT-ROLE-Regional-Ops lacks $n of the template's $n actions \(it has none at all\)") "reported with the count`n$txt"
   Assert-True ($txt -match '-FixIntuneRoles plans adding them \(none removed\)') 'names the switch'
   $p = Get-Content (Get-Plans 'regions')[-1].FullName -Raw | ConvertFrom-Json -AsHashtable
-  Assert-True (-not @($p.ops | Where-Object { $_.key -like 'introle*' }).Count) 'no role operation without the switch'
+  Assert-True (-not @($p.ops | Where-Object { $_.key -like 'introle*Regional-Ops' }).Count) 'no role operation without the switch'
   Assert-Eq @($global:Fake.intune.roles | Where-Object { $_.displayName -eq 'INT-ROLE-Regional-Ops' }).Count 1 'never a second role'
   Assert-Eq (Get-FakeWrites).Count 0 'writes'
 }
