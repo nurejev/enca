@@ -315,7 +315,8 @@ const PimReport = (() => {
       const gs = m.groups.filter((g) => g.present && hit(g.name));
       body = `<p class="mini">${m.people.total} account${m.people.total === 1 ? "" : "s"} in the model${m.people.unread.length ? ` · members of ${m.people.unread.length} group${m.people.unread.length === 1 ? "" : "s"} could not be read` : ""}. Approver groups: ${m.approvers.map((a) => `${a.name} ${a.present ? (a.read ? a.count : "?") : "missing"}`).join(" · ") || "none"}.</p><div class="prp-tw"><table><thead><tr><th>Group</th><th>Kind</th><th>Active members</th><th>Eligible members</th></tr></thead><tbody>${gs.map((g) => `<tr><td class="mono">${esc(g.name)}</td><td>${esc(g.kind)}</td><td>${g.membersRead ? (g.active.length ? esc(g.active.map((x) => x.name || x.displayName || x.id).join(", ")) : "0") : "not read"}</td><td>${g.membersRead ? (g.eligible.length ? esc(g.eligible.map((x) => x.name || x.displayName || x.id).join(", ")) : "0") : "not read"}</td></tr>`).join("")}</tbody></table></div>`;
     } else if (tab === "outside") {
-      body = m.outside.length ? `<div class="prp-tw"><table><thead><tr><th>Principal</th><th>Kind</th><th>Holds</th><th></th></tr></thead><tbody>${m.outside.filter((o) => hit(o.name)).map((o) => `<tr><td>${esc(o.name)}</td><td>${esc(o.type === "ServicePrincipal" ? "app" : o.type.toLowerCase())}</td><td>${esc(o.holds.map((h) => `${h.role} (${h.how}${h.scope !== "tenant" ? `, ${h.scope}` : ""}${h.permanent ? ", permanent" : ""})`).join("; "))}</td><td>${o.protected ? `<span class="prp-pill prp-ok">break-glass</span>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="mini" style="padding:12px 0">Nobody holds a role outside the framework groups.</p>`;
+      const open = st.open || new Set(), ug = st.ug || {}, ca = st.ca || null;
+      body = m.outside.length ? `<div class="prp-tw"><table><thead><tr><th>Principal</th><th>Kind</th><th>Holds</th><th class="prp-tagc">Tags</th></tr></thead><tbody>${m.outside.filter((o) => hit(o.name)).map((o) => { const isU = o.type === "User", op = isU && open.has(o.id); return `<tr><td>${esc(o.name)}${isU ? `<div><button class="prp-ugbtn" type="button" data-prpug="${esc(o.id)}" aria-expanded="${op}">${op ? "▾" : "▸"} Groups</button></div>` : ""}</td><td>${esc(o.type === "ServicePrincipal" ? "app" : o.type.toLowerCase())}</td><td>${esc(o.holds.map((h) => `${h.role} (${h.how}${h.scope !== "tenant" ? `, ${h.scope}` : ""}${h.permanent ? ", permanent" : ""})`).join("; "))}</td><td class="prp-tagc">${o.protected ? `<span class="prp-pill prp-ok">break-glass</span>` : ""}</td></tr>${op ? `<tr class="prp-ug"><td colspan="4">${holderGroupsHtml(holderGroups(m, o, ug[o.id], ca), { id: o.id })}</td></tr>` : ""}`; }).join("")}</tbody></table></div>` : `<p class="mini" style="padding:12px 0">Nobody holds a role outside the framework groups.</p>`;
     }
     return `${tiles}<div class="prp-body">${body}</div>`;
   }
@@ -371,6 +372,92 @@ const PimReport = (() => {
     return rows.join("\r\n") + "\r\n";
   }
 
-  return { build, render, tabs, toMd, toCsv, flowSvg, flowDataUri, brief, human, SEV, VERDICT };
+  // ---- a holder's groups (🚪 Outside PIM → Groups) ------------------------
+  // Two sources, kept apart because they answer different questions.
+  //   PIM groups  from the report's own member read (active AND eligible —
+  //               an eligible member is NOT in memberOf until she activates,
+  //               so memberOf alone would hide exactly the PIM path)
+  //   nested      from memberOf: the user's direct groups, then each group's
+  //               parents, breadth first, capped at NEST_CAP group reads. Every
+  //               group reached keeps the path that reached it first (the
+  //               shortest).
+  // A role-assignable group cannot have a group as a member, so a nested path
+  // INTO one is never real; nestPaths drops it and counts it (a read problem,
+  // not a finding).
+  const NEST_CAP = 40;
+  function pimGroupsOf(m, id) {
+    const out = [];
+    (m.groups || []).filter((g) => g.present).forEach((g) => {
+      const a = (g.active || []).some((x) => (x.id || x.principalId) === id);
+      const e = (g.eligible || []).some((x) => (x.id || x.principalId) === id);
+      if (!a && !e) return;
+      const roles = (m.matrix.cells || []).filter((c) => c.group === g.name && c.verdict !== "missing").map((c) => `${c.role} (${c.how}${c.scope !== "tenant" ? `, ${c.scope}` : ""})`);
+      out.push({ name: g.name, kind: g.kind, how: a ? "active" : "eligible", roles: [...new Set(roles)], carries: g.carries || [] });
+    });
+    return out.sort((x, y) => x.name.localeCompare(y.name));
+  }
+  // direct:  [{ id, displayName, isAssignableToRole }]  the user's memberOf
+  // parents: { [groupId]: [{ id, displayName, isAssignableToRole }] | null }
+  //          null = that group's parents were not read (cap or error)
+  function nestPaths(userName, direct, parents) {
+    const reached = new Map(); let impossible = 0, unread = 0;
+    const q = [];
+    (direct || []).forEach((g) => { if (g && g.id && !reached.has(g.id)) { reached.set(g.id, { id: g.id, name: g.displayName || g.id, roleAssignable: !!g.isAssignableToRole, depth: 1, path: [userName, g.displayName || g.id] }); q.push(g.id); } });
+    while (q.length) {
+      const id = q.shift(), from = reached.get(id);
+      const ps = parents ? parents[id] : undefined;
+      if (ps === null || ps === undefined) { if (ps === null) unread++; continue; }
+      ps.forEach((p) => {
+        if (!p || !p.id || reached.has(p.id)) return;
+        if (p.isAssignableToRole) { impossible++; return; }
+        reached.set(p.id, { id: p.id, name: p.displayName || p.id, roleAssignable: false, depth: from.depth + 1, path: [...from.path, p.displayName || p.id] });
+        q.push(p.id);
+      });
+    }
+    return { groups: [...reached.values()].sort((a, b) => a.depth - b.depth || a.name.localeCompare(b.name)), impossible, unread };
+  }
+  // ca: { [groupId]: { inc, exc, excOn } } from the loaded CA policies, or null
+  // when no policies are loaded in this session.
+  function holderGroups(m, o, read, ca) {
+    const pim = pimGroupsOf(m, o.id);
+    if (!read || read.err || read.busy) return { pim, read: read || null };
+    const n = nestPaths(o.name, read.direct, read.parents);
+    const pimNames = new Set(pim.map((g) => g.name));
+    const matters = (g) => /^PIM-SG-/.test(g.name) || g.roleAssignable || (ca && ca[g.id] && (ca[g.id].inc || ca[g.id].exc)) || (g.depth === 1 && n.groups.some((x) => x.depth > 1 && x.path[1] === g.name && /^PIM-SG-/.test(x.name)));
+    const rows = n.groups.filter((g) => !pimNames.has(g.name) || g.depth > 1).map((g) => Object.assign({}, g, { ca: ca ? ca[g.id] || { inc: 0, exc: 0, excOn: 0 } : null }));
+    const shown = rows.filter(matters), hidden = rows.length - shown.length;
+    return { pim, nested: n, shown, all: rows, hidden, ca: !!ca, read };
+  }
+  function holderGroupsHtml(h, opts) {
+    opts = opts || {};
+    const how = (g) => g.depth === 1 ? "Direct" : `<span class="prp-path">${g.path.map(esc).join(" → ")}</span><span class="prp-nest">nested, ${g.depth} levels</span>`;
+    const caTxt = (g) => {
+      if (/^PIM-SG-/.test(g.name)) return g.depth > 1 ? "Framework group, reached through another group" : "Framework group the report did not read as hers";
+      if (!g.ca) return g.roleAssignable ? "Role-assignable" : "—";
+      const bits = [];
+      if (g.ca.inc) bits.push(`Included by ${g.ca.inc} CA polic${g.ca.inc === 1 ? "y" : "ies"}`);
+      if (g.ca.exc) bits.push(`<span class="${g.ca.excOn ? "prp-bad-txt" : ""}">Excluded from ${g.ca.exc}${g.ca.excOn ? ` (${g.ca.excOn} enforced)` : ""}</span>`);
+      return bits.join(" · ") || (g.roleAssignable ? "Role-assignable" : "Carries her into a PIM group");
+    };
+    let s = `<div class="prp-ug-in"><h5>PIM groups · ${h.pim.length}</h5>`;
+    s += h.pim.length ? `<table><thead><tr><th>Group</th><th>Membership</th><th>What it gives</th></tr></thead><tbody>${h.pim.map((g) => `<tr><td class="prp-nw">${esc(g.name)}</td><td class="prp-nw">${g.how === "active" ? "active member" : "eligible member · JIT"}</td><td>${esc(g.roles.join("; ") || (g.carries.length ? g.carries.join(", ") : "nothing read"))}</td></tr>`).join("")}</tbody></table>` : `<p class="mini">Not an active or eligible member of any framework group.</p>`;
+    const r = h.read;
+    if (!r) s += `<p class="mini"><button class="btn sm" type="button" data-prpugread="${esc(opts.id || "")}">Read her other groups and nested paths</button></p>`;
+    else if (r.busy) s += `<p class="mini">Reading memberOf and the parents of each group…</p>`;
+    else if (r.err) s += `<p class="mini prp-bad-txt">Could not read memberOf — ${esc(r.err)} <button class="btn sm" type="button" data-prpugread="${esc(opts.id || "")}">Try again</button></p>`;
+    else {
+      s += `<h5>Other groups that matter${h.ca ? " to CA" : ""} · ${h.shown.length}</h5>`;
+      s += h.shown.length ? `<table><thead><tr><th>Group</th><th>How she is in it</th><th>What it does</th></tr></thead><tbody>${h.shown.map((g) => `<tr${g.depth > 1 ? ` class="prp-nested"` : ""}><td class="prp-nw">${esc(g.name)}</td><td>${how(g)}</td><td>${caTxt(g)}</td></tr>`).join("")}</tbody></table>` : `<p class="mini">None.</p>`;
+      const notes = [];
+      if (h.hidden) notes.push(`${h.hidden} more group${h.hidden === 1 ? "" : "s"} with no PIM or CA role`);
+      if (!h.ca) notes.push("CA policies are not loaded in this session, so include and exclude counts are not shown — open 🗂 Policies once to add them");
+      if (h.nested.unread) notes.push(`parents of ${h.nested.unread} group${h.nested.unread === 1 ? "" : "s"} not read (cap ${NEST_CAP})`);
+      if (h.nested.impossible) notes.push(`${h.nested.impossible} nested route${h.nested.impossible === 1 ? "" : "s"} into a role-assignable group ignored — such a group cannot hold groups, so the read is wrong`);
+      if (notes.length) s += `<p class="mini muted">${notes.map(esc).join(" · ")}</p>`;
+    }
+    return s + "</div>";
+  }
+
+  return { build, render, tabs, toMd, toCsv, flowSvg, flowDataUri, brief, human, SEV, VERDICT, pimGroupsOf, nestPaths, holderGroups, holderGroupsHtml, NEST_CAP };
 })();
 if (typeof module !== "undefined") module.exports = PimReport;

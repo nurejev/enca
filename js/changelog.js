@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32508, date: "2026-10-12", title: "PIM report: a holder's groups, and a pill that stays on one line",
+    items: [
+      { kind: "improved", tool: "PIM report", text: "🚪 Outside PIM: every account that holds a role has ▸ Groups. It opens the PIM groups she is in — active or eligible member, and what each group gives — and, on request, the other groups she belongs to with the path that put her there (SG-Team → CAB-SEC-U-CA200-Exclusion, nested, 2 levels). Groups that a loaded CA policy includes or excludes are listed with the count; the rest are counted, not listed." },
+      { kind: "fixed", tool: "PIM report", text: "The break-glass tag broke over two lines in a column with no width. It sits in its own Tags column now and a tag never wraps at its hyphen — the tags in 🎖 Roles follow the same rule." },
+      { kind: "fixed", tool: "PIM report", text: "Signing in to another tenant, or signing out, did not clear Deploy, the PIM lenses and Azure RBAC since 32507: the reset stopped at the PIM report, which had no reset of its own. It has one now." },
+    ],
+  },
+  {
     build: 32507, date: "2026-10-12", title: "PIM report: roles vs groups and settings on one page",
     items: [
       { kind: "new", tool: "PIM report", text: "A new tool in Workspace 02, T55. One read gives the PIM situation of the tenant: which roles each PIM-SG group holds and how (active on the job path, eligible on the direct path), the member policy of every group and the policy of every role against the CloudFellows PIM framework, who is in the groups and who approves, and every account or app that holds a role outside the framework groups. Findings are ordered by risk and each says the impact, the way back and which tool fixes it. The roles × groups matrix marks every link the catalog expects, every extra one, the wrong type and the missing ones. It reuses the reads of PIM baseline and Roles and assignments and reads the members of the other groups itself. Read-only." },

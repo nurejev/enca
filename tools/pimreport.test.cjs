@@ -157,3 +157,71 @@ test("render: every tab paints and escapes what it shows", () => {
   }
   assert.equal(PR.tabs(m).length, 5);
 });
+
+// ---- 32508: 🚪 Outside PIM — the tag column and a holder's groups ---------
+test("the break-glass pill sits in its own Tags column that never wraps", () => {
+  const m = report(tenant());
+  const h = PR.render(m, { tab: "outside" });
+  assert.match(h, /<th class="prp-tagc">Tags<\/th>/);
+  assert.match(h, /<td class="prp-tagc"><span class="prp-pill prp-ok">break-glass<\/span><\/td>/);
+  const css = read("css/app.css");
+  assert.match(css, /\.prp-pill\{[^}]*white-space:nowrap/);
+  assert.match(css, /td\.prp-tagc\{width:1%;white-space:nowrap\}/);
+});
+test("PIM groups of a holder come from the member read, active and eligible alike", () => {
+  const raw = tenant();
+  const g = raw.groups.find((x) => /^PIM-SG-/.test(x.displayName));
+  const members = {}; (raw.named || raw.groups).forEach((x) => { members[x.id] = { read: true, active: [], eligible: [] }; });
+  members[g.id] = { read: true, active: [], eligible: [{ id: "u-anna", name: "Anna de Vries", type: "User" }] };
+  const m = report(raw, { members });
+  const pg = PR.pimGroupsOf(m, "u-anna");
+  const hit = pg.find((x) => x.name === g.displayName);
+  if (m.groups.some((x) => x.name === g.displayName && x.present)) { assert.ok(hit, "the eligible group is listed"); assert.equal(hit.how, "eligible"); }
+  assert.deepEqual(PR.pimGroupsOf(m, "nobody"), []);
+});
+test("nested paths: shortest path wins, depth counted, role-assignable parents dropped, unread counted", () => {
+  const G = (id, n, ra) => ({ id, displayName: n, isAssignableToRole: !!ra });
+  const direct = [G("a", "SG-Team"), G("b", "SG-Project")];
+  const parents = { a: [G("c", "CAB-Persona"), G("r", "PIM-SG-M365-X", true)], b: [G("c", "CAB-Persona")], c: [G("d", "CA200-Exclusion")], d: [], };
+  const n = PR.nestPaths("Anna", direct, parents);
+  const by = Object.fromEntries(n.groups.map((g) => [g.name, g]));
+  assert.equal(by["SG-Team"].depth, 1);
+  assert.deepEqual(by["CAB-Persona"].path, ["Anna", "SG-Team", "CAB-Persona"]);
+  assert.equal(by["CA200-Exclusion"].depth, 3);
+  assert.ok(!by["PIM-SG-M365-X"], "a role-assignable group cannot hold a group");
+  assert.equal(n.impossible, 1);
+  assert.equal(n.unread, 0);
+  const u = PR.nestPaths("Anna", [G("a", "SG-Team")], { a: null });
+  assert.equal(u.unread, 1);
+});
+test("holder panel: CA-relevant and nested groups shown, the rest counted, missing CA said plainly", () => {
+  const m = report(tenant());
+  const o = m.outside.find((x) => x.type === "User" && !x.protected);
+  const G = (id, n) => ({ id, displayName: n, isAssignableToRole: false });
+  const read = { direct: [G("t", "SG-Team"), G("all", "All Staff")], parents: { t: [G("x", "CAB-SEC-U-CA200-Exclusion")], x: [], all: [] } };
+  const ca = { x: { inc: 0, exc: 2, excOn: 1 } };
+  const h = PR.holderGroups(m, o, read, ca);
+  assert.deepEqual(h.shown.map((g) => g.name), ["CAB-SEC-U-CA200-Exclusion"]);
+  assert.equal(h.hidden, 2);
+  const html = PR.holderGroupsHtml(h, { id: o.id });
+  assert.match(html, /Excluded from 2 \(1 enforced\)/);
+  assert.match(html, /nested, 2 levels/);
+  assert.match(html, /SG-Team → CAB-SEC-U-CA200-Exclusion/);
+  const noCa = PR.holderGroupsHtml(PR.holderGroups(m, o, read, null), { id: o.id });
+  assert.match(noCa, /CA policies are not loaded/);
+  const before = PR.holderGroupsHtml(PR.holderGroups(m, o, null, ca), { id: o.id });
+  assert.match(before, /data-prpugread=/, "memberOf is read on demand");
+});
+test("the Groups toggle is offered to users only, and the open row renders its panel escaped", () => {
+  const m = report(tenant());
+  const u = m.outside.find((x) => x.type === "User");
+  const grp = m.outside.find((x) => x.type === "Group");
+  const h = PR.render(m, { tab: "outside", open: new Set([u.id]), ug: { [u.id]: { direct: [{ id: "z", displayName: "<img src=x>", isAssignableToRole: true }], parents: {} } } });
+  assert.match(h, new RegExp(`data-prpug="${u.id}" aria-expanded="true"`));
+  if (grp) assert.ok(!h.includes(`data-prpug="${grp.id}"`));
+  assert.ok(!h.includes("<img src=x>"), "names are escaped");
+  assert.match(h, /class="prp-ug"/);
+});
+test("app.js defines prpReset, which the sign-in reset has called since 32507", () => {
+  assert.match(read("js/app.js"), /function prpReset\(\)/);
+});

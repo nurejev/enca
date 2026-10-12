@@ -23097,7 +23097,11 @@ This is a directory write. Nothing else changes.`)) return;
   // members of the groups neither opens — the access groups, the approver
   // groups — are read here. js/pimreport.js builds; nothing is written.
   // ======================================================================
-  let prp = { model: null, err: null, busy: false, tab: "findings", kind: "all", q: "", members: null, run: 0, session: null };
+  let prp = { model: null, err: null, busy: false, tab: "findings", kind: "all", q: "", members: null, run: 0, session: null, open: new Set(), ug: {} };
+  // 32508: the sign-in reset (22324) has called prpReset() since 32507 without
+  // it existing — the ReferenceError was swallowed by its try, so 🚀 Deploy,
+  // the PIM lenses and ☁ Azure RBAC were never reset either.
+  function prpReset() { prp = { model: null, err: null, busy: false, tab: prp.tab, kind: "all", q: "", members: null, run: prp.run + 1, session: null, open: new Set(), ug: {} }; }
   const prpProg = makeProgress("prp"); prpProg.by = "📋 PIM report"; prpProg.stoppable = true;
   const PRP_HEAD = `<p class="mini" style="margin:6px 0 0">Who can get which role, <b>through which group</b>, under <b>which settings</b>, and where this tenant differs from the <b>${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}</b> — on one page, with findings that say the impact and the way back. The two gates are kept apart: on the <b>job path</b> the group's member policy decides, on the <b>direct path</b> the role's policy does. It uses the reads of 🧬 PIM baseline and 🎖 Roles &amp; assignments (run here if this session has not got them) and reads the members of every PIM-SG and approver group itself. <b>Read-only.</b> ⤓ Markdown is one file with the diagram embedded, so it keeps its picture when moved.</p>`;
   function openPimReport() {
@@ -23114,7 +23118,7 @@ This is a directory write. Nothing else changes.`)) return;
     $("prpRefresh").textContent = m ? "⟳ Read again" : "▶ Read the report"; $("prpRefresh").disabled = prp.busy;
     if (prp.busy) { $("prpBody").innerHTML = prpProg.panel("Reading the framework groups, their roles, both kinds of policy and their members…"); return; }
     if (!m) { $("prpBody").innerHTML = `${prp.err ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(prp.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-prprun>▶ Read the report</button><p class="mini muted">Reads roles, assignments, the role and group PIM policies, the PIM-SG groups and their members. Nothing is changed.</p></div>`; return; }
-    $("prpBody").innerHTML = `<p class="mini pmb-read">${m.demo ? "Demo data · " : ""}Read ${esc(new Date(m.readAt).toLocaleString())} · ${esc(m.catalog.label)} ${esc(m.catalog.release)}${m.profile ? `, profile ${esc(m.profile)}` : ""}${isBaselineTenant() ? " · baseline tenant: every profile's links count as expected" : ""}</p>` + PimReport.render(m, { tab: prp.tab, kind: prp.kind, q: prp.q });
+    $("prpBody").innerHTML = `<p class="mini pmb-read">${m.demo ? "Demo data · " : ""}Read ${esc(new Date(m.readAt).toLocaleString())} · ${esc(m.catalog.label)} ${esc(m.catalog.release)}${m.profile ? `, profile ${esc(m.profile)}` : ""}${isBaselineTenant() ? " · baseline tenant: every profile's links count as expected" : ""}</p>` + PimReport.render(m, { tab: prp.tab, kind: prp.kind, q: prp.q, open: prp.open, ug: prp.ug, ca: prpCaReach() });
   }
   // The members of every framework and approver group: PIM for Groups
   // instances (active and eligible), falling back to plain members for a
@@ -23180,6 +23184,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (prp.busy) return;
     if (pmbBusy || prr.busy) { toast("🧬 PIM baseline or 🎖 Roles is reading — the report starts when you click again"); return; }
     const run = ++prp.run, session = pmbSessionKey();
+    prp.ug = {};
     prp.busy = true; prp.err = null; prpProg.begin();
     if ($("screen-pimreport").classList.contains("active")) prpPaint();
     let err = null;
@@ -23212,7 +23217,61 @@ This is a directory write. Nothing else changes.`)) return;
     if (e.target.closest("[data-prprun]")) { runPimReport(); return; }
     const k = e.target.closest("[data-prpkind]"); if (k) { prp.kind = k.dataset.prpkind; prpPaint(); return; }
     const o = e.target.closest("[data-prpopen]"); if (o && $(o.dataset.prpopen)) $(o.dataset.prpopen).click();
+    const ug = e.target.closest("[data-prpug]");
+    if (ug) { const id = ug.dataset.prpug; if (prp.open.has(id)) prp.open.delete(id); else { prp.open.add(id); if (!prp.ug[id]) prpReadUserGroups(id); } prpPaint(); return; }
+    const ur = e.target.closest("[data-prpugread]"); if (ur) { prpReadUserGroups(ur.dataset.prpugread); return; }
   });
+  // 🚪 Outside PIM → Groups (32508). Which loaded CA policies name each group:
+  // { [groupId]: { inc, exc, excOn } }, or null when 🗂 has not read policies
+  // in this session (the panel then says so instead of showing zeros).
+  function prpCaReach() {
+    if (!policies || !policies.length) return null;
+    const out = {};
+    for (const p of policies) {
+      const r = p.raw || {}, u = (r.conditions && r.conditions.users) || {};
+      (u.includeGroups || []).forEach((id) => { const k = (out[id] = out[id] || { inc: 0, exc: 0, excOn: 0 }); k.inc++; });
+      (u.excludeGroups || []).forEach((id) => { const k = (out[id] = out[id] || { inc: 0, exc: 0, excOn: 0 }); k.exc++; if (r.state === "enabled") k.excOn++; });
+    }
+    return out;
+  }
+  // memberOf for one holder, then the parents of every group reached, one
+  // level per $batch, at most PimReport.NEST_CAP group reads. Read on demand —
+  // the report itself stays one read — and kept per holder for the session.
+  async function prpReadUserGroups(id) {
+    const session = pmbSessionKey(), run = prp.run;
+    prp.ug[id] = { busy: true }; prpPaint();
+    const sel = "$select=id,displayName,isAssignableToRole";
+    let res;
+    try {
+      if (isDemo) res = prpDemoUserGroups(id);
+      else {
+        const direct = await Graph.ggetAll(`/users/${id}/memberOf/microsoft.graph.group?${sel}`);
+        const parents = {}; let frontier = direct.map((g) => g.id), reads = 0;
+        while (frontier.length) {
+          const take = frontier.filter((g) => !(g in parents)).slice(0, Math.max(0, PimReport.NEST_CAP - reads));
+          frontier.filter((g) => !(g in parents) && !take.includes(g)).forEach((g) => { parents[g] = null; });
+          if (!take.length) break;
+          reads += take.length;
+          const r = await Graph.gbatch(take.map((g, i) => ({ id: `p${i}`, url: `/groups/${g}/memberOf/microsoft.graph.group?${sel}&$top=999` })));
+          const next = [];
+          take.forEach((g, i) => { const b = r[`p${i}`]; const v = b && b.body && Array.isArray(b.body.value) ? b.body.value : null; parents[g] = v; (v || []).forEach((x) => { if (!x.isAssignableToRole && !(x.id in parents)) next.push(x.id); }); });
+          frontier = [...new Set(next)];
+        }
+        res = { direct, parents };
+      }
+    } catch (err) { res = { err: (err && err.message) || String(err) }; }
+    if (session !== pmbSessionKey() || run !== prp.run) return;
+    prp.ug[id] = res;
+    if ($("screen-pimreport").classList.contains("active")) prpPaint();
+  }
+  // Demo: a team group nested into the internals persona group (CA includes
+  // it), and a project group nested into an exclusion group (CA excludes it).
+  function prpDemoUserGroups(id) {
+    const g = (gid, name) => ({ id: gid, displayName: name, isAssignableToRole: false });
+    const team = g(`demo-team-${id}`, "SG-Workplace-L3"), proj = g(`demo-proj-${id}`, "SG-Project-Migration"), all = g(`demo-all-${id}`, "All Staff");
+    return { direct: [team, proj, all], parents: { [team.id]: [g("g-CAB-SEC-U-Persona-Internals", "CAB-SEC-U-Persona-Internals")], [proj.id]: [g("g-CAB-SEC-U-CA200-Exclusion", "CAB-SEC-U-CA200-Exclusion")], [all.id]: [], "g-CAB-SEC-U-Persona-Internals": [], "g-CAB-SEC-U-CA200-Exclusion": [] } };
+  }
+
   $("prpMd").addEventListener("click", () => { if (prp.model) showReport("📋 PIM report", `ENCA-pim-report-${(tenantDomain || "tenant").replace(/[^A-Za-z0-9.-]/g, "")}-${new Date().toISOString().slice(0, 10)}`, PimReport.toMd(prp.model, { build: APP_BUILD.build })); });
   $("prpCsv").addEventListener("click", () => { if (prp.model) downloadText("pim-report-matrix", "csv", "text/csv", PimReport.toCsv(prp.model)); });
 

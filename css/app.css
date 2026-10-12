@@ -3110,6 +3110,20 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .prp-matrix td.prp-c{text-align:center;white-space:nowrap}
 .prp-cell{display:inline-block;font-size:11px;font-weight:700;padding:0 4px;border-radius:3px}
 .prp-cell.prp-ok{color:var(--on)}.prp-cell.prp-warn{color:var(--report);outline:1px solid var(--report)}.prp-cell.prp-bad{color:var(--off);outline:1px solid var(--off)}
-.prp-pill{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid currentColor}
+.prp-pill{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;display:inline-block}
+/* 32508: a tag column sizes to its widest pill; pills never break at a hyphen (break-glass, report-only, non-interactive). */
+.prp-tw th.prp-tagc,.prp-tw td.prp-tagc{width:1%;white-space:nowrap}
+.xt-pill{white-space:nowrap}
+.prp-tw td.prp-nw{white-space:nowrap}
+.prp-ugbtn{font:inherit;font-size:11.5px;background:none;border:0;padding:2px 0;color:var(--accent,var(--link,#1f5fa8));cursor:pointer}
+.prp-ugbtn:hover{text-decoration:underline}
+.prp-tw tr.prp-ug>td{background:var(--surface-2,rgba(127,127,127,.06));padding:8px 12px 12px}
+.prp-ug-in h5{margin:6px 0 6px;font-size:12px}
+.prp-ug-in table{width:100%;border-collapse:collapse;margin:0 0 8px;font-size:12px}
+.prp-ug-in th,.prp-ug-in td{padding:4px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.prp-ug-in tr.prp-nested>td{background:color-mix(in srgb,var(--report,#b26b00) 9%,transparent)}
+.prp-path{display:block;font-family:var(--mono,ui-monospace,monospace);font-size:11.5px;overflow-wrap:anywhere}
+.prp-nest{display:block;font-size:11px;color:var(--report,#8a4b0f)}
+.prp-bad-txt{color:var(--off)}
 .prp-pill.prp-ok{color:var(--on)}.prp-pill.prp-warn{color:var(--report)}.prp-pill.prp-bad{color:var(--off)}
 .prp-h{margin:6px 0 6px}
