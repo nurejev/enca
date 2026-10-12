@@ -160,3 +160,26 @@ test("deploy + T53: Remote Help roles and assignments are planned only with the 
   assert.deepEqual(on.blocked, [], "the demo tenant lists every permission the roles name");
   ["introle:INT-ROLE-HelpDesk", "introle:INT-ROLE-RH-Elevation", "intassign:INT-RBAC-RH-Elevation|INT-ROLE-RH-Elevation", "intassign:INT-RBAC-HelpDesk|INT-ROLE-HelpDesk"].forEach((k) => assert.ok(keys.includes(k), k));
 });
+
+test("Windows 365 (4.1): Cloud PC role assignments are planned only when the provider was read; existing ones are skipped; otherwise By hand", () => {
+  const raw = () => { const d = clone(DEMO.pim); return { roles: d.roleDefinitions, policies: d.policies, policyIds: {}, eligible: d.eligible, active: d.active, groups: d.groups, groupPolicies: d.groupPolicies, named: d.named, names: d.names, readAt: 1, demo: true }; };
+  const cat = PB.profile(CAT, "large", { modules: ["w365"] });
+  const sel = { sections: new Set(["w365"]), domain: "contoso.nl" };
+  const none = PD.build(cat, raw(), sel);
+  assert.ok(!none.ops.some((o) => /^cpc:/.test(o.key)), "not read: nothing planned");
+  assert.ok(none.manual.some((m) => /Cloud PC Administrator to PIM-SG-INT-W365-Operator/.test(m)));
+  const R = raw(); R.cloudPc = { roles: [{ id: "b5c08161-a7af-481c-ace2-a20a69a48fb1", displayName: "Cloud PC Administrator" }, { id: "d40368cb-fbf4-4965-bbc1-f17b3a78e510", displayName: "Cloud PC Reader" }], assignments: [] };
+  const P = PD.build(cat, R, sel);
+  const cpc = P.ops.filter((o) => /^cpc:/.test(o.key));
+  assert.deepEqual(cpc.map((o) => o.key).sort(), ["cpc:PIM-SG-INT-W365-Operator|Cloud PC Administrator", "cpc:PIM-SG-INT-W365-Reader|Cloud PC Reader"]);
+  cpc.forEach((o) => { assert.equal(o.method, "POST"); assert.match(o.url, /\/roleManagement\/cloudPC\/roleAssignments$/); assert.equal(o.body.directoryScopeId, "/"); assert.deepEqual(o.needs, ["RoleManagement.ReadWrite.CloudPC"]); assert.ok(/^\{\{group:/.test(o.body.principalId), "the group is made in the same plan"); });
+  assert.ok(!P.manual.some((m) => /Cloud PC Administrator to/.test(m)), "planned, not By hand");
+  const R2 = raw(); R2.cloudPc = { roles: R.cloudPc.roles, assignments: [] };
+  R2.groups = [...R2.groups, { id: "g-op", displayName: "PIM-SG-INT-W365-Operator", isAssignableToRole: true }];
+  R2.cloudPc.assignments = [{ principalId: "g-op", roleDefinitionId: "b5c08161-a7af-481c-ace2-a20a69a48fb1", directoryScopeId: "/" }];
+  const P2 = PD.build(cat, R2, sel);
+  assert.ok(!P2.ops.some((o) => o.key === "cpc:PIM-SG-INT-W365-Operator|Cloud PC Administrator"), "an existing assignment is not planned again");
+  const R3 = raw(); R3.cloudPc = { roles: [{ id: "x", displayName: "Cloud PC Reader" }], assignments: [] };
+  const P3 = PD.build(cat, R3, sel);
+  assert.ok(P3.manual.some((m) => /Cloud PC Administrator to PIM-SG-INT-W365-Operator/.test(m)) && P3.ops.some((o) => o.key === "cpc:PIM-SG-INT-W365-Reader|Cloud PC Reader"), "a role the provider does not list stays By hand, the rest is planned");
+});

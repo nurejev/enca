@@ -23164,10 +23164,27 @@ This is a directory write. Nothing else changes.`)) return;
       if (!pmbRaw) throw new Error(pmbErr || "the PIM read did not finish");
       if (pdpIntuneOn()) { try { await runIntuneRbac(); } catch { /* shown on the pick as not read */ } }
       await pdpResolveApprovers();
+      await pdpReadCloudPc();
     } catch (e) { pdp.err = String((e && e.message) || e); }
     finally { pdp.busy = false; }
     pdp.plan = null; pdp.restore = null; pdp.step = 1;
     if ($("screen-pimdeploy").classList.contains("active")) pdpPaint();
+  }
+  // 4.1: the Cloud PC roles and their assignments (their own RBAC provider). Read only when the Windows 365 module is on and the
+  // tenant holds a Windows 365 licence; a refused or empty read leaves raw.cloudPc unset, and Deploy lists the assignments By hand.
+  async function pdpReadCloudPc() {
+    if (!pmbRaw) return;
+    pmbRaw.cloudPc = null; pdp.cloudPcNote = "";
+    if (!pmbModulesOn().includes("w365")) return;
+    if (isDemo) { pmbRaw.cloudPc = { roles: [{ id: "b5c08161-a7af-481c-ace2-a20a69a48fb1", displayName: "Cloud PC Administrator" }, { id: "d40368cb-fbf4-4965-bbc1-f17b3a78e510", displayName: "Cloud PC Reader" }], assignments: [] }; return; }
+    await pmbSkusEnsure();
+    if (!PimModules.facts(pmbSkus).w365) { pdp.cloudPcNote = "no Windows 365 licence found"; return; }
+    try {
+      const sc = { scopes: ["RoleManagement.ReadWrite.CloudPC"] };
+      const roles = await Graph.ggetAll(`${PimPlan.BETA}/roleManagement/cloudPC/roleDefinitions?$select=id,displayName`, sc);
+      const assignments = await Graph.ggetAll(`${PimPlan.BETA}/roleManagement/cloudPC/roleAssignments`, sc);
+      pmbRaw.cloudPc = { roles, assignments };
+    } catch (e) { pdp.cloudPcNote = `the Cloud PC roles could not be read (${String((e && e.message) || e).slice(0, 120)})`; }
   }
   // A region's approvers by address → object ids; the approver groups' members.
   async function pdpResolveApprovers() {
@@ -23233,7 +23250,9 @@ This is a directory write. Nothing else changes.`)) return;
       const sec = (m) => (m === "w365" ? "w365" : "rh");
       if (!pdp.sel) pdp.sel = new Set();
       [...new Set([...was, ...next])].forEach((m) => { const was1 = was.has(m), now1 = next.includes(m); if (now1 && !was1) pdp.sel.add(sec(m)); if (!now1 && was1 && !next.some((x) => sec(x) === sec(m))) pdp.sel.delete(sec(m)); });
-      pdp.plan = null; pdp.only = null; pdp.onlyOn = false; pdpPaint(); return;
+      pdp.plan = null; pdp.only = null; pdp.onlyOn = false; pdpPaint();
+      if (next.includes("w365") && !was.has("w365")) pdpReadCloudPc().then(() => { pdp.plan = null; pdpPaint(); });
+      return;
     }
     const c = e.target.closest("[data-pdpsec]"); if (c) { if (!pdp.sel) pdp.sel = new Set(); c.checked ? pdp.sel.add(c.dataset.pdpsec) : pdp.sel.delete(c.dataset.pdpsec); pdpPaint(); return; }
     if (e.target.closest("[data-pdponly]")) { pdp.onlyOn = e.target.checked; pdpPaint(); }

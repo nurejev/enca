@@ -279,8 +279,28 @@ const PimDeploy = (() => {
       P.manual.push("Remote Help: switch it on in the Intune admin center (Tenant administration, Remote Help); it is off by default. Helpers and sharers need a Remote Help entitlement (add-on, Intune Suite, or Microsoft 365 E3/E5).");
       if (rhGroups.some((g) => /Unattended-Win/.test(g.name))) P.manual.push("Remote Help Windows unattended control: a Remote Desktop policy on the devices, Windows LAPS for the helper's local administrator credentials, and the session is started from the device page in the Intune admin center (physical corporate Windows devices only, not Cloud PCs).");
     }
+    // 4.1: the Cloud PC roles are their own RBAC provider (/roleManagement/cloudPC), not Intune role definitions. When the
+    // caller read that provider (raw.cloudPc = { roles, assignments }, only with a Windows 365 licence and consent for
+    // RoleManagement.ReadWrite.CloudPC) the assignments are planned: one per group, tenant-wide, skipped where they exist.
+    // Without that read — no licence, no consent, a refused read — they stay a By hand line. Scope other than the whole
+    // tenant is NOT offered: what the provider accepts for a regional scope is untested.
     const cpc = (cat.profile && cat.profile.cloudPc) || [];
-    if (on("w365") && cpc.length) P.manual.push(`Windows 365: in the Intune admin center (Tenant administration, Roles) assign ${cpc.map((x) => `${x.role} to ${x.group}`).join(", ")} — the Cloud PC roles are their own provider and are not planned here until their assignment scope has been tested.`);
+    if (on("w365") && cpc.length) {
+      const C = raw && raw.cloudPc;
+      const left = [];
+      cpc.forEach((x) => {
+        const def = C && Array.isArray(C.roles) ? C.roles.find((r) => String(r.displayName).toLowerCase() === String(x.role).toLowerCase()) : null;
+        if (!def) { left.push(x); return; }
+        const gid = ref(x.group);
+        if (!gid) { left.push(x); return; }
+        const have = (C.assignments || []).some((a) => a.roleDefinitionId === def.id && a.principalId === gid && (a.directoryScopeId || "/") === "/");
+        if (have) return;
+        PimPlan.add(P, { key: `cpc:${x.group}|${x.role}`, method: "POST", url: `${PimPlan.BETA}/roleManagement/cloudPC/roleAssignments`, needs: ["RoleManagement.ReadWrite.CloudPC"], section: "w365",
+          summary: `assign ${x.role} to ${x.group} (whole tenant)`,
+          body: { principalId: gid, roleDefinitionId: def.id, directoryScopeId: "/" } });
+      });
+      if (left.length) P.manual.push(`Windows 365: in the Intune admin center (Tenant administration, Roles) assign ${left.map((x) => `${x.role} to ${x.group}`).join(", ")} — Deploy plans these only when the tenant has a Windows 365 licence and the Cloud PC roles could be read (RoleManagement.ReadWrite.CloudPC).`);
+    }
     const xdrGroups = res.groups.filter((g) => g.scope === "xdr");
     if (on("xdr") && xdrGroups.length) P.manual.push(`Defender XDR: in the Defender portal (Permissions → Roles) create the ${xdrGroups.length} roles with the framework document's permission sets and one assignment each at scope All naming its group — ${xdrGroups.map((g) => `${g.name} → ${(g.xdr && g.xdr.role) || g.persona}`).join(", ")} — then activate unified RBAC per workload; nothing here reads or writes the portal`);
     if (on("approvers")) P.manual.push(`the approvers in ${[...usedApprovers].join(", ")} — at least two people who never approve their own activation`);

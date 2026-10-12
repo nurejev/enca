@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32506, date: "2026-10-12", title: "Deploy: Cloud PC role assignments for Windows 365",
+    items: [
+      { kind: "new", tool: "Deploy", text: "With the Windows 365 module ticked and a Windows 365 licence on the tenant, Deploy reads the Cloud PC roles (their own RBAC provider) and plans Cloud PC Reader and Cloud PC Administrator for the Windows 365 access groups, for the whole tenant. Existing assignments are skipped. It asks RoleManagement.ReadWrite.CloudPC once. Without a licence, consent or a successful read the assignments stay under By hand, as before." },
+    ],
+  },
+  {
     build: 32505, date: "2026-10-12", title: "Deployment dashboard: the rollout as a picture, with who is left out",
     items: [
       { kind: "new", tool: "Deployment dashboard", text: "A new tool, T54, the TUNO T28 rollout dashboard carried over to Conditional Access. Every ENABLED user in the tenant against the CAD-SEC-U-DG-* deploy groups: how many are in a deploy group and how many are LEFT OUT — split into read from a region source but placed by no rule (🌍 Fill's to-do) and in no region source at all, the half nobody could see before. Disabled accounts are counted apart, never as left out." },

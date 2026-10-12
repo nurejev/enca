@@ -297,6 +297,7 @@ Requested **on demand** (incremental consent) only when a tool needs them:
 | `DirectoryRecommendations.Read.All` | 🛡 Checks → 🏅 Identity score and the home page — read the Entra Identity Secure Score and its recommendations (beta, read-only); the user also needs a reader role such as Security Reader or Global Reader |
 | `Policy.ReadWrite.AuthenticationMethod` (passkeys) | 🛡 Checks → 🔑 Passkeys → ✎ Configure — write the Passkey (FIDO2) authentication method: state, targets, self-service, passkey profiles (asked on Save; the user also needs Authentication Policy Administrator) |
 | `CrossTenantInformation.ReadBasic.All` | 🛡 Checks → 🤝 Cross-tenant — look up partner tenant names and default domains (read-only, optional, off by default) |
+| `RoleManagement.ReadWrite.CloudPC` | 🚀 Deploy → Windows 365 module — read the Cloud PC roles and assign them to the Windows 365 access groups (needs a Windows 365 licence; asked once, only when the module is ticked) |
 | `EntitlementManagement.Read.All` | Group Analyzer — access packages and their assignment policies |
 | `DeviceManagementConfiguration.Read.All` | Group Analyzer — Intune compliance policies, configuration profiles, scripts, update profiles |
 | `DeviceManagementApps.Read.All` | Group Analyzer — Intune app assignments, app protection and app configuration policies |
