@@ -269,6 +269,19 @@ const PIM_BASELINE = {
       Notification_EligibleAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
       Notification_ActiveAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
     },
+    // GroupJITApproval (4.0) is for the Remote Help groups that hand out a
+    // capability the first line must not hold standing: Elevation (UAC on the
+    // sharer device) and Android unattended control. Eligible like GroupJIT,
+    // four hours, MFA and justification, and approval by PIM-SG-Approvers. The
+    // small profile switches the approval off (one approver cannot approve).
+    GroupJITApproval: {
+      description: "Remote Help Elevation and Android unattended access group: eligible membership for at most a year; activation for four hours with MFA, justification and approval by PIM-SG-Approvers; an active assignment by an administrator lasts at most 30 days; nothing permanent; every alert.",
+      ActivationDuration: "PT4H", ActivationRequirement: "MultiFactorAuthentication,Justification", AuthenticationContext_Enabled: false,
+      ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"], AllowPermanentEligibility: false, MaximumEligibilityDuration: "P365D", AllowPermanentActiveAssignment: false, MaximumActiveAssignmentDuration: "P30D",
+      Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
+      Notification_EligibleAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
+      Notification_ActiveAssignment_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "All", Recipients: ["pim-alerts"] },
+    },
   },
   // Entra roles under the framework, by their exact Microsoft display names
   // (2026). `templateId` is the built-in role's template id — what the
@@ -402,6 +415,126 @@ const PIM_BASELINE = {
   // that size keeps, folds the others' roles into them (`merge`), and carries
   // the few template settings that change with size. PimBaseline.profile()
   // derives the catalog T48 compares against.
+  // ---- MODULES (4.0, 12 Oct 2026): optional parts of the framework --------
+  // A module is switched on per tenant (🚀 Deploy, Pick) and is part of a
+  // profile only while it is on; the base catalog above never changes with
+  // it. Offered by licence: see js/pimmodules.js. Validated read-only on
+  // cloudfellows.dev and gimi, 12 Oct 2026.
+  //   rh   Remote Help: view, full control, elevation (Intune custom roles).
+  //   rhu  Remote Help unattended: Windows remote sign-in and Android. Needs rh.
+  //   w365 Windows 365: Cloud PC access groups and the Windows 365 Administrator
+  //        Entra role. The Cloud PC roles live in their own provider
+  //        (/roleManagement/cloudPC), so their assignments are made by hand
+  //        until a write test shows what scope that provider accepts.
+  modules: {
+    rh: {
+      label: "Remote Help",
+      description: "Remote Help for the support desk: view screen, full control and Elevation as three Intune custom roles on three access groups. Elevation sits behind approval.",
+      groups: [
+        { name: "PIM-SG-INT-RH-View", scope: "rh", persona: "Remote Help view", template: "GroupJIT", description: "Eligible members activate for a shift to view a sharer's screen with Remote Help." },
+        { name: "PIM-SG-INT-RH-Full", scope: "rh", persona: "Remote Help full control", template: "GroupJIT", description: "Eligible members activate for a shift to view and take full control of a sharer's device with Remote Help." },
+        { name: "PIM-SG-INT-RH-Elevation", scope: "rh", persona: "Remote Help elevation", template: "GroupJITApproval", description: "Eligible members activate, with approval, for four hours to enter UAC credentials on a sharer's Windows device during Remote Help." },
+      ],
+      roleDefs: [
+        { name: "INT-ROLE-RH-View", description: "CloudFellows PIM framework: Remote Help, view the sharer's screen.", allowed: ["Microsoft.Intune_RemoteTasks_RequestRemoteAssistance", "Microsoft.Intune_RemoteAssistance_Read", "Microsoft.Intune_RemoteAssistanceApp_ViewScreen", "Microsoft.Intune_RemoteAssistance_ViewReports"], notAllowed: ["take full control", "Elevation", "unattended control"] },
+        { name: "INT-ROLE-RH-Full", description: "CloudFellows PIM framework: Remote Help, view and take full control.", allowed: ["Microsoft.Intune_RemoteTasks_RequestRemoteAssistance", "Microsoft.Intune_RemoteAssistance_Read", "Microsoft.Intune_RemoteAssistanceApp_ViewScreen", "Microsoft.Intune_RemoteAssistanceApp_TakeFullControl", "Microsoft.Intune_RemoteAssistance_ViewReports"], notAllowed: ["Elevation", "unattended control"] },
+        { name: "INT-ROLE-RH-Elevation", description: "CloudFellows PIM framework: Remote Help Elevation, UAC credentials on the sharer's Windows device. Behind approval.", allowed: ["Microsoft.Intune_RemoteTasks_RequestRemoteAssistance", "Microsoft.Intune_RemoteAssistance_Read", "Microsoft.Intune_RemoteAssistanceApp_Elevation"], notAllowed: ["unattended control"] },
+      ],
+      byProfile: {
+        small: {
+          groups: ["PIM-SG-INT-RH-Full", "PIM-SG-INT-RH-Elevation"],
+          templates: { GroupJITApproval: { ApprovalRequired: false, Approvers: [], description: "Small profile: four hours, MFA and justification, no approval — one approver cannot approve; add a second and the next Preview switches approval on." } },
+          assignments: [
+            { name: "INT-RBAC-RH-Full-All", roles: ["INT-ROLE-RH-Full"], members: ["PIM-SG-INT-RH-Full"], scope: "all devices", tags: [] },
+            { name: "INT-RBAC-RH-Elevation-All", roles: ["INT-ROLE-RH-Elevation"], members: ["PIM-SG-INT-RH-Elevation"], scope: "all devices", tags: [] },
+          ],
+          customRoles: ["INT-ROLE-RH-Full", "INT-ROLE-RH-Elevation"],
+        },
+        large: {
+          groups: ["PIM-SG-INT-RH-View", "PIM-SG-INT-RH-Full", "PIM-SG-INT-RH-Elevation"],
+          assignments: [
+            { name: "INT-RBAC-RH-View", roles: ["INT-ROLE-RH-View"], members: ["PIM-SG-INT-RH-View"], scope: "all devices", tags: ["default"] },
+            { name: "INT-RBAC-RH-Full", roles: ["INT-ROLE-RH-Full"], members: ["PIM-SG-INT-RH-Full"], scope: "all devices", tags: ["default"] },
+            { name: "INT-RBAC-RH-Elevation", roles: ["INT-ROLE-RH-Elevation"], members: ["PIM-SG-INT-RH-Elevation"], scope: "all devices", tags: ["default"] },
+          ],
+          customRoles: ["INT-ROLE-RH-View", "INT-ROLE-RH-Full", "INT-ROLE-RH-Elevation"],
+        },
+        multi: {
+          groups: ["PIM-SG-INT-RH-View", "PIM-SG-INT-RH-Full", "PIM-SG-INT-RH-Elevation"],
+          assignments: [
+            { name: "INT-RBAC-RH-View-Central", roles: ["INT-ROLE-RH-View"], members: ["PIM-SG-INT-RH-View"], scope: "all devices", tags: ["default"] },
+            { name: "INT-RBAC-RH-Full-Central", roles: ["INT-ROLE-RH-Full"], members: ["PIM-SG-INT-RH-Full"], scope: "all devices", tags: ["default"] },
+            { name: "INT-RBAC-RH-Elevation-Central", roles: ["INT-ROLE-RH-Elevation"], members: ["PIM-SG-INT-RH-Elevation"], scope: "all devices", tags: ["default"] },
+          ],
+          customRoles: ["INT-ROLE-RH-View", "INT-ROLE-RH-Full", "INT-ROLE-RH-Elevation"],
+        },
+      },
+      // Regional IT: view and full control on the devices of the region only.
+      // Elevation and unattended control stay with central IT.
+      region: {
+        groups: [
+          { name: "PIM-SG-INT-RH-View-<REG>", persona: "Regional Remote Help view", template: "GroupJIT", roleAssignable: true, intune: true, description: "Eligible members activate for a shift to view a sharer's screen on the region's devices." },
+          { name: "PIM-SG-INT-RH-Full-<REG>", persona: "Regional Remote Help full control", template: "GroupJIT", roleAssignable: true, intune: true, description: "Eligible members activate for a shift to take full control on the region's devices." },
+        ],
+        assignments: [
+          { name: "INT-RBAC-RH-View-<REG>", roles: ["INT-ROLE-RH-View"], members: ["PIM-SG-INT-RH-View-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
+          { name: "INT-RBAC-RH-Full-<REG>", roles: ["INT-ROLE-RH-Full"], members: ["PIM-SG-INT-RH-Full-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
+        ],
+      },
+    },
+    rhu: {
+      label: "Remote Help unattended",
+      requires: "rh",
+      description: "Unattended Remote Help: Windows remote sign-in on physical corporate devices (the helper signs in with their own credentials, started from the device page) and, only on request, Android dedicated devices. Both behind approval. Large profiles only.",
+      groups: [
+        { name: "PIM-SG-INT-RH-Unattended-Win", scope: "rh", persona: "Remote Help Windows unattended", template: "GroupJITTier0", description: "Eligible members activate, with approval and context c1, for two hours to sign in to a physical corporate Windows device with their own credentials through Remote Help. Needs a Remote Desktop policy and Windows LAPS." },
+        { name: "PIM-SG-INT-RH-Unattended-Android", scope: "rh", persona: "Remote Help Android unattended", template: "GroupJITApproval", description: "Eligible members activate, with approval, for four hours to start Remote Help on Android Enterprise dedicated devices without the sharer. Use sparingly." },
+      ],
+      roleDefs: [
+        { name: "INT-ROLE-RH-Unattended-Win", description: "CloudFellows PIM framework: Remote Help Windows unattended control remote sign-in (physical corporate devices). Behind approval and context c1.", allowed: ["Microsoft.Intune_RemoteTasks_RequestRemoteAssistance", "Microsoft.Intune_RemoteAssistance_Read", "Microsoft.Intune_ManagedDevices_Read", "Microsoft.Intune_RemoteAssistanceApp_WindowsUnattended"], notAllowed: ["Elevation", "Android unattended control"] },
+        { name: "INT-ROLE-RH-Unattended-Android", description: "CloudFellows PIM framework: Remote Help Android unattended control (dedicated devices). Behind approval.", allowed: ["Microsoft.Intune_RemoteTasks_RequestRemoteAssistance", "Microsoft.Intune_RemoteAssistance_Read", "Microsoft.Intune_ManagedDevices_Read", "Microsoft.Intune_RemoteAssistanceApp_Unattended"], notAllowed: ["Elevation", "Windows unattended control"] },
+      ],
+      byProfile: {
+        large: {
+          groups: ["PIM-SG-INT-RH-Unattended-Win", "PIM-SG-INT-RH-Unattended-Android"],
+          assignments: [
+            { name: "INT-RBAC-RH-Unattended-Win", roles: ["INT-ROLE-RH-Unattended-Win"], members: ["PIM-SG-INT-RH-Unattended-Win"], scope: "all devices", tags: ["default"] },
+            { name: "INT-RBAC-RH-Unattended-Android", roles: ["INT-ROLE-RH-Unattended-Android"], members: ["PIM-SG-INT-RH-Unattended-Android"], scope: "all devices", tags: ["default"] },
+          ],
+          customRoles: ["INT-ROLE-RH-Unattended-Win", "INT-ROLE-RH-Unattended-Android"],
+        },
+        multi: {
+          groups: ["PIM-SG-INT-RH-Unattended-Win", "PIM-SG-INT-RH-Unattended-Android"],
+          assignments: [
+            { name: "INT-RBAC-RH-Unattended-Win-Central", roles: ["INT-ROLE-RH-Unattended-Win"], members: ["PIM-SG-INT-RH-Unattended-Win"], scope: "all devices", tags: ["default"] },
+            { name: "INT-RBAC-RH-Unattended-Android-Central", roles: ["INT-ROLE-RH-Unattended-Android"], members: ["PIM-SG-INT-RH-Unattended-Android"], scope: "all devices", tags: ["default"] },
+          ],
+          customRoles: ["INT-ROLE-RH-Unattended-Win", "INT-ROLE-RH-Unattended-Android"],
+        },
+      },
+    },
+    w365: {
+      label: "Windows 365",
+      description: "Windows 365 Cloud PC support: Reader and Operator access groups for the Cloud PC roles, and a direct group for the Windows 365 Administrator Entra role. Global only: regional Windows 365 is not offered until its scope has been tested.",
+      groups: [
+        { name: "PIM-SG-INT-W365-Reader", scope: "w365", persona: "Cloud PC reader", template: "GroupJIT", description: "Eligible members activate for a shift to act as Cloud PC Reader. The assignment is made in the Intune admin center (the Cloud PC roles are their own provider)." },
+        { name: "PIM-SG-INT-W365-Operator", scope: "w365", persona: "Cloud PC operator", template: "GroupJIT", description: "Eligible members activate for a shift to act as Cloud PC Administrator. The assignment is made in the Intune admin center." },
+        { name: "PIM-SG-M365-W365Admin", scope: "w365", path: "direct", persona: "Windows 365 administrator", template: "GroupMember", description: "Direct group: active members, eligible for the Windows 365 Administrator Entra role (provisioning policies, images, network connections)." },
+      ],
+      entraRoles: [
+        { name: "Windows 365 Administrator", templateId: "11451d60-acb2-45eb-a7d6-43d0f0125c13", template: "Tier1", via: ["PIM-SG-M365-W365Admin"], note: "Manages all of Windows 365. Tenant-level objects: central IT only." },
+      ],
+      cloudPc: [
+        { role: "Cloud PC Reader", group: "PIM-SG-INT-W365-Reader" },
+        { role: "Cloud PC Administrator", group: "PIM-SG-INT-W365-Operator" },
+      ],
+      byProfile: {
+        small: { groups: ["PIM-SG-INT-W365-Operator"], cloudPc: [{ role: "Cloud PC Administrator", group: "PIM-SG-INT-W365-Operator" }] },
+        large: { groups: ["PIM-SG-INT-W365-Reader", "PIM-SG-INT-W365-Operator", "PIM-SG-M365-W365Admin"] },
+        multi: { groups: ["PIM-SG-INT-W365-Reader", "PIM-SG-INT-W365-Operator", "PIM-SG-M365-W365Admin"] },
+      },
+    },
+  },
   profiles: {
     small: {
       label: "Small business",
@@ -420,11 +553,11 @@ const PIM_BASELINE = {
       intune: {
         assignments: [
           { name: "INT-RBAC-Ops-All", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: [] },
-          { name: "INT-RBAC-HelpDesk-All", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: [] },
+          { name: "INT-RBAC-HelpDesk-All", roles: ["INT-ROLE-HelpDesk"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: [] },
           { name: "INT-RBAC-SecOps-All", roles: ["Endpoint Security Manager"], members: ["PIM-SG-INT-SecOps"], scope: "all devices", tags: [] },
           { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: [], note: "Read only: standing through the readers' active membership, like Directory Readers." },
         ],
-        customRoles: [],
+        customRoles: ["INT-ROLE-HelpDesk"],
         switches: ["Allow access to unlicensed admins"],
       },
     },
@@ -481,11 +614,11 @@ const PIM_BASELINE = {
       intune: {
         assignments: [
           { name: "INT-RBAC-Workplace", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: ["default", "INT-TAG-Workplace"] },
-          { name: "INT-RBAC-HelpDesk", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-HelpDesk"], scope: "all users and devices", tags: ["default"] },
+          { name: "INT-RBAC-HelpDesk", roles: ["INT-ROLE-HelpDesk"], members: ["PIM-SG-INT-HelpDesk"], scope: "all users and devices", tags: ["default"] },
           { name: "INT-RBAC-SecOps", roles: ["Endpoint Security Manager"], members: ["PIM-SG-INT-SecOps"], scope: "all devices", tags: ["default"] },
           { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: ["every"] },
         ],
-        customRoles: [],
+        customRoles: ["INT-ROLE-HelpDesk"],
         switches: ["Allow access to unlicensed admins", "Scoped permissions (preview): run the Permissions Assessment Report first; the switch is one-way"],
       },
     },
@@ -502,11 +635,11 @@ const PIM_BASELINE = {
       intune: {
         assignments: [
           { name: "INT-RBAC-PolicyProfile-Central", roles: ["Policy and Profile Manager", "Application Manager"], members: ["PIM-SG-INT-Ops"], scope: "all users and devices", tags: ["default"] },
-          { name: "INT-RBAC-HelpDesk-Central", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-HelpDesk"], scope: "all users and devices", tags: ["default"] },
+          { name: "INT-RBAC-HelpDesk-Central", roles: ["INT-ROLE-HelpDesk"], members: ["PIM-SG-INT-HelpDesk"], scope: "all users and devices", tags: ["default"] },
           { name: "INT-RBAC-SecOps-Central", roles: ["Endpoint Security Manager"], members: ["PIM-SG-INT-SecOps"], scope: "all devices", tags: ["default"] },
           { name: "INT-RBAC-Reader-All", roles: ["Read Only Operator"], members: ["PIM-SG-M365-SecOpsReader"], scope: "all users and devices", tags: ["every"] },
         ],
-        customRoles: ["INT-ROLE-Regional-Ops"],
+        customRoles: ["INT-ROLE-Regional-Ops", "INT-ROLE-HelpDesk"],
         switches: ["Allow access to unlicensed admins", "Scoped permissions (preview): run the Permissions Assessment Report first; the switch is one-way"],
       },
     },
@@ -573,7 +706,7 @@ const PIM_BASELINE = {
           { name: "INT-SG-DEV-<REG>-All", type: "device", rule: "(device.enrollmentProfileName -startsWith \"<autopilotTag>\") -or (device.displayName -startsWith \"<devicePrefix>\")" },
         ],
         assignments: [
-          { name: "INT-RBAC-HelpDesk-<REG>", roles: ["Help Desk Operator"], members: ["PIM-SG-INT-HelpDesk-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
+          { name: "INT-RBAC-HelpDesk-<REG>", roles: ["INT-ROLE-HelpDesk"], members: ["PIM-SG-INT-HelpDesk-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
           { name: "INT-RBAC-Ops-<REG>", roles: ["INT-ROLE-Regional-Ops"], members: ["PIM-SG-INT-Ops-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
         ],
         autopilot: { profile: "Autopilot · <REG>", naming: "<devicePrefix>%SERIAL%", groupTag: "<autopilotTag>" },
@@ -603,6 +736,45 @@ const PIM_BASELINE = {
         "Audit data/Read", "Microsoft.Intune_Organization_Read", "Microsoft.Intune_TermsAndConditions_Read",
       ],
       notAllowed: ["create, update or delete any policy, profile, app, script, filter, compliance or endpoint security policy", "roles, scope tags, role assignments", "tenant settings: enrollment restrictions, MDM authority, connectors"] },
+    // 4.0 (12 Oct 2026): the built-in Help Desk Operator also carries Remote Help Elevation and Android unattended control
+    // (read on cloudfellows.dev and gimi), so the first line held them with no approval. The first line of the framework is this
+    // role: every permission of the built-in role (95 on cloudfellows.dev, 12 Oct 2026) except those two. Elevation and
+    // unattended control are roles of the Remote Help module, behind approval.
+    { name: "INT-ROLE-HelpDesk", description: "CloudFellows PIM framework: first line. Everything the built-in Help Desk Operator does except Remote Help Elevation and Android unattended control, which are separate roles behind approval.",
+      allowed: [
+        "Microsoft.Intune_MobileApps_Read", "Microsoft.Intune_MobileApps_Assign", "Microsoft.Intune_DeploymentPlans_Read",
+        "Microsoft.Intune_ManagedApps_Read", "Microsoft.Intune_ManagedApps_Assign", "Microsoft.Intune_ManagedApps_Wipe",
+        "Microsoft.Intune_ManagedDevices_Read", "Microsoft.Intune_ManagedDevices_Update", "Microsoft.Intune_ManagedDevices_SetPrimaryUser",
+        "Microsoft.Intune_ManagedDevices_ViewReports", "Microsoft.Intune_RemoteTasks_Wipe", "Microsoft.Intune_RemoteTasks_TemporarilySuspendManagedHomeScreen",
+        "Microsoft.Intune_RemoteTasks_RestoreManagedHomeScreen", "Microsoft.Intune_RemoteTasks_Retire", "Microsoft.Intune_RemoteTasks_RemoteLock",
+        "Microsoft.Intune_RemoteTasks_ResetPasscode", "Microsoft.Intune_RemoteTasks_EnableLostMode", "Microsoft.Intune_RemoteTasks_DisableLostMode",
+        "Microsoft.Intune_RemoteTasks_LocateDevice", "Microsoft.Intune_RemoteTasks_PlayLostModeSound", "Microsoft.Intune_RemoteTasks_SetDeviceName",
+        "Microsoft.Intune_RemoteTasks_RebootNow", "Microsoft.Intune_RemoteTasks_ShutDown", "Microsoft.Intune_RemoteTasks_RequestRemoteAssistance",
+        "Microsoft.Intune_RemoteTasks_EnableWindowsIntuneAgent", "Microsoft.Intune_RemoteTasks_CleanPC", "Microsoft.Intune_RemoteTasks_ManageSharedDeviceUsers",
+        "Microsoft.Intune_RemoteTasks_SyncDevice", "Microsoft.Intune_RemoteTasks_WindowsDefender", "Microsoft.Intune_RemoteTasks_RotateBitLockerKeys",
+        "Microsoft.Intune_RemoteTasks_UpdateDeviceAccount", "Microsoft.Intune_RemoteTasks_RevokeAppleVppLicenses", "Microsoft.Intune_RemoteTasks_CustomNotification",
+        "Microsoft.Intune_RemoteTasks_ActivateDeviceEsim", "Microsoft.Intune_RemoteTasks_RemoveDeviceEsim", "Microsoft.Intune_RemoteTasks_InitiateMDMKeyRecovery",
+        "Microsoft.Intune_RemoteTasks_InitiateDeviceAttestation", "Microsoft.Intune_RemoteTasks_OnDemandProactiveRemediation", "Microsoft.Intune_RemoteTasks_ChangeAssignments",
+        "Microsoft.Intune_DeviceConfigurations_Read", "Microsoft.Intune_DeviceConfigurations_ViewReports", "Microsoft.Intune_DeviceCompliancePolices_Read",
+        "Microsoft.Intune_DeviceCompliancePolices_ViewReports", "Microsoft.Intune_TelecomExpenses_Read", "Microsoft.Intune_RemoteAssistance_Read",
+        "Microsoft.Intune_RemoteAssistanceApp_ViewScreen", "Microsoft.Intune_RemoteAssistanceApp_TakeFullControl", "Microsoft.Intune_Organization_Read",
+        "Microsoft.Intune_EndpointProtection_Read", "Microsoft.Intune_EnrollmentProgramToken_Read", "Microsoft.Intune_AppleEnrollmentProfiles_Read",
+        "Microsoft.Intune_AppleDeviceSerialNumbers_Read", "Microsoft.Intune_DeviceEnrollmentManagers_Read", "Microsoft.Intune_CorporateDeviceIdentifiers_Read",
+        "Microsoft.Intune_TermsAndConditions_Read", "Microsoft.Intune_Roles_Read", "Microsoft.Intune_AndroidSync_Read",
+        "Microsoft.Intune_Audit_Read", "Microsoft.Intune_RemoteTasks_GetFileVaultKey", "Microsoft.Intune_RemoteTasks_RotateFileVaultKey",
+        "Microsoft.Intune_SecurityBaselines_Read", "Microsoft.Intune_ASRPolicy_Read", "Microsoft.Intune_EDRPolicy_Read",
+        "Microsoft.Intune_AppControlPolicy_Read", "Microsoft.Intune_PolicySets_Read", "Microsoft.Intune_RemoteTasks_ConfigurationManagerAction",
+        "Microsoft.Intune_RemoteTasks_DeviceLogs", "Microsoft.Intune_RemoteTasks_TriggerEnhancedLogCollection", "Microsoft.Intune_RemoteTasks_CancelEnhancedLogCollection",
+        "Microsoft.Intune_AssignmentFilter_Read", "Microsoft.Intune_EndpointAnalytics_Read", "Microsoft.Intune_MicrosoftDefenderATP_Read",
+        "Microsoft.Intune_MicrosoftStoreForBusiness_Read", "Microsoft.Intune_WindowsEnterpriseCertificate_Read", "Microsoft.Intune_PartnerDeviceManagement_Read",
+        "Microsoft.Intune_MobileThreatDefense_Read", "Microsoft.Intune_CertificateConnector_Read", "Microsoft.Intune_DerivedCredentials_Read",
+        "Microsoft.Intune_Customization_Read", "Microsoft.Intune_AndroidFota_Read", "Microsoft.Intune_CloudAttach_ResourceExplorer",
+        "Microsoft.Intune_CloudAttach_ClientDetails", "Microsoft.Intune_CloudAttach_Timeline", "Microsoft.Intune_CloudAttach_Collections",
+        "Microsoft.Intune_CloudAttach_Applications", "Microsoft.Intune_CloudAttach_ApplicationActions", "Microsoft.Intune_CloudAttach_CMPivot",
+        "Microsoft.Intune_CloudAttach_Scripts", "Microsoft.Intune_CloudAttach_ScriptActions", "Microsoft.Intune_CloudAttach_SoftwareUpdates",
+        "Microsoft.Intune_CloudAttach_EnrollNow", "Microsoft.Intune_ServiceNow_ViewIncidents", "Microsoft.Intune_AdminTasks_Read",
+      ],
+      notAllowed: ["Remote Help Elevation", "Remote Help Android unattended control", "Remote Help Windows unattended control remote sign-in"] },
   ],
   // Never touched by a deploy, never counted as drift: the break-glass
   // accounts (permanent Global Administrator, by design — see 🔒 Protect

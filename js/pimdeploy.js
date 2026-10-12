@@ -54,11 +54,13 @@ const PimDeploy = (() => {
     ["rmau", "Restricted unit", "AU-RM-Executives and the desk scoped on it — the restricted flag cannot be undone"],
     ["regions", "Regions", "per row of the regions file: units, groups, scoped eligibilities, Intune scope groups"],
     ["intune", "Intune RBAC", "custom role, scope tags, role assignments to the PIM-SG-INT access groups"],
+    ["rh", "Remote Help", "PIM-SG-INT-RH-* groups and their membership policies, with the Intune custom roles and assignments they use (Intune RBAC must be ticked too); Elevation and unattended access sit behind approval"],
+    ["w365", "Windows 365", "PIM-SG-INT-W365-* groups, the Windows 365 Administrator group and their membership policies; the Cloud PC role assignments are made in the Intune admin center"],
     ["xdr", "Defender XDR groups", "PIM-SG-XDR-* groups and their membership policies only; the roles and assignments are made in the Defender portal"],
     ["exchange", "Exchange RBAC groups", "PIM-SG-EXO-* groups and their membership policies; each joins its Exchange role group in Exchange (By hand, or tools/pim Set-PimExchangeRbac.ps1)"],
     ["azure", "Azure groups", "PIM-SG-AZ-* groups only; their Azure role assignments are made in Azure"],
   ];
-  const DEFAULT_OFF = new Set(["rmau", "azure"]);
+  const DEFAULT_OFF = new Set(["rmau", "azure", "rh", "w365"]);
 
   function index(raw) {
     const byId = new Map();
@@ -101,7 +103,7 @@ const PimDeploy = (() => {
     };
     if (on("approvers")) [...usedApprovers].filter((n) => approverNames.has(n) || /Approvers/.test(n)).sort().forEach((n) => createGroup(n, false, `${cat.label} ${cat.release}: approves activations; a plain group, never role-assignable.`, "approvers"));
     res.groups.forEach((g) => {
-      const sec = g.scope === "azure" ? "azure" : g.scope === "xdr" ? "xdr" : g.scope === "exchange" ? "exchange" : "groups";
+      const sec = g.scope === "azure" ? "azure" : g.scope === "xdr" ? "xdr" : g.scope === "rh" ? "rh" : g.scope === "w365" ? "w365" : g.scope === "exchange" ? "exchange" : "groups";
       if (!on(sec) || !want(`group:${g.name}`)) return;
       if (g.status === "conflict") { P.blocked.push(g.conflict || `${g.name} is in conflict`); return; }
       if (!g.present) createGroup(g.name, true, `${cat.label} ${cat.release}: ${g.persona}. ${g.description || ""}`.trim(), sec);
@@ -244,19 +246,22 @@ const PimDeploy = (() => {
       } else deferred.push({ name, template, gid, section, T });
     };
     if (on("groupPolicies")) {
-      res.groups.filter((g) => g.scope !== "xdr" && g.scope !== "exchange" && (g.scope !== "azure" || on("azure"))).forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "groupPolicies"); });
+      res.groups.filter((g) => g.scope !== "xdr" && g.scope !== "rh" && g.scope !== "w365" && g.scope !== "exchange" && (g.scope !== "azure" || on("azure"))).forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "groupPolicies"); });
       if (on("regions")) regs.forEach((R) => R.groups.filter((g) => g.template).forEach((g) => gpolFor(g.name, g.template, "regions")));
     }
     // The Defender XDR groups' policies travel with their section, not with
     // Membership policies: ticking Defender XDR groups is one decision.
     if (on("xdr")) res.groups.filter((g) => g.scope === "xdr").forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "xdr"); });
+    if (on("rh")) res.groups.filter((g) => g.scope === "rh").forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "rh"); });
+    if (on("w365")) res.groups.filter((g) => g.scope === "w365").forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "w365"); });
     if (on("exchange")) res.groups.filter((g) => g.scope === "exchange").forEach((g) => { if (want(`group:${g.name}`)) gpolFor(g.name, g.template, "exchange"); });
 
     // ---- Intune ------------------------------------------------------------
-    if (on("intune") && opts.intune) IntuneRbac.plan(P, cat, opts.intune, ref, opts.intuneSel || null);
+    if (on("intune") && opts.intune) IntuneRbac.plan(P, cat, opts.intune, ref, opts.intuneSel || null, (m) => on(m === "rhu" ? "rh" : m));
     if (on("intune") && opts.intuneModel) IntuneRbac.bindBuiltIns(P, opts.intuneModel);
     if (on("intune") && !opts.intune) P.findings.push("Intune RBAC was not read — read it in 📱 Intune RBAC to import its objects");
 
+    if (on("rh") && !on("intune") && res.groups.some((g) => g.scope === "rh")) P.findings.push("Remote Help: its Intune roles and assignments are part of Intune RBAC — tick Intune RBAC as well, or only the groups are made");
     // ---- membership policies of groups PIM for Groups does not know yet ------
     deferred.forEach((d) => PimPlan.add(P, { key: `gpolnew:${d.name}`, kind: "groupPolicy", group: d.name, groupId: String(d.gid).startsWith("{{") ? null : d.gid, settings: d.T, skipApproval: !approvalOk(d.T), approverIds: Object.fromEntries(Object.entries(approverIds).filter(([n]) => ready(n))), domain, verifiedDomains: raw.verifiedDomains, needs: ["RoleManagementPolicy.ReadWrite.AzureADGroup"], section: d.section, summary: `${d.name} membership policy → ${d.template} (once PIM for Groups knows the group)` }));
 
@@ -269,6 +274,13 @@ const PimDeploy = (() => {
     P.manual.push("members: persona groups ACTIVE for at most a year, PIM-SG-INT-* and PIM-SG-XDR-* access groups ELIGIBLE — add them in PIM for Groups or with an access package");
     const exoGroups = res.groups.filter((g) => g.scope === "exchange");
     if (on("exchange") && exoGroups.length) P.manual.push(`Exchange RBAC: add each group to its Exchange Online role group — ${exoGroups.map((g) => `${g.name} → ${(g.exchange && g.exchange.roleGroup) || "?"}`).join(", ")} — with Add-RoleGroupMember -Member <group id> (tools/pim Set-PimExchangeRbac.ps1 does exactly that); the browser cannot reach Exchange`);
+    const rhGroups = res.groups.filter((g) => g.scope === "rh");
+    if (on("rh") && rhGroups.length) {
+      P.manual.push("Remote Help: switch it on in the Intune admin center (Tenant administration, Remote Help); it is off by default. Helpers and sharers need a Remote Help entitlement (add-on, Intune Suite, or Microsoft 365 E3/E5).");
+      if (rhGroups.some((g) => /Unattended-Win/.test(g.name))) P.manual.push("Remote Help Windows unattended control: a Remote Desktop policy on the devices, Windows LAPS for the helper's local administrator credentials, and the session is started from the device page in the Intune admin center (physical corporate Windows devices only, not Cloud PCs).");
+    }
+    const cpc = (cat.profile && cat.profile.cloudPc) || [];
+    if (on("w365") && cpc.length) P.manual.push(`Windows 365: in the Intune admin center (Tenant administration, Roles) assign ${cpc.map((x) => `${x.role} to ${x.group}`).join(", ")} — the Cloud PC roles are their own provider and are not planned here until their assignment scope has been tested.`);
     const xdrGroups = res.groups.filter((g) => g.scope === "xdr");
     if (on("xdr") && xdrGroups.length) P.manual.push(`Defender XDR: in the Defender portal (Permissions → Roles) create the ${xdrGroups.length} roles with the framework document's permission sets and one assignment each at scope All naming its group — ${xdrGroups.map((g) => `${g.name} → ${(g.xdr && g.xdr.role) || g.persona}`).join(", ")} — then activate unified RBAC per workload; nothing here reads or writes the portal`);
     if (on("approvers")) P.manual.push(`the approvers in ${[...usedApprovers].join(", ")} — at least two people who never approve their own activation`);
@@ -280,7 +292,7 @@ const PimDeploy = (() => {
   // What each section would do now — the counts on the pick.
   function sections(cat, raw, opts = {}) {
     const all = build(cat, raw, Object.assign({}, opts, { sections: null }));
-    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : k === "xdr" ? cat.groups.some((g) => g.scope === "xdr") : k === "exchange" ? cat.groups.some((g) => g.scope === "exchange") : true;
+    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : k === "xdr" ? cat.groups.some((g) => g.scope === "xdr") : k === "rh" ? cat.groups.some((g) => g.scope === "rh") : k === "w365" ? cat.groups.some((g) => g.scope === "w365") : k === "exchange" ? cat.groups.some((g) => g.scope === "exchange") : true;
     return SECTIONS.filter(([k]) => has(k)).map(([key, label, what]) => {
       const ops = all.ops.filter((o) => o.section === key);
       const kinds = {};

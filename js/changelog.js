@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32504, date: "2026-10-12", title: "Deploy: Windows 365 and Remote Help modules, and a first line without Elevation",
+    items: [
+      { kind: "new", tool: "Deploy", text: "Three optional modules in Pick, off until ticked: Remote Help (view screen, full control, Elevation), Remote Help unattended (Windows remote sign-in, Android) and Windows 365 (Reader and Operator groups, the Windows 365 Administrator group). Each is its own section; ticking a module ticks it. Elevation and unattended access need approval where an approver group with two people exists (Small: justification only). Large and multi-region profiles get them; multi-region regional IT gets view and full control scoped to its region." },
+      { kind: "new", tool: "Deploy", text: "What is offered follows the tenant licences: in the Small profile Remote Help with Microsoft 365 E3/E5 or Business Premium with the Defender suite; Windows 365 only with a Windows 365 licence. A tenant without a Remote Help entitlement still can prepare the groups and roles and is told so." },
+      { kind: "improved", tool: "Intune RBAC", text: "The first line is a custom role, INT-ROLE-HelpDesk: everything the built-in Help Desk Operator does except Remote Help Elevation and Android unattended control, which the built-in role handed out without approval. An assignment that still holds the built-in role shows as a difference to fix by hand, because Intune cannot change an assignment's role and Deploy never deletes." },
+      { kind: "improved", tool: "PIM baseline", text: "The group table, comparison and exports follow the modules switched on for the tenant." },
+    ],
+  },
+  {
     build: 32503, date: "2026-10-09", title: "CA groups: add several members at once",
     items: [
       { kind: "improved", tool: "CA groups", text: "The Add a member box in a group's drawer takes a list: separate users with ; , or a new line, paste a column from Excel, or paste an Outlook To line. The button says how many it will add, and every user gets a line of its own — added, already a member, or not found — so one bad entry does not stop the others; what did not go in stays in the box to fix and retry. Remove still asks for one user at a time." },

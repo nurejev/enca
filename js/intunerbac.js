@@ -43,7 +43,7 @@ const IntuneRbac = (() => {
     const p = (cat && cat.profile) || {};
     const I = p.intune || { assignments: [], customRoles: [], switches: [] };
     const out = { central: [], regions: [], customRoles: [], tags: [], switches: I.switches || [] };
-    (I.assignments || []).forEach((a) => (a.roles || []).forEach((role) => out.central.push({ name: a.name, role, members: a.members || [], scopeType: SCOPE[lc(a.scope)] || "resourceScope", scopeGroups: a.scopeGroups || [], tags: a.tags || [], note: a.note || "", where: "central" })));
+    (I.assignments || []).forEach((a) => (a.roles || []).forEach((role) => out.central.push({ name: a.name, role, members: a.members || [], scopeType: SCOPE[lc(a.scope)] || "resourceScope", scopeGroups: a.scopeGroups || [], tags: a.tags || [], note: a.note || "", module: a.module || null, where: "central" })));
     out.central.forEach((a) => a.tags.forEach((t) => { if (t !== "default" && t !== "every" && !out.tags.some((x) => x.name === t)) out.tags.push({ name: t, autoAssignFrom: null, where: "central" }); }));
     (I.customRoles || []).forEach((n) => { const r = (cat.intuneRoles || []).find((x) => x.name === n); if (r) out.customRoles.push(r); });
     if (p.regions && Array.isArray(rows) && rows.length) {
@@ -52,7 +52,7 @@ const IntuneRbac = (() => {
       rows.forEach((row) => {
         const R = fill(T, row);
         const reg = { code: row.code, tag: R.tag ? { name: R.tag.name, autoAssignFrom: R.tag.autoAssignFrom, where: row.code } : null, groups: R.groups || [], assignments: [] };
-        (R.assignments || []).forEach((a) => (a.roles || []).forEach((role) => reg.assignments.push({ name: a.name, role, members: a.members || [], scopeType: "resourceScope", scopeGroups: a.scopeGroups || [], tags: a.tags || [], where: row.code })));
+        (R.assignments || []).forEach((a) => (a.roles || []).forEach((role) => reg.assignments.push({ name: a.name, role, members: a.members || [], scopeType: "resourceScope", scopeGroups: a.scopeGroups || [], tags: a.tags || [], module: a.module || null, where: row.code })));
         out.regions.push(reg);
         if (reg.tag) out.tags.push(reg.tag);
       });
@@ -135,7 +135,7 @@ const IntuneRbac = (() => {
     const push = (it) => { res.items.push(it); res.counts[it.status]++; if (it.kind !== "custom-role") res.verdicts[it.key || it.name] = { status: it.status, detail: it.detail }; };
     // custom roles
     E.customRoles.forEach((cr) => {
-      const it = { kind: "custom-role", name: cr.name, key: `role:${cr.name}`, where: "central", expect: `${cr.allowed.length} permissions · ${cr.description}`, status: "unread", detail: "", missing: [], extra: [], unresolved: [], id: null };
+      const it = { kind: "custom-role", name: cr.name, key: `role:${cr.name}`, where: "central", expect: `${cr.allowed.length} permissions · ${cr.description}`, status: "unread", detail: "", missing: [], extra: [], unresolved: [], id: null, module: cr.module || null };
       if (m) {
         const list = roleByName.get(lc(cr.name)) || [];
         const rs = resolveActions(cr.allowed, m.ops);
@@ -181,9 +181,14 @@ const IntuneRbac = (() => {
     const byAssign = new Map(); (m ? m.assignments : []).forEach((a) => { const k = a.displayName; (byAssign.get(k) || byAssign.set(k, []).get(k)).push(a); });
     const matched = new Set();
     const judge = (spec) => {
-      const it = { kind: "assignment", name: spec.name, role: spec.role, key: `${spec.name}|${spec.role}`, where: spec.where, expect: `${spec.role} · members ${spec.members.join(", ")} · ${spec.scopeType === "resourceScope" ? `scope ${spec.scopeGroups.join(", ")}` : SCOPE_TXT[spec.scopeType]} · tags ${spec.tags.join(", ") || "—"}`, status: "unread", detail: "", spec };
+      const it = { kind: "assignment", name: spec.name, role: spec.role, key: `${spec.name}|${spec.role}`, where: spec.where, expect: `${spec.role} · members ${spec.members.join(", ")} · ${spec.scopeType === "resourceScope" ? `scope ${spec.scopeGroups.join(", ")}` : SCOPE_TXT[spec.scopeType]} · tags ${spec.tags.join(", ") || "—"}`, status: "unread", detail: "", spec, module: spec.module || null };
       if (!m) return it;
       const same = (byAssign.get(spec.name) || []).filter((a) => lc(a.roleName) === lc(spec.role) || (customId(spec.role) && a.roleId === customId(spec.role)));
+      // 4.0: the first line used to hold the built-in Help Desk Operator, which carries Remote Help Elevation and Android
+      // unattended control with no approval. Intune cannot change the role of an assignment, and Deploy never deletes, so an
+      // assignment of that name still holding the built-in role is a difference to fix by hand, not a missing object.
+      const legacy = spec.role === "INT-ROLE-HelpDesk" ? (byAssign.get(spec.name) || []).filter((a) => lc(a.roleName) === "help desk operator") : [];
+      if (!same.length && legacy.length) { legacy.forEach((a) => matched.add(a.id)); it.id = legacy[0].id; it.status = "differs"; it.detail = "still holds the built-in Help Desk Operator, which includes Remote Help Elevation and Android unattended control with no approval — Intune cannot change an assignment's role: delete this assignment in Intune, then import again to make it with INT-ROLE-HelpDesk"; it.legacy = true; return it; }
       if (!same.length) { it.status = "missing"; const other = byAssign.get(spec.name) || []; if (other.length) it.detail = `an assignment with this name exists for ${other.map((a) => a.roleName).join(", ")}, not ${spec.role}`; return it; }
       if (same.length > 1) { it.status = "conflict"; it.detail = `${same.length} assignments ${spec.name} for ${spec.role}`; same.forEach((a) => matched.add(a.id)); return it; }
       const a = same[0]; matched.add(a.id); it.id = a.id;
@@ -219,12 +224,15 @@ const IntuneRbac = (() => {
   // Ops for 🚀 Deploy. ref(name) → group id | "{{group:NAME}}" | null.
   // sel: Set of keys to take (tag:<name> · tagassign:<name> · role:<name> ·
   // rolefix:<name> · assign:<name>|<role>); null takes everything missing.
-  function plan(P, cat, res, ref, sel) {
+  function plan(P, cat, res, ref, sel, modOn) {
     const take = (k) => !sel || sel.has(k);
+    // modOn(moduleId) → is the module's Deploy section ticked; absent = everything.
+    const modOk = (m) => !m || !modOn || modOn(m);
     const BETA = PimPlan.BETA, W = ["DeviceManagementRBAC.ReadWrite.All"];
     const roleRef = {};
     res.customRoles.forEach((c) => {
       if (c.id) roleRef[c.name] = c.id;
+      if (!modOk(c.module)) return;
       if (c.status === "missing" && take(`role:${c.name}`)) {
         if (c.unresolved.length) { P.blocked.push(`Intune role ${c.name}: ${c.unresolved.length} of its permissions do not resolve to an operation this tenant lists — a reduced role is never created. ${c.unresolved.map((u) => `${u.entry} → ${u.hint}`).join("; ")}`); return; }
         PimPlan.add(P, { key: `introle:${c.name}`, method: "POST", url: `${BETA}/deviceManagement/roleDefinitions`, produces: `introle:${c.name}`, needs: W, section: "intune", summary: `create Intune role ${c.name} (${c.want.length} permissions)`,
@@ -259,6 +267,7 @@ const IntuneRbac = (() => {
     // this plan makes — what compare() expects, so Verify can say Match (32429).
     const allTags = [...new Set([...(res.tagIds || []), DEFAULT_TAG, ...res.items.filter((i) => i.kind === "tag").map((t) => tagRef[t.name]).filter(Boolean)])];
     res.items.filter((i) => i.kind === "assignment").forEach((a) => {
+      if (!modOk(a.module)) return;
       if (a.status !== "missing" || !take(`assign:${a.key}`)) {
         if (a.status === "differs" && (!sel || sel.has(`assign:${a.key}`))) P.findings.push(`Intune assignment ${a.name} (${a.role}) differs (${a.detail}) — not rewritten: correct it in Intune`);
         return;

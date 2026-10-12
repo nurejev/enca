@@ -32,8 +32,11 @@ test("compare: the right assignment matches, the missing half is missing, a stan
   assert.equal(item(r, "INT-RBAC-PolicyProfile-Central", "Policy and Profile Manager").status, "match", "role names compare without case");
   assert.equal(item(r, "INT-RBAC-PolicyProfile-Central", "Application Manager").status, "missing");
   const hd = item(r, "INT-RBAC-HelpDesk-Central");
-  assert.equal(hd.status, "differs"); assert.match(hd.detail, /PIM-SG-INT-HelpDesk does not exist/);
-  assert.equal(item(r, "INT-RBAC-HelpDesk-EU-NL").status, "match");
+  // 4.0: the first line is INT-ROLE-HelpDesk; an assignment of that name that still holds the built-in
+  // Help Desk Operator (Remote Help Elevation and Android unattended, no approval) is a difference to fix by hand.
+  assert.equal(hd.status, "differs"); assert.equal(hd.legacy, true); assert.match(hd.detail, /built-in Help Desk Operator/);
+  assert.equal(item(r, "INT-RBAC-HelpDesk-EU-NL").status, "differs");
+  assert.equal(item(r, "INT-RBAC-HelpDesk-EU-NL").legacy, true);
   assert.equal(item(r, "INT-RBAC-Ops-EU-NL").status, "missing");
   assert.equal(item(r, "INT-TAG-EU-NL").status, "match", "auto-assigned from its device group");
   assert.equal(item(r, "INT-TAG-EU-DE").status, "missing");
@@ -61,7 +64,7 @@ test("regions: T53's verdicts replace the Not read rows; without a read they sta
   t.intune = { verdicts: run().verdicts };
   const after = PB.compareRegions(MULTI, rows, t);
   const nl = after.regions.find((x) => x.code === "EU-NL").items.filter((i) => i.kind === "intune");
-  assert.deepEqual(nl.map((i) => `${i.name}:${i.status}`), ["INT-TAG-EU-NL:match", "INT-RBAC-HelpDesk-EU-NL:match", "INT-RBAC-Ops-EU-NL:missing"]);
+  assert.deepEqual(nl.map((i) => `${i.name}:${i.status}`), ["INT-TAG-EU-NL:match", "INT-RBAC-HelpDesk-EU-NL:differs", "INT-RBAC-Ops-EU-NL:missing"]);
 });
 
 test("plan: missing tags, the missing permissions and missing assignments — by placeholder, tags as direct group targets, nothing removed", () => {
@@ -92,8 +95,8 @@ test("plan: a custom role whose permissions do not all resolve is never created 
   const r = run(MULTI, raw);
   const P = PP.newPlan({});
   IR.plan(P, MULTI, r, () => "x", null);
-  assert.ok(!P.ops.some((o) => o.key.startsWith("introle:")));
-  assert.ok(P.blocked.some((b) => /reduced role is never created/.test(b)));
+  assert.ok(!P.ops.some((o) => o.key === "introle:INT-ROLE-Regional-Ops"), "the regional role has unresolved permissions: never created reduced");
+  assert.ok(P.blocked.some((b) => /Regional-Ops/.test(b) && /reduced role is never created/.test(b)));
 });
 
 test("review 32429: Reader-All's \"every\" tag list is every tag the tenant has, Default included", () => {

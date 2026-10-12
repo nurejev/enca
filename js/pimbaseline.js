@@ -337,20 +337,52 @@ const PimBaseline = (() => {
   // A profile is the same catalog at a size: the groups it keeps, the roles
   // of the groups it does not keep folded into the ones it does (`merge`),
   // template settings that change with size, and a note per role.
-  function profile(cat, id) {
+  // 4.0: opts.modules — the ids of the optional modules switched on for this
+  // tenant (cat.modules: rh, rhu, w365). A module is part of the profile only
+  // while it is on and only where it has a block for this profile; its groups,
+  // Entra roles, Intune roles and assignments, template overrides and the
+  // regional additions are merged in here, so everything downstream (compare,
+  // Deploy, exports) sees one catalog.
+  function moduleIds(cat, id, mods) {
+    const set = new Set(Array.isArray(mods) ? mods : mods instanceof Set ? [...mods] : []);
+    const all = Object.keys(cat.modules || {});
+    const ok = (m) => !!(cat.modules[m] && (cat.modules[m].byProfile || {})[id]) && set.has(m);
+    return all.filter((m) => ok(m) && (!cat.modules[m].requires || ok(cat.modules[m].requires)));
+  }
+  function profile(cat, id, opts) {
     const p = cat.profiles && cat.profiles[id];
     if (!p) return Object.assign({}, cat, { profile: null });
+    const mods = moduleIds(cat, id, opts && opts.modules);
     const templates = {};
     for (const [k, t] of Object.entries(cat.templates)) templates[k] = Object.assign({}, t, (p.templates || {})[k] || {});
+    mods.forEach((m) => { const T = (cat.modules[m].byProfile[id].templates) || {}; for (const [k, t] of Object.entries(T)) templates[k] = Object.assign({}, templates[k] || {}, t); });
     const merge = p.merge || {};
-    const roles = cat.roles.map((r) => {
+    let roles = cat.roles.map((r) => {
       const o = (p.roles || {})[r.name] || {};
       const via = o.via ? sortStr(o.via) : sortStr((r.via || []).map((g) => merge[g] || g));
       return Object.assign({}, r, { via, override: Object.assign({}, r.override || {}, o.override || {}), note: o.note || r.note });
     });
+    mods.forEach((m) => { (cat.modules[m].entraRoles || []).forEach((r) => roles.push(Object.assign({}, r, { via: sortStr(r.via || []), module: m }))); });
     const pool = allGroups(cat);
-    const groups = p.groups ? p.groups.map((n) => pool.find((g) => g.name === n)).filter(Boolean) : cat.groups.slice();
-    const out = Object.assign({}, cat, { templates, roles, groups, profile: { id, label: p.label, size: p.size, description: p.description, regions: !!p.regions, rmau: p.rmau || [], scoped: p.scoped || [], intune: p.intune || null } });
+    let groups = p.groups ? p.groups.map((n) => pool.find((g) => g.name === n)).filter(Boolean) : cat.groups.slice();
+    mods.forEach((m) => { const M = cat.modules[m]; (M.byProfile[id].groups || []).forEach((n) => { const g = (M.groups || []).find((x) => x.name === n); if (g && !groups.some((x) => x.name === n)) groups.push(Object.assign({}, g, { module: m })); }); });
+    let intune = p.intune || null;
+    if (intune && mods.length) {
+      intune = Object.assign({}, intune, { assignments: [...(intune.assignments || [])], customRoles: [...(intune.customRoles || [])] });
+      mods.forEach((m) => { const MP = cat.modules[m].byProfile[id]; (MP.assignments || []).forEach((a) => intune.assignments.push(Object.assign({}, a, { module: m }))); (MP.customRoles || []).forEach((n) => { if (!intune.customRoles.includes(n)) intune.customRoles.push(n); }); });
+    }
+    const intuneRoles = [...(cat.intuneRoles || [])];
+    mods.forEach((m) => (cat.modules[m].roleDefs || []).forEach((r) => { if (!intuneRoles.some((x) => x.name === r.name)) intuneRoles.push(Object.assign({}, r, { module: m })); }));
+    let regions = cat.regions;
+    if (p.regions && cat.regions && cat.regions.template && mods.some((m) => cat.modules[m].region)) {
+      const T = Object.assign({}, cat.regions.template);
+      T.groups = [...(T.groups || [])]; T.intune = Object.assign({}, T.intune || {}, { assignments: [...(((T.intune || {}).assignments) || [])] });
+      mods.forEach((m) => { const R = cat.modules[m].region; if (!R) return; (R.groups || []).forEach((g) => T.groups.push(Object.assign({}, g, { module: m }))); (R.assignments || []).forEach((a) => T.intune.assignments.push(Object.assign({}, a, { module: m }))); });
+      regions = Object.assign({}, cat.regions, { template: T });
+    }
+    const cloudPc = [];
+    mods.forEach((m) => { const MP = cat.modules[m].byProfile[id]; ((MP.cloudPc || cat.modules[m].cloudPc) || []).forEach((x) => { if (!cloudPc.some((y) => y.role === x.role && y.group === x.group) && (!groups.length || groups.some((g) => g.name === x.group))) cloudPc.push(Object.assign({}, x)); }); });
+    const out = Object.assign({}, cat, { templates, roles, groups, intuneRoles, regions, profile: { id, label: p.label, size: p.size, description: p.description, regions: !!p.regions, rmau: p.rmau || [], scoped: p.scoped || [], intune, modules: mods, cloudPc } });
     out.roles = jobOverrides(out, p.scoped || [], !!p.regions);
     return out;
   }
@@ -923,5 +955,5 @@ const PimBaseline = (() => {
     return L.join("\n");
   }
 
-  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, canonRoles, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, groupPath, isJob, everyProfile, parseCsv, parseRegions, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
+  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, canonRoles, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, groupPath, isJob, moduleIds, everyProfile, parseCsv, parseRegions, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
 })();

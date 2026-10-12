@@ -163,6 +163,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 318,
+      ws: "pim",
+      requires: [303, 305],
+      title: "🚀 Windows 365 and Remote Help modules in the PIM-buddy Intune RBAC, licence-aware (T51 0.4.0, T53 0.2.0, T48 0.8.0, R80)",
+      tools: ["Deploy", "Intune RBAC", "PIM baseline"],
+      builds: [32504],
+      risk: "high",
+      what: "js/pimmodules.js (new, pure): offer() from subscribedSkus by service plan name (SKU part numbers matched after stripping zero-width characters), parse/toggle of the per-tenant state (localStorage enca.pmbModules:<tenant>). js/pimBaselineData.js: modules rh, rhu, w365 (groups, Intune roles, Entra role, regional additions, per-profile blocks), template GroupJITApproval (four hours, MFA + justification + approval), INT-ROLE-HelpDesk (the 93 permissions of the built-in Help Desk Operator read on cloudfellows.dev, minus Remote Help Elevation and Android unattended) replacing the built-in role in every HelpDesk assignment of the three profiles and the region template. js/pimbaseline.js: profile(cat, id, { modules }) merges a module into the profile. js/intunerbac.js: module tag on items, plan() gated by the Deploy section, an assignment of the first-line name that still holds the built-in Help Desk Operator is a difference (not rewritten, not duplicated). js/pimdeploy.js: sections Remote Help and Windows 365 (off by default), their groups and membership policies, By hand lines (enable Remote Help, Remote Desktop policy and LAPS for Windows unattended, the Cloud PC role assignments). js/app.js: Modules strip in Deploy Pick, licence read, state. js/demo.js: the permissions the new roles name.",
+      why: "Mihai, 11-12 Oct: add Windows 365 and Remote Help (including unattended) to the PIM-buddy Intune RBAC for the Large and multi-region profiles, Elevation behind approval; Small gets an option with E3, or Business Premium with the Defender suite. Validated read-only on cloudfellows.dev and gimi (resource operation Microsoft.Intune_RemoteAssistanceApp_WindowsUnattended exists; built-in Help Desk Operator carries Elevation and Android unattended; Cloud PC roles are their own provider). High: it creates Intune custom roles and changes the role the first line is assigned.",
+      test: [
+        "Local: node --test tools/pimmodules.test.cjs — 13 pass; the whole suite passes. Demo (?demo=1&ws=pim) → 🚀 Deploy → ▶ Read the tenant: a Modules strip with three unticked boxes; no Remote Help or Windows 365 section. Tick Remote Help: the section appears ticked, Preview lists PIM-SG-INT-RH-View, -Full, -Elevation, the roles INT-ROLE-HelpDesk and INT-ROLE-RH-*, and the By hand line about enabling Remote Help.",
+        "Demo, 📱 Intune RBAC → Read: INT-RBAC-HelpDesk-Central and INT-RBAC-HelpDesk-EU-NL show Differs with the built-in Help Desk Operator text (the demo tenant still holds the old role); nothing is planned for them.",
+        "cloudfellows.dev (read only first): Deploy → Modules shows Remote Help offered with the note that no Remote Help entitlement was found (Business Premium + Defender suite) and Windows 365 not offered (no Windows 365 licence). Tick Remote Help and Intune RBAC → Preview: the new roles resolve all their permissions (none unresolved); apply on a scratch basis with Intune Role Administrator; read again: INT-ROLE-RH-Elevation holds only Remote Help Elevation plus the two base permissions.",
+        "cloudfellows.dev: with Multi Admin Approval on, role creation queues for a second administrator; the run shows it as not done, and a second Preview after approval plans the assignments.",
+        "cloudfellows.dev: the existing INT-RBAC-HelpDesk assignments show Differs (built-in role); delete one in Intune, import again: it is made with INT-ROLE-HelpDesk. A helper in PIM-SG-INT-HelpDesk can no longer use Elevation; the same person activating PIM-SG-INT-RH-Elevation (approval) can.",
+        "gimi (Windows 365 licensed, read only): Modules offers Windows 365; ticking it plans PIM-SG-INT-W365-Reader, -Operator and PIM-SG-M365-W365Admin and lists the two Cloud PC role assignments under By hand. Windows 365 Administrator appears in role settings. No Cloud PC assignment is planned.",
+        "Not yet verified on a live tenant: the Windows 365 Administrator role settings policy, whether Cloud PC role assignments accept a scope (so no regional Windows 365 groups exist), and the Microsoft 365 E3 case (no E3 tenant available) — the Small offer for E3 rests on Microsoft's statement that Remote Help is included."
+      ],
+      files: ["js/pimmodules.js", "js/pimBaselineData.js", "js/pimbaseline.js", "js/intunerbac.js", "js/pimdeploy.js", "js/app.js", "js/demo.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/pimmodules.test.cjs", "tools/intunerbac.test.cjs", "tools/pim/"],
+    },
+    {
       n: 317,
       ws: "ca",
       title: "👥 CA groups — add several members at once in the drawer (T12 5.17.0)",

@@ -22290,7 +22290,20 @@ This is a directory write. Nothing else changes.`)) return;
   try { const v = localStorage.getItem("enca.pmbProfile"); if (v && PIM_BASELINE.profiles[v]) pmbProfileId = v; } catch { /* default */ }
   // 🧾 T50 (32426): a customer's variant, when it is valid and in use for
   // this tenant, is folded into the catalog every PIM tool works from.
-  const pmbCat = () => { const c = PimBaseline.profile(PIM_BASELINE, pmbProfileId); const v = pdsActive(); return v ? PimDesigner.apply(c, v) : c; };
+  // 4.0: the optional modules (Remote Help, Remote Help unattended, Windows 365) switched on for this tenant are part of the profile.
+  const pmbModulesOn = () => { try { return PimModules.parse(localStorage.getItem(PimModules.key(isDemo ? "demo" : tenantId)), PIM_BASELINE); } catch { return []; } };
+  const pmbModulesSet = (arr) => { try { localStorage.setItem(PimModules.key(isDemo ? "demo" : tenantId), PimModules.serialize(arr)); } catch { /* browser storage off */ } };
+  // The tenant's licences, read once per tenant for the module offer (null = not read).
+  let pmbSkus = null, pmbSkusKey = null, pmbSkusBusy = false;
+  async function pmbSkusEnsure() {
+    const k = isDemo ? "demo" : `${tenantId}`;
+    if (pmbSkusKey === k || pmbSkusBusy) return;
+    pmbSkusBusy = true;
+    try { pmbSkus = isDemo ? (DEMO_DATA.skus || []) : await Graph.ggetAll("/v1.0/subscribedSkus"); } catch { pmbSkus = null; }
+    pmbSkusKey = k; pmbSkusBusy = false;
+    if ($("screen-pimdeploy") && $("screen-pimdeploy").classList.contains("active")) pdpPaint();
+  }
+  const pmbCat = () => { const c = PimBaseline.profile(PIM_BASELINE, pmbProfileId, { modules: pmbModulesOn() }); const v = pdsActive(); return v ? PimDesigner.apply(c, v) : c; };
   const PMB_READ = [...PIM_READ, "AdministrativeUnit.Read.All", "RoleManagementPolicy.Read.AzureADGroup"];
   const pmbProg = makeProgress("pmb"); pmbProg.by = "🧬 PIM baseline"; pmbProg.stoppable = true;
   const pmbSessionKey = () => (isDemo ? "demo" : `${tenantId}`);
@@ -23123,9 +23136,12 @@ This is a directory write. Nothing else changes.`)) return;
     const K = { create: "create", add: "add", update: "update", later: "later" };
     const pick = secs.map((x) => `<label><input type="checkbox" data-pdpsec="${esc(x.key)}"${pdp.sel.has(x.key) ? " checked" : ""}><span><b>${esc(x.label)}</b>${x.key === "intune" && !pmbIntRes ? ` <span class="mini pmb-warn">Intune RBAC not read</span>` : ""}${x.key === "regions" && !pmbRegRows ? ` <span class="mini pmb-warn">no regions file loaded (🗺 Regions in 🧬 PIM baseline)</span>` : ""}<small>${esc(x.what)}</small></span><span class="mini">${x.n ? Object.entries(x.kinds).map(([k, n]) => `${n} ${K[k] || k}`).join(" · ") : "nothing to do"}</span></label>`).join("");
     const n = PimDeploy.build(pmbCat(), pmbRaw, pdpOpts()).ops.length;
+    pmbSkusEnsure();
+    const modStrip = PimModules.render(PimModules.offer(pmbSkusKey === (isDemo ? "demo" : `${tenantId}`) ? pmbSkus : null, pmbProfileId), pmbModulesOn(), PIM_BASELINE, pmbProfileId);
     const reads = `<dl class="pim-kv"><dt>🧬 PIM</dt><dd>read ${esc(new Date(pmbRaw.readAt).toLocaleString())}${pmbRes ? ` · ${pmbRes.counts.match} of ${pmbRes.counts.roles} roles match · ${pmbRes.gcounts.present}/${pmbRes.gcounts.total} groups` : ""}</dd><dt>📱 Intune</dt><dd>${pmbIntRes ? `read · ${pmbIntRes.counts.missing} missing · ${pmbIntRes.counts.differs} differ` : `not read — <button class="btn sm" data-pdpintune>▶ Read Intune RBAC</button>`}</dd>${pmbRegionsOn() ? `<dt>🗺 Regions</dt><dd>${pmbRegRows ? `${pmbRegRows.length} from the file${Object.keys(pdp.userIds).length ? ` · ${Object.keys(pdp.userIds).length} approvers found` : ""}` : "no file — load it in 🧬 PIM baseline → 🗺 Regions"}</dd>` : ""}</dl>`;
     $("pdpBody").innerHTML = stepper + `<div class="list-card xt-card"><h3>What to take from the baseline <span class="mini">profile ${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</span></h3>${reads}
       ${pdp.only && pdp.only.size ? `<label class="chk"><input type="checkbox" data-pdponly${pdp.onlyOn ? " checked" : ""}> Only the ${pdp.only.size} row${pdp.only.size === 1 ? "" : "s"} ticked in 🧬 PIM baseline (roles and groups; units, regions and Intune as picked below)</label>` : ""}
+      ${modStrip}
       <div class="pim-pick">${pick}</div>
       <p class="mini">Nothing is removed. Break-glass accounts and people are never in a plan. The restricted unit is off until you tick it: its flag can never be removed.</p>
       <div class="pmb-upload-row"><button class="btn primary" data-pdppreview${n ? "" : " disabled"}>🔎 Preview ${n} operation${n === 1 ? "" : "s"}</button></div></div>`;
@@ -23207,6 +23223,17 @@ This is a directory write. Nothing else changes.`)) return;
     const op = e.target.closest("[data-pdpopen]"); if (op) { $(op.dataset.pdpopen).click(); }
   });
   $("pdpBody").addEventListener("change", (e) => {
+    const mod = e.target.closest("[data-pdpmod]");
+    if (mod) {
+      const id = mod.dataset.pdpmod, was = new Set(pmbModulesOn());
+      const next = PimModules.toggle([...was], id, mod.checked, PIM_BASELINE);
+      pmbModulesSet(next); pmbSel = null; pmbRegSel = null; pmbRebuild();
+      // Ticking a module is the decision to import it: its Deploy section is ticked with it, and unticked when it goes.
+      const sec = (m) => (m === "w365" ? "w365" : "rh");
+      if (!pdp.sel) pdp.sel = new Set();
+      [...new Set([...was, ...next])].forEach((m) => { const was1 = was.has(m), now1 = next.includes(m); if (now1 && !was1) pdp.sel.add(sec(m)); if (!now1 && was1 && !next.some((x) => sec(x) === sec(m))) pdp.sel.delete(sec(m)); });
+      pdp.plan = null; pdp.only = null; pdp.onlyOn = false; pdpPaint(); return;
+    }
     const c = e.target.closest("[data-pdpsec]"); if (c) { if (!pdp.sel) pdp.sel = new Set(); c.checked ? pdp.sel.add(c.dataset.pdpsec) : pdp.sel.delete(c.dataset.pdpsec); pdpPaint(); return; }
     if (e.target.closest("[data-pdponly]")) { pdp.onlyOn = e.target.checked; pdpPaint(); }
   });

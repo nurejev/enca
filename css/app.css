@@ -3047,3 +3047,10 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .auinv-f-medium{border-color:var(--warn-bd);background:var(--warn-bg2)}
 .auinv-move{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .auinv-move select{max-width:100%}
+
+/* 4.0 PIM modules (Remote Help, Windows 365): the strip in Deploy, Pick */
+.pim-mods { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line, #d5dbe2); border-radius: 8px; }
+.pim-mods h4 { margin: 0 0 8px; font-size: 13px; }
+.pim-mod { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; min-height: 32px; }
+.pim-mod.off { opacity: 0.6; }
+.pim-mod input { margin-top: 3px; }
