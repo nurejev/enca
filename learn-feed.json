@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-10-05T04:49:07.909Z",
+ "generated": "2026-10-12T04:44:00.786Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "231747abc5",
+  "head": "ac77894020",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -14,23 +14,111 @@
   ]
  },
  "counts": {
-  "docs": 17,
-  "newDocs": 2,
-  "substantive": 15,
+  "docs": 18,
+  "newDocs": 1,
+  "substantive": 14,
   "watched": 16,
   "unwatched": 5
  },
  "docs": [
   {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions",
+   "path": "docs/identity/conditional-access/concept-enforcement-resource-exclusions.md",
+   "title": "Enforcement for baseline scopes in Conditional Access",
+   "kind": "changed",
+   "lastChange": "2026-10-08T15:17:21-07:00",
+   "lines": 36,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "3c73d53ba7",
+     "date": "2026-10-08T15:17:21-07:00",
+     "subject": "Revise enforcement model details and rollout date (#14454)",
+     "add": 21,
+     "del": 15,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-autonomous-agents",
+   "path": "docs/identity/conditional-access/policy-autonomous-agents.md",
+   "title": "Secure autonomous agents with Conditional Access",
+   "kind": "changed",
+   "lastChange": "2026-10-07T12:26:12-04:00",
+   "lines": 274,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "6e8eb8aa25",
+     "date": "2026-10-07T12:26:12-04:00",
+     "subject": "Update docs/identity/conditional-access/policy-autonomous-agents.md",
+     "add": 3,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "965931b7ff",
+     "date": "2026-10-07T12:25:40-04:00",
+     "subject": "Update docs/identity/conditional-access/policy-autonomous-agents.md",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "f8218d0e6f",
+     "date": "2026-10-06T11:37:06-04:00",
+     "subject": "Add updated license req (Agent 365) to Autonomous Agents page",
+     "add": 3,
+     "del": 2,
+     "bulk": false
+    },
+    {
+     "sha": "eb917151ba",
+     "date": "2026-09-30T12:17:39-04:00",
+     "subject": "Reframe Conditional Access for agents guidance to a scenario-based pattern (#13987)",
+     "add": 90,
+     "del": 173,
+     "bulk": false
+    }
+   ]
+  },
+  {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/agent-id",
    "path": "docs/identity/conditional-access/agent-id.md",
    "title": "Conditional Access for Agents in Microsoft Entra",
    "kind": "changed",
-   "lastChange": "2026-09-30T12:17:39-04:00",
-   "lines": 95,
+   "lastChange": "2026-10-06T11:34:14-04:00",
+   "lines": 105,
    "bulkOnly": false,
    "minor": false,
    "commits": [
+    {
+     "sha": "e0e0ef0e6e",
+     "date": "2026-10-06T11:34:14-04:00",
+     "subject": "Adjust language for OBO explanation",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "d08414941f",
+     "date": "2026-10-05T11:34:06-04:00",
+     "subject": "Clarifcations about Agent Users:  normal user policies do NOT apply to agent users.",
+     "add": 4,
+     "del": 2,
+     "bulk": false
+    },
+    {
+     "sha": "96f160f3bf",
+     "date": "2026-10-05T11:26:47-04:00",
+     "subject": "  Clarify: OBO agent traffic is not included in a policy that targets agent identities.",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
     {
      "sha": "eb917151ba",
      "date": "2026-09-30T12:17:39-04:00",
@@ -38,6 +126,46 @@
      "add": 59,
      "del": 36,
      "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-unified-risk",
+   "path": "docs/id-protection/concept-identity-protection-unified-risk.md",
+   "title": "Unified risk signals in Microsoft Entra ID Protection",
+   "kind": "changed",
+   "lastChange": "2026-10-06T10:34:14-05:00",
+   "lines": 2,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "fb3cbd9035",
+     "date": "2026-10-06T10:34:14-05:00",
+     "subject": "Remove straggler ms.author and author fields for MSec files (#14465)",
+     "add": 0,
+     "del": 2,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-approved-app-or-app-protection",
+   "path": "docs/identity/conditional-access/policy-all-users-approved-app-or-app-protection.md",
+   "title": "Conditional Access - Require approved app or app protection policy",
+   "kind": "changed",
+   "lastChange": "2026-10-06T09:47:13-05:00",
+   "lines": 2,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "12cb62ac91",
+     "date": "2026-10-06T09:47:13-05:00",
+     "subject": "Spelling fixes (#2125)",
+     "add": 1,
+     "del": 1,
+     "bulk": true
     }
    ]
   },
@@ -77,26 +205,6 @@
      "subject": "Reframe Conditional Access for agents guidance to a scenario-based pattern (#13987)",
      "add": 136,
      "del": 0,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-autonomous-agents",
-   "path": "docs/identity/conditional-access/policy-autonomous-agents.md",
-   "title": "Secure autonomous agents with Conditional Access",
-   "kind": "changed",
-   "lastChange": "2026-09-30T12:17:39-04:00",
-   "lines": 263,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "eb917151ba",
-     "date": "2026-09-30T12:17:39-04:00",
-     "subject": "Reframe Conditional Access for agents guidance to a scenario-based pattern (#13987)",
-     "add": 90,
-     "del": 173,
      "bulk": false
     }
    ]
@@ -303,9 +411,9 @@
    "title": "Microsoft Entra ID Protection risk-based access policies",
    "kind": "changed",
    "lastChange": "2026-08-14T16:13:02-04:00",
-   "lines": 5,
+   "lines": 4,
    "bulkOnly": false,
-   "minor": false,
+   "minor": true,
    "commits": [
     {
      "sha": "39cb88eb19",
@@ -322,14 +430,6 @@
      "add": 1,
      "del": 1,
      "bulk": false
-    },
-    {
-     "sha": "d5a63b1a99",
-     "date": "2026-08-07T10:25:33-04:00",
-     "subject": "Update identity protection policies with device disablement",
-     "add": 1,
-     "del": 0,
-     "bulk": false
     }
    ]
   },
@@ -339,7 +439,7 @@
    "title": "How Token Protection Enhances Conditional Access Policies",
    "kind": "changed",
    "lastChange": "2026-08-14T12:03:35-07:00",
-   "lines": 31,
+   "lines": 6,
    "bulkOnly": false,
    "minor": false,
    "commits": [
@@ -349,70 +449,6 @@
      "subject": "Update Apple token protection guidance for GA",
      "add": 3,
      "del": 3,
-     "bulk": false
-    },
-    {
-     "sha": "e4ea0e1b6a",
-     "date": "2026-08-10T10:07:23-07:00",
-     "subject": "Remove image reference from token protection doc",
-     "add": 1,
-     "del": 3,
-     "bulk": false
-    },
-    {
-     "sha": "8d1e15825b",
-     "date": "2026-08-10T09:38:34-07:00",
-     "subject": "Document Token Protection support for web apps",
-     "add": 12,
-     "del": 8,
-     "bulk": false
-    },
-    {
-     "sha": "f95723be0d",
-     "date": "2026-08-06T17:12:17-06:00",
-     "subject": "Add Token Protection deployment guide for web apps (Preview) (#14034)",
-     "add": 1,
-     "del": 0,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
-   "path": "docs/identity/conditional-access/managed-policies.md",
-   "title": "Microsoft-Managed Conditional Access Policies for Enhanced Security",
-   "kind": "changed",
-   "lastChange": "2026-08-07T15:35:07-07:00",
-   "lines": 8,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "e87650702b",
-     "date": "2026-08-07T15:35:07-07:00",
-     "subject": "Revise managed policies activation and remediation details",
-     "add": 4,
-     "del": 4,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-web-apps",
-   "path": "docs/identity/conditional-access/deployment-guide-token-protection-web-apps.md",
-   "title": "Token Protection deployment guide - Web apps (Preview)",
-   "kind": "new",
-   "lastChange": "2026-08-06T17:12:17-06:00",
-   "lines": 302,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "f95723be0d",
-     "date": "2026-08-06T17:12:17-06:00",
-     "subject": "Add Token Protection deployment guide for web apps (Preview) (#14034)",
-     "add": 302,
-     "del": 0,
      "bulk": false
     }
    ]
@@ -602,9 +638,9 @@
     "subject": "[BULK UPDATE] User Story 573314: Ensure every doc in MSec repos has an author from MSec Docs (entra-docs-pr 4) (#13372)"
    },
    "lastSubstantive": {
-    "sha": "6ecd8b5185",
-    "date": "2026-02-17T23:14:01Z",
-    "subject": "Merge pull request #8148 from ishibashiayana/patch-1"
+    "sha": "366ce48831",
+    "date": "2026-03-25T09:47:31Z",
+    "subject": "Merge pull request #9605 from pradeepmi-MSFT/patch-5"
    }
   },
   "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths": {
@@ -657,14 +693,14 @@
    "path": "docs/identity/conditional-access/concept-enforcement-resource-exclusions.md",
    "title": "Enforcement for baseline scopes in Conditional Access",
    "last": {
-    "sha": "f172ea737a",
-    "date": "2026-06-19T15:29:23-07:00",
-    "subject": "ca-baseline-scopes-061926"
+    "sha": "3c73d53ba7",
+    "date": "2026-10-08T15:17:21-07:00",
+    "subject": "Revise enforcement model details and rollout date (#14454)"
    },
    "lastSubstantive": {
-    "sha": "f172ea737a",
-    "date": "2026-06-19T15:29:23-07:00",
-    "subject": "ca-baseline-scopes-061926"
+    "sha": "3c73d53ba7",
+    "date": "2026-10-08T15:17:21-07:00",
+    "subject": "Revise enforcement model details and rollout date (#14454)"
    }
   },
   "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection": {
@@ -762,14 +798,14 @@
    "path": "docs/identity/hybrid/connect/reference-connect-version-history.md",
    "title": "Microsoft Entra Connect: Version release history",
    "last": {
-    "sha": "369e14b91a",
-    "date": "2026-09-29T20:24:57+03:00",
-    "subject": "Update Entra Connect minimum version"
+    "sha": "12cb62ac91",
+    "date": "2026-10-06T09:47:13-05:00",
+    "subject": "Spelling fixes (#2125)"
    },
    "lastSubstantive": {
-    "sha": "369e14b91a",
-    "date": "2026-09-29T20:24:57+03:00",
-    "subject": "Update Entra Connect minimum version"
+    "sha": "12cb62ac91",
+    "date": "2026-10-06T09:47:13-05:00",
+    "subject": "Spelling fixes (#2125)"
    }
   },
   "https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access": {
@@ -826,11 +862,21 @@
    ]
   },
   {
+   "key": "doc:docs/identity/conditional-access/concept-enforcement-resource-exclusions.md",
+   "kind": "alert",
+   "title": "Enforcement for baseline scopes in Conditional Access",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions",
+   "since": "2026-10-08T15:17:21-07:00",
+   "checks": [
+    "all-resources-exclusion-change"
+   ]
+  },
+  {
    "key": "doc:docs/identity/hybrid/connect/reference-connect-version-history.md",
    "kind": "alert",
    "title": "Microsoft Entra Connect: Version release history",
    "url": "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history",
-   "since": "2026-09-29T20:24:57+03:00",
+   "since": "2026-10-06T09:47:13-05:00",
    "checks": [
     "dirsync-account-mfa"
    ]
@@ -841,14 +887,6 @@
    "title": "Secure agent users with Microsoft Entra Conditional Access",
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-agent-user",
    "since": "2026-09-30T12:17:39-04:00",
-   "checks": []
-  },
-  {
-   "key": "doc:docs/identity/conditional-access/deployment-guide-token-protection-web-apps.md",
-   "kind": "new",
-   "title": "Token Protection deployment guide - Web apps (Preview)",
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-web-apps",
-   "since": "2026-08-06T17:12:17-06:00",
    "checks": []
   },
   {
