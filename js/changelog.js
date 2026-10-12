@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32505, date: "2026-10-12", title: "Deployment dashboard: the rollout as a picture, with who is left out",
+    items: [
+      { kind: "new", tool: "Deployment dashboard", text: "A new tool, T54, the TUNO T28 rollout dashboard carried over to Conditional Access. Every ENABLED user in the tenant against the CAD-SEC-U-DG-* deploy groups: how many are in a deploy group and how many are LEFT OUT — split into read from a region source but placed by no rule (🌍 Fill's to-do) and in no region source at all, the half nobody could see before. Disabled accounts are counted apart, never as left out." },
+      { kind: "new", tool: "Deployment dashboard", text: "Four charts over a group-by-group table: route in (direct, nested through a region group, by hand), the policies on the deploy groups by state, and the exclusions as a PIE — the members an exclusion takes back out of a policy on their group, by what: BreakGlass, a CA*-Exclusion group, another group, a direct user, a directory role. A person counts once, by her first route; an Off policy's exclusions are not a hole. A chip narrows the page to one group." },
+      { kind: "new", tool: "Deployment dashboard", text: "Go-live readiness per group, behind a button: 🌊 Who is the wave run for every deploy group that has a report-only policy on it — locked out, prompted, unchanged, silent — folded to one verdict per group. The users, groups and exclusions come back in seconds; the sign-in read is the slow one, so the page never waits for it." },
+      { kind: "new", tool: "Deployment dashboard", text: "The left-out list is the one list the page makes itself: each user with the region source that holds her, the 🌍 rule that would place her and why she is not placed. Every other count is a drill-through — a member or excluded count opens 🌊 with the group picked and the filter pre-set, a name opens 🕵, a group name opens its row in 👥 CA groups — because the per-member answer already has a home. Export HTML gives the whole page as one self-contained file for people without ENCA; Export CSV one row per group and per left-out user." },
+    ],
+  },
+  {
     build: 32504, date: "2026-10-12", title: "Deploy: Windows 365 and Remote Help modules, and a first line without Elevation",
     items: [
       { kind: "new", tool: "Deploy", text: "Three optional modules in Pick, off until ticked: Remote Help (view screen, full control, Elevation), Remote Help unattended (Windows remote sign-in, Android) and Windows 365 (Reader and Operator groups, the Windows 365 Administrator group). Each is its own section; ticking a module ticks it. Elevation and unattended access need approval where an approver group with two people exists (Small: justification only). Large and multi-region profiles get them; multi-region regional IT gets view and full control scoped to its region." },

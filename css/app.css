@@ -3054,3 +3054,36 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .pim-mod { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; min-height: 32px; }
 .pim-mod.off { opacity: 0.6; }
 .pim-mod input { margin-top: 3px; }
+
+/* ---------- 📊 Deployment dashboard (T54, build 32505) ----------
+   js/deploydash.js writes the same .dd-* rules into its HTML export with
+   literal tokens; keep the two in step. The chart colours follow the app's
+   own semantic tokens (on / report / off / blue / na); only the five
+   categorical colours of the exclusion pie are the dashboard's own, picked
+   so adjacent slices stay apart for every kind of colour vision. */
+:root{--dd-on:var(--on);--dd-report:var(--report);--dd-off:var(--off);--dd-blue:var(--blue);--dd-na:var(--na);--dd-track:var(--soft);--dd-card:var(--surface);
+  --dd-c1:#3f7a24;--dd-c2:#2f5fb3;--dd-c3:#c2880a;--dd-c4:#b34d17;--dd-c5:#9c2a6a}
+:root[data-theme="dark"]{--dd-c1:#6db57a;--dd-c2:#7a9ee8;--dd-c3:#d6a63a;--dd-c4:#e08050;--dd-c5:#e070a8}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]):not([data-theme="dark"]){--dd-c1:#6db57a;--dd-c2:#7a9ee8;--dd-c3:#d6a63a;--dd-c4:#e08050;--dd-c5:#e070a8} }
+.dd-read{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}.dd-read span::before{content:"✓ ";color:var(--on)}
+.dd-cov{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 22px;align-items:center;padding:12px 16px;border-radius:10px;background:var(--soft);margin:0 0 14px}
+.dd-big{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}.dd-big small{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-top:4px}
+.dd-kl{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;margin-top:6px}.dd-kl b{font-variant-numeric:tabular-nums}.dd-kl i{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+.dd-out{color:var(--bad-fg,var(--crit-fg));font-weight:600}@media(max-width:600px){.dd-cov{grid-template-columns:minmax(0,1fr)}}
+.dd-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:14px}@media(max-width:1100px){.dd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.dd-grid{grid-template-columns:minmax(0,1fr)}}
+.dd-panel,.dd-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin:0 0 16px;min-width:0}.dd-panel h4,.dd-card h4{margin:0 0 10px;font-size:13.5px}
+.dd-card{display:flex;flex-direction:column;gap:10px}.dd-card h4{margin:0}.dd-panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;margin-bottom:10px;align-items:baseline}.dd-panel-head h4{margin:0}
+.dd-donut{position:relative;width:148px;height:148px;margin:0 auto}.dd-svg{display:block;width:148px;height:148px}
+.dd-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none}.dd-center b{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}.dd-center small{font-size:11px;color:var(--muted);margin-top:4px;max-width:90px}
+.dd-leg{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}.dd-leg li{display:grid;grid-template-columns:12px minmax(0,1fr) auto 36px;gap:8px;align-items:center;font-size:12.5px}
+.dd-leg b{text-align:right;font-variant-numeric:tabular-nums}.dd-leg small{text-align:right;color:var(--muted)}.dd-sw{display:block;width:10px;height:10px;border-radius:3px}
+.dd-src{font-size:11px;color:var(--muted);margin:0;border-top:1px solid var(--border);padding-top:8px}.dd-wait{color:var(--muted);font-size:12.5px}.dd-wait.bad{color:var(--bad-fg,var(--crit-fg))}
+.dd-twrap{overflow-x:auto}.dd-table{width:100%}.dd-num{white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.dd-cell{display:flex;align-items:center;gap:8px;min-width:120px}.dd-cell b{min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+.dd-bar{display:flex;gap:2px;height:10px;flex:1 1 auto;min-width:60px}.dd-bar span{display:block;height:10px}.dd-bar span:first-child{border-radius:4px 0 0 4px}.dd-bar span:last-child{border-radius:0 4px 4px 0}.dd-bar-lg,.dd-bar-lg span{height:14px}
+.dd-state{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--soft);white-space:nowrap}.dd-state.live{color:var(--on)}.dd-state.ro{color:var(--report)}.dd-state.off{color:var(--muted)}
+.dd-pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--border);white-space:nowrap;margin:1px 2px 1px 0}.dd-pill.warn{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}.dd-pill.bad{background:var(--bad-bg);color:var(--bad-fg,var(--crit-fg));border-color:transparent}.dd-pill.ok{background:var(--ok-bg);color:var(--on);border-color:transparent}.dd-pill.muted{color:var(--muted)}
+.dd-pill[data-dd-wave]{cursor:pointer}.dd-foot{margin:8px 0 0}.dd-missing td{opacity:.6}
+.dd-link{font:inherit;font-size:12.5px;font-weight:600;color:var(--on);background:none;border:0;padding:0;cursor:pointer;text-align:left}.dd-link:hover{text-decoration:underline}.dd-name{font-size:13px}
+.dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.dd-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}details.dd-fold summary{cursor:pointer;font-weight:600;font-size:13px}details.dd-fold[open] summary{margin-bottom:10px}
+.dd-who{color:var(--on);font-weight:600;text-decoration:none}.dd-who:hover{text-decoration:underline}

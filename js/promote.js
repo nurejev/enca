@@ -163,6 +163,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 319,
+      ws: "ca",
+      title: "📊 Deployment dashboard — the T28 rollout picture for Conditional Access (T54 0.1.0, R81)",
+      tools: ["Deployment dashboard"],
+      builds: [32505],
+      risk: "medium",
+      what: "New tool T54, js/deploydash.js (pure: build, html for screen and export, toCsv, exportHtml, readinessOf, ruleFor) and the dd* block in app.js. Reads every enabled user, the deploy groups (DgFill.TARGETS plus the active baseline's -DG- names) with direct members, nested groups and transitive users, the region sources 🌍 Fill lists with their transitive users, and the exclusion groups and excluded roles of the policies that include a deploy group. Shows: a coverage strip over the ENABLED users (in a deploy group · left out, split into read-but-placed-nowhere and in-no-source), three donuts and an exclusion PIE, a group-by-group table with route in, policies by state, 🌊 go-live readiness (behind a button) and needs-a-look, the left-out list with the rule that would place each user, the exclusion groups folded under the table. Drill-throughs into 🌊 (group picked, filter pre-set), 🕵 and 👥; Export HTML (self-contained, no script), CSV, MD. Tile in Analyse & simulate, sidebar row, Help section, roadmap R81.",
+      why: "Mihai, 12 Oct: just like the TUNO deployment dashboard in T28, we need a deployment dashboard for ENCA — the deployment groups and the members in there, exclusions as a pie chart, and a total user count because we also want to know how many are being left out. Option A chosen off the mockup with B's readiness column folded in; the per-member list dropped in favour of drill-throughs so one list does not live in three places. Medium: reads only, nothing written; the numbers inform the next 🌍 Fill run and the next go-live, so a wrong count is a wrong decision, not a wrong tenant. Graduates once the counts have been checked against 👥 CA groups and 🌍 Fill on a real tenant and the readiness read has run end to end on PVM scale.",
+      test: [
+        "Local: node --test tools/deploydash.test.cjs — 9 pass; the whole suite passes; node tools/check-toolbar-order.js and node tools/check-plain-text.js clean. Demo (?demo=1): the 📊 tile sits in Analyse & simulate with BETA; open it, ▶ Read the deployment: the strip says 7 enabled users (Olga disabled, not counted), 4 in a deploy group, 3 left out; the four charts draw; the table has GLO, INT, ADM found and EXT, GUESTUSERS, DevOps, SA not in this tenant; the exclusion pie shows Eva via CA200-Exclusion; Export HTML downloads a file that opens with no console error and carries the left-out rows.",
+        "Real tenant with the deploy groups: ▶ Read — the strip's in-a-deploy-group count equals the transitive member count of CAD-SEC-U-DG-GLO plus whoever is only in another DG; the left-out count equals enabled users minus that; a left-out user listed as read-placed-nowhere appears in 🌍 Fill's preview as an add for the group the rule column names; one listed as in-no-source has no PVM-UG-CORP-MEM-USERS-* group in the portal.",
+        "Real tenant: per group, Members matches 👥 CA groups' transitive count for that row; the excluded count for GLO equals the members of CAD-SEC-U-BreakGlass plus the CA*-Exclusion groups on GLO's enforced and report-only policies that are also in GLO, each person once; click the count — 🌊 opens with that group picked and the In an exclusion filter on, and its member list agrees.",
+        "Real tenant: 🌊 Read readiness — AuditLog.Read.All asked once if not yet granted; the panel shows the sign-in window read, then one evaluation per report-only group; the readiness column fills with the same verdict and locked-out count 🌊 shows for that group on the same window; the strip says Readiness (🌊) with the time; the pill opens 🌊 on the group.",
+        "Real tenant, large (PVM): ▶ Read completes (users ~15 pages, 8 groups, ~44 sources, exclusion groups) without a throttle error and the page is usable before readiness; Stop during a read leaves the previous model or the run prompt, never a half page.",
+      ],
+      files: ["js/deploydash.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/workspaces.js", "js/changelog.js", "js/promote.js", "tools/deploydash.test.cjs"],
+    },
+    {
       n: 318,
       ws: "pim",
       requires: [303, 305],

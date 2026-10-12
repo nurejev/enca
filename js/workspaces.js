@@ -18,6 +18,7 @@
     toolSpGap: 'Find referenced apps without a service principal.',
     toolGroupUse: 'Find where a user or group is used.',
     toolExclusions: 'Inspect exclusions and the policies that use them.',
+    toolDeployDash: 'The rollout as a picture: every enabled user against the deploy groups, who is left out, what reaches each group, and who an exclusion takes back out.',
     toolAudit: 'Inspect policy changes and configuration drift.',
     toolSignins: 'Explore sign-in failures and report-only impact.',
     toolGapCheck: 'Run the existing configuration and baseline checks.',

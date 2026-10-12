@@ -183,7 +183,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimdeploy", "screen-pimdesigner",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-deploydash", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-promote", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -2939,6 +2939,7 @@
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
     ["toolWhoIs", "🕵 Who is … to CA"],
+    ["toolDeployDash", "📊 Deployment dashboard"],
     ["toolSpGap", "🫥 Apps with no service principal"],
     ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
@@ -23589,6 +23590,318 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("isRefresh").addEventListener("click", () => runIdScore());
   $("isMd").addEventListener("click", () => { if (isModel) showReport("🏅 Identity Secure Score", `ENCA-identity-secure-score-${new Date().toISOString().slice(0, 10)}`, IdScore.toMd(isModel, tenantName)); });
+
+  // ---------- 📊 Deployment dashboard (32505, T54) ----------
+  // The TUNO T28 rollout dashboard for Conditional Access: every enabled
+  // user against the CAD-SEC-U-DG-* deploy groups, route in, the policies
+  // on each group by state, who an exclusion takes back out (a pie), and —
+  // behind a button, because it is the slow read — 🌊's go-live readiness
+  // per group. js/deploydash.js builds the model and the HTML (screen and
+  // export alike); this is the reads and the clicks. Reads only, nothing
+  // written. Workspace 01.
+  //
+  // The reads, in order, each said on the strip: all users (one paged
+  // read, accountEnabled and userType carried), the deploy groups by name
+  // (🌍 Fill's targets plus whatever the active baseline calls -DG-), each
+  // one's direct members and nested groups and transitive users, the region
+  // sources (the groups 🌍 Fill lists, with the ticks 🌍 last saved) and
+  // their transitive users, the exclusion groups of every policy that
+  // includes a deploy group with their transitive members, and the members
+  // of the directory roles those policies exclude. Minutes on no tenant.
+  //
+  // Readiness is 🌊 Who is the wave run per deploy group that has a
+  // report-only policy on it: the shared sign-in window, the groups the
+  // policies name (read once), the roles (read once), then one wave
+  // analysis per group in the worker. It is the sign-in read that costs,
+  // and it is the same window 🚦 and 🎚 share, so a warm cache makes it
+  // quick and a cold one on a large tenant does not — which is why the
+  // page never waits for it.
+  const DD_SEL = "id,userPrincipalName,displayName,userType,accountEnabled,onPremisesExtensionAttributes";
+  let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddList = "", ddLeft = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
+  const ddProg = makeProgress("dd");
+  const DD_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The rollout as a picture: every enabled user in the tenant against the CAD-SEC-U-DG-* deploy groups — who is in which group and how, who is <b>left out</b> of every group, which policies reach each group and in what state, and how many members an <b>exclusion</b> takes back out again. Readiness per group is 🌊 Who is the wave\'s verdict, read on request. One page, exportable as HTML for people without ENCA. Nothing here writes.</p>';
+
+  function openDeployDash() {
+    crumb("📊 Deployment dashboard");
+    show("screen-deploydash");
+    $("ddHead").innerHTML = toolHead("toolDeployDash") + DD_HEAD_TEXT;
+    if (!policies.length) { $("ddBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (ddModel) { renderDeployDash(); return; }
+    if (ddBusy) { $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); return; }
+    ddPaintButtons();
+    $("ddBody").innerHTML = `${ddErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(ddErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-ddrun>▶ Read the deployment</button>
+      <p class="mini muted">Reads every enabled user, the deploy groups and their members, the region sources 🌍 Fill from regions lists, and the exclusion groups of the policies on them. Nothing is written. Readiness per group (🌊) is a second read, offered once this one is in.</p></div>`;
+  }
+  function ddPaintButtons() {
+    const has = !!ddModel;
+    $("ddMd").style.display = has ? "" : "none"; $("ddCsv").style.display = has ? "" : "none"; $("ddHtml").style.display = has ? "" : "none";
+    const b = $("ddReady");
+    b.style.display = has && ddModel.groups.some((g) => g.pol.ro) ? "" : "none";
+    b.disabled = ddRdBusy;
+    b.textContent = ddRdBusy ? "🌊 Reading readiness…" : ddReadiness ? "🌊 Read readiness again" : "🌊 Read readiness";
+  }
+  function ddRebuild() {
+    if (!ddRaw) { ddModel = null; return; }
+    ddModel = DeployDash.build(Object.assign({}, ddRaw, { readiness: ddReadiness || new Map(), readinessAt: ddReadinessAt, tenant: tenantName }));
+  }
+  function renderDeployDash() {
+    ddRebuild();
+    if (!ddModel) return;
+    ddPaintButtons();
+    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, list: ddList, leftFilter: ddLeft });
+    const strip = $("ddRead");
+    if (strip) strip.innerHTML = ddRaw.times.map(([label, t]) => `<span>${esc(label)} · ${esc(new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>`).join("") + (ddReadinessAt ? `<span>Readiness (🌊) · ${esc(new Date(ddReadinessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>` : "");
+  }
+  // the deploy groups this tenant should have: 🌍 Fill's seven, then what
+  // the active baseline calls -DG- (GUESTAdmins and the like), by name
+  function ddGroupNames() {
+    const cat = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null;
+    const names = DgFill.TARGETS.map((t) => ({ key: t.key, name: t.name }));
+    ((cat && cat.predefined) || []).filter((n) => /-DG-/i.test(n)).forEach((n) => { if (!names.some((x) => x.name.toLowerCase() === n.toLowerCase())) names.push({ key: n.replace(/^.*-DG-/i, ""), name: n }); });
+    return names;
+  }
+  async function readDeployDash() {
+    if (ddBusy) return;
+    ddBusy = true; ddErr = null; ddModel = null; ddReadiness = null; ddReadinessAt = null; ddList = ""; ddGroup = "";
+    ddProg.begin();
+    const say = (m, note) => { if ($("screen-deploydash").classList.contains("active")) $("ddBody").innerHTML = ddProg.panel(m, note); };
+    const times = [];
+    const stamp = (label) => times.push([label, Date.now()]);
+    try {
+      const opts = dgPrefs();
+      let users, groups, sources, exclGroups = new Map(), roleMembers = new Map(), names = {}, mains = new Map();
+      const pol = policies.map((p) => { const u = (p.raw && p.raw.conditions && p.raw.conditions.users) || {}; return { id: p.raw.id, name: p.name, state: p.raw.state, includeGroups: u.includeGroups || [], excludeGroups: u.excludeGroups || [], excludeUsers: (u.excludeUsers || []).filter((x) => x !== "All" && x !== "GuestsOrExternalUsers"), excludeRoles: u.excludeRoles || [] }; });
+      if (isDemo) {
+        const d = DgFill.demo();
+        users = (DEMO_DATA.analyzeUsers || []).slice();
+        const sg = DEMO_DATA.scopeGroups || {};
+        groups = ddGroupNames().map((g) => { const ids = sg[g.name]; return { key: g.key, name: g.name, id: ids ? wvDemoId(g.name) : null, direct: new Set(ids || []), nested: new Set(), children: [] }; });
+        sources = (d.groups || []).map((g) => ({ id: g.id, name: g.displayName, label: g.displayName.replace(opts.prefix, ""), ticked: true, memberIds: new Set((d.members.get(g.id) || []).map((u) => u.id)) }));
+        Object.entries(DEMO_DATA.roleMembers || {}).forEach(([rt, ids]) => roleMembers.set(rt, new Set(ids)));
+        // The demo tenant's policies target the persona groups, never a
+        // deploy group (CA200 stopped including DG-INT on purpose). Two
+        // demo-only policies on the deploy groups, so the page has a state
+        // bar and a pie to draw; they are not in the policy list.
+        pol.push({ id: "demo-dd-1", name: "CA001-Global-BaseProtection-AllApps-AnyPlatform-CompliantorAADHJ (demo)", state: "enabled", includeGroups: [wvDemoId("CAD-SEC-U-DG-GLO")], excludeGroups: [wvDemoId("CAB-SEC-U-BreakGlass")], excludeUsers: [], excludeRoles: [] },
+          { id: "demo-dd-2", name: "CA200-Internals-BaseProtection-AllApps-AnyPlatform-MFA (demo)", state: "enabledForReportingButNotEnforced", includeGroups: [wvDemoId("CAD-SEC-U-DG-INT")], excludeGroups: [wvDemoId("CAB-SEC-U-CA200-Exclusion")], excludeUsers: [], excludeRoles: [] });
+        // only the groups a policy EXCLUDES are exclusion groups here
+        const exIds = new Set(pol.flatMap((p) => p.excludeGroups));
+        Object.entries(sg).forEach(([n, ids]) => { const id = wvDemoId(n); if (exIds.has(id)) exclGroups.set(id, { name: n, members: new Set(ids) }); });
+        stamp("Demo tenant");
+      } else {
+        say("Reading every user…", "One paged read of the directory: id, UPN, type, enabled, extensionAttribute10.");
+        users = await ddProg.fetchAll(`/users?$select=${DD_SEL}&$top=999`, 0, "users");
+        stamp(`Users ${users.length.toLocaleString()}`);
+        ddProg.check();
+        // deploy groups by name, one $batch; then each one's direct members
+        // (users and nested groups) and transitive users
+        say("Reading the deploy groups…");
+        const want = ddGroupNames();
+        const found = await Graph.gbatch(want.map((t, i) => ({ id: i, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${t.name.replace(/'/g, "''")}'`)}&$select=id,displayName,groupTypes,membershipRule` })));
+        groups = [];
+        ddProg.start(want.length, "groups", "group");
+        for (let i = 0; i < want.length; i++) {
+          ddProg.check();
+          const t = want[i];
+          const hit = ((found[i] && found[i].body && found[i].body.value) || []);
+          if (hit.length !== 1) { groups.push({ key: t.key, name: t.name, id: null, direct: new Set(), nested: new Set(), children: [] }); ddProg.tick(i + 1); continue; }
+          const g = hit[0];
+          say(`Reading the members of ${esc(t.name)}…`);
+          const dm = await Graph.ggetAll(`/groups/${g.id}/members?$select=id,displayName,membershipRule&$top=999`, { signal: ddProg.signal });
+          const direct = new Set(dm.filter((o) => /user$/i.test(o["@odata.type"] || "")).map((o) => o.id));
+          const cg = dm.filter((o) => /group$/i.test(o["@odata.type"] || ""));
+          const all = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: ddProg.signal });
+          let children = [];
+          if (cg.length) {
+            const res = await Graph.gbatch(cg.slice(0, 40).map((c, j) => ({ id: j, url: `/groups/${c.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` })));
+            children = cg.slice(0, 40).map((c, j) => ({ id: c.id, name: c.displayName || c.id, rule: c.membershipRule || "", memberIds: new Set(((res[j] && res[j].body && res[j].body.value) || []).map((x) => x.id)) }));
+          }
+          names[g.id] = g.displayName;
+          groups.push({ key: t.key, name: g.displayName, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), direct, nested: new Set(all.map((u) => u.id).filter((x) => !direct.has(x))), children });
+          ddProg.tick(i + 1);
+        }
+        stamp(`Deploy groups ${groups.filter((g) => g.id).length} of ${groups.length}`);
+        // region sources: the groups 🌍 Fill lists, the ticks it last saved
+        say("Reading the region sources…", "The groups 🌍 Fill from regions lists, with their transitive users — so a left-out user can say which source holds her.");
+        const srcGroups = await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${opts.prefix.replace(/'/g, "''")}')&$select=id,displayName,membershipRule,groupTypes&$top=999`, { signal: ddProg.signal });
+        const src = DgFill.classifySources(srcGroups, opts);
+        const rows = src.rows.filter((r) => r.kind !== "ignored");
+        ddProg.start(rows.length, "sources", "source");
+        sources = [];
+        for (let i = 0; i < rows.length; i++) {
+          ddProg.check();
+          const r = rows[i];
+          const m = await Graph.ggetAll(`/groups/${r.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: ddProg.signal });
+          sources.push({ id: r.id, name: r.name, label: r.label, region: r.region, kind: r.kind, ticked: !!r.ticked, memberIds: new Set(m.map((u) => u.id)) });
+          ddProg.tick(i + 1);
+        }
+        stamp(`Region sources ${sources.length}`);
+        // exclusion groups and roles of the policies that include a deploy group
+        const dgIds = new Set(groups.filter((g) => g.id).map((g) => g.id));
+        const onDg = pol.filter((p) => p.includeGroups.some((gid) => dgIds.has(gid)));
+        const exIds = [...new Set(onDg.flatMap((p) => p.excludeGroups))];
+        const roleIds = [...new Set(onDg.flatMap((p) => p.excludeRoles))];
+        say("Reading the exclusion groups…", `${exIds.length} groups excluded by the ${onDg.length} policies on the deploy groups.`);
+        ddProg.start(exIds.length, "exclusion groups", "group");
+        let done = 0;
+        await Graph.mapLimit(exIds, 4, async (gid) => {
+          ddProg.check();
+          try {
+            const g = await Graph.gget(`/groups/${gid}?$select=id,displayName`);
+            const m = await Graph.ggetAll(`/groups/${gid}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: ddProg.signal });
+            names[gid] = g.displayName;
+            exclGroups.set(gid, { name: g.displayName, members: new Set(m.map((u) => u.id)) });
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; exclGroups.set(gid, { name: names[gid] || gid, members: new Set(), unread: true }); }
+          ddProg.tick(++done);
+        });
+        if (roleIds.length) {
+          say("Reading the excluded roles' members…");
+          try {
+            const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
+            for (const r of roles.filter((x) => roleIds.includes(x.roleTemplateId))) {
+              ddProg.check();
+              const ids = new Set();
+              const members = await Graph.ggetAll(`/directoryRoles/${r.id}/members?$select=id`, { signal: ddProg.signal });
+              for (const m of members) {
+                if (/group$/i.test(m["@odata.type"] || "")) (await Graph.ggetAll(`/groups/${m.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: ddProg.signal })).forEach((u) => ids.add(u.id));
+                else if (/user$/i.test(m["@odata.type"] || "")) ids.add(m.id);
+              }
+              roleMembers.set(r.roleTemplateId, ids); names[r.roleTemplateId] = r.displayName;
+            }
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; console.warn("deploydash: roles not read", e.message); }
+        }
+        stamp(`Exclusions ${exclGroups.size} groups · ${roleMembers.size} roles`);
+        // main accounts, for the rule a left-out second account would get
+        const byUpn = new Map(users.map((u) => [String(u.userPrincipalName || "").toLowerCase(), u]));
+        users.forEach((u) => { if (DgFill.isSecond(u, opts)) { const main = `${DgFill.localOf(u.userPrincipalName)}@${String(opts.mainDomain).toLowerCase()}`; if (byUpn.has(main)) mains.set(main, byUpn.get(main)); } });
+      }
+      ddProg.check();
+      ddRaw = { users, groups, policies: pol, exclGroups, roleMembers, names, sources, opts, mains, readAt: Date.now(), times };
+      ddBusy = false; ddProg.stop();
+      if ($("screen-deploydash").classList.contains("active")) renderDeployDash();
+    } catch (e) {
+      ddBusy = false; ddProg.stop();
+      if (e && e.stopped) { ddErr = "stopped by you — nothing is shown, the picture is of the whole tenant or nothing"; }
+      else { console.error("Deployment dashboard failed:", e); ddErr = e.message || String(e); }
+      if ($("screen-deploydash").classList.contains("active")) openDeployDash();
+    }
+  }
+
+  // 🌊 per deploy group with a report-only policy on it. Shares the sign-in
+  // window, reads the referenced groups and the roles once, then one wave
+  // analysis per group in the worker (the same AnalysisJobs path 🌊 uses).
+  async function readDeployReadiness() {
+    if (ddRdBusy || !ddRaw) return;
+    const todo = ddRaw.groups.filter((g) => g.id && ddModel && ddModel.groups.find((r) => r.key === g.key && r.pol.ro));
+    if (!todo.length) { toast("No deploy group has a report-only policy on it — nothing to forecast"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { toast("AuditLog.Read.All was not granted — readiness needs the sign-in log"); return; }
+    ddRdBusy = true; ddPaintButtons();
+    const prog = makeProgress("ddr"); prog.begin();
+    const host = $("ddReadyPanel"); host.hidden = false;
+    const say = (m, note) => { host.innerHTML = prog.panel(m, note); };
+    try {
+      let records, w = { capped: false };
+      if (isDemo) records = demoSignIns();
+      else {
+        say("Reading the sign-in window…", "Shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🌊 — read once, reused by all.");
+        w = await readSignInWindow(wvDays, prog, false);
+        records = w.records;
+      }
+      prog.check();
+      say("Reading the groups the policies name…");
+      if (!wvGroups) await wvLoadPicker();
+      const dgGroups = (wvGroups || []).filter((g) => g.id);
+      const refd = wvRefd(); dgGroups.forEach((g) => refd.add(g.id));
+      todo.forEach((g) => refd.delete(g.id));
+      const { out: groupMembers, names } = await wvMemberSets([...refd]);
+      dgGroups.forEach((g) => { names[g.id] = names[g.id] || g.name; });
+      todo.forEach((g) => { names[g.id] = g.name; groupMembers.set(g.id, new Set([...g.direct, ...g.nested])); });
+      // roles → member ids (the wave's own read, once for every group)
+      const roleMembers = new Map(); let rolesComplete = true;
+      if (isDemo) Object.entries(DEMO_DATA.roleMembers || {}).forEach(([rt, ids]) => { roleMembers.set(rt, new Set(ids)); names[rt] = (DEMO_DATA.names || {})[rt] || rt; });
+      else try {
+        const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
+        await Graph.mapLimit(roles, 4, async (r) => {
+          try {
+            const members = await Graph.ggetAll(`/directoryRoles/${r.id}/members?$select=id`, { signal: prog.signal });
+            const ids = new Set();
+            for (const m of members) {
+              if (/group$/i.test(m["@odata.type"] || "")) (await Graph.ggetAll(`/groups/${m.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: prog.signal })).forEach((u) => ids.add(u.id));
+              else if (/user$/i.test(m["@odata.type"] || "")) ids.add(m.id);
+            }
+            if (r.roleTemplateId) { roleMembers.set(r.roleTemplateId, ids); names[r.roleTemplateId] = r.displayName; }
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; rolesComplete = false; }
+        });
+      } catch (e) { if (e.stopped || e.name === "AbortError") throw e; rolesComplete = false; }
+      const vms = policies.map((p) => ({ raw: p.raw, name: p.name, grant: p.grant, session: p.session }));
+      const byId = new Map(ddRaw.users.map((u) => [u.id, u]));
+      const out = new Map();
+      for (let i = 0; i < todo.length; i++) {
+        const g = todo[i];
+        prog.check();
+        say(`Evaluating ${esc(g.name)} — ${i + 1} of ${todo.length}…`, `${(g.direct.size + g.nested.size).toLocaleString()} members across ${policies.length} policies`);
+        const members = [...g.direct, ...g.nested].map((id) => byId.get(id)).filter(Boolean).map((u) => Object.assign({}, u, { licence: null }));
+        let parents = new Set(), parentsComplete = true;
+        if (!isDemo) try { (await Graph.ggetAll(`/groups/${g.id}/transitiveMemberOf?$select=id`, { signal: prog.signal })).forEach((o) => { if (!/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")) parents.add(o.id); }); } catch (e) { if (e.stopped || e.name === "AbortError") throw e; parentsComplete = false; }
+        const group = { id: g.id, displayName: g.name, groupTypes: g.dynamic ? ["DynamicMembership"] : [], membershipRule: null, isAssignableToRole: false };
+        const res = await AnalysisJobs.run("wave", { group, members, direct: g.direct, children: g.children || [], parents, groupMembers, roleMembers, names, vms, records, cat: null, dgGroups,
+          groupsComplete: parentsComplete, rolesComplete, memberCap: members.length + 1, capped: false, logsComplete: !w.capped, days: wvDays }, { signal: prog.signal });
+        out.set(g.key, DeployDash.readinessOf(res));
+      }
+      ddReadiness = out; ddReadinessAt = Date.now();
+      host.hidden = true; host.innerHTML = "";
+      ddRdBusy = false; prog.stop();
+      renderDeployDash();
+    } catch (e) {
+      ddRdBusy = false; prog.stop();
+      host.innerHTML = `<p class="mini" style="padding:10px 0;color:var(--off)">${e && e.stopped ? "Stopped by you — readiness not read; the rest of the page stands." : `Readiness could not be read: ${esc(e.message || e)}`}</p>`;
+      ddPaintButtons();
+    }
+  }
+
+  // the clicks: chips, the left-out list, and the drill-throughs into 🌊,
+  // 🕵, 👥 and 🌍 — the dashboard lists nobody but the left-out itself
+  $("ddBody").addEventListener("click", async (e) => {
+    const t = e.target;
+    const run = t.closest("[data-ddrun]"); if (run) { $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); return; }
+    const chip = t.closest("[data-dd-chip]"); if (chip) { ddGroup = chip.dataset.ddChip || ""; renderDeployDash(); return; }
+    const list = t.closest("[data-dd-list]"); if (list) { ddList = list.dataset.ddList || ""; ddLeft = ""; renderDeployDash(); if (ddList) { const el = $("ddBody").querySelector(".dd-list"); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); } return; }
+    const left = t.closest("[data-dd-left]"); if (left) { ddLeft = left.dataset.ddLeft || ""; renderDeployDash(); return; }
+    const fill = t.closest("[data-dd-fill]"); if (fill) { await openCaGroups(); openDgFill(); return; }
+    const who = t.closest("[data-dd-who]"); if (who) { e.preventDefault(); $("woUser").value = who.dataset.ddWho; $("toolWhoIs").click(); runWhoIs(); return; }
+    const wave = t.closest("[data-dd-wave]");
+    if (wave) {
+      const id = wave.dataset.ddWave, f = wave.dataset.ddWavefilter || "";
+      if (wvBusy) { toast("🌊 is still reading — wait for it or stop it first"); return; }
+      wvPick = id; $("wvTerm").value = ""; if (f) wvFilter = f;
+      await openWave(); renderWvPicker();
+      if (!wvRes || !wvRes.group || wvRes.group.id !== id) runWave();
+      return;
+    }
+    const grp = t.closest("[data-dd-group]");
+    if (grp) {
+      const g = ddRaw && ddRaw.groups.find((x) => x.id === grp.dataset.ddGroup); if (!g) return;
+      await openCaGroups();
+      if (cgRes && cgRes.rows.some((r) => r.name === g.name)) cgOpenRow(g.name);
+      else { cgQuery = g.name; $("cgSearch").value = g.name; renderCaGroups(); }
+    }
+  });
+  $("toolDeployDash").addEventListener("click", () => openDeployDash());
+  $("ddRefresh").addEventListener("click", () => { if (ddBusy) return; ddRaw = null; ddModel = null; if ($("screen-deploydash").classList.contains("active")) $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); });
+  $("ddReady").addEventListener("click", () => readDeployReadiness());
+  $("ddHtml").addEventListener("click", () => { if (!ddModel) return; const name = downloadText("ENCA-deployment-dashboard", "html", "text/html", DeployDash.exportHtml(ddModel, { tenant: tenantName, build: APP_BUILD.label, now: Date.now() })); toast(`Saved ${esc(name)} — a snapshot that names users; share it like tenant data`); });
+  $("ddCsv").addEventListener("click", () => { if (!ddModel) return; downloadText("ENCA-deployment-dashboard", "csv", "text/csv", DeployDash.toCsv(ddModel)); });
+  $("ddMd").addEventListener("click", () => { if (!ddModel) return; showReport("📊 Deployment dashboard", `ENCA-deployment-dashboard-${new Date().toISOString().slice(0, 10)}`, ddToMd(ddModel)); });
+  function ddToMd(m) {
+    const L = [`# 📊 Deployment dashboard — ${tenantName || "tenant"}`, "", `Read ${new Date(m.readAt).toISOString().replace("T", " ").slice(0, 16)} UTC · ${APP_BUILD.label}${m.readinessAt ? ` · readiness ${new Date(m.readinessAt).toISOString().replace("T", " ").slice(0, 16)} UTC` : " · readiness not read"}`, ""];
+    const out = m.total.enabled - m.cov.in;
+    L.push(`- **Enabled users:** ${m.total.enabled.toLocaleString()} (${m.total.disabled.toLocaleString()} disabled, not counted)`, `- **In a deploy group:** ${m.cov.in.toLocaleString()}`, `- **Left out:** ${out.toLocaleString()} — ${m.cov.none.toLocaleString()} read from a region and placed nowhere, ${m.cov.nosrc.toLocaleString()} in no region source`, `- **Taken out by an exclusion:** ${m.exclMembers.toLocaleString()} (BreakGlass ${m.excl.bg}, CA*-Exclusion ${m.excl.ca}, other group ${m.excl.group}, user ${m.excl.user}, role ${m.excl.role})`, "");
+    L.push("## Group by group", "", "| Deploy group | Members | Direct · nested · by hand | Enforced · report-only · off | Readiness | Excluded | Needs a look |", "| --- | --- | --- | --- | --- | --- | --- |");
+    m.groups.forEach((r) => L.push(`| ${r.name}${r.found ? "" : " (not in tenant)"} | ${r.members} | ${r.route.direct} · ${r.route.nested} · ${r.route.hand} | ${r.pol.enf} · ${r.pol.ro} · ${r.pol.off} | ${r.readiness ? `${DeployDash.VERDICT[r.readiness.verdict] || "—"} (${r.readiness.locked} locked out, ${r.readiness.prompted} prompted)` : r.pol.ro ? "not read" : "—"} | ${r.excl} | ${r.look.map((l) => l.text).join("; ") || "—"} |`));
+    if (m.leftOut.length) { L.push("", `## Left out (${m.leftOut.length})`, "", "| Member | UPN | Type | Region source | Rule → group | Why |", "| --- | --- | --- | --- | --- | --- |"); m.leftOut.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} | ${r.sources.join(", ") || "—"} | ${r.rule} → ${r.target} | ${r.why} |`)); }
+    L.push("", "Group membership and policy reach are separate checks; silent members are no data, never safety.");
+    return L.join("\n");
+  }
 
   // ---------- 🤝 Cross-tenant access (32316, T43) ----------
   // The checks of Get-CrossTenantAccessReview.ps1 (cdell2222/m365-security-
