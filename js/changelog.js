@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32507, date: "2026-10-12", title: "PIM report: roles vs groups and settings on one page",
+    items: [
+      { kind: "new", tool: "PIM report", text: "A new tool in Workspace 02, T55. One read gives the PIM situation of the tenant: which roles each PIM-SG group holds and how (active on the job path, eligible on the direct path), the member policy of every group and the policy of every role against the CloudFellows PIM framework, who is in the groups and who approves, and every account or app that holds a role outside the framework groups. Findings are ordered by risk and each says the impact, the way back and which tool fixes it. The roles × groups matrix marks every link the catalog expects, every extra one, the wrong type and the missing ones. It reuses the reads of PIM baseline and Roles and assignments and reads the members of the other groups itself. Read-only." },
+      { kind: "new", tool: "PIM report", text: "Markdown export as ONE file with the diagram of the two paths embedded, so the report keeps its picture when it is moved, mailed or opened in VS Code; CSV export of the matrix, one line per role link." },
+    ],
+  },
+  {
     build: 32506, date: "2026-10-12", title: "Deploy: Cloud PC role assignments for Windows 365",
     items: [
       { kind: "new", tool: "Deploy", text: "With the Windows 365 module ticked and a Windows 365 licence on the tenant, Deploy reads the Cloud PC roles (their own RBAC provider) and plans Cloud PC Reader and Cloud PC Administrator for the Windows 365 access groups, for the whole tenant. Existing assignments are skipped. It asks RoleManagement.ReadWrite.CloudPC once. Without a licence, consent or a successful read the assignments stay under By hand, as before." },

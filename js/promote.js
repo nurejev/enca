@@ -163,6 +163,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 320,
+      ws: "pim",
+      title: "📋 PIM report — roles vs groups and settings on one page (T55 0.1.0, R82)",
+      tools: ["PIM report"],
+      builds: [32507],
+      risk: "low",
+      what: "New read-only tool T55 in Workspace 02, js/pimreport.js (pure: build, render, tabs, toMd with the flow diagram as an embedded SVG data URI, toCsv) and the prp block in app.js. ▶ Read the report runs runPimBaseline and runPimRoles, then reads the members (PIM for Groups active and eligible instances, plain members as the fallback) of every PIM-SG group the Roles read did not open. The model: tiles, findings with impact and way back, the roles × groups matrix with a verdict per cell, both settings tables, people per group with the approver counts, standing access outside PIM. On the baseline tenant every profile's links and groups count as expected.",
+      why: "Mihai, 12 Oct: need a PIM report of the current situation — roles vs groups and settings — and it must be part of PIM-Buddy in ENCA. The hand-made report on cloudfellows.dev that morning is the specification; option A off the mockup (its own tool). Graduates when the real-tenant steps below give the same numbers as that report and the export opens with its picture in VS Code.",
+      test: [
+        "Local: node --test tools/pimreport.test.cjs passes; the whole suite passes; node tools/check-toolbar-order.js and node tools/check-plain-text.js clean. Demo (?demo=1): Workspace 02 shows the 📋 PIM report tile with BETA; ▶ Read the report fills five tiles and the Findings tab; every tab paints; ⤓ Markdown opens the report modal and its download carries one data:image/svg+xml image.",
+        "cloudfellows.dev (baseline tenant): ▶ Read — Roles vs groups says 103 / 103 match (84 active, 16 at AU scope, 19 eligible) and no extra link; the Findings list starts with the Tier 0 role policies (Global Administrator 8 h, no approval, no c1) and lists the empty PIM-SG-Approvers behind the GlobalAdmin group's approval; People says 0 in the model; Outside PIM lists the three permanent Global Administrators, BGA marked break-glass, and the five apps.",
+        "cloudfellows.dev: the ⚙ Settings group table shows PIM-SG-M365-Ops 4 h MFA and justification as match and PIM-SG-M365-GlobalAdmin 1 h with approval; the role table shows Windows 365 Administrator as match. Compare three rows with 🧬 PIM baseline — the verdicts are the same.",
+        "A customer tenant on one profile (not the baseline tenant): the matrix marks a role a job group holds outside its profile as extra (!) and a link the profile expects but the tenant lacks as missing (?), and the matching finding names the group and the role.",
+        "Export: download the Markdown, move it to another folder and open it in VS Code preview and in a Markdown viewer — the diagram shows; the CSV opens in Excel with one row per link.",
+      ],
+      files: ["js/pimreport.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/workspaces.js", "js/flat-icons.js", "js/changelog.js", "js/promote.js", "tools/pimreport.test.cjs"],
+    },
+    {
       n: 319,
       ws: "ca",
       title: "📊 Deployment dashboard — the T28 rollout picture for Conditional Access (T54 0.1.0, R81)",

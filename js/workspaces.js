@@ -35,6 +35,7 @@
     toolPimBaseline: 'Match this tenant’s PIM role settings and PIM groups against the CloudFellows PIM framework.',
     toolPimDesigner: 'A customer’s variant of the framework — tiers, a role’s tier, mailbox, approvers — that Baseline compares against and Deploy imports.',
     toolPimDeploy: 'Import the framework into this tenant from the browser: pick, WhatIf, type the domain, apply — nothing removed.',
+    toolPimReport: 'The PIM situation on one page: which roles each group holds and how, both kinds of policy against the framework, who is in the groups, and what sits outside PIM.',
     toolPimRoles: 'Who holds which Entra role — eligible, active, activated, scoped, expiring — people through groups included.',
     toolIntuneRbac: 'Intune role assignments, scope tags, scope groups and the regional custom role against the framework.',
     toolChangelog: 'Read the release history.',
@@ -50,10 +51,11 @@
   // "PIM lens" (a PIM-only catalogue, tab strip and Help text for it) is on
   // the roadmap, and the card says so rather than promising it.
   const WS_KEY = 'enca.workspace';
-  const PIM_ONLY = new Set(['toolPimBaseline', 'toolIntuneRbac', 'toolPimRoles', 'toolPimDeploy', 'toolPimDesigner']);
+  const PIM_ONLY = new Set(['toolPimBaseline', 'toolPimReport', 'toolIntuneRbac', 'toolPimRoles', 'toolPimDeploy', 'toolPimDesigner']);
   const PIM_ROSTER = [
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
       { id: 'toolPimBaseline', blurb: blurbs.toolPimBaseline },
+      { id: 'toolPimReport', blurb: blurbs.toolPimReport },
       { id: 'toolIntuneRbac', blurb: blurbs.toolIntuneRbac },
       { id: 'toolGapCheck', blurb: 'The PIM checks: permanent Global Administrators, Tier 0 without context or approval, direct eligibility, expiry, standing Intune roles, the context’s Conditional Access policy.', lens: 'built' },
     ] },
@@ -83,7 +85,7 @@
       lead: 'Who can become what, under which rules, and whether this tenant still matches the CloudFellows PIM framework. Onboarding runs here, in the browser: 🚀 Deploy imports from the baseline after a WhatIf and the tenant\'s domain typed out.',
       // Same work order: see it (Baseline), the groups that carry it, who
       // holds it, what is wrong with it, then what to protect and what changed.
-      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Admin units'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
+      shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolPimReport','📋','Report'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Admin units'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
   };
   let ws = 'ca';
   const recent = [];

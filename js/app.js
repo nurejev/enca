@@ -182,7 +182,7 @@
   // the site entirely — and after an MSAL popup sign-in the previous entry may
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
-  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimdeploy", "screen-pimdesigner",
+  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimreport", "screen-pimdeploy", "screen-pimdesigner",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-deploydash", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-promote", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
@@ -2948,6 +2948,7 @@
     ["toolPimBaseline", "🧬 PIM baseline"],
     ["toolIntuneRbac", "📱 Intune RBAC"],
     ["toolPimRoles", "🎖 Roles & assignments"],
+    ["toolPimReport", "📋 PIM report"],
     ["toolPimDeploy", "🚀 Deploy"],
     ["toolPimDesigner", "🧾 Designer"],
     ["toolCaGroups", "👥 Conditional Access groups"],
@@ -22320,7 +22321,7 @@ This is a directory write. Nothing else changes.`)) return;
     try { pmbCatSel = null; } catch { /* declared below */ }
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
-    try { prlReset(); prrReset(); pdpReset(); plxReset(); paz = { raw: null, model: null, err: null, busy: false }; } catch { /* defined further down; nothing to reset yet */ }
+    try { prlReset(); prrReset(); prpReset(); pdpReset(); plxReset(); paz = { raw: null, model: null, err: null, busy: false }; } catch { /* defined further down; nothing to reset yet */ }
     // 32435: 🛡 Administrative units' list and inventory belong to the context
     // they were read in — a read in flight is stopped and its result dropped.
     try { if (ruInv.busy) ruInv.stop = true; ruList = null; ruDetails = {}; ruInvReset(); } catch { /* not declared yet */ }
@@ -23083,6 +23084,137 @@ This is a directory write. Nothing else changes.`)) return;
   $("prrBody").addEventListener("toggle", (e) => { const d = e.target; if (d && d.dataset && d.dataset.prrole) { if (d.open) prr.open.add(d.dataset.prrole); else prr.open.delete(d.dataset.prrole); } }, true);
   $("prrCsv").addEventListener("click", () => { if (prr.model) downloadText("pim-roles", "csv", "text/csv", PimRoles.toCsv(prr.model) + "\n"); });
   $("prrMd").addEventListener("click", () => { if (prr.model) showReport("🎖 Roles & assignments", `ENCA-pim-roles-${new Date().toISOString().slice(0, 10)}`, PimRoles.toMd(prr.model, tenantName)); });
+
+  // ======================================================================
+  // 📋 PIM report (T55, beta 32507, R82). One read, one page: roles vs
+  // groups and settings against the CloudFellows PIM framework — Mihai, 12
+  // Oct: "need a PIM report of the current situation. roles vs groups and
+  // settings", "must also be included in the PIM-Buddy solution in enca",
+  // then "go create T55" off the mockup (option A, its own tool).
+  // It does not read twice what is already read: 🧬 PIM baseline's read (role
+  // and group policies, assignments, groups) and 🎖 Roles' read (people
+  // through groups) are run if this session has not got them, and only the
+  // members of the groups neither opens — the access groups, the approver
+  // groups — are read here. js/pimreport.js builds; nothing is written.
+  // ======================================================================
+  let prp = { model: null, err: null, busy: false, tab: "findings", kind: "all", q: "", members: null, run: 0, session: null };
+  const prpProg = makeProgress("prp"); prpProg.by = "📋 PIM report"; prpProg.stoppable = true;
+  const PRP_HEAD = `<p class="mini" style="margin:6px 0 0">Who can get which role, <b>through which group</b>, under <b>which settings</b>, and where this tenant differs from the <b>${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}</b> — on one page, with findings that say the impact and the way back. The two gates are kept apart: on the <b>job path</b> the group's member policy decides, on the <b>direct path</b> the role's policy does. It uses the reads of 🧬 PIM baseline and 🎖 Roles &amp; assignments (run here if this session has not got them) and reads the members of every PIM-SG and approver group itself. <b>Read-only.</b> ⤓ Markdown is one file with the diagram embedded, so it keeps its picture when moved.</p>`;
+  function openPimReport() {
+    crumb("📋 PIM report");
+    show("screen-pimreport");
+    $("prpHead").innerHTML = toolHead("toolPimReport") + PRP_HEAD;
+    if (prp.model && prp.session !== pmbSessionKey()) { prp.model = null; prp.members = null; }
+    prpPaint();
+  }
+  function prpPaint() {
+    const m = prp.model;
+    $("prpChips").innerHTML = PimReport.tabs(m).map(([k, l]) => `<button class="fchip${prp.tab === k ? " active" : ""}" data-prptab="${k}">${esc(l)}</button>`).join("");
+    $("prpMd").style.display = m ? "" : "none"; $("prpCsv").style.display = m ? "" : "none";
+    $("prpRefresh").textContent = m ? "⟳ Read again" : "▶ Read the report"; $("prpRefresh").disabled = prp.busy;
+    if (prp.busy) { $("prpBody").innerHTML = prpProg.panel("Reading the framework groups, their roles, both kinds of policy and their members…"); return; }
+    if (!m) { $("prpBody").innerHTML = `${prp.err ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(prp.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-prprun>▶ Read the report</button><p class="mini muted">Reads roles, assignments, the role and group PIM policies, the PIM-SG groups and their members. Nothing is changed.</p></div>`; return; }
+    $("prpBody").innerHTML = `<p class="mini pmb-read">${m.demo ? "Demo data · " : ""}Read ${esc(new Date(m.readAt).toLocaleString())} · ${esc(m.catalog.label)} ${esc(m.catalog.release)}${m.profile ? `, profile ${esc(m.profile)}` : ""}${isBaselineTenant() ? " · baseline tenant: every profile's links count as expected" : ""}</p>` + PimReport.render(m, { tab: prp.tab, kind: prp.kind, q: prp.q });
+  }
+  // The members of every framework and approver group: PIM for Groups
+  // instances (active and eligible), falling back to plain members for a
+  // group PIM does not manage (the approver groups). 🎖's read is reused for
+  // the groups it already opened.
+  async function prpReadMembers(groups) {
+    const out = {};
+    const known = (prr.raw && prr.raw.groupMembers) || {};
+    const toM = (x, names) => ({ id: x.principalId || x.id, name: (names.get(x.principalId || x.id) || {}).displayName || x.displayName || x.principalId || x.id, type: "User" });
+    const todo = [];
+    groups.forEach((g) => {
+      const k = known[g.id];
+      if (k && k.read !== false) out[g.id] = { read: true, active: (k.active || []).map((x) => ({ id: x.principalId || x.id, name: x.displayName || x.principalId, type: x.type || "User" })), eligible: (k.eligible || []).map((x) => ({ id: x.principalId || x.id, name: x.displayName || x.principalId, type: x.type || "User" })) };
+      else todo.push(g);
+    });
+    if (isDemo) { todo.forEach((g) => { out[g.id] = { read: true, active: [], eligible: [] }; }); return out; }
+    if (!todo.length) return out;
+    prpProg.detail(`members of ${todo.length} group${todo.length === 1 ? "" : "s"}`);
+    const sc = [...AUTH_CONFIG.scopes, ...PRR_READ];
+    const reqs = [];
+    todo.forEach((g, i) => {
+      reqs.push({ id: `a${i}`, url: `/identityGovernance/privilegedAccess/group/assignmentScheduleInstances?$filter=groupId eq '${g.id}' and accessId eq 'member'` });
+      reqs.push({ id: `e${i}`, url: `/identityGovernance/privilegedAccess/group/eligibilityScheduleInstances?$filter=groupId eq '${g.id}' and accessId eq 'member'` });
+      reqs.push({ id: `m${i}`, url: `/groups/${g.id}/members?$select=id,displayName,userPrincipalName&$top=999` });
+    });
+    const res = await Graph.gbatch(reqs, null, { base: "https://graph.microsoft.com/v1.0", scopes: sc, signal: prpProg.signal });
+    const nameIds = new Set();
+    todo.forEach((g, i) => {
+      const A = res[`a${i}`], E = res[`e${i}`], M = res[`m${i}`];
+      const plain = M && M.body && Array.isArray(M.body.value) ? M.body.value : null;
+      const nm = new Map((plain || []).map((x) => [x.id, x]));
+      const pick = (r) => (r && r.body && Array.isArray(r.body.value) ? r.body.value : null);
+      const a = pick(A), e = pick(E);
+      if (a && e) { [...a, ...e].forEach((x) => { if (!nm.has(x.principalId)) nameIds.add(x.principalId); }); out[g.id] = { read: true, active: a.map((x) => toM(x, nm)), eligible: e.map((x) => toM(x, nm)) }; }
+      else if (plain) out[g.id] = { read: true, active: plain.map((x) => ({ id: x.id, name: x.displayName || x.userPrincipalName || x.id, type: "User" })), eligible: [] };
+      else out[g.id] = { read: false };
+    });
+    const ids = [...nameIds];
+    for (let k = 0; k < ids.length; k += 1000) {
+      try {
+        const r = await Graph.gpost("/v1.0/directoryObjects/getByIds", { ids: ids.slice(k, k + 1000), types: ["user", "group", "servicePrincipal"] }, sc);
+        const byId = new Map(((r && r.value) || []).map((o) => [o.id, o]));
+        Object.values(out).forEach((gm) => [...(gm.active || []), ...(gm.eligible || [])].forEach((x) => { const o = byId.get(x.id); if (o && (!x.name || x.name === x.id)) x.name = o.displayName || o.userPrincipalName || x.id; }));
+      } catch { /* ids stay ids */ }
+    }
+    return out;
+  }
+  function prpBuild() {
+    if (!pmbRaw || !pmbRes) { prp.model = null; return; }
+    const cat = pmbCat();
+    const input = { cat, res: pmbRes, raw: pmbRaw, roles: prr.model || null, members: prp.members || {}, readAt: pmbRaw.readAt, tenant: tenantName || (isDemo ? "Demo tenant" : tenantDomain || ""), tenantId: isDemo ? "" : tenantId, demo: isDemo };
+    if (isBaselineTenant()) {
+      // The baseline tenant carries every profile at once.
+      const also = {};
+      PimBaseline.profileIds(PIM_BASELINE).forEach((id) => { const c = PimBaseline.profile(PIM_BASELINE, id, { modules: pmbModulesOn() }); c.roles.forEach((r) => (r.via || []).forEach((g) => { (also[g] = also[g] || []).push(r.name); })); });
+      input.alsoCarries = also;
+      input.everyGroup = PimBaseline.allGroups(PIM_BASELINE);
+      input.groupDiff = (g, rules) => PimBaseline.diff(PimBaseline.expected(cat, g, pmbRaw.domain || null), PimBaseline.fromRules(rules, pmbRaw.names || {}));
+    }
+    prp.model = PimReport.build(input);
+  }
+  async function runPimReport() {
+    if (prp.busy) return;
+    if (pmbBusy || prr.busy) { toast("🧬 PIM baseline or 🎖 Roles is reading — the report starts when you click again"); return; }
+    const run = ++prp.run, session = pmbSessionKey();
+    prp.busy = true; prp.err = null; prpProg.begin();
+    if ($("screen-pimreport").classList.contains("active")) prpPaint();
+    let err = null;
+    try {
+      prpProg.detail("🧬 role and group settings");
+      await runPimBaseline();
+      if (!pmbRaw) throw new Error(pmbErr || "the PIM baseline read did not complete");
+      prpProg.check();
+      prpProg.detail("🎖 who holds what");
+      try { await runPimRoles(); } catch (e) { if (e && e.stopped) throw e; }
+      prpProg.check();
+      const idx = pmbGroupIndex();
+      const groups = [...idx.keys()].filter((n) => /^PIM-SG-/.test(n)).map((n) => idx.get(n)[0]).filter((g) => g && g.id);
+      prp.members = await prpReadMembers(groups);
+    } catch (e) {
+      const m = e && (e.message || String(e));
+      err = e && e.stopped ? "stopped — nothing is shown for a partial read" : /403|forbidden|authorization_requestdenied|insufficient/i.test(m || "") ? "access denied: the signed-in account needs Global Reader, Security Reader or Privileged Role Administrator, and the read permissions consented" : String(m || "").replace(/\s*·\s*inner:.*$/, "");
+    } finally { if (run === prp.run) { prp.busy = false; prpProg.stop(); } }
+    if (run !== prp.run || session !== pmbSessionKey()) return;
+    prp.session = session;
+    if (err) { prp.err = err; prp.model = null; } else prpBuild();
+    if ($("screen-pimreport").classList.contains("active")) prpPaint();
+    if (prp.model) toast(`PIM report <span>${prp.model.findings.length} finding${prp.model.findings.length === 1 ? "" : "s"} · ${prp.model.matrix.counts.match}/${prp.model.matrix.counts.cells} links match</span>`);
+  }
+  $("toolPimReport").addEventListener("click", () => openPimReport());
+  $("prpRefresh").addEventListener("click", () => runPimReport());
+  $("prpChips").addEventListener("click", (e) => { const t = e.target.closest("[data-prptab]"); if (t) { prp.tab = t.dataset.prptab; prpPaint(); } });
+  $("prpFind").addEventListener("input", () => { prp.q = $("prpFind").value; if (prp.model) prpPaint(); });
+  $("prpBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-prprun]")) { runPimReport(); return; }
+    const k = e.target.closest("[data-prpkind]"); if (k) { prp.kind = k.dataset.prpkind; prpPaint(); return; }
+    const o = e.target.closest("[data-prpopen]"); if (o && $(o.dataset.prpopen)) $(o.dataset.prpopen).click();
+  });
+  $("prpMd").addEventListener("click", () => { if (prp.model) showReport("📋 PIM report", `ENCA-pim-report-${(tenantDomain || "tenant").replace(/[^A-Za-z0-9.-]/g, "")}-${new Date().toISOString().slice(0, 10)}`, PimReport.toMd(prp.model, { build: APP_BUILD.build })); });
+  $("prpCsv").addEventListener("click", () => { if (prp.model) downloadText("pim-report-matrix", "csv", "text/csv", PimReport.toCsv(prp.model)); });
 
   // ======================================================================
   // 🚀 Deploy — import from the baseline (T51, beta 32425, R72).
