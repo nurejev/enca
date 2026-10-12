@@ -44,4 +44,11 @@ test('baseline Word reference contains every central group, role identifier and 
     for (const a of p.profile.rmau) assert.ok(content.includes(a.name), a.name);
   }
   for (const r of current.intuneRoles) for (const permission of r.allowed) assert.ok(content.includes(permission), permission);
+  // 4.0: the optional modules (Remote Help, Remote Help unattended, Windows 365) are part of the reference.
+  for (const [id, m] of Object.entries(current.modules || {})) {
+    for (const g of m.groups || []) assert.ok(content.includes(g.name), `${id} ${g.name}`);
+    for (const r of m.roleDefs || []) { assert.ok(content.includes(r.name), r.name); for (const permission of r.allowed) assert.ok(content.includes(permission), permission); }
+    for (const r of m.entraRoles || []) { assert.ok(content.includes(r.name), r.name); assert.ok(content.includes(r.templateId), r.templateId); }
+    for (const prof of Object.values(m.byProfile || {})) for (const a of prof.assignments || []) assert.ok(content.includes(a.name), a.name);
+  }
 });
