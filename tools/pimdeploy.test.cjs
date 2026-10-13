@@ -193,7 +193,7 @@ test("3.0: job groups active (after their role allows permanent active), direct 
   assert.ok(Q.ops.find((o) => o.key === "act:Teams Administrator:PIM-SG-M365-Ops:tenant scope").requires.includes("rpol:Teams Administrator:Expiration_Admin_Assignment"));
   const r0 = raw(); r0.eligible = r0.eligible.filter((a) => a.principalName !== "PIM-SG-M365-Ops-Direct");
   assert.ok(PD.build(SMALL, r0, { domain: "contoso.nl" }).ops.some((o) => o.key === "elig:Exchange Administrator:PIM-SG-M365-Ops-Direct:tenant scope"), "Exchange stays per role");
-  assert.ok(!P.ops.some((o) => /^act:(Exchange|SharePoint|Global|Privileged|Conditional Access|Security Administrator|Compliance)/.test(o.key)), "no Tier 0, Exchange, SharePoint or Purview role is ever held by a job group");
+  assert.ok(!P.ops.some((o) => /^act:(Exchange Administrator|SharePoint Administrator|Global Administrator|Global Reader|Privileged|Conditional Access|Security Administrator|Compliance|Domain Name|Attribute|Global Secure Access Administrator|.* Backup Administrator)/.test(o.key)), "no Tier 0, Exchange, SharePoint, Purview or backup role is ever held by a job group");
   assert.ok(P.ops.some((o) => o.key === "group:PIM-SG-EXO-Recipients" && o.section === "exchange"));
   assert.ok(P.manual.some((m) => /PIM-SG-EXO-Recipients → Recipient Management/.test(m)));
   assert.ok(!JSON.stringify(P.ops).includes("outlook.office"), "nothing in a plan touches Exchange itself");

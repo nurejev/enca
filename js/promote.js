@@ -163,6 +163,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 321,
+      ws: "pim",
+      title: "🧬 Framework 4.1 — Exchange and Purview covered, the workload roles, Global Secure Access, the script where no API exists (T48 0.9.0, T51 0.5.0, R83)",
+      tools: ["PIM baseline", "Deploy"],
+      builds: [32510],
+      risk: "high",
+      what: "Catalog 4.1 in js/pimBaselineData.js: twenty workload roles (template ids read from cloudfellows.dev on 13 Oct 2026), the groups PIM-SG-M365-Teams (job), -Backup-Direct, -Billing and -Data-Direct, five Purview access groups PIM-SG-PUR-*, PIM-SG-EXO-Recipients-REG and -HelpDesk-REG in the region template, Global Secure Access in every design, the multi-region profile explicit without Azure, the naming rule with PUR/SPO/FAB/PP, the stale first-line and Tier 0 texts corrected. js/pimscript.js (new, pure): the script Deploy generates where no API exists — Exchange role groups, Purview role groups, the regional Exchange scopes — with the object ids filled in, plus readOutcome for the file it writes. js/pimdeploy.js: a purview section, P.scripts, By hand lines without any repository .ps1. app.js: ⬇ Script buttons and 📂 Import outcome on the Preview panel. pimbaseline.js carries and renders the purview scope. demo.js carries the new roles.",
+      why: "Mihai, 12 Oct: Exchange must be fully covered — the PIM-SG-EXO groups in the right Exchange RBAC groups; the baseline docs were missing the overview; Global Secure Access in every design; Teams, backups, billing, Copilot, Fabric, Power Platform and Purview in the design; Azure out of multi-region; and the amendment to the no-script rule — where ENCA cannot act from the browser it offers a downloadable script that performs the actions. Risk high: it rewrites what Deploy plans for every profile (new groups, new eligibilities, approval overrides on Tier 1 roles) and the write path of the scripts is unverified until the outcome files from a real run come back. Nothing here has written to a live tenant.",
+      test: [
+        "Local: node --test tools/pimscript.test.cjs (6) and tools/pim*.test.cjs pass; the whole suite passes; node tools/check-plain-text.js and node tools/check-toolbar-order.js clean. Demo (?demo=1): 🧬 PIM baseline → Read shows the Teams, Backup-Direct, Billing, PUR and (large) Data-Direct rows as missing with their role group named; 🚀 Deploy → Pick shows the Purview groups section; Preview shows ⬇ Exchange role groups and ⬇ Purview role groups and a 📂 Import outcome control; the downloaded .ps1 names every ticked group and no password, token or Graph call.",
+        "cloudfellows.dev (baseline tenant), Privileged Role Administrator active: 🚀 Deploy, profile multi, Pick everything but Azure → Preview → Apply. Expect the four M365 groups, the five PUR groups and, per region, the two EXO-REG groups created role-assignable and private; the eligibilities of the twenty roles land (the backup and attribute roles with approval switched on only while PIM-SG-Approvers has two members); Verify reads them back. Then Read again: every new row ✓.",
+        "cloudfellows.dev, Exchange Administrator active in PowerShell 7: run the downloaded pim-exchange.cloudfellows.dev.ps1 — it adds PIM-SG-EXO-Recipients to Recipient Management, -HelpDesk to Help Desk, -Hygiene to Hygiene Management, -Reader to View-Only Organization Management, and writes pim-exchange-outcome.cloudfellows.dev.<stamp>.json. 📂 Import outcome lists four bindings added or already there. Get-RoleGroupMember 'Recipient Management' shows the group.",
+        "cloudfellows.dev, Compliance Administrator active: run pim-purview.cloudfellows.dev.ps1 (Connect-IPPSSession). Expect InfoProtection, Records, InsiderRisk and CommCompliance added; eDiscovery Manager is the one to watch — Microsoft documents only a mail-enabled security group there, so a failed line for PIM-SG-PUR-eDiscovery is a finding to record, not a tool error. Import the outcome.",
+        "cloudfellows.dev, region EU-NL: run pim-exchange-regional.cloudfellows.dev.ps1 — eleven New-ManagementRoleAssignment lines scoped to AU-EU-NL-Users. A member of PIM-SG-EXO-Recipients-EU-NL, activated, can edit a mailbox inside the unit and is refused outside it.",
+        "Timing (design test T5, still unmeasured): a test admin eligible in PIM-SG-EXO-Reader activates — note the minutes until Get-Recipient works in Exchange PowerShell, and until it stops after deactivation; the same for Helpdesk Administrator through the Helpdesk job group. Write both into the catalog notes.",
+        "gimi (read-only): 🧬 PIM baseline → Read with profile small — the new roles show as missing or on the tenant default, nothing is written, no console error.",
+      ],
+      files: ["js/pimBaselineData.js", "js/pimscript.js", "js/pimdeploy.js", "js/pimbaseline.js", "js/app.js", "js/demo.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html", "tools/pim/*.json", "tools/pim/samples/*.jsonc", "tools/pimscript.test.cjs", "tools/pimbaseline.test.cjs", "tools/pimdeploy.test.cjs"],
+    },
+    {
       n: 320,
       ws: "pim",
       title: "📋 PIM report — roles vs groups and settings on one page (T55 0.1.0, R82)",

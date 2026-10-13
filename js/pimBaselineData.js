@@ -143,11 +143,11 @@ const PIM_BASELINE = {
   id: "cloudfellows-pim",
   label: "CloudFellows PIM framework",
   icon: "🧬",
-  release: "4.0",
-  revised: "2026-10-12",
+  release: "4.1",
+  revised: "2026-10-13",
   tenant: "cloudfellows.dev",
   source: "bundled",
-  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026) → 2.1 (25 Sep 2026: active membership + eligible roles, Intune through eligible access groups, no PIM groups in restricted AUs) → 2.2 (2 Oct 2026: the five Defender XDR access groups PIM-SG-XDR-* on the Entra side; the portal roles and assignments stay separate) → 3.0 (5 Oct 2026: job groups — eligible members, the group active in every role of the job, one activation of four hours; direct groups for Tier 0, Exchange, SharePoint, Purview and the readers, as Microsoft recommends; Exchange RBAC through PIM-SG-EXO access groups)",
+  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026) → 2.1 (25 Sep 2026: active membership + eligible roles, Intune through eligible access groups, no PIM groups in restricted AUs) → 2.2 (2 Oct 2026: the five Defender XDR access groups PIM-SG-XDR-* on the Entra side; the portal roles and assignments stay separate) → 3.0 (5 Oct 2026: job groups — eligible members, the group active in every role of the job, one activation of four hours; direct groups for Tier 0, Exchange, SharePoint, Purview and the readers, as Microsoft recommends; Exchange RBAC through PIM-SG-EXO access groups) → 4.0 (12 Oct 2026: optional modules Remote Help, Remote Help unattended and Windows 365; INT-ROLE-HelpDesk replaces the built-in Help Desk Operator) → 4.1 (13 Oct 2026: Global Secure Access in every design; Teams, backup, billing, Copilot, Fabric and Power Platform roles with the Teams, Backup-Direct, Billing and Data-Direct groups; Purview access groups PIM-SG-PUR-*; regional Exchange groups in the region template; Azure out of the multi-region profile; where no API exists Deploy generates the script)",
   // Names the framework depends on beside the groups. The approver group
   // is a plain security group (not role-assignable, not PIM-managed): its
   // members approve, they hold nothing. The mailbox is a shared mailbox in
@@ -157,7 +157,7 @@ const PIM_BASELINE = {
   authContext: { id: "c1", name: "PIM Tier 0 activation", description: "Authentication context c1 is required to activate a Tier 0 role. GroupMember and GroupJIT do not require c1; GroupJITTier0 (the Defender XDR administrator group) does. The Conditional Access policy that gates c1 (phishing-resistant MFA, compliant device) lives in Workspace 01." },
   // Exact-match naming contract. A tenant's group counts as the framework's
   // only under this exact name (no prefixes, no suffixes, no version).
-  naming: { pattern: "^PIM-SG-(M365|AZ|INT|XDR|EXO)-[A-Za-z0-9]+(-[A-Za-z0-9]+)*$", example: "PIM-SG-M365-Ops · PIM-SG-M365-Ops-Direct · PIM-SG-AZ-Platform-Owner · PIM-SG-INT-Ops · PIM-SG-XDR-Operator-T1 · PIM-SG-EXO-Recipients" },
+  naming: { pattern: "^PIM-SG-(M365|AZ|INT|XDR|EXO|PUR|SPO|FAB|PP)-[A-Za-z0-9]+(-[A-Za-z0-9]+)*$", example: "PIM-SG-M365-Ops · PIM-SG-M365-Ops-Direct · PIM-SG-AZ-Platform-Owner · PIM-SG-INT-Ops · PIM-SG-XDR-Operator-T1 · PIM-SG-EXO-Recipients · PIM-SG-PUR-eDiscovery" },
   // Templates: one set of PIM settings, named. Keys follow EasyPIM's
   // PolicyTemplates so the export is a copy, not a translation.
   templates: {
@@ -295,12 +295,12 @@ const PIM_BASELINE = {
     { name: "Global Administrator", templateId: "62e90394-69f5-4237-9190-012177145e10", template: "Tier0", via: ["PIM-SG-M365-GlobalAdmin"], override: { ActivationDuration: "PT1H" }, note: "One hour, as in 1.3. The break-glass accounts hold it permanently and are protected." },
     { name: "Privileged Role Administrator", templateId: "e8611ab8-c189-46e8-94e1-60213ab1f814", template: "Tier0", via: ["PIM-SG-M365-Tier0"], note: "Moved out of SecOps in 2.0: it assigns roles, including Global Administrator." },
     { name: "Privileged Authentication Administrator", templateId: "7be44c8a-adaf-4e2a-84d6-ab2649e08a13", template: "Tier0", via: ["PIM-SG-M365-Tier0"], note: "Moved out of Ops in 2.0: it resets a Global Administrator's authentication methods." },
-    { name: "Conditional Access Administrator", templateId: "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9", template: "Tier0", via: ["PIM-SG-M365-SecOps-Direct"], note: "Can switch every Conditional Access policy off — approval, as in 1.3." },
-    { name: "Security Administrator", templateId: "194ae4cb-b126-40b2-bd5b-6091b380977d", template: "Tier0", via: ["PIM-SG-M365-SecOps-Direct"], note: "Manages Conditional Access and Defender — approval, as in 1.3." },
+    { name: "Conditional Access Administrator", templateId: "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9", template: "Tier0", via: ["PIM-SG-M365-SecOps-Direct"], note: "Can switch every Conditional Access policy off. Activates under Tier0: in the small profile without approval, in the large profiles with the Tier 0 approvers." },
+    { name: "Security Administrator", templateId: "194ae4cb-b126-40b2-bd5b-6091b380977d", template: "Tier0", via: ["PIM-SG-M365-SecOps-Direct"], note: "Manages Conditional Access and Defender. Activates under Tier0: in the small profile without approval, in the large profiles with the Tier 0 approvers." },
     // ---- Tier 1 ----
     { name: "Exchange Administrator", templateId: "29232cdf-9323-42fd-ade2-1d097af3e4de", template: "Tier1", via: ["PIM-SG-M365-Ops-Direct", "PIM-SG-M365-AppOps-Direct"] },
     { name: "SharePoint Administrator", templateId: "f28a1f50-f6e7-4571-818b-6a12f2af6b6c", template: "Tier1", via: ["PIM-SG-M365-Ops-Direct", "PIM-SG-M365-AppOps-Direct"] },
-    { name: "Teams Administrator", templateId: "69091246-20e8-4a56-aa4d-066075b2a7a8", template: "Tier1", via: ["PIM-SG-M365-Ops"] },
+    { name: "Teams Administrator", templateId: "69091246-20e8-4a56-aa4d-066075b2a7a8", template: "Tier1", via: ["PIM-SG-M365-Ops", "PIM-SG-M365-Teams"], note: "4.1: also on the Teams job group, for the team or outside partner that runs Teams; Ops keeps it for internal IT." },
     { name: "Intune Administrator", templateId: "3a2c62db-5318-420d-8d74-23affee5d9d5", template: "Tier1", via: ["PIM-SG-M365-Ops"] },
     { name: "Application Administrator", templateId: "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3", template: "Tier1", via: ["PIM-SG-M365-Ops"] },
     { name: "Cloud Application Administrator", templateId: "158c047a-c907-4556-b7ef-446551a6b5f7", template: "Tier1", via: ["PIM-SG-M365-AppOps"] },
@@ -326,13 +326,34 @@ const PIM_BASELINE = {
     { name: "Compliance Data Administrator", templateId: "e6d1a23a-da11-4be4-9570-befc86d067a7", template: "Tier1", via: ["PIM-SG-M365-SecOps-Direct"] },
     { name: "Cloud App Security Administrator", templateId: "892c5842-a9a6-463a-8041-72aa08ca3cf6", template: "Tier1", via: ["PIM-SG-M365-SecOps"] },
     { name: "Security Operator", templateId: "5f2222b1-57c3-48ba-8ad5-d4759f1fde6f", template: "Tier1", via: ["PIM-SG-M365-SecOps"] },
+    // ---- 4.1 (13 Oct 2026): the workload roles. Template ids read from cloudfellows.dev on 13 Oct 2026 — never written from memory. ----
+    { name: "Teams Communications Administrator", templateId: "baf37b3a-610e-45da-9e62-d9d1e5e8914b", template: "Tier1", via: ["PIM-SG-M365-Teams"], note: "Calling and meetings. On the Teams job group, which is often an outside partner." },
+    { name: "Teams Telephony Administrator", templateId: "aa38014f-0993-46e9-9b45-30501a20909d", template: "Tier1", via: ["PIM-SG-M365-Teams"], note: "Numbers, calling policies, voice apps; resource accounts also need User Administrator." },
+    { name: "Teams Devices Administrator", templateId: "3d762c5a-1b6c-493f-843e-55a3b42923d4", template: "Tier1", via: ["PIM-SG-M365-Teams"], note: "Teams Rooms, phones and displays." },
+    { name: "Teams Communications Support Engineer", templateId: "f70938a0-fc10-4177-9e90-2178f8765737", template: "Tier2", via: ["PIM-SG-M365-Teams"], note: "Call quality with full call records." },
+    { name: "Teams Communications Support Specialist", templateId: "fcf91098-03e3-41a9-b5ba-6f0ec8188a12", template: "Tier2", via: ["PIM-SG-M365-Helpdesk"], note: "Call quality for the first line; stays with the desk." },
+    { name: "SharePoint Backup Administrator", templateId: "9d3e04ba-3ee4-4d1b-a3a7-9aef423a09be", template: "Tier1", via: ["PIM-SG-M365-Backup-Direct"], override: { ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"] }, note: "A restore can overwrite live content: per role, with approval (decided 12 Oct 2026)." },
+    { name: "Exchange Backup Administrator", templateId: "49eb8f75-97e9-4e37-9b2b-6c3ebfcffa31", template: "Tier1", via: ["PIM-SG-M365-Backup-Direct"], override: { ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"] }, note: "A restore can overwrite live mailboxes: per role, with approval." },
+    { name: "Microsoft 365 Backup Administrator", templateId: "1707125e-0aa2-4d4d-8655-a7c786c76a25", template: "Tier1", via: ["PIM-SG-M365-Backup-Direct"], override: { ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"] }, note: "Backup policies and restore across Exchange, SharePoint and OneDrive: per role, with approval." },
+    { name: "Billing Administrator", templateId: "b0f54661-2d74-4c50-afa3-1ec803f12efe", template: "Tier1", via: ["PIM-SG-M365-Billing"], note: "Purchases and subscriptions: a finance persona, its own direct group in the large profiles; Ops in the small one (the Billing group folds into Ops there)." },
+    { name: "Reports Reader", templateId: "4a5d8f65-41da-4de4-8968-e035b65339cf", template: "Reader", via: ["PIM-SG-M365-SecOpsReader"], note: "Usage reports." },
+    { name: "Domain Name Administrator", templateId: "8329153b-31d0-4727-b945-745eb3bc5f31", template: "Tier0", via: ["PIM-SG-M365-Tier0"], note: "A domain change can redirect sign-in or mail: Tier 0, on the Tier0 group (GlobalAdmin in the small profile, where Tier0 folds into it)." },
+    { name: "Printer Administrator", templateId: "644ef478-e28f-4e28-b9dc-3fdde9aa0b1f", template: "Tier1", via: ["PIM-SG-M365-Ops"], note: "Universal Print." },
+    { name: "Attribute Definition Administrator", templateId: "8424c6f0-a189-499e-bbd0-26c1753c96d4", template: "Tier0", via: ["PIM-SG-M365-SecOps-Direct"], override: { ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"] }, note: "Custom security attributes can decide which apps a Conditional Access policy hits: Tier 0 with approval in every profile (decided 12 Oct 2026)." },
+    { name: "Attribute Assignment Administrator", templateId: "58a13ea3-c632-46ae-9ee0-9c0d43cd7f3d", template: "Tier0", via: ["PIM-SG-M365-SecOps-Direct"], override: { ApprovalRequired: true, Approvers: ["PIM-SG-Approvers"] }, note: "Assigns those attributes: Tier 0 with approval in every profile." },
+    { name: "AI Administrator", templateId: "d2562ede-74db-457e-a7b6-544e236ebb61", template: "Tier1", via: ["PIM-SG-M365-AppOps"], note: "Microsoft 365 Copilot and the AI services; Purview maps it to Compliance Manager Administrators and the Data Security AI role groups." },
+    { name: "AI Reader", templateId: "1fe13547-53f6-408d-ac04-7f8eed167b38", template: "Reader", via: ["PIM-SG-M365-SecOpsReader"], note: "Read-only Copilot settings." },
+    { name: "Fabric Administrator", templateId: "a9ea8996-122f-4c74-9520-8edcd192826c", template: "Tier1", via: ["PIM-SG-M365-AppOps-Direct"], note: "Tenant settings of Fabric and Power BI. On a direct group until the activation time through PIM for Groups is measured; the Data-Direct group in the large one-region profile." },
+    { name: "Dynamics 365 Administrator", templateId: "44367163-eba1-44c3-98af-f5787879f96a", template: "Tier1", via: ["PIM-SG-M365-AppOps"], note: "Beside Power Platform Administrator, which the same groups hold." },
+    { name: "Global Secure Access Administrator", templateId: "ac434307-12b9-4fa1-a708-88bf58caabc1", template: "Tier0", via: ["PIM-SG-M365-SecOps-Direct"], note: "In every design: the Microsoft 365 traffic profile is available to every tenant. It can switch traffic forwarding, tenant restrictions and GSA signaling off, so Tier 0, activated per role (decided 12 Oct 2026)." },
+    { name: "Global Secure Access Log Reader", templateId: "843318fb-79a6-4168-9e6f-aa9a07481cc4", template: "Reader", via: ["PIM-SG-M365-SecOps"], note: "Traffic logs show who went where: on the SecOps job, not on the readers (Global Reader and Security Reader see every GSA setting except the logs)." },
     // ---- Tier 2 ----
     { name: "Helpdesk Administrator", templateId: "729827e3-9c14-49f7-bb1b-9608f156bbb8", template: "Tier2", via: ["PIM-SG-M365-Helpdesk"], note: "Eight hours, as in 1.3: a shift, not a task." },
     { name: "Message Center Reader", templateId: "790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b", template: "Tier2", via: ["PIM-SG-M365-Helpdesk", "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps", "PIM-SG-M365-SecOps"] },
     // ---- Readers ----
     { name: "Global Reader", templateId: "f2ef992c-3afb-46b9-b7cf-a126ee74c451", template: "Reader", via: ["PIM-SG-M365-SecOpsReader"] },
     { name: "Security Reader", templateId: "5d6b6bb7-de71-4623-b4af-96380a352509", template: "Reader", via: ["PIM-SG-M365-SecOpsReader"] },
-    { name: "Directory Readers", templateId: "88d8e3e3-8f55-4a1e-953a-9b9898b8876b", template: "Reader", via: [], override: { AllowPermanentActiveAssignment: true }, note: "Permanent active allowed, as 1.3's Perm for all of IT." },
+    { name: "Directory Readers", templateId: "88d8e3e3-8f55-4a1e-953a-9b9898b8876b", template: "Reader", via: [], override: { AllowPermanentActiveAssignment: true }, note: "No group carries it: every member of the tenant reads the directory already, and every other role inherits it. The template allows a permanent active assignment for the few service accounts that need the role by name." },
   ],
   // The privileged access groups: role-assignable security groups, PIM for
   // Groups on the Member role, each carrying the roles named in `roles`
@@ -354,10 +375,18 @@ const PIM_BASELINE = {
     { name: "PIM-SG-M365-SecOps-Direct", scope: "m365", path: "direct", persona: "Security, per role", template: "GroupMember", description: "Direct group: active members, eligible per role for Conditional Access, Security and the two Compliance administrators — Tier 0 and Purview roles, activated one at a time." },
     { name: "PIM-SG-M365-Ops-Direct", scope: "m365", path: "direct", persona: "Exchange and SharePoint", template: "GroupMember", description: "Direct group: active members, eligible per role for Exchange and SharePoint Administrator — next to the Ops job group." },
     { name: "PIM-SG-M365-AppOps-Direct", scope: "m365", path: "direct", persona: "Exchange and SharePoint", template: "GroupMember", description: "Direct group: active members, eligible per role for Exchange and SharePoint Administrator — next to the AppOps job group." },
+    // 4.1 (13 Oct 2026): the groups the workload roles needed. Teams is a job
+    // group because the team that runs Teams telephony and devices is often an
+    // outside partner; Backup-Direct is a direct group whose three roles each
+    // activate with approval; Billing is a finance persona; Data-Direct (large
+    // one-region) carries Fabric Administrator.
+    { name: "PIM-SG-M365-Teams", scope: "m365", path: "job", persona: "Teams telephony and devices", template: "GroupJITTier1", description: "Job group: eligible members, one activation gives every Teams role of the job — Teams, Communications, Telephony and Devices Administrator and Communications Support Engineer. Often an outside partner; Ops keeps Teams Administrator for internal IT." },
+    { name: "PIM-SG-M365-Backup-Direct", scope: "m365", path: "direct", persona: "Backup and restore", template: "GroupMember", description: "Direct group: active members, eligible per role for the SharePoint, Exchange and Microsoft 365 Backup Administrator roles, each with approval — a restore can overwrite live content." },
+    { name: "PIM-SG-M365-Billing", scope: "m365", path: "direct", persona: "Finance", template: "GroupMember", description: "Direct group: active members, eligible for Billing Administrator — purchases and subscriptions; a finance persona, not IT. Folds into Ops in the small profile." },
     // Intune access groups: eligible members, the group activation is the
     // gate (GroupJIT). The profiles' Intune assignments name them.
     { name: "PIM-SG-INT-Ops", scope: "intune", persona: "Intune operations", template: "GroupJIT", description: "Eligible members activate for a shift to act as Intune Policy and Profile Manager + Application Manager (central Workplace)." },
-    { name: "PIM-SG-INT-HelpDesk", scope: "intune", persona: "Intune first line", template: "GroupJIT", description: "Eligible members activate to act as Intune Help Desk Operator." },
+    { name: "PIM-SG-INT-HelpDesk", scope: "intune", persona: "Intune first line", template: "GroupJIT", description: "Eligible members activate to act as the Intune first line (INT-ROLE-HelpDesk: everything the built-in Help Desk Operator does except Elevation and unattended control)." },
     { name: "PIM-SG-INT-SecOps", scope: "intune", persona: "Intune endpoint security", template: "GroupJIT", description: "Eligible members activate to act as Intune Endpoint Security Manager." },
     // Defender XDR access groups (2.2): eligible members, the group
     // activation is the gate — Defender has no PIM of its own. `xdr` names
@@ -372,11 +401,34 @@ const PIM_BASELINE = {
     // Exchange RBAC access groups (3.0): eligible members, the group is a
     // member of an Exchange Online role group (Exchange accepts a
     // role-assignable Entra group there, tested on cloudfellows.dev, 5 Oct
-    // 2026). The role group membership is made in Exchange, not by Graph.
-    { name: "PIM-SG-EXO-Recipients", scope: "exchange", persona: "Recipients", template: "GroupJIT", exchange: { roleGroup: "Recipient Management" }, description: "Eligible members activate for mailboxes, contacts, distribution groups and mailbox permissions — without Exchange Administrator." },
-    { name: "PIM-SG-EXO-HelpDesk", scope: "exchange", persona: "Exchange first line", template: "GroupJIT", exchange: { roleGroup: "Help Desk" }, description: "Eligible members activate to view and change recipient properties." },
-    { name: "PIM-SG-EXO-Hygiene", scope: "exchange", persona: "Mail hygiene", template: "GroupJIT", exchange: { roleGroup: "Hygiene Management" }, description: "Eligible members activate for anti-spam, anti-malware and connection filtering." },
-    { name: "PIM-SG-EXO-Reader", scope: "exchange", persona: "Exchange readers", template: "GroupJIT", exchange: { roleGroup: "View-Only Organization Management" }, description: "Eligible members activate to read the whole Exchange configuration." },
+    // 2026). The role group membership is made in Exchange, not by Graph:
+    // Graph lists the role groups and the roles each holds through
+    // /roleManagement/exchange/roleAssignments (checked 13 Oct 2026 on
+    // cloudfellows.dev) but never their members, and a role-assignable group
+    // is not a principal that provider resolves. So Deploy generates the
+    // Exchange PowerShell script (Add-RoleGroupMember) with the group ids
+    // filled in and reads its outcome file back (4.1). `roles` lists what the
+    // role group holds (Microsoft Learn, Permissions in Exchange Online).
+    { name: "PIM-SG-EXO-Recipients", scope: "exchange", persona: "Recipients", template: "GroupJIT", exchange: { roleGroup: "Recipient Management", roles: ["Distribution Groups", "Mail Recipient Creation", "Mail Recipients", "Message Tracking", "Migration", "Move Mailboxes", "Recipient Policies", "Reset Password"] }, description: "Eligible members activate for mailboxes, contacts, distribution groups and mailbox permissions — without Exchange Administrator." },
+    { name: "PIM-SG-EXO-HelpDesk", scope: "exchange", persona: "Exchange first line", template: "GroupJIT", exchange: { roleGroup: "Help Desk", roles: ["Reset Password", "User Options", "View-Only Recipients"] }, description: "Eligible members activate to view and change recipient properties. The Entra first line reaches the same role group through Helpdesk Administrator; this group is for Exchange-only staff without an Entra role." },
+    { name: "PIM-SG-EXO-Hygiene", scope: "exchange", persona: "Mail hygiene", template: "GroupJIT", exchange: { roleGroup: "Hygiene Management", roles: ["Transport Hygiene", "View-Only Configuration", "View-Only Recipients"] }, description: "Eligible members activate for anti-spam, anti-malware and connection filtering." },
+    { name: "PIM-SG-EXO-Reader", scope: "exchange", persona: "Exchange readers", template: "GroupJIT", exchange: { roleGroup: "View-Only Organization Management", roles: ["View-Only Configuration", "View-Only Recipients"] }, description: "Eligible members activate to read the whole Exchange configuration." },
+    // Purview access groups (4.1, 13 Oct 2026): eligible members, the group is
+    // a member of a Purview role group. Microsoft documents exactly this (an
+    // Entra security group in a role group, PIM for Groups for just-in-time
+    // membership); a person assigned directly to a role group cannot be made
+    // just-in-time. Graph has no Purview provider — the role groups show up
+    // under the Exchange provider with their roles, never their members — so
+    // Deploy generates the Security and Compliance PowerShell script and reads
+    // its outcome back, as for Exchange. Organization Management and Role
+    // Management are never handed out through an access group; eDiscovery
+    // Administrator is held by nobody standing (named people by exception,
+    // reviewed quarterly).
+    { name: "PIM-SG-PUR-InfoProtection", scope: "purview", persona: "Information protection", template: "GroupJIT", purview: { roleGroup: "Information Protection Admins" }, description: "Eligible members activate for a shift to manage sensitivity labels and their policies — without Compliance Administrator." },
+    { name: "PIM-SG-PUR-Records", scope: "purview", persona: "Records management", template: "GroupJIT", purview: { roleGroup: "Records Management" }, description: "Eligible members activate for a shift for retention labels, the file plan and disposition." },
+    { name: "PIM-SG-PUR-eDiscovery", scope: "purview", persona: "eDiscovery", template: "GroupJITTier0", purview: { roleGroup: "eDiscovery Manager" }, description: "Eligible members activate for two hours, with context c1 and approval, to search and hold everybody's mail and files. Microsoft documents a mail-enabled security group in the eDiscovery Managers subgroup and no group in eDiscovery Administrators — whether this role-assignable group is accepted is checked by the script's outcome." },
+    { name: "PIM-SG-PUR-InsiderRisk", scope: "purview", persona: "Insider risk", template: "GroupJITApproval", purview: { roleGroup: "Insider Risk Management" }, description: "Eligible members activate for four hours, with approval by PIM-SG-Approvers, to see who did what with data." },
+    { name: "PIM-SG-PUR-CommCompliance", scope: "purview", persona: "Communication compliance", template: "GroupJITApproval", purview: { roleGroup: "Communication Compliance" }, description: "Eligible members activate for four hours, with approval by PIM-SG-Approvers, to read flagged messages." },
     { name: "PIM-SG-AZ-Tenant-Owner", scope: "azure", persona: "Azure tenant root", template: "GroupMember", azure: { role: "Owner", scope: "Tenant Root Group" }, description: "Owner at the tenant root management group." },
     { name: "PIM-SG-AZ-Platform-Owner", scope: "azure", persona: "Platform", template: "GroupMember", azure: { role: "Owner", scope: "Platform subscription" } },
     { name: "PIM-SG-AZ-Platform-Contributor", scope: "azure", persona: "Platform", template: "GroupMember", azure: { role: "Contributor", scope: "Platform subscription" } },
@@ -409,6 +461,7 @@ const PIM_BASELINE = {
     { name: "PIM-SG-M365-ServiceDesk", scope: "m365", path: "job", persona: "Service desk", template: "GroupJITTier1", description: "Job group: eligible members, one activation gives every role of the job. First line for everybody but admins and executives: passwords, authentication methods, licences." },
     { name: "PIM-SG-M365-ServiceDesk-VIP", scope: "m365", path: "job", persona: "Service desk for executives", template: "GroupJITTier1", description: "Job group: eligible members, one activation gives every role of the job. The named few who may help executives: the desk roles scoped to the optional AU-RM-Executives. Deploy can create the empty unit and scoped eligibilities; populate it only after testing the scoped administrators." },
     { name: "PIM-SG-M365-Audit", scope: "m365", path: "direct", persona: "Internal audit", template: "GroupMember", description: "Reads everything, changes nothing; its own review cadence." },
+    { name: "PIM-SG-M365-Data-Direct", scope: "m365", path: "direct", persona: "Data platform", template: "GroupMember", description: "Direct group: active members, eligible for Fabric Administrator — the data platform team (4.1)." },
   ],
   // ---- PROFILES ------------------------------------------------------
   // The same tiers, roles and names; a profile picks the groups a tenant of
@@ -540,8 +593,8 @@ const PIM_BASELINE = {
       label: "Small business",
       size: "25 to 250 people, two to six in IT",
       description: "Four persona groups instead of seven; among Tier 0 roles, approval only on Global Administrator through customer-selected approvers; the other Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and Tier 2 activation alerts are Critical; assignment alerts remain All; Global Administrator for two hours; two Intune access groups; three Defender XDR access groups (Admin on the Tier 0 gate, Operator-T3 for all of IT, Reader — T1 and T2 fold into T3 as the desk folds into Ops); three Azure groups, made only when there is Azure.",
-      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOps-Direct", "PIM-SG-M365-Ops", "PIM-SG-M365-Ops-Direct", "PIM-SG-M365-SecOpsReader", "PIM-SG-EXO-Recipients", "PIM-SG-INT-Ops", "PIM-SG-INT-SecOps", "PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Reader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"],
-      merge: { "PIM-SG-M365-Tier0": "PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Helpdesk": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps-Direct": "PIM-SG-M365-Ops-Direct", "PIM-SG-INT-HelpDesk": "PIM-SG-INT-Ops", "PIM-SG-XDR-Operator-T1": "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2": "PIM-SG-XDR-Operator-T3" },
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOps-Direct", "PIM-SG-M365-Ops", "PIM-SG-M365-Ops-Direct", "PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Teams", "PIM-SG-M365-Backup-Direct", "PIM-SG-EXO-Recipients", "PIM-SG-PUR-InfoProtection", "PIM-SG-PUR-eDiscovery", "PIM-SG-INT-Ops", "PIM-SG-INT-SecOps", "PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Reader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Sub-Owner", "PIM-SG-AZ-Sub-Contributor"],
+      merge: { "PIM-SG-M365-Tier0": "PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Helpdesk": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps": "PIM-SG-M365-Ops", "PIM-SG-M365-AppOps-Direct": "PIM-SG-M365-Ops-Direct", "PIM-SG-M365-Billing": "PIM-SG-M365-Ops", "PIM-SG-INT-HelpDesk": "PIM-SG-INT-Ops", "PIM-SG-XDR-Operator-T1": "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2": "PIM-SG-XDR-Operator-T3" },
       templates: {
         Tier0: { ApprovalRequired: false, Approvers: [], description: "Two hours, justification, authentication context c1, alert on every activation — no approval, except on Global Administrator itself (its override)." },
         Tier1: { Notification_Activation_Alert: { isDefaultRecipientEnabled: true, notificationLevel: "Critical", Recipients: ["pim-alerts"] } },
@@ -564,8 +617,8 @@ const PIM_BASELINE = {
     large: {
       label: "Large · one region",
       size: "one country, several IT teams, a service desk, an ITSM tool",
-      description: "The teams own their roles: Ops becomes Identity, Workplace and Collab, AppOps becomes Apps, the desk gets a VIP variant for executives, auditors their own readers. Ticketing on Tier 0 and Tier 1 activations; Tier 0 approval by a rota of three (PIM-SG-Approvers-Tier0); executives in the restricted AU AU-RM-Executives, filled by hand. No administrative units per region. All five Defender XDR access groups, Admin on the Tier 0 rota.",
-      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Tier0", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOps-Direct", "PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit", "PIM-SG-M365-Identity", "PIM-SG-M365-Workplace", "PIM-SG-M365-Collab", "PIM-SG-M365-Collab-Direct", "PIM-SG-EXO-Recipients", "PIM-SG-EXO-HelpDesk", "PIM-SG-EXO-Hygiene", "PIM-SG-EXO-Reader", "PIM-SG-M365-Apps", "PIM-SG-M365-ServiceDesk", "PIM-SG-M365-ServiceDesk-VIP", "PIM-SG-INT-Ops", "PIM-SG-INT-HelpDesk", "PIM-SG-INT-SecOps", "PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2", "PIM-SG-XDR-Operator-T1", "PIM-SG-XDR-Reader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Platform-Owner", "PIM-SG-AZ-Platform-Contributor", "PIM-SG-AZ-Connectivity-Owner", "PIM-SG-AZ-Connectivity-Contributor", "PIM-SG-AZ-Management-Owner", "PIM-SG-AZ-Management-Contributor", "PIM-SG-AZ-LandingZone-Owner", "PIM-SG-AZ-LandingZone-Contributor", "PIM-SG-AZ-Corp-Owner", "PIM-SG-AZ-Corp-Contributor", "PIM-SG-AZ-Online-Owner", "PIM-SG-AZ-Online-Contributor"],
+      description: "The teams own their roles: Ops becomes Identity, Workplace and Collab, AppOps becomes Apps, the desk gets a VIP variant for executives, auditors their own readers. Ticketing on Tier 0 and Tier 1 activations; Tier 0 approval by a rota of three (PIM-SG-Approvers-Tier0); executives in the restricted AU AU-RM-Executives, filled by hand. No administrative units per region. All five Defender XDR access groups, Admin on the Tier 0 rota. 4.1: the Teams job group, Backup-Direct, Billing and Data-Direct, the five Purview access groups, Global Secure Access on SecOps.",
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Tier0", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOps-Direct", "PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit", "PIM-SG-M365-Identity", "PIM-SG-M365-Workplace", "PIM-SG-M365-Collab", "PIM-SG-M365-Collab-Direct", "PIM-SG-EXO-Recipients", "PIM-SG-EXO-HelpDesk", "PIM-SG-EXO-Hygiene", "PIM-SG-EXO-Reader", "PIM-SG-PUR-InfoProtection", "PIM-SG-PUR-Records", "PIM-SG-PUR-eDiscovery", "PIM-SG-PUR-InsiderRisk", "PIM-SG-PUR-CommCompliance", "PIM-SG-M365-Teams", "PIM-SG-M365-Backup-Direct", "PIM-SG-M365-Billing", "PIM-SG-M365-Data-Direct", "PIM-SG-M365-Apps", "PIM-SG-M365-ServiceDesk", "PIM-SG-M365-ServiceDesk-VIP", "PIM-SG-INT-Ops", "PIM-SG-INT-HelpDesk", "PIM-SG-INT-SecOps", "PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2", "PIM-SG-XDR-Operator-T1", "PIM-SG-XDR-Reader", "PIM-SG-AZ-Tenant-Owner", "PIM-SG-AZ-Platform-Owner", "PIM-SG-AZ-Platform-Contributor", "PIM-SG-AZ-Connectivity-Owner", "PIM-SG-AZ-Connectivity-Contributor", "PIM-SG-AZ-Management-Owner", "PIM-SG-AZ-Management-Contributor", "PIM-SG-AZ-LandingZone-Owner", "PIM-SG-AZ-LandingZone-Contributor", "PIM-SG-AZ-Corp-Owner", "PIM-SG-AZ-Corp-Contributor", "PIM-SG-AZ-Online-Owner", "PIM-SG-AZ-Online-Contributor"],
       merge: {},
       approvers: "PIM-SG-Approvers-Tier0",
       templates: {
@@ -602,6 +655,14 @@ const PIM_BASELINE = {
         "Application Developer": { via: ["PIM-SG-M365-Apps"] },
         "Message Center Reader": { via: ["PIM-SG-M365-ServiceDesk", "PIM-SG-M365-Identity", "PIM-SG-M365-Workplace", "PIM-SG-M365-Collab", "PIM-SG-M365-Apps", "PIM-SG-M365-SecOps"] },
         "Global Reader": { via: ["PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit"] },
+        // 4.1: where the workload roles land when Ops is split into teams.
+        "Teams Communications Support Specialist": { via: ["PIM-SG-M365-ServiceDesk"] },
+        "Printer Administrator": { via: ["PIM-SG-M365-Workplace"] },
+        "Reports Reader": { via: ["PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit"] },
+        "AI Administrator": { via: ["PIM-SG-M365-Collab"] },
+        "AI Reader": { via: ["PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Audit"] },
+        "Fabric Administrator": { via: ["PIM-SG-M365-Data-Direct"] },
+        "Dynamics 365 Administrator": { via: ["PIM-SG-M365-Collab"] },
       },
       regions: false,
       rmau: [{ name: "AU-RM-Executives", restricted: true, holds: "executives, their devices and sensitive groups that are not role-assignable — filled by hand in 🛡 Restricted AUs; PIM-SG-M365-ServiceDesk-VIP and Identity scoped on it" }],
@@ -624,9 +685,10 @@ const PIM_BASELINE = {
     },
     multi: {
       label: "Large · multi-region",
-      size: "several regions, central IT plus local IT per region",
-      description: "The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Intune and Defender XDR access groups, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. This profile does not define AU-RM-Executives; executive protection is a separate customer extension.",
-      groups: null,
+      size: "several regions: central IT first, then regional IT — no local IT below a region",
+      description: "The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Teams, Backup-Direct and Billing groups, the Intune, Defender XDR, Exchange and Purview access groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, two Exchange access groups scoped to the region's users, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. Azure is out of scope for this design (12 Oct 2026): no PIM-SG-AZ groups, no Azure section in Deploy.",
+      // 4.1: explicit, so that the Azure groups stay out (groups: null meant every group, Azure included).
+      groups: ["PIM-SG-M365-GlobalAdmin", "PIM-SG-M365-Tier0", "PIM-SG-M365-SecOps", "PIM-SG-M365-SecOps-Direct", "PIM-SG-M365-SecOpsReader", "PIM-SG-M365-Ops", "PIM-SG-M365-Ops-Direct", "PIM-SG-M365-Helpdesk", "PIM-SG-M365-AppOps", "PIM-SG-M365-AppOps-Direct", "PIM-SG-M365-Teams", "PIM-SG-M365-Backup-Direct", "PIM-SG-M365-Billing", "PIM-SG-INT-Ops", "PIM-SG-INT-HelpDesk", "PIM-SG-INT-SecOps", "PIM-SG-XDR-Admin", "PIM-SG-XDR-Operator-T3", "PIM-SG-XDR-Operator-T2", "PIM-SG-XDR-Operator-T1", "PIM-SG-XDR-Reader", "PIM-SG-EXO-Recipients", "PIM-SG-EXO-HelpDesk", "PIM-SG-EXO-Hygiene", "PIM-SG-EXO-Reader", "PIM-SG-PUR-InfoProtection", "PIM-SG-PUR-Records", "PIM-SG-PUR-eDiscovery", "PIM-SG-PUR-InsiderRisk", "PIM-SG-PUR-CommCompliance"],
       merge: {},
       templates: {},
       roles: {},
@@ -683,9 +745,16 @@ const PIM_BASELINE = {
       groups: [
         { name: "PIM-SG-<REG>-Helpdesk", persona: "Regional first line", path: "job", template: "GroupJITTier1", roleAssignable: true, description: "Job group: eligible members; one activation gives password, authentication and licence work on the region's people — never on an admin." },
         { name: "PIM-SG-<REG>-Ops", persona: "Regional second line", path: "job", template: "GroupJITTier1", roleAssignable: true, description: "Job group: eligible members; one activation gives the region's users, groups and devices." },
-        { name: "PIM-SG-INT-HelpDesk-<REG>", persona: "Regional Intune first line", template: "GroupJIT", roleAssignable: true, intune: true, description: "Eligible members activate to act as Intune Help Desk Operator on the region's devices." },
+        { name: "PIM-SG-INT-HelpDesk-<REG>", persona: "Regional Intune first line", template: "GroupJIT", roleAssignable: true, intune: true, description: "Eligible members activate to act as the Intune first line (INT-ROLE-HelpDesk) on the region's devices." },
         { name: "PIM-SG-INT-Ops-<REG>", persona: "Regional Intune second line", template: "GroupJIT", roleAssignable: true, intune: true, description: "Eligible members activate to act as INT-ROLE-Regional-Ops on the region's devices." },
         { name: "PIM-SG-<REG>-Approvers", persona: "Regional approvers", template: null, roleAssignable: false, members: "<approvers>", description: "Plain security group populated from the region's approver input. An optional regional approval gate must be configured explicitly; the default templates do not reference this group." },
+        // 4.1 (13 Oct 2026): regional Exchange — global IT first, then regional
+        // IT. A role group cannot be scoped per member, so each regional group
+        // gets DIRECT Exchange role assignments scoped to the user unit of the region
+        // (Graph beta, Exchange provider, directoryScopeId = the unit; needs
+        // RoleManagement.ReadWrite.Exchange). Hygiene and Reader stay central.
+        { name: "PIM-SG-EXO-Recipients-<REG>", persona: "Regional recipients", template: "GroupJIT", roleAssignable: true, exchange: { roles: ["Distribution Groups", "Mail Recipient Creation", "Mail Recipients", "Message Tracking", "Migration", "Move Mailboxes", "Recipient Policies", "Reset Password"], au: "AU-<REG>-Users" }, description: "Eligible members activate for a shift for the mailboxes, contacts and groups of the region only: the Recipient Management roles, scoped to AU-<REG>-Users." },
+        { name: "PIM-SG-EXO-HelpDesk-<REG>", persona: "Regional Exchange first line", template: "GroupJIT", roleAssignable: true, exchange: { roles: ["Reset Password", "User Options", "View-Only Recipients"], au: "AU-<REG>-Users" }, description: "Eligible members activate for a shift to view and change recipient properties of the region only: the Help Desk roles, scoped to AU-<REG>-Users." },
       ],
       // Eligible role assignments at AU scope — only roles Entra can scope
       // to an administrative unit (Microsoft Learn, September 2026).
@@ -711,7 +780,7 @@ const PIM_BASELINE = {
         ],
         autopilot: { profile: "Autopilot · <REG>", naming: "<devicePrefix>%SERIAL%", groupTag: "<autopilotTag>" },
       },
-      review: { name: "Access review · <REG>", scope: "PIM-SG-<REG>-Helpdesk, PIM-SG-<REG>-Ops, PIM-SG-INT-HelpDesk-<REG>, PIM-SG-INT-Ops-<REG>", reviewer: "<itLead>", cadence: "yearly", manual: true },
+      review: { name: "Access review · <REG>", scope: "PIM-SG-<REG>-Helpdesk, PIM-SG-<REG>-Ops, PIM-SG-INT-HelpDesk-<REG>, PIM-SG-INT-Ops-<REG>, PIM-SG-EXO-Recipients-<REG>, PIM-SG-EXO-HelpDesk-<REG>", reviewer: "<itLead>", cadence: "yearly", manual: true },
     },
   },
   // ---- INTUNE RBAC: the one custom role -------------------------------
@@ -794,6 +863,8 @@ const PIM_BASELINE = {
     "Access reviews: review every eligible assignment and persona group yearly. Review schedules are not created by Deploy; assignment expiry is not an access review.",
     "Intune RBAC is part of the framework: Deploy plans supported roles, tags and assignments; T53 reads and compares them. Privileged access uses PIM-SG-INT groups; SecOpsReader has the explicit standing Read Only Operator exception. Defender XDR (2.2): the five PIM-SG-XDR access groups are the framework's Entra side — Deploy creates them and their membership policies, T48 compares them; the Defender XDR roles, their permissions, the assignments that name the groups and the data sources are made in the Defender portal, separately, and are never read or written here. Purview workload RBAC remains separate.",
     "People are never in the catalog: active persona members and eligible Intune and Defender XDR members are added by an administrator (or an access package) and reviewed yearly.",
-    "Azure RBAC: Deploy creates optional PIM-SG-AZ groups only. ARM assignments and Azure PIM policies at management group or subscription scopes are separate. Roles and assignments offers an Azure RBAC read; Baseline does not provision ARM assignments.",
+    "Azure RBAC: Deploy creates optional PIM-SG-AZ groups only (small and large one-region; out of scope for multi-region). ARM assignments and Azure PIM policies at management group or subscription scopes are separate. Roles and assignments offers an Azure RBAC read; Baseline does not provision ARM assignments.",
+    "Where no API exists, Deploy generates the script (4.1): Exchange and Purview role group membership, the regional Exchange scopes until the Exchange provider write is consented, and the per-customer bindings of a SharePoint site, a Fabric workspace or a Dataverse environment to a PIM-SG-SPO, PIM-SG-FAB or PIM-SG-PP access group. The script carries the object ids, performs the actions and writes an outcome file that Deploy reads back; nothing is typed by hand.",
+    "Global Secure Access (4.1) is in every design: Global Secure Access Administrator at Tier 0 on SecOps-Direct, the Log Reader on the SecOps job. Private Access stays with Application Administrator, GSA-based Conditional Access with SecOps-Direct.",
   ],
 };

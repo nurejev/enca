@@ -34,7 +34,7 @@ test("catalog: every role names a template, every via a group of its profile, na
 
 test("3.0 model: job groups eligible members (GroupJITTier1), direct groups active members, access groups eligible, nothing in a restricted AU", () => {
   assert.ok(!Object.keys(CAT.templates).some((k) => /^GroupTier/.test(k)), "the 2.0 group tiers are gone");
-  for (const g of PB.allGroups(CAT)) assert.equal(g.template, g.scope === "intune" || g.scope === "exchange" ? "GroupJIT" : g.scope === "xdr" ? (g.name === "PIM-SG-XDR-Admin" ? "GroupJITTier0" : "GroupJIT") : g.path === "job" ? "GroupJITTier1" : "GroupMember", g.name);
+  for (const g of PB.allGroups(CAT)) assert.equal(g.template, g.scope === "intune" || g.scope === "exchange" ? "GroupJIT" : g.scope === "purview" ? (g.name === "PIM-SG-PUR-eDiscovery" ? "GroupJITTier0" : /InsiderRisk|CommCompliance/.test(g.name) ? "GroupJITApproval" : "GroupJIT") : g.scope === "xdr" ? (g.name === "PIM-SG-XDR-Admin" ? "GroupJITTier0" : "GroupJIT") : g.path === "job" ? "GroupJITTier1" : "GroupMember", g.name);
   for (const g of PB.allGroups(CAT).filter((x) => x.scope === "m365")) assert.ok(g.path === "job" || g.path === "direct", `${g.name}: a path`);
   const t1 = PB.fromTemplate(CAT.templates.GroupJITTier1);
   assert.equal(t1.activation, "PT4H", "decided 5 Oct 2026: one job activation lasts four hours"); assert.equal(t1.permActive, false); assert.equal(t1.approval, false);
@@ -91,7 +91,7 @@ test("review: a rule the policy does not carry reads 'rule absent', never a defa
 
 test("compare on the demo (multi-region): policies, findings, the group model by id", () => {
   const res = PB.compare(MULTI, tenant());
-  assert.equal(res.counts.roles, CAT.roles.length); assert.equal(res.counts.match, 22); assert.equal(res.counts.differs, 16); assert.equal(res.counts.conflict, 0);
+  assert.equal(res.counts.roles, CAT.roles.length); assert.equal(res.counts.match, 22); assert.equal(res.counts.differs, 36, "4.1: the 18 new roles sit on the demo tenant default and differ"); assert.equal(res.counts.conflict, 0);
   assert.equal(row(res, "Global Administrator").status, "match");
   assert.deepEqual(row(res, "Privileged Role Administrator").diffs.map((d) => d.key), ["approval", "approvers"]);
   const ex = row(res, "Exchange Administrator");
@@ -134,7 +134,7 @@ test("review: an eligibility at an administrative unit is not a tenant-wide carr
   t.eligible = t.eligible.map((a) => (a.principalName === "PIM-SG-M365-Tier0" ? Object.assign({}, a, { directoryScopeId: "/administrativeUnits/au-x" }) : a));
   const res = PB.compare(MULTI, t);
   const g = grp(res, "PIM-SG-M365-Tier0");
-  assert.equal(g.status, "differs"); assert.deepEqual(g.missingRoles, ["Privileged Authentication Administrator", "Privileged Role Administrator"]);
+  assert.equal(g.status, "differs"); assert.deepEqual(g.missingRoles, ["Domain Name Administrator", "Privileged Authentication Administrator", "Privileged Role Administrator"]);
   assert.deepEqual(g.scopedOnly, ["Privileged Authentication Administrator", "Privileged Role Administrator"]);
   assert.ok(row(res, "Privileged Role Administrator").findings.some((f) => /only at an administrative unit/.test(f)));
 });
@@ -143,7 +143,7 @@ test("review: matching is by id — a look-alike name on another object carries 
   const t = tenant();
   t.eligible = t.eligible.map((a) => (a.principalName === "PIM-SG-M365-Tier0" ? Object.assign({}, a, { principalId: "g-somebody-else" }) : a));
   const res = PB.compare(MULTI, t);
-  assert.equal(grp(res, "PIM-SG-M365-Tier0").missingRoles.length, 2);
+  assert.equal(grp(res, "PIM-SG-M365-Tier0").missingRoles.length, 3, "4.1: Domain Name Administrator joined the Tier0 group");
   assert.ok(row(res, "Privileged Role Administrator").findings.some((f) => /not eligible through PIM-SG-M365-Tier0$/.test(f)));
 });
 
@@ -197,7 +197,8 @@ test("render and toMd: every role and group, escaped names, 'Policy matches' bes
   const res = PB.compare(MULTI, tenant());
   const html = PB.tiles(res) + PB.render(res, { filter: "all" });
   for (const r of CAT.roles) assert.ok(html.includes(`<b>${r.name}</b>`), r.name);
-  for (const g of CAT.groups) assert.ok(html.includes(`<b>${g.name}</b>`), g.name);
+  for (const g of MULTI.groups) assert.ok(html.includes(`<b>${g.name}</b>`), g.name);
+  assert.ok(!CAT.groups.filter((g) => g.scope === "azure").some((g) => html.includes(`<b>${g.name}</b>`)), "4.1: Azure is out of the multi-region profile");
   assert.ok(!/<b>[^<]*<script/.test(html));
   assert.ok(html.includes("✓ Policy matches"), "Global Administrator matches but carries findings");
   assert.ok(html.includes("1 day") || html.includes("24 h"), "PT24H read as a duration");

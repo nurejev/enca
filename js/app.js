@@ -22812,11 +22812,17 @@ This is a directory write. Nothing else changes.`)) return;
     const bl = plan.blocked.length ? `<ul class="pmb-diffs pmb-findings">${plan.blocked.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : "";
     const fi = plan.findings.length || plan.manual.length ? `<ul class="pmb-diffs">${[...plan.findings, ...plan.manual.map((m) => `by hand — ${m}`)].map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : "";
     const dom = pimExpectDomain();
+    // 4.1: where no API exists, the script — one download per workload, and
+    // the outcome file it writes comes back through Import outcome.
+    const sc = (plan.scripts || []).length ? `<div class="pmb-scripts" data-pimscripts><p class="mini"><b>Where no API exists — the script:</b> ${plan.scripts.map((x) => `${esc(x.label)} (${x.entries.length} binding${x.entries.length === 1 ? "" : "s"})`).join(" · ")}. Each script carries display names and object ids only, performs the bindings and writes an outcome file next to itself; import that file here so the bindings count as verified.</p>
+      <div class="pmb-upload-row">${plan.scripts.map((x, i) => `<button class="btn" data-pimscript="${i}">⬇ ${esc(x.label)}</button>`).join("")}<label class="btn">📂 Import outcome <input type="file" accept=".json,application/json" data-pimoutcome hidden></label></div>
+      <div data-pimoutcomes></div></div>` : "";
     return `<div class="list-card xt-card pim-plan" data-pimplan>
       <h3>${esc(opts.title || "WhatIf")} <span class="mini">${n} operation${n === 1 ? "" : "s"}, in the order they run · nothing is written until ▶ Apply</span></h3>
       ${bl ? `<p class="mini pmb-bad-txt"><b>Blocked</b> — resolve these items and create a new preview before applying:</p>${bl}` : ""}
       ${n ? `<div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>#</th><th>Operation</th><th>Kind</th></tr></thead><tbody>${lines}</tbody></table></div>` : `<p class="mini">Nothing to do for what is ticked.</p>`}
       ${fi ? `<p class="mini"><b>Found, not changed</b>:</p>${fi}` : ""}
+      ${sc}
       ${n ? `<dl class="pim-kv">
         <dt>Impact</dt><dd>${(opts.impact || []).map(esc).join(" ") || "—"}</dd>
         <dt>Recovery</dt><dd>${(opts.recovery || []).map(esc).join(" ")}</dd>
@@ -22840,6 +22846,26 @@ This is a directory write. Nothing else changes.`)) return;
     const pj = panel.querySelector("[data-pimplanjson]");
     if (pj) pj.addEventListener("click", () => { downloadText(`pim-plan.${dom || "tenant"}`, "json", "application/json", JSON.stringify(plan, null, 2) + "\n"); });
     if (go) go.addEventListener("click", () => pimApply(panel.querySelector("[data-pimrun]"), plan, opts, go));
+    panel.querySelectorAll("[data-pimscript]").forEach((b) => b.addEventListener("click", () => {
+      const x = (plan.scripts || [])[Number(b.getAttribute("data-pimscript"))];
+      if (!x) return;
+      downloadText(x.file.replace(/\.ps1$/, ""), "ps1", "text/plain", x.text);
+    }));
+    const oc = panel.querySelector("[data-pimoutcome]");
+    if (oc) oc.addEventListener("change", async () => {
+      const f = oc.files && oc.files[0]; if (!f) return;
+      const host = panel.querySelector("[data-pimoutcomes]");
+      let text = ""; try { text = await f.text(); } catch { text = ""; }
+      const r = PimScript.readOutcome(text);
+      oc.value = "";
+      if (!r.ok) { if (host) host.innerHTML = `<p class="mini pmb-bad-txt">${esc(f.name)}: not an outcome file (${esc(r.error)}).</p>`; return; }
+      plan._outcomes = plan._outcomes || [];
+      plan._outcomes.push({ file: f.name, kind: r.kind, ran: r.ran, summary: r.summary, verified: r.verified });
+      const rows = r.results.map((x) => `<tr class="pmb-row pmb-${x.status === "failed" ? "differs" : x.status === "unknown" ? "unread" : "match"}"><td>${esc(x.group)}</td><td>${esc(x.target)}${x.role ? ` · ${esc(x.role)}` : ""}</td><td>${x.status === "failed" ? "✗ failed" : x.status === "added" ? "✓ added" : x.status === "present" ? "✓ already there" : "? unknown"}${x.error ? ` <span class="mini">${esc(x.error)}</span>` : ""}</td></tr>`).join("");
+      if (host) host.innerHTML = `<p class="mini"><b>${esc(f.name)}</b> — ${esc(r.kind)}${r.tenant ? ` · ${esc(r.tenant)}` : ""}${r.ran ? ` · ran ${esc(r.ran.slice(0, 16).replace("T", " "))}` : ""}: ${r.summary.added} added, ${r.summary.present} already there, ${r.summary.failed} failed${r.summary.unknown ? `, ${r.summary.unknown} unknown` : ""}.</p>
+        <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Group</th><th>Role group or scope</th><th>Outcome</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      toast(r.summary.failed ? `${r.summary.failed} binding${r.summary.failed === 1 ? "" : "s"} failed — see the outcome` : `${r.verified.length} binding${r.verified.length === 1 ? "" : "s"} verified from the outcome file`);
+    });
   }
   async function pimApply(host, plan, opts, btn) {
     if (plan.blocked.length || plan._applied || plan._running) return;

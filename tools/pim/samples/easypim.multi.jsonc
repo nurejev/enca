@@ -1,7 +1,7 @@
 // ======================================================================
-// CloudFellows PIM framework 4.0 — EasyPIM Orchestrator sample
+// CloudFellows PIM framework 4.1 — EasyPIM Orchestrator sample
 // Scenario: Large organisation, several regions (central IT plus local IT per region)
-// Profile: Large · multi-region — The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Intune and Defender XDR access groups, the Azure landing-zone groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. This profile does not define AU-RM-Executives; executive protection is a separate customer extension.
+// Profile: Large · multi-region — The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Teams, Backup-Direct and Billing groups, the Intune, Defender XDR, Exchange and Purview access groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, two Exchange access groups scoped to the region's users, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. Azure is out of scope for this design (12 Oct 2026): no PIM-SG-AZ groups, no Azure section in Deploy.
 //
 // The model (3.0): JOB groups — people ELIGIBLE members, the group ACTIVE,
 // permanently, in every role of the job: one activation (four hours) gives
@@ -35,8 +35,8 @@
   // Where the sample comes from. Leave it; EasyPIM ignores it.
   "_meta": {
     "schema": "cloudfellows-pim-config/2.1",
-    "catalog": "CloudFellows PIM framework 4.0",
-    "revised": "2026-10-12",
+    "catalog": "CloudFellows PIM framework 4.1",
+    "revised": "2026-10-13",
     "profile": "multi",
     "delta": false,
     "sample": "multi"
@@ -319,6 +319,44 @@
           "pim-alerts@contoso.com"
         ]
       }
+    },
+    "GroupJITApproval": {
+      "ActivationDuration": "PT4H",
+      "ActivationRequirement": "MultiFactorAuthentication,Justification",
+      "AuthenticationContext_Enabled": false,
+      "ApprovalRequired": true,
+      "Approvers": [
+        {
+          "id": "<id of PIM-SG-Approvers>",
+          "description": "PIM-SG-Approvers",
+          "type": "group"
+        }
+      ],
+      "AllowPermanentEligibility": false,
+      "MaximumEligibilityDuration": "P365D",
+      "AllowPermanentActiveAssignment": false,
+      "MaximumActiveAssignmentDuration": "P30D",
+      "Notification_Activation_Alert": {
+        "isDefaultRecipientEnabled": "true",
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts@contoso.com"
+        ]
+      },
+      "Notification_EligibleAssignment_Alert": {
+        "isDefaultRecipientEnabled": "true",
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts@contoso.com"
+        ]
+      },
+      "Notification_ActiveAssignment_Alert": {
+        "isDefaultRecipientEnabled": "true",
+        "notificationLevel": "All",
+        "Recipients": [
+          "pim-alerts@contoso.com"
+        ]
+      }
     }
   },
   // Every Entra role under the framework and the tier it activates under. The inline settings are the few deliberate exceptions.
@@ -447,6 +485,115 @@
         "Template": "Tier1",
         "AllowPermanentActiveAssignment": true
       },
+      "Teams Communications Administrator": {
+        "Template": "Tier1",
+        "AllowPermanentActiveAssignment": true
+      },
+      "Teams Telephony Administrator": {
+        "Template": "Tier1",
+        "AllowPermanentActiveAssignment": true
+      },
+      "Teams Devices Administrator": {
+        "Template": "Tier1",
+        "AllowPermanentActiveAssignment": true
+      },
+      "Teams Communications Support Engineer": {
+        "Template": "Tier2",
+        "AllowPermanentActiveAssignment": true
+      },
+      "Teams Communications Support Specialist": {
+        "Template": "Tier2",
+        "AllowPermanentActiveAssignment": true
+      },
+      "SharePoint Backup Administrator": {
+        "Template": "Tier1",
+        "ApprovalRequired": true,
+        "Approvers": [
+          {
+            "id": "<id of PIM-SG-Approvers>",
+            "description": "PIM-SG-Approvers",
+            "type": "group"
+          }
+        ]
+      },
+      "Exchange Backup Administrator": {
+        "Template": "Tier1",
+        "ApprovalRequired": true,
+        "Approvers": [
+          {
+            "id": "<id of PIM-SG-Approvers>",
+            "description": "PIM-SG-Approvers",
+            "type": "group"
+          }
+        ]
+      },
+      "Microsoft 365 Backup Administrator": {
+        "Template": "Tier1",
+        "ApprovalRequired": true,
+        "Approvers": [
+          {
+            "id": "<id of PIM-SG-Approvers>",
+            "description": "PIM-SG-Approvers",
+            "type": "group"
+          }
+        ]
+      },
+      "Billing Administrator": {
+        "Template": "Tier1"
+      },
+      "Reports Reader": {
+        "Template": "Reader"
+      },
+      "Domain Name Administrator": {
+        "Template": "Tier0"
+      },
+      "Printer Administrator": {
+        "Template": "Tier1",
+        "AllowPermanentActiveAssignment": true
+      },
+      "Attribute Definition Administrator": {
+        "Template": "Tier0",
+        "ApprovalRequired": true,
+        "Approvers": [
+          {
+            "id": "<id of PIM-SG-Approvers>",
+            "description": "PIM-SG-Approvers",
+            "type": "group"
+          }
+        ]
+      },
+      "Attribute Assignment Administrator": {
+        "Template": "Tier0",
+        "ApprovalRequired": true,
+        "Approvers": [
+          {
+            "id": "<id of PIM-SG-Approvers>",
+            "description": "PIM-SG-Approvers",
+            "type": "group"
+          }
+        ]
+      },
+      "AI Administrator": {
+        "Template": "Tier1",
+        "AllowPermanentActiveAssignment": true
+      },
+      "AI Reader": {
+        "Template": "Reader"
+      },
+      "Fabric Administrator": {
+        "Template": "Tier1"
+      },
+      "Dynamics 365 Administrator": {
+        "Template": "Tier1",
+        "AllowPermanentActiveAssignment": true
+      },
+      "Global Secure Access Administrator": {
+        "Template": "Tier0"
+      },
+      "Global Secure Access Log Reader": {
+        "Template": "Reader",
+        "AllowPermanentActiveAssignment": true
+      },
       "Helpdesk Administrator": {
         "Template": "Tier2",
         "AllowPermanentActiveAssignment": true
@@ -485,6 +632,11 @@
           "Template": "GroupJITTier1"
         }
       },
+      "PIM-SG-M365-SecOps-Direct": {
+        "Member": {
+          "Template": "GroupMember"
+        }
+      },
       "PIM-SG-M365-SecOpsReader": {
         "Member": {
           "Template": "GroupMember"
@@ -493,6 +645,11 @@
       "PIM-SG-M365-Ops": {
         "Member": {
           "Template": "GroupJITTier1"
+        }
+      },
+      "PIM-SG-M365-Ops-Direct": {
+        "Member": {
+          "Template": "GroupMember"
         }
       },
       "PIM-SG-M365-Helpdesk": {
@@ -505,17 +662,22 @@
           "Template": "GroupJITTier1"
         }
       },
-      "PIM-SG-M365-SecOps-Direct": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-M365-Ops-Direct": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
       "PIM-SG-M365-AppOps-Direct": {
+        "Member": {
+          "Template": "GroupMember"
+        }
+      },
+      "PIM-SG-M365-Teams": {
+        "Member": {
+          "Template": "GroupJITTier1"
+        }
+      },
+      "PIM-SG-M365-Backup-Direct": {
+        "Member": {
+          "Template": "GroupMember"
+        }
+      },
+      "PIM-SG-M365-Billing": {
         "Member": {
           "Template": "GroupMember"
         }
@@ -580,69 +742,29 @@
           "Template": "GroupJIT"
         }
       },
-      "PIM-SG-AZ-Tenant-Owner": {
+      "PIM-SG-PUR-InfoProtection": {
         "Member": {
-          "Template": "GroupMember"
+          "Template": "GroupJIT"
         }
       },
-      "PIM-SG-AZ-Platform-Owner": {
+      "PIM-SG-PUR-Records": {
         "Member": {
-          "Template": "GroupMember"
+          "Template": "GroupJIT"
         }
       },
-      "PIM-SG-AZ-Platform-Contributor": {
+      "PIM-SG-PUR-eDiscovery": {
         "Member": {
-          "Template": "GroupMember"
+          "Template": "GroupJITTier0"
         }
       },
-      "PIM-SG-AZ-Connectivity-Owner": {
+      "PIM-SG-PUR-InsiderRisk": {
         "Member": {
-          "Template": "GroupMember"
+          "Template": "GroupJITApproval"
         }
       },
-      "PIM-SG-AZ-Connectivity-Contributor": {
+      "PIM-SG-PUR-CommCompliance": {
         "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-Management-Owner": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-Management-Contributor": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-LandingZone-Owner": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-LandingZone-Contributor": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-Corp-Owner": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-Corp-Contributor": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-Online-Owner": {
-        "Member": {
-          "Template": "GroupMember"
-        }
-      },
-      "PIM-SG-AZ-Online-Contributor": {
-        "Member": {
-          "Template": "GroupMember"
+          "Template": "GroupJITApproval"
         }
       }
     }
@@ -659,7 +781,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-GlobalAdmin carries Global Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-GlobalAdmin carries Global Administrator"
           }
         ]
       },
@@ -672,7 +794,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Tier0 carries Privileged Role Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Tier0 carries Privileged Role Administrator"
           }
         ]
       },
@@ -685,7 +807,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Tier0 carries Privileged Authentication Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Tier0 carries Privileged Authentication Administrator"
           }
         ]
       },
@@ -698,7 +820,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOps-Direct carries Conditional Access Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps-Direct carries Conditional Access Administrator"
           }
         ]
       },
@@ -711,7 +833,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOps-Direct carries Security Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps-Direct carries Security Administrator"
           }
         ]
       },
@@ -724,7 +846,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps-Direct carries Exchange Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps-Direct carries Exchange Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops-Direct>",
@@ -732,7 +854,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops-Direct carries Exchange Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops-Direct carries Exchange Administrator"
           }
         ]
       },
@@ -745,7 +867,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps-Direct carries SharePoint Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps-Direct carries SharePoint Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops-Direct>",
@@ -753,7 +875,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops-Direct carries SharePoint Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops-Direct carries SharePoint Administrator"
           }
         ]
       },
@@ -766,7 +888,15 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Teams Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Teams Administrator"
+          },
+          {
+            "principalId": "<id of PIM-SG-M365-Teams>",
+            "principalName": "PIM-SG-M365-Teams",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Teams holds Teams Administrator"
           }
         ]
       },
@@ -779,7 +909,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Intune Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Intune Administrator"
           }
         ]
       },
@@ -792,7 +922,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Application Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Application Administrator"
           }
         ]
       },
@@ -805,7 +935,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps holds Cloud Application Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds Cloud Application Administrator"
           }
         ]
       },
@@ -818,7 +948,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps holds Application Developer"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds Application Developer"
           }
         ]
       },
@@ -831,7 +961,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps holds Power Platform Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds Power Platform Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -839,7 +969,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Power Platform Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Power Platform Administrator"
           }
         ]
       },
@@ -852,7 +982,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds Authentication Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Authentication Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -860,7 +990,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Authentication Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Authentication Administrator"
           }
         ]
       },
@@ -873,7 +1003,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Authentication Policy Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Authentication Policy Administrator"
           }
         ]
       },
@@ -886,7 +1016,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds User Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds User Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -894,7 +1024,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds User Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds User Administrator"
           }
         ]
       },
@@ -907,7 +1037,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds Groups Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Groups Administrator"
           }
         ]
       },
@@ -920,7 +1050,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds License Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds License Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -928,7 +1058,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds License Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds License Administrator"
           }
         ]
       },
@@ -941,7 +1071,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds Password Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Password Administrator"
           }
         ]
       },
@@ -954,7 +1084,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds Cloud Device Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Cloud Device Administrator"
           }
         ]
       },
@@ -967,7 +1097,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds Microsoft Entra Joined Device Local Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Microsoft Entra Joined Device Local Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -975,7 +1105,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Microsoft Entra Joined Device Local Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Microsoft Entra Joined Device Local Administrator"
           }
         ]
       },
@@ -988,7 +1118,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Identity Governance Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Identity Governance Administrator"
           }
         ]
       },
@@ -1001,7 +1131,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Lifecycle Workflows Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Lifecycle Workflows Administrator"
           }
         ]
       },
@@ -1014,7 +1144,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Service Support Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Service Support Administrator"
           }
         ]
       },
@@ -1027,7 +1157,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Edge Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Edge Administrator"
           }
         ]
       },
@@ -1040,7 +1170,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps holds Office Apps Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds Office Apps Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -1048,7 +1178,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Office Apps Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Office Apps Administrator"
           }
         ]
       },
@@ -1061,7 +1191,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps holds Guest Inviter"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds Guest Inviter"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -1069,7 +1199,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Guest Inviter"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Guest Inviter"
           }
         ]
       },
@@ -1082,7 +1212,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOps-Direct carries Compliance Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps-Direct carries Compliance Administrator"
           }
         ]
       },
@@ -1095,7 +1225,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOps-Direct carries Compliance Data Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps-Direct carries Compliance Data Administrator"
           }
         ]
       },
@@ -1108,7 +1238,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOps holds Cloud App Security Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps holds Cloud App Security Administrator"
           }
         ]
       },
@@ -1121,7 +1251,267 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOps holds Security Operator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps holds Security Operator"
+          }
+        ]
+      },
+      {
+        "roleName": "Teams Communications Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Teams>",
+            "principalName": "PIM-SG-M365-Teams",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Teams holds Teams Communications Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Teams Telephony Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Teams>",
+            "principalName": "PIM-SG-M365-Teams",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Teams holds Teams Telephony Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Teams Devices Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Teams>",
+            "principalName": "PIM-SG-M365-Teams",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Teams holds Teams Devices Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Teams Communications Support Engineer",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Teams>",
+            "principalName": "PIM-SG-M365-Teams",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Teams holds Teams Communications Support Engineer"
+          }
+        ]
+      },
+      {
+        "roleName": "Teams Communications Support Specialist",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Helpdesk>",
+            "principalName": "PIM-SG-M365-Helpdesk",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Teams Communications Support Specialist"
+          }
+        ]
+      },
+      {
+        "roleName": "SharePoint Backup Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Backup-Direct>",
+            "principalName": "PIM-SG-M365-Backup-Direct",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Backup-Direct carries SharePoint Backup Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Exchange Backup Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Backup-Direct>",
+            "principalName": "PIM-SG-M365-Backup-Direct",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Backup-Direct carries Exchange Backup Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Microsoft 365 Backup Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Backup-Direct>",
+            "principalName": "PIM-SG-M365-Backup-Direct",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Backup-Direct carries Microsoft 365 Backup Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Billing Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Billing>",
+            "principalName": "PIM-SG-M365-Billing",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Billing carries Billing Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Reports Reader",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-SecOpsReader>",
+            "principalName": "PIM-SG-M365-SecOpsReader",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOpsReader carries Reports Reader"
+          }
+        ]
+      },
+      {
+        "roleName": "Domain Name Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Tier0>",
+            "principalName": "PIM-SG-M365-Tier0",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Tier0 carries Domain Name Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Printer Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-Ops>",
+            "principalName": "PIM-SG-M365-Ops",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Printer Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Attribute Definition Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-SecOps-Direct>",
+            "principalName": "PIM-SG-M365-SecOps-Direct",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps-Direct carries Attribute Definition Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Attribute Assignment Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-SecOps-Direct>",
+            "principalName": "PIM-SG-M365-SecOps-Direct",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps-Direct carries Attribute Assignment Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "AI Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-AppOps>",
+            "principalName": "PIM-SG-M365-AppOps",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds AI Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "AI Reader",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-SecOpsReader>",
+            "principalName": "PIM-SG-M365-SecOpsReader",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOpsReader carries AI Reader"
+          }
+        ]
+      },
+      {
+        "roleName": "Fabric Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-AppOps-Direct>",
+            "principalName": "PIM-SG-M365-AppOps-Direct",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps-Direct carries Fabric Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Dynamics 365 Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-AppOps>",
+            "principalName": "PIM-SG-M365-AppOps",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds Dynamics 365 Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Global Secure Access Administrator",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-SecOps-Direct>",
+            "principalName": "PIM-SG-M365-SecOps-Direct",
+            "principalType": "Group",
+            "assignmentType": "Eligible",
+            "duration": "P365D",
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps-Direct carries Global Secure Access Administrator"
+          }
+        ]
+      },
+      {
+        "roleName": "Global Secure Access Log Reader",
+        "assignments": [
+          {
+            "principalId": "<id of PIM-SG-M365-SecOps>",
+            "principalName": "PIM-SG-M365-SecOps",
+            "principalType": "Group",
+            "assignmentType": "Active",
+            "permanent": true,
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps holds Global Secure Access Log Reader"
           }
         ]
       },
@@ -1134,7 +1524,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds Helpdesk Administrator"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Helpdesk Administrator"
           }
         ]
       },
@@ -1147,7 +1537,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-AppOps holds Message Center Reader"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-AppOps holds Message Center Reader"
           },
           {
             "principalId": "<id of PIM-SG-M365-Helpdesk>",
@@ -1155,7 +1545,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Helpdesk holds Message Center Reader"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Helpdesk holds Message Center Reader"
           },
           {
             "principalId": "<id of PIM-SG-M365-Ops>",
@@ -1163,7 +1553,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-Ops holds Message Center Reader"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-Ops holds Message Center Reader"
           },
           {
             "principalId": "<id of PIM-SG-M365-SecOps>",
@@ -1171,7 +1561,7 @@
             "principalType": "Group",
             "assignmentType": "Active",
             "permanent": true,
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOps holds Message Center Reader"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOps holds Message Center Reader"
           }
         ]
       },
@@ -1184,7 +1574,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOpsReader carries Global Reader"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOpsReader carries Global Reader"
           }
         ]
       },
@@ -1197,7 +1587,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 4.0: PIM-SG-M365-SecOpsReader carries Security Reader"
+            "justification": "CloudFellows PIM framework 4.1: PIM-SG-M365-SecOpsReader carries Security Reader"
           }
         ]
       }
@@ -1403,6 +1793,30 @@
         "assignments": [
           {
             "principalId": "<EDIT: object id of adm- account of each person who needs these roles one at a time (Exchange and SharePoint)>",
+            "assignmentType": "Active",
+            "duration": "P365D",
+            "justification": "EDIT: why this person is a member"
+          }
+        ]
+      },
+      {
+        "groupId": "<id of PIM-SG-M365-Backup-Direct>",
+        "roleName": "Member",
+        "assignments": [
+          {
+            "principalId": "<EDIT: object id of adm- account of each person who needs these roles one at a time (Backup and restore)>",
+            "assignmentType": "Active",
+            "duration": "P365D",
+            "justification": "EDIT: why this person is a member"
+          }
+        ]
+      },
+      {
+        "groupId": "<id of PIM-SG-M365-Billing>",
+        "roleName": "Member",
+        "assignments": [
+          {
+            "principalId": "<EDIT: object id of adm- account of each person who needs these roles one at a time (Finance)>",
             "assignmentType": "Active",
             "duration": "P365D",
             "justification": "EDIT: why this person is a member"
