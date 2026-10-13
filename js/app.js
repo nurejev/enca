@@ -7881,15 +7881,15 @@ max@contoso.com,"Global, DevOps"</pre>
     const st = { ok: '<span class="mini" style="color:var(--on)">✓ there</span>', missing: '<span class="mini" style="color:var(--off)">not in tenant — ② Create</span>', dynamic: '<span class="mini" style="color:var(--off)">dynamic — refused</span>', duplicate: '<span class="mini" style="color:var(--off)">two groups carry it</span>', unknown: '<span class="mini muted">not checked</span>' };
     const doms = [...new Set([tenantDefaultDomain, ...(tenantDomains || [])].filter(Boolean).map((d) => String(d).toLowerCase()))];
     return `<details class="dg-opts"${dg.setOpen || !dg.list ? " open" : ""}><summary class="mini"><b>⚙ Settings</b> — domains, external marker, deploy groups · kept for this tenant</summary>
-        <div class="dg-grid">
-          <label class="mini">Main account domain<input class="txt" data-dg-opt="mainDomain" list="dgDomList" value="${esc(o.mainDomain)}" placeholder="${esc(tenantDefaultDomain || "contoso.com")}"></label>
-          <label class="mini">Second account domains (comma) — empty turns rules 0a, 0b and 5 off<input class="txt" data-dg-opt="secondDomains" list="dgDomList" value="${esc(o.secondDomains.join(", "))}" placeholder="none"></label>
-          <label class="mini">External marker — rule 2<span style="display:flex;gap:6px;align-items:center"><select class="txt" data-dg-opt="extAttr" style="flex:1 1 auto;min-width:0">${DgFill.EXT_ATTRS.map((a) => `<option${a === o.extAttr ? " selected" : ""}>${a}</option>`).join("")}</select> starts with <input class="txt" data-dg-opt="extPrefix" value="${esc(o.extPrefix)}" placeholder="off" style="flex:1 1 90px;min-width:70px"></span></label>
-          <label class="mini">Also list groups starting with (optional, unticked)<input class="txt" data-dg-opt="prefix" value="${esc(o.prefix)}" placeholder="e.g. SG-Users-"></label>
+        <div class="dg-grid dg-g3">
+          <label class="dg-cell"><span class="dg-lb">Main account domain</span><input class="txt" data-dg-opt="mainDomain" list="dgDomList" value="${esc(o.mainDomain)}" placeholder="${esc(tenantDefaultDomain || "contoso.com")}"><span class="dg-hint">The domain of the main accounts</span></label>
+          <label class="dg-cell"><span class="dg-lb">Second account domains</span><input class="txt" data-dg-opt="secondDomains" list="dgDomList" value="${esc(o.secondDomains.join(", "))}" placeholder="none"><span class="dg-hint">Comma-separated. Empty turns rules 0a, 0b and 5 off</span></label>
+          <label class="dg-cell"><span class="dg-lb">Also list groups starting with</span><input class="txt" data-dg-opt="prefix" value="${esc(o.prefix)}" placeholder="e.g. SG-Users-"><span class="dg-hint">Optional. Listed unticked</span></label>
+          <label class="dg-cell dg-wide"><span class="dg-lb">External marker — rule 2</span><span class="dg-ext"><select class="txt" data-dg-opt="extAttr">${DgFill.EXT_ATTRS.map((x) => `<option${x === o.extAttr ? " selected" : ""}>${x}</option>`).join("")}</select><span class="dg-sw">starts with</span><input class="txt" data-dg-opt="extPrefix" value="${esc(o.extPrefix)}" placeholder="off"></span><span class="dg-hint">A user whose attribute starts with this goes to the external group. Empty turns rule 2 off</span></label>
         </div>
         <datalist id="dgDomList">${doms.map((d) => `<option value="${esc(d)}">`).join("")}</datalist>
         <p class="mini" style="margin:10px 0 0"><b>Deploy groups</b> <span class="muted">— assigned groups Apply writes to; empty = the ENCA name</span></p>
-        <div class="dg-grid">${T.map((t) => `<label class="mini"><span><b>${esc(t.key)}</b> · ${esc(t.label)}</span><input class="txt" data-dg-tgt="${esc(t.key)}" value="${esc((o.targetNames || {})[t.key] || "")}" placeholder="${esc(def[t.key])}">${st[(dg.tgt || {})[t.key] || "unknown"]}</label>`).join("")}</div>
+        <div class="dg-grid dg-g4">${T.map((t) => `<label class="dg-cell"><span class="dg-lb"><b>${esc(t.key)}</b> · ${esc(t.label)}</span><input class="txt" data-dg-tgt="${esc(t.key)}" value="${esc((o.targetNames || {})[t.key] || "")}" placeholder="${esc(def[t.key])}">${st[(dg.tgt || {})[t.key] || "unknown"]}</label>`).join("")}</div>
       </details>`;
   }
 

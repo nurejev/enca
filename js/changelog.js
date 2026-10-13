@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32512, date: "2026-10-13", title: "Fill deploy groups from regions: the Settings line up",
+    items: [
+      { kind: "fixed", tool: "Conditional Access groups", text: "Fill deploy groups from regions, Settings: inputs in a row started at different heights because a long label wrapped, and the external marker was squeezed until the prefix read Externa. Label, input and hint now share rows, the external marker has a row of its own, and the seven deploy groups sit four and three. The select looks like the inputs, and Second account domains no longer shows a dropdown arrow it never had a list for. Two columns under 900 px wide, one under 560 px." },
+    ],
+  },
+  {
     build: 32511, date: "2026-10-13", title: "Exclusion groups: who was added, when, and what the audit log refused",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "Members tab: Show when each member was added. One read of the group last 30 days of the audit log, then every direct member says when they were added and by whom (marked app when it was not a person). A member with no add in the window says so, and a truncated read never claims they were added earlier." },
