@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32513, date: "2026-10-13", title: "Deployment dashboard: reads the tenant only, nothing from Fill from regions",
+    items: [
+      { kind: "improved", tool: "Deployment dashboard", text: "The dashboard no longer reads anything from 🌍 Fill from regions — not its region list, not its settings, not its rules. The deploy groups are whatever the tenant calls CAD-SEC-U-DG-* (one read) plus the names the active catalog gives them, shown as not in this tenant when they are missing. The two tools are separate: Fill puts people into the groups, the dashboard shows who is in them and who is not." },
+      { kind: "improved", tool: "Deployment dashboard", text: "Coverage is two numbers: in a deploy group, or left out of every one. The split by region source, the by-hand route, the rule column on the left-out list and the Fill from regions link under it are gone with the dependency; the left-out list keeps member, UPN and type, and a name still opens 🕵. Not read any more: the extension attributes on every user and the region sources' members, which makes the read shorter on a large tenant." },
+    ],
+  },
+  {
     build: 32512, date: "2026-10-13", title: "Fill deploy groups from regions: the Settings line up",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "Fill deploy groups from regions, Settings: inputs in a row started at different heights because a long label wrapped, and the external marker was squeezed until the prefix read Externa. Label, input and hint now share rows, the external marker has a row of its own, and the seven deploy groups sit four and three. The select looks like the inputs, and Second account domains no longer shows a dropdown arrow it never had a list for. Two columns under 900 px wide, one under 560 px." },
