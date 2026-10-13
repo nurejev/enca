@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32514, date: "2026-10-13", title: "Deployment dashboard: reads the tenant only, nothing from Fill from regions",
+    items: [
+      { kind: "improved", tool: "Deployment dashboard", text: "The dashboard no longer reads anything from 🌍 Fill from regions — not its region list, not its settings, not its rules. The deploy groups are whatever the tenant calls CAD-SEC-U-DG-* (one read) plus the names the active catalog gives them, shown as not in this tenant when they are missing. The two tools are separate: Fill puts people into the groups, the dashboard shows who is in them and who is not." },
+      { kind: "improved", tool: "Deployment dashboard", text: "Coverage is two numbers: in a deploy group, or left out of every one. The split by region source, the by-hand route, the rule column on the left-out list and the Fill from regions link under it are gone with the dependency; the left-out list keeps member, UPN and type, and a name still opens 🕵. Not read any more: the extension attributes on every user and the region sources' members, which makes the read shorter on a large tenant." },
+    ],
+  },
+  {
     build: 32513, date: "2026-10-13", title: "Fill deploy groups from regions: how it works, and admin accounts stay in ADM",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "Fill deploy groups from regions: a How it works panel in Sources and Preview explains the three steps, every rule as a table with your deploy group names, domains and external marker, a worked example, and exactly what Add only, Add + fix and Apply change. A rule that Settings turns off says so." },
