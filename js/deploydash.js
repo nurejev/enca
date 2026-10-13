@@ -56,9 +56,9 @@ const DeployDash = (() => {
   // The deploy groups, in the order 🌍 Fill names them, then whatever else
   // the baseline calls CAD-SEC-U-DG-*. The rule text is what 🌍 Fill does.
   const RULE = {
-    GLO: "everybody (rules 1–3)", INT: "internal members", EXT: "extensionAttribute10 starts with External",
+    GLO: "everybody (rules 1–3)", INT: "internal members", EXT: "the external marker (⚙ Settings) starts with the external prefix",
     GUESTUSERS: "guests", DevOps: "main account of a user with a second account", ADM: "second account with a main account",
-    SA: "second account without a main account, and users without Intune",
+    SA: "second account without a main account, and users only in sa-only sources",
   };
 
   // The chart series. `c` names a --dd-* colour token; the order is the
@@ -83,8 +83,9 @@ const DeployDash = (() => {
       const main = `${DgFill.localOf(upn)}@${lc(o.mainDomain)}`;
       return mains && mains.has(main) ? { rule: "0a", key: "ADM" } : { rule: "0b", key: "SA" };
     }
-    const x = lc(((u.onPremisesExtensionAttributes || {}).extensionAttribute10 || u.ext10 || ""));
-    if (x.startsWith(lc(o.extPrefix || "external"))) return { rule: "2", key: "EXT" };
+    const x = lc(((u.onPremisesExtensionAttributes || {})[o.extAttr || "extensionAttribute10"] || u.ext10 || ""));
+    const pre = lc(o.extPrefix == null ? "external" : o.extPrefix);
+    if (pre && x.startsWith(pre)) return { rule: "2", key: "EXT" };
     return { rule: "3", key: "INT" };
   }
 

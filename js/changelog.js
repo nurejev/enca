@@ -38,6 +38,15 @@ const CHANGELOG = [
     ],
   },
   {
+    build: 32509, date: "2026-10-12", title: "Fill from regions: your own region list, imported from CSV",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "🌍 Fill from regions has nothing about one customer built in any more. The region list is a CSV you import once per tenant — region, group, label, ticked, mode; the group by name, object id or a name ending in * — and it is checked against the tenant before it is saved: found with its member count, 0 members, not in this tenant, a duplicate, a name two groups carry, or a deploy group named as its own source. ⬇ Download template gives a sample." },
+      { kind: "improved", tool: "Conditional Access groups", text: "Where it is kept: in this browser, per tenant, with the file name and the date. ⬇ Export CSV gives the list back, ⬆ Replace imports a new one, Clear removes it. Another browser or machine imports it once." },
+      { kind: "improved", tool: "Conditional Access groups", text: "⚙ Settings, kept the same way: the main account domain (the tenant's default domain unless you set one), the second account domains (none turns the ADM, SA-for-second-accounts and DevOps rules off), which extensionAttribute marks an external user and what it starts with, an optional prefix that also lists the tenant's other groups unticked, and the name of each of the seven deploy groups — with whether it is there." },
+      { kind: "improved", tool: "Deployment dashboard", text: "The region sources are the groups on the tenant's 🌍 region list, and the deploy group names follow its settings." },
+    ],
+  },
+  {
     build: 32508, date: "2026-10-12", title: "PIM report: a holder's groups, and a pill that stays on one line",
     items: [
       { kind: "improved", tool: "PIM report", text: "🚪 Outside PIM: every account that holds a role has ▸ Groups. It opens the PIM groups she is in — active or eligible member, and what each group gives — and, on request, the other groups she belongs to with the path that put her there (SG-Team → CAB-SEC-U-CA200-Exclusion, nested, 2 levels). Groups that a loaded CA policy includes or excludes are listed with the count; the rest are counted, not listed." },
