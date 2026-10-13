@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32511, date: "2026-10-13", title: "Exclusion groups: who was added, when, and what the audit log refused",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "Members tab: Show when each member was added. One read of the group last 30 days of the audit log, then every direct member says when they were added and by whom (marked app when it was not a person). A member with no add in the window says so, and a truncated read never claims they were added earlier." },
+      { kind: "improved", tool: "Changes", text: "Membership changes are read by the two exact activities, Add member to group and Remove member from group, instead of the whole GroupManagement category, which on a real tenant is mostly PIM and self-service noise. Rows are flagged: widens a bypass, by an app, off hours." },
+      { kind: "fixed", tool: "Changes", text: "A change the directory refused (adding someone who is already a member returns result failure, DirectoryValueExistsException) used to read as the person gaining whatever the group grants. It now says it was refused and is not counted as an add or as a person who moved." },
+      { kind: "improved", tool: "Conditional Access groups", text: "History reads the newest 999 events instead of 50, says refused for a change the directory did not apply, and marks apps." },
+    ],
+  },
+  {
     build: 32510, date: "2026-10-13", title: "Framework 4.1: Exchange and Purview covered, the workload roles, Global Secure Access, the script where no API exists",
     items: [
       { kind: "new", tool: "Deploy", text: "Where no API exists, the script. Graph lists the Exchange and Purview role groups and the roles each holds, but never their members, and a role-assignable group is not a principal that provider resolves (checked on cloudfellows.dev, 13 Oct). So the Preview now carries ⬇ Script per workload: Exchange PowerShell for the PIM-SG-EXO groups (Add-RoleGroupMember with the group ids), Security and Compliance PowerShell for the new PIM-SG-PUR groups, and the scoped role assignments for the regional PIM-SG-EXO-*-REG groups. Each script carries display names and object ids only, performs the bindings and writes an outcome file; 📂 Import outcome reads it back and lists every binding as added, already there or failed. The By hand lines name no repository script any more." },

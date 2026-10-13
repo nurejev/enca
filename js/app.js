@@ -9654,19 +9654,41 @@ This is a directory write. Nothing else changes.`)) return;
       return true;
     } catch (e) { cgAddMsg = { html: `Remove failed: ${esc(e.message || e)}`, bad: true }; renderCaGroups(); }
   }
+  // 32511: the two exact member activities, not the whole GroupManagement
+  // category. If the service ever refuses the activity filter, fall back to the
+  // category read, which Audit.build narrows client-side as before.
+  const AU_FLAG = {
+    widensBypass: ["widens a bypass", "An add to a group that a policy excludes: this person now skips that policy."],
+    byApp: ["by an app", "Done by an application or service principal, not a signed-in person."],
+    offHours: ["off hours", "Outside 07:00-19:00 on a weekday, in your clock."],
+  };
+  async function auReadMembership(days, scopes) {
+    try {
+      const parts = await Promise.all(Audit.queryMembershipExact(days).map((q) => Graph.ggetAll(q, { scopes })));
+      const out = []; for (const p of parts) for (const x of p) out.push(x);
+      return out;
+    } catch (e) {
+      console.warn("Change audit: exact member-activity read failed, reading the category —", e.message || e);
+      return Graph.ggetAll(Audit.queryMembership(days), { scopes });
+    }
+  }
   async function cgReadHistory(r) {
     cgHistBusy = true; renderCaGroups();
     try {
-      if (isDemo) { cgHist = { id: r.id, rows: [{ activity: "Add member to group", target: "Demo user 1", when: "2026-07-21 09:12", by: "alex.admin@contoso.com", result: "success" }] }; }
+      if (isDemo) { cgHist = { id: r.id, added: {}, more: false, rows: [{ activity: "Add member to group", target: "Demo user 1", when: "2026-07-21 09:12", by: "alex.admin@contoso.com", byKind: "user", applied: true, result: "success" }] }; }
       else {
         if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { cgHist = { id: r.id, error: "AuditLog.Read.All was not granted" }; }
         else {
-          const j = await Graph.gget(`/auditLogs/directoryAudits?$filter=${encodeURIComponent(`targetResources/any(t:t/id eq '${r.id}')`)}&$orderby=activityDateTime desc&$top=50`);
-          cgHist = { id: r.id, rows: ((j && j.value) || []).map((x) => {
-            const by = (x.initiatedBy || {}); const who = (by.user && (by.user.userPrincipalName || by.user.displayName)) || (by.app && by.app.displayName) || "(unknown)";
-            const user = (x.targetResources || []).find((t) => /user/i.test(t.type || "") && t.id !== r.id);
-            return { activity: x.activityDisplayName || "", when: new Date(x.activityDateTime).toLocaleString(), by: who, result: x.result || "", target: user ? (user.userPrincipalName || user.displayName || "") : "" };
-          }) };
+          const j = await Graph.gget(`/auditLogs/directoryAudits?$filter=${encodeURIComponent(`targetResources/any(t:t/id eq '${r.id}')`)}&$orderby=activityDateTime desc&$top=999`);
+          const evs = (j && j.value) || [];
+          const mem = evs.filter((x) => Audit.isMembershipActivity(x.activityDisplayName)).map((x) => Audit.parseMembership(x, null)).filter(Boolean);
+          cgHist = { id: r.id, more: !!(j && j["@odata.nextLink"]),
+            added: Audit.addedIndex(mem, (iso) => new Date(iso).toLocaleString()),
+            rows: evs.map((x) => {
+              const by = (x.initiatedBy || {}); const who = (by.user && (by.user.userPrincipalName || by.user.displayName)) || (by.app && by.app.displayName) || "(unknown)";
+              const user = (x.targetResources || []).find((t) => /user/i.test(t.type || "") && t.id !== r.id);
+              return { activity: x.activityDisplayName || "", when: new Date(x.activityDateTime).toLocaleString(), by: who, byKind: Audit.actorOf(x).kind, applied: String(x.result || "").toLowerCase() === "success", result: x.result || "", target: user ? (user.userPrincipalName || user.displayName || "") : "" };
+            }) };
         }
       }
     } catch (e) { cgHist = { id: r.id, error: `Could not read the audit log: ${e.message || e}` }; }
@@ -13998,7 +14020,7 @@ This is a directory write. Nothing else changes.`)) return;
         : await Promise.all([
             auProg.fetchAll(Audit.queryPolicy(auDays), AU_MAX, "audit entries"),
             // only worth asking if any policy actually points at a group
-            watch.size ? Graph.ggetAll(Audit.queryMembership(auDays), { scopes }) : [],
+            watch.size ? auReadMembership(auDays, scopes) : [],
           ]);
       if (auProg.st.capped) toast(`Audit window truncated at ${AU_MAX.toLocaleString()} entries`);
       auRes = Audit.build([...pol, ...mem], { watch });
@@ -14131,7 +14153,7 @@ This is a directory write. Nothing else changes.`)) return;
           const detail = open ? `<tr class="au-sumdet"><td colspan="5">
             ${s.kind === "membership" && s.usedBy.length ? `<div class="au-why" style="margin:0 0 8px">This group is used as an <b>${esc(s.usedAs)}</b> on ${s.usedBy.length} polic${s.usedBy.length === 1 ? "y" : "ies"}: ${esc(s.usedBy.slice(0, 6).join(", "))}${s.usedBy.length > 6 ? ` +${s.usedBy.length - 6} more` : ""}</div>` : ""}
             <ul class="wi-list">${s.rows.slice(0, 40).map((x) => `<li>
-              <div class="wi-pn"><span class="au-act ${x.action}">${x.action}</span> ${esc(x.member || x.activity)}</div>
+              <div class="wi-pn"><span class="au-act ${x.action}">${x.action}</span> ${esc(x.member || x.activity)}${x.applied === false ? ` <span class="tag block" title="${esc(x.failure || "the directory refused it")}">refused</span>` : ""}</div>
               <div class="wi-why">${esc(new Date(x.when).toLocaleString())} · by ${esc(x.actor.name)}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""}${x.changeCount && x.kind !== "membership" ? ` · ${x.changeCount} field${x.changeCount === 1 ? "" : "s"}` : ""}</div>
             </li>`).join("")}</ul>
             ${s.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${s.rows.length} — switch to Timeline and search to see the rest.</p>` : ""}
@@ -14177,9 +14199,10 @@ This is a directory write. Nothing else changes.`)) return;
           <span class="au-when">${esc(auAgo(x.when))}</span>
         </div>
         <div class="au-sub">${esc(x.activity)} · by <b>${esc(x.actor.name)}</b>${x.actor.upn ? ` (${esc(x.actor.upn)})` : ""}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""} · ${esc(new Date(x.when).toLocaleString())}</div>
-        ${x.kind === "membership" ? `<div class="au-sub au-why">${x.action === "add" ? "⚠ " : ""}<b>${esc(x.member || "")}</b> ${x.action === "add" ? "gained" : "lost"} whatever this group grants —
+        ${x.kind === "membership" && x.applied === false ? `<div class="au-sub au-why">The directory refused this ${x.action === "add" ? "add" : "removal"} of <b>${esc(x.member || "")}</b>${x.failure ? ` (${esc(x.failure)})` : ""} — no membership moved in <b>${esc(x.target)}</b>.</div>` : ""}
+        ${x.kind === "membership" && x.applied !== false ? `<div class="au-sub au-why">${x.action === "add" ? "⚠ " : ""}<b>${esc(x.member || "")}</b> ${x.action === "add" ? "gained" : "lost"} whatever this group grants —
           ${x.usedAs === "exclude" ? "it is an <b>exclusion</b> group" : x.usedAs === "include" ? "it is an <b>include</b> group" : "it is used as <b>include and exclude</b>"}
-          on ${x.usedBy.length} polic${x.usedBy.length === 1 ? "y" : "ies"}: ${esc(x.usedBy.slice(0, 4).join(", "))}${x.usedBy.length > 4 ? ` +${x.usedBy.length - 4} more` : ""}</div>` : ""}
+          on ${x.usedBy.length} polic${x.usedBy.length === 1 ? "y" : "ies"}: ${esc(x.usedBy.slice(0, 4).join(", "))}${x.usedBy.length > 4 ? ` +${x.usedBy.length - 4} more` : ""}${(x.flags || []).filter((f) => f !== "failed").map((f) => ` <span class="tag block" title="${esc(AU_FLAG[f][1])}">${esc(AU_FLAG[f][0])}</span>`).join("")}</div>` : ""}
         ${open ? diff : ""}
       </div>`;
     }).join("") + auAgedHtml();

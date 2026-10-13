@@ -163,6 +163,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 322,
+      ws: "ca",
+      title: "👥 Exclusion groups: who was added, when, and what the audit log refused (T16 1.11.0, T12 5.19.0)",
+      tools: ["Changes", "Conditional Access groups"],
+      builds: [32511],
+      risk: "low",
+      what: "js/audit.js: queryMembershipExact (the two exact member activities, one query each; the category read stays as the fallback), parseMembership gains applied, failure, flags (widensBypass, byApp, offHours), memberUpn and memberId, offHours, addedIndex (latest successful add per person, undone by a later removal), summarize leaves refused changes out of add, remove and people moved. js/app.js: auReadMembership, the T16 row says refused instead of gained and shows the flags, cgReadHistory reads 999 events and builds the added index. js/groupsview.js: the Members tab button and an added-by note on each direct member, History marks refused and apps. Read-only: no new write and no new permission (AuditLog.Read.All was already asked by both tools).",
+      why: "Mihai, 13 Oct: check T16 for the audit and change logs of a CA exclusion group, and whether anything analyses members added to one. Both tools already read it; what was missing was the answer per member, and a real tenant showed two defects: the membership read pulled a category that is mostly noise, and a refused duplicate add was reported as the person gaining the bypass. Verified on cloudfellows.dev with a throwaway group: the event shapes in tools/audit-membership.test.cjs are the ones it returned.",
+      test: [
+        "Local: node --test tools/audit-membership.test.cjs (9) passes, 8 of them fail on 32510; the whole suite passes.",
+        "cloudfellows.dev: Changes, 30 days, Rescan. Exclusion group membership rows appear only for groups a policy points at, and no row is a PIM or Add group event.",
+        "cloudfellows.dev: in a throwaway group that no policy references nothing shows; add the same throwaway group as an exclusion on a report-only test policy, add a user, Rescan: one row, widens a bypass, by an app if done through Graph, and the policy named.",
+        "Add the same user to the group a second time (Graph returns 400): Rescan shows a refused row naming DirectoryValueExistsException and the group add count does not move.",
+        "Conditional Access groups: open DEVCF-Persona-Admins, Members, Show when each member was added: both members say no add in the last 30 days (earlier, or by a rule), because the group is older than the log.",
+        "Same drawer on the throwaway group after an add: the member says added with the time and by whom; after the remove it says no add. History lists both events.",
+        "Not verified on a live tenant: a group with more than 999 events (the truncated wording), the app-versus-user marking for a person who adds through the portal, a group whose members arrive by a dynamic rule.",
+      ],
+      files: ["js/audit.js", "js/app.js", "js/groupsview.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html", "tools/audit-membership.test.cjs"],
+    },
+    {
       n: 321,
       ws: "pim",
       title: "🧬 Framework 4.1 — Exchange and Purview covered, the workload roles, Global Secure Access, the script where no API exists (T48 0.9.0, T51 0.5.0, R83)",
