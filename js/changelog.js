@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32513, date: "2026-10-13", title: "Fill deploy groups from regions: how it works, and admin accounts stay in ADM",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "Fill deploy groups from regions: a How it works panel in Sources and Preview explains the three steps, every rule as a table with your deploy group names, domains and external marker, a worked example, and exactly what Add only, Add + fix and Apply change. A rule that Settings turns off says so." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "Fill deploy groups from regions: with Second accounts unticked, an admin account found in a ticked group (often the sa-only Unlicensed group) was treated as having no main account — it went to SA and Add + fix took it out of ADM. Every second account read is now paired with its main account, wherever it was read." },
+    ],
+  },
+  {
     build: 32512, date: "2026-10-13", title: "Fill deploy groups from regions: the Settings line up",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "Fill deploy groups from regions, Settings: inputs in a row started at different heights because a long label wrapped, and the external marker was squeezed until the prefix read Externa. Label, input and hint now share rows, the external marker has a row of its own, and the seven deploy groups sit four and three. The select looks like the inputs, and Second account domains no longer shows a dropdown arrow it never had a list for. Two columns under 900 px wide, one under 560 px." },

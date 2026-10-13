@@ -3039,6 +3039,14 @@ details.pr-role[open]>summary{margin-bottom:6px}
 @supports not (grid-template-rows:subgrid){.dg-cell{display:flex;flex-direction:column;gap:3px;grid-row:auto}}
 @media (max-width:900px){.dg-g3,.dg-g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.dg-g3,.dg-g4{grid-template-columns:minmax(0,1fr)}}
+/* 32513: ℹ How it works — the steps, the rules with this tenant's names, Fix and Apply */
+.dg-how{border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin:0 0 10px;background:var(--soft)}
+.dg-how>summary{cursor:pointer}
+.dg-how-b{padding:4px 0 2px}
+.dg-how-b h4{margin:10px 0 4px;font-size:13px}
+.dg-how-b ol,.dg-how-b ul{margin:0;padding-left:20px}
+.dg-how-b li{margin:3px 0}
+.dg-how-b .gu-tw{background:var(--surface);border-radius:8px}
 .dg-mode{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .dg-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px;margin-bottom:10px}
 .dg-tile{border:1px solid var(--border);border-radius:12px;padding:8px 10px}

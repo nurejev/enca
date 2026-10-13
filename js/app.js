@@ -7893,6 +7893,48 @@ max@contoso.com,"Global, DevOps"</pre>
       </details>`;
   }
 
+  // ℹ How it works (32513, Mihai 13 Oct: "need a little more explanation of the
+  // working") — the three steps, the rules as a table with this tenant's names,
+  // domains and marker, a worked example, and what Fix and Apply do. Shown in
+  // ① and ②; open on a tenant with no list yet, otherwise as the person left it.
+  function dgHowHtml() {
+    const o = dg.opts, T = DgFill.targets(o), tn = (k) => esc(T.find((t) => t.key === k).name);
+    const main = o.mainDomain || "contoso.com", sec = o.secondDomains[0] || "", second = !!o.secondDomains.length;
+    const off = (why) => ` <span class="dg-pill muted">off — ${esc(why)}</span>`;
+    const ex = (k) => `<b>${esc(k)}</b>`;
+    const r = (rule, who, to, x) => `<tr><td class="mini"><b>${rule}</b></td><td class="mini">${who}${x || ""}</td><td class="mini">${to}</td></tr>`;
+    const open = dg.howOpen != null ? dg.howOpen : !dg.list;
+    return `<details class="dg-how"${open ? " open" : ""}><summary class="mini"><b>ℹ How it works</b> — what is read, how each user is sorted, what Apply changes</summary>
+      <div class="dg-how-b">
+        <h4>The three steps</h4>
+        <ol class="mini">
+          <li><b>① Sources</b> — your region list (the CSV, kept for this tenant) shows its groups by region. Tick the ones to read. Also tick <b>🧳 All guests</b> and <b>🔑 Second accounts</b>, which are read straight from the directory because those users are often in no region group.</li>
+          <li><b>② Preview</b> — <b>Read &amp; preview</b> reads every user in the ticked groups (nested groups included) and the seven deploy groups as they are now, then sorts each user by the rules below. You see per deploy group how many are added (+) and removed (−), and per user the rule and why. <b>Nothing is written.</b></li>
+          <li><b>③ Apply</b> — a JSON backup, the tenant's domain typed, then the writes (adds first, removals after), a read-back and a report. <b>↩ Undo this run</b> reverses exactly what the run changed.</li>
+        </ol>
+        <h4>How each user is sorted</h4>
+        <p class="mini muted">The rules are checked top to bottom and the first one that matches decides — a user lands in exactly one of the top rows. Rule 5 comes on top of it.</p>
+        <div class="gu-tw"><table class="plist dg-table"><thead><tr><th>Rule</th><th>Who</th><th>Goes to</th></tr></thead><tbody>
+          ${r("skip", "A disabled account (Skip disabled accounts is ticked)", "nothing changes")}
+          ${r("0a", `A <b>second account</b> — in ${second ? esc(o.secondDomains.map((d) => "@" + d).join(", ")) : "a second account domain"} — whose name before the @ also exists as a <b>main account</b> in @${esc(main)}`, `${tn("ADM")} only`, second ? "" : off("no second account domains in ⚙ Settings"))}
+          ${r("0b", "A second account without such a main account (a service or shared account)", `${tn("SA")} only`, second ? "" : off("no second account domains"))}
+          ${r("0c", "A user who is <b>only</b> in sources marked <code>sa-only</code> in the CSV", `${tn("SA")} only`)}
+          ${r("1", "A <b>guest</b> (userType Guest)", `${tn("GUESTUSERS")} + ${tn("GLO")}`)}
+          ${r("2", `An <b>external</b> member: ${esc(o.extAttr)} starts with “${esc(o.extPrefix || "…")}” (any case)`, `${tn("EXT")} + ${tn("GLO")}`, o.extPrefix ? "" : off("no external prefix in ⚙ Settings"))}
+          ${r("3", "Everybody else — an internal member", `${tn("INT")} + ${tn("GLO")}`)}
+          ${r("+5", "A main account that <b>has</b> a second account (rule 0a paired them)", `also ${tn("DevOps")}`, second ? "" : off("no second account domains"))}
+        </tbody></table></div>
+        <p class="mini"><b>Example</b> — anna@${esc(main)} is in a ticked country group: rule 3, she goes to ${ex("INT")} + ${ex("GLO")}.${second ? ` Her admin account anna@${esc(sec)} is rule 0a → ${ex("ADM")}, and because she has one, anna@${esc(main)} also goes to ${ex("DevOps")} (shown as rule 3+5). svc-build@${esc(sec)} has no svc-build@${esc(main)}: rule 0b → ${ex("SA")}.` : ""}${o.extPrefix ? ` Marco has ${esc(o.extAttr)} “${esc(o.extPrefix)} - Supplier”: rule 2 → ${ex("EXT")} + ${ex("GLO")}.` : ""}</p>
+        <h4>What changes in the deploy groups</h4>
+        <ul class="mini">
+          <li><b>Add only</b> — a user who should be in a deploy group and is not, is added. Nobody is taken out.</li>
+          <li><b>Add + fix</b> (default) — also takes a user out of a deploy group the rules no longer give them, so a user whose marker turned External <b>moves</b> from ${ex("INT")} to ${ex("EXT")}. Fix is careful: it only touches users it read from a ticked source; it never takes anybody out of ${tn("DevOps")} (people are added there by hand too); and it cannot remove somebody who is in a deploy group only through another group — the preview marks them <i>nested</i> and the report lists them.</li>
+          <li>A deploy group that is missing or has dynamic membership is never written — it shows in red in the preview.</li>
+          <li>A user in two region groups counts once. Membership changes reach Conditional Access at the user's next token refresh, so the preview shows how many policies name each deploy group.</li>
+        </ul>
+      </div></details>`;
+  }
+
   function dgSourcesHtml() {
     const L = dg.list;
     const T = DgFill.targets(dg.opts), tn = (k) => T.find((t) => t.key === k).name;
@@ -7921,6 +7963,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const miss = dg.src ? dg.src.missing : [], bad = dg.src ? dg.src.refused : [];
     const second = dg.opts.secondDomains.length;
     return `${bar}
+      ${dgHowHtml()}
       ${rows.length ? `<div class="dg-presets mini"><span>Tick:</span>
         <button class="btn sm" data-dg-preset="list">The region list</button>
         <button class="btn sm" data-dg-preset="none">None</button>
@@ -7970,17 +8013,19 @@ max@contoso.com,"Global, DevOps"</pre>
             second.push(...await Graph.ggetAll(`/users?$filter=endswith(userPrincipalName,'@${d.replace(/'/g, "''")}')&$count=true&$select=${DG_SEL}&$top=999`));
           }
           second = second.filter((u) => DgFill.isSecond(u, o));
-          // Main accounts: the ones already read come free; the rest by UPN, 20 a batch.
-          const known = new Map();
-          for (const list of [...members.values(), guests || []]) for (const u of list) known.set(String(u.userPrincipalName || "").toLowerCase(), u);
-          const want = [...new Set(second.map((s) => `${DgFill.localOf(s.userPrincipalName)}@${o.mainDomain.toLowerCase()}`))];
-          const ask = o.mainDomain ? want.filter((u) => !known.has(u)) : [];
-          want.filter((u) => known.has(u)).forEach((u) => mains.set(u, known.get(u)));
-          if (ask.length) {
-            say(`Looking up ${ask.length} main account${ask.length === 1 ? "" : "s"}…`);
-            const res = await Graph.gbatch(ask.map((u, i) => ({ id: i, url: `/users/${encodeURIComponent(u)}?$select=${DG_SEL}` })));
-            ask.forEach((u, i) => { const v = res[i]; mains.set(u, v && v.body && v.body.id ? v.body : null); });
-          }
+        }
+        // Main accounts of EVERY second account read — the tick's and the ones a
+        // ticked source holds (32513). Already read ones come free; the rest by UPN, 20 a batch.
+        const known = new Map();
+        for (const list of [...members.values(), guests || []]) for (const u of list) known.set(String(u.userPrincipalName || "").toLowerCase(), u);
+        const seconds = [...(second || []), ...[...known.values()].filter((u) => DgFill.isSecond(u, o))];
+        const want = o.mainDomain ? [...new Set(seconds.map((s) => `${DgFill.localOf(s.userPrincipalName)}@${o.mainDomain.toLowerCase()}`))] : [];
+        const ask = want.filter((u) => !known.has(u));
+        want.filter((u) => known.has(u)).forEach((u) => mains.set(u, known.get(u)));
+        if (ask.length) {
+          say(`Looking up ${ask.length} main account${ask.length === 1 ? "" : "s"}…`);
+          const res = await Graph.gbatch(ask.map((u, i) => ({ id: i, url: `/users/${encodeURIComponent(u)}?$select=${DG_SEL}` })));
+          ask.forEach((u, i) => { const v = res[i]; mains.set(u, v && v.body && v.body.id ? v.body : null); });
         }
         say("Reading the deploy groups…");
         const targets = {};
@@ -8051,10 +8096,10 @@ max@contoso.com,"Global, DevOps"</pre>
       chip("skip", "Skipped", p.rows.filter((r) => r.rule === "skip").length)].join("");
     const pill = (k, cls) => `<span class="tag ${cls}">${cls === "block" ? "−" : cls === "grant" ? "+" : ""}${esc(k)}</span>`;
     const MAX = 400;
-    return `<div class="dg-tiles">${tiles}</div>${notes.join("")}
+    return `${dgHowHtml()}<div class="dg-tiles">${tiles}</div>${notes.join("")}
       <div class="dg-filt"><div class="chip-filter">${chips}</div><input class="txt" id="dgQuery" placeholder="Search user or source…" value="${esc(dg.query)}" style="max-width:260px">
         <span style="flex:1"></span><button class="btn sm" data-dg-exp="csv">Export CSV</button><button class="btn sm" data-dg-exp="md">Export MD</button></div>
-      <div class="gu-tw"><table class="plist dg-table"><thead><tr><th>User</th><th>Source</th><th>userType</th><th>${esc(p.opts.extAttr.replace("extensionAttribute", "extAttr"))}</th><th>Changes</th><th>Why</th></tr></thead><tbody>
+      <div class="gu-tw"><table class="plist dg-table"><thead><tr><th>User</th><th>Source</th><th>userType</th><th>${esc(p.opts.extAttr.replace("extensionAttribute", "extAttr"))}</th><th>Changes</th><th title="rule 0a–3 decides, +5 = also DevOps — see ℹ How it works">Why</th></tr></thead><tbody>
         ${list.slice(0, MAX).map((r) => `<tr><td>${esc(r.upn)}</td><td class="mini">${esc(r.src.join(", "))}</td><td class="mini">${esc(r.userType)}</td><td class="mini">${esc(r.ext10)}</td>
           <td>${r.add.map((k) => pill(k, "grant")).join("")}${r.remove.map((k) => pill(k, "block")).join("")}${!r.add.length && !r.remove.length ? `<span class="mini muted">${r.rule === "skip" ? "skipped" : r.keep.length ? "already in " + esc(r.keep.join(", ")) : "—"}</span>` : ""}${(r.nested || []).map((k) => `<span class="tag new" title="member through another group — cannot be removed here">nested ${esc(k)}</span>`).join("")}</td>
           <td class="mini">rule ${esc(r.rule)} — ${esc(r.why)}</td></tr>`).join("") || '<tr><td colspan="6" class="mini muted">Nothing matches.</td></tr>'}
@@ -8258,6 +8303,7 @@ max@contoso.com,"Global, DevOps"</pre>
   });
   $("dgBody").addEventListener("click", (e) => {
     const sum = e.target.closest(".dg-opts > summary"); if (sum && dg) { dg.setOpen = !sum.parentElement.open; return; }
+    const how = e.target.closest(".dg-how > summary"); if (how && dg) { dg.howOpen = !how.parentElement.open; return; }
     const b = e.target.closest("button"); if (!b || !dg) return;
     if (b.dataset.dgAct === "import") dgPickCsv();
     else if (b.dataset.dgAct === "template") downloadText("ENCA-region-list-template", "csv", "text/csv", DgFill.TEMPLATE);

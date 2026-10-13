@@ -98,6 +98,28 @@ test("rule 0a/0b/5: paired second account → ADM only, unpaired → SA only, th
   assert.deepEqual(p.unpaired, ["svc-build@contoso-adm.com"]);
 });
 
+test("32513: a second account read from a ticked source is paired even with the Second accounts tick off", () => {
+  const d = DG.demo();
+  // raj's admin account sits in the sa-only Unlicensed source; the tick is off (second: null)
+  const members = new Map(d.members); members.set("src-UNL-Q-T", [...members.get("src-UNL-Q-T"), d.second.find((u) => u.id === "u-raj-adm")]);
+  const p = run({ members, second: null, targets: { ...d.targets, ADM: { ...d.targets.ADM, direct: new Set(["u-raj-adm"]) } } });
+  const adm = row(p, "u-raj-adm");
+  assert.equal(adm.rule, "0a", "paired with raj.kumar@contoso.com, not rule 0b");
+  assert.deepEqual(adm.remove, [], "Fix must not take it out of ADM");
+  assert.ok(!adm.add.includes("SA"));
+  assert.ok(row(p, "u-raj").add.includes("DevOps"), "rule 5 follows from the pairing");
+});
+
+test("32513: ℹ How it works is in ① and ②, names the rules and keeps its open state", () => {
+  const app = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  const how = app.slice(app.indexOf("function dgHowHtml"), app.indexOf("function dgSourcesHtml"));
+  for (const r of ["skip", "0a", "0b", "0c", "1", "2", "3", "+5"]) assert.ok(how.includes(`r("${r}"`), r);
+  assert.match(how, /Add only[^]*Add \+ fix/);
+  assert.match(app, /\$\{bar\}\s*\$\{dgHowHtml\(\)\}/);
+  assert.match(app, /return `\$\{dgHowHtml\(\)\}<div class="dg-tiles">/);
+  assert.match(app, /\.dg-how > summary"\); if \(how && dg\) \{ dg\.howOpen/);
+});
+
 test("a guest whose UPN ends in the onmicrosoft.com domain is a guest, not a second account", () => {
   const d = DG.demo();
   const p = run({ second: [...d.second, d.guests[0]] });

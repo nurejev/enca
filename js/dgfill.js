@@ -248,7 +248,8 @@ const DgFill = (() => {
   //   members:  Map sourceId → [user]   (transitive users of each source)
   //   guests:   [user] | null           — the "All guests" source when ticked
   //   second:   [user] | null           — every account in the second domains
-  //   mains:    Map lower(upn) → user|null
+  //   mains:    Map lower(upn) → user|null — the main account of every
+  //             second account in members, guests or second
   //   targets:  { KEY: { id, name, dynamic, roleAssignable, direct: Set(ids), nested: Set(ids) } | null }
   function plan(input, opts) {
     const o = opt(opts);
@@ -265,7 +266,11 @@ const DgFill = (() => {
     for (const u of inp.guests || []) touch(u, "guests", "All guests");
     for (const u of inp.second || []) if (isSecond(u, o)) touch(u, "second", "Second accounts");
 
-    const pr = pairs(inp.second || [], inp.mains, o);
+    // Pair EVERY second account read — from the Second accounts tick or from a
+    // ticked source (an admin account is often in an sa-only group). Pairing
+    // only the tick's list sent such an account to SA, and Fix took it out of
+    // ADM, whenever the tick was off (32513).
+    const pr = pairs([...users.values()].map((e) => e.u).filter((u) => isSecond(u, o)), inp.mains, o);
     const pairBySecond = new Map(pr.map((p) => [p.second.id, p]));
     const mainsWithSecond = new Map();   // main id → [second upn]
     for (const p of pr) if (p.main && p.main.id && !(o.skipDisabled && p.main.accountEnabled === false)) {
