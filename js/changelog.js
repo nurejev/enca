@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32603, date: "2026-10-14", title: "Policy links in Egress & location impact and Global Secure Access open the policy",
+    items: [
+      { kind: "fixed", tool: "Egress & location impact", text: "Clicking a policy name in the table opens its policy card again — before, nothing happened." },
+      { kind: "fixed", tool: "Global Secure Access", text: "Clicking a policy that names the compliant network opens its policy card — the same dead link as in Egress & location impact." },
+    ],
+  },
+  {
     build: 32602, date: "2026-10-14", title: "What's new, Roadmap and Waiting for production in every workspace",
     items: [
       { kind: "improved", tool: "Workspaces", text: "The ❓ Help tools — What's new, Roadmap, Waiting for production, Permissions in this session and Help — are platform tools: every workspace lists them on its overview and in All tools, and opening one keeps you in the workspace you are in. 03 · Entra Tools did not list them, and opening What's new from 03 switched to 01. Waiting for production still shows only on the beta site signed in to cloudfellows.dev." },

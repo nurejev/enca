@@ -24754,7 +24754,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (dl && dl.dataset.gsadl === "det") { downloadText("Detect-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.detectScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
     if (dl && dl.dataset.gsadl === "rem") { downloadText("Remediate-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.remediationScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
     if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: wo.lock, ipv4: wo.ipv4 })); else downloadText("scr-app-108-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
-    const op = t.closest("[data-gsaopen]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.gsaopen); if (p) showDetail(p); else toast("That policy is not in the loaded set"); return; }
+    // 32603: showDetail takes the policy ID — it was handed the object, found
+    // nothing and returned without a word (Mihai: "clicking a policy in T57,
+    // nothing happens"; T56 had the same line). full = true: not the list screen.
+    const op = t.closest("[data-gsaopen]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.gsaopen); if (p) showDetail(p.id, true); else toast("That policy is not in the loaded set"); return; }
     if (t.closest("[data-gsagroups]")) { if (typeof cgScopeWs !== "undefined") { cgScopeWs[cgWs()] = "gsa"; } openCaGroups(); return; }
   });
   const gsaOpt = (e) => {
@@ -27739,7 +27742,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (t.closest("#egLookup")) { egLookup(); return; }
     const md = t.closest("[data-egmode]"); if (md) { eg.mode = md.dataset.egmode; renderEgress(); return; }
     const f = t.closest("[data-egfilter]"); if (f) { eg.filter = f.dataset.egfilter; renderEgress(); return; }
-    const op = t.closest("[data-egpol]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.egpol); if (p) showDetail(p); else toast("That policy is not in the loaded list — open 🗂 Policies first"); }
+    // 32603: showDetail takes the policy ID — it was handed the object, found
+    // nothing and returned without a word (Mihai: "clicking a policy in T57,
+    // nothing happens"; T56 had the same line). full = true: not the list screen.
+    const op = t.closest("[data-egpol]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.egpol); if (p) showDetail(p.id, true); else toast("That policy is not in the loaded list — open 🗂 Policies first"); }
   });
   $("moRun").addEventListener("click", moRun);
   $("moBody").addEventListener("click", (e) => {
