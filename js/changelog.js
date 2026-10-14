@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32606, date: "2026-10-14", title: "Egress & location impact: passes instead of not applied",
+    items: [
+      { kind: "improved", tool: "Egress & location impact", text: "Where a policy's location rule does not match, the Today and Via egress columns now say passes — the sign-in gets through that policy — with the reason underneath: the office or egress is trusted, sits in a location the policy excludes, or is not in the policy's locations. The Markdown export uses the same words." },
+    ],
+  },
+  {
     build: 32605, date: "2026-10-14", title: "Global Secure Access: Read the proof shows that it is reading",
     items: [
       { kind: "fixed", tool: "Global Secure Access", text: "Read the proof (7 days) now says Reading… with the number of sign-ins read so far, and the answer shows in the Proof step itself: how many sign-ins were read, how many came through Global Secure Access, and Show per policy. Before, the click seemed to do nothing — the only sign was a line at the very bottom of the page." },

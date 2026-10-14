@@ -113,3 +113,15 @@ test("markdown export: a 5-column verdict table, details per policy, and the tab
   for (const r of m.rows.filter((r) => r.state !== "enabled")) assert.ok(!on.includes(`### ${r.name}`), r.name);
   assert.ok(!/<b>|<span|<div/.test(md));
 });
+
+test("32606: a policy that does not apply from a place reads passes, with why", () => {
+  const m = run();
+  assert.strictEqual(row(m, "ca600").todayWhy, "office is trusted");
+  assert.strictEqual(row(m, "p002").todayWhy, "office is excluded");
+  assert.strictEqual(row(m, "ca200").todayWhy, undefined, "applies today: no reason");
+  const html = Egress.render(m, { filter: "all" });
+  assert.doesNotMatch(html, />not applied</);
+  assert.match(html, /eg-okt">passes<\/span><br><small class="muted">office is trusted/);
+  assert.match(Egress.markdown(m, { filter: "all" }), /passes \(office is trusted\)/);
+  assert.strictEqual(row(run({ mode: "trusted" }), "ca600").viaWhy, "egress is trusted");
+});

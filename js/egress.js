@@ -149,6 +149,16 @@ const Egress = (() => {
     if (inInc === null || inExc === null) return null;
     return true;
   }
+  // 32606 (Mihai: relabel the Today "not applied"): WHY a policy does not
+  // apply from a place — the place is in its excluded trusted locations, in an
+  // excluded named location, or not in its included locations. Only called
+  // when locApplies said false.
+  function passWhy(cond, pl, where, locs) {
+    const hit = cond.exc.find((id) => (id === "AllTrusted" ? pl.trusted : id !== "All" && pl.ids.has(id)));
+    if (hit === "AllTrusted") return `${where} is trusted`;
+    if (hit) return `${where} is excluded`;  // the location name is in the Location rule column
+    return `${where} is not in its locations`;
+  }
   function control(raw) {
     const g = raw.grantControls || {}, s = raw.sessionControls || {};
     const built = arr(g.builtInControls);
@@ -264,6 +274,8 @@ const Egress = (() => {
         allTrusted: [...cond.inc, ...cond.exc].includes("AllTrusted"),
         cae: (raw.sessionControls && raw.sessionControls.continuousAccessEvaluation && raw.sessionControls.continuousAccessEvaluation.mode) || "",
       };
+      if (row.today === false) row.todayWhy = passWhy(cond, today, "office", locs);
+      if (row.via === false) row.viaWhy = passWhy(cond, via, "egress", locs);
       row.imp = egress.length ? impact(row) : { tone: "i", text: "enter the egress", key: "wait" };
       rows.push(row);
     }
@@ -324,7 +336,9 @@ const Egress = (() => {
   // ---- render -----------------------------------------------------------
   const TONE = { r: "eg-r", o: "eg-o", y: "eg-y", i: "eg-i", g: "eg-g" };
   const stTag = (s) => (s === "enabled" ? '<span class="tag ok">on</span>' : s === "disabled" ? '<span class="tag">off</span>' : '<span class="tag new">report-only</span>');
-  const verdict = (v, r) => (r.tg.none ? '<span class="muted">— (targets none)</span>' : r.noDep ? '<span class="muted">applies (no dependency)</span>' : v === null ? '<span class="muted">cannot judge</span>' : v ? (r.ctl.kind === "block" ? '<b class="eg-bad">BLOCK</b>' : '<b class="eg-warnt">applies</b>') : '<span class="eg-okt">not applied</span>');
+  // 32606: a policy that does not apply from a place lets the sign-in PASS
+  // it — the cell says so, and why
+  const verdict = (v, r, why) => (r.tg.none ? '<span class="muted">— (targets none)</span>' : r.noDep ? '<span class="muted">applies (no dependency)</span>' : v === null ? '<span class="muted">cannot judge</span>' : v ? (r.ctl.kind === "block" ? '<b class="eg-bad">BLOCK</b>' : '<b class="eg-warnt">applies</b>') : `<span class="eg-okt">passes</span>${why ? `<br><small class="muted">${esc(why)}</small>` : ""}`);
   function render(m, ui) {
     const u = ui || {}, s = m.summary, filter = u.filter || "changes";
     const tile = (n, label, cls) => `<div class="eg-tile${cls ? " " + cls : ""}"><b>${n}</b><small>${label}</small></div>`;
@@ -351,7 +365,7 @@ const Egress = (() => {
         <td><a href="#" data-egpol="${esc(r.id)}">${esc(r.name)}</a></td><td>${stTag(r.state)}</td>
         <td>${esc(r.w.inc.join(", ") || "nobody")}${r.w.exc.length ? `<div class="mini muted">excl. ${esc(r.w.exc.join(", "))}</div>` : ""}</td>
         <td>${r.tg.none ? '<b class="eg-bad">None</b>' : esc(r.tg.text)}</td><td>${esc(r.loc)}</td><td>${esc(r.ctl.text)}</td>
-        <td>${verdict(r.today, r)}</td><td>${m.egress.length ? verdict(r.via, r) : '<span class="muted">—</span>'}</td>
+        <td>${verdict(r.today, r, r.todayWhy)}</td><td>${m.egress.length ? verdict(r.via, r, r.viaWhy) : '<span class="muted">—</span>'}</td>
         <td><span class="eg-imp ${TONE[r.imp.tone]}">${esc(r.imp.text)}</span>${r.state !== "enabled" && ["r", "o"].includes(r.imp.tone) ? '<div class="mini muted">once on</div>' : ""}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="mini muted">${m.rows.length ? "Nothing changes in this view — switch to All." : "No policy in this tenant has a location condition."}</p>`}
     </div>`;
@@ -377,7 +391,7 @@ const Egress = (() => {
     const x = meta || {}, s = m.summary, cell = (t) => String(t ?? "").replace(/\|/g, "/").replace(/\n/g, " ");
     const filter = FILTERS[x.filter] ? x.filter : "all";
     const rows = filterRows(m, filter);
-    const v = (val, r) => (r.tg.none ? "— (targets none)" : r.noDep ? "applies (no dependency)" : val === null ? "cannot judge" : val ? (r.ctl.kind === "block" ? "BLOCK" : "applies") : "not applied");
+    const v = (val, r, why) => (r.tg.none ? "— (targets none)" : r.noDep ? "applies (no dependency)" : val === null ? "cannot judge" : val ? (r.ctl.kind === "block" ? "BLOCK" : "applies") : `passes${why ? ` (${why})` : ""}`);
     const st = (r) => r.state === "enabled" ? "on" : r.state === "disabled" ? "off" : "report-only";
     const once = (r) => r.state !== "enabled" && ["r", "o"].includes(r.imp.tone) ? " (once on)" : "";
     const L = [];
@@ -392,7 +406,7 @@ const Egress = (() => {
     L.push("## Verdicts", "");
     if (rows.length) {
       L.push("| Policy | State | Today | Via egress | Impact |", "|---|---|---|---|---|");
-      rows.forEach((r) => L.push(`| ${cell(r.name)} | ${st(r)} | ${v(r.today, r)} | ${m.egress.length ? v(r.via, r) : "—"} | ${cell(r.imp.text)}${once(r)} |`));
+      rows.forEach((r) => L.push(`| ${cell(r.name)} | ${st(r)} | ${v(r.today, r, r.todayWhy)} | ${m.egress.length ? v(r.via, r, r.viaWhy) : "—"} | ${cell(r.imp.text)}${once(r)} |`));
     } else L.push("Nothing in this view.");
     L.push("");
     if (rows.length) L.push("## Details", "");
