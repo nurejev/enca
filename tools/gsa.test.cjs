@@ -16,6 +16,8 @@ test("demo: the chain reads, the profile is partly on, the groups are the profil
   assert.strictEqual(by.location.st, "ok");
   assert.strictEqual(by.client.st, "bad");
   assert.strictEqual(by.client.fix, "winscript");
+  assert.strictEqual(by.client.fix2, "macscript");
+  assert.match(by.client.sub, /system extensions NOT ASSIGNED/, "devcf: the system extension policy has no assignment");
   assert.strictEqual(by.policy.st, "warn", "report-only");
   assert.deepStrictEqual(m.groupIds.sort(), ["g-gsa-pilot", "g-int"]);
   assert.ok(!m.groupIds.includes("g-bg"), "an excluded group is not a group GSA uses");
@@ -78,4 +80,35 @@ test("render: the board, the policy table and no HTML from tenant names unescape
   assert.match(html, /gsa-chain/);
   assert.match(html, /CA215-BLOCK-Internals-CN/);
   assert.doesNotMatch(html, /<script>x/);
+});
+
+test("names follow the CloudFellows Intune convention read from devcf", () => {
+  const n = Gsa.names({ rel: "R26.10", ver: "v1.0" });
+  assert.strictEqual(n.win, "Win - PSH - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0");
+  assert.strictEqual(n.mac, "MACOS - SH - Software Installation - D - Install Global Secure Access Client - R26.10 - v1.0");
+  assert.strictEqual(Gsa.relTag(new Date(2026, 9, 14)), "R26.10");
+  assert.strictEqual(Gsa.GROUPS.mac, "INT-SEC-D-GSA-MAC-M365");
+  assert.match(Gsa.MAC_FILE, /^scr-app-1\d\d-.*\.zsh$/);
+});
+
+test("the macOS shell script body: root, once, retries, the client installer from aka.ms", () => {
+  const b = Gsa.macScriptBody({ rel: "R26.10", ver: "v1.0" });
+  assert.strictEqual(b["@odata.type"], "#microsoft.graph.deviceShellScript");
+  assert.strictEqual(b.runAsAccount, "system");
+  assert.strictEqual(b.executionFrequency, "PT0S");
+  assert.strictEqual(b.retryCount, 3);
+  const t = Buffer.from(b.scriptContent, "base64").toString("utf8");
+  assert.match(t, /^#!\/bin\/zsh/);
+  assert.match(t, /aka\.ms\/GlobalSecureAccess-macOS/);
+  assert.match(t, /installer -pkg/);
+});
+
+test("macProfiles recognises the devcf GSA profiles and their assignment", () => {
+  const mp = Gsa.macProfiles(
+    [{ id: "c1", name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0", assignments: [] }],
+    [{ "@odata.type": "#microsoft.graph.macOSCustomConfiguration", id: "p1", displayName: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0", assignments: [{ id: "a" }] },
+     { "@odata.type": "#microsoft.graph.macOSCustomAppConfiguration", id: "s1", displayName: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0", bundleId: "com.microsoft.globalsecureaccess.plist", assignments: [{ id: "b" }] }]);
+  assert.strictEqual(mp.sysext.assigned, false);
+  assert.strictEqual(mp.proxy.assigned, true);
+  assert.strictEqual(mp.settings.assigned, true);
 });

@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32517, date: "2026-10-14", title: "Global Secure Access: the macOS script in Intune, names as in the baseline",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "Create macOS script: an Intune shell script that installs the Global Secure Access client on Macs (run as root, once, three retries), assigned to a device group — INT-SEC-D-GSA-MAC-M365 by default, made empty when it does not exist." },
+      { kind: "improved", tool: "Global Secure Access", text: "Both scripts are named the way the baseline names Intune scripts: Win - PSH - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0 and MACOS - SH - Software Installation - D - Install Global Secure Access Client - R26.10 - v1.0. Release and version can be changed before they are created." },
+      { kind: "improved", tool: "Global Secure Access", text: "The client link checks the three macOS profiles the client needs — system extensions, transparent proxy, client settings — and says which is missing or not assigned to anybody." },
+    ],
+  },
+  {
     build: 32516, date: "2026-10-14", title: "Global Secure Access: make stolen tokens useless, the Microsoft traffic profile first",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "A new tool in Workspace 03 · Entra Tools. One board with every link a compliant-network-only Conditional Access policy needs: Entra ID P1 seats, Global Secure Access activated, the Microsoft traffic profile on and assigned, Conditional Access signalling, the compliant network location, the client on Windows and macOS devices, the policies that name the compliant network, and — on request — the last 7 days of sign-ins: how many came through Global Secure Access and how many a report-only policy would block." },
