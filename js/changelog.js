@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32614, date: "2026-10-14", title: "Roles & assignments: an error is said on the screen, never a spinner that stays",
+    items: [
+      { kind: "fixed", tool: "Roles & assignments", text: "When the result of a read could not be built or drawn, the tool threw after the read and left its progress panel up with nothing to say what happened. Now the error is shown in place with what failed, the other tabs and Read again keep working, and the two assignment reads stop at 20,000 instead of growing without end." },
+    ],
+  },
+  {
     build: 32613, date: "2026-10-14", title: "Administrative units in PIM-buddy: the baseline's units first, the tenant's own below",
     items: [
       { kind: "improved", tool: "Administrative units", text: "Opened from Workspace 02, the page now starts with From the PIM baseline: every unit the profile expects — the restricted unit and, with a regions file, each region's Users, Devices and Groups unit — with its kind, why the baseline needs it and its state (present, missing, differs). Then the baseline's units found in the tenant, then Already in this tenant: every other unit, with the inventory, under its own heading." },

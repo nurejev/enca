@@ -175,6 +175,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 334,
+      ws: "pim",
+      title: "🎖 Roles & assignments — a failed build or draw is said on screen, the instance reads capped (T49 0.2.1)",
+      tools: ["Roles & assignments"],
+      builds: [32614],
+      risk: "medium",
+      what: "js/app.js: prrRebuild try/catch → prr.err; prrPaint wraps PimRoles.render; profile label fallback; PRR_CAP 20000 on roleEligibilityScheduleInstances and roleAssignmentScheduleInstances.",
+      why: "Mihai, 14 Oct: T49 crashes; verify in devcf and fix — then: do not focus on those errors for now. The cause is not established (the devcf reads page normally, the demo runs clean); this makes any failure visible instead of a frozen spinner, which is what is needed to find it. Risk medium: the crash itself is not yet explained.",
+      test: [
+        "Beta, demo tenant: Roles & assignments → Read who holds what — the tiles and the four tabs as before.",
+        "Beta, signed in to cloudfellows.dev: Read who holds what — either the result, or a red line naming what failed (send it to Claude); the spinner never stays after the read ends.",
+        "Beta, signed in: ☁ Azure RBAC tab and Read again still work after a failed build.",
+      ],
+    },
+    {
       n: 333,
       ws: "pim",
       title: "🛡 Administrative units in PIM-buddy — the baseline's units first, the tenant's own below (T27 2.1.0)",

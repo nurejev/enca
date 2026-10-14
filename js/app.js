@@ -23501,6 +23501,9 @@ This is a directory write. Nothing else changes.`)) return;
   const prrProg = makeProgress("prr"); prrProg.by = "🎖 Roles & assignments"; prrProg.stoppable = true;
   const PRR_READ = [...PIM_READ, "AdministrativeUnit.Read.All", "PrivilegedAssignmentSchedule.Read.AzureADGroup", "PrivilegedEligibilitySchedule.Read.AzureADGroup"];
   const PRR_HEAD = `<p class="mini" style="margin:6px 0 0">Every Entra role anybody holds in this tenant, and per assignment: <b>who</b> (a person, a group, an app), <b>how</b> (eligible · active, permanent or until a date · activated right now), <b>where</b> (tenant-wide or one administrative unit) and <b>until when</b>. A group that holds a role is opened up: its active and eligible members are rows <b>through</b> it. The tier is the CloudFellows PIM framework's; a role the framework does not list has none. Read-only.</p>`;
+  // 32614: a ceiling on the instance reads — a tenant with more is said, not a
+  // read that grows until the tab gives up
+  const PRR_CAP = 20000;
   function prrReset() { prr = { raw: null, model: null, err: null, busy: false, tab: prr.tab, filter: "all", q: "", open: new Set(), run: prr.run + 1 }; }
   function openPimRoles() {
     crumb("🎖 Roles & assignments");
@@ -23525,9 +23528,18 @@ This is a directory write. Nothing else changes.`)) return;
     }
     if (prr.busy) { $("prrBody").innerHTML = prrProg.panel("Reading roles, assignments and the members of every group that holds one…"); return; }
     if (!m) { $("prrBody").innerHTML = `${prr.err ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(prr.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-prrrun>▶ Read who holds what</button><p class="mini muted">Reads the role definitions, every eligible and active assignment (principal and scope), the administrative units, the members of each group that holds a role (PIM for Groups, active and eligible) and the last activations — RoleManagement.Read.Directory, AdministrativeUnit.Read.All, PrivilegedAssignmentSchedule.Read.AzureADGroup and PrivilegedEligibilitySchedule.Read.AzureADGroup, read-only, consented once. Nothing is written.</p></div>`; return; }
-    $("prrBody").innerHTML = `<p class="mini pmb-read">${m.demo ? "Demo data · " : ""}Read ${esc(new Date(m.readAt).toLocaleString())} · tiers from ${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}, profile ${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</p>` + PimRoles.render(m, { tab: prr.tab, filter: prr.filter, q: prr.q, open: prr.open });
+    let body;
+    try { body = PimRoles.render(m, { tab: prr.tab, filter: prr.filter, q: prr.q, open: prr.open }); }
+    catch (e) { console.error("T49 render:", e); body = `<p class="mini" style="color:var(--off)">This view could not be drawn — ${esc((e && e.message) || e)}. Another tab, or ⟳ Read again, may still work.</p>`; }
+    $("prrBody").innerHTML = `<p class="mini pmb-read">${m.demo ? "Demo data · " : ""}Read ${esc(new Date(m.readAt).toLocaleString())} · tiers from ${esc(PIM_BASELINE.label)} ${esc(PIM_BASELINE.release)}, profile ${esc((PIM_BASELINE.profiles[pmbProfileId] || {}).label || pmbProfileId)}</p>` + body;
   }
-  function prrRebuild() { prr.model = prr.raw ? PimRoles.model(pmbCat(), prr.raw) : null; }
+  // 32614: a model that cannot be built is said on the screen — it used to
+  // throw out of runPimRoles after the read, leaving the progress panel up
+  // with nothing to say what went wrong
+  function prrRebuild() {
+    try { prr.model = prr.raw ? PimRoles.model(pmbCat(), prr.raw) : null; }
+    catch (e) { console.error("T49 model:", e); prr.model = null; prr.err = `the read finished, but the result could not be built — ${(e && e.message) || e}`; prr.raw = null; }
+  }
   async function runPimRoles() {
     if (prr.busy) return;
     const run = ++prr.run, session = pmbSessionKey();
@@ -23547,9 +23559,9 @@ This is a directory write. Nothing else changes.`)) return;
         if (!await preConsent(sc)) throw new Error("the read permissions were not granted");
         const roles = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleDefinitions?$select=id,displayName,isBuiltIn,templateId,isPrivileged", 0, "roles");
         prrProg.detail("eligible assignments");
-        const eligible = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleEligibilityScheduleInstances?$expand=principal", 0, "eligibilities");
+        const eligible = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleEligibilityScheduleInstances?$expand=principal", PRR_CAP, "eligibilities");
         prrProg.detail("active assignments");
-        const active = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleAssignmentScheduleInstances?$expand=principal", 0, "assignments");
+        const active = await prrProg.fetchAll("/v1.0/roleManagement/directory/roleAssignmentScheduleInstances?$expand=principal", PRR_CAP, "assignments");
         let aus = null;
         try { aus = await prrProg.fetchAll("/v1.0/directory/administrativeUnits?$select=id,displayName", 0, "units"); } catch (e) { if (e && e.stopped) throw e; aus = null; }
         prrProg.check();
@@ -23599,7 +23611,7 @@ This is a directory write. Nothing else changes.`)) return;
     } finally { if (run === prr.run) { prr.busy = false; prrProg.stop(); } }
     if (run !== prr.run || session !== pmbSessionKey()) return;
     if (err) { prr.err = err; prr.raw = null; } else prr.raw = raw;
-    prrRebuild();
+    try { prrRebuild(); } finally { /* prrRebuild says its own error */ }
     if ($("screen-pimroles").classList.contains("active")) prrPaint();
     if (prr.model) toast(`Roles & assignments <span>${prr.model.counts.roles} roles · ${prr.model.counts.people} people</span>`);
   }
