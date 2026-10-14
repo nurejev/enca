@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32602, date: "2026-10-14", title: "What's new, Roadmap and Waiting for production in every workspace",
+    items: [
+      { kind: "improved", tool: "Workspaces", text: "The ❓ Help tools — What's new, Roadmap, Waiting for production, Permissions in this session and Help — are platform tools: every workspace lists them on its overview and in All tools, and opening one keeps you in the workspace you are in. 03 · Entra Tools did not list them, and opening What's new from 03 switched to 01. Waiting for production still shows only on the beta site signed in to cloudfellows.dev." },
+    ],
+  },
+  {
     build: 32601, date: "2026-10-14", title: "Production is build 325 (v2.0.3)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 325, ENCA v2.0.3: the 📊 Deployment dashboard, 🌍 Fill from regions and adding several members at once in 👥 Conditional Access groups, who was added to an exclusion group and when, and the 📏 Naming and 📰 Learn changes tabs in 🛡 Checks (queue 282, 294, 311, 317, 319 and 322). R81, R76, R25 and R63 read live · production 325 under Shipped before. This channel moves to cycle 326 (v2.0.4-beta.N)." },

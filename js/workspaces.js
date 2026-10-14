@@ -53,6 +53,15 @@
   // "PIM lens" (a PIM-only catalogue, tab strip and Help text for it) is on
   // the roadmap, and the card says so rather than promising it.
   const WS_KEY = 'enca.workspace';
+  // 32602 (Mihai, 14 Oct: "What's new, Roadmap and Waiting for production
+  // are platform tools and should be shown on every workspace"): the ❓ Help
+  // tiles belong to no workspace. Every workspace lists them, in the home
+  // page's order, and opening one never switches the side — before this,
+  // 03 had none of them and opening What's new from 03 jumped to 01.
+  // 🚚 Waiting for production keeps its own gate (beta site, cloudfellows.dev):
+  // toolsOf skips a hidden tile, here as everywhere.
+  const PLATFORM = ['toolChangelog', 'toolRoadmap', 'toolPromote', 'toolPermissions', 'toolHelp'];
+  const PLATFORM_GROUP = { group: '❓ Help', tools: PLATFORM.map(id => ({ id })) };
   const PIM_ONLY = new Set(['toolPimBaseline', 'toolPimReport', 'toolIntuneRbac', 'toolPimRoles', 'toolPimDeploy', 'toolPimDesigner']);
   const PIM_ROSTER = [
     { group: '🧬 Compare against the CloudFellows PIM framework', tools: [
@@ -73,9 +82,7 @@
       { id: 'toolPimDeploy', blurb: blurbs.toolPimDeploy },
       { id: 'toolRmau', blurb: 'AU-RM-Executives and the desk scoped on it; no PIM group, adm- account or role holder in any restricted unit.', lens: 'built' },
     ] },
-    { group: '❓ Help', tools: [
-      { id: 'toolHelp' }, { id: 'toolChangelog' }, { id: 'toolRoadmap' }, { id: 'toolPromote' }, { id: 'toolPermissions' },
-    ] },
+    PLATFORM_GROUP,
   ];
   // ---- 32515: Workspace 03 · Entra Tools ----------------------------------
   // The directory objects every workload leans on. It opens on its tools
@@ -97,6 +104,7 @@
       { id: 'toolSmsVoice', blurb: blurbs.toolSmsVoice },
       { id: 'toolMemberOf', blurb: blurbs.toolMemberOf },
     ] },
+    PLATFORM_GROUP,
   ];
   const ROSTERS = { pim: PIM_ROSTER, entra: ENTRA_ROSTER };
   const WORKSPACES = {
@@ -146,7 +154,7 @@
   }
   // A tool can carry its own name in a workspace (32430: T12 is ‘PIM groups’ in 02).
   const nameIn = (id, which) => (ROSTERS[which] && ROSTERS[which].flatMap(g => g.tools).find(r => r.id === id)?.name) || tools.find(t => t.id === id)?.name || '';
-  const inWorkspace = (id, which) => ROSTERS[which] ? ROSTERS[which].some(g => g.tools.some(t => t.id === id)) : !PIM_ONLY.has(id) && !ENTRA_ONLY.has(id);
+  const inWorkspace = (id, which) => PLATFORM.includes(id) || (ROSTERS[which] ? ROSTERS[which].some(g => g.tools.some(t => t.id === id)) : !PIM_ONLY.has(id) && !ENTRA_ONLY.has(id));
   const card = t => t.planned
     ? `<div class="wc-tool wc-planned" aria-disabled="true"><span class="wc-tool-icon" aria-hidden="true">${esc(t.icon || '')}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || '')} · <span class="wc-chip">${esc(t.planned)}</span></small></div>`
     : `<button type="button" class="wc-tool" data-wc-tool="${esc(t.id)}"><span class="wc-tool-icon" aria-hidden="true">${icon(t.id)}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || t.group)}${t.lens === 'built' ? ' · <span class="wc-chip lens" title="The same tool as in Workspace 01, opened here with its PIM lens.">PIM lens</span>' : t.lens ? ' · <span class="wc-chip lens" title="The same tool as in Workspace 01. A PIM-only catalogue, tab strip and Help text for it is on the roadmap.">PIM lens · roadmap</span>' : ''}</small></button>`;

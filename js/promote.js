@@ -175,6 +175,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 326,
+      ws: "platform",
+      title: "❓ Help tools (What's new, Roadmap, Waiting for production, Permissions, Help) in every workspace",
+      tools: ["Workspaces"],
+      builds: [32602],
+      risk: "low",
+      what: "js/workspaces.js: PLATFORM (toolChangelog, toolRoadmap, toolPromote, toolPermissions, toolHelp) and PLATFORM_GROUP (❓ Help) — the group closes the 02 and 03 rosters (02 had its own copy, 03 had none), and inWorkspace answers true for a platform tool in every workspace, so opening one never switches the side and its tab stays visible on all three. 01 is unchanged (it reads the home tiles, Help section included). toolsOf still skips a hidden tile, so 🚚 keeps its beta-site + cloudfellows.dev gate.",
+      why: "Mihai, 14 Oct, on the 03 Entra Tools overview: What's new, Roadmap and Waiting for production are platform tools and should be shown on every workspace.",
+      carveout: "Travels with the multi-workspace shell (queue 298 for 02, 323 for 03). Main's js/workspaces.js is the single-workspace shell with no rosters, so on its own this item has nothing to port; when a workspace is ported, take PLATFORM, PLATFORM_GROUP and the inWorkspace line with it. Check: grep -n 'PLATFORM_GROUP' js/workspaces.js on main after such a port (expect the constant and one use per roster).",
+      test: [
+        "Beta, cloudfellows.dev: 03 · Entra Tools overview lists ❓ Help with What's new, Roadmap, Waiting for production, Permissions in this session and Help; the same five in 02; 01 unchanged.",
+        "From 03 open 📋 What's new — the workspace chip still reads 03 and the rail is 03's; go Home → 03 overview, not 01.",
+        "Open 🗺 Roadmap in 01, switch to 03 — its tab stays visible in the strip.",
+        "Signed in to another tenant: Waiting for production is listed in no workspace.",
+      ],
+      files: ["js/workspaces.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 325,
       ws: "entra",
       requires: [323],
