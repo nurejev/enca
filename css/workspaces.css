@@ -223,3 +223,5 @@ body.workspaces-shell[data-ws="entra"] .ws-ca{display:none}
 .cgg-use{font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:4px;padding:3px 5px;color:#fff;letter-spacing:.03em}
 .cgg-use.ca{background:#12331f;box-shadow:inset 0 -2px 0 #dfb32b}.cgg-use.pim{background:#dfb32b;color:#12331f;box-shadow:inset 0 -2px 0 #1e4729}.cgg-use.gsa{background:#2f5f1b;box-shadow:inset 0 -2px 0 #eef5e6}
 .cgg-pim{margin:2px 0 3px;line-height:1.45}
+/* 32611: the baseline designs that carry a PIM-SG group */
+.cgg-dsg{font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:4px;padding:2px 5px;border:1px solid var(--border);color:var(--ink);background:var(--surface)}

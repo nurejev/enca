@@ -175,6 +175,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 331,
+      ws: "pim",
+      title: "👥 PIM groups per baseline design — Design picker Small · Large one region · Multi-region · Every design, S/L/M badges (T12 6.1.0)",
+      tools: ["Conditional Access groups"],
+      builds: [32611],
+      risk: "low",
+      what: "js/app.js: cgDesign, cgDesignIds, cgDesignOf, cgPimDesigns, cgPimAllNames (the scan's expect list and the demo rows), cgView (rows, counts, coverage, frame and otherOnly of the chosen design; used by renderSummary and cgModel), cgSyncDesignSel and the #cgDesign change handler; usesOf's PIM badge over every design. js/groupsview.js: ctx.designsOf badges in the Used by cell. js/cagroups.js: the pim lead and the other-design note. index.html: #cgDesignWrap after Scope, Help line. css: .cgg-dsg. tools/cagroups-design.test.cjs (3).",
+      why: "Mihai, 14 Oct: T12 PIM groups should be able to focus on the groups per baseline option — small, large, multi. Mockup board 4. Risk low: reads the same groups (the union of three name lists instead of one), writes nothing.",
+      test: [
+        "Offline: node --test tools/cagroups-design.test.cjs green.",
+        "Beta, demo tenant, 02 PIM-buddy → PIM groups: Design opens on the profile PIM baseline has (marked this tenant); Small business shows 17 rows, Large one region 45, Large multi-region 27, Every design 50; the chips and the percentage follow.",
+        "Beta, demo tenant: with Small business picked the header names the framework release and Small business and says how many PIM-SG groups belong to another design only.",
+        "Beta, signed in to cloudfellows.dev: one read, then switching design makes no new Graph request (network tab), and PIM-SG-M365-GlobalAdmin carries S, L and M.",
+        "Beta: Scope Used by CA policies or All groups hides the Design picker.",
+      ],
+    },
+    {
       n: 330,
       ws: "platform",
       title: "🧭 Workspace headers in the colours of the ENCA mark — 01 green + gold, 02 gold + green, 03 beacon green + pale",

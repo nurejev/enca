@@ -127,7 +127,10 @@ const GroupsView = (() => {
   const USE_LABEL = { ca: ["CA", "Named by a Conditional Access policy"], pim: ["PIM", "A PIM-SG group of the CloudFellows PIM framework"], gsa: ["GSA", "Used by Global Secure Access — assigned on the Microsoft traffic profile or targeted by a compliant-network policy"] };
   function useBadges(r, ctx) {
     const u = ctx.usesOf ? ctx.usesOf(r) : [];
-    return u.length ? `<div class="cgg-uses">${u.map((k) => `<span class="cgg-use ${k}" title="${esc(USE_LABEL[k][1])}">${USE_LABEL[k][0]}</span>`).join("")}</div>` : "";
+    // 32611: in the PIM-buddy scope, which baseline designs carry the group
+    const d = ctx.designsOf ? ctx.designsOf(r) : [];
+    const ds = d.map((x) => `<span class="cgg-dsg" title="${esc(`In the ${x.label} design`)}">${esc(x.short)}</span>`).join("");
+    return u.length || ds ? `<div class="cgg-uses">${u.map((k) => `<span class="cgg-use ${k}" title="${esc(USE_LABEL[k][1])}">${USE_LABEL[k][0]}</span>`).join("")}${ds}</div>` : "";
   }
   function pimCell(p) {
     if (!p) return "";

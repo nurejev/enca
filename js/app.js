@@ -4848,6 +4848,50 @@
   // The names of the PIM-SG catalog in this tenant's profile (the 🧬 PIM
   // baseline profile and variant); empty where PIM-buddy is not in the build.
   function cgPimNames() { try { return cgPimOk() ? pmbCat().groups.map((g) => g.name) : []; } catch { return []; } }
+  // 32611 (Mihai: T12 PIM groups should be able to focus on the groups per
+  // baseline option — small, large, multi). The scan looks up the PIM-SG
+  // groups of EVERY design once; the Design picker then narrows the list
+  // without a second read. null = the tenant's own profile (🧬 PIM baseline).
+  let cgDesign = null;
+  const cgDesignIds = () => (cgPimOk() ? Object.keys(PIM_BASELINE.profiles) : []);
+  const cgDesignOf = () => cgDesign || (typeof pmbProfileId !== "undefined" ? pmbProfileId : "multi");
+  const CG_DESIGN_SHORT = { small: "S", large: "L", multi: "M" };
+  // lowercased group name -> the designs whose PIM-SG catalog names it
+  function cgPimDesigns() {
+    const m = new Map(), names = new Map();
+    for (const id of cgDesignIds()) {
+      let gs = [];
+      try { gs = PimBaseline.profile(PIM_BASELINE, id, { modules: pmbModulesOn() }).groups.map((g) => g.name); } catch { gs = []; }
+      gs.forEach((n) => { const k = n.toLowerCase(); if (!m.has(k)) { m.set(k, []); names.set(k, n); } m.get(k).push(id); });
+    }
+    return { m, names };
+  }
+  // the names the scan looks up: this tenant's profile first, then the rest
+  function cgPimAllNames() { const seen = new Set(), out = []; [...cgPimNames(), ...cgPimDesigns().names.values()].forEach((n) => { const k = n.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(n); } }); return out; }
+  // what the list shows in the PIM-buddy scope: the rows of the chosen design
+  // with their own counts, plus how many PIM-SG groups in the tenant belong
+  // to another design only
+  function cgView() {
+    if (!cgRes || cgRes.scope !== "pim") return cgRes;
+    const d = cgDesignOf(), { m } = cgPimDesigns();
+    const designsOf = (r) => m.get(String(r.name).toLowerCase()) || [];
+    const keep = d === "every" ? cgRes.rows : cgRes.rows.filter((r) => designsOf(r).includes(d));
+    const counts = keep.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
+    const expectedTotal = keep.filter((r) => r.status === "present" || r.status === "missing").length;
+    const otherOnly = d === "every" ? 0 : cgRes.rows.filter((r) => r.status === "present" && !designsOf(r).includes(d) && designsOf(r).length).length;
+    const label = d === "every" ? "every design" : ((PIM_BASELINE.profiles[d] || {}).label || d);
+    return Object.assign({}, cgRes, { rows: keep, counts, expectedTotal, present: counts.present || 0, coverage: expectedTotal ? Math.round(((counts.present || 0) / expectedTotal) * 100) : 100, design: d, designLabel: label, otherOnly, frame: `CloudFellows PIM framework ${PIM_BASELINE.release} · ${label}` });
+  }
+  function cgSyncDesignSel() {
+    const wrap = $("cgDesignWrap"), sel = $("cgDesign"); if (!wrap || !sel) return;
+    const on = cgScope === "pim" && cgPimOk();
+    wrap.hidden = !on; if (!on) return;
+    const { m } = cgPimDesigns();
+    const count = (id) => [...m.values()].filter((ds) => ds.includes(id)).length;
+    const own = typeof pmbProfileId !== "undefined" ? pmbProfileId : null;
+    sel.innerHTML = cgDesignIds().map((id) => `<option value="${esc(id)}">${esc(PIM_BASELINE.profiles[id].label)} · ${count(id)}${id === own ? " (this tenant)" : ""}</option>`).join("") + `<option value="every">Every design · ${m.size}</option>`;
+    sel.value = cgDesignOf();
+  }
   // The groups 🌐 Global Secure Access found (T56); null until it has read.
   const cgGsaIds = () => { try { return globalThis.GsaTool && GsaTool.groupIds ? GsaTool.groupIds() : null; } catch { return null; } };
   const cgMemberSel = new Set();   // group names picked for the member read
@@ -4875,7 +4919,7 @@
       const want = cgScopeFor(cgWs());
       if (want !== cgScope) { cgScope = want; cgRes = null; cgMemberSel.clear(); cgMemberPick = false; cgSel.clear(); cgOpen = null; }
     }
-    cgSyncScopeSel();
+    cgSyncScopeSel(); cgSyncDesignSel();
     if (!cgRes) {
       $("cgHead").innerHTML = '<p class="mini">Scanning groups…</p>';
       $("cgChips").innerHTML = ""; $("cgBody").innerHTML = ""; $("cgList").innerHTML = '<p class="mini muted" style="padding:20px">Re-reading the tenant…</p>'; $("cgBar").hidden = true;
@@ -4888,7 +4932,7 @@
           try { await runPimBaseline(); } catch (e) { console.warn("T12 PIM read:", e.message || e); }
         }
         cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
-          scope: cgScope, expect: cgScope === "pim" ? cgPimNames() : null, ids: cgScope === "gsa" ? (cgGsaIds() || []) : null,
+          scope: cgScope, expect: cgScope === "pim" ? cgPimAllNames() : null, ids: cgScope === "gsa" ? (cgGsaIds() || []) : null,
           onStatus: (m, done, total) => { const h = $("cgHead"); if (h) h.innerHTML = `<p class="mini">${esc(m)}</p>` + progInline(done, total); },
         });
         if (cgScope === "pim") { try { const c = pmbCat(); cgRes.frame = `CloudFellows PIM framework ${PIM_BASELINE.release}${c.profile ? ` · ${c.profile.label || c.profile}` : ""}`; } catch { /* label only */ } }
@@ -4959,7 +5003,7 @@
     let rows = [];
     if (cgScope === "pim") {
       const have = new Map(((DEMO_DATA.pim && DEMO_DATA.pim.groups) || []).map((g) => [g.displayName, g]));
-      rows = cgPimNames().map((n, i) => { const g = have.get(n); return { name: n, status: g ? "present" : "missing", sources: ["PIM framework"], template: null, id: g ? g.id : null, description: "", roleAssignable: g ? true : null, dynamic: false, membershipRule: "", refs: { include: [], exclude: [] }, refCount: 0, members: null, memberTotal: null, memberError: null, drift: null, basis: "pim", directTotal: g ? (i % 4) : undefined }; });
+      rows = cgPimAllNames().map((n, i) => { const g = have.get(n); return { name: n, status: g ? "present" : "missing", sources: ["PIM framework"], template: null, id: g ? g.id : null, description: "", roleAssignable: g ? true : null, dynamic: false, membershipRule: "", refs: { include: [], exclude: [] }, refCount: 0, members: null, memberTotal: null, memberError: null, drift: null, basis: "pim", directTotal: g ? (i % 4) : undefined }; });
     } else {
       const ids = cgGsaIds() || [];
       rows = ids.map((id, i) => ({ name: (globalThis.GsaTool && GsaTool.nameOf && GsaTool.nameOf(id)) || id, status: "present", sources: ["GSA"], template: null, id, description: "", roleAssignable: false, dynamic: i === 0, membershipRule: "", refs: { include: [], exclude: [] }, refCount: 0, members: null, memberTotal: null, memberError: null, drift: null, basis: "gsa" }));
@@ -5038,7 +5082,8 @@
     // a tick on a name the scan no longer has (deleted, renamed aside) would
     // keep counting in the bar and be carried into the next action
     if (cgSel.size) { const have = new Set(cgRes.rows.map((r) => r.name)); [...cgSel].forEach((n) => { if (!have.has(n)) cgSel.delete(n); }); if (cgOpen && !have.has(cgOpen)) cgOpen = null; }
-    $("cgHead").innerHTML = CaGroups.renderSummary(cgRes, tenantName);
+    $("cgHead").innerHTML = CaGroups.renderSummary(cgView(), tenantName);
+    cgSyncDesignSel();
     [...document.querySelectorAll("#cgTabs button")].forEach(b =>
       b.classList.toggle("active", b.dataset.cgtab === cgTab));
     // The toolbar belongs to the list, which is always on screen now: the
@@ -9681,13 +9726,16 @@ This is a directory write. Nothing else changes.`)) return;
     const cat = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return Baseline.active(); } catch { return null; } })() : null;
     // 32515: which workloads use each group, and in the PIM-buddy scope the
     // roles each holds (PimLens.groups over the shared 🧬 read)
-    const pimSet = new Set(cgPimNames().map((n) => n.toLowerCase()));
+    const pimSet = new Set(cgPimAllNames().map((n) => n.toLowerCase()));
     const gsaSet = new Set(cgGsaIds() || []);
     let pimBy = null;
     if (cgRes.scope === "pim" || cgScope === "pim") { try { if (pmbRaw) pimBy = new Map(PimLens.groups({ raw: pmbRaw, res: pmbRes, rolesRaw: prr.raw }).map((g) => [g.name.toLowerCase(), g])); } catch { pimBy = null; } }
     const usesOf = (r) => { const u = []; const n = r.refs ? (r.refs.include || []).length + (r.refs.exclude || []).length : r.refCount || 0; if (n) u.push("ca"); if (pimSet.has(String(r.name).toLowerCase())) u.push("pim"); if (r.id && gsaSet.has(r.id)) u.push("gsa"); return u; };
     const pimOf = pimBy ? (r) => pimBy.get(String(r.name).toLowerCase()) || (r.status === "missing" ? null : { roles: [], active: null, eligible: null }) : null;
-    return { rows: cgRes.rows, ctx: { prot: cgProt, cat, usesOf, pimOf, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", // the BASELINE's number (CA002 in "CA002-BLOCK-…"), not ENCA's running seq
+    const view = cgView();
+    const pd = view.scope === "pim" ? cgPimDesigns().m : null;
+    const designsOf = pd ? (r) => (pd.get(String(r.name).toLowerCase()) || []).map((id) => ({ id, short: CG_DESIGN_SHORT[id] || id.slice(0, 1).toUpperCase(), label: (PIM_BASELINE.profiles[id] || {}).label || id })) : null;
+    return { rows: view.rows, ctx: { prot: cgProt, cat, usesOf, pimOf, designsOf, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", // the BASELINE's number (CA002 in "CA002-BLOCK-…"), not ENCA's running seq
       // (CA068 = the 68th policy alphabetically): the group is named for the
       // former, and a row saying "CA002-Exclusion · excluded by CA068" reads as
       // a mismatch. No number in the name → the full name is shown instead.
@@ -9944,6 +9992,7 @@ This is a directory write. Nothing else changes.`)) return;
   });
 
   // Changing the scope means a different set of groups to look up → re-scan.
+  $("cgDesign").addEventListener("change", (e) => { cgDesign = e.target.value; cgSel.clear(); cgOpen = null; renderCaGroups(); });
   $("cgScope").addEventListener("change", async (e) => {
     cgScope = e.target.value; cgScopeWs[cgWs()] = cgScope;
     cgRes = null; cgMemberSel.clear(); cgMemberPick = false;

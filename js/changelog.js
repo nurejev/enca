@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32611, date: "2026-10-14", title: "PIM groups per baseline design: Small, Large one region, Multi-region",
+    items: [
+      { kind: "improved", tool: "Conditional Access groups", text: "In the Used by PIM-buddy scope a Design picker sits beside Scope: Small business, Large one region, Large multi-region, or every design, each with its group count. It opens on the tenant's own profile from PIM baseline. The PIM-SG groups of all three designs are looked up in one read, so switching design is instant; the counts, the coverage figure and the chips follow the design, and the header says how many PIM-SG groups in the tenant belong to another design only. Every row carries S, L and M badges for the designs that name it." },
+    ],
+  },
+  {
     build: 32610, date: "2026-10-14", title: "Workspace headers in the colours of the ENCA mark",
     items: [
       { kind: "improved", tool: "Workspaces", text: "The three workspace headers now take their colours from the ENCA mark: 01 Conditional Access the shield's deep green with a gold rule, 02 PIM-buddy the gold ring with green lettering, 03 Entra Tools the beacon green with a pale rule. The navy and cyan of Workspace 03 are gone. The workspace switcher's swatches and the CA / PIM / GSA badges in Conditional Access groups follow the same colours." },
