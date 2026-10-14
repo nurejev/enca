@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32515, date: "2026-10-14", title: "Workspace 03 · Entra Tools, and groups scoped by the workload that uses them",
+    items: [
+      { kind: "new", tool: "Workspaces", text: "A third workspace, 03 · Entra Tools — the directory objects every workload leans on. It has its own blue header with a cyan rule, opens on its tools overview, and its first tool is Groups (the same tool as Conditional Access groups in 01 and PIM groups in 02). Switch with the chip, the rail caption, ⌘⇧3 or ⌘K; the link ?ws=entra opens it directly." },
+      { kind: "improved", tool: "Conditional Access groups", text: "The scope says which workload: Used by CA policies, Used by PIM-buddy and Used by GSA, next to Baseline + templates and All groups. Opened from 01 the tool starts on Used by CA policies, from 02 on Used by PIM-buddy, from 03 on All groups; a scope you pick by hand is kept for that workspace." },
+      { kind: "improved", tool: "Conditional Access groups", text: "Used by PIM-buddy is the PIM-SG catalog of the CloudFellows PIM framework in this tenant's profile, present or missing, with the roles each group holds — read with the list. The separate PIM lens panel and its Read the PIM groups button are gone." },
+      { kind: "improved", tool: "Conditional Access groups", text: "Every group carries CA, PIM and GSA badges for the workloads that use it, so a group two workloads lean on reads as one whatever the scope." },
+      { kind: "fixed", tool: "Conditional Access groups", text: "In 02 the head showed the Conditional Access description and the CA present / not in the baseline counts under the name PIM groups. It now describes the scope it shows." },
+    ],
+  },
+  {
     build: 32514, date: "2026-10-13", title: "Deployment dashboard: reads the tenant only, nothing from Fill from regions",
     items: [
       { kind: "improved", tool: "Deployment dashboard", text: "The dashboard no longer reads anything from 🌍 Fill from regions — not its region list, not its settings, not its rules. The deploy groups are whatever the tenant calls CAD-SEC-U-DG-* (one read) plus the names the active catalog gives them, shown as not in this tenant when they are missing. The two tools are separate: Fill puts people into the groups, the dashboard shows who is in them and who is not." },

@@ -1148,7 +1148,7 @@
     const cur = (globalThis.Workspaces && Workspaces.current && Workspaces.current()) || "ca";
     // Always the workspace you are in: from 02 the tool opens on PIM-buddy's
     // order, so the order on screen is never the other side's by surprise.
-    pqWs = PROMOTE.workspaces[ws] ? ws : (cur === "pim" ? "pim" : "ca");
+    pqWs = PROMOTE.workspaces[ws] ? ws : (PROMOTE.workspaces[cur] ? cur : "ca");
     crumb("🚚 Waiting for production");
     show("screen-promote");
     renderPromotionQueue();
@@ -4813,10 +4813,26 @@
   // Default scope: only the groups the tenant's CA policies actually reference.
   // "all" additionally expects every template / baseline group (finds missing).
   let cgScope = "policies";
+  // 32515 (T12 6.0, Mihai 14 Oct: "going to T12 from Workspace 02 or 03 is
+  // focus on those groups"): the workspace picks the FIRST scope — 01 Used by
+  // CA policies, 02 Used by PIM-buddy, 03 All groups — and a scope chosen by
+  // hand is kept for that workspace until the page reloads.
+  const CG_SCOPE_DEFAULT = { ca: "policies", pim: "pim", entra: "tenant" };
+  const cgScopeWs = {};
+  const cgWs = () => { try { return (globalThis.Workspaces && Workspaces.current && Workspaces.current()) || "ca"; } catch { return "ca"; } };
+  const cgPimOk = () => typeof PIM_BASELINE !== "undefined";
+  const cgScopeFor = (ws) => { const v = cgScopeWs[ws] || CG_SCOPE_DEFAULT[ws] || "policies"; return v === "pim" && !cgPimOk() ? "policies" : v; };
+  // The names of the PIM-SG catalog in this tenant's profile (the 🧬 PIM
+  // baseline profile and variant); empty where PIM-buddy is not in the build.
+  function cgPimNames() { try { return cgPimOk() ? pmbCat().groups.map((g) => g.name) : []; } catch { return []; } }
+  // The groups 🌐 Global Secure Access found (T56); null until it has read.
+  const cgGsaIds = () => { try { return globalThis.GsaTool && GsaTool.groupIds ? GsaTool.groupIds() : null; } catch { return null; } };
   const cgMemberSel = new Set();   // group names picked for the member read
   let cgMemberPick = false;        // showing the picker rather than the matrix
 
   $("toolCaGroups").addEventListener("click", () => { openCaGroups(); });
+  // 32515: T12 open while the workspace changes takes that workspace's scope
+  document.addEventListener("enca:workspace-switched", () => { if ($("screen-cagroups").classList.contains("active") && cgTab === "groups") openCaGroups(false, false); });
 
   // `quiet` re-scans WITHOUT taking the screen — for a refresh that finishes
   // after you have moved to another tool: the list updates behind your back
@@ -4831,15 +4847,29 @@
     // crumb() is idempotent (registers the tab if missing, activates it), so
     // the in-tool refresh calls that also come through here are unaffected.
     if (!quiet) { crumb("👥 Conditional Access groups"); show("screen-cagroups"); }
-    if (!keepTab) { cgTab = "groups"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = ""; }
+    if (!keepTab) {
+      cgTab = "groups"; cgFilter = "all"; cgQuery = ""; $("cgSearch").value = "";
+      const want = cgScopeFor(cgWs());
+      if (want !== cgScope) { cgScope = want; cgRes = null; cgMemberSel.clear(); cgMemberPick = false; cgSel.clear(); cgOpen = null; }
+    }
+    cgSyncScopeSel();
     if (!cgRes) {
       $("cgHead").innerHTML = '<p class="mini">Scanning groups…</p>';
       $("cgChips").innerHTML = ""; $("cgBody").innerHTML = ""; $("cgList").innerHTML = '<p class="mini muted" style="padding:20px">Re-reading the tenant…</p>'; $("cgBar").hidden = true;
       try {
+        // the PIM-buddy scope reads what 🧬 PIM baseline reads (once, shared)
+        // so the roles each group holds come with the list — no lens, no
+        // second button. A failed PIM read costs the roles, not the list.
+        if (cgScope === "pim" && cgPimOk() && !pmbRaw) {
+          $("cgHead").innerHTML = '<p class="mini">Reading the PIM roles and groups…</p>';
+          try { await runPimBaseline(); } catch (e) { console.warn("T12 PIM read:", e.message || e); }
+        }
         cgRes = isDemo ? demoGroupScan() : await CaGroups.scan(policies, {
-          scope: cgScope,
+          scope: cgScope, expect: cgScope === "pim" ? cgPimNames() : null, ids: cgScope === "gsa" ? (cgGsaIds() || []) : null,
           onStatus: (m, done, total) => { const h = $("cgHead"); if (h) h.innerHTML = `<p class="mini">${esc(m)}</p>` + progInline(done, total); },
         });
+        if (cgScope === "pim") { try { const c = pmbCat(); cgRes.frame = `CloudFellows PIM framework ${PIM_BASELINE.release}${c.profile ? ` · ${c.profile.label || c.profile}` : ""}`; } catch { /* label only */ } }
+        if (cgScope === "gsa") { try { cgRes.gsaAt = GsaTool.readLabel(); } catch { /* label only */ } }
       } catch (e) {
         console.error(e);
         $("cgHead").innerHTML = `<p class="mini" style="color:var(--off)">Group scan failed: ${esc(e.message || e)}</p>`;
@@ -4860,6 +4890,7 @@
   // Demo mode has no directory, so synthesise a scan that still exercises every
   // status — otherwise the demo silently shows an empty tool.
   function demoGroupScan() {
+    if (cgScope === "pim" || cgScope === "gsa") return demoWorkloadScan();
     // A representative sample, not the first 24 in file order. The old slice(0,24)
     // happened to take BreakGlass plus twenty-odd numbered exclusions, so the
     // persona groups and the Emergency_Access pair — the ones a reviewer looks
@@ -4895,8 +4926,33 @@
       refs: { include: [{ id: "d-ca300", name: "CA300-GRANT-Externals-IP-AnyApp-AnyPlatform-MFA-v3.0.1" }], exclude: [] }, refCount: 1 });
     const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
     const expectedTotal = rows.length;
-    return { rows, counts, expectedTotal, present: counts.present || 0, baseline: Baseline.activeCatalogId(), other: null,
+    return { rows, counts, expectedTotal, scope: cgScope, present: counts.present || 0, baseline: Baseline.activeCatalogId(), other: null,
       coverage: Math.round(((counts.present || 0) / expectedTotal) * 100), scanned: new Date() };
+  }
+
+  // 32515: the two workload scopes in the demo — the PIM-SG catalog against
+  // the demo PIM groups, and the groups the demo GSA read names.
+  function demoWorkloadScan() {
+    let rows = [];
+    if (cgScope === "pim") {
+      const have = new Map(((DEMO_DATA.pim && DEMO_DATA.pim.groups) || []).map((g) => [g.displayName, g]));
+      rows = cgPimNames().map((n, i) => { const g = have.get(n); return { name: n, status: g ? "present" : "missing", sources: ["PIM framework"], template: null, id: g ? g.id : null, description: "", roleAssignable: g ? true : null, dynamic: false, membershipRule: "", refs: { include: [], exclude: [] }, refCount: 0, members: null, memberTotal: null, memberError: null, drift: null, basis: "pim", directTotal: g ? (i % 4) : undefined }; });
+    } else {
+      const ids = cgGsaIds() || [];
+      rows = ids.map((id, i) => ({ name: (globalThis.GsaTool && GsaTool.nameOf && GsaTool.nameOf(id)) || id, status: "present", sources: ["GSA"], template: null, id, description: "", roleAssignable: false, dynamic: i === 0, membershipRule: "", refs: { include: [], exclude: [] }, refCount: 0, members: null, memberTotal: null, memberError: null, drift: null, basis: "gsa" }));
+    }
+    const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
+    const expectedTotal = rows.filter((r) => r.status === "present" || r.status === "missing").length;
+    return { rows, counts, expectedTotal, scope: cgScope, present: counts.present || 0, baseline: null, other: null, coverage: expectedTotal ? Math.round(((counts.present || 0) / expectedTotal) * 100) : 100, scanned: new Date() };
+  }
+  // The scope select follows cgScope; the PIM-buddy option is there only in
+  // a build that carries PIM-buddy, the GSA one is live once 🌐 has read.
+  function cgSyncScopeSel() {
+    const sel = $("cgScope"); if (!sel) return;
+    const pim = sel.querySelector('option[value="pim"]'); if (pim) { pim.hidden = !cgPimOk(); pim.disabled = !cgPimOk(); }
+    const gsa = sel.querySelector('option[value="gsa"]');
+    if (gsa) { const ok = !!cgGsaIds(); gsa.disabled = !ok; gsa.textContent = ok ? "Used by GSA" : "Used by GSA — read 🌐 Global Secure Access first"; }
+    sel.value = cgScope;
   }
 
   // Where an engine screen lives. The list stays in #cgList; #cgBody — the
@@ -7741,7 +7797,7 @@ max@contoso.com,"Global, DevOps"</pre>
   }
   function syncDgFillBtn() {
     const b = $("cgDgFill"); if (!b) return;
-    b.style.display = document.body.dataset.ws === "pim" ? "none" : "inline-flex";
+    b.style.display = document.body.dataset.ws && document.body.dataset.ws !== "ca" ? "none" : "inline-flex";
   }
   const dgNum = (n) => Number(n || 0).toLocaleString("en-US");
   const dgStepNames = [["sources", "① Sources"], ["preview", "② Preview"], ["apply", "③ Apply"]];
@@ -9600,7 +9656,15 @@ This is a directory write. Nothing else changes.`)) return;
   function cgModel() {
     const byId = new Map((policies || []).map((p) => [p.id, p]));
     const cat = (typeof Baseline !== "undefined" && Baseline.active) ? (() => { try { return Baseline.active(); } catch { return null; } })() : null;
-    return { rows: cgRes.rows, ctx: { prot: cgProt, cat, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", // the BASELINE's number (CA002 in "CA002-BLOCK-…"), not ENCA's running seq
+    // 32515: which workloads use each group, and in the PIM-buddy scope the
+    // roles each holds (PimLens.groups over the shared 🧬 read)
+    const pimSet = new Set(cgPimNames().map((n) => n.toLowerCase()));
+    const gsaSet = new Set(cgGsaIds() || []);
+    let pimBy = null;
+    if (cgRes.scope === "pim" || cgScope === "pim") { try { if (pmbRaw) pimBy = new Map(PimLens.groups({ raw: pmbRaw, res: pmbRes, rolesRaw: prr.raw }).map((g) => [g.name.toLowerCase(), g])); } catch { pimBy = null; } }
+    const usesOf = (r) => { const u = []; const n = r.refs ? (r.refs.include || []).length + (r.refs.exclude || []).length : r.refCount || 0; if (n) u.push("ca"); if (pimSet.has(String(r.name).toLowerCase())) u.push("pim"); if (r.id && gsaSet.has(r.id)) u.push("gsa"); return u; };
+    const pimOf = pimBy ? (r) => pimBy.get(String(r.name).toLowerCase()) || (r.status === "missing" ? null : { roles: [], active: null, eligible: null }) : null;
+    return { rows: cgRes.rows, ctx: { prot: cgProt, cat, usesOf, pimOf, stateOf: (id) => ((byId.get(id) || {}).raw || {}).state || "", // the BASELINE's number (CA002 in "CA002-BLOCK-…"), not ENCA's running seq
       // (CA068 = the 68th policy alphabetically): the group is named for the
       // former, and a row saying "CA002-Exclusion · excluded by CA068" reads as
       // a mismatch. No number in the name → the full name is shown instead.
@@ -9858,7 +9922,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   // Changing the scope means a different set of groups to look up → re-scan.
   $("cgScope").addEventListener("change", async (e) => {
-    cgScope = e.target.value;
+    cgScope = e.target.value; cgScopeWs[cgWs()] = cgScope;
     cgRes = null; cgMemberSel.clear(); cgMemberPick = false;
     await openCaGroups(true);
   });
@@ -23864,7 +23928,7 @@ This is a directory write. Nothing else changes.`)) return;
   // under the tool's head (js/pimlens.js); the tool below works as in 01.
   // show() calls pimLensPaint for every screen.
   // ======================================================================
-  const LENS = { "screen-gapcheck": ["checks", "🛡 PIM checks", "The PIM-only catalogue: the checks the CloudFellows PIM framework cares about, from the reads PIM-buddy makes."], "screen-cagroups": ["groups", "👥 PIM groups", "Every role-assignable group — the PIM-SG groups of the framework and any other — with the roles it holds and its members."], "screen-audit": ["audit", "🕓 PIM changes", "Role settings, assignments and activations from the directory audit log (the PIM service), last 30 days."], "screen-signins": ["acts", "🚦 Activations & approvals", "Every role activation request: who, which role, why, and how it ended — granted, waiting for approval, denied or failed."], "screen-groupuse": ["whois", "🔗 Who holds what", "One person or group: every Entra role, directly or through which group, at which scope, until when — and the Conditional Access policies that gate a Tier 0 activation."] };
+  const LENS = { "screen-gapcheck": ["checks", "🛡 PIM checks", "The PIM-only catalogue: the checks the CloudFellows PIM framework cares about, from the reads PIM-buddy makes."], "screen-audit": ["audit", "🕓 PIM changes", "Role settings, assignments and activations from the directory audit log (the PIM service), last 30 days."], "screen-signins": ["acts", "🚦 Activations & approvals", "Every role activation request: who, which role, why, and how it ended — granted, waiting for approval, denied or failed."], "screen-groupuse": ["whois", "🔗 Who holds what", "One person or group: every Entra role, directly or through which group, at which scope, until when — and the Conditional Access policies that gate a Tier 0 activation."] };
   let plx = { open: {}, audit: null, auditErr: null, auditBusy: false, auditF: "all", acts: null, actsErr: null, actsBusy: false, whoQ: "", busy: false };
   function plxReset() { plx = { open: plx.open, audit: null, auditErr: null, auditBusy: false, auditF: "all", acts: null, actsErr: null, actsBusy: false, whoQ: "", busy: false }; }
   function pimLensPaint(id) {

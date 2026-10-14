@@ -155,6 +155,17 @@ const PROMOTE = {
         "whole-page boot on main: no workspace chip, no 02 in the rail, no console errors",
       ],
     },
+    // 32515: 03 Entra Tools (Mihai, 14 Oct). It owns 🌐 Global Secure Access;
+    // its Groups tool is T12, which stays 01's file set.
+    entra: {
+      num: "03", label: "Entra Tools",
+      owns: ["js/gsa.js", "tools/gsa.test.cjs"],
+      mainChecks: [
+        "grep -nE 'GsaTool|toolGsa|screen-gsa' js/*.js index.html  (expect nothing)",
+        "grep -n 'src=\"js/gsa' index.html  (expect nothing)",
+        "whole-page boot on main: no 03 in the workspace chip, no console errors",
+      ],
+    },
     platform: {
       num: "", label: "Platform",
       owns: [],
@@ -162,6 +173,27 @@ const PROMOTE = {
   },
 
   items: [
+    {
+      n: 323,
+      ws: "entra",
+      title: "🧭 Workspace 03 · Entra Tools, and 👥 T12 6.0 — groups scoped by the workload that uses them",
+      tools: ["Workspaces", "Conditional Access groups"],
+      builds: [32515],
+      risk: "medium",
+      what: "js/workspaces.js: a third workspace entra (03 · Entra Tools) with ENTRA_ROSTER (Groups = T12, 🌐 Global Secure Access) and ENTRA_ONLY; ROSTERS replaces the two-way pim/ca tests (inWorkspace, nameIn, toolsOf, homeOf for a tool opened from the wrong side), the rail caption cycles 01 → 02 → 03, ?ws=entra, the library open by default on 02 and 03, enca:workspace-switched dispatched on a switch. css/workspaces.css: the 03 header, menu swatch, the home without the CA overview, .ws-entra, the CA / PIM / GSA badges. js/cagroups.js: scan() scopes pim (o.expect, the PIM-SG names) and gsa (o.ids), neither adding the CA-referenced groups; renderSummary per scope. js/groupsview.js: the Used by column carries useBadges and, in the PIM scope, the roles each group holds. js/app.js: CG_SCOPE_DEFAULT per workspace and cgScopeWs, the PIM read shared with 🧬 before a pim scan, cgModel usesOf / pimOf, the demo for both workload scopes, cgSyncScopeSel, the T12 lens entry removed from LENS, the dgfill button only in 01, the promotion queue opens on the current workspace's order. index.html: the scope select in three groups.",
+      why: "Mihai, 14 Oct, from the mockup: a Workspace 03 Entra Tools whose first tool is T12; T12's scope lists Used by CA policies, Used by PIM-buddy and later Used by GSA beside All groups, and arriving from 02 or 03 focuses on those groups without a PIM lens read; answered: the PIM scope is the PIM-SG catalog, 03 opens on its tools overview and Groups opens on All groups. Medium risk: the workspace tests that were two-way are now three-way across the shell, and the PIM scope reads what 🧬 reads. This item makes no write of its own. The 03 workspace exists in the build; promoting it to main also needs item 324 or the Global Secure Access card is a dead tile — or port the shell without toolGsa.",
+      test: [
+        "Local: node --check on every changed file; the whole suite passes; the plain-text check is clean; the jsdom boot with ?demo=1 shows no console error.",
+        "Demo: the chip menu lists 01, 02 and 03. 03 has a blue header with a cyan rule, opens on its overview with the library open, two cards (Groups, Global Secure Access). ⌘⇧3 switches to it; the rail caption reads 03 ⇄ and goes to 01.",
+        "Demo, from 01: Conditional Access groups opens on Used by CA policies. Switch to 02 with the tool open: the head reads PIM groups, the scope Used by PIM-buddy, the rows are PIM-SG names, the Used by column shows roles and a PIM badge; no PIM LENS panel above the tool.",
+        "Demo, from 03: Groups opens on All groups. Pick Baseline + templates, go to 01 and back to 03: 03 is still on Baseline + templates, 01 on Used by CA policies.",
+        "Used by GSA is disabled with read 🌐 Global Secure Access first until T56 has read; after a T56 read it lists the profile's groups and the compliant-network policy's groups.",
+        "cloudfellows.dev: 02 → PIM groups. Without opening 🧬 first, the list reads the PIM data itself (one progress line), shows every PIM-SG group of the profile with its roles, and the missing ones as missing. The counts above say framework groups, not baseline.",
+        "cloudfellows.dev: 01 → Conditional Access groups behaves as 5.21 on Used by CA policies; 🌍 Fill from regions is in the toolbar in 01 only.",
+        "Waiting for production opened from 03 starts on the 03 · Entra Tools order; an order for 01 lists js/gsa.js under never port.",
+      ],
+      files: ["js/workspaces.js", "css/workspaces.css", "js/cagroups.js", "js/groupsview.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
     {
       n: 322,
       ws: "ca",

@@ -120,9 +120,26 @@ const GroupsView = (() => {
     const via = r.children && r.children.length ? ` via ${esc(tail(r.children[0].name))}${r.children.length > 1 ? ` +${r.children.length - 1}` : ""}` : "";
     return `<b class="num">${r.memberTotal}</b>${r.memberTotal > r.members.length ? ` <span class="mini muted">(first ${r.members.length})</span>` : ""}${direct != null && r.memberTotal ? `<div class="mini muted">${direct === r.memberTotal ? "all direct" : nested === r.memberTotal ? `all${via}` : `${direct} direct · ${nested}${via}`}</div>` : r.dynamic ? '<div class="mini muted">dynamic</div>' : ""}${noNest(r)}`;
   }
+  // 32515 (T12 6.0): which workloads lean on the group — CA, PIM-buddy,
+  // Global Secure Access — as badges above the detail, whatever the scope,
+  // so a group two workloads use reads as one. ctx.usesOf is app.js's; a
+  // model without it (the tests, an older caller) shows no badge.
+  const USE_LABEL = { ca: ["CA", "Named by a Conditional Access policy"], pim: ["PIM", "A PIM-SG group of the CloudFellows PIM framework"], gsa: ["GSA", "Used by Global Secure Access — assigned on the Microsoft traffic profile or targeted by a compliant-network policy"] };
+  function useBadges(r, ctx) {
+    const u = ctx.usesOf ? ctx.usesOf(r) : [];
+    return u.length ? `<div class="cgg-uses">${u.map((k) => `<span class="cgg-use ${k}" title="${esc(USE_LABEL[k][1])}">${USE_LABEL[k][0]}</span>`).join("")}</div>` : "";
+  }
+  function pimCell(p) {
+    if (!p) return "";
+    const roles = p.roles.length ? p.roles.map((x) => `<div>${esc(x)}</div>`).join("") : '<div class="muted">no role</div>';
+    return `<div class="mini cgg-pim">${roles}${p.active == null ? '<div class="muted">members: read in 🎖 Roles &amp; assignments</div>' : `<div class="muted">${p.eligible} eligible · ${p.active} active</div>`}</div>`;
+  }
   function usedByCell(r, ctx) {
+    return useBadges(r, ctx) + (ctx.pimOf ? pimCell(ctx.pimOf(r)) : "") + caCell(r, ctx);
+  }
+  function caCell(r, ctx) {
     const { include: inc, exclude: exc } = refsOf(r, ctx);
-    if (!inc.length && !exc.length) return '<span class="mini muted">no policy</span>';
+    if (!inc.length && !exc.length) return ctx.usesOf && ctx.usesOf(r).length ? "" : '<span class="mini muted">no policy</span>';
     const one = (p) => { const st = ctx.stateOf(p.id); return `<b>${esc(ctx.seqOf(p.id) || p.name)}</b> ${st ? `<span class="wo-state ${STATE_CLS[st]}">${dot(STATE_CLS[st])}${STATE_LABEL[st]}</span>` : ""}`; };
     const parts = [];
     if (exc.length) parts.push(`excluded by ${exc.length === 1 ? one(exc[0]) : `<b>${exc.length}</b>`}`);

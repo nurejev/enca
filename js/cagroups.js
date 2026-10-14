@@ -259,7 +259,15 @@ const CaGroups = (() => {
     // policies: only what the policies reference. all: plus what the baseline
     // and templates expect. tenant: plus every security group in the directory
     // (first 5,000) — the view for "what else is out there".
-    const scope = o.scope === "tenant" ? "tenant" : o.scope === "all" ? "all" : "policies";
+    // 32515 (T12 6.0, Mihai 14 Oct): two workload scopes beside them —
+    //   pim: the PIM-SG catalog of the framework profile (o.expect, a list of
+    //        names), present or missing; nothing else.
+    //   gsa: the groups Global Secure Access leans on (o.ids, object ids read
+    //        by 🌐 T56); present by definition, nothing is "missing".
+    // Neither adds the groups the CA policies reference — the scope is the
+    // workload's, and the Used by column still says which CA uses as well.
+    const scope = ["tenant", "all", "pim", "gsa"].includes(o.scope) ? o.scope : "policies";
+    const workload = scope === "pim" || scope === "gsa";
     const tpl = templateNames();
     const cat = catalogGroupNames(raws);
     const refs = policyRefs(raws);
@@ -283,10 +291,11 @@ const CaGroups = (() => {
       if (!e) { e = { name: n, sources: new Set(), template: tpl.get(n) || null }; expected.set(n, e); }
       e.sources.add(src);
     };
-    if (scope !== "policies") {
+    if (scope === "all" || scope === "tenant") {
       tpl.forEach((t, n) => want(n, "template"));
       cat.forEach((n) => want(n, "catalog"));
     }
+    if (scope === "pim") (o.expect || []).forEach((n) => want(n, "PIM framework"));
 
     // Resolve the expected names in one $filter per chunk rather than one call
     // per group — 100+ sequential lookups is a visibly slow tool.
@@ -307,7 +316,7 @@ const CaGroups = (() => {
     // Referenced-by-policy groups, resolved by id — these may not be in the
     // expected set at all (someone pointed a policy at an ad-hoc group).
     const byId = new Map();
-    const refIds = [...refs.keys()];
+    const refIds = workload ? (scope === "gsa" ? [...new Set(o.ids || [])].filter(isGuid) : []) : [...refs.keys()];
     done = 0;
     for (const part of chunk(refIds, 15)) {
       o.onStatus?.(`Resolving referenced groups… ${done}/${refIds.length}`, done, refIds.length);
@@ -330,11 +339,19 @@ const CaGroups = (() => {
         sources: [...e.sources],
         status: g ? "present" : "missing",
         refs: g ? refs.get(g.id) : null,
-        basis: known.get(e.name.toLowerCase()) || (e.sources.has("template") ? "template" : "catalog"),
+        basis: known.get(e.name.toLowerCase()) || (e.sources.has("template") ? "template" : e.sources.has("PIM framework") ? "pim" : "catalog"),
       }));
     }
+    // gsa: every group the profiles name, by id; a group gone from the
+    // directory is listed as gone, like a dangling policy reference
+    if (scope === "gsa") {
+      for (const id of refIds) {
+        const g = byId.get(id) || null;
+        rows.push(row({ name: g ? g.displayName : id, group: g, template: null, sources: ["GSA"], status: g ? "present" : "dangling", refs: g ? refs.get(g.id) : null, basis: "gsa" }));
+      }
+    }
     // referenced groups that are not part of the expected set
-    for (const [id, ref] of refs) {
+    for (const [id, ref] of workload ? [] : refs) {
       if (claimed.has(id)) continue;
       const g = byId.get(id) || null;
       const basis = basisOf(g);
@@ -839,26 +856,32 @@ const CaGroups = (() => {
   function renderSummary(res, tenant) {
     const chip = (k) => res.counts[k]
       ? `<span class="bl-chip ${STATUS[k].cls}">${STATUS[k].icon} ${res.counts[k]} ${esc(STATUS[k].label.toLowerCase())}</span>` : "";
-    const onlyPolicies = res.scope === "policies";
+    const onlyPolicies = res.scope === "policies" || res.scope === "gsa";
     const inUse = res.rows.length;
+    const LEAD = {
+      pim: `The <b>PIM-SG catalog</b> of the CloudFellows PIM framework, in this tenant's profile: every group the framework defines, present or missing, with the roles each holds (eligible, active, activated) and its eligible and active members — read with the list, no separate PIM read. Role-assignable groups outside the catalog are not in this scope; switch to <b>All groups</b> to see them beside everything else.`,
+      gsa: `The groups <b>Global Secure Access</b> leans on: assigned on the Microsoft traffic profile, or targeted by a Conditional Access policy that requires the compliant network. Read by 🌐 Global Secure Access (T56); Internet Access and Private Access assignments join when those parts are added. A group a profile names but the directory no longer has is flagged.`,
+    };
     return `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
-        <h3>👥 <span class="ws-ca">Conditional Access groups</span><span class="ws-pim">PIM groups</span> — ${esc(tenant || "this tenant")}${toolHeadTail("toolCaGroups")}</h3>
-        <p style="margin-bottom:10px">${onlyPolicies
+        <h3>👥 <span class="ws-ca">Conditional Access groups</span><span class="ws-pim">PIM groups</span><span class="ws-entra">Groups</span> — ${esc(tenant || "this tenant")}${toolHeadTail("toolCaGroups")}</h3>
+        <p style="margin-bottom:10px">${LEAD[res.scope] ? LEAD[res.scope] : onlyPolicies
           ? `Only the groups your Conditional Access policies actually reference. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>Baseline + templates</b> to also check which expected groups are missing.`
           : res.scope === "tenant"
             ? `Every security group in the tenant${res.tenantCapped ? " (the first 5,000)" : ""} — the baseline's, the ones your policies point at, and everything else, listed as <b>not in the baseline</b>. Nested groups and members of the extras are read when you open them.`
             : `The groups your Conditional Access baseline depends on: every group the active baseline defines, plus every group your own policies point at. A group a policy references but the directory no longer has is flagged — Entra keeps the GUID and the policy targets nobody. Switch the scope to <b>All groups</b> to see every security group in the tenant next to them.`}</p>
-        ${typeof Baseline !== "undefined" && Baseline.activeChip ? `<p style="margin:0 0 8px">${Baseline.activeChip()}</p>` : ""}
-        ${res.other ? `<p class="mini" style="margin:0 0 8px;color:var(--report)">⚠ ${res.other.hits} of this tenant's policies carry names from the <b>${esc(res.other.catalog.label)}</b> baseline, which is not the active one — its groups are not expected here. <a href="#" data-open-baseline="${esc(res.other.catalog.id)}">Open that baseline</a> to make it active.</p>` : ""}
+        ${res.scope === "pim" ? `<p style="margin:0 0 8px"><span class="bl-active mini">Working against <b>🎖 ${esc(res.frame || "the CloudFellows PIM framework")}</b></span></p>`
+          : res.scope === "gsa" ? `<p style="margin:0 0 8px"><span class="bl-active mini">Read by <b>🌐 Global Secure Access (T56)</b> · Microsoft traffic profile${res.gsaAt ? ` · ${esc(res.gsaAt)}` : ""}</span></p>`
+          : typeof Baseline !== "undefined" && Baseline.activeChip ? `<p style="margin:0 0 8px">${Baseline.activeChip()}</p>` : ""}
+        ${res.other && res.scope !== "pim" && res.scope !== "gsa" ? `<p class="mini" style="margin:0 0 8px;color:var(--report)">⚠ ${res.other.hits} of this tenant's policies carry names from the <b>${esc(res.other.catalog.label)}</b> baseline, which is not the active one — its groups are not expected here. <a href="#" data-open-baseline="${esc(res.other.catalog.id)}">Open that baseline</a> to make it active.</p>` : ""}
         <div class="bl-chips">${["missing", "dangling", "present", "extra"].map(chip).join("")}</div>
       </div>
       <div style="text-align:right;min-width:150px">
         ${onlyPolicies
           ? `<div style="font-size:34px;font-weight:700">${inUse}</div>
-             <div class="mini muted">groups referenced by policies</div>`
+             <div class="mini muted">${res.scope === "gsa" ? "groups Global Secure Access uses" : "groups referenced by policies"}</div>`
           : `<div style="font-size:34px;font-weight:700;color:${res.coverage >= 90 ? "var(--on)" : res.coverage >= 60 ? "var(--report)" : "var(--off)"}">${res.coverage}<span style="font-size:15px">%</span></div>
-             <div class="mini muted">${res.present} of ${res.expectedTotal} expected groups exist</div>`}
+             <div class="mini muted">${res.present} of ${res.expectedTotal} ${res.scope === "pim" ? "framework groups" : "expected groups"} exist</div>`}
       </div>
     </div>`;
   }

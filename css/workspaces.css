@@ -164,6 +164,11 @@ body.workspaces-shell.with-side:not(.wc-wide-logo) #wcRail{padding-top:46px}
    inset shadow, not a border, so the header keeps its height. */
 body.workspaces-shell[data-ws="pim"]{--wc-brand:#1e4729}
 body.workspaces-shell[data-ws="pim"] header{box-shadow:inset 0 -3px 0 var(--lemon)}
+/* 32515: 03 Entra Tools — a deep blue with a cyan rule, so it never reads as
+   one of the two greens. */
+body.workspaces-shell[data-ws="entra"]{--wc-brand:#0d3a5c}
+body.workspaces-shell[data-ws="entra"] header{box-shadow:inset 0 -3px 0 #5ec8f2}
+body.workspaces-shell[data-ws="entra"] .wc-ws-num{background:#5ec8f2;color:#062338}
 .wc-ws{position:relative;display:inline-flex;align-items:center;flex-shrink:0}
 .wc-ws-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid color-mix(in srgb,var(--wc-brand-ink) 28%,var(--wc-brand));background:color-mix(in srgb,var(--wc-brand-ink) 10%,var(--wc-brand));color:var(--wc-brand-ink);border-radius:6px;padding:6px 10px 6px 8px;font:inherit;font-size:12px;font-weight:500;letter-spacing:0;white-space:nowrap;cursor:pointer}
 .wc-ws-chip:hover,.wc-ws-chip[aria-expanded="true"]{background:color-mix(in srgb,var(--wc-brand-ink) 18%,var(--wc-brand))}
@@ -177,7 +182,7 @@ body.workspaces-shell[data-ws="pim"] header{box-shadow:inset 0 -3px 0 var(--lemo
 .wc-ws-row:hover{background:var(--soft2);border-color:var(--border)}
 .wc-ws-row.cur{background:var(--soft);border-color:var(--border)}
 .wc-ws-sw{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:#fff;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
-.wc-ws-sw-ca{background:var(--green-deep)}.wc-ws-sw-pim{background:#1e4729;box-shadow:inset 0 -3px 0 var(--lemon)}
+.wc-ws-sw-ca{background:var(--green-deep)}.wc-ws-sw-pim{background:#1e4729;box-shadow:inset 0 -3px 0 var(--lemon)}.wc-ws-sw-entra{background:#0d3a5c;box-shadow:inset 0 -3px 0 #5ec8f2}
 .wc-ws-row strong{display:block;font-size:13px;font-weight:600}
 .wc-ws-row small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .wc-ws-keys kbd{font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--border);border-radius:4px;padding:1px 4px;background:var(--soft2);color:var(--muted)}
@@ -196,10 +201,20 @@ body.workspaces-shell[data-ws="pim"] header{box-shadow:inset 0 -3px 0 var(--lemo
 #wcPimLead{display:none}
 body.workspaces-shell[data-ws="pim"] #wcHomeLead,body.workspaces-shell[data-ws="pim"] #overview,body.workspaces-shell[data-ws="pim"] #onboardBand,body.workspaces-shell[data-ws="pim"] .wc-session{display:none!important}
 body.workspaces-shell[data-ws="pim"] #wcPimLead{display:block}
+/* 03 opens on its tools overview: no CA overview, its own lead, the library open */
+body.workspaces-shell[data-ws="entra"] #wcHomeLead,body.workspaces-shell[data-ws="entra"] #overview,body.workspaces-shell[data-ws="entra"] #onboardBand,body.workspaces-shell[data-ws="entra"] .wc-session{display:none!important}
+body.workspaces-shell[data-ws="entra"] #wcPimLead{display:block}
 @media(max-width:700px){.wc-ws-chip span:not(.wc-ws-num){display:none}.wc-ws-chip{padding:6px 7px}.wc-ws-menu{left:auto;right:-40px}}
 
 /* 32430: a tool's own name per workspace, switched by the header's data-ws so an
    open tab reads right after ⌘⇧1 / ⌘⇧2 without a re-render. */
-.ws-pim{display:none}
+.ws-pim,.ws-entra{display:none}
 body.workspaces-shell[data-ws="pim"] .ws-pim{display:inline}
 body.workspaces-shell[data-ws="pim"] .ws-ca{display:none}
+body.workspaces-shell[data-ws="entra"] .ws-entra{display:inline}
+body.workspaces-shell[data-ws="entra"] .ws-ca{display:none}
+/* 32515 (T12 6.0): which workloads use a group — the workspace colours */
+.cgg-uses{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 3px}
+.cgg-use{font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:4px;padding:3px 5px;color:#fff;letter-spacing:.03em}
+.cgg-use.ca{background:#12331f}.cgg-use.pim{background:#1e4729;box-shadow:inset 0 -2px 0 var(--lemon)}.cgg-use.gsa{background:#0d3a5c;box-shadow:inset 0 -2px 0 #5ec8f2}
+.cgg-pim{margin:2px 0 3px;line-height:1.45}

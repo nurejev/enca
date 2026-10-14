@@ -43,6 +43,7 @@
     toolPromote: 'What is on beta and not yet in production, one order per workspace. Beta site, cloudfellows.dev only.',
     toolPermissions: 'View session permissions, consent and revocation guidance.',
     toolHelp: 'Find guidance, permissions and release information.',
+    toolGsa: 'Global Secure Access, the Microsoft traffic profile: switched on, assigned, signalling, the compliant network, the client on devices — every link a compliant-network Conditional Access policy needs, and the fixes that live in Entra and Intune.',
   };
   // ---- 32407: the two workspaces ----------------------------------------
   // A tile belongs to 01 unless it is listed under PIM_ONLY; 02 offers the
@@ -61,7 +62,7 @@
     ] },
     { group: '👁 See what is privileged', tools: [
       { id: 'toolPimRoles', blurb: blurbs.toolPimRoles },
-      { id: 'toolCaGroups', name: 'PIM groups', blurb: 'Every role-assignable group with the roles it holds and its active and eligible members.', lens: 'built' },
+      { id: 'toolCaGroups', name: 'PIM groups', blurb: 'The PIM-SG groups of the framework profile — present or missing — with the roles each holds and its eligible and active members. Opens on the Used by PIM-buddy scope.' },
       { id: 'toolGroupUse', blurb: 'Who holds what for one person or group — every role, through which group, where, until when, and what gates a Tier 0 activation.', lens: 'built' },
       { id: 'toolSignins', blurb: 'Activations & approvals: every activation request, why, and how it ended.', lens: 'built' },
       { id: 'toolAudit', blurb: 'PIM changes: role settings, assignments and activations from the audit log.', lens: 'built' },
@@ -75,6 +76,21 @@
       { id: 'toolHelp' }, { id: 'toolChangelog' }, { id: 'toolRoadmap' }, { id: 'toolPromote' }, { id: 'toolPermissions' },
     ] },
   ];
+  // ---- 32515: Workspace 03 · Entra Tools ----------------------------------
+  // The directory objects every workload leans on. It opens on its tools
+  // overview (Mihai, 14 Oct: "workplace 3 opens with the apps overview"), and
+  // T12 is its first tool under the name Groups, opened on All groups. T56 🌐
+  // Global Secure Access lives only here.
+  const ENTRA_ONLY = new Set(['toolGsa']);
+  const ENTRA_ROSTER = [
+    { group: '🧱 Directory objects', tools: [
+      { id: 'toolCaGroups', name: 'Groups', blurb: 'Every security group in the tenant with what uses it — Conditional Access policies, PIM-buddy, Global Secure Access. Opens on All groups; the scope narrows it to one workload.' },
+    ] },
+    { group: '🌐 Global Secure Access', tools: [
+      { id: 'toolGsa', blurb: blurbs.toolGsa },
+    ] },
+  ];
+  const ROSTERS = { pim: PIM_ROSTER, entra: ENTRA_ROSTER };
   const WORKSPACES = {
     ca: { num: '01', name: 'Conditional Access', title: 'Conditional Access overview', context: 'Conditional Access / Workspace 01',
       // Work order, not the order tools were added in: what exists (Policies,
@@ -86,7 +102,14 @@
       // Same work order: see it (Baseline), the groups that carry it, who
       // holds it, what is wrong with it, then what to protect and what changed.
       shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolPimReport','📋','Report'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Admin units'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
+    entra: { num: '03', name: 'Entra Tools', title: 'Entra Tools overview', context: 'Entra Tools / Workspace 03',
+      lead: 'The directory objects every workload leans on — groups first, with what uses each one: Conditional Access, PIM-buddy, Global Secure Access. 🌐 Global Secure Access starts with the Microsoft traffic profile; Internet Access and Private Access come later.',
+      shortcuts: [['toolCaGroups','👥','Groups'],['toolGsa','🌐','GSA']] },
   };
+  const WS_IDS = Object.keys(WORKSPACES);
+  // Which workspace a tool belongs to when it is opened from the wrong side:
+  // 01 first (it holds most tools), then 02, then 03.
+  const homeOf = (id) => WS_IDS.find((w) => inWorkspace(id, w)) || 'ca';
   let ws = 'ca';
   const recent = [];
   let lastActive = null;
@@ -110,12 +133,12 @@
     if ($('wcLauncher').open) $('wcLauncher').close();
     // A tool opened from the wrong side switches the side first, so the rail
     // and the strip agree with the screen (32407).
-    if (!inWorkspace(id, ws)) setWorkspace(inWorkspace(id, 'pim') ? 'pim' : 'ca', { quiet: true });
+    if (!inWorkspace(id, ws)) setWorkspace(homeOf(id), { quiet: true });
     original.click(); // The existing app owns the route, subtab and state.
   }
   // A tool can carry its own name in a workspace (32430: T12 is ‘PIM groups’ in 02).
-  const nameIn = (id, which) => (which === 'pim' && PIM_ROSTER.flatMap(g => g.tools).find(r => r.id === id)?.name) || tools.find(t => t.id === id)?.name || '';
-  const inWorkspace = (id, which) => which === 'pim' ? PIM_ROSTER.some(g => g.tools.some(t => t.id === id)) : !PIM_ONLY.has(id);
+  const nameIn = (id, which) => (ROSTERS[which] && ROSTERS[which].flatMap(g => g.tools).find(r => r.id === id)?.name) || tools.find(t => t.id === id)?.name || '';
+  const inWorkspace = (id, which) => ROSTERS[which] ? ROSTERS[which].some(g => g.tools.some(t => t.id === id)) : !PIM_ONLY.has(id) && !ENTRA_ONLY.has(id);
   const card = t => t.planned
     ? `<div class="wc-tool wc-planned" aria-disabled="true"><span class="wc-tool-icon" aria-hidden="true">${esc(t.icon || '')}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || '')} · <span class="wc-chip">${esc(t.planned)}</span></small></div>`
     : `<button type="button" class="wc-tool" data-wc-tool="${esc(t.id)}"><span class="wc-tool-icon" aria-hidden="true">${icon(t.id)}</span><strong>${esc(t.name)}</strong><span>${esc(t.description)}</span><small>${esc(t.number || t.group)}${t.lens === 'built' ? ' · <span class="wc-chip lens" title="The same tool as in Workspace 01, opened here with its PIM lens.">PIM lens</span>' : t.lens ? ' · <span class="wc-chip lens" title="The same tool as in Workspace 01. A PIM-only catalogue, tab strip and Help text for it is on the roadmap.">PIM lens · roadmap</span>' : ''}</small></button>`;
@@ -133,8 +156,8 @@
   // absent: asked at render time, so a sign-in to another tenant is enough.
   const gated = (id) => !!($(id) && $(id).hidden);
   function toolsOf(which) {
-    if (which !== 'pim') return tools.filter(t => !PIM_ONLY.has(t.id) && !gated(t.id));
-    return PIM_ROSTER.flatMap(g => g.tools.filter(r => !gated(r.id)).map(r => {
+    if (!ROSTERS[which]) return tools.filter(t => !PIM_ONLY.has(t.id) && !ENTRA_ONLY.has(t.id) && !gated(t.id));
+    return ROSTERS[which].flatMap(g => g.tools.filter(r => !gated(r.id)).map(r => {
       const t = tools.find(t => t.id === r.id);
       if (!t) return r.planned ? { id: r.id, name: r.name, icon: r.icon, number: r.number, group: g.group, description: r.blurb || '', planned: r.planned } : null;
       return { ...t, name: r.name || t.name, group: g.group, description: r.blurb || t.description, lens: r.lens === 'built' ? 'built' : !!r.lens };
@@ -150,11 +173,11 @@
     $('wcRecent').innerHTML = recent.length ? recent.map(id => {
       const t=tools.find(t=>t.id===id); if(!t)return '';
       return `<button type="button" class="wc-recent" data-wc-tool="${esc(id)}"><span aria-hidden="true">${icon(t.id)}</span><span><strong>${esc(t.name)}</strong><small>Opened this session</small></span><span aria-hidden="true">↗</span></button>`;
-    }).join('') : `<div class="wc-empty"><span aria-hidden="true">↗</span><h3>Your next session starts here.</h3><p>Tools you open appear here for a quick return.</p><button type="button" class="wc-text-button" data-wc-tool="${ws === 'pim' ? ($('toolPimBaseline') ? 'toolPimBaseline' : 'toolCaGroups') : 'toolPolicies'}">${ws === 'pim' ? ($('toolPimBaseline') ? 'Open PIM baseline →' : 'Open PIM groups →') : 'Open Policies →'}</button></div>`;
+    }).join('') : `<div class="wc-empty"><span aria-hidden="true">↗</span><h3>Your next session starts here.</h3><p>Tools you open appear here for a quick return.</p><button type="button" class="wc-text-button" data-wc-tool="${ws === 'entra' ? 'toolCaGroups' : ws === 'pim' ? ($('toolPimBaseline') ? 'toolPimBaseline' : 'toolCaGroups') : 'toolPolicies'}">${ws === 'entra' ? 'Open Groups →' : ws === 'pim' ? ($('toolPimBaseline') ? 'Open PIM baseline →' : 'Open PIM groups →') : 'Open Policies →'}</button></div>`;
   }
   // ---- rail, header chip, home: one renderer each, re-run on a switch ----
   function renderRail() {
-    const w = WORKSPACES[ws], other = ws === 'pim' ? 'ca' : 'pim';
+    const w = WORKSPACES[ws], other = WS_IDS[(WS_IDS.indexOf(ws) + 1) % WS_IDS.length];
     const shortcut = ([id, glyph, label]) => {
       const t = tools.find(t => t.id === id);
       if (!t) return `<button type="button" class="wc-planned" disabled title="${esc(label)} — lands in the next build"><span aria-hidden="true">${FlatIcons.tool(id)}</span><small>${esc(label)}</small></button>`;
@@ -192,9 +215,11 @@
     ws = next;
     document.body.dataset.ws = ws;
     try { localStorage.setItem(WS_KEY, ws); } catch { /* private mode */ }
-    try { const u = new URL(location.href); if (ws === 'pim') u.searchParams.set('ws', 'pim'); else u.searchParams.delete('ws'); history.replaceState(history.state, '', u); } catch { /* opaque origin */ }
+    try { const u = new URL(location.href); if (ws !== 'ca') u.searchParams.set('ws', ws); else u.searchParams.delete('ws'); history.replaceState(history.state, '', u); } catch { /* opaque origin */ }
     renderChip(); renderRail(); renderHome(); setLib();
     closeWsMenu();
+    // 32515: a tool that follows the workspace (T12's first scope) listens
+    if (changed) document.dispatchEvent(new CustomEvent('enca:workspace-switched', { detail: { ws } }));
     if (changed && !opts.quiet) {
       // A tool open on the other side stays open (its tab is only hidden);
       // the screen goes to this side's home so rail, strip and page agree.
@@ -211,7 +236,7 @@
     return Object.keys(WORKSPACES).filter(id => id !== ws).map(id => {
       const w = WORKSPACES[id], label = `⇄ Switch to ${w.num} · ${w.name}`;
       const sc = score ? score(label, q) : 1;
-      return sc ? { kind: 'tool', id: 'side-home', label, hint: `Workspace ${w.num} — ${w.name === 'PIM-buddy' ? 'everything privileged access' : 'the Conditional Access tools'}`, score: sc, go: () => setWorkspace(id) } : null;
+      return sc ? { kind: 'tool', id: 'side-home', label, hint: `Workspace ${w.num} — ${id === 'pim' ? 'everything privileged access' : id === 'entra' ? 'groups and Global Secure Access' : 'the Conditional Access tools'}`, score: sc, go: () => setWorkspace(id) } : null;
     }).filter(Boolean);
   }
   let setLib = () => {};
@@ -240,7 +265,7 @@
     // A tool of the other side opened by the app itself (⌘K, a link in a
     // report, Back) takes the shell with it: the screen decides the side, so
     // the rail and the strip never disagree with the page (32407).
-    if (active && !home && !inWorkspace(active, ws)) { setWorkspace(inWorkspace(active, 'pim') ? 'pim' : 'ca', { quiet: true }); return; }
+    if (active && !home && !inWorkspace(active, ws)) { setWorkspace(homeOf(active), { quiet: true }); return; }
     document.querySelectorAll('#wcRail button[data-wc-tool]').forEach(button => {
       const on = !home && button.dataset.wcTool === active;
       button.classList.toggle('active',on);
@@ -306,7 +331,7 @@
     document.body.classList.add('workspaces-shell');
     // Which side to start on: the link (?ws=pim) wins, then the last choice in
     // this browser, then 01.
-    try { ws = new URLSearchParams(location.search).get('ws') === 'pim' ? 'pim' : (localStorage.getItem(WS_KEY) === 'pim' ? 'pim' : 'ca'); } catch { ws = 'ca'; }
+    try { const q = new URLSearchParams(location.search).get('ws'), m = localStorage.getItem(WS_KEY); ws = WORKSPACES[q] ? q : WORKSPACES[m] ? m : 'ca'; } catch { ws = 'ca'; }
     document.body.dataset.ws = ws;
     const rail=document.createElement('nav');rail.id='wcRail';rail.setAttribute('aria-label','Workspace navigation');
     document.body.append(rail);
@@ -371,7 +396,7 @@
     const libKey=()=>`enca.wcLibraryOpen:${ws}`;
     const libToggle=$('wcToggleLibrary'),lib=$('wcOverviewTools'),layout=home.querySelector('.wc-home-layout');
     setLib=(open)=>{
-      if(open===undefined){try{const v=localStorage.getItem(libKey());open=v===null?ws==='pim':v==='1';}catch{open=ws==='pim';}}
+      if(open===undefined){try{const v=localStorage.getItem(libKey());open=v===null?ws!=='ca':v==='1';}catch{open=ws!=='ca';}}
       else{try{localStorage.setItem(libKey(),open?'1':'0');}catch{}}
       lib.hidden=!open;libToggle.textContent=open?'Hide':'Show';libToggle.setAttribute('aria-expanded',String(open));$('wcToggleGroups').hidden=!open;layout.classList.toggle('lib-closed',!open);
     };
