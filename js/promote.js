@@ -175,6 +175,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 328,
+      ws: "pim",
+      title: "🧬 PIM baseline as pages — Roles, PIM groups, Regions, Intune, catalog, samples — with Select all / Deselect all (T48 1.1.0)",
+      tools: ["PIM baseline"],
+      builds: [32608],
+      risk: "low",
+      what: "TAB_HOSTS.pimbaseline in js/app.js: six pages on the tool-tabs bar (Regions only when the profile has regions, Update the catalog only on the baseline tenant or in the demo; pmbTabsSync rebuilds the strip when that set changes and writes the counts). pmbPage is the page, pmbFilter only the status filter; openPimBaseline(asIntune, page). js/pimbaseline.js: chips(res, filter, page) with per-page counts, rowsOf / groupsOf as the one filter judgement, visibleKeys(res, {page, filter, q}) for ☑ Select all / ☐ Deselect all (data-pmbselall / data-pmbselnone, .pmb-selbar), render(res, {page}) draws one table per page (page absent = both, the shape the tests read). The row tick updates the bar’s n of m without a repaint.",
+      why: "Mihai, 14 Oct: the layout of T48 needs some adjustment — select all / unselect all at the top of the ticked items, dedicated pages for Roles and PIM groups. Risk low: presentation and selection only; nothing read or written differently, Deploy receives the same selection set.",
+      test: [
+        "Offline: node --test tools/*.test.cjs green (pimbaseline.test.cjs reads render without a page and still gets both tables).",
+        "Beta, demo tenant, 02 PIM-buddy → 🧬 PIM baseline: the tab strip reads Roles · PIM groups · Regions · Intune RBAC · Update the catalog · EasyPIM samples; after ▶ Read the Roles and PIM groups tabs carry counts and the status chips show the counts of the open page only (no Groups chip).",
+        "Beta, demo tenant, Roles page: ☐ Deselect all drops Import N ticked by the roles count; ☑ Select all brings it back; on the Differs chip ☑ Select all ticks only the differing rows (the button says how many).",
+        "Beta, demo tenant: tick two groups on PIM groups, switch to Roles and back — the ticks are still there and Import N ticked counted them while on Roles.",
+        "Beta, demo tenant: 📱 Intune RBAC tile opens the screen on the Intune page with T53’s head; the 🧬 PIM baseline tile afterwards lands on Roles.",
+        "Beta, signed in to a tenant that is not cloudfellows.dev, Small business profile: no Regions tab and no Update the catalog tab; switch to Large · multi-region — the Regions tab appears without reopening the tool.",
+      ],
+      files: ["js/app.js", "js/pimbaseline.js", "css/app.css", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 327,
       ws: "pim",
       title: "🧬 Framework 5.0 — role activation first, the -Direct groups folded (T48 1.0.0, T51 0.6.0, T55 0.3.0, R86)",

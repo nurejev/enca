@@ -492,6 +492,26 @@
         { key: "deleted",   icon: "♻", name: "Deleted",     toolbar: "rcToolbar", open: () => openRecycle() },
       ],
     },
+    // 🧬 PIM baseline (T48) — 32608 (Mihai, 14 Oct: "create dedicated pages
+    // for Roles, PIM groups"): Roles and PIM groups were two tables stacked on
+    // one page, and Regions, Intune RBAC, the catalog and the samples were
+    // panes behind chips in the status-filter row. Every one is a page now;
+    // the status chips filter the page they are on. 📱 Intune RBAC keeps its
+    // own tile and number (T53) — its tab opens the same screen on that page,
+    // with T53's head. Regions shows only when the profile has regions, the
+    // catalog only on the baseline tenant (and in the demo), so the strip is
+    // rebuilt by pmbTabsSync when that set changes.
+    pimbaseline: {
+      tile: "toolPimBaseline", label: "🧬 PIM baseline",
+      tabs: [
+        { key: "roles",   icon: "🎖", name: "Roles",              toolbar: "pmbToolbar", open: () => openPimBaseline(false, "roles") },
+        { key: "groups",  icon: "👥", name: "PIM groups",         toolbar: "pmbToolbar", open: () => openPimBaseline(false, "groups") },
+        { key: "regions", icon: "🗺", name: "Regions",            toolbar: "pmbToolbar", open: () => openPimBaseline(false, "regions"), only: () => pmbRegionsOn() },
+        { key: "intune",  icon: "📱", name: "Intune RBAC",        toolbar: "pmbToolbar", open: () => openPimBaseline(true) },
+        { key: "catalog", icon: "🧱", name: "Update the catalog", toolbar: "pmbToolbar", open: () => openPimBaseline(false, "catalog"), only: () => isBaselineTenant() || isDemo },
+        { key: "samples", icon: "📄", name: "EasyPIM samples",    toolbar: "pmbToolbar", open: () => openPimBaseline(false, "samples") },
+      ],
+    },
     baseline: {
       tile: "toolBaseline", label: "🧬 Baseline",
       tabs: [
@@ -22596,6 +22616,11 @@ This is a directory write. Nothing else changes.`)) return;
   // the account or the demo switched is dropped (pmbRun / pmbSessionKey).
   // ======================================================================
   let pmbRaw = null, pmbRes = null, pmbErr = null, pmbBusy = false, pmbFilter = "all", pmbQ = "";
+  // 32608: the page that is open (roles · groups · regions · intune · catalog
+  // · samples, the tabs of TAB_HOSTS.pimbaseline). pmbFilter is only the
+  // status filter of the Roles and PIM groups pages since this build.
+  let pmbPage = "roles";
+  const PMB_PAGES = ["roles", "groups", "regions", "intune", "catalog", "samples"];
   let pmbProfileId = "multi", pmbRegRows = null, pmbRegErrors = [], pmbRegWarnings = [], pmbReg = null, pmbRegText = "";
   // The selection is state, not the DOM: a filter or a search repaints the
   // table without losing what was ticked, and rows out of view stay ticked.
@@ -22646,12 +22671,14 @@ This is a directory write. Nothing else changes.`)) return;
     if (isDemo) return "";
     return isBaselineTenant() ? `<span class="tag ok" title="This is the tenant the catalog is authored in">🧱 baseline tenant</span>` : "";
   }
-  function openPimBaseline(asIntune) {
-    // 📱 T53 is a pane of this screen with its own tile, number and tab.
-    if (asIntune) pmbFilter = "intune"; else if (pmbFilter === "intune") pmbFilter = "all";
-    crumb(asIntune ? "📱 Intune RBAC" : "🧬 PIM baseline");
+  function openPimBaseline(asIntune, page) {
+    // 📱 T53 is a page of this screen with its own tile, number and tab. The
+    // T48 tile (and a deep link) lands on Roles, or on the page that was
+    // open — unless that was Intune, which is T53's own door.
+    if (asIntune) pmbPage = "intune"; else if (page) pmbPage = page; else if (pmbPage === "intune") pmbPage = "roles";
+    crumb(pmbPage === "intune" ? "📱 Intune RBAC" : "🧬 PIM baseline");
     show("screen-pimbaseline");
-    $("pmbHead").innerHTML = asIntune ? toolHead("toolIntuneRbac") + PMB_INT_HEAD_TEXT : toolHead("toolPimBaseline") + PMB_HEAD_TEXT;
+    $("pmbHead").innerHTML = pmbPage === "intune" ? toolHead("toolIntuneRbac") + PMB_INT_HEAD_TEXT : toolHead("toolPimBaseline") + PMB_HEAD_TEXT;
     $("pmbProfile").innerHTML = PimBaseline.profileIds(PIM_BASELINE).map((id) => `<option value="${esc(id)}"${id === pmbProfileId ? " selected" : ""}>${esc(PIM_BASELINE.profiles[id].label)}</option>`).join("");
     pmbPaint();
   }
@@ -22666,27 +22693,46 @@ This is a directory write. Nothing else changes.`)) return;
     const can = new Set(pmbReg.regions.filter((r) => r.status !== "match" && r.status !== "conflict").map((r) => r.code));
     return new Set([...(pmbRegSel || can)].filter((c) => can.has(c)));
   };
+  // 32608: the strip is drawn once by mountToolTabs, but 🗺 Regions comes with
+  // the profile and 🧱 Update the catalog with the tenant, so when the set of
+  // shown tabs changes the strip is rebuilt; the counts are repainted every
+  // paint (a tab name is static in toolTabsSeg).
+  function pmbTabsSync() {
+    const h = TAB_HOSTS.pimbaseline, screen = $("screen-pimbaseline");
+    const sig = h.tabs.filter(tabShown).map((t) => t.key).join(",");
+    const old = screen.querySelector(":scope > .tool-tabs-bar");
+    if (old && old.dataset.sig !== sig) old.remove();
+    mountToolTabs("pimbaseline", pmbPage);
+    const bar = screen.querySelector(":scope > .tool-tabs-bar"); if (!bar) return;
+    bar.dataset.sig = sig;
+    const n = { roles: pmbRes ? pmbRes.counts.roles : null, groups: pmbRes ? pmbRes.groups.length : null, regions: pmbRegRows ? pmbRegRows.length : null, intune: pmbIntRes ? pmbIntRes.counts.differs + pmbIntRes.counts.missing + pmbIntRes.counts.conflict : null };
+    h.tabs.forEach((t) => { const b = bar.querySelector(`[data-tabgo="pimbaseline:${t.key}"]`); if (b) b.textContent = `${t.icon} ${t.name}${n[t.key] == null ? "" : ` (${n[t.key]})`}`; });
+  }
   function pmbPaint() {
-    if (!pmbRegionsOn() && pmbFilter === "regions") pmbFilter = "all";
+    if (!PMB_PAGES.includes(pmbPage)) pmbPage = "roles";
+    if (pmbPage === "regions" && !pmbRegionsOn()) pmbPage = "roles";
+    if (pmbPage === "catalog" && !(isBaselineTenant() || isDemo)) pmbPage = "roles";
+    if (pmbPage === "groups" && pmbFilter === "findings") pmbFilter = "all";
     if (pmbRes) pmbRes.regionsCount = pmbRegRows ? pmbRegRows.length : undefined;
-    const catChip = (isBaselineTenant() || isDemo) ? `<button class="fchip${pmbFilter === "catalog" ? " active" : ""}" data-pmbf="catalog" title="Baseline tenant only: the catalog follows cloudfellows.dev">🧱 Update the catalog</button>` : "";
-    const samplesChip = catChip + `<button class="fchip${pmbFilter === "intune" ? " active" : ""}" data-pmbf="intune">📱 Intune RBAC${pmbIntRes ? ` (${pmbIntRes.counts.differs + pmbIntRes.counts.missing + pmbIntRes.counts.conflict})` : ""}</button><button class="fchip${pmbFilter === "samples" ? " active" : ""}" data-pmbf="samples">📄 EasyPIM samples</button>`;
-    $("pmbChips").innerHTML = (pmbRes ? PimBaseline.chips(pmbRes, pmbFilter) : (pmbRegionsOn() ? `<button class="fchip${pmbFilter === "regions" ? " active" : ""}" data-pmbf="regions">🗺 Regions${pmbRegRows ? ` (${pmbRegRows.length})` : ""}</button>` : "")) + samplesChip;
-    const regionsPane = pmbFilter === "regions" && pmbRegionsOn(), samplesPane = pmbFilter === "samples" || pmbFilter === "intune";
+    pmbTabsSync();
+    const tablePage = pmbPage === "roles" || pmbPage === "groups";
+    $("pmbChips").innerHTML = pmbRes && tablePage ? PimBaseline.chips(pmbRes, pmbFilter, pmbPage) : "";
+    const regionsPane = pmbPage === "regions";
     const nSel = pmbSelected().size;
-    $("pmbMd").style.display = pmbRes && !samplesPane ? "" : "none";
+    $("pmbMd").style.display = pmbRes && (tablePage || regionsPane) ? "" : "none";
     // 32425: onboarding is 🚀 Deploy, from the browser. The delta and regions
     // files are no longer offered on this toolbar (the functions stay for the
     // framework's own maintenance); an EasyPIM file stays for PIM-as-code.
-    $("pmbImport").style.display = pmbRes && !samplesPane ? "" : "none";
+    $("pmbImport").style.display = pmbRes && (tablePage || regionsPane) ? "" : "none";
+    // The count is across BOTH pages: Roles ticks plus PIM groups ticks, one plan in 🚀 Deploy.
     $("pmbImport").textContent = regionsPane ? `🚀 Import regions →` : `🚀 Import ${nSel} ticked →`;
-    $("pmbConfig").style.display = regionsPane || samplesPane ? "none" : "";
+    $("pmbConfig").style.display = tablePage || pmbPage === "catalog" ? "" : "none";
     $("pmbRefresh").textContent = pmbRes ? "⟳ Read again" : "▶ Read this tenant's PIM";
     $("pmbRefresh").disabled = pmbBusy;
     $("pmbTenantNote").innerHTML = pmbTenantNote() + `<span class="mini pmb-profile-note">${esc(PIM_BASELINE.profiles[pmbProfileId].size)}</span>`;
-    if (pmbFilter === "intune") { $("pmbMd").style.display = pmbIntRes ? "" : "none"; pmbPaintIntune(); return; }
-    if (pmbFilter === "catalog") { $("pmbMd").style.display = "none"; $("pmbImport").style.display = "none"; pmbPaintCatalog(); return; }
-    if (samplesPane) { pmbPaintSamples(); return; }
+    if (pmbPage === "intune") { $("pmbMd").style.display = pmbIntRes ? "" : "none"; pmbPaintIntune(); return; }
+    if (pmbPage === "catalog") { $("pmbMd").style.display = "none"; $("pmbImport").style.display = "none"; pmbPaintCatalog(); return; }
+    if (pmbPage === "samples") { pmbPaintSamples(); return; }
     if (pmbBusy) { $("pmbBody").innerHTML = pmbProg.panel("Reading the tenant's PIM — role settings, assignments, groups, units…"); return; }
     if (regionsPane) { pmbPaintRegions(); return; }
     if (!pmbRes) {
@@ -22695,7 +22741,7 @@ This is a directory write. Nothing else changes.`)) return;
         <p class="mini muted"><b>Profile ${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b> — ${esc(PIM_BASELINE.profiles[pmbProfileId].description)}</p></div>`;
       return;
     }
-    $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { filter: pmbFilter, q: pmbQ, selected: pmbSelected() });
+    $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { page: pmbPage, filter: pmbFilter, q: pmbQ, selected: pmbSelected() });
   }
   // 📄 EasyPIM samples: one commented config per scenario, generated from the
   // catalog (the same text as tools/pim/samples/easypim.<profile>.jsonc).
@@ -22838,7 +22884,7 @@ This is a directory write. Nothing else changes.`)) return;
     try { if (!isDemo && tenantId) localStorage.setItem(`enca.pmbRegions:${tenantId}`, pmbRegRows ? text : ""); } catch { /* browser storage off */ }
     if (pmbRegRows) toast(`Regions <span>${pmbRegRows.length} row${pmbRegRows.length === 1 ? "" : "s"} from ${esc(source || "the file")}${r.errors.length ? ` · ${r.errors.length} left out` : ""}</span>`);
     if (pmbRaw) pmbRebuild();   // 📱 T53's regional verdicts follow the rows
-    pmbFilter = "regions"; pmbPaint();
+    pmbPage = "regions"; pmbPaint();
   }
   // Only this tenant's own file (or the demo's) — never the last context's rows.
   function pmbRegionsRestore() {
@@ -23037,6 +23083,10 @@ This is a directory write. Nothing else changes.`)) return;
       pmbSel = pmbSelected();
       if (t.checked) pmbSel.add(t.dataset.pmbfix); else pmbSel.delete(t.dataset.pmbfix);
       $("pmbImport").textContent = `🚀 Import ${pmbSelected().size} ticked →`;
+      // 32608: the select bar's "n of m ticked" follows the tick without a repaint.
+      const kind = t.dataset.pmbfix.startsWith("group:") ? "groups" : "roles";
+      const keys = PimBaseline.visibleKeys(pmbRes, { page: kind, filter: pmbFilter, q: pmbQ }), on = keys.filter((k) => pmbSel.has(k)).length;
+      const none = $("pmbBody").querySelector(`[data-pmbselnone="${kind}"]`); if (none) { none.disabled = !on; const m = none.nextElementSibling; if (m && keys.length) m.textContent = `${on} of ${keys.length} selectable ticked${pmbFilter !== "all" ? ` · follows the ${pmbFilter === "findings" ? "Assignments" : pmbFilter} filter` : ""} · match and conflict rows cannot be ticked`; }
       return;
     }
     if (t && t.dataset && t.dataset.pmbcat) { if (!pmbCatSel) pmbCatSel = new Set(); t.checked ? pmbCatSel.add(t.dataset.pmbcat) : pmbCatSel.delete(t.dataset.pmbcat); pmbPaintCatalog(); return; }
@@ -23047,17 +23097,29 @@ This is a directory write. Nothing else changes.`)) return;
     }
   });
   $("pmbMd").addEventListener("click", () => {
-    if (pmbFilter === "intune" && pmbIntRes) { showReport("📱 Intune RBAC", `ENCA-intune-rbac-${new Date().toISOString().slice(0, 10)}`, IntuneRbac.toMd(pmbIntRes, tenantName)); return; }
-    if (pmbFilter === "regions" && pmbReg) { showReport("🗺 Regions", `ENCA-pim-regions-${new Date().toISOString().slice(0, 10)}`, PimBaseline.regionsMd(pmbReg, tenantName)); return; }
+    if (pmbPage === "intune" && pmbIntRes) { showReport("📱 Intune RBAC", `ENCA-intune-rbac-${new Date().toISOString().slice(0, 10)}`, IntuneRbac.toMd(pmbIntRes, tenantName)); return; }
+    if (pmbPage === "regions" && pmbReg) { showReport("🗺 Regions", `ENCA-pim-regions-${new Date().toISOString().slice(0, 10)}`, PimBaseline.regionsMd(pmbReg, tenantName)); return; }
     if (pmbRes) showReport("🧬 PIM baseline", `ENCA-pim-baseline-${new Date().toISOString().slice(0, 10)}`, PimBaseline.toMd(pmbRes, tenantName));
   });
   $("pmbDelta").addEventListener("click", () => pmbExport(true));
-  $("pmbImport").addEventListener("click", () => { if (pmbFilter === "regions") openPimDeploy(null); else openPimDeploy(pmbSelected()); });
+  $("pmbImport").addEventListener("click", () => { if (pmbPage === "regions") openPimDeploy(null); else openPimDeploy(pmbSelected()); });
   $("pmbConfig").addEventListener("click", () => pmbExport(false));
   $("pmbChips").addEventListener("click", (e) => { const b = e.target.closest("[data-pmbf]"); if (!b) return; pmbFilter = b.dataset.pmbf; pmbPaint(); });
-  $("pmbFind").addEventListener("input", () => { pmbQ = $("pmbFind").value; if (pmbFilter === "regions") { if (pmbReg) pmbPaintRegions(); } else if (pmbFilter !== "samples" && pmbRes) $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { filter: pmbFilter, q: pmbQ, selected: pmbSelected() }); });
+  $("pmbFind").addEventListener("input", () => { pmbQ = $("pmbFind").value; if (pmbPage === "regions") { if (pmbReg) pmbPaintRegions(); } else if ((pmbPage === "roles" || pmbPage === "groups") && pmbRes) $("pmbBody").innerHTML = PimBaseline.tiles(pmbRes) + PimBaseline.render(pmbRes, { page: pmbPage, filter: pmbFilter, q: pmbQ, selected: pmbSelected() }); });
   $("pmbBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-pmbrun]")) { runPimBaseline(); return; }
+    // 32608: ☑ Select all / ☐ Deselect all tick the selectable rows IN VIEW
+    // on this page (filter and find applied) — the same visibleKeys the bar
+    // counted, so the button never ticks a row that is not on screen.
+    const sa = e.target.closest("[data-pmbselall],[data-pmbselnone]");
+    if (sa && pmbRes) {
+      const all = "pmbselall" in sa.dataset, kind = all ? sa.dataset.pmbselall : sa.dataset.pmbselnone;
+      const keys = PimBaseline.visibleKeys(pmbRes, { page: kind, filter: pmbFilter, q: pmbQ });
+      pmbSel = pmbSelected();
+      keys.forEach((k) => { if (all) pmbSel.add(k); else pmbSel.delete(k); });
+      pmbPaint();
+      return;
+    }
     if (e.target.closest("[data-pmbintrun]")) { runIntuneRbac(); return; }
     if (e.target.closest("[data-pmbcatfile]")) { pmbCatalogFile(); return; }
     if (e.target.closest("[data-pmbcatjson]")) { const p = pmbCatalogProposal(); if (p) downloadText("pim-catalog-revision", "json", "application/json", JSON.stringify({ schema: "cloudfellows-pim-catalog-revision/1", catalog: `${PIM_BASELINE.label} ${PIM_BASELINE.release}`, profile: pmbProfileId, from: isDemo ? "demo" : tenantDomain, readAt: pmbRaw && pmbRaw.readAt ? new Date(pmbRaw.readAt).toISOString() : null, changes: p.changes.filter((c) => pmbCatSel.has(c.id)), notes: p.notes }, null, 2) + "\n"); return; }

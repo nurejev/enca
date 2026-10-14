@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32608, date: "2026-10-14", title: "PIM baseline: Roles and PIM groups as pages, Select all above the ticks",
+    items: [
+      { kind: "improved", tool: "PIM baseline", text: "The tool has pages on the tab strip — Roles, PIM groups, Regions, Intune RBAC, Update the catalog, EasyPIM samples — instead of two tables stacked on one page with the other views behind chips. The status chips (All, Differs, Missing, Conflict, Match, Assignments) filter the page you are on and carry that page's counts, so a number on a chip always describes what is on screen." },
+      { kind: "new", tool: "PIM baseline", text: "Select all and Deselect all above the ticks of each table. Select all ticks the selectable rows in view — the filter and the find box applied — so Select all on Differs never ticks the missing rows; the button says how many. Match and conflict rows stay unticked. Import N ticked counts the Roles and PIM groups ticks together, and a tick survives switching pages." },
+    ],
+  },
+  {
     build: 32607, date: "2026-10-14", title: "PIM-buddy framework 5.0: role activation first",
     items: [
       { kind: "improved", tool: "PIM baseline", text: "Framework 5.0: every Entra role group has active members and is eligible per role, so a person activates the one role the task needs, in seconds, under that role's own tier. The job groups keep their names as team rosters. SecOps-Direct, Ops-Direct, AppOps-Direct and Collab-Direct are folded into their job group and shown as retired, with the roles they still hold. A group that still holds a role active is reported as the slow path, not as access outside the framework." },

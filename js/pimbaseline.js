@@ -18,7 +18,7 @@
 //                             config (EasyPIM.Orchestrator's shape), which
 //                             tools/pim/New-PimBaseline.ps1 plans and applies
 //   toRegionsFile(cat, rows)  the file tools/pim/New-PimRegions.ps1 plans from
-//   render / tiles / chips / renderRegions / toMd / regionsMd
+//   render / tiles / chips / visibleKeys / renderRegions / toMd / regionsMd
 //
 // The shape both sides are normalised to (SETTINGS):
 //   activation      ISO 8601 max activation duration      Expiration_EndUser_Assignment
@@ -916,10 +916,47 @@ const PimBaseline = (() => {
     const tile = (n, label, cls) => `<div class="xt-tile${cls ? " " + cls : ""}"><b>${esc(n)}</b>${esc(label)}</div>`;
     return `<div class="xt-tiles pmb-tiles">${tile(c.roles, "roles compared")}${tile(c.match, "match")}${tile(c.differs, "differ", c.differs ? "m" : "")}${tile(c.missing + c.unread + c.conflict, c.conflict ? "missing, not read or in conflict" : c.unread ? "missing or not read" : "missing in tenant", c.missing || c.conflict ? "h" : "")}${tile(`${g.present} / ${g.total}`, g.conflict ? `PIM groups present · ${g.conflict} in conflict` : "PIM groups present", g.missing || g.conflict ? "m" : "")}${tile(res.permanentOutside, "permanent active outside the framework", res.permanentOutside ? "h" : "")}</div>`;
   }
-  function chips(res, filter) {
+  // 32608 (Mihai, 14 Oct: "the layout of T48 needs some adjustment … create
+  // dedicated pages for Roles, PIM groups"): the screen has PAGES — roles,
+  // groups, regions, intune, catalog, samples — on the tool-tabs bar, and
+  // the status chips filter the page they are on. The chips carry the
+  // counts of THAT page, so a number on a chip always describes what is on
+  // screen (the old shared row mixed role and group counts).
+  function chips(res, filter, page) {
     const c = res.counts, g = res.gcounts;
     const f = (key, label, n) => `<button class="fchip${filter === key ? " active" : ""}" data-pmbf="${key}">${esc(label)}${n == null ? "" : ` (${esc(n)})`}</button>`;
+    if (page === "groups") return f("all", "All", res.groups.length) + f("differs", "Differs", g.differs) + f("missing", "Missing", g.missing + g.unread) + (g.conflict ? f("conflict", "Conflict", g.conflict) : "") + f("match", "Match", res.groups.filter((x) => x.status === "match").length);
+    if (page === "roles") return f("all", "All", c.roles) + f("differs", "Differs", c.differs) + f("missing", "Missing", c.missing + c.unread) + (c.conflict ? f("conflict", "Conflict", c.conflict) : "") + f("match", "Match", c.match) + f("findings", "Assignments", res.rows.filter((r) => r.findings.length).length);
+    // Both tables on one page (the shape before 32608; the tests still read it).
     return f("all", "All") + f("differs", "Differs", c.differs) + f("missing", "Missing", c.missing) + (c.conflict + g.conflict ? f("conflict", "Conflict", c.conflict + g.conflict) : "") + f("match", "Match", c.match) + f("groups", "Groups", g.total + g.azure) + f("findings", "Assignments", res.rows.filter((r) => r.findings.length).length) + (res.profile && res.profile.regions ? f("regions", "🗺 Regions", res.regionsCount == null ? undefined : res.regionsCount) : "");
+  }
+  // The rows and groups a page shows under a filter and a find text — ONE
+  // judgement shared by render (what is drawn) and visibleKeys (what ☑ Select
+  // all ticks), so Select all can never tick a row that is not on screen.
+  const hitBy = (q) => { const t = String(q || "").trim().toLowerCase(); return (s) => !t || String(s).toLowerCase().includes(t); };
+  function rowsOf(res, filter, q) {
+    const hit = hitBy(q);
+    let rows = res.rows.filter((r) => hit(r.name + " " + r.template + " " + r.via.join(" ")));
+    if (filter === "differs") rows = rows.filter((r) => r.status === "differs");
+    else if (filter === "missing") rows = rows.filter((r) => r.status === "missing" || r.status === "unread");
+    else if (filter === "conflict") rows = rows.filter((r) => r.status === "conflict");
+    else if (filter === "match") rows = rows.filter((r) => r.status === "match");
+    else if (filter === "findings") rows = rows.filter((r) => r.findings.length);
+    return rows.slice().sort((a, b) => STATUS[a.status].order - STATUS[b.status].order || a.name.localeCompare(b.name));
+  }
+  function groupsOf(res, filter, q) {
+    const hit = hitBy(q);
+    const showGroup = (g) => filter === "all" || filter === "groups" || (filter === "missing" ? !g.present || g.status === "unread" : filter === "conflict" ? g.status === "conflict" : filter === "differs" ? g.status === "differs" : filter === "match" ? g.status === "match" : false);
+    return res.groups.filter((g) => hit(g.name + " " + g.persona)).filter(showGroup);
+  }
+  // The selectable keys in view on a page: what ☑ Select all ticks and
+  // ☐ Deselect all unticks. Match and conflict rows are never selectable.
+  function visibleKeys(res, opts = {}) {
+    const can = selectable(res), page = opts.page || "both", filter = opts.filter || "all";
+    const keys = [];
+    if (page === "roles" || page === "both") rowsOf(res, filter, opts.q).forEach((r) => keys.push(`role:${r.name}`));
+    if (page === "groups" || page === "both") groupsOf(res, filter, opts.q).forEach((g) => keys.push(`group:${g.name}`));
+    return keys.filter((k) => can.has(k));
   }
   const pill = (s) => `<span class="xt-pill pmb-${STATUS[s].cls}">${STATUS[s].icon} ${esc(STATUS[s].label)}</span>`;
   // A policy that matches beside an assignment finding is not a plain Match.
@@ -933,28 +970,28 @@ const PimBaseline = (() => {
     return ` · sources: ${parts.join(" · ")}${res.domainChecked ? "" : ` · <span class="pmb-warn">alert domain not checked</span>`}`;
   }
   function render(res, opts = {}) {
-    const filter = opts.filter || "all";
-    const q = String(opts.q || "").trim().toLowerCase();
+    const filter = opts.filter || "all", page = opts.page || "both";
     const sel = opts.selected || defaultSelection(res);
     const can = selectable(res);
-    const hit = (s) => !q || String(s).toLowerCase().includes(q);
+    // ☑ Select all (n) / ☐ Deselect all above the ticks (32608, Mihai: "for
+    // the ticked items there should be select all / unselect all at the
+    // top"). n = the selectable rows in view, so a Select all on Differs
+    // never ticks the missing rows; the handler ticks visibleKeys().
+    const selbar = (kind) => {
+      const keys = visibleKeys(res, { page: kind, filter, q: opts.q });
+      const on = keys.filter((k) => sel.has(k)).length;
+      return `<div class="pmb-selbar"><button type="button" class="btn sm" data-pmbselall="${kind}"${keys.length ? "" : " disabled"}>☑ Select all${keys.length ? ` (${keys.length})` : ""}</button><button type="button" class="btn sm" data-pmbselnone="${kind}"${on ? "" : " disabled"}>☐ Deselect all</button><span class="mini">${keys.length ? `${on} of ${keys.length} selectable ticked` : "nothing to tick here"}${filter !== "all" ? ` · follows the ${esc(filter === "findings" ? "Assignments" : filter)} filter` : ""} · match and conflict rows cannot be ticked</span></div>`;
+    };
     const box = (key, label) => `<input type="checkbox" data-pmbfix="${esc(key)}"${sel.has(key) && can.has(key) ? " checked" : ""}${can.has(key) ? "" : " disabled"} aria-label="Take ${esc(label)} into the delta">`;
     const head = `<p class="mini pmb-read">${res.demo ? "Demo data · " : ""}Baseline: <b>${esc(res.catalog.label)} ${esc(res.catalog.release)}</b>${res.catalog.variant ? ` with the customer's variant <b>${esc(res.catalog.variant.name)}</b> (${res.catalog.variant.changes} change${res.catalog.variant.changes === 1 ? "" : "s"}, 🧾 Designer)` : ""}${res.profile ? ` · profile <b>${esc(res.profile.label)}</b>` : ""}, revised ${esc(res.catalog.revised)}, authored in ${esc(res.catalog.tenant)}${res.readAt ? ` · tenant read ${esc(new Date(res.readAt).toLocaleString())}` : ""}${sourcesLine(res)}${res.groupPoliciesError ? ` · <span class="pmb-warn">group settings not read: ${esc(res.groupPoliciesError)}</span>` : ""}</p>`;
-    let rows = res.rows.filter((r) => hit(r.name + " " + r.template + " " + r.via.join(" ")));
-    if (filter === "differs") rows = rows.filter((r) => r.status === "differs");
-    else if (filter === "missing") rows = rows.filter((r) => r.status === "missing" || r.status === "unread");
-    else if (filter === "conflict") rows = rows.filter((r) => r.status === "conflict");
-    else if (filter === "match") rows = rows.filter((r) => r.status === "match");
-    else if (filter === "findings") rows = rows.filter((r) => r.findings.length);
-    rows = rows.slice().sort((a, b) => STATUS[a.status].order - STATUS[b.status].order || a.name.localeCompare(b.name));
-    const roleTable = filter === "groups" ? "" : `<div class="list-card xt-card"><h3>Roles <span class="mini">${rows.length} of ${res.rows.length} · the setting the tenant has → what the framework says</span></h3><div class="xt-tw"><table class="xt-tbl pmb-tbl">
+    const rows = rowsOf(res, filter, opts.q);
+    const roleTable = (page === "groups" || filter === "groups") ? "" : `<div class="list-card xt-card"><h3>Roles <span class="mini">${rows.length} of ${res.rows.length} · the setting the tenant has → what the framework says</span></h3>${selbar("roles")}<div class="xt-tw"><table class="xt-tbl pmb-tbl">
       <thead><tr><th></th><th>Role</th><th>Tier</th><th>Eligible</th><th>Active</th><th>Permanent</th><th>Verdict</th><th>Differences · findings</th></tr></thead>
       <tbody>${rows.map((r) => `<tr class="pmb-row pmb-${r.status}"><td>${box(`role:${r.name}`, r.name)}</td><td><b>${esc(r.name)}</b>${r.via.length ? `<div class="mini pmb-via">via ${esc(r.via.join(", "))}</div>` : ""}${r.note ? `<div class="mini pmb-note">${esc(r.note)}</div>` : ""}</td><td><span class="pmb-tier pmb-tier-${esc(r.tier)}">${esc(r.tier)}</span></td><td>${r.eligible}</td><td>${r.active}</td><td>${r.permanent ? `<span class="xt-pill ${r.findings.some((f) => /permanent active outside/.test(f)) ? "pmb-bad" : "pmb-na"}">${r.permanent}${r.protectedPermanent ? ` <span class="mini">(${r.protectedPermanent} break-glass)</span>` : ""}</span>` : "—"}</td><td>${verdict(r)}</td><td>${diffCell(r.diffs)}${r.findings.length ? `<ul class="pmb-diffs pmb-findings">${r.findings.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}${r.status === "missing" ? `<div class="mini">No role with this name in the tenant. Built-in roles always exist; check the spelling in the catalog.</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="8" class="mini" style="padding:14px">Nothing under this filter.</td></tr>`}</tbody></table></div></div>`;
-    const groups = res.groups.filter((g) => hit(g.name + " " + g.persona));
-    const showGroup = (g) => filter === "all" || filter === "groups" || (filter === "missing" ? !g.present || g.status === "unread" : filter === "conflict" ? g.status === "conflict" : filter === "differs" ? g.status === "differs" : false);
-    const groupTable = (filter !== "all" && filter !== "groups" && filter !== "missing" && filter !== "differs" && filter !== "conflict") ? "" : `<div class="list-card xt-card"><h3>PIM groups <span class="mini">the model, never the members · exact names, matched by id</span></h3><div class="xt-tw"><table class="xt-tbl pmb-tbl">
+    const groups = groupsOf(res, filter, opts.q);
+    const groupTable = (page === "roles" || (page === "both" && filter !== "all" && filter !== "groups" && filter !== "missing" && filter !== "differs" && filter !== "conflict")) ? "" : `<div class="list-card xt-card"><h3>PIM groups <span class="mini">${page === "both" ? "" : `${groups.length} of ${res.groups.length} · `}the model, never the members · exact names, matched by id</span></h3>${selbar("groups")}<div class="xt-tw"><table class="xt-tbl pmb-tbl">
       <thead><tr><th></th><th>Group</th><th>Persona</th><th>Membership</th><th>In tenant</th><th>Role-assignable</th><th>Carries</th><th>Verdict</th><th>Differences</th></tr></thead>
-      <tbody>${groups.filter(showGroup).map((g) => `<tr class="pmb-row pmb-${g.status}"><td>${box(`group:${g.name}`, g.name)}</td><td><b>${esc(g.name)}</b>${g.description ? `<div class="mini pmb-note">${esc(g.description)}</div>` : ""}</td><td>${esc(g.persona)}${g.azure ? `<div class="mini">${esc(g.azure.role)} · ${esc(g.azure.scope)}</div>` : ""}${g.xdr ? `<div class="mini">${esc(g.xdr.role)} · scope ${esc(g.xdr.scope)}</div>` : ""}</td><td><span class="pmb-tier">${g.path === "job" ? "eligible · job" : g.path === "direct" ? "active · per role" : /^GroupJIT/.test(g.template) ? "eligible · JIT" : "active · 1 year"}</span></td><td>${g.present ? (g.ids.length > 1 ? `<span class="pmb-bad-txt">${g.ids.length}×</span>` : "✓") : "<span class=\"pmb-bad-txt\">no</span>"}</td><td>${g.present ? (g.roleAssignable ? "✓" : "<span class=\"pmb-bad-txt\">no</span>") : "—"}</td><td>${g.scope === "azure" ? `<span class="mini">Azure RBAC · not compared</span>` : g.scope === "intune" ? `<span class="mini">Intune role through T53</span>` : g.scope === "xdr" ? `<span class="mini">Defender XDR · assigned in the portal</span>` : g.scope === "exchange" ? `<span class="mini">Exchange role group ${esc((g.exchange && g.exchange.roleGroup) || "")} · through the script Deploy generates</span>` : g.scope === "purview" ? `<span class="mini">Purview role group ${esc((g.purview && g.purview.roleGroup) || "")} · through the script Deploy generates</span>` : `${g.path === "job" ? "active " : g.path === "direct" ? "eligible " : ""}${g.has.filter((r) => g.carries.includes(r)).length} / ${g.carries.length}${g.wrongShape && g.wrongShape.length ? `<div class="mini pmb-bad-txt">${g.path === "job" ? "still eligible (2.x) — should be active" : "held active — should be eligible"}: ${esc(g.wrongShape.join(", "))}</div>` : ""}${g.missingRoles.length ? `<div class="mini pmb-bad-txt">missing: ${esc(g.missingRoles.join(", "))}</div>` : ""}${g.scopedOnly.length ? `<div class="mini">only at an AU: ${esc(g.scopedOnly.join(", "))}</div>` : ""}`}${g.extraRoles.length ? `<div class="mini pmb-bad-txt">also holds: ${esc(g.extraRoles.join(", "))}</div>` : ""}</td><td>${pill(g.status)}</td><td>${g.conflict ? `<div class="mini pmb-bad-txt">${esc(g.conflict)}</div>` : ""}${g.present && g.roleAssignable === false ? `<div class="mini pmb-bad-txt">not role-assignable: a group made without isAssignableToRole cannot be made one later — recreate it</div>` : ""}${diffCell(g.diffs)}${g.present && g.settings === "unread" && !g.conflict && g.scope !== "azure" ? `<div class="mini">membership settings (PIM for Groups) not read</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="mini" style="padding:14px">Nothing under this filter.</td></tr>`}</tbody></table></div>${res.extraGroups.length ? `<p class="mini pmb-extra">Role-assignable groups in the tenant that are not in the framework: ${esc(res.extraGroups.join(", "))}. Not a difference — a tenant's own groups are its own — but every one of them can hold a role, so 👥 CA groups and 🛡 Administrative units should know them.</p>` : ""}${res.retiredGroups && res.retiredGroups.length ? `<p class="mini pmb-extra">Retired in ${esc(res.retiredGroups[0].release)}: ${res.retiredGroups.map((r) => `${esc(r.name)} → ${esc(r.into)}${r.count ? ` (still holds ${esc(r.holds.join(", "))})` : " (holds no role — delete it by hand once nothing references it)"}`).join("; ")}. 🚀 Deploy's 5.0 migration removes what they hold once the new group holds it; the groups themselves are deleted by a person.</p>` : ""}${res.regionalGroups && res.regionalGroups.length ? `<p class="mini pmb-extra">Regional groups in the tenant: ${esc(res.regionalGroups.join(", "))} — compared under 🗺 Regions against the regions file.</p>` : ""}</div>`;
+      <tbody>${groups.map((g) => `<tr class="pmb-row pmb-${g.status}"><td>${box(`group:${g.name}`, g.name)}</td><td><b>${esc(g.name)}</b>${g.description ? `<div class="mini pmb-note">${esc(g.description)}</div>` : ""}</td><td>${esc(g.persona)}${g.azure ? `<div class="mini">${esc(g.azure.role)} · ${esc(g.azure.scope)}</div>` : ""}${g.xdr ? `<div class="mini">${esc(g.xdr.role)} · scope ${esc(g.xdr.scope)}</div>` : ""}</td><td><span class="pmb-tier">${g.path === "job" ? "eligible · job" : g.path === "direct" ? "active · per role" : /^GroupJIT/.test(g.template) ? "eligible · JIT" : "active · 1 year"}</span></td><td>${g.present ? (g.ids.length > 1 ? `<span class="pmb-bad-txt">${g.ids.length}×</span>` : "✓") : "<span class=\"pmb-bad-txt\">no</span>"}</td><td>${g.present ? (g.roleAssignable ? "✓" : "<span class=\"pmb-bad-txt\">no</span>") : "—"}</td><td>${g.scope === "azure" ? `<span class="mini">Azure RBAC · not compared</span>` : g.scope === "intune" ? `<span class="mini">Intune role through T53</span>` : g.scope === "xdr" ? `<span class="mini">Defender XDR · assigned in the portal</span>` : g.scope === "exchange" ? `<span class="mini">Exchange role group ${esc((g.exchange && g.exchange.roleGroup) || "")} · through the script Deploy generates</span>` : g.scope === "purview" ? `<span class="mini">Purview role group ${esc((g.purview && g.purview.roleGroup) || "")} · through the script Deploy generates</span>` : `${g.path === "job" ? "active " : g.path === "direct" ? "eligible " : ""}${g.has.filter((r) => g.carries.includes(r)).length} / ${g.carries.length}${g.wrongShape && g.wrongShape.length ? `<div class="mini pmb-bad-txt">${g.path === "job" ? "still eligible (2.x) — should be active" : "held active — should be eligible"}: ${esc(g.wrongShape.join(", "))}</div>` : ""}${g.missingRoles.length ? `<div class="mini pmb-bad-txt">missing: ${esc(g.missingRoles.join(", "))}</div>` : ""}${g.scopedOnly.length ? `<div class="mini">only at an AU: ${esc(g.scopedOnly.join(", "))}</div>` : ""}`}${g.extraRoles.length ? `<div class="mini pmb-bad-txt">also holds: ${esc(g.extraRoles.join(", "))}</div>` : ""}</td><td>${pill(g.status)}</td><td>${g.conflict ? `<div class="mini pmb-bad-txt">${esc(g.conflict)}</div>` : ""}${g.present && g.roleAssignable === false ? `<div class="mini pmb-bad-txt">not role-assignable: a group made without isAssignableToRole cannot be made one later — recreate it</div>` : ""}${diffCell(g.diffs)}${g.present && g.settings === "unread" && !g.conflict && g.scope !== "azure" ? `<div class="mini">membership settings (PIM for Groups) not read</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="mini" style="padding:14px">Nothing under this filter.</td></tr>`}</tbody></table></div>${res.extraGroups.length ? `<p class="mini pmb-extra">Role-assignable groups in the tenant that are not in the framework: ${esc(res.extraGroups.join(", "))}. Not a difference — a tenant's own groups are its own — but every one of them can hold a role, so 👥 CA groups and 🛡 Administrative units should know them.</p>` : ""}${res.retiredGroups && res.retiredGroups.length ? `<p class="mini pmb-extra">Retired in ${esc(res.retiredGroups[0].release)}: ${res.retiredGroups.map((r) => `${esc(r.name)} → ${esc(r.into)}${r.count ? ` (still holds ${esc(r.holds.join(", "))})` : " (holds no role — delete it by hand once nothing references it)"}`).join("; ")}. 🚀 Deploy's 5.0 migration removes what they hold once the new group holds it; the groups themselves are deleted by a person.</p>` : ""}${res.regionalGroups && res.regionalGroups.length ? `<p class="mini pmb-extra">Regional groups in the tenant: ${esc(res.regionalGroups.join(", "))} — compared under 🗺 Regions against the regions file.</p>` : ""}</div>`;
     return head + roleTable + groupTable;
   }
 
@@ -979,5 +1016,5 @@ const PimBaseline = (() => {
     return L.join("\n");
   }
 
-  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, canonRoles, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, groupPath, isJob, moduleIds, everyProfile, parseCsv, parseRegions, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
+  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, canonRoles, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, visibleKeys, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, groupPath, isJob, moduleIds, everyProfile, parseCsv, parseRegions, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
 })();

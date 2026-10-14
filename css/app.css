@@ -2948,6 +2948,9 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 .pmb-na{background:var(--soft);color:var(--muted)}
 .pmb-bad-txt{color:var(--crit-fg);font-weight:600}
 .pmb-extra{margin:10px 0 0;color:var(--muted)}
+/* 32608: ☑ Select all / ☐ Deselect all above the ticks of each T48 table */
+.pmb-selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;padding:6px 8px;background:var(--soft);border:1px solid var(--border);border-radius:10px}
+.pmb-selbar .btn[disabled]{opacity:.55}
 tr.pmb-row.pmb-missing td{background:color-mix(in srgb,var(--bad-bg) 35%,transparent)}
 #pmbTenantNote:empty{display:none}
 .pmb-profile{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
