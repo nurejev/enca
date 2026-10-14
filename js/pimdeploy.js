@@ -23,9 +23,16 @@
 // hand — listed under By hand, never planned, never read back.
 //
 // Guardrails, all of them the scripts':
-//   * nothing is removed; a permanent assignment outside the framework, an
-//     active group assignment of the 2.0 style, a unit whose rule differs —
-//     are FINDINGS for a person to decide;
+//   * nothing is removed — with ONE exception, the 5.0 migration section
+//     (14 Oct 2026, off by default): it removes a role group's ACTIVE role
+//     assignment, or a retired group's assignment, only when THIS read already
+//     shows the replacement (the same group eligible for the role at the same
+//     scope, or the group it was folded into holding the role). So the
+//     migration is two Previews: the first adds the eligibilities, the second
+//     removes what they replace. Every removal goes into the backup and ↩ Put
+//     back recreates it. A group is never deleted. Everything else — a
+//     permanent assignment outside the framework, a unit whose rule differs —
+//     stays a FINDING for a person to decide;
 //   * a name that exists twice, or a group that should be role-assignable
 //     and is not (the flag cannot be set later), BLOCKS what needs it;
 //   * approval is only ever switched on with an approver group that exists
@@ -49,7 +56,8 @@ const PimDeploy = (() => {
     ["groups", "PIM-SG groups", "role-assignable, private — created empty"],
     ["approvers", "Approver groups", "plain security groups; members are added by you (a region's from its regions file)"],
     ["rolePolicies", "Role settings", "rule by rule, only the rules that differ; the rules as they were go into the backup"],
-    ["eligibilities", "Group assignments", "job groups ACTIVE, permanently, in their roles; direct groups ELIGIBLE per role for a year (3.0)"],
+    ["eligibilities", "Group assignments", "every role group ELIGIBLE per role for a year (5.0); a person activates one role at a time"],
+    ["migrate", "5.0 migration", "removes what 5.0 no longer uses, only where this read already shows its replacement: a role group's ACTIVE assignment once the group is ELIGIBLE for the role, a retired -Direct group's assignment once its job group holds the role; recreated by ↩ Put back; groups are never deleted"],
     ["groupPolicies", "Membership policies", "GroupMember / GroupJIT on every persona and Intune group; a new group's policy follows once PIM for Groups knows it"],
     ["rmau", "Restricted unit", "AU-RM-Executives and the desk scoped on it — the restricted flag cannot be undone"],
     ["regions", "Regions", "per row of the regions file: units, groups, scoped eligibilities, Intune scope groups"],
@@ -61,7 +69,7 @@ const PimDeploy = (() => {
     ["purview", "Purview groups", "PIM-SG-PUR-* groups and their membership policies; each joins its Purview role group through the script Deploy generates (Security and Compliance PowerShell), whose outcome file Deploy reads back"],
     ["azure", "Azure groups", "PIM-SG-AZ-* groups only; their Azure role assignments are made in Azure"],
   ];
-  const DEFAULT_OFF = new Set(["rmau", "azure", "rh", "w365"]);
+  const DEFAULT_OFF = new Set(["rmau", "azure", "rh", "w365", "migrate"]);
 
   function index(raw) {
     const byId = new Map();
@@ -204,7 +212,7 @@ const PimDeploy = (() => {
         return;
       }
       if (scope.includes("{{") === false && !isNew && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === scope)) return;
-      if (!isNew && active.some((a) => a.principalId === gid && a.roleName === roleName && a.assignmentType !== "Activated" && (a.directoryScopeId || "/") === scope)) P.findings.push(`${gname} holds ${roleName} ACTIVE — a direct group is eligible per role; once the eligibility exists, remove the active assignment by hand`);
+      if (!isNew && active.some((a) => a.principalId === gid && a.roleName === roleName && a.assignmentType !== "Activated" && (a.directoryScopeId || "/") === scope)) P.findings.push(`${gname} holds ${roleName} ACTIVE (4.1 slow path) — this run adds the eligibility; Preview again with 5.0 migration ticked to remove the active assignment`);
       if (scope !== "/" && !String(gid).startsWith("{{") && eligible.some((a) => a.principalId === gid && a.roleName === roleName && (a.directoryScopeId || "/") === "/")) P.findings.push(`${gname} is eligible for ${roleName} at TENANT scope — wider than ${scopeLabel}; remove the tenant-wide one by hand`);
       // The maximum this run leaves the role with, not the one it found:
       // a tighter tier applied first would refuse a longer request (32429).
@@ -226,6 +234,55 @@ const PimDeploy = (() => {
     }));
     if (on("rmau")) ((cat.profile && cat.profile.scoped) || []).forEach((s) => { const a = auRef(s.au); if (a) elig(s.role, s.group, `/administrativeUnits/${a}`, s.au, "rmau"); });
     if (on("regions")) regs.forEach((R) => R.eligibilities.forEach((e) => { const a = auRef(e.au); if (!a) { P.findings.push(`${e.group} → ${e.role} at ${e.au}: left out — the unit does not exist and is not in this import`); return; } elig(e.role, e.group, `/administrativeUnits/${a}`, e.au, "regions"); }));
+
+    // ---- 5.0 migration ------------------------------------------------------
+    // Only where this read already shows the replacement; see the header.
+    // Only when ticked explicitly — a plan built without a section list never removes.
+    if (opts.sections && opts.sections.has("migrate")) {
+      const scopeOf = (a) => a.directoryScopeId || "/";
+      const AUS = new Map((raw.aus || []).map((u) => [u.id, u.displayName]));
+      const label = (sc) => (sc === "/" ? "tenant scope" : AUS.get(sc.replace("/administrativeUnits/", "")) || sc);
+      const expiry = (a) => (a.endDateTime ? { type: "afterDateTime", endDateTime: a.endDateTime } : { type: "noExpiration" });
+      const removeOp = (kind, a, gname, why) => {
+        const rid = I.roleId.get(a.roleName);
+        if (!rid) { P.findings.push(`${gname} → ${a.roleName}: no built-in role with that name was read — left as it is`); return; }
+        const url = `${V1}/roleManagement/directory/${kind === "active" ? "roleAssignmentScheduleRequests" : "roleEligibilityScheduleRequests"}`;
+        const sc = scopeOf(a);
+        const ident = { principalId: a.principalId, roleDefinitionId: rid, directoryScopeId: sc };
+        PimPlan.add(P, { key: `mig:${kind}:${a.roleName}:${gname}:${sc}`, method: "POST", url, remove: true, needs: ["RoleManagement.ReadWrite.Directory"], section: "migrate",
+          summary: `remove ${gname} ${kind === "active" ? "ACTIVE in" : "eligible for"} ${a.roleName} at ${label(sc)} — ${why}`,
+          body: Object.assign({ action: "adminRemove", justification: `${cat.label} ${cat.release}: ${why}` }, ident),
+          restore: { url, body: Object.assign({ action: "adminAssign", justification: `${cat.label}: put back after the 5.0 migration`, scheduleInfo: { expiration: expiry(a) } }, ident) } });
+      };
+      const has = (gid, roleName, sc) => eligible.some((e) => e.principalId === gid && e.roleName === roleName && scopeOf(e) === sc);
+      // a) role groups (catalog and regional) holding a role ACTIVE.
+      const roleGroups = [...res.groups.filter((g) => g.present && g.id && g.path === "direct" && g.scope === "m365").map((g) => [g.name, g.id]),
+        ...regs.flatMap((R) => R.groups.filter((g) => g.roleAssignable && g.path === "direct")).map((g) => [g.name, ref(g.name)]).filter(([, id]) => id && !String(id).startsWith("{{"))];
+      const waiting = [];
+      roleGroups.forEach(([gname, gid]) => {
+        if (!want(`group:${gname}`) && only) return;
+        active.filter((a) => a.principalId === gid && a.assignmentType !== "Activated").forEach((a) => {
+          if (has(gid, a.roleName, scopeOf(a))) removeOp("active", a, gname, `the group is eligible for the role since 5.0 (role activation first)`);
+          else waiting.push(`${gname} → ${a.roleName}`);
+        });
+      });
+      if (waiting.length) P.findings.push(`5.0 migration: ${waiting.length} active assignment${waiting.length === 1 ? "" : "s"} wait for their eligibility (${waiting.slice(0, 6).join(", ")}${waiting.length > 6 ? ", …" : ""}) — tick Group assignments, apply, then Preview again`);
+      // b) retired groups (the fold).
+      const retiredLeft = [];
+      (cat.retired || []).forEach((r) => {
+        const l = I.byName.get(r.name) || [];
+        if (l.length !== 1) return;
+        const rid = l[0].id, into = ref(r.into);
+        const mine = [...eligible.filter((a) => a.principalId === rid).map((a) => ["eligible", a]), ...active.filter((a) => a.principalId === rid && a.assignmentType !== "Activated").map((a) => ["active", a])];
+        let left = 0;
+        mine.forEach(([kind, a]) => {
+          if (into && !String(into).startsWith("{{") && has(into, a.roleName, scopeOf(a))) removeOp(kind, a, r.name, `folded into ${r.into}, which is eligible for the role (5.0)`);
+          else { left++; P.findings.push(`5.0 migration: ${r.name} → ${a.roleName} stays until ${r.into} is eligible for it — tick Group assignments, apply, then Preview again`); }
+        });
+        retiredLeft.push(`${r.name}${mine.length ? (left ? ` (${left} role${left === 1 ? "" : "s"} still waiting)` : " (empty after this run)") : " (holds no role)"}`);
+      });
+      if (retiredLeft.length) P.manual.push(`retired groups (5.0): ${retiredLeft.join(", ")} — delete each by hand once it holds no role and nothing references it (Exchange or Purview role groups, Intune assignments, Conditional Access, access packages). A deleted role-assignable group cannot be restored; Deploy on the 4.1 catalog would recreate it with a new id.`);
+    }
 
     // ---- membership policies ------------------------------------------------
     const deferred = [];
@@ -320,12 +377,12 @@ const PimDeploy = (() => {
   }
   // What each section would do now — the counts on the pick.
   function sections(cat, raw, opts = {}) {
-    const all = build(cat, raw, Object.assign({}, opts, { sections: null }));
-    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : k === "purview" ? cat.groups.some((g) => g.scope === "purview") : k === "xdr" ? cat.groups.some((g) => g.scope === "xdr") : k === "rh" ? cat.groups.some((g) => g.scope === "rh") : k === "w365" ? cat.groups.some((g) => g.scope === "w365") : k === "exchange" ? cat.groups.some((g) => g.scope === "exchange") : true;
+    const all = build(cat, raw, Object.assign({}, opts, { sections: new Set(SECTIONS.map(([k]) => k)) }));
+    const has = (k) => k === "regions" ? !!(cat.profile && cat.profile.regions) : k === "rmau" ? !!((cat.profile && cat.profile.rmau) || []).length : k === "azure" ? cat.groups.some((g) => g.scope === "azure") : k === "purview" ? cat.groups.some((g) => g.scope === "purview") : k === "xdr" ? cat.groups.some((g) => g.scope === "xdr") : k === "rh" ? cat.groups.some((g) => g.scope === "rh") : k === "w365" ? cat.groups.some((g) => g.scope === "w365") : k === "exchange" ? cat.groups.some((g) => g.scope === "exchange") : k === "migrate" ? all.ops.some((o) => o.section === "migrate") || (all.findings || []).some((f) => /^5\.0 migration/.test(f)) || (all.manual || []).some((m) => /^retired groups/.test(m)) : true;
     return SECTIONS.filter(([k]) => has(k)).map(([key, label, what]) => {
       const ops = all.ops.filter((o) => o.section === key);
       const kinds = {};
-      ops.forEach((o) => { const k = o.kind === "request" ? "add" : o.kind === "groupPolicy" ? "later" : o.method === "PATCH" ? "update" : o.method === "POST" && o.produces ? "create" : "add"; kinds[k] = (kinds[k] || 0) + 1; });
+      ops.forEach((o) => { const k = o.remove ? "remove" : o.kind === "request" ? "add" : o.kind === "groupPolicy" ? "later" : o.method === "PATCH" ? "update" : o.method === "POST" && o.produces ? "create" : "add"; kinds[k] = (kinds[k] || 0) + 1; });
       return { key, label, what, n: ops.length, kinds, defaultOn: !DEFAULT_OFF.has(key) };
     });
   }

@@ -229,7 +229,10 @@ const PimPlan = (() => {
   function backup(plan, meta) {
     // Only PIM policy rules — what ↩ Put back can write (an Intune role's
     // permissions are changed in Intune by hand if they must go back).
-    return { schema: "cloudfellows-pim-backup/web-1", meta: Object.assign({}, plan.meta || {}, meta || {}), rules: plan.ops.filter((o) => o.before && o.method === "PATCH" && /\/policies\/roleManagementPolicies\/[^/]+\/rules\//.test(o.url)).map((o) => ({ key: o.key, url: o.url, before: o.before })) };
+    // 5.0: what the migration removes (a role assignment or eligibility) is
+    // kept as the request that recreates it.
+    const restores = plan.ops.filter((o) => o.remove && o.restore).map((o) => ({ key: o.key, url: o.restore.url, body: o.restore.body }));
+    return Object.assign({ schema: "cloudfellows-pim-backup/web-1", meta: Object.assign({}, plan.meta || {}, meta || {}), rules: plan.ops.filter((o) => o.before && o.method === "PATCH" && /\/policies\/roleManagementPolicies\/[^/]+\/rules\//.test(o.url)).map((o) => ({ key: o.key, url: o.url, before: o.before })) }, restores.length ? { restores } : {});
   }
   // A backup → a plan that PATCHes every rule back.
   function restorePlan(file, needs) {
@@ -237,6 +240,17 @@ const PimPlan = (() => {
     ((file && file.rules) || []).forEach((r, i) => {
       if (!/^https:\/\/graph\.microsoft\.com\/(v1\.0|beta)\/policies\/roleManagementPolicies\/[^/]+\/rules\/[A-Za-z_]+$/.test(String(r.url || ""))) { p.blocked.push(`entry ${i + 1}: ${r.url} is not a PIM policy rule — left out`); return; }
       add(p, { key: `restore:${r.key}`, method: "PATCH", url: r.url, body: ruleBody(r.before), summary: `put back ${String(r.key).replace(/^[a-z]+:/, "")}`, section: "restore", needs: needs || ["RoleManagementPolicy.ReadWrite.Directory", "RoleManagementPolicy.ReadWrite.AzureADGroup"] });
+    });
+    // 5.0: assignments the migration removed come back as adminAssign requests.
+    // A backup is taken before the run, so an entry whose removal never ran
+    // fails harmlessly as already existing.
+    ((file && file.restores) || []).forEach((r, i) => {
+      const b = r && r.body;
+      const okUrl = /^https:\/\/graph\.microsoft\.com\/v1\.0\/roleManagement\/directory\/role(Assignment|Eligibility)ScheduleRequests$/.test(String((r && r.url) || ""));
+      const id = /^[A-Za-z0-9-]{1,64}$/;
+      const okBody = b && b.action === "adminAssign" && id.test(String(b.principalId || "")) && id.test(String(b.roleDefinitionId || "")) && /^\/(administrativeUnits\/[A-Za-z0-9-]{1,64})?$/.test(String(b.directoryScopeId || ""));
+      if (!okUrl || !okBody) { p.blocked.push(`removed assignment ${i + 1}: not a role assignment request this tool writes — left out`); return; }
+      add(p, { key: `restore:${r.key}`, kind: "request", url: r.url, body: { action: "adminAssign", principalId: b.principalId, roleDefinitionId: b.roleDefinitionId, directoryScopeId: b.directoryScopeId, justification: String(b.justification || "put back").slice(0, 500), scheduleInfo: { expiration: (b.scheduleInfo && b.scheduleInfo.expiration) || { type: "noExpiration" } } }, summary: `put back ${String(r.key).replace(/^mig:/, "")}`, section: "restore", needs: ["RoleManagement.ReadWrite.Directory"] });
     });
     return p;
   }

@@ -32,12 +32,22 @@ test("catalog: every role names a template, every via a group of its profile, na
   assert.deepEqual(PB.profileIds(CAT), ["small", "large", "multi"]);
 });
 
-test("3.0 model: job groups eligible members (GroupJITTier1), direct groups active members, access groups eligible, nothing in a restricted AU", () => {
+test("5.0 model: every Entra role group has active members and is eligible per role (GroupMember), access groups eligible, nothing in a restricted AU", () => {
   assert.ok(!Object.keys(CAT.templates).some((k) => /^GroupTier/.test(k)), "the 2.0 group tiers are gone");
-  for (const g of PB.allGroups(CAT)) assert.equal(g.template, g.scope === "intune" || g.scope === "exchange" ? "GroupJIT" : g.scope === "purview" ? (g.name === "PIM-SG-PUR-eDiscovery" ? "GroupJITTier0" : /InsiderRisk|CommCompliance/.test(g.name) ? "GroupJITApproval" : "GroupJIT") : g.scope === "xdr" ? (g.name === "PIM-SG-XDR-Admin" ? "GroupJITTier0" : "GroupJIT") : g.path === "job" ? "GroupJITTier1" : "GroupMember", g.name);
-  for (const g of PB.allGroups(CAT).filter((x) => x.scope === "m365")) assert.ok(g.path === "job" || g.path === "direct", `${g.name}: a path`);
+  for (const g of PB.allGroups(CAT)) assert.equal(g.template, g.scope === "intune" || g.scope === "exchange" ? "GroupJIT" : g.scope === "purview" ? (g.name === "PIM-SG-PUR-eDiscovery" ? "GroupJITTier0" : /InsiderRisk|CommCompliance/.test(g.name) ? "GroupJITApproval" : "GroupJIT") : g.scope === "xdr" ? (g.name === "PIM-SG-XDR-Admin" ? "GroupJITTier0" : "GroupJIT") : "GroupMember", g.name);
+  // 5.0 (14 Oct 2026): role activation first — no group holds a role ACTIVE any more.
+  for (const g of PB.allGroups(CAT).filter((x) => x.scope === "m365")) assert.equal(g.path, "direct", `${g.name}: a role group, eligible per role`);
+  for (const g of CAT.regions.template.groups.filter((x) => x.roleAssignable && !/^PIM-SG-(INT|EXO)-/.test(x.name))) { assert.equal(g.path, "direct", g.name); assert.equal(g.template, "GroupMember", g.name); }
+  assert.ok(!PB.allGroups(CAT).some((g) => g.template === "GroupJITTier1"), "no 5.0 group activates through its membership for Entra roles");
   const t1 = PB.fromTemplate(CAT.templates.GroupJITTier1);
-  assert.equal(t1.activation, "PT4H", "decided 5 Oct 2026: one job activation lasts four hours"); assert.equal(t1.permActive, false); assert.equal(t1.approval, false);
+  assert.equal(t1.activation, "PT4H", "kept so a 4.1 tenant still reads"); assert.equal(t1.permActive, false);
+  // The fold: the four -Direct groups are retired into their job group.
+  assert.deepEqual(CAT.retired.map((r) => `${r.name}>${r.into}`), ["PIM-SG-M365-SecOps-Direct>PIM-SG-M365-SecOps", "PIM-SG-M365-Ops-Direct>PIM-SG-M365-Ops", "PIM-SG-M365-AppOps-Direct>PIM-SG-M365-AppOps", "PIM-SG-M365-Collab-Direct>PIM-SG-M365-Collab"]);
+  const names = new Set(PB.allGroups(CAT).map((g) => g.name));
+  for (const r of CAT.retired) { assert.ok(!names.has(r.name), `${r.name} is retired`); assert.ok(names.has(r.into), `${r.into} exists`); }
+  for (const r of CAT.roles) for (const g of r.via || []) assert.ok(!CAT.retired.some((x) => x.name === g), `${r.name} still names ${g}`);
+  const links = (id) => PB.profile(CAT, id).roles.reduce((n, r) => n + (r.via || []).length, 0);
+  assert.deepEqual(PB.profileIds(CAT).map((id) => `${id}:${links(id)}`), ["small:57", "large:65", "multi:68"], "nothing lost in the fold");
   // Tier 0 and the Exchange, SharePoint and Purview roles are never held by a job group (Microsoft: activation delays).
   const never = /^(Global Administrator|Privileged Role Administrator|Privileged Authentication Administrator|Conditional Access Administrator|Security Administrator|Exchange Administrator|SharePoint Administrator|Compliance Administrator|Compliance Data Administrator|Global Reader)$/;
   for (const id of PB.profileIds(CAT)) for (const r of PB.profile(CAT, id).roles.filter((x) => never.test(x.name))) assert.ok(r.via.every((g) => !PB.isJob(CAT, g)), `${id}: ${r.name} via ${r.via}`);
@@ -66,8 +76,8 @@ test("tiers: Tier 0 asks c1 without MFA-on-activation, approval by named approve
   assert.equal(PB.expected(SMALL, SMALL.roles.find((r) => r.name === "Privileged Role Administrator")).approval, false);
   const lg = PB.expected(LARGE, LARGE.roles.find((r) => r.name === "Global Administrator"));
   assert.ok(lg.enablement.includes("Ticketing")); assert.deepEqual(lg.approvers, ["PIM-SG-Approvers-Tier0"]);
-  assert.deepEqual(LARGE.roles.find((r) => r.name === "Exchange Administrator").via, ["PIM-SG-M365-Collab-Direct"]);
-  assert.deepEqual(SMALL.roles.find((r) => r.name === "Exchange Administrator").via, ["PIM-SG-M365-Ops-Direct"], "AppOps-Direct folds into Ops-Direct");
+  assert.deepEqual(LARGE.roles.find((r) => r.name === "Exchange Administrator").via, ["PIM-SG-M365-Collab"], "5.0: Collab-Direct folded into Collab");
+  assert.deepEqual(SMALL.roles.find((r) => r.name === "Exchange Administrator").via, ["PIM-SG-M365-Ops"], "5.0: Ops-Direct folded into Ops, AppOps into Ops");
   assert.equal(PB.fromTemplate(LARGE.templates.GroupJITTier1).enablement.includes("Ticketing"), true);
   assert.deepEqual(SMALL.roles.find((r) => r.name === "Helpdesk Administrator").via, ["PIM-SG-M365-Ops"]);
 });
@@ -90,19 +100,25 @@ test("review: a rule the policy does not carry reads 'rule absent', never a defa
 });
 
 test("compare on the demo (multi-region): policies, findings, the group model by id", () => {
+  // The demo tenant is a 4.1 tenant: read against the 5.0 catalog it shows the migration.
   const res = PB.compare(MULTI, tenant());
-  assert.equal(res.counts.roles, CAT.roles.length); assert.equal(res.counts.match, 22); assert.equal(res.counts.differs, 36, "4.1: the 18 new roles sit on the demo tenant default and differ"); assert.equal(res.counts.conflict, 0);
+  assert.equal(res.counts.roles, CAT.roles.length); assert.equal(res.counts.match, 11); assert.equal(res.counts.differs, 47, "5.0: the roles the 4.1 job groups held allow permanent active and now differ"); assert.equal(res.counts.conflict, 0);
   assert.equal(row(res, "Global Administrator").status, "match");
   assert.deepEqual(row(res, "Privileged Role Administrator").diffs.map((d) => d.key), ["approval", "approvers"]);
   const ex = row(res, "Exchange Administrator");
   assert.deepEqual(ex.diffs.map((d) => d.key), ["activation"]);
   assert.ok(ex.findings.some((f) => /permanent active outside/.test(f) && /Admins-Legacy/.test(f)));
-  assert.ok(ex.findings.some((f) => /not eligible through PIM-SG-M365-AppOps-Direct \(the group is missing\)/.test(f)));
-  // 3.0: a job group holds its roles active; the 2.x eligibility is reported.
-  assert.ok(row(res, "Teams Administrator").findings.some((f) => /PIM-SG-M365-Ops is still ELIGIBLE for it \(2\.x\)/.test(f)));
-  assert.deepEqual(grp(res, "PIM-SG-M365-Ops").wrongShape, ["Teams Administrator"]);
-  assert.ok(!row(res, "Intune Administrator").findings.some((f) => /permanent active outside/.test(f)), "a job group holding the role is the framework, not drift");
-  assert.equal(grp(res, "PIM-SG-M365-Ops-Direct").status, "match");
+  assert.ok(ex.findings.some((f) => /not eligible through PIM-SG-M365-AppOps \(the group is missing\)/.test(f)));
+  assert.ok(ex.findings.some((f) => /still carried by PIM-SG-M365-Ops-Direct \(retired in 5\.0, folded into PIM-SG-M365-Ops\)/.test(f)), "the fold not yet done is named");
+  // 5.0: a role group holding its role ACTIVE is the 4.1 slow path — reported as such, never as outside the framework.
+  const it = row(res, "Intune Administrator");
+  assert.equal(it.slowPath, 1); assert.equal(it.permanentOutside, 0);
+  assert.ok(it.findings.some((f) => /held ACTIVE by PIM-SG-M365-Ops \(the 4\.1 slow path\)/.test(f)));
+  assert.ok(grp(res, "PIM-SG-M365-Ops").wrongShape.includes("Intune Administrator"));
+  assert.ok(!grp(res, "PIM-SG-M365-Ops").wrongShape.includes("Teams Administrator"), "Ops eligible for Teams Administrator IS the 5.0 shape");
+  const teams = row(res, "Teams Administrator");
+  assert.equal(teams.permanentOutside, 0, "a regional role group holding it active is the slow path too"); assert.equal(teams.slowPath, 1);
+  assert.deepEqual(res.retiredGroups.map((r) => `${r.name}:${r.holds.join("+")}`), ["PIM-SG-M365-SecOps-Direct:Compliance Administrator+Conditional Access Administrator+Security Administrator", "PIM-SG-M365-Ops-Direct:Exchange Administrator+SharePoint Administrator"]);
   const ga = row(res, "Global Administrator");
   assert.equal(ga.permanent, 3); assert.equal(ga.permanentOutside, 1);
   assert.ok(ga.findings.some((f) => /by name only/.test(f)), "break-glass by name is flagged, not silently protected");
@@ -110,13 +126,14 @@ test("compare on the demo (multi-region): policies, findings, the group model by
   assert.ok(!row(byId, "Global Administrator").findings.some((f) => /by name only/.test(f)));
   assert.equal(grp(res, "PIM-SG-M365-GlobalAdmin").status, "match");
   const sec = grp(res, "PIM-SG-M365-SecOps");
-  assert.equal(sec.status, "differs"); assert.ok(sec.diffs.some((d) => d.key === "permActive"), "permanent membership allowed is drift in 2.1");
+  assert.equal(sec.status, "differs"); assert.ok(sec.diffs.some((d) => d.key === "permActive"), "permanent membership allowed is drift");
+  assert.ok(sec.diffs.some((d) => d.key === "activation"), "5.0: the job-group membership policy (four hours) becomes GroupMember");
   assert.equal(grp(res, "PIM-SG-M365-Helpdesk").roleAssignable, false);
   assert.deepEqual(grp(res, "PIM-SG-M365-Ops").extraRoles, ["Directory Readers"], "review: an unexpected privilege is a difference");
   assert.equal(grp(res, "PIM-SG-M365-Ops").status, "differs");
   assert.equal(grp(res, "PIM-SG-INT-Ops").status, "match");
   assert.equal(grp(res, "PIM-SG-M365-AppOps").present, false);
-  assert.deepEqual(res.extraGroups, ["CAB-SEC-U-Admins-Legacy"]);
+  assert.deepEqual(res.extraGroups, ["CAB-SEC-U-Admins-Legacy"], "a retired group is never outside the framework");
   assert.deepEqual(res.regionalGroups, ["PIM-SG-EU-DE-Ops", "PIM-SG-EU-NL-Helpdesk", "PIM-SG-EU-NL-Ops", "PIM-SG-INT-HelpDesk-EU-NL"]);
   assert.equal(res.domainChecked, true);
 });
@@ -173,12 +190,13 @@ test("toOrchestrator: the whole framework, a delta, explicit protected ids only"
   assert.equal(Object.keys(all.EntraRoles.Policies).length, CAT.roles.length);
   assert.equal(Object.keys(all.GroupRoles.Policies).length, CAT.groups.length);
   assert.deepEqual(all.EntraRoles.Policies["Global Administrator"], { Template: "Tier0", ActivationDuration: "PT1H" });
-  assert.equal(all.GroupRoles.Policies["PIM-SG-M365-Ops"].Member.Template, "GroupJITTier1");
-  assert.equal(all.GroupRoles.Policies["PIM-SG-M365-Ops-Direct"].Member.Template, "GroupMember");
+  assert.equal(all.GroupRoles.Policies["PIM-SG-M365-Ops"].Member.Template, "GroupMember", "5.0: the job group is a role group");
+  assert.equal(all.GroupRoles.Policies["PIM-SG-M365-Ops-Direct"], undefined, "5.0: Ops-Direct is folded into Ops");
   const opsTeams = all.Assignments.EntraRoles.find((a) => a.roleName === "Teams Administrator").assignments.find((a) => a.principalName === "PIM-SG-M365-Ops");
-  assert.equal(opsTeams.assignmentType, "Active"); assert.equal(opsTeams.permanent, true);
-  const exDirect = all.Assignments.EntraRoles.find((a) => a.roleName === "Exchange Administrator").assignments.find((a) => a.principalName === "PIM-SG-M365-Ops-Direct");
-  assert.equal(exDirect.assignmentType, "Eligible");
+  assert.equal(opsTeams.assignmentType, "Eligible"); assert.ok(!opsTeams.permanent, "5.0: no group holds a role permanently");
+  const exOps = all.Assignments.EntraRoles.find((a) => a.roleName === "Exchange Administrator").assignments.find((a) => a.principalName === "PIM-SG-M365-Ops");
+  assert.equal(exOps.assignmentType, "Eligible");
+  assert.ok(all.Assignments.EntraRoles.every((r) => r.assignments.every((a) => a.assignmentType === "Eligible")), "5.0: every group link is eligible");
   assert.equal(all.GroupRoles.Policies["PIM-SG-INT-Ops"].Member.Template, "GroupJIT");
   assert.deepEqual(all.PolicyTemplates.Tier0.Approvers[0], { id: "<id of PIM-SG-Approvers>", description: "PIM-SG-Approvers", type: "group" });
   assert.equal(all.PolicyTemplates.Tier0.Notification_Activation_Alert.Recipients[0], "pim-alerts@cloudfellows.dev");
@@ -187,7 +205,7 @@ test("toOrchestrator: the whole framework, a delta, explicit protected ids only"
   assert.deepEqual(PB.toOrchestrator(CAT, { protectedIds: ["11111111-1111-1111-1111-111111111111"] }).ProtectedUsers.slice(-1), ["11111111-1111-1111-1111-111111111111"]);
   const delta = PB.toOrchestrator(CAT, { domain: "contoso.nl", delta: true, roles: ["Exchange Administrator", "Privileged Role Administrator"], groups: ["PIM-SG-M365-AppOps"] });
   assert.deepEqual(Object.keys(delta.EntraRoles.Policies).sort(), ["Exchange Administrator", "Privileged Role Administrator"]);
-  assert.deepEqual(Object.keys(delta.PolicyTemplates).sort(), ["GroupJITTier1", "Tier0", "Tier1"]);
+  assert.deepEqual(Object.keys(delta.PolicyTemplates).sort(), ["GroupMember", "Tier0", "Tier1"], "5.0: AppOps activates per role under GroupMember");
   const roles = delta.Assignments.EntraRoles.map((a) => a.roleName);
   assert.ok(roles.includes("Cloud Application Administrator") && !roles.includes("Global Administrator"));
   assert.match(PB.command("pim-delta.contoso.nl.json", "CONTOSO"), /New-PimBaseline\.ps1 -ConfigFile .*-Customer CONTOSO$/);
@@ -273,7 +291,7 @@ function perfectRegion(row) {
   const named = r.groups.filter((g) => !g.roleAssignable).map((g) => ({ id: `g-${g.name}`, displayName: g.name, isAssignableToRole: false }))
     .concat(r.intune.groups.map((g) => ({ id: `g-${g.name}`, displayName: g.name, isAssignableToRole: false, membershipRule: g.rule, membershipRuleProcessingState: "On" })));
   const held = r.eligibilities.map((e) => ({ roleName: e.role, principalId: `g-${e.group}`, principalName: e.group, principalType: "Group", directoryScopeId: `/administrativeUnits/${aus.find((a) => a.displayName === e.au).id}` }));
-  // 3.0: the regional groups are job groups — active at the unit.
+  // 5.0: the regional groups are role groups — eligible at the unit (isJob is false).
   const active = held.filter((a) => PB.isJob(CAT, a.principalName)).map((a) => Object.assign({ assignmentType: "Assigned" }, a));
   const eligible = held.filter((a) => !PB.isJob(CAT, a.principalName));
   const rulesFor = (tpl) => { const x = clone(DEMO.pim.groupPolicies[tpl === "GroupJIT" ? "PIM-SG-INT-Ops" : tpl === "GroupJITTier1" ? "PIM-SG-EU-NL-Helpdesk" : "PIM-SG-M365-GlobalAdmin"]); return x; };
@@ -288,7 +306,7 @@ test("review: a region whose Entra side matches but whose Intune side is unread 
   assert.equal(cr.regions[0].status, "partial");
   assert.deepEqual(cr.missingCodes, []);
   assert.equal(cr.regions[0].counts.unread, 3);
-  t.active.push({ roleName: "Helpdesk Administrator", principalId: "g-PIM-SG-EU-NL-Helpdesk", principalName: "PIM-SG-EU-NL-Helpdesk", principalType: "Group", assignmentType: "Assigned", directoryScopeId: "/" });
+  t.eligible.push({ roleName: "Helpdesk Administrator", principalId: "g-PIM-SG-EU-NL-Helpdesk", principalName: "PIM-SG-EU-NL-Helpdesk", principalType: "Group", directoryScopeId: "/" });
   cr = PB.compareRegions(MULTI, [row0], t);
   const hd = cr.regions[0].items.find((i) => i.name === "Helpdesk Administrator → PIM-SG-EU-NL-Helpdesk");
   assert.equal(hd.status, "differs"); assert.match(hd.detail, /ALSO held at tenant scope/);
@@ -300,7 +318,7 @@ test("regions file: the chosen rows with approvers as a list, the template, both
   const rows = PB.parseRegions(CAT.regions.example, CAT).rows;
   const f = PB.toRegionsFile(MULTI, rows, { domain: "contoso.nl", codes: ["EU-DE"] });
   assert.deepEqual(f.regions.map((r) => r.code), ["EU-DE"]); assert.ok(Array.isArray(f.regions[0].approvers)); assert.equal(f.regions[0].approvers.length, 2);
-  assert.deepEqual(Object.keys(f.groupTemplates), ["GroupMember", "GroupJIT", "GroupJITTier1"]);
+  assert.deepEqual(Object.keys(f.groupTemplates), ["GroupMember", "GroupJIT"], "5.0: the regional role groups are GroupMember");
   assert.equal(f.intuneRoles[0].name, "INT-ROLE-Regional-Ops"); assert.equal(f._meta.schema, "cloudfellows-pim-regions/2.1");
   assert.ok(f.fields.attribute && f.codePattern);
 });

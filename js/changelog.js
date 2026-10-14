@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32607, date: "2026-10-14", title: "PIM-buddy framework 5.0: role activation first",
+    items: [
+      { kind: "improved", tool: "PIM baseline", text: "Framework 5.0: every Entra role group has active members and is eligible per role, so a person activates the one role the task needs, in seconds, under that role's own tier. The job groups keep their names as team rosters. SecOps-Direct, Ops-Direct, AppOps-Direct and Collab-Direct are folded into their job group and shown as retired, with the roles they still hold. A group that still holds a role active is reported as the slow path, not as access outside the framework." },
+      { kind: "improved", tool: "Deploy — import from the baseline", text: "Group assignments are now eligibilities for every role group. A new 5.0 migration section, off until you tick it, removes an active assignment or a retired group's assignment only when the tenant already shows its replacement, so the migration takes two Previews. Every removal is in the backup and Put back recreates it. Groups are never deleted." },
+      { kind: "improved", tool: "PIM report", text: "Two new findings: the slow path (a role group still holding a role active) and retired groups still in the tenant, each with the way out in Deploy. A regional group holding its role active at its unit no longer counts as a match." },
+    ],
+  },
+  {
     build: 32606, date: "2026-10-14", title: "Egress & location impact: passes instead of not applied",
     items: [
       { kind: "improved", tool: "Egress & location impact", text: "Where a policy's location rule does not match, the Today and Via egress columns now say passes — the sign-in gets through that policy — with the reason underneath: the office or egress is trusted, sits in a location the policy excludes, or is not in the policy's locations. The Markdown export uses the same words." },

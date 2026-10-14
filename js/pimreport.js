@@ -132,7 +132,7 @@ const PimReport = (() => {
       if (!g || a.assignmentType === "Activated") return;
       const scope = scopeName(a.directoryScopeId);
       let verdict;
-      if (g.regional) verdict = regExpected(a.roleName, g.name, scope) ? (g.kind === "job" ? (how === "active" ? "match" : "wrong") : "match") : "extra";
+      if (g.regional) verdict = regExpected(a.roleName, g.name, scope) ? ((g.kind === "job") === (how === "active") ? "match" : "wrong") : "extra";
       else if (!TENANT(a)) verdict = "scoped";
       else if (g.carries.includes(a.roleName) || (also[g.name] || []).includes(a.roleName)) verdict = g.wrongShape.includes(a.roleName) ? "wrong" : "match";
       else verdict = g.kind === "access" ? "extra" : "extra";
@@ -207,6 +207,11 @@ const PimReport = (() => {
     if (sps.length) f("apps", "info", `${sps.length} app${sps.length === 1 ? "" : "s"} hold${sps.length === 1 ? "s" : ""} ${sps.reduce((n, o) => n + o.holds.length, 0)} role${sps.reduce((n, o) => n + o.holds.length, 0) === 1 ? "" : "s"} permanently`, sps.map((o) => `${o.name}: ${o.holds.map((h) => h.role).join(", ")}`).join("; "), "Apps cannot use PIM; their roles are standing by nature.", "Review them with the groups, yearly.", "toolPimRoles");
     const otherUsers = outside.filter((o) => o.type === "User" && !standingGa.includes(o));
     if (otherUsers.length) f("users-outside", "low", `${otherUsers.length} account${otherUsers.length === 1 ? " holds" : "s hold"} roles outside the framework groups`, otherUsers.map((o) => `${o.name}: ${o.holds.map((h) => `${h.role} (${h.how}${h.scope !== "tenant" ? `, ${h.scope}` : ""}${h.permanent ? ", permanent" : ""})`).slice(0, 4).join(", ")}${o.holds.length > 4 ? ` +${o.holds.length - 4}` : ""}`).join("; "), "Access the framework does not explain.", "Move to a PIM-SG group or record it as an accepted exception.", "toolPimRoles");
+    // 5.0: the slow path and the fold, each with the way out.
+    const slowCells = cells.filter((c) => c.how === "active" && c.verdict === "wrong" && c.kind === "direct");
+    if (slowCells.length) f("slow-path", "high", `${slowCells.length} role${slowCells.length === 1 ? " is" : "s are"} still held ACTIVE by a role group (the 4.1 slow path)`, slowCells.slice(0, 10).map((c) => `${c.group}: ${c.role}${c.scope !== "tenant" ? ` at ${c.scope}` : ""}`).join("; ") + (slowCells.length > 10 ? "; …" : ""), "Whoever activates the group membership gets every role at once, and Exchange, SharePoint, Teams and Intune notice it minutes to hours later. Framework 5.0 makes the group ELIGIBLE per role, so a person activates one role, in seconds.", "🚀 Deploy: tick Group assignments and apply (adds the eligibilities); Preview again with 5.0 migration ticked (removes the active assignments, kept in the backup for ↩ Put back).", "toolPimDeploy");
+    const retired = res.retiredGroups || [];
+    if (retired.length) f("retired-groups", retired.some((r) => r.count) ? "medium" : "low", `${retired.length} group${retired.length === 1 ? "" : "s"} retired in 5.0 still in the tenant`, retired.map((r) => `${r.name} → ${r.into}${r.count ? ` (holds ${r.holds.join(", ")})` : " (holds no role)"}`).join("; "), "The -Direct groups were folded into their job group; a member of one still reaches the roles it holds, outside the roster that is reviewed.", "🚀 Deploy's 5.0 migration removes what they hold once the job group is eligible for it; then delete the group by hand, after checking nothing references it.", "toolPimDeploy");
     if (extraGroups.length) f("extra-groups", "low", `${extraGroups.length} role-assignable group${extraGroups.length === 1 ? "" : "s"} outside the framework`, extraGroups.join(", "), "Groups that can hold roles but are not part of the model.", "Review with their owner.", "toolCaGroups");
     F.sort((a, b) => SEV[a.sev].order - SEV[b.sev].order);
 

@@ -225,3 +225,19 @@ test("the Groups toggle is offered to users only, and the open row renders its p
 test("app.js defines prpReset, which the sign-in reset has called since 32507", () => {
   assert.match(read("js/app.js"), /function prpReset\(\)/);
 });
+
+test("5.0: a 4.1 tenant shows the slow path and the retired -Direct groups, each pointing at 🚀 Deploy", () => {
+  const m = report(tenant());
+  const slow = finding(m, "slow-path");
+  assert.ok(slow && slow.sev === "high");
+  assert.match(slow.detail, /PIM-SG-M365-Ops: Intune Administrator/);
+  assert.match(slow.recovery, /5\.0 migration/);
+  assert.equal(slow.fix, "toolPimDeploy");
+  const ret = finding(m, "retired-groups");
+  assert.ok(ret && ret.sev === "medium");
+  assert.match(ret.detail, /PIM-SG-M365-SecOps-Direct → PIM-SG-M365-SecOps \(holds Compliance Administrator, Conditional Access Administrator, Security Administrator\)/);
+  assert.ok(!(finding(m, "extra-groups") || { detail: "" }).detail.includes("-Direct"), "a retired group is never outside the framework");
+  // A regional role group holding its role ACTIVE at the unit is the slow path, not a match.
+  const nl = m.matrix.cells.find((c) => c.group === "PIM-SG-EU-NL-Helpdesk" && c.role === "Helpdesk Administrator");
+  assert.equal(nl && nl.verdict, "wrong");
+});

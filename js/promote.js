@@ -175,6 +175,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 327,
+      ws: "pim",
+      title: "🧬 Framework 5.0 — role activation first, the -Direct groups folded (T48 1.0.0, T51 0.6.0, T55 0.3.0, R86)",
+      tools: ["PIM baseline", "Deploy", "PIM report"],
+      builds: [32607],
+      risk: "high",
+      what: "js/pimBaselineData.js release 5.0: every job group and the two regional job groups are GroupMember role groups (path direct), eligible per role; SecOps-, Ops-, AppOps- and Collab-Direct removed and their roles moved to the job group; a retired list names them with the group they went into; GroupJITTier1 kept only to read 4.1 tenants. js/pimbaseline.js: slow path (a role group or regional group holding a role active) and retired groups reported apart from permanent active outside the framework; retiredGroups in the result, the UI and the Markdown. js/pimdeploy.js: eligibilities for every role group; section migrate (default off, only when ticked) removes an active assignment or a retired group's assignment only when the read already shows its replacement; never deletes a group. js/pimplan.js: the backup carries restores for every removal, Put back recreates them as adminAssign requests and refuses anything else. js/pimreport.js: findings slow-path and retired-groups; the regional verdict follows the path. tools/pim regenerated. Help (T48, T51, T55) and roadmap R86.",
+      why: "Mihai, 13 and 14 Oct: activate the role, not the membership, as much as possible (Our Cloud Network article; Microsoft Learn: option 1 for Exchange, SharePoint and Purview roles); fold the -Direct groups into the job groups; devcf only tests the configuration, PIM-buddy is where it is built. Risk high: Deploy now plans eligibilities where it used to plan permanent active assignments, and the migration section removes assignments.",
+      test: [
+        "Offline: node tools/pim/generate.cjs (no change after the release script ran) and node --test tools/*.test.cjs green, including pimbaseline, pimdeploy and pimreport.",
+        "Beta, demo tenant: 🧬 PIM baseline on Large · multi-region shows SecOps-Direct and Ops-Direct as retired with the roles they hold, Intune Administrator as held ACTIVE by PIM-SG-M365-Ops (4.1 slow path), and no -Direct group under groups outside the framework.",
+        "Beta, demo tenant: 📋 PIM report lists the findings Slow path (high) and Retired groups (medium), each opening 🚀 Deploy.",
+        "cloudfellows.dev, Privileged Role Administrator active: 🚀 Deploy Preview with Group assignments ticked shows eligibility requests for the job groups and no roleAssignmentScheduleRequests; Preview with 5.0 migration ticked before the first run shows zero removals and the waiting findings.",
+        "cloudfellows.dev after the first run: Preview with 5.0 migration ticked lists one removal per active assignment whose eligibility exists, and the retired groups' eligibilities whose job group now holds the role; ⬇ Backup contains them under restores; apply; 🧬 PIM baseline shows no slow path left.",
+        "cloudfellows.dev: ↩ Put back on that backup previews adminAssign requests only for the removed assignments (do not apply unless rolling back).",
+        "Live proof: a test adm- account as active member of PIM-SG-M365-Ops activates User Administrator from My roles and can edit a user within a minute; remove it afterwards.",
+      ],
+      files: ["js/pimBaselineData.js", "js/pimbaseline.js", "js/pimdeploy.js", "js/pimplan.js", "js/pimreport.js", "tools/pimbaseline.test.cjs", "tools/pimdeploy.test.cjs", "tools/pimreport.test.cjs", "tools/pim/*", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 326,
       ws: "platform",
       title: "❓ Help tools (What's new, Roadmap, Waiting for production, Permissions, Help) in every workspace",

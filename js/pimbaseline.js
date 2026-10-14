@@ -239,7 +239,15 @@ const PimBaseline = (() => {
       // A job group holding the role permanently IS the framework (3.0).
       const jobIds = new Set((item.via || []).filter((g) => isJob(cat, g)).flatMap((g) => resolve(g).map((x) => x.id)));
       const scopedJob = new Set([...((cat.profile && cat.profile.scoped) || []).filter((x) => x.role === item.name && isJob(cat, x.group)).flatMap((x) => resolve(x.group).map((y) => y.id))]);
-      const permOutside = perm.filter((a) => !protectedHow(a) && !jobIds.has(a.principalId) && !scopedJob.has(a.principalId) && !(a.principalName && isJob(cat, a.principalName)));
+      // 5.0: a role group of the catalog holding the role ACTIVE is the 4.1
+      // slow path, and a retired group still holding it is the fold not yet
+      // done. Both are reported as such, never as "outside the framework".
+      const viaIds = new Set([...(item.via || []), ...((cat.profile && cat.profile.scoped) || []).filter((x) => x.role === item.name).map((x) => x.group)].filter((g) => !isJob(cat, g)).flatMap((g) => resolve(g).map((x) => x.id)));
+      const retiredIds = new Map((cat.retired || []).flatMap((r) => resolve(r.name).map((x) => [x.id, r])));
+      const regionalRoleGroup = (a) => a.principalName && !allGroups(cat).some((g) => g.name === a.principalName) && groupPath(cat, a.principalName) === "direct";
+      const slow = perm.filter((a) => !jobIds.has(a.principalId) && (viaIds.has(a.principalId) || regionalRoleGroup(a)));
+      const onRetired = [...el, ...ac.filter((a) => a.assignmentType !== "Activated")].filter((a) => retiredIds.has(a.principalId));
+      const permOutside = perm.filter((a) => !protectedHow(a) && !jobIds.has(a.principalId) && !scopedJob.has(a.principalId) && !viaIds.has(a.principalId) && !regionalRoleGroup(a) && !retiredIds.has(a.principalId) && !(a.principalName && isJob(cat, a.principalName)));
       const byNameOnly = perm.filter((a) => protectedHow(a) === "name");
       let status, diffs = [], got = null, conflict = "";
       if (!defs.length) status = "missing";
@@ -251,6 +259,8 @@ const PimBaseline = (() => {
       if (conflict) findings.push(conflict);
       if (defs.length === 1 && defs[0].tenantName) findings.push(`this tenant calls it ${defs[0].tenantName} — matched by its template id; EasyPIM looks roles up by name, so its config needs that name (New-PimBaseline.ps1 -WriteResolved writes it)`);
       if (!exp.permActive && permOutside.length) findings.push(`${permOutside.length} permanent active outside the framework: ${permOutside.map((a) => a.principalName || a.principalId).join(", ")}`);
+      if (slow.length) findings.push(`${slow.length} held ACTIVE by ${[...new Set(slow.map((a) => a.principalName || a.principalId))].join(", ")} (the 4.1 slow path) — in 5.0 the group is ELIGIBLE for the role; 🚀 Deploy adds the eligibility, then its 5.0 migration removes the active assignment`);
+      if (onRetired.length) findings.push(`still carried by ${[...new Set(onRetired.map((a) => retiredIds.get(a.principalId).name))].join(", ")} (retired in 5.0, folded into ${[...new Set(onRetired.map((a) => retiredIds.get(a.principalId).into))].join(", ")}) — 🚀 Deploy's 5.0 migration removes it once the new group holds the role`);
       if (byNameOnly.length) findings.push(`${byNameOnly.length} permanent active treated as break-glass by name only — list their object ids to protect them: ${byNameOnly.map((a) => a.principalName || a.principalId).join(", ")}`);
       if (defs.length) (item.via || []).forEach((g) => {
         const gs = resolve(g);
@@ -266,9 +276,10 @@ const PimBaseline = (() => {
         }
         const mine = el.filter((a) => a.principalId === id);
         if (mine.some(TENANT_SCOPE)) return;
+        if (ac.some((a) => a.principalId === id && a.assignmentType !== "Activated" && TENANT_SCOPE(a))) { findings.push(`${g} holds it ACTIVE, not eligible (4.1 slow path)`); return; }
         findings.push(mine.length ? `eligible through ${g} only at an administrative unit — not tenant-wide as the framework says` : `not eligible through ${g}`);
       });
-      return { name: item.name, template: item.template, tier: item.template.replace(/^Group/, ""), via: item.via || [], note: item.note || "", status, diffs, expected: exp, got, eligible: el.length, active: ac.length, permanent: perm.length, permanentOutside: exp.permActive ? 0 : permOutside.length, findings, protectedPermanent: perm.length - permOutside.length };
+      return { name: item.name, template: item.template, tier: item.template.replace(/^Group/, ""), via: item.via || [], note: item.note || "", status, diffs, expected: exp, got, eligible: el.length, active: ac.length, permanent: perm.length, permanentOutside: exp.permActive ? 0 : permOutside.length, slowPath: slow.length, onRetired: onRetired.length, findings, protectedPermanent: perm.length - permOutside.length };
     });
     // Groups: present under the exact name and only once, role-assignable,
     // carrying — by id, at tenant scope — exactly the roles the catalog
@@ -312,14 +323,21 @@ const PimBaseline = (() => {
     const code = String((cat.regions && cat.regions.codePattern) || "^$").replace(/^\^|\$$/g, "").replace(/\((?!\?)/g, "(?:");
     const regional = new RegExp(`^PIM-SG-(${code}-(Helpdesk|Ops|Approvers)|INT-(HelpDesk|Ops)-${code})$`);
     const catNames = new Set(allGroups(cat).map((c) => c.name).concat(Object.values(cat.profiles || {}).map((p) => p.approvers).filter(Boolean), [cat.approvers && cat.approvers.name].filter(Boolean)));
-    const extraGroups = sortStr((tenant.groups || []).filter((g) => g.isAssignableToRole !== false && !catNames.has(g.displayName) && !regional.test(g.displayName)).map((g) => g.displayName));
+    // 5.0: a group the catalog retired, with what it still holds.
+    const retiredNames = new Set((cat.retired || []).map((r) => r.name));
+    const retiredGroups = (cat.retired || []).filter((r) => resolve(r.name).length).map((r) => {
+      const ids = new Set(resolve(r.name).map((x) => x.id));
+      const held = [...(tenant.eligible || []).map((a) => Object.assign({ how: "eligible" }, a)), ...(tenant.active || []).filter((a) => a.assignmentType !== "Activated").map((a) => Object.assign({ how: "active" }, a))].filter((a) => ids.has(a.principalId));
+      return { name: r.name, into: r.into, release: r.release, note: r.note || "", ids: [...ids], holds: sortStr([...new Set(held.map((a) => a.roleName))]), count: held.length };
+    });
+    const extraGroups = sortStr((tenant.groups || []).filter((g) => g.isAssignableToRole !== false && !catNames.has(g.displayName) && !retiredNames.has(g.displayName) && !regional.test(g.displayName)).map((g) => g.displayName));
     const regionalGroups = sortStr((tenant.groups || []).filter((g) => regional.test(g.displayName)).map((g) => g.displayName));
     const counts = { roles: rows.length, match: 0, differs: 0, missing: 0, unread: 0, conflict: 0 };
     rows.forEach((r) => { counts[r.status]++; });
     const compared = groups.filter((g) => g.scope !== "azure");
     const gcounts = { total: compared.length, present: compared.filter((g) => g.present).length, missing: compared.filter((g) => !g.present).length, differs: compared.filter((g) => g.status === "differs").length, conflict: groups.filter((g) => g.status === "conflict").length, unread: compared.filter((g) => g.status === "unread").length, azure: groups.length - compared.length, azurePresent: groups.filter((g) => g.scope === "azure" && g.present).length, extra: extraGroups.length };
     const permanentOutside = rows.reduce((n, r) => n + r.permanentOutside, 0);
-    return { catalog: { id: cat.id, label: cat.label, release: cat.release, revised: cat.revised, tenant: cat.tenant, variant: cat.variant || null }, profile: cat.profile || null, rows, groups, extraGroups, regionalGroups, counts, gcounts, permanentOutside, domain, domainChecked: !!domain, sources: tenant.sources || null, groupPoliciesError: tenant.groupPoliciesError || null, readAt: tenant.readAt || null, demo: !!tenant.demo, tenantId: tenant.tenantId || null };
+    return { catalog: { id: cat.id, label: cat.label, release: cat.release, revised: cat.revised, tenant: cat.tenant, variant: cat.variant || null }, profile: cat.profile || null, rows, groups, extraGroups, regionalGroups, retiredGroups, counts, gcounts, permanentOutside, domain, domainChecked: !!domain, sources: tenant.sources || null, groupPoliciesError: tenant.groupPoliciesError || null, readAt: tenant.readAt || null, demo: !!tenant.demo, tenantId: tenant.tenantId || null };
   }
 
   // What the delta takes by default: the rows that differ or are missing.
@@ -386,11 +404,12 @@ const PimBaseline = (() => {
     out.roles = jobOverrides(out, p.scoped || [], !!p.regions);
     return out;
   }
-  // ---- 3.0: job groups and direct groups ----------------------------------
-  // A job group (path job) holds every role of the job ACTIVE, permanently;
-  // its eligible members activate the group once. A direct group (path
-  // direct) is ELIGIBLE per role. Regional groups take their path from the
-  // region template.
+  // ---- job groups (3.0 to 4.1) and role groups ------------------------------
+  // A job group (path job, 4.1) holds every role of the job ACTIVE,
+  // permanently; its eligible members activate the group once. A direct or
+  // role group (path direct, every Entra role group since 5.0) is ELIGIBLE per
+  // role. Regional groups take their path from the region template. A 5.0
+  // catalog has no path job; the code stays so a 4.1 catalog still reads.
   const escRe = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   function groupPath(cat, name) {
     const g = allGroups(cat).find((x) => x.name === name);
@@ -587,6 +606,10 @@ const PimBaseline = (() => {
         let status = !auRead ? "unread" : hit && !wide ? "match" : hit && wide ? "differs" : "missing";
         let detail = "";
         if (job && gid && !hit && (tenant.eligible || []).some((a) => a.roleName === e.role && a.principalId === gid)) detail = "still ELIGIBLE (2.x) — a regional job group holds it ACTIVE at the unit";
+        else if (!job && gid && !hit && (tenant.active || []).some((a) => a.assignmentType !== "Activated" && a.roleName === e.role && a.principalId === gid)) {
+          const atUnit = auId && (tenant.active || []).some((a) => a.assignmentType !== "Activated" && a.roleName === e.role && a.principalId === gid && a.directoryScopeId === `/administrativeUnits/${auId}`);
+          detail = atUnit ? "held ACTIVE at the unit (4.1 slow path) — 5.0: eligible at the unit; Deploy adds it, then its 5.0 migration removes the active one" : "held ACTIVE at TENANT scope — wider than the region and the 4.1 slow path; 5.0: eligible at the unit only";
+        }
         else if (wide) detail = hit ? "ALSO held at tenant scope — wider than the region; remove the tenant-wide eligibility" : "held at TENANT scope — wider than the region; re-scope it";
         else if (!hit && auRead && !auId) detail = "the unit is missing, so the scoped eligibility cannot exist yet";
         else if (!hit && !gid) detail = "the group is missing";
@@ -821,9 +844,9 @@ const PimBaseline = (() => {
       _meta: ["Where the sample comes from. Leave it; EasyPIM ignores it."],
       PolicyTemplates: ["The tiers. A role or group names one; change a tier here, not per role.", `EDIT: every "pim-alerts@${domain}" → your alert mailbox (a shared mailbox read by real people, or the SOC).`],
       EntraRoles: ["Every Entra role under the framework and the tier it activates under. The inline settings are the few deliberate exceptions.", "EasyPIM finds a role by display name; a tenant can still carry a former one (Azure AD Joined Device Local Administrator). The resolved config of step 2 uses the names THIS tenant has."],
-      GroupRoles: ["The groups' PIM for Groups Member policy. GroupJITTier1 = job groups (members ELIGIBLE, one activation of four hours gives the whole job); GroupMember = direct groups (members ACTIVE, at most a year, the roles eligible one at a time); GroupJIT = Intune, Defender XDR and Exchange access groups (members ELIGIBLE, activate for a shift); GroupJITTier0 = PIM-SG-XDR-Admin."],
-      "  EntraRoles": ["The model: job groups hold their roles ACTIVE, permanently (assignmentType Active, permanent); direct groups are ELIGIBLE per role. Leave these; people never get a role directly."],
-      "  Groups": ["People. EDIT every principalId: the object id of the person's adm- account.", "Job groups and Intune, Defender XDR and Exchange access groups: assignmentType Eligible, a year — the activation is the gate. Direct groups: Active, a year (the yearly review)."],
+      GroupRoles: ["The groups' PIM for Groups Member policy. GroupMember = every Entra role group since 5.0 (members ACTIVE, at most a year; the group eligible per role, so a person activates one role at a time, in seconds); GroupJIT = Intune, Defender XDR and Exchange access groups (members ELIGIBLE, activate for a shift); GroupJITTier0 = PIM-SG-XDR-Admin."],
+      "  EntraRoles": ["The model (5.0): every role group is ELIGIBLE per role, never active. Leave these; people never get a role directly."],
+      "  Groups": ["People. EDIT every principalId: the object id of the person's adm- account.", "Role groups (every PIM-SG-M365 group, 5.0): Active, a year (the yearly review) — the role activation is the gate. Intune, Defender XDR, Exchange and Purview access groups: assignmentType Eligible, a year — the group activation is the gate."],
       ProtectedUsers: ["Never touched by EasyPIM. EDIT: the object ids of your break-glass accounts — by id, never by name."],
     };
     const lines = JSON.stringify(cfg, null, 2).split("\n");
@@ -931,7 +954,7 @@ const PimBaseline = (() => {
     const showGroup = (g) => filter === "all" || filter === "groups" || (filter === "missing" ? !g.present || g.status === "unread" : filter === "conflict" ? g.status === "conflict" : filter === "differs" ? g.status === "differs" : false);
     const groupTable = (filter !== "all" && filter !== "groups" && filter !== "missing" && filter !== "differs" && filter !== "conflict") ? "" : `<div class="list-card xt-card"><h3>PIM groups <span class="mini">the model, never the members · exact names, matched by id</span></h3><div class="xt-tw"><table class="xt-tbl pmb-tbl">
       <thead><tr><th></th><th>Group</th><th>Persona</th><th>Membership</th><th>In tenant</th><th>Role-assignable</th><th>Carries</th><th>Verdict</th><th>Differences</th></tr></thead>
-      <tbody>${groups.filter(showGroup).map((g) => `<tr class="pmb-row pmb-${g.status}"><td>${box(`group:${g.name}`, g.name)}</td><td><b>${esc(g.name)}</b>${g.description ? `<div class="mini pmb-note">${esc(g.description)}</div>` : ""}</td><td>${esc(g.persona)}${g.azure ? `<div class="mini">${esc(g.azure.role)} · ${esc(g.azure.scope)}</div>` : ""}${g.xdr ? `<div class="mini">${esc(g.xdr.role)} · scope ${esc(g.xdr.scope)}</div>` : ""}</td><td><span class="pmb-tier">${g.path === "job" ? "eligible · job" : g.path === "direct" ? "active · per role" : /^GroupJIT/.test(g.template) ? "eligible · JIT" : "active · 1 year"}</span></td><td>${g.present ? (g.ids.length > 1 ? `<span class="pmb-bad-txt">${g.ids.length}×</span>` : "✓") : "<span class=\"pmb-bad-txt\">no</span>"}</td><td>${g.present ? (g.roleAssignable ? "✓" : "<span class=\"pmb-bad-txt\">no</span>") : "—"}</td><td>${g.scope === "azure" ? `<span class="mini">Azure RBAC · not compared</span>` : g.scope === "intune" ? `<span class="mini">Intune role through T53</span>` : g.scope === "xdr" ? `<span class="mini">Defender XDR · assigned in the portal</span>` : g.scope === "exchange" ? `<span class="mini">Exchange role group ${esc((g.exchange && g.exchange.roleGroup) || "")} · through the script Deploy generates</span>` : g.scope === "purview" ? `<span class="mini">Purview role group ${esc((g.purview && g.purview.roleGroup) || "")} · through the script Deploy generates</span>` : `${g.path === "job" ? "active " : g.path === "direct" ? "eligible " : ""}${g.has.filter((r) => g.carries.includes(r)).length} / ${g.carries.length}${g.wrongShape && g.wrongShape.length ? `<div class="mini pmb-bad-txt">${g.path === "job" ? "still eligible (2.x) — should be active" : "held active — should be eligible"}: ${esc(g.wrongShape.join(", "))}</div>` : ""}${g.missingRoles.length ? `<div class="mini pmb-bad-txt">missing: ${esc(g.missingRoles.join(", "))}</div>` : ""}${g.scopedOnly.length ? `<div class="mini">only at an AU: ${esc(g.scopedOnly.join(", "))}</div>` : ""}`}${g.extraRoles.length ? `<div class="mini pmb-bad-txt">also holds: ${esc(g.extraRoles.join(", "))}</div>` : ""}</td><td>${pill(g.status)}</td><td>${g.conflict ? `<div class="mini pmb-bad-txt">${esc(g.conflict)}</div>` : ""}${g.present && g.roleAssignable === false ? `<div class="mini pmb-bad-txt">not role-assignable: a group made without isAssignableToRole cannot be made one later — recreate it</div>` : ""}${diffCell(g.diffs)}${g.present && g.settings === "unread" && !g.conflict && g.scope !== "azure" ? `<div class="mini">membership settings (PIM for Groups) not read</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="mini" style="padding:14px">Nothing under this filter.</td></tr>`}</tbody></table></div>${res.extraGroups.length ? `<p class="mini pmb-extra">Role-assignable groups in the tenant that are not in the framework: ${esc(res.extraGroups.join(", "))}. Not a difference — a tenant's own groups are its own — but every one of them can hold a role, so 👥 CA groups and 🛡 Administrative units should know them.</p>` : ""}${res.regionalGroups && res.regionalGroups.length ? `<p class="mini pmb-extra">Regional groups in the tenant: ${esc(res.regionalGroups.join(", "))} — compared under 🗺 Regions against the regions file.</p>` : ""}</div>`;
+      <tbody>${groups.filter(showGroup).map((g) => `<tr class="pmb-row pmb-${g.status}"><td>${box(`group:${g.name}`, g.name)}</td><td><b>${esc(g.name)}</b>${g.description ? `<div class="mini pmb-note">${esc(g.description)}</div>` : ""}</td><td>${esc(g.persona)}${g.azure ? `<div class="mini">${esc(g.azure.role)} · ${esc(g.azure.scope)}</div>` : ""}${g.xdr ? `<div class="mini">${esc(g.xdr.role)} · scope ${esc(g.xdr.scope)}</div>` : ""}</td><td><span class="pmb-tier">${g.path === "job" ? "eligible · job" : g.path === "direct" ? "active · per role" : /^GroupJIT/.test(g.template) ? "eligible · JIT" : "active · 1 year"}</span></td><td>${g.present ? (g.ids.length > 1 ? `<span class="pmb-bad-txt">${g.ids.length}×</span>` : "✓") : "<span class=\"pmb-bad-txt\">no</span>"}</td><td>${g.present ? (g.roleAssignable ? "✓" : "<span class=\"pmb-bad-txt\">no</span>") : "—"}</td><td>${g.scope === "azure" ? `<span class="mini">Azure RBAC · not compared</span>` : g.scope === "intune" ? `<span class="mini">Intune role through T53</span>` : g.scope === "xdr" ? `<span class="mini">Defender XDR · assigned in the portal</span>` : g.scope === "exchange" ? `<span class="mini">Exchange role group ${esc((g.exchange && g.exchange.roleGroup) || "")} · through the script Deploy generates</span>` : g.scope === "purview" ? `<span class="mini">Purview role group ${esc((g.purview && g.purview.roleGroup) || "")} · through the script Deploy generates</span>` : `${g.path === "job" ? "active " : g.path === "direct" ? "eligible " : ""}${g.has.filter((r) => g.carries.includes(r)).length} / ${g.carries.length}${g.wrongShape && g.wrongShape.length ? `<div class="mini pmb-bad-txt">${g.path === "job" ? "still eligible (2.x) — should be active" : "held active — should be eligible"}: ${esc(g.wrongShape.join(", "))}</div>` : ""}${g.missingRoles.length ? `<div class="mini pmb-bad-txt">missing: ${esc(g.missingRoles.join(", "))}</div>` : ""}${g.scopedOnly.length ? `<div class="mini">only at an AU: ${esc(g.scopedOnly.join(", "))}</div>` : ""}`}${g.extraRoles.length ? `<div class="mini pmb-bad-txt">also holds: ${esc(g.extraRoles.join(", "))}</div>` : ""}</td><td>${pill(g.status)}</td><td>${g.conflict ? `<div class="mini pmb-bad-txt">${esc(g.conflict)}</div>` : ""}${g.present && g.roleAssignable === false ? `<div class="mini pmb-bad-txt">not role-assignable: a group made without isAssignableToRole cannot be made one later — recreate it</div>` : ""}${diffCell(g.diffs)}${g.present && g.settings === "unread" && !g.conflict && g.scope !== "azure" ? `<div class="mini">membership settings (PIM for Groups) not read</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="mini" style="padding:14px">Nothing under this filter.</td></tr>`}</tbody></table></div>${res.extraGroups.length ? `<p class="mini pmb-extra">Role-assignable groups in the tenant that are not in the framework: ${esc(res.extraGroups.join(", "))}. Not a difference — a tenant's own groups are its own — but every one of them can hold a role, so 👥 CA groups and 🛡 Administrative units should know them.</p>` : ""}${res.retiredGroups && res.retiredGroups.length ? `<p class="mini pmb-extra">Retired in ${esc(res.retiredGroups[0].release)}: ${res.retiredGroups.map((r) => `${esc(r.name)} → ${esc(r.into)}${r.count ? ` (still holds ${esc(r.holds.join(", "))})` : " (holds no role — delete it by hand once nothing references it)"}`).join("; ")}. 🚀 Deploy's 5.0 migration removes what they hold once the new group holds it; the groups themselves are deleted by a person.</p>` : ""}${res.regionalGroups && res.regionalGroups.length ? `<p class="mini pmb-extra">Regional groups in the tenant: ${esc(res.regionalGroups.join(", "))} — compared under 🗺 Regions against the regions file.</p>` : ""}</div>`;
     return head + roleTable + groupTable;
   }
 
@@ -952,6 +975,7 @@ const PimBaseline = (() => {
     L.push("|---|---|---|---|---|---|---|");
     res.groups.forEach((g) => L.push(`| ${g.name} | ${g.persona} | ${g.path === "job" ? "eligible · job" : g.path === "direct" ? "active · per role" : /^GroupJIT/.test(g.template) ? "eligible · JIT" : "active · 1 year"} | ${g.present ? (g.ids.length > 1 ? `${g.ids.length}×` : "yes") : "no"} | ${g.present ? (g.roleAssignable ? "yes" : "no") : "—"} | ${g.scope === "azure" ? "Azure RBAC, not compared" : g.scope === "intune" ? "Intune (T53)" : g.scope === "xdr" ? "Defender XDR, assigned in the portal" : g.scope === "exchange" ? `Exchange role group ${(g.exchange && g.exchange.roleGroup) || ""}, through the generated script` : g.scope === "purview" ? `Purview role group ${(g.purview && g.purview.roleGroup) || ""}, through the generated script` : `${g.path === "job" ? "active " : g.path === "direct" ? "eligible " : ""}${g.has.filter((r) => g.carries.includes(r)).length}/${g.carries.length}${g.missingRoles.length ? ` (missing ${g.missingRoles.join(", ")})` : ""}${g.wrongShape && g.wrongShape.length ? ` (${g.path === "job" ? "still eligible" : "held active"}: ${g.wrongShape.join(", ")})` : ""}`}${g.extraRoles.length ? ` (also holds ${g.extraRoles.join(", ")})` : ""} | ${STATUS[g.status].label}${g.conflict ? ` — ${g.conflict}` : ""}${g.diffs.length ? ` — ${g.diffs.map((d) => `${d.label}: ${d.tenant} → ${d.baseline}`).join("; ")}` : ""} |`));
     if (res.extraGroups.length) { L.push(""); L.push(`Role-assignable groups not in the framework: ${res.extraGroups.join(", ")}.`); }
+    if (res.retiredGroups && res.retiredGroups.length) { L.push(""); L.push(`Retired groups still in the tenant: ${res.retiredGroups.map((r) => `${r.name} → ${r.into}${r.count ? ` (still holds ${r.holds.join(", ")})` : " (holds no role)"}`).join("; ")}.`); }
     return L.join("\n");
   }
 
