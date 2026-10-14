@@ -174,6 +174,28 @@ const PROMOTE = {
 
   items: [
     {
+      n: 324,
+      ws: "entra",
+      requires: [323],
+      title: "🌐 T56 Global Secure Access 0.1 — the Microsoft traffic profile readiness board (R85)",
+      tools: ["Global Secure Access", "Conditional Access groups"],
+      builds: [32516],
+      risk: "high",
+      what: "js/gsa.js (new, pure): model() over licence, tenant status, the m365 forwarding profile and its policy links, the profile's service principal and appRoleAssignedTo, CA signalling, named locations (compliantNetworkNamedLocation), Intune deviceManagementScripts / deviceShellScripts / mobileApps, and the loaded CA policies that name the compliant network (cnPolicies: shape, state, include groups, Intune and Intune Enrollment out, excluded roles); proof() over signIns (report-only results per policy, isThroughGlobalSecureAccess); render() — verdict, the eight-link board, the fix panel, the policy table, the groups GSA uses; windowsScript() / windowsScriptBody() — the platform script (aka.ms x64 / ARM64, /quiet /norestart, the four lock-down keys, optional DisabledComponents 0x20); macScript(); FIXES with impact and recovery; demo(). js/app.js: openGsa / readGsa / readGsaProof / runGsaFix (onboard + poll, PATCH profile and policy links, appRoleAssignedTo or appRoleAssignmentRequired false, PATCH signalling, POST the named location, POST the platform script + assign to a device group), GsaTool.groupIds for T12, the demo applying each fix. index.html: tile, screen, Help, roadmap R85. css/app.css: .gsa-*. tools/gsa.test.cjs (7).",
+      why: "Mihai, 14 Oct: T56 = Global Secure Access, the focus on the Microsoft traffic profile, Internet Access and Private Access later; layout B of the token replay guard mockup; leave CA215 as is with the current exclusions and write an admin handover about it; then use what the CyberDrain script does where it holds. High risk: every fix writes to the tenant — activation, the profile that starts tunnelling traffic, an app assignment, signalling, a named location, an Intune script that installs software as SYSTEM — and the beta network access routes and the policy-link PATCH body come from Microsoft Learn and the CyberDrain script, NOT yet from a run on a live tenant. Nothing in it switches a policy on.",
+      test: [
+        "Local: node --test tools/gsa.test.cjs (7) and the whole suite pass; plain-text check clean; jsdom boot with ?demo=1: 03 → Global Secure Access → Read the tenant shows the board with the client missing and the profile partly on; every fix in the demo lands and the board re-renders; no console error.",
+        "cloudfellows.dev (Global Secure Access Administrator + Application Administrator active): Read the tenant — every link reads (no not read) and the licence counts the P1/P2 seats. If GSA is not activated: Activate → the log shows onboarding then onboarded within five minutes; Read again shows the profile.",
+        "cloudfellows.dev: Enable profile → the profile and every traffic policy enabled (check Global Secure Access → Connect → Traffic forwarding). If the policy-link PATCH is refused, record the error — the body may need a different @odata.type.",
+        "cloudfellows.dev: Assign → pilot group GSA-SEC-U-M365Profile-Pilot (create it first, one test user). The group shows on the profile's enterprise app under Users and groups, and in Groups (T12) → Used by GSA with a GSA badge. Do NOT use All users on a customer tenant without a decision.",
+        "cloudfellows.dev: Enable signalling, then Create the location → All Compliant Network Locations appears in 🧩 Locations.",
+        "cloudfellows.dev: Create the Windows script for a pilot DEVICE group with one test VM → Intune → Devices → Scripts lists it, assigned; on the VM the client installs at the next check-in, Disable and Sign out are hidden. Download the script first and compare with the uploaded text.",
+        "cloudfellows.dev with a report-only block-outside-the-compliant-network policy (CA215 or a test copy): 📈 Read the proof → the test user's sign-ins with the client running count as pass, with the client paused as would block. The tool offers no way to switch the policy on, and the policy's exclusions are unchanged after every fix.",
+        "gimi (read-only): Read the tenant — reads or says not read per link, writes nothing.",
+      ],
+      files: ["js/gsa.js", "js/app.js", "index.html", "css/app.css", "js/flat-icons.js", "js/version.js", "js/changelog.js", "js/promote.js", "tools/gsa.test.cjs"],
+    },
+    {
       n: 323,
       ws: "entra",
       title: "🧭 Workspace 03 · Entra Tools, and 👥 T12 6.0 — groups scoped by the workload that uses them",

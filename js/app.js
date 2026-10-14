@@ -183,7 +183,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimreport", "screen-pimdeploy", "screen-pimdesigner",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-deploydash", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-deploydash", "screen-gsa", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-promote", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -2958,6 +2958,7 @@
     ["toolUserImpact", "🗣 User impact brief"],
     ["toolImport", "📥 Import"],
     ["toolDeploy", "↗ Guided rollout"],
+    ["toolGsa", "🌐 Global Secure Access"],
   ];
   // Help is a tool too, but always sits last (after the + in the tab bar).
   TOOL_TABS.push(["toolChangelog", "📋 What's new"]);
@@ -24427,6 +24428,227 @@ This is a directory write. Nothing else changes.`)) return;
   });
   $("toolDeployDash").addEventListener("click", () => openDeployDash());
   $("ddRefresh").addEventListener("click", () => { if (ddBusy) return; ddRaw = null; ddModel = null; if ($("screen-deploydash").classList.contains("active")) $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); });
+
+  // ======================================================================
+  // 🌐 Global Secure Access — T56, Workspace 03 · Entra Tools (beta 32516).
+  // js/gsa.js judges and renders; this block reads the tenant, runs the
+  // fixes (each described with its impact and its way back first) and hands
+  // the groups it found to 👥 T12's Used by GSA scope through GsaTool.
+  // Focus: the Microsoft traffic profile. It never switches a policy on and
+  // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
+  // ======================================================================
+  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All"];
+  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, fix: null, fixOpts: { group: "", allUsers: false, devGroup: "", lock: true, ipv4: false }, fixBusy: false, fixLog: null, session: "" };
+  const gsaSession = () => `${tenantId}:${isDemo}`;
+  const gsaPolicies = () => {
+    if (!policies || !policies.length) return null;
+    const list = policies.map((p) => ({ raw: p.raw, name: p.name, id: p.id }));
+    if (isDemo && gsa.raw && gsa.raw.locations && !Gsa.cnPolicies(list, "loc-cn").length) list.push(Gsa.demoPolicy());
+    return list;
+  };
+  const gsaErr = (e) => String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "");
+  globalThis.GsaTool = {
+    groupIds: () => (gsa.model && gsa.session === gsaSession() ? gsa.model.groupIds : null),
+    nameOf: (id) => { const g = gsa.model && gsa.model.groups.find((x) => x.id === id); return g ? g.name : id; },
+    readLabel: () => (gsa.raw && gsa.raw.readAt ? `read ${new Date(gsa.raw.readAt).toLocaleString()}` : ""),
+  };
+  function openGsa() {
+    crumb("🌐 Global Secure Access");
+    show("screen-gsa");
+    if (gsa.session !== gsaSession()) gsa = Object.assign(gsa, { raw: null, model: null, err: null, proof: null, fix: null, fixLog: null, session: gsaSession() });
+    $("gsaHead").innerHTML = toolHead("toolGsa") + '<p class="mini" style="margin:6px 0 0">Stolen session tokens only work if Entra accepts them from the attacker\'s network. This board checks every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can safely go on — the <b>Microsoft traffic profile</b> first; Internet Access and Private Access come later — finds the link that is missing, and fixes the links that live in Entra and Intune. Every fix says what it changes, who it affects and how to undo it before it runs. It never switches a policy on and never changes a policy\'s exclusions.</p>';
+    renderGsa();
+  }
+  function renderGsa() {
+    if (!$("screen-gsa").classList.contains("active")) return;
+    const body = $("gsaBody");
+    if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
+    if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
+    gsa.model = Gsa.model(gsa.raw, gsaPolicies());
+    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, fixHtml: gsa.fix ? gsaFixHtml() : "" });
+    $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
+  }
+  async function readGsa() {
+    if (gsa.busy) return;
+    gsa.busy = true; gsa.err = null; gsa.proof = null; renderGsa();
+    try {
+      if (isDemo) { await new Promise((r) => setTimeout(r, 250)); gsa.raw = Gsa.demo(); }
+      else {
+        const sc = [...AUTH_CONFIG.scopes, ...GSA_READ];
+        if (!await preConsent(sc)) throw new Error("the Global Secure Access read permissions were not granted");
+        const raw = { sources: {}, groupNames: {} };
+        const one = async (k, fn) => { try { raw[k] = await fn(); raw.sources[k] = "ok"; } catch (e) { raw.sources[k] = gsaErr(e); } };
+        await one("skus", () => Graph.ggetAll("/v1.0/subscribedSkus", { scopes: sc }));
+        await one("status", () => Graph.gget("/networkAccess/tenantStatus", sc));
+        if (raw.status && raw.status.onboardingStatus === "onboarded") {
+          await one("profile", async () => ((await Graph.ggetAll("/networkAccess/forwardingProfiles?$expand=policies", { scopes: sc })).find((p) => p.trafficForwardingType === "m365") || null));
+          await one("signaling", () => Graph.gget("/networkAccess/settings/conditionalAccess", sc));
+          const spId = raw.profile && raw.profile.servicePrincipal && raw.profile.servicePrincipal.id;
+          if (spId) {
+            await one("sp", () => Graph.gget(`/v1.0/servicePrincipals/${spId}?$select=id,appId,displayName,appRoleAssignmentRequired,appRoles`, sc));
+            await one("assigned", () => Graph.ggetAll(`/v1.0/servicePrincipals/${spId}/appRoleAssignedTo?$top=999`, { scopes: sc }));
+          }
+        }
+        await one("locations", () => Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc }));
+        await one("scripts", () => Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName", { scopes: sc }));
+        await one("shellScripts", () => Graph.ggetAll("/deviceManagement/deviceShellScripts?$select=id,displayName,fileName", { scopes: sc }));
+        await one("apps", () => Graph.ggetAll("/deviceAppManagement/mobileApps?$filter=" + encodeURIComponent("startswith(displayName,'Global Secure Access')") + "&$select=id,displayName", { scopes: sc }));
+        // names of the groups the compliant-network policies include
+        const cn = (raw.locations || []).find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
+        const ids = [...new Set(Gsa.cnPolicies(gsaPolicies(), cn && cn.id).flatMap((p) => p.includeGroups))].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+        for (let i = 0; i < ids.length; i += 15) {
+          try { (await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(ids.slice(i, i + 15).map((x) => `id eq '${x}'`).join(" or "))}&$select=id,displayName`, { scopes: sc })).forEach((g) => { raw.groupNames[g.id] = g.displayName; }); } catch { /* ids stay */ }
+        }
+        raw.readAt = Date.now();
+        gsa.raw = raw;
+      }
+    } catch (e) { gsa.err = gsaErr(e); gsa.raw = null; }
+    finally { gsa.busy = false; gsa.session = gsaSession(); }
+    renderGsa();
+  }
+  async function readGsaProof() {
+    if (gsa.proofBusy || !gsa.model) return;
+    gsa.proofBusy = true; renderGsa();
+    try {
+      const ids = gsa.model.policies.map((p) => p.id);
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 250));
+        const s = (r, via, u) => ({ userId: u, isThroughGlobalSecureAccess: via, appliedConditionalAccessPolicies: ids.map((id) => ({ id, result: r })) });
+        gsa.proof = Gsa.proof([...Array(40)].map((_, i) => s(i % 5 === 0 ? "reportOnlySuccess" : "reportOnlyFailure", i % 5 === 0, `u${i % 12}`)), ids);
+      } else {
+        const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
+        if (!await preConsent(sc)) throw new Error("AuditLog.Read.All was not granted");
+        const since = new Date(Date.now() - 7 * 86400000).toISOString();
+        const rows = await Graph.ggetAll(`/auditLogs/signIns?$filter=createdDateTime ge ${since}&$top=999`, { cap: 5000, scopes: sc });
+        gsa.proof = Gsa.proof(rows, ids);
+        gsa.proof.capped = !!(rows.readState && rows.readState.capped);
+      }
+    } catch (e) { toast(`Sign-in read failed: <span>${esc(gsaErr(e))}</span>`); }
+    finally { gsa.proofBusy = false; }
+    renderGsa();
+  }
+  // ---- the fixes: described first, then run ----
+  function gsaFixHtml() {
+    const f = Gsa.FIXES[gsa.fix]; if (!f) return "";
+    const o = gsa.fixOpts;
+    let form = "";
+    if (gsa.fix === "assign") form = `<label class="chk"><input type="radio" name="gsaAssignHow" value="group"${o.allUsers ? "" : " checked"}> <b>Pilot group</b> (recommended)</label> <input class="txt" data-gsaopt="group" value="${esc(o.group)}" placeholder="Group display name, e.g. GSA-SEC-U-M365Profile-Pilot" style="min-width:320px"><br><label class="chk"><input type="radio" name="gsaAssignHow" value="all"${o.allUsers ? " checked" : ""}> <b>All users</b> — Assignment required off on the profile's app</label>`;
+    if (gsa.fix === "winscript") form = `<input class="txt" data-gsaopt="devGroup" value="${esc(o.devGroup)}" placeholder="Pilot DEVICE group display name" style="min-width:320px"><br><label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — users cannot disable it or sign out</label><br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label><br><button class="btn sm" data-gsadl="win">⬇ The script as it will be uploaded</button>`;
+    const log = gsa.fixLog ? `<div class="gsa-log">${gsa.fixLog.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
+    return `<h4>🔧 ${esc(f.title)} <span class="tag block">writes to tenant</span></h4>
+      <p class="mini"><b>Impact.</b> ${esc(f.impact)}</p><p class="mini"><b>Way back.</b> ${esc(f.recovery)}</p>
+      <ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}
+      <p class="mini muted">Needs ${esc(f.scopes.join(", "))} · role ${esc(f.role)}${isDemo ? " · demo: simulated" : ""}</p>
+      ${log}<div class="row" style="display:flex;gap:8px;justify-content:flex-start"><button class="btn primary" data-gsago${gsa.fixBusy || (gsa.fixLog && gsa.fixLog.done) ? " disabled" : ""}>${gsa.fixBusy ? "Working…" : "Apply"}</button><button class="btn" data-gsacancel>${gsa.fixLog && gsa.fixLog.done ? "Close" : "Cancel"}</button></div>`;
+  }
+  async function gsaGroupByName(name, sc) {
+    const n = String(name || "").trim(); if (!n) throw new Error("name a group first");
+    if (isDemo) return { id: "g-demo-" + n.length, displayName: n };
+    const gs = await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(`displayName eq '${n.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc });
+    if (!gs.length) throw new Error(`no group is called ${n}`);
+    if (gs.length > 1) throw new Error(`${gs.length} groups are called ${n} — rename one first`);
+    return gs[0];
+  }
+  async function runGsaFix() {
+    const k = gsa.fix, f = Gsa.FIXES[k], m = gsa.model, o = gsa.fixOpts;
+    if (!f || gsa.fixBusy) return;
+    const log = gsa.fixLog = []; const say = (t, ok) => { log.push({ t, ok }); renderGsa(); };
+    gsa.fixBusy = true; renderGsa();
+    const sc = [...AUTH_CONFIG.scopes, ...f.scopes];
+    try {
+      if (!isDemo && !await preConsent(sc)) throw new Error("permission not granted — nothing was changed");
+      const sim = async (t) => { await new Promise((r) => setTimeout(r, 150)); say(`${t} (simulated)`, true); };
+      if (k === "onboard") {
+        if (isDemo) await sim("onboarded");
+        else {
+          await Graph.gpost("/networkAccess/microsoft.graph.networkaccess.onboard", {}, sc); say("onboarding started");
+          for (let i = 0; i < 20; i++) {
+            await new Promise((r) => setTimeout(r, 15000));
+            const st = await Graph.gget("/networkAccess/tenantStatus", sc);
+            if (st.onboardingStatus === "onboarded") { say("onboarded", true); break; }
+            if (/Error/.test(st.onboardingStatus || "")) throw new Error(st.onboardingErrorMessage || st.onboardingStatus);
+            say(`still ${st.onboardingStatus}…`);
+            if (i === 19) say("not finished after five minutes — Read the tenant again later", false);
+          }
+        }
+      } else if (k === "profile") {
+        const p = m.profile;
+        if (isDemo) await sim("profile and its traffic policies enabled");
+        else {
+          if (p.state !== "enabled") { await Graph.gpatch(`/networkAccess/forwardingProfiles/${p.id}`, { state: "enabled" }, sc); say("profile enabled", true); }
+          for (const l of (p.policies || []).filter((x) => x.state !== "enabled")) {
+            const body = { state: "enabled" }; if (l["@odata.type"]) body["@odata.type"] = l["@odata.type"];
+            await Graph.gpatch(`/networkAccess/forwardingProfiles/${p.id}/policies/${l.id}`, body, sc); say(`traffic policy ${l.name || l.id} enabled`, true);
+          }
+        }
+      } else if (k === "assign") {
+        const sp = m.sp; if (!sp) throw new Error("the profile's service principal was not read");
+        if (o.allUsers) {
+          if (isDemo) await sim("assignment required switched off — all users");
+          else { await Graph.gpatch(`/v1.0/servicePrincipals/${sp.id}`, { appRoleAssignmentRequired: false }, sc); say("assignment required switched off — the profile applies to all users", true); }
+        } else {
+          const g = await gsaGroupByName(o.group, sc);
+          if (isDemo) await sim(`${g.displayName} assigned`);
+          else {
+            const role = (sp.appRoles || []).find((r) => r.isEnabled !== false && (r.allowedMemberTypes || []).includes("User"));
+            await Graph.gpost(`/v1.0/servicePrincipals/${sp.id}/appRoleAssignedTo`, { principalId: g.id, resourceId: sp.id, appRoleId: role ? role.id : "00000000-0000-0000-0000-000000000000" }, sc);
+            say(`${g.displayName} assigned to the Microsoft traffic profile`, true);
+          }
+        }
+      } else if (k === "signal") {
+        if (isDemo) await sim("signalling enabled");
+        else { await Graph.gpatch("/networkAccess/settings/conditionalAccess", { "@odata.type": "#microsoft.graph.networkaccess.conditionalAccessSettings", signalingStatus: "enabled" }, sc); say("Conditional Access signalling enabled", true); }
+      } else if (k === "location") {
+        if (isDemo) await sim(`${Gsa.LOCATION_NAME} created`);
+        else { await Graph.gpost("/identity/conditionalAccess/namedLocations", { "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: Gsa.LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false }, sc); say(`${Gsa.LOCATION_NAME} created`, true); }
+      } else if (k === "winscript") {
+        const g = await gsaGroupByName(o.devGroup, sc);
+        if (isDemo) await sim(`platform script created and assigned to ${g.displayName}`);
+        else {
+          const s = await Graph.gpost("/deviceManagement/deviceManagementScripts", Gsa.windowsScriptBody({ lock: o.lock, ipv4: o.ipv4 }), sc); say(`platform script ${Gsa.SCRIPT_NAME} created`, true);
+          await Graph.gpost(`/deviceManagement/deviceManagementScripts/${s.id}/assign`, { deviceManagementScriptAssignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id } }] }, sc);
+          say(`assigned to ${g.displayName}`, true);
+        }
+      }
+      log.done = true;
+      say("done — reading the tenant again", true);
+    } catch (e) { say(gsaErr(e), false); }
+    finally { gsa.fixBusy = false; }
+    if (log.done) { if (isDemo) { gsaDemoApply(k); renderGsa(); } else { gsa.raw = null; await readGsa(); } }
+    else renderGsa();
+  }
+  // the demo shows a fix landing, so the board can be walked end to end
+  function gsaDemoApply(k) {
+    const r = gsa.raw, o = gsa.fixOpts;
+    if (k === "profile") { r.profile.state = "enabled"; r.profile.policies.forEach((p) => { p.state = "enabled"; }); }
+    if (k === "assign") { if (o.allUsers) r.sp.appRoleAssignmentRequired = false; else r.assigned.push({ principalId: "g-demo-" + o.group.trim().length, principalType: "Group", principalDisplayName: o.group.trim() }); }
+    if (k === "signal") r.signaling.signalingStatus = "enabled";
+    if (k === "location") r.locations.push({ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", id: "loc-cn", displayName: Gsa.LOCATION_NAME });
+    if (k === "winscript") r.scripts.push({ id: "s1", displayName: Gsa.SCRIPT_NAME, fileName: "Install-GlobalSecureAccessClient.ps1" });
+    if (k === "onboard") r.status.onboardingStatus = "onboarded";
+  }
+  $("toolGsa").addEventListener("click", () => openGsa());
+  $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; gsa.fix = null; readGsa(); });
+  $("gsaBody").addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("[data-gsaread]")) { readGsa(); return; }
+    if (t.closest("[data-gsaproof]")) { readGsaProof(); return; }
+    const fx = t.closest("[data-gsafix]"); if (fx) { gsa.fix = fx.dataset.gsafix; gsa.fixLog = null; renderGsa(); const p = $("gsaFixPanel"); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest" }); return; }
+    if (t.closest("[data-gsacancel]")) { gsa.fix = null; gsa.fixLog = null; renderGsa(); return; }
+    if (t.closest("[data-gsago]")) { runGsaFix(); return; }
+    const dl = t.closest("[data-gsadl]");
+    if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: gsa.fixOpts.lock, ipv4: gsa.fixOpts.ipv4 })); else downloadText("Install-GlobalSecureAccessClient-macOS", "sh", "text/x-shellscript", Gsa.macScript()); return; }
+    const op = t.closest("[data-gsaopen]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.gsaopen); if (p) showDetail(p); else toast("That policy is not in the loaded set"); return; }
+    if (t.closest("[data-gsagroups]")) { if (typeof cgScopeWs !== "undefined") { cgScopeWs[cgWs()] = "gsa"; } openCaGroups(); return; }
+  });
+  const gsaOpt = (e) => {
+    const t = e.target;
+    if (t.name === "gsaAssignHow") { gsa.fixOpts.allUsers = t.value === "all"; return; }
+    const k = t.dataset && t.dataset.gsaopt; if (!k) return;
+    gsa.fixOpts[k] = t.type === "checkbox" ? t.checked : t.value;
+  };
+  $("gsaBody").addEventListener("input", gsaOpt);
+  $("gsaBody").addEventListener("change", gsaOpt);
   $("ddReady").addEventListener("click", () => readDeployReadiness());
   $("ddHtml").addEventListener("click", () => { if (!ddModel) return; const name = downloadText("ENCA-deployment-dashboard", "html", "text/html", DeployDash.exportHtml(ddModel, { tenant: tenantName, build: APP_BUILD.label, now: Date.now() })); toast(`Saved ${esc(name)} — a snapshot that names users; share it like tenant data`); });
   $("ddCsv").addEventListener("click", () => { if (!ddModel) return; downloadText("ENCA-deployment-dashboard", "csv", "text/csv", DeployDash.toCsv(ddModel)); });

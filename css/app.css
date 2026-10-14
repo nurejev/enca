@@ -3158,3 +3158,26 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .prp-bad-txt{color:var(--off)}
 .prp-pill.prp-ok{color:var(--on)}.prp-pill.prp-warn{color:var(--report)}.prp-pill.prp-bad{color:var(--off)}
 .prp-h{margin:6px 0 6px}
+
+/* 🌐 Global Secure Access — T56 (32516): the readiness board (mockup B) */
+#screen-gsa .gsa-verdict{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:14px 18px;border-radius:14px;border:1px solid var(--border);background:var(--surface);margin:0 0 14px}
+#screen-gsa .gsa-verdict.bad{border-color:color-mix(in srgb,var(--off) 40%,var(--border));background:color-mix(in srgb,var(--off) 8%,var(--surface))}
+#screen-gsa .gsa-verdict.ok{border-color:color-mix(in srgb,var(--on) 40%,var(--border));background:color-mix(in srgb,var(--on) 8%,var(--surface))}
+#screen-gsa .gsa-verdict h3{margin:0 0 4px;font-size:16px}#screen-gsa .gsa-verdict.bad h3{color:var(--off)}#screen-gsa .gsa-verdict.ok h3{color:var(--on)}
+#screen-gsa .gsa-verdict p{margin:0;font-size:13px}.gsa-big{font-size:28px;line-height:1}
+.gsa-meter{display:flex;gap:3px}.gsa-meter i{width:18px;height:8px;border-radius:3px;background:var(--border)}.gsa-meter i.ok{background:var(--on)}.gsa-meter i.warn{background:var(--report)}
+.gsa-chain{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:0 0 16px}
+.gsa-link{padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);display:grid;gap:6px;align-content:start}
+.gsa-link.bad{border-color:color-mix(in srgb,var(--off) 45%,var(--border))}.gsa-link.warn{border-color:color-mix(in srgb,var(--report) 50%,var(--border))}.gsa-link.ok{border-color:color-mix(in srgb,var(--on) 45%,var(--border))}
+.gsa-link h4{margin:0;font-size:14px}.gsa-link p{margin:0}
+.gsa-lab{font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gsa-st{display:inline-flex;justify-self:start;font-size:11.5px;font-weight:700;padding:1px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.gsa-st.ok{color:var(--on);border-color:color-mix(in srgb,var(--on) 45%,var(--border));background:color-mix(in srgb,var(--on) 10%,var(--surface))}
+.gsa-st.warn{color:var(--report);border-color:color-mix(in srgb,var(--report) 50%,var(--border));background:color-mix(in srgb,var(--report) 10%,var(--surface))}
+.gsa-st.bad{color:var(--off);border-color:color-mix(in srgb,var(--off) 45%,var(--border));background:color-mix(in srgb,var(--off) 10%,var(--surface))}
+.gsa-act{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.gsa-fix{border:1px solid color-mix(in srgb,var(--off) 40%,var(--border));border-radius:12px;padding:12px 14px;margin:0 0 14px;background:var(--surface)}
+.gsa-fix h4{margin:0 0 6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.gsa-fix ul{margin:4px 0;padding-left:18px}
+.gsa-log{border-top:1px solid var(--border);margin:8px 0;padding-top:6px}
+.gsa-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:900px){.gsa-cols{grid-template-columns:1fr}#screen-gsa .gsa-verdict{grid-template-columns:1fr}}
+.gsa-sect{padding:14px 16px;margin:0 0 14px}.gsa-sect h3{font-size:15px;margin:0 0 8px}.gsa-later{margin:6px 0 0}

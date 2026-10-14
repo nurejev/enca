@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32516, date: "2026-10-14", title: "Global Secure Access: make stolen tokens useless, the Microsoft traffic profile first",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "A new tool in Workspace 03 · Entra Tools. One board with every link a compliant-network-only Conditional Access policy needs: Entra ID P1 seats, Global Secure Access activated, the Microsoft traffic profile on and assigned, Conditional Access signalling, the compliant network location, the client on Windows and macOS devices, the policies that name the compliant network, and — on request — the last 7 days of sign-ins: how many came through Global Secure Access and how many a report-only policy would block." },
+      { kind: "new", tool: "Global Secure Access", text: "Fixes for the links that live in Entra and Intune: activate, enable the profile and its traffic policies, assign a pilot group or all users, enable signalling, create All Compliant Network Locations, and create the Windows platform script that installs and locks down the client on a pilot device group. Each fix says what it changes, who it affects and how to undo it before it runs. macOS gets the shell script as a download; its three profiles stay by hand." },
+      { kind: "new", tool: "Global Secure Access", text: "It never switches a policy on and never changes a policy's exclusions. The policy table reports whether the Microsoft Intune and Intune Enrollment apps are out and which admin roles are excluded." },
+      { kind: "improved", tool: "Conditional Access groups", text: "Used by GSA is live once Global Secure Access has read: the groups on the Microsoft traffic profile and the groups the compliant-network policies include, with a GSA badge on every row that has one." },
+    ],
+  },
+  {
     build: 32515, date: "2026-10-14", title: "Workspace 03 · Entra Tools, and groups scoped by the workload that uses them",
     items: [
       { kind: "new", tool: "Workspaces", text: "A third workspace, 03 · Entra Tools — the directory objects every workload leans on. It has its own blue header with a cyan rule, opens on its tools overview, and its first tool is Groups (the same tool as Conditional Access groups in 01 and PIM groups in 02). Switch with the chip, the rail caption, ⌘⇧3 or ⌘K; the link ?ws=entra opens it directly." },
