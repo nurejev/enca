@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32525, date: "2026-10-14", title: "Global Secure Access: no false detect-only warning",
+    items: [
+      { kind: "fixed", tool: "Global Secure Access", text: "Build 32524 called a Windows remediation detect only when Graph reported remediation off on its assignment. Intune shows remediation on for the same assignment, so that report is not reliable: the warning, the detect only tag and Switch remediation on are gone, and an existing assignment is never rewritten." },
+    ],
+  },
+  {
     build: 32524, date: "2026-10-14", title: "Global Secure Access: one flow, fixes in workspaces below it",
     items: [
       { kind: "improved", tool: "Global Secure Access", text: "The eight cards are now one flow: Licence to Proof in five lanes, the line green up to the step that blocks. Click a step to open it under the flow — what ENCA read, and what you can do. A fix opens as a workspace below that, and several can be open at once, newest first: what it sends (the script as it will be uploaded, or the Graph request), its options, impact and way back, Apply and the log. One applies at a time; the others wait." },

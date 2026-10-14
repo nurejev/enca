@@ -1,34 +1,281 @@
 {
- "_note": "devcf (cloudfellows.dev) read 2026-10-14 ~13:20Z through Lokka devcf (app-only). networkAccess/* returned 403 to Lokka (no NetworkAccess.Read.All on its app): status, profile, signalling and the profile assignment are taken from Mihai's screenshot of the live board the same afternoon. Everything else is the live Graph read.",
+ "_note": "devcf (cloudfellows.dev) read 2026-10-14 13:20-13:41Z through Lokka devcf (app-only); the networkAccess reads after NetworkAccess.Read.All and NetworkAccessPolicy.Read.All were granted to Lokka at 13:33. healthScripts runRemediationScript false is what Graph returns although the Intune portal shows remediation on.",
  "readAt": 1792070400000,
  "skus": [
-  {"skuPartNumber":"DEFENDER_AND_PURVIEW_SUITES_FOR_BUSINESS_PREMIUM_NEW","consumedUnits":2,"prepaidUnits":{"enabled":2},"servicePlans":[{"servicePlanName":"AAD_PREMIUM_P2"}]},
-  {"skuPartNumber":"SPB","consumedUnits":2,"prepaidUnits":{"enabled":2},"servicePlans":[{"servicePlanName":"AAD_PREMIUM"}]},
-  {"skuPartNumber":"RMSBASIC","consumedUnits":0,"prepaidUnits":{"enabled":1},"servicePlans":[{"servicePlanName":"RMS_S_BASIC"}]}
+  {
+   "skuPartNumber": "DEFENDER_AND_PURVIEW_SUITES_FOR_BUSINESS_PREMIUM_NEW",
+   "consumedUnits": 2,
+   "prepaidUnits": {
+    "enabled": 2
+   },
+   "servicePlans": [
+    {
+     "servicePlanName": "AAD_PREMIUM_P2"
+    }
+   ]
+  },
+  {
+   "skuPartNumber": "SPB",
+   "consumedUnits": 2,
+   "prepaidUnits": {
+    "enabled": 2
+   },
+   "servicePlans": [
+    {
+     "servicePlanName": "AAD_PREMIUM"
+    }
+   ]
+  },
+  {
+   "skuPartNumber": "RMSBASIC",
+   "consumedUnits": 0,
+   "prepaidUnits": {
+    "enabled": 1
+   },
+   "servicePlans": [
+    {
+     "servicePlanName": "RMS_S_BASIC"
+    }
+   ]
+  }
  ],
- "status": {"onboardingStatus":"onboarded"},
+ "status": {
+  "onboardingStatus": "onboarded"
+ },
  "ztna": [],
- "profile": {"id":"fp-m365","name":"Microsoft traffic profile","trafficForwardingType":"m365","state":"enabled","policies":[{"id":"pl-1","state":"enabled"}],"servicePrincipal":{"id":"sp-m365"}},
- "signaling": {"signalingStatus":"enabled"},
- "sp": {"id":"sp-m365","appRoleAssignmentRequired":true,"appRoles":[]},
- "assigned": [{"principalId":"g-profile","principalType":"Group","principalDisplayName":"(the group on the profile — name from the board, not readable by Lokka)"}],
+ "profile": {
+  "id": "6887ed92-9135-4746-9700-3fe517d49731",
+  "name": "Microsoft 365 traffic forwarding profile",
+  "trafficForwardingType": "m365",
+  "state": "enabled",
+  "policies": [
+   {
+    "id": "9db66ece-f4f7-40ad-8468-58b9beaeca7c",
+    "state": "enabled"
+   },
+   {
+    "id": "5b490788-1d42-4aae-b625-8250cd731b04",
+    "state": "enabled"
+   },
+   {
+    "id": "f99665e5-cb9e-4ef7-9335-c44c798648f8",
+    "state": "enabled"
+   },
+   {
+    "id": "399811c7-3e03-4a1c-a507-18b506324798",
+    "state": "enabled"
+   }
+  ],
+  "servicePrincipal": {
+   "id": "a3804f1c-3be3-47c3-9c18-c101dfae5d04",
+   "appId": "82eb02db-b584-4ef4-963d-7eacc528ec29"
+  }
+ },
+ "signaling": {
+  "signalingStatus": "enabled",
+  "dataPlaneSignalingOptions": "entraId"
+ },
+ "sp": {
+  "id": "a3804f1c-3be3-47c3-9c18-c101dfae5d04",
+  "appRoleAssignmentRequired": true,
+  "appRoles": []
+ },
+ "assigned": [
+  {
+   "principalId": "2f0fff85-a692-48e4-a439-0f06a62abe9e",
+   "principalType": "Group",
+   "principalDisplayName": "GSA-SEC-U-M365-ALL-PILOT"
+  }
+ ],
  "locations": [
-  {"@odata.type":"#microsoft.graph.ipNamedLocation","id":"04ce5484-5331-463f-ab7f-e65d33198f0f","displayName":"HeadQuarters"},
-  {"@odata.type":"#microsoft.graph.ipNamedLocation","id":"0dbdbf2c-f69f-4fe5-96ab-8dea4568cbfe","displayName":"Department Heerhugowaard"},
-  {"@odata.type":"#microsoft.graph.countryNamedLocation","id":"1141d13e-ed43-4657-a042-38b504a3c490","displayName":"CountryWhitelist"},
-  {"@odata.type":"#microsoft.graph.compliantNetworkNamedLocation","id":"3d46dbda-8382-466a-856d-eb00cbc6b910","displayName":"All Compliant Network locations"}
+  {
+   "@odata.type": "#microsoft.graph.ipNamedLocation",
+   "id": "04ce5484-5331-463f-ab7f-e65d33198f0f",
+   "displayName": "HeadQuarters"
+  },
+  {
+   "@odata.type": "#microsoft.graph.ipNamedLocation",
+   "id": "0dbdbf2c-f69f-4fe5-96ab-8dea4568cbfe",
+   "displayName": "Department Heerhugowaard"
+  },
+  {
+   "@odata.type": "#microsoft.graph.countryNamedLocation",
+   "id": "1141d13e-ed43-4657-a042-38b504a3c490",
+   "displayName": "CountryWhitelist"
+  },
+  {
+   "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation",
+   "id": "3d46dbda-8382-466a-856d-eb00cbc6b910",
+   "displayName": "All Compliant Network locations"
+  }
  ],
- "scripts": [], "apps": [],
- "healthScripts": [{"id":"dba0ec8d-05b9-4c0c-be96-38f530b8d491","displayName":"Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0","description":"Detects the Global Secure Access client and its client settings; installs it from aka.ms (x64 or ARM64) when missing and writes the settings (locked down). Created by ENCA T56.","publisher":"ENCA","assigned":true,
-   "assignments":[{"runRemediationScript":false,"target":{"@odata.type":"#microsoft.graph.groupAssignmentTarget","groupId":"a82a527b-df33-4f09-b7df-63668adf2e57"},"runSchedule":{"@odata.type":"#microsoft.graph.deviceHealthScriptHourlySchedule","interval":1}}],
-   "runSummary":{"noIssueDetectedDeviceCount":0,"issueDetectedDeviceCount":0,"detectionScriptErrorDeviceCount":0,"issueRemediatedDeviceCount":0,"issueReoccurredDeviceCount":0,"remediationScriptErrorDeviceCount":0,"lastScriptRunDateTime":null}}],
- "shellScripts": [{"id":"8ca533c5-ea48-4d8a-b1d3-73f9cb5a85d6","displayName":"MACOS - SH - Software Installation - D - Install Global Secure Access Client - R26.10 - v1.0","fileName":"scr-app-108-install-global-secure-access.zsh","description":"Downloads the Global Secure Access client for macOS from aka.ms and installs it when it is not there. ... Created by ENCA T56.","assignments":[{"target":{"@odata.type":"#microsoft.graph.groupAssignmentTarget","groupId":"f9aa96e7-1ece-421b-af50-8d8755a682f4"}}]}],
- "_macPolicies": [{"id":"c2416d77-5fe4-494d-a01c-488fb6c00410","name":"[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0","assignments":[{"target":{"@odata.type":"#microsoft.graph.groupAssignmentTarget","groupId":"f9aa96e7-1ece-421b-af50-8d8755a682f4"}}]}],
+ "scripts": [],
+ "apps": [],
+ "healthScripts": [
+  {
+   "id": "dba0ec8d-05b9-4c0c-be96-38f530b8d491",
+   "displayName": "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0",
+   "description": "Detects the Global Secure Access client and its client settings; installs it from aka.ms (x64 or ARM64) when missing and writes the settings (locked down). Created by ENCA T56.",
+   "publisher": "ENCA",
+   "assigned": true,
+   "assignments": [
+    {
+     "runRemediationScript": false,
+     "target": {
+      "@odata.type": "#microsoft.graph.groupAssignmentTarget",
+      "groupId": "a82a527b-df33-4f09-b7df-63668adf2e57"
+     },
+     "runSchedule": {
+      "@odata.type": "#microsoft.graph.deviceHealthScriptHourlySchedule",
+      "interval": 1
+     }
+    }
+   ],
+   "runSummary": {
+    "noIssueDetectedDeviceCount": 0,
+    "issueDetectedDeviceCount": 0,
+    "detectionScriptErrorDeviceCount": 0,
+    "issueRemediatedDeviceCount": 0,
+    "issueReoccurredDeviceCount": 0,
+    "remediationScriptErrorDeviceCount": 0,
+    "lastScriptRunDateTime": null
+   }
+  }
+ ],
+ "shellScripts": [
+  {
+   "id": "8ca533c5-ea48-4d8a-b1d3-73f9cb5a85d6",
+   "displayName": "MACOS - SH - Software Installation - D - Install Global Secure Access Client - R26.10 - v1.0",
+   "fileName": "scr-app-108-install-global-secure-access.zsh",
+   "description": "Downloads the Global Secure Access client for macOS from aka.ms and installs it when it is not there. ... Created by ENCA T56.",
+   "assignments": [
+    {
+     "target": {
+      "@odata.type": "#microsoft.graph.groupAssignmentTarget",
+      "groupId": "f9aa96e7-1ece-421b-af50-8d8755a682f4"
+     }
+    }
+   ]
+  }
+ ],
+ "_macPolicies": [
+  {
+   "id": "c2416d77-5fe4-494d-a01c-488fb6c00410",
+   "name": "[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0",
+   "assignments": [
+    {
+     "target": {
+      "@odata.type": "#microsoft.graph.groupAssignmentTarget",
+      "groupId": "f9aa96e7-1ece-421b-af50-8d8755a682f4"
+     }
+    }
+   ]
+  }
+ ],
  "_macConfigs": [
-  {"@odata.type":"#microsoft.graph.macOSCustomConfiguration","id":"6b142768-107f-4541-9608-b5475247a1ea","displayName":"[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0","assignments":[{"target":{"@odata.type":"#microsoft.graph.groupAssignmentTarget","groupId":"f9aa96e7-1ece-421b-af50-8d8755a682f4"}}]},
-  {"@odata.type":"#microsoft.graph.macOSCustomAppConfiguration","id":"5bef22ae-564a-48e8-a444-a6e1b0a8d193","displayName":"[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0","assignments":[{"target":{"@odata.type":"#microsoft.graph.groupAssignmentTarget","groupId":"f9aa96e7-1ece-421b-af50-8d8755a682f4"}}]}
+  {
+   "@odata.type": "#microsoft.graph.macOSCustomConfiguration",
+   "id": "6b142768-107f-4541-9608-b5475247a1ea",
+   "displayName": "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0",
+   "assignments": [
+    {
+     "target": {
+      "@odata.type": "#microsoft.graph.groupAssignmentTarget",
+      "groupId": "f9aa96e7-1ece-421b-af50-8d8755a682f4"
+     }
+    }
+   ]
+  },
+  {
+   "@odata.type": "#microsoft.graph.macOSCustomAppConfiguration",
+   "id": "5bef22ae-564a-48e8-a444-a6e1b0a8d193",
+   "displayName": "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0",
+   "assignments": [
+    {
+     "target": {
+      "@odata.type": "#microsoft.graph.groupAssignmentTarget",
+      "groupId": "f9aa96e7-1ece-421b-af50-8d8755a682f4"
+     }
+    }
+   ]
+  }
  ],
- "groupNames": {"6ec15e26-1815-4ce9-8ae4-61643fb42042":"CAB-SEC-U-Persona-Internals","a82a527b-df33-4f09-b7df-63668adf2e57":"INT-SEC-D-GSA-WIN-M365","5d93cea0-9806-4136-b0b2-c25a46fe3dd5":"CAB-SEC-U-BreakGlass","f9aa96e7-1ece-421b-af50-8d8755a682f4":"INT-SEC-D-GSA-MAC-M365"},
- "sources": {"ztna":"ok","skus":"ok","status":"ok","profile":"ok","signaling":"ok","locations":"ok","scripts":"ok","apps":"ok","shellScripts":"ok","healthScripts":"ok","macProfiles":"ok"},
- "_ca": [{"raw":{"id":"3339b3a6-4c0f-4554-ab10-c747ee6f2b8a","displayName":"(NEW)CA215-BLOCK-Internals-CN-AllApps-WindowsOrMACOS-Require Global Secure Access client active-v3.0.3","state":"disabled","conditions":{"applications":{"includeApplications":["All"],"excludeApplications":["0000000a-0000-0000-c000-000000000000","d4ebce55-015a-49b5-a083-c84d1797ae8c","1b912ec3-a9dd-4c4d-a53e-76aa7adb28d7","2793995e-0a7d-40d7-bd35-6968ba142197","00000002-0000-0000-c000-000000000000","19db86c3-b2b9-44cc-b339-36da233a3be2","8c59ead7-d703-4a27-9e55-c96a0054c8d2","0000000c-0000-0000-c000-000000000000","ea890292-c8c8-4433-b5ea-b09d0668e1a6"]},"users":{"includeUsers":[],"excludeUsers":[],"includeGroups":["6ec15e26-1815-4ce9-8ae4-61643fb42042"],"excludeGroups":["5d93cea0-9806-4136-b0b2-c25a46fe3dd5"],"includeRoles":[],"excludeRoles":[]},"platforms":{"includePlatforms":["windows","macOS"]},"locations":{"includeLocations":["All"],"excludeLocations":["3d46dbda-8382-466a-856d-eb00cbc6b910"]}},"grantControls":{"operator":"OR","builtInControls":["block"]}}}]
+ "groupNames": {
+  "6ec15e26-1815-4ce9-8ae4-61643fb42042": "CAB-SEC-U-Persona-Internals",
+  "a82a527b-df33-4f09-b7df-63668adf2e57": "INT-SEC-D-GSA-WIN-M365",
+  "5d93cea0-9806-4136-b0b2-c25a46fe3dd5": "CAB-SEC-U-BreakGlass",
+  "f9aa96e7-1ece-421b-af50-8d8755a682f4": "INT-SEC-D-GSA-MAC-M365"
+ },
+ "sources": {
+  "ztna": "ok",
+  "skus": "ok",
+  "status": "ok",
+  "profile": "ok",
+  "signaling": "ok",
+  "locations": "ok",
+  "scripts": "ok",
+  "apps": "ok",
+  "shellScripts": "ok",
+  "healthScripts": "ok",
+  "macProfiles": "ok"
+ },
+ "_ca": [
+  {
+   "raw": {
+    "id": "3339b3a6-4c0f-4554-ab10-c747ee6f2b8a",
+    "displayName": "(NEW)CA215-BLOCK-Internals-CN-AllApps-WindowsOrMACOS-Require Global Secure Access client active-v3.0.3",
+    "state": "disabled",
+    "conditions": {
+     "applications": {
+      "includeApplications": [
+       "All"
+      ],
+      "excludeApplications": [
+       "0000000a-0000-0000-c000-000000000000",
+       "d4ebce55-015a-49b5-a083-c84d1797ae8c",
+       "1b912ec3-a9dd-4c4d-a53e-76aa7adb28d7",
+       "2793995e-0a7d-40d7-bd35-6968ba142197",
+       "00000002-0000-0000-c000-000000000000",
+       "19db86c3-b2b9-44cc-b339-36da233a3be2",
+       "8c59ead7-d703-4a27-9e55-c96a0054c8d2",
+       "0000000c-0000-0000-c000-000000000000",
+       "ea890292-c8c8-4433-b5ea-b09d0668e1a6"
+      ]
+     },
+     "users": {
+      "includeUsers": [],
+      "excludeUsers": [],
+      "includeGroups": [
+       "6ec15e26-1815-4ce9-8ae4-61643fb42042"
+      ],
+      "excludeGroups": [
+       "5d93cea0-9806-4136-b0b2-c25a46fe3dd5"
+      ],
+      "includeRoles": [],
+      "excludeRoles": []
+     },
+     "platforms": {
+      "includePlatforms": [
+       "windows",
+       "macOS"
+      ]
+     },
+     "locations": {
+      "includeLocations": [
+       "All"
+      ],
+      "excludeLocations": [
+       "3d46dbda-8382-466a-856d-eb00cbc6b910"
+      ]
+     }
+    },
+    "grantControls": {
+     "operator": "OR",
+     "builtInControls": [
+      "block"
+     ]
+    }
+   }
+  }
+ ]
 }

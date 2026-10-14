@@ -251,21 +251,18 @@ test("32524: preview — each fix shows what it sends; scripts are the uploaded 
   for (const k of Object.keys(Gsa.FIXES)) assert.ok(Gsa.preview(k, {}).length, `${k} has a preview`);
 });
 
-test("32524 devcf (read 14 Oct): the chain as the live board showed it, and the remediation assigned with remediation OFF is detect only", () => {
+test("32524/32525 devcf (read 14 Oct, every link live): the chain as the board shows it; runRemediationScript false is no signal", () => {
   const raw = require("./fixtures/gsa-devcf-20261014.json");
   raw.macProfiles = Gsa.macProfiles(raw._macPolicies, raw._macConfigs);
   const m = Gsa.model(raw, raw._ca);
   const st = Object.fromEntries(m.links.map((l) => [l.k, l.st]));
-  assert.deepStrictEqual(st, { licence: "ok", tenant: "ok", profile: "ok", signal: "ok", location: "ok", client: "warn", policy: "bad", proof: "wait" });
-  const c = m.links.find((l) => l.k === "client");
-  assert.ok(c.remOff);
-  assert.match(c.note, /DETECT ONLY/);
-  assert.strictEqual(c.fix, "winrem", "the fix is offered so the assignment can get remediation on");
+  assert.deepStrictEqual(st, { licence: "ok", tenant: "ok", profile: "ok", signal: "ok", location: "ok", client: "ok", policy: "bad", proof: "wait" });
   assert.strictEqual(m.links.find((l) => l.k === "licence").note, "4 of 4 used");
-  assert.match(m.verdict.p, /Blocked at step 6 — GSA client/);
-  assert.ok(Gsa.intune(raw).rows.find((r) => r.kind === "Remediation").remOff);
-  raw.healthScripts[0].assignments[0].runRemediationScript = true;
-  const m2 = Gsa.model(raw, raw._ca);
-  assert.strictEqual(m2.links.find((l) => l.k === "client").st, "ok", "remediation on: the devices link is ready, as the board showed it");
-  assert.match(m2.verdict.p, /Blocked at step 7 — 1 policy/);
+  assert.match(m.links.find((l) => l.k === "profile").note, /enabled · 1 group assigned/);
+  assert.strictEqual(raw.healthScripts[0].assignments[0].runRemediationScript, false, "what Graph returns — the portal shows remediation on");
+  assert.strictEqual(m.links.find((l) => l.k === "client").fix, null, "no fix offered for it");
+  assert.doesNotMatch(m.links.find((l) => l.k === "client").note, /DETECT ONLY/);
+  assert.match(m.verdict.p, /Blocked at step 7 — 1 policy/);
+  assert.strictEqual(Gsa.defaultSel(m), "policy");
+  assert.ok(m.groups.some((g) => g.name === "GSA-SEC-U-M365-ALL-PILOT"));
 });

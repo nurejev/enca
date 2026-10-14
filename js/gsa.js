@@ -129,8 +129,7 @@ const Gsa = (() => {
       (list || []).forEach((x) => {
         const known = Array.isArray(x.assignments);
         rows.push({ id: x.id, name: x.displayName || x.name || x.id, kind: x.role ? `${kind} · ${x.role}` : kind, os, where, by: byEnca(x) ? "ENCA T56" : "baseline or by hand",
-          assigned: known ? x.assignments.length > 0 : x.assigned, t: known ? targets(x.assignments, names) : null,
-          remOff: kind === "Remediation" && known && x.assignments.length > 0 && x.assignments.every((a) => a.runRemediationScript === false) });
+          assigned: known ? x.assignments.length > 0 : x.assigned, t: known ? targets(x.assignments, names) : null });
       });
     };
     add("healthScripts", (raw.healthScripts || []).filter((h) => rx.test(h.displayName || "")), "Remediation", "Windows", WHERE.rem);
@@ -192,22 +191,22 @@ const Gsa = (() => {
     const macScript = (raw.shellScripts || []).find((s) => /global\s*secure\s*access/i.test(`${s.displayName} ${s.fileName}`)) || null;
     const winOk = !!(winRem || winScript || winApp);
     const rs = winRem && winRem.runSummary;
-    // 32524, read in devcf 14 Oct: the remediation was assigned with
-    // runRemediationScript false — detection only, so a device without the
-    // client is reported and never gets it. Every assignment off = detect only.
-    const remOff = !!(winRem && Array.isArray(winRem.assignments) && winRem.assignments.length && winRem.assignments.every((a) => a.runRemediationScript === false));
-    const remNote = winRem ? `Windows: ${winRem.displayName}${winRem.assigned === false ? " — NOT ASSIGNED" : ""}${remOff ? " — DETECT ONLY: remediation is off on its assignment, so a device without the client is reported, not installed" : ""}${rs ? ` (${rs.noIssueDetectedDeviceCount || 0} without issue · ${rs.issueRemediatedDeviceCount || 0} remediated · ${(rs.issueReoccurredDeviceCount || 0) + (rs.remediationScriptErrorDeviceCount || 0) + (rs.detectionScriptErrorDeviceCount || 0)} failing)` : ""}` : "";
+    // 32525: NOT read from runRemediationScript. Graph returns false on the
+    // devcf remediation's assignment while the Intune portal shows remediation
+    // on (Mihai checked, 14 Oct) — that property is no signal, so 32524's
+    // detect-only verdict is gone.
+    const remNote = winRem ? `Windows: ${winRem.displayName}${winRem.assigned === false ? " — NOT ASSIGNED" : ""}${rs ? ` (${rs.noIssueDetectedDeviceCount || 0} without issue · ${rs.issueRemediatedDeviceCount || 0} remediated · ${(rs.issueReoccurredDeviceCount || 0) + (rs.remediationScriptErrorDeviceCount || 0) + (rs.detectionScriptErrorDeviceCount || 0)} failing)` : ""}` : "";
     // the three macOS profiles the client cannot run without (made by hand,
     // in devcf as [OPTIONAL] MACOS - DCP - … GSA …): read, never written
     const mp = raw.macProfiles || {};
     const mprof = (k, label) => { const x = mp[k]; return x ? `${label} ${x.assigned ? "assigned" : "NOT ASSIGNED"}` : `${label} missing`; };
     const macProfOk = ["sysext", "proxy", "settings"].every((k) => mp[k] && mp[k].assigned);
     const macOk = !!macScript && macProfOk;
-    L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk && !remOff ? "ok" : winOk || macScript ? "warn" : "bad",
+    L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk ? "ok" : winOk || macScript ? "warn" : "bad",
       note: [winRem ? remNote : winScript ? `Windows: ${winScript.displayName}` : winApp ? `Windows: app ${winApp.displayName}` : "Windows: no remediation, script or app", macScript ? `macOS: ${macScript.displayName}` : "macOS: no shell script"].join(" · "),
       sub: unread("macProfiles") ? `macOS profiles not read — ${src.macProfiles}` : `macOS profiles: ${mprof("sysext", "system extensions")} · ${mprof("proxy", "transparent proxy")} · ${mprof("settings", "client settings")}`,
       help: "Windows: secure DNS (DNS over HTTPS) must be off in Edge and Chrome, or the client cannot tunnel by name — a settings catalog policy on the same devices. QUIC only matters once Internet Access is added.",
-      fix: !winOk || (winRem && winRem.assigned === false) || remOff ? "winrem" : null, fix2: !macScript ? "macscript" : null, winScript, winApp, winRem, macScript, macProfOk, remOff });
+      fix: !winOk || (winRem && winRem.assigned === false) ? "winrem" : null, fix2: !macScript ? "macscript" : null, winScript, winApp, winRem, macScript, macProfOk });
     // 7 policy
     const policies = cnPolicies(caPolicies, cn && cn.id);
     const on = policies.filter((p) => p.state === "enabled"), ro = policies.filter((p) => p.state === "enabledForReportingButNotEnforced");
@@ -292,8 +291,7 @@ const Gsa = (() => {
     const [cls, w0] = ST[l.st] || ST.wait;
     const acts = [];
     const act = (btn, h, sub) => acts.push(`<div class="gsa-actrow"><div><b>${esc(h)}</b>${sub ? `<div class="mini muted">${esc(sub)}</div>` : ""}</div>${btn}</div>`);
-    // a detect-only remediation is fixed by the same workspace: it reuses the remediation and switches remediation on
-    const fixAct = (k, primary, optional) => { const f = FIXES[k] || {}, on = k === "winrem" && l.remOff; act(`<button class="btn sm${primary || on ? " primary" : ""}${optional ? " gsa-optional" : ""}" data-gsafix="${k}">${esc(on ? "Switch remediation on…" : FIX_LABEL[k].replace(/ \(only if[^)]*\)/, ""))}</button>`, on ? "Switch remediation on for the Windows remediation" : f.title || FIX_LABEL[k], `${optional ? "Optional — only if clients stay Partially Connected. " : ""}writes to tenant · opens a workspace below with what it sends, its impact and the way back`); };
+    const fixAct = (k, primary, optional) => { const f = FIXES[k] || {}; act(`<button class="btn sm${primary ? " primary" : ""}${optional ? " gsa-optional" : ""}" data-gsafix="${k}">${esc(FIX_LABEL[k].replace(/ \(only if[^)]*\)/, ""))}</button>`, f.title || FIX_LABEL[k], `${optional ? "Optional — only if clients stay Partially Connected. " : ""}writes to tenant · opens a workspace below with what it sends, its impact and the way back`); };
     if (l.fix) fixAct(l.fix, l.st === "bad", false);
     if (l.fix2 && l.fix2 !== l.fix) fixAct(l.fix2, false, l.fix2 === "ztnasp");
     if (l.k === "policy" && l.open) act(`<button class="btn sm" data-gsaopen="${esc(l.open)}">Open in Policies</button>`, "Open the policy", "state and exclusions are changed in 🗂 Policies — this tool leaves them as they are");
@@ -320,7 +318,7 @@ const Gsa = (() => {
     // 32523: the Intune card
     const iv = m.intune || { rows: [], unread: [], missingProfiles: [] };
     const tg = (r) => r.t ? `${r.t.inc.length ? esc(r.t.inc.join(", ")) : '<span class="gsa-st bad">not assigned</span>'}${r.t.exc.length ? `<div class="mini muted">excluded: ${esc(r.t.exc.join(", "))}</div>` : ""}` : r.assigned === false ? '<span class="gsa-st bad">not assigned</span>' : r.assigned ? "assigned" : '<span class="muted">not read</span>';
-    const ivRows = iv.rows.map((r) => `<tr><td><b>${esc(r.name)}</b>${r.dup ? ' <span class="gsa-st warn">duplicate</span>' : ""}${r.remOff ? ' <span class="gsa-st warn">detect only</span>' : ""}<div class="mini muted">${esc(r.kind)}</div></td><td class="mini">${esc(r.os)}</td><td class="mini">Intune › ${esc(r.where)}</td><td class="mini">${esc(r.by)}</td><td class="mini">${tg(r)}</td></tr>`).join("");
+    const ivRows = iv.rows.map((r) => `<tr><td><b>${esc(r.name)}</b>${r.dup ? ' <span class="gsa-st warn">duplicate</span>' : ""}<div class="mini muted">${esc(r.kind)}</div></td><td class="mini">${esc(r.os)}</td><td class="mini">Intune › ${esc(r.where)}</td><td class="mini">${esc(r.by)}</td><td class="mini">${tg(r)}</td></tr>`).join("");
     const ivNotes = [
       ...(iv.winBoth ? ["Windows has more than one kind of deployment (remediation, platform script or app): each installs the client — keep one and remove the others' assignments."] : []),
       ...(iv.missingProfiles.length ? [`macOS profile not found: ${iv.missingProfiles.join(", ")} — make it by hand in Devices › macOS › Configuration.`] : []),
