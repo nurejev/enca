@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32520, date: "2026-10-14", title: "Global Secure Access: the Windows client as a remediation",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "Create Windows remediation: an Intune remediation that checks every day (or every hour) whether the Global Secure Access client is installed with the right settings, and installs it from Microsoft when it is not — x64 or ARM64, quietly, never restarting the device. It replaces the one-time Windows script." },
+      { kind: "improved", tool: "Global Secure Access", text: "The client link shows the remediation's results: devices without issue, remediated and failing; one that is not assigned to anybody is offered again." },
+      { kind: "fixed", tool: "Global Secure Access", text: "The button that creates the ZTNA Policy Service Client had no label." },
+    ],
+  },
+  {
     build: 32519, date: "2026-10-14", title: "Global Secure Access: a successful assign no longer reads as a failure",
     items: [
       { kind: "fixed", tool: "Global Secure Access", text: "Creating the macOS or Windows script said Unexpected end of JSON input although the script was created and assigned — Intune answers an assignment with an empty reply. It now reads as done, and pressing Apply again reuses the script of that name instead of creating a second one; its existing assignments are kept." },

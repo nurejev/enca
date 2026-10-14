@@ -24438,7 +24438,7 @@ This is a directory write. Nothing else changes.`)) return;
   // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
   // ======================================================================
   const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All"];
-  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, fix: null, fixOpts: { group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0" }, fixBusy: false, fixLog: null, session: "" };
+  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, fix: null, fixOpts: { group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily" }, fixBusy: false, fixLog: null, session: "" };
   const gsaSession = () => `${tenantId}:${isDemo}`;
   const gsaPolicies = () => {
     if (!policies || !policies.length) return null;
@@ -24495,6 +24495,16 @@ This is a directory write. Nothing else changes.`)) return;
         await one("scripts", () => Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName", { scopes: sc }));
         await one("shellScripts", () => Graph.ggetAll("/deviceManagement/deviceShellScripts?$select=id,displayName,fileName", { scopes: sc }));
         await one("apps", () => Graph.ggetAll("/deviceAppManagement/mobileApps?$filter=" + encodeURIComponent("startswith(displayName,'Global Secure Access')") + "&$select=id,displayName", { scopes: sc }));
+        // 32520: the Windows client as a remediation — matched by name, then
+        // its assignments and its run summary (detected / remediated / failing)
+        await one("healthScripts", async () => {
+          const hs = (await Graph.ggetAll("/deviceManagement/deviceHealthScripts?$select=id,displayName", { scopes: sc })).filter((h) => /global\s*secure\s*access/i.test(h.displayName || ""));
+          for (const h of hs) {
+            try { h.assigned = ((await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/assignments`, sc)).value || []).length > 0; } catch { h.assigned = null; }
+            try { h.runSummary = await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/runSummary`, sc); } catch { h.runSummary = null; }
+          }
+          return hs;
+        });
         // 32517: the three macOS profiles (system extensions, transparent proxy,
         // client settings) — listed, matched by Gsa.macProfiles, then read with
         // their assignments; nothing here writes them
@@ -24548,8 +24558,9 @@ This is a directory write. Nothing else changes.`)) return;
     // 32517: names by the CloudFellows convention read from devcf; release
     // and version editable, the device group defaulted and made when missing
     const nm = () => Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" });
-    const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">file ${esc(which === "win" ? Gsa.WIN_FILE : Gsa.MAC_FILE)}</span></div>`;
+    const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">${which === "rem" ? "detection + remediation, SYSTEM, 64-bit" : `file ${esc(which === "win" ? Gsa.WIN_FILE : Gsa.MAC_FILE)}`}</span></div>`;
     const grp = (k, def) => `<input class="txt" data-gsaopt="${k}" value="${esc(o[k] || def)}" placeholder="Device group display name" style="min-width:320px"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label>`;
+    if (gsa.fix === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br><label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label><br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><br><button class="btn sm" data-gsadl="det">⬇ Detection script</button> <button class="btn sm" data-gsadl="rem">⬇ Remediation script</button>`;
     if (gsa.fix === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label><br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label><br><button class="btn sm" data-gsadl="win">⬇ The script as it will be uploaded</button>`;
     if (gsa.fix === "macscript") { const c = (gsa.model.links.find((l) => l.k === "client") || {}); form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<p class="mini${c.macProfOk ? " muted" : " gsa-warn-txt"}">${esc(c.sub || "")}${c.macProfOk ? "" : " — assign them to the same group in Intune, or the client cannot load its extension and tunnel."}</p><button class="btn sm" data-gsadl="mac">⬇ The script as it will be uploaded</button>`; }
     const log = gsa.fixLog ? `<div class="gsa-log">${gsa.fixLog.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
@@ -24635,6 +24646,25 @@ This is a directory write. Nothing else changes.`)) return;
       } else if (k === "location") {
         if (isDemo) await sim(`${Gsa.LOCATION_NAME} created`);
         else { await Graph.gpost("/identity/conditionalAccess/namedLocations", { "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: Gsa.LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false }, sc); say(`${Gsa.LOCATION_NAME} created`, true); }
+      } else if (k === "winrem") {
+        // 32520: the Windows client as a remediation — detect, else deploy
+        const nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4 };
+        const g = await gsaDeviceGroup(String(o.devGroup || Gsa.GROUPS.win).trim(), o.mkGroup, sc, say);
+        const body = Gsa.remediationBody(nameOpts), path = "/deviceManagement/deviceHealthScripts";
+        if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName} (${o.schedule === "hourly" ? "hourly" : "daily"})`);
+        else {
+          const same = (await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          if (same.length > 1) say(`${same.length} remediations are called ${body.displayName} — one is used; delete the others in Intune → Scripts and remediations`, false);
+          const s = same.length ? same[0] : await Graph.gpost(path, body, sc);
+          say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          // /assign replaces the assignments: keep what a reused one has
+          const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => ({ target: x.target, runRemediationScript: x.runRemediationScript, runSchedule: x.runSchedule })).filter((x) => x.target) : [];
+          if (had.some((x) => x.target.groupId === g.id)) say(`already assigned to ${g.displayName}`, true);
+          else {
+            await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: [...had, Gsa.remediationAssignment(g.id, o.schedule)] }, sc);
+            say(`assigned to ${g.displayName} — remediation on, ${o.schedule === "hourly" ? "every hour" : "daily"}`, true);
+          }
+        }
       } else if (k === "winscript" || k === "macscript") {
         const win = k === "winscript", nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" };
         const g = await gsaDeviceGroup(String((win ? o.devGroup : o.macGroup) || (win ? Gsa.GROUPS.win : Gsa.GROUPS.mac)).trim(), o.mkGroup, sc, say);
@@ -24673,6 +24703,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "assign") { if (o.allUsers) r.sp.appRoleAssignmentRequired = false; else r.assigned.push({ principalId: "g-demo-" + o.group.trim().length, principalType: "Group", principalDisplayName: o.group.trim() }); }
     if (k === "signal") r.signaling.signalingStatus = "enabled";
     if (k === "location") r.locations.push({ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", id: "loc-cn", displayName: Gsa.LOCATION_NAME });
+    if (k === "winrem") r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } });
     if (k === "winscript") r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE });
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
     if (k === "onboard") r.status.onboardingStatus = "onboarded";
@@ -24688,6 +24719,8 @@ This is a directory write. Nothing else changes.`)) return;
     if (t.closest("[data-gsacancel]")) { gsa.fix = null; gsa.fixLog = null; renderGsa(); return; }
     if (t.closest("[data-gsago]")) { runGsaFix(); return; }
     const dl = t.closest("[data-gsadl]");
+    if (dl && dl.dataset.gsadl === "det") { downloadText("Detect-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.detectScript({ lock: gsa.fixOpts.lock, ipv4: gsa.fixOpts.ipv4 })); return; }
+    if (dl && dl.dataset.gsadl === "rem") { downloadText("Remediate-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.remediationScript({ lock: gsa.fixOpts.lock, ipv4: gsa.fixOpts.ipv4 })); return; }
     if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: gsa.fixOpts.lock, ipv4: gsa.fixOpts.ipv4 })); else downloadText("scr-app-108-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
     const op = t.closest("[data-gsaopen]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.gsaopen); if (p) showDetail(p); else toast("That policy is not in the loaded set"); return; }
     if (t.closest("[data-gsagroups]")) { if (typeof cgScopeWs !== "undefined") { cgScopeWs[cgWs()] = "gsa"; } openCaGroups(); return; }
@@ -24697,7 +24730,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (t.name === "gsaAssignHow") { gsa.fixOpts.allUsers = t.value === "all"; return; }
     const k = t.dataset && t.dataset.gsaopt; if (!k) return;
     gsa.fixOpts[k] = t.type === "checkbox" ? t.checked : t.value;
-    if (k === "rel" || k === "ver") { const el = $("gsaBody").querySelector("[data-gsaname]"); if (el) el.textContent = Gsa.names({ rel: gsa.fixOpts.rel || Gsa.relTag(), ver: gsa.fixOpts.ver || "v1.0" })[gsa.fix === "macscript" ? "mac" : "win"]; }
+    if (k === "rel" || k === "ver") { const el = $("gsaBody").querySelector("[data-gsaname]"); if (el) el.textContent = Gsa.names({ rel: gsa.fixOpts.rel || Gsa.relTag(), ver: gsa.fixOpts.ver || "v1.0" })[gsa.fix === "macscript" ? "mac" : gsa.fix === "winrem" ? "rem" : "win"]; }
   };
   $("gsaBody").addEventListener("input", gsaOpt);
   $("gsaBody").addEventListener("change", gsaOpt);

@@ -16,7 +16,7 @@ test("demo: the chain reads, the profile is partly on, the groups are the profil
   assert.strictEqual(by.profile.fix, "profile");
   assert.strictEqual(by.location.st, "ok");
   assert.strictEqual(by.client.st, "bad");
-  assert.strictEqual(by.client.fix, "winscript");
+  assert.strictEqual(by.client.fix, "winrem", "32520: the Windows client is a remediation");
   assert.strictEqual(by.client.fix2, "macscript");
   assert.match(by.client.sub, /system extensions NOT ASSIGNED/, "devcf: the system extension policy has no assignment");
   assert.strictEqual(by.policy.st, "warn", "report-only");
@@ -133,4 +133,35 @@ test("32518 from the LearnGraphAPI lab: pilot vs locked client settings, the bac
   assert.match(mac, /\/Applications\/GlobalSecureAccessClient/);
   const raw2 = Gsa.demo(); raw2.ztna = [{ id: "sp", appId: Gsa.ZTNA_CLIENT }];
   assert.strictEqual(Gsa.model(raw2, []).links.find((l) => l.k === "tenant").st, "ok");
+});
+
+test("32520 the Windows remediation: detect, if there, else deploy", () => {
+  const d = Gsa.detectScript({});
+  assert.match(d, /DisplayName -like 'Global Secure Access Client\*'/);
+  assert.match(d, /exit 1/);
+  assert.match(d, /exit 0/);
+  const r = Gsa.remediationScript({ lock: true });
+  assert.match(r, /if \(-not \$app\)/, "installs only when missing");
+  assert.match(r, /Architecture -eq 12/);
+  assert.match(r, /GlobalSecureAccess-WindowsOnArm/);
+  assert.match(r, /Tls12/);
+  assert.match(r, /'RestrictNonPrivilegedUsers' -Value|RestrictNonPrivilegedUsers = 1/);
+  assert.doesNotMatch(r, /Restart-Computer|shutdown/i, "a remediation never restarts");
+  assert.doesNotMatch(Gsa.remediationScript({}), /DisabledComponents/);
+  assert.match(Gsa.remediationScript({ ipv4: true }), /DisabledComponents -Value 0x20/);
+  const b = Gsa.remediationBody({ rel: "R26.10", ver: "v1.0" });
+  assert.strictEqual(b.displayName, "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0");
+  assert.strictEqual(b.runAsAccount, "system");
+  assert.strictEqual(b.runAs32Bit, false);
+  assert.strictEqual(Buffer.from(b.detectionScriptContent, "base64").toString("utf8"), Gsa.detectScript({ rel: "R26.10", ver: "v1.0" }));
+  const a = Gsa.remediationAssignment("g1", "hourly");
+  assert.strictEqual(a.runRemediationScript, true);
+  assert.match(a.runSchedule["@odata.type"], /Hourly/);
+  assert.match(Gsa.remediationAssignment("g1").runSchedule["@odata.type"], /Daily/);
+  const raw = Gsa.demo(); raw.healthScripts = [{ id: "h", displayName: b.displayName, assigned: true, runSummary: { noIssueDetectedDeviceCount: 3, issueRemediatedDeviceCount: 1 } }];
+  const c = Gsa.model(raw, []).links.find((l) => l.k === "client");
+  assert.match(c.note, /3 without issue · 1 remediated · 0 failing/);
+  assert.strictEqual(c.fix, null);
+  raw.healthScripts[0].assigned = false;
+  assert.strictEqual(Gsa.model(raw, []).links.find((l) => l.k === "client").fix, "winrem", "an unassigned remediation offers the fix again");
 });

@@ -38,6 +38,7 @@ const Gsa = (() => {
   const relTag = (d) => { const x = d || new Date(); return `R${String(x.getFullYear()).slice(2)}.${x.getMonth() + 1}`; };
   const names = (o) => { const rel = (o && o.rel) || relTag(), ver = (o && o.ver) || "v1.0"; return {
     win: `Win - PSH - Device Security - D - Install Global Secure Access Client - ${rel} - ${ver}`,
+    rem: `Win - DHS - Device Security - D - Install Global Secure Access Client - ${rel} - ${ver}`,
     mac: `MACOS - SH - Software Installation - D - Install Global Secure Access Client - ${rel} - ${ver}`,
   }; };
   const WIN_FILE = "Install-GlobalSecureAccessClient.ps1", MAC_FILE = "scr-app-108-install-global-secure-access.zsh";
@@ -135,8 +136,14 @@ const Gsa = (() => {
     // 6 client
     const winScript = (raw.scripts || []).find((s) => /global\s*secure\s*access/i.test(`${s.displayName} ${s.fileName}`)) || null;
     const winApp = (raw.apps || []).find((a) => /global\s*secure\s*access/i.test(a.displayName || "")) || null;
+    // 32520 (Mihai 14 Oct: remediation it is — detect, if there, else deploy):
+    // the Windows client as an Intune remediation (deviceHealthScripts), with
+    // its run summary when read
+    const winRem = (raw.healthScripts || []).find((h) => /global\s*secure\s*access/i.test(h.displayName || "")) || null;
     const macScript = (raw.shellScripts || []).find((s) => /global\s*secure\s*access/i.test(`${s.displayName} ${s.fileName}`)) || null;
-    const winOk = !!(winScript || winApp);
+    const winOk = !!(winRem || winScript || winApp);
+    const rs = winRem && winRem.runSummary;
+    const remNote = winRem ? `Windows: ${winRem.displayName}${winRem.assigned === false ? " — NOT ASSIGNED" : ""}${rs ? ` (${rs.noIssueDetectedDeviceCount || 0} without issue · ${rs.issueRemediatedDeviceCount || 0} remediated · ${(rs.issueReoccurredDeviceCount || 0) + (rs.remediationScriptErrorDeviceCount || 0) + (rs.detectionScriptErrorDeviceCount || 0)} failing)` : ""}` : "";
     // the three macOS profiles the client cannot run without (made by hand,
     // in devcf as [OPTIONAL] MACOS - DCP - … GSA …): read, never written
     const mp = raw.macProfiles || {};
@@ -144,10 +151,10 @@ const Gsa = (() => {
     const macProfOk = ["sysext", "proxy", "settings"].every((k) => mp[k] && mp[k].assigned);
     const macOk = !!macScript && macProfOk;
     L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk ? "ok" : winOk || macScript ? "warn" : "bad",
-      note: [winScript ? `Windows: ${winScript.displayName}` : winApp ? `Windows: app ${winApp.displayName}` : "Windows: no Intune script or app", macScript ? `macOS: ${macScript.displayName}` : "macOS: no shell script"].join(" · "),
+      note: [winRem ? remNote : winScript ? `Windows: ${winScript.displayName}` : winApp ? `Windows: app ${winApp.displayName}` : "Windows: no remediation, script or app", macScript ? `macOS: ${macScript.displayName}` : "macOS: no shell script"].join(" · "),
       sub: unread("macProfiles") ? `macOS profiles not read — ${src.macProfiles}` : `macOS profiles: ${mprof("sysext", "system extensions")} · ${mprof("proxy", "transparent proxy")} · ${mprof("settings", "client settings")}`,
       help: "Windows: secure DNS (DNS over HTTPS) must be off in Edge and Chrome, or the client cannot tunnel by name — a settings catalog policy on the same devices. QUIC only matters once Internet Access is added.",
-      fix: !winScript && !winApp ? "winscript" : null, fix2: !macScript ? "macscript" : null, winScript, winApp, macScript, macProfOk });
+      fix: !winOk || (winRem && winRem.assigned === false) ? "winrem" : null, fix2: !macScript ? "macscript" : null, winScript, winApp, winRem, macScript, macProfOk });
     // 7 policy
     const policies = cnPolicies(caPolicies, cn && cn.id);
     const on = policies.filter((p) => p.state === "enabled"), ro = policies.filter((p) => p.state === "enabledForReportingButNotEnforced");
@@ -206,7 +213,7 @@ const Gsa = (() => {
 
   // ---- render -------------------------------------------------------------
   const ST = { ok: ["ok", "ready"], warn: ["warn", "partly"], bad: ["bad", "missing"], wait: ["wait", "waits"], unread: ["wait", "not read"] };
-  const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script…" };
+  const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script…", ztnasp: "Create ZTNA client SP…", winrem: "Create Windows remediation…" };
   function render(m, ui) {
     const u = ui || {};
     if (u.proof) proofLink(m, u.proof);
@@ -270,6 +277,74 @@ const Gsa = (() => {
       "exit 0",
     ].join("\r\n");
   }
+  // ---- the Windows remediation (32520) ------------------------------------
+  // DETECT: the client in the uninstall keys (the walkthrough's detect_gsa.ps1,
+  // no version baked in) and the client settings as chosen → exit 0 when both
+  // hold, exit 1 otherwise. REMEDIATE: install when missing (the walkthrough's
+  // install_gsa.ps1: architecture from Win32_Processor, the aka.ms installer,
+  // TLS 1.2, quiet), then write the client settings. No restart — Intune says
+  // never to restart from a remediation; prefer-IPv4 waits for the next one.
+  // Output stays short: Intune keeps 2,048 characters.
+  const settingVals = (lock) => lock ? { HideDisableButton: 1, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 1 } : { HideDisableButton: 0, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 0 };
+  const psHash = (o) => `@{ ${Object.entries(o).map(([k, v]) => `${k} = ${v}`).join("; ")} }`;
+  function detectScript(opts) {
+    const o = opts || {};
+    return [
+      "# Detect Global Secure Access Client — ENCA T56. Exit 0 = installed and settings as required; exit 1 = remediate.",
+      "$app = Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Global Secure Access Client*' } | Select-Object -First 1",
+      "if (-not $app) { Write-Output 'GSA client not installed'; exit 1 }",
+      "$key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
+      `$want = ${psHash(settingVals(o.lock === true))}`,
+      "$drift = @(); foreach ($k in $want.Keys) { $cur = (Get-ItemProperty -Path $key -Name $k -ErrorAction SilentlyContinue).$k; if ($cur -ne $want[$k]) { $drift += \"$k=$cur\" } }",
+      ...(o.ipv4 ? ["$v6 = (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters' -Name DisabledComponents -ErrorAction SilentlyContinue).DisabledComponents", "if ($v6 -ne 0x20) { $drift += \"DisabledComponents=$v6\" }"] : []),
+      "if ($drift.Count) { Write-Output \"GSA client $($app.DisplayVersion) installed; settings differ: $($drift -join ', ')\"; exit 1 }",
+      "Write-Output \"GSA client $($app.DisplayVersion) installed; settings as required\"",
+      "exit 0",
+    ].join("\r\n");
+  }
+  function remediationScript(opts) {
+    const o = opts || {};
+    return [
+      "# Remediate Global Secure Access Client — ENCA T56. Install when missing, then the client settings. Runs as SYSTEM, 64-bit.",
+      "$ErrorActionPreference = 'Stop'",
+      "$log = \"$env:ProgramData\\GSAInstall\\install.log\"",
+      "New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null",
+      "function Log($m) { Add-Content -Path $log -Value ('{0} - {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) }",
+      "try {",
+      "  $app = Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Global Secure Access Client*' } | Select-Object -First 1",
+      "  if (-not $app) {",
+      "    # Win32_Processor.Architecture: 9 = x64, 12 = ARM64",
+      "    $arm = ((Get-CimInstance Win32_Processor | Select-Object -First 1).Architecture -eq 12)",
+      "    $url = if ($arm) { 'https://aka.ms/GlobalSecureAccess-WindowsOnArm' } else { 'https://aka.ms/GlobalSecureAccess-Windows' }",
+      "    $exe = Join-Path $env:TEMP 'GlobalSecureAccessClient.exe'",
+      "    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12",
+      "    Log \"Downloading $url\"",
+      "    Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing",
+      "    $p = Start-Process -FilePath $exe -ArgumentList '/quiet', '/norestart' -Wait -PassThru",
+      "    Remove-Item $exe -Force -ErrorAction SilentlyContinue",
+      "    Log \"Installer exit code $($p.ExitCode)\"",
+      "    if ($p.ExitCode -notin 0, 3010) { Write-Output \"GSA install failed, exit code $($p.ExitCode)\"; exit 1 }",
+      "  }",
+      "  $key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
+      "  New-Item -Path $key -Force | Out-Null",
+      `  $want = ${psHash(settingVals(o.lock === true))}`,
+      "  foreach ($k in $want.Keys) { Set-ItemProperty -Path $key -Name $k -Value $want[$k] -Type DWord -Force }",
+      ...(o.ipv4 ? ["  # prefer IPv4 — the client tunnels IPv4 only; takes effect at the next restart (no restart here)", "  Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters' -Name DisabledComponents -Value 0x20 -Type DWord -Force"] : []),
+      `  Log 'Client settings written (${o.lock === true ? "locked down" : "pilot"})'`,
+      "  Write-Output ('GSA client {0}; settings written' -f ($(if ($app) { 'present' } else { 'installed' })))",
+      "  exit 0",
+      "} catch { Log \"Fatal: $_\"; Write-Output \"GSA remediation failed: $_\"; exit 1 }",
+    ].join("\r\n");
+  }
+  function remediationBody(opts) {
+    return { "@odata.type": "#microsoft.graph.deviceHealthScript", displayName: names(opts).rem, description: "Detects the Global Secure Access client and its client settings; installs it from aka.ms (x64 or ARM64) when missing and writes the settings (" + ((opts && opts.lock) ? "locked down" : "pilot") + "). Created by ENCA T56.", publisher: "ENCA", runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], detectionScriptContent: b64(detectScript(opts)), remediationScriptContent: b64(remediationScript(opts)) };
+  }
+  // the assignment: the device group, remediation on, daily (default) or hourly
+  function remediationAssignment(groupId, schedule) {
+    const runSchedule = schedule === "hourly" ? { "@odata.type": "#microsoft.graph.deviceHealthScriptHourlySchedule", interval: 1 } : { "@odata.type": "#microsoft.graph.deviceHealthScriptDailySchedule", interval: 1, time: "09:00:00.0000000", useUtc: false };
+    return { target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId }, runRemediationScript: true, runSchedule };
+  }
+
   // UTF-8 → base64, for scriptContent
   const b64 = (text) => { const bytes = new TextEncoder().encode(text); let s = ""; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); };
   function windowsScriptBody(opts) {
@@ -328,6 +403,7 @@ const Gsa = (() => {
     profile: { title: "Enable the Microsoft traffic profile", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH the Microsoft traffic profile: state enabled.", "PATCH every traffic policy of the profile that is not enabled: state enabled."], impact: "Devices of ASSIGNED users that run the client start sending Microsoft 365 and Entra traffic through Global Secure Access. Nobody without an assignment or a client is affected.", recovery: "Set the profile back to disabled in Global Secure Access → Connect → Traffic forwarding (or here, after a re-read); traffic falls back to direct." },
     assign: { title: "Assign the Microsoft traffic profile", scopes: ["AppRoleAssignment.ReadWrite.All", "Application.ReadWrite.All"], role: "Application Administrator", changes: ["Pilot group (recommended): add the group to the profile's enterprise app (an app role assignment on its service principal).", "Or all users: set appRoleAssignmentRequired to false on that service principal — the CyberDrain route."], impact: "The assigned users' client starts tunnelling Microsoft traffic. A compliant-network policy will then pass them; anybody not assigned keeps failing it.", recovery: "Remove the assignment (Enterprise applications → the profile's app → Users and groups), or set Assignment required back to Yes." },
     signal: { title: "Enable Conditional Access signalling", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH /networkAccess/settings/conditionalAccess: signalingStatus enabled."], impact: "Entra sees the user's real source IP for traffic through the tunnel and can evaluate the compliant network. Named-location policies on IP ranges start seeing the original IP for those sign-ins.", recovery: "Turn it off in Global Secure Access → Settings → Session management only AFTER the policies that require the compliant network are off or deleted — Microsoft warns against disabling signalling while they exist, they would then fail everyone." },
+    winrem: { title: "Create the Windows remediation", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune remediation (Devices → Scripts and remediations) named by the CloudFellows convention (Win - DHS - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit). Detection: the client in the uninstall keys and the client settings as chosen. Remediation: install from aka.ms (x64 or ARM64) when missing, then write the settings.", `Assign it to the device group you name — ${GROUPS.win} by default, made empty when missing and the tick is on — with remediation on, daily or hourly.`], impact: "At its next scheduled run every device in the group installs the Global Secure Access client when it is missing, and every run puts the client settings back. Pilot settings hide sign-out and Disable Private Access but leave Disable visible; locked down hides all four. Nothing restarts the device. Licence: Microsoft lists Windows Enterprise E3/E5, Education A3/A5 or VDA for remediations.", recovery: "Remove the assignment or delete the remediation in Intune → Devices → Scripts and remediations; it stops running. The client stays installed — uninstall it per device from Apps & features if needed." },
     macscript: { title: "Create the macOS shell script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune macOS shell script named by the CloudFellows convention (MACOS - SH - Software Installation - D - Install Global Secure Access Client - R… - v…; root, once, three retries, notifications blocked, file scr-app-108-install-global-secure-access.zsh) that downloads the client package from aka.ms and installs it when it is missing.", `Assign it to the device group you name — ${GROUPS.mac} by default (the group the GSA macOS profiles target in the baseline), created empty when missing and the tick is on.`], impact: "Every Mac in the group installs the Global Secure Access client at its next Intune check-in. Without the system extension policy and the transparent proxy profile on the same Macs the client asks the user to approve them or cannot tunnel — the board says which of the three profiles is missing or unassigned.", recovery: "Remove the assignment or delete the script in Intune → Devices → macOS → Shell scripts; remove the app from the Mac if needed." },
     ztnasp: { title: "Create the ZTNA Policy Service Client service principal", scopes: ["Application.ReadWrite.All"], role: "Application Administrator", changes: [`POST /servicePrincipals with appId ${ZTNA_CLIENT} — Microsoft's first-party app the client signs in through.`], impact: "None for users: it adds Microsoft's enterprise application to the tenant. In the LearnGraphAPI lab the client stayed Partially Connected (sign-in errors 50097, 50187) while it was missing; whether creating it alone fixed that was not proven.", recovery: "Delete the enterprise application again (Enterprise applications → ZTNA Policy Service Client → Properties → Delete)." },
     location: { title: `Create “${LOCATION_NAME}”`, scopes: ["Policy.ReadWrite.ConditionalAccess"], role: "Conditional Access Administrator", changes: [`POST a compliantNetworkNamedLocation “${LOCATION_NAME}” (allTenantCompliantNetworks, not trusted).`], impact: "None until a policy names it.", recovery: "Delete the named location in 🧩 Policy building blocks → Locations, once no policy uses it." },
@@ -345,17 +421,17 @@ const Gsa = (() => {
       sp: { id: "sp-gsa-m365", appRoleAssignmentRequired: true, appRoles: [] },
       assigned: [{ principalId: "g-gsa-pilot", principalType: "Group", principalDisplayName: "GSA-SEC-U-M365Profile-Pilot" }],
       locations: [{ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", id: "loc-cn", displayName: LOCATION_NAME }],
-      scripts: [], apps: [], shellScripts: [],
+      scripts: [], apps: [], shellScripts: [], healthScripts: [],
       macProfiles: { sysext: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0", assigned: false }, proxy: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0", assigned: true }, settings: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0", assigned: true } },
       groupNames: { "g-gsa-pilot": "GSA-SEC-U-M365Profile-Pilot" },
       ztna: [],
-      sources: { ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", macProfiles: "ok" },
+      sources: { ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
     };
   }
   // a demo CA policy that requires the compliant network, for ?demo=1 when
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;
