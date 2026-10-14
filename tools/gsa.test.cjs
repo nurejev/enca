@@ -79,7 +79,7 @@ test("every fix names its impact and its way back before its commands", () => {
 test("render: the board, the policy table and no HTML from tenant names unescaped", () => {
   const raw = Gsa.demo(); raw.assigned[0].principalDisplayName = "<script>x</script>";
   const html = Gsa.render(Gsa.model(raw, [policy()]), {});
-  assert.match(html, /gsa-chain/);
+  assert.match(html, /gsa-flow/);
   assert.match(html, /CA215-BLOCK-Internals-CN/);
   assert.doesNotMatch(html, /<script>x/);
 });
@@ -184,7 +184,8 @@ test("32522: the policy card lists every policy that names the compliant network
   assert.match(html, /3 found · 1 on · 1 report-only · 1 off/);
   const m2 = Gsa.model(Gsa.demo(), [off]);
   assert.strictEqual(m2.links.find((x) => x.k === "policy").word, "off");
-  assert.match(Gsa.render(m2, {}), /gsa-st bad">off</);
+  assert.match(Gsa.render(m2, {}), /gsa-nv">off</, "32524: the node says off");
+  assert.match(Gsa.render(m2, { sel: "policy" }), /gsa-st bad">off</, "and so does the step when opened");
   assert.match(Gsa.render(Gsa.model(Gsa.demo(), null), {}), /policies not loaded/);
 });
 
@@ -214,4 +215,57 @@ test("32523: the Intune card lists every GSA remediation, script and macOS profi
   assert.match(html, /more than one kind of deployment/);
   raw.sources = Object.assign({}, raw.sources, { macProfiles: "403 Forbidden" });
   assert.match(Gsa.intune(raw).unread[0], /Profile: not read — 403/);
+});
+
+test("32524: the flow — eight steps in five lanes, the first that blocks opens, a chosen step opens, workspaces stack under the detail", () => {
+  const m = Gsa.model(Gsa.demo(), [policy()]);
+  assert.deepStrictEqual(Gsa.LANES.flatMap((l) => l[1]), m.links.map((l) => l.k), "the lanes cover every link once, in chain order");
+  assert.strictEqual(Gsa.defaultSel(m), "profile", "demo: the profile is partly on — the first that blocks");
+  const html = Gsa.render(m, {});
+  assert.strictEqual((html.match(/data-gsasel="/g) || []).length, 8 + 2, "eight nodes plus the two step buttons");
+  assert.match(html, /class="gsa-node warn sel" data-gsasel="profile"/);
+  assert.match(html, /id="gsaDetail"/);
+  assert.match(html, /Step 3 of 8/);
+  assert.doesNotMatch(html, /id="gsaWork"/, "no workspace until a fix is opened");
+  const h2 = Gsa.render(m, { sel: "client", work: ["<section class=\"gsa-wpanel\" data-gsaw=\"winrem\">A</section>", "<section class=\"gsa-wpanel\" data-gsaw=\"macscript\">B</section>"] });
+  assert.match(h2, /class="gsa-node bad sel" data-gsasel="client"/);
+  assert.match(h2, /data-gsafix="winrem"/);
+  assert.match(h2, /data-gsafix="macscript"/);
+  assert.match(h2, /2 open · newest first/);
+  const order = ['class="list-card gsa-flow"', 'id="gsaDetail"', 'id="gsaWork"', 'id="gsaPols"', 'id="gsaIntune"'].map((k) => h2.indexOf(k));
+  assert.ok(order.every((i) => i > 0), JSON.stringify(order));
+  assert.deepStrictEqual([...order].sort((a, b) => a - b), order, "flow, then the step, then the workspaces, then the cards");
+  assert.strictEqual(Gsa.render(m, { sel: "nope" }).includes('class="gsa-node warn sel" data-gsasel="profile"'), true, "an unknown step falls back to the first that blocks");
+});
+
+test("32524: preview — each fix shows what it sends; scripts are the uploaded text", () => {
+  const o = { rel: "R26.10", ver: "v1.0", lock: true, devGroup: "INT-SEC-D-GSA-WIN-M365" };
+  const rem = Gsa.preview("winrem", o);
+  assert.deepStrictEqual(rem.map((t) => t.id), ["det", "rem", "req"]);
+  assert.strictEqual(rem[0].text, Gsa.detectScript(o));
+  assert.strictEqual(rem[1].text, Gsa.remediationScript(o));
+  assert.match(rem[2].text, /"runRemediationScript": true/);
+  assert.strictEqual(Gsa.preview("macscript", o)[0].text, Gsa.macScript());
+  assert.match(Gsa.preview("ztnasp")[0].text, new RegExp(Gsa.ZTNA_CLIENT));
+  assert.match(Gsa.preview("assign", { allUsers: true })[0].text, /appRoleAssignmentRequired": false/);
+  for (const k of Object.keys(Gsa.FIXES)) assert.ok(Gsa.preview(k, {}).length, `${k} has a preview`);
+});
+
+test("32524 devcf (read 14 Oct): the chain as the live board showed it, and the remediation assigned with remediation OFF is detect only", () => {
+  const raw = require("./fixtures/gsa-devcf-20261014.json");
+  raw.macProfiles = Gsa.macProfiles(raw._macPolicies, raw._macConfigs);
+  const m = Gsa.model(raw, raw._ca);
+  const st = Object.fromEntries(m.links.map((l) => [l.k, l.st]));
+  assert.deepStrictEqual(st, { licence: "ok", tenant: "ok", profile: "ok", signal: "ok", location: "ok", client: "warn", policy: "bad", proof: "wait" });
+  const c = m.links.find((l) => l.k === "client");
+  assert.ok(c.remOff);
+  assert.match(c.note, /DETECT ONLY/);
+  assert.strictEqual(c.fix, "winrem", "the fix is offered so the assignment can get remediation on");
+  assert.strictEqual(m.links.find((l) => l.k === "licence").note, "4 of 4 used");
+  assert.match(m.verdict.p, /Blocked at step 6 — GSA client/);
+  assert.ok(Gsa.intune(raw).rows.find((r) => r.kind === "Remediation").remOff);
+  raw.healthScripts[0].assignments[0].runRemediationScript = true;
+  const m2 = Gsa.model(raw, raw._ca);
+  assert.strictEqual(m2.links.find((l) => l.k === "client").st, "ok", "remediation on: the devices link is ready, as the board showed it");
+  assert.match(m2.verdict.p, /Blocked at step 7 — 1 policy/);
 });

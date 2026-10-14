@@ -24438,7 +24438,12 @@ This is a directory write. Nothing else changes.`)) return;
   // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
   // ======================================================================
   const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All"];
-  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, fix: null, fixOpts: { group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily" }, fixBusy: false, fixLog: null, session: "" };
+  // 32524: fixes open as stacked workspaces — gsa.work, newest first, one
+  // per fix kind, each with its own options, log and busy flag; gsa.sel is
+  // the step open under the flow (null = the first that blocks)
+  const gsaDefOpts = () => ({ group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily" });
+  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "" };
+  const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
   const gsaSession = () => `${tenantId}:${isDemo}`;
   const gsaPolicies = () => {
     if (!policies || !policies.length) return null;
@@ -24455,7 +24460,7 @@ This is a directory write. Nothing else changes.`)) return;
   function openGsa() {
     crumb("🌐 Global Secure Access");
     show("screen-gsa");
-    if (gsa.session !== gsaSession()) gsa = Object.assign(gsa, { raw: null, model: null, err: null, proof: null, fix: null, fixLog: null, session: gsaSession() });
+    if (gsa.session !== gsaSession()) gsa = Object.assign(gsa, { raw: null, model: null, err: null, proof: null, work: [], sel: null, session: gsaSession() });
     $("gsaHead").innerHTML = toolHead("toolGsa") + '<p class="mini" style="margin:6px 0 0">Stolen session tokens only work if Entra accepts them from the attacker\'s network. This board checks every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can safely go on — the <b>Microsoft traffic profile</b> first; Internet Access and Private Access come later — finds the link that is missing, and fixes the links that live in Entra and Intune. Every fix says what it changes, who it affects and how to undo it before it runs. It never switches a policy on and never changes a policy\'s exclusions.</p>';
     renderGsa();
   }
@@ -24465,7 +24470,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
     if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
     gsa.model = Gsa.model(gsa.raw, gsaPolicies());
-    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, fixHtml: gsa.fix ? gsaFixHtml() : "" });
+    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml) });
     $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
   }
   async function readGsa() {
@@ -24553,25 +24558,34 @@ This is a directory write. Nothing else changes.`)) return;
     renderGsa();
   }
   // ---- the fixes: described first, then run ----
-  function gsaFixHtml() {
-    const f = Gsa.FIXES[gsa.fix]; if (!f) return "";
-    const o = gsa.fixOpts;
+  function gsaWorkHtml(w) {
+    const f = Gsa.FIXES[w.k]; if (!f) return "";
+    const o = w.opts, k = w.k;
     let form = "";
-    if (gsa.fix === "assign") form = `<label class="chk"><input type="radio" name="gsaAssignHow" value="group"${o.allUsers ? "" : " checked"}> <b>Pilot group</b> (recommended)</label> <input class="txt" data-gsaopt="group" value="${esc(o.group)}" placeholder="Group display name, e.g. GSA-SEC-U-M365Profile-Pilot" style="min-width:320px"><br><label class="chk"><input type="radio" name="gsaAssignHow" value="all"${o.allUsers ? " checked" : ""}> <b>All users</b> — Assignment required off on the profile's app</label>`;
+    if (k === "assign") form = `<label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="group"${o.allUsers ? "" : " checked"}> <b>Pilot group</b> (recommended)</label> <input class="txt" data-gsaopt="group" value="${esc(o.group)}" placeholder="Group display name, e.g. GSA-SEC-U-M365Profile-Pilot" style="min-width:min(320px,100%)"><br><label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="all"${o.allUsers ? " checked" : ""}> <b>All users</b> — Assignment required off on the profile's app</label>`;
     // 32517: names by the CloudFellows convention read from devcf; release
     // and version editable, the device group defaulted and made when missing
     const nm = () => Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" });
     const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">${which === "rem" ? "detection + remediation, SYSTEM, 64-bit" : `file ${esc(which === "win" ? Gsa.WIN_FILE : Gsa.MAC_FILE)}`}</span></div>`;
-    const grp = (k, def) => `<input class="txt" data-gsaopt="${k}" value="${esc(o[k] || def)}" placeholder="Device group display name" style="min-width:320px"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label>`;
-    if (gsa.fix === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br><label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label><br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><br><button class="btn sm" data-gsadl="det">⬇ Detection script</button> <button class="btn sm" data-gsadl="rem">⬇ Remediation script</button>`;
-    if (gsa.fix === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label><br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label><br><button class="btn sm" data-gsadl="win">⬇ The script as it will be uploaded</button>`;
-    if (gsa.fix === "macscript") { const c = (gsa.model.links.find((l) => l.k === "client") || {}); form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<p class="mini${c.macProfOk ? " muted" : " gsa-warn-txt"}">${esc(c.sub || "")}${c.macProfOk ? "" : " — assign them to the same group in Intune, or the client cannot load its extension and tunnel."}</p><button class="btn sm" data-gsadl="mac">⬇ The script as it will be uploaded</button>`; }
-    const log = gsa.fixLog ? `<div class="gsa-log">${gsa.fixLog.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
-    return `<h4>🔧 ${esc(f.title)} <span class="tag block">writes to tenant</span></h4>
-      <p class="mini"><b>Impact.</b> ${esc(f.impact)}</p><p class="mini"><b>Way back.</b> ${esc(f.recovery)}</p>
-      <ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}
+    const grp = (key, def) => `<input class="txt" data-gsaopt="${key}" value="${esc(o[key] || def)}" placeholder="Device group display name" style="min-width:min(320px,100%)"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label>`;
+    const lockBox = `<label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label>`;
+    if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><p class="mini muted">A remediation of this name already in Intune is reused; its assignment to this group gets remediation ON — an assignment with remediation off only detects.</p>`;
+    if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`;
+    if (k === "macscript") { const c = (gsa.model.links.find((l) => l.k === "client") || {}); form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<p class="mini${c.macProfOk ? " muted" : " gsa-warn-txt"}">${esc(c.sub || "")}${c.macProfOk ? "" : " — assign them to the same group in Intune, or the client cannot load its extension and tunnel."}</p>`; }
+    const tabs = Gsa.preview(k, o), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
+    const dlBtn = { det: "det", rem: "rem", win: "win", mac: "mac" }[tab && tab.id];
+    const prev = tabs.length ? `<div class="gsa-lab" style="margin-bottom:4px">What it sends</div>${tabs.length > 1 ? `<div class="gsa-tabs" role="tablist">${tabs.map((t) => `<button type="button" role="tab" data-gsatab="${t.id}" class="${t === tab ? "on" : ""}" aria-selected="${t === tab}">${esc(t.label)}</button>`).join("")}</div>` : `<div class="mini muted" style="margin-bottom:4px">${esc(tab.label)}</div>`}<pre class="gsa-pre" data-gsapre>${esc(tab.text)}</pre><div class="gsa-wbtns"><button class="btn sm" data-gsacopy>Copy</button>${dlBtn ? `<button class="btn sm" data-gsadl="${dlBtn}">⬇ Download</button>` : ""}</div>` : "";
+    const log = w.log ? `<div class="gsa-log">${w.log.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
+    const done = !!(w.log && w.log.done), failed = !!(w.log && !w.log.done && !w.busy);
+    const otherBusy = gsa.work.some((x) => x !== w && x.busy);
+    const step = (i, t) => `<span class="${w.busy ? (i === 2 ? "on" : i < 2 ? "dn" : "") : done ? "dn" : i === 1 ? "on" : ""}">${(w.busy && i < 2) || done ? "✓ " : ""}${i} ${t}</span>`;
+    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k);
+    return `<section class="gsa-wpanel" data-gsaw="${esc(k)}" id="gsaW-${esc(k)}"><div class="gsa-whead"><b>🔧 ${esc(f.title)}</b><span class="tag block">writes to tenant</span>${from ? `<span class="mini muted">from step ${gsa.model.links.indexOf(from) + 1} · ${esc(from.lab)}</span>` : ""}<button class="btn sm gsa-wclose" data-gsacancel${w.busy ? " disabled" : ""}>✕ ${done ? "Close" : "Cancel"}</button></div>
+      <div class="gsa-wsteps">${step(1, "Review")}${step(2, "Apply")}${step(3, "Read the tenant again")}${failed ? '<span style="color:var(--off)">✗ stopped — see the log</span>' : ""}</div>
+      <div class="gsa-wgrid"><div><ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}${prev}</div>
+      <div><div class="gsa-impact"><b>Impact.</b> ${esc(f.impact)}</div><div class="gsa-back"><b>Way back.</b> ${esc(f.recovery)}</div>
       <p class="mini muted">Needs ${esc(f.scopes.join(", "))} · role ${esc(f.role)}${isDemo ? " · demo: simulated" : ""}</p>
-      ${log}<div class="row" style="display:flex;gap:8px;justify-content:flex-start"><button class="btn primary" data-gsago${gsa.fixBusy || (gsa.fixLog && gsa.fixLog.done) ? " disabled" : ""}>${gsa.fixBusy ? "Working…" : "Apply"}</button><button class="btn" data-gsacancel>${gsa.fixLog && gsa.fixLog.done ? "Close" : "Cancel"}</button></div>`;
+      ${log}<div class="gsa-wbtns"><button class="btn primary" data-gsago${w.busy || done || otherBusy ? " disabled" : ""}${otherBusy ? ' title="Another workspace is applying — one at a time"' : ""}>${w.busy ? "Working…" : failed ? "Apply again" : "Apply"}</button></div>${otherBusy ? '<p class="mini muted">Another workspace is applying — one runs at a time.</p>' : ""}</div></div></section>`;
   }
   async function gsaGroupByName(name, sc) {
     const n = String(name || "").trim(); if (!n) throw new Error("name a group first");
@@ -24594,11 +24608,11 @@ This is a directory write. Nothing else changes.`)) return;
       return g;
     }
   }
-  async function runGsaFix() {
-    const k = gsa.fix, f = Gsa.FIXES[k], m = gsa.model, o = gsa.fixOpts;
-    if (!f || gsa.fixBusy) return;
-    const log = gsa.fixLog = []; const say = (t, ok) => { log.push({ t, ok }); renderGsa(); };
-    gsa.fixBusy = true; renderGsa();
+  async function runGsaFix(w) {
+    const k = w && w.k, f = Gsa.FIXES[k], m = gsa.model, o = w && w.opts;
+    if (!f || w.busy || gsa.work.some((x) => x.busy)) return;
+    const log = w.log = []; const say = (t, ok) => { log.push({ t, ok }); renderGsa(); };
+    w.busy = true; renderGsa();
     const sc = [...AUTH_CONFIG.scopes, ...f.scopes];
     try {
       if (!isDemo && !await preConsent(sc)) throw new Error("permission not granted — nothing was changed");
@@ -24662,7 +24676,15 @@ This is a directory write. Nothing else changes.`)) return;
           say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
           // /assign replaces the assignments: keep what a reused one has
           const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => ({ target: x.target, runRemediationScript: x.runRemediationScript, runSchedule: x.runSchedule })).filter((x) => x.target) : [];
-          if (had.some((x) => x.target.groupId === g.id)) say(`already assigned to ${g.displayName}`, true);
+          const mine = had.find((x) => x.target.groupId === g.id);
+          // 32524 (devcf: assigned with remediation off = detection only):
+          // the group's assignment gets remediation ON; the others are kept as they are
+          if (mine && mine.runRemediationScript === false) {
+            mine.runRemediationScript = true;
+            await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: had }, sc);
+            const back = ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).find((x) => x.target && x.target.groupId === g.id);
+            say(back && back.runRemediationScript === false ? `remediation still OFF on ${g.displayName} after the write — Intune kept detection only; switch it on in Intune → Scripts and remediations → the remediation → Assignments` : `remediation switched ON for ${g.displayName} — it now installs, not only detects`, !(back && back.runRemediationScript === false));
+          } else if (mine) say(`already assigned to ${g.displayName} with remediation on`, true);
           else {
             await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: [...had, Gsa.remediationAssignment(g.id, o.schedule)] }, sc);
             say(`assigned to ${g.displayName} — remediation on, ${o.schedule === "hourly" ? "every hour" : "daily"}`, true);
@@ -24695,13 +24717,13 @@ This is a directory write. Nothing else changes.`)) return;
       log.done = true;
       say("done — reading the tenant again", true);
     } catch (e) { say(gsaErr(e), false); }
-    finally { gsa.fixBusy = false; }
-    if (log.done) { if (isDemo) { gsaDemoApply(k); renderGsa(); } else { gsa.raw = null; await readGsa(); } }
+    finally { w.busy = false; }
+    if (log.done) { if (isDemo) { gsaDemoApply(k, o); renderGsa(); } else { gsa.raw = null; await readGsa(); } }
     else renderGsa();
   }
   // the demo shows a fix landing, so the board can be walked end to end
-  function gsaDemoApply(k) {
-    const r = gsa.raw, o = gsa.fixOpts;
+  function gsaDemoApply(k, o) {
+    const r = gsa.raw;
     if (k === "profile") { r.profile.state = "enabled"; r.profile.policies.forEach((p) => { p.state = "enabled"; }); }
     if (k === "assign") { if (o.allUsers) r.sp.appRoleAssignmentRequired = false; else r.assigned.push({ principalId: "g-demo-" + o.group.trim().length, principalType: "Group", principalDisplayName: o.group.trim() }); }
     if (k === "signal") r.signaling.signalingStatus = "enabled";
@@ -24713,27 +24735,43 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "ztnasp") r.ztna = [{ id: "sp-ztna", appId: Gsa.ZTNA_CLIENT }];
   }
   $("toolGsa").addEventListener("click", () => openGsa());
-  $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; gsa.fix = null; readGsa(); });
+  $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; readGsa(); });
   $("gsaBody").addEventListener("click", (e) => {
     const t = e.target;
     if (t.closest("[data-gsaread]")) { readGsa(); return; }
     if (t.closest("[data-gsaproof]")) { readGsaProof(); return; }
-    const fx = t.closest("[data-gsafix]"); if (fx) { gsa.fix = fx.dataset.gsafix; gsa.fixLog = null; renderGsa(); const p = $("gsaFixPanel"); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest" }); return; }
-    if (t.closest("[data-gsacancel]")) { gsa.fix = null; gsa.fixLog = null; renderGsa(); return; }
-    if (t.closest("[data-gsago]")) { runGsaFix(); return; }
-    const dl = t.closest("[data-gsadl]");
-    if (dl && dl.dataset.gsadl === "det") { downloadText("Detect-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.detectScript({ lock: gsa.fixOpts.lock, ipv4: gsa.fixOpts.ipv4 })); return; }
-    if (dl && dl.dataset.gsadl === "rem") { downloadText("Remediate-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.remediationScript({ lock: gsa.fixOpts.lock, ipv4: gsa.fixOpts.ipv4 })); return; }
-    if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: gsa.fixOpts.lock, ipv4: gsa.fixOpts.ipv4 })); else downloadText("scr-app-108-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
+    // 32524: the flow — a step opens under it
+    const sl = t.closest("[data-gsasel]"); if (sl) { gsa.sel = sl.dataset.gsasel; renderGsa(); const d = $("gsaDetail"); if (d && d.scrollIntoView) d.scrollIntoView({ block: "nearest" }); return; }
+    const jp = t.closest("[data-gsajump]"); if (jp) { const el = $(jp.dataset.gsajump); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
+    // a fix opens its own workspace (or brings its open one to the top)
+    const fx = t.closest("[data-gsafix]"); if (fx) {
+      const k = fx.dataset.gsafix, had = gsaW(k);
+      if (had) gsa.work = [had, ...gsa.work.filter((x) => x !== had)];
+      else gsa.work.unshift({ k, opts: gsaDefOpts(), log: null, busy: false, tab: null });
+      renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return;
+    }
+    const wp = t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
+    if (w && t.closest("[data-gsacancel]")) { if (!w.busy) { gsa.work = gsa.work.filter((x) => x !== w); renderGsa(); } return; }
+    if (w && t.closest("[data-gsago]")) { runGsaFix(w); return; }
+    const tb = t.closest("[data-gsatab]"); if (w && tb) { w.tab = tb.dataset.gsatab; renderGsa(); return; }
+    if (w && t.closest("[data-gsacopy]")) { const pre = wp.querySelector("[data-gsapre]"); const txt = pre ? pre.textContent : ""; try { navigator.clipboard.writeText(txt).then(() => toast("Copied"), () => toast("Copy failed — select the text instead")); } catch { toast("Copy failed — select the text instead"); } return; }
+    const dl = w && t.closest("[data-gsadl]"), wo = w ? w.opts : gsaDefOpts();
+    if (dl && dl.dataset.gsadl === "det") { downloadText("Detect-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.detectScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
+    if (dl && dl.dataset.gsadl === "rem") { downloadText("Remediate-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.remediationScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
+    if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: wo.lock, ipv4: wo.ipv4 })); else downloadText("scr-app-108-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
     const op = t.closest("[data-gsaopen]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.gsaopen); if (p) showDetail(p); else toast("That policy is not in the loaded set"); return; }
     if (t.closest("[data-gsagroups]")) { if (typeof cgScopeWs !== "undefined") { cgScopeWs[cgWs()] = "gsa"; } openCaGroups(); return; }
   });
   const gsaOpt = (e) => {
-    const t = e.target;
-    if (t.name === "gsaAssignHow") { gsa.fixOpts.allUsers = t.value === "all"; return; }
-    const k = t.dataset && t.dataset.gsaopt; if (!k) return;
-    gsa.fixOpts[k] = t.type === "checkbox" ? t.checked : t.value;
-    if (k === "rel" || k === "ver") { const el = $("gsaBody").querySelector("[data-gsaname]"); if (el) el.textContent = Gsa.names({ rel: gsa.fixOpts.rel || Gsa.relTag(), ver: gsa.fixOpts.ver || "v1.0" })[gsa.fix === "macscript" ? "mac" : gsa.fix === "winrem" ? "rem" : "win"]; }
+    const t = e.target, wp = t.closest && t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
+    if (!w) return;
+    if (t.hasAttribute("data-gsahow")) { w.opts.allUsers = t.value === "all"; }
+    else { const k = t.dataset && t.dataset.gsaopt; if (!k) return; w.opts[k] = t.type === "checkbox" ? t.checked : t.value; }
+    const o = w.opts, el = wp.querySelector("[data-gsaname]");
+    if (el) el.textContent = Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[w.k === "macscript" ? "mac" : w.k === "winrem" ? "rem" : "win"];
+    // the preview follows the options, without a repaint that would steal focus
+    const pre = wp.querySelector("[data-gsapre]"), tabs = Gsa.preview(w.k, o), tab = tabs.find((x) => x.id === w.tab) || tabs[0];
+    if (pre && tab) pre.textContent = tab.text;
   };
   $("gsaBody").addEventListener("input", gsaOpt);
   $("gsaBody").addEventListener("change", gsaOpt);

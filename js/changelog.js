@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32524, date: "2026-10-14", title: "Global Secure Access: one flow, fixes in workspaces below it",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "The eight cards are now one flow: Licence to Proof in five lanes, the line green up to the step that blocks. Click a step to open it under the flow — what ENCA read, and what you can do. A fix opens as a workspace below that, and several can be open at once, newest first: what it sends (the script as it will be uploaded, or the Graph request), its options, impact and way back, Apply and the log. One applies at a time; the others wait." },
+      { kind: "fixed", tool: "Global Secure Access", text: "A Windows remediation assigned with remediation off only detects — devices without the client are reported, never given it. The board now says DETECT ONLY, and Switch remediation on turns it on for the group, leaving the other assignments as they are." },
+    ],
+  },
+  {
     build: 32523, date: "2026-10-14", title: "Global Secure Access: the Intune card",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "A card with every Intune remediation, script, app and macOS profile for the Global Secure Access client: where it is in Intune, whether ENCA made it, and the groups it is assigned to and excluded from. Duplicates and a Windows client deployed two ways are flagged; a missing macOS profile is named." },

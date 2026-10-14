@@ -13,7 +13,9 @@
 // PURE: no Graph, no DOM. app.js reads the tenant into `raw` and calls
 //   Gsa.model(raw, caPolicies)       → { links[8], verdict, policies[], groups[], groupIds[], ... }
 //   Gsa.proof(signIns, policyIds)    → per policy: would block / would pass / blocked / passed, users
-//   Gsa.render(model, ui)            → the board, the policy table, the proof, the groups
+//   Gsa.render(model, ui)            → the flow, the selected step, the workspaces, the policy table, the proof, the groups
+//   Gsa.preview(fix, opts)           → what a fix sends: the script(s) or the Graph request, for the workspace (32524)
+//   Gsa.defaultSel(model)            → the step the flow opens on: the first that blocks
 //   Gsa.windowsScript(opts)          → the Intune platform script (PowerShell) ENCA uploads
 //   Gsa.macScript()                  → the macOS shell script (a download — the macOS
 //                                      profiles stay by hand, see MAC_BY_HAND)
@@ -127,7 +129,8 @@ const Gsa = (() => {
       (list || []).forEach((x) => {
         const known = Array.isArray(x.assignments);
         rows.push({ id: x.id, name: x.displayName || x.name || x.id, kind: x.role ? `${kind} · ${x.role}` : kind, os, where, by: byEnca(x) ? "ENCA T56" : "baseline or by hand",
-          assigned: known ? x.assignments.length > 0 : x.assigned, t: known ? targets(x.assignments, names) : null });
+          assigned: known ? x.assignments.length > 0 : x.assigned, t: known ? targets(x.assignments, names) : null,
+          remOff: kind === "Remediation" && known && x.assignments.length > 0 && x.assignments.every((a) => a.runRemediationScript === false) });
       });
     };
     add("healthScripts", (raw.healthScripts || []).filter((h) => rx.test(h.displayName || "")), "Remediation", "Windows", WHERE.rem);
@@ -189,18 +192,22 @@ const Gsa = (() => {
     const macScript = (raw.shellScripts || []).find((s) => /global\s*secure\s*access/i.test(`${s.displayName} ${s.fileName}`)) || null;
     const winOk = !!(winRem || winScript || winApp);
     const rs = winRem && winRem.runSummary;
-    const remNote = winRem ? `Windows: ${winRem.displayName}${winRem.assigned === false ? " — NOT ASSIGNED" : ""}${rs ? ` (${rs.noIssueDetectedDeviceCount || 0} without issue · ${rs.issueRemediatedDeviceCount || 0} remediated · ${(rs.issueReoccurredDeviceCount || 0) + (rs.remediationScriptErrorDeviceCount || 0) + (rs.detectionScriptErrorDeviceCount || 0)} failing)` : ""}` : "";
+    // 32524, read in devcf 14 Oct: the remediation was assigned with
+    // runRemediationScript false — detection only, so a device without the
+    // client is reported and never gets it. Every assignment off = detect only.
+    const remOff = !!(winRem && Array.isArray(winRem.assignments) && winRem.assignments.length && winRem.assignments.every((a) => a.runRemediationScript === false));
+    const remNote = winRem ? `Windows: ${winRem.displayName}${winRem.assigned === false ? " — NOT ASSIGNED" : ""}${remOff ? " — DETECT ONLY: remediation is off on its assignment, so a device without the client is reported, not installed" : ""}${rs ? ` (${rs.noIssueDetectedDeviceCount || 0} without issue · ${rs.issueRemediatedDeviceCount || 0} remediated · ${(rs.issueReoccurredDeviceCount || 0) + (rs.remediationScriptErrorDeviceCount || 0) + (rs.detectionScriptErrorDeviceCount || 0)} failing)` : ""}` : "";
     // the three macOS profiles the client cannot run without (made by hand,
     // in devcf as [OPTIONAL] MACOS - DCP - … GSA …): read, never written
     const mp = raw.macProfiles || {};
     const mprof = (k, label) => { const x = mp[k]; return x ? `${label} ${x.assigned ? "assigned" : "NOT ASSIGNED"}` : `${label} missing`; };
     const macProfOk = ["sysext", "proxy", "settings"].every((k) => mp[k] && mp[k].assigned);
     const macOk = !!macScript && macProfOk;
-    L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk ? "ok" : winOk || macScript ? "warn" : "bad",
+    L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk && !remOff ? "ok" : winOk || macScript ? "warn" : "bad",
       note: [winRem ? remNote : winScript ? `Windows: ${winScript.displayName}` : winApp ? `Windows: app ${winApp.displayName}` : "Windows: no remediation, script or app", macScript ? `macOS: ${macScript.displayName}` : "macOS: no shell script"].join(" · "),
       sub: unread("macProfiles") ? `macOS profiles not read — ${src.macProfiles}` : `macOS profiles: ${mprof("sysext", "system extensions")} · ${mprof("proxy", "transparent proxy")} · ${mprof("settings", "client settings")}`,
       help: "Windows: secure DNS (DNS over HTTPS) must be off in Edge and Chrome, or the client cannot tunnel by name — a settings catalog policy on the same devices. QUIC only matters once Internet Access is added.",
-      fix: !winOk || (winRem && winRem.assigned === false) ? "winrem" : null, fix2: !macScript ? "macscript" : null, winScript, winApp, winRem, macScript, macProfOk });
+      fix: !winOk || (winRem && winRem.assigned === false) || remOff ? "winrem" : null, fix2: !macScript ? "macscript" : null, winScript, winApp, winRem, macScript, macProfOk, remOff });
     // 7 policy
     const policies = cnPolicies(caPolicies, cn && cn.id);
     const on = policies.filter((p) => p.state === "enabled"), ro = policies.filter((p) => p.state === "enabledForReportingButNotEnforced");
@@ -223,7 +230,7 @@ const Gsa = (() => {
     const by = Object.fromEntries(L.map((l) => [l.k, l]));
     if (by.policy.st === "ok" && ["tenant", "profile", "signal", "location"].every((k) => by[k].st === "ok")) return { cls: "ok", h: "A stolen token no longer works outside the compliant network", p: "The chain is complete and at least one policy that requires the compliant network is on. Watch the proof for sign-ins it blocks that should not be blocked — a device without the client, an IPv6 path around the tunnel." };
     if (!policies.length) return { cls: "bad", h: "A stolen token still works from anywhere", p: "No Conditional Access policy requires the compliant network yet. Build the chain below first, then a block-outside-the-compliant-network policy in report-only." };
-    return { cls: "bad", h: "A stolen token still works from anywhere", p: `${policies.map((p) => p.name).slice(0, 2).join(", ")} ${policies.some((p) => p.state === "enabled") ? "is on, but a link before it is missing — the compliant network cannot be satisfied, so it blocks people instead of tokens" : "is not on"}. Next: ${(L.find((l) => l.st === "bad" || l.st === "warn") || L[0]).h}.` };
+    return { cls: "bad", h: "A stolen token still works from anywhere", p: `${policies.map((p) => p.name).slice(0, 2).join(", ")} ${policies.some((p) => p.state === "enabled") ? "is on, but a link before it is missing — the compliant network cannot be satisfied, so it blocks people instead of tokens" : "is not on"}. Blocked at step ${L.indexOf(L.find((l) => l.st === "bad" || l.st === "warn") || L[0]) + 1} — ${(L.find((l) => l.st === "bad" || l.st === "warn") || L[0]).h}.` };
   }
 
   // ---- proof from the sign-in log -----------------------------------------
@@ -258,6 +265,10 @@ const Gsa = (() => {
   }
 
   // ---- render -------------------------------------------------------------
+  const LANES = [["Foundation", ["licence", "tenant"]], ["Traffic path", ["profile", "signal", "location"]], ["Endpoint", ["client"]], ["Enforce", ["policy"]], ["Verify", ["proof"]]];
+  const ICON = { ok: "✓", warn: "!", bad: "✕", wait: "…" };
+  // the step the flow opens on: the first that blocks, else Proof
+  const defaultSel = (m) => ((m.links.find((l) => l.st === "bad" || l.st === "warn") || m.links.find((l) => l.k === "proof") || m.links[0]).k);
   const ST = { ok: ["ok", "ready"], warn: ["warn", "partly"], bad: ["bad", "missing"], wait: ["wait", "waits"], unread: ["wait", "not read"] };
   const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…" };
   function render(m, ui) {
@@ -265,17 +276,36 @@ const Gsa = (() => {
     if (u.proof) proofLink(m, u.proof);
     const meter = m.links.map((l) => `<i class="${l.st === "ok" ? "ok" : l.st === "warn" ? "warn" : ""}"></i>`).join("");
     const head = `<section class="gsa-verdict ${m.verdict.cls}"><div class="gsa-big" aria-hidden="true">${m.verdict.cls === "ok" ? "✓" : "⚠"}</div><div><h3>${esc(m.verdict.h)}</h3><p>${esc(m.verdict.p)}</p></div><div><div class="gsa-meter" aria-label="${m.ready} of ${m.total} links ready">${meter}</div><div class="mini" style="margin-top:4px">${m.ready} of ${m.total} links ready</div></div></section>`;
-    const card = (l) => {
+    // 32524 (Mihai: "this should be more of a flow overview, and when edit
+    // like create scripts that should happen below the flow overview"; then
+    // "stacked"): the eight links are ONE flow in five lanes, the selected
+    // step opens under it, and every fix opens as its own workspace below that
+    // — several can be open at once, newest first. The flow stays in view.
+    const sel = m.links.find((l) => l.k === u.sel) ? u.sel : defaultSel(m);
+    const node = (l, i) => {
       const [cls, w0] = ST[l.st] || ST.wait, word = l.word || w0;
-      const acts = [];
-      if (l.fix) acts.push(`<button class="btn sm${l.st === "bad" ? " primary" : ""}" data-gsafix="${l.fix}">${esc(FIX_LABEL[l.fix])}</button>`);
-      if (l.fix2 && l.fix2 !== l.fix) acts.push(`<button class="btn sm${l.fix2 === "ztnasp" ? " gsa-optional" : ""}" data-gsafix="${l.fix2}">${esc(FIX_LABEL[l.fix2])}</button>`);
-      if (l.k === "policy" && l.open) acts.push(`<button class="btn sm" data-gsaopen="${esc(l.open)}">Open in Policies</button>`);
-      if (l.k === "proof") acts.push(`<button class="btn sm" data-gsaproof>📈 Read the proof (7 days)</button>`);
-      return `<div class="gsa-link ${cls}" role="listitem"><span class="gsa-lab">${esc(l.lab)}</span><h4>${esc(l.h)}</h4><span class="gsa-st ${cls}">${esc(word)}</span><p class="mini">${esc(l.note)}</p>${l.sub ? `<p class="mini${/NOT ASSIGNED|missing|not read/.test(l.sub) ? " gsa-warn-txt" : " muted"}">${esc(l.sub)}</p>` : ""}${l.help ? `<p class="mini muted">${esc(l.help)}</p>` : ""}${acts.length ? `<div class="gsa-act">${acts.join("")}</div>` : ""}</div>`;
+      return `<button type="button" class="gsa-node ${cls}${l.k === sel ? " sel" : ""}" data-gsasel="${l.k}" aria-pressed="${l.k === sel}" title="${esc(l.note)}"><span class="gsa-dot" aria-hidden="true">${ICON[cls] || "…"}</span><span class="gsa-lab">${i + 1} · ${esc(l.lab)}</span><b>${esc(l.h)}</b><span class="gsa-nv">${esc(word)}</span></button>`;
     };
-    const board = `<div class="gsa-chain" role="list" aria-label="The chain">${m.links.map(card).join("")}</div>`;
-    const fix = u.fixHtml ? `<div class="gsa-fix" id="gsaFixPanel">${u.fixHtml}</div>` : "";
+    const lanes = LANES.map(([name, keys]) => `<div class="gsa-lane" style="grid-column:span ${keys.length}">${esc(name)}</div>`).join("");
+    const flow = `<section class="list-card gsa-flow" aria-label="The chain, step by step"><div class="gsa-flow-in"><div class="gsa-lanes">${lanes}</div><div class="gsa-nodes">${m.links.map(node).join("")}</div></div><div class="gsa-legend mini muted"><span><i class="ok"></i>ready</span><span><i class="warn"></i>partly</span><span><i class="bad"></i>missing or off</span><span><i class="wait"></i>waits or not read</span><span>· click a step for its detail and fixes</span></div></section>`;
+    const l = m.links.find((x) => x.k === sel), li = m.links.indexOf(l);
+    const [cls, w0] = ST[l.st] || ST.wait;
+    const acts = [];
+    const act = (btn, h, sub) => acts.push(`<div class="gsa-actrow"><div><b>${esc(h)}</b>${sub ? `<div class="mini muted">${esc(sub)}</div>` : ""}</div>${btn}</div>`);
+    // a detect-only remediation is fixed by the same workspace: it reuses the remediation and switches remediation on
+    const fixAct = (k, primary, optional) => { const f = FIXES[k] || {}, on = k === "winrem" && l.remOff; act(`<button class="btn sm${primary || on ? " primary" : ""}${optional ? " gsa-optional" : ""}" data-gsafix="${k}">${esc(on ? "Switch remediation on…" : FIX_LABEL[k].replace(/ \(only if[^)]*\)/, ""))}</button>`, on ? "Switch remediation on for the Windows remediation" : f.title || FIX_LABEL[k], `${optional ? "Optional — only if clients stay Partially Connected. " : ""}writes to tenant · opens a workspace below with what it sends, its impact and the way back`); };
+    if (l.fix) fixAct(l.fix, l.st === "bad", false);
+    if (l.fix2 && l.fix2 !== l.fix) fixAct(l.fix2, false, l.fix2 === "ztnasp");
+    if (l.k === "policy" && l.open) act(`<button class="btn sm" data-gsaopen="${esc(l.open)}">Open in Policies</button>`, "Open the policy", "state and exclusions are changed in 🗂 Policies — this tool leaves them as they are");
+    if (l.k === "policy" && m.policies.length) act(`<button class="btn sm" data-gsajump="gsaPols">Show the list</button>`, `Every policy that names the compliant network (${m.policies.length})`, "the card below the workspaces");
+    if (l.k === "client") act(`<button class="btn sm" data-gsajump="gsaIntune">Show the Intune card</button>`, "Every GSA remediation, script, app and macOS profile", "where it is in Intune and whom it is assigned to");
+    if (l.k === "proof") act(`<button class="btn sm" data-gsaproof>📈 Read the proof (7 days)</button>`, "Read the sign-in log", "sign-ins through GSA, and what the compliant-network policies would block");
+    // split on " · " outside brackets — a run summary "(0 without issue · …)" stays whole
+    const parts = []; { let depth = 0, cur = ""; const t = String(l.note || ""); for (let i = 0; i < t.length; i++) { const ch = t[i]; if (ch === "(") depth++; if (ch === ")") depth = Math.max(0, depth - 1); if (!depth && t.startsWith(" · ", i)) { parts.push(cur); cur = ""; i += 2; continue; } cur += ch; } parts.push(cur); }
+    const read = parts.length > 2 || String(l.note || "").length > 90 ? `<ul class="gsa-read">${parts.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p>${esc(l.note)}</p>`;
+    const prev = m.links[li - 1], waitWhy = l.st === "wait" && prev ? `<p class="mini muted">Waits on step ${li}, ${esc(prev.h)}.</p>` : "";
+    const detail = `<section class="list-card gsa-detail ${cls}" id="gsaDetail" aria-live="polite"><div class="gsa-detail-main"><span class="gsa-lab">Step ${li + 1} of ${m.links.length} · ${esc(l.lab)}</span><h3>${esc(l.h)} <span class="gsa-st ${cls}">${esc(l.word || w0)}</span></h3>${read}${waitWhy}${l.sub ? `<p class="mini${/NOT ASSIGNED|missing|not read/.test(l.sub) ? " gsa-warn-txt" : " muted"}">${esc(l.sub)}</p>` : ""}${l.help ? `<p class="mini muted">${esc(l.help)}</p>` : ""}</div><div class="gsa-detail-act"><div class="gsa-lab">What you can do</div>${acts.length ? acts.join("") : `<p class="mini muted">${l.st === "ok" ? "Nothing to do here — this link is ready." : "Nothing ENCA can do from here — see the note."}</p>`}<div class="gsa-stepnav"><button class="btn sm" data-gsasel="${(m.links[li - 1] || l).k}"${li ? "" : " disabled"}>‹ Step ${li}</button><button class="btn sm" data-gsasel="${(m.links[li + 1] || l).k}"${li < m.links.length - 1 ? "" : " disabled"}>Step ${li + 2} ›</button></div></div></section>`;
+    const work = (u.work || []).length ? `<section class="gsa-work" id="gsaWork" aria-label="Workspaces"><div class="gsa-work-head mini muted">⚙ Workspaces · ${u.work.length} open · newest first · each one runs on its own Apply</div>${u.work.join("")}</section>` : "";
     const yes = (b) => b ? '<span class="gsa-st ok">out</span>' : '<span class="gsa-st warn">not out</span>';
     const polRows = m.policies.map((p) => `<tr><td><a href="#" data-gsaopen="${esc(p.id)}"><b>${esc(p.name)}</b></a><div class="mini muted">${esc(p.shape)}${p.platforms ? ` · ${esc(p.platforms)}` : ""}</div></td><td><span class="gsa-st ${p.state === "enabled" ? "ok" : p.state === "enabledForReportingButNotEnforced" ? "warn" : "wait"}">${p.state === "enabled" ? "on" : p.state === "enabledForReportingButNotEnforced" ? "report-only" : "off"}</span></td><td class="mini">${p.cnSide === "excluded" ? "excluded — applies outside it" : "included — applies on it"}</td><td class="mini">${esc(p.grant)}</td><td class="mini">${p.allUsers ? "All users" : `${p.includeGroups.length} group${p.includeGroups.length === 1 ? "" : "s"}`}${p.excludeGroups.length ? ` · ${p.excludeGroups.length} excluded` : ""}</td><td class="mini">Intune ${yes(p.intuneOut)} · Enrollment ${yes(p.enrollOut)} · ${p.excludeRoles.length ? `${p.excludeRoles.length} admin role${p.excludeRoles.length === 1 ? "" : "s"} excluded` : "no admin role excluded"}</td>${u.proof ? `<td class="mini">${(() => { const x = u.proof.per[p.id]; return x ? `${x.wouldBlock + x.blocked} block (${x.usersBlock} users) · ${x.wouldPass + x.passed} pass` : "no sign-in evaluated"; })()}</td>` : ""}</tr>`).join("");
     // 32522 (Mihai: a dedicated card that shows every policy containing the
@@ -286,22 +316,22 @@ const Gsa = (() => {
     const polBody = !m.policiesLoaded ? '<p class="mini">Load 🗂 Policies first: this card lists every loaded policy that names the compliant network, on either side.</p>'
       : m.policies.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Compliant network</th><th>Grant</th><th>Covers</th><th>Checks</th>${u.proof ? "<th>7 days</th>" : ""}</tr></thead><tbody>${polRows}</tbody></table></div>`
       : '<p class="mini">None of the loaded policies names the compliant network. ENCA does not make this policy here: build it in 🧩 Policy building blocks → 🏗 Builder (block, any location except the compliant network, report-only) once links 1–6 are ready.</p>';
-    const polTable = `<section class="list-card gsa-sect gsa-pols">${polHead}${polBody}<p class="mini muted">Read from the policies ENCA already holds — the ones loaded in 🗂 Policies, from the tenant or a file. This tool leaves them as they are: state and exclusions are changed in 🗂 Policies or 🎚 Set policy state. Without the Microsoft Intune and Intune Enrollment apps out, a new device cannot enrol to receive the client. Excluded admin roles are reported, not changed: see the admin handover.</p></section>`;
+    const polTable = `<section class="list-card gsa-sect gsa-pols" id="gsaPols">${polHead}${polBody}<p class="mini muted">Read from the policies ENCA already holds — the ones loaded in 🗂 Policies, from the tenant or a file. This tool leaves them as they are: state and exclusions are changed in 🗂 Policies or 🎚 Set policy state. Without the Microsoft Intune and Intune Enrollment apps out, a new device cannot enrol to receive the client. Excluded admin roles are reported, not changed: see the admin handover.</p></section>`;
     // 32523: the Intune card
     const iv = m.intune || { rows: [], unread: [], missingProfiles: [] };
     const tg = (r) => r.t ? `${r.t.inc.length ? esc(r.t.inc.join(", ")) : '<span class="gsa-st bad">not assigned</span>'}${r.t.exc.length ? `<div class="mini muted">excluded: ${esc(r.t.exc.join(", "))}</div>` : ""}` : r.assigned === false ? '<span class="gsa-st bad">not assigned</span>' : r.assigned ? "assigned" : '<span class="muted">not read</span>';
-    const ivRows = iv.rows.map((r) => `<tr><td><b>${esc(r.name)}</b>${r.dup ? ' <span class="gsa-st warn">duplicate</span>' : ""}<div class="mini muted">${esc(r.kind)}</div></td><td class="mini">${esc(r.os)}</td><td class="mini">Intune › ${esc(r.where)}</td><td class="mini">${esc(r.by)}</td><td class="mini">${tg(r)}</td></tr>`).join("");
+    const ivRows = iv.rows.map((r) => `<tr><td><b>${esc(r.name)}</b>${r.dup ? ' <span class="gsa-st warn">duplicate</span>' : ""}${r.remOff ? ' <span class="gsa-st warn">detect only</span>' : ""}<div class="mini muted">${esc(r.kind)}</div></td><td class="mini">${esc(r.os)}</td><td class="mini">Intune › ${esc(r.where)}</td><td class="mini">${esc(r.by)}</td><td class="mini">${tg(r)}</td></tr>`).join("");
     const ivNotes = [
       ...(iv.winBoth ? ["Windows has more than one kind of deployment (remediation, platform script or app): each installs the client — keep one and remove the others' assignments."] : []),
       ...(iv.missingProfiles.length ? [`macOS profile not found: ${iv.missingProfiles.join(", ")} — make it by hand in Devices › macOS › Configuration.`] : []),
       ...iv.unread,
     ];
-    const ivTable = `<section class="list-card gsa-sect gsa-intune"><h3>Intune policies and scripts for the client <span class="mini muted">· ${iv.rows.length} found</span></h3>${iv.rows.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>Platform</th><th>Where in Intune</th><th>Made by</th><th>Assigned to</th></tr></thead><tbody>${ivRows}</tbody></table></div>` : '<p class="mini">None found — no remediation, script, app or macOS profile with Global Secure Access (or GSA) in its name.</p>'}${ivNotes.map((n) => `<p class="mini gsa-warn-txt">${esc(n)}</p>`).join("")}<p class="mini muted">Matched by name. ENCA makes the Windows remediation and the macOS shell script (the fixes on the Devices link); the macOS profiles are read, never written. Made by ENCA T56 is read from the description ENCA writes.</p></section>`;
+    const ivTable = `<section class="list-card gsa-sect gsa-intune" id="gsaIntune"><h3>Intune policies and scripts for the client <span class="mini muted">· ${iv.rows.length} found</span></h3>${iv.rows.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>Platform</th><th>Where in Intune</th><th>Made by</th><th>Assigned to</th></tr></thead><tbody>${ivRows}</tbody></table></div>` : '<p class="mini">None found — no remediation, script, app or macOS profile with Global Secure Access (or GSA) in its name.</p>'}${ivNotes.map((n) => `<p class="mini gsa-warn-txt">${esc(n)}</p>`).join("")}<p class="mini muted">Matched by name. ENCA makes the Windows remediation and the macOS shell script (the fixes on the Devices link); the macOS profiles are read, never written. Made by ENCA T56 is read from the description ENCA writes.</p></section>`;
     const grpRows = m.groups.map((g) => `<tr${g.backing ? ' class="gsa-backing"' : ""}><td><b>${esc(g.name)}</b><div class="mini muted">${esc(g.id)}</div></td><td class="mini">${esc(g.why)}</td></tr>`).join("");
     const grpTable = `<section class="list-card gsa-sect"><h3>Groups Global Secure Access uses <span class="mini muted">· ${m.allUsers ? "the profile is on for all users" : `${m.groups.length}`}</span></h3>${m.groups.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Group</th><th>Why</th></tr></thead><tbody>${grpRows}</tbody></table></div><p class="mini muted">The same list is the <b>Used by GSA</b> scope of 👥 Groups (T12). <button class="btn sm" data-gsagroups>Open in Groups</button></p>` : '<p class="mini">No group yet — assign a pilot group to the profile, or a compliant-network policy that includes a group.</p>'}</section>`;
     const proofSect = u.proof ? `<section class="list-card gsa-sect"><h3>Sign-ins, last 7 days</h3><p class="mini">${u.proof.total} sign-ins read${u.proof.capped ? " (the first 5,000)" : ""} · ${u.proof.viaGsa} through Global Secure Access.</p><p class="mini muted">A sign-in a report-only policy would block is one that did not come through the client — a device without it, the client paused, or an IPv6 path around the tunnel (the client tunnels IPv4 only). Switch the policy on when this is near zero; this tool does not do that for you.</p></section>` : u.proofBusy ? `<section class="list-card gsa-sect"><p class="mini">Reading the sign-in log…</p></section>` : "";
     const later = `<p class="mini muted gsa-later">🌐 This tool covers the <b>Microsoft traffic profile</b>. Internet Access and Private Access come later; their profiles and assignments will join this board and the Used by GSA scope.</p>`;
-    return head + fix + board + polTable + ivTable + grpTable + proofSect + later;
+    return head + flow + detail + work + polTable + ivTable + grpTable + proofSect + later;
   }
 
   // ---- the Intune platform script (Windows) -------------------------------
@@ -461,6 +491,25 @@ const Gsa = (() => {
     return { "@odata.type": "#microsoft.graph.deviceShellScript", displayName: names(opts).mac, description: "Downloads the Global Secure Access client for macOS from aka.ms and installs it when it is not there. The client also needs the GSA system extension policy, the GSA transparent proxy profile and the GSA client settings, assigned to the same devices. Created by ENCA T56.", fileName: MAC_FILE, runAsAccount: "system", executionFrequency: "PT0S", retryCount: 3, blockExecutionNotifications: true, roleScopeTagIds: ["0"], scriptContent: b64(macScript()) };
   }
 
+  // ---- what a fix sends, for the workspace (32524) -----------------------
+  // Scripts as they will be uploaded (same functions as the upload), the
+  // Graph requests as written. Pure: the workspace shows it, nothing runs.
+  function preview(k, opts) {
+    const o = opts || {}, nm = names({ rel: o.rel, ver: o.ver });
+    const req = (lines) => [{ id: "req", label: "Graph request", lang: "http", text: lines.join("\n") }];
+    const j = (x) => JSON.stringify(x, null, 2);
+    if (k === "winrem") return [{ id: "det", label: "Detection", lang: "powershell", text: detectScript(o) }, { id: "rem", label: "Remediation", lang: "powershell", text: remediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.rem})`, `POST /deviceManagement/deviceHealthScripts/{id}/assign`, j({ deviceHealthScriptAssignments: [remediationAssignment("<" + (o.devGroup || GROUPS.win) + ">", o.schedule)] })])];
+    if (k === "winscript") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }];
+    if (k === "macscript") return [{ id: "mac", label: MAC_FILE, lang: "shell", text: macScript() }];
+    if (k === "ztnasp") return req(["POST /v1.0/servicePrincipals", j({ appId: ZTNA_CLIENT })]);
+    if (k === "location") return req(["POST /identity/conditionalAccess/namedLocations", j({ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false })]);
+    if (k === "signal") return req(["PATCH /networkAccess/settings/conditionalAccess", j({ "@odata.type": "#microsoft.graph.networkaccess.conditionalAccessSettings", signalingStatus: "enabled" })]);
+    if (k === "onboard") return req(["POST /networkAccess/microsoft.graph.networkaccess.onboard", "{}", "", "then GET /networkAccess/tenantStatus every 15 s until onboarded (up to five minutes)"]);
+    if (k === "profile") return req(["PATCH /networkAccess/forwardingProfiles/{Microsoft profile}", j({ state: "enabled" }), "", "PATCH /networkAccess/forwardingProfiles/{id}/policies/{each one off}", j({ state: "enabled" })]);
+    if (k === "assign") return req(o.allUsers ? ["PATCH /v1.0/servicePrincipals/{the profile's app}", j({ appRoleAssignmentRequired: false })] : ["POST /v1.0/servicePrincipals/{the profile's app}/appRoleAssignedTo", j({ principalId: `<${o.group || "group"}>`, resourceId: "{the profile's app}", appRoleId: "{its user role, or the default}" })]);
+    return [];
+  }
+
   // ---- the fixes, described before they run (impact and recovery first) ----
   const FIXES = {
     onboard: { title: "Activate Global Secure Access", scopes: ["NetworkAccessPolicy.ReadWrite.All", "NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["POST /networkAccess/microsoft.graph.networkaccess.onboard, then read the tenant status every 15 seconds until it says onboarded (up to five minutes)."], impact: "Activation moves no traffic and affects nobody by itself — traffic only moves once a profile is on, assigned and a client runs on the device.", recovery: "Offboarding is done in the Entra admin center (Global Secure Access → Settings); nothing else here depends on it yet." },
@@ -496,6 +545,6 @@ const Gsa = (() => {
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;
