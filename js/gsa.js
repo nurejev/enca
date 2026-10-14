@@ -90,14 +90,57 @@ const Gsa = (() => {
   // objects carry their assignments.
   function macProfiles(policies, configs) {
     const out = {};
-    const pick = (x) => ({ id: x.id, name: x.name || x.displayName, assigned: (x.assignments || []).length > 0 });
+    const pick = (x) => ({ id: x.id, name: x.name || x.displayName, assigned: (x.assignments || []).length > 0, assignments: x.assignments || [], description: x.description || "" });
     const sys = (policies || []).find((p) => /GSA|Global Secure Access/i.test(p.name || "") && /system.?extension/i.test(p.name || "")) || (policies || []).find((p) => JSON.stringify(p.settings || "").includes("com.microsoft.globalsecureaccess"));
     if (sys) out.sysext = pick(sys);
     const proxy = (configs || []).find((c) => /macOSCustomConfiguration$/.test(c["@odata.type"] || "") && /GSA|Global Secure Access/i.test(c.displayName || "") && /proxy/i.test(c.displayName || ""));
     if (proxy) out.proxy = pick(proxy);
     const set = (configs || []).find((c) => /macOSCustomAppConfiguration$/.test(c["@odata.type"] || "") && (/^com\.microsoft\.globalsecureaccess/i.test(c.bundleId || "") || /GSA|Global Secure Access/i.test(c.displayName || "")));
     if (set) out.settings = pick(set);
+    // 32523: every GSA profile listed, for the Intune card (duplicates show)
+    const role = (x) => x === sys ? "system extensions" : x === proxy ? "transparent proxy" : x === set ? "client settings" : "";
+    out.found = [...(policies || []).filter((p) => /GSA|Global Secure Access/i.test(p.name || "") || p === sys).map((p) => Object.assign(pick(p), { kind: "Settings catalog", role: role(p) })),
+      ...(configs || []).filter((c) => /GSA|Global Secure Access/i.test(c.displayName || "") || c === proxy || c === set).map((c) => Object.assign(pick(c), { kind: /AppConfiguration$/.test(c["@odata.type"] || "") ? "Preference file" : "Custom", role: role(c) }))];
     return out;
+  }
+
+  // ---- the Intune objects for the client (32523) ---------------------------
+  // Mihai: where is the Intune policy card — every remediation, script, app and
+  // macOS profile T56 recognises, where it sits in Intune, who made it, and
+  // whom it is assigned to. Same-name objects are flagged as duplicates.
+  const WHERE = { rem: "Devices › Scripts and remediations › Remediations", win: "Devices › Scripts and remediations › Platform scripts", app: "Apps › Windows", mac: "Devices › macOS › Shell scripts", prof: "Devices › macOS › Configuration" };
+  function targets(assignments, names) {
+    const inc = [], exc = [];
+    for (const a of assignments || []) {
+      const t = a.target || {}, ty = t["@odata.type"] || "";
+      const nm = /allDevices/i.test(ty) ? "All devices" : /allLicensedUsers/i.test(ty) ? "All users" : (names[t.groupId] || t.groupId || "?");
+      (/exclusion/i.test(ty) ? exc : inc).push(nm);
+    }
+    return { inc, exc };
+  }
+  function intune(raw) {
+    const names = raw.groupNames || {}, src = raw.sources || {}, rx = /global\s*secure\s*access/i;
+    const rows = [], unread = [];
+    const byEnca = (x) => /Created by ENCA/i.test(x.description || "") || x.publisher === "ENCA";
+    const add = (k, list, kind, os, where) => {
+      if (src[k] && src[k] !== "ok") { unread.push(`${kind}: not read — ${src[k]}`); return; }
+      (list || []).forEach((x) => {
+        const known = Array.isArray(x.assignments);
+        rows.push({ id: x.id, name: x.displayName || x.name || x.id, kind: x.role ? `${kind} · ${x.role}` : kind, os, where, by: byEnca(x) ? "ENCA T56" : "baseline or by hand",
+          assigned: known ? x.assignments.length > 0 : x.assigned, t: known ? targets(x.assignments, names) : null });
+      });
+    };
+    add("healthScripts", (raw.healthScripts || []).filter((h) => rx.test(h.displayName || "")), "Remediation", "Windows", WHERE.rem);
+    add("scripts", (raw.scripts || []).filter((s) => rx.test(`${s.displayName} ${s.fileName}`)), "Platform script", "Windows", WHERE.win);
+    add("apps", (raw.apps || []).filter((a) => rx.test(a.displayName || "")), "App", "Windows", WHERE.app);
+    add("shellScripts", (raw.shellScripts || []).filter((s) => rx.test(`${s.displayName} ${s.fileName}`)), "Shell script", "macOS", WHERE.mac);
+    const mp = raw.macProfiles || {};
+    const profs = mp.found || ["sysext", "proxy", "settings"].filter((k) => mp[k]).map((k) => Object.assign({}, mp[k], { kind: k === "sysext" ? "Settings catalog" : k === "proxy" ? "Custom" : "Preference file", role: k === "sysext" ? "system extensions" : k === "proxy" ? "transparent proxy" : "client settings" }));
+    add("macProfiles", profs.map((p) => Object.assign({}, p, { role: p.role })), "Profile", "macOS", WHERE.prof);
+    rows.forEach((r) => { r.dup = rows.filter((x) => x.name === r.name && x.where === r.where).length > 1; });
+    const winKinds = new Set(rows.filter((r) => r.os === "Windows").map((r) => r.where));
+    const missingProfiles = ["system extensions", "transparent proxy", "client settings"].filter((role) => !rows.some((r) => r.kind.endsWith(role)));
+    return { rows, unread, winBoth: winKinds.size > 1, missingProfiles };
   }
 
   // ---- the model ----------------------------------------------------------
@@ -174,7 +217,7 @@ const Gsa = (() => {
 
     const ready = L.filter((l) => l.st === "ok").length;
     const firstBad = L.find((l) => l.st === "bad" || l.st === "warn");
-    return { links: L, ready, total: L.length, verdict: verdict(L, policies), next: firstBad || null, policies, policiesLoaded: !!caPolicies, cn, allUsers, groups: [...gIds.values()], groupIds: [...gIds.keys()], sp: raw.sp || null, profile: prof, readAt: raw.readAt || null, demo: !!raw.demo };
+    return { links: L, ready, total: L.length, verdict: verdict(L, policies), next: firstBad || null, policies, policiesLoaded: !!caPolicies, intune: intune(raw), cn, allUsers, groups: [...gIds.values()], groupIds: [...gIds.keys()], sp: raw.sp || null, profile: prof, readAt: raw.readAt || null, demo: !!raw.demo };
   }
   function verdict(L, policies) {
     const by = Object.fromEntries(L.map((l) => [l.k, l]));
@@ -244,11 +287,21 @@ const Gsa = (() => {
       : m.policies.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Compliant network</th><th>Grant</th><th>Covers</th><th>Checks</th>${u.proof ? "<th>7 days</th>" : ""}</tr></thead><tbody>${polRows}</tbody></table></div>`
       : '<p class="mini">None of the loaded policies names the compliant network. ENCA does not make this policy here: build it in 🧩 Policy building blocks → 🏗 Builder (block, any location except the compliant network, report-only) once links 1–6 are ready.</p>';
     const polTable = `<section class="list-card gsa-sect gsa-pols">${polHead}${polBody}<p class="mini muted">Read from the policies ENCA already holds — the ones loaded in 🗂 Policies, from the tenant or a file. This tool leaves them as they are: state and exclusions are changed in 🗂 Policies or 🎚 Set policy state. Without the Microsoft Intune and Intune Enrollment apps out, a new device cannot enrol to receive the client. Excluded admin roles are reported, not changed: see the admin handover.</p></section>`;
+    // 32523: the Intune card
+    const iv = m.intune || { rows: [], unread: [], missingProfiles: [] };
+    const tg = (r) => r.t ? `${r.t.inc.length ? esc(r.t.inc.join(", ")) : '<span class="gsa-st bad">not assigned</span>'}${r.t.exc.length ? `<div class="mini muted">excluded: ${esc(r.t.exc.join(", "))}</div>` : ""}` : r.assigned === false ? '<span class="gsa-st bad">not assigned</span>' : r.assigned ? "assigned" : '<span class="muted">not read</span>';
+    const ivRows = iv.rows.map((r) => `<tr><td><b>${esc(r.name)}</b>${r.dup ? ' <span class="gsa-st warn">duplicate</span>' : ""}<div class="mini muted">${esc(r.kind)}</div></td><td class="mini">${esc(r.os)}</td><td class="mini">Intune › ${esc(r.where)}</td><td class="mini">${esc(r.by)}</td><td class="mini">${tg(r)}</td></tr>`).join("");
+    const ivNotes = [
+      ...(iv.winBoth ? ["Windows has more than one kind of deployment (remediation, platform script or app): each installs the client — keep one and remove the others' assignments."] : []),
+      ...(iv.missingProfiles.length ? [`macOS profile not found: ${iv.missingProfiles.join(", ")} — make it by hand in Devices › macOS › Configuration.`] : []),
+      ...iv.unread,
+    ];
+    const ivTable = `<section class="list-card gsa-sect gsa-intune"><h3>Intune policies and scripts for the client <span class="mini muted">· ${iv.rows.length} found</span></h3>${iv.rows.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>Platform</th><th>Where in Intune</th><th>Made by</th><th>Assigned to</th></tr></thead><tbody>${ivRows}</tbody></table></div>` : '<p class="mini">None found — no remediation, script, app or macOS profile with Global Secure Access (or GSA) in its name.</p>'}${ivNotes.map((n) => `<p class="mini gsa-warn-txt">${esc(n)}</p>`).join("")}<p class="mini muted">Matched by name. ENCA makes the Windows remediation and the macOS shell script (the fixes on the Devices link); the macOS profiles are read, never written. Made by ENCA T56 is read from the description ENCA writes.</p></section>`;
     const grpRows = m.groups.map((g) => `<tr${g.backing ? ' class="gsa-backing"' : ""}><td><b>${esc(g.name)}</b><div class="mini muted">${esc(g.id)}</div></td><td class="mini">${esc(g.why)}</td></tr>`).join("");
     const grpTable = `<section class="list-card gsa-sect"><h3>Groups Global Secure Access uses <span class="mini muted">· ${m.allUsers ? "the profile is on for all users" : `${m.groups.length}`}</span></h3>${m.groups.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Group</th><th>Why</th></tr></thead><tbody>${grpRows}</tbody></table></div><p class="mini muted">The same list is the <b>Used by GSA</b> scope of 👥 Groups (T12). <button class="btn sm" data-gsagroups>Open in Groups</button></p>` : '<p class="mini">No group yet — assign a pilot group to the profile, or a compliant-network policy that includes a group.</p>'}</section>`;
     const proofSect = u.proof ? `<section class="list-card gsa-sect"><h3>Sign-ins, last 7 days</h3><p class="mini">${u.proof.total} sign-ins read${u.proof.capped ? " (the first 5,000)" : ""} · ${u.proof.viaGsa} through Global Secure Access.</p><p class="mini muted">A sign-in a report-only policy would block is one that did not come through the client — a device without it, the client paused, or an IPv6 path around the tunnel (the client tunnels IPv4 only). Switch the policy on when this is near zero; this tool does not do that for you.</p></section>` : u.proofBusy ? `<section class="list-card gsa-sect"><p class="mini">Reading the sign-in log…</p></section>` : "";
     const later = `<p class="mini muted gsa-later">🌐 This tool covers the <b>Microsoft traffic profile</b>. Internet Access and Private Access come later; their profiles and assignments will join this board and the Used by GSA scope.</p>`;
-    return head + fix + board + polTable + grpTable + proofSect + later;
+    return head + fix + board + polTable + ivTable + grpTable + proofSect + later;
   }
 
   // ---- the Intune platform script (Windows) -------------------------------
@@ -434,7 +487,7 @@ const Gsa = (() => {
       locations: [{ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", id: "loc-cn", displayName: LOCATION_NAME }],
       scripts: [], apps: [], shellScripts: [], healthScripts: [],
       macProfiles: { sysext: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0", assigned: false }, proxy: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0", assigned: true }, settings: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0", assigned: true } },
-      groupNames: { "g-gsa-pilot": "GSA-SEC-U-M365Profile-Pilot" },
+      groupNames: { "g-gsa-pilot": "GSA-SEC-U-M365Profile-Pilot", "g-mac": "INT-SEC-D-GSA-MAC-M365" },
       ztna: [],
       sources: { ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
     };
@@ -443,6 +496,6 @@ const Gsa = (() => {
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32523, date: "2026-10-14", title: "Global Secure Access: the Intune card",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "A card with every Intune remediation, script, app and macOS profile for the Global Secure Access client: where it is in Intune, whether ENCA made it, and the groups it is assigned to and excluded from. Duplicates and a Windows client deployed two ways are flagged; a missing macOS profile is named." },
+    ],
+  },
+  {
     build: 32522, date: "2026-10-14", title: "Global Secure Access: every policy with the compliant network, on its own card",
     items: [
       { kind: "improved", tool: "Global Secure Access", text: "Policies that name the compliant network is now a full-width card of its own: every loaded policy that names it, with its state, whether the compliant network is excluded or included, the grant, who it covers and the Intune checks. The heading counts how many were found and how many are on, report-only and off." },

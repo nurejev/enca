@@ -187,3 +187,31 @@ test("32522: the policy card lists every policy that names the compliant network
   assert.match(Gsa.render(m2, {}), /gsa-st bad">off</);
   assert.match(Gsa.render(Gsa.model(Gsa.demo(), null), {}), /policies not loaded/);
 });
+
+test("32523: the Intune card lists every GSA remediation, script and macOS profile, where it is, who made it, whom it is assigned to; duplicates and two Windows routes flagged", () => {
+  const raw = Gsa.demo();
+  const g = (id) => ({ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: id } });
+  const mac = "MACOS - SH - Software Installation - D - Install Global Secure Access Client - R26.10 - v1.0";
+  raw.shellScripts = [{ id: "s1", displayName: mac, description: "… Created by ENCA T56.", assignments: [g("g-mac")] }, { id: "s2", displayName: mac, description: "Created by ENCA T56.", assignments: [] }, { id: "s3", displayName: "MACOS - SH - Other app", assignments: [] }];
+  raw.healthScripts = [{ id: "h1", displayName: "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", publisher: "ENCA", assignments: [g("g-win"), { target: { "@odata.type": "#microsoft.graph.exclusionGroupAssignmentTarget", groupId: "g-bg" } }] }];
+  raw.scripts = [{ id: "w1", displayName: "Win - PSH - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", assignments: [{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" } }] }];
+  raw.groupNames = Object.assign({}, raw.groupNames, { "g-mac": "INT-SEC-D-GSA-MAC-M365", "g-win": "INT-SEC-D-GSA-WIN-M365", "g-bg": "CAB-SEC-U-BreakGlass" });
+  const iv = Gsa.intune(raw);
+  assert.strictEqual(iv.rows.length, 7, "1 remediation, 1 platform script, 2 shell scripts, 3 profiles; the other app script is not GSA");
+  const rem = iv.rows.find((r) => r.id === "h1");
+  assert.strictEqual(rem.by, "ENCA T56");
+  assert.deepStrictEqual(rem.t, { inc: ["INT-SEC-D-GSA-WIN-M365"], exc: ["CAB-SEC-U-BreakGlass"] });
+  assert.match(rem.where, /Remediations$/);
+  assert.deepStrictEqual(iv.rows.find((r) => r.id === "w1").t.inc, ["All devices"]);
+  assert.ok(iv.rows.filter((r) => r.os === "macOS" && /Shell/.test(r.kind)).every((r) => r.dup));
+  assert.strictEqual(iv.rows.find((r) => r.id === "s2").assigned, false);
+  assert.ok(iv.winBoth);
+  assert.strictEqual(iv.rows.filter((r) => /Profile/.test(r.kind)).length, 3);
+  assert.deepStrictEqual(iv.missingProfiles, []);
+  const html = Gsa.render(Gsa.model(raw, []), {});
+  assert.match(html, /Intune policies and scripts for the client <span class="mini muted">· 7 found/);
+  assert.match(html, /duplicate/);
+  assert.match(html, /more than one kind of deployment/);
+  raw.sources = Object.assign({}, raw.sources, { macProfiles: "403 Forbidden" });
+  assert.match(Gsa.intune(raw).unread[0], /Profile: not read — 403/);
+});

@@ -24492,15 +24492,17 @@ This is a directory write. Nothing else changes.`)) return;
           }
         }
         await one("locations", () => Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc }));
-        await one("scripts", () => Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName", { scopes: sc }));
-        await one("shellScripts", () => Graph.ggetAll("/deviceManagement/deviceShellScripts?$select=id,displayName,fileName", { scopes: sc }));
+        // 32523: the GSA ones read with their assignments, for the Intune card
+        const withAsg = async (base, list) => { for (const s of list.filter((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`))) { try { s.assignments = (await Graph.gget(`${base}/${s.id}/assignments`, sc)).value || []; } catch { /* left unknown */ } } return list; };
+        await one("scripts", async () => withAsg("/deviceManagement/deviceManagementScripts", await Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName,description", { scopes: sc })));
+        await one("shellScripts", async () => withAsg("/deviceManagement/deviceShellScripts", await Graph.ggetAll("/deviceManagement/deviceShellScripts?$select=id,displayName,fileName,description", { scopes: sc })));
         await one("apps", () => Graph.ggetAll("/deviceAppManagement/mobileApps?$filter=" + encodeURIComponent("startswith(displayName,'Global Secure Access')") + "&$select=id,displayName", { scopes: sc }));
         // 32520: the Windows client as a remediation — matched by name, then
         // its assignments and its run summary (detected / remediated / failing)
         await one("healthScripts", async () => {
-          const hs = (await Graph.ggetAll("/deviceManagement/deviceHealthScripts?$select=id,displayName", { scopes: sc })).filter((h) => /global\s*secure\s*access/i.test(h.displayName || ""));
+          const hs = (await Graph.ggetAll("/deviceManagement/deviceHealthScripts?$select=id,displayName,description,publisher", { scopes: sc })).filter((h) => /global\s*secure\s*access/i.test(h.displayName || ""));
           for (const h of hs) {
-            try { h.assigned = ((await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/assignments`, sc)).value || []).length > 0; } catch { h.assigned = null; }
+            try { h.assignments = (await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/assignments`, sc)).value || []; h.assigned = h.assignments.length > 0; } catch { h.assigned = null; }
             try { h.runSummary = await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/runSummary`, sc); } catch { h.runSummary = null; }
           }
           return hs;
@@ -24509,7 +24511,7 @@ This is a directory write. Nothing else changes.`)) return;
         // client settings) — listed, matched by Gsa.macProfiles, then read with
         // their assignments; nothing here writes them
         await one("macProfiles", async () => {
-          const pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name", { scopes: sc })).filter((p) => /GSA|Global Secure Access/i.test(p.name || ""));
+          const pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name,description", { scopes: sc })).filter((p) => /GSA|Global Secure Access/i.test(p.name || ""));
           const cfgs = (await Graph.ggetAll("/deviceManagement/deviceConfigurations?$select=id,displayName", { scopes: sc })).filter((c) => /macOSCustom/.test(c["@odata.type"] || "") && /GSA|Global Secure Access/i.test(c.displayName || ""));
           for (const p of pols) { try { p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.assignments = []; } }
           for (const c of cfgs) { try { Object.assign(c, await Graph.gget(`/deviceManagement/deviceConfigurations/${c.id}?$expand=assignments`, sc)); } catch { c.assignments = c.assignments || []; } }
@@ -24517,7 +24519,8 @@ This is a directory write. Nothing else changes.`)) return;
         });
         // names of the groups the compliant-network policies include
         const cn = (raw.locations || []).find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
-        const ids = [...new Set(Gsa.cnPolicies(gsaPolicies(), cn && cn.id).flatMap((p) => p.includeGroups))].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+        const asgIds = [...(raw.scripts || []), ...(raw.shellScripts || []), ...(raw.healthScripts || []), ...((raw.macProfiles && raw.macProfiles.found) || [])].flatMap((x) => (x.assignments || []).map((a) => (a.target || {}).groupId));
+        const ids = [...new Set([...Gsa.cnPolicies(gsaPolicies(), cn && cn.id).flatMap((p) => p.includeGroups), ...asgIds])].filter((id) => /^[0-9a-f-]{36}$/i.test(id || ""));
         for (let i = 0; i < ids.length; i += 15) {
           try { (await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(ids.slice(i, i + 15).map((x) => `id eq '${x}'`).join(" or "))}&$select=id,displayName`, { scopes: sc })).forEach((g) => { raw.groupNames[g.id] = g.displayName; }); } catch { /* ids stay */ }
         }
