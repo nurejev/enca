@@ -3183,3 +3183,4 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-sect{padding:14px 16px;margin:0 0 14px}.gsa-sect h3{font-size:15px;margin:0 0 8px}.gsa-later{margin:6px 0 0}
 .gsa-warn-txt{color:var(--report)}
 .gsa-backing td{opacity:.75}.gsa-backing td:last-child{color:var(--report)}
+.gsa-optional{opacity:.75;font-weight:400}

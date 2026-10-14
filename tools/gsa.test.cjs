@@ -10,7 +10,8 @@ test("demo: the chain reads, the profile is partly on, the groups are the profil
   assert.strictEqual(m.links.length, 8);
   const by = Object.fromEntries(m.links.map((l) => [l.k, l]));
   assert.strictEqual(by.licence.st, "ok");
-  assert.strictEqual(by.tenant.st, "warn", "the ZTNA Policy Service Client is missing in the demo");
+  assert.strictEqual(by.tenant.st, "ok", "32521: a missing ZTNA Policy Service Client is information, not a warning");
+  assert.match(by.tenant.sub, /^Info:/);
   assert.strictEqual(by.tenant.fix2, "ztnasp");
   assert.strictEqual(by.profile.st, "warn", "one traffic policy is off");
   assert.strictEqual(by.profile.fix, "profile");

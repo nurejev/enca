@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32521, date: "2026-10-14", title: "Global Secure Access: the ZTNA client app is information, not a warning",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "A tenant without the ZTNA Policy Service Client app no longer shows Global Secure Access as partly ready. Microsoft does not require the app; the card now mentions it as information and keeps an optional button to add it, for when clients stay Partially Connected." },
+    ],
+  },
+  {
     build: 32520, date: "2026-10-14", title: "Global Secure Access: the Windows client as a remediation",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "Create Windows remediation: an Intune remediation that checks every day (or every hour) whether the Global Secure Access client is installed with the right settings, and installs it from Microsoft when it is not — x64 or ARM64, quietly, never restarting the device. It replaces the one-time Windows script." },
