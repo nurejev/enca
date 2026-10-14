@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32605, date: "2026-10-14", title: "Global Secure Access: Read the proof shows that it is reading",
+    items: [
+      { kind: "fixed", tool: "Global Secure Access", text: "Read the proof (7 days) now says Reading… with the number of sign-ins read so far, and the answer shows in the Proof step itself: how many sign-ins were read, how many came through Global Secure Access, and Show per policy. Before, the click seemed to do nothing — the only sign was a line at the very bottom of the page." },
+    ],
+  },
+  {
     build: 32604, date: "2026-10-14", title: "Egress & location impact: an export that fits the page",
     items: [
       { kind: "improved", tool: "Egress & location impact", text: "Export MD no longer turns into a table you scroll sideways. It opens with a narrow verdict table — policy, state, today, via the egress, impact — and then, per policy, who it targets, who is excluded, the target, the location rule and the control. It exports what the table shows: Changes only, All or On only, and says which." },

@@ -24471,7 +24471,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
     if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
     gsa.model = Gsa.model(gsa.raw, gsaPolicies());
-    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml) });
+    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml) });
     $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
   }
   async function readGsa() {
@@ -24539,7 +24539,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   async function readGsaProof() {
     if (gsa.proofBusy || !gsa.model) return;
-    gsa.proofBusy = true; renderGsa();
+    gsa.proofBusy = true; gsa.proofRead = 0; gsa.proofErr = null; gsa.sel = "proof"; renderGsa();
     try {
       const ids = gsa.model.policies.map((p) => p.id);
       if (isDemo) {
@@ -24550,11 +24550,13 @@ This is a directory write. Nothing else changes.`)) return;
         const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
         if (!await preConsent(sc)) throw new Error("AuditLog.Read.All was not granted");
         const since = new Date(Date.now() - 7 * 86400000).toISOString();
-        const rows = await Graph.ggetAll(`/auditLogs/signIns?$filter=createdDateTime ge ${since}&$top=999`, { cap: 5000, scopes: sc });
+        const rows = await Graph.ggetAll(`/auditLogs/signIns?$filter=createdDateTime ge ${since}&$top=999`, { cap: 5000, scopes: sc, onPage: (items) => { gsa.proofRead = (items || []).length; renderGsa(); } });
         gsa.proof = Gsa.proof(rows, ids);
         gsa.proof.capped = !!(rows.readState && rows.readState.capped);
       }
-    } catch (e) { toast(`Sign-in read failed: <span>${esc(gsaErr(e))}</span>`); }
+      const pr = gsa.proof;
+      toast(`Proof read: <span>${pr.total.toLocaleString()} sign-ins · ${pr.viaGsa.toLocaleString()} through GSA</span>`);
+    } catch (e) { gsa.proofErr = gsaErr(e); toast(`Sign-in read failed: <span>${esc(gsaErr(e))}</span>`); }
     finally { gsa.proofBusy = false; }
     renderGsa();
   }

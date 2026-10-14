@@ -297,7 +297,16 @@ const Gsa = (() => {
     if (l.k === "policy" && l.open) act(`<button class="btn sm" data-gsaopen="${esc(l.open)}">Open in Policies</button>`, "Open the policy", "state and exclusions are changed in 🗂 Policies — this tool leaves them as they are");
     if (l.k === "policy" && m.policies.length) act(`<button class="btn sm" data-gsajump="gsaPols">Show the list</button>`, `Every policy that names the compliant network (${m.policies.length})`, "the card below the workspaces");
     if (l.k === "client") act(`<button class="btn sm" data-gsajump="gsaIntune">Show the Intune card</button>`, "Every GSA remediation, script, app and macOS profile", "where it is in Intune and whom it is assigned to");
-    if (l.k === "proof") act(`<button class="btn sm" data-gsaproof>📈 Read the proof (7 days)</button>`, "Read the sign-in log", "sign-ins through GSA, and what the compliant-network policies would block");
+    // 0.6.3 (Mihai: nothing happens when selecting Read the proof): the read
+    // ran, but its only signs were a line at the foot of the page and the
+    // step's note at the end — the button now says it is reading and how far,
+    // and the answer lands here, in the step, with a way to the per-policy view
+    if (l.k === "proof") {
+      const pr = u.proof, n = u.proofRead || 0;
+      act(u.proofBusy ? `<button class="btn sm" data-gsaproof disabled aria-busy="true">⏳ Reading… ${n ? `${n.toLocaleString()} sign-ins` : "the sign-in log"}</button>` : `<button class="btn sm" data-gsaproof>${pr ? "↻ Read again (7 days)" : "📈 Read the proof (7 days)"}</button>`, "Read the sign-in log", u.proofBusy ? "the last 7 days, up to 5,000 sign-ins — a large tenant takes a minute" : pr ? `read ${pr.total.toLocaleString()} sign-ins${pr.capped ? " (the first 5,000)" : ""} · ${pr.viaGsa.toLocaleString()} through Global Secure Access` : "sign-ins through GSA, and what the compliant-network policies would block");
+      if (pr && m.policies.length) act(`<button class="btn sm" data-gsajump="gsaPols">Show per policy</button>`, "What each policy would block", "the 7 days column on the policy card");
+      if (u.proofErr && !u.proofBusy) act("", "The read stopped", u.proofErr);
+    }
     // split on " · " outside brackets — a run summary "(0 without issue · …)" stays whole
     const parts = []; { let depth = 0, cur = ""; const t = String(l.note || ""); for (let i = 0; i < t.length; i++) { const ch = t[i]; if (ch === "(") depth++; if (ch === ")") depth = Math.max(0, depth - 1); if (!depth && t.startsWith(" · ", i)) { parts.push(cur); cur = ""; i += 2; continue; } cur += ch; } parts.push(cur); }
     const read = parts.length > 2 || String(l.note || "").length > 90 ? `<ul class="gsa-read">${parts.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p>${esc(l.note)}</p>`;

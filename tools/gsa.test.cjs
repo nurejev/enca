@@ -266,3 +266,16 @@ test("32524/32525 devcf (read 14 Oct, every link live): the chain as the board s
   assert.strictEqual(Gsa.defaultSel(m), "policy");
   assert.ok(m.groups.some((g) => g.name === "GSA-SEC-U-M365-ALL-PILOT"));
 });
+
+test("0.6.3: Read the proof says it is reading, how far, and answers in the step", () => {
+  const m = () => Gsa.model(Gsa.demo(), [policy()]);
+  const busy = Gsa.render(m(), { sel: "proof", proofBusy: true, proofRead: 1998 });
+  assert.match(busy, /data-gsaproof disabled aria-busy="true">⏳ Reading… 1,998 sign-ins/);
+  const pr = Gsa.proof([{ userId: "u1", isThroughGlobalSecureAccess: true, appliedConditionalAccessPolicies: [{ id: "p1", result: "reportOnlySuccess" }] }, { userId: "u2", appliedConditionalAccessPolicies: [{ id: "p1", result: "reportOnlyFailure" }] }], ["p1"]);
+  const done = Gsa.render(m(), { sel: "proof", proof: pr });
+  assert.match(done, /↻ Read again \(7 days\)/);
+  assert.match(done, /read 2 sign-ins · 1 through Global Secure Access/);
+  assert.match(done, /data-gsajump="gsaPols">Show per policy/);
+  const err = Gsa.render(m(), { sel: "proof", proofErr: "AuditLog.Read.All was not granted" });
+  assert.match(err, /The read stopped[\s\S]*AuditLog\.Read\.All was not granted/);
+});
