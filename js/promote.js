@@ -175,6 +175,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 330,
+      ws: "platform",
+      title: "🧭 Workspace headers in the colours of the ENCA mark — 01 green + gold, 02 gold + green, 03 beacon green + pale",
+      tools: ["Workspaces"],
+      builds: [32610],
+      risk: "low",
+      what: "css/workspaces.css only: per-workspace --wc-brand (and for 02 --wc-brand-ink / --wc-brand-muted, dark ink on gold), the header's inset rule, the .wc-ws-num chip, the switcher swatches .wc-ws-sw-*, and the T12 workload badges .cgg-use.* — all from the logo palette (#12331f, #1e4729, #dfb32b, #2f5f1b, #eef5e6). The 32515 navy (#0d3a5c) and cyan (#5ec8f2) removed.",
+      why: "Mihai, 14 Oct: the navigation headers between the workspaces need fixing; they need to match something from the branding logo. Mockup board 8 (PIM-buddy adjustments canvas). Risk low: colours only.",
+      test: [
+        "Beta, demo tenant: ⌘⇧1 / ⌘⇧2 / ⌘⇧3 — the header is deep green with a gold rule, gold with dark lettering and a dark rule, beacon green with a pale rule; every header text and the All tools button readable on each.",
+        "Beta: the workspace switcher menu shows the same three swatches; Conditional Access groups shows the CA / PIM / GSA badges in the same colours.",
+        "Beta, dark theme: the headers keep the same colours and stay readable.",
+        "A self-hosted instance with its own branding colour: 01 follows the branding as before (the workspaces override only the three named colours).",
+      ],
+    },
+    {
       n: 329,
       ws: "pim",
       title: "📄 PIM documentation — the handover generated from the catalog, readable on the page, Markdown with the diagrams embedded (T58 0.1.0, R87)",

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32610, date: "2026-10-14", title: "Workspace headers in the colours of the ENCA mark",
+    items: [
+      { kind: "improved", tool: "Workspaces", text: "The three workspace headers now take their colours from the ENCA mark: 01 Conditional Access the shield's deep green with a gold rule, 02 PIM-buddy the gold ring with green lettering, 03 Entra Tools the beacon green with a pale rule. The navy and cyan of Workspace 03 are gone. The workspace switcher's swatches and the CA / PIM / GSA badges in Conditional Access groups follow the same colours." },
+    ],
+  },
+  {
     build: 32609, date: "2026-10-14", title: "PIM documentation: the handover, generated and readable in PIM-buddy",
     items: [
       { kind: "new", tool: "PIM documentation", text: "A new tool in Workspace 02 (T58): the CloudFellows PIM framework as it applies to this tenant — the profile, the customer's variant, the modules switched on and the regions file folded in — as twelve chapters you tick: the model, tiers and role settings, the groups per persona, approvers and break-glass, the activation guide for administrators, Intune RBAC, Exchange and Purview, Defender XDR and Global Secure Access, regions, restricted units, Conditional Access for PIM, and what is done outside the browser. Readable on the page with a contents list and the diagrams drawn inline, and downloadable as one Markdown file with a contents page and every diagram embedded. Built from the catalog, never typed, so it cannot drift behind a release." },
