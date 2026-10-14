@@ -3232,3 +3232,30 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-back{border-left:3px solid var(--on);background:color-mix(in srgb,var(--on) 9%,var(--surface));padding:7px 10px;border-radius:0 6px 6px 0;margin:0 0 8px;font-size:12.5px}
 .gsa-wbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:900px){.gsa-detail,.gsa-wgrid{grid-template-columns:1fr}.gsa-detail-act,.gsa-wgrid>div+div{border-left:0;border-top:1px solid var(--border)}}
+
+/* ---- 🛰 T57 Egress & location impact (32526) ---- */
+#screen-egress .eg-form{display:grid;grid-template-columns:2fr 1.2fr 1.2fr;gap:14px;padding:12px 14px}
+#screen-egress .eg-form textarea{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+#screen-egress .eg-form select{width:100%}
+#screen-egress .eg-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 12px}
+#screen-egress .eg-tile{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--surface)}
+#screen-egress .eg-tile b{display:block;font-size:24px;line-height:1.1}#screen-egress .eg-tile small{color:var(--muted);font-size:12px}
+#screen-egress .eg-tile.bad b{color:var(--off)}#screen-egress .eg-tile.warn b{color:var(--warn-fg)}
+#screen-egress .eg-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px;font-size:13px}
+#screen-egress .eg-node{border:1px solid var(--border);border-radius:10px;padding:6px 10px;background:var(--surface)}#screen-egress .eg-node small{color:var(--muted)}
+#screen-egress .eg-gap{width:22px}
+#screen-egress .eg-card{padding:12px 14px;margin:0 0 12px}
+#screen-egress .eg-tablehead{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+#screen-egress .eg-scroll{overflow-x:auto}
+#screen-egress .eg-table{width:100%;border-collapse:collapse;font-size:13px}
+#screen-egress .eg-table th,#screen-egress .eg-table td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+#screen-egress .eg-table th{color:var(--muted);font-size:12px;font-weight:600}
+#screen-egress .eg-imp{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+#screen-egress .eg-r{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
+#screen-egress .eg-o{background:var(--bad-bg2);border-color:var(--bad-bd);color:var(--off)}
+#screen-egress .eg-y{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn-fg)}
+#screen-egress .eg-i{background:var(--surface);border-color:var(--border);color:var(--ink)}
+#screen-egress .eg-g{background:var(--ok-bg2);color:var(--on)}
+#screen-egress .eg-bad{color:var(--off)}#screen-egress .eg-warnt{color:var(--warn-fg)}#screen-egress .eg-okt{color:var(--on)}
+#screen-egress .eg-finds{margin:8px 0 0;padding-left:18px}#screen-egress .eg-finds li{margin:5px 0}
+@media (max-width:760px){#screen-egress .eg-form{grid-template-columns:1fr}}

@@ -43,6 +43,7 @@
     toolPromote: 'What is on beta and not yet in production, one order per workspace. Beta site, cloudfellows.dev only.',
     toolPermissions: 'View session permissions, consent and revocation guidance.',
     toolHelp: 'Find guidance, permissions and release information.',
+    toolEgress: 'What a different public IP — a cloud proxy such as Netskope, a new line, a VPN — does to every policy with a location condition: today against via the egress, the country looked up in the sign-in log.',
     toolGsa: 'Global Secure Access, the Microsoft traffic profile: switched on, assigned, signalling, the compliant network, the client on devices — every link a compliant-network Conditional Access policy needs, and the fixes that live in Entra and Intune.',
   };
   // ---- 32407: the two workspaces ----------------------------------------
@@ -81,13 +82,20 @@
   // overview (Mihai, 14 Oct: "workplace 3 opens with the apps overview"), and
   // T12 is its first tool under the name Groups, opened on All groups. T56 🌐
   // Global Secure Access lives only here.
-  const ENTRA_ONLY = new Set(['toolGsa']);
+  // 32526 (Mihai, 14 Oct: all temporary tools may be moved to Workspace 03
+  // — that is T33 and T34): the dated tools live here only, with T57.
+  const ENTRA_ONLY = new Set(['toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
   const ENTRA_ROSTER = [
     { group: '🧱 Directory objects', tools: [
       { id: 'toolCaGroups', name: 'Groups', blurb: 'Every security group in the tenant with what uses it — Conditional Access policies, PIM-buddy, Global Secure Access. Opens on All groups; the scope narrows it to one workload.' },
     ] },
     { group: '🌐 Global Secure Access', tools: [
       { id: 'toolGsa', blurb: blurbs.toolGsa },
+    ] },
+    { group: '⏳ Temporary tools', tools: [
+      { id: 'toolEgress', blurb: blurbs.toolEgress },
+      { id: 'toolSmsVoice', blurb: blurbs.toolSmsVoice },
+      { id: 'toolMemberOf', blurb: blurbs.toolMemberOf },
     ] },
   ];
   const ROSTERS = { pim: PIM_ROSTER, entra: ENTRA_ROSTER };
@@ -103,8 +111,8 @@
       // holds it, what is wrong with it, then what to protect and what changed.
       shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolPimReport','📋','Report'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Admin units'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
     entra: { num: '03', name: 'Entra Tools', title: 'Entra Tools overview', context: 'Entra Tools / Workspace 03',
-      lead: 'The directory objects every workload leans on — groups first, with what uses each one: Conditional Access, PIM-buddy, Global Secure Access. 🌐 Global Secure Access starts with the Microsoft traffic profile; Internet Access and Private Access come later.',
-      shortcuts: [['toolCaGroups','👥','Groups'],['toolGsa','🌐','GSA']] },
+      lead: 'The directory objects every workload leans on — groups first, with what uses each one: Conditional Access, PIM-buddy, Global Secure Access. 🌐 Global Secure Access starts with the Microsoft traffic profile; Internet Access and Private Access come later. The ⏳ temporary tools — dated retirements and decisions — live here too.',
+      shortcuts: [['toolCaGroups','👥','Groups'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
   };
   const WS_IDS = Object.keys(WORKSPACES);
   // Which workspace a tool belongs to when it is opened from the wrong side:

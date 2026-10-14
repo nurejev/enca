@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32526, date: "2026-10-14", title: "Egress & location impact, and the temporary tools in Workspace 03",
+    items: [
+      { kind: "new", tool: "Egress & location impact", text: "A temporary tool in Workspace 03 for the question: what happens to Conditional Access when sign-ins leave through a different public IP — a cloud proxy such as Netskope, a new office line, a VPN. Paste the egress IPs; every policy with a location condition is judged today, from the trusted office ranges, and via the egress, side by side: who would be blocked (everyone and break-glass are called out as lockouts), who gets an extra prompt or a session control, which policy loses its protection. The country is looked up in the sign-in log — the country Entra itself recorded for that IP — or picked by hand. If trusted shows what a new trusted named location would fix and what it would not. Findings and a Markdown export for the change record. Reads only." },
+      { kind: "improved", tool: "Workspaces", text: "SMS & voice retirement and memberOf retirement moved to Workspace 03 · Entra Tools, under Temporary tools, with Egress & location impact. They are no longer listed in 01; opening one from 01 switches to 03." },
+    ],
+  },
+  {
     build: 32525, date: "2026-10-14", title: "Global Secure Access: no false detect-only warning",
     items: [
       { kind: "fixed", tool: "Global Secure Access", text: "Build 32524 called a Windows remediation detect only when Graph reported remediation off on its assignment. Intune shows remediation on for the same assignment, so that report is not reliable: the warning, the detect only tag and Switch remediation on are gone, and an existing assignment is never rewritten." },

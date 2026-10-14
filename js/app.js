@@ -184,7 +184,7 @@
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimreport", "screen-pimdeploy", "screen-pimdesigner",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-deploydash", "screen-gsa", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
-    "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-promote", "screen-permissions", "screen-help"]);
+    "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-egress", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-promote", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
   // Inline variant of the shared fetch-progress visual: a status line that
@@ -2933,6 +2933,7 @@
   const TOOL_TABS = [
     ["toolSmsVoice", "📵 SMS & voice retirement"],
     ["toolMemberOf", "🧷 memberOf retirement"],
+    ["toolEgress", "🛰 Egress & location impact"],
     ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Checks"],
@@ -27600,6 +27601,146 @@ This is a directory write. Nothing else changes.`)) return;
 
   function openMemberOf() { crumb("🧷 memberOf retirement"); show("screen-memberof"); renderMemberOf(); }
   $("toolMemberOf").addEventListener("click", openMemberOf);
+
+  // ======================================================================
+  // 🛰 EGRESS & LOCATION IMPACT — T57, Workspace 03 · Entra Tools, a
+  // TEMPORARY tool (beta 32525, P-2716 Netskope and trusted locations).
+  // js/egress.js judges and renders; this block reads the policies, the
+  // named locations and the group names, and looks the countries up in the
+  // sign-in log — the country ENTRA recorded for that IP, which is the one
+  // Conditional Access uses (Mihai, on the mockup: "country should be
+  // lookup"). Reads only.
+  // ======================================================================
+  let eg = { text: "", country: "", countrySrc: "", officeCountry: "", officeSrc: "", mode: "asis", filter: "changes", raw: null, model: null, busy: false, look: false, err: null, session: "" };
+  const egSession = () => `${tenantId}:${isDemo}`;
+  const egErr = (e) => String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "");
+  const egCountryOpts = (sel) => `<option value="">— unknown —</option>${ISO3166.LIST.map(([c, n]) => `<option value="${c}"${c === sel ? " selected" : ""}>${c} — ${esc(n)}</option>`).join("")}`;
+  function openEgress() {
+    crumb("🛰 Egress & location impact");
+    show("screen-egress");
+    if (eg.session !== egSession()) {
+      eg = Object.assign(eg, { raw: null, model: null, err: null, country: "", countrySrc: "", officeCountry: "", officeSrc: "", session: egSession() });
+      if (isDemo) eg.text = Egress.demo().egress;
+    }
+    $("egHead").innerHTML = toolHead("toolEgress") + '<p class="mini" style="margin:6px 0 0">What happens to Conditional Access when sign-ins leave through a different public IP — a cloud proxy (Netskope, Zscaler), a new office line, a VPN. Entra evaluates the IP that reaches it (a proxy’s X-Forwarded-For is ignored) and looks the country up from that IP. Paste the egress IPs: every policy with a location condition is judged <b>today</b> (from the trusted office ranges) and <b>via the egress</b>, side by side. The country is looked up in the sign-in log — the country Entra itself recorded for that IP. <b>Nothing is written.</b></p>';
+    renderEgress();
+    if (!eg.raw && !eg.busy) readEgress();
+  }
+  function egInput() {
+    const p = Egress.parse(eg.text);
+    return { parsed: p, input: { policies: eg.raw ? eg.raw.policies : [], locations: eg.raw ? eg.raw.locations : [], names: eg.raw ? eg.raw.names : {}, egress: p.entries, country: eg.country, officeCountry: eg.officeCountry, mode: eg.mode } };
+  }
+  function renderEgress() {
+    if (!$("screen-egress").classList.contains("active")) return;
+    const { parsed, input } = egInput();
+    const src = (s) => (s ? `<span class="mini muted">${esc(s)}</span>` : "");
+    $("egForm").innerHTML = `<div class="eg-form">
+      <div><label class="mini muted" for="egText">Egress IPs or ranges — one per line, IPv4 or IPv6, CIDR allowed</label>
+        <textarea id="egText" class="txt" rows="3" spellcheck="false" placeholder="163.116.128.80&#10;163.116.128.81/32">${esc(eg.text)}</textarea>
+        <div class="mini ${parsed.bad.length ? "eg-bad" : "muted"}">${parsed.entries.length} entr${parsed.entries.length === 1 ? "y" : "ies"}${parsed.bad.length ? ` · not an IP or range: ${esc(parsed.bad.slice(0, 4).join(", "))}${parsed.bad.length > 4 ? " …" : ""}` : ""}${eg.raw ? ` · ${eg.raw.locations.length} named location${eg.raw.locations.length === 1 ? "" : "s"} read` : ""}</div></div>
+      <div><label class="mini muted" for="egCountry">Country of the egress</label>
+        <select id="egCountry" class="txt">${egCountryOpts(eg.country)}</select>
+        <div>${src(eg.countrySrc)}</div>
+        <label class="mini muted" for="egOffice" style="margin-top:6px;display:block">Country of the office (today)</label>
+        <select id="egOffice" class="txt">${egCountryOpts(eg.officeCountry)}</select>
+        <div>${src(eg.officeSrc)}</div>
+        <button class="btn sm" id="egLookup" ${eg.look || !eg.raw ? "disabled" : ""} title="Read the sign-in log (30 days, AuditLog.Read.All) for the country Entra recorded for these IPs and for the office range">${eg.look ? "Looking up…" : "⌕ Look up in the sign-in log"}</button></div>
+      <div><span class="mini muted">Compare with</span>
+        <div class="seg" style="margin:4px 0"><button type="button" data-egmode="asis" class="${eg.mode === "asis" ? "active" : ""}">As it is</button><button type="button" data-egmode="trusted" class="${eg.mode === "trusted" ? "active" : ""}">If trusted (option A)</button></div>
+        <div class="mini muted">“If trusted” judges the egress as if it were in a NEW named location marked trusted.</div></div>
+    </div>`;
+    $("egRead").textContent = eg.raw ? `Read ${new Date(eg.raw.readAt).toLocaleString()}${eg.raw.demo ? " · demo (devcf-shaped)" : ""}${eg.raw.fromSession ? " · policies from this session" : ""}` : "";
+    const body = $("egBody");
+    if (eg.busy) { body.innerHTML = '<p class="mini muted">Reading the policies, the named locations and the group names…</p>'; return; }
+    if (eg.err) { body.innerHTML = `<div class="scope-note">Could not read: ${esc(eg.err)}</div>`; return; }
+    if (!eg.raw) { body.innerHTML = ""; return; }
+    eg.model = Egress.model(input);
+    body.innerHTML = Egress.render(eg.model, { filter: eg.filter });
+  }
+  async function readEgress() {
+    if (eg.busy) return;
+    eg.busy = true; eg.err = null; renderEgress();
+    try {
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 200));
+        const d = Egress.demo();
+        eg.raw = { policies: d.policies, locations: d.locations, names: d.names, readAt: Date.now(), demo: true };
+      } else {
+        const [locs, pol] = await Promise.all([
+          Graph.ggetAll("/identity/conditionalAccess/namedLocations"),
+          policies && policies.length ? Promise.resolve(null) : Graph.ggetAll("/identity/conditionalAccess/policies"),
+        ]);
+        const list = pol ? pol.map((r) => ({ raw: r })) : policies.map((p) => ({ raw: p.raw }));
+        const names = Object.assign({}, (policyResolve && policyResolve.names) || {});
+        // the group and role ids of the location policies that the session has no name for
+        const want = [...new Set(list.filter((p) => p.raw.conditions && p.raw.conditions.locations).flatMap((p) => { const u = p.raw.conditions.users || {}; return [...(u.includeGroups || []), ...(u.excludeGroups || []), ...(u.includeUsers || []), ...(u.excludeUsers || [])]; }))].filter((id) => /^[0-9a-f-]{36}$/i.test(id) && !names[id]);
+        for (let i = 0; i < want.length; i += 900) {
+          try {
+            const res = await Graph.gpost("/v1.0/directoryObjects/getByIds", { ids: want.slice(i, i + 900), types: ["group", "user"] });
+            ((res && res.value) || []).forEach((o) => { names[o.id] = o.displayName || o.userPrincipalName || o.id; });
+          } catch (e) { console.warn("egress names:", e); }
+        }
+        eg.raw = { policies: list, locations: locs, names, readAt: Date.now(), fromSession: !pol };
+      }
+    } catch (e) { eg.err = egErr(e); }
+    finally { eg.busy = false; }
+    renderEgress();
+  }
+  // The country Entra recorded for an IP: interactive sign-ins first, then non-interactive.
+  async function egCountryOf(ip, sc) {
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const f = `ipAddress eq '${ip}' and createdDateTime ge ${since}`;
+    let rows = await Graph.ggetAll(`/v1.0/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$top=50`, { cap: 50, scopes: sc });
+    let kind = "interactive";
+    if (!rows.length) { rows = await Graph.ggetAll(`/beta/auditLogs/signIns?$filter=${encodeURIComponent(`${f} and signInEventTypes/any(t:t eq 'nonInteractiveUser')`)}&$top=50`, { cap: 50, scopes: sc }); kind = "non-interactive"; }
+    const c = Egress.country(rows);
+    return c ? Object.assign(c, { kind }) : null;
+  }
+  async function egLookup() {
+    if (eg.look || !eg.raw) return;
+    const hosts = Egress.parse(eg.text).entries.filter(Egress.isHost).slice(0, 5);
+    const office = (eg.raw.locations || []).filter((l) => l.isTrusted).flatMap((l) => (l.ipRanges || []).map((r) => Egress.cidr(r.cidrAddress))).filter((c) => c && Egress.isHost(c)).slice(0, 2);
+    if (!hosts.length && !office.length) { toast("Nothing to look up — a single address (not a range) is needed for the egress or the office"); return; }
+    eg.look = true; renderEgress();
+    const say = (c, ip) => (c ? `${c.country} — ${c.seen} ${c.kind} sign-in${c.seen === 1 ? "" : "s"} from ${ip} in 30 days${c.others && c.others.length ? ` (also ${c.others.join(", ")})` : ""}` : `no sign-in from ${ip} in 30 days — pick the country`);
+    try {
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 200));
+        const d = Egress.demo().signIns;
+        const one = (ip) => { const c = Egress.country(d[ip] || []); return c ? Object.assign(c, { kind: "interactive" }) : null; };
+        if (hosts[0]) { const c = one(Egress.hostText(hosts[0])); if (c) eg.country = c.country; eg.countrySrc = say(c, Egress.hostText(hosts[0])); }
+        if (office[0]) { const c = one(Egress.hostText(office[0])); if (c) eg.officeCountry = c.country; eg.officeSrc = say(c, Egress.hostText(office[0])); }
+      } else {
+        const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
+        if (!await preConsent(sc)) throw new Error("AuditLog.Read.All was not granted");
+        for (const h of hosts) { const ip = Egress.hostText(h), c = await egCountryOf(ip, sc); eg.countrySrc = say(c, ip); if (c) { eg.country = c.country; break; } }
+        for (const h of office) { const ip = Egress.hostText(h), c = await egCountryOf(ip, sc); eg.officeSrc = say(c, ip); if (c) { eg.officeCountry = c.country; break; } }
+      }
+    } catch (e) { toast(`Sign-in lookup failed: <span>${esc(egErr(e))}</span>`); }
+    finally { eg.look = false; }
+    renderEgress();
+  }
+  $("toolEgress").addEventListener("click", openEgress);
+  $("egRefresh").addEventListener("click", () => { eg.raw = null; readEgress(); });
+  $("egMd").addEventListener("click", () => {
+    if (!eg.model) { toast("Nothing to export yet"); return; }
+    const md = Egress.markdown(eg.model, { tenant: (signinContext && signinContext.tenantName) || tenantId || (isDemo ? "demo" : ""), at: new Date().toISOString(), countrySource: eg.countrySrc });
+    downloadText("egress-location-impact", "md", "text/markdown", md);
+  });
+  $("screen-egress").addEventListener("input", (e) => {
+    if (e.target.id === "egText") { eg.text = e.target.value; clearTimeout(eg.t); eg.t = setTimeout(() => { const pos = e.target.selectionStart; renderEgress(); const ta = $("egText"); if (ta) { ta.focus(); ta.setSelectionRange(pos, pos); } }, 500); }
+  });
+  $("screen-egress").addEventListener("change", (e) => {
+    if (e.target.id === "egCountry") { eg.country = e.target.value; eg.countrySrc = eg.country ? "picked by hand" : ""; renderEgress(); }
+    if (e.target.id === "egOffice") { eg.officeCountry = e.target.value; eg.officeSrc = eg.officeCountry ? "picked by hand" : ""; renderEgress(); }
+  });
+  $("screen-egress").addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("#egLookup")) { egLookup(); return; }
+    const md = t.closest("[data-egmode]"); if (md) { eg.mode = md.dataset.egmode; renderEgress(); return; }
+    const f = t.closest("[data-egfilter]"); if (f) { eg.filter = f.dataset.egfilter; renderEgress(); return; }
+    const op = t.closest("[data-egpol]"); if (op) { e.preventDefault(); const p = (policies || []).find((x) => x.id === op.dataset.egpol); if (p) showDetail(p); else toast("That policy is not in the loaded list — open 🗂 Policies first"); }
+  });
   $("moRun").addEventListener("click", moRun);
   $("moBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-morun]")) { moRun(); return; }

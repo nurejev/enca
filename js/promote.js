@@ -159,9 +159,10 @@ const PROMOTE = {
     // its Groups tool is T12, which stays 01's file set.
     entra: {
       num: "03", label: "Entra Tools",
-      owns: ["js/gsa.js", "tools/gsa.test.cjs"],
+      owns: ["js/gsa.js", "tools/gsa.test.cjs", "js/egress.js", "tools/egress.test.cjs"],
       mainChecks: [
         "grep -nE 'GsaTool|toolGsa|screen-gsa' js/*.js index.html  (expect nothing)",
+        "grep -nE 'toolEgress|screen-egress|js/egress' js/*.js index.html  (expect nothing)",
         "grep -n 'src=\"js/gsa' index.html  (expect nothing)",
         "whole-page boot on main: no 03 in the workspace chip, no console errors",
       ],
@@ -173,6 +174,27 @@ const PROMOTE = {
   },
 
   items: [
+    {
+      n: 325,
+      ws: "entra",
+      requires: [323],
+      title: "🛰 T57 Egress & location impact 0.1 (temporary, P-2716), and ⏳ T33 / T34 moved to Workspace 03",
+      tools: ["Egress & location impact", "SMS & voice retirement", "memberOf retirement", "Workspaces"],
+      builds: [32526],
+      risk: "low",
+      what: "js/egress.js (pure, tested): parse (IPv4/IPv6/CIDR), placement in the named locations, locApplies per policy for TODAY (inside every trusted IP location, office country) and VIA THE EGRESS, impact tones, findings, render, markdown, demo (devcf-shaped). app.js: openEgress / readEgress (named locations, the session policies or a read of them, group names by getByIds) / egLookup (sign-in log ipAddress eq, 30 days, interactive then non-interactive beta; AuditLog.Read.All via preConsent) / Export MD; TOOL_TABS and HISTORY_SCREENS. index.html: the tile in Temporary tools, screen-egress, the Help section, the script tag. css/app.css: #screen-egress. js/workspaces.js: ENTRA_ONLY gains toolSmsVoice, toolMemberOf, toolEgress; ENTRA_ROSTER a ⏳ Temporary tools group; 03 shortcut Egress. js/flat-icons.js: toolEgress globe. Reads only.",
+      why: "Mihai, 14 Oct, on P-2716 Netskope and trusted locations (checked by hand against devcf): I will need a tool in ENCA to verify this against that tenant, it can be a temporary tool; all temporary tools may be moved to Workspace 03 — T33 and T34. On the mockup: build as mockup, but country should be lookup; T33/T34 in 03 only. Graduates when the egress verdicts match a real Netskope sign-in on devcf and the lookup returns the country Entra recorded.",
+      test: [
+        "cloudfellows.dev: 03 · Entra Tools shows ⏳ Temporary tools with Egress & location impact, SMS & voice retirement and memberOf retirement; 01's library no longer lists the two retirement tools; opening SMS & voice from the command palette in 01 switches to 03.",
+        "cloudfellows.dev: open 🛰 Egress, paste a Netskope egress IP. The table lists the 15 location policies (All); with the country DE: CA001 everyone blocked, CA1102 break-glass blocked, CA600 / CA1005 group blocked, CA901 workload identities blocked, P002 / P004 session change, CA104 / CA210 / CA1008 / CA303 MFA to register, P003 targets none, CA101 / CA200 / CA503 no dependency — the same as the P-2716 write-up.",
+        "cloudfellows.dev: ⌕ Look up in the sign-in log with an IP that signed in during the last 30 days — the country matches Location on that sign-in in Entra → Sign-in logs; with an IP nobody used it says no sign-in and the country stays as picked.",
+        "cloudfellows.dev: If trusted (option A) — CA1102 / CA600 / CA1005 turn to no change; P002 / P004 stay session change, and the finding names HeadQuarters and Department Heerhugowaard as the locations to add the egress to.",
+        "cloudfellows.dev: paste 85.145.244.194 (the HQ range) — every row reads no change and the finding says the egress is already inside HeadQuarters (trusted).",
+        "Export MD — the file holds the egress, the countries and their source, every row and the findings, with no HTML tags.",
+        "Local: node --test tools/egress.test.cjs (11) and the suite pass; plain-text check clean; jsdom boot with ?demo=1: 03 → Egress shows the devcf-shaped demo; Look up fills DE and NL.",
+      ],
+      files: ["js/egress.js", "tools/egress.test.cjs", "js/app.js", "index.html", "css/app.css", "js/workspaces.js", "js/flat-icons.js", "js/version.js", "js/changelog.js", "js/promote.js"],
+    },
     {
       n: 324,
       ws: "entra",
