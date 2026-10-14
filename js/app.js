@@ -24642,9 +24642,21 @@ This is a directory write. Nothing else changes.`)) return;
         const path = win ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceShellScripts";
         if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName}`);
         else {
-          const s = await Graph.gpost(path, body, sc); say(`${body.displayName} created`, true);
-          await Graph.gpost(`${path}/${s.id}/assign`, { deviceManagementScriptAssignments: [{ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id } }] }, sc);
-          say(`assigned to ${g.displayName}`, true);
+          // 32519: idempotent — a script of this name already in Intune is
+          // reused (and only assigned), never made a second time
+          const same = (await Graph.ggetAll(`${path}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          if (same.length > 1) say(`${same.length} scripts are called ${body.displayName} — one is used; delete the others in Intune → Scripts`, false);
+          const s = same.length ? same[0] : await Graph.gpost(path, body, sc);
+          say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          // /assign REPLACES a script's assignments, so a reused script keeps
+          // the ones it has and gets this group added — or nothing, if it is there
+          const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => x.target).filter(Boolean) : [];
+          if (had.some((t) => t.groupId === g.id)) say(`already assigned to ${g.displayName}`, true);
+          else {
+            const targets = [...had, { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }];
+            await Graph.gpost(`${path}/${s.id}/assign`, { deviceManagementScriptAssignments: targets.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+            say(`assigned to ${g.displayName}`, true);
+          }
         }
       }
       log.done = true;

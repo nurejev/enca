@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32519, date: "2026-10-14", title: "Global Secure Access: a successful assign no longer reads as a failure",
+    items: [
+      { kind: "fixed", tool: "Global Secure Access", text: "Creating the macOS or Windows script said Unexpected end of JSON input although the script was created and assigned — Intune answers an assignment with an empty reply. It now reads as done, and pressing Apply again reuses the script of that name instead of creating a second one; its existing assignments are kept." },
+    ],
+  },
+  {
     build: 32518, date: "2026-10-14", title: "Global Secure Access: lessons from a lab deployment",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "The tenant link checks that the ZTNA Policy Service Client service principal exists — without it the client can stay Partially Connected — and offers to create it." },
