@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32612, date: "2026-10-14", title: "User or Group analyzer: the PIM-SG groups in scope, and one click in the PIM lens",
+    items: [
+      { kind: "improved", tool: "User or Group analyzer", text: "Groups in scope has two new choices: only the PIM-SG groups of this tenant's design, or of every design — the same lists PIM groups (T12) shows. Opened from Workspace 02 the sweep starts on them; a PIM-SG group the tenant does not have yet is counted and pointed at Deploy rather than swept." },
+      { kind: "fixed", tool: "User or Group analyzer", text: "PIM lens, Who holds what: after the read the lens showed an empty search box and nothing else until a name was typed. It now lists every PIM-SG group that holds a role in the tenant; one click shows that group's roles, scope and end dates." },
+    ],
+  },
+  {
     build: 32611, date: "2026-10-14", title: "PIM groups per baseline design: Small, Large one region, Multi-region",
     items: [
       { kind: "improved", tool: "Conditional Access groups", text: "In the Used by PIM-buddy scope a Design picker sits beside Scope: Small business, Large one region, Large multi-region, or every design, each with its group count. It opens on the tenant's own profile from PIM baseline. The PIM-SG groups of all three designs are looked up in one read, so switching design is instant; the counts, the coverage figure and the chips follow the design, and the header says how many PIM-SG groups in the tenant belong to another design only. Every row carries S, L and M badges for the designs that name it." },

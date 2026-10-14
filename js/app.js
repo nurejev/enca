@@ -20901,6 +20901,7 @@ This is a directory write. Nothing else changes.`)) return;
   // away — park it here and offer the way back, rather than making the person
   // pay for the same scan twice.
   let guStash = null;
+  let guWsLast = null;
 
   function openGroupUse() {
     crumb("🔗 User or Group analyzer");
@@ -20909,6 +20910,9 @@ This is a directory write. Nothing else changes.`)) return;
       <p style="margin-bottom:6px">A group is a shared handle: one admin scopes a Conditional Access policy to it, another targets an Intune profile at it, a third grants it a role on a subscription. Paste a <b>group or user</b> and see every place it is referenced — or sweep the tenant and find the groups <b>nothing</b> references.</p>
       <p class="mini muted" style="margin:0">Read-only. Hits inherited from a <b>parent group</b> are marked as such — anything targeting the parent reaches these members too. After Jasper Baes' <i>Microsoft Cloud Group Analyzer</i>.</p>`;
 
+    // 32612: opened from 02 PIM-buddy the sweep starts on the PIM-SG groups,
+    // as T12 does; from 01 or 03 it keeps what was chosen
+    try { const sel = $("guLimit"); const pimOk = typeof PIM_BASELINE !== "undefined"; [...sel.querySelectorAll('option[value^="pim"]')].forEach((o) => { o.hidden = !pimOk; o.disabled = !pimOk; }); const ws = cgWs(); if (pimOk && ws === "pim" && guWsLast !== "pim") sel.value = "pim"; else if (ws !== "pim" && guWsLast === "pim" && sel.value.startsWith("pim")) sel.value = "ca"; guWsLast = ws; } catch { /* keep the choice */ }
     if (isDemo) {
       $("guBody").innerHTML = `<div class="list-card"><p class="mini" style="margin:0">User or Group analyzer reads live Entra, Intune, Microsoft 365 and Azure configuration, so there is nothing meaningful to show against the demo policy set. Sign in to a tenant to use it.</p></div>`;
       $("guRun").disabled = true;
@@ -21113,6 +21117,20 @@ This is a directory write. Nothing else changes.`)) return;
   // policy still names it, but the group is gone, so that assignment targets
   // nobody. Those are kept and flagged rather than dropped — a policy quietly
   // scoped to nothing is worth more attention than one scoped to a live group.
+  // 32612: groups by exact display name, fifteen to a $filter
+  async function guNamedGroups(names, st) {
+    const out = [], seen = new Set();
+    for (let i = 0; i < names.length; i += 15) {
+      const part = names.slice(i, i + 15);
+      st && st(`Looking up PIM-SG groups… ${i}/${names.length}`);
+      const flt = part.map((n) => `displayName eq '${String(n).replace(/'/g, "''")}'`).join(" or ");
+      try {
+        const gs = await Graph.ggetAll(`/groups?$filter=${encodeURIComponent(flt)}&$select=id,displayName&$top=999`);
+        gs.forEach((g) => { if (!seen.has(g.id)) { seen.add(g.id); out.push(g); } });
+      } catch (e) { console.warn("T19 PIM-SG lookup:", e.message || e); }
+    }
+    return out;
+  }
   async function guCaScopedGroups(st) {
     const refs = new Map();   // lower id -> Set of policy names
     for (const p of policies) {
@@ -21149,7 +21167,18 @@ This is a directory write. Nothing else changes.`)) return;
     const filter = guNameFilter($("guMatchMode").value, $("guMatchText").value);
     const scope = $("guLimit").value;
     let groups, scopeLabel;
-    if (scope === "ca") {
+    if (scope === "pim" || scope === "pimall") {
+      // 32612: the PIM-SG groups of PIM-buddy, as T12 lists them — this
+      // tenant's design, or every design; a name the tenant does not have is
+      // counted, never swept
+      const names = scope === "pim" ? cgPimNames() : cgPimAllNames();
+      groups = await guNamedGroups(names, st);
+      if (filter.keep) groups = groups.filter((g) => filter.keep(g.displayName || ""));
+      const absent = names.length - groups.length;
+      scopeLabel = [scope === "pim" ? `the PIM-SG groups of ${(PIM_BASELINE.profiles[pmbProfileId] || {}).label || "this tenant's design"}` : "the PIM-SG groups of every design", filter.label].filter(Boolean).join(" and ");
+      if (absent > 0) toast(`${absent} PIM-SG group${absent === 1 ? " is" : "s are"} not in this tenant <span>create them with 🚀 Deploy</span>`);
+      if (!groups.length) { toast("None of the PIM-SG groups is in this tenant yet"); return; }
+    } else if (scope === "ca") {
       groups = await guCaScopedGroups(st);
       if (filter.keep) groups = groups.filter((g) => filter.keep(g.displayName || ""));
       scopeLabel = [`used by Conditional Access`, filter.label].filter(Boolean).join(" and ");
@@ -24155,7 +24184,11 @@ This is a directory write. Nothing else changes.`)) return;
     }
     if (kind === "whois") {
       if (!prr.model) return plxReadBtn("who holds what");
-      return `<div class="pmb-upload-row"><input type="search" data-lenswho value="${esc(plx.whoQ)}" placeholder="A person or group — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px"></div><div data-lenswhoout>${PimLens.renderWhois(PimLens.whois({ roles: prr.model, cat: pmbCat(), caPolicies }, plx.whoQ))}</div>`;
+      // 32612: the PIM-SG groups that hold a role here, one click each — the
+      // lens used to wait for a typed name and showed nothing until then
+      const held = [...new Set((prr.model.rows || []).filter((r) => r.type === "Group" && /^PIM-SG-/i.test(r.principal || "")).map((r) => r.principal))].sort();
+      const picks = held.length ? `<div class="mini" style="margin:6px 0 2px">PIM-SG groups holding a role here — pick one:</div><div class="chip-filter pmb-lens-picks">${held.map((n) => `<button class="fchip${plx.whoQ.toLowerCase() === n.toLowerCase() ? " active" : ""}" data-lenswhopick="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : "";
+      return `<div class="pmb-upload-row"><input type="search" data-lenswho value="${esc(plx.whoQ)}" placeholder="A person or group — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px"></div>${picks}<div data-lenswhoout>${PimLens.renderWhois(PimLens.whois({ roles: prr.model, cat: pmbCat(), caPolicies }, plx.whoQ))}</div>`;
     }
     return "";
   }
@@ -24203,7 +24236,8 @@ This is a directory write. Nothing else changes.`)) return;
       if (kind === "acts") plx.acts = null;
       if (kind) plxRead(kind); return;
     }
-    const f = e.target.closest("[data-lensaudit]"); if (f) { plx.auditF = f.dataset.lensaudit; pimLensPaint(shownScreen); }
+    const f = e.target.closest("[data-lensaudit]"); if (f) { plx.auditF = f.dataset.lensaudit; pimLensPaint(shownScreen); return; }
+    const w = e.target.closest("[data-lenswhopick]"); if (w) { plx.whoQ = w.dataset.lenswhopick; pimLensPaint(shownScreen); }
   }
   let plxWhoTimer = null;
   function plxInput(e) {

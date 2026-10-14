@@ -175,6 +175,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 332,
+      ws: "pim",
+      title: "🔗 User or Group analyzer — the PIM-SG groups in scope (this design / every design) and one-click groups in the PIM lens (T19 1.7.0)",
+      tools: ["User or Group analyzer"],
+      builds: [32612],
+      risk: "low",
+      what: "js/app.js: guLimit values pim / pimall in sweepGroupUse with guNamedGroups (exact-name lookup) and an absent-names toast; openGroupUse picks pim from Workspace 02 (guWsLast); plxBody whois lists the PIM-SG groups holding a role as data-lenswhopick chips, handled in plxClick. index.html: the two options and a Help line.",
+      why: "Mihai, 14 Oct: T19 PIM lens focus is not working; the groups in scope should also have the PIM groups, just as T12. Mockup board 6. Risk low: reads only.",
+      test: [
+        "Beta, demo tenant, 02 PIM-buddy → Who holds what (T19): Groups in scope reads Only the PIM-SG groups — this tenant's design; the PIM lens → Read who holds what lists the PIM-SG groups that hold a role; clicking one fills the box and shows its roles.",
+        "Beta, demo tenant: switch to 01 and open T19 — Groups in scope is back on Only groups used by Conditional Access.",
+        "Beta, signed in to cloudfellows.dev, 02: Sweep tenant with this tenant's design sweeps only PIM-SG groups; a design group the tenant lacks is named in the toast, not swept.",
+        "Beta, signed in: every design sweeps more groups than this tenant's design when the profile is Small business.",
+      ],
+    },
+    {
       n: 331,
       ws: "pim",
       title: "👥 PIM groups per baseline design — Design picker Small · Large one region · Multi-region · Every design, S/L/M badges (T12 6.1.0)",
