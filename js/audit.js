@@ -155,7 +155,19 @@ const Audit = (() => {
   // GroupManagement as "Add member to group" / "Remove member from group".
   const isMembershipActivity = (a) => /member (to|from) group/i.test(a || "");
 
-  function parseMembership(rec, watch) {
+  // Outside 07:00-19:00 on a weekday, in the viewer's own clock unless an offset
+  // (minutes east of UTC) is given. Informational: a night-time add by an admin
+  // on call is normal, one nobody can explain is what this is for.
+  function offHours(iso, utcOffsetMinutes) {
+    const t = new Date(iso).getTime();
+    if (!isFinite(t)) return false;
+    const off = typeof utcOffsetMinutes === "number" ? utcOffsetMinutes : -new Date(t).getTimezoneOffset();
+    const d = new Date(t + off * 60000);
+    const h = d.getUTCHours(), dow = d.getUTCDay();
+    return h < 7 || h >= 19 || dow === 0 || dow === 6;
+  }
+
+  function parseMembership(rec, watch, o) {
     const trs = rec.targetResources || [];
     let groupId = "", groupName = "";
     // group identity can be its own targetResource, or carried as Group.* on the user's
@@ -173,6 +185,22 @@ const Audit = (() => {
     const mt = trs.find((t) => t.id && t.id !== groupId) || {};
     const member = mt.displayName || mt.userPrincipalName || mt.id || "(unknown)";
     const removed = /remove/i.test(rec.activityDisplayName || "");
+    // A refused change moved nobody. Seen on a real tenant: a second add of a
+    // member who was already in returns result "failure" with
+    // MethodExecutionResult = DirectoryValueExistsException on the user target.
+    const applied = String(rec.result || "").toLowerCase() === "success";
+    let failure = "";
+    for (const p of (mt.modifiedProperties || [])) {
+      if (/methodexecutionresult/i.test(String(p.displayName || ""))) failure = String(decode(p.newValue) ?? "").split(".").pop();
+    }
+    const actor = actorOf(rec);
+    const flags = [];
+    if (!applied) flags.push("failed");
+    else if (!removed) {
+      if (w && (w.how === "exclude" || w.how === "both")) flags.push("widensBypass");
+      if (actor.kind !== "user") flags.push("byApp");
+      if (offHours(rec.activityDateTime, o && o.utcOffsetMinutes)) flags.push("offHours");
+    }
     return {
       id: rec.id,
       when: rec.activityDateTime,
@@ -184,7 +212,7 @@ const Audit = (() => {
       service: rec.loggedByService || "",
       category: rec.category || "",
       correlationId: rec.correlationId || "",
-      actor: actorOf(rec),
+      actor,
       targetId: groupId,
       target: groupName || (w && w.name) || groupId,
       usedAs: w ? w.how : "",
@@ -192,7 +220,26 @@ const Audit = (() => {
       changes: [{ path: removed ? "member removed" : "member added", op: removed ? "remove" : "add", value: [member] }],
       changeCount: 1,
       member,
+      memberUpn: mt.userPrincipalName || "",
+      memberId: mt.id || "",
+      applied, failure, flags,
     };
+  }
+
+  // Who is in a group today, as far as the log window can say: the latest
+  // successful add per person that no later successful removal undid.
+  // rows: parseMembership rows of ONE group. Keyed by lower-case UPN and id.
+  // A person absent from the result was added before the window (or never).
+  function addedIndex(rows, fmt) {
+    const out = {};
+    const asc = [...(rows || [])].filter((r) => r && r.applied !== false).sort((a, b) => String(a.when).localeCompare(String(b.when)));
+    for (const r of asc) {
+      const keys = [String(r.memberUpn || "").toLowerCase(), r.memberId].filter(Boolean);
+      if (r.action === "delete") { keys.forEach((k) => delete out[k]); continue; }
+      const v = { when: fmt ? fmt(r.when) : r.when, by: r.actor.name, byKind: r.actor.kind };
+      keys.forEach((k) => { out[k] = v; });
+    }
+    return out;
   }
 
   // The groups worth watching: every group a CA policy includes or excludes.
@@ -220,7 +267,7 @@ const Audit = (() => {
   function build(records, opts = {}) {
     const watch = opts.watch || null;
     const rows = (records || []).map((rec) => isMembershipActivity(rec.activityDisplayName)
-        ? parseMembership(rec, watch)
+        ? parseMembership(rec, watch, opts)
         : parse(rec))
       .filter(Boolean)
       .filter((r) => r.kind === "membership" || opts.keepAll || isCaRecord(r))
@@ -256,11 +303,12 @@ const Audit = (() => {
           first: r.when, last: r.when, rows: [] };
         m.set(key, e);
       }
-      if (r.action === "add") e.add++;
+      if (r.applied === false) e.failed = (e.failed || 0) + 1;
+      else if (r.action === "add") e.add++;
       else if (r.action === "delete") e.remove++;
       else e.update++;
       e.actors.set(r.actor.name, (e.actors.get(r.actor.name) || 0) + 1);
-      if (r.member) e.members.add(r.member);
+      if (r.member && r.applied !== false) e.members.add(r.member);
       if (String(r.when) > String(e.last)) e.last = r.when;
       if (String(r.when) < String(e.first)) e.first = r.when;
       e.rows.push(r);
@@ -268,6 +316,7 @@ const Audit = (() => {
     return [...m.values()].map((e) => ({
       ...e,
       total: e.add + e.remove + e.update,
+      failed: e.failed || 0,
       actors: [...e.actors.entries()].sort((a, b) => b[1] - a[1]),
       memberCount: e.members.size,
       rows: e.rows.sort((a, b) => String(b.when).localeCompare(String(a.when))),
@@ -317,17 +366,27 @@ const Audit = (() => {
 
   // Graph filter for the fetch: date window, optionally narrowed to policy
   // changes (the category every CA resource change lands in).
-  function query(days, category) {
+  function query(days, category, activity) {
     const since = new Date(Date.now() - (days || 30) * 864e5).toISOString();
     const parts = [`activityDateTime ge ${since}`];
     if (category && category !== "all") parts.push(`category eq '${category}'`);
+    if (activity) parts.push(`activityDisplayName eq '${String(activity).replace(/'/g, "''")}'`);
     return `/auditLogs/directoryAudits?$filter=${encodeURIComponent(parts.join(" and "))}&$orderby=activityDateTime desc&$top=999`;
   }
   // membership changes live in a different category, so they need their own pass
   const queryPolicy = (days) => query(days, "Policy");
   const queryMembership = (days) => query(days, "GroupManagement");
+  // 32511: the category is mostly noise (PIM setting updates, self-service reads
+  // with an all-zero target, "Add group"), so ask for the two exact activities
+  // instead. Checked on cloudfellows.dev 13 Oct 2026: equality on
+  // activityDisplayName is accepted, `ne` is NOT ("NotEqual logical operator is
+  // not supported"), and `startswith('Add member')` also matches "Add member to
+  // role in PIM" — so exact names only, one query each.
+  const MEMBER_ACTIVITIES = ["Add member to group", "Remove member from group"];
+  const queryMembershipExact = (days) => MEMBER_ACTIVITIES.map((a) => query(days, null, a));
 
   return { KIND, EXPORT_SCHEMA, build, summarize, toExport, fromExport, compare,
     parse, parseMembership, watchedGroups, isMembershipActivity,
-    diff, decode, query, queryPolicy, queryMembership, kindOf, actionOf, actorOf };
+    diff, decode, query, queryPolicy, queryMembership, queryMembershipExact, MEMBER_ACTIVITIES,
+    offHours, addedIndex, kindOf, actionOf, actorOf };
 })();

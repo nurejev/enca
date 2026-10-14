@@ -275,6 +275,7 @@ const GroupsView = (() => {
     if (r.memberError) return `<p class="mini" style="color:var(--off)">Could not read the members: ${esc(r.memberError)}</p>`;
     const addBox = o.engine ? '<p class="mini muted">Add and remove from the matrix below while Compare is open.</p>' : r.dynamic ? '<p class="mini muted">Dynamic group — the rule decides the membership.</p>'
       : `<div class="cgg-add"><input id="cgAddUser" class="txt" list="cgUserSug" placeholder="Add a member — name or UPN" spellcheck="false" autocomplete="off"><input id="cgAddGroup" type="hidden" value="${esc(r.name)}"><button class="btn primary" id="cgAddGo">＋ Add</button></div>
+        <p class="mini muted" style="margin:0 0 2px">Several at once: separate with <b>;</b> <b>,</b> or a new line — a column pasted from Excel or an Outlook To line works too.</p>
         <div id="cgAddLog" class="mini" style="margin:4px 0 6px">${o.addMsg ? `<span style="${o.addMsg.bad ? "color:var(--off)" : ""}">${o.addMsg.html}</span>` : ""}</div>`;
     // 5.10: find + order. A 10,530-member group showed as a wall of 500 names
     // with no way to answer "is Jonathan in here" short of scrolling. The box
@@ -286,7 +287,10 @@ const GroupsView = (() => {
         <input id="cgMemQ" class="txt" placeholder="Find a member — name or UPN" value="${esc(o.memQ || "")}" spellcheck="false" autocomplete="off" title="Filters the members read here as you type. Enter searches the whole group in the tenant when more were not read.">
         <span class="seg sw" title="Order the members">${[["", "As read"], ["name", "Name"], ["upn", "UPN"]].map(([k, l]) => `<button class="${sort === k ? "active" : ""}" data-cgg-msort="${k}">${l}</button>`).join("")}</span>
       </div>` : "";
-    return `${addBox}${findBar}<div id="cgMemTree">${memberTree(r, c, o)}</div>`;
+    const hr = o.hist && o.hist.id === r.id && !o.hist.error ? o.hist : null;
+    const addedBar = hr ? `<p class="mini muted" style="margin:4px 0">Added: from the last 30 days of the audit log${hr.more ? " (the newest events only — the group has more)" : ""}. A member with no add there was added earlier, or by the membership rule.</p>`
+      : `<p class="mini muted" style="margin:4px 0"><button class="btn sm" data-cgg-hist="${esc(r.name)}">🕓 Show when each member was added</button> reads the last 30 days of the audit log (AuditLog.Read.All).</p>`;
+    return `${addBox}${findBar}${r.members.length ? addedBar : ""}<div id="cgMemTree">${memberTree(r, c, o)}</div>`;
   }
 
   // The tree under the find bar — direct members, then each nested group.
@@ -294,6 +298,15 @@ const GroupsView = (() => {
   // match and vanish when nothing inside them matches; and when the read was
   // capped, the tenant search block, because "not in the first 500" is not
   // "not a member". Rendered on its own by app.js on every keystroke.
+  // 32511: when and by whom a member was added, from the audit log window the
+  // History tab reads. Only after that read, and only for direct members.
+  function addedNote(r, o, m) {
+    const h = o.hist && o.hist.id === r.id && !o.hist.error ? o.hist : null;
+    if (!h || !h.added) return "";
+    const a = h.added[String(m.upn || "").toLowerCase()] || h.added[m.id];
+    if (a) return ` · added ${esc(a.when)} by ${esc(a.by)}${a.byKind && a.byKind !== "user" ? " (" + esc(a.byKind) + ")" : ""}`;
+    return h.more ? " · no add among the newest events read" : " · no add in the last 30 days (earlier, or by a rule)";
+  }
   function memberTree(r, c, o) {
     if (!r.id || r.members == null || r.memberError) return "";
     const q = String(o.memQ || "").trim().toLowerCase();
@@ -310,7 +323,7 @@ const GroupsView = (() => {
       return { ch, shown, nameHit, keep: !q || nameHit || shown.length > 0 };
     });
     const capped = r.memberTotal > r.members.length;
-    const li = (m, kind, gname, gid) => `<li class="${kind}"><span><b>${esc(m.name)}</b>${m.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(m.upn || "")}</span></span>${r.dynamic || (gid === "" && kind === "c") ? "" : `<button class="cgg-x" data-cgg-rm="${esc(m.id)}" data-cgg-rmgroup="${esc(gname)}" data-cgg-rmgid="${esc(gid || "")}" title="Remove from ${esc(gname)}">×</button>`}</li>`;
+    const li = (m, kind, gname, gid) => `<li class="${kind}"><span><b>${esc(m.name)}</b>${m.disabled ? ' <span class="tag block">disabled</span>' : ""} <span class="mini muted">${esc(m.upn || "")}${gid === r.id ? addedNote(r, o, m) : ""}</span></span>${r.dynamic || (gid === "" && kind === "c") ? "" : `<button class="cgg-x" data-cgg-rm="${esc(m.id)}" data-cgg-rmgroup="${esc(gname)}" data-cgg-rmgid="${esc(gid || "")}" title="Remove from ${esc(gname)}">×</button>`}</li>`;
     const nMatch = directShown.length + children.reduce((n, x) => n + x.shown.length, 0);
     const countLine = q ? `<p class="mini muted cgg-findn">${nMatch === 0 ? "No match" : `${nMatch} match${nMatch === 1 ? "" : "es"}`} among the ${r.members.length} read${capped ? ` — <b>${r.memberTotal - r.members.length} more were not read</b>` : ""}.</p>` : "";
     const tree = `<ul class="cgg-tree">
@@ -380,12 +393,34 @@ const GroupsView = (() => {
     if (!h) return `<div class="run-prompt" style="padding:18px"><button class="btn primary" data-cgg-hist="${esc(r.name)}">🕓 Read the last 30 days</button><p class="mini muted">Who added or removed members, and who changed the group — from the directory audit log (AuditLog.Read.All, asked once).</p></div>`;
     if (h.error) return `<p class="mini" style="color:var(--off)">${esc(h.error)}</p>`;
     if (!h.rows.length) return '<p class="mini muted">No change to this group in the audit window.</p>';
-    return `<ul class="cgg-tree">${h.rows.map((x) => `<li class="d"><span><b>${esc(x.activity)}</b>${x.target ? ` — ${esc(x.target)}` : ""}<div class="mini muted">${esc(x.when)} · by ${esc(x.by)}${x.result && x.result !== "success" ? ` · ${esc(x.result)}` : ""}</div></span></li>`).join("")}</ul><p class="mini muted" style="margin-top:8px">${h.rows.length} change${h.rows.length === 1 ? "" : "s"} · <a href="#" class="md-tool" data-tool="toolAudit">🕓 Change audit</a> has the field-level view.</p>`;
+    return `<ul class="cgg-tree">${h.rows.slice(0, 100).map((x) => `<li class="d"><span><b>${esc(x.activity)}</b>${x.target ? ` — ${esc(x.target)}` : ""}<div class="mini muted">${esc(x.when)} · by ${esc(x.by)}${x.byKind && x.byKind !== "user" ? ` (${esc(x.byKind)})` : ""}${x.applied === false ? ` · <b>refused — nothing changed</b>` : ""}</div></span></li>`).join("")}</ul><p class="mini muted" style="margin-top:8px">${h.rows.length} event${h.rows.length === 1 ? "" : "s"}${h.more ? " (the newest 999; there are more)" : ""} · <a href="#" class="md-tool" data-tool="toolAudit">🕓 Change audit</a> has the field-level view.</p>`;
   }
 
   function render(model, o) {
     return `<div class="cgg-wrap">${list(model, o)}${drawer(model, o)}</div>`;
   }
 
-  return { classify, chips, render, bulkBar, memberTree, CHIPS };
+  // 5.17 (32503, Mihai 9 Oct: can I add multiple users in a row with ;
+  // separation?): the drawer's add box takes a LIST. Separators are ; , tab
+  // and new line — a column pasted from Excel arrives as lines. An Outlook To
+  // line ("Jansen, Eva" <eva@x.com>; …) gives the addresses in the brackets,
+  // and its names are dropped first because they carry commas of their own.
+  // The same entry twice (any case) is kept once, in the order typed.
+  function splitMembers(text) {
+    let s = String(text || "");
+    const out = [], seen = new Set();
+    const keep = (t) => {
+      t = String(t || "").trim().replace(/^["']+|["']+$/g, "").trim();
+      if (!t || seen.has(t.toLowerCase())) return;
+      seen.add(t.toLowerCase()); out.push(t);
+    };
+    if (/<[^<>\s]+@[^<>\s]+>/.test(s)) {
+      // name <addr> pairs first; whatever is left is a plain list
+      s = s.replace(/[^;<>\r\n]*<([^<>\s]+@[^<>\s]+)>/g, (m, a) => `;${a};`);
+    }
+    s.split(/[;,\t\r\n]+/).forEach(keep);
+    return out;
+  }
+
+  return { classify, chips, render, bulkBar, memberTree, splitMembers, CHIPS };
 })();

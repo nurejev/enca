@@ -11,6 +11,12 @@
   let policiesReadAt = null;
   let tenantName = "";
   let tenantDomain = "";
+  // Every verified domain of the signed-in tenant, lowercased, and the
+  // default one — an MSP admin's sign-in domain is not the customer's. 🌍 Fill
+  // from regions reads both (its main account domain and the typed-domain
+  // confirmation). Empty in the demo and before sign-in.
+  let tenantDomains = [];
+  let tenantDefaultDomain = "";
   let tenantId = "";        // for the account menu's Copy tenant ID; "" in the demo
   let capabilityCache = null;
   async function readCapabilities(force = false) {
@@ -177,7 +183,7 @@
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
   const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline",
-    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
+    "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-naming", "screen-tokencov", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-deploydash", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
 
@@ -310,6 +316,8 @@
                         open: () => openXTenant() },
     toolPasskeys:     { into: "toolGapCheck", label: "🔑 Passkeys",                   where: "the Passkeys tab",           build: 32317,
                         open: () => openPasskeys() },
+    toolNaming:       { into: "toolGapCheck", label: "📏 Naming",                     where: "the Naming tab",             build: 32403,
+                        open: () => openNaming() },
     toolTokenCov:     { into: "toolGapCheck", label: "🎫 CAE & token protection",     where: "the CAE & tokens tab",       build: 32404,
                         open: () => openTokenCov() },
     toolValidator:    { into: "toolWhatIf",   label: "⚡ CA validator",                where: "the Every simulation mode",  build: 25346,
@@ -457,6 +465,9 @@
         // 32317 (T44): the policies that require a passkey, against the
         // Passkey (FIDO2) method that decides whether anyone can get one
         { key: "passkeys", icon: "🔑", name: "Passkeys",            toolbar: "pkToolbar", open: () => openPasskeys(), beta: true },
+        // 32403 (T45, R25): the CA-number naming convention, checked over
+        // the policies already loaded — reads nothing
+        { key: "naming", icon: "📏", name: "Naming",               toolbar: "nmToolbar", open: () => openNaming(), beta: true },
         // 32404 (T46, R21): token protection and CAE coverage per persona
         { key: "tokencov", icon: "🎫", name: "CAE & tokens",         toolbar: "tcToolbar", open: () => openTokenCov(), beta: true },
       ],
@@ -2414,6 +2425,8 @@
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
+      tenantDomains = (org?.verifiedDomains || []).map((d) => String(d?.name || "").toLowerCase()).filter(Boolean);
+      tenantDefaultDomain = String(((org?.verifiedDomains || []).find((d) => d && d.isDefault) || {}).name || "").toLowerCase();
       // R28 — the group → persona mapping is per tenant, so it is bound HERE
       // and nowhere else: keyed on the tenant id rather than the name, because
       // two customers can share a display name and a mapping landing in the
@@ -2502,6 +2515,7 @@
     // answering isBaselineTenant(), and the demo would scope its backup to a
     // catalog it is not.
     tenantDomain = "";
+    tenantDomains = []; tenantDefaultDomain = "";
     tenantLogo = null;
     isDemo = true; caSettingsCache = undefined; authMethodsCache = undefined; isRaw = null; isModel = null; isErr = null; xtRaw = null; xtModel = null; xtErr = null; pkRaw = null; pkModel = null; pkErr = null;
     {
@@ -2840,6 +2854,7 @@
     ["toolWhatIf", "🧪 What-If"],
     ["toolGroupUse", "🔗 User or Group analyzer"],
     ["toolWhoIs", "🕵 Who is … to CA"],
+    ["toolDeployDash", "📊 Deployment dashboard"],
     ["toolSpGap", "🫥 Apps with no service principal"],
     ["toolAudit", "🕓 Changes"],
     ["toolSignins", "🚦 Sign-in log"],
@@ -4861,6 +4876,7 @@
     $("cgFull").style.display = cgTab === "members" ? "inline-flex" : "none";
     $("cgArchived").style.display = "inline-flex";
     syncMergeDupBtn();
+    syncDgFillBtn();
     $("cgSearch").placeholder = cgTab === "members" ? "Search group, member or UPN…" : "Search group, object ID or member…";
     $("cgSearch").style.display = "";
 
@@ -7576,6 +7592,653 @@ max@contoso.com,"Global, DevOps"</pre>
     else if (t.name === "gmRemove") { gmRemove = t.value; $("gmConfirm").value = ""; renderGroupMerge(); }
   });
 
+  // ---------- 🌍 Fill deploy groups from regions (beta 32432, generic 32509) ----------
+  // js/dgfill.js holds the rules, the CSV and the plan; this is the dialog,
+  // the reads and the writes. ① sources (the tenant's region list, imported
+  // from CSV, ticked), ② preview (per group +add −remove, per user why),
+  // ③ apply (backup, typed domain, run ledger, read-back, ↩ Undo this run).
+  // Workspace 01 only — in 02 T12 is PIM groups.
+  //
+  // WHERE IT IS KEPT (Mihai, 12 Oct): per tenant in this browser,
+  // localStorage `enca-dgfill:<tenantId>` — the imported list, its file name
+  // and date, the settings and the mode (prefs schema v2). Export CSV gives
+  // the list back as a file; another browser or machine imports it once.
+  const DG_SEL = "id,userPrincipalName,displayName,userType,accountEnabled,onPremisesExtensionAttributes";
+  const DG_GSEL = "id,displayName,membershipRule,groupTypes";
+  const DG_WRITE = ["Group.ReadWrite.All"];
+  const dgKeyStore = () => `enca-dgfill:${tenantId || "demo"}`;
+  let dg = null;
+  function dgStored() {
+    try { return JSON.parse(localStorage.getItem(dgKeyStore()) || "{}") || {}; } catch { return {}; }
+  }
+  // Prefs before v2 carried the built-in Perfetti-era prefix and domains for
+  // EVERY tenant that opened the dialog — they are not trusted; only the mode
+  // and Skip disabled carry over.
+  function dgPrefs() {
+    const d = DgFill.DEFAULTS, p = dgStored(), v2 = p.v === 2;
+    const demo = isDemo ? DgFill.demo().opts : {};
+    return {
+      prefix: v2 ? String(p.prefix || "") : (demo.prefix || ""),
+      mainDomain: String((v2 && p.mainDomain) || demo.mainDomain || tenantDefaultDomain || "").toLowerCase(),
+      secondDomains: v2 && Array.isArray(p.secondDomains) ? p.secondDomains : (demo.secondDomains || []),
+      extAttr: v2 && DgFill.EXT_ATTRS.includes(p.extAttr) ? p.extAttr : d.extAttr,
+      extPrefix: v2 && typeof p.extPrefix === "string" ? p.extPrefix : d.extPrefix,
+      targetNames: v2 && p.targetNames && typeof p.targetNames === "object" ? p.targetNames : {},
+      fix: p.fix !== false, skipDisabled: p.skipDisabled !== false,
+    };
+  }
+  // The tenant's region list: { list, name, at, sample? } or null.
+  function dgListStored() {
+    const p = dgStored();
+    // line = the row's line in Export CSV (header is line 1)
+    if (p.v === 2 && Array.isArray(p.list) && p.list.length) return { list: p.list.map((r, i) => ({ ...r, line: i + 2 })), name: p.listName || "regions.csv", at: p.listAt || "" };
+    if (isDemo && !p.cleared) return { list: DgFill.parseCsv(DgFill.demo().csv).rows, name: "demo-regions.csv", at: "", sample: true };
+    return null;
+  }
+  function dgSavePrefs() {
+    const o = dg.opts, L = dg.list && !dg.list.sample ? dg.list : null;
+    try {
+      localStorage.setItem(dgKeyStore(), JSON.stringify({
+        v: 2, prefix: o.prefix, mainDomain: o.mainDomain, secondDomains: o.secondDomains, extAttr: o.extAttr, extPrefix: o.extPrefix,
+        targetNames: o.targetNames, fix: o.fix, skipDisabled: o.skipDisabled,
+        list: L ? L.list.map(({ region, group, label, ticked, mode }) => ({ region, group, label, ticked, mode })) : null, listName: L ? L.name : null, listAt: L ? L.at : null, cleared: !dg.list || undefined,
+      }));
+    } catch { toast("Could not save <span>— this browser blocks storage</span>; the list lasts until the dialog closes"); }
+  }
+  function syncDgFillBtn() {
+    const b = $("cgDgFill"); if (!b) return;
+    b.style.display = document.body.dataset.ws === "pim" ? "none" : "inline-flex";
+  }
+  const dgNum = (n) => Number(n || 0).toLocaleString("en-US");
+  const dgStepNames = [["sources", "① Sources"], ["preview", "② Preview"], ["apply", "③ Apply"]];
+  function dgPaintSteps() {
+    const at = dg.step === "done" ? "apply" : dg.step === "import" ? "sources" : dg.step;
+    $("dgSteps").innerHTML = dgStepNames.map(([k, l]) => `<span class="dg-step${k === at ? " on" : ""}">${l}</span>`).join("");
+  }
+
+  // The list's groups in this tenant, in $batch: an object id by GET, a
+  // name by eq, a trailing * by startswith — plus everything under the
+  // optional prefix. Matching is DgFill.check, not done here.
+  async function dgReadCandidates(list, opts, signal) {
+    if (isDemo) return DgFill.demo().groups;
+    const q = (s) => String(s).replace(/'/g, "''");
+    const urls = [];
+    for (const r of list || []) {
+      const g = String(r.group || "").trim();
+      if (DgFill.isGuid(g)) urls.push(`/groups/${g}?$select=${DG_GSEL}`);
+      else if (DgFill.isWild(g)) { const b = g.slice(0, -1).trim(); if (b) urls.push(`/groups?$filter=${encodeURIComponent(`startswith(displayName,'${q(b)}')`)}&$select=${DG_GSEL}&$top=999`); }
+      else if (g) urls.push(`/groups?$filter=${encodeURIComponent(`displayName eq '${q(g)}'`)}&$select=${DG_GSEL}&$top=999`);
+    }
+    const uniq = [...new Set(urls)];
+    const res = uniq.length ? await Graph.gbatch(uniq.map((url, i) => ({ id: i, url })), null, signal ? { signal } : {}) : {};
+    const out = new Map();
+    uniq.forEach((_, i) => { const b = res[i] && res[i].body; if (!b) return; (Array.isArray(b.value) ? b.value : b.id ? [b] : []).forEach((g) => out.set(g.id, g)); });
+    if (opts && opts.prefix) {
+      (await Graph.ggetAll(`/groups?$filter=startswith(displayName,'${q(opts.prefix)}')&$select=${DG_GSEL}&$top=999`, signal ? { signal } : undefined)).forEach((g) => out.set(g.id, g));
+    }
+    return [...out.values()];
+  }
+  // Transitive user counts, one $batch — so a tick says how many people it
+  // means before anything else is read. Sets .count on each object.
+  async function dgCounts(objs) {
+    if (!objs.length) return;
+    if (isDemo) { const d = DgFill.demo(); objs.forEach((r) => { r.count = (d.members.get(r.id) || []).length; }); return; }
+    const res = await Graph.gbatch(objs.map((r, i) => ({ id: i, url: `/groups/${r.id}/transitiveMembers/microsoft.graph.user/$count`, headers: { ConsistencyLevel: "eventual" } }))).catch(() => ({}));
+    objs.forEach((r, i) => { const v = res[i]; r.count = v && v.body != null && !v.error ? Number(v.body) : null; });
+  }
+  // The seven deploy groups by this tenant's names: there, missing, dynamic.
+  async function dgCheckTargets() {
+    const T = DgFill.targets(dg.opts);
+    if (isDemo) { const d = Object.values(DgFill.demo().targets).map((g) => g.name.toLowerCase()); dg.tgt = Object.fromEntries(T.map((t) => [t.key, d.includes(t.name.toLowerCase()) ? "ok" : "missing"])); return; }
+    const res = await Graph.gbatch(T.map((t, i) => ({ id: i, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${t.name.replace(/'/g, "''")}'`)}&$select=id,groupTypes` }))).catch(() => ({}));
+    dg.tgt = Object.fromEntries(T.map((t, i) => {
+      const v = res[i] && res[i].body && res[i].body.value;
+      return [t.key, !Array.isArray(v) ? "unknown" : !v.length ? "missing" : v.length > 1 ? "duplicate" : (v[0].groupTypes || []).includes("DynamicMembership") ? "dynamic" : "ok"];
+    }));
+  }
+
+  async function openDgFill() {
+    const opts = dgPrefs();
+    dg = { step: "sources", opts, list: dgListStored(), src: null, chk: null, tgt: null, err: "", ticked: new Set(), guests: true, second: !!opts.secondDomains.length, data: null, plan: null, filter: "changes", query: "", done: null, running: false, imp: null, setOpen: false };
+    $("dgLedger").innerHTML = ""; $("dgConfirm").value = ""; $("dgConfirmWrap").style.display = "none";
+    $("dgModal").classList.add("open");
+    await dgLoadSources();
+  }
+  async function dgLoadSources() {
+    dg.step = "sources"; dg.err = ""; dg.src = null;
+    $("dgBody").innerHTML = "";
+    $("dgSub").textContent = dg.list ? `Reading the groups on ${dg.list.name}…` : "";
+    dgPaintButtons(); dgPaintSteps();
+    try {
+      const list = dg.list ? dg.list.list : [];
+      const [cands] = await Promise.all([list.length || dg.opts.prefix ? dgReadCandidates(list, dg.opts) : Promise.resolve([]), dgCheckTargets()]);
+      dg.chk = DgFill.check(list, cands, dg.opts);
+      dg.src = DgFill.classifySources(dg.chk, cands, dg.opts);
+      dg.ticked = new Set(dg.src.rows.filter((r) => r.ticked).map((r) => r.id));
+      await dgCounts(dg.src.rows);
+    } catch (e) { console.error(e); dg.err = e.message || String(e); }
+    renderDgFill();
+  }
+
+  // ---- import ----
+  function dgPickCsv() {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".csv,text/csv,text/plain";
+    inp.addEventListener("change", async () => {
+      const f = inp.files && inp.files[0]; if (!f || !dg) return;
+      if (f.size > 1024 * 1024) { toast("That file is <span>over 1 MB</span> — a region list is a few hundred lines"); return; }
+      const parsed = DgFill.parseCsv(await f.text());
+      dg.imp = { name: f.name, parsed, chk: null, busy: !!parsed.rows.length, err: "" };
+      dg.step = "import"; renderDgFill();
+      if (!parsed.rows.length) return;
+      try {
+        const cands = await dgReadCandidates(parsed.rows, { ...dg.opts, prefix: "" });
+        dg.imp.chk = DgFill.check(parsed.rows, cands, dg.opts);
+        await dgCounts(dg.imp.chk.flatMap((c) => (c.status === "ok" ? c.groups : [])));
+      } catch (e) { console.error(e); dg.imp.err = e.message || String(e); }
+      dg.imp.busy = false; renderDgFill();
+    });
+    inp.click();
+  }
+  // What Save keeps: every row except refusals and duplicates. A MISSING
+  // group stays on the list (it shows as not in this tenant, and a group
+  // created later is picked up by the next open).
+  const dgImpKeep = () => (dg.imp && dg.imp.chk ? dg.imp.chk.filter((c) => c.status === "ok" || c.status === "missing").map((c) => c.row) : []);
+  function dgImportHtml() {
+    const I = dg.imp;
+    if (I.busy) return `<p class="mini muted">Checking ${dgNum(I.parsed.rows.length)} rows against ${esc(tenantName || "the tenant")}…</p>`;
+    if (I.err) return `<p class="mini" style="color:var(--off)">Could not check the list: ${esc(I.err)} — nothing was saved.</p>`;
+    const pill = (cls, t) => `<span class="dg-pill ${cls}">${esc(t)}</span>`;
+    const lines = I.parsed.errors.map((e) => ({ line: e.line, region: "", group: "", res: pill("bad", `not read — ${e.why}`), k: "bad" }));
+    for (const c of I.chk || []) {
+      const r = c.row, n = c.groups.reduce((s, g) => s + (g.count || 0), 0);
+      let res, k;
+      if (c.status === "ok") {
+        const zero = c.groups.every((g) => g.count === 0);
+        const dyn = c.groups.some((g) => (g.groupTypes || []).includes("DynamicMembership"));
+        if (r.mode === "ignore") { res = pill("muted", "found · ignore — never read"); k = "ok"; }
+        else if (zero) { res = pill("warn", `found · 0 members${r.mode ? " · " + r.mode : ""}`); k = "warn"; }
+        else { res = pill("ok", `found${c.groups.length > 1 ? ` · ${c.groups.length} groups` : ""}${dyn ? " · dynamic" : ""} · ${dgNum(n)}${r.mode ? " · " + r.mode : ""}`); k = "ok"; }
+      } else if (c.status === "missing") { res = pill("bad", `${c.why}${DgFill.isGuid(r.group) || DgFill.isWild(r.group) ? "" : " — typo?"} · kept`); k = "miss"; }
+      else if (c.status === "duplicate") { res = pill("warn", `duplicate — ${c.why}, left out`); k = "warn"; }
+      else { res = pill("bad", `${c.why} — left out`); k = "bad"; }
+      lines.push({ line: r.line, region: r.region, group: r.group, label: r.label, res, k });
+    }
+    lines.sort((a, b) => a.line - b.line);
+    const cnt = (k) => lines.filter((l) => l.k === k).length;
+    const regions = new Set((I.chk || []).filter((c) => c.status === "ok").map((c) => c.row.region));
+    return `<p class="mini">${dgNum(I.parsed.rows.length + I.parsed.errors.length)} rows · ${regions.size} region${regions.size === 1 ? "" : "s"} · checked against the tenant's groups.
+        <span class="dg-pill ok">${cnt("ok")} found</span> <span class="dg-pill warn">${cnt("warn")} warning${cnt("warn") === 1 ? "" : "s"}</span> <span class="dg-pill bad">${cnt("miss")} not in tenant</span> <span class="dg-pill bad">${cnt("bad")} left out</span></p>
+      <div class="gu-tw"><table class="plist dg-table"><thead><tr><th>Line</th><th>Region</th><th>Group</th><th>Label</th><th>Result</th></tr></thead><tbody>
+        ${lines.map((l) => `<tr><td class="mini">${l.line}</td><td class="mini">${esc(l.region)}</td><td class="mini">${esc(l.group)}</td><td class="mini">${esc(l.label || "")}</td><td>${l.res}</td></tr>`).join("") || '<tr><td colspan="5" class="mini muted">No rows.</td></tr>'}
+      </tbody></table></div>
+      <p class="mini muted">Save keeps the found rows and the ones not in this tenant (they show in the dialog as not in this tenant, so a group created later is picked up). Duplicates, deploy groups and names two groups carry are left out — use the object id for those. Saving replaces ${dg.list && !dg.list.sample ? `the current list (${esc(dg.list.name)})` : "nothing — this tenant has no list yet"}.</p>`;
+  }
+  function dgSaveImport() {
+    const keep = dgImpKeep(); if (!keep.length) return;
+    dg.list = { list: keep.map(({ region, group, label, ticked, mode }, i) => ({ region, group, label, ticked, mode, line: i + 2 })), name: dg.imp.name, at: new Date().toISOString() };
+    dg.imp = null; dgSavePrefs();
+    toast(`Region list saved <span>— ${keep.length} rows, for ${esc(tenantName || "this tenant")}</span>`);
+    dgLoadSources();
+  }
+
+  function dgSettingsHtml() {
+    const o = dg.opts, T = DgFill.targets(o), def = Object.fromEntries(DgFill.TARGETS.map((t) => [t.key, t.name]));
+    const st = { ok: '<span class="mini" style="color:var(--on)">✓ there</span>', missing: '<span class="mini" style="color:var(--off)">not in tenant — ② Create</span>', dynamic: '<span class="mini" style="color:var(--off)">dynamic — refused</span>', duplicate: '<span class="mini" style="color:var(--off)">two groups carry it</span>', unknown: '<span class="mini muted">not checked</span>' };
+    const doms = [...new Set([tenantDefaultDomain, ...(tenantDomains || [])].filter(Boolean).map((d) => String(d).toLowerCase()))];
+    return `<details class="dg-opts"${dg.setOpen || !dg.list ? " open" : ""}><summary class="mini"><b>⚙ Settings</b> — domains, external marker, deploy groups · kept for this tenant</summary>
+        <div class="dg-grid dg-g3">
+          <label class="dg-cell"><span class="dg-lb">Main account domain</span><input class="txt" data-dg-opt="mainDomain" list="dgDomList" value="${esc(o.mainDomain)}" placeholder="${esc(tenantDefaultDomain || "contoso.com")}"><span class="dg-hint">The domain of the main accounts</span></label>
+          <label class="dg-cell"><span class="dg-lb">Second account domains</span><input class="txt" data-dg-opt="secondDomains" list="dgDomList" value="${esc(o.secondDomains.join(", "))}" placeholder="none"><span class="dg-hint">Comma-separated. Empty turns rules 0a, 0b and 5 off</span></label>
+          <label class="dg-cell"><span class="dg-lb">Also list groups starting with</span><input class="txt" data-dg-opt="prefix" value="${esc(o.prefix)}" placeholder="e.g. SG-Users-"><span class="dg-hint">Optional. Listed unticked</span></label>
+          <label class="dg-cell dg-wide"><span class="dg-lb">External marker — rule 2</span><span class="dg-ext"><select class="txt" data-dg-opt="extAttr">${DgFill.EXT_ATTRS.map((x) => `<option${x === o.extAttr ? " selected" : ""}>${x}</option>`).join("")}</select><span class="dg-sw">starts with</span><input class="txt" data-dg-opt="extPrefix" value="${esc(o.extPrefix)}" placeholder="off"></span><span class="dg-hint">A user whose attribute starts with this goes to the external group. Empty turns rule 2 off</span></label>
+        </div>
+        <datalist id="dgDomList">${doms.map((d) => `<option value="${esc(d)}">`).join("")}</datalist>
+        <p class="mini" style="margin:10px 0 0"><b>Deploy groups</b> <span class="muted">— assigned groups Apply writes to; empty = the ENCA name</span></p>
+        <div class="dg-grid dg-g4">${T.map((t) => `<label class="dg-cell"><span class="dg-lb"><b>${esc(t.key)}</b> · ${esc(t.label)}</span><input class="txt" data-dg-tgt="${esc(t.key)}" value="${esc((o.targetNames || {})[t.key] || "")}" placeholder="${esc(def[t.key])}">${st[(dg.tgt || {})[t.key] || "unknown"]}</label>`).join("")}</div>
+      </details>`;
+  }
+
+  // ℹ How it works (32513, Mihai 13 Oct: "need a little more explanation of the
+  // working") — the three steps, the rules as a table with this tenant's names,
+  // domains and marker, a worked example, and what Fix and Apply do. Shown in
+  // ① and ②; open on a tenant with no list yet, otherwise as the person left it.
+  function dgHowHtml() {
+    const o = dg.opts, T = DgFill.targets(o), tn = (k) => esc(T.find((t) => t.key === k).name);
+    const main = o.mainDomain || "contoso.com", sec = o.secondDomains[0] || "", second = !!o.secondDomains.length;
+    const off = (why) => ` <span class="dg-pill muted">off — ${esc(why)}</span>`;
+    const ex = (k) => `<b>${esc(k)}</b>`;
+    const r = (rule, who, to, x) => `<tr><td class="mini"><b>${rule}</b></td><td class="mini">${who}${x || ""}</td><td class="mini">${to}</td></tr>`;
+    const open = dg.howOpen != null ? dg.howOpen : !dg.list;
+    return `<details class="dg-how"${open ? " open" : ""}><summary class="mini"><b>ℹ How it works</b> — what is read, how each user is sorted, what Apply changes</summary>
+      <div class="dg-how-b">
+        <h4>The three steps</h4>
+        <ol class="mini">
+          <li><b>① Sources</b> — your region list (the CSV, kept for this tenant) shows its groups by region. Tick the ones to read. Also tick <b>🧳 All guests</b> and <b>🔑 Second accounts</b>, which are read straight from the directory because those users are often in no region group.</li>
+          <li><b>② Preview</b> — <b>Read &amp; preview</b> reads every user in the ticked groups (nested groups included) and the seven deploy groups as they are now, then sorts each user by the rules below. You see per deploy group how many are added (+) and removed (−), and per user the rule and why. <b>Nothing is written.</b></li>
+          <li><b>③ Apply</b> — a JSON backup, the tenant's domain typed, then the writes (adds first, removals after), a read-back and a report. <b>↩ Undo this run</b> reverses exactly what the run changed.</li>
+        </ol>
+        <h4>How each user is sorted</h4>
+        <p class="mini muted">The rules are checked top to bottom and the first one that matches decides — a user lands in exactly one of the top rows. Rule 5 comes on top of it.</p>
+        <div class="gu-tw"><table class="plist dg-table"><thead><tr><th>Rule</th><th>Who</th><th>Goes to</th></tr></thead><tbody>
+          ${r("skip", "A disabled account (Skip disabled accounts is ticked)", "nothing changes")}
+          ${r("0a", `A <b>second account</b> — in ${second ? esc(o.secondDomains.map((d) => "@" + d).join(", ")) : "a second account domain"} — whose name before the @ also exists as a <b>main account</b> in @${esc(main)}`, `${tn("ADM")} only`, second ? "" : off("no second account domains in ⚙ Settings"))}
+          ${r("0b", "A second account without such a main account (a service or shared account)", `${tn("SA")} only`, second ? "" : off("no second account domains"))}
+          ${r("0c", "A user who is <b>only</b> in sources marked <code>sa-only</code> in the CSV", `${tn("SA")} only`)}
+          ${r("1", "A <b>guest</b> (userType Guest)", `${tn("GUESTUSERS")} + ${tn("GLO")}`)}
+          ${r("2", `An <b>external</b> member: ${esc(o.extAttr)} starts with “${esc(o.extPrefix || "…")}” (any case)`, `${tn("EXT")} + ${tn("GLO")}`, o.extPrefix ? "" : off("no external prefix in ⚙ Settings"))}
+          ${r("3", "Everybody else — an internal member", `${tn("INT")} + ${tn("GLO")}`)}
+          ${r("+5", "A main account that <b>has</b> a second account (rule 0a paired them)", `also ${tn("DevOps")}`, second ? "" : off("no second account domains"))}
+        </tbody></table></div>
+        <p class="mini"><b>Example</b> — anna@${esc(main)} is in a ticked country group: rule 3, she goes to ${ex("INT")} + ${ex("GLO")}.${second ? ` Her admin account anna@${esc(sec)} is rule 0a → ${ex("ADM")}, and because she has one, anna@${esc(main)} also goes to ${ex("DevOps")} (shown as rule 3+5). svc-build@${esc(sec)} has no svc-build@${esc(main)}: rule 0b → ${ex("SA")}.` : ""}${o.extPrefix ? ` Marco has ${esc(o.extAttr)} “${esc(o.extPrefix)} - Supplier”: rule 2 → ${ex("EXT")} + ${ex("GLO")}.` : ""}</p>
+        <h4>What changes in the deploy groups</h4>
+        <ul class="mini">
+          <li><b>Add only</b> — a user who should be in a deploy group and is not, is added. Nobody is taken out.</li>
+          <li><b>Add + fix</b> (default) — also takes a user out of a deploy group the rules no longer give them, so a user whose marker turned External <b>moves</b> from ${ex("INT")} to ${ex("EXT")}. Fix is careful: it only touches users it read from a ticked source; it never takes anybody out of ${tn("DevOps")} (people are added there by hand too); and it cannot remove somebody who is in a deploy group only through another group — the preview marks them <i>nested</i> and the report lists them.</li>
+          <li>A deploy group that is missing or has dynamic membership is never written — it shows in red in the preview.</li>
+          <li>A user in two region groups counts once. Membership changes reach Conditional Access at the user's next token refresh, so the preview shows how many policies name each deploy group.</li>
+        </ul>
+      </div></details>`;
+  }
+
+  function dgSourcesHtml() {
+    const L = dg.list;
+    const T = DgFill.targets(dg.opts), tn = (k) => T.find((t) => t.key === k).name;
+    const bar = L ? `<div class="dg-listbar">📄 <b>${esc(L.name)}</b><span class="mini muted">${L.sample ? "sample list of the demo tenant" : L.at ? "imported " + esc(new Date(L.at).toLocaleDateString()) : ""} · ${L.list.length} row${L.list.length === 1 ? "" : "s"} · ${new Set(L.list.map((r) => r.region)).size} regions</span><span style="flex:1"></span>
+          <button class="btn sm" data-dg-act="import">⬆ Replace…</button><button class="btn sm" data-dg-act="export">⬇ Export CSV</button><button class="btn sm" data-dg-act="clear">Clear</button></div>`
+      : `<div class="dg-empty"><b>No region list for ${esc(tenantName || "this tenant")} yet</b>
+          <p class="mini muted">Import a CSV with one row per source group — <code>${esc(DgFill.CSV_HEAD.join(","))}</code>. The group is a display name, an object id, or a name ending in * for every group starting with it; mode is empty, sa-only or ignore. Nothing is read or written until Read &amp; preview.</p>
+          <p><button class="btn primary sm" data-dg-act="import">⬆ Import CSV…</button> <button class="btn sm" data-dg-act="template">⬇ Download template</button></p></div>`;
+    if (dg.err) return `${bar}<p class="mini" style="color:var(--off)">Could not read the groups: ${esc(dg.err)}</p>${dgSettingsHtml()}`;
+    const rows = dg.src ? dg.src.rows : [];
+    const regions = [...new Set(rows.map((r) => r.region))];
+    const cnt = (list) => list.reduce((n, r) => n + (r.count || 0), 0);
+    const block = (region) => {
+      const list = rows.filter((r) => r.region === region);
+      const on = list.filter((r) => dg.ticked.has(r.id));
+      const ignored = region === "Ignored";
+      const hint = region === "Not in your region list" ? `groups starting with ${dg.opts.prefix}, not on the list — unticked` : ignored ? "mode ignore — never read" : "";
+      return `<div class="dg-reg${ignored ? " ign" : ""}">
+        <label class="dg-reg-hd"><input type="checkbox" data-dg-reg="${esc(region)}"${on.length && on.length === list.length ? " checked" : ""}${ignored ? " disabled" : ""}>
+          <b>${esc(region)}</b><span class="mini muted">${hint ? esc(hint) + " · " : ""}${list.length} group${list.length === 1 ? "" : "s"} · ${dgNum(cnt(list))} users</span></label>
+        <div class="dg-cty">${list.map((r) => `<label class="dg-c${r.count === 0 ? " zero" : ""}" title="${esc(r.name)}${r.rule ? "\n" + esc(r.rule) : ""}">
+          <input type="checkbox" data-dg-src="${esc(r.id)}"${dg.ticked.has(r.id) ? " checked" : ""}${ignored ? " disabled" : ""}>
+          <span>${esc(r.label)}${r.kind === "unlicensed" ? ` <span class="tag new" title="its users go to ${esc(tn("SA"))} only, never GLO or INT (rule 0c)">SA only</span>` : ""}</span><small>${r.count == null ? "—" : dgNum(r.count)}</small></label>`).join("")}</div></div>`;
+    };
+    const tickedRows = rows.filter((r) => dg.ticked.has(r.id));
+    const miss = dg.src ? dg.src.missing : [], bad = dg.src ? dg.src.refused : [];
+    const second = dg.opts.secondDomains.length;
+    return `${bar}
+      ${dgHowHtml()}
+      ${rows.length ? `<div class="dg-presets mini"><span>Tick:</span>
+        <button class="btn sm" data-dg-preset="list">The region list</button>
+        <button class="btn sm" data-dg-preset="none">None</button>
+        <span class="muted">${tickedRows.length} groups ticked · up to ${dgNum(cnt(tickedRows))} users (a user in two groups counts once)</span></div>` : ""}
+      ${miss.length ? `<details class="dg-note warn"><summary>⚠ ${miss.length} row${miss.length === 1 ? "" : "s"} on the list ${miss.length === 1 ? "is" : "are"} not in this tenant — fix the CSV or create the group</summary>${esc(miss.map((m) => `line ${m.line}: ${m.name}`).join(" · "))}</details>` : ""}
+      ${bad.length ? `<details class="dg-note warn"><summary>⚠ ${bad.length} row${bad.length === 1 ? "" : "s"} left out</summary>${esc(bad.map((m) => `line ${m.line}: ${m.name} — ${m.why}`).join(" · "))}</details>` : ""}
+      ${regions.map(block).join("")}
+      <div class="dg-reg"><div class="dg-reg-hd"><b>Read directly</b><span class="mini muted">not groups</span></div>
+        <label class="chk"><input type="checkbox" data-dg-x="guests"${dg.guests ? " checked" : ""}> <span><b>🧳 All guests</b> <span class="why">— userType eq 'Guest'. Guests are often in no region group; without this, ${esc(tn("GUESTUSERS"))} gets only the guests a ticked group holds.</span></span></label>
+        <label class="chk"><input type="checkbox" data-dg-x="second"${dg.second && second ? " checked" : ""}${second ? "" : " disabled"}> <span><b>🔑 Second accounts</b> <span class="why">— ${second ? `every account in ${esc(dg.opts.secondDomains.map((d) => "@" + d).join(", "))} (guests excluded). With a matching @${esc(dg.opts.mainDomain || "main domain")} account → ADM only, and that main account → DevOps; without one → SA only.` : "set the second account domains in ⚙ Settings to use rules 0a, 0b and 5."}</span></span></label>
+      </div>
+      ${dgSettingsHtml()}
+      <div class="dg-mode">
+        <span class="mini"><b>Mode</b></span>
+        <div class="seg sw"><button data-dg-fix="0" class="${dg.opts.fix ? "" : "active"}">Add only</button><button data-dg-fix="1" class="${dg.opts.fix ? "active" : ""}">Add + fix (move / remove)</button></div>
+        <label class="chk mini" style="margin:0"><input type="checkbox" data-dg-opt="skipDisabled"${dg.opts.skipDisabled ? " checked" : ""}> Skip disabled accounts</label>
+      </div>
+      <p class="mini muted">Fix only touches users read from the ticked sources — a member of a deploy group who is in none of them is never removed. ${esc(tn("DevOps"))} is add-only.</p>`;
+  }
+
+  async function dgRead() {
+    const o = dg.opts;
+    const sources = dg.src.rows.filter((r) => dg.ticked.has(r.id) && r.kind !== "ignored");
+    if (!sources.length && !dg.guests && !dg.second) { toast("Tick at least one source"); return; }
+    $("dgNext").disabled = true;
+    const say = (m) => { $("dgSub").textContent = m; };
+    try {
+      let data;
+      if (isDemo) {
+        const d = DgFill.demo();
+        data = { members: d.members, guests: dg.guests ? d.guests : null, second: dg.second && o.secondDomains.length ? d.second : null, mains: d.mains, targets: d.targets };
+      } else {
+        const members = new Map();
+        for (let i = 0; i < sources.length; i++) {
+          const s = sources[i];
+          say(`Reading members ${i + 1} of ${sources.length} — ${s.name}…`);
+          members.set(s.id, await Graph.ggetAll(`/groups/${s.id}/transitiveMembers/microsoft.graph.user?$select=${DG_SEL}&$top=999`,
+            { onPage: (items) => say(`Reading members ${i + 1} of ${sources.length} — ${s.name} · ${dgNum(items.length)}…`) }));
+        }
+        let guests = null, second = null;
+        if (dg.guests) { say("Reading the guests…"); guests = await Graph.ggetAll(`/users?$filter=userType eq 'Guest'&$select=${DG_SEL}&$top=999`); }
+        const mains = new Map();
+        if (dg.second && o.secondDomains.length) {
+          second = [];
+          for (const d of o.secondDomains) {
+            say(`Reading the accounts in @${d}…`);
+            second.push(...await Graph.ggetAll(`/users?$filter=endswith(userPrincipalName,'@${d.replace(/'/g, "''")}')&$count=true&$select=${DG_SEL}&$top=999`));
+          }
+          second = second.filter((u) => DgFill.isSecond(u, o));
+        }
+        // Main accounts of EVERY second account read — the tick's and the ones a
+        // ticked source holds (32513). Already read ones come free; the rest by UPN, 20 a batch.
+        const known = new Map();
+        for (const list of [...members.values(), guests || []]) for (const u of list) known.set(String(u.userPrincipalName || "").toLowerCase(), u);
+        const seconds = [...(second || []), ...[...known.values()].filter((u) => DgFill.isSecond(u, o))];
+        const want = o.mainDomain ? [...new Set(seconds.map((s) => `${DgFill.localOf(s.userPrincipalName)}@${o.mainDomain.toLowerCase()}`))] : [];
+        const ask = want.filter((u) => !known.has(u));
+        want.filter((u) => known.has(u)).forEach((u) => mains.set(u, known.get(u)));
+        if (ask.length) {
+          say(`Looking up ${ask.length} main account${ask.length === 1 ? "" : "s"}…`);
+          const res = await Graph.gbatch(ask.map((u, i) => ({ id: i, url: `/users/${encodeURIComponent(u)}?$select=${DG_SEL}` })));
+          ask.forEach((u, i) => { const v = res[i]; mains.set(u, v && v.body && v.body.id ? v.body : null); });
+        }
+        say("Reading the deploy groups…");
+        const targets = {};
+        const TG = DgFill.targets(o);
+        const found = await Graph.gbatch(TG.map((t, i) => ({ id: i, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${t.name.replace(/'/g, "''")}'`)}&$select=id,displayName,groupTypes,membershipRule,isAssignableToRole` })));
+        for (let i = 0; i < TG.length; i++) {
+          const t = TG[i];
+          const hit = ((found[i] && found[i].body && found[i].body.value) || []);
+          if (hit.length !== 1) { targets[t.key] = null; if (hit.length > 1) toast(`${esc(t.name)}: <span>${hit.length} groups carry this name</span> — 🔀 Duplicate names first`); continue; }
+          const g = hit[0];
+          say(`Reading the members of ${t.name}…`);
+          const direct = await Graph.ggetAll(`/groups/${g.id}/members/microsoft.graph.user?$select=id&$top=999`);
+          const all = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`);
+          const d = new Set(direct.map((u) => u.id));
+          targets[t.key] = { id: g.id, name: g.displayName, dynamic: (g.groupTypes || []).includes("DynamicMembership"), roleAssignable: !!g.isAssignableToRole, direct: d, nested: new Set(all.map((u) => u.id).filter((x) => !d.has(x))) };
+        }
+        data = { members, guests, second, mains, targets };
+      }
+      dg.data = data;
+      dg.plan = DgFill.plan({ sources, members: data.members, guests: data.guests, second: data.second, mains: data.mains, targets: data.targets }, o);
+      dg.step = "preview"; dg.filter = dg.plan.changes ? "changes" : "all";
+      renderDgFill();
+    } catch (e) {
+      console.error(e);
+      say(`Read failed: ${e.message || e} — nothing was written.`);
+    } finally { $("dgNext").disabled = false; }
+  }
+
+  // Which Conditional Access policies name each deploy group — what a
+  // membership change actually changes.
+  function dgReach(key) {
+    const g = dg.data && dg.data.targets[key]; if (!g) return { inc: [], exc: [] };
+    const inc = [], exc = [];
+    for (const p of policies) {
+      const u = (p.raw && p.raw.conditions && p.raw.conditions.users) || {};
+      if ((u.includeGroups || []).includes(g.id)) inc.push(p.raw);
+      if ((u.excludeGroups || []).includes(g.id)) exc.push(p.raw);
+    }
+    return { inc, exc };
+  }
+  const dgOnCount = (list) => list.filter((r) => r.state === "enabled").length;
+
+  function dgPreviewHtml() {
+    const p = dg.plan, T = dg.data.targets;
+    const tiles = DgFill.targets(p.opts).map((t) => {
+      const c = p.counts[t.key], g = T[t.key], ref = p.refusals.find((r) => r.key === t.key), reach = dgReach(t.key);
+      return `<div class="dg-tile${ref ? " bad" : ""}" title="${esc(t.label)}">
+        <div class="mini"><b>${esc(t.key)}</b>${t.fix ? "" : ' <span class="muted">add-only</span>'} <span class="muted" style="word-break:break-all">${esc(t.name)}</span></div>
+        ${ref ? `<div class="mini" style="color:var(--off)">✗ ${esc(ref.why)}</div>`
+          : `<div class="dg-big"><span class="dg-plus">+${dgNum(c.add)}</span>${c.remove ? ` <span class="dg-minus">−${dgNum(c.remove)}</span>` : ""}</div>
+             <div class="mini muted">${c.now == null ? "" : `${dgNum(c.now)} direct now`} · ${reach.inc.length + reach.exc.length} polic${reach.inc.length + reach.exc.length === 1 ? "y" : "ies"} (${dgOnCount(reach.inc) + dgOnCount(reach.exc)} On)</div>`}
+      </div>`;
+    }).join("");
+    const notes = [];
+    if (p.extValues.length) notes.push(`<div class="dg-note">ℹ ${esc(p.opts.extAttr)} values seen: ${esc(p.extValues.slice(0, 8).map(([v, n]) => `"${v}" ${dgNum(n)}`).join(" · "))} — ${p.opts.extPrefix ? `anything starting with "${esc(p.opts.extPrefix)}" (any case) counts as external.` : "rule 2 is off (no external prefix in ⚙ Settings) — nobody counts as external."}</div>`);
+    if (p.moved) notes.push(`<div class="dg-note warn">↔ ${dgNum(p.moved)} user${p.moved === 1 ? "" : "s"} move between groups (added to one, taken out of another). Adds run first, removals after.</div>`);
+    if (p.unpaired.length) notes.push(`<div class="dg-note warn">ℹ ${p.unpaired.length} second account${p.unpaired.length === 1 ? " has" : "s have"} no @${esc(p.opts.mainDomain)} account with the same name before the @ — they go to SA, not ADM: ${esc(p.unpaired.slice(0, 6).join(", "))}${p.unpaired.length > 6 ? " …" : ""}</div>`);
+    if (p.nestedOnly.length) notes.push(`<div class="dg-note warn">⚠ ${p.nestedOnly.length} user${p.nestedOnly.length === 1 ? " is" : "s are"} in a group they should not be in only through another group — a membership removal cannot take them out; the report lists them.</div>`);
+    const saGrow = p.counts.SA.add > 500 && dg.data.targets.SA;
+    if (saGrow) { const r = dgReach("SA"); notes.push(`<div class="dg-note bad">⛔ ${esc(dg.data.targets.SA.name)} grows by ${dgNum(p.counts.SA.add)}. The ${r.inc.length + r.exc.length} polic${r.inc.length + r.exc.length === 1 ? "y" : "ies"} naming it (${dgOnCount(r.inc) + dgOnCount(r.exc)} On) reach all of them at their next token refresh — check them first.</div>`); }
+    const F = dg.filter, q = dg.query.trim().toLowerCase();
+    const keep = (r) => (F === "all" || (F === "changes" && (r.add.length || r.remove.length)) || (F === "moves" && r.add.length && r.remove.length) || (F === "skip" && r.rule === "skip") || r.add.includes(F) || r.remove.includes(F))
+      && (!q || r.upn.toLowerCase().includes(q) || r.src.join(" ").toLowerCase().includes(q));
+    const list = p.rows.filter(keep);
+    const chip = (k, label, n) => `<button class="fchip${F === k ? " active" : ""}" data-dg-filter="${k}">${esc(label)} <b>${dgNum(n)}</b></button>`;
+    const chips = [chip("all", "All", p.rows.length), chip("changes", "Changes", p.rows.filter((r) => r.add.length || r.remove.length).length), chip("moves", "Moves", p.moved),
+      ...DgFill.KEYS.filter((k) => p.counts[k].add || p.counts[k].remove).map((k) => chip(k, k, p.counts[k].add + p.counts[k].remove)),
+      chip("skip", "Skipped", p.rows.filter((r) => r.rule === "skip").length)].join("");
+    const pill = (k, cls) => `<span class="tag ${cls}">${cls === "block" ? "−" : cls === "grant" ? "+" : ""}${esc(k)}</span>`;
+    const MAX = 400;
+    return `${dgHowHtml()}<div class="dg-tiles">${tiles}</div>${notes.join("")}
+      <div class="dg-filt"><div class="chip-filter">${chips}</div><input class="txt" id="dgQuery" placeholder="Search user or source…" value="${esc(dg.query)}" style="max-width:260px">
+        <span style="flex:1"></span><button class="btn sm" data-dg-exp="csv">Export CSV</button><button class="btn sm" data-dg-exp="md">Export MD</button></div>
+      <div class="gu-tw"><table class="plist dg-table"><thead><tr><th>User</th><th>Source</th><th>userType</th><th>${esc(p.opts.extAttr.replace("extensionAttribute", "extAttr"))}</th><th>Changes</th><th title="rule 0a–3 decides, +5 = also DevOps — see ℹ How it works">Why</th></tr></thead><tbody>
+        ${list.slice(0, MAX).map((r) => `<tr><td>${esc(r.upn)}</td><td class="mini">${esc(r.src.join(", "))}</td><td class="mini">${esc(r.userType)}</td><td class="mini">${esc(r.ext10)}</td>
+          <td>${r.add.map((k) => pill(k, "grant")).join("")}${r.remove.map((k) => pill(k, "block")).join("")}${!r.add.length && !r.remove.length ? `<span class="mini muted">${r.rule === "skip" ? "skipped" : r.keep.length ? "already in " + esc(r.keep.join(", ")) : "—"}</span>` : ""}${(r.nested || []).map((k) => `<span class="tag new" title="member through another group — cannot be removed here">nested ${esc(k)}</span>`).join("")}</td>
+          <td class="mini">rule ${esc(r.rule)} — ${esc(r.why)}</td></tr>`).join("") || '<tr><td colspan="6" class="mini muted">Nothing matches.</td></tr>'}
+      </tbody></table></div>${list.length > MAX ? `<p class="mini muted">Showing ${MAX} of ${dgNum(list.length)} — search, filter or Export CSV for the rest.</p>` : ""}`;
+  }
+
+  function dgApplyHtml() {
+    const p = dg.plan;
+    const byKey = DgFill.KEYS.filter((k) => p.counts[k].add || p.counts[k].remove);
+    const reachLines = byKey.map((k) => { const r = dgReach(k); return r.inc.length + r.exc.length ? `<li><b>${esc(DgFill.targets(p.opts).find((t) => t.key === k).name)}</b> — included by ${r.inc.length} (${dgOnCount(r.inc)} On), excluded by ${r.exc.length} (${dgOnCount(r.exc)} On)</li>` : ""; }).join("");
+    return `<div class="dg-apply">
+      <h4>Impact</h4><ul class="mini">
+        <li>${dgNum(p.addTotal)} membership add${p.addTotal === 1 ? "" : "s"} and ${dgNum(p.removeTotal)} removal${p.removeTotal === 1 ? "" : "s"} across ${byKey.length} group${byKey.length === 1 ? "" : "s"} in ${esc(tenantName || "this tenant")}${p.opts.fix ? "" : " (add only — nothing removed)"}.</li>
+        <li>A user added to a group comes under the policies that include it, and out of reach of the ones that exclude it — at the next token refresh, minutes not days. A removal does the opposite.</li>
+        ${reachLines ? `<li>Policies naming the changed groups:<ul>${reachLines}</ul></li>` : ""}
+        ${p.refusals.length ? `<li style="color:var(--off)">Not written: ${esc(p.refusals.map((r) => `${r.name} (${r.why})`).join("; "))}</li>` : ""}
+      </ul>
+      <h4>Recovery</h4><ul class="mini">
+        <li>A JSON backup of every deploy group's direct members as they are now is downloaded before the first write.</li>
+        <li>↩ Undo this run reverses exactly what this run changed — re-adds the removed, removes the added — from the run's own record, nothing else.</li>
+        <li>Adds run before removals: a user moving between groups is never in neither.</li>
+      </ul>
+      <label class="chk"><input type="checkbox" id="dgBackup" checked> Download the JSON backup first</label>
+    </div>`;
+  }
+
+  function renderDgFill() {
+    dgPaintSteps(); dgPaintButtons();
+    if (dg.step === "sources") {
+      $("dgSub").innerHTML = dg.list ? `Pick the member groups to read. Every user found is sorted by the rules into the seven deploy groups (⚙ Settings) — you see the full plan before anything is written.` : "";
+      $("dgBody").innerHTML = dgSourcesHtml();
+    } else if (dg.step === "import") {
+      $("dgSub").innerHTML = `Import region list — <b>${esc(dg.imp.name)}</b>. Nothing is saved until you press Save.`;
+      $("dgBody").innerHTML = dgImportHtml();
+    } else if (dg.step === "preview") {
+      const p = dg.plan;
+      $("dgSub").innerHTML = `${dgNum(p.users)} users read · <b>${dgNum(p.addTotal)}</b> to add · <b>${dgNum(p.removeTotal)}</b> to remove${isDemo ? " · demo tenant" : ""}. Nothing has been written.`;
+      $("dgBody").innerHTML = dgPreviewHtml();
+    } else if (dg.step === "apply") {
+      $("dgSub").innerHTML = `Review before anything is written in ${esc(tenantName || "this tenant")}.`;
+      $("dgBody").innerHTML = dgApplyHtml();
+    }
+  }
+  function dgPaintButtons() {
+    const s = dg ? dg.step : "sources";
+    $("dgBack").style.display = s === "preview" || s === "apply" || s === "import" ? "" : "none";
+    $("dgBack").textContent = s === "import" ? "← Cancel import" : "← Back";
+    $("dgNext").style.display = s === "sources" || s === "preview" || s === "import" ? "" : "none";
+    $("dgNext").textContent = s === "preview" ? "Continue to apply →" : s === "import" ? "Save for this tenant" : "Read & preview →";
+    $("dgNext").disabled = !!(dg && ((s === "preview" && !dg.plan.changes) || (s === "import" && (dg.imp.busy || !dgImpKeep().length)) || (s === "sources" && (!dg.src || !dg.list || (!dg.src.rows.length && !dg.guests && !dg.second)))));
+    $("dgGo").style.display = s === "apply" ? "" : "none";
+    $("dgConfirmWrap").style.display = s === "apply" ? "" : "none";
+    $("dgUndo").style.display = dg && dg.done && dg.done.some((d) => d.ok && !d.already) && !dg.running ? "" : "none";
+    if (s === "apply" && dg.plan) $("dgGo").textContent = `Apply ${dgNum(dg.plan.addTotal)} add${dg.plan.addTotal === 1 ? "" : "s"} · ${dgNum(dg.plan.removeTotal)} removal${dg.plan.removeTotal === 1 ? "" : "s"}`;
+    $("dgWord").textContent = dgDomain();
+    $("dgConfirm").placeholder = dgDomain();
+    dgSyncGo();
+  }
+  const dgDomain = () => (isDemo ? "contoso.nl" : (tenantDefaultDomain || tenantDomains[0] || "")).toLowerCase();
+  function dgSyncGo() {
+    if (!dg) return;
+    $("dgGo").disabled = dg.step !== "apply" || dg.running || !dgDomain() || $("dgConfirm").value.trim().toLowerCase() !== dgDomain() || !dg.plan || !dg.plan.changes;
+  }
+
+  // One executor for a run and for its undo: a ledger row per (add|remove,
+  // group), the ops of that row sent 20 to a $batch, Stop honoured between
+  // batches, "already a member" / "not a member" counted as done.
+  async function dgExecute(opsList, title) {
+    const T = dg.data.targets;
+    const upnOf = new Map(dg.plan.rows.map((r) => [r.id, r.upn]));
+    const groups = [];
+    for (const op of opsList) {
+      const k = `${op.op}:${op.key}`;
+      let g = groups.find((x) => x.k === k);
+      if (!g) { g = { k, op: op.op, key: op.key, list: [] }; groups.push(g); }
+      g.list.push(op);
+    }
+    const nameOf = (key) => (T[key] && T[key].name) || key;
+    const L = RunLedger.create($("dgLedger"), { unit: "group changes", title, items: groups.map((g) => ({ label: `${g.op === "add" ? "Add to" : "Remove from"} ${nameOf(g.key)}`, sub: `${dgNum(g.list.length)} user${g.list.length === 1 ? "" : "s"}` })), onStop: () => {} });
+    const done = [];
+    const scopes = [...DG_WRITE, ...(Object.values(T).some((g) => g && g.roleAssignable) ? MEMBER_MOVE_SCOPES : [])];
+    for (let i = 0; i < groups.length; i++) {
+      const g = groups[i];
+      if (L.stopped) { L.skip(i, "stopped — nothing changed"); continue; }
+      L.start(i);
+      let ok = 0, fail = 0, already = 0, firstErr = "";
+      for (let s = 0; s < g.list.length; s += 200) {
+        if (L.stopped) break;
+        const part = g.list.slice(s, s + 200);
+        let res = {};
+        if (isDemo) part.forEach((_, j) => { res[j] = { body: null }; });
+        else res = await Graph.gbatch(part.map((op, j) => DgFill.request(op, j)), null, { scopes, shouldStop: () => L.stopped });
+        part.forEach((op, j) => {
+          const st = DgFill.settled(op, res[j]);
+          done.push({ ...op, upn: upnOf.get(op.user) || op.user, ok: st.ok, already: !!st.already, why: st.why || "" });
+          if (st.ok) { ok++; if (st.already) already++; } else { fail++; if (!firstErr) firstErr = st.why; }
+        });
+        L.note(i, `${dgNum(ok + fail)} of ${dgNum(g.list.length)}${fail ? ` · ${fail} refused` : ""}`);
+      }
+      const sent = ok + fail;
+      if (!fail && sent === g.list.length) L.done(i, `${dgNum(ok)} ${g.op === "add" ? "added" : "removed"}${already ? ` (${already} already so)` : ""}${isDemo ? " (simulated)" : ""}`, g.op === "add" ? "added" : "removed");
+      else if (ok) L.part(i, `${dgNum(ok)} of ${dgNum(g.list.length)} landed${fail ? ` · ${fail} refused — ${firstErr}` : " · stopped"}`, "partly done");
+      else if (L.stopped && !sent) L.skip(i, "stopped — nothing changed");
+      else L.fail(i, firstErr || "refused", "refused");
+    }
+    return { L, done };
+  }
+
+  // Read back the touched groups' direct members: what landed is what the
+  // directory says, not what the batch answered.
+  async function dgVerify(done) {
+    if (isDemo) return "read back (simulated)";
+    const T = dg.data.targets;
+    const keys = [...new Set(done.filter((d) => d.ok).map((d) => d.key))];
+    let wrong = 0;
+    for (const k of keys) {
+      const ids = new Set((await Graph.ggetAll(`/groups/${T[k].id}/members/microsoft.graph.user?$select=id&$top=999`).catch(() => [])).map((u) => u.id));
+      for (const d of done.filter((x) => x.key === k && x.ok)) if ((d.op === "add") !== ids.has(d.user)) wrong++;
+    }
+    return wrong ? `read back: ${wrong} change${wrong === 1 ? "" : "s"} not visible yet — directory replication can take a minute; Refresh and check` : "read back: every change is there";
+  }
+
+  async function dgRun() {
+    const p = dg.plan, T = dg.data.targets;
+    if (!p || !p.changes || dg.running) return;
+    const scopes = [...DG_WRITE, ...(Object.values(T).some((g) => g && g.roleAssignable) ? MEMBER_MOVE_SCOPES : [])];
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...scopes])) return;
+    if ($("dgBackup") && $("dgBackup").checked) {
+      try {
+        downloadText("DG-Fill-Backup", "json", "application/json", JSON.stringify({
+          schema: "enca-dgfill-backup/1", tenant: tenantName, tenantId, exported: new Date().toISOString(),
+          groups: Object.fromEntries(DgFill.KEYS.filter((k) => T[k]).map((k) => [k, { id: T[k].id, name: T[k].name, directUsers: [...T[k].direct] }])),
+          planned: DgFill.ops(p, T),
+        }, null, 2));
+      } catch (e) { console.error(e); toast("Backup download <span>failed</span> — nothing was written"); return; }
+    }
+    dg.running = true; dg.step = "done";
+    $("dgBody").innerHTML = ""; $("dgConfirm").disabled = true; $("dgCancel").disabled = true;
+    dgPaintButtons(); dgPaintSteps();
+    $("dgSub").textContent = `Writing to ${tenantName || "this tenant"}${isDemo ? " (simulated)" : ""}…`;
+    const { L, done } = await dgExecute(DgFill.ops(p, T), "fill from regions");
+    dg.done = done;
+    const verdict = await dgVerify(done);
+    dg.running = false;
+    L.finish({ report: () => showReport("🌍 Fill from regions — report", `DG-Fill-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, DgFill.report({ tenant: tenantName }, p, T, done)) });
+    const okN = done.filter((d) => d.ok).length;
+    $("dgSub").textContent = `${dgNum(okN)} of ${dgNum(done.length)} changes landed in ${tenantName || "this tenant"}${isDemo ? " (simulated)" : ""} · ${verdict}.`;
+    $("dgCancel").disabled = false; $("dgConfirm").disabled = false;
+    dgPaintButtons();
+  }
+  async function dgUndo() {
+    const back = DgFill.undoOps(dg.done || []);
+    if (!back.length || dg.running) return;
+    if (!window.confirm(`Undo this run: ${back.filter((b) => b.op === "add").length} re-add(s) and ${back.filter((b) => b.op === "remove").length} removal(s) in ${tenantName || "this tenant"}?`)) return;
+    const T = dg.data.targets;
+    const scopes = [...DG_WRITE, ...(Object.values(T).some((g) => g && g.roleAssignable) ? MEMBER_MOVE_SCOPES : [])];
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...scopes])) return;
+    dg.running = true; $("dgCancel").disabled = true; dgPaintButtons();
+    $("dgSub").textContent = "Undoing this run…";
+    const { L, done } = await dgExecute(back, "undo");
+    dg.running = false; dg.done = null;
+    L.finish({ report: () => showReport("↩ Fill from regions — undo report", `DG-Fill-Undo-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, DgFill.report({ tenant: tenantName }, dg.plan, T, done)) });
+    $("dgSub").textContent = `Undo: ${dgNum(done.filter((d) => d.ok).length)} of ${dgNum(done.length)} reversed${isDemo ? " (simulated)" : ""}.`;
+    $("dgCancel").disabled = false; dgPaintButtons();
+  }
+
+  $("cgDgFill").addEventListener("click", openDgFill);
+  $("dgCancel").addEventListener("click", () => { if (!dg || !dg.running) $("dgModal").classList.remove("open"); });
+  $("dgBack").addEventListener("click", () => { if (dg.step === "import") dg.imp = null; dg.step = dg.step === "apply" ? "preview" : "sources"; $("dgConfirm").value = ""; renderDgFill(); });
+  $("dgNext").addEventListener("click", () => {
+    if (dg.step === "import") dgSaveImport();
+    else if (dg.step === "sources") dgRead();
+    else if (dg.step === "preview") { dg.step = "apply"; $("dgConfirm").value = ""; renderDgFill(); }
+  });
+  $("dgGo").addEventListener("click", dgRun);
+  $("dgUndo").addEventListener("click", dgUndo);
+  ["input", "keyup", "paste"].forEach((ev) => $("dgConfirm").addEventListener(ev, () => setTimeout(dgSyncGo, 0)));
+  $("dgBody").addEventListener("change", (e) => {
+    const t = e.target; if (!dg) return;
+    if (t.dataset.dgSrc) { t.checked ? dg.ticked.add(t.dataset.dgSrc) : dg.ticked.delete(t.dataset.dgSrc); renderDgFill(); }
+    else if (t.dataset.dgReg) { dg.src.rows.filter((r) => r.region === t.dataset.dgReg && r.kind !== "ignored").forEach((r) => (t.checked ? dg.ticked.add(r.id) : dg.ticked.delete(r.id))); renderDgFill(); }
+    else if (t.dataset.dgX) { dg[t.dataset.dgX] = t.checked; dgPaintButtons(); }
+    else if (t.dataset.dgOpt === "skipDisabled") { dg.opts.skipDisabled = t.checked; dgSavePrefs(); }
+    else if (t.dataset.dgTgt) {
+      const k = t.dataset.dgTgt, v = t.value.trim(), def = DgFill.TARGETS.find((x) => x.key === k).name;
+      const n = { ...(dg.opts.targetNames || {}) };
+      if (!v || v.toLowerCase() === def.toLowerCase()) delete n[k]; else n[k] = v;
+      dg.opts.targetNames = n; dg.setOpen = true; dgSavePrefs();
+      dgCheckTargets().then(renderDgFill);
+    }
+    else if (t.dataset.dgOpt) {
+      const k = t.dataset.dgOpt, v = t.value.trim();
+      dg.setOpen = true;
+      if (k === "secondDomains") { const had = dg.opts.secondDomains.length; dg.opts.secondDomains = v.split(/[,;\s]+/).map((x) => x.replace(/^@/, "").toLowerCase()).filter(Boolean); if (!had && dg.opts.secondDomains.length) dg.second = true; }
+      else if (k === "mainDomain") dg.opts.mainDomain = v.replace(/^@/, "").toLowerCase();
+      else if (k === "extAttr") dg.opts.extAttr = v;
+      else if (k === "extPrefix") dg.opts.extPrefix = v;
+      else if (k === "prefix") { if (v !== dg.opts.prefix) { dg.opts.prefix = v; dgSavePrefs(); dgLoadSources(); } return; }
+      dgSavePrefs(); renderDgFill();
+    }
+  });
+  $("dgBody").addEventListener("click", (e) => {
+    const sum = e.target.closest(".dg-opts > summary"); if (sum && dg) { dg.setOpen = !sum.parentElement.open; return; }
+    const how = e.target.closest(".dg-how > summary"); if (how && dg) { dg.howOpen = !how.parentElement.open; return; }
+    const b = e.target.closest("button"); if (!b || !dg) return;
+    if (b.dataset.dgAct === "import") dgPickCsv();
+    else if (b.dataset.dgAct === "template") downloadText("ENCA-region-list-template", "csv", "text/csv", DgFill.TEMPLATE);
+    else if (b.dataset.dgAct === "export" && dg.list) downloadText(String(dg.list.name || "regions").replace(/\.csv$/i, "") + "-export", "csv", "text/csv", DgFill.toCsv(dg.list.list));
+    else if (b.dataset.dgAct === "clear") {
+      if (!window.confirm(`Remove the region list ${dg.list ? dg.list.name : ""} for ${tenantName || "this tenant"}? Settings stay. Export CSV first if you want it back.`)) return;
+      dg.list = null; dgSavePrefs(); dgLoadSources();
+    }
+    else if (b.dataset.dgPreset) {
+      const P = b.dataset.dgPreset, rows = dg.src.rows;
+      dg.ticked = new Set(P === "none" ? [] : rows.filter((r) => r.ticked).map((r) => r.id));
+      // None also unticks the tenant-wide guest and second-account reads — a
+      // hand-picked country is that country's people, not everybody's guests
+      // and admins. (5.16.1: the Belgium pilot preset is gone, Mihai 9 Oct.)
+      if (P === "none") { dg.guests = false; dg.second = false; } else { dg.guests = true; dg.second = !!dg.opts.secondDomains.length; }
+      renderDgFill();
+    } else if (b.dataset.dgFix != null) { dg.opts.fix = b.dataset.dgFix === "1"; dgSavePrefs(); renderDgFill(); }
+    else if (b.dataset.dgFilter) { dg.filter = b.dataset.dgFilter; renderDgFill(); }
+    else if (b.dataset.dgExp === "csv") downloadText("DG-Fill-Preview", "csv", "text/csv", DgFill.csv(dg.plan));
+    else if (b.dataset.dgExp === "md") showReport("🌍 Fill from regions — preview", `DG-Fill-Preview-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, DgFill.report({ tenant: tenantName }, dg.plan, dg.data.targets));
+  });
+  $("dgBody").addEventListener("input", (e) => {
+    if (e.target.id !== "dgQuery" || !dg) return;
+    dg.query = e.target.value;
+    const pos = e.target.selectionStart;
+    renderDgFill();
+    const q = $("dgQuery"); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch { /* */ } }
+  });
+
   async function openArchived() {
     $("arcSub").textContent = "Looking for groups a recreate left behind…";
     $("arcBody").innerHTML = "";
@@ -8279,10 +8942,32 @@ max@contoso.com,"Global, DevOps"</pre>
   // row opens, because the hits belong to one group and one query
   let cgMemQ = "", cgMemSort = "", cgMemHits = null;
 
+  // 5.17: the box takes a list, so the button says how many it will add, and
+  // the directory suggestions only make sense while there is one name in it.
+  const cgSplit = (v) => (typeof GroupsView !== "undefined" && GroupsView.splitMembers) ? GroupsView.splitMembers(v) : [String(v || "").trim()].filter(Boolean);
+  function cgAddCount() {
+    const n = cgSplit($("cgAddUser")?.value).length, b = $("cgAddGo");
+    if (b) b.textContent = n > 1 ? `＋ Add ${n}` : "＋ Add";
+    return n;
+  }
+  // A text box drops the line breaks of a pasted Excel column and glues the
+  // names together, so a multi-line paste is turned into a ; list on the way in.
+  function cgAddPaste(e) {
+    if (e.target.id !== "cgAddUser") return;
+    const t = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+    if (!/[\r\n\t]/.test(t.trim())) return;
+    e.preventDefault();
+    const box = e.target, list = cgSplit(t).join("; ");
+    const a = box.selectionStart ?? box.value.length, z = box.selectionEnd ?? box.value.length;
+    const before = box.value.slice(0, a).replace(/[\s;,]*$/, ""), after = box.value.slice(z).replace(/^[\s;,]*/, "");
+    box.value = [before, list, after].filter(Boolean).join("; ");
+    cgAddCount();
+  }
   function cgAddSuggest(e) {
     if (e.target.id !== "cgAddUser") return;
     const term = String(e.target.value || "").trim();
     clearTimeout(cgAddTimer);
+    if (cgAddCount() > 1) { const dl = $("cgUserSug"); if (dl) dl.innerHTML = ""; return; }
     // Selecting from a <datalist> fires `input` just like typing does. Without
     // this the pick re-runs the query, the options are rewritten, and the
     // browser reopens the dropdown over a field you have already filled — so
@@ -8304,7 +8989,8 @@ max@contoso.com,"Global, DevOps"</pre>
 
   async function cgAddMember() {
     const uBox = $("cgAddUser"), gBox = $("cgAddGroup"), log = $("cgAddLog");
-    const upn = (uBox?.value || "").trim(), gName = (gBox?.value || "").trim();
+    const list = cgSplit(uBox?.value);
+    const upn = list[0] || "", gName = (gBox?.value || "").trim();
     const say = (html, bad) => {
       cgAddMsg = { html, bad: !!bad };
       const el = $("cgAddLog");
@@ -8315,6 +9001,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
     cgAddGroup = gName;
+    if (list.length > 1) { await cgAddMany(list, row, say); return; }
 
     if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
     say("Adding…");
@@ -8333,7 +9020,11 @@ max@contoso.com,"Global, DevOps"</pre>
       // Re-read that one group so the matrix shows the result. Directory writes
       // are not read-your-writes consistent, so add the row locally too and let
       // the re-read confirm it rather than contradict it.
-      const fresh = { id: user.id, name: user.displayName || upn, upn: user.userPrincipalName || upn, disabled: false };
+      // direct: a just-added member is a DIRECT member — without the flag a
+      // group whose nesting was read (directIds set) listed her nowhere until
+      // the re-read caught up (5.17)
+      const fresh = { id: user.id, name: user.displayName || upn, upn: user.userPrincipalName || upn, disabled: false, direct: true, via: [] };
+      if (row.directIds) row.directIds.add(user.id);
       row.members = [...(row.members || []), fresh];
       row.memberTotal = (row.memberTotal || 0) + 1;
       say(`✓ <b>${esc(fresh.name)}</b> added to <b>${esc(gName)}</b>.`);
@@ -8351,6 +9042,78 @@ max@contoso.com,"Global, DevOps"</pre>
     }
   }
 
+  // 5.17 (32503): several users in one go. One $batch looks every entry up,
+  // one $batch adds the ones that are new (20 a request, Graph.gbatch), and
+  // every entry gets its own line — a user that is not found or fails does not
+  // stop the others. What did not go in stays in the box to fix and retry.
+  async function cgAddMany(list, row, say) {
+    const gName = row.name;
+    if (row.dynamic) { say(`<b>${esc(gName)}</b> is a dynamic group — its membership is decided by the rule, not by hand.`, true); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    const res = list.map((q) => ({ q, user: null, state: "", msg: "" }));
+    say(`Looking up ${res.length} users…`);
+    // demo: an entry without an @ stands in for a user the tenant does not have
+    if (isDemo) res.forEach((r) => { if (r.q.includes("@")) r.user = { id: "demo-" + r.q.toLowerCase(), displayName: r.q.split("@")[0], userPrincipalName: r.q }; else { r.state = "bad"; r.msg = "not found — use the UPN, a name only works from the suggestions"; } });
+    else {
+      const got = await Graph.gbatch(res.map((r, i) => ({ id: i, url: `/users/${encodeURIComponent(r.q)}?$select=id,displayName,userPrincipalName` })));
+      res.forEach((r, i) => {
+        const g = got[i] || {};
+        if (g.body && g.body.id) { r.user = g.body; return; }
+        r.state = "bad";
+        r.msg = (g.status === 404 || /notfound|does not exist/i.test(`${g.code} ${g.error}`))
+          ? (r.q.includes("@") ? "not found in the tenant" : "not found — use the UPN, a name only works from the suggestions")
+          : `lookup failed: ${g.error || "no response"}`;
+      });
+    }
+    // already in, or the same person typed twice (alias and UPN)
+    const have = new Set((row.members || []).map((m) => m.id)), seen = new Set();
+    res.forEach((r) => {
+      if (!r.user) return;
+      if (have.has(r.user.id)) { r.state = "same"; r.msg = "already a member"; }
+      else if (seen.has(r.user.id)) { r.state = "same"; r.msg = "listed twice — added once"; }
+      else seen.add(r.user.id);
+    });
+    const todo = res.filter((r) => r.user && !r.state);
+    if (todo.length) {
+      say(`Adding ${todo.length} to <b>${esc(gName)}</b>…`);
+      if (isDemo) todo.forEach((r) => { r.state = "ok"; });
+      else {
+        const out = await Graph.gbatch(todo.map((r, i) => ({ id: i, method: "POST", url: `/groups/${row.id}/members/$ref`,
+          body: { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${r.user.id}` } })),
+          (d, n) => say(`Adding to <b>${esc(gName)}</b>… ${d} of ${n}`),
+          { scopes: [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"] });
+        todo.forEach((r, i) => {
+          const o = out[i] || { error: "no response" };
+          if (!o.error) r.state = "ok";
+          else if (/already exist/i.test(o.error)) { r.state = "same"; r.msg = "already a member"; }
+          else { r.state = "bad"; r.msg = `add failed: ${o.error}`; }
+        });
+      }
+      const fresh = todo.filter((r) => r.state === "ok").map((r) => ({ id: r.user.id, name: r.user.displayName || r.q, upn: r.user.userPrincipalName || r.q, disabled: false, direct: true, via: [] }));
+      if (row.directIds) fresh.forEach((m) => row.directIds.add(m.id));
+      row.members = [...(row.members || []), ...fresh];
+      row.memberTotal = (row.memberTotal || 0) + fresh.length;
+    }
+    const ok = res.filter((r) => r.state === "ok"), bad = res.filter((r) => r.state === "bad"), same = res.filter((r) => r.state === "same");
+    const line = (r) => {
+      const nm = r.user ? (r.user.displayName || r.q) : r.q, up = r.user ? (r.user.userPrincipalName || r.q) : "";
+      const who = up && up.toLowerCase() !== String(nm).toLowerCase() ? `${esc(nm)} <span class="muted">${esc(up)}</span>` : esc(nm);
+      return r.state === "ok" ? `<div>✓ ${who} — added</div>`
+        : r.state === "same" ? `<div class="muted">= ${who} — ${esc(r.msg)}</div>`
+        : `<div style="color:var(--off)">✗ ${who} — ${esc(r.msg)}</div>`;
+    };
+    // problems first; a long run folds the successes into one line
+    const lines = [...bad, ...same].map(line).concat(ok.length > 12 ? [`<div>✓ ${ok.length} users added</div>`] : ok.map(line));
+    const head = `<b>${ok.length} of ${res.length} added</b> to <b>${esc(gName)}</b>${same.length ? ` · ${same.length} already in` : ""}${bad.length ? ` · <span style="color:var(--off)">${bad.length} need${bad.length === 1 ? "s" : ""} a look — left in the box</span>` : ""}`;
+    cgAddMsg = { html: `${head}<div style="margin-top:4px;max-height:220px;overflow:auto">${lines.join("")}</div>`, bad: false };
+    const keep = bad.map((r) => r.q).join("; ");
+    const restore = () => { const b = $("cgAddUser"); if (b) b.value = keep; cgAddCount(); const el = $("cgAddLog"); if (el) el.innerHTML = `<span>${cgAddMsg.html}</span>`; };
+    cgRerenderMembers(); restore();
+    if (!isDemo && ok.length) {
+      try { await CaGroups.loadMembers([row], {}); cgRerenderMembers(); restore(); } catch { /* the optimistic rows stand */ }
+    }
+  }
+
   // Remove a member — the mirror of cgAddMember, and the one write in this
   // matrix that can lock somebody out (a member taken out of an EXCLUSION
   // group is suddenly inside the policy). So it always confirms, names both
@@ -8363,6 +9126,7 @@ max@contoso.com,"Global, DevOps"</pre>
     };
     who = (who || "").trim(); gName = (gName || "").trim();
     if (!who) { say("Type a user first.", true); return; }
+    if (!byId && cgSplit(who).length > 1) { say("Remove takes one user at a time — it asks before each one, because a removal from an exclusion group puts that person back inside the policy.", true); return; }
     if (!gName) { say("Pick a group.", true); return; }
     const row = (cgRes.rows || []).find((r) => r.name === gName && r.id);
     if (!row) { say(`No loaded group called <b>${esc(gName)}</b> — read its members first.`, true); return; }
@@ -8488,13 +9252,13 @@ This is a directory write. Nothing else changes.`)) return;
     const addBar = `<div class="cg-panel">
         <h4>ADD OR REMOVE A MEMBER <span class="tag upd">UPDATED</span></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
+          <input id="cgAddUser" class="txt" list="cgUserSug" placeholder="User — name or UPN; several: a; b; c" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;letter-spacing:normal;font-weight:400">
           <span class="mini muted">to</span>
           <input id="cgAddGroup" class="txt" list="cgGroupSug" placeholder="Group" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px;letter-spacing:normal;font-weight:400" value="${esc(cgAddGroup || "")}">
           <button class="btn primary" id="cgAddGo">＋ Add</button>
           <button class="btn" id="cgAddRm" title="Remove the user from the group — asks first, and says what the group is used for">− Remove</button>
         </div>
-        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. To remove, use <b>− Remove</b> here or hover a ● in the matrix and click the ×; both ask first and say whether the group is an exclusion. ${m.cols.length === 1
+        <p class="mini muted" style="margin:8px 0 0">Type two letters and the directory suggests users. To add several at once, separate them with ; , or a new line — a column pasted from Excel works too. To remove, use <b>− Remove</b> here or hover a ● in the matrix and click the ×; both ask first and say whether the group is an exclusion. ${m.cols.length === 1
           ? `Only <b>${esc(m.cols[0].name)}</b> is loaded here, so it is filled in for you — read more groups above to add to another.`
           : `The group list is the ${m.cols.length} groups whose members are loaded here, so the matrix can show the result immediately.`}</p>
         <div id="cgAddLog" class="mini" style="margin-top:8px">${cgAddMsg ? `<span style="${cgAddMsg.bad ? "color:var(--off)" : ""}">${cgAddMsg.html}</span>` : ""}</div>
@@ -8842,19 +9606,41 @@ This is a directory write. Nothing else changes.`)) return;
       return true;
     } catch (e) { cgAddMsg = { html: `Remove failed: ${esc(e.message || e)}`, bad: true }; renderCaGroups(); }
   }
+  // 32511: the two exact member activities, not the whole GroupManagement
+  // category. If the service ever refuses the activity filter, fall back to the
+  // category read, which Audit.build narrows client-side as before.
+  const AU_FLAG = {
+    widensBypass: ["widens a bypass", "An add to a group that a policy excludes: this person now skips that policy."],
+    byApp: ["by an app", "Done by an application or service principal, not a signed-in person."],
+    offHours: ["off hours", "Outside 07:00-19:00 on a weekday, in your clock."],
+  };
+  async function auReadMembership(days, scopes) {
+    try {
+      const parts = await Promise.all(Audit.queryMembershipExact(days).map((q) => Graph.ggetAll(q, { scopes })));
+      const out = []; for (const p of parts) for (const x of p) out.push(x);
+      return out;
+    } catch (e) {
+      console.warn("Change audit: exact member-activity read failed, reading the category —", e.message || e);
+      return Graph.ggetAll(Audit.queryMembership(days), { scopes });
+    }
+  }
   async function cgReadHistory(r) {
     cgHistBusy = true; renderCaGroups();
     try {
-      if (isDemo) { cgHist = { id: r.id, rows: [{ activity: "Add member to group", target: "Demo user 1", when: "2026-07-21 09:12", by: "alex.admin@contoso.com", result: "success" }] }; }
+      if (isDemo) { cgHist = { id: r.id, added: {}, more: false, rows: [{ activity: "Add member to group", target: "Demo user 1", when: "2026-07-21 09:12", by: "alex.admin@contoso.com", byKind: "user", applied: true, result: "success" }] }; }
       else {
         if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { cgHist = { id: r.id, error: "AuditLog.Read.All was not granted" }; }
         else {
-          const j = await Graph.gget(`/auditLogs/directoryAudits?$filter=${encodeURIComponent(`targetResources/any(t:t/id eq '${r.id}')`)}&$orderby=activityDateTime desc&$top=50`);
-          cgHist = { id: r.id, rows: ((j && j.value) || []).map((x) => {
-            const by = (x.initiatedBy || {}); const who = (by.user && (by.user.userPrincipalName || by.user.displayName)) || (by.app && by.app.displayName) || "(unknown)";
-            const user = (x.targetResources || []).find((t) => /user/i.test(t.type || "") && t.id !== r.id);
-            return { activity: x.activityDisplayName || "", when: new Date(x.activityDateTime).toLocaleString(), by: who, result: x.result || "", target: user ? (user.userPrincipalName || user.displayName || "") : "" };
-          }) };
+          const j = await Graph.gget(`/auditLogs/directoryAudits?$filter=${encodeURIComponent(`targetResources/any(t:t/id eq '${r.id}')`)}&$orderby=activityDateTime desc&$top=999`);
+          const evs = (j && j.value) || [];
+          const mem = evs.filter((x) => Audit.isMembershipActivity(x.activityDisplayName)).map((x) => Audit.parseMembership(x, null)).filter(Boolean);
+          cgHist = { id: r.id, more: !!(j && j["@odata.nextLink"]),
+            added: Audit.addedIndex(mem, (iso) => new Date(iso).toLocaleString()),
+            rows: evs.map((x) => {
+              const by = (x.initiatedBy || {}); const who = (by.user && (by.user.userPrincipalName || by.user.displayName)) || (by.app && by.app.displayName) || "(unknown)";
+              const user = (x.targetResources || []).find((t) => /user/i.test(t.type || "") && t.id !== r.id);
+              return { activity: x.activityDisplayName || "", when: new Date(x.activityDateTime).toLocaleString(), by: who, byKind: Audit.actorOf(x).kind, applied: String(x.result || "").toLowerCase() === "success", result: x.result || "", target: user ? (user.userPrincipalName || user.displayName || "") : "" };
+            }) };
         }
       }
     } catch (e) { cgHist = { id: r.id, error: `Could not read the audit log: ${e.message || e}` }; }
@@ -8983,6 +9769,8 @@ This is a directory write. Nothing else changes.`)) return;
     await openCaGroups(true);
   });
   $("cgBody").addEventListener("input", cgAddSuggest);
+  $("cgBody").addEventListener("paste", cgAddPaste);
+  $("cgList").addEventListener("paste", cgAddPaste);
   $("cgBody").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgList").addEventListener("input", cgAddSuggest);
   $("cgList").addEventListener("input", (e) => { if (e.target.id !== "cgMemQ") return; cgMemQ = e.target.value; cgMemRefresh(); });
@@ -13002,7 +13790,7 @@ This is a directory write. Nothing else changes.`)) return;
         : await Promise.all([
             auProg.fetchAll(Audit.queryPolicy(auDays), AU_MAX, "audit entries"),
             // only worth asking if any policy actually points at a group
-            watch.size ? Graph.ggetAll(Audit.queryMembership(auDays), { scopes }) : [],
+            watch.size ? auReadMembership(auDays, scopes) : [],
           ]);
       if (auProg.st.capped) toast(`Audit window truncated at ${AU_MAX.toLocaleString()} entries`);
       auRes = Audit.build([...pol, ...mem], { watch });
@@ -13135,7 +13923,7 @@ This is a directory write. Nothing else changes.`)) return;
           const detail = open ? `<tr class="au-sumdet"><td colspan="5">
             ${s.kind === "membership" && s.usedBy.length ? `<div class="au-why" style="margin:0 0 8px">This group is used as an <b>${esc(s.usedAs)}</b> on ${s.usedBy.length} polic${s.usedBy.length === 1 ? "y" : "ies"}: ${esc(s.usedBy.slice(0, 6).join(", "))}${s.usedBy.length > 6 ? ` +${s.usedBy.length - 6} more` : ""}</div>` : ""}
             <ul class="wi-list">${s.rows.slice(0, 40).map((x) => `<li>
-              <div class="wi-pn"><span class="au-act ${x.action}">${x.action}</span> ${esc(x.member || x.activity)}</div>
+              <div class="wi-pn"><span class="au-act ${x.action}">${x.action}</span> ${esc(x.member || x.activity)}${x.applied === false ? ` <span class="tag block" title="${esc(x.failure || "the directory refused it")}">refused</span>` : ""}</div>
               <div class="wi-why">${esc(new Date(x.when).toLocaleString())} · by ${esc(x.actor.name)}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""}${x.changeCount && x.kind !== "membership" ? ` · ${x.changeCount} field${x.changeCount === 1 ? "" : "s"}` : ""}</div>
             </li>`).join("")}</ul>
             ${s.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${s.rows.length} — switch to Timeline and search to see the rest.</p>` : ""}
@@ -13181,9 +13969,10 @@ This is a directory write. Nothing else changes.`)) return;
           <span class="au-when">${esc(auAgo(x.when))}</span>
         </div>
         <div class="au-sub">${esc(x.activity)} · by <b>${esc(x.actor.name)}</b>${x.actor.upn ? ` (${esc(x.actor.upn)})` : ""}${x.actor.ip ? ` from ${esc(x.actor.ip)}` : ""} · ${esc(new Date(x.when).toLocaleString())}</div>
-        ${x.kind === "membership" ? `<div class="au-sub au-why">${x.action === "add" ? "⚠ " : ""}<b>${esc(x.member || "")}</b> ${x.action === "add" ? "gained" : "lost"} whatever this group grants —
+        ${x.kind === "membership" && x.applied === false ? `<div class="au-sub au-why">The directory refused this ${x.action === "add" ? "add" : "removal"} of <b>${esc(x.member || "")}</b>${x.failure ? ` (${esc(x.failure)})` : ""} — no membership moved in <b>${esc(x.target)}</b>.</div>` : ""}
+        ${x.kind === "membership" && x.applied !== false ? `<div class="au-sub au-why">${x.action === "add" ? "⚠ " : ""}<b>${esc(x.member || "")}</b> ${x.action === "add" ? "gained" : "lost"} whatever this group grants —
           ${x.usedAs === "exclude" ? "it is an <b>exclusion</b> group" : x.usedAs === "include" ? "it is an <b>include</b> group" : "it is used as <b>include and exclude</b>"}
-          on ${x.usedBy.length} polic${x.usedBy.length === 1 ? "y" : "ies"}: ${esc(x.usedBy.slice(0, 4).join(", "))}${x.usedBy.length > 4 ? ` +${x.usedBy.length - 4} more` : ""}</div>` : ""}
+          on ${x.usedBy.length} polic${x.usedBy.length === 1 ? "y" : "ies"}: ${esc(x.usedBy.slice(0, 4).join(", "))}${x.usedBy.length > 4 ? ` +${x.usedBy.length - 4} more` : ""}${(x.flags || []).filter((f) => f !== "failed").map((f) => ` <span class="tag block" title="${esc(AU_FLAG[f][1])}">${esc(AU_FLAG[f][0])}</span>`).join("")}</div>` : ""}
         ${open ? diff : ""}
       </div>`;
     }).join("") + auAgedHtml();
@@ -20385,6 +21174,10 @@ This is a directory write. Nothing else changes.`)) return;
     crumb("🛡 Checks");
     show("screen-mslearn");
     mountToolTabs("checks", "mslearn");
+    // the feed is read in the background: it puts the ⚠ count on the tab and
+    // the "Learn changed" line on a finding whose page moved
+    lfLoad().then(() => { if ($("screen-mslearn").classList.contains("active")) { if (mlTab === "learn") renderLearn(); else { mlTabsPaint(); if (mlGroups) renderMsLearn(); } } });
+    if (mlTab === "learn") { renderLearn(); return; }
     if (!policies.length) { $("mlHead").innerHTML = '<p class="mini">No policies loaded.</p>'; $("mlBody").innerHTML = ""; $("mlChips").innerHTML = ""; mlKey = null; return; }
     // baseline tenant → include Off + persona-only; note the scope.
     // Before the cache check, because the scope is part of what the result
@@ -20596,13 +21389,96 @@ This is a directory write. Nothing else changes.`)) return;
       <button class="btn sm" data-catready-clear>Clear</button>
       <button class="btn primary sm" data-catready-open>Open 🧱 Update the catalog →</button></div>`;
   }
+  // ---------- 📰 Learn changes (32306) ----------
+  // The weekly Microsoft Learn feed (js/learnfeed.js), read without a scan
+  // and without a tenant call: raw.githubusercontent.com first, the copy
+  // shipped with the build when GitHub cannot be reached. Decisions made here
+  // are kept on this browser as PENDING until 📋 Work order carries them to a
+  // session that writes them into js/learntriage.js.
+  let lfFeed = null, lfSource = null, lfError = null, lfLoading = null, lfFilter = "all";
+  const LF_LOCAL = "enca-learn-triage";
+  const lfLocalLoad = () => { try { return JSON.parse(localStorage.getItem(LF_LOCAL) || "{}") || {}; } catch { return {}; } };
+  const lfLocalSave = (o) => { try { localStorage.setItem(LF_LOCAL, JSON.stringify(o)); } catch { /* private window — kept for this view only */ } };
+  const lfToday = () => new Date().toISOString().slice(0, 10);
+  function lfLoad(force) {
+    if (lfLoading) return lfLoading;
+    if (lfFeed && !force) return Promise.resolve(lfFeed);
+    lfLoading = (async () => {
+      const get = async (u) => {
+        const r = await fetch(u, { cache: "no-store" });
+        if (!r.ok) throw new Error(r.status === 404 ? "no feed published yet" : `HTTP ${r.status}`);
+        const j = await r.json();
+        if (!j || j.schema !== LearnFeed.SCHEMA) throw new Error("not a Learn feed");
+        return j;
+      };
+      try { lfFeed = await get(LearnFeed.FEED_URL + (force ? `?t=${Date.now()}` : "")); lfSource = "live"; lfError = null; }
+      catch (e) {
+        lfError = e.message || String(e);
+        try { lfFeed = await get(`${LearnFeed.SNAPSHOT_URL}?v=${APP_BUILD.build}`); lfSource = "snapshot"; }
+        catch { lfFeed = null; lfSource = null; }
+      }
+      lfLoading = null;
+      return lfFeed;
+    })();
+    return lfLoading;
+  }
+  function lfResult() {
+    if (!lfFeed) return null;
+    const triage = typeof LEARN_TRIAGE !== "undefined" ? LEARN_TRIAGE : { decisions: {} };
+    // a pending decision the repo has since recorded is done with
+    const loc = lfLocalLoad();
+    const rec = (triage && triage.decisions) || {};
+    if (Object.keys(loc).some((k) => rec[k])) { Object.keys(loc).forEach((k) => { if (rec[k]) delete loc[k]; }); lfLocalSave(loc); }
+    return LearnFeed.classify(lfFeed, MSLearn.checkDocs(), triage, loc);
+  }
+  const lfAll = (r) => [...r.alerts, ...r.newDocs, ...r.changed, ...r.minor, ...r.whatsNew, ...r.mentions];
+  function mlTabsPaint() {
+    $("mlTabFindings").classList.toggle("active", mlTab === "findings");
+    $("mlTabFixes").classList.toggle("active", mlTab === "fixes");
+    $("mlTabLearn").classList.toggle("active", mlTab === "learn");
+    const r = lfResult();
+    const n = r ? r.counts.open : 0, a = r ? r.counts.alerts : 0;
+    $("mlTabLearn").innerHTML = `📰 Learn changes${n ? ` <span class="lf-count${a ? " warn" : ""}" title="${a ? `${a} page${a === 1 ? "" : "s"} a check relies on changed after the check was verified · ` : ""}${n} to decide">${a ? `⚠ ${a}` : n}</span>` : ""}`;
+  }
+  function renderLearn() {
+    mlTabsPaint();
+    $("mlDisabledWrap").style.display = "none"; $("mlApply").style.display = "none"; $("mlFixZip").style.display = "none";
+    // 32311: the hand-over button lives in the tab's own status bar now
+    $("mlLearnWo").style.display = "none";
+    if (!lfFeed) {
+      $("mlChips").innerHTML = "";
+      $("mlBody").innerHTML = lfLoading
+        ? '<p class="mini" style="padding:16px">Reading the Learn feed…</p>'
+        : `<p class="mini" style="padding:16px">The Learn feed could not be read${lfError ? ` (${esc(lfError)})` : ""}, and no copy shipped with this build could be read either. <button class="btn sm" data-lfreload>↻ Try again</button></p>`;
+      if (lfLoading) lfLoading.then(() => { if (mlTab === "learn") renderLearn(); });
+      return;
+    }
+    const r = lfResult();
+    $("mlChips").innerHTML = LearnFeed.chips(r, lfFilter);
+    let howOpen = true; try { howOpen = localStorage.getItem("enca-lf-how") !== "closed"; } catch { /* default open */ }
+    $("mlBody").innerHTML = LearnFeed.render(r, { filter: lfFilter, source: lfSource, error: lfError, howOpen });
+  }
+  // How this works stays as the person left it (open until they fold it)
+  $("mlBody").addEventListener("toggle", (e) => {
+    if (e.target && e.target.matches && e.target.matches("[data-lfhow]")) { try { localStorage.setItem("enca-lf-how", e.target.open ? "open" : "closed"); } catch { /* per view */ } }
+  }, true);
+  function lfDecide(key, d, why) {
+    const r = lfResult(); if (!r) return;
+    const item = lfAll(r).find((x) => x.key === key);
+    const loc = lfLocalLoad();
+    loc[key] = { d, at: lfToday(), ...(why ? { why } : {}), ...(item && item.since ? { upTo: item.since } : {}), ...(item && item.kind === "alert" ? { checks: item.checks.map((c) => c.id) } : {}) };
+    lfLocalSave(loc);
+    renderLearn();
+    toast(`${esc(LearnFeed.DECISIONS[d] ? LearnFeed.DECISIONS[d].label : d)} — <span>pending</span>: 📋 Work order carries it to be recorded`);
+  }
   function renderMsLearn() {
+    if (mlTab === "learn") { renderLearn(); return; }
+    $("mlDisabledWrap").style.display = ""; $("mlLearnWo").style.display = "none";
     if (!mlGroups) return;
     const incDis = $("mlDisabled").checked;
     const nFix = mlFixes ? mlFixes.fixes.length : 0;
     $("mlTabFixes").textContent = nFix ? `Suggested fixes (${nFix})` : "Suggested fixes";
-    $("mlTabFindings").classList.toggle("active", mlTab === "findings");
-    $("mlTabFixes").classList.toggle("active", mlTab === "fixes");
+    mlTabsPaint();
     // accepted findings fold away while they are about the same policies
     const acc = mlAccLoad();
     const accepted = [], active = [];
@@ -20639,21 +21515,68 @@ This is a directory write. Nothing else changes.`)) return;
       $("mlBody").innerHTML = band + matrices + MSLearn.renderEmpty() + MSLearn.renderAccepted(accepted);
       return;
     }
+    const lfr = lfResult();
     const count = (s) => s === "all" ? active.length : active.filter(g => g.check.severity === s).length;
     $("mlChips").innerHTML = [["all", "All"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"], ["info", "Info"]]
       .filter(([k]) => count(k) > 0 || k === "all")
       .map(([k, l]) => `<button class="fchip ${mlFilter === k ? "active" : ""}" data-mlf="${k}">${l} (${count(k)})</button>`).join("");
     $("mlBody").innerHTML = band + matrices
-      + MSLearn.renderGroups(active, mlFilter, mlExpanded, { canApply, fixable: mlFixable, accept: !isDemo })
+      + MSLearn.renderGroups(active, mlFilter, mlExpanded, { canApply, fixable: mlFixable, accept: !isDemo, drift: (id) => LearnFeed.driftFor(lfr, id) })
       + MSLearn.renderAccepted(accepted);
   }
-  $("mlTabFindings").addEventListener("click", () => { mlTab = "findings"; renderMsLearn(); });
-  $("mlTabFixes").addEventListener("click", () => { mlTab = "fixes"; renderMsLearn(); });
+  // Findings and Suggested fixes need a scan; before one, they show the
+  // ▶ Run checks prompt again (📰 Learn changes needs none).
+  const mlToScanTab = (t) => {
+    mlTab = t;
+    if (!mlGroups) { $("mlDisabledWrap").style.display = ""; $("mlLearnWo").style.display = "none"; mlTabsPaint(); openMsLearn(); return; }
+    renderMsLearn();
+  };
+  $("mlTabFindings").addEventListener("click", () => mlToScanTab("findings"));
+  $("mlTabFixes").addEventListener("click", () => mlToScanTab("fixes"));
+  $("mlTabLearn").addEventListener("click", () => {
+    mlTab = "learn"; renderLearn();
+    lfLoad().then(() => { if (mlTab === "learn") renderLearn(); });
+  });
+  function lfWorkOrder() {
+    const r = lfResult(); if (!r) return;
+    const md = LearnFeed.workOrder(r, { date: lfToday(), source: lfSource === "live" ? "weekly feed" : "copy shipped with the build", build: APP_BUILD.label });
+    showReport("📋 Learn changes — work order", `ENCA-learn-work-order-${lfToday()}`, md);
+  }
+  $("mlLearnWo").addEventListener("click", lfWorkOrder);
+  $("mlChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-lff]"); if (!b) return;
+    lfFilter = b.dataset.lff; renderLearn();
+  });
+  $("mlBody").addEventListener("click", (e) => {
+    const go = e.target.closest("[data-lfgo]");
+    if (go) { e.preventDefault(); mlTab = "learn"; lfFilter = "alerts"; renderLearn(); return; }
+    if (e.target.closest("[data-lfwo]")) { lfWorkOrder(); return; }
+    if (e.target.closest("[data-lfreload]")) { lfLoad(true).then(() => renderLearn()); renderLearn(); return; }
+    const u = e.target.closest("[data-lfundo]");
+    if (u) { const loc = lfLocalLoad(); delete loc[u.dataset.lfundo]; lfLocalSave(loc); renderLearn(); return; }
+    const d = e.target.closest("[data-lfd]"); if (!d) return;
+    const key = d.dataset.lfd, dv = d.dataset.lfdv;
+    const inp = [...$("mlBody").querySelectorAll("[data-lfwhy]")].find((x) => x.dataset.lfwhy === key);
+    const why = inp ? inp.value.trim() : "";
+    // a decision that orders or dismisses work says why, or which check
+    if (!why && ["check-change", "extends", "covered", "not-relevant"].includes(dv)) {
+      toast(dv === "check-change" ? "Write <span>what changed</span> in the note first" : dv === "not-relevant" ? "Write <span>why</span> it is not relevant in the note first" : "Write <span>which check</span> in the note first");
+      if (inp) inp.focus();
+      return;
+    }
+    lfDecide(key, dv, why);
+  });
   // 32402: the break-glass band's way to the fix
   $("mlBody").addEventListener("click", (e) => { if (e.target.closest("[data-ml-bg-open]")) openProtect(); });
   // Refresh: re-read the tenant, then re-run the MS Learn checks.
   $("mlRefresh").addEventListener("click", async () => {
     const btn = $("mlRefresh"); btn.disabled = true; btn.textContent = "⟳ Refreshing…";
+    if (mlTab === "learn") {
+      // on 📰 Learn changes, Refresh re-reads the feed — not the tenant
+      try { await lfLoad(true); renderLearn(); toast(lfSource === "live" ? "Learn feed <span>re-read</span>" : "GitHub could not be reached — <span>showing the copy shipped with this build</span>"); }
+      finally { btn.disabled = false; btn.textContent = "⟳ Refresh"; }
+      return;
+    }
     try {
       if (isDemo) loadDemo(); else await loadFromGraph(true);
       await openMsLearn();
@@ -21379,6 +22302,308 @@ This is a directory write. Nothing else changes.`)) return;
   $("isRefresh").addEventListener("click", () => runIdScore());
   $("isMd").addEventListener("click", () => { if (isModel) showReport("🏅 Identity Secure Score", `ENCA-identity-secure-score-${new Date().toISOString().slice(0, 10)}`, IdScore.toMd(isModel, tenantName)); });
 
+  // ---------- 📊 Deployment dashboard (32505, T54) ----------
+  // The TUNO T28 rollout dashboard for Conditional Access: every enabled
+  // user against the CAD-SEC-U-DG-* deploy groups, route in, the policies
+  // on each group by state, who an exclusion takes back out (a pie), and —
+  // behind a button, because it is the slow read — 🌊's go-live readiness
+  // per group. js/deploydash.js builds the model and the HTML (screen and
+  // export alike); this is the reads and the clicks. Reads only, nothing
+  // written. Workspace 01.
+  //
+  // The reads, in order, each said on the strip: all users (one paged
+  // read, accountEnabled and userType carried), the deploy groups — one
+  // startswith read of what the tenant calls CAD-SEC-U-DG-*, plus whatever
+  // the active catalog names -DG- — each one's direct members and nested
+  // groups and transitive users, the exclusion groups of every policy that
+  // includes a deploy group with their transitive members, and the members
+  // of the directory roles those policies exclude. Minutes on no tenant.
+  //
+  // NOTHING here comes from 🌍 Fill from regions — not its region list, its
+  // ⚙ Settings or its rules (Mihai, 13 Oct 2026: separate things, no
+  // dependencies). The two tools share the tenant and nothing else.
+  //
+  // Readiness is 🌊 Who is the wave run per deploy group that has a
+  // report-only policy on it: the shared sign-in window, the groups the
+  // policies name (read once), the roles (read once), then one wave
+  // analysis per group in the worker. It is the sign-in read that costs,
+  // and it is the same window 🚦 and 🎚 share, so a warm cache makes it
+  // quick and a cold one on a large tenant does not — which is why the
+  // page never waits for it.
+  const DD_SEL = "id,userPrincipalName,displayName,userType,accountEnabled";
+  const DD_PREFIX = "CAD-SEC-U-DG-";
+  let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
+  const ddProg = makeProgress("dd");
+  const DD_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The rollout as a picture: every enabled user in the tenant against the CAD-SEC-U-DG-* deploy groups — who is in which group and how, who is <b>left out</b> of every group, which policies reach each group and in what state, and how many members an <b>exclusion</b> takes back out again. Readiness per group is 🌊 Who is the wave\'s verdict, read on request. One page, exportable as HTML for people without ENCA. Nothing here writes.</p>';
+
+  function openDeployDash() {
+    crumb("📊 Deployment dashboard");
+    show("screen-deploydash");
+    $("ddHead").innerHTML = toolHead("toolDeployDash") + DD_HEAD_TEXT;
+    if (!policies.length) { $("ddBody").innerHTML = '<p class="mini">No policies loaded.</p>'; return; }
+    if (ddModel) { renderDeployDash(); return; }
+    if (ddBusy) { $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); return; }
+    ddPaintButtons();
+    $("ddBody").innerHTML = `${ddErr ? `<p class="mini" style="padding:0 0 10px;color:var(--off)">Could not be read — ${esc(ddErr)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-ddrun>▶ Read the deployment</button>
+      <p class="mini muted">Reads every enabled user, the deploy groups (whatever the tenant calls CAD-SEC-U-DG-*) and their members, and the exclusion groups of the policies on them. Nothing is written. Readiness per group (🌊) is a second read, offered once this one is in.</p></div>`;
+  }
+  function ddPaintButtons() {
+    const has = !!ddModel;
+    $("ddMd").style.display = has ? "" : "none"; $("ddCsv").style.display = has ? "" : "none"; $("ddHtml").style.display = has ? "" : "none";
+    const b = $("ddReady");
+    b.style.display = has && ddModel.groups.some((g) => g.pol.ro) ? "" : "none";
+    b.disabled = ddRdBusy;
+    b.textContent = ddRdBusy ? "🌊 Reading readiness…" : ddReadiness ? "🌊 Read readiness again" : "🌊 Read readiness";
+  }
+  function ddRebuild() {
+    if (!ddRaw) { ddModel = null; return; }
+    ddModel = DeployDash.build(Object.assign({}, ddRaw, { readiness: ddReadiness || new Map(), readinessAt: ddReadinessAt, tenant: tenantName }));
+  }
+  function renderDeployDash() {
+    ddRebuild();
+    if (!ddModel) return;
+    ddPaintButtons();
+    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, list: ddList });
+    const strip = $("ddRead");
+    if (strip) strip.innerHTML = ddRaw.times.map(([label, t]) => `<span>${esc(label)} · ${esc(new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>`).join("") + (ddReadinessAt ? `<span>Readiness (🌊) · ${esc(new Date(ddReadinessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>` : "");
+  }
+  // the deploy groups: what the tenant HAS under the CAD-SEC-U-DG-* name
+  // (have: the groups a startswith read returned) plus what the active
+  // catalog names -DG- (GUESTAdmins and the like) and the tenant lacks —
+  // one row each, in DeployDash's order, found or not
+  function ddGroupList(have) {
+    const cat = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null;
+    const byName = new Map((have || []).map((g) => [String(g.displayName || "").toLowerCase(), g]));
+    const names = new Set((have || []).map((g) => g.displayName));
+    ((cat && cat.predefined) || []).filter((n) => /-DG-/i.test(n)).forEach((n) => { if (!byName.has(n.toLowerCase())) names.add(n); });
+    return DeployDash.sortNames([...names]).map((n) => ({ key: DeployDash.keyOf(n), name: n, g: byName.get(n.toLowerCase()) || null }));
+  }
+  async function readDeployDash() {
+    if (ddBusy) return;
+    ddBusy = true; ddErr = null; ddModel = null; ddReadiness = null; ddReadinessAt = null; ddList = ""; ddGroup = "";
+    ddProg.begin();
+    const say = (m, note) => { if ($("screen-deploydash").classList.contains("active")) $("ddBody").innerHTML = ddProg.panel(m, note); };
+    const times = [];
+    const stamp = (label) => times.push([label, Date.now()]);
+    try {
+      let users, groups, exclGroups = new Map(), roleMembers = new Map(), names = {};
+      const pol = policies.map((p) => { const u = (p.raw && p.raw.conditions && p.raw.conditions.users) || {}; return { id: p.raw.id, name: p.name, state: p.raw.state, includeGroups: u.includeGroups || [], excludeGroups: u.excludeGroups || [], excludeUsers: (u.excludeUsers || []).filter((x) => x !== "All" && x !== "GuestsOrExternalUsers"), excludeRoles: u.excludeRoles || [] }; });
+      if (isDemo) {
+        users = (DEMO_DATA.analyzeUsers || []).slice();
+        const sg = DEMO_DATA.scopeGroups || {};
+        const have = Object.keys(sg).filter((n) => /-DG-/i.test(n)).map((n) => ({ id: wvDemoId(n), displayName: n }));
+        groups = ddGroupList(have).map((t) => ({ key: t.key, name: t.name, id: t.g ? t.g.id : null, direct: new Set(sg[t.name] || []), nested: new Set(), children: [] }));
+        Object.entries(DEMO_DATA.roleMembers || {}).forEach(([rt, ids]) => roleMembers.set(rt, new Set(ids)));
+        // The demo tenant's policies target the persona groups, never a
+        // deploy group (CA200 stopped including DG-INT on purpose). Two
+        // demo-only policies on the deploy groups, so the page has a state
+        // bar and a pie to draw; they are not in the policy list.
+        pol.push({ id: "demo-dd-1", name: "CA001-Global-BaseProtection-AllApps-AnyPlatform-CompliantorAADHJ (demo)", state: "enabled", includeGroups: [wvDemoId("CAD-SEC-U-DG-GLO")], excludeGroups: [wvDemoId("CAB-SEC-U-BreakGlass")], excludeUsers: [], excludeRoles: [] },
+          { id: "demo-dd-2", name: "CA200-Internals-BaseProtection-AllApps-AnyPlatform-MFA (demo)", state: "enabledForReportingButNotEnforced", includeGroups: [wvDemoId("CAD-SEC-U-DG-INT")], excludeGroups: [wvDemoId("CAB-SEC-U-CA200-Exclusion")], excludeUsers: [], excludeRoles: [] });
+        // only the groups a policy EXCLUDES are exclusion groups here
+        const exIds = new Set(pol.flatMap((p) => p.excludeGroups));
+        Object.entries(sg).forEach(([n, ids]) => { const id = wvDemoId(n); if (exIds.has(id)) exclGroups.set(id, { name: n, members: new Set(ids) }); });
+        stamp("Demo tenant");
+      } else {
+        say("Reading every user…", "One paged read of the directory: id, UPN, type, enabled.");
+        users = await ddProg.fetchAll(`/users?$select=${DD_SEL}&$top=999`, 0, "users");
+        stamp(`Users ${users.length.toLocaleString()}`);
+        ddProg.check();
+        // the deploy groups: one startswith read of the tenant's CAD-SEC-U-DG-*
+        // groups; a catalog -DG- name the read did not return is looked up by
+        // its exact name (one $batch) — then each group's direct members
+        // (users and nested groups) and transitive users
+        say("Reading the deploy groups…", "Every group named CAD-SEC-U-DG-*, plus the names the active catalog gives its deploy groups.");
+        const have = await Graph.ggetAll(`/groups?$filter=${encodeURIComponent(`startswith(displayName,'${DD_PREFIX}')`)}&$select=id,displayName,groupTypes,membershipRule&$top=999`, { signal: ddProg.signal });
+        const want = ddGroupList(have);
+        const lookup = want.filter((t) => !t.g && !t.name.toLowerCase().startsWith(DD_PREFIX.toLowerCase()));
+        if (lookup.length) {
+          const found = await Graph.gbatch(lookup.map((t, i) => ({ id: i, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${t.name.replace(/'/g, "''")}'`)}&$select=id,displayName,groupTypes,membershipRule` })));
+          lookup.forEach((t, i) => { const hit = ((found[i] && found[i].body && found[i].body.value) || []); if (hit.length === 1) t.g = hit[0]; });
+        }
+        groups = [];
+        ddProg.start(want.length, "groups", "group");
+        for (let i = 0; i < want.length; i++) {
+          ddProg.check();
+          const t = want[i];
+          if (!t.g) { groups.push({ key: t.key, name: t.name, id: null, direct: new Set(), nested: new Set(), children: [] }); ddProg.tick(i + 1); continue; }
+          const g = t.g;
+          say(`Reading the members of ${esc(t.name)}…`);
+          const dm = await Graph.ggetAll(`/groups/${g.id}/members?$select=id,displayName,membershipRule&$top=999`, { signal: ddProg.signal });
+          const direct = new Set(dm.filter((o) => /user$/i.test(o["@odata.type"] || "")).map((o) => o.id));
+          const cg = dm.filter((o) => /group$/i.test(o["@odata.type"] || ""));
+          const all = await Graph.ggetAll(`/groups/${g.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: ddProg.signal });
+          let children = [];
+          if (cg.length) {
+            const res = await Graph.gbatch(cg.slice(0, 40).map((c, j) => ({ id: j, url: `/groups/${c.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999` })));
+            children = cg.slice(0, 40).map((c, j) => ({ id: c.id, name: c.displayName || c.id, rule: c.membershipRule || "", memberIds: new Set(((res[j] && res[j].body && res[j].body.value) || []).map((x) => x.id)) }));
+          }
+          names[g.id] = g.displayName;
+          groups.push({ key: t.key, name: g.displayName, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), direct, nested: new Set(all.map((u) => u.id).filter((x) => !direct.has(x))), children });
+          ddProg.tick(i + 1);
+        }
+        stamp(`Deploy groups ${groups.filter((g) => g.id).length} of ${groups.length}`);
+        // exclusion groups and roles of the policies that include a deploy group
+        const dgIds = new Set(groups.filter((g) => g.id).map((g) => g.id));
+        const onDg = pol.filter((p) => p.includeGroups.some((gid) => dgIds.has(gid)));
+        const exIds = [...new Set(onDg.flatMap((p) => p.excludeGroups))];
+        const roleIds = [...new Set(onDg.flatMap((p) => p.excludeRoles))];
+        say("Reading the exclusion groups…", `${exIds.length} groups excluded by the ${onDg.length} policies on the deploy groups.`);
+        ddProg.start(exIds.length, "exclusion groups", "group");
+        let done = 0;
+        await Graph.mapLimit(exIds, 4, async (gid) => {
+          ddProg.check();
+          try {
+            const g = await Graph.gget(`/groups/${gid}?$select=id,displayName`);
+            const m = await Graph.ggetAll(`/groups/${gid}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: ddProg.signal });
+            names[gid] = g.displayName;
+            exclGroups.set(gid, { name: g.displayName, members: new Set(m.map((u) => u.id)) });
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; exclGroups.set(gid, { name: names[gid] || gid, members: new Set(), unread: true }); }
+          ddProg.tick(++done);
+        });
+        if (roleIds.length) {
+          say("Reading the excluded roles' members…");
+          try {
+            const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
+            for (const r of roles.filter((x) => roleIds.includes(x.roleTemplateId))) {
+              ddProg.check();
+              const ids = new Set();
+              const members = await Graph.ggetAll(`/directoryRoles/${r.id}/members?$select=id`, { signal: ddProg.signal });
+              for (const m of members) {
+                if (/group$/i.test(m["@odata.type"] || "")) (await Graph.ggetAll(`/groups/${m.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: ddProg.signal })).forEach((u) => ids.add(u.id));
+                else if (/user$/i.test(m["@odata.type"] || "")) ids.add(m.id);
+              }
+              roleMembers.set(r.roleTemplateId, ids); names[r.roleTemplateId] = r.displayName;
+            }
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; console.warn("deploydash: roles not read", e.message); }
+        }
+        stamp(`Exclusions ${exclGroups.size} groups · ${roleMembers.size} roles`);
+      }
+      ddProg.check();
+      ddRaw = { users, groups, policies: pol, exclGroups, roleMembers, names, readAt: Date.now(), times };
+      ddBusy = false; ddProg.stop();
+      if ($("screen-deploydash").classList.contains("active")) renderDeployDash();
+    } catch (e) {
+      ddBusy = false; ddProg.stop();
+      if (e && e.stopped) { ddErr = "stopped by you — nothing is shown, the picture is of the whole tenant or nothing"; }
+      else { console.error("Deployment dashboard failed:", e); ddErr = e.message || String(e); }
+      if ($("screen-deploydash").classList.contains("active")) openDeployDash();
+    }
+  }
+
+  // 🌊 per deploy group with a report-only policy on it. Shares the sign-in
+  // window, reads the referenced groups and the roles once, then one wave
+  // analysis per group in the worker (the same AnalysisJobs path 🌊 uses).
+  async function readDeployReadiness() {
+    if (ddRdBusy || !ddRaw) return;
+    const todo = ddRaw.groups.filter((g) => g.id && ddModel && ddModel.groups.find((r) => r.key === g.key && r.pol.ro));
+    if (!todo.length) { toast("No deploy group has a report-only policy on it — nothing to forecast"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) { toast("AuditLog.Read.All was not granted — readiness needs the sign-in log"); return; }
+    ddRdBusy = true; ddPaintButtons();
+    const prog = makeProgress("ddr"); prog.begin();
+    const host = $("ddReadyPanel"); host.hidden = false;
+    const say = (m, note) => { host.innerHTML = prog.panel(m, note); };
+    try {
+      let records, w = { capped: false };
+      if (isDemo) records = demoSignIns();
+      else {
+        say("Reading the sign-in window…", "Shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🌊 — read once, reused by all.");
+        w = await readSignInWindow(wvDays, prog, false);
+        records = w.records;
+      }
+      prog.check();
+      say("Reading the groups the policies name…");
+      if (!wvGroups) await wvLoadPicker();
+      const dgGroups = (wvGroups || []).filter((g) => g.id);
+      const refd = wvRefd(); dgGroups.forEach((g) => refd.add(g.id));
+      todo.forEach((g) => refd.delete(g.id));
+      const { out: groupMembers, names } = await wvMemberSets([...refd]);
+      dgGroups.forEach((g) => { names[g.id] = names[g.id] || g.name; });
+      todo.forEach((g) => { names[g.id] = g.name; groupMembers.set(g.id, new Set([...g.direct, ...g.nested])); });
+      // roles → member ids (the wave's own read, once for every group)
+      const roleMembers = new Map(); let rolesComplete = true;
+      if (isDemo) Object.entries(DEMO_DATA.roleMembers || {}).forEach(([rt, ids]) => { roleMembers.set(rt, new Set(ids)); names[rt] = (DEMO_DATA.names || {})[rt] || rt; });
+      else try {
+        const roles = await Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId");
+        await Graph.mapLimit(roles, 4, async (r) => {
+          try {
+            const members = await Graph.ggetAll(`/directoryRoles/${r.id}/members?$select=id`, { signal: prog.signal });
+            const ids = new Set();
+            for (const m of members) {
+              if (/group$/i.test(m["@odata.type"] || "")) (await Graph.ggetAll(`/groups/${m.id}/transitiveMembers/microsoft.graph.user?$select=id&$top=999`, { signal: prog.signal })).forEach((u) => ids.add(u.id));
+              else if (/user$/i.test(m["@odata.type"] || "")) ids.add(m.id);
+            }
+            if (r.roleTemplateId) { roleMembers.set(r.roleTemplateId, ids); names[r.roleTemplateId] = r.displayName; }
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; rolesComplete = false; }
+        });
+      } catch (e) { if (e.stopped || e.name === "AbortError") throw e; rolesComplete = false; }
+      const vms = policies.map((p) => ({ raw: p.raw, name: p.name, grant: p.grant, session: p.session }));
+      const byId = new Map(ddRaw.users.map((u) => [u.id, u]));
+      const out = new Map();
+      for (let i = 0; i < todo.length; i++) {
+        const g = todo[i];
+        prog.check();
+        say(`Evaluating ${esc(g.name)} — ${i + 1} of ${todo.length}…`, `${(g.direct.size + g.nested.size).toLocaleString()} members across ${policies.length} policies`);
+        const members = [...g.direct, ...g.nested].map((id) => byId.get(id)).filter(Boolean).map((u) => Object.assign({}, u, { licence: null }));
+        let parents = new Set(), parentsComplete = true;
+        if (!isDemo) try { (await Graph.ggetAll(`/groups/${g.id}/transitiveMemberOf?$select=id`, { signal: prog.signal })).forEach((o) => { if (!/(directoryrole|administrativeunit)/i.test(o["@odata.type"] || "")) parents.add(o.id); }); } catch (e) { if (e.stopped || e.name === "AbortError") throw e; parentsComplete = false; }
+        const group = { id: g.id, displayName: g.name, groupTypes: g.dynamic ? ["DynamicMembership"] : [], membershipRule: null, isAssignableToRole: false };
+        const res = await AnalysisJobs.run("wave", { group, members, direct: g.direct, children: g.children || [], parents, groupMembers, roleMembers, names, vms, records, cat: null, dgGroups,
+          groupsComplete: parentsComplete, rolesComplete, memberCap: members.length + 1, capped: false, logsComplete: !w.capped, days: wvDays }, { signal: prog.signal });
+        out.set(g.key, DeployDash.readinessOf(res));
+      }
+      ddReadiness = out; ddReadinessAt = Date.now();
+      host.hidden = true; host.innerHTML = "";
+      ddRdBusy = false; prog.stop();
+      renderDeployDash();
+    } catch (e) {
+      ddRdBusy = false; prog.stop();
+      host.innerHTML = `<p class="mini" style="padding:10px 0;color:var(--off)">${e && e.stopped ? "Stopped by you — readiness not read; the rest of the page stands." : `Readiness could not be read: ${esc(e.message || e)}`}</p>`;
+      ddPaintButtons();
+    }
+  }
+
+  // the clicks: chips, the left-out list, and the drill-throughs into 🌊,
+  // 🕵 and 👥 — the dashboard lists nobody but the left-out itself
+  $("ddBody").addEventListener("click", async (e) => {
+    const t = e.target;
+    const run = t.closest("[data-ddrun]"); if (run) { $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); return; }
+    const chip = t.closest("[data-dd-chip]"); if (chip) { ddGroup = chip.dataset.ddChip || ""; renderDeployDash(); return; }
+    const list = t.closest("[data-dd-list]"); if (list) { ddList = list.dataset.ddList || ""; renderDeployDash(); if (ddList) { const el = $("ddBody").querySelector(".dd-list"); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); } return; }
+    const who = t.closest("[data-dd-who]"); if (who) { e.preventDefault(); $("woUser").value = who.dataset.ddWho; $("toolWhoIs").click(); runWhoIs(); return; }
+    const wave = t.closest("[data-dd-wave]");
+    if (wave) {
+      const id = wave.dataset.ddWave, f = wave.dataset.ddWavefilter || "";
+      if (wvBusy) { toast("🌊 is still reading — wait for it or stop it first"); return; }
+      wvPick = id; $("wvTerm").value = ""; if (f) wvFilter = f;
+      await openWave(); renderWvPicker();
+      if (!wvRes || !wvRes.group || wvRes.group.id !== id) runWave();
+      return;
+    }
+    const grp = t.closest("[data-dd-group]");
+    if (grp) {
+      const g = ddRaw && ddRaw.groups.find((x) => x.id === grp.dataset.ddGroup); if (!g) return;
+      await openCaGroups();
+      if (cgRes && cgRes.rows.some((r) => r.name === g.name)) cgOpenRow(g.name);
+      else { cgQuery = g.name; $("cgSearch").value = g.name; renderCaGroups(); }
+    }
+  });
+  $("toolDeployDash").addEventListener("click", () => openDeployDash());
+  $("ddRefresh").addEventListener("click", () => { if (ddBusy) return; ddRaw = null; ddModel = null; if ($("screen-deploydash").classList.contains("active")) $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); });
+  $("ddReady").addEventListener("click", () => readDeployReadiness());
+  $("ddHtml").addEventListener("click", () => { if (!ddModel) return; const name = downloadText("ENCA-deployment-dashboard", "html", "text/html", DeployDash.exportHtml(ddModel, { tenant: tenantName, build: APP_BUILD.label, now: Date.now() })); toast(`Saved ${esc(name)} — a snapshot that names users; share it like tenant data`); });
+  $("ddCsv").addEventListener("click", () => { if (!ddModel) return; downloadText("ENCA-deployment-dashboard", "csv", "text/csv", DeployDash.toCsv(ddModel)); });
+  $("ddMd").addEventListener("click", () => { if (!ddModel) return; showReport("📊 Deployment dashboard", `ENCA-deployment-dashboard-${new Date().toISOString().slice(0, 10)}`, ddToMd(ddModel)); });
+  function ddToMd(m) {
+    const L = [`# 📊 Deployment dashboard — ${tenantName || "tenant"}`, "", `Read ${new Date(m.readAt).toISOString().replace("T", " ").slice(0, 16)} UTC · ${APP_BUILD.label}${m.readinessAt ? ` · readiness ${new Date(m.readinessAt).toISOString().replace("T", " ").slice(0, 16)} UTC` : " · readiness not read"}`, ""];
+    L.push(`- **Enabled users:** ${m.total.enabled.toLocaleString()} (${m.total.disabled.toLocaleString()} disabled, not counted)`, `- **In a deploy group:** ${m.cov.in.toLocaleString()}`, `- **Left out of every deploy group:** ${m.cov.out.toLocaleString()}`, `- **Taken out by an exclusion:** ${m.exclMembers.toLocaleString()} (BreakGlass ${m.excl.bg}, CA*-Exclusion ${m.excl.ca}, other group ${m.excl.group}, user ${m.excl.user}, role ${m.excl.role})`, "");
+    L.push("## Group by group", "", "| Deploy group | Members | Direct · nested | Enforced · report-only · off | Readiness | Excluded | Needs a look |", "| --- | --- | --- | --- | --- | --- | --- |");
+    m.groups.forEach((r) => L.push(`| ${r.name}${r.found ? "" : " (not in tenant)"} | ${r.members} | ${r.route.direct} · ${r.route.nested} | ${r.pol.enf} · ${r.pol.ro} · ${r.pol.off} | ${r.readiness ? `${DeployDash.VERDICT[r.readiness.verdict] || "—"} (${r.readiness.locked} locked out, ${r.readiness.prompted} prompted)` : r.pol.ro ? "not read" : "—"} | ${r.excl} | ${r.look.map((l) => l.text).join("; ") || "—"} |`));
+    if (m.leftOut.length) { L.push("", `## Left out (${m.leftOut.length})`, "", "| Member | UPN | Type |", "| --- | --- | --- |"); m.leftOut.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} |`)); }
+    L.push("", "Group membership and policy reach are separate checks; silent members are no data, never safety.");
+    return L.join("\n");
+  }
+
   // ---------- 🤝 Cross-tenant access (32316, T43) ----------
   // The checks of Get-CrossTenantAccessReview.ps1 (cdell2222/m365-security-
   // toolkit, MIT), read in the browser, with each inbound trust followed into
@@ -22043,6 +23268,38 @@ This is a directory write. Nothing else changes.`)) return;
   $("tcChips").addEventListener("click", (e) => { const b = e.target.closest("[data-tcf]"); if (!b) return; tcFilter = b.dataset.tcf; renderTokenCov(); });
   $("tcBody").addEventListener("click", (e) => { const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid); });
   $("tcMd").addEventListener("click", () => { if (tcModel) showReport("🎫 CAE & token protection", `ENCA-cae-token-protection-${new Date().toISOString().slice(0, 10)}`, TokenCov.toMd(tcModel, tenantName)); });
+
+  // ---------- 📏 Naming (32403, T45, R25) ----------
+  // The CA-number convention every tool groups by, checked over the policies
+  // already loaded (js/naming.js, pure). Reads nothing, so it renders on open
+  // and again whenever the tab is opened after a reload — no ▶, no cache.
+  let nmFilter = "all", nmModel = null;
+  const NM_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The CA-number naming convention, checked: policies with no number, one number carried by two different policies, numbers in no persona range, names that say one persona while the number or the included persona group says another — and the free numbers inside each range. From the policies already loaded; nothing is read or written.</p>';
+  function nmRebuild() {
+    let cat = null;
+    try { cat = (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null; } catch { cat = null; }
+    nmModel = Naming.analyze(policies, {
+      caGroup: Render.caGroup,
+      personaKey: (typeof Baseline !== "undefined" && Baseline.personaKey) ? Baseline.personaKey : null,
+      personaGroups: (cat && cat.personaGroups) || [], catalogLabel: (cat && cat.label) || "", demo: isDemo,
+    });
+  }
+  function openNaming() {
+    crumb("🛡 Checks");
+    show("screen-naming");
+    mountToolTabs("checks", "naming");
+    $("nmHead").innerHTML = toolHead("toolNaming") + NM_HEAD_TEXT;
+    renderNaming();
+  }
+  function renderNaming() {
+    nmRebuild();
+    $("nmChips").innerHTML = Naming.chips(nmModel, nmFilter);
+    $("nmBody").innerHTML = policies.length ? Naming.render(nmModel, { filter: nmFilter })
+      : '<p class="mini" style="padding:16px">No policies loaded — sign in or open the demo first.</p>';
+  }
+  $("nmChips").addEventListener("click", (e) => { const b = e.target.closest("[data-nmf]"); if (!b) return; nmFilter = b.dataset.nmf; renderNaming(); });
+  $("nmBody").addEventListener("click", (e) => { const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid); });
+  $("nmMd").addEventListener("click", () => { if (nmModel) showReport("📏 Naming", `ENCA-naming-${new Date().toISOString().slice(0, 10)}`, Naming.toMd(nmModel, tenantName)); });
 
   // ---------- events ----------
   $("signInBtn").addEventListener("click", async () => {
