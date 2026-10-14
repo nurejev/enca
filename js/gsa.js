@@ -74,6 +74,9 @@ const Gsa = (() => {
         excludeRoles: u.excludeRoles || [], includeRoles: u.includeRoles || [],
         allUsers: (u.includeUsers || []).includes("All"),
         intuneOut: excApps.includes(INTUNE_APP), enrollOut: excApps.includes(INTUNE_ENROLL),
+        // 32522: where the compliant network sits and what the grant is
+        cnSide: ex.some(names) ? "excluded" : "included",
+        grant: block ? "block" : [...(g.builtInControls || []), ...(g.authenticationStrength ? [`strength ${g.authenticationStrength.displayName || ""}`.trim()] : [])].join(` ${String(g.operator || "OR")} `) || "session controls only",
         platforms: ((raw.conditions && raw.conditions.platforms && raw.conditions.platforms.includePlatforms) || []).join(", "),
       });
     }
@@ -158,7 +161,7 @@ const Gsa = (() => {
     // 7 policy
     const policies = cnPolicies(caPolicies, cn && cn.id);
     const on = policies.filter((p) => p.state === "enabled"), ro = policies.filter((p) => p.state === "enabledForReportingButNotEnforced");
-    L.push({ k: "policy", lab: "Policy", h: policies.length ? policies.map((p) => (String(p.name).match(/\bCA\d{3,4}\b/) || [p.name])[0]).slice(0, 3).join(", ") : "No policy", st: !caPolicies ? "unread" : !policies.length ? (cn ? "bad" : "wait") : on.length ? "ok" : ro.length ? "warn" : "bad", note: !caPolicies ? "load 🗂 Policies first" : !policies.length ? "no Conditional Access policy names the compliant network" : `${on.length} on · ${ro.length} report-only · ${policies.length - on.length - ro.length} off`, open: policies.length ? policies[0].id : null });
+    L.push({ k: "policy", lab: "Policy", h: policies.length ? `${policies.length} polic${policies.length === 1 ? "y" : "ies"}` : "No policy", word: policies.length && !on.length && !ro.length ? "off" : null, st: !caPolicies ? "unread" : !policies.length ? (cn ? "bad" : "wait") : on.length ? "ok" : ro.length ? "warn" : "bad", note: !caPolicies ? "load 🗂 Policies first" : !policies.length ? "no Conditional Access policy names the compliant network" : `${on.length} on · ${ro.length} report-only · ${policies.length - on.length - ro.length} off — every one in the list below`, open: policies.length === 1 ? policies[0].id : null });
     // 8 proof — filled by proof(); the board shows it when read
     L.push({ k: "proof", lab: "Proof", h: "Sign-ins via GSA", st: "wait", note: "not read — 📈 Read the proof (7 days)" });
 
@@ -171,7 +174,7 @@ const Gsa = (() => {
 
     const ready = L.filter((l) => l.st === "ok").length;
     const firstBad = L.find((l) => l.st === "bad" || l.st === "warn");
-    return { links: L, ready, total: L.length, verdict: verdict(L, policies), next: firstBad || null, policies, cn, allUsers, groups: [...gIds.values()], groupIds: [...gIds.keys()], sp: raw.sp || null, profile: prof, readAt: raw.readAt || null, demo: !!raw.demo };
+    return { links: L, ready, total: L.length, verdict: verdict(L, policies), next: firstBad || null, policies, policiesLoaded: !!caPolicies, cn, allUsers, groups: [...gIds.values()], groupIds: [...gIds.keys()], sp: raw.sp || null, profile: prof, readAt: raw.readAt || null, demo: !!raw.demo };
   }
   function verdict(L, policies) {
     const by = Object.fromEntries(L.map((l) => [l.k, l]));
@@ -220,7 +223,7 @@ const Gsa = (() => {
     const meter = m.links.map((l) => `<i class="${l.st === "ok" ? "ok" : l.st === "warn" ? "warn" : ""}"></i>`).join("");
     const head = `<section class="gsa-verdict ${m.verdict.cls}"><div class="gsa-big" aria-hidden="true">${m.verdict.cls === "ok" ? "✓" : "⚠"}</div><div><h3>${esc(m.verdict.h)}</h3><p>${esc(m.verdict.p)}</p></div><div><div class="gsa-meter" aria-label="${m.ready} of ${m.total} links ready">${meter}</div><div class="mini" style="margin-top:4px">${m.ready} of ${m.total} links ready</div></div></section>`;
     const card = (l) => {
-      const [cls, word] = ST[l.st] || ST.wait;
+      const [cls, w0] = ST[l.st] || ST.wait, word = l.word || w0;
       const acts = [];
       if (l.fix) acts.push(`<button class="btn sm${l.st === "bad" ? " primary" : ""}" data-gsafix="${l.fix}">${esc(FIX_LABEL[l.fix])}</button>`);
       if (l.fix2 && l.fix2 !== l.fix) acts.push(`<button class="btn sm${l.fix2 === "ztnasp" ? " gsa-optional" : ""}" data-gsafix="${l.fix2}">${esc(FIX_LABEL[l.fix2])}</button>`);
@@ -231,13 +234,21 @@ const Gsa = (() => {
     const board = `<div class="gsa-chain" role="list" aria-label="The chain">${m.links.map(card).join("")}</div>`;
     const fix = u.fixHtml ? `<div class="gsa-fix" id="gsaFixPanel">${u.fixHtml}</div>` : "";
     const yes = (b) => b ? '<span class="gsa-st ok">out</span>' : '<span class="gsa-st warn">not out</span>';
-    const polRows = m.policies.map((p) => `<tr><td><a href="#" data-gsaopen="${esc(p.id)}"><b>${esc(p.name)}</b></a><div class="mini muted">${esc(p.shape)}${p.platforms ? ` · ${esc(p.platforms)}` : ""}</div></td><td><span class="gsa-st ${p.state === "enabled" ? "ok" : p.state === "enabledForReportingButNotEnforced" ? "warn" : "wait"}">${p.state === "enabled" ? "on" : p.state === "enabledForReportingButNotEnforced" ? "report-only" : "off"}</span></td><td class="mini">${p.allUsers ? "All users" : `${p.includeGroups.length} group${p.includeGroups.length === 1 ? "" : "s"}`}${p.excludeGroups.length ? ` · ${p.excludeGroups.length} excluded` : ""}</td><td class="mini">Intune ${yes(p.intuneOut)} · Enrollment ${yes(p.enrollOut)} · ${p.excludeRoles.length ? `${p.excludeRoles.length} admin role${p.excludeRoles.length === 1 ? "" : "s"} excluded` : "no admin role excluded"}</td>${u.proof ? `<td class="mini">${(() => { const x = u.proof.per[p.id]; return x ? `${x.wouldBlock + x.blocked} block (${x.usersBlock} users) · ${x.wouldPass + x.passed} pass` : "no sign-in evaluated"; })()}</td>` : ""}</tr>`).join("");
-    const polTable = `<section class="list-card gsa-sect"><h3>Policies that name the compliant network</h3>${m.policies.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Covers</th><th>Checks</th>${u.proof ? "<th>7 days</th>" : ""}</tr></thead><tbody>${polRows}</tbody></table></div>` : '<p class="mini">None yet. ENCA does not make this policy here: build it in 🧩 Policy building blocks → 🏗 Builder (block, any location except the compliant network, report-only) once links 1–6 are ready.</p>'}<p class="mini muted">Read from the policies ENCA already holds. This tool leaves the policies as they are — their state and their exclusions are changed in 🗂 Policies or 🎚 Set policy state. Without the Microsoft Intune and Intune Enrollment apps out, a new device cannot enrol to receive the client. Excluded admin roles are reported, not changed: see the admin handover.</p></section>`;
+    const polRows = m.policies.map((p) => `<tr><td><a href="#" data-gsaopen="${esc(p.id)}"><b>${esc(p.name)}</b></a><div class="mini muted">${esc(p.shape)}${p.platforms ? ` · ${esc(p.platforms)}` : ""}</div></td><td><span class="gsa-st ${p.state === "enabled" ? "ok" : p.state === "enabledForReportingButNotEnforced" ? "warn" : "wait"}">${p.state === "enabled" ? "on" : p.state === "enabledForReportingButNotEnforced" ? "report-only" : "off"}</span></td><td class="mini">${p.cnSide === "excluded" ? "excluded — applies outside it" : "included — applies on it"}</td><td class="mini">${esc(p.grant)}</td><td class="mini">${p.allUsers ? "All users" : `${p.includeGroups.length} group${p.includeGroups.length === 1 ? "" : "s"}`}${p.excludeGroups.length ? ` · ${p.excludeGroups.length} excluded` : ""}</td><td class="mini">Intune ${yes(p.intuneOut)} · Enrollment ${yes(p.enrollOut)} · ${p.excludeRoles.length ? `${p.excludeRoles.length} admin role${p.excludeRoles.length === 1 ? "" : "s"} excluded` : "no admin role excluded"}</td>${u.proof ? `<td class="mini">${(() => { const x = u.proof.per[p.id]; return x ? `${x.wouldBlock + x.blocked} block (${x.usersBlock} users) · ${x.wouldPass + x.passed} pass` : "no sign-in evaluated"; })()}</td>` : ""}</tr>`).join("");
+    // 32522 (Mihai: a dedicated card that shows every policy containing the
+    // compliant network): full width, every loaded policy that names it on
+    // either side, with where it sits and what the grant is
+    const nOn = m.policies.filter((p) => p.state === "enabled").length, nRo = m.policies.filter((p) => p.state === "enabledForReportingButNotEnforced").length;
+    const polHead = `<h3>Policies that name the compliant network <span class="mini muted">· ${m.policiesLoaded ? `${m.policies.length} found${m.policies.length ? ` · ${nOn} on · ${nRo} report-only · ${m.policies.length - nOn - nRo} off` : ""}` : "policies not loaded"}</span></h3>`;
+    const polBody = !m.policiesLoaded ? '<p class="mini">Load 🗂 Policies first: this card lists every loaded policy that names the compliant network, on either side.</p>'
+      : m.policies.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Compliant network</th><th>Grant</th><th>Covers</th><th>Checks</th>${u.proof ? "<th>7 days</th>" : ""}</tr></thead><tbody>${polRows}</tbody></table></div>`
+      : '<p class="mini">None of the loaded policies names the compliant network. ENCA does not make this policy here: build it in 🧩 Policy building blocks → 🏗 Builder (block, any location except the compliant network, report-only) once links 1–6 are ready.</p>';
+    const polTable = `<section class="list-card gsa-sect gsa-pols">${polHead}${polBody}<p class="mini muted">Read from the policies ENCA already holds — the ones loaded in 🗂 Policies, from the tenant or a file. This tool leaves them as they are: state and exclusions are changed in 🗂 Policies or 🎚 Set policy state. Without the Microsoft Intune and Intune Enrollment apps out, a new device cannot enrol to receive the client. Excluded admin roles are reported, not changed: see the admin handover.</p></section>`;
     const grpRows = m.groups.map((g) => `<tr${g.backing ? ' class="gsa-backing"' : ""}><td><b>${esc(g.name)}</b><div class="mini muted">${esc(g.id)}</div></td><td class="mini">${esc(g.why)}</td></tr>`).join("");
     const grpTable = `<section class="list-card gsa-sect"><h3>Groups Global Secure Access uses <span class="mini muted">· ${m.allUsers ? "the profile is on for all users" : `${m.groups.length}`}</span></h3>${m.groups.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Group</th><th>Why</th></tr></thead><tbody>${grpRows}</tbody></table></div><p class="mini muted">The same list is the <b>Used by GSA</b> scope of 👥 Groups (T12). <button class="btn sm" data-gsagroups>Open in Groups</button></p>` : '<p class="mini">No group yet — assign a pilot group to the profile, or a compliant-network policy that includes a group.</p>'}</section>`;
     const proofSect = u.proof ? `<section class="list-card gsa-sect"><h3>Sign-ins, last 7 days</h3><p class="mini">${u.proof.total} sign-ins read${u.proof.capped ? " (the first 5,000)" : ""} · ${u.proof.viaGsa} through Global Secure Access.</p><p class="mini muted">A sign-in a report-only policy would block is one that did not come through the client — a device without it, the client paused, or an IPv6 path around the tunnel (the client tunnels IPv4 only). Switch the policy on when this is near zero; this tool does not do that for you.</p></section>` : u.proofBusy ? `<section class="list-card gsa-sect"><p class="mini">Reading the sign-in log…</p></section>` : "";
     const later = `<p class="mini muted gsa-later">🌐 This tool covers the <b>Microsoft traffic profile</b>. Internet Access and Private Access come later; their profiles and assignments will join this board and the Used by GSA scope.</p>`;
-    return head + fix + board + `<div class="gsa-cols">${polTable}${grpTable}</div>` + proofSect + later;
+    return head + fix + board + polTable + grpTable + proofSect + later;
   }
 
   // ---- the Intune platform script (Windows) -------------------------------

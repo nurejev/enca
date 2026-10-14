@@ -166,3 +166,24 @@ test("32520 the Windows remediation: detect, if there, else deploy", () => {
   raw.healthScripts[0].assigned = false;
   assert.strictEqual(Gsa.model(raw, []).links.find((l) => l.k === "client").fix, "winrem", "an unassigned remediation offers the fix again");
 });
+
+test("32522: the policy card lists every policy that names the compliant network, both sides, with grant; off is off, not missing", () => {
+  const on = policy({ id: "p2", displayName: "CA216-REQ-Admins-OnCN", state: "enabled", conditions: { users: { includeGroups: ["g-adm"] }, applications: { includeApplications: ["All"] }, locations: { includeLocations: ["AllCompliantNetworkLocations"] } }, grantControls: { operator: "AND", builtInControls: ["mfa", "compliantDevice"] } });
+  const off = policy({ id: "p3", displayName: "CA217-BLOCK-Guests-CN", state: "disabled" });
+  const other = policy({ id: "p4", displayName: "CA001-no-cn", conditions: { users: {}, applications: {}, locations: { includeLocations: ["All"], excludeLocations: ["AllTrusted"] } } });
+  const m = Gsa.model(Gsa.demo(), [policy(), on, off, other]);
+  assert.deepStrictEqual(m.policies.map((p) => p.id), ["p1", "p2", "p3"]);
+  assert.strictEqual(m.policies[0].cnSide, "excluded");
+  assert.strictEqual(m.policies[1].cnSide, "included");
+  assert.strictEqual(m.policies[1].grant, "mfa AND compliantDevice");
+  const l = m.links.find((x) => x.k === "policy");
+  assert.strictEqual(l.h, "3 policies");
+  const html = Gsa.render(m, {});
+  ["CA215-BLOCK-Internals-CN", "CA216-REQ-Admins-OnCN", "CA217-BLOCK-Guests-CN"].forEach((n) => assert.ok(html.includes(n), n));
+  assert.ok(!html.includes("CA001-no-cn"));
+  assert.match(html, /3 found · 1 on · 1 report-only · 1 off/);
+  const m2 = Gsa.model(Gsa.demo(), [off]);
+  assert.strictEqual(m2.links.find((x) => x.k === "policy").word, "off");
+  assert.match(Gsa.render(m2, {}), /gsa-st bad">off</);
+  assert.match(Gsa.render(Gsa.model(Gsa.demo(), null), {}), /policies not loaded/);
+});

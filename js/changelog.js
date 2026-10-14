@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32522, date: "2026-10-14", title: "Global Secure Access: every policy with the compliant network, on its own card",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "Policies that name the compliant network is now a full-width card of its own: every loaded policy that names it, with its state, whether the compliant network is excluded or included, the grant, who it covers and the Intune checks. The heading counts how many were found and how many are on, report-only and off." },
+      { kind: "fixed", tool: "Global Secure Access", text: "The Policy link said missing when a policy was there but switched off. It now says off, and counts the policies instead of naming the first three." },
+    ],
+  },
+  {
     build: 32521, date: "2026-10-14", title: "Global Secure Access: the ZTNA client app is information, not a warning",
     items: [
       { kind: "improved", tool: "Global Secure Access", text: "A tenant without the ZTNA Policy Service Client app no longer shows Global Secure Access as partly ready. Microsoft does not require the app; the card now mentions it as information and keeps an optional button to add it, for when clients stay Partially Connected." },
