@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32604, date: "2026-10-14", title: "Egress & location impact: an export that fits the page",
+    items: [
+      { kind: "improved", tool: "Egress & location impact", text: "Export MD no longer turns into a table you scroll sideways. It opens with a narrow verdict table — policy, state, today, via the egress, impact — and then, per policy, who it targets, who is excluded, the target, the location rule and the control. It exports what the table shows: Changes only, All or On only, and says which." },
+    ],
+  },
+  {
     build: 32603, date: "2026-10-14", title: "Policy links in Egress & location impact and Global Secure Access open the policy",
     items: [
       { kind: "fixed", tool: "Egress & location impact", text: "Clicking a policy name in the table opens its policy card again — before, nothing happened." },

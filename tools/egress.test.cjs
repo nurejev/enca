@@ -92,8 +92,24 @@ test("render and markdown carry every policy and no raw markup in the names", ()
   const m = run();
   const html = Egress.render(m, { filter: "all" });
   for (const r of m.rows) assert.ok(html.includes(r.name.replace(/&/g, "&amp;")), r.name);
-  const md = Egress.markdown(m, { tenant: "cloudfellows.dev", countrySource: "sign-in log" });
+  const md = Egress.markdown(m, { tenant: "cloudfellows.dev", countrySource: "sign-in log", filter: "all" });
   assert.match(md, /\| CA001-BLOCK-Global-ASR-AnyApp-AnyPlatform-CountryWhitelist-v1\.0\.2 \| off \|/);
   assert.match(md, /everyone blocked/);
   assert.ok(!/<b>|<span/.test(md));
+});
+
+test("markdown export: a 5-column verdict table, details per policy, and the table's filter", () => {
+  const m = run();
+  const md = Egress.markdown(m, { filter: "all" });
+  const head = md.split("\n").find((l) => l.startsWith("| Policy"));
+  assert.strictEqual(head, "| Policy | State | Today | Via egress | Impact |");
+  for (const l of md.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("|---"))) assert.strictEqual(l.split(" | ").length, 5, l);
+  for (const r of m.rows) assert.ok(md.includes(`### ${r.name}`), r.name);
+  assert.match(md, /- Excluded \(\d+\): /);
+  assert.match(md, /- Shown: All — \d+ of \d+ policies/);
+  const on = Egress.markdown(m, { filter: "on" });
+  const onRows = m.rows.filter((r) => r.state === "enabled");
+  assert.match(on, new RegExp(`- Shown: On only — ${onRows.length} of ${m.rows.length}`));
+  for (const r of m.rows.filter((r) => r.state !== "enabled")) assert.ok(!on.includes(`### ${r.name}`), r.name);
+  assert.ok(!/<b>|<span|<div/.test(md));
 });

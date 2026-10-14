@@ -27727,7 +27727,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("egRefresh").addEventListener("click", () => { eg.raw = null; readEgress(); });
   $("egMd").addEventListener("click", () => {
     if (!eg.model) { toast("Nothing to export yet"); return; }
-    const md = Egress.markdown(eg.model, { tenant: (signinContext && signinContext.tenantName) || tenantId || (isDemo ? "demo" : ""), at: new Date().toISOString(), countrySource: eg.countrySrc });
+    const md = Egress.markdown(eg.model, { tenant: (signinContext && signinContext.tenantName) || tenantId || (isDemo ? "demo" : ""), at: new Date().toISOString(), countrySource: eg.countrySrc, filter: eg.filter });
     downloadText("egress-location-impact", "md", "text/markdown", md);
   });
   $("screen-egress").addEventListener("input", (e) => {

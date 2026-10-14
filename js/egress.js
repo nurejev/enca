@@ -20,7 +20,7 @@
 //   Egress.country(signIns)                → the country Entra recorded for an IP
 //   Egress.model(input)                    → { rows[], findings[], summary, ... }
 //   Egress.render(model, ui)               → the tiles, the flow, the table, the findings
-//   Egress.markdown(model)                 → the same, for the P-2716 write-up
+//   Egress.markdown(model, { filter })     → the same, for the P-2716 write-up: verdicts + details
 //   Egress.demo()                          → a devcf-shaped read for ?demo=1
 // Reads only. Nothing is written to the tenant.
 // ======================================================================
@@ -341,7 +341,7 @@ const Egress = (() => {
       <span class="eg-gap"></span>
       <span class="eg-node">Via the egress<br><small>${eg} · ${m.viaNames.length ? esc(m.viaNames.join(", ")) : "no location"} · ${esc(m.country || "country ?")}${m.mode === "trusted" ? " · simulated TRUSTED" : ""}</small></span><span class="muted">→</span><span class="eg-node">Entra ID</span>
     </div>`;
-    const list = m.rows.filter((r) => filter === "all" ? true : filter === "on" ? r.state === "enabled" : ["block", "more", "less", "unknown", "noop"].includes(r.imp.key));
+    const list = filterRows(m, filter);
     const seg = (k, label) => `<button type="button" data-egfilter="${k}" class="${filter === k ? "active" : ""}">${label}</button>`;
     const table = `<div class="list-card eg-card">
       <div class="eg-tablehead"><b>Policies with a location condition</b>
@@ -361,20 +361,48 @@ const Egress = (() => {
   }
 
   // ---- markdown ---------------------------------------------------------
+  // 0.2.0 (32604, Mihai: "when exporting the view becomes scrollable"; chose
+  // option A from the mockup): one 9-column table with the Who column's
+  // exclusion lists could not fit a Markdown preview and scrolled sideways.
+  // Now a narrow VERDICT table (Policy · State · Today · Via egress · Impact)
+  // that every row can be compared in, then DETAILS per policy — who,
+  // excluded, target, rule, control — as a short list. The export follows the
+  // table's filter (Changes only / All / On only) and says which it used.
+  const FILTERS = { changes: "Changes only", all: "All", on: "On only" };
+  const CHANGE_KEYS = ["block", "more", "less", "unknown", "noop"];
+  function filterRows(m, filter) {
+    return m.rows.filter((r) => filter === "all" ? true : filter === "on" ? r.state === "enabled" : CHANGE_KEYS.includes(r.imp.key));
+  }
   function markdown(m, meta) {
     const x = meta || {}, s = m.summary, cell = (t) => String(t ?? "").replace(/\|/g, "/").replace(/\n/g, " ");
+    const filter = FILTERS[x.filter] ? x.filter : "all";
+    const rows = filterRows(m, filter);
     const v = (val, r) => (r.tg.none ? "— (targets none)" : r.noDep ? "applies (no dependency)" : val === null ? "cannot judge" : val ? (r.ctl.kind === "block" ? "BLOCK" : "applies") : "not applied");
+    const st = (r) => r.state === "enabled" ? "on" : r.state === "disabled" ? "off" : "report-only";
+    const once = (r) => r.state !== "enabled" && ["r", "o"].includes(r.imp.tone) ? " (once on)" : "";
     const L = [];
     L.push(`# Egress & location impact${x.tenant ? ` — ${x.tenant}` : ""}`, "");
     L.push(`Read ${x.at || new Date().toISOString()} by ENCA T57 (reads only).`, "");
     L.push(`- Egress: ${m.egress.map((e) => e.text).join(", ") || "—"}`);
     L.push(`- Egress country: ${m.country || "unknown"}${x.countrySource ? ` (${x.countrySource})` : ""}`);
     L.push(`- Office today: ${m.office.names.join(", ") || "no trusted IP location"}${m.officeCountry ? ` · ${m.officeCountry}` : ""}`);
-    L.push(`- Compared: ${m.mode === "trusted" ? "as if the egress were in a NEW trusted named location" : "as it is"}`, "");
+    L.push(`- Compared: ${m.mode === "trusted" ? "as if the egress were in a NEW trusted named location" : "as it is"}`);
+    L.push(`- Shown: ${FILTERS[filter]} — ${rows.length} of ${m.rows.length} policies`, "");
     L.push(`**${s.total}** policies name a location (${s.on} on, ${s.ro} report-only, ${s.off} off) · **${s.blocks}** would block a group · **${s.lockouts}** lockout risk · **${s.changes}** change behaviour · ${s.nodep + s.noop} do not depend on it.`, "");
-    L.push("| Policy | State | Who | Target | Location rule | Control | Today | Via egress | Impact |", "|---|---|---|---|---|---|---|---|---|");
-    m.rows.forEach((r) => L.push(`| ${cell(r.name)} | ${r.state === "enabled" ? "on" : r.state === "disabled" ? "off" : "report-only"} | ${cell(r.w.inc.join(", "))}${r.w.exc.length ? ` (excl. ${cell(r.w.exc.join(", "))})` : ""} | ${cell(r.tg.text)} | ${cell(r.loc)} | ${cell(r.ctl.text)} | ${v(r.today, r)} | ${m.egress.length ? v(r.via, r) : "—"} | ${cell(r.imp.text)} |`));
-    L.push("", "## Findings", "");
+    L.push("## Verdicts", "");
+    if (rows.length) {
+      L.push("| Policy | State | Today | Via egress | Impact |", "|---|---|---|---|---|");
+      rows.forEach((r) => L.push(`| ${cell(r.name)} | ${st(r)} | ${v(r.today, r)} | ${m.egress.length ? v(r.via, r) : "—"} | ${cell(r.imp.text)}${once(r)} |`));
+    } else L.push("Nothing in this view.");
+    L.push("");
+    if (rows.length) L.push("## Details", "");
+    rows.forEach((r) => {
+      L.push(`### ${cell(r.name)}`, "");
+      L.push(`- Who: ${r.w.inc.join(", ") || "nobody"}`);
+      if (r.w.exc.length) L.push(`- Excluded (${r.w.exc.length}): ${r.w.exc.join(", ")}`);
+      L.push(`- Target: ${r.tg.text} · Location rule: ${r.loc} · Control: ${r.ctl.text}`, "");
+    });
+    L.push("## Findings", "");
     m.findings.forEach((f) => L.push(`- **${f.sev}** — ${f.text}`));
     L.push("");
     return L.join("\n");
