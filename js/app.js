@@ -24120,22 +24120,47 @@ This is a directory write. Nothing else changes.`)) return;
     const status = `<p class="mini pmb-read">Profile <b>${esc(PIM_BASELINE.profiles[pmbProfileId].label)}</b> (as in 🧬 PIM baseline) · ${empty ? "no changes — this is the framework as it is" : `${diffs.length} change${diffs.length === 1 ? "" : "s"}`} · ${pds.use && !val.errors.length && !empty ? `<b>in use</b> for this tenant${pds.v.name ? ` as “${esc(pds.v.name)}”` : ""}` : "not in use"}</p>${val.errors.length ? `<ul class="pmb-diffs pmb-findings">${val.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul><p class="mini pmb-bad-txt">A variant with these errors is never used.</p>` : ""}${val.warnings.length ? `<ul class="pmb-diffs">${val.warnings.map((e) => `<li class="pmb-warnline">${esc(e)}</li>`).join("")}</ul>` : ""}`;
     let body = "";
     if (pds.tab === "tiers") {
+      // 32615 (Mihai: the designer should be better described and the layout
+      // much nicer): every tier is a card in words — what it is for, its roles,
+      // what activation asks — with the settings to change folded under it; a
+      // changed card is marked and opens by itself.
       const tiers = Object.keys(cat.templates);
       if (!tiers.includes(pds.tier)) pds.tier = tiers[0];
-      const T = cat.templates[pds.tier], V = (pds.v.templates[pds.tier] || {}), M = Object.assign({}, T, V);
-      const row = (k) => {
-        const F = PimDesigner.FIELDS[k], changed = k in V;
-        let ctl = "";
-        if (F.values) ctl = `<select data-pdsf="${k}">${F.values.map((x) => `<option value="${x}"${M[k] === x ? " selected" : ""}>${esc(PimBaseline.human(x))}</option>`).join("")}</select>`;
-        else if (F.bool) ctl = `<label class="chk"><input type="checkbox" data-pdsf="${k}"${M[k] ? " checked" : ""}> ${M[k] ? "on" : "off"}</label>`;
-        else if (F.parts) { const have = String(M[k] || "").split(",").map((x) => x.trim()); ctl = F.parts.map((p) => `<label class="chk"><input type="checkbox" data-pdsf="${k}" data-part="${p}"${have.includes(p) ? " checked" : ""}> ${{ MultiFactorAuthentication: "MFA", Justification: "justification", Ticketing: "ticket" }[p]}</label>`).join(" "); }
-        else if (F.group) ctl = `<input type="text" data-pdsf="${k}" value="${esc((M[k] || []).join(", "))}" placeholder="PIM-SG-Approvers" spellcheck="false">`;
-        else if (F.level) ctl = `<select data-pdsf="${k}">${["All", "Critical"].map((x) => `<option${M[k] && M[k].notificationLevel === x ? " selected" : ""}>${x}</option>`).join("")}</select>`;
-        return `<tr class="pmb-row${changed ? " pmb-differs" : ""}"><td><b>${esc(F.label)}</b></td><td class="mini">${esc(PimDesigner.show(k, T[k]))}</td><td>${ctl}</td><td>${changed ? `<button class="btn sm" data-pdsreset="${k}">↺ framework</button>` : ""}</td></tr>`;
+      const rolesIn = (t) => cat.roles.filter((r) => ((pds.v.roles[r.name] || {}).template || r.template) === t).map((r) => r.name);
+      const card = (tier) => {
+        const T = cat.templates[tier], V = (pds.v.templates[tier] || {}), M = Object.assign({}, T, V);
+        const nChanged = Object.keys(V).length;
+        const row = (k) => {
+          const F = PimDesigner.FIELDS[k], changed = k in V;
+          let ctl = "";
+          if (F.values) ctl = `<select data-pdsf="${k}" aria-label="${esc(F.label)}">${F.values.map((x) => `<option value="${x}"${M[k] === x ? " selected" : ""}>${esc(PimBaseline.human(x))}</option>`).join("")}</select>`;
+          else if (F.bool) ctl = `<label class="chk"><input type="checkbox" data-pdsf="${k}"${M[k] ? " checked" : ""}> ${M[k] ? "on" : "off"}</label>`;
+          else if (F.parts) { const have = String(M[k] || "").split(",").map((x) => x.trim()); ctl = F.parts.map((pp) => `<label class="chk"><input type="checkbox" data-pdsf="${k}" data-part="${pp}"${have.includes(pp) ? " checked" : ""}> ${{ MultiFactorAuthentication: "MFA", Justification: "justification", Ticketing: "ticket" }[pp]}</label>`).join(" "); }
+          else if (F.group) ctl = `<input type="text" data-pdsf="${k}" value="${esc((M[k] || []).join(", "))}" placeholder="PIM-SG-Approvers" spellcheck="false" aria-label="${esc(F.label)}">`;
+          else if (F.level) ctl = `<select data-pdsf="${k}" aria-label="${esc(F.label)}">${["All", "Critical"].map((x) => `<option${M[k] && M[k].notificationLevel === x ? " selected" : ""}>${x}</option>`).join("")}</select>`;
+          return `<tr class="pmb-row${changed ? " pmb-differs" : ""}"><td><b>${esc(F.label)}</b></td><td class="mini">${esc(PimDesigner.show(k, T[k]))}</td><td>${ctl}</td><td>${changed ? `<button class="btn sm" data-pdsreset="${k}">↺ framework</button>` : ""}</td></tr>`;
+        };
+        const asks = String(M.ActivationRequirement || "None").split(",").map((x) => ({ MultiFactorAuthentication: "MFA", Justification: "justification", Ticketing: "a ticket", None: "" }[x.trim()] || "")).filter(Boolean);
+        if (M.AuthenticationContext_Enabled) asks.push(`context ${pds.v.authContext || (cat.authContext && cat.authContext.id) || "c1"}`);
+        const roles = rolesIn(tier);
+        const summary = [
+          ["Activation", M.ActivationDuration ? PimBaseline.human(M.ActivationDuration) : "—"],
+          ["Asks for", asks.join(" · ") || "nothing extra"],
+          ["Approval", M.ApprovalRequired ? ((M.Approvers || []).join(", ") || "on — no approver group named") : "none"],
+          ["Eligible for", M.AllowPermanentEligibility ? "no end date" : (M.MaximumEligibilityDuration ? `up to ${PimBaseline.human(M.MaximumEligibilityDuration)}` : "—")],
+        ];
+        return `<section class="pds-card${nChanged ? " changed" : ""}" data-pdscard="${esc(tier)}">
+          <div class="pds-card-h"><h3>${esc(tier)}</h3>${nChanged ? `<span class="pds-chg">${nChanged} changed</span>` : `<span class="mini muted">${roles.length ? `${roles.length} role${roles.length === 1 ? "" : "s"}` : "groups"}</span>`}</div>
+          <p class="mini">${esc(T.description || "")}</p>
+          <dl class="pds-sum">${summary.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join("")}</dl>
+          <p class="mini muted">${roles.length ? `Roles: ${esc(roles.join(", "))}` : esc(/^Group/.test(tier) ? `Used for the ${tier === "GroupJIT" ? "Intune access" : "persona"} groups' membership` : "No role in this tier")}</p>
+          <details class="pds-edit"${nChanged || pds.tier === tier && pds.openTier ? " open" : ""}><summary>Change ${esc(tier)}</summary>
+            <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Setting</th><th>Framework</th><th>This customer</th><th></th></tr></thead><tbody>${Object.keys(PimDesigner.FIELDS).filter((k) => k in T || k === "Approvers").map(row).join("")}</tbody></table></div>
+          </details></section>`;
       };
-      body = `<div class="chip-filter">${tiers.map((t) => `<button class="fchip${pds.tier === t ? " active" : ""}" data-pdstier="${t}">${esc(t)}${pds.v.templates[t] ? " •" : ""}</button>`).join("")}</div>
-        <div class="list-card xt-card"><h3>${esc(pds.tier)} <span class="mini">${esc(T.description || "")}</span></h3><div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Setting</th><th>Framework</th><th>This customer</th><th></th></tr></thead><tbody>${Object.keys(PimDesigner.FIELDS).filter((k) => k in T || k === "Approvers").map(row).join("")}</tbody></table></div>
-        <p class="mini">Roles in ${esc(pds.tier)}: ${esc(cat.roles.filter((r) => ((pds.v.roles[r.name] || {}).template || r.template) === pds.tier).map((r) => r.name).join(", ") || (/^Group/.test(pds.tier) ? `the ${pds.tier === "GroupJIT" ? "Intune access" : "persona"} groups' membership` : "none"))}.</p></div>`;
+      const roleTiers = tiers.filter((t) => !/^Group/.test(t)), groupTiers = tiers.filter((t) => /^Group/.test(t));
+      body = `<h3 class="pds-sec">Role tiers <span class="mini">how long an Entra role lasts once activated, and what activating it asks</span></h3><div class="pds-grid">${roleTiers.map(card).join("")}</div>
+        ${groupTiers.length ? `<h3 class="pds-sec">Group membership <span class="mini">the PIM for Groups settings of the persona and access groups</span></h3><div class="pds-grid">${groupTiers.map(card).join("")}</div>` : ""}`;
     } else if (pds.tab === "roles") {
       body = `<div class="list-card xt-card"><h3>Role → tier <span class="mini">a role moves with all its settings; the few built-in exceptions (Global Administrator's hour) stay with the role</span></h3><div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Role</th><th>Framework</th><th>This customer</th></tr></thead><tbody>${cat.roles.map((r) => { const cur = (pds.v.roles[r.name] || {}).template || r.template; return `<tr class="pmb-row${cur !== r.template ? " pmb-differs" : ""}"><td><b>${esc(r.name)}</b></td><td><span class="pmb-tier pmb-tier-${esc(r.template)}">${esc(r.template)}</span></td><td><select data-pdsrole="${esc(r.name)}">${PimDesigner.ROLE_TIERS.map((t) => `<option${t === cur ? " selected" : ""}>${t}</option>`).join("")}</select></td></tr>`; }).join("")}</tbody></table></div></div>`;
     } else if (pds.tab === "names") {
@@ -24149,18 +24174,26 @@ This is a directory write. Nothing else changes.`)) return;
       body = `<div class="list-card xt-card"><h3>The variant</h3><dl class="pim-kv"><dt>Name</dt><dd><input type="text" data-pdsname="name" value="${esc(pds.v.name || "")}" placeholder="Contoso — Tier 1 four hours" spellcheck="false"></dd><dt>Notes</dt><dd><textarea data-pdsname="notes" rows="3" style="width:100%">${esc(pds.v.notes || "")}</textarea></dd><dt>Based on</dt><dd class="mini">${esc(pds.v.base.catalog)} ${esc(pds.v.base.release)} (revised ${esc(pds.v.base.revised)})${pds.v.base.release !== PIM_BASELINE.release ? ` — <span class="pmb-bad-txt">the framework is ${esc(PIM_BASELINE.release)} now: check the changes still make sense</span>` : ""}</dd></dl>
         <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Where</th><th>What</th><th>Framework</th><th>This customer</th></tr></thead><tbody>${diffs.map((d) => `<tr class="pmb-row"><td><b>${esc(d.where)}</b></td><td>${esc(d.what)}</td><td class="mini">${esc(d.from)}</td><td class="mini"><b>${esc(d.to)}</b></td></tr>`).join("") || `<tr><td colspan="4" class="mini" style="padding:12px">No changes — the framework as it is.</td></tr>`}</tbody></table></div></div>`;
     }
-    $("pdsBody").innerHTML = status + body;
+    const steps = `<ol class="pds-steps">
+      <li><b>1 · Start from ${esc(PIM_BASELINE.release)}</b><span>Every value shows the framework's setting. Nothing differs until you change it.</span></li>
+      <li><b>2 · Change only what differs</b><span>A changed value is marked, shows the framework's value beside it and resets on its own. What Entra refuses is refused here, with the reason.</span></li>
+      <li><b>3 · Use it</b><span>Use for this tenant makes 🧬 PIM baseline, 🎖 Roles and 🚀 Deploy work with the variant; Export carries it to another browser.</span></li></ol>`;
+    const side = `<aside class="pds-side"><section class="list-card xt-card"><h3>${esc(pds.v.name || "This customer's variant")}</h3><p class="mini">${empty ? "No differences yet — the framework as it is." : `${diffs.length} difference${diffs.length === 1 ? "" : "s"} from framework ${esc(PIM_BASELINE.release)}`}${pds.v.updatedAt ? ` · saved ${esc(new Date(pds.v.updatedAt).toLocaleDateString())}` : ""}</p>${diffs.length ? `<ul class="pds-diffs">${diffs.slice(0, 12).map((d) => `<li><b>${esc(d.where)}</b> ${esc(d.what)}: ${esc(d.from)} → <b>${esc(d.to)}</b></li>`).join("")}${diffs.length > 12 ? `<li class="mini">… ${diffs.length - 12} more under The variant</li>` : ""}</ul>` : ""}<p class="mini">${pds.use && !val.errors.length && !empty ? "✓ <b>In use</b> for this tenant." : "Not in use for this tenant."}</p></section>
+      ${val.errors.length ? `<section class="pds-note bad"><b>Refused, with the reason</b><ul>${val.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul><span class="mini">A variant with these errors is never used.</span></section>` : `<section class="pds-note"><b>Safe by construction</b><span class="mini">Approval without an approver group, or an authentication context without MFA, cannot be saved — the field says why.</span></section>`}
+      ${val.warnings.length ? `<section class="pds-note warn"><b>Worth a look</b><ul>${val.warnings.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></section>` : ""}</aside>`;
+    $("pdsBody").innerHTML = `<p class="mini pmb-read">Profile <b>${esc((PIM_BASELINE.profiles[pmbProfileId] || {}).label || pmbProfileId)}</b> (as in 🧬 PIM baseline)</p>` + steps + `<div class="pds-layout"><div class="pds-main">${body}</div>${side}</div>`;
   }
   $("toolPimDesigner").addEventListener("click", () => openPimDesigner());
   $("pdsChips").addEventListener("click", (e) => { const t = e.target.closest("[data-pdstab]"); if (t) { pds.tab = t.dataset.pdstab; pdsPaint(); } });
   $("pdsBody").addEventListener("click", (e) => {
     const t = e.target.closest("[data-pdstier]"); if (t) { pds.tier = t.dataset.pdstier; pdsPaint(); return; }
-    const r = e.target.closest("[data-pdsreset]"); if (r) { pds.v = PimDesigner.reset(pds.v, pds.tier, r.dataset.pdsreset); pdsChanged(); }
+    const r = e.target.closest("[data-pdsreset]"); if (r) { const c = r.closest("[data-pdscard]"); if (c) pds.tier = c.dataset.pdscard; pds.v = PimDesigner.reset(pds.v, pds.tier, r.dataset.pdsreset); pdsChanged(); }
   });
   $("pdsBody").addEventListener("change", (e) => {
     const cat = PimBaseline.profile(PIM_BASELINE, pmbProfileId);
     const el = e.target;
     if (el.dataset.pdsf) {
+      { const c = el.closest("[data-pdscard]"); if (c) { pds.tier = c.dataset.pdscard; pds.openTier = true; } }
       const k = el.dataset.pdsf, F = PimDesigner.FIELDS[k], T = cat.templates[pds.tier], M = Object.assign({}, T, pds.v.templates[pds.tier] || {});
       let val;
       if (F.values) val = el.value;

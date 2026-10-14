@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32615, date: "2026-10-14", title: "Designer: explained in three steps, every tier a card in words, the variant beside it",
+    items: [
+      { kind: "improved", tool: "Designer — a customer's variant", text: "The Designer now explains itself in three steps — start from the framework, change only what differs, use it — and shows every tier as a card in plain words: what it is for, how long activation lasts, what it asks, who approves, how long people stay eligible, and which roles sit in it. Change opens the settings under the card; a changed card is marked and opens by itself. Beside the cards, the variant's differences, whether it is in use, and what would be refused and why." },
+    ],
+  },
+  {
     build: 32614, date: "2026-10-14", title: "Roles & assignments: an error is said on the screen, never a spinner that stays",
     items: [
       { kind: "fixed", tool: "Roles & assignments", text: "When the result of a read could not be built or drawn, the tool threw after the read and left its progress panel up with nothing to say what happened. Now the error is shown in place with what failed, the other tabs and Read again keep working, and the two assignment reads stop at 20,000 instead of growing without end." },

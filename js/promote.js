@@ -175,6 +175,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 335,
+      ws: "pim",
+      title: "🧾 Designer — three steps, tier cards in words, the variant beside them (T50 0.2.0)",
+      tools: ["Designer — a customer's variant"],
+      builds: [32615],
+      risk: "low",
+      what: "js/app.js pdsPaint: steps, Role tiers / Group membership card grids with summary and folded settings, side panel; change/reset handlers take the tier from data-pdscard. css .pds-*. Help bullet. js/pimdesigner.js untouched.",
+      why: "Mihai, 14 Oct: the designer should be better described, and the layout should be much nicer than this. Mockup board 2. Risk low: same variant model, same storage, same validation.",
+      test: [
+        "Beta, demo tenant, 02 → Designer: three steps above; Role tiers shows Tier0, Tier1, Tier2, Reader as cards with activation, asks for, approval and eligible for in words; Group membership the membership templates.",
+        "Beta, demo tenant: Change Tier1 → Activation 4 hours — the card is marked 1 changed, the side panel lists Tier1 Activation 2 h → 4 h; ↺ framework resets it.",
+        "Beta, demo tenant: switch Approval on in Tier2 without an approver group — the side panel says it is refused and why; Use for this tenant stays disabled.",
+        "Beta, narrow window (≤ 900 px): steps and cards stack in one column, the side panel follows.",
+      ],
+    },
+    {
       n: 334,
       ws: "pim",
       title: "🎖 Roles & assignments — a failed build or draw is said on screen, the instance reads capped (T49 0.2.1)",
