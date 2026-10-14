@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32613, date: "2026-10-14", title: "Administrative units in PIM-buddy: the baseline's units first, the tenant's own below",
+    items: [
+      { kind: "improved", tool: "Administrative units", text: "Opened from Workspace 02, the page now starts with From the PIM baseline: every unit the profile expects — the restricted unit and, with a regions file, each region's Users, Devices and Groups unit — with its kind, why the baseline needs it and its state (present, missing, differs). Then the baseline's units found in the tenant, then Already in this tenant: every other unit, with the inventory, under its own heading." },
+      { kind: "fixed", tool: "Workspaces", text: "Help: the workspace switcher bullet still described Workspace 02's header as a lighter green with a lemon line; it now names the three colours from the ENCA mark (build 32610)." },
+    ],
+  },
+  {
     build: 32612, date: "2026-10-14", title: "User or Group analyzer: the PIM-SG groups in scope, and one click in the PIM lens",
     items: [
       { kind: "improved", tool: "User or Group analyzer", text: "Groups in scope has two new choices: only the PIM-SG groups of this tenant's design, or of every design — the same lists PIM groups (T12) shows. Opened from Workspace 02 the sweep starts on them; a PIM-SG group the tenant does not have yet is counted and pointed at Deploy rather than swept." },

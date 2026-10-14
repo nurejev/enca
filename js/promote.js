@@ -175,6 +175,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 333,
+      ws: "pim",
+      title: "🛡 Administrative units in PIM-buddy — the baseline's units first, the tenant's own below (T27 2.1.0)",
+      tools: ["Administrative units"],
+      builds: [32613],
+      risk: "low",
+      what: "js/app.js: prlBaselineUnits / prlBaselineNames / prlBaselineTable (restricted units from PimRmau.check, regional AUs from PimBaseline.compareRegions), shown at the top of prlPanel; renderRmau in the PIM lens renders PIM-baseline units in this tenant, then Already in this tenant with ruInvPanel; the card markup moved into ruCardHtml (Workspace 01 renders as before). css .prl-base, h3.prl-sec. Help bullet; the workspaces Help sentence on header colours corrected.",
+      why: "Mihai, 14 Oct: administrative units in the PIM-buddy section should focus first on PIM-baseline related AU or RMAU, then below the AU or RMAU already in the tenant. Mockup board 3. Risk low: reads only; the existing Preview and Deploy write paths are untouched.",
+      test: [
+        "Beta, demo tenant, 02, profile Large · multi-region: Administrative units → Read — From the PIM baseline lists the regional AUs with Present / Differs / Missing; under it PIM-baseline units in this tenant, then Already in this tenant with the inventory.",
+        "Beta, demo tenant, 02, profile Large · one region: the table lists AU-RM-Executives; Small business says the profile expects no unit.",
+        "Beta, demo tenant, 01: Administrative units looks as before (vault panels, map, every card in one grid).",
+        "Beta, signed in to cloudfellows.dev, 02 with the regions file loaded: each region's three units are listed with their real state.",
+      ],
+    },
+    {
       n: 332,
       ws: "pim",
       title: "🔗 User or Group analyzer — the PIM-SG groups in scope (this design / every design) and one-click groups in the PIM lens (T19 1.7.0)",

@@ -3288,3 +3288,8 @@ details.pr-role[open]>summary{margin-bottom:6px}
 #screen-egress .eg-bad{color:var(--off)}#screen-egress .eg-warnt{color:var(--warn-fg)}#screen-egress .eg-okt{color:var(--on)}
 #screen-egress .eg-finds{margin:8px 0 0;padding-left:18px}#screen-egress .eg-finds li{margin:5px 0}
 @media (max-width:760px){#screen-egress .eg-form{grid-template-columns:1fr}}
+/* 32613: T27 in Workspace 02 — the baseline's units first, the tenant's own below */
+.prl-base td:first-child{white-space:nowrap}
+.prl-base h3 .mini{font-weight:400;margin-left:6px}
+h3.prl-sec{margin:22px 0 10px;font-size:16px}
+h3.prl-sec .mini{font-weight:400;margin-left:6px;color:var(--muted)}

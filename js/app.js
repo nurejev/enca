@@ -12833,7 +12833,26 @@ This is a directory write. Nothing else changes.`)) return;
     // scoped admins across units) give way to the PIM lens; the unit cards stay.
     const lead = prlOn() ? prlPanel() + ruInvPanel() : ruInvPanel() + ruBaselinePanel() + ruMapPanel() + ruBulkAdminPanel();
     if (!rows.length) { $("ruBody").innerHTML = lead + '<p class="mini" style="padding:20px">No administrative unit matches the current filter.</p>'; if (prlOn()) prlWire(); return; }
-    $("ruBody").innerHTML = lead + `<div class="lo-grid">` + rows.map((au) => {
+    // 32613: in the PIM lens the baseline's own units come first, then the
+    // tenant's other units under their own heading
+    let baseNames = null;
+    if (prlOn()) { try { const d0 = prlData(); if (d0 && prl.members) baseNames = prlBaselineNames(PimRmau.check(pmbCat(), d0)); } catch { baseNames = null; } }
+    const isBase = (au) => !!baseNames && (baseNames.has(String(au.displayName || "").toLowerCase()) || (pmbRegionsOn() && /^AU-.+-(Users|Devices|Groups)$/i.test(au.displayName || "")));
+    const baseRows = baseNames ? rows.filter(isBase) : [];
+    const otherRows = baseNames ? rows.filter((au) => !isBase(au)) : rows;
+    const cardsOf = (list) => list.map((au) => ruCardHtml(au)).join("");
+    $("ruBody").innerHTML = prlOn()
+      ? prlPanel() + (baseRows.length ? `<h3 class="prl-sec">PIM-baseline units in this tenant <span class="mini">${baseRows.length}</span></h3><div class="lo-grid">${cardsOf(baseRows)}</div>` : "")
+        + `<h3 class="prl-sec">Already in this tenant <span class="mini">${otherRows.length} unit${otherRows.length === 1 ? "" : "s"} not part of the PIM baseline</span></h3>` + ruInvPanel() + (otherRows.length ? `<div class="lo-grid">${cardsOf(otherRows)}</div>` : `<p class="mini" style="padding:12px">None — every unit here is the baseline's.</p>`)
+      : lead + `<div class="lo-grid">${cardsOf(rows)}</div>`;
+    $("ruBody").insertAdjacentHTML("beforeend", RU_FOOT);
+    if (prlOn()) prlWire();
+    return;
+  }
+  function ruCardHtml(au) {
+    const inv = ruInvRes();
+    const invOf = new Map(inv ? inv.units.map((u) => [u.id, u]) : []);
+    return [au].map((au) => {
       const open = ruOpen.has(au.id);
       const d = ruDetails[au.id];
       let detail = "";
@@ -12888,9 +12907,9 @@ This is a directory write. Nothing else changes.`)) return;
           <button class="btn sm danger" data-rudel="${esc(au.id)}">🗑 Delete</button>
         </div>
       </div>`;
-    }).join("") + `</div>
-    <p class="mini muted" style="margin-top:8px">Click a card header — or <b>👤 Scoped admins</b> — for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;    if (prlOn()) prlWire();
+    }).join("");
   }
+  const RU_FOOT = `<p class="mini muted" style="margin-top:8px">Click a card header — or <b>👤 Scoped admins</b> — for members and scoped role grants. Member changes on a restricted AU need a role scoped to it — the error Graph returns otherwise is the protection doing its job.</p>`;
   $("ruChips").addEventListener("click", (e) => { const b = e.target.closest("[data-ruf]"); if (!b) return; ruFilter = b.dataset.ruf; renderRmau(); });
   $("ruBody").addEventListener("click", async (e) => {
     if (e.target.closest("[data-auinvread]")) { ruInvRead(); return; }
@@ -23408,9 +23427,37 @@ This is a directory write. Nothing else changes.`)) return;
     const tabs = [["units", `🔒 Restricted units (${res.counts.present}/${res.counts.expected})`], ["violations", `⚠ PIM objects inside (${res.counts.violations})`], ["regional", `📍 Regional units (${res.counts.regional})`]]
       .map(([k, l]) => `<button class="fchip${prl.tab === k ? " active" : ""}" data-prltab="${k}">${esc(l)}</button>`).join("");
     const nSel = PimRmau.plan(cat, d, res, prl.sel, {}).ops.length;
-    return head + `<p class="mini">${res.demo ? "Demo data · " : ""}Read ${esc(new Date(res.readAt).toLocaleString())} · <button class="btn sm" data-prlread>⟳ Read again</button></p><div class="chip-filter">${tabs}</div>${PimRmau.render(res, prl.sel, { tab: prl.tab })}
+    return head + prlBaselineTable(res) + `<p class="mini">${res.demo ? "Demo data · " : ""}Read ${esc(new Date(res.readAt).toLocaleString())} · <button class="btn sm" data-prlread>⟳ Read again</button></p><div class="chip-filter">${tabs}</div>${PimRmau.render(res, prl.sel, { tab: prl.tab })}
       <div class="pmb-upload-row"><button class="btn primary" data-prlplan${nSel ? "" : " disabled"}>🔎 Preview ${nSel} change${nSel === 1 ? "" : "s"}</button><span class="mini">Ticked: create the missing unit and the desk scoped on it; a removal only when you tick its row.</span></div>
       <div data-prlplanhost>${prl.planShown ? prlPlanHtml(cat, d, res) : ""}</div></div>`;
+  }
+  // 32613 (Mihai: administrative units in PIM-buddy should focus first on the
+  // PIM-baseline AUs or RMAUs, then below the AUs / RMAUs already in the
+  // tenant): every unit the profile expects — the restricted ones and, with a
+  // regions file, each region's Users / Devices / Groups unit — in one table
+  // with its state, before the details and the tenant's own units.
+  const PRL_PILL = { present: ["ok", "✓ Present"], match: ["ok", "✓ Present"], missing: ["bad", "∅ Missing"], differs: ["warn", "≠ Differs"], conflict: ["bad", "⚠ Conflict"], unrestricted: ["bad", "⚠ Not restricted"], unread: ["na", "? Not read"] };
+  function prlBaselineUnits(res) {
+    const out = (res.units || []).map((u) => ({ name: u.name, kind: "restricted", why: `holds ${u.holds}`, status: u.status, detail: u.detail || "" }));
+    if (pmbRegionsOn()) {
+      if (pmbRegRows && pmbRaw) {
+        try {
+          const rc = PimBaseline.compareRegions(pmbCat(), pmbRegRows, pmbRaw);
+          (rc.regions || []).forEach((r) => (r.items || []).filter((i) => i.kind === "au").forEach((i) => out.push({ name: i.name, kind: `regional · ${r.name || r.code}`, why: `the region's desk is eligible at this unit (${i.expect})`, status: i.status, detail: i.detail || "" })));
+        } catch (e) { out.push({ name: "Regional units", kind: "regional", why: `the regions file could not be compared: ${e.message || e}`, status: "unread", detail: "" }); }
+      } else out.push({ name: "AU-<region>-Users / -Devices / -Groups", kind: "regional", why: "one set per region of the regions file — load it in 🧬 PIM baseline → 🗺 Regions to see each one", status: "unread", detail: "" });
+    }
+    return out;
+  }
+  function prlBaselineNames(res) { return new Set(prlBaselineUnits(res).map((u) => String(u.name).toLowerCase())); }
+  function prlBaselineTable(res) {
+    const us = prlBaselineUnits(res);
+    const pill = (s) => { const p = PRL_PILL[s] || ["na", s]; return `<span class="xt-pill pmb-${p[0]}">${esc(p[1])}</span>`; };
+    const n = (k) => us.filter((u) => (k === "ok" ? ["present", "match"].includes(u.status) : u.status === k)).length;
+    if (!us.length) return `<div class="list-card xt-card prl-base"><h3>From the PIM baseline · ${esc(res.profile || "")}</h3><p class="mini">This profile expects no administrative unit: Small business keeps every desk tenant-wide. The units below are the tenant's own.</p></div>`;
+    return `<div class="list-card xt-card prl-base"><h3>From the PIM baseline · ${esc(res.profile || "")} <span class="mini">${us.length} expected · ${n("ok")} present${n("missing") ? ` · ${n("missing")} missing` : ""}${n("differs") + n("conflict") + n("unrestricted") ? ` · ${n("differs") + n("conflict") + n("unrestricted")} to fix` : ""}</span></h3>
+      <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Unit</th><th>Kind</th><th>Why the baseline needs it</th><th>State</th></tr></thead><tbody>${us.map((u) => `<tr class="pmb-row"><td><b>${esc(u.name)}</b></td><td class="mini">${esc(u.kind)}</td><td class="mini">${esc(u.why)}${u.detail ? ` <span class="pmb-bad-txt">${esc(u.detail)}</span>` : ""}</td><td>${pill(u.status)}</td></tr>`).join("")}</tbody></table></div>
+      <p class="mini">A missing unit is created with 🚀 Deploy (Restricted unit, Regions) or with the Preview below. The tenant's other units follow under <b>Already in this tenant</b>.</p></div>`;
   }
   let prlPlanObj = null;
   function prlPlanHtml(cat, d, res) {
