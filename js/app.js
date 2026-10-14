@@ -24438,7 +24438,7 @@ This is a directory write. Nothing else changes.`)) return;
   // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
   // ======================================================================
   const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All"];
-  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, fix: null, fixOpts: { group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: true, ipv4: false, rel: "", ver: "v1.0" }, fixBusy: false, fixLog: null, session: "" };
+  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, fix: null, fixOpts: { group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0" }, fixBusy: false, fixLog: null, session: "" };
   const gsaSession = () => `${tenantId}:${isDemo}`;
   const gsaPolicies = () => {
     if (!policies || !policies.length) return null;
@@ -24480,6 +24480,8 @@ This is a directory write. Nothing else changes.`)) return;
         const one = async (k, fn) => { try { raw[k] = await fn(); raw.sources[k] = "ok"; } catch (e) { raw.sources[k] = gsaErr(e); } };
         await one("skus", () => Graph.ggetAll("/v1.0/subscribedSkus", { scopes: sc }));
         await one("status", () => Graph.gget("/networkAccess/tenantStatus", sc));
+        // 32518: the ZTNA Policy Service Client app the client signs in through
+        await one("ztna", () => Graph.ggetAll(`/v1.0/servicePrincipals?$filter=${encodeURIComponent(`appId eq '${Gsa.ZTNA_CLIENT}'`)}&$select=id,appId,displayName`, { scopes: sc }));
         if (raw.status && raw.status.onboardingStatus === "onboarded") {
           await one("profile", async () => ((await Graph.ggetAll("/networkAccess/forwardingProfiles?$expand=policies", { scopes: sc })).find((p) => p.trafficForwardingType === "m365") || null));
           await one("signaling", () => Graph.gget("/networkAccess/settings/conditionalAccess", sc));
@@ -24548,7 +24550,7 @@ This is a directory write. Nothing else changes.`)) return;
     const nm = () => Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" });
     const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">file ${esc(which === "win" ? Gsa.WIN_FILE : Gsa.MAC_FILE)}</span></div>`;
     const grp = (k, def) => `<input class="txt" data-gsaopt="${k}" value="${esc(o[k] || def)}" placeholder="Device group display name" style="min-width:320px"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label>`;
-    if (gsa.fix === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — users cannot disable it or sign out</label><br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label><br><button class="btn sm" data-gsadl="win">⬇ The script as it will be uploaded</button>`;
+    if (gsa.fix === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label><br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label><br><button class="btn sm" data-gsadl="win">⬇ The script as it will be uploaded</button>`;
     if (gsa.fix === "macscript") { const c = (gsa.model.links.find((l) => l.k === "client") || {}); form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<p class="mini${c.macProfOk ? " muted" : " gsa-warn-txt"}">${esc(c.sub || "")}${c.macProfOk ? "" : " — assign them to the same group in Intune, or the client cannot load its extension and tunnel."}</p><button class="btn sm" data-gsadl="mac">⬇ The script as it will be uploaded</button>`; }
     const log = gsa.fixLog ? `<div class="gsa-log">${gsa.fixLog.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
     return `<h4>🔧 ${esc(f.title)} <span class="tag block">writes to tenant</span></h4>
@@ -24627,6 +24629,9 @@ This is a directory write. Nothing else changes.`)) return;
       } else if (k === "signal") {
         if (isDemo) await sim("signalling enabled");
         else { await Graph.gpatch("/networkAccess/settings/conditionalAccess", { "@odata.type": "#microsoft.graph.networkaccess.conditionalAccessSettings", signalingStatus: "enabled" }, sc); say("Conditional Access signalling enabled", true); }
+      } else if (k === "ztnasp") {
+        if (isDemo) await sim("ZTNA Policy Service Client created");
+        else { await Graph.gpost("/v1.0/servicePrincipals", { appId: Gsa.ZTNA_CLIENT }, sc); say("ZTNA Policy Service Client service principal created", true); }
       } else if (k === "location") {
         if (isDemo) await sim(`${Gsa.LOCATION_NAME} created`);
         else { await Graph.gpost("/identity/conditionalAccess/namedLocations", { "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: Gsa.LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false }, sc); say(`${Gsa.LOCATION_NAME} created`, true); }
@@ -24659,6 +24664,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "winscript") r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE });
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
     if (k === "onboard") r.status.onboardingStatus = "onboarded";
+    if (k === "ztnasp") r.ztna = [{ id: "sp-ztna", appId: Gsa.ZTNA_CLIENT }];
   }
   $("toolGsa").addEventListener("click", () => openGsa());
   $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; gsa.fix = null; readGsa(); });

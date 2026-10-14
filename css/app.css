@@ -3182,3 +3182,4 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:900px){.gsa-cols{grid-template-columns:1fr}#screen-gsa .gsa-verdict{grid-template-columns:1fr}}
 .gsa-sect{padding:14px 16px;margin:0 0 14px}.gsa-sect h3{font-size:15px;margin:0 0 8px}.gsa-later{margin:6px 0 0}
 .gsa-warn-txt{color:var(--report)}
+.gsa-backing td{opacity:.75}.gsa-backing td:last-child{color:var(--report)}

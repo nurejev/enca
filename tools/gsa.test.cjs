@@ -10,7 +10,8 @@ test("demo: the chain reads, the profile is partly on, the groups are the profil
   assert.strictEqual(m.links.length, 8);
   const by = Object.fromEntries(m.links.map((l) => [l.k, l]));
   assert.strictEqual(by.licence.st, "ok");
-  assert.strictEqual(by.tenant.st, "ok");
+  assert.strictEqual(by.tenant.st, "warn", "the ZTNA Policy Service Client is missing in the demo");
+  assert.strictEqual(by.tenant.fix2, "ztnasp");
   assert.strictEqual(by.profile.st, "warn", "one traffic policy is off");
   assert.strictEqual(by.profile.fix, "profile");
   assert.strictEqual(by.location.st, "ok");
@@ -111,4 +112,25 @@ test("macProfiles recognises the devcf GSA profiles and their assignment", () =>
   assert.strictEqual(mp.sysext.assigned, false);
   assert.strictEqual(mp.proxy.assigned, true);
   assert.strictEqual(mp.settings.assigned, true);
+});
+
+test("32518 from the LearnGraphAPI lab: pilot vs locked client settings, the backing group, the macOS guards", () => {
+  const pilot = Gsa.windowsScript({});
+  assert.match(pilot, /'HideDisableButton' -Value 0/);
+  assert.match(pilot, /'HideSignOutButton' -Value 1/);
+  assert.match(pilot, /'RestrictNonPrivilegedUsers' -Value 0/);
+  const locked = Gsa.windowsScript({ lock: true });
+  assert.match(locked, /'HideDisableButton' -Value 1/);
+  assert.match(locked, /'RestrictNonPrivilegedUsers' -Value 1/);
+  assert.ok(Gsa.isBacking("_GSA_2ec642ab-1111-2222-3333-444455556666"));
+  assert.ok(!Gsa.isBacking("INT-SEC-D-GSA-MAC-M365"));
+  const raw = Gsa.demo(); raw.assigned.push({ principalId: "g-back", principalType: "Group", principalDisplayName: "_GSA_2ec642ab-1111" });
+  const g = Gsa.model(raw, []).groups.find((x) => x.id === "g-back");
+  assert.ok(g.backing && /do not use/.test(g.why));
+  const mac = Gsa.macScript();
+  assert.match(mac, /pkgutil --check-signature/);
+  assert.match(mac, /minmajor=14/);
+  assert.match(mac, /\/Applications\/GlobalSecureAccessClient/);
+  const raw2 = Gsa.demo(); raw2.ztna = [{ id: "sp", appId: Gsa.ZTNA_CLIENT }];
+  assert.strictEqual(Gsa.model(raw2, []).links.find((l) => l.k === "tenant").st, "ok");
 });

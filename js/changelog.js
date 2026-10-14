@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32518, date: "2026-10-14", title: "Global Secure Access: lessons from a lab deployment",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "The tenant link checks that the ZTNA Policy Service Client service principal exists — without it the client can stay Partially Connected — and offers to create it." },
+      { kind: "improved", tool: "Global Secure Access", text: "The Windows script writes pilot client settings by default (sign-out and Disable Private Access hidden, Disable visible); Lock down hides everything. The macOS script installs only on macOS 14 or later, only a package signed by Microsoft, and warns when the GSA profiles are not on the Mac yet." },
+      { kind: "improved", tool: "Global Secure Access", text: "The board says what it cannot see: the profile's device platforms are set in the portal (no devices assigned means no device gets the profile), secure DNS must be off in Edge and Chrome on Windows, and the portal's _GSA_ backing group is marked as not for use in Intune or Conditional Access." },
+    ],
+  },
+  {
     build: 32517, date: "2026-10-14", title: "Global Secure Access: the macOS script in Intune, names as in the baseline",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "Create macOS script: an Intune shell script that installs the Global Secure Access client on Macs (run as root, once, three retries), assigned to a device group — INT-SEC-D-GSA-MAC-M365 by default, made empty when it does not exist." },

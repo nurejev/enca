@@ -42,6 +42,15 @@ const Gsa = (() => {
   }; };
   const WIN_FILE = "Install-GlobalSecureAccessClient.ps1", MAC_FILE = "scr-app-108-install-global-secure-access.zsh";
   const GROUPS = { win: "INT-SEC-D-GSA-WIN-M365", mac: "INT-SEC-D-GSA-MAC-M365" };
+  // 32518, from Jhope188/LearnGraphAPI Baseline/Entra/GSA (lab, 12 Oct 2026):
+  // the client signs in to the ZTNA Policy Service through this first-party
+  // app; in that lab its service principal was missing and the client stayed
+  // Partially Connected until it was created. The appId is the lab's, verified
+  // there; the resource "ZTNA Policy Service" appId is NOT known, so not checked.
+  const ZTNA_CLIENT = "ca01d00c-bfd6-46d6-ae7d-be5b5267d037";
+  // The portal makes a backing group per traffic profile, _GSA_<guid>. It is
+  // the profile's, not a group to use in Intune or Conditional Access.
+  const isBacking = (name) => /^_GSA_[0-9a-f-]{8,}/i.test(String(name || ""));
   const SCRIPT_NAME = names().win;
   const LOCATION_NAME = "All Compliant Network Locations";
 
@@ -102,7 +111,10 @@ const Gsa = (() => {
     // 2 tenant
     const st = raw.status && raw.status.onboardingStatus;
     const onboarded = st === "onboarded";
-    L.push({ k: "tenant", lab: "Tenant", h: "Global Secure Access", st: unread("status") ? "unread" : onboarded ? "ok" : /InProgress/.test(st || "") ? "warn" : "bad", note: unread("status") ? `not read — ${src.status}` : onboarded ? "activated" : st ? st.replace(/([A-Z])/g, " $1").toLowerCase() + (raw.status.onboardingErrorMessage ? ` — ${raw.status.onboardingErrorMessage}` : "") : "not activated", fix: !onboarded && !unread("status") && !/InProgress/.test(st || "") ? "onboard" : null });
+    const ztna = unread("ztna") ? null : (raw.ztna || []).length > 0;
+    L.push({ k: "tenant", lab: "Tenant", h: "Global Secure Access", st: unread("status") ? "unread" : onboarded ? (ztna === false ? "warn" : "ok") : /InProgress/.test(st || "") ? "warn" : "bad", note: unread("status") ? `not read — ${src.status}` : onboarded ? "activated" : st ? st.replace(/([A-Z])/g, " $1").toLowerCase() + (raw.status.onboardingErrorMessage ? ` — ${raw.status.onboardingErrorMessage}` : "") : "not activated",
+      sub: ztna === null ? (src.ztna && src.ztna !== "ok" ? `ZTNA Policy Service Client not read — ${src.ztna}` : "") : ztna ? "ZTNA Policy Service Client: present" : "ZTNA Policy Service Client: missing — the client can stay Partially Connected without it",
+      fix: !onboarded && !unread("status") && !/InProgress/.test(st || "") ? "onboard" : null, fix2: onboarded && ztna === false ? "ztnasp" : null });
     // 3 profile
     const prof = raw.profile, pols = (prof && prof.policies) || [];
     const profOn = !!prof && prof.state === "enabled", polsOff = pols.filter((x) => x.state !== "enabled").length;
@@ -112,7 +124,8 @@ const Gsa = (() => {
     const profSt = !onboarded ? "wait" : unread("profile") ? "unread" : !prof ? "bad" : profOn && !polsOff && assigned ? "ok" : profOn ? "warn" : "bad";
     L.push({ k: "profile", lab: "Traffic", h: "Microsoft profile", st: profSt,
       note: !onboarded ? "waits on the tenant" : unread("profile") ? `not read — ${src.profile}` : !prof ? "no Microsoft traffic profile returned" : `${profOn ? "enabled" : "disabled"}${polsOff ? ` · ${polsOff} of ${pols.length} traffic policies off` : ""} · ${allUsers ? "all users" : assigned ? `${groups.length} group${groups.length === 1 ? "" : "s"}${users.length ? `, ${users.length} user${users.length === 1 ? "" : "s"}` : ""} assigned` : "nobody assigned"}`,
-      fix: onboarded && prof && (!profOn || polsOff) ? "profile" : null, fix2: onboarded && prof && raw.sp && !assigned ? "assign" : onboarded && prof && raw.sp && !allUsers ? "assign" : null });
+      fix: onboarded && prof && (!profOn || polsOff) ? "profile" : null, fix2: onboarded && prof && raw.sp && !assigned ? "assign" : onboarded && prof && raw.sp && !allUsers ? "assign" : null,
+      help: "Device platforms (Windows, macOS, …) are set on the profile's Assignments page in the portal — there is no documented Graph call, so ENCA cannot read or set them. No devices assigned for a platform means no device of that platform gets the profile: check it there." });
     // 4 signalling
     const sig = raw.signaling && raw.signaling.signalingStatus === "enabled";
     L.push({ k: "signal", lab: "Signal", h: "CA signalling", st: !onboarded ? "wait" : unread("signaling") ? "unread" : sig ? "ok" : "bad", note: !onboarded ? "waits on the tenant" : unread("signaling") ? `not read — ${src.signaling}` : sig ? "enabled — source IP restored" : "disabled", fix: onboarded && !sig && !unread("signaling") ? "signal" : null, help: "Microsoft Learn calls it source IP restoration; the compliant network can only be targeted once it is on." });
@@ -133,6 +146,7 @@ const Gsa = (() => {
     L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk ? "ok" : winOk || macScript ? "warn" : "bad",
       note: [winScript ? `Windows: ${winScript.displayName}` : winApp ? `Windows: app ${winApp.displayName}` : "Windows: no Intune script or app", macScript ? `macOS: ${macScript.displayName}` : "macOS: no shell script"].join(" · "),
       sub: unread("macProfiles") ? `macOS profiles not read — ${src.macProfiles}` : `macOS profiles: ${mprof("sysext", "system extensions")} · ${mprof("proxy", "transparent proxy")} · ${mprof("settings", "client settings")}`,
+      help: "Windows: secure DNS (DNS over HTTPS) must be off in Edge and Chrome, or the client cannot tunnel by name — a settings catalog policy on the same devices. QUIC only matters once Internet Access is added.",
       fix: !winScript && !winApp ? "winscript" : null, fix2: !macScript ? "macscript" : null, winScript, winApp, macScript, macProfOk });
     // 7 policy
     const policies = cnPolicies(caPolicies, cn && cn.id);
@@ -145,7 +159,7 @@ const Gsa = (() => {
     // policies that require the compliant network (include side only — an
     // exclusion is a group the policy does NOT reach)
     const gIds = new Map();
-    groups.forEach((g) => gIds.set(g.principalId, { id: g.principalId, name: g.principalDisplayName || (raw.groupNames || {})[g.principalId] || g.principalId, why: "assigned on the Microsoft traffic profile" }));
+    groups.forEach((g) => { const name = g.principalDisplayName || (raw.groupNames || {})[g.principalId] || g.principalId; gIds.set(g.principalId, { id: g.principalId, name, backing: isBacking(name), why: isBacking(name) ? "the portal's backing group for the profile — do not use it in Intune or Conditional Access" : "assigned on the Microsoft traffic profile" }); });
     policies.forEach((p) => p.includeGroups.forEach((id) => { if (!gIds.has(id)) gIds.set(id, { id, name: (raw.groupNames || {})[id] || id, why: `included by ${p.name}` }); }));
 
     const ready = L.filter((l) => l.st === "ok").length;
@@ -212,7 +226,7 @@ const Gsa = (() => {
     const yes = (b) => b ? '<span class="gsa-st ok">out</span>' : '<span class="gsa-st warn">not out</span>';
     const polRows = m.policies.map((p) => `<tr><td><a href="#" data-gsaopen="${esc(p.id)}"><b>${esc(p.name)}</b></a><div class="mini muted">${esc(p.shape)}${p.platforms ? ` · ${esc(p.platforms)}` : ""}</div></td><td><span class="gsa-st ${p.state === "enabled" ? "ok" : p.state === "enabledForReportingButNotEnforced" ? "warn" : "wait"}">${p.state === "enabled" ? "on" : p.state === "enabledForReportingButNotEnforced" ? "report-only" : "off"}</span></td><td class="mini">${p.allUsers ? "All users" : `${p.includeGroups.length} group${p.includeGroups.length === 1 ? "" : "s"}`}${p.excludeGroups.length ? ` · ${p.excludeGroups.length} excluded` : ""}</td><td class="mini">Intune ${yes(p.intuneOut)} · Enrollment ${yes(p.enrollOut)} · ${p.excludeRoles.length ? `${p.excludeRoles.length} admin role${p.excludeRoles.length === 1 ? "" : "s"} excluded` : "no admin role excluded"}</td>${u.proof ? `<td class="mini">${(() => { const x = u.proof.per[p.id]; return x ? `${x.wouldBlock + x.blocked} block (${x.usersBlock} users) · ${x.wouldPass + x.passed} pass` : "no sign-in evaluated"; })()}</td>` : ""}</tr>`).join("");
     const polTable = `<section class="list-card gsa-sect"><h3>Policies that name the compliant network</h3>${m.policies.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Policy</th><th>State</th><th>Covers</th><th>Checks</th>${u.proof ? "<th>7 days</th>" : ""}</tr></thead><tbody>${polRows}</tbody></table></div>` : '<p class="mini">None yet. ENCA does not make this policy here: build it in 🧩 Policy building blocks → 🏗 Builder (block, any location except the compliant network, report-only) once links 1–6 are ready.</p>'}<p class="mini muted">Read from the policies ENCA already holds. This tool leaves the policies as they are — their state and their exclusions are changed in 🗂 Policies or 🎚 Set policy state. Without the Microsoft Intune and Intune Enrollment apps out, a new device cannot enrol to receive the client. Excluded admin roles are reported, not changed: see the admin handover.</p></section>`;
-    const grpRows = m.groups.map((g) => `<tr><td><b>${esc(g.name)}</b><div class="mini muted">${esc(g.id)}</div></td><td class="mini">${esc(g.why)}</td></tr>`).join("");
+    const grpRows = m.groups.map((g) => `<tr${g.backing ? ' class="gsa-backing"' : ""}><td><b>${esc(g.name)}</b><div class="mini muted">${esc(g.id)}</div></td><td class="mini">${esc(g.why)}</td></tr>`).join("");
     const grpTable = `<section class="list-card gsa-sect"><h3>Groups Global Secure Access uses <span class="mini muted">· ${m.allUsers ? "the profile is on for all users" : `${m.groups.length}`}</span></h3>${m.groups.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Group</th><th>Why</th></tr></thead><tbody>${grpRows}</tbody></table></div><p class="mini muted">The same list is the <b>Used by GSA</b> scope of 👥 Groups (T12). <button class="btn sm" data-gsagroups>Open in Groups</button></p>` : '<p class="mini">No group yet — assign a pilot group to the profile, or a compliant-network policy that includes a group.</p>'}</section>`;
     const proofSect = u.proof ? `<section class="list-card gsa-sect"><h3>Sign-ins, last 7 days</h3><p class="mini">${u.proof.total} sign-ins read${u.proof.capped ? " (the first 5,000)" : ""} · ${u.proof.viaGsa} through Global Secure Access.</p><p class="mini muted">A sign-in a report-only policy would block is one that did not come through the client — a device without it, the client paused, or an IPv6 path around the tunnel (the client tunnels IPv4 only). Switch the policy on when this is near zero; this tool does not do that for you.</p></section>` : u.proofBusy ? `<section class="list-card gsa-sect"><p class="mini">Reading the sign-in log…</p></section>` : "";
     const later = `<p class="mini muted gsa-later">🌐 This tool covers the <b>Microsoft traffic profile</b>. Internet Access and Private Access come later; their profiles and assignments will join this board and the Used by GSA scope.</p>`;
@@ -225,7 +239,11 @@ const Gsa = (() => {
   // and lock it down (the users-can't-disable keys). Prefer-IPv4 is optional
   // and off by default: it changes the network stack and needs a reboot.
   function windowsScript(opts) {
-    const o = opts || {}, lock = o.lock === false ? 0 : 1;
+    // 32518: two client settings. Pilot = Learn's sample (and the
+    // LearnGraphAPI lab): sign-out and Disable Private Access hidden, Disable
+    // visible, every user may change it. Locked = all four on.
+    const o = opts || {}, lock = o.lock === true;
+    const vals = lock ? { HideDisableButton: 1, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 1 } : { HideDisableButton: 0, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 0 };
     return [
       "# Global Secure Access client — install and lock down",
       "# Written by ENCA T56 (Workspace 03 · Entra Tools). Runs as SYSTEM, once, as an Intune platform script.",
@@ -242,9 +260,10 @@ const Gsa = (() => {
       "}",
       "$key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
       "New-Item -Path $key -Force | Out-Null",
-      `foreach ($name in 'HideDisableButton', 'HideSignOutButton', 'HideDisablePrivateAccessButton', 'RestrictNonPrivilegedUsers') { Set-ItemProperty -Path $key -Name $name -Value ${lock} -Type DWord -Force }`,
+      `# client settings: ${lock ? "locked down" : "pilot (Learn sample)"}`,
+      ...Object.entries(vals).map(([k, v]) => `Set-ItemProperty -Path $key -Name '${k}' -Value ${v} -Type DWord -Force`),
       ...(o.ipv4 ? [
-        "# Prefer IPv4: the client tunnels IPv4 only, so an IPv6 path to Entra goes around it. Takes effect after a reboot.",
+        "# Prefer IPv4: the client tunnels IPv4 only, so an IPv6 path to Entra goes around it. Takes effect after a reboot (Intune does not reboot for a platform script).",
         "$tcp6 = 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters'",
         "Set-ItemProperty -Path $tcp6 -Name 'DisabledComponents' -Value 0x20 -Type DWord -Force",
       ] : []),
@@ -265,23 +284,36 @@ const Gsa = (() => {
     return [
       "#!/bin/zsh",
       "# Install Global Secure Access Client for macOS — written by ENCA T56.",
-      "# Intune shell script: run as root, not as the signed-in user. Needs, assigned to the same devices:",
-      "#   the system extension policy (Team ID UBF8T346G9; com.microsoft.globalsecureaccess and .tunnel),",
-      "#   the transparent proxy profile (com.apple.vpn.managed, provider com.microsoft.globalsecureaccess.tunnel),",
-      "#   and the client settings (com.microsoft.globalsecureaccess: HideDisableButton, HideQuitButton).",
+      "# Intune shell script: run as root, not as the signed-in user. It does NOT approve the system extension or",
+      "# the transparent proxy: those come from two profiles that must reach the Mac first, assigned to the same group —",
+      "#   the system extension policy (Team ID UBF8T346G9; com.microsoft.globalsecureaccess and .tunnel)",
+      "#   the transparent proxy profile (com.apple.vpn.managed, provider com.microsoft.globalsecureaccess.tunnel)",
+      "# and optionally the client settings (com.microsoft.globalsecureaccess). Checks adopted from the",
+      "# LearnGraphAPI GSA lab (Jhope188): macOS 14 or later, the package signed by Microsoft, a warning without profiles.",
       "appname=\"Global Secure Access Client\"",
-      "app=\"/Applications/Global Secure Access Client.app\"",
       "url=\"https://aka.ms/GlobalSecureAccess-macOS\"",
+      "teamid=\"UBF8T346G9\"",
+      "minmajor=14",
       "logdir=\"/Library/Logs/Microsoft/IntuneScripts/GlobalSecureAccess\"",
       "mkdir -p \"$logdir\"",
       "exec >> \"$logdir/install.log\" 2>&1",
       "say() { echo \"$(date '+%Y-%m-%d %H:%M:%S') | $1\"; }",
       "say \"start\"",
-      "if [[ -d \"$app\" ]]; then say \"$appname already installed\"; exit 0; fi",
+      "if [[ $(id -u) -ne 0 ]]; then say \"must run as root\"; exit 1; fi",
+      "major=$(sw_vers -productVersion | cut -d. -f1)",
+      "if [[ $major -lt $minmajor ]]; then say \"macOS $major is below $minmajor — skipped\"; exit 0; fi",
+      "# Learn's uninstall path is /Applications/GlobalSecureAccessClient; the app bundle name is checked too",
+      "for p in \"/Applications/GlobalSecureAccessClient\" \"/Applications/Global Secure Access Client.app\"; do",
+      "  if [[ -d \"$p\" ]]; then say \"$appname already installed ($p)\"; exit 0; fi",
+      "done",
+      "if ! /usr/bin/profiles show -all 2>/dev/null | grep -qi \"com.microsoft.globalsecureaccess\"; then say \"WARNING: no GSA profile on this Mac yet — the user may see approval prompts\"; fi",
       "tmp=$(mktemp -d /tmp/gsa.XXXXXX)",
-      "if ! curl -L --fail --silent --retry 3 -o \"$tmp/GlobalSecureAccessClient.pkg\" \"$url\"; then say \"download failed\"; rm -rf \"$tmp\"; exit 1; fi",
-      "if ! /usr/sbin/installer -pkg \"$tmp/GlobalSecureAccessClient.pkg\" -target /; then say \"install failed\"; rm -rf \"$tmp\"; exit 1; fi",
-      "rm -rf \"$tmp\"",
+      "trap 'rm -rf \"$tmp\"' EXIT",
+      "pkg=\"$tmp/GlobalSecureAccessClient.pkg\"",
+      "if ! curl -L --fail --silent --show-error --retry 3 --max-time 900 -o \"$pkg\" \"$url\"; then say \"download failed\"; exit 1; fi",
+      "if [[ ! -s \"$pkg\" ]]; then say \"downloaded file is empty\"; exit 1; fi",
+      "if ! /usr/sbin/pkgutil --check-signature \"$pkg\" | grep -q \"$teamid\"; then say \"package not signed by team $teamid — refused\"; exit 1; fi",
+      "if ! /usr/sbin/installer -pkg \"$pkg\" -target /; then say \"install failed\"; exit 1; fi",
       "say \"$appname installed\"",
       "exit 0",
     ].join("\n");
@@ -295,10 +327,11 @@ const Gsa = (() => {
     onboard: { title: "Activate Global Secure Access", scopes: ["NetworkAccessPolicy.ReadWrite.All", "NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["POST /networkAccess/microsoft.graph.networkaccess.onboard, then read the tenant status every 15 seconds until it says onboarded (up to five minutes)."], impact: "Activation moves no traffic and affects nobody by itself — traffic only moves once a profile is on, assigned and a client runs on the device.", recovery: "Offboarding is done in the Entra admin center (Global Secure Access → Settings); nothing else here depends on it yet." },
     profile: { title: "Enable the Microsoft traffic profile", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH the Microsoft traffic profile: state enabled.", "PATCH every traffic policy of the profile that is not enabled: state enabled."], impact: "Devices of ASSIGNED users that run the client start sending Microsoft 365 and Entra traffic through Global Secure Access. Nobody without an assignment or a client is affected.", recovery: "Set the profile back to disabled in Global Secure Access → Connect → Traffic forwarding (or here, after a re-read); traffic falls back to direct." },
     assign: { title: "Assign the Microsoft traffic profile", scopes: ["AppRoleAssignment.ReadWrite.All", "Application.ReadWrite.All"], role: "Application Administrator", changes: ["Pilot group (recommended): add the group to the profile's enterprise app (an app role assignment on its service principal).", "Or all users: set appRoleAssignmentRequired to false on that service principal — the CyberDrain route."], impact: "The assigned users' client starts tunnelling Microsoft traffic. A compliant-network policy will then pass them; anybody not assigned keeps failing it.", recovery: "Remove the assignment (Enterprise applications → the profile's app → Users and groups), or set Assignment required back to Yes." },
-    signal: { title: "Enable Conditional Access signalling", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH /networkAccess/settings/conditionalAccess: signalingStatus enabled."], impact: "Entra sees the user's real source IP for traffic through the tunnel and can evaluate the compliant network. Named-location policies on IP ranges start seeing the original IP for those sign-ins.", recovery: "Disable it again in Global Secure Access → Settings → Session management; a policy that requires the compliant network then fails everyone." },
+    signal: { title: "Enable Conditional Access signalling", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH /networkAccess/settings/conditionalAccess: signalingStatus enabled."], impact: "Entra sees the user's real source IP for traffic through the tunnel and can evaluate the compliant network. Named-location policies on IP ranges start seeing the original IP for those sign-ins.", recovery: "Turn it off in Global Secure Access → Settings → Session management only AFTER the policies that require the compliant network are off or deleted — Microsoft warns against disabling signalling while they exist, they would then fail everyone." },
     macscript: { title: "Create the macOS shell script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune macOS shell script named by the CloudFellows convention (MACOS - SH - Software Installation - D - Install Global Secure Access Client - R… - v…; root, once, three retries, notifications blocked, file scr-app-108-install-global-secure-access.zsh) that downloads the client package from aka.ms and installs it when it is missing.", `Assign it to the device group you name — ${GROUPS.mac} by default (the group the GSA macOS profiles target in the baseline), created empty when missing and the tick is on.`], impact: "Every Mac in the group installs the Global Secure Access client at its next Intune check-in. Without the system extension policy and the transparent proxy profile on the same Macs the client asks the user to approve them or cannot tunnel — the board says which of the three profiles is missing or unassigned.", recovery: "Remove the assignment or delete the script in Intune → Devices → macOS → Shell scripts; remove the app from the Mac if needed." },
+    ztnasp: { title: "Create the ZTNA Policy Service Client service principal", scopes: ["Application.ReadWrite.All"], role: "Application Administrator", changes: [`POST /servicePrincipals with appId ${ZTNA_CLIENT} — Microsoft's first-party app the client signs in through.`], impact: "None for users: it adds Microsoft's enterprise application to the tenant. In the LearnGraphAPI lab the client stayed Partially Connected (sign-in errors 50097, 50187) while it was missing; whether creating it alone fixed that was not proven.", recovery: "Delete the enterprise application again (Enterprise applications → ZTNA Policy Service Client → Properties → Delete)." },
     location: { title: `Create “${LOCATION_NAME}”`, scopes: ["Policy.ReadWrite.ConditionalAccess"], role: "Conditional Access Administrator", changes: [`POST a compliantNetworkNamedLocation “${LOCATION_NAME}” (allTenantCompliantNetworks, not trusted).`], impact: "None until a policy names it.", recovery: "Delete the named location in 🧩 Policy building blocks → Locations, once no policy uses it." },
-    winscript: { title: "Create the Windows platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) that downloads the client from aka.ms, installs it and sets the lock-down keys.", `Assign it to the device group you name — ${GROUPS.win} by default, created as an empty assigned security group when it does not exist and the tick is on.`], impact: "Every device in the group installs the Global Secure Access client at its next Intune check-in. With the lock-down on, users cannot disable or sign out of the client. A platform script runs once and installs whatever version Microsoft serves then — it does not update the client.", recovery: "Remove the assignment or delete the script in Intune → Devices → Scripts; uninstall the client per device (Apps & features) if needed." },
+    winscript: { title: "Create the Windows platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) that downloads the client from aka.ms, installs it and sets the lock-down keys.", `Assign it to the device group you name — ${GROUPS.win} by default, created as an empty assigned security group when it does not exist and the tick is on.`], impact: "Every device in the group installs the Global Secure Access client at its next Intune check-in. Pilot settings (Learn's sample) hide sign-out and Disable Private Access but leave Disable visible; locked down, users cannot disable or sign out of the client. A platform script runs once and installs whatever version Microsoft serves then — it does not update the client.", recovery: "Remove the assignment or delete the script in Intune → Devices → Scripts; uninstall the client per device (Apps & features) if needed." },
   };
 
   // ---- demo -----------------------------------------------------------------
@@ -315,13 +348,14 @@ const Gsa = (() => {
       scripts: [], apps: [], shellScripts: [],
       macProfiles: { sysext: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0", assigned: false }, proxy: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0", assigned: true }, settings: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0", assigned: true } },
       groupNames: { "g-gsa-pilot": "GSA-SEC-U-M365Profile-Pilot" },
-      sources: { skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", macProfiles: "ok" },
+      ztna: [],
+      sources: { ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", macProfiles: "ok" },
     };
   }
   // a demo CA policy that requires the compliant network, for ?demo=1 when
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, FIXES, demo, demoPolicy, cnPolicies, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;
