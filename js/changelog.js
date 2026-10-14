@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32601, date: "2026-10-14", title: "Production is build 325 (v2.0.3)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 325, ENCA v2.0.3: the 📊 Deployment dashboard, 🌍 Fill from regions and adding several members at once in 👥 Conditional Access groups, who was added to an exclusion group and when, and the 📏 Naming and 📰 Learn changes tabs in 🛡 Checks (queue 282, 294, 311, 317, 319 and 322). R81, R76, R25 and R63 read live · production 325 under Shipped before. This channel moves to cycle 326 (v2.0.4-beta.N)." },
+    ],
+  },
+  {
     build: 32526, date: "2026-10-14", title: "Egress & location impact, and the temporary tools in Workspace 03",
     items: [
       { kind: "new", tool: "Egress & location impact", text: "A temporary tool in Workspace 03 for the question: what happens to Conditional Access when sign-ins leave through a different public IP — a cloud proxy such as Netskope, a new office line, a VPN. Paste the egress IPs; every policy with a location condition is judged today, from the trusted office ranges, and via the egress, side by side: who would be blocked (everyone and break-glass are called out as lockouts), who gets an extra prompt or a session control, which policy loses its protection. The country is looked up in the sign-in log — the country Entra itself recorded for that IP — or picked by hand. If trusted shows what a new trusted named location would fix and what it would not. Findings and a Markdown export for the change record. Reads only." },

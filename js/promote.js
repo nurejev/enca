@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v2.0.2",
+  productionBuild: "v2.0.3",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -247,26 +247,6 @@ const PROMOTE = {
       files: ["js/workspaces.js", "css/workspaces.css", "js/cagroups.js", "js/groupsview.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
     },
     {
-      n: 322,
-      ws: "ca",
-      title: "👥 Exclusion groups: who was added, when, and what the audit log refused (T16 1.11.0, T12 5.19.0)",
-      tools: ["Changes", "Conditional Access groups"],
-      builds: [32511],
-      risk: "low",
-      what: "js/audit.js: queryMembershipExact (the two exact member activities, one query each; the category read stays as the fallback), parseMembership gains applied, failure, flags (widensBypass, byApp, offHours), memberUpn and memberId, offHours, addedIndex (latest successful add per person, undone by a later removal), summarize leaves refused changes out of add, remove and people moved. js/app.js: auReadMembership, the T16 row says refused instead of gained and shows the flags, cgReadHistory reads 999 events and builds the added index. js/groupsview.js: the Members tab button and an added-by note on each direct member, History marks refused and apps. Read-only: no new write and no new permission (AuditLog.Read.All was already asked by both tools).",
-      why: "Mihai, 13 Oct: check T16 for the audit and change logs of a CA exclusion group, and whether anything analyses members added to one. Both tools already read it; what was missing was the answer per member, and a real tenant showed two defects: the membership read pulled a category that is mostly noise, and a refused duplicate add was reported as the person gaining the bypass. Verified on cloudfellows.dev with a throwaway group: the event shapes in tools/audit-membership.test.cjs are the ones it returned.",
-      test: [
-        "Local: node --test tools/audit-membership.test.cjs (9) passes, 8 of them fail on 32510; the whole suite passes.",
-        "cloudfellows.dev: Changes, 30 days, Rescan. Exclusion group membership rows appear only for groups a policy points at, and no row is a PIM or Add group event.",
-        "cloudfellows.dev: in a throwaway group that no policy references nothing shows; add the same throwaway group as an exclusion on a report-only test policy, add a user, Rescan: one row, widens a bypass, by an app if done through Graph, and the policy named.",
-        "Add the same user to the group a second time (Graph returns 400): Rescan shows a refused row naming DirectoryValueExistsException and the group add count does not move.",
-        "Conditional Access groups: open DEVCF-Persona-Admins, Members, Show when each member was added: both members say no add in the last 30 days (earlier, or by a rule), because the group is older than the log.",
-        "Same drawer on the throwaway group after an add: the member says added with the time and by whom; after the remove it says no add. History lists both events.",
-        "Not verified on a live tenant: a group with more than 999 events (the truncated wording), the app-versus-user marking for a person who adds through the portal, a group whose members arrive by a dynamic rule.",
-      ],
-      files: ["js/audit.js", "js/app.js", "js/groupsview.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html", "tools/audit-membership.test.cjs"],
-    },
-    {
       n: 321,
       ws: "pim",
       title: "🧬 Framework 4.1 — Exchange and Purview covered, the workload roles, Global Secure Access, the script where no API exists (T48 0.9.0, T51 0.5.0, R83)",
@@ -307,24 +287,6 @@ const PROMOTE = {
       files: ["js/pimreport.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/workspaces.js", "js/flat-icons.js", "js/changelog.js", "js/promote.js", "tools/pimreport.test.cjs"],
     },
     {
-      n: 319,
-      ws: "ca",
-      title: "📊 Deployment dashboard — the T28 rollout picture for Conditional Access (T54 0.1.0 → 0.2.0, R81)",
-      tools: ["Deployment dashboard"],
-      builds: [32505, 32514],
-      risk: "medium",
-      what: "New tool T54, js/deploydash.js (pure: build, html for screen and export, toCsv, exportHtml, readinessOf, keyOf, sortNames) and the dd* block in app.js. READS THE TENANT ONLY — nothing from queue 311 (🌍 Fill from regions): since 32514 no DgFill, dgPrefs or dgListStored symbol is in the tool, and tools/deploydash.test.cjs asserts it; the two items promote independently. Reads every enabled user, the deploy groups (one startswith read of CAD-SEC-U-DG-*, plus the active catalog's -DG- names looked up by name) with direct members, nested groups and transitive users, and the exclusion groups and excluded roles of the policies that include a deploy group. Shows: a coverage strip over the ENABLED users (in a deploy group · left out of every one), three donuts and an exclusion PIE, a group-by-group table with route in (nested · direct), policies by state, 🌊 go-live readiness (behind a button) and needs-a-look, the left-out list (member, UPN, type), the exclusion groups folded under the table. Drill-throughs into 🌊 (group picked, filter pre-set), 🕵 and 👥; Export HTML (self-contained, no script), CSV, MD. Tile in Analyse & simulate, sidebar row, Help section, roadmap R81.",
-      why: "Mihai, 12 Oct: just like the TUNO deployment dashboard in T28, we need a deployment dashboard for ENCA — the deployment groups and the members in there, exclusions as a pie chart, and a total user count because we also want to know how many are being left out. Option A chosen off the mockup with B's readiness column folded in; the per-member list dropped in favour of drill-throughs so one list does not live in three places. Medium: reads only, nothing written; the numbers inform the next 🌍 Fill run and the next go-live, so a wrong count is a wrong decision, not a wrong tenant. Graduates once the counts have been checked against 👥 CA groups on a real tenant and the readiness read has run end to end on PVM scale. 32514 (Mihai, 13 Oct: the dashboard is built on Fill from regions — these are separate things and should be separate from each other and no dependencies): every read from 🌍 taken out; the dashboard finds the deploy groups by the framework's name convention and asks the tenant for the rest.",
-      test: [
-        "Local: node --test tools/deploydash.test.cjs — 10 pass, including the check that js/deploydash.js and the dd block in app.js name no DgFill, dgPrefs, dgListStored, dgReadCandidates or openDgFill; the whole suite passes; node tools/check-toolbar-order.js and node tools/check-plain-text.js clean. Demo (?demo=1): the 📊 tile sits in Analyse & simulate with BETA; open it, ▶ Read the deployment: the strip says 7 enabled users (Olga disabled, not counted), 4 in a deploy group, 3 left out of every deploy group; the four charts draw (coverage two slices, route in two); the table has GLO, INT, ADM found and the catalog's other -DG- names not in this tenant; the exclusion pie shows Eva via CA200-Exclusion; list them shows three rows with member, UPN, type and no rule column, no 🌍 link; Export HTML downloads a file that opens with no console error and carries the left-out rows.",
-        "Real tenant with the deploy groups: ▶ Read — the Deploy groups strip entry equals the number of CAD-SEC-U-DG-* groups the portal lists; the in-a-deploy-group count equals the transitive member count of CAD-SEC-U-DG-GLO plus whoever is only in another DG; the left-out count equals enabled users minus that; the read makes no request to the region groups (network tab: no transitiveMembers call on a PVM-UG-* group) and the users read selects no extension attribute. Open 🌍 Fill from regions afterwards: its list, settings and preview are what they were — the dashboard changed nothing there.",
-        "Real tenant: per group, Members matches 👥 CA groups' transitive count for that row; the excluded count for GLO equals the members of CAD-SEC-U-BreakGlass plus the CA*-Exclusion groups on GLO's enforced and report-only policies that are also in GLO, each person once; click the count — 🌊 opens with that group picked and the In an exclusion filter on, and its member list agrees.",
-        "Real tenant: 🌊 Read readiness — AuditLog.Read.All asked once if not yet granted; the panel shows the sign-in window read, then one evaluation per report-only group; the readiness column fills with the same verdict and locked-out count 🌊 shows for that group on the same window; the strip says Readiness (🌊) with the time; the pill opens 🌊 on the group.",
-        "Real tenant, large (PVM): ▶ Read completes (users ~15 pages, 8 groups, exclusion groups) without a throttle error and the page is usable before readiness; Stop during a read leaves the previous model or the run prompt, never a half page.",
-      ],
-      files: ["js/deploydash.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/workspaces.js", "js/changelog.js", "js/promote.js", "tools/deploydash.test.cjs"],
-    },
-    {
       n: 318,
       ws: "pim",
       requires: [303, 305],
@@ -345,23 +307,6 @@ const PROMOTE = {
         "Not yet verified on a live tenant: the Windows 365 Administrator role settings policy, whether Cloud PC role assignments accept a scope (so no regional Windows 365 groups exist), and the Microsoft 365 E3 case (no E3 tenant available) — the Small offer for E3 rests on Microsoft's statement that Remote Help is included."
       ],
       files: ["js/pimmodules.js", "js/pimBaselineData.js", "js/pimbaseline.js", "js/intunerbac.js", "js/pimdeploy.js", "js/app.js", "js/demo.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/pimmodules.test.cjs", "tools/intunerbac.test.cjs", "tools/pim/"],
-    },
-    {
-      n: 317,
-      ws: "ca",
-      title: "👥 CA groups — add several members at once in the drawer (T12 5.17.0)",
-      tools: ["Conditional Access groups", "Help"],
-      builds: [32503],
-      risk: "medium",
-      what: "The drawer's Add a member box (and the Compare panel's ＋ Add bar) take a list: ; , tab or new line, an Excel column paste turned into a ; list, an Outlook To line read for the addresses in its brackets; duplicates once. GroupsView.splitMembers (pure) parses; cgAddMany in js/app.js looks every entry up in one Graph $batch and adds the new ones in another (20 a request), one result line per entry, problems first, failures left in the box. Button reads ＋ Add N; suggestions only for one name. Remove refuses a list. A just-added member gets direct: true and joins directIds (single add too).",
-      why: "Mihai, 9 Oct: can I add multiple users in a row with ; separation? — the box took the whole text as one UPN and failed. Built from the mockup he approved. Medium: a missing convenience; the CSV import already covered bulk adds.",
-      test: [
-        "Local: node --test tools/cg-addmany.test.cjs — 5 pass. Demo (?demo=1): 👥 CA groups → CAD-SEC-U-DG-INT → type eva@pvm.com; max@pvm.com, Joe Bloggs — the button reads ＋ Add 3; Add → 2 of 3 added, Joe Bloggs not found and left in the box, eva and max listed under the direct members. Add eva@pvm.com; MAX@pvm.com again → 0 of 2 added, 2 already in.",
-        "Demo: paste three lines (a@x.com, b@x.com, a@x.com) into the box → it reads a@x.com; b@x.com and the button ＋ Add 2.",
-        "Live tenant, a test group: add three real UPNs and one made-up one in one go → three ✓ lines, one ✗ not found, the made-up one stays in the box; the portal shows the three as direct members. Add the same three again → already a member, nothing written.",
-        "Live: paste an Outlook To line with a name containing a comma (\"Jansen, Eva\" <eva@…>) → only the address is used.",
-        "Live: type two UPNs and press − Remove in the Compare panel → refused with the one-at-a-time line; nothing removed."
-      ]
     },
     {
       n: 315,
@@ -440,28 +385,6 @@ const PROMOTE = {
         "Local: node --test tools/*.test.cjs — all pass, including pimdocs (3 of 3), with version.js at 32433 and the contract at 32431.",
         "Negative: set build in the contract JSON to 99999 → the reviewed-build test fails; change one catalog group description in js/pimBaselineData.js → the catalog-contract test fails. Revert both.",
         "GitHub Actions: after the push to origin beta:beta, the docker image run shows checks green and publish run; ghcr.io/nurejev/enca:beta is updated."
-      ]
-    },
-    {
-      n: 311,
-      ws: "ca",
-      title: "🌍 Fill from regions — the deploy groups filled from a per-tenant CSV region list (T12 5.16.0 → 5.18.0, R76)",
-      tools: ["Conditional Access groups", "Help"],
-      builds: [32432, 32502, 32509, 32512, 32513],
-      risk: "high",
-      what: "js/dgfill.js (pure, generic since 32509): NOTHING TENANT-SPECIFIC IN THE CODE. The region list is a CSV imported per tenant (region, group, label, ticked, mode; group by name any case, object id, or name*; mode sa-only or ignore), parsed by parseCsv, matched to the tenant by check() (ok, missing, ambiguous, duplicate, target) and kept in localStorage enca-dgfill:<tenant id> (prefs v2 — older prefs keep only fix and skipDisabled), with Export CSV, Replace and Clear. ⚙ Settings: main domain (default the tenant default domain), second domains (empty = rules 0a/0b/5 off), external marker attribute 1–15 and prefix (empty = rule 2 off), an optional also-list prefix, the seven deploy group names (DgFill.targets) with a there/missing/dynamic check. Rules unchanged: 0a second account with main → ADM only, 0b without → SA only, 0c only in sa-only sources → SA only, 1 guest → GUESTUSERS, 2 external marker → EXT, 3 else → INT, 4 GLO, 5 main of a second → DevOps. Add + fix by default, DevOps add-only, nested reported. app.js: import check step, settings panel, dialog, $batch reads, backup, run ledger, read-back, undo. Demo tenant is contoso with a sample CSV. (32505–32513 the deployment dashboard, queue 319, read this list; since 32514 it does not — the two items have no dependency either way.)",
-      why: "Mihai, 30 Sep, from the mockup: the Tuno waves members deployment for the deployment groups — read the member groups per region and country, get the users, sort them into EXT / INT / GUESTUSERS / GLO / DevOps; later: second accounts to ADM (SA without a main account), users without Intune to SA only, fix also. High: it writes group memberships the Conditional Access policies act on, in bulk (SA alone grows by about 11,000 at Perfetti).",
-      test: [
-        "Local: node --test tools/dgfill.test.cjs — 24 pass, including the check that js/dgfill.js names no customer. Demo (?demo=1): 👥 CA groups → 🌍 Fill from regions opens on demo-regions.csv (sample); Read & preview shows 14 users, 20 adds, 3 removals; r.tan +SA −GLO −INT; paula +EXT −INT; svc-build → SA; type contoso.nl, Apply, ledger lands; Undo this run reverses it.",
-        "Demo: Clear → the empty state (Import CSV, Download template, Settings open). Download template, import it: the check lists every row (most not in tenant, kept); Save; the list bar shows the file name and date. Import a file with a bad ticked value and a group named twice: those lines show as not read / duplicate and are left out.",
-        "Any tenant, read only: open the dialog with no list — nothing is read, Read & preview is off. ⚙ Settings: main domain pre-filled with the tenant default domain; the seven deploy groups show there or not in tenant. Rename one to a group that does not exist → not in tenant; back to empty → the ENCA name.",
-        "Perfetti, read only: import regions-pvm.csv (handed over with 32509). Expect the five regions in CSV order with the same groups and counts as before (NL about 1,844, IT about 1,725), Unlicensed rows marked SA only, SK NE KZ BY SZ under Not in your region list (also-list prefix set in Settings), DISABELD and TEST under Ignored. Set second domains to pvmict.com, perfettivanmelle.onmicrosoft.com and main domain perfettivanmelle.com in ⚙ Settings (old prefs are not carried over).",
-        "Perfetti: tick the region list with guests and second accounts → Read & preview. Check the SA tile, the ADM and DevOps pairs against a known admin, the unpaired list and the policies on each tile — the same plan as before 32509. Nothing is written until step 3.",
-        "Perfetti pilot write: one small country, Add + fix. Apply with the backup on; ledger lands; read back: every change is there. ↩ Undo this run puts them back. Only after that, a region at a time.",
-        "32512 layout, any tenant: open the dialog, expand Settings. The three first-row fields, then the four and three deploy groups, each row starts at one height; the external marker has its own row with a full-width prefix; no dropdown arrow on Second account domains. Narrow the window under 900 px and under 560 px: two columns, then one.",
-        "32513 How it works: open the dialog on a tenant with no list — ℹ How it works is open; with a list it is closed. Open it, tick a group: it stays open. The rules table shows this tenant's deploy group names and domains; empty the second account domains or the external prefix in Settings — rules 0a, 0b, +5 or 2 say off. Read & preview: the panel is above the tiles.",
-        "32513 pairing, any tenant with second accounts, read only: untick 🔑 Second accounts, keep the group an admin account is in (Unlicensed) ticked → Read & preview. The admin account is rule 0a (second account of its main account), not 0b; no −ADM on it; its main account gets DevOps.",
-        "Reload the page and reopen: the list and the settings are still there for this tenant; sign in to another tenant: its own (empty) list and settings."
       ]
     },
     {
@@ -709,47 +632,6 @@ const PROMOTE = {
         "400px wide: the chip shows only the 02 badge, the menu opens within the screen, no horizontal scroll.",
       ],
       files: ["js/workspaces.js", "js/app.js", "css/workspaces.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 294,
-      ws: "ca",
-      title: "📏 Naming — T45, a tab of 🛡 Checks: the CA-number convention checked (R25)",
-      tools: ["Checks"],
-      builds: [32403],
-      risk: "low",
-      what: "js/naming.js (new, pure: analyze, render, chips, toMd, stem) with its script tag; js/app.js: openNaming/renderNaming/nmRebuild, the checks TAB_HOSTS tab (beta: true), the FOLDED entry toolNaming, screen-naming in HISTORY_SCREENS; index.html: screen-naming, the Checks tile line, the Help h5, T45 in Tool numbers, roadmap R25 to In beta today and R20 closed under Shipped before as delivered by R65; tools/naming.test.cjs.",
-      why: "Mihai, 24 Sep: R25 to beta; on the mockup he chose the Checks tab with free numbers folded as information. LOW: read-only, reads nothing, works on the policies loaded at sign-in. Graduates once it has been opened on a CloudFellows tenant and a Joey tenant and every finding it raised was a real naming problem — in particular that no version pair or staging prefix reads as a duplicate.",
-      test: [
-        "Beta site, demo (?demo=1): 🛡 Checks → 📏 Naming opens without a ▶ and lists findings for the demo policies; every policy name is a link that opens its card.",
-        "A CloudFellows tenant with CA204 v1.0 and CA204 v1.1 side by side (or any version pair, with or without a (NEW)/(UP) prefix): neither appears under Number used twice.",
-        "Rename a TEST policy to carry the number of another policy with a different name: both appear under Number used twice, each naming the other.",
-        "A policy named …-Admins-… numbered in the CA200s appears under Name ≠ range; a CA215-Internals policy that includes CAB-SEC-U-Persona-Admins appears under Name ≠ assignment.",
-        "With the Joey catalog active (no persona groups): the note under Findings says Name ≠ assignment was not checked, and no such finding appears.",
-        "Free numbers: the fold lists only numbers below the highest used one per range and the tiles do not count them. Export MD contains the same rows as the screen.",
-      ],
-      files: ["js/naming.js", "js/app.js", "index.html", "tools/naming.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js"],
-    },
-    {
-      n: 282,
-      ws: "ca",
-      title: "📰 Learn changes — the nightly Microsoft Learn watch in the MS Learn tool, per-check verified dates, triage, 📋 Work order and the GitHub issue",
-      tools: ["Checks"],
-      builds: [32306, 32311],
-      risk: "low",
-      what: "js/learnfeed.js (new, pure: checksFrom, classify, decide with upTo, newKeys, issueMarkdown, commentMarkdown, workOrder, chips, render, driftFor) and js/learntriage.js (new, the recorded decisions, empty) with script tags; js/learnfeed-snapshot.json (the feed as shipped with the build); js/mslearn.js: a verified date on every check, checkDocs(), renderGroups opts.drift (⚠ Learn changed on the head, lf-drift line in the detail); js/app.js: lf* block (lfLoad raw.githubusercontent.com then the snapshot, lfResult, lfDecide, mlTabsPaint, renderLearn), the third tab, 📋 Work order, Refresh re-reads the feed on that tab, Findings and Suggested fixes fall back to the ▶ Run checks prompt before a scan; index.html tab + button + Help; css lf-*; tools/learn-feed.mjs (loadLib/withOpen, --lib --triage --issue-dir, emphasis stripped from what's-new text, page titles on watched entries) and tools/learnfeed.test.cjs. The workflow itself lives on main (.github/workflows/learn-feed.yml, issues: write) and was updated there in the same hand-over.",
-      why: "Mihai, 23 Sep: a daily check on everything new about Conditional Access, fed to the beta MS Learn tool (he chose a separate learn-feed branch read at run time, never a bot commit to beta or main); then, asked what the next steps are when it finds something, he approved triage on the tab, decisions recorded in the repo, a work order for a session, and a GitHub notification. Low: it reads Microsoft's public docs and nothing in the tenant; the only writes are the nightly run's own branch and issue.",
-      test: [
-        "Beta site, any tenant, 🛡 Checks → 📘 Microsoft Learn: the tab strip shows 📰 Learn changes with a ⚠ count before any scan. Click it: the band names the feed date and entra-docs commit; before the first nightly run it says GitHub could not be reached and shows the copy shipped with this build.",
-        "Sections: ⚠ A page a check relies on changed (Continuous access evaluation, cae-disabled, verified 2026-09-11, see the diff opens the entra-docs commit), New pages (Token Protection for web apps), Changed, the folded typo/link/bulk edits, What's new, the folded mentions, and the Not watched line (5 pages outside entra-docs).",
-        "On the CAE row, press ✎ Check needs a change with an empty reason: refused with a toast. Type a reason and press it again: the row shows ✎ Check needs a change · pending with undo, the ⚠ count drops by one. Reload the page: still pending (this browser). undo puts it back.",
-        "📋 Work order: the report lists 1 decision with a ready-to-paste line for js/learntriage.js, the work under 2 with the Learn and diff links, and the undecided items under 3.",
-        "Switch to Findings before any scan: the ▶ Run checks prompt, Include Off back, 📋 Work order gone. Run a scan on a tenant with a policy that disables CAE: that finding carries ⚠ Learn changed; open it: the line at the top links the change and Open in 📰 Learn changes lands on the ⚠ filter.",
-        "Refresh on the Learn tab re-reads the feed only (no tenant read). Chips filter the sections.",
-        "GitHub: after main is pushed, Actions → learn feed → Run workflow. The learn-feed branch appears with learn-feed.json, and an issue labelled learn-feed lists the open items. Run it again: no new comment (nothing new). Record a decision in js/learntriage.js on beta, push beta, run again: that item leaves the issue; with everything recorded the issue closes itself.",
-        "After the nightly feed exists, reload the tab: the band says fresh and names the nightly date, not the shipped copy.",
-        "32311 — open 📰 Learn changes: How this works is open with Read / Decide / Hand over; fold it, reload: it stays folded. The status bar counts to decide / decided, not handed over yet / recorded; answer one item: the second count goes up, the item shows Decided: … with undo, and 📋 Make work order (1) in the status bar opens the work order. Sections read answer needed or for reading; each item asks its question in words; the buttons read Still correct, The check needs a change, Make it a new check, Add to an existing check, Already covered, Not relevant. On main: the learn feed workflow is scheduled for Mondays (cron 17 4 * * 1), and a feed older than 8 days reads out of date.",
-      ],
-      files: ["js/learnfeed.js", "js/learntriage.js", "js/learnfeed-snapshot.json", "js/mslearn.js", "js/app.js", "index.html", "css/app.css", "tools/learn-feed.mjs", "tools/learn-feed.test.cjs", "tools/learnfeed.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", ".github/workflows/learn-feed.yml (main)"],
     },
     {
       n: 224,
