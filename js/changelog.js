@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32609, date: "2026-10-14", title: "PIM documentation: the handover, generated and readable in PIM-buddy",
+    items: [
+      { kind: "new", tool: "PIM documentation", text: "A new tool in Workspace 02 (T58): the CloudFellows PIM framework as it applies to this tenant — the profile, the customer's variant, the modules switched on and the regions file folded in — as twelve chapters you tick: the model, tiers and role settings, the groups per persona, approvers and break-glass, the activation guide for administrators, Intune RBAC, Exchange and Purview, Defender XDR and Global Secure Access, regions, restricted units, Conditional Access for PIM, and what is done outside the browser. Readable on the page with a contents list and the diagrams drawn inline, and downloadable as one Markdown file with a contents page and every diagram embedded. Built from the catalog, never typed, so it cannot drift behind a release." },
+      { kind: "new", tool: "PIM documentation", text: "As designed, or + as found: the second adds an In this tenant column to the role and group tables from PIM baseline's last read — the verdict and the differences in words — so the handover says what a tenant should have and what it has, in one document." },
+    ],
+  },
+  {
     build: 32608, date: "2026-10-14", title: "PIM baseline: Roles and PIM groups as pages, Select all above the ticks",
     items: [
       { kind: "improved", tool: "PIM baseline", text: "The tool has pages on the tab strip — Roles, PIM groups, Regions, Intune RBAC, Update the catalog, EasyPIM samples — instead of two tables stacked on one page with the other views behind chips. The status chips (All, Differs, Missing, Conflict, Match, Assignments) filter the page you are on and carry that page's counts, so a number on a chip always describes what is on screen." },

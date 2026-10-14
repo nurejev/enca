@@ -175,6 +175,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 329,
+      ws: "pim",
+      title: "📄 PIM documentation — the handover generated from the catalog, readable on the page, Markdown with the diagrams embedded (T58 0.1.0, R87)",
+      tools: ["PIM documentation"],
+      builds: [32609],
+      risk: "low",
+      what: "js/pimdoc.js (new, pure): CHAPTERS (twelve, with a when() per profile), build({cat, PB, tenant, regions, res, chapters, demo, build}) → {meta, chapters[{id, n, title, blocks}]} of plain blocks (p, h, ul, ol, table, note, svg); render(doc) → the page (contents list, chapters with ids, tables as xt-tbl, SVG inline); toMd(doc) → one Markdown file (document-control table, contents page with anchors, diagrams as data URIs). Three diagrams: flowSvg (role path and access-group path), tiersSvg, regionSvg. foundRole / foundGroup write the In this tenant column from PimBaseline.compare rows and groups. js/app.js: the pdc block (openPimDoc, pdcPaint, pdcReset from pmbReset; the source seg, the chapter picker with Select all / Deselect all, the contents jump, ⤓ Markdown through downloadText); HISTORY_SCREENS and the tool-name list. index.html: tile toolPimDoc (BETA), screen-pimdoc, Help section, roadmap R87, Tool numbers text to T58 / T59 next. js/workspaces.js roster (under 🧬 Compare, after 📋 PIM report), PIM_ONLY, rail shortcut 📄 Docs; js/flat-icons.js; css .pdoc-*. tools/pimdoc.test.cjs.",
+      why: "Mihai, 14 Oct: the create documentation for PIM should be accessible in PIM-buddy, maybe a dedicated tool; T58 should also be completely readable online. Risk low: reads nothing of its own and writes nothing; it only reads the catalog and what T48 already read.",
+      test: [
+        "Offline: node --test tools/pimdoc.test.cjs green — every profile builds, the multi profile has a Regions chapter and the small one does not, toMd carries one data: image per diagram and a contents entry per chapter, render escapes a hostile group name.",
+        "Beta, demo tenant, 02 PIM-buddy → 📄 PIM documentation: the page opens on As designed with twelve chapters (Large · multi-region) and three diagrams drawn; the contents list jumps to each chapter.",
+        "Beta, demo tenant: 📑 Chapters → untick everything but The model and Tiers → the page shows two chapters numbered 1 and 2; ☑ Select all brings the twelve back.",
+        "Beta, demo tenant: + as found is disabled before 🧬 PIM baseline has read; ▶ Read the tenant opens 🧬 PIM baseline; after its read, + as found adds an In this tenant column whose Global Administrator row names the demo's differences.",
+        "Beta, demo tenant: ⤓ Markdown downloads ENCA-pim-documentation-…md; opened in a Markdown reader on the iPad it shows the contents page and the three diagrams.",
+        "Beta, signed in, Small business profile picked on 🧬 PIM baseline: the document says Small business, has no Regions chapter, and the tiers table shows Tier 0 without approval except Global Administrator's own override.",
+      ],
+      files: ["js/pimdoc.js", "js/app.js", "js/workspaces.js", "js/flat-icons.js", "css/app.css", "tools/pimdoc.test.cjs", "js/version.js", "js/changelog.js", "js/promote.js", "index.html"],
+    },
+    {
       n: 328,
       ws: "pim",
       title: "🧬 PIM baseline as pages — Roles, PIM groups, Regions, Intune, catalog, samples — with Select all / Deselect all (T48 1.1.0)",

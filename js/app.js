@@ -182,7 +182,7 @@
   // the site entirely — and after an MSAL popup sign-in the previous entry may
   // be the login redirect, which is why it felt like being "thrown out".
   // Each tool screen pushes a state; Back walks those before it ever leaves.
-  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimreport", "screen-pimdeploy", "screen-pimdesigner",
+  const HISTORY_SCREENS = new Set(["screen-home", "screen-list", "screen-baseline", "screen-pimbaseline", "screen-pimroles", "screen-pimreport", "screen-pimdoc", "screen-pimdeploy", "screen-pimdesigner",
     "screen-cagroups", "screen-mslearn", "screen-gapcheck", "screen-cis", "screen-idscore", "screen-xtenant", "screen-passkeys", "screen-tokencov", "screen-naming", "screen-exclusions", "screen-validator", "screen-whatif", "screen-compare", "screen-whois", "screen-wave", "screen-deploydash", "screen-gsa", "screen-sessionctl", "screen-workloadid", "screen-groupuse",
     "screen-rollout", "screen-locations", "screen-builder", "screen-authctx", "screen-authstr", "screen-tou", "screen-recycle", "screen-rmau", "screen-audit", "screen-drift", "screen-guide", "screen-userimpact", "screen-smsvoice", "screen-memberof", "screen-egress", "screen-devcheck", "screen-licgap", "screen-teamsdev", "screen-signins", "screen-impact", "screen-protect", "screen-changelog", "screen-roadmap", "screen-promote", "screen-permissions", "screen-help"]);
   let navSuppress = false;   // true while we are reacting to popstate
@@ -2970,6 +2970,7 @@
     ["toolIntuneRbac", "📱 Intune RBAC"],
     ["toolPimRoles", "🎖 Roles & assignments"],
     ["toolPimReport", "📋 PIM report"],
+    ["toolPimDoc", "📄 PIM documentation"],
     ["toolPimDeploy", "🚀 Deploy"],
     ["toolPimDesigner", "🧾 Designer"],
     ["toolCaGroups", "👥 Conditional Access groups"],
@@ -22660,7 +22661,7 @@ This is a directory write. Nothing else changes.`)) return;
     try { pmbCatSel = null; } catch { /* declared below */ }
     pmbRegRows = null; pmbRegText = ""; pmbRegErrors = []; pmbRegWarnings = [];
     pmbSel = null; pmbRegSel = null;
-    try { prlReset(); prrReset(); prpReset(); pdpReset(); plxReset(); paz = { raw: null, model: null, err: null, busy: false }; } catch { /* defined further down; nothing to reset yet */ }
+    try { prlReset(); prrReset(); prpReset(); pdcReset(); pdpReset(); plxReset(); paz = { raw: null, model: null, err: null, busy: false }; } catch { /* defined further down; nothing to reset yet */ }
     // 32435: 🛡 Administrative units' list and inventory belong to the context
     // they were read in — a read in flight is stopped and its result dropped.
     try { if (ruInv.busy) ruInv.stop = true; ruList = null; ruDetails = {}; ruInvReset(); } catch { /* not declared yet */ }
@@ -22909,6 +22910,9 @@ This is a directory write. Nothing else changes.`)) return;
     pmbRaw.intune = pmbIntRes ? { verdicts: pmbIntRes.verdicts } : null;
     pmbRes = PimBaseline.compare(pmbCat(), pmbRaw);
     pmbReg = pmbRegRows ? PimBaseline.compareRegions(pmbCat(), pmbRegRows, pmbRaw) : null;
+    // 32609: 📄 PIM documentation reads pmbRes and the profile; a new read or
+    // a profile switch while it is open repaints it (pdcPaint is defined below).
+    try { if ($("screen-pimdoc") && $("screen-pimdoc").classList.contains("active")) pdcPaint(); } catch { /* not wired yet */ }
   }
   async function runPimBaseline() {
     if (pmbBusy) return;
@@ -23676,6 +23680,71 @@ This is a directory write. Nothing else changes.`)) return;
 
   $("prpMd").addEventListener("click", () => { if (prp.model) showReport("📋 PIM report", `ENCA-pim-report-${(tenantDomain || "tenant").replace(/[^A-Za-z0-9.-]/g, "")}-${new Date().toISOString().slice(0, 10)}`, PimReport.toMd(prp.model, { build: APP_BUILD.build })); });
   $("prpCsv").addEventListener("click", () => { if (prp.model) downloadText("pim-report-matrix", "csv", "text/csv", PimReport.toCsv(prp.model)); });
+
+  // ======================================================================
+  // 📄 PIM DOCUMENTATION — T58 (beta 32609, R87). Mihai, 14 Oct: "the create
+  // documentation for PIM should be accessible in PIM buddy, maybe a
+  // dedicated tool" … "T58 should also be completely readable online".
+  // js/pimdoc.js builds, renders and writes; this block only hands it the
+  // catalog every PIM-buddy tool works from (pmbCat: profile, variant,
+  // modules), the regions file and — on + as found — 🧬 T48's read. It reads
+  // nothing of its own, so there is no run, no consent and nothing to reset
+  // but the choices.
+  // ======================================================================
+  let pdc = { source: "designed", chapters: null, pick: false, doc: null };
+  function pdcReset() { pdc = { source: "designed", chapters: null, pick: false, doc: null }; }
+  const PDC_HEAD = `<p class="mini" style="margin:6px 0 0">The handover of the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> for this tenant, generated from the catalog in the profile picked on 🧬 PIM baseline — the customer's variant, the modules switched on and the regions file folded in. <b>📐 As designed</b> is what a new tenant is deployed to; <b>🔎 + as found</b> adds an <i>In this tenant</i> column from 🧬 PIM baseline's last read. Tick the chapters, read it here, or <b>⤓ Markdown</b> for one file with the contents page and every diagram embedded. Nothing is read from or written to the tenant.</p>`;
+  function openPimDoc() {
+    crumb("📄 PIM documentation");
+    show("screen-pimdoc");
+    $("pdcHead").innerHTML = toolHead("toolPimDoc") + PDC_HEAD;
+    pdcPaint();
+  }
+  function pdcPaint() {
+    if (!$("screen-pimdoc")) return;
+    const cat = pmbCat();
+    if (pdc.source === "found" && !pmbRes) pdc.source = "designed";
+    const avail = PimDoc.chapters(cat);
+    const sel = pdc.chapters ? new Set([...pdc.chapters].filter((id) => avail.some((c) => c.id === id))) : new Set(avail.map((c) => c.id));
+    [...$("pdcSource").children].forEach((b) => b.classList.toggle("active", b.dataset.pdcsrc === pdc.source));
+    const foundBtn = $("pdcSource").children[1];
+    foundBtn.disabled = !pmbRes;
+    foundBtn.title = pmbRes ? `Adds an In this tenant column from 🧬 PIM baseline's read of ${pmbRaw && pmbRaw.readAt ? new Date(pmbRaw.readAt).toLocaleString() : "this tenant"}` : "Read the tenant in 🧬 PIM baseline first";
+    $("pdcProfile").textContent = PIM_BASELINE.profiles[pmbProfileId].label;
+    $("pdcRead").style.display = pmbRes ? "none" : "";
+    $("pdcChapters").textContent = `📑 Chapters ${sel.size} / ${avail.length}`;
+    $("pdcChapters").classList.toggle("active", pdc.pick);
+    $("pdcMd").disabled = !sel.size;
+    const doc = PimDoc.build({ cat, PB: PimBaseline, tenant: { name: tenantName || (isDemo ? "Demo tenant" : ""), domain: tenantDomain || (isDemo ? "contoso.nl" : ""), id: isDemo ? "demo" : tenantId }, regions: pmbRegRows, res: pdc.source === "found" ? pmbRes : null, chapters: sel, demo: isDemo, build: APP_BUILD.label || APP_BUILD.build });
+    pdc.doc = doc;
+    $("pdcNote").textContent = `${doc.meta.source}${doc.meta.variant ? ` · variant ${doc.meta.variant}` : ""}${doc.meta.modules.length ? ` · ${doc.meta.modules.join(", ")}` : ""}${doc.meta.regions != null ? ` · ${doc.meta.regions} region${doc.meta.regions === 1 ? "" : "s"}` : ""}`;
+    const picker = pdc.pick ? `<div class="list-card pdoc-pick"><h3 style="margin:0">📑 Chapters <span class="mini">${sel.size} of ${avail.length} ticked · the numbering closes up</span></h3>
+      <div class="pmb-selbar" style="margin:8px 0 0"><button type="button" class="btn sm" data-pdcall${sel.size === avail.length ? " disabled" : ""}>☑ Select all (${avail.length})</button><button type="button" class="btn sm" data-pdcnone${sel.size ? "" : " disabled"}>☐ Deselect all</button></div>
+      <div class="chap">${avail.map((c, i) => `<label class="${sel.has(c.id) ? "" : "off"}"><input type="checkbox" data-pdcch="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}><span><b>${i + 1} · ${esc(c.title)}</b><small>${esc(c.blurb)}</small></span></label>`).join("")}</div></div>` : "";
+    $("pdcBody").innerHTML = picker + (sel.size ? PimDoc.render(doc) : `<div class="run-prompt"><p class="mini muted">No chapter ticked — tick one under 📑 Chapters.</p></div>`);
+  }
+  $("toolPimDoc").addEventListener("click", () => openPimDoc());
+  $("pdcSource").addEventListener("click", (e) => { const b = e.target.closest("[data-pdcsrc]"); if (!b || b.disabled) return; pdc.source = b.dataset.pdcsrc; pdcPaint(); });
+  $("pdcChapters").addEventListener("click", () => { pdc.pick = !pdc.pick; pdcPaint(); });
+  $("pdcRead").addEventListener("click", () => { openPimBaseline(false, "roles"); if (!pmbRes && !pmbBusy) runPimBaseline(); });
+  $("pdcMd").addEventListener("click", () => {
+    if (!pdc.doc) return;
+    const f = downloadText(`ENCA-pim-documentation-${(pmbProfileId || "profile")}`, "md", "text/markdown", PimDoc.toMd(pdc.doc));
+    toast(`PIM documentation <span>${esc(f)}</span> — ${pdc.doc.chapters.length} chapters, diagrams embedded`);
+  });
+  $("pdcBody").addEventListener("change", (e) => {
+    const t = e.target; if (!t || !t.dataset || !t.dataset.pdcch) return;
+    const avail = PimDoc.chapters(pmbCat());
+    pdc.chapters = pdc.chapters ? new Set([...pdc.chapters].filter((id) => avail.some((c) => c.id === id))) : new Set(avail.map((c) => c.id));
+    if (t.checked) pdc.chapters.add(t.dataset.pdcch); else pdc.chapters.delete(t.dataset.pdcch);
+    pdcPaint();
+  });
+  $("pdcBody").addEventListener("click", (e) => {
+    if (e.target.closest("[data-pdcall]")) { pdc.chapters = null; pdcPaint(); return; }
+    if (e.target.closest("[data-pdcnone]")) { pdc.chapters = new Set(); pdcPaint(); return; }
+    const j = e.target.closest("[data-pdcjump]");
+    if (j) { e.preventDefault(); const el = $(`pdoc-${j.dataset.pdcjump}`); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  });
 
   // ======================================================================
   // 🚀 Deploy — import from the baseline (T51, beta 32425, R72).

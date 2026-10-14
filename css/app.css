@@ -2951,6 +2951,32 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 /* 32608: ☑ Select all / ☐ Deselect all above the ticks of each T48 table */
 .pmb-selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;padding:6px 8px;background:var(--soft);border:1px solid var(--border);border-radius:10px}
 .pmb-selbar .btn[disabled]{opacity:.55}
+/* 32609: 📄 PIM documentation (T58) — the page IS the document */
+.pdoc{max-width:1100px}
+.pdoc-head h1{font-size:22px;margin:0 0 4px}
+.pdoc-control{margin:0 0 12px}
+.pdoc-toc{background:var(--soft2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin:0 0 16px}
+.pdoc-toc h3{margin:0 0 6px;font-size:13px}
+.pdoc-toc ol{margin:0;padding-left:22px;columns:2;column-gap:24px}
+.pdoc-toc li{break-inside:avoid;font-size:13px;line-height:1.6}
+@media (max-width:700px){.pdoc-toc ol{columns:1}}
+.pdoc-ch{padding:14px 0 6px;border-top:1px solid var(--border);scroll-margin-top:calc(var(--sticky-nav,0px) + var(--tabs-h,0px) + 70px)}
+.pdoc-ch h2{font-size:18px;margin:0 0 10px}
+.pdoc-ch h3{font-size:14px;margin:14px 0 6px}
+.pdoc-n{display:inline-block;min-width:26px;text-align:center;border-radius:8px;background:var(--lemon);color:var(--green-deep);font-size:13px;padding:1px 6px;margin-right:4px}
+.pdoc-ch p{max-width:78ch;line-height:1.55;margin:0 0 10px}
+.pdoc-ch ul,.pdoc-ch ol{max-width:78ch;line-height:1.5;margin:0 0 10px}
+.pdoc-note{border-left:3px solid var(--lemon-deep);background:var(--soft);padding:8px 12px;border-radius:0 10px 10px 0}
+.pdoc-fig{margin:6px 0 12px;overflow-x:auto}
+.pdoc-fig svg{max-width:100%;height:auto;border:1px solid var(--border);border-radius:10px}
+.pdoc-fig figcaption{margin:4px 0 0}
+.pdoc-tbl td{vertical-align:top}
+.pdoc-cap{margin:4px 0 12px}
+.pdoc-pick{margin:0 0 14px}
+.pdoc-pick .chap{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px;margin-top:8px}
+.pdoc-pick label{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--soft2);font-size:12.5px;cursor:pointer}
+.pdoc-pick label small{display:block;color:var(--muted)}
+.pdoc-pick label.off{opacity:.55}
 tr.pmb-row.pmb-missing td{background:color-mix(in srgb,var(--bad-bg) 35%,transparent)}
 #pmbTenantNote:empty{display:none}
 .pmb-profile{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
