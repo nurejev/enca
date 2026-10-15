@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32701, date: "2026-10-15", title: "Production is build 326 (v2.0.4)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 326, ENCA v2.0.4: Workspace 03 · Entra Tools with 👥 Groups scoped by workload, 🌐 Global Secure Access, 🛰 Egress & location impact, SMS & voice and memberOf in 03, the Help tools in every workspace and the headers in the colours of the mark. In production 02 · PIM-buddy is listed as beta and cannot be chosen; everything of Workspace 02 stays on this channel." },
+    ],
+  },
+  {
     build: 32617, date: "2026-10-15", title: "PIM documentation: laid out for reading — the contents beside the document, one sheet, a clearer diagram",
     items: [
       { kind: "improved", tool: "PIM documentation", text: "The contents now stay in a rail beside the document and mark the chapter you are reading, so you can jump from chapter 9 to chapter 3 without scrolling back to the top. On a narrow window or a phone the rail folds into a contents bar that stays above the text." },
