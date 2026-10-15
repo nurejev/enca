@@ -3,13 +3,12 @@
 // Scenario: Large organisation, several regions (central IT plus local IT per region)
 // Profile: Large · multi-region — The whole group set at the centre (Tier 0, SecOps, Ops, AppOps, Helpdesk, the readers, the Teams, Backup-Direct and Billing groups, the Intune, Defender XDR, Exchange and Purview access groups) and, per region from the customer's regions.csv: three administrative units, a Helpdesk and an Ops persona group with eligibilities scoped to the region's units, an approver group, two Intune access groups, two Exchange access groups scoped to the region's users, and the Intune scope groups, tag and role assignments. No restricted management AU for admins or PIM-SG groups. Azure is out of scope for this design (12 Oct 2026): no PIM-SG-AZ groups, no Azure section in Deploy.
 //
-// The model (3.0): JOB groups — people ELIGIBLE members, the group ACTIVE,
-// permanently, in every role of the job: one activation (four hours) gives
-// the whole job. DIRECT groups — people ACTIVE members, the group ELIGIBLE
-// per role — for Tier 0 and for the Exchange, SharePoint and Purview roles
-// (Microsoft: activation through a group can take hours to reach those
-// portals). Intune, Defender XDR and Exchange RBAC: PIM-SG-INT/XDR/EXO-*
-// groups whose members are ELIGIBLE and activate the group.
+// The model (5.0): ROLE groups — people ACTIVE members for at most a year,
+// the group ELIGIBLE per role: a person activates the one role the task
+// needs, in seconds, under the role's tier (role activation first). No
+// group holds an Entra role ACTIVE. Intune, Defender XDR, Exchange and
+// Purview RBAC: PIM-SG-INT/XDR/EXO/PUR-* access groups whose members are
+// ELIGIBLE and activate the group (the workload notices it minutes later).
 //
 // HOW TO USE
 //  1. Copy this file to pim.<customer>.jsonc and edit every line marked

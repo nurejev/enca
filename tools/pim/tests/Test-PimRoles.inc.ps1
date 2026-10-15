@@ -78,7 +78,7 @@ Test-It 'roles: New-PimRegions finds a renamed regional role by template id' {
   Assert-True ($txt -notmatch 'THREW') "planned`n$txt"
   Assert-True ($txt -match "is called 'Helpdesk Administrator \(former name\)' in this tenant") "finding`n$txt"
   $p = Get-Content (Get-Plans 'regions')[-1].FullName -Raw | ConvertFrom-Json -AsHashtable
-  $el = @($p.ops | Where-Object { $_.key -eq 'act:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
+  $el = @($p.ops | Where-Object { $_.key -eq 'elig:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
   Assert-Eq $el.body.roleDefinitionId '729827e3-9c14-49f7-bb1b-9608f156bbb8' 'the built-in Helpdesk Administrator, by template id'
   Assert-Eq (Get-FakeWrites).Count 0 'writes'
 }

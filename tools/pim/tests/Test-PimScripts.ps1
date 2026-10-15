@@ -149,8 +149,9 @@ Test-It 'baseline: EDIT placeholders block; a filled-in sample plans people as a
   $people = @($p.ops | Where-Object { $_.key -like 'person:*' })
   Assert-True ($people.Count -ge 5) 'people planned'
   Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-INT-Ops:*' -and $_.uri -like '*eligibilityScheduleRequests' }).Count) 'Intune access group: eligible'
-  # 3.0: people are ELIGIBLE in a job group (Ops) and ACTIVE in a direct group (GlobalAdmin)
-  Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-M365-Ops:*' -and $_.uri -like '*eligibilityScheduleRequests' }).Count) 'job group: eligible'
+  # 5.0: people are ACTIVE in every role group (Ops, GlobalAdmin) and never eligible there
+  Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-M365-Ops:*' -and $_.uri -like '*/group/assignmentScheduleRequests' }).Count) 'role group: active'
+  Assert-True (-not @($people | Where-Object { $_.key -like 'person:PIM-SG-M365-Ops:*' -and $_.uri -like '*eligibilityScheduleRequests' }).Count) 'role group: never eligible'
   Assert-True (@($people | Where-Object { $_.key -like 'person:PIM-SG-M365-GlobalAdmin:*' -and $_.uri -like '*/group/assignmentScheduleRequests' }).Count) 'direct group: active'
   Assert-True (Test-Path (Join-Path $tmp 'resolved.json')) 'resolved config for EasyPIM'
   $r = Get-Content (Join-Path $tmp 'resolved.json') -Raw

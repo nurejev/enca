@@ -70,7 +70,7 @@ const PimDoc = (() => {
     { id: "approvers", title: "Approvers, break-glass and protection", blurb: "PIM-SG-Approvers, the emergency accounts, the alert mailbox, what is protected where" },
     { id: "activation", title: "Activation guide for administrators", blurb: "the portal path, what each tier asks, how long it lasts, the slow paths" },
     { id: "intune", title: "Intune RBAC", blurb: "role assignments, scope groups and tags, the custom roles, the modules switched on", when: (c) => !!(c.profile && c.profile.intune) },
-    { id: "exopur", title: "Exchange and Purview RBAC", blurb: "the role group behind each PIM-SG-EXO and PIM-SG-PUR group, and the script that binds them", when: (c) => c.groups.some((g) => g.scope === "exchange" || g.scope === "purview") },
+    { id: "exopur", title: "Exchange, SharePoint and Purview RBAC", blurb: "the role group behind each PIM-SG-EXO and PIM-SG-PUR group, the two SharePoint layers, and the scripts that bind them", when: (c) => c.groups.some((g) => g.scope === "exchange" || g.scope === "purview") },
     { id: "xdrgsa", title: "Defender XDR and Global Secure Access", blurb: "the XDR access groups on the Entra side; the Global Secure Access roles" },
     { id: "regions", title: "Regions", blurb: "the template per region — units, groups, scoped eligibilities, Exchange, Intune — and your regions file", when: (c) => !!(c.profile && c.profile.regions) },
     { id: "rmau", title: "Restricted units", blurb: "AU-RM-Executives and the desk scoped on it; what never goes into a restricted unit" },
@@ -258,7 +258,7 @@ const PimDoc = (() => {
     // 5 Activation guide
     ch.activation = (() => {
       const B = [];
-      B.push(P("For the administrator who holds a role through a PIM-SG group. Activate the role, not the membership, whenever the task is an Entra role; activate a membership only for Intune, Defender XDR, Exchange and Purview."));
+      B.push(P("For the administrator who holds a role through a PIM-SG group. Activate the role, not the membership, whenever the task is an Entra role; activate a membership only for Intune, Defender XDR, Exchange, Purview and a SharePoint site group."));
       B.push(H("An Entra role"));
       B.push(OL(["Sign in with the admin account (adm-), never the daily account. Open the Microsoft Entra admin center → Identity governance → Privileged Identity Management → My roles → Microsoft Entra roles.", "Pick the one role the task needs and choose Activate. Set the duration (up to the tier's maximum) and the reason; the reason is in the audit log and in the pim-alerts mailbox.", "Tier 1 and Tier 2 ask for MFA and a justification and the role is active within a minute. Tier 0 asks for the authentication context (the Conditional Access policy for c1: phishing-resistant MFA on a compliant device) and waits for an approver from PIM-SG-Approvers — tell the approver before you start.", "Do the task. Deactivate when done, or let the activation expire; nothing stays active past the tier's maximum."]));
       B.push(T(["Tier", "Activation lasts", "Asks for", "Context", "Approval", "Eligibility at most"], TIERS.map((id) => [TIER_LABEL[id], settingText("activation", tier[id].activation), settingText("enablement", tier[id].enablement), settingText("authContext", tier[id].authContext), tier[id].approval ? `yes, ${settingText("approvers", tier[id].approvers)}` : "no", settingText("maxEligible", tier[id].maxEligible)])));
@@ -284,13 +284,19 @@ const PimDoc = (() => {
       return B;
     })();
 
-    // 7 Exchange and Purview
+    // 7 Exchange, SharePoint and Purview
     ch.exopur = (() => {
       const B = [];
       const exo = cat.groups.filter((g) => g.scope === "exchange"), pur = cat.groups.filter((g) => g.scope === "purview");
       B.push(P("Exchange Online and Purview keep their own role groups. The framework puts a PIM-SG access group into each role group once, so the role group's membership never changes by hand again: a person activates the PIM-SG group's membership and Exchange or Purview sees the member minutes later."));
       if (exo.length) B.push(T(["Group", "Exchange role group", "Roles in that role group", "Membership"], exo.map((g) => [g.name, (g.exchange && g.exchange.roleGroup) || "—", (g.exchange && g.exchange.roles || []).join(", ") || "—", tmplText(g)])));
       if (pur.length) B.push(T(["Group", "Purview role group", "Membership"], pur.map((g) => [g.name, (g.purview && g.purview.roleGroup) || "—", tmplText(g)])));
+      const spo = cat.roles.filter((r) => /^SharePoint (Backup )?Administrator$|^Global Reader$/.test(r.name) && (r.via || []).length);
+      if (spo.length) {
+        B.push(P("SharePoint has no role groups of its own. Administration has two layers: the tenant layer is the Entra role SharePoint Administrator, activated per role like every Entra role; the site layer is the site collection administrator of one site, chosen per customer. Refresh the token after activating (aka.ms/pim/tokenrefresh) before opening the SharePoint admin center."));
+        B.push(T(["Access", "Tier", "Eligible through", "Gives"], spo.map((r) => [r.name, TIER_LABEL[r.template] || r.template, (r.via || []).join(", "), r.name === "Global Reader" ? "the SharePoint admin center, read-only" : r.name === "SharePoint Administrator" ? "the SharePoint admin center: tenant settings, sharing, every site, OneDrive settings" : "Microsoft 365 Backup for SharePoint and OneDrive: back up and restore"]).concat([["Site collection administrator of one site", "access group", "PIM-SG-SPO-<site>-Admins (per customer, optional)", "full control of that one site, nothing tenant-wide"]])));
+        B.push(NOTE("A site group is created by 🚀 Deploy (role-assignable, private, empty) together with a SharePoint Online PowerShell script that makes it secondary site collection administrator, the group id and site URL filled in; nothing is bound without that script. Members activate the membership for a shift, and SharePoint can take hours to notice a membership change: test on the site before relying on it, and use SharePoint Administrator for urgent site work until the delay is measured."));
+      }
       if (prof.regions) B.push(P("Regions: a role group cannot be scoped per member, so each regional PIM-SG-EXO group gets direct Exchange role assignments scoped to the region's user unit (the Exchange provider through Graph, consented once; until then the generated script)."));
       B.push(NOTE("Microsoft Graph lists the Exchange and Purview role groups but never their members, and a role-assignable group is not a principal that provider resolves. So 🚀 Deploy creates the PIM-SG groups and their membership policies, and offers ⬇ Script per workload: Exchange PowerShell (Add-RoleGroupMember with the group ids) and Security and Compliance PowerShell for Purview. Each script writes an outcome file that 📂 Import outcome reads back."));
       return B;
