@@ -95,7 +95,16 @@ test("render: contents list, one section per chapter, the diagrams inline, a hos
   const doc = PD.build({ cat, PB, tenant: who, regions: null, res: null, demo: true });
   const html = PD.render(doc);
   assert.equal((html.match(/<section class="pdoc-ch"/g) || []).length, doc.chapters.length);
-  assert.equal((html.match(/data-pdcjump=/g) || []).length, doc.chapters.length);
+  // 32617: the rail and the narrow-window bar each carry one jump per chapter;
+  // every chapter but the last ends on Next, and every one on Back to the top.
+  assert.equal((html.match(/class="pdoc-rl[ "]/g) || []).length, doc.chapters.length);
+  assert.equal((html.match(/class="pdoc-bl"/g) || []).length, doc.chapters.length);
+  assert.equal((html.match(/data-pdcjump=/g) || []).length, 2 * doc.chapters.length);
+  assert.equal((html.match(/data-pdcto="top"/g) || []).length, doc.chapters.length);
+  assert.equal((html.match(/data-pdcto="(?!top)/g) || []).length, doc.chapters.length - 1);
+  assert.equal((html.match(/ class="pdoc-rl on"/g) || []).length, 1, "the first chapter is marked before any scroll");
+  assert.ok(!/PIM documentation —/.test(html), "the sheet opens on the tenant, not a second tool title");
+  assert.ok(html.includes('<h2 class="pdoc-title">'));
   assert.equal((html.match(/<svg /g) || []).length, 3, "how access flows, the four tiers, one region");
   assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt; &amp; co"));
   assert.ok(!html.includes("<img src=x"));
@@ -123,4 +132,13 @@ test("human and settingText read like the screen", () => {
   assert.equal(PD.settingText("enablement", ["MultiFactorAuthentication", "Justification"]), "MFA + justification");
   assert.equal(PD.settingText("enablement", []), "nothing");
   assert.equal(PD.settingText("authContext", null), "none");
+});
+
+test("flowSvg (32617): the Administrator spans both lanes and each path leaves it straight, its label above the line", () => {
+  const svg = PD.flowSvg(PB.profile(CAT, "multi"), null);
+  assert.ok(svg.includes('<rect x="16" y="44" width="150" height="248"'), "one Administrator box for both lanes");
+  assert.ok(svg.includes('M166 82 C 208 82, 208 82, 250 82'), "active member: a straight line");
+  assert.ok(/<text x="208" y="76"[^>]*>active member</.test(svg), "its label sits above the line");
+  assert.ok(/M166 254 C 208 254, 208 254, 250 254" fill="none" stroke="[^"]+" stroke-width="1.5" stroke-dasharray="5 4"/.test(svg), "eligible member: dashed, the slow path");
+  assert.ok(/<text x="208" y="248"[^>]*>eligible member</.test(svg));
 });

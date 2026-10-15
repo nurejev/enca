@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32617, date: "2026-10-15", title: "PIM documentation: laid out for reading — the contents beside the document, one sheet, a clearer diagram",
+    items: [
+      { kind: "improved", tool: "PIM documentation", text: "The contents now stay in a rail beside the document and mark the chapter you are reading, so you can jump from chapter 9 to chapter 3 without scrolling back to the top. On a narrow window or a phone the rail folds into a contents bar that stays above the text." },
+      { kind: "improved", tool: "PIM documentation", text: "The document is one sheet that opens on the tenant, with the framework, profile, modules and source in a small table, instead of repeating the tool's title. The text keeps to a reading width, each chapter says what it covers under its title and ends on Back to the top and Next, and the tool's own explanation is folded behind About this tool." },
+      { kind: "fixed", tool: "PIM documentation", text: "How access flows: the Administrator spans both paths and each arrow leaves it in a straight line with its label above it — active member was printed across its own arrow. The access-group path is dashed, here and in the Markdown file." },
+    ],
+  },
+  {
     build: 32616, date: "2026-10-15", title: "Egress & location impact: IPv4 and IPv6 judged as two paths, IPv6 looked up by prefix",
     items: [
       { kind: "improved", tool: "Egress & location impact", text: "Paste the proxy's IPv4 and IPv6 egress together and every location policy is now judged over each family on its own, because a sign-in reaches Entra over one of them: the table shows Via egress IPv4 and Via egress IPv6, the impact is the worse of the two and says which family when they differ, and the export carries both. A named location that holds only one family no longer makes the list read partly inside." },

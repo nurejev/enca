@@ -23830,7 +23830,9 @@ This is a directory write. Nothing else changes.`)) return;
   // ======================================================================
   let pdc = { source: "designed", chapters: null, pick: false, doc: null };
   function pdcReset() { pdc = { source: "designed", chapters: null, pick: false, doc: null }; }
-  const PDC_HEAD = `<p class="mini" style="margin:6px 0 0">The handover of the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> for this tenant, generated from the catalog in the profile picked on 🧬 PIM baseline — the customer's variant, the modules switched on and the regions file folded in. <b>📐 As designed</b> is what a new tenant is deployed to; <b>🔎 + as found</b> adds an <i>In this tenant</i> column from 🧬 PIM baseline's last read. Tick the chapters, read it here, or <b>⤓ Markdown</b> for one file with the contents page and every diagram embedded. Nothing is read from or written to the tenant.</p>`;
+  // 32617: one line, the rest behind About this tool (the header diet of the
+  // 21 Sep layout audit) — the document below is what the screen is for.
+  const PDC_HEAD = `<p class="mini" style="margin:6px 0 0">The handover of the <b>CloudFellows PIM framework ${esc(PIM_BASELINE.release)}</b> for this tenant, built from the profile picked on 🧬 PIM baseline.</p><details class="pdoc-about"><summary class="mini">About this tool</summary><p class="mini" style="margin:6px 0 0">The catalog in that profile is the source — the customer's variant, the modules switched on and the regions file folded in. <b>📐 As designed</b> is what a new tenant is deployed to; <b>🔎 + as found</b> adds an <i>In this tenant</i> column from 🧬 PIM baseline's last read. Tick the chapters, read it here, or <b>⤓ Markdown</b> for one file with the contents page and every diagram embedded. Nothing is read from or written to the tenant.</p></details>`;
   function openPimDoc() {
     crumb("📄 PIM documentation");
     show("screen-pimdoc");
@@ -23854,11 +23856,12 @@ This is a directory write. Nothing else changes.`)) return;
     $("pdcMd").disabled = !sel.size;
     const doc = PimDoc.build({ cat, PB: PimBaseline, tenant: { name: tenantName || (isDemo ? "Demo tenant" : ""), domain: tenantDomain || (isDemo ? "contoso.nl" : ""), id: isDemo ? "demo" : tenantId }, regions: pmbRegRows, res: pdc.source === "found" ? pmbRes : null, chapters: sel, demo: isDemo, build: APP_BUILD.label || APP_BUILD.build });
     pdc.doc = doc;
-    $("pdcNote").textContent = `${doc.meta.source}${doc.meta.variant ? ` · variant ${doc.meta.variant}` : ""}${doc.meta.modules.length ? ` · ${doc.meta.modules.join(", ")}` : ""}${doc.meta.regions != null ? ` · ${doc.meta.regions} region${doc.meta.regions === 1 ? "" : "s"}` : ""}`;
+    $("pdcNote").textContent = [doc.meta.variant ? `variant ${doc.meta.variant}` : "", doc.meta.modules.length ? doc.meta.modules.join(", ") : "", doc.meta.regions != null ? `${doc.meta.regions} region${doc.meta.regions === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
     const picker = pdc.pick ? `<div class="list-card pdoc-pick"><h3 style="margin:0">📑 Chapters <span class="mini">${sel.size} of ${avail.length} ticked · the numbering closes up</span></h3>
       <div class="pmb-selbar" style="margin:8px 0 0"><button type="button" class="btn sm" data-pdcall${sel.size === avail.length ? " disabled" : ""}>☑ Select all (${avail.length})</button><button type="button" class="btn sm" data-pdcnone${sel.size ? "" : " disabled"}>☐ Deselect all</button></div>
       <div class="chap">${avail.map((c, i) => `<label class="${sel.has(c.id) ? "" : "off"}"><input type="checkbox" data-pdcch="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}><span><b>${i + 1} · ${esc(c.title)}</b><small>${esc(c.blurb)}</small></span></label>`).join("")}</div></div>` : "";
     $("pdcBody").innerHTML = picker + (sel.size ? PimDoc.render(doc) : `<div class="run-prompt"><p class="mini muted">No chapter ticked — tick one under 📑 Chapters.</p></div>`);
+    pdcSpy();
   }
   $("toolPimDoc").addEventListener("click", () => openPimDoc());
   $("pdcSource").addEventListener("click", (e) => { const b = e.target.closest("[data-pdcsrc]"); if (!b || b.disabled) return; pdc.source = b.dataset.pdcsrc; pdcPaint(); });
@@ -23879,9 +23882,55 @@ This is a directory write. Nothing else changes.`)) return;
   $("pdcBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-pdcall]")) { pdc.chapters = null; pdcPaint(); return; }
     if (e.target.closest("[data-pdcnone]")) { pdc.chapters = new Set(); pdcPaint(); return; }
-    const j = e.target.closest("[data-pdcjump]");
-    if (j) { e.preventDefault(); const el = $(`pdoc-${j.dataset.pdcjump}`); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    // 32617: the rail, the narrow-window contents bar and each chapter's
+    // Back to the top / Next all land here. A jump from the bar folds it.
+    const j = e.target.closest("[data-pdcjump],[data-pdcto]");
+    if (j) {
+      e.preventDefault();
+      const el = $(`pdoc-${j.dataset.pdcjump || j.dataset.pdcto}`);
+      const bar = j.closest(".pdoc-bar"); if (bar) bar.open = false;
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   });
+
+  // 32617: which chapter is being read — the last one whose top has passed
+  // the line under the toolbar. Marks it in the rail (and keeps it in the
+  // rail's own view) and names it in the narrow-window bar. One passive
+  // listener, throttled to a frame; it does nothing while T58 is not open.
+  function pdcSpy() {
+    const scr = $("screen-pimdoc");
+    if (!scr || !scr.classList.contains("active")) return;
+    const secs = [...scr.querySelectorAll(".pdoc-ch")];
+    if (!secs.length) return;
+    // the reading line: under the pinned toolbar, or — at 680px and below,
+    // where the toolbar stops pinning — under the header and the contents bar
+    const cs = getComputedStyle(document.documentElement), px = (v, d) => parseInt(cs.getPropertyValue(v), 10) || d;
+    const line = (window.innerWidth <= 680 ? px("--sticky-nav", 106) + px("--tabs-h", 0) + 56 : px("--sticky-tools", 168)) + 48;
+    let cur = secs[0];
+    for (const s of secs) { if (s.getBoundingClientRect().top <= line) cur = s; else break; }
+    // at the very bottom the last chapter is the one being read, however short
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) cur = secs[secs.length - 1];
+    const id = cur.id.replace(/^pdoc-/, "");
+    scr.querySelectorAll(".pdoc-rl").forEach((a) => {
+      const on = a.dataset.pdcjump === id;
+      if (on === a.classList.contains("on")) return;
+      a.classList.toggle("on", on);
+      if (on) { a.setAttribute("aria-current", "true"); const rail = a.closest(".pdoc-rail"); if (rail && typeof a.offsetTop === "number") { const t = a.offsetTop, b = t + a.offsetHeight; if (t < rail.scrollTop || b > rail.scrollTop + rail.clientHeight) rail.scrollTop = Math.max(0, t - 40); } }
+      else a.removeAttribute("aria-current");
+    });
+    const bar = scr.querySelector(".pdoc-bar");
+    if (bar) {
+      const i = secs.indexOf(cur), h = cur.querySelector("h2");
+      const n = bar.querySelector(".pdoc-bar-n"), t = bar.querySelector(".pdoc-bar-t");
+      if (n) n.textContent = `${String(i + 1).padStart(2, "0")} / ${String(secs.length).padStart(2, "0")}`;
+      if (t && h) t.textContent = h.textContent.replace(/^\s*\d+\s*/, "");
+    }
+  }
+  let pdcSpyQueued = false;
+  window.addEventListener("scroll", () => {
+    if (pdcSpyQueued) return; pdcSpyQueued = true;
+    requestAnimationFrame(() => { pdcSpyQueued = false; try { pdcSpy(); } catch { /* the page is between paints */ } });
+  }, { passive: true });
 
   // ======================================================================
   // 🚀 Deploy — import from the baseline (T51, beta 32425, R72).

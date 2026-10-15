@@ -2951,27 +2951,66 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 /* 32608: ☑ Select all / ☐ Deselect all above the ticks of each T48 table */
 .pmb-selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;padding:6px 8px;background:var(--soft);border:1px solid var(--border);border-radius:10px}
 .pmb-selbar .btn[disabled]{opacity:.55}
-/* 32609: 📄 PIM documentation (T58) — the page IS the document */
-.pdoc{max-width:1100px}
-.pdoc-head h1{font-size:22px;margin:0 0 4px}
-.pdoc-control{margin:0 0 12px}
-.pdoc-toc{background:var(--soft2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin:0 0 16px}
-.pdoc-toc h3{margin:0 0 6px;font-size:13px}
-.pdoc-toc ol{margin:0;padding-left:22px;columns:2;column-gap:24px}
-.pdoc-toc li{break-inside:avoid;font-size:13px;line-height:1.6}
-@media (max-width:700px){.pdoc-toc ol{columns:1}}
-.pdoc-ch{padding:14px 0 6px;border-top:1px solid var(--border);scroll-margin-top:calc(var(--sticky-nav,0px) + var(--tabs-h,0px) + 70px)}
-.pdoc-ch h2{font-size:18px;margin:0 0 10px}
-.pdoc-ch h3{font-size:14px;margin:14px 0 6px}
-.pdoc-n{display:inline-block;min-width:26px;text-align:center;border-radius:8px;background:var(--lemon);color:var(--green-deep);font-size:13px;padding:1px 6px;margin-right:4px}
-.pdoc-ch p{max-width:78ch;line-height:1.55;margin:0 0 10px}
-.pdoc-ch ul,.pdoc-ch ol{max-width:78ch;line-height:1.5;margin:0 0 10px}
-.pdoc-note{border-left:3px solid var(--lemon-deep);background:var(--soft);padding:8px 12px;border-radius:0 10px 10px 0}
-.pdoc-fig{margin:6px 0 12px;overflow-x:auto}
-.pdoc-fig svg{max-width:100%;height:auto;border:1px solid var(--border);border-radius:10px}
+/* 32609: 📄 PIM documentation (T58) — the page IS the document.
+   32617 (option A of the mockup): a READING layout — the contents rail on the
+   left stays in view under the toolbar (--sticky-tools, measured), the
+   document is a white sheet with the text held to a reading measure, and
+   under 900px the rail folds into a contents bar that pins above the sheet. */
+.pdoc{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;align-items:start;max-width:1320px}
+.pdoc-rail{position:sticky;top:calc(var(--sticky-tools,168px) + 12px);max-height:calc(100vh - var(--sticky-tools,168px) - 28px);overflow-y:auto;overscroll-behavior:contain;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 8px 10px}
+.pdoc-rail-h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 8px 6px}
+.pdoc-rail ol,.pdoc-bar ol{list-style:none;margin:0;padding:0}
+.pdoc-rl,.pdoc-bl{display:flex;gap:10px;align-items:flex-start;padding:7px 8px;border-radius:8px;color:var(--ink);text-decoration:none;font-size:13px;line-height:1.35}
+.pdoc-rl:hover,.pdoc-bl:hover{background:var(--soft)}
+.pdoc-rl.on{background:var(--wc-active-bg,var(--green-deep));color:var(--wc-active-ink,#fff);font-weight:600}
+.pdoc-rn{font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);padding-top:2px;flex:none}
+.pdoc-rl.on .pdoc-rn{color:inherit;opacity:.8}
+.pdoc-rail-f{margin:8px 8px 0;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.pdoc-main{min-width:0}
+.pdoc-about{margin:4px 0 0}
+.pdoc-about summary{cursor:pointer;color:var(--green);text-decoration:underline;display:inline-block}
+.pdoc-about p{max-width:90ch}
+.pdoc-bar{display:none}
+.pdoc-sheet{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:40px 52px 44px;min-width:0}
+.pdoc-eyebrow{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pdoc-title{font-size:28px;letter-spacing:-.5px;margin:4px 0 16px}
+.pdoc-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 22px;margin:0;padding:14px 16px;background:var(--soft2);border:1px solid var(--line);border-radius:10px}
+@media (min-width:901px){.pdoc-meta > div:first-child{grid-column:span 2}}
+.pdoc-meta dt{font-size:11px;color:var(--muted)}
+.pdoc-meta dd{margin:2px 0 0;font-size:13px;font-weight:600}
+.pdoc-ch{padding:28px 0 4px;margin-top:28px;border-top:1px solid var(--border);scroll-margin-top:calc(var(--sticky-tools,168px) + 16px)}
+.pdoc-cover{scroll-margin-top:calc(var(--sticky-tools,168px) + 16px)}
+.pdoc-ch h2{font-size:21px;letter-spacing:-.3px;margin:0;display:flex;align-items:baseline;gap:10px}
+.pdoc-ch h3{font-size:15px;margin:20px 0 8px}
+.pdoc-n{font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:6px;background:var(--lemon);color:var(--green-deep);padding:3px 7px;flex:none}
+.pdoc-blurb{color:var(--muted);font-size:13px;margin:6px 0 16px}
+.pdoc-ch p{max-width:72ch;line-height:1.6;margin:0 0 10px}
+.pdoc-ch ul,.pdoc-ch ol{max-width:72ch;line-height:1.55;margin:0 0 10px;padding-left:22px}
+.pdoc-note{border:1px solid var(--line);background:var(--soft);padding:9px 12px;border-radius:10px}
+.pdoc-fig{margin:8px 0 14px;overflow-x:auto}
+.pdoc-fig svg{display:block;max-width:100%;height:auto;border:1px solid var(--border);border-radius:10px}
 .pdoc-fig figcaption{margin:4px 0 0}
 .pdoc-tbl td{vertical-align:top}
 .pdoc-cap{margin:4px 0 12px}
+.pdoc-chnav{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:22px;padding-top:12px;border-top:1px dashed var(--border);font-size:13px}
+@media (max-width:900px){
+  .pdoc{grid-template-columns:minmax(0,1fr)}
+  .pdoc-rail{display:none}
+  .pdoc-bar{display:block;position:sticky;top:calc(var(--sticky-tools,168px) + 6px);z-index:30;margin:0 0 10px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+  .pdoc-bar summary{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;font-weight:600;min-height:24px}
+  .pdoc-bar-n{font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+  .pdoc-bar ol{max-height:55vh;overflow-y:auto;padding:0 6px 8px;border-top:1px solid var(--line)}
+  .pdoc-sheet{padding:22px 18px 26px;border-radius:12px}
+  .pdoc-title{font-size:23px}
+  .pdoc-ch{margin-top:22px;padding-top:22px;scroll-margin-top:calc(var(--sticky-tools,168px) + 70px)}
+}
+/* at 680px and below the toolbar no longer pins (see the phone block), so
+   the bar sits straight under the header and the tool tabs */
+@media (max-width:680px){
+  .pdoc-bar{top:calc(var(--sticky-nav,106px) + var(--tabs-h,0px) + 4px)}
+  .pdoc-ch,.pdoc-cover{scroll-margin-top:calc(var(--sticky-nav,106px) + var(--tabs-h,0px) + 64px)}
+}
 .pdoc-pick{margin:0 0 14px}
 .pdoc-pick .chap{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px;margin-top:8px}
 .pdoc-pick label{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--soft2);font-size:12.5px;cursor:pointer}

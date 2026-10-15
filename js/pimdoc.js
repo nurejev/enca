@@ -116,7 +116,14 @@ const PimDoc = (() => {
     const [fill, stroke] = C[kind];
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>` + lines.map((l, i) => `<text x="${x + w / 2}" y="${y + 21 + i * 16}" text-anchor="middle" font-size="${i === 0 ? 13 : 11.5}" font-weight="${i === 0 ? 700 : 400}" fill="${C.ink}">${esc(l)}</text>`).join("");
   };
-  const arrow = (x1, y1, x2, y2, label, above) => `<path d="M${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}" fill="none" stroke="${C.mute}" stroke-width="1.5" marker-end="url(#pdArrow)"/>${label ? `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 + (above === false ? 14 : -6)}" text-anchor="middle" font-size="11" fill="${C.mute}">${esc(label)}</text>` : ""}`;
+  const arrow = (x1, y1, x2, y2, label, above, dash) => `<path d="M${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}" fill="none" stroke="${C.mute}" stroke-width="1.5"${dash ? ' stroke-dasharray="5 4"' : ""} marker-end="url(#pdArrow)"/>${label ? `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 + (above === false ? 14 : -6)}" text-anchor="middle" font-size="11" fill="${C.mute}">${esc(label)}</text>` : ""}`;
+  // 32617: a box whose lines sit in its vertical middle — the Administrator
+  // spans both lanes of the access diagram, so its text must not hug the top.
+  const boxMid = (x, y, w, h, kind, lines) => {
+    const [fill, stroke] = C[kind];
+    const top = y + Math.round((h - lines.length * 16) / 2) + 12;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>` + lines.map((l, i) => `<text x="${x + w / 2}" y="${top + i * 16}" text-anchor="middle" font-size="${i === 0 ? 13 : 11.5}" font-weight="${i === 0 ? 700 : 400}" fill="${C.ink}">${esc(l)}</text>`).join("");
+  };
   const lane = (y, text) => `<text x="16" y="${y}" font-size="12" font-weight="700" fill="${C.mute}">${esc(text)}</text>`;
 
   // How access flows: the role path (every Entra role group since 5.0) and
@@ -125,17 +132,20 @@ const PimDoc = (() => {
     const W = 980, H = 340;
     return [svgOpen(W, H),
       lane(26, "ENTRA ROLES · active member of the role group · the group eligible per role · the ROLE policy is the gate"),
-      box(16, 120, 170, 80, "obj", ["Administrator", "adm- account", "MFA, phishing-resistant"]),
+      // 32617: the Administrator spans both lanes and each path leaves it
+      // straight, its label ABOVE the line — the old curves from one box
+      // corner put "active member" on top of its own arrow.
+      boxMid(16, 44, 150, 248, "obj", ["Administrator", "adm- account", "MFA,", "phishing-resistant"]),
       box(250, 44, 210, 76, "ok", ["PIM-SG role group", "active member ≤ 1 year", "assigned, reviewed yearly"]),
       box(500, 44, 210, 76, "obj", ["Entra role", "the group is ELIGIBLE", "one role per activation"]),
       box(750, 44, 214, 76, "tier", ["Activate the role · seconds", t0 ? `Tier 0: ${t0.activation} · ${t0.context} · approval` : "Tier 0: context c1 + approval", "Tier 1–2: MFA + justification"]),
-      arrow(186, 145, 250, 82, "active member"), arrow(460, 82, 500, 82), arrow(710, 82, 750, 82),
+      arrow(166, 82, 250, 82, "active member"), arrow(460, 82, 500, 82), arrow(710, 82, 750, 82),
       `<text x="250" y="200" font-size="12" font-weight="700" fill="${C.mute}">ACCESS GROUPS · eligible member · activate the MEMBERSHIP · the workload notices minutes later (the slow path)</text>`,
       box(250, 216, 210, 76, "warn", ["PIM-SG access group", "PIM-SG-INT / XDR / EXO / PUR", "eligible member ≤ 1 year"]),
       box(500, 216, 210, 76, "obj", ["Workload role", "Intune assignment, XDR role,", "Exchange / Purview role group"]),
       box(750, 216, 214, 76, "warn", ["Activate membership · minutes", "8 h shift · MFA + justification", "Elevation and XDR Admin: approval"]),
-      arrow(186, 175, 250, 254, "eligible member", false), arrow(460, 254, 500, 254), arrow(710, 254, 750, 254),
-      `<text x="16" y="${H - 14}" font-size="11" fill="${C.mute}">${esc(`${cat.label} ${cat.release} · blue: the tier decides what the activation asks · amber: membership activation, plan for the delay`)}</text>`,
+      arrow(166, 254, 250, 254, "eligible member", true, true), arrow(460, 254, 500, 254), arrow(710, 254, 750, 254),
+      `<text x="16" y="${H - 14}" font-size="11" fill="${C.mute}">${esc(`${cat.label} ${cat.release} · blue: the tier decides what the activation asks · amber, dashed: membership activation, plan for the delay`)}</text>`,
       "</svg>"].join("");
   }
   // The four tiers side by side with the settings that matter most.
@@ -387,12 +397,30 @@ const PimDoc = (() => {
     if (b.t === "table") return `<div class="xt-tw"><table class="xt-tbl pdoc-tbl"><thead><tr>${b.head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${b.rows.length ? b.rows.map((r) => `<tr>${r.map((c, i) => `<td>${i === 0 ? `<b>${esc(c)}</b>` : esc(c)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${b.head.length}" class="mini">nothing in this profile</td></tr>`}</tbody></table></div>${b.caption ? `<p class="mini pdoc-cap">${esc(b.caption)}</p>` : ""}`;
     return "";
   };
+  // 32617 (Mihai: this should also be nicer, the layout — option A of the
+  // mockup): a READING layout. A contents rail beside a white sheet; on a
+  // narrow window the rail folds into a contents bar above it. The sheet opens
+  // on a cover (the tenant, then framework / profile / modules / source as a
+  // small table) instead of a second "PIM documentation" heading under the
+  // tool's own; every chapter carries its blurb under the title and ends on
+  // Back to the top and Next — as divs: the shell styles every header and
+  // footer element as page chrome. Rail, bar, Back and Next are all data-pdcjump
+  // links (rail and bar one per chapter), so app.js scrolls and highlights.
+  const nn = (n) => String(n).padStart(2, "0");
   function render(doc) {
-    const m = doc.meta;
-    const toc = `<nav class="pdoc-toc" aria-label="Contents"><h3>Contents</h3><ol>${doc.chapters.map((c) => `<li><a href="#pdoc-${esc(c.id)}" data-pdcjump="${esc(c.id)}">${esc(c.title)}</a></li>`).join("")}</ol></nav>`;
-    const control = `<p class="mini pdoc-control">${m.demo ? "Demo data · " : ""}${esc(m.catalog.label)} ${esc(m.catalog.release)}, revised ${esc(m.catalog.revised)}, authored in ${esc(m.catalog.tenant)} · profile ${esc(m.profile)}${m.variant ? ` · variant ${esc(m.variant)}` : ""}${m.modules.length ? ` · modules ${esc(m.modules.join(", "))}` : ""}${m.regions != null ? ` · ${m.regions} region${m.regions === 1 ? "" : "s"}` : ""} · ${esc(m.source)}${m.readAt ? ` (tenant read ${esc(new Date(m.readAt).toLocaleString())})` : ""} · ${m.chapters} of ${m.available} chapters</p>`;
-    const body = doc.chapters.map((c) => `<section class="pdoc-ch" id="pdoc-${esc(c.id)}"><h2><span class="pdoc-n">${c.n}</span> ${esc(c.title)}</h2>${c.blocks.map(blockHtml).join("")}</section>`).join("");
-    return `<div class="pdoc"><div class="pdoc-head"><h1>📄 PIM documentation — ${esc(m.tenant || "this tenant")}</h1>${control}</div>${toc}<article class="pdoc-body">${body}</article></div>`;
+    const m = doc.meta, ch = doc.chapters, N = ch.length;
+    const rail = `<nav class="pdoc-rail" aria-label="Contents"><div class="pdoc-rail-h">Contents</div><ol>${ch.map((c, i) => `<li><a href="#pdoc-${esc(c.id)}" class="pdoc-rl${i === 0 ? " on" : ""}" data-pdcjump="${esc(c.id)}"${i === 0 ? ' aria-current="true"' : ""}><span class="pdoc-rn">${nn(c.n)}</span><span>${esc(c.title)}</span></a></li>`).join("")}</ol><p class="pdoc-rail-f">${N} of ${m.available} chapters · ${esc(m.source)}</p></nav>`;
+    const bar = `<details class="pdoc-bar"><summary><span class="pdoc-bar-n">${nn(ch[0].n)} / ${nn(N)}</span><span class="pdoc-bar-t">${esc(ch[0].title)}</span></summary><ol>${ch.map((c) => `<li><a href="#pdoc-${esc(c.id)}" class="pdoc-bl" data-pdcjump="${esc(c.id)}"><span class="pdoc-rn">${nn(c.n)}</span> ${esc(c.title)}</a></li>`).join("")}</ol></details>`;
+    const cell = (k, v) => (v ? `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>` : "");
+    const cover = `<div class="pdoc-cover" id="pdoc-top"><div class="pdoc-eyebrow">PIM handover${m.demo ? " · demo data" : ""}</div><h2 class="pdoc-title">${esc(m.tenant || "This tenant")}</h2>`
+      + `<dl class="pdoc-meta">${cell("Framework", `${m.catalog.label} ${m.catalog.release} · revised ${m.catalog.revised}`)}${cell("Profile", `${m.profile}${m.variant ? ` · variant ${m.variant}` : ""}`)}${cell("Modules", m.modules.length ? m.modules.join(", ") : "none switched on")}`
+      + `${cell("Source", `${m.source}${m.readAt ? ` · tenant read ${new Date(m.readAt).toLocaleString()}` : ""}`)}${cell("Authored in", m.catalog.tenant)}${m.regions != null ? cell("Regions", String(m.regions)) : ""}${cell("Chapters", `${N} of ${m.available}`)}</dl></div>`;
+    const body = ch.map((c, i) => {
+      const next = ch[i + 1];
+      const foot = `<div class="pdoc-chnav"><a href="#pdoc-top" data-pdcto="top">Back to the top</a>${next ? `<a href="#pdoc-${esc(next.id)}" data-pdcto="${esc(next.id)}">Next · ${nn(next.n)} ${esc(next.title)}</a>` : ""}</div>`;
+      return `<section class="pdoc-ch" id="pdoc-${esc(c.id)}"><h2><span class="pdoc-n">${nn(c.n)}</span> ${esc(c.title)}</h2>${c.blurb ? `<p class="pdoc-blurb">${esc(c.blurb.charAt(0).toUpperCase() + c.blurb.slice(1))}</p>` : ""}${c.blocks.map(blockHtml).join("")}${foot}</section>`;
+    }).join("");
+    return `<div class="pdoc">${rail}<div class="pdoc-main">${bar}<article class="pdoc-sheet">${cover}${body}</article></div></div>`;
   }
 
   // ---- Markdown -----------------------------------------------------------
