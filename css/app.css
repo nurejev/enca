@@ -3273,6 +3273,7 @@ details.pr-role[open]>summary{margin-bottom:6px}
 #screen-egress .eg-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px;font-size:13px}
 #screen-egress .eg-node{border:1px solid var(--border);border-radius:10px;padding:6px 10px;background:var(--surface)}#screen-egress .eg-node small{color:var(--muted)}
 #screen-egress .eg-gap{width:22px}
+#screen-egress .eg-fam{display:inline-block;font-size:10px;font-weight:700;line-height:1.3;border:1px solid var(--border);border-radius:4px;padding:0 4px;color:var(--muted);vertical-align:middle}
 #screen-egress .eg-card{padding:12px 14px;margin:0 0 12px}
 #screen-egress .eg-tablehead{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 8px}
 #screen-egress .eg-scroll{overflow-x:auto}

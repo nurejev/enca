@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32616, date: "2026-10-15", title: "Egress & location impact: IPv4 and IPv6 judged as two paths, IPv6 looked up by prefix",
+    items: [
+      { kind: "improved", tool: "Egress & location impact", text: "Paste the proxy's IPv4 and IPv6 egress together and every location policy is now judged over each family on its own, because a sign-in reaches Entra over one of them: the table shows Via egress IPv4 and Via egress IPv6, the impact is the worse of the two and says which family when they differ, and the export carries both. A named location that holds only one family no longer makes the list read partly inside." },
+      { kind: "improved", tool: "Egress & location impact", text: "Look up in the sign-in log now finds IPv6: an address however it is written, and a range by its prefix, such as the office's IPv6 /64, keeping only the sign-ins inside it. So an office or egress known only by a range gets the country Entra recorded too." },
+    ],
+  },
+  {
     build: 32615, date: "2026-10-14", title: "Designer: explained in three steps, every tier a card in words, the variant beside it",
     items: [
       { kind: "improved", tool: "Designer — a customer's variant", text: "The Designer now explains itself in three steps — start from the framework, change only what differs, use it — and shows every tier as a card in plain words: what it is for, how long activation lasts, what it asks, who approves, how long people stay eligible, and which roles sit in it. Change opens the settings under the card; a changed card is marked and opens by itself. Beside the cards, the variant's differences, whether it is in use, and what would be refused and why." },

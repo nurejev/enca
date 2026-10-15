@@ -22,6 +22,16 @@
 //   Egress.render(model, ui)               → the tiles, the flow, the table, the findings
 //   Egress.markdown(model, { filter })     → the same, for the P-2716 write-up: verdicts + details
 //   Egress.demo()                          → a devcf-shaped read for ?demo=1
+//   Egress.lookup(entry)                   → how to find an address or range in the sign-in log
+//
+// 0.3.0 (32616, Mihai: "make sure T57 also can check on ipv6"; chose 1+2 and
+// 5 from the mockup): a sign-in reaches Entra over IPv4 OR IPv6, never both,
+// so an egress list holding both families is judged as TWO paths — Via egress
+// IPv4 and Via egress IPv6 — each placed in the named locations on its own.
+// Before, a mixed list was one path, and a location holding only one family
+// made it "partly inside" and so outside. The impact is the worse path, and
+// says which family when the two differ. The sign-in lookup finds an IPv6
+// address in Entra's own (RFC 5952) spelling, and a range by its prefix.
 // Reads only. Nothing is written to the tenant.
 // ======================================================================
 const Egress = (() => {
@@ -83,7 +93,44 @@ const Egress = (() => {
   }
   // A single address (a /32 or /128) can be looked up in the sign-in log.
   const isHost = (e) => e && e.bits === e.max;
-  const hostText = (e) => String(e.text).split("/")[0];
+  // RFC 5952 text — the spelling Entra writes in the sign-in log: lowercase,
+  // no leading zeros, the longest run of two or more zero groups as ::
+  function fmt(fam, val) {
+    if (fam === 4) return [24n, 16n, 8n, 0n].map((s) => String((val >> s) & 255n)).join(".");
+    const g = [];
+    for (let i = 7; i >= 0; i--) g.push((val >> BigInt(i * 16)) & 0xffffn);
+    let best = -1, len = 0;
+    for (let i = 0; i < 8;) {
+      if (g[i]) { i++; continue; }
+      let j = i; while (j < 8 && !g[j]) j++;
+      if (j - i >= 2 && j - i > len) { best = i; len = j - i; }
+      i = j;
+    }
+    const h = (a) => a.map((x) => x.toString(16)).join(":");
+    return best < 0 ? h(g) : `${h(g.slice(0, best))}::${h(g.slice(best + len))}`;
+  }
+  const hostText = (e) => (e && e.net != null ? fmt(e.fam, e.net) : String((e && e.text) || "").split("/")[0]);
+  // How to find an entry in the sign-in log. A single address: eq on its
+  // RFC 5952 text (2001:0DB8:0::1 is found as 2001:db8::1). A range: startswith
+  // on the whole octets (IPv4) or groups (IPv6) its prefix covers, cut before
+  // zero groups Entra may fold into :: — the caller keeps only the hits that
+  // fall inside the range. Too broad to ask for (under /16 IPv4, /32 IPv6): null.
+  function lookup(e) {
+    if (!e) return null;
+    if (isHost(e)) return { op: "eq", text: fmt(e.fam, e.net) };
+    if (e.fam === 4) {
+      const n = Math.floor(e.bits / 8);
+      return n < 2 ? null : { op: "startswith", text: fmt(4, e.net).split(".").slice(0, n).join(".") + "." };
+    }
+    const g = [];
+    for (let i = 7; i >= 0; i--) g.push((e.net >> BigInt(i * 16)) & 0xffffn);
+    let n = Math.floor(e.bits / 16);
+    for (let i = 0; i < n - 1; i++) if (!g[i] && !g[i + 1]) { n = i; break; }
+    while (n > 0 && !g[n - 1]) n--;
+    return n < 2 ? null : { op: "startswith", text: g.slice(0, n).map((x) => x.toString(16)).join(":") + ":" };
+  }
+  // Is a sign-in's ipAddress inside the entry?
+  const holds = (e, ip) => within(cidr(ip), e);
 
   // ---- the country Entra recorded for an IP -----------------------------
   // signIns: rows with location.countryOrRegion. The most frequent country
@@ -240,6 +287,7 @@ const Egress = (() => {
     return { tone: "o", text: "control no longer applies", key: "less" };
   }
 
+  const TONE_ORD = { r: 0, o: 1, y: 2, i: 3, g: 4 };
   // input: { policies:[{raw,name}], locations:[], names:{}, egress:[cidr], country, officeCountry, mode:"asis"|"trusted" }
   function model(input) {
     const locs = input.locations || [];
@@ -256,8 +304,22 @@ const Egress = (() => {
     }
     for (const l of locs) if (!isIpLoc(l) && !isCountryLoc(l) && l.id) today.unknown.add(l.id);
     const egress = input.egress || [];
-    const via = placement({ ips: egress, country: input.country || "", extraTrusted: input.mode === "trusted" }, locs);
-    const viaAsIs = input.mode === "trusted" ? placement({ ips: egress, country: input.country || "" }, locs) : via;
+    // 32616: one path per address family — a sign-in arrives over IPv4 or
+    // IPv6. A list with one family is one path, as before.
+    const fams = [4, 6].filter((f) => egress.some((e) => e.fam === f));
+    const dual = fams.length === 2;
+    const place = (ips, extra) => placement({ ips, country: input.country || "", extraTrusted: extra }, locs);
+    const lanes = (dual ? fams : [0]).map((f) => {
+      const ips = f ? egress.filter((e) => e.fam === f) : egress;
+      const via = place(ips, input.mode === "trusted");
+      return { fam: f || (fams[0] || 0), ips, via, asIs: input.mode === "trusted" ? place(ips, false) : via };
+    });
+    const via = lanes[0].via;
+    const viaAsIs = {
+      ids: new Set(lanes.flatMap((l) => [...l.asIs.ids])),
+      partial: new Set(lanes.flatMap((l) => [...l.asIs.partial])),
+      trusted: lanes.some((l) => l.asIs.trusted),
+    };
 
     const rows = [];
     for (const p of input.policies || []) {
@@ -270,16 +332,30 @@ const Egress = (() => {
         w, tg, ctl, cond, loc: locText(cond, locs), noDep,
         today: egress.length ? locApplies(cond, today) : locApplies(cond, today),
         via: egress.length ? locApplies(cond, via) : null,
+        via6: dual ? locApplies(cond, lanes[1].via) : undefined,
         specific: [...cond.inc, ...cond.exc].filter((id) => id !== "All" && id !== "AllTrusted"),
         allTrusted: [...cond.inc, ...cond.exc].includes("AllTrusted"),
         cae: (raw.sessionControls && raw.sessionControls.continuousAccessEvaluation && raw.sessionControls.continuousAccessEvaluation.mode) || "",
       };
       if (row.today === false) row.todayWhy = passWhy(cond, today, "office", locs);
       if (row.via === false) row.viaWhy = passWhy(cond, via, "egress", locs);
+      if (row.via6 === false) row.via6Why = passWhy(cond, lanes[1].via, "egress", locs);
       row.imp = egress.length ? impact(row) : { tone: "i", text: "enter the egress", key: "wait" };
+      if (dual) {
+        // the worse of the two paths; say which family when they differ
+        const i4 = row.imp, i6 = impact(Object.assign({}, row, { via: row.via6 }));
+        const worse = TONE_ORD[i6.tone] < TONE_ORD[i4.tone] ? 6 : 4;
+        const w = worse === 6 ? i6 : i4, o = worse === 6 ? i4 : i6;
+        row.imp4 = i4; row.imp6 = i6;
+        row.imp = Object.assign({}, w);
+        if (w.key !== o.key || w.text !== o.text) {
+          row.imp.fam = worse;
+          row.imp.note = ["same", "nodep"].includes(o.key) ? `over IPv${worse} only` : `IPv${worse === 6 ? 4 : 6}: ${o.text}`;
+        }
+      }
       rows.push(row);
     }
-    const ord = { r: 0, o: 1, y: 2, i: 3, g: 4 };
+    const ord = TONE_ORD;
     rows.sort((a, b) => ord[a.imp.tone] - ord[b.imp.tone] || (a.state === "enabled" ? -1 : 0) - (b.state === "enabled" ? -1 : 0) || a.name.localeCompare(b.name));
 
     // ---- findings ----
@@ -330,6 +406,7 @@ const Egress = (() => {
       rows, findings: F, summary, egress, country: input.country || "", officeCountry, mode: input.mode || "asis",
       office: { ips: officeIps.map((c) => c.text), names: trustedIp.map((l) => l.displayName) },
       viaNames: [...viaAsIs.ids].map(nm), locCount: locs.length,
+      dual, lanes: lanes.map((l) => ({ fam: l.fam, ips: l.ips.map((e) => e.text), names: [...l.asIs.ids].map(nm) })),
     };
   }
 
@@ -350,23 +427,28 @@ const Egress = (() => {
       ${tile(s.nodep + s.noop, "name a location but do not depend on it")}
     </div>`;
     const eg = m.egress.length ? `${esc(m.egress.slice(0, 2).map((e) => e.text).join(", "))}${m.egress.length > 2 ? ` +${m.egress.length - 2}` : ""}` : "—";
+    const sim = m.mode === "trusted" ? " · simulated TRUSTED" : "";
+    const lane = (l) => {
+      const ips = `${esc(l.ips.slice(0, 2).join(", "))}${l.ips.length > 2 ? ` +${l.ips.length - 2}` : ""}`;
+      return `<span class="eg-node">Via the egress <span class="eg-fam">IPv${l.fam}</span><br><small>${ips} · ${l.names.length ? esc(l.names.join(", ")) : "no location"} · ${esc(m.country || "country ?")}${sim}</small></span><span class="muted">→</span><span class="eg-node">Entra ID</span>`;
+    };
     const flow = `<div class="eg-flow">
       <span class="eg-node">Office today<br><small>${esc(m.office.names.join(", ") || "no trusted IP location")}${m.officeCountry ? ` · ${esc(m.officeCountry)}` : ""} ${m.office.names.length ? "✓ trusted" : ""}</small></span><span class="muted">→</span><span class="eg-node">Entra ID</span>
       <span class="eg-gap"></span>
-      <span class="eg-node">Via the egress<br><small>${eg} · ${m.viaNames.length ? esc(m.viaNames.join(", ")) : "no location"} · ${esc(m.country || "country ?")}${m.mode === "trusted" ? " · simulated TRUSTED" : ""}</small></span><span class="muted">→</span><span class="eg-node">Entra ID</span>
-    </div>`;
+      ${m.dual ? m.lanes.map(lane).join('<span class="eg-gap"></span>') : `<span class="eg-node">Via the egress<br><small>${eg} · ${m.viaNames.length ? esc(m.viaNames.join(", ")) : "no location"} · ${esc(m.country || "country ?")}${sim}</small></span><span class="muted">→</span><span class="eg-node">Entra ID</span>`}
+    </div>${m.dual ? '<p class="mini muted" style="margin:4px 0 0">The egress list holds IPv4 and IPv6: a sign-in reaches Entra over one of them, so each is judged as its own path. The impact is the worse of the two.</p>' : ""}`;
     const list = filterRows(m, filter);
     const seg = (k, label) => `<button type="button" data-egfilter="${k}" class="${filter === k ? "active" : ""}">${label}</button>`;
     const table = `<div class="list-card eg-card">
       <div class="eg-tablehead"><b>Policies with a location condition</b>
         <div class="seg">${seg("changes", `Changes only (${m.rows.filter((r) => ["block", "more", "less", "unknown", "noop"].includes(r.imp.key)).length})`)}${seg("all", `All ${m.rows.length}`)}${seg("on", `On only (${s.on})`)}</div></div>
-      ${list.length ? `<div class="eg-scroll"><table class="eg-table"><thead><tr><th>Policy</th><th>State</th><th>Who</th><th>Target</th><th>Location rule</th><th>Control</th><th>Today</th><th>Via egress</th><th>Impact</th></tr></thead><tbody>
+      ${list.length ? `<div class="eg-scroll"><table class="eg-table"><thead><tr><th>Policy</th><th>State</th><th>Who</th><th>Target</th><th>Location rule</th><th>Control</th><th>Today</th>${m.dual ? '<th>Via egress <span class="eg-fam">IPv4</span></th><th>Via egress <span class="eg-fam">IPv6</span></th>' : "<th>Via egress</th>"}<th>Impact</th></tr></thead><tbody>
       ${list.map((r) => `<tr>
         <td><a href="#" data-egpol="${esc(r.id)}">${esc(r.name)}</a></td><td>${stTag(r.state)}</td>
         <td>${esc(r.w.inc.join(", ") || "nobody")}${r.w.exc.length ? `<div class="mini muted">excl. ${esc(r.w.exc.join(", "))}</div>` : ""}</td>
         <td>${r.tg.none ? '<b class="eg-bad">None</b>' : esc(r.tg.text)}</td><td>${esc(r.loc)}</td><td>${esc(r.ctl.text)}</td>
-        <td>${verdict(r.today, r, r.todayWhy)}</td><td>${m.egress.length ? verdict(r.via, r, r.viaWhy) : '<span class="muted">—</span>'}</td>
-        <td><span class="eg-imp ${TONE[r.imp.tone]}">${esc(r.imp.text)}</span>${r.state !== "enabled" && ["r", "o"].includes(r.imp.tone) ? '<div class="mini muted">once on</div>' : ""}</td></tr>`).join("")}
+        <td>${verdict(r.today, r, r.todayWhy)}</td><td>${m.egress.length ? verdict(r.via, r, r.viaWhy) : '<span class="muted">—</span>'}</td>${m.dual ? `<td>${verdict(r.via6, r, r.via6Why)}</td>` : ""}
+        <td><span class="eg-imp ${TONE[r.imp.tone]}">${esc(r.imp.text)}</span>${r.imp.note ? `<div class="mini muted">${esc(r.imp.note)}</div>` : ""}${r.state !== "enabled" && ["r", "o"].includes(r.imp.tone) ? '<div class="mini muted">once on</div>' : ""}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="mini muted">${m.rows.length ? "Nothing changes in this view — switch to All." : "No policy in this tenant has a location condition."}</p>`}
     </div>`;
     const finds = `<div class="list-card eg-card"><b>Findings</b><ul class="eg-finds">${m.findings.map((f) => `<li><span class="eg-imp ${TONE[f.tone]}">${esc(f.sev)}</span> ${esc(f.text)}</li>`).join("")}</ul>
@@ -397,7 +479,7 @@ const Egress = (() => {
     const L = [];
     L.push(`# Egress & location impact${x.tenant ? ` — ${x.tenant}` : ""}`, "");
     L.push(`Read ${x.at || new Date().toISOString()} by ENCA T57 (reads only).`, "");
-    L.push(`- Egress: ${m.egress.map((e) => e.text).join(", ") || "—"}`);
+    L.push(m.dual ? `- Egress: IPv4 ${m.lanes[0].ips.join(", ")} · IPv6 ${m.lanes[1].ips.join(", ")} — judged as two paths, the impact is the worse` : `- Egress: ${m.egress.map((e) => e.text).join(", ") || "—"}`);
     L.push(`- Egress country: ${m.country || "unknown"}${x.countrySource ? ` (${x.countrySource})` : ""}`);
     L.push(`- Office today: ${m.office.names.join(", ") || "no trusted IP location"}${m.officeCountry ? ` · ${m.officeCountry}` : ""}`);
     L.push(`- Compared: ${m.mode === "trusted" ? "as if the egress were in a NEW trusted named location" : "as it is"}`);
@@ -405,8 +487,13 @@ const Egress = (() => {
     L.push(`**${s.total}** policies name a location (${s.on} on, ${s.ro} report-only, ${s.off} off) · **${s.blocks}** would block a group · **${s.lockouts}** lockout risk · **${s.changes}** change behaviour · ${s.nodep + s.noop} do not depend on it.`, "");
     L.push("## Verdicts", "");
     if (rows.length) {
-      L.push("| Policy | State | Today | Via egress | Impact |", "|---|---|---|---|---|");
-      rows.forEach((r) => L.push(`| ${cell(r.name)} | ${st(r)} | ${v(r.today, r, r.todayWhy)} | ${m.egress.length ? v(r.via, r, r.viaWhy) : "—"} | ${cell(r.imp.text)}${once(r)} |`));
+      if (m.dual) {
+        L.push("| Policy | State | Today | Via egress IPv4 | Via egress IPv6 | Impact |", "|---|---|---|---|---|---|");
+        rows.forEach((r) => L.push(`| ${cell(r.name)} | ${st(r)} | ${v(r.today, r, r.todayWhy)} | ${v(r.via, r, r.viaWhy)} | ${v(r.via6, r, r.via6Why)} | ${cell(r.imp.text)}${r.imp.note ? ` (${cell(r.imp.note)})` : ""}${once(r)} |`));
+      } else {
+        L.push("| Policy | State | Today | Via egress | Impact |", "|---|---|---|---|---|");
+        rows.forEach((r) => L.push(`| ${cell(r.name)} | ${st(r)} | ${v(r.today, r, r.todayWhy)} | ${m.egress.length ? v(r.via, r, r.viaWhy) : "—"} | ${cell(r.imp.text)}${once(r)} |`));
+      }
     } else L.push("Nothing in this view.");
     L.push("");
     if (rows.length) L.push("## Details", "");
@@ -447,11 +534,11 @@ const Egress = (() => {
         P("ca210", "CA210-GRANT-Internals-IP-AllApps-AnyPlatform-CombineRegistration-v1.0", "disabled", { includeGroups: ["g-int"], excludeGroups: ["g-cbg"] }, reg, ["All"], ["AllTrusted"], mfa),
         P("ca200", "CA200-GRANT-Internals-IP-AnyApp-AnyPlatform-MFA-v1.0.1", "disabled", { includeGroups: ["g-int"], excludeGroups: ["g-cbg"] }, all, ["All"], [], mfa),
       ],
-      signIns: { "192.0.2.80": [{ createdDateTime: "2026-10-14T08:00:00Z", location: { countryOrRegion: "DE" } }], "203.0.113.10": [{ createdDateTime: "2026-10-14T07:00:00Z", location: { countryOrRegion: "NL" } }] },
+      signIns: { "2001:db8:208d:c900:1a2b:3c4d:5e6f:7": [{ createdDateTime: "2026-10-14T07:30:00Z", location: { countryOrRegion: "NL" } }], "192.0.2.80": [{ createdDateTime: "2026-10-14T08:00:00Z", location: { countryOrRegion: "DE" } }], "203.0.113.10": [{ createdDateTime: "2026-10-14T07:00:00Z", location: { countryOrRegion: "NL" } }] },
       egress: "192.0.2.80",
     };
   }
 
-  return { parse, cidr, within, country, placement, locApplies, model, render, markdown, demo, isHost, hostText, BREAK_GLASS_RE };
+  return { parse, cidr, within, country, placement, locApplies, model, render, markdown, demo, isHost, hostText, fmt, lookup, holds, BREAK_GLASS_RE };
 })();
 if (typeof module !== "undefined") module.exports = Egress;

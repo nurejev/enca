@@ -27997,35 +27997,46 @@ This is a directory write. Nothing else changes.`)) return;
     finally { eg.busy = false; }
     renderEgress();
   }
-  // The country Entra recorded for an IP: interactive sign-ins first, then non-interactive.
-  async function egCountryOf(ip, sc) {
+  // The country Entra recorded for an address or range: interactive sign-ins
+  // first, then non-interactive. 32616 (IPv6): Egress.lookup gives eq on the
+  // RFC 5952 spelling Entra writes, or startswith on a range's prefix (checked
+  // live on devcf: startswith(ipAddress,'2a') answers on /beta signIns); only
+  // the hits inside the range count.
+  async function egCountryOf(e, sc) {
+    const q = Egress.lookup(e);
+    if (!q) return null;
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    const f = `ipAddress eq '${ip}' and createdDateTime ge ${since}`;
-    let rows = await Graph.ggetAll(`/v1.0/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$top=50`, { cap: 50, scopes: sc });
+    const f = `${q.op === "eq" ? `ipAddress eq '${q.text}'` : `startswith(ipAddress,'${q.text}')`} and createdDateTime ge ${since}`;
+    const cap = q.op === "eq" ? 50 : 200;
+    const inside = (rows) => rows.filter((r) => Egress.holds(e, r.ipAddress));
+    let rows = inside(await Graph.ggetAll(`/beta/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$select=ipAddress,createdDateTime,location&$top=${cap}`, { cap, scopes: sc }));
     let kind = "interactive";
-    if (!rows.length) { rows = await Graph.ggetAll(`/beta/auditLogs/signIns?$filter=${encodeURIComponent(`${f} and signInEventTypes/any(t:t eq 'nonInteractiveUser')`)}&$top=50`, { cap: 50, scopes: sc }); kind = "non-interactive"; }
+    if (!rows.length) { rows = inside(await Graph.ggetAll(`/beta/auditLogs/signIns?$filter=${encodeURIComponent(`${f} and signInEventTypes/any(t:t eq 'nonInteractiveUser')`)}&$select=ipAddress,createdDateTime,location&$top=${cap}`, { cap, scopes: sc })); kind = "non-interactive"; }
     const c = Egress.country(rows);
     return c ? Object.assign(c, { kind }) : null;
   }
   async function egLookup() {
     if (eg.look || !eg.raw) return;
-    const hosts = Egress.parse(eg.text).entries.filter(Egress.isHost).slice(0, 5);
-    const office = (eg.raw.locations || []).filter((l) => l.isTrusted).flatMap((l) => (l.ipRanges || []).map((r) => Egress.cidr(r.cidrAddress))).filter((c) => c && Egress.isHost(c)).slice(0, 2);
-    if (!hosts.length && !office.length) { toast("Nothing to look up — a single address (not a range) is needed for the egress or the office"); return; }
+    // 32616: addresses first, then ranges — IPv4 and IPv6 alike
+    const byHost = (a, b) => Number(Egress.isHost(b)) - Number(Egress.isHost(a));
+    const hosts = Egress.parse(eg.text).entries.filter(Egress.lookup).sort(byHost).slice(0, 5);
+    const office = (eg.raw.locations || []).filter((l) => l.isTrusted).flatMap((l) => (l.ipRanges || []).map((r) => Egress.cidr(r.cidrAddress))).filter((c) => c && Egress.lookup(c)).sort(byHost).slice(0, 3);
+    if (!hosts.length && !office.length) { toast("Nothing to look up — an address, or a range of at least /16 (IPv4) or /32 (IPv6), is needed for the egress or the office"); return; }
     eg.look = true; renderEgress();
     const say = (c, ip) => (c ? `${c.country} — ${c.seen} ${c.kind} sign-in${c.seen === 1 ? "" : "s"} from ${ip} in 30 days${c.others && c.others.length ? ` (also ${c.others.join(", ")})` : ""}` : `no sign-in from ${ip} in 30 days — pick the country`);
+    const label = (e) => (Egress.isHost(e) ? Egress.hostText(e) : `${Egress.hostText(e)}/${e.bits}`);
     try {
       if (isDemo) {
         await new Promise((r) => setTimeout(r, 200));
         const d = Egress.demo().signIns;
-        const one = (ip) => { const c = Egress.country(d[ip] || []); return c ? Object.assign(c, { kind: "interactive" }) : null; };
-        if (hosts[0]) { const c = one(Egress.hostText(hosts[0])); if (c) eg.country = c.country; eg.countrySrc = say(c, Egress.hostText(hosts[0])); }
-        if (office[0]) { const c = one(Egress.hostText(office[0])); if (c) eg.officeCountry = c.country; eg.officeSrc = say(c, Egress.hostText(office[0])); }
+        const one = (e) => { const c = Egress.country(Object.keys(d).filter((ip) => Egress.holds(e, ip)).flatMap((ip) => d[ip])); return c ? Object.assign(c, { kind: "interactive" }) : null; };
+        for (const h of hosts) { const c = one(h); eg.countrySrc = say(c, label(h)); if (c) { eg.country = c.country; break; } }
+        for (const h of office) { const c = one(h); eg.officeSrc = say(c, label(h)); if (c) { eg.officeCountry = c.country; break; } }
       } else {
         const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
         if (!await preConsent(sc)) throw new Error("AuditLog.Read.All was not granted");
-        for (const h of hosts) { const ip = Egress.hostText(h), c = await egCountryOf(ip, sc); eg.countrySrc = say(c, ip); if (c) { eg.country = c.country; break; } }
-        for (const h of office) { const ip = Egress.hostText(h), c = await egCountryOf(ip, sc); eg.officeSrc = say(c, ip); if (c) { eg.officeCountry = c.country; break; } }
+        for (const h of hosts) { const c = await egCountryOf(h, sc); eg.countrySrc = say(c, label(h)); if (c) { eg.country = c.country; break; } }
+        for (const h of office) { const c = await egCountryOf(h, sc); eg.officeSrc = say(c, label(h)); if (c) { eg.officeCountry = c.country; break; } }
       }
     } catch (e) { toast(`Sign-in lookup failed: <span>${esc(egErr(e))}</span>`); }
     finally { eg.look = false; }
