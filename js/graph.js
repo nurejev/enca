@@ -185,6 +185,17 @@ const Graph = (() => {
   let policyGuard = null;
   const setPolicyGuard = fn => { policyGuard = fn; };
   const guardPolicy = async (url, body, method) => { if (policyGuard && /\/identity\/conditionalAccess\/(?:policies(?:\/[^/?]+)?|deletedItems\/policies\/[^/?]+\/restore)$/.test(url.split("?")[0])) await policyGuard(url, body, method); };
+  // 32519: a write that answers 200 with NO body (Intune's /assign actions do)
+  // is a success, not a JSON error. Read the text; parse it only when there is
+  // some. Before this, the assign of a new macOS script landed and was then
+  // reported as failed — and a second Apply made the script twice.
+  async function bodyOf(r) {
+    if (r.status === 204) return null;
+    if (typeof r.text !== "function") return r.json();   // a stub response with json() only (the tests)
+    const t = await r.text();
+    if (!t || !t.trim()) return null;
+    return JSON.parse(t);   // a non-empty body that is not JSON still throws, as before
+  }
   async function gpatch(url, body, scopes) {
     await guardPolicy(url, body, "PATCH");
     scopes = scopes || [...AUTH_CONFIG.scopes, ...WRITE_SCOPES];
@@ -194,7 +205,7 @@ const Graph = (() => {
       body: JSON.stringify(body),
     }, scopes);
     if (!r.ok) throw await graphError(r);
-    return r.status === 204 ? null : r.json();
+    return bodyOf(r);
   }
 
   // Graph's top-level 400 text is generic; the useful part is usually in
@@ -487,7 +498,7 @@ const Graph = (() => {
       body: JSON.stringify(body),
     }, scopes);
     if (!r.ok) throw await graphError(r);
-    return r.status === 204 ? null : r.json();
+    return bodyOf(r);
   }
 
   // DELETE — only ever used by an explicitly confirmed write action.

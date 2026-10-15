@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=325"></script>
+<script src="js/popup-guard.js?v=326"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=325" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=325">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=326" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=326">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=325"></script>
+<script src="js/selfhost-boot.js?v=326"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=325"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=325"></script>
-<link rel="stylesheet" href="css/workspace.css?v=325">
-<link rel="stylesheet" href="css/workspaces.css?v=325">
-<link rel="stylesheet" href="css/tool-layout.css?v=325">
-<link rel="stylesheet" href="css/list-detail.css?v=325">
-<link rel="stylesheet" href="css/flat-icons.css?v=325">
+<script src="js/counter.js?v=326"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=326"></script>
+<link rel="stylesheet" href="css/workspace.css?v=326">
+<link rel="stylesheet" href="css/workspaces.css?v=326">
+<link rel="stylesheet" href="css/tool-layout.css?v=326">
+<link rel="stylesheet" href="css/list-detail.css?v=326">
+<link rel="stylesheet" href="css/flat-icons.css?v=326">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=325" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=326" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=325" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=326" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -230,6 +230,10 @@
         <div class="tool-ic">🧷</div><h3>memberOf retirement <span class="tag new">BETA</span></h3>
         <p>The <code>memberOf</code> dynamic rule operator leaves preview on <b>3 November 2026</b>. Rules still using it don't fail — they <b>stop updating</b> and keep handing out whatever membership they held that day. Scans all <b>three</b> surfaces Microsoft names — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies — then says what it costs: which <b>Conditional Access</b> policies point at each group, whether it's an <b>include</b> that quietly stops covering joiners or an <b>exclude</b> that becomes a permanent bypass, which groups carry licensing, and which access packages stop being handed out. Owner notification, Markdown and CSV export. <span class="tag ok">reads only</span></p>
       </div>
+      <div class="tool tool-tile" id="toolEgress">
+        <div class="tool-ic">🛰</div><h3>Egress &amp; location impact <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
+        <p><b>Workspace 03 · Entra Tools.</b> What happens to Conditional Access when sign-ins leave through a <b>different public IP</b> — a cloud proxy such as Netskope or Zscaler, a new office line, a VPN. Paste the egress IPs: every policy with a location condition is judged <b>today</b> (from the trusted office ranges) and <b>via the egress</b>, side by side — over <b>IPv4 and IPv6</b> as separate paths — who would be blocked, who gets an extra prompt, which policy loses its protection — with the country <b>looked up in the sign-in log</b>, an <b>If trusted</b> comparison and a Markdown export. Here until the egress decision (P-2716) is made. <span class="tag ok">reads only</span></p>
+      </div>
     </div>
     <div class="tool-sec"><h3>🗂 Explore &amp; document</h3><p>Read your baseline and turn it into something shareable.</p></div>
     <div class="tools">
@@ -296,7 +300,7 @@
     <div class="tools">
       <div class="tool tool-tile" id="toolCaGroups">
         <div class="tool-ic">👥</div><h3>Conditional Access groups <span class="tag upd">UPDATED</span></h3>
-        <p>One read, then everything is a row: every group the baseline expects or a policy references, with its status, members (direct and nested), the policies that use it and its protection — and a detail panel for the one you click: members as a tree with add and remove, policies, protection, history. Create, assign, protect, migrate, import and compare from the rows you tick. <span class="tag block">writes to tenant</span></p>
+        <p><b>Scope by workload (6.0):</b> Used by CA policies or Used by GSA, picked by the workspace you come from — 01, or 03 where it is called Groups and opens on All groups. One read, then everything is a row: every group the baseline expects or a policy references, with its status, members (direct and nested), the policies that use it and its protection — and a detail panel for the one you click: members as a tree with add and remove, policies, protection, history. Create, assign, protect, migrate, import and compare from the rows you tick. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolProtect">
         <div class="tool-ic">🔒</div><h3>Protect exclusions <span class="tag upd">UPDATED</span></h3>
@@ -309,6 +313,10 @@
       <div class="tool tool-tile" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Restricted AUs</h3>
         <p>Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
+      </div>
+      <div class="tool tool-tile" id="toolGsa">
+        <div class="tool-ic">🌐</div><h3>Global Secure Access <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
+        <p><b>Workspace 03 · Entra Tools.</b> Make stolen tokens useless: every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can go on — licence, the tenant activated, the <b>Microsoft traffic profile</b> on and assigned, signalling, the compliant network location, the client on devices, the policy, and the proof from the sign-in log — on one board. Each missing link that lives in Entra or Intune has its fix, described with its impact and its way back before it runs. Internet Access and Private Access come later. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolDeploy"><div class="tool-ic">↗</div><h3>Guided rollout <span class="tag new">NEW</span></h3><p>CloudFellows from a backup ZIP, Joey via Fetch latest. Review the import, observed impact and enforcement with the existing confirmations.</p></div>
       <div class="tool tool-tile" id="toolImport">
@@ -649,10 +657,17 @@
       </div>
       <label class="wi-f tb-scope" id="cgScopeWrap">
         <span>Scope</span>
-        <select id="cgScope" title="Which groups to look up" style="width:auto">
-          <option value="policies">Used by CA policies</option>
-          <option value="all">Baseline + templates</option>
-          <option value="tenant">All groups</option>
+        <select id="cgScope" title="Which groups to look up — the workspace you came from picks the first one" style="width:auto">
+          <optgroup label="Used by a workload">
+            <option value="policies">Used by CA policies</option>
+            <option value="gsa" disabled>Used by GSA</option>
+          </optgroup>
+          <optgroup label="Baseline">
+            <option value="all">Baseline + templates</option>
+          </optgroup>
+          <optgroup label="Tenant">
+            <option value="tenant">All groups</option>
+          </optgroup>
         </select></label>
       <div class="chip-filter" id="cgChips"></div>
       <input type="file" id="cgCsvFile" accept=".csv,text/csv,text/plain" style="display:none">
@@ -1030,6 +1045,20 @@
       </div>
     </div>
     <div class="tool-body" id="wvBody"></div>
+  </section>
+
+  <!-- ============ 🌐 GLOBAL SECURE ACCESS (T56, beta 32516, production 326) — js/gsa.js judges and renders, app.js reads and writes ============ -->
+  <section id="screen-gsa" class="screen tool">
+    <div class="list-card readme" id="gsaHead"></div>
+    <div class="toolbar" id="gsaToolbar">
+      <div class="dd-read mini muted" id="gsaRead"></div>
+      <div class="tb-actions">
+        <button class="btn" id="gsaRefresh" title="Read Global Secure Access, the profile, the locations, Intune and the licences again">⟳ Refresh</button>
+      </div>
+    </div>
+    <div class="tool-body">
+      <div id="gsaBody"></div>
+    </div>
   </section>
 
   <!-- ============ 📊 DEPLOYMENT DASHBOARD (T54, build 325) — js/deploydash.js builds, app.js reads ============ -->
@@ -1443,6 +1472,20 @@
     <div class="tool-body" id="moBody"></div>
   </section>
 
+  <!-- ============ 🛰 EGRESS & LOCATION IMPACT (T57, beta 32526, production 326) — a temporary tool, Workspace 03; js/egress.js judges and renders ============ -->
+  <section id="screen-egress" class="screen tool">
+    <div class="list-card readme" id="egHead"></div>
+    <div class="list-card" id="egForm"></div>
+    <div class="toolbar" id="egToolbar">
+      <div class="dd-read mini muted" id="egRead"></div>
+      <div class="tb-actions">
+        <button class="btn" id="egRefresh" title="Read the policies, the named locations and the group names again">⟳ Refresh</button>
+        <button class="btn" id="egMd">Export MD</button>
+      </div>
+    </div>
+    <div class="tool-body" id="egBody"></div>
+  </section>
+
   <!-- ============ COMPLIANT-DEVICE REALITY CHECK (R11) ============ -->
   <!-- ============ 🏅 IDENTITY SECURE SCORE (T42, build 323) — a tab of 🛡 Checks ============ -->
   <section id="screen-idscore" class="screen tool">
@@ -1567,7 +1610,7 @@
                sit under Shipped before from the start rather than waiting to age out,
                so Now holds only what is actually moving. rmAgeShipped still sorts
                them newest first. -->
-          <div class="list-card rm-card"><p class="mini" style="margin:0">Everything live is under <b>Shipped before</b>, at the bottom of this page — 57 items, newest first. What is moving now is <b>In beta today</b>, below.</p></div>
+          <div class="list-card rm-card"><p class="mini" style="margin:0">Everything live is under <b>Shipped before</b>, at the bottom of this page — 59 items, newest first. What is moving now is <b>In beta today</b>, below.</p></div>
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
@@ -1662,6 +1705,14 @@
         <h3>Shipped before <span class="rm-when">delivered, and no longer news</span></h3>
         <p class="mini muted" style="margin:0 0 12px">Everything that is live, newest first. A card lands here when it goes live, and a later build ages any other shipped card here too. They are kept rather than deleted — a roadmap that forgets what it delivered is only a wish list — but they stop competing with what is happening now.</p>
         <div id="rmShippedCards">
+          <div class="list-card rm-card" data-shipped="326">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R85</span> <a href="#" class="md-tool" data-tool="toolGsa">🌐 Global Secure Access — make stolen tokens useless, the Microsoft traffic profile first</a> <span class="tag grant">live · build 326 · v2.0.4</span></h4>
+            <p class="mini" style="margin:0">T56 in Workspace 03: the readiness board for a compliant-network-only Conditional Access policy — licence, activation, the Microsoft traffic profile and its assignment, signalling, the compliant network location, the client on Windows and macOS (written to Intune from the browser), the policy and the sign-in proof — with the fixes that live in Entra and Intune. It never switches a policy on and never edits its exclusions. Next: Internet Access, then Private Access.</p>
+          </div>
+          <div class="list-card rm-card" data-shipped="326">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R84</span> 🧭 Workspace 03 · Entra Tools — groups by the workload that uses them <span class="tag grant">live · build 326 · v2.0.4</span></h4>
+            <p class="mini" style="margin:0">A second workspace beside Conditional Access for the directory objects every workload leans on, opening on its tools overview: Groups (T12, opened on All groups, its scope naming the workload — Used by CA policies or Used by GSA — beside Baseline + templates and All groups), 🌐 Global Secure Access, and the temporary tools (🛰 Egress &amp; location impact, 📵 SMS &amp; voice, 🧷 memberOf). 02 · PIM-buddy is listed in the workspace menu as beta: it is on the beta channel only.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="325">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R81</span> <a href="#" class="md-tool" data-tool="toolDeployDash">📊 Deployment dashboard — the T28 rollout picture for Conditional Access</a> <span class="tag grant">live · build 325 · v2.0.3</span></h4>
             <p class="mini" style="margin:0">Every enabled user against the deploy groups: covered or left out of every one, route in, the policies on each group by state, and who an exclusion takes back out — a pie, by what. One row per deploy group with 🌊's go-live readiness on request, a left-out list, every other count a drill-through into 🌊, 🕵 or 👥. Export HTML for people without ENCA. Reads the tenant only — nothing from 🌍 Fill from regions. T54, reads only.</p>
@@ -2415,6 +2466,8 @@
       <h4>🧭 Workspaces &amp; navigation</h4>
       <p>From 2.0, once you are signed in, ENCA is laid out as workspaces: a rail of shortcuts on the left, a branded header across the top, a strip of open tools under it, and the tool itself below. The tools, their data and their confirmation steps are the same as before; this is how you move between them.</p>
       <ul>
+        <li><b>Workspaces 01 and 03</b> <span class="tag new">NEW</span> (build 326) — the chip beside the wordmark says which side you are on: <b>01 · Conditional Access</b>, every Conditional Access tool as before, or <b>03 · Entra Tools</b>, the directory objects every workload leans on — 👥 <b>Groups</b> (the same tool as Conditional Access groups, opened on All groups, with a CA or GSA badge on every row it can place), 🌐 <b>Global Secure Access</b> and the ⏳ temporary tools (🛰 Egress &amp; location impact, 📵 SMS &amp; voice retirement, 🧷 memberOf retirement). Press the chip, the <b>01 ⇄</b> caption at the foot of the rail, <kbd>⌘⇧1</kbd> / <kbd>⌘⇧3</kbd>, or <kbd>⌘K</kbd> → <i>Switch to</i>. The header colour follows the ENCA mark: deep green with a gold line on 01, the beacon green with a pale line on 03. A tool opened from the other side switches sides with it; open tabs of the other side stay open and come back when you switch. <code>?ws=entra</code> opens on 03, and the last side used is remembered in this browser.</li>
+        <li><b>02 · PIM-buddy</b> <span class="tag new">BETA</span> — listed in the chip's menu so the numbering reads 01 · 02 · 03, marked beta and not selectable: PIM-buddy is on the beta channel only and none of it is in this build.</li>
         <li><b>The rail</b> — <b>Home</b>, then the tools in the order the work happens: <b>Policies</b>, <b>Sign-ins</b> and <b>Who is…</b> (what exists and who it reaches), <b>Checks</b> (what is wrong with it), then <b>Baseline</b>, <b>CA groups</b> and <b>Building blocks</b> — 🧩 Policy building blocks (what to change). Below the divider, <b>All tools</b> and <b>Help</b>. The tool you are in is highlighted. On a narrow window the rail becomes a bar along the bottom with fewer shortcuts; the rest stay under All tools.</li>
         <li><b>All tools</b> — in the rail and in the header. Opens the tool library: every tool in its group, searchable by name, task or tool number (<code>T14</code>).</li>
         <li><b>The header</b> — your logo on a round medallion hanging over the header's lower edge above the rail (a wide wordmark logo, or a narrow window, keeps the flat logo), the product name, and the account button naming the tenant, with <i>Demo</i> when you are on sample data. The account menu holds the connected app registration, <b>Theme</b>, <b>Close all workspaces</b> and sign-out. Header text switches between dark and light to stay readable on whatever colours the branding sets.</li>
@@ -2628,10 +2681,28 @@
 
 
     <section class="help-sec">
+      <h4>🌐 Global Secure Access <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p><b>Workspace 03 · Entra Tools, T56.</b> A stolen session token or cookie is replayed from the attacker's machine. A Conditional Access policy that blocks every location <b>except the compliant network</b> makes it useless there — but only once every link Global Secure Access needs is in place, or the policy blocks your own people instead. This tool puts the links on one board. It covers the <b>Microsoft traffic profile</b>; Internet Access and Private Access come later.</p>
+      <ul>
+        <li><b>The eight links</b> — ① <b>Licence</b>: Entra ID P1 or P2 seats (the Microsoft traffic profile, the compliant network and source IP restoration come with P1). ② <b>Tenant</b>: Global Secure Access activated. ③ <b>Microsoft traffic profile</b>: enabled, every traffic policy in it enabled, and assigned — to groups (a pilot first) or all users. ④ <b>Conditional Access signalling</b> (source IP restoration). ⑤ <b>Compliant network</b> named location — over Graph it is not created for you, so the tool does. ⑥ <b>Client on devices</b>: an Intune platform script or app for Windows, a shell script for macOS. ⑦ <b>The policy</b>: every Conditional Access policy that names the compliant network, with its state, who it covers, whether the Microsoft Intune and Intune Enrollment apps are out (without them a new device cannot enrol to get the client) and whether admin roles are excluded. ⑧ <b>Proof</b>: on request, the last 7 days of sign-ins (first 5,000) — how many came through Global Secure Access, and per policy how many a report-only policy would block and for how many users.</li>
+        <li><b>The fixes</b> — Activate, Enable profile, Assign (a pilot group by name, or all users), Enable signalling, Create the compliant network location, Create Windows remediation (an Intune remediation: detection checks the client and its settings every day or every hour, remediation installs it from Microsoft when missing and puts the settings back, never restarts; named <code>Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0</code>; its results — without issue, remediated, failing — show on the client link; Microsoft lists Windows Enterprise E3/E5, Education A3/A5 or VDA for remediations) and Create the macOS script  — both made in Intune and named the way the baseline names its scripts (<code>Win - PSH - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0</code>, <code>MACOS - SH - Software Installation - D - Install Global Secure Access Client - R26.10 - v1.0</code>; release and version editable), assigned to a device group — <code>INT-SEC-D-GSA-WIN-M365</code> / <code>INT-SEC-D-GSA-MAC-M365</code> by default, made empty when missing; Windows lock-down on by default, prefer IPv4 optional. Each opens a panel that says what it changes, who it affects and how to undo it, and asks for its permission only when you press Apply; the board reads the tenant again afterwards. The script can be downloaded as it will be uploaded. macOS also needs three profiles — system extensions, transparent proxy, client settings — which the client link reads with their assignment and reports when missing or assigned to nobody; they are not written here.</li>
+        <li><b>The flow</b> — the eight links are one flow in five lanes (Foundation, Traffic path, Endpoint, Enforce, Verify); the step that blocks opens under it, any step opens on a click, with what ENCA read and what you can do. A fix opens as a <b>workspace</b> below the step — several can be open at once, newest first, each with what it sends (the script as uploaded, or the Graph request; Copy and Download), its options, impact, way back, Apply and the log. One Apply runs at a time. (an assignment whose remediation Graph reports as off is NOT treated as detect only — Graph said off in devcf while Intune showed it on.)</li>
+        <li><b>What it never does</b> — switch a policy on, or change a policy's users, exclusions or controls. A policy's state is changed in 🗂 Policies or 🎚 Set policy state when the proof says nobody is blocked who should not be; its exclusions stay as they are (the admin-role question is in the admin handover).</li>
+        <li><b>Policies that name the compliant network</b> — a card of its own under the board: every policy loaded in 🗂 Policies that names the compliant network, on either side — excluded (the policy applies outside it, the token-replay shape) or included (it applies on it) — with its state, the grant, who it covers and whether the Intune and Intune Enrollment apps are out. Load 🗂 Policies first; the card says so when they are not.</li>
+        <li><b>Intune policies and scripts for the client</b> — a card under the policies: every remediation, platform script, app, macOS shell script and macOS profile with Global Secure Access or GSA in its name — where it sits in Intune, whether ENCA made it, and the groups it is assigned to and excluded from. Duplicates are marked, a Windows client deployed more than one way is called out, and a missing macOS profile is named. Read only.</li>
+        <li><b>Groups</b> — the groups on the profile and the groups the compliant-network policies include are listed, and are the <b>Used by GSA</b> scope of 👥 Groups (T12).</li>
+        <li><b>What the board cannot see</b> (from a lab deployment) — the Microsoft profile's <b>device platforms</b> are set on its Assignments page in the portal (no documented Graph call): no devices assigned for a platform means no device of it gets the profile. On Windows, <b>secure DNS</b> (DNS over HTTPS) must be off in Edge and Chrome or the client cannot tunnel by name. The portal makes a <code>_GSA_&lt;guid&gt;</code> backing group per profile — the groups table marks it; do not use it in Intune or Conditional Access. The tenant link mentions, as information only, when the <b>ZTNA Policy Service Client</b> app is not in the tenant — Microsoft does not require it; create it with the optional button only if clients stay Partially Connected. The Windows script writes pilot client settings unless <b>Lock down</b> is ticked; the macOS script installs only on macOS 14 or later and only a package signed by Microsoft.</li>
+        <li><b>Caveats</b> — the client tunnels IPv4 only: a device that reaches Entra over IPv6 goes around it and is blocked by the policy. A platform script runs once and installs whatever version Microsoft serves then; it does not update the client. The Graph routes for activation, the profile, signalling and the location are Microsoft's beta network access API.</li>
+      </ul>
+      <p class="help-x">Reads: networkAccess tenant status, forwarding profiles and settings (NetworkAccessPolicy.Read.All, NetworkAccess.Read.All), the profile's service principal and assignments (Application.Read.All), named locations, Intune scripts and apps (DeviceManagementConfiguration.Read.All, DeviceManagementApps.Read.All), subscribed SKUs; the proof adds AuditLog.Read.All. Writes ask for their own scope on Apply.</p>
+    </section>
+
+    <section class="help-sec">
       <h4>👥 Conditional Access groups <span class="tag block">writes to tenant</span></h4>
       <p><b>📞 Teams devices is a row action here, not a tile.</b> ② Create already makes <code>CAB-SEC-U-TeamsSharedDevices</code> as a dynamic group with the Teams rule; T35 rebuilds that rule from the device licences the tenant actually holds, and replaces it. One action on ONE row, so from build 311 it is offered where the group is — the <b>📞 Rule</b> button on that row — and nowhere else, because on any other row it would mean nothing. Which row gets it is decided by the tool's own alias list, so a tenant that named the group <code>CAB-SEC-U-SharedDevices</code> still gets the action. <b>T35</b> keeps its number (see 🔢 Tool numbers) and its section below, ⌘K still finds it by name and number, and its screen carries a <b>← Groups</b> button back to the list it came from.</p>
       <p>The group side of the baseline, in one tool. <b>One read, then everything is a row.</b> On open the tool reads the tenant once — the groups your policies reference (scope <b>Used by CA policies</b>), plus everything the ★ active baseline expects (<b>Baseline + templates</b>), or every security group in the tenant, first 5,000 (<b>All groups</b>) — with their policies, protection, role-assignable state and <b>nested groups</b> — and shows them as a <b>list</b>. Members and nesting are read per group when you first look at it, kept for the session, and a write re-reads only the group it touched.</p>
       <ul>
+        <li><b>Scope by workload</b> <span class="tag upd">UPDATED</span> (6.0, build 326) — the scope says which groups: <b>Used by CA policies</b>, <b>Used by GSA</b> (the groups 🌐 Global Secure Access assigns its traffic profile to — live once that tool has read the tenant), <b>Baseline + templates</b> or <b>All groups</b>. The workspace you come from picks the first one — 01 opens on Used by CA policies, 03 (where the tool is called <b>Groups</b>) on All groups — and a scope you pick by hand is kept for that workspace until the page reloads. Every row carries a badge for the workloads that use it: CA when a Conditional Access policy names it, GSA when Global Secure Access assigns to it.</li>
         <li><b>The list</b> — group, status (present / missing / referenced but gone), members (count, direct vs nested, or a read button), the policies that use it with their state, protection (which restricted unit, or not protected). Filter chips: needs attention, missing, gone, empty, not protected, role-assignable, ↪ has nested groups (always shown — a nested group inside an exclusion or break-glass group is needs attention, because whoever manages the nested group decides who bypasses the policy), not in the baseline; the search matches group names, object IDs and members. Sorted attention first; click a column header to sort by it, again to flip, a third time to go back. Each row offers what applies to it — ＋ Create on a missing group, 🔁 Restore on a dangling reference, 🌊 on a deploy group, ⋯ for everything else.</li>
         <li><b>Groups every baseline shares</b> <span class="tag upd">UPDATED</span> — a group counts as the baseline's (present, not <b>not in the baseline</b>) when the ★ active baseline defines it, and also when it belongs to <b>every</b> baseline: the <b>🚨 E-Admins groups</b> — <code>Emergency_Access1</code>, <code>Emergency_Access2</code>, <code>CAB-SEC-U-BreakGlass</code>, and any group an E-Admins policy includes — and the <b>🚀 deploy groups</b> <code>CAD-SEC-U-DG-*</code> that a Deployment groups import and 🌊 waves use under any baseline. Under Joey Verlinden's baseline a group also counts when his repository names it that way (<code>CA403-Guests-… - Exclude</code>), when it is his example include group (<code>APP_Microsoft365_E5</code>), or when it is the exclusion group his naming rule gives a policy this tenant has under an older release's name (<code>CA005-…-AppEnforcedRestrictions - Exclude</code>). The row says why — <i>every baseline</i>, <i>🚨 E-Admins, every baseline</i>, <i>the baseline's naming rule</i>, <i>the repository's group name</i> — and so does Export MD. Under his baseline, <b>Baseline + templates</b> also expects the Emergency_Access pair (the shared E-Admins policies name them; his own break-glass group does the rest) and ② Create makes them from the CloudFellows template; deploy groups are recognised but never reported missing. The ⚠ hint that this tenant carries another baseline's policy names no longer counts the six E-Admins policies, which every baseline expects. Only a group none of this explains stays under <b>not in the baseline</b>.</li>
         <li><b>🌍 Fill from regions</b> <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span> <span class="tag block">writes to tenant</span> (toolbar) — puts the users of a region list's member groups into the seven deploy groups (default <code>CAD-SEC-U-DG-*</code>), in three steps; <b>ℹ How it works</b> in the dialog walks through them with this tenant's names. Nothing about a customer is built in: <b>the region list is a CSV you import once per tenant</b> — header <code>region,group,label,ticked,mode</code>, one row per source group; the group is a display name (any case), an object id, or a name ending in <code>*</code> for every group starting with it; mode is empty (the rules), <code>sa-only</code> (its users go to SA only) or <code>ignore</code> (listed, never read). <b>⬇ Download template</b> gives a sample. The import is checked against the tenant before it is saved: found (with members and dynamic), 0 members, not in this tenant (kept, shown as not in this tenant), a duplicate, a name two groups carry, or a deploy group named as its own source (left out). <b>Where it is kept:</b> in this browser, per tenant (<code>enca-dgfill:&lt;tenant id&gt;</code>) with its file name and date — <b>⬇ Export CSV</b> gives it back, <b>⬆ Replace</b> imports a new one, <b>Clear</b> removes it; another browser or machine imports it once. <b>⚙ Settings</b> (kept the same way): the main account domain (default the tenant's default domain), the second account domains (empty turns rules 0a, 0b and 5 off), the external marker (an extensionAttribute 1–15 and the text it starts with; empty turns rule 2 off), an optional prefix that also lists the tenant's other groups starting with it, unticked, and the name of each deploy group with whether it is there. <b>① Sources</b>: the list's regions in CSV order, the ticks from the CSV; plus all guests and every second account, read directly. <b>② Preview</b>: per deploy group +adds and −removes, the policies that name it, and per user the rule and why. The rules: a second account (guests excluded, paired wherever it was read — the Second accounts tick or a ticked group) with a main-domain account of the same name before the @ → <b>ADM</b> only, without one → <b>SA</b> only; a user only in sa-only sources → <b>SA</b> only; a guest → <b>GUESTUSERS</b>; the external marker starting with the external text (any case) → <b>EXT</b>; anybody else → <b>INT</b>; all three → <b>GLO</b>; the main account of a second account → <b>DevOps</b>. <b>Add + fix</b> (default) also takes a user read from a ticked source out of a deploy group the rules do not give her — never somebody in no ticked source, never out of DevOps, never a member through another group. <b>③ Apply</b>: impact and recovery, a JSON backup of every deploy group's direct members, the tenant's domain typed, adds before removals in one run ledger, a read-back, a report — and <b>↩ Undo this run</b>, which reverses exactly what the run changed. A dynamic or missing deploy group is refused, never written.</li>
@@ -2819,6 +2890,19 @@
         <li><b>Owner notification</b> — owners of the affected groups are read for an email that asks each owner to replace the rule, convert to assigned, or say it can go; administrative units have no owner and the modal says so. Countdown, Markdown report and CSV.</li>
       </ul>
       <p class="help-x">Reads only and asks for no extra consent beyond the optional entitlement-management scope — rewriting a membership rule changes who a Conditional Access policy hits, and that decision belongs to a person in the portal. Lives in the Temporary tools section and is removed once the retirement has passed.</p>
+    </section>
+    <section class="help-sec">
+      <h4>🛰 Egress &amp; location impact <span class="tag new">BETA</span></h4>
+      <p>A <b>temporary</b> tool in <b>Workspace 03 · Entra Tools</b> (T57), here until the egress decision of P-2716 is made. Conditional Access evaluates the public IP that reaches Entra: behind a cloud proxy (Netskope, Zscaler) that is the proxy's egress, not the office line — the <code>X-Forwarded-For</code> header is ignored — and the country is looked up from that same IP. A policy that excludes the office, or <b>all trusted locations</b>, then treats everyone as outside.</p>
+      <ul>
+        <li><b>Input</b> — the egress IPs or ranges (IPv4 and IPv6, CIDR allowed). <b>⌕ Look up in the sign-in log</b> reads 30 days of sign-ins (interactive first, then non-interactive; <code>AuditLog.Read.All</code>, asked once) for the country <b>Entra recorded</b> for the egress — the country Conditional Access uses — and for the office range. An address is looked up in Entra's own spelling (an IPv6 address written out in full is still found), and a <b>range</b> by its prefix — an IPv6 /64 or /48, an IPv4 /24 — keeping only the sign-ins inside it, so an office that is only known by its IPv6 prefix gets a country too. With no sign-in from that IP, pick the country by hand; an unknown country is reported, never guessed.</li>
+        <li><b>Today vs via the egress</b> — every policy with a location condition, judged twice: from inside every trusted IP location (in the office country), and from the egress. Where the location rule does not match, the cell reads <b>passes</b> — the sign-in gets through that policy — with why: the place is trusted, is in a location the policy excludes, or is not in its locations. Impact: <b>everyone blocked</b> and <b>break-glass blocked</b> (lockout risk), a group or workload identities blocked, an extra prompt or session control, protection lost, no change, or <b>cannot judge</b> (a GPS country location, the legacy MFA trusted IPs, an unknown country). A policy that targets no resources, or names All locations with no exclusion, is called out as not depending on the location. Off and report-only policies are judged as they would act once on.</li>
+        <li><b>IPv4 and IPv6</b> — a sign-in reaches Entra over IPv4 <b>or</b> IPv6, never both. An egress list holding both families is judged as <b>two paths</b>: the table shows Via egress IPv4 and Via egress IPv6, each placed in the named locations on its own, and the impact is the worse of the two, with which family under it when they differ (over IPv6 only). A location that holds only one family no longer makes the list read partly inside. Paste the proxy's IPv6 egress too when it has one — a v6 path that misses the trusted locations is where a dual-stack client gets blocked.</li>
+        <li><b>If trusted (option A)</b> — the egress judged as if it were in a NEW named location marked trusted. Policies on <b>all trusted</b> clear; policies that name the office location directly do not, and a finding says which locations to add the egress to instead.</li>
+        <li><b>Findings</b> — lockouts, break-glass behind a location block, a policy that targets nothing, the policies on all trusted, CAE strict location enforcement (a proxy that sees a different IP than the resource blocks the session; standard mode gives a one-hour token), an egress list only partly inside a location, IPv6 ranges on the office and none in the egress.</li>
+        <li><b>The options</b> — A: dedicated egress IPs from the proxy vendor in a named location marked trusted (never the vendor's shared ranges: other customers egress from them too). B: a steering bypass for the Microsoft sign-in endpoints, so Entra sees the real IP. C: pin the proxy to a PoP in the allowed country. D: device and authentication trust (compliant device, phishing-resistant MFA) instead of the network for people; keep IP rules for service accounts and workload identities. Break-glass never depends on a location.</li>
+      </ul>
+      <p class="help-x">Reads only. Markdown export for the change record: a narrow verdict table (policy, state, today, via the egress, impact), then who, excluded, target, rule and control per policy — it fits a Markdown preview without scrolling sideways, and follows the table's Changes only / All / On only. Lives in Workspace 03 under ⏳ Temporary tools and is removed once the egress decision has been made.</p>
     </section>
 
 
@@ -3681,97 +3765,99 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=325"></script>
-<script src="js/selfhost.js?v=325"></script>
-<script src="js/version.js?v=325"></script>
-<script src="js/verdict.js?v=325"></script>
-<script src="js/fork.js?v=325"></script>
-<script src="js/authConfig.js?v=325"></script>
-<script src="js/connection.js?v=325"></script>
-<script src="js/labels.js?v=325"></script>
-<script src="js/capabilities.js?v=325"></script>
-<script src="js/graph.js?v=325"></script>
-<script src="js/model.js?v=325"></script>
-<script src="js/render.js?v=325"></script>
-<script src="js/analyze.js?v=325"></script>
-<script src="js/whatif.js?v=325"></script>
-<script src="js/mslearn.js?v=325"></script>
-<script src="js/learntriage.js?v=325"></script>
-<script src="js/learnfeed.js?v=325"></script>
-<script src="js/gapcheck.js?v=325"></script>
-<script src="js/exclusions.js?v=325"></script>
-<script src="js/cascope.js?v=325"></script>
-<script src="js/coverage.js?v=325"></script>
-<script src="js/runmeta.js?v=325"></script>
-<script src="js/overview.js?v=325"></script>
-<script src="js/validator.js?v=325"></script>
-<script src="js/whatifeval.js?v=325"></script>
-<script src="js/builder.js?v=325"></script>
-<script src="js/onboard.js?v=325"></script>
-<script src="js/compare.js?v=325"></script>
-<script src="js/whois.js?v=325"></script>
-<script src="js/wave.js?v=325"></script>
-<script src="js/sessionctl.js?v=325"></script>
-<script src="js/spgap.js?v=325"></script>
-<script src="js/groupuse.js?v=325"></script>
-<script src="js/iso3166.js?v=325"></script>
-<script src="js/causes.js?v=325"></script>
-<script src="js/locations.js?v=325"></script>
-<script src="js/locsignin.js?v=325"></script>
-<script src="js/workloadid.js?v=325"></script>
-<script src="js/authcontexts.js?v=325"></script>
-<script src="js/authstrengths.js?v=325"></script>
-<script src="js/recycle.js?v=325"></script>
-<script src="js/rmau.js?v=325"></script>
-<script src="js/camap.js?v=325"></script>
-<script src="js/rmaudoc.js?v=325"></script>
-<script src="js/termsofuse.js?v=325"></script>
-<script src="js/audit.js?v=325"></script>
-<script src="js/drift.js?v=325"></script>
-<script src="js/guide.js?v=325"></script>
-<script src="js/userimpact.js?v=325"></script>
-<script src="js/smsvoice.js?v=325"></script>
-<script src="js/memberof.js?v=325"></script>
-<script src="js/devcheck.js?v=325"></script>
-<script src="js/idscore.js?v=325"></script>
-<script src="js/xtenant.js?v=325"></script>
-<script src="js/passkeys.js?v=325"></script>
-<script src="js/tokencov.js?v=325"></script>
-<script src="js/naming.js?v=325"></script>
-<script src="js/licgap.js?v=325"></script>
-<script src="js/teamsdev.js?v=325"></script>
-<script src="js/signinstore.js?v=325"></script>
-<script src="js/signins.js?v=325"></script>
-<script src="js/reportimpact.js?v=325"></script>
-<script src="js/changelog.js?v=325"></script>
-<script src="js/baselineData.js?v=325"></script>
-<script src="js/baselineJoeyData.js?v=325"></script>
-<script src="js/baselineLive.js?v=325"></script>
-<script src="js/baseline.js?v=325"></script>
-<script src="js/baselineCleanup.js?v=325"></script>
-<script src="js/groupTemplates.js?v=325"></script>
-<script src="js/assign.js?v=325"></script>
-<script src="js/cagroups.js?v=325"></script>
-<script src="js/groupmerge.js?v=325"></script>
-<script src="js/dgfill.js?v=325"></script>
-<script src="js/deploydash.js?v=325"></script>
-<script src="js/groupsview.js?v=325"></script>
-<script src="js/runledger.js?v=325"></script>
-<script src="js/bgvault.js?v=325"></script>
-<script src="js/protect.js?v=325"></script>
-<script src="js/policy-compare.js?v=325"></script>
-<script src="js/import.js?v=325"></script>
-<script src="js/export.js?v=325"></script>
-<script src="js/demo.js?v=325"></script>
-<script src="js/list-detail.js?v=325"></script>
-<script src="js/flat-icons.js?v=325"></script>
-<script src="js/workspace.js?v=325"></script>
-<script src="js/analysis-jobs.js?v=325"></script>
-<script src="js/search-suggest.js?v=325"></script>
-<script src="js/app.js?v=325"></script>
-<script src="js/col-resize.js?v=325"></script>
-<script src="js/accessibility.js?v=325"></script>
-<script src="js/workspaces.js?v=325"></script>
-<script src="js/tool-layout.js?v=325"></script>
+<script src="js/branding.js?v=326"></script>
+<script src="js/selfhost.js?v=326"></script>
+<script src="js/version.js?v=326"></script>
+<script src="js/verdict.js?v=326"></script>
+<script src="js/fork.js?v=326"></script>
+<script src="js/authConfig.js?v=326"></script>
+<script src="js/connection.js?v=326"></script>
+<script src="js/labels.js?v=326"></script>
+<script src="js/capabilities.js?v=326"></script>
+<script src="js/graph.js?v=326"></script>
+<script src="js/model.js?v=326"></script>
+<script src="js/render.js?v=326"></script>
+<script src="js/analyze.js?v=326"></script>
+<script src="js/whatif.js?v=326"></script>
+<script src="js/mslearn.js?v=326"></script>
+<script src="js/learntriage.js?v=326"></script>
+<script src="js/learnfeed.js?v=326"></script>
+<script src="js/gapcheck.js?v=326"></script>
+<script src="js/exclusions.js?v=326"></script>
+<script src="js/cascope.js?v=326"></script>
+<script src="js/coverage.js?v=326"></script>
+<script src="js/runmeta.js?v=326"></script>
+<script src="js/overview.js?v=326"></script>
+<script src="js/validator.js?v=326"></script>
+<script src="js/whatifeval.js?v=326"></script>
+<script src="js/builder.js?v=326"></script>
+<script src="js/onboard.js?v=326"></script>
+<script src="js/compare.js?v=326"></script>
+<script src="js/whois.js?v=326"></script>
+<script src="js/wave.js?v=326"></script>
+<script src="js/sessionctl.js?v=326"></script>
+<script src="js/spgap.js?v=326"></script>
+<script src="js/groupuse.js?v=326"></script>
+<script src="js/iso3166.js?v=326"></script>
+<script src="js/causes.js?v=326"></script>
+<script src="js/locations.js?v=326"></script>
+<script src="js/locsignin.js?v=326"></script>
+<script src="js/workloadid.js?v=326"></script>
+<script src="js/authcontexts.js?v=326"></script>
+<script src="js/authstrengths.js?v=326"></script>
+<script src="js/recycle.js?v=326"></script>
+<script src="js/rmau.js?v=326"></script>
+<script src="js/camap.js?v=326"></script>
+<script src="js/rmaudoc.js?v=326"></script>
+<script src="js/termsofuse.js?v=326"></script>
+<script src="js/audit.js?v=326"></script>
+<script src="js/drift.js?v=326"></script>
+<script src="js/guide.js?v=326"></script>
+<script src="js/userimpact.js?v=326"></script>
+<script src="js/smsvoice.js?v=326"></script>
+<script src="js/memberof.js?v=326"></script>
+<script src="js/devcheck.js?v=326"></script>
+<script src="js/idscore.js?v=326"></script>
+<script src="js/xtenant.js?v=326"></script>
+<script src="js/passkeys.js?v=326"></script>
+<script src="js/tokencov.js?v=326"></script>
+<script src="js/naming.js?v=326"></script>
+<script src="js/licgap.js?v=326"></script>
+<script src="js/teamsdev.js?v=326"></script>
+<script src="js/signinstore.js?v=326"></script>
+<script src="js/signins.js?v=326"></script>
+<script src="js/reportimpact.js?v=326"></script>
+<script src="js/changelog.js?v=326"></script>
+<script src="js/baselineData.js?v=326"></script>
+<script src="js/baselineJoeyData.js?v=326"></script>
+<script src="js/baselineLive.js?v=326"></script>
+<script src="js/baseline.js?v=326"></script>
+<script src="js/baselineCleanup.js?v=326"></script>
+<script src="js/groupTemplates.js?v=326"></script>
+<script src="js/assign.js?v=326"></script>
+<script src="js/cagroups.js?v=326"></script>
+<script src="js/groupmerge.js?v=326"></script>
+<script src="js/dgfill.js?v=326"></script>
+<script src="js/deploydash.js?v=326"></script>
+<script src="js/gsa.js?v=326"></script>
+<script src="js/egress.js?v=326"></script>
+<script src="js/groupsview.js?v=326"></script>
+<script src="js/runledger.js?v=326"></script>
+<script src="js/bgvault.js?v=326"></script>
+<script src="js/protect.js?v=326"></script>
+<script src="js/policy-compare.js?v=326"></script>
+<script src="js/import.js?v=326"></script>
+<script src="js/export.js?v=326"></script>
+<script src="js/demo.js?v=326"></script>
+<script src="js/list-detail.js?v=326"></script>
+<script src="js/flat-icons.js?v=326"></script>
+<script src="js/workspace.js?v=326"></script>
+<script src="js/analysis-jobs.js?v=326"></script>
+<script src="js/search-suggest.js?v=326"></script>
+<script src="js/app.js?v=326"></script>
+<script src="js/col-resize.js?v=326"></script>
+<script src="js/accessibility.js?v=326"></script>
+<script src="js/workspaces.js?v=326"></script>
+<script src="js/tool-layout.js?v=326"></script>
 </body>
 </html>
