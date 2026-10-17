@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32704, date: "2026-10-17", title: "Global Secure Access: the macOS chain checked by content, reach and landing — with repair",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "Step 6 has a macOS chain table: the install script, system extensions, transparent proxy and client settings, each found by what it contains rather than by its name, compared with Microsoft Learn, checked against the Macs the install script reaches, and with what Intune reports from the devices. The script's group is checked too: how many devices it holds and how many are Macs that Intune manages." },
+      { kind: "new", tool: "Global Secure Access", text: "One fix per row. Repair makes the next version with the content corrected, assigns it like the old one, then unassigns the old one and marks it DEPRECATED (nothing is deleted). Assign adds the script's group to a profile that is right but misses those Macs. When another policy already allows system extensions on the Macs, the GSA extensions are added to that policy (a backup is downloaded first) instead of making a second policy that Intune would report as a conflict." },
+      { kind: "improved", tool: "Global Secure Access", text: "The macOS install script is the CloudFellows baseline version 1.2: it installs only a package signed by Microsoft, needs macOS 14 or later, waits on a first install until both approvals are on the Mac, and runs weekly to upgrade the client in place." },
+      { kind: "fixed", tool: "Global Secure Access", text: "The client settings profile was named with U (user) although it is a device payload on a device group; it is named with D now. A preference domain that ends in .plist is reported — the client reads com.microsoft.globalsecureaccess, so such a profile most likely never applied." },
+    ],
+  },
+  {
     build: 32703, date: "2026-10-17", title: "Global Secure Access: the macOS profiles come with the install script",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "Create macOS script and profiles makes the three profiles the client cannot run without beside the shell script: the system extension policy (settings catalog, both GSA extensions under Microsoft's team id), the transparent proxy profile (Learn's plist) and the client settings (preference file; Pause and Disable shown by default, tick Lock the client down to hide all four buttons). Each is ticked when it is missing or assigned to nobody, one already in Intune is reused and only assigned, and all of them land on the script's device group. Names follow the baseline's convention." },

@@ -93,11 +93,11 @@ test("names follow the CloudFellows Intune convention read from devcf", () => {
   assert.match(Gsa.MAC_FILE, /^scr-app-1\d\d-.*\.zsh$/);
 });
 
-test("the macOS shell script body: root, once, retries, the client installer from aka.ms", () => {
+test("the macOS shell script body: root, weekly (0.9.0, v1.2), retries, the client installer from aka.ms", () => {
   const b = Gsa.macScriptBody({ rel: "R26.10", ver: "v1.0" });
   assert.strictEqual(b["@odata.type"], "#microsoft.graph.deviceShellScript");
   assert.strictEqual(b.runAsAccount, "system");
-  assert.strictEqual(b.executionFrequency, "PT0S");
+  assert.strictEqual(b.executionFrequency, "P7D", "0.9.0: weekly — v1.2 upgrades in place");
   assert.strictEqual(b.retryCount, 3);
   const t = Buffer.from(b.scriptContent, "base64").toString("utf8");
   assert.match(t, /^#!\/bin\/zsh/);
@@ -248,7 +248,7 @@ test("32524: preview — each fix shows what it sends; scripts are the uploaded 
   assert.strictEqual(Gsa.preview("macscript", o)[0].text, Gsa.macScript());
   assert.match(Gsa.preview("ztnasp")[0].text, new RegExp(Gsa.ZTNA_CLIENT));
   assert.match(Gsa.preview("assign", { allUsers: true })[0].text, /appRoleAssignmentRequired": false/);
-  for (const k of Object.keys(Gsa.FIXES)) assert.ok(Gsa.preview(k, {}).length, `${k} has a preview`);
+  for (const k of Object.keys(Gsa.FIXES).filter((x) => !/^macfix-/.test(x))) assert.ok(Gsa.preview(k, {}).length, `${k} has a preview`);  // macfix-* need the chain (0.9.0 test)
 });
 
 test("32524/32525 devcf (read 14 Oct, every link live): the chain as the board shows it; runRemediationScript false is no signal", () => {
@@ -285,7 +285,7 @@ test("0.8.0 (32703): the three macOS profiles come with the script — Learn's s
   // names: devcf's, without [OPTIONAL]
   assert.strictEqual(Gsa.names(o).sysext, "MACOS - DCP - Device Configuration - D - Allow GSA System Extensions - R26.10 - v1.0");
   assert.strictEqual(Gsa.names(o).proxy, "MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.10 - v1.0");
-  assert.strictEqual(Gsa.names(o).settings, "MACOS - DCP - Device Configuration - U - GSA System settings - R26.10 - v1.0");
+  assert.strictEqual(Gsa.names(o).settings, "MACOS - DCP - Device Configuration - D - GSA System settings - R26.10 - v1.0", "0.9.0: D — a device payload");
   // system extensions: settings catalog, both bundle ids under Microsoft's team, user overrides allowed (devcf's own shape)
   const sx = Gsa.macSysextBody(o);
   assert.strictEqual(sx.platforms, "macOS"); assert.strictEqual(sx.technologies, "mdm,appleRemoteManagement");
@@ -350,4 +350,81 @@ test("0.8.0 (32703): the three macOS profiles come with the script — Learn's s
   assert.match(h, /data-gsafix="macprof">Create macOS profiles…/);
   assert.ok(Gsa.FIXES.macprof && Gsa.FIXES.macprof.recovery, "described before it runs");
   void m;
+});
+
+test("0.9.0: the macOS chain — found by content, checked against Learn, reach and landed; fixes as plans", () => {
+  const b64 = (t) => Buffer.from(t, "utf8").toString("base64");
+  // the v1.2 script is the baseline's, byte for byte, file 109
+  assert.strictEqual(Gsa.MAC_FILE, "scr-app-109-install-global-secure-access.zsh");
+  const t = Gsa.macScript();
+  assert.match(t, /pkgutil --check-signature/); assert.match(t, /UBF8T346G9/); assert.match(t, /minmajor=14/);
+  assert.match(t, /com\.apple\.system-extension-policy/); assert.match(t, /com\.apple\.vpn\.managed/); assert.match(t, /trap cleanup EXIT/);
+  // the devcf shape before the repairs
+  const raw = Gsa.demo(); raw.macChain = Gsa.demoMac();
+  const m = Gsa.model(raw, []), c = m.links.find((l) => l.k === "client"), mac = c.mac;
+  const by = Object.fromEntries(mac.rows.map((r) => [r.key, r]));
+  assert.strictEqual(by.script.st, "bad"); assert.strictEqual(by.script.mode, "repair");
+  assert.ok(by.script.issues.some((i) => /signed by Microsoft/.test(i.t)), "no signature check is a problem");
+  assert.ok(by.script.issues.some((i) => /both approvals/.test(i.t)));
+  assert.strictEqual(by.sysext.consolidated, true, "found by its settings, not its name");
+  assert.strictEqual(by.sysext.reach.text, "assigned to nobody"); assert.strictEqual(by.sysext.mode, "assign");
+  assert.strictEqual(by.proxy.st, "ok", "Learn's plist, same group");
+  assert.strictEqual(by.settings.mode, "repair");
+  assert.ok(by.settings.issues.some((i) => i.sev === "bad" && /com\.microsoft\.globalsecureaccess\.plist/.test(i.t)));
+  assert.ok(by.settings.issues.some((i) => i.sev === "note" && /named U/.test(i.t)));
+  assert.strictEqual(by.settings.mood, "lock-down");
+  assert.strictEqual(mac.noMac, true, "one member, no managed Mac");
+  assert.strictEqual(mac.problems, 4); assert.strictEqual(c.st, "warn"); assert.match(c.sub, /4 problems/);
+  // repair: new version, assigned like the old one, old unassigned and renamed — never deleted
+  const rp = Gsa.macFixPlan("macfix-settings", mac, { rel: "R26.10" });
+  assert.deepStrictEqual(rp.ops.map((x) => x.do), ["post", "assign", "assign", "patch"]);
+  assert.strictEqual(rp.ops[0].body.displayName, "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA System settings - R26.10 - v3.2", "U → D, version bumped, [OPTIONAL] kept");
+  assert.strictEqual(rp.ops[0].body.bundleId, "com.microsoft.globalsecureaccess");
+  assert.doesNotMatch(Buffer.from(rp.ops[0].body.configurationXml, "base64").toString(), /<false\/>/, "lock-down read from the old one");
+  assert.deepStrictEqual(rp.ops[2].targets, [], "the old one unassigned");
+  assert.match(rp.ops[3].body.displayName, /^\[DEPRECATED\] \[OPTIONAL\] .* - U - GSA System settings - R26\.10 - v3\.1$/);
+  assert.ok(!rp.ops.some((x) => /delete/i.test(x.do)));
+  // assign keeps what is there and adds the script's group
+  const ap = Gsa.macFixPlan("macfix-sysext", mac, {});
+  assert.strictEqual(ap.mode, "assign"); assert.deepStrictEqual(ap.ops[0].targets.map((x) => x.groupId), ["g-mac"]);
+  // the script repair carries v1.2
+  const sp = Gsa.macFixPlan("macfix-script", mac, { rel: "R26.10" });
+  assert.strictEqual(Buffer.from(sp.ops[0].body.scriptContent, "base64").toString("utf8"), Gsa.macScript());
+  assert.match(sp.ops[0].body.displayName, / - v1\.2$/);
+  // a complete row has nothing to do
+  assert.strictEqual(Gsa.macFixPlan("macfix-proxy", mac, {}).mode, "none");
+  // system extensions missing but another policy sets the payload on the Macs: add to it (backup + PUT), not a second policy
+  const ch = Gsa.demoMac(); ch.policies = [{ id: "p-mde", name: "MACOS - DCP - Defender - D - MDE System Settings - R26.10 - v3.3", technologies: "mdm,appleRemoteManagement", roleScopeTagIds: ["0"], assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-mac" } }],
+    settings: [{ settingInstance: { "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance", settingDefinitionId: "com.apple.system-extension-policy_com.apple.system-extension-policy", groupSettingCollectionValue: [{ children: [{ "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance", settingDefinitionId: "com.apple.system-extension-policy_allowedsystemextensions", groupSettingCollectionValue: [{ children: [
+      { settingDefinitionId: "com.apple.system-extension-policy_allowedsystemextensions_generickey", simpleSettingCollectionValue: [{ value: "com.microsoft.wdav.netext" }] },
+      { settingDefinitionId: "com.apple.system-extension-policy_allowedsystemextensions_generickey_keytobereplaced", simpleSettingValue: { value: "UBF8T346G9" } }] }] }] }] } }] }];
+  const mac2 = Gsa.macCheck(ch, {});
+  assert.strictEqual(mac2.rows.find((r) => r.key === "sysext").found, null);
+  assert.deepStrictEqual(mac2.otherSx.map((p) => p.id), ["p-mde"]);
+  const add = Gsa.macFixPlan("macfix-sysext", mac2, { rel: "R26.10" });
+  assert.strictEqual(add.mode, "add"); assert.deepStrictEqual(add.ops.map((x) => x.do), ["backup", "put"]);
+  const f = Gsa.sysextFacts({ settings: add.ops[1].body.settings });
+  assert.ok(f.ids, "both GSA ids under the team after the PUT"); assert.ok(JSON.stringify(add.ops[1].body.settings).includes("com.microsoft.wdav.netext"), "what it had is kept");
+  assert.ok(!Gsa.macCheck(Object.assign({}, ch, { policies: [ch.policies[0]] }), {}).rows.find((r) => r.key === "sysext").found);
+  assert.strictEqual(Gsa.macFixPlan("macfix-sysext", mac2, { sxMode: "new" }).mode, "create", "the person may still pick a separate policy");
+  // reach: an exclusion of the script's group, All devices, a filter
+  const sA = [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g1" } }];
+  assert.strictEqual(Gsa.reach([{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" } }, { target: { "@odata.type": "#microsoft.graph.exclusionGroupAssignmentTarget", groupId: "g1" } }], sA, {}).st, "warn");
+  assert.strictEqual(Gsa.reach([{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" } }], sA, {}).st, "ok");
+  assert.strictEqual(Gsa.reach([{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g2" } }], sA, { g1: "Macs" }).text, "misses Macs — the script's group");
+  // content: a legacy Extensions template and the team in both lists are named
+  assert.ok(Gsa.contentIssues("sysext", { "@odata.type": "#microsoft.graph.macOSExtensionsConfiguration", systemExtensionsAllowedTeamIdentifiers: ["UBF8T346G9"] }).some((i) => /deprecated Extensions template/.test(i.t)));
+  // a proxy with another provider is not GSA's; one with the user channel is wrong
+  const px = Gsa.macProxyBody({}); px.deploymentChannel = "userChannel";
+  assert.ok(Gsa.contentIssues("proxy", px).some((i) => /user channel/.test(i.t)));
+  // the table renders a button per row that has a fix
+  const h = Gsa.render(m, { sel: "client" });
+  assert.match(h, /id="gsaMac"/); assert.strictEqual((h.match(/data-gsafix="macfix-/g) || []).length, 3);
+  // preview: the body as sent and the requests in order
+  const pv = Gsa.preview("macfix-settings", { mac, rel: "R26.10" });
+  assert.deepStrictEqual(pv.map((x) => x.id), ["settings", "req"]); assert.match(pv[1].text, /\/assign/);
+  // names
+  assert.strictEqual(Gsa.bumpName("[DEPRECATED] MACOS - X - D - Y - R26.6 - v3.0"), `MACOS - X - D - Y - ${Gsa.relTag()} - v3.1`);
+  assert.strictEqual(Gsa.bumpName("My GSA policy"), `My GSA policy - ${Gsa.relTag()} - v1.0`);
+  void b64;
 });

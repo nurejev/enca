@@ -3246,6 +3246,13 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:900px){.gsa-cols{grid-template-columns:1fr}#screen-gsa .gsa-verdict{grid-template-columns:1fr}}
 .gsa-sect{padding:14px 16px;margin:0 0 14px}.gsa-sect h3{font-size:15px;margin:0 0 8px}.gsa-later{margin:6px 0 0}
 .gsa-warn-txt{color:var(--report)}
+/* 0.9.0 T56: the macOS chain table — found, content, reach, landed */
+.gsa-bad-txt{color:var(--off)}.gsa-ok-txt{color:var(--on)}.gsa-na-txt{color:var(--report)}
+.gsa-macsect .gsa-tablewrap{overflow-x:auto}
+.gsa-mtable{width:100%;border-collapse:collapse;font-size:13px}
+.gsa-mtable th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding:6px 8px;white-space:nowrap}
+.gsa-mtable td{border-bottom:1px solid var(--border);padding:8px;vertical-align:top;overflow-wrap:anywhere}
+.gsa-mtable td:first-child{white-space:nowrap}.gsa-mtable td:last-child{text-align:right;white-space:nowrap}
 .gsa-backing td{opacity:.75}.gsa-backing td:last-child{color:var(--report)}
 .gsa-optional{opacity:.75;font-weight:400}
 /* 32524 T56 — the flow, the selected step, stacked workspaces */

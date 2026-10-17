@@ -48,9 +48,10 @@ const Gsa = (() => {
     // 0.8.0: the three macOS profiles, devcf's names without its [OPTIONAL]
     sysext: `MACOS - DCP - Device Configuration - D - Allow GSA System Extensions - ${rel} - ${ver}`,
     proxy: `MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - ${rel} - ${ver}`,
-    settings: `MACOS - DCP - Device Configuration - U - GSA System settings - ${rel} - ${ver}`,
+    // 0.9.0 (Mihai: a device policy with a U name): D — a preference file is a device payload
+    settings: `MACOS - DCP - Device Configuration - D - GSA System settings - ${rel} - ${ver}`,
   }; };
-  const WIN_FILE = "Install-GlobalSecureAccessClient.ps1", MAC_FILE = "scr-app-108-install-global-secure-access.zsh";
+  const WIN_FILE = "Install-GlobalSecureAccessClient.ps1", MAC_FILE = "scr-app-109-install-global-secure-access.zsh";
   const GROUPS = { win: "INT-SEC-D-GSA-WIN-M365", mac: "INT-SEC-D-GSA-MAC-M365" };
   // 32518, from Jhope188/LearnGraphAPI Baseline/Entra/GSA (lab, 12 Oct 2026):
   // the client signs in to the ZTNA Policy Service through this first-party
@@ -212,17 +213,21 @@ const Gsa = (() => {
     // in devcf as [OPTIONAL] MACOS - DCP - … GSA …): read, never written
     const mp = raw.macProfiles || {};
     const mprof = (k, label) => { const x = mp[k]; return x ? `${label} ${x.assigned ? "assigned" : "NOT ASSIGNED"}${x.consolidated ? " (in the baseline's System Extensions policy)" : ""}` : `${label} missing`; };
-    const macProfOk = ["sysext", "proxy", "settings"].every((k) => mp[k] && mp[k].assigned);
-    const macOk = !!macScript && macProfOk;
-    L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk ? "ok" : winOk || macScript ? "warn" : "bad",
-      note: [winRem ? remNote : winScript ? `Windows: ${winScript.displayName}` : winApp ? `Windows: app ${winApp.displayName}` : "Windows: no remediation, script or app", macScript ? `macOS: ${macScript.displayName}` : "macOS: no shell script"].join(" · "),
-      sub: unread("macProfiles") ? `macOS profiles not read — ${src.macProfiles}` : `macOS profiles: ${mprof("sysext", "system extensions")} · ${mprof("proxy", "transparent proxy")} · ${mprof("settings", "client settings")}`,
+    // 0.9.0: with the chain read (content, reach, landed) the check decides;
+    // the name-based profiles above stay for a read without it
+    const mac = raw.macChain ? macCheck(raw.macChain, raw.groupNames || {}) : null;
+    const macProfOk = mac ? mac.rows.slice(1).every((r) => r.st === "ok") : ["sysext", "proxy", "settings"].every((k) => mp[k] && mp[k].assigned);
+    const macScriptX = mac ? (mac.rows[0].found || null) : macScript;
+    const macOk = mac ? mac.ok : !!macScript && macProfOk;
+    L.push({ k: "client", lab: "Devices", h: "GSA client", st: unread("scripts") && unread("apps") ? "unread" : winOk && macOk ? "ok" : winOk || macScriptX ? "warn" : "bad",
+      note: [winRem ? remNote : winScript ? `Windows: ${winScript.displayName}` : winApp ? `Windows: app ${winApp.displayName}` : "Windows: no remediation, script or app", macScriptX ? `macOS: ${macScriptX.displayName}` : "macOS: no shell script"].join(" · "),
+      sub: mac ? (unread("macChain") ? `macOS chain not read — ${src.macChain}` : mac.problems ? `macOS: ${mac.problems} problem${mac.problems === 1 ? "" : "s"} in the chain — the table below says which and fixes each` : "macOS: the script and the three profiles are complete, as Learn, and reach the same Macs") : unread("macProfiles") ? `macOS profiles not read — ${src.macProfiles}` : `macOS profiles: ${mprof("sysext", "system extensions")} · ${mprof("proxy", "transparent proxy")} · ${mprof("settings", "client settings")}`,
       help: "Windows: secure DNS (DNS over HTTPS) must be off in Edge and Chrome, or the client cannot tunnel by name — a settings catalog policy on the same devices. QUIC only matters once Internet Access is added.",
       // 0.8.0 (Mihai 17 Oct: after creating the macOS script the profiles
       // were missing and nothing was offered): no script → the script
       // workspace, which makes the profiles too; script there but a profile
       // missing or unassigned → the same workspace from the profiles' side
-      fix: !winOk || (winRem && winRem.assigned === false) ? "winrem" : null, fix2: !macScript ? "macscript" : !macProfOk ? "macprof" : null, winScript, winApp, winRem, macScript, macProfOk, macProf: mp });
+      fix: !winOk || (winRem && winRem.assigned === false) ? "winrem" : null, fix2: mac ? (!macScriptX ? "macscript" : null) : !macScript ? "macscript" : !macProfOk ? "macprof" : null, winScript, winApp, winRem, macScript: macScriptX, macProfOk, macProf: mp, mac });
     // 7 policy
     const policies = cnPolicies(caPolicies, cn && cn.id);
     const on = policies.filter((p) => p.state === "enabled"), ro = policies.filter((p) => p.state === "enabledForReportingButNotEnforced");
@@ -285,7 +290,7 @@ const Gsa = (() => {
   // the step the flow opens on: the first that blocks, else Proof
   const defaultSel = (m) => ((m.links.find((l) => l.st === "bad" || l.st === "warn") || m.links.find((l) => l.k === "proof") || m.links[0]).k);
   const ST = { ok: ["ok", "ready"], warn: ["warn", "partly"], bad: ["bad", "missing"], wait: ["wait", "waits"], unread: ["wait", "not read"] };
-  const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…" };
+  const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", "macfix-script": "Fix the macOS script…", "macfix-sysext": "Fix system extensions…", "macfix-proxy": "Fix the transparent proxy…", "macfix-settings": "Fix the client settings…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…" };
   function render(m, ui) {
     const u = ui || {};
     if (u.proof) proofLink(m, u.proof);
@@ -358,7 +363,8 @@ const Gsa = (() => {
     // sits between the step and the workspaces — a protection of its own,
     // not a link of the compliant-network chain, so the eight steps and the
     // verdict stay about stolen tokens
-    return head + flow + detail + (u.trv2Html || "") + work + polTable + ivTable + grpTable + proofSect + later;
+    const macSect = l.k === "client" && l.mac ? `<section class="list-card gsa-sect gsa-macsect" id="gsaMac">${macTable(l.mac)}</section>` : "";
+    return head + flow + detail + macSect + (u.trv2Html || "") + work + polTable + ivTable + grpTable + proofSect + later;
   }
 
   // ---- the Intune platform script (Windows) -------------------------------
@@ -476,44 +482,131 @@ const Gsa = (() => {
   // is there). It installs the client only: the system extension policy, the
   // transparent proxy profile and the client settings are Intune profiles the
   // board reads and says are missing or unassigned.
-  function macScript() {
-    return [
-      "#!/bin/zsh",
-      "# Install Global Secure Access Client for macOS — written by ENCA T56.",
-      "# Intune shell script: run as root, not as the signed-in user. It does NOT approve the system extension or",
-      "# the transparent proxy: those come from two profiles that must reach the Mac first, assigned to the same group —",
-      "#   the system extension policy (Team ID UBF8T346G9; com.microsoft.globalsecureaccess and .tunnel)",
-      "#   the transparent proxy profile (com.apple.vpn.managed, provider com.microsoft.globalsecureaccess.tunnel)",
-      "# and optionally the client settings (com.microsoft.globalsecureaccess). Checks adopted from the",
-      "# LearnGraphAPI GSA lab (Jhope188): macOS 14 or later, the package signed by Microsoft, a warning without profiles.",
-      "appname=\"Global Secure Access Client\"",
-      "url=\"https://aka.ms/GlobalSecureAccess-macOS\"",
-      "teamid=\"UBF8T346G9\"",
-      "minmajor=14",
-      "logdir=\"/Library/Logs/Microsoft/IntuneScripts/GlobalSecureAccess\"",
-      "mkdir -p \"$logdir\"",
-      "exec >> \"$logdir/install.log\" 2>&1",
-      "say() { echo \"$(date '+%Y-%m-%d %H:%M:%S') | $1\"; }",
-      "say \"start\"",
-      "if [[ $(id -u) -ne 0 ]]; then say \"must run as root\"; exit 1; fi",
-      "major=$(sw_vers -productVersion | cut -d. -f1)",
-      "if [[ $major -lt $minmajor ]]; then say \"macOS $major is below $minmajor — skipped\"; exit 0; fi",
-      "# Learn's uninstall path is /Applications/GlobalSecureAccessClient; the app bundle name is checked too",
-      "for p in \"/Applications/GlobalSecureAccessClient\" \"/Applications/Global Secure Access Client.app\"; do",
-      "  if [[ -d \"$p\" ]]; then say \"$appname already installed ($p)\"; exit 0; fi",
-      "done",
-      "if ! /usr/bin/profiles show -all 2>/dev/null | grep -qi \"com.microsoft.globalsecureaccess\"; then say \"WARNING: no GSA profile on this Mac yet — the user may see approval prompts\"; fi",
-      "tmp=$(mktemp -d /tmp/gsa.XXXXXX)",
-      "trap 'rm -rf \"$tmp\"' EXIT",
-      "pkg=\"$tmp/GlobalSecureAccessClient.pkg\"",
-      "if ! curl -L --fail --silent --show-error --retry 3 --max-time 900 -o \"$pkg\" \"$url\"; then say \"download failed\"; exit 1; fi",
-      "if [[ ! -s \"$pkg\" ]]; then say \"downloaded file is empty\"; exit 1; fi",
-      "if ! /usr/sbin/pkgutil --check-signature \"$pkg\" | grep -q \"$teamid\"; then say \"package not signed by team $teamid — refused\"; exit 1; fi",
-      "if ! /usr/sbin/installer -pkg \"$pkg\" -target /; then say \"install failed\"; exit 1; fi",
-      "say \"$appname installed\"",
-      "exit 0",
-    ].join("\n");
-  }
+  // v1.2, identical to the CloudFellows baseline R26.10.V3.5.x MacScripts/scr-app-109-install-global-secure-access.zsh
+  const MAC_SCRIPT_LINES = [
+    "#!/bin/zsh",
+    "# Install / update the Global Secure Access client for macOS - CF macOS baseline R26.10, script v1.2 (also ENCA T56)",
+    "# [OPTIONAL] object: imported and assigned only when the 'GSA' bundle (or this object) is selected in the importer.",
+    "# Intune shell script, runs as root on a weekly schedule with retries. Needs, assigned to the same Macs:",
+    "#   - allowed system extensions, team UBF8T346G9: com.microsoft.globalsecureaccess + .tunnel  (baseline 'System Extensions', always imported)",
+    "#   - the transparent proxy profile, com.apple.vpn.managed / provider com.microsoft.globalsecureaccess.tunnel ('[OPTIONAL] ... GSA Transparent Proxy')",
+    "#   - the client settings preference file, domain com.microsoft.globalsecureaccess ('[OPTIONAL] ... GSA System settings')",
+    "# v1.2 (2026-10-17): the package must be signed by Microsoft (team UBF8T346G9) before it is installed as root; macOS 14 or",
+    "#   later (Learn's minimum); a first install waits for BOTH approvals - the system extension allow-list and the GSA",
+    "#   transparent proxy (matched on its provider, not on any TransparentProxy) - read with xmllint from the installed",
+    "#   profiles; temp files cleaned on every exit; downloads capped at 15 minutes; the extension state is logged after install.",
+    "# v1.1 (2026-10-16): first install waits for the transparent proxy profile; runs weekly and upgrades in place when aka.ms",
+    "#   serves a newer client (package version vs installed CFBundleShortVersionString). v1.0 (ENCA T56) installed once.",
+    "# Log: /Library/Logs/Microsoft/IntuneScripts/GlobalSecureAccess/install.log",
+    "# Exit 1 = not done yet (Intune retries up to 3 times, then the weekly run picks it up); exit 0 = installed or up to date.",
+    "",
+    "appname=\"Global Secure Access Client\"",
+    "url=\"https://aka.ms/GlobalSecureAccess-macOS\"",
+    "teamid=\"UBF8T346G9\"",
+    "minmajor=14",
+    "logdir=\"/Library/Logs/Microsoft/IntuneScripts/GlobalSecureAccess\"",
+    "mkdir -p \"$logdir\"",
+    "exec >> \"$logdir/install.log\" 2>&1",
+    "say() { echo \"$(date '+%Y-%m-%d %H:%M:%S') | $1\"; }",
+    "",
+    "tmp=\"\"",
+    "cleanup() { [[ -n \"$tmp\" && -d \"$tmp\" ]] && /bin/rm -rf \"$tmp\"; }",
+    "trap cleanup EXIT",
+    "",
+    "ver_gt() {   # true when $1 is newer than $2 (dotted numbers, e.g. 1.1.26060207)",
+    "    local -a a b",
+    "    a=(${(s:.:)1}); b=(${(s:.:)2})",
+    "    local i x y",
+    "    for (( i = 1; i <= ${#a} || i <= ${#b}; i++ )); do",
+    "        x=${a[$i]:-0}; y=${b[$i]:-0}",
+    "        (( x > y )) && return 0",
+    "        (( x < y )) && return 1",
+    "    done",
+    "    return 1",
+    "}",
+    "",
+    "# --- the installed configuration profiles, as XML; xp <xpath> is true when it matches ---",
+    "profiles_xml=\"\"",
+    "xp() { [[ \"$(print -r -- \"$profiles_xml\" | /usr/bin/xmllint --xpath \"boolean($1)\" - 2>/dev/null)\" == \"true\" ]]; }",
+    "# a profile item is the dict that carries PayloadType; its settings sit under PayloadContent",
+    "SYSEXT_OK=\"//dict[key='PayloadType' and string='com.apple.system-extension-policy']//key[.='AllowedSystemExtensions']/following-sibling::dict[1]/key[.='$teamid']/following-sibling::array[1]/string[.='com.microsoft.globalsecureaccess.tunnel'] | //dict[key='PayloadType' and string='com.apple.system-extension-policy']//key[.='AllowedTeamIdentifiers']/following-sibling::array[1]/string[.='$teamid']\"",
+    "PROXY_OK=\"//dict[key='PayloadType' and string='com.apple.vpn.managed']//key[.='ProviderBundleIdentifier']/following-sibling::string[1][.='com.microsoft.globalsecureaccess.tunnel']\"",
+    "",
+    "if [[ $(/usr/bin/id -u) -ne 0 ]]; then say \"must run as root (Intune: run as signed-in user = No)\"; exit 1; fi",
+    "major=$(/usr/bin/sw_vers -productVersion | /usr/bin/cut -d. -f1)",
+    "if (( major < minmajor )); then say \"macOS $major is below $minmajor - the client does not support it, skipped\"; exit 0; fi",
+    "",
+    "# --- installed version (both locations the client has used) ---",
+    "installed_app=\"\"",
+    "for p in \"/Applications/Global Secure Access Client.app\" \"/Applications/GlobalSecureAccessClient/Global Secure Access Client.app\"; do",
+    "    if [[ -d \"$p\" ]]; then installed_app=\"$p\"; break; fi",
+    "done",
+    "installed_ver=\"\"",
+    "if [[ -n \"$installed_app\" ]]; then",
+    "    installed_ver=$(/usr/bin/defaults read \"$installed_app/Contents/Info.plist\" CFBundleShortVersionString 2>/dev/null)",
+    "fi",
+    "say \"start v1.2 - macOS $(/usr/bin/sw_vers -productVersion) - installed: ${installed_ver:-none}\"",
+    "",
+    "# --- first install only: wait until MDM has delivered both approvals, so the user sees no prompt ---",
+    "if [[ -z \"$installed_app\" ]]; then",
+    "    profiles_xml=$(/usr/bin/profiles show -type configuration -output stdout-xml 2>/dev/null)",
+    "    missing=()",
+    "    xp \"$SYSEXT_OK\" || missing+=(\"system extension allow-list (com.apple.system-extension-policy, team $teamid, com.microsoft.globalsecureaccess.tunnel)\")",
+    "    xp \"$PROXY_OK\" || missing+=(\"transparent proxy (com.apple.vpn.managed, provider com.microsoft.globalsecureaccess.tunnel)\")",
+    "    if (( ${#missing} )); then",
+    "        for m in \"${missing[@]}\"; do say \"not on this Mac yet: $m\"; done",
+    "        say \"waiting for MDM - retrying later\"",
+    "        exit 1",
+    "    fi",
+    "    say \"approvals present: system extensions and transparent proxy\"",
+    "fi",
+    "",
+    "# --- download the current package ---",
+    "tmp=$(/usr/bin/mktemp -d /tmp/gsa.XXXXXX)",
+    "pkg=\"$tmp/GlobalSecureAccessClient.pkg\"",
+    "if ! /usr/bin/curl -L --fail --silent --show-error --retry 3 --connect-timeout 30 --max-time 900 -o \"$pkg\" \"$url\" || [[ ! -s \"$pkg\" ]]; then",
+    "    say \"download failed ($url)\"",
+    "    if [[ -n \"$installed_app\" ]]; then exit 0; fi   # installed: keep the current version, try again next run",
+    "    exit 1",
+    "fi",
+    "",
+    "# --- signed by Microsoft, or nothing is installed ---",
+    "sig=$(/usr/sbin/pkgutil --check-signature \"$pkg\" 2>&1)",
+    "if ! print -r -- \"$sig\" | /usr/bin/grep -q \"($teamid)\"; then",
+    "    say \"package NOT signed by Microsoft (team $teamid) - refused\"",
+    "    print -r -- \"$sig\" | /usr/bin/head -5 | while IFS= read -r l; do say \"  $l\"; done",
+    "    exit 1",
+    "fi",
+    "",
+    "# --- version inside the package (Distribution file; client versions look like 1.1.26060207, the bundled MAU like 4.8x.x) ---",
+    "pkg_ver=\"\"",
+    "if /usr/bin/xar -xf \"$pkg\" Distribution -C \"$tmp\" 2>/dev/null && [[ -f \"$tmp/Distribution\" ]]; then",
+    "    pkg_ver=$(/usr/bin/grep -oE 'version=\"1\\.[0-9]+\\.[0-9]{6,}\"' \"$tmp/Distribution\" | /usr/bin/head -1 | /usr/bin/sed -E 's/version=\"([^\"]+)\"/\\1/')",
+    "fi",
+    "say \"package version: ${pkg_ver:-unknown} (signed, team $teamid)\"",
+    "",
+    "# --- decide ---",
+    "if [[ -n \"$installed_app\" ]]; then",
+    "    if [[ -z \"$pkg_ver\" || -z \"$installed_ver\" ]]; then",
+    "        say \"cannot compare versions - keeping the installed client\"; exit 0",
+    "    fi",
+    "    if ! ver_gt \"$pkg_ver\" \"$installed_ver\"; then",
+    "        say \"up to date ($installed_ver)\"; exit 0",
+    "    fi",
+    "    say \"upgrading $installed_ver -> $pkg_ver\"",
+    "else",
+    "    say \"installing ${pkg_ver:-unknown version}\"",
+    "fi",
+    "",
+    "if ! /usr/sbin/installer -pkg \"$pkg\" -target /; then",
+    "    say \"install failed\"; exit 1",
+    "fi",
+    "say \"$appname ${pkg_ver} installed\"",
+    "ext=$(/usr/bin/systemextensionsctl list 2>/dev/null | /usr/bin/grep -i \"globalsecureaccess\")",
+    "say \"system extension: ${ext:-not listed yet (activates when the client starts)}\"",
+    "exit 0",
+  ];
+  function macScript() { return MAC_SCRIPT_LINES.join("\n") + "\n"; }
   // ---- the three macOS profiles, as Learn's "Install the Global Secure
   // Access client for macOS" documents them (0.8.0, read 17 Oct 2026) ------
   // System extensions: a settings catalog policy, Allowed System Extensions
@@ -604,7 +697,262 @@ const Gsa = (() => {
   // an unset option means "the ones that are missing or unassigned"
   const wantProfile = (o, p, mp) => { const v = (o || {})[p.opt]; if (v != null) return !!v; const x = (mp || {})[p.key]; return !(x && x.assigned); };
   function macScriptBody(opts) {
-    return { "@odata.type": "#microsoft.graph.deviceShellScript", displayName: names(opts).mac, description: "Downloads the Global Secure Access client for macOS from aka.ms and installs it when it is not there. The client also needs the GSA system extension policy, the GSA transparent proxy profile and the GSA client settings, assigned to the same devices. Created by ENCA T56.", fileName: MAC_FILE, runAsAccount: "system", executionFrequency: "PT0S", retryCount: 3, blockExecutionNotifications: true, roleScopeTagIds: ["0"], scriptContent: b64(macScript()) };
+    return { "@odata.type": "#microsoft.graph.deviceShellScript", displayName: names(opts).mac, description: "v1.2 (the CloudFellows baseline script): downloads the Global Secure Access client for macOS from aka.ms, installs it only when it is signed by Microsoft (team UBF8T346G9), waits on a first install until the system extension allow-list and the GSA transparent proxy are on the Mac, then runs weekly and upgrades in place. macOS 14 or later. Created by ENCA T56.", fileName: MAC_FILE, runAsAccount: "system", executionFrequency: "P7D", retryCount: 3, blockExecutionNotifications: true, roleScopeTagIds: ["0"], scriptContent: b64(macScript()) };
+  }
+
+  // ---- 0.9.0 (Mihai 17 Oct: "we need this to be robust and complete") ----
+  // The macOS chain checked four ways per object, whatever it is called:
+  //   FOUND    by content — a settings catalog (or the deprecated Extensions
+  //            template) allowing the GSA extensions or team UBF8T346G9, a
+  //            custom profile whose plist names the GSA tunnel provider, a
+  //            preference file for com.microsoft.globalsecureaccess (the
+  //            ".plist" slip included), a shell script downloading the client
+  //   CONTENT  compared with Learn (Install the Global Secure Access client for
+  //            macOS; Add a property list file to macOS devices)
+  //   REACH    the object's assignments against the install script's
+  //   LANDED   what Intune reports per device
+  // A row has at most one fix (macfix-<key>): create when nothing is found,
+  // repair when the content is wrong (a new version, the old one unassigned
+  // and renamed [DEPRECATED], never deleted), assign when it is right but
+  // misses the script's Macs. System extensions are never made a second time
+  // when another policy already sets that payload on the Macs — the GSA ids
+  // are added to that policy instead (a PUT, with a backup downloaded first).
+  const b64dec = (s) => { try { const bin = atob(String(s || "")); return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))); } catch { return ""; } };
+  const DEP_RX = /^\s*\[DEPRECATED\]\s*/i;
+  const isDep = (n) => DEP_RX.test(n || "");
+  const SET_KEYS = ["HidePauseButton", "HideDisableButton", "HideQuitButton", "HideDisablePrivateAccessButton"];
+  const SX = "com.apple.system-extension-policy";
+  function walkSettings(node, out) {
+    if (!node || typeof node !== "object") return out;
+    if (Array.isArray(node)) { node.forEach((n) => walkSettings(n, out)); return out; }
+    if (node.settingDefinitionId) (out[node.settingDefinitionId] = out[node.settingDefinitionId] || []).push(node);
+    for (const v of Object.values(node)) if (v && typeof v === "object") walkSettings(v, out);
+    return out;
+  }
+  function sysextFacts(p) {
+    if (/macOSExtensionsConfiguration$/.test(p["@odata.type"] || "")) {
+      const ms = (p.systemExtensionsAllowed || []).filter((x) => x.teamIdentifier === GSA_TEAM).map((x) => x.bundleId);
+      const teams = p.systemExtensionsAllowedTeamIdentifiers || [];
+      return { legacy: true, payload: true, ids: GSA_EXTS.every((id) => ms.includes(id)), team: teams.includes(GSA_TEAM), both: false, pairs: [] };
+    }
+    const by = walkSettings(p.settings || [], {});
+    const pairs = [];
+    for (const g of by[`${SX}_allowedsystemextensions`] || []) for (const item of g.groupSettingCollectionValue || []) {
+      const kids = item.children || [];
+      const ids = ((kids.find((k) => k.settingDefinitionId === `${SX}_allowedsystemextensions_generickey`) || {}).simpleSettingCollectionValue || []).map((v) => v.value);
+      const team = (((kids.find((k) => k.settingDefinitionId === `${SX}_allowedsystemextensions_generickey_keytobereplaced`) || {}).simpleSettingValue) || {}).value;
+      pairs.push({ team, ids });
+    }
+    const teams = (by[`${SX}_allowedteamidentifiers`] || []).flatMap((t) => (t.simpleSettingCollectionValue || []).map((v) => v.value));
+    const ms = pairs.filter((x) => x.team === GSA_TEAM);
+    const payload = !!((by[`${SX}_${SX}`] || []).length || pairs.length || teams.length);
+    return { legacy: false, payload, ids: GSA_EXTS.every((id) => ms.some((x) => x.ids.includes(id))), team: teams.includes(GSA_TEAM), both: ms.length > 0 && teams.includes(GSA_TEAM), pairs };
+  }
+  const proxyPlist = (c) => b64dec(c.payload);
+  const isGsaProxy = (c) => /macOSCustomConfiguration$/.test(c["@odata.type"] || "") && /com\.microsoft\.globalsecureaccess\.tunnel/.test(proxyPlist(c)) && /com\.apple\.vpn\.managed/.test(proxyPlist(c));
+  const isGsaSettings = (c) => /macOSCustomAppConfiguration$/.test(c["@odata.type"] || "") && /^com\.microsoft\.globalsecureaccess(\.plist)?$/i.test(String(c.bundleId || "").trim());
+  const isGsaScript = (s) => /GlobalSecureAccess-macOS/i.test(b64dec(s.scriptContent)) || (!s.scriptContent && /global\s*secure\s*access/i.test(`${s.displayName} ${s.fileName}`));
+  function settingsKeys(c) {
+    const x = b64dec(c.configurationXml), out = {}, other = [];
+    const rx = /<key>\s*([^<]+?)\s*<\/key>\s*<(true|false|string|integer|real|array|dict)\b[^>]*?(\/?)>/g; let mm;
+    while ((mm = rx.exec(x))) { const k = mm[1], t = mm[2]; if (SET_KEYS.includes(k)) out[k] = t === "true" ? true : t === "false" ? false : `not a boolean (${t})`; else other.push(k); }
+    return { keys: out, other };
+  }
+  // the issues per kind: { t: text, sev: "bad" | "note" }
+  function contentIssues(key, o) {
+    const iss = [], bad = (t) => iss.push({ t, sev: "bad" }), note = (t) => iss.push({ t, sev: "note" });
+    const nm = o.displayName || o.name || "";
+    if (/ - U - /.test(nm) && key !== "sysext") note("named U — it is a device payload (the CloudFellows importer sends U names to All users)");
+    if (key === "script") {
+      const t = b64dec(o.scriptContent);
+      if (!t) { note("script content not read"); return iss; }
+      if (!/pkgutil\s+--check-signature/.test(t) || !t.includes(GSA_TEAM)) bad("installs the package without checking it is signed by Microsoft (team UBF8T346G9)");
+      if (o.executionFrequency === "PT0S" || !/ver_gt|upgrad/i.test(t)) bad("installs once and never upgrades the client");
+      if (!/system-extension-policy/.test(t) || !/vpn\.managed|ProviderBundleIdentifier/.test(t)) bad("does not wait for both approvals (system extensions and the GSA proxy) — the user can get approval prompts");
+      if (/scr-app-108/i.test(o.fileName || "")) note("file scr-app-108 is OneDrive Open at Login in the CloudFellows baseline — ENCA uses 109");
+      if (o.runAsAccount && o.runAsAccount !== "system") bad("runs as the signed-in user — the installer needs root");
+    } else if (key === "sysext") {
+      const f = sysextFacts(o);
+      if (f.legacy) bad("deprecated Extensions template (2408) — Learn: move to the settings catalog Allowed System Extensions");
+      if (!f.ids && !f.team) bad("the GSA extensions are not allowed (com.microsoft.globalsecureaccess and .tunnel, team UBF8T346G9)");
+      if (f.both) bad("team UBF8T346G9 is in allowed extensions and allowed teams together — Intune says the profile then fails");
+    } else if (key === "proxy") {
+      const p = proxyPlist(o);
+      if (!p) { note("profile payload not read"); return iss; }
+      if (!/<key>VPNType<\/key>\s*<string>TransparentProxy<\/string>/.test(p)) bad("VPNType is not TransparentProxy");
+      if (!/<key>ProviderBundleIdentifier<\/key>\s*<string>com\.microsoft\.globalsecureaccess\.tunnel<\/string>/.test(p)) bad("provider is not com.microsoft.globalsecureaccess.tunnel");
+      if (!/<key>ProviderType<\/key>\s*<string>app-proxy<\/string>/.test(p)) bad("ProviderType is not app-proxy");
+      if (!/subject\.OU\]\s*=\s*UBF8T346G9/.test(p)) bad("the designated requirement does not name team UBF8T346G9");
+      if (o.deploymentChannel && o.deploymentChannel !== "deviceChannel") bad("user channel — Learn: device channel");
+    } else if (key === "settings") {
+      const dom = String(o.bundleId || "").trim();
+      if (dom !== GSA_DOMAIN) bad(`preference domain ${dom} — the client reads ${GSA_DOMAIN}, so these keys most likely never reach it`);
+      const k = settingsKeys(o);
+      SET_KEYS.filter((x) => typeof k.keys[x] === "string").forEach((x) => bad(`${x} is ${k.keys[x]}`));
+      if (k.other.length) note(`keys the client does not know: ${k.other.join(", ")}`);
+      if (!Object.keys(k.keys).length) bad("none of the four Hide… keys is set");
+    }
+    return iss;
+  }
+  function settingsMode(o) { const k = settingsKeys(o).keys; return SET_KEYS.every((x) => k[x] === true) ? "lock-down" : k.HideQuitButton === true && k.HideDisablePrivateAccessButton === true && k.HidePauseButton === false && k.HideDisableButton === false ? "pilot" : "custom"; }
+  // assignments → what they reach
+  function tgt(asg) {
+    const r = { inc: [], exc: [], all: null, allUsers: null };
+    for (const a of asg || []) {
+      const t = a.target || a, ty = t["@odata.type"] || "", f = t.deviceAndAppManagementAssignmentFilterId ? { id: t.deviceAndAppManagementAssignmentFilterId, mode: t.deviceAndAppManagementAssignmentFilterType } : null;
+      if (/exclusion/i.test(ty)) r.exc.push(t.groupId);
+      else if (/allDevices/i.test(ty)) r.all = { filter: f };
+      else if (/allLicensedUsers/i.test(ty)) r.allUsers = { filter: f };
+      else if (t.groupId) r.inc.push({ id: t.groupId, filter: f });
+    }
+    return r;
+  }
+  function reach(objAsg, scriptAsg, names) {
+    const nm = (ids) => ids.map((id) => names[id] || id).join(", ");
+    if (!objAsg || !objAsg.length) return { st: "bad", text: "assigned to nobody" };
+    const o = tgt(objAsg), s = tgt(scriptAsg);
+    const desc = [o.all ? `All devices${o.all.filter ? " (filter)" : ""}` : "", o.allUsers ? "All users" : "", o.inc.length ? nm(o.inc.map((x) => x.id)) : ""].filter(Boolean).join(" + ");
+    if (!scriptAsg || !scriptAsg.length) return { st: "na", text: `${desc} — no assigned install script to compare with` };
+    const sIds = s.inc.map((x) => x.id);
+    const excl = sIds.filter((id) => o.exc.includes(id));
+    if (excl.length) return { st: "warn", text: `excludes ${nm(excl)} — the script's group` };
+    if (o.all) return o.all.filter ? { st: "ok", text: "All devices, with a filter — check the filter takes the script's Macs" } : { st: "ok", text: "All devices" };
+    if (s.all) return { st: "warn", text: `the script runs on All devices, this reaches ${desc} only` };
+    const missing = sIds.filter((id) => !o.inc.some((x) => x.id === id));
+    if (!missing.length) {
+      const fdiff = s.inc.some((x) => { const y = o.inc.find((z) => z.id === x.id); return JSON.stringify(x.filter) !== JSON.stringify(y && y.filter); });
+      return fdiff ? { st: "warn", text: `${nm(sIds)}, but with another filter than the script` } : { st: "ok", text: o.inc.length === sIds.length ? "same group" : `includes ${nm(sIds)}` };
+    }
+    if (o.allUsers) return { st: "warn", text: "All users — the script targets devices; a Mac without a licensed user is missed" };
+    return { st: "bad", text: `misses ${nm(missing)} — the script's group` };
+  }
+  function landed(o, key) {
+    if (key === "script") { const r = o.runSummary; return r ? { text: `${r.successDeviceCount || 0} ok · ${r.errorDeviceCount || 0} failed`, bad: (r.errorDeviceCount || 0) > 0 } : { text: "not read" }; }
+    if (o.overview) { const v = o.overview, n = (v.successCount || 0) + (v.errorCount || 0) + (v.failedCount || 0) + (v.conflictCount || 0) + (v.pendingCount || 0); return { text: n ? `${v.successCount || 0} ok · ${(v.errorCount || 0) + (v.failedCount || 0)} error · ${v.conflictCount || 0} conflict · ${v.pendingCount || 0} pending` : "no device has reported", bad: (v.errorCount || 0) + (v.failedCount || 0) + (v.conflictCount || 0) > 0 }; }
+    if (typeof o.reported === "number") return { text: o.reported ? `${o.reported} device${o.reported === 1 ? "" : "s"} reported — states in Intune` : "no device has reported" };
+    return { text: "not read" };
+  }
+  // the best candidate: not deprecated, assigned, newest
+  const pickBest = (list) => [...list].sort((a, b) => (isDep(a.displayName || a.name) - isDep(b.displayName || b.name)) || (((b.assignments || []).length > 0) - ((a.assignments || []).length > 0)) || String(b.lastModifiedDateTime || "").localeCompare(String(a.lastModifiedDateTime || "")))[0] || null;
+  const MAC_KEYS = [["script", "Install script"], ["sysext", "System extensions"], ["proxy", "Transparent proxy"], ["settings", "Client settings"]];
+  function macCheck(chain, names) {
+    const c = chain || {}, nm = names || {};
+    const cand = {
+      script: (c.scripts || []).filter(isGsaScript),
+      sysext: [...(c.policies || []), ...(c.configs || []).filter((x) => /macOSExtensionsConfiguration$/.test(x["@odata.type"] || ""))].filter((p) => { const f = sysextFacts(p); return f.ids || f.team; }),
+      proxy: (c.configs || []).filter(isGsaProxy),
+      settings: (c.configs || []).filter(isGsaSettings),
+    };
+    const best = Object.fromEntries(Object.entries(cand).map(([k, v]) => [k, pickBest(v)]));
+    const scriptAsg = best.script ? best.script.assignments || [] : [];
+    // other policies that set the system-extension payload: a second one is a conflict
+    const otherSx = (c.policies || []).filter((p) => p !== best.sysext && !isDep(p.name) && sysextFacts(p).payload && (p.assignments || []).length);
+    const rows = MAC_KEYS.map(([key, label]) => {
+      const o = best[key];
+      if (!o) return { key, label, found: null, also: [], issues: [], reach: { st: "bad", text: "—" }, landed: { text: "—" }, st: "bad", mode: "create", why: "not found" };
+      const issues = contentIssues(key, o);
+      const rc = key === "script" ? (scriptAsg.length ? { st: "ok", text: tgt(scriptAsg).inc.map((x) => nm[x.id] || x.id).join(", ") || (tgt(scriptAsg).all ? "All devices" : "") } : { st: "bad", text: "assigned to nobody" }) : reach(o.assignments, scriptAsg, nm);
+      const badC = issues.some((i) => i.sev === "bad");
+      const st = badC || rc.st === "bad" ? "bad" : rc.st === "warn" || issues.length ? "warn" : "ok";
+      const consolidated = key === "sysext" && !/GSA|Global Secure Access/i.test(o.name || o.displayName || "");
+      return { key, label, found: o, name: o.displayName || o.name, consolidated, also: cand[key].filter((x) => x !== o).map((x) => x.displayName || x.name), issues, reach: rc, landed: landed(o, key), st,
+        mode: badC ? "repair" : rc.st === "bad" || rc.st === "warn" ? "assign" : null, mood: key === "settings" ? settingsMode(o) : null };
+    });
+    // the script's groups: who is in them
+    const gids = tgt(scriptAsg).inc.map((x) => x.id), gi = (c.groups || {});
+    const groups = gids.map((id) => Object.assign({ id, name: nm[id] || id }, gi[id] || {}));
+    const noMac = groups.length && groups.every((g) => typeof g.managedMacs === "number" && g.managedMacs === 0 && !g.users);
+    const problems = rows.filter((r) => r.st === "bad").length + (noMac ? 1 : 0);
+    return { rows, groups, noMac, otherSx: otherSx.map((p) => ({ id: p.id, name: p.name })), policiesById: Object.fromEntries((c.policies || []).map((p) => [p.id, p])), problems, scriptAsg, ok: !problems && rows.every((r) => r.st === "ok") };
+  }
+  // ---- names: next version, U → D, the [OPTIONAL] prefix kept ------------
+  function bumpName(old, d) {
+    let n = String(old || "").replace(DEP_RX, "").replace(/ - U - /, " - D - ").trim();
+    const mm = n.match(/^(.*?)(?: - R\d+(?:\.\d+)?)? - v(\d+)(?:\.(\d+))?(?:\.\d+)*\s*$/);
+    return mm ? `${mm[1]} - ${relTag(d)} - v${mm[2]}.${(+(mm[3] || 0)) + 1}` : `${n} - ${relTag(d)} - v1.0`;
+  }
+  // the GSA ids added to an existing system-extension policy (the PUT body's settings)
+  function sysextAdd(settings) {
+    const s = JSON.parse(JSON.stringify(settings || []));
+    const str = (value) => ({ "@odata.type": "#microsoft.graph.deviceManagementConfigurationStringSettingValue", value });
+    const by = walkSettings(s, {});
+    const grp = (by[`${SX}_allowedsystemextensions`] || [])[0];
+    if (grp) {
+      const item = (grp.groupSettingCollectionValue || []).find((it) => (((it.children || []).find((k) => k.settingDefinitionId === `${SX}_allowedsystemextensions_generickey_keytobereplaced`) || {}).simpleSettingValue || {}).value === GSA_TEAM);
+      if (item) { const coll = item.children.find((k) => k.settingDefinitionId === `${SX}_allowedsystemextensions_generickey`); const have = coll.simpleSettingCollectionValue.map((v) => v.value); GSA_EXTS.filter((id) => !have.includes(id)).forEach((id) => coll.simpleSettingCollectionValue.push(str(id))); }
+      else grp.groupSettingCollectionValue.push({ children: [
+        { "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingCollectionInstance", settingDefinitionId: `${SX}_allowedsystemextensions_generickey`, simpleSettingCollectionValue: GSA_EXTS.map(str) },
+        { "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance", settingDefinitionId: `${SX}_allowedsystemextensions_generickey_keytobereplaced`, simpleSettingValue: str(GSA_TEAM) }] });
+      return s.map((x) => ({ "@odata.type": "#microsoft.graph.deviceManagementConfigurationSetting", settingInstance: x.settingInstance }));
+    }
+    // no allowed-extensions group yet: the policy gets ENCA's whole block beside what it has
+    return [...s.map((x) => ({ "@odata.type": "#microsoft.graph.deviceManagementConfigurationSetting", settingInstance: x.settingInstance })), ...macSysextSettings()];
+  }
+  const stripTarget = (t) => { const o = { "@odata.type": t["@odata.type"] }; ["groupId", "deviceAndAppManagementAssignmentFilterId", "deviceAndAppManagementAssignmentFilterType"].forEach((k) => { if (t[k] != null) o[k] = t[k]; }); return o; };
+  const PATHS = { cfg: "/deviceManagement/deviceConfigurations", pol: "/deviceManagement/configurationPolicies", script: "/deviceManagement/deviceShellScripts" };
+  const kindOf = (o) => o.name !== undefined && o.settings !== undefined ? "pol" : /deviceShellScript$/.test(o["@odata.type"] || "") || o.scriptContent !== undefined && !o.bundleId ? "script" : "cfg";
+  // the plan of one macOS fix: what it changes, impact, way back, and the ops the runner sends
+  function macFixPlan(k, mac, opts) {
+    const o = opts || {}, key = String(k).replace(/^macfix-/, ""), row = ((mac && mac.rows) || []).find((r) => r.key === key);
+    if (!row) return null;
+    if (row.found && !row.mode) return { mode: "none", row, ops: [], changes: ["Nothing to do — this row is found, as Learn, and reaches the script's Macs."], title: `${row.label}: complete`, impact: "None.", recovery: "None." };
+    const label = row.label.toLowerCase(), cur = row.found, today = new Date().toISOString().slice(0, 10);
+    const scriptT = ((mac.scriptAsg || []).map((a) => stripTarget(a.target || a)));
+    const groupOp = scriptT.length ? null : { do: "group", name: String(o.macGroup || GROUPS.mac).trim(), make: o.mkGroup !== false };
+    const targetsFor = (old) => { const t = (old || []).map((a) => stripTarget(a.target || a)); scriptT.forEach((x) => { if (!t.some((y) => y.groupId && y.groupId === x.groupId || /allDevices/i.test(y["@odata.type"]) && /allDevices/i.test(x["@odata.type"]))) t.push(x); }); return t; };
+    const ops = [], changes = [];
+    const nameOpts = { rel: o.rel, ver: o.ver };
+    const bodyFor = (name) => key === "sysext" ? Object.assign(macSysextBody(nameOpts), { name }) : key === "proxy" ? Object.assign(macProxyBody(nameOpts), { displayName: name }) : key === "settings" ? Object.assign(macSettingsBody(Object.assign({ lock: o.lock }, nameOpts)), { displayName: name }) : Object.assign(macScriptBody(nameOpts), { displayName: name });
+    const kind = key === "sysext" ? "pol" : key === "script" ? "script" : "cfg";
+    let mode = row.mode || (row.found ? null : "create");
+    // system extensions: another policy already sets the payload → add to it, unless the person picks a separate one
+    const sxTarget = key === "sysext" && (mode === "create" || mode === "repair") && (o.sxMode || "add") === "add" ? (mode === "repair" && row.consolidated ? cur : mode === "create" && mac.otherSx.length ? mac.otherSx[0] : null) : null;
+    if (mode === "create" && !sxTarget) {
+      const name = key === "script" ? names(nameOpts).mac : names(nameOpts)[key];
+      if (groupOp) ops.push(groupOp);
+      ops.push({ do: "post", kind, path: PATHS[kind], body: bodyFor(name), label: `${name} created`, as: "new", reuseByName: true });
+      ops.push({ do: "assign", kind, id: "$new", targets: scriptT.length ? scriptT : "$group", label: `assigned to ${scriptT.length ? "the script's group" : o.macGroup || GROUPS.mac}` });
+      changes.push(`POST a ${key === "sysext" ? "settings catalog policy" : key === "proxy" ? "custom profile (Learn's plist)" : key === "settings" ? `preference file (${GSA_DOMAIN}, ${o.lock ? "lock-down" : "pilot"})` : "shell script (v1.2)"} named ${name}.`, `Assign it to ${scriptT.length ? "the install script's targets" : `${o.macGroup || GROUPS.mac}${o.mkGroup !== false ? " (made when missing)" : ""}`}.`);
+      return { mode, row, ops, changes, title: `Create the ${label}`, impact: `Macs in the group get the ${label} at their next check-in.`, recovery: `Unassign or delete ${name} in Intune.` };
+    }
+    if (sxTarget) {
+      const pol = (mac.policiesById || {})[sxTarget.id] || sxTarget;
+      const newName = bumpName(pol.name);
+      ops.push({ do: "backup", file: `ENCA-backup-${(pol.name || "policy").replace(/[^\w.-]+/g, "_")}`, data: pol, label: "backup of the policy downloaded" });
+      ops.push({ do: "put", kind: "pol", path: `${PATHS.pol}/${pol.id}`, body: { name: newName, description: `${today}: the Global Secure Access extensions (${GSA_EXTS.join(", ")}, team ${GSA_TEAM}) added by ENCA T56. | ${pol.description || ""}`.slice(0, 1000), platforms: "macOS", technologies: pol.technologies || "mdm,appleRemoteManagement", roleScopeTagIds: pol.roleScopeTagIds || ["0"], settings: sysextAdd(pol.settings) }, label: `${newName}: the GSA extensions added` });
+      if (scriptT.length && reach(pol.assignments, mac.scriptAsg, {}).st !== "ok") ops.push({ do: "assign", kind: "pol", id: pol.id, targets: targetsFor(pol.assignments), label: "the script's group added to its assignments" });
+      changes.push(`Download a backup of ${pol.name}.`, `PUT it back as ${newName} with ${GSA_EXTS.join(" and ")} added under team ${GSA_TEAM} — every other setting as it is. One policy keeps setting the system-extension payload, so Intune reports no conflict.`, ...(ops.some((x) => x.do === "assign") ? ["Add the install script's targets to its assignments, keeping the ones it has."] : []));
+      return { mode: "add", row, ops, changes, title: `Add the GSA extensions to ${pol.name}`, impact: "Every Mac the policy reaches gets the two GSA extensions pre-approved; harmless where the client is not installed. Nothing else in the policy changes.", recovery: `Import the downloaded backup, or remove the two ids from ${newName} in Intune.` };
+    }
+    if (mode === "assign") {
+      ops.push({ do: "assign", kind: kindOf(cur), id: cur.id, targets: targetsFor(cur.assignments), label: `${row.name}: the script's targets added` });
+      changes.push(`Add the install script's targets to ${row.name}, keeping its own assignments${(row.reach.text || "").startsWith("excludes") ? " (its exclusion of the script's group is left — remove that by hand)" : ""}.`);
+      return { mode, row, ops, changes, title: `Assign the ${label} to the script's Macs`, impact: `The script's Macs get ${row.name} at their next check-in.`, recovery: `Remove the added assignment from ${row.name}.` };
+    }
+    // repair: a corrected next version, the old one unassigned and marked
+    const newName = bumpName(row.name), ck = kindOf(cur);
+    const lock = key === "settings" ? (o.lock != null ? o.lock : settingsMode(cur) === "lock-down") : o.lock;
+    const body = key === "settings" ? Object.assign(macSettingsBody(Object.assign({}, nameOpts, { lock })), { displayName: newName }) : bodyFor(newName);
+    const why = row.issues.filter((i) => i.sev === "bad").map((i) => i.t).join("; ");
+    ops.push({ do: "post", kind, path: PATHS[kind], body, label: `${newName} created`, as: "new", reuseByName: true });
+    ops.push({ do: "assign", kind, id: "$new", targets: targetsFor(cur.assignments), label: `${newName} assigned like ${row.name}${scriptT.length ? " and to the script's targets" : ""}` });
+    ops.push({ do: "assign", kind: ck, id: cur.id, targets: [], label: `${row.name} unassigned` });
+    const depName = `[DEPRECATED] ${row.name}`.slice(0, 250), depDesc = `DEPRECATED ${today}: ${why}; replaced by ${newName} (ENCA T56). | ${cur.description || ""}`.slice(0, 1000);
+    ops.push(ck === "pol" ? { do: "put", kind: ck, path: `${PATHS.pol}/${cur.id}`, body: { name: depName, description: depDesc, platforms: "macOS", technologies: cur.technologies || "mdm,appleRemoteManagement", roleScopeTagIds: cur.roleScopeTagIds || ["0"], settings: (cur.settings || []).map((x) => ({ "@odata.type": "#microsoft.graph.deviceManagementConfigurationSetting", settingInstance: x.settingInstance })) }, label: `${row.name} renamed [DEPRECATED]` }
+      : { do: "patch", kind: ck, path: `${PATHS[ck]}/${cur.id}`, body: { "@odata.type": cur["@odata.type"] || (ck === "script" ? "#microsoft.graph.deviceShellScript" : undefined), displayName: depName, description: depDesc }, label: `${row.name} renamed [DEPRECATED]` });
+    changes.push(`POST ${newName} — ${key === "settings" ? `domain ${GSA_DOMAIN}, the four keys ${lock ? "all hidden (lock-down, as the old one)" : "as Learn's pilot sample"}` : key === "proxy" ? "Learn's transparent-proxy plist" : key === "script" ? "the v1.2 script: Microsoft signature check, waits for both approvals, weekly upgrade" : "Allowed System Extensions for the two GSA ids"}.`,
+      `Assign it to everything ${row.name} is assigned to${scriptT.length ? ", plus the install script's targets" : ""}.`, `Unassign ${row.name} and rename it [DEPRECATED], with the date and the reason in its description. It is not deleted.`);
+    return { mode: "repair", row, ops, changes, title: `Repair the ${label}`, impact: `Macs in the groups get ${newName} instead of ${row.name} at their next check-in${key === "settings" && lock ? " — with lock-down the tray loses Pause, Disable, Quit and Disable Private Access" : ""}.`, recovery: `Assign ${row.name} again (remove [DEPRECATED] from its name) and unassign ${newName}.` };
+  }
+  function macTable(mac) {
+    if (!mac) return "";
+    const cls = (st) => st === "ok" ? "ok" : st === "warn" || st === "na" ? "warn" : "bad";
+    const icon = (st) => st === "ok" ? "✓" : st === "warn" || st === "na" ? "!" : "✕";
+    const btn = (r) => { const m = r.found ? r.mode : "create"; if (!m) return ""; const lab = m === "repair" ? "Repair…" : m === "assign" ? "Assign…" : r.key === "script" ? "Create…" : "Create…"; return `<button class="btn sm${r.st === "bad" ? " primary" : ""}" data-gsafix="${r.key === "script" && !r.found ? "macscript" : `macfix-${r.key}`}">${lab}</button>`; };
+    const rows = mac.rows.map((r) => `<tr><td><b>${esc(r.label)}</b></td><td>${r.found ? `${esc(r.name)}${r.consolidated ? ' <span class="muted">(the baseline\'s own policy)</span>' : ""}${r.mood ? ` <span class="muted">· ${esc(r.mood)}</span>` : ""}${r.also.length ? `<div class="mini muted">also: ${esc(r.also.join(" · "))}</div>` : ""}` : '<span class="gsa-warn-txt">not found</span>'}</td><td>${r.found ? (r.issues.length ? r.issues.map((i) => `<div class="${i.sev === "bad" ? "gsa-bad-txt" : "muted"}">${i.sev === "bad" ? "✕" : "·"} ${esc(i.t)}</div>`).join("") : '<span class="gsa-ok-txt">✓ as Learn</span>') : "—"}</td><td class="gsa-${cls(r.reach.st)}-txt">${r.found ? `${icon(r.reach.st)} ${esc(r.reach.text)}` : "—"}</td><td class="muted">${esc(r.landed.text)}</td><td>${btn(r)}</td></tr>`).join("");
+    const grp = mac.groups.length ? `<p class="mini${mac.noMac ? " gsa-warn-txt" : " muted"}">${mac.noMac ? "⚠ " : ""}The script's group${mac.groups.length > 1 ? "s" : ""}: ${mac.groups.map((g) => `${esc(g.name)} — ${typeof g.devices === "number" ? `${g.devices} device${g.devices === 1 ? "" : "s"}, ${g.managedMacs} managed Mac${g.managedMacs === 1 ? "" : "s"}${g.users ? `, ${g.users} users` : ""}` : "members not read"}`).join(" · ")}${mac.noMac ? ". Nothing in this table lands on a Mac until a managed Mac is in the group." : ""}</p>` : "";
+    const sx = mac.otherSx.length && !mac.rows.find((r) => r.key === "sysext").found ? `<p class="mini muted">Another policy already sets system extensions on these Macs (${esc(mac.otherSx.map((p) => p.name).join(", "))}); Create adds the GSA ids to it instead of making a second policy, which Intune would report as a conflict.</p>` : "";
+    return `<div class="gsa-mac"><div class="gsa-lab" style="margin:10px 0 4px">macOS chain — found by content, checked against Learn${mac.problems ? ` · <span class="gsa-bad-txt">${mac.problems} problem${mac.problems === 1 ? "" : "s"}</span>` : ' · <span class="gsa-ok-txt">complete</span>'}</div><div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Object</th><th>Found</th><th>Content</th><th>Reaches the script's Macs</th><th>Landed</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${grp}${sx}</div>`;
   }
 
   // ---- what a fix sends, for the workspace (32524) -----------------------
@@ -617,6 +965,20 @@ const Gsa = (() => {
     if (k === "winrem") return [{ id: "det", label: "Detection", lang: "powershell", text: detectScript(o) }, { id: "rem", label: "Remediation", lang: "powershell", text: remediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.rem})`, `POST /deviceManagement/deviceHealthScripts/{id}/assign`, j({ deviceHealthScriptAssignments: [remediationAssignment("<" + (o.devGroup || GROUPS.win) + ">", o.schedule)] })])];
     if (k === "winscript") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }];
     if (k === "trv2") return T2 ? T2.preview(o.plan) : [];
+    if (/^macfix-/.test(k)) {
+      const plan = macFixPlan(k, o.mac, o); if (!plan) return [];
+      const tabs = [];
+      const body = (plan.ops.find((x) => x.do === "post" || x.do === "put" && x.body.settings) || {}).body;
+      if (body) {
+        if (body.scriptContent) tabs.push({ id: "mac", label: MAC_FILE, lang: "shell", text: b64dec(body.scriptContent) });
+        else if (body.payload) tabs.push({ id: "proxy", label: "Transparent proxy (plist)", lang: "xml", text: b64dec(body.payload) });
+        else if (body.configurationXml) tabs.push({ id: "settings", label: `Client settings (${body.bundleId})`, lang: "xml", text: b64dec(body.configurationXml) });
+        else tabs.push({ id: "sysext", label: "System extensions (JSON)", lang: "json", text: j(body.settings) });
+      }
+      const say = (x) => x.do === "post" ? [`POST ${x.path}   (${x.label.replace(/ created$/, "")}; reused when one of that name is there)`] : x.do === "put" ? [`PUT ${x.path}   (${x.label})`] : x.do === "patch" ? [`PATCH ${x.path}`, j(x.body)] : x.do === "assign" ? [`POST ${x.id === "$new" ? `${PATHS[x.kind]}/{new}` : `${PATHS[x.kind]}/${x.id}`}/assign   (${x.label})`, j(Array.isArray(x.targets) ? x.targets : [`<${o.macGroup || GROUPS.mac}>`])] : x.do === "group" ? [`find or make the device group ${x.name}`] : x.do === "backup" ? ["download a JSON backup of the policy first"] : [];
+      tabs.push({ id: "req", label: "Graph requests", lang: "http", text: plan.ops.flatMap((x) => [...say(x), ""]).join("\n").trim() });
+      return tabs;
+    }
     if (k === "macscript" || k === "macprof") {
       // 0.8.0: the script, the three profiles as sent, and the requests —
       // an unticked profile is left out, a found one is assigned, not made
@@ -654,6 +1016,11 @@ const Gsa = (() => {
     signal: { title: "Enable Conditional Access signalling", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH /networkAccess/settings/conditionalAccess: signalingStatus enabled."], impact: "Entra sees the user's real source IP for traffic through the tunnel and can evaluate the compliant network. Named-location policies on IP ranges start seeing the original IP for those sign-ins.", recovery: "Turn it off in Global Secure Access → Settings → Session management only AFTER the policies that require the compliant network are off or deleted — Microsoft warns against disabling signalling while they exist, they would then fail everyone." },
     winrem: { title: "Create the Windows remediation", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune remediation (Devices → Scripts and remediations) named by the CloudFellows convention (Win - DHS - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit). Detection: the client in the uninstall keys and the client settings as chosen. Remediation: install from aka.ms (x64 or ARM64) when missing, then write the settings.", `Assign it to the device group you name — ${GROUPS.win} by default, made empty when missing and the tick is on — with remediation on, daily or hourly.`], impact: "At its next scheduled run every device in the group installs the Global Secure Access client when it is missing, and every run puts the client settings back. Pilot settings hide sign-out and Disable Private Access but leave Disable visible; locked down hides all four. Nothing restarts the device. Licence: Microsoft lists Windows Enterprise E3/E5, Education A3/A5 or VDA for remediations.", recovery: "Remove the assignment or delete the remediation in Intune → Devices → Scripts and remediations; it stops running. The client stays installed — uninstall it per device from Apps & features if needed." },
     macscript: { title: "Create the macOS client — script and profiles", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune macOS shell script named by the CloudFellows convention (MACOS - SH - Software Installation - D - Install Global Secure Access Client - R… - v…; root, once, three retries, notifications blocked, file scr-app-108-install-global-secure-access.zsh) that downloads the client package from aka.ms and installs it when it is missing — reused, not made again, when a script of that name is there.", "POST the three profiles the client cannot run without, as ticked below (ticked by default when missing or unassigned; one already in Intune is reused and only assigned): a settings catalog policy allowing the system extensions com.microsoft.globalsecureaccess.tunnel and com.microsoft.globalsecureaccess (team UBF8T346G9), a custom profile with Learn's transparent-proxy plist (com.apple.vpn.managed, device channel), and a preference file for com.microsoft.globalsecureaccess with the four Hide… keys as chosen.", `Assign all of them to the device group you name — ${GROUPS.mac} by default (the group the GSA macOS profiles target in the baseline), created empty when missing and the tick is on.`], impact: "Every Mac in the group installs the Global Secure Access client at its next Intune check-in and gets the profiles — before or after the script, the order does not matter. Nothing moves until the Microsoft profile is on and assigned to the user. The profiles pre-approve the extension and the proxy; without them the client asks the user to approve them or cannot tunnel. The client settings only hide tray buttons.", recovery: "Unassign or delete the three profiles in Intune → Devices → macOS → Configuration and the script in Devices → macOS → Shell scripts; the client stays installed (uninstall: the Uninstall Global Secure Access Client app). Nothing in Entra changes." },
+    // 0.9.0: one entry per chain row; macFixPlan(k, mac, opts) says create, repair, assign or add
+    "macfix-script": { title: "Fix the macOS install script", scopes: ["DeviceManagementScripts.ReadWrite.All", "DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["As the plan below says."], impact: "As the plan below says.", recovery: "As the plan below says." },
+    "macfix-sysext": { title: "Fix the system extensions", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["As the plan below says."], impact: "As the plan below says.", recovery: "As the plan below says." },
+    "macfix-proxy": { title: "Fix the transparent proxy profile", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["As the plan below says."], impact: "As the plan below says.", recovery: "As the plan below says." },
+    "macfix-settings": { title: "Fix the client settings", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["As the plan below says."], impact: "As the plan below says.", recovery: "As the plan below says." },
     macprof: { title: "Create the macOS profiles", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST the profiles the client cannot run without, as ticked below (ticked by default when missing or unassigned; one already in Intune is reused and only assigned): a settings catalog policy allowing the system extensions com.microsoft.globalsecureaccess.tunnel and com.microsoft.globalsecureaccess (team UBF8T346G9), a custom profile with Learn's transparent-proxy plist (com.apple.vpn.managed, device channel), and a preference file for com.microsoft.globalsecureaccess with the four Hide… keys as chosen. The shell script already in Intune is left as it is.", `Assign them to the device group you name — ${GROUPS.mac} by default, created empty when missing and the tick is on.`], impact: "Every Mac in the group gets the profiles at its next Intune check-in: the extension and the proxy are pre-approved, so the installed client loads its extension and tunnels without an approval prompt. Nothing moves until the Microsoft profile is on and assigned to the user. The client settings only hide tray buttons.", recovery: "Unassign or delete the profiles in Intune → Devices → macOS → Configuration; the client stays installed and falls back to asking the user. Nothing in Entra changes." },
     ztnasp: { title: "Create the ZTNA Policy Service Client service principal", scopes: ["Application.ReadWrite.All"], role: "Application Administrator", changes: [`POST /servicePrincipals with appId ${ZTNA_CLIENT} — Microsoft's first-party app the client signs in through.`], impact: "Optional — Microsoft documents no requirement for this app. None for users: it adds Microsoft's enterprise application to the tenant. In the LearnGraphAPI lab the client stayed Partially Connected (sign-in errors 50097, 50187) while it was missing; whether creating it alone fixed that was not proven.", recovery: "Delete the enterprise application again (Enterprise applications → ZTNA Policy Service Client → Properties → Delete)." },
     location: { title: `Create “${LOCATION_NAME}”`, scopes: ["Policy.ReadWrite.ConditionalAccess"], role: "Conditional Access Administrator", changes: [`POST a compliantNetworkNamedLocation “${LOCATION_NAME}” (allTenantCompliantNetworks, not trusted).`], impact: "None until a policy names it.", recovery: "Delete the named location in 🧩 Policy building blocks → Locations, once no policy uses it." },
@@ -683,10 +1050,27 @@ const Gsa = (() => {
       sources: { trv2: "ok", ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
     };
   }
+  // 0.9.0: devcf as read on 17 Oct before the repairs — a v1.1-style script
+  // without a signature check, the consolidated System Extensions policy
+  // unassigned, the proxy as Learn, the client settings with the .plist slip
+  // and a U name, and a group whose only member Intune no longer manages
+  function demoMac() {
+    const asg = [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-mac" } }];
+    const v11 = ["#!/bin/zsh", "url=\"https://aka.ms/GlobalSecureAccess-macOS\"", "ver_gt() { :; }", "profiles show -type configuration -output stdout-xml | grep -q '<key>TransparentProxy</key>' || exit 1", "installer -pkg \"$pkg\" -target /"].join("\n");
+    const xml = SET_KEYS.map((k) => `<key>${k}</key>\n<true/>`).join("\n");
+    return {
+      scripts: [{ id: "s-mac", displayName: "[OPTIONAL] MACOS - SH - Software Installation - D - Install Global Secure Access Client - R26.10 - v1.1", fileName: MAC_FILE, executionFrequency: "P7D", runAsAccount: "system", scriptContent: b64(v11), assignments: asg, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }],
+      policies: [{ id: "p-sx", name: "MACOS - DCP - Device Security - D - System Extensions - R26.10 - v1.0", description: "single system-extension allow-list", technologies: "mdm,appleRemoteManagement", roleScopeTagIds: ["0"], settings: macSysextSettings(), assignments: [] }],
+      configs: [
+        { "@odata.type": "#microsoft.graph.macOSCustomConfiguration", id: "c-px", displayName: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.10 - v3.0", payload: b64(macProxyPlist()), deploymentChannel: "deviceChannel", assignments: asg, overview: { successCount: 0, errorCount: 0, conflictCount: 0, pendingCount: 0 } },
+        { "@odata.type": "#microsoft.graph.macOSCustomAppConfiguration", id: "c-st", displayName: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.10 - v3.1", bundleId: "com.microsoft.globalsecureaccess.plist", fileName: "Policies.plist", configurationXml: b64(xml), assignments: asg, overview: { successCount: 0, errorCount: 0, conflictCount: 0, pendingCount: 0 } }],
+      groups: { "g-mac": { devices: 1, managedMacs: 0, users: 0 } },
+    };
+  }
   // a demo CA policy that requires the compliant network, for ?demo=1 when
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

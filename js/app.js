@@ -24970,7 +24970,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.busy) return;
     gsa.busy = true; gsa.err = null; gsa.proof = null; renderGsa();
     try {
-      if (isDemo) { await new Promise((r) => setTimeout(r, 250)); gsa.raw = Gsa.demo(); }
+      if (isDemo) { await new Promise((r) => setTimeout(r, 250)); gsa.raw = gsa.demoRaw || Object.assign(Gsa.demo(), { macChain: Gsa.demoMac() }); gsa.demoRaw = gsa.raw; }
       else {
         const sc = [...AUTH_CONFIG.scopes, ...GSA_READ];
         if (!await preConsent(sc)) throw new Error("the Global Secure Access read permissions were not granted");
@@ -25022,9 +25022,46 @@ This is a directory write. Nothing else changes.`)) return;
           for (const c of cfgs) { try { Object.assign(c, await Graph.gget(`/deviceManagement/deviceConfigurations/${c.id}?$expand=assignments`, sc)); } catch { c.assignments = c.assignments || []; } }
           return Gsa.macProfiles(pols, cfgs);
         });
+        // 0.9.0 (Mihai: robust and complete): the macOS chain FOUND BY CONTENT —
+        // every macOS settings catalog policy with its settings, the macOS
+        // custom / preference / extension profiles with their payload, the
+        // shell scripts that name the client with their content — each with its
+        // assignments and what Intune reports (device status, run summary), and
+        // the script's groups: devices and how many are Intune-managed Macs
+        await one("macChain", async () => {
+          let policies;
+          try { policies = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$expand=settings,assignments&$select=id,name,description,platforms,technologies,roleScopeTagIds,lastModifiedDateTime", { scopes: sc }); }
+          catch {
+            policies = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name,description,platforms,technologies,roleScopeTagIds,lastModifiedDateTime", { scopes: sc });
+            for (const p of policies.filter((x) => /GSA|Global Secure Access|system.?extension/i.test(x.name || ""))) { try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.settings = p.settings || []; } }
+          }
+          policies = policies.filter((p) => JSON.stringify(p.settings || []).includes("com.apple.system-extension-policy"));
+          const types = ["macOSCustomConfiguration", "macOSCustomAppConfiguration", "macOSExtensionsConfiguration"];
+          const configs = await Graph.ggetAll("/deviceManagement/deviceConfigurations?$filter=" + encodeURIComponent(types.map((t) => `isof('microsoft.graph.${t}')`).join(" or ")), { scopes: sc });
+          for (const c of configs.slice(0, 60)) { try { Object.assign(c, await Graph.gget(`/deviceManagement/deviceConfigurations/${c.id}?$expand=assignments`, sc)); } catch { c.assignments = c.assignments || []; } }
+          const scripts = (await Graph.ggetAll("/deviceManagement/deviceShellScripts?$expand=assignments", { scopes: sc })).filter((s) => /global.?secure.?access|\bgsa\b/i.test(`${s.displayName} ${s.fileName} ${s.description || ""}`));
+          for (const s of scripts) { try { s.scriptContent = (await Graph.gget(`/deviceManagement/deviceShellScripts/${s.id}`, sc)).scriptContent; } catch { /* content unknown */ } try { s.runSummary = await Graph.gget(`/deviceManagement/deviceShellScripts/${s.id}/runSummary`, sc); } catch { s.runSummary = null; } }
+          const chain = { policies, configs, scripts, groups: {} };
+          const mac = Gsa.macCheck(chain, raw.groupNames);
+          for (const r of mac.rows.filter((x) => x.found && x.key !== "script")) {
+            const o = r.found;
+            if (o.settings !== undefined && o.name !== undefined) { try { const rep = await Graph.gpost("/deviceManagement/reports/getConfigurationPolicyDevicesReport", { select: ["DeviceName", "PolicyStatus"], filter: `(PolicyId eq '${o.id}')`, top: 50 }, sc); o.reported = (typeof rep === "string" ? JSON.parse(rep) : rep).TotalRowCount; } catch { /* not read */ } }
+            else { try { o.overview = await Graph.gget(`/deviceManagement/deviceConfigurations/${o.id}/deviceStatusOverview`, sc); } catch { /* not read */ } }
+          }
+          for (const g of mac.groups) {
+            try {
+              const mem = await Graph.ggetAll(`/v1.0/groups/${g.id}/members?$select=id,displayName,deviceId,operatingSystem&$top=100`, { scopes: sc });
+              const devs = mem.filter((x) => /device$/i.test(x["@odata.type"] || "")), users = mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length;
+              let managed = 0;
+              for (const d of devs.filter((x) => /mac/i.test(x.operatingSystem || "")).slice(0, 25)) { try { if ((await Graph.ggetAll(`/deviceManagement/managedDevices?$filter=${encodeURIComponent(`azureADDeviceId eq '${d.deviceId}'`)}&$select=id`, { scopes: sc })).length) managed++; } catch { /* unknown */ } }
+              chain.groups[g.id] = { devices: devs.length, managedMacs: managed, users };
+            } catch { /* members not read */ }
+          }
+          return chain;
+        });
         // names of the groups the compliant-network policies include
         const cn = (raw.locations || []).find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
-        const asgIds = [...(raw.scripts || []), ...(raw.shellScripts || []), ...(raw.healthScripts || []), ...((raw.macProfiles && raw.macProfiles.found) || [])].flatMap((x) => (x.assignments || []).map((a) => (a.target || {}).groupId));
+        const asgIds = [...(raw.scripts || []), ...(raw.shellScripts || []), ...(raw.healthScripts || []), ...((raw.macProfiles && raw.macProfiles.found) || []), ...(raw.macChain ? [...raw.macChain.policies, ...raw.macChain.configs, ...raw.macChain.scripts] : [])].flatMap((x) => (x.assignments || []).map((a) => (a.target || {}).groupId));
         const ids = [...new Set([...Gsa.cnPolicies(gsaPolicies(), cn && cn.id).flatMap((p) => p.includeGroups), ...asgIds])].filter((id) => /^[0-9a-f-]{36}$/i.test(id || ""));
         for (let i = 0; i < ids.length; i += 15) {
           try { (await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(ids.slice(i, i + 15).map((x) => `id eq '${x}'`).join(" or "))}&$select=id,displayName`, { scopes: sc })).forEach((g) => { raw.groupNames[g.id] = g.displayName; }); } catch { /* ids stay */ }
@@ -25062,11 +25099,22 @@ This is a directory write. Nothing else changes.`)) return;
   // ---- the fixes: described first, then run ----
   // what the preview needs beside the options: the TRv2 plan, or (32703) the
   // macOS profiles as read, so a found one shows as reused
-  const gsaPrevOpts = (w) => w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
+  const gsaMacOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).mac || null;
+  const gsaPrevOpts = (w) => /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
   function gsaWorkHtml(w) {
-    const f = Gsa.FIXES[w.k]; if (!f) return "";
+    // 0.9.0: a chain fix takes its words from its plan (create, repair, assign or add)
+    const plan = /^macfix-/.test(w.k) ? Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w)) : null;
+    const f = plan ? Object.assign({}, Gsa.FIXES[w.k], { title: plan.title, changes: plan.changes, impact: plan.impact, recovery: plan.recovery }) : Gsa.FIXES[w.k]; if (!f) return "";
     const o = w.opts, k = w.k;
     let form = "";
+    if (plan) {
+      const r = plan.row, mac = gsaMacOf();
+      const issues = r.issues.length ? `<ul class="mini">${r.issues.map((i) => `<li class="${i.sev === "bad" ? "gsa-bad-txt" : "muted"}">${esc(i.t)}</li>`).join("")}</ul>` : "";
+      const sx = r.key === "sysext" && (plan.mode === "add" || (mac && mac.otherSx.length && !r.found) || r.consolidated && r.mode === "repair") ? `<div class="mini" style="margin:6px 0"><label class="chk"><input type="radio" name="gsaSx" data-gsaopt="sxMode" value="add"${(o.sxMode || "add") === "add" ? " checked" : ""}> <b>Add the GSA ids to the policy that already sets system extensions</b> (recommended — one policy, no conflict; a backup is downloaded first)</label><br><label class="chk"><input type="radio" name="gsaSx" data-gsaopt="sxMode" value="new"${o.sxMode === "new" ? " checked" : ""}> Make a separate GSA policy — Intune reports a conflict where both reach a Mac</label></div>` : "";
+      const lock = r.key === "settings" && plan.mode !== "assign" ? `<label class="chk"><input type="checkbox" data-gsaopt="lock"${(o.lock != null ? o.lock : r.mood === "lock-down") ? " checked" : ""}> Lock the client down — Pause, Disable, Quit and Disable Private Access hidden${r.mood ? ` (now: ${esc(r.mood)})` : ""}</label>` : "";
+      const grpIn = plan.ops.some((x) => x.do === "group") ? `<div class="mini" style="margin:6px 0">No assigned install script to follow — assign to <input class="txt" data-gsaopt="macGroup" value="${esc(o.macGroup || Gsa.GROUPS.mac)}" placeholder="Device group display name" style="min-width:min(320px,100%)"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label></div>` : "";
+      form = `${r.found ? `<div class="mini"><b>Now:</b> ${esc(r.name)}</div>` : ""}${issues}${sx}${lock}${grpIn}${plan.mode === "none" ? '<p class="mini gsa-ok-txt">Nothing to do — this row is complete.</p>' : ""}`;
+    }
     if (k === "assign") form = `<label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="group"${o.allUsers ? "" : " checked"}> <b>Pilot group</b> (recommended)</label> <input class="txt" data-gsaopt="group" value="${esc(o.group)}" placeholder="Group display name, e.g. GSA-SEC-U-M365Profile-Pilot" style="min-width:min(320px,100%)"><br><label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="all"${o.allUsers ? " checked" : ""}> <b>All users</b> — Assignment required off on the profile's app</label>`;
     // 32517: names by the CloudFellows convention read from devcf; release
     // and version editable, the device group defaulted and made when missing
@@ -25092,7 +25140,7 @@ This is a directory write. Nothing else changes.`)) return;
     const done = !!(w.log && w.log.done), failed = !!(w.log && !w.log.done && !w.busy);
     const otherBusy = gsa.work.some((x) => x !== w && x.busy);
     const step = (i, t) => `<span class="${w.busy ? (i === 2 ? "on" : i < 2 ? "dn" : "") : done ? "dn" : i === 1 ? "on" : ""}">${(w.busy && i < 2) || done ? "✓ " : ""}${i} ${t}</span>`;
-    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k);
+    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || /^macfix-/.test(k) && l.k === "client");
     return `<section class="gsa-wpanel" data-gsaw="${esc(k)}" id="gsaW-${esc(k)}"><div class="gsa-whead"><b>🔧 ${esc(f.title)}</b><span class="tag block">writes to tenant</span>${from ? `<span class="mini muted">from step ${gsa.model.links.indexOf(from) + 1} · ${esc(from.lab)}</span>` : ""}<button class="btn sm gsa-wclose" data-gsacancel${w.busy ? " disabled" : ""}>✕ ${done ? "Close" : "Cancel"}</button></div>
       <div class="gsa-wsteps">${step(1, "Review")}${step(2, "Apply")}${step(3, "Read the tenant again")}${failed ? '<span style="color:var(--off)">✗ stopped — see the log</span>' : ""}</div>
       <div class="gsa-wgrid"><div><ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}${prev}</div>
@@ -25255,6 +25303,8 @@ This is a directory write. Nothing else changes.`)) return;
         }
       } else if (k === "trv2") {
         await runTrv2(w, sc, say, sim);
+      } else if (/^macfix-/.test(k)) {
+        await runMacFix(w, sc, say, sim);
       }
       log.done = true;
       say("done — reading the tenant again", true);
@@ -25262,6 +25312,41 @@ This is a directory write. Nothing else changes.`)) return;
     finally { w.busy = false; }
     if (log.done) { if (isDemo) { gsaDemoApply(k, o); renderGsa(); } else { gsa.raw = null; await readGsa(); } }
     else renderGsa();
+  }
+  // 0.9.0: a chain fix is a list of ops from Gsa.macFixPlan — run in order,
+  // the new object's id carried to its assignment. A post reuses an object of
+  // the same name (only assigned then, its own assignments kept). /assign
+  // replaces, so every target list is the whole list.
+  async function runMacFix(w, sc, say, sim) {
+    const plan = Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w));
+    if (!plan || !plan.ops.length) { say("nothing to do — the row is complete", true); return; }
+    const v = {}, path = (kind) => Gsa.MAC_PATHS[kind];
+    for (const op of plan.ops) {
+      if (isDemo) { await sim(op.label || op.do); continue; }
+      if (op.do === "group") { const g = await gsaDeviceGroup(op.name, op.make, sc, say); v.group = [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }]; continue; }
+      if (op.do === "backup") { downloadText(op.file, "json", "application/json", JSON.stringify(op.data, null, 2)); say(op.label, true); continue; }
+      if (op.do === "post") {
+        const key = op.kind === "pol" ? "name" : "displayName", nm = op.body[key];
+        let same = [];
+        try { same = (await Graph.ggetAll(`${op.path}?$filter=${encodeURIComponent(`${key} eq '${nm.replace(/'/g, "''")}'`)}&$select=id,${key}`, { scopes: sc })).filter((x) => x[key] === nm); } catch { same = []; }
+        const made = same.length ? same[0] : await Graph.gpost(op.path, op.body, sc);
+        v.new = made.id;
+        v.newHad = same.length ? ((await Graph.gget(`${op.path}/${made.id}/assignments`, sc)).value || []).map((a) => a.target).filter(Boolean) : [];
+        say(same.length ? `${nm} already in Intune — reused, not created again` : op.label, true);
+        continue;
+      }
+      if (op.do === "assign") {
+        const id = op.id === "$new" ? v.new : op.id;
+        let targets = op.targets === "$group" ? v.group || [] : op.targets;
+        if (op.id === "$new" && v.newHad && v.newHad.length) targets = [...v.newHad, ...targets.filter((t) => !v.newHad.some((h) => h.groupId === t.groupId && h["@odata.type"] === t["@odata.type"]))];
+        const body = op.kind === "script" ? { deviceManagementScriptAssignments: targets.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) } : { assignments: targets.map((target) => ({ target })) };
+        await Graph.gpost(`${path(op.kind)}/${id}/assign`, body, sc);
+        say(op.label, true);
+        continue;
+      }
+      if (op.do === "patch") { await Graph.gpatch(op.path, op.body, sc); say(op.label, true); continue; }
+      if (op.do === "put") { await Graph.gput(op.path, op.body, sc); say(op.label, true); continue; }
+    }
   }
   // the demo shows a fix landing, so the board can be walked end to end
   function gsaDemoApply(k, o) {
@@ -25273,6 +25358,17 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "winrem") r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } });
     if (k === "winscript") r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE });
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
+    // 0.9.0: a chain fix lands in the demo chain — the plan's new body takes the row's place
+    if (/^macfix-/.test(k) && r.macChain) {
+      const mac = gsaMacOf(), plan = Gsa.macFixPlan(k, mac, Object.assign({}, o, { mac }));
+      const ch = r.macChain, scriptAsg = (mac.scriptAsg || []).map((a) => ({ target: a.target || a }));
+      if (plan && plan.mode === "assign" || plan && plan.mode === "add") { const f = plan.row.found || (ch.policies[0]); f.assignments = [...(f.assignments || []), ...scriptAsg]; if (plan.mode === "add") { const put = plan.ops.find((x) => x.do === "put"); if (put) Object.assign(f, { name: put.body.name, settings: put.body.settings }); } }
+      else if (plan) {
+        const post = plan.ops.find((x) => x.do === "post"); const nb = Object.assign({ id: `demo-${k}-${Date.now()}`, assignments: plan.row.found ? (plan.row.found.assignments || []) : scriptAsg, overview: { successCount: 0, errorCount: 0, conflictCount: 0, pendingCount: 0 }, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 }, lastModifiedDateTime: new Date().toISOString() }, post.body);
+        if (plan.row.found) { plan.row.found.assignments = []; if (plan.row.found.name !== undefined) plan.row.found.name = `[DEPRECATED] ${plan.row.found.name}`; else plan.row.found.displayName = `[DEPRECATED] ${plan.row.found.displayName}`; }
+        (plan.row.key === "sysext" ? ch.policies : plan.row.key === "script" ? ch.scripts : ch.configs).push(nb);
+      }
+    }
     if (k === "macscript" || k === "macprof") { r.macProfiles = r.macProfiles || {}; for (const p of Gsa.MAC_PROFILES) { if (!Gsa.wantProfile(o, p, r.macProfiles)) continue; const x = r.macProfiles[p.key]; r.macProfiles[p.key] = x ? Object.assign({}, x, { assigned: true }) : { id: `demo-${p.key}`, name: p.name({ rel: o.rel, ver: o.ver }), assigned: true }; } }
     if (k === "onboard") r.status.onboardingStatus = "onboarded";
     if (k === "ztnasp") r.ztna = [{ id: "sp-ztna", appId: Gsa.ZTNA_CLIENT }];
@@ -25290,7 +25386,8 @@ This is a directory write. Nothing else changes.`)) return;
     const fx = t.closest("[data-gsafix]"); if (fx) {
       const k = fx.dataset.gsafix, had = gsaW(k);
       if (had) gsa.work = [had, ...gsa.work.filter((x) => x !== had)];
-      else gsa.work.unshift({ k, opts: gsaDefOpts(), log: null, busy: false, tab: null });
+      // 0.9.0: a chain repair keeps the old settings' lock-down or pilot unless the person ticks otherwise
+      else gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), /^macfix-/.test(k) ? { lock: null } : {}), log: null, busy: false, tab: null });
       renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return;
     }
     const wp = t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
