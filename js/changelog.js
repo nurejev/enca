@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32702, date: "2026-10-17", title: "Global Secure Access: tenant restrictions v2 — only the tenants you allow on your devices",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "A tenant restrictions card under the board: which other tenants' accounts may be used on devices whose traffic goes through Global Secure Access. Conditional Access cannot see those sign-ins, because they happen in the other tenant, so without it a managed device can carry company data to a personal Microsoft account or a foreign tenant. This tenant's own accounts and its guests are never restricted." },
+      { kind: "new", tool: "Global Secure Access", text: "Set up opens a workspace with an allowed list kept in this browser per tenant: look a domain up or import a CSV of domain, tenantId and name. Apply allows those tenants first, then blocks every other tenant, then — only when Enforce is ticked — switches on universal tenant restrictions; a step whose predecessor failed is skipped. Partners that would start being blocked are listed with a tick to keep them. A backup of what the run touches is downloaded first, and Put back undoes it, enforcement off first. Not yet tried on a live tenant." },
+    ],
+  },
+  {
     build: 32701, date: "2026-10-15", title: "Production is build 326 (v2.0.4)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 326, ENCA v2.0.4: Workspace 03 · Entra Tools with 👥 Groups scoped by workload, 🌐 Global Secure Access, 🛰 Egress & location impact, SMS & voice and memberOf in 03, the Help tools in every workspace and the headers in the colours of the mark. In production 02 · PIM-buddy is listed as beta and cannot be chosen; everything of Workspace 02 stays on this channel." },

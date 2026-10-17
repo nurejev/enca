@@ -26,6 +26,9 @@
 // the admin-role question is in the admin handover, not in a button.
 // ======================================================================
 const Gsa = (() => {
+  // 0.7.0: tenant restrictions v2 lives in js/trv2.js (pure). The browser has
+  // it as a global; node (the tests) requires it beside this file.
+  const T2 = typeof Trv2 !== "undefined" ? Trv2 : (typeof require === "function" ? (() => { try { return require("./trv2.js"); } catch { return null; } })() : null);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const INTUNE_APP = "0000000a-0000-0000-c000-000000000000";       // Microsoft Intune
   const INTUNE_ENROLL = "d4ebce55-015a-49b5-a083-c84d1797ae8c";    // Microsoft Intune Enrollment
@@ -269,7 +272,7 @@ const Gsa = (() => {
   // the step the flow opens on: the first that blocks, else Proof
   const defaultSel = (m) => ((m.links.find((l) => l.st === "bad" || l.st === "warn") || m.links.find((l) => l.k === "proof") || m.links[0]).k);
   const ST = { ok: ["ok", "ready"], warn: ["warn", "partly"], bad: ["bad", "missing"], wait: ["wait", "waits"], unread: ["wait", "not read"] };
-  const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…" };
+  const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…" };
   function render(m, ui) {
     const u = ui || {};
     if (u.proof) proofLink(m, u.proof);
@@ -338,7 +341,11 @@ const Gsa = (() => {
     const grpTable = `<section class="list-card gsa-sect"><h3>Groups Global Secure Access uses <span class="mini muted">· ${m.allUsers ? "the profile is on for all users" : `${m.groups.length}`}</span></h3>${m.groups.length ? `<div class="gu-tw"><table class="plist"><thead><tr><th>Group</th><th>Why</th></tr></thead><tbody>${grpRows}</tbody></table></div><p class="mini muted">The same list is the <b>Used by GSA</b> scope of 👥 Groups (T12). <button class="btn sm" data-gsagroups>Open in Groups</button></p>` : '<p class="mini">No group yet — assign a pilot group to the profile, or a compliant-network policy that includes a group.</p>'}</section>`;
     const proofSect = u.proof ? `<section class="list-card gsa-sect"><h3>Sign-ins, last 7 days</h3><p class="mini">${u.proof.total} sign-ins read${u.proof.capped ? " (the first 5,000)" : ""} · ${u.proof.viaGsa} through Global Secure Access.</p><p class="mini muted">A sign-in a report-only policy would block is one that did not come through the client — a device without it, the client paused, or an IPv6 path around the tunnel (the client tunnels IPv4 only). Switch the policy on when this is near zero; this tool does not do that for you.</p></section>` : u.proofBusy ? `<section class="list-card gsa-sect"><p class="mini">Reading the sign-in log…</p></section>` : "";
     const later = `<p class="mini muted gsa-later">🌐 This tool covers the <b>Microsoft traffic profile</b>. Internet Access and Private Access come later; their profiles and assignments will join this board and the Used by GSA scope.</p>`;
-    return head + flow + detail + work + polTable + ivTable + grpTable + proofSect + later;
+    // 0.7.0: the tenant restrictions card (built by app.js from js/trv2.js)
+    // sits between the step and the workspaces — a protection of its own,
+    // not a link of the compliant-network chain, so the eight steps and the
+    // verdict stay about stolen tokens
+    return head + flow + detail + (u.trv2Html || "") + work + polTable + ivTable + grpTable + proofSect + later;
   }
 
   // ---- the Intune platform script (Windows) -------------------------------
@@ -507,6 +514,7 @@ const Gsa = (() => {
     const j = (x) => JSON.stringify(x, null, 2);
     if (k === "winrem") return [{ id: "det", label: "Detection", lang: "powershell", text: detectScript(o) }, { id: "rem", label: "Remediation", lang: "powershell", text: remediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.rem})`, `POST /deviceManagement/deviceHealthScripts/{id}/assign`, j({ deviceHealthScriptAssignments: [remediationAssignment("<" + (o.devGroup || GROUPS.win) + ">", o.schedule)] })])];
     if (k === "winscript") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }];
+    if (k === "trv2") return T2 ? T2.preview(o.plan) : [];
     if (k === "macscript") return [{ id: "mac", label: MAC_FILE, lang: "shell", text: macScript() }];
     if (k === "ztnasp") return req(["POST /v1.0/servicePrincipals", j({ appId: ZTNA_CLIENT })]);
     if (k === "location") return req(["POST /identity/conditionalAccess/namedLocations", j({ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false })]);
@@ -530,6 +538,8 @@ const Gsa = (() => {
     winscript: { title: "Create the Windows platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) that downloads the client from aka.ms, installs it and sets the lock-down keys.", `Assign it to the device group you name — ${GROUPS.win} by default, created as an empty assigned security group when it does not exist and the tick is on.`], impact: "Every device in the group installs the Global Secure Access client at its next Intune check-in. Pilot settings (Learn's sample) hide sign-out and Disable Private Access but leave Disable visible; locked down, users cannot disable or sign out of the client. A platform script runs once and installs whatever version Microsoft serves then — it does not update the client.", recovery: "Remove the assignment or delete the script in Intune → Devices → Scripts; uninstall the client per device (Apps & features) if needed." },
   };
 
+  if (T2) FIXES.trv2 = T2.FIX;
+
   // ---- demo -----------------------------------------------------------------
   function demo() {
     return {
@@ -545,7 +555,10 @@ const Gsa = (() => {
       macProfiles: { sysext: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0", assigned: false }, proxy: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0", assigned: true }, settings: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0", assigned: true } },
       groupNames: { "g-gsa-pilot": "GSA-SEC-U-M365Profile-Pilot", "g-mac": "INT-SEC-D-GSA-MAC-M365" },
       ztna: [],
-      sources: { ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
+      // 0.7.0: cross-tenant access as a fresh tenant has it — no tenant
+      // restrictions, one partner that inherits the default, enforcement off
+      trv2: { default: { tenantRestrictions: null }, partners: [{ tenantId: "5f0c1a2b-0000-4000-8000-00000000d3e0", tenantRestrictions: null }], utr: { networkPacketTaggingStatus: "disabled" } },
+      sources: { trv2: "ok", ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
     };
   }
   // a demo CA policy that requires the compliant network, for ?demo=1 when

@@ -159,7 +159,7 @@ const PROMOTE = {
     // its Groups tool is T12, which stays 01's file set.
     entra: {
       num: "03", label: "Entra Tools",
-      owns: ["js/gsa.js", "tools/gsa.test.cjs", "js/egress.js", "tools/egress.test.cjs"],
+      owns: ["js/gsa.js", "tools/gsa.test.cjs", "js/trv2.js", "tools/trv2.test.cjs", "js/egress.js", "tools/egress.test.cjs"],
       mainChecks: [
         "grep -nE 'GsaTool|toolGsa|screen-gsa' js/*.js index.html  (expect nothing)",
         "grep -nE 'toolEgress|screen-egress|js/egress' js/*.js index.html  (expect nothing)",
@@ -174,6 +174,24 @@ const PROMOTE = {
   },
 
   items: [
+    {
+      n: 336,
+      ws: "entra",
+      title: "🚧 Global Secure Access — tenant restrictions v2: only the tenants you allow on your devices (T56 0.7.0)",
+      tools: ["Global Secure Access"],
+      builds: [32702],
+      risk: "high",
+      what: "js/trv2.js (new, pure): state, plan (partner creates and allow-all, then the default block-all, then universal tenant restrictions only when Enforce is ticked; requires chain), backup of what the run touches, undoOps, verdict, card, preview, FIX. js/gsa.js: Trv2 picked up when loaded (required in node), fix trv2 with its preview, the card between the step and the workspaces, demo cross-tenant data. js/app.js: GSA_READ + Policy.Read.All; the read of the cross-tenant default, partners and networkAccess crossTenantAccess; trv2Settings per tenant in localStorage (enca-trv2:<tenant>), domain look-up, CSV import and export, keep-partner and Microsoft-accounts ticks, runTrv2 with the backup download first, trv2PutBack. index.html: script tag, Help bullet and the reads line. tools/trv2.test.cjs (18).",
+      why: "Mihai, 17 Oct: the GSA setup needs tenant restrictions v2, allowing Limon-IT and CloudFellows (both tenants); create it and prepare to deploy later. Risk high: once enforced it decides which accounts can sign in on every device in the traffic profile's group, there is no report-only mode, and three Graph shapes are unverified — PATCH with tenantRestrictions null to clear (Put back), POST partners with only a tenantId, AllApplications as the allow-all application target.",
+      test: [
+        "Beta, demo tenant, 03 → Global Secure Access: the Tenant restrictions v2 card says not set up and one partner inherits the default; Set up opens the workspace; Look up and add contoso.com adds a row; Apply without Enforce downloads a backup and logs a partner create, an allow and the default block, simulated; the card then says policy only.",
+        "Beta, demo tenant: tick Enforce and Apply — the card says enforced; ↩ Put back with the downloaded backup turns enforcement off first and the card returns to its earlier state.",
+        "Beta, signed in to cloudfellows.dev as Security Administrator: Read the tenant — the card lists the existing partners that inherit the default (compare with Entra → External Identities → Cross-tenant access settings → Organizational settings). Import docs/trv2-allowed-msp.csv (untracked): limon-it.nl and trianti.nl resolve by look-up, the cloudfellows.dev row is refused as the tenant itself.",
+        "Beta, cloudfellows.dev, Enforce NOT ticked: Apply. In the admin center the two partners read Tenant restrictions customized, all users and applications allowed, and Default settings → Tenant restrictions reads blocked. Read back one partner in Graph Explorer: the application target is AllApplications — if not, stop and send it to Claude.",
+        "Beta, cloudfellows.dev, traffic profile on a pilot group with one test device: tick Enforce and Apply. On that device an account of a third tenant gets Access blocked; a limon-it.nl account, a trianti.nl account and a cloudfellows.dev account sign in.",
+        "Beta, cloudfellows.dev: ↩ Put back with the backup — universal tenant restrictions off, the default as before, the two added partners removed. If the PATCH with null is refused, write down the message: Put back then needs the explicit default shape.",
+      ],
+    },
     {
       n: 335,
       ws: "pim",

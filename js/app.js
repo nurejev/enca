@@ -24793,11 +24793,11 @@ This is a directory write. Nothing else changes.`)) return;
   // Focus: the Microsoft traffic profile. It never switches a policy on and
   // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
   // ======================================================================
-  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All"];
+  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "Policy.Read.All"];
   // 32524: fixes open as stacked workspaces — gsa.work, newest first, one
   // per fix kind, each with its own options, log and busy flag; gsa.sel is
   // the step open under the flow (null = the first that blocks)
-  const gsaDefOpts = () => ({ group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily" });
+  const gsaDefOpts = () => ({ group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", enforce: false });
   let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "" };
   const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
   const gsaSession = () => `${tenantId}:${isDemo}`;
@@ -24808,6 +24808,143 @@ This is a directory write. Nothing else changes.`)) return;
     return list;
   };
   const gsaErr = (e) => String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "");
+  // ---- 🚧 Tenant restrictions v2 (T56 0.7.0, Mihai 17 Oct: "our GSA setup
+  // will need a tenant restrict v2, allowing Limon-IT and CloudFellows").
+  // js/trv2.js plans; this block reads, keeps the allowed list per tenant in
+  // this browser (no tenant names in the code), runs the plan with a backup
+  // first, and puts a backup back.
+  const trv2Own = () => (isDemo ? "00000000-0000-4000-8000-0000000de305" : String(tenantId || "").toLowerCase());
+  const trv2Key = () => Trv2.storeKey(isDemo ? "demo" : tenantId);
+  function trv2Settings() {
+    let s = null; try { s = JSON.parse(localStorage.getItem(trv2Key()) || "null"); } catch { /* private mode */ }
+    s = s && typeof s === "object" ? s : {};
+    return { allow: Array.isArray(s.allow) ? s.allow : [], keepPartners: Array.isArray(s.keepPartners) ? s.keepPartners : [], allowMsa: s.allowMsa === true };
+  }
+  function trv2Save(s) { try { localStorage.setItem(trv2Key(), JSON.stringify({ allow: s.allow || [], keepPartners: s.keepPartners || [], allowMsa: !!s.allowMsa })); } catch { toast("This browser does not keep settings — the allowed list lasts for this page only"); } }
+  const trv2Path = (url) => String(url).replace(/^https:\/\/graph\.microsoft\.com\/beta/, "").replace(/^https:\/\/graph\.microsoft\.com/, "");
+  function trv2Info() {
+    const r = gsa.raw; if (!r) return null;
+    const src = (r.sources || {}).trv2;
+    if (!r.trv2 || (src && src !== "ok")) return { err: src && src !== "ok" ? src : "read the tenant again" };
+    const st = Trv2.state(r.trv2.default, r.trv2.partners, r.trv2.utr), settings = trv2Settings();
+    return { st, settings, verdict: Trv2.verdict(st, settings, { ownTenantId: trv2Own() }) };
+  }
+  function trv2Plan(o) { const i = trv2Info(); return i && !i.err ? Trv2.plan(i.st, Object.assign({}, i.settings, { enforce: !!(o && o.enforce) }), { ownTenantId: trv2Own() }) : null; }
+  // the demo: a stable tenant id per domain, so the flow can be walked end to end
+  const trv2DemoId = (d) => { let h = 0; for (const c of String(d)) h = (h * 31 + c.charCodeAt(0)) >>> 0; const x = h.toString(16).padStart(8, "0"); return `${x}-0000-4000-8000-${x}${x.slice(0, 4)}`; };
+  async function trv2Lookup(entry) {
+    if (isDemo) return { tenantId: trv2DemoId(entry.domain), displayName: entry.domain };
+    const sc = [...AUTH_CONFIG.scopes, ...Trv2.PERMS.lookup];
+    if (!await preConsent(sc)) throw new Error("CrossTenantInformation.ReadBasic.All was not granted");
+    return Graph.gget(trv2Path(Trv2.lookupUrl(entry.domain)), sc);
+  }
+  async function trv2Add(w) {
+    const q = String((w.opts && w.opts.q) || "").trim().toLowerCase();
+    if (!q) { toast("Type a domain or a tenant ID first"); return; }
+    const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(q);
+    let e = isId ? { tenantId: q, name: q } : { domain: q, name: q };
+    try {
+      if (!isId) { const got = Trv2.applyLookup(e, await trv2Lookup(e)); if (!got) throw new Error(`no tenant found for ${q}`); e = got; }
+      const s = trv2Settings(), n = Trv2.normalizeAllow([...s.allow, e], trv2Own());
+      if (n.ok.length === s.allow.length) { const r = n.refused[n.refused.length - 1]; toast(esc(r ? r.reason : "Not added")); return; }
+      s.allow = n.ok; trv2Save(s); w.opts.q = "";
+      toast(`Added <span>${esc(e.name)}</span>`);
+    } catch (err) { toast(`Look-up failed: <span>${esc(gsaErr(err))}</span>`); }
+    renderGsa();
+  }
+  async function trv2Import(text) {
+    const r = Trv2.parseCsv(text);
+    if (r.error) { toast(esc(r.error)); return; }
+    const s = trv2Settings(), n = Trv2.normalizeAllow([...s.allow, ...r.rows], trv2Own());
+    const out = n.ok.slice(), msgs = n.refused.filter((x) => !/Listed twice/.test(x.reason)).map((x) => x.reason);
+    for (const e of n.needLookup) {
+      try {
+        const got = Trv2.applyLookup(e, await trv2Lookup(e));
+        if (!got) msgs.push(`${e.domain}: no tenant found`);
+        else if (got.tenantId === trv2Own()) msgs.push(`${e.domain} is this tenant — never restricted, left off the list`);
+        else if (!out.some((x) => x.tenantId === got.tenantId)) out.push(got);
+      } catch (err) { msgs.push(`${e.domain}: ${gsaErr(err)}`); }
+    }
+    const added = out.length - s.allow.length;
+    s.allow = out; trv2Save(s);
+    toast(`${added} tenant${added === 1 ? "" : "s"} added${msgs.length ? ` · <span>${esc(msgs.join(" · "))}</span>` : ""}`);
+    renderGsa();
+  }
+  // the demo shows a write landing (and a put-back undoing it)
+  function trv2DemoApply(op) {
+    const t = gsa.raw && gsa.raw.trv2; if (!t) return;
+    const id = op.tenantId || String(op.url).split("/").pop();
+    if (op.kind === "partner-create") t.partners.push({ tenantId: id, tenantRestrictions: null });
+    else if (op.kind === "partner-allow" || op.kind === "partner-restore") { const p = t.partners.find((x) => x.tenantId === id); if (p) p.tenantRestrictions = op.body.tenantRestrictions; }
+    else if (op.kind === "partner-delete") t.partners = t.partners.filter((x) => x.tenantId !== id);
+    else if (op.kind === "default-block" || op.kind === "default-restore") t.default = { tenantRestrictions: op.body.tenantRestrictions };
+    else if (op.kind === "utr") t.utr = { networkPacketTaggingStatus: op.body.networkPacketTaggingStatus };
+  }
+  // run the plan: backup first, then the ops in order; an op whose
+  // `requires` failed is skipped, so nothing is blocked before its allows land
+  async function runTrv2(w, sc, say, sim) {
+    const info = trv2Info();
+    if (!info || info.err) throw new Error(`tenant restrictions were not read — ${info ? info.err : "read the tenant first"}`);
+    const p = Trv2.plan(info.st, Object.assign({}, info.settings, { enforce: !!w.opts.enforce }), { ownTenantId: trv2Own() });
+    if (p.refusals.length) throw new Error(p.refusals.join(" · "));
+    if (!p.ops.length) { say(`nothing to change — ${p.notes.join(" ") || "the tenant already matches"}`, true); return; }
+    const bk = Trv2.backup(info.st, trv2Own(), null, p.ops);
+    const file = downloadText(`ENCA-tenant-restrictions-backup-${isDemo ? "demo" : (tenantName || tenantId)}`, "json", "application/json", JSON.stringify(bk, null, 2));
+    say(`backup saved${file ? ` as ${file}` : ""} — keep it for ↩ Put back`, true);
+    const failed = new Set();
+    for (const op of p.ops) {
+      if ((op.requires || []).some((id) => failed.has(id))) { failed.add(op.id); say(`skipped: ${op.label} — a step it needs did not land`, false); continue; }
+      try {
+        if (isDemo) { await sim(op.label); trv2DemoApply(op); }
+        else { if (op.method === "POST") await Graph.gpost(trv2Path(op.url), op.body, sc); else await Graph.gpatch(trv2Path(op.url), op.body, sc); say(op.label, true); }
+      } catch (e) { failed.add(op.id); say(`${op.label} — ${gsaErr(e)}`, false); }
+    }
+    if (failed.size) throw new Error(`${failed.size} of ${p.ops.length} steps did not land; a step after a failed one was skipped. ↩ Put back with the backup undoes what did land.`);
+  }
+  async function trv2PutBack(w, text) {
+    if (!w || w.busy || gsa.work.some((x) => x.busy)) return;
+    let bk = null; try { bk = JSON.parse(text); } catch { /* refused below */ }
+    let ops; try { ops = Trv2.undoOps(bk); } catch (e) { toast(esc(gsaErr(e))); return; }
+    if (!isDemo && bk.tenantId !== trv2Own()) { toast(`That backup is for tenant <span>${esc(bk.tenantId)}</span>, not this one — nothing was changed`); return; }
+    const log = w.log = []; const say = (t, ok) => { log.push({ t, ok }); renderGsa(); };
+    w.busy = true; renderGsa();
+    const sc = [...AUTH_CONFIG.scopes, ...Trv2.FIX.scopes];
+    try {
+      if (!isDemo && !await preConsent(sc)) throw new Error("permission not granted — nothing was changed");
+      say(`putting back the backup of ${new Date(bk.at).toLocaleString()} — ${ops.length} step${ops.length === 1 ? "" : "s"}`);
+      let bad = 0;
+      for (const op of ops) {
+        try {
+          if (isDemo) { await new Promise((r) => setTimeout(r, 150)); trv2DemoApply(op); }
+          else if (op.method === "DELETE") await Graph.gdelete(trv2Path(op.url), sc);
+          else await Graph.gpatch(trv2Path(op.url), op.body, sc);
+          say(`${op.label}${isDemo ? " (simulated)" : ""}`, true);
+        } catch (e) { bad++; say(`${op.label} — ${gsaErr(e)}`, false); }
+      }
+      if (bad) throw new Error(`${bad} step${bad === 1 ? "" : "s"} could not be put back — finish by hand in Entra → External Identities → Cross-tenant access settings`);
+      log.done = true; say("put back — reading the tenant again", true);
+    } catch (e) { say(gsaErr(e), false); }
+    finally { w.busy = false; }
+    if (log.done) { if (isDemo) renderGsa(); else { gsa.raw = null; await readGsa(); } } else renderGsa();
+  }
+  function trv2Form(w) {
+    const o = w.opts, info = trv2Info();
+    if (!info || info.err) return `<p class="mini gsa-warn-txt">Cross-tenant access settings were not read${info && info.err ? ` — ${esc(info.err)}` : ""}. Read the tenant again; it needs Policy.Read.All.</p>`;
+    const s = info.settings, st = info.st, p = trv2Plan(o);
+    const rows = s.allow.map((e) => `<div class="gsa-actrow"><div><b>${esc(e.name)}</b><div class="mini muted">${esc([e.domain, e.tenantId].filter(Boolean).join(" · "))} · now ${esc(Trv2.effective(st, e.tenantId))}</div></div><button class="btn sm" data-trv2rm="${esc(e.tenantId)}"${w.busy ? " disabled" : ""}>Remove</button></div>`).join("") || '<p class="mini">No tenant on the list yet — every other tenant would be blocked.</p>';
+    const allowIds = new Set(s.allow.map((e) => e.tenantId)), keep = new Set(s.keepPartners);
+    const inh = st.partners.filter((x) => x.inherits && !allowIds.has(x.tenantId) && x.tenantId !== Trv2.MSA_TENANT);
+    const inhHtml = inh.length ? `<div class="gsa-lab" style="margin-top:8px">Partners that inherit the default (${inh.length})</div>${inh.map((x) => `<label class="chk"><input type="checkbox" data-trv2keep="${esc(x.tenantId)}"${keep.has(x.tenantId) ? " checked" : ""}> Keep <b>${esc(x.tenantId)}</b> allowed — unticked, its accounts are blocked once the default blocks</label>`).join("<br>")}` : "";
+    const msgs = p ? [...p.refusals.map((t) => ["bad", t]), ...p.findings.map((f) => [f.sev === "warn" ? "warn" : "info", f.text]), ...p.notes.map((t) => ["info", t])] : [];
+    return `<div class="gsa-lab">Allowed tenants — kept in this browser for this tenant</div>${rows}`
+      + `<div style="margin:8px 0"><input class="txt" data-gsaopt="q" value="${esc(o.q || "")}" placeholder="Domain or tenant ID, e.g. contoso.com" style="min-width:min(260px,100%)"> <button class="btn sm" data-trv2add>Look up and add</button> <button class="btn sm" data-trv2csv>Import CSV…</button> <button class="btn sm" data-trv2export>Export CSV</button><input type="file" accept=".csv,text/csv" data-trv2file hidden></div>`
+      + '<p class="mini muted">A domain is looked up in Microsoft\'s directory (CrossTenantInformation.ReadBasic.All, asked on the click). CSV columns domain,tenantId,name — a row without a tenant ID is looked up.</p>'
+      + inhHtml
+      + `<label class="chk"><input type="checkbox" data-trv2msa${s.allowMsa ? " checked" : ""}> Allow personal Microsoft accounts — off is the safer choice; the default block covers them</label><br>`
+      + `<label class="chk"><input type="checkbox" data-gsaopt="enforce"${o.enforce ? " checked" : ""}> <b>Enforce</b> through Global Secure Access — universal tenant restrictions on. Off: the policy is written and nothing is blocked yet</label>`
+      + (msgs.length ? `<ul class="mini">${msgs.map(([c, t]) => `<li${c === "bad" ? ' style="color:var(--off)"' : c === "warn" ? ' class="gsa-warn-txt"' : ""}>${esc(t)}</li>`).join("")}</ul>` : "")
+      + `<div class="gsa-wbtns"><button class="btn sm" data-trv2undo${w.busy ? " disabled" : ""}>↩ Put back from a backup…</button><input type="file" accept=".json,application/json" data-trv2bk hidden></div>`;
+  }
   globalThis.GsaTool = {
     groupIds: () => (gsa.model && gsa.session === gsaSession() ? gsa.model.groupIds : null),
     nameOf: (id) => { const g = gsa.model && gsa.model.groups.find((x) => x.id === id); return g ? g.name : id; },
@@ -24826,7 +24963,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
     if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
     gsa.model = Gsa.model(gsa.raw, gsaPolicies());
-    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml) });
+    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info()) : "" });
     $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
   }
   async function readGsa() {
@@ -24853,6 +24990,10 @@ This is a directory write. Nothing else changes.`)) return;
           }
         }
         await one("locations", () => Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc }));
+        // 0.7.0: tenant restrictions v2 — the cross-tenant access default and
+        // partners (v1.0, Policy.Read.All) and GSA universal tenant
+        // restrictions (beta); an unreadable GSA setting is carried, not fatal
+        await one("trv2", async () => ({ default: await Graph.gget("/v1.0/policies/crossTenantAccessPolicy/default", sc), partners: await Graph.ggetAll("/v1.0/policies/crossTenantAccessPolicy/partners", { scopes: sc }), utr: await Graph.gget("/networkAccess/settings/crossTenantAccess", sc).catch((e) => ({ error: gsaErr(e) })) }));
         // 32523: the GSA ones read with their assignments, for the Intune card
         const withAsg = async (base, list) => { for (const s of list.filter((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`))) { try { s.assignments = (await Graph.gget(`${base}/${s.id}/assignments`, sc)).value || []; } catch { /* left unknown */ } } return list; };
         await one("scripts", async () => withAsg("/deviceManagement/deviceManagementScripts", await Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName,description", { scopes: sc })));
@@ -24930,7 +25071,8 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><p class="mini muted">A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet.</p>`;
     if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`;
     if (k === "macscript") { const c = (gsa.model.links.find((l) => l.k === "client") || {}); form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<p class="mini${c.macProfOk ? " muted" : " gsa-warn-txt"}">${esc(c.sub || "")}${c.macProfOk ? "" : " — assign them to the same group in Intune, or the client cannot load its extension and tunnel."}</p>`; }
-    const tabs = Gsa.preview(k, o), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
+    if (k === "trv2") form = trv2Form(w);
+    const tabs = Gsa.preview(k, k === "trv2" ? Object.assign({}, o, { plan: trv2Plan(o) }) : o), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
     const dlBtn = { det: "det", rem: "rem", win: "win", mac: "mac" }[tab && tab.id];
     const prev = tabs.length ? `<div class="gsa-lab" style="margin-bottom:4px">What it sends</div>${tabs.length > 1 ? `<div class="gsa-tabs" role="tablist">${tabs.map((t) => `<button type="button" role="tab" data-gsatab="${t.id}" class="${t === tab ? "on" : ""}" aria-selected="${t === tab}">${esc(t.label)}</button>`).join("")}</div>` : `<div class="mini muted" style="margin-bottom:4px">${esc(tab.label)}</div>`}<pre class="gsa-pre" data-gsapre>${esc(tab.text)}</pre><div class="gsa-wbtns"><button class="btn sm" data-gsacopy>Copy</button>${dlBtn ? `<button class="btn sm" data-gsadl="${dlBtn}">⬇ Download</button>` : ""}</div>` : "";
     const log = w.log ? `<div class="gsa-log">${w.log.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
@@ -25065,6 +25207,8 @@ This is a directory write. Nothing else changes.`)) return;
             say(`assigned to ${g.displayName}`, true);
           }
         }
+      } else if (k === "trv2") {
+        await runTrv2(w, sc, say, sim);
       }
       log.done = true;
       say("done — reading the tenant again", true);
@@ -25103,6 +25247,13 @@ This is a directory write. Nothing else changes.`)) return;
       renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return;
     }
     const wp = t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
+    if (w && w.k === "trv2") {
+      if (t.closest("[data-trv2add]")) { trv2Add(w); return; }
+      if (t.closest("[data-trv2csv]")) { const f = wp.querySelector("[data-trv2file]"); if (f) f.click(); return; }
+      if (t.closest("[data-trv2undo]")) { const f = wp.querySelector("[data-trv2bk]"); if (f) f.click(); return; }
+      if (t.closest("[data-trv2export]")) { downloadText("ENCA-tenant-restrictions-allowed", "csv", "text/csv", Trv2.toCsv(trv2Settings().allow)); return; }
+      const rm = t.closest("[data-trv2rm]"); if (rm) { const s = trv2Settings(); s.allow = s.allow.filter((e) => e.tenantId !== rm.dataset.trv2rm); trv2Save(s); renderGsa(); return; }
+    }
     if (w && t.closest("[data-gsacancel]")) { if (!w.busy) { gsa.work = gsa.work.filter((x) => x !== w); renderGsa(); } return; }
     if (w && t.closest("[data-gsago]")) { runGsaFix(w); return; }
     const tb = t.closest("[data-gsatab]"); if (w && tb) { w.tab = tb.dataset.gsatab; renderGsa(); return; }
@@ -25120,6 +25271,19 @@ This is a directory write. Nothing else changes.`)) return;
   const gsaOpt = (e) => {
     const t = e.target, wp = t.closest && t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
     if (!w) return;
+    if (w.k === "trv2") {
+      const isChange = e.type === "change";
+      if (isChange && t.hasAttribute("data-trv2file") || isChange && t.hasAttribute("data-trv2bk")) {
+        const file = t.files && t.files[0], back = t.hasAttribute("data-trv2bk"); t.value = "";
+        if (file) file.text().then((txt) => (back ? trv2PutBack(w, txt) : trv2Import(txt)));
+        return;
+      }
+      if (isChange && t.hasAttribute("data-trv2keep")) { const s = trv2Settings(), id = t.dataset.trv2keep; s.keepPartners = t.checked ? [...new Set([...s.keepPartners, id])] : s.keepPartners.filter((x) => x !== id); trv2Save(s); renderGsa(); return; }
+      if (isChange && t.hasAttribute("data-trv2msa")) { const s = trv2Settings(); s.allowMsa = t.checked; trv2Save(s); renderGsa(); return; }
+      if (t.dataset && t.dataset.gsaopt === "enforce") { if (isChange) { w.opts.enforce = t.checked; renderGsa(); } return; }
+      if (t.dataset && t.dataset.gsaopt === "q") w.opts.q = t.value;
+      return;
+    }
     if (t.hasAttribute("data-gsahow")) { w.opts.allUsers = t.value === "all"; }
     else { const k = t.dataset && t.dataset.gsaopt; if (!k) return; w.opts[k] = t.type === "checkbox" ? t.checked : t.value; }
     const o = w.opts, el = wp.querySelector("[data-gsaname]");
