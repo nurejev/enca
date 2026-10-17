@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32703, date: "2026-10-17", title: "Global Secure Access: the macOS profiles come with the install script",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "Create macOS script and profiles makes the three profiles the client cannot run without beside the shell script: the system extension policy (settings catalog, both GSA extensions under Microsoft's team id), the transparent proxy profile (Learn's plist) and the client settings (preference file; Pause and Disable shown by default, tick Lock the client down to hide all four buttons). Each is ticked when it is missing or assigned to nobody, one already in Intune is reused and only assigned, and all of them land on the script's device group. Names follow the baseline's convention." },
+      { kind: "new", tool: "Global Secure Access", text: "When the script is already there but a profile is missing or unassigned, step 6 offers Create macOS profiles — the same workspace from the profiles' side, the script left as it is. Before, nothing was offered once the script existed." },
+      { kind: "fixed", tool: "Global Secure Access", text: "A baseline that pre-approves the GSA extensions in one consolidated System Extensions policy (CloudFellows since 15 October) read as system extensions missing, because only the policy's name was checked. The read now opens the settings of macOS system-extension policies and reports that policy as found, marked as the baseline's." },
+    ],
+  },
+  {
     build: 32702, date: "2026-10-17", title: "Global Secure Access: tenant restrictions v2 — only the tenants you allow on your devices",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "A tenant restrictions card under the board: which other tenants' accounts may be used on devices whose traffic goes through Global Secure Access. Conditional Access cannot see those sign-ins, because they happen in the other tenant, so without it a managed device can carry company data to a personal Microsoft account or a foreign tenant. This tenant's own accounts and its guests are never restricted." },

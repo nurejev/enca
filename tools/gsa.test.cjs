@@ -279,3 +279,75 @@ test("0.6.3: Read the proof says it is reading, how far, and answers in the step
   const err = Gsa.render(m(), { sel: "proof", proofErr: "AuditLog.Read.All was not granted" });
   assert.match(err, /The read stopped[\s\S]*AuditLog\.Read\.All was not granted/);
 });
+
+test("0.8.0 (32703): the three macOS profiles come with the script — Learn's shapes, the fix choice, a consolidated baseline policy", () => {
+  const o = { rel: "R26.10", ver: "v1.0" };
+  // names: devcf's, without [OPTIONAL]
+  assert.strictEqual(Gsa.names(o).sysext, "MACOS - DCP - Device Configuration - D - Allow GSA System Extensions - R26.10 - v1.0");
+  assert.strictEqual(Gsa.names(o).proxy, "MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.10 - v1.0");
+  assert.strictEqual(Gsa.names(o).settings, "MACOS - DCP - Device Configuration - U - GSA System settings - R26.10 - v1.0");
+  // system extensions: settings catalog, both bundle ids under Microsoft's team, user overrides allowed (devcf's own shape)
+  const sx = Gsa.macSysextBody(o);
+  assert.strictEqual(sx.platforms, "macOS"); assert.strictEqual(sx.technologies, "mdm,appleRemoteManagement");
+  const flat = JSON.stringify(sx.settings);
+  for (const id of ["com.microsoft.globalsecureaccess.tunnel", "com.microsoft.globalsecureaccess", "UBF8T346G9", "com.apple.system-extension-policy_allowuseroverrides_true", "com.apple.system-extension-policy_allowedsystemextensions_generickey_keytobereplaced"]) assert.ok(flat.includes(id), id);
+  assert.match(sx.description, /Created by ENCA T56/);
+  // transparent proxy: Learn's plist verbatim, device channel
+  const px = Gsa.macProxyBody(o), plist = Buffer.from(px.payload, "base64").toString("utf8");
+  assert.strictEqual(px["@odata.type"], "#microsoft.graph.macOSCustomConfiguration");
+  assert.strictEqual(px.deploymentChannel, "deviceChannel");
+  assert.strictEqual(plist, Gsa.macProxyPlist());
+  assert.match(plist, /<key>VPNType<\/key>\n\s*<string>TransparentProxy<\/string>/);
+  assert.match(plist, /ProviderBundleIdentifier<\/key>\n\s*<string>com\.microsoft\.globalsecureaccess\.tunnel</);
+  assert.match(plist, /certificate leaf\[subject\.OU\] = UBF8T346G9/);
+  assert.match(plist, /<key>RemoteAddress<\/key>\n\s*<string>100\.64\.0\.0</);
+  // client settings: preference file for the Learn domain; pilot sample by default, lock = all four hidden
+  const st = Gsa.macSettingsBody(o), pilot = Buffer.from(st.configurationXml, "base64").toString("utf8");
+  assert.strictEqual(st["@odata.type"], "#microsoft.graph.macOSCustomAppConfiguration");
+  assert.strictEqual(st.bundleId, "com.microsoft.globalsecureaccess", "Learn's domain, not devcf's …globalsecureaccess.plist");
+  assert.match(pilot, /HidePauseButton<\/key>\n<false\/>/); assert.match(pilot, /HideDisableButton<\/key>\n<false\/>/);
+  assert.match(pilot, /HideQuitButton<\/key>\n<true\/>/); assert.match(pilot, /HideDisablePrivateAccessButton<\/key>\n<true\/>/);
+  const locked = Buffer.from(Gsa.macSettingsBody({ rel: "R26.10", lock: true }).configurationXml, "base64").toString("utf8");
+  assert.doesNotMatch(locked, /<false\/>/);
+  // the fix choice: no script → macscript (makes the profiles too); script there but a profile missing or unassigned → macprof; all there → none
+  const client = (raw) => Gsa.model(raw, []).links.find((l) => l.k === "client");
+  const raw = Gsa.demo();
+  assert.strictEqual(client(raw).fix2, "macscript");
+  raw.shellScripts.push({ id: "s2", displayName: Gsa.names(o).mac, fileName: Gsa.MAC_FILE });
+  assert.strictEqual(client(raw).fix2, "macprof", "the script is there, the system extension policy is unassigned");
+  assert.ok(client(raw).macProf && client(raw).macProf.proxy, "the profiles as read travel on the link");
+  raw.macProfiles.sysext.assigned = true;
+  assert.strictEqual(client(raw).fix2, null);
+  assert.strictEqual(client(raw).st, "warn", "Windows still missing");
+  // ticks: unset = missing or unassigned; a false stays false
+  const mp = raw.macProfiles;
+  assert.strictEqual(Gsa.wantProfile({}, Gsa.MAC_PROFILES[0], mp), false, "assigned → not ticked");
+  assert.strictEqual(Gsa.wantProfile({}, Gsa.MAC_PROFILES[0], { sysext: { assigned: false } }), true);
+  assert.strictEqual(Gsa.wantProfile({}, Gsa.MAC_PROFILES[1], {}), true, "missing → ticked");
+  assert.strictEqual(Gsa.wantProfile({ pProxy: false }, Gsa.MAC_PROFILES[1], {}), false);
+  // preview: the script tab only from the script side; a found profile is reused, an unticked one left alone
+  const ps = Gsa.preview("macscript", Object.assign({ macProf: {} }, o));
+  assert.deepStrictEqual(ps.map((t) => t.id), ["mac", "sysext", "proxy", "settings", "req"]);
+  assert.match(ps[4].text, /POST \/deviceManagement\/deviceShellScripts/);
+  const pp = Gsa.preview("macprof", Object.assign({ macProf: { proxy: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.10 - v3.0", assigned: false } }, pSet: false }, o));
+  assert.deepStrictEqual(pp.map((t) => t.id), ["sysext", "proxy", "req"]);
+  assert.match(pp[2].text, /GSA Transparent Proxy - R26.10 - v3.0 is in Intune — reused/);
+  assert.match(pp[2].text, /client settings: not ticked/);
+  assert.doesNotMatch(pp[2].text, /deviceShellScripts/);
+  // a baseline whose GSA extensions sit in one consolidated System Extensions policy (devcf since 15 Oct) is found by its settings, and marked
+  const consolidated = Gsa.macProfiles([{ id: "c9", name: "MACOS - DCP - Device Security - D - System Extensions - R26.10 - v1.0", assignments: [{ id: "a" }], settings: [{ settingInstance: { groupSettingCollectionValue: [{ children: [{ simpleSettingCollectionValue: [{ value: "com.microsoft.wdav.epsext" }, { value: "com.microsoft.globalsecureaccess" }] }] }] } }] }], []);
+  assert.strictEqual(consolidated.sysext.id, "c9");
+  assert.strictEqual(consolidated.sysext.consolidated, true);
+  assert.ok(consolidated.found.some((f) => f.id === "c9" && f.role === "system extensions"), "the Intune card lists it");
+  const r2 = Gsa.demo(); r2.macProfiles = Object.assign({}, r2.macProfiles, { sysext: consolidated.sysext });
+  assert.match(client(r2).sub, /system extensions assigned \(in the baseline's System Extensions policy\)/);
+  // one not naming GSA is not it
+  assert.strictEqual(Gsa.macProfiles([{ id: "c8", name: "MACOS - DCP - Device Security - D - System Extensions - R26.6", settings: [{ x: "com.microsoft.wdav.netext" }] }], []).sysext, undefined);
+  // the fix panel renders its button from either side
+  const m = Gsa.model(raw, []);
+  raw.macProfiles.sysext.assigned = false;
+  const h = Gsa.render(Gsa.model(raw, []), { sel: "client" });
+  assert.match(h, /data-gsafix="macprof">Create macOS profiles…/);
+  assert.ok(Gsa.FIXES.macprof && Gsa.FIXES.macprof.recovery, "described before it runs");
+  void m;
+});

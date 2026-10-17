@@ -175,6 +175,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 337,
+      ws: "entra",
+      title: "🌐 Global Secure Access — the three macOS profiles come with the install script (T56 0.8.0)",
+      tools: ["Global Secure Access"],
+      builds: [32703],
+      risk: "medium",
+      what: "js/gsa.js: names() gains sysext/proxy/settings (devcf's names without [OPTIONAL]); macSysextBody (settings catalog, Allowed System Extensions for com.microsoft.globalsecureaccess.tunnel + com.microsoft.globalsecureaccess, team UBF8T346G9, user overrides allowed — devcf's own shape), macProxyBody (macOSCustomConfiguration, Learn's com.apple.vpn.managed plist verbatim, deviceChannel), macSettingsBody (macOSCustomAppConfiguration, bundleId com.microsoft.globalsecureaccess, the four Hide… keys; lock = all hidden); MAC_PROFILES + wantProfile (unset tick = missing or unassigned); the client link's fix2 is macscript without a script, macprof with one but a profile missing or unassigned; macProfiles() marks a consolidated system-extension policy found by its settings; preview shows the script, each ticked profile and the requests; FIXES.macscript rewritten, FIXES.macprof new. js/app.js: the read opens the settings of macOS system-extension policies; the workspace form has the three ticks (found ones named, reused) and the lock tick; the runner makes or reuses each ticked profile and assigns it (both /assign routes replace, so what is there is kept); macprof skips the script; demo applies. tools/gsa.test.cjs covers the shapes against Learn.",
+      why: "Mihai, 17 Oct: after creating the macOS install script the three configuration profiles were missing and nothing was offered. Risk medium: writes to Intune only, idempotent by read and by name; a Mac already in the group gets the profiles at its next check-in, which is what the client needs.",
+      test: [
+        "Beta, demo tenant, 03 → Global Secure Access → step 6: the fix reads Create macOS script and profiles…; the workspace lists the three profiles, system extensions ticked (demo: unassigned), proxy and settings unticked (assigned); the What it sends tabs are the script, System extensions (JSON) and Graph requests; ticking Client settings adds its tab; Apply logs created/assigned per profile and the step reads macOS profiles all assigned.",
+        "Beta, demo tenant: after that Apply the step offers no macOS fix; remove the demo's shell script by a Refresh and the macscript fix returns.",
+        "Beta, signed in to cloudfellows.dev: Read — step 6 reads system extensions assigned (in the baseline's System Extensions policy) once that policy is assigned, or NOT ASSIGNED with the same note while it is not; the Intune card lists MACOS - DCP - Device Security - D - System Extensions - R26.10 - v1.0 as Profile · system extensions.",
+        "Beta, a tenant without the profiles (or cloudfellows.dev with the two [OPTIONAL] profiles unassigned): Create macOS profiles… → Apply. In Intune → Devices → macOS → Configuration the three (or the reused two plus one new) are assigned to INT-SEC-D-GSA-MAC-M365; the custom profile's XML equals Learn's; the preference file's domain is com.microsoft.globalsecureaccess (Learn), not …globalsecureaccess.plist as devcf's reads.",
+        "Beta, a Mac in that group with the client installed: no system-extension or proxy approval prompt after the next check-in; the tray shows Pause and Disable (pilot) or none of the four (lock).",
+      ],
+    },
+    {
       n: 336,
       ws: "entra",
       title: "🚧 Global Secure Access — tenant restrictions v2: only the tenants you allow on your devices (T56 0.7.0)",

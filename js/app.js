@@ -24797,7 +24797,7 @@ This is a directory write. Nothing else changes.`)) return;
   // 32524: fixes open as stacked workspaces — gsa.work, newest first, one
   // per fix kind, each with its own options, log and busy flag; gsa.sel is
   // the step open under the flow (null = the first that blocks)
-  const gsaDefOpts = () => ({ group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", enforce: false });
+  const gsaDefOpts = () => ({ group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", enforce: false, pSys: null, pProxy: null, pSet: null });
   let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "" };
   const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
   const gsaSession = () => `${tenantId}:${isDemo}`;
@@ -25013,7 +25013,10 @@ This is a directory write. Nothing else changes.`)) return;
         // client settings) — listed, matched by Gsa.macProfiles, then read with
         // their assignments; nothing here writes them
         await one("macProfiles", async () => {
-          const pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name,description", { scopes: sc })).filter((p) => /GSA|Global Secure Access/i.test(p.name || ""));
+          // 32703: a baseline's consolidated system-extension policy names the
+          // GSA extensions in its settings, not its name — those are opened
+          const pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name,description", { scopes: sc })).filter((p) => /GSA|Global Secure Access|system.?extension/i.test(p.name || ""));
+          for (const p of pols) { if (!/GSA|Global Secure Access/i.test(p.name || "")) { try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; } catch { p.settings = []; } } }
           const cfgs = (await Graph.ggetAll("/deviceManagement/deviceConfigurations?$select=id,displayName", { scopes: sc })).filter((c) => /macOSCustom/.test(c["@odata.type"] || "") && /GSA|Global Secure Access/i.test(c.displayName || ""));
           for (const p of pols) { try { p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.assignments = []; } }
           for (const c of cfgs) { try { Object.assign(c, await Graph.gget(`/deviceManagement/deviceConfigurations/${c.id}?$expand=assignments`, sc)); } catch { c.assignments = c.assignments || []; } }
@@ -25057,6 +25060,9 @@ This is a directory write. Nothing else changes.`)) return;
     renderGsa();
   }
   // ---- the fixes: described first, then run ----
+  // what the preview needs beside the options: the TRv2 plan, or (32703) the
+  // macOS profiles as read, so a found one shows as reused
+  const gsaPrevOpts = (w) => w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
   function gsaWorkHtml(w) {
     const f = Gsa.FIXES[w.k]; if (!f) return "";
     const o = w.opts, k = w.k;
@@ -25070,9 +25076,16 @@ This is a directory write. Nothing else changes.`)) return;
     const lockBox = `<label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label>`;
     if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><p class="mini muted">A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet.</p>`;
     if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`;
-    if (k === "macscript") { const c = (gsa.model.links.find((l) => l.k === "client") || {}); form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<p class="mini${c.macProfOk ? " muted" : " gsa-warn-txt"}">${esc(c.sub || "")}${c.macProfOk ? "" : " — assign them to the same group in Intune, or the client cannot load its extension and tunnel."}</p>`; }
+    if (k === "macscript" || k === "macprof") {
+      // 32703: the three profiles come with the script — ticked when missing
+      // or unassigned, a found one named and reused (assigned only)
+      const c = (gsa.model.links.find((l) => l.k === "client") || {}), mp = c.macProf || {};
+      const row = (p) => { const x = mp[p.key], on = Gsa.wantProfile(o, p, mp); return `<label class="chk"><input type="checkbox" data-gsaopt="${p.opt}"${on ? " checked" : ""}> <b>${esc(p.role[0].toUpperCase() + p.role.slice(1))}</b> — ${x ? `found: ${esc(x.name)} · ${x.assigned ? "assigned" : "NOT ASSIGNED"}${x.consolidated ? " · the baseline's consolidated policy" : ""}${on ? " · assigned to the group, not made again" : ""}` : `${esc(p.name({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }))} <span class="muted">(${esc(p.kind)})</span>`}</label>`; };
+      const lockMac = `<label class="chk" style="margin-left:22px"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — Pause, Disable, Quit and Disable Private Access all hidden (devcf v3.1). Off = Learn's sample: Pause and Disable shown, Quit and Disable Private Access hidden</label>`;
+      form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<div class="mini" style="margin:10px 0 4px"><b>Profiles</b> — the three the client cannot run without, same release and version, same group${k === "macprof" && c.macScript ? ` · the script ${esc(c.macScript.displayName)} stays as it is` : ""}</div>${Gsa.MAC_PROFILES.map(row).join("")}${lockMac}`;
+    }
     if (k === "trv2") form = trv2Form(w);
-    const tabs = Gsa.preview(k, k === "trv2" ? Object.assign({}, o, { plan: trv2Plan(o) }) : o), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
+    const tabs = Gsa.preview(k, gsaPrevOpts(w)), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
     const dlBtn = { det: "det", rem: "rem", win: "win", mac: "mac" }[tab && tab.id];
     const prev = tabs.length ? `<div class="gsa-lab" style="margin-bottom:4px">What it sends</div>${tabs.length > 1 ? `<div class="gsa-tabs" role="tablist">${tabs.map((t) => `<button type="button" role="tab" data-gsatab="${t.id}" class="${t === tab ? "on" : ""}" aria-selected="${t === tab}">${esc(t.label)}</button>`).join("")}</div>` : `<div class="mini muted" style="margin-bottom:4px">${esc(tab.label)}</div>`}<pre class="gsa-pre" data-gsapre>${esc(tab.text)}</pre><div class="gsa-wbtns"><button class="btn sm" data-gsacopy>Copy</button>${dlBtn ? `<button class="btn sm" data-gsadl="${dlBtn}">⬇ Download</button>` : ""}</div>` : "";
     const log = w.log ? `<div class="gsa-log">${w.log.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
@@ -25184,10 +25197,12 @@ This is a directory write. Nothing else changes.`)) return;
             say(`assigned to ${g.displayName} — remediation on, ${o.schedule === "hourly" ? "every hour" : "daily"}`, true);
           }
         }
-      } else if (k === "winscript" || k === "macscript") {
+      } else if (k === "winscript" || k === "macscript" || k === "macprof") {
         const win = k === "winscript", nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" };
         const g = await gsaDeviceGroup(String((win ? o.devGroup : o.macGroup) || (win ? Gsa.GROUPS.win : Gsa.GROUPS.mac)).trim(), o.mkGroup, sc, say);
         const body = win ? Gsa.windowsScriptBody(Object.assign({ lock: o.lock, ipv4: o.ipv4 }, nameOpts)) : Gsa.macScriptBody(nameOpts);
+        // 32703: from the profiles' side the script in Intune stays as it is
+        if (k === "macprof") say("the shell script is left as it is", true); else {
         const path = win ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceShellScripts";
         if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName}`);
         else {
@@ -25205,6 +25220,37 @@ This is a directory write. Nothing else changes.`)) return;
             const targets = [...had, { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }];
             await Graph.gpost(`${path}/${s.id}/assign`, { deviceManagementScriptAssignments: targets.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
             say(`assigned to ${g.displayName}`, true);
+          }
+        }
+        }
+        // 32703 (Mihai 17 Oct: the profiles were missing after the script):
+        // the three macOS profiles, as ticked — a found one (by the read, so
+        // a baseline's consolidated policy too) is reused and only assigned;
+        // otherwise one of the name is reused, else made. Both endpoints'
+        // /assign REPLACE the assignments, so what is there is kept.
+        if (!win) {
+          const mp = (gsa.raw && gsa.raw.macProfiles) || {};
+          for (const p of Gsa.MAC_PROFILES) {
+            if (!Gsa.wantProfile(o, p, mp)) continue;
+            const pb = p.body(Object.assign({ lock: o.lock }, nameOpts)), label = pb.name || pb.displayName, found = mp[p.key];
+            if (isDemo) { await sim(found ? `${found.name} assigned to ${g.displayName}` : `${label} created and assigned to ${g.displayName}`); continue; }
+            let id, nm, had;
+            if (found && found.id) {
+              id = found.id; nm = found.name; had = (found.assignments || []).map((a) => a.target).filter(Boolean);
+              say(`${nm} already in Intune — reused, not created again`, true);
+            } else {
+              const same = (await Graph.ggetAll(`${p.path}?$filter=${encodeURIComponent(`${p.nameKey} eq '${label.replace(/'/g, "''")}'`)}&$select=id,${p.nameKey}`, { scopes: sc })).filter((x) => x[p.nameKey] === label);
+              if (same.length > 1) say(`${same.length} profiles are called ${label} — one is used; delete the others in Intune → Devices → macOS → Configuration`, false);
+              const made = same.length ? same[0] : await Graph.gpost(p.path, pb, sc);
+              id = made.id; nm = label;
+              say(same.length ? `${label} already in Intune — reused, not created again` : `${label} created (${p.kind})`, true);
+              had = same.length ? ((await Graph.gget(`${p.path}/${id}/assignments`, sc)).value || []).map((x) => x.target).filter(Boolean) : [];
+            }
+            if (had.some((t) => t.groupId === g.id)) say(`${nm} already assigned to ${g.displayName}`, true);
+            else {
+              await Graph.gpost(`${p.path}/${id}/assign`, { assignments: [...had, { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }].map((target) => ({ target })) }, sc);
+              say(`${nm} assigned to ${g.displayName}`, true);
+            }
           }
         }
       } else if (k === "trv2") {
@@ -25227,6 +25273,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "winrem") r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } });
     if (k === "winscript") r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE });
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
+    if (k === "macscript" || k === "macprof") { r.macProfiles = r.macProfiles || {}; for (const p of Gsa.MAC_PROFILES) { if (!Gsa.wantProfile(o, p, r.macProfiles)) continue; const x = r.macProfiles[p.key]; r.macProfiles[p.key] = x ? Object.assign({}, x, { assigned: true }) : { id: `demo-${p.key}`, name: p.name({ rel: o.rel, ver: o.ver }), assigned: true }; } }
     if (k === "onboard") r.status.onboardingStatus = "onboarded";
     if (k === "ztnasp") r.ztna = [{ id: "sp-ztna", appId: Gsa.ZTNA_CLIENT }];
   }
@@ -25287,9 +25334,11 @@ This is a directory write. Nothing else changes.`)) return;
     if (t.hasAttribute("data-gsahow")) { w.opts.allUsers = t.value === "all"; }
     else { const k = t.dataset && t.dataset.gsaopt; if (!k) return; w.opts[k] = t.type === "checkbox" ? t.checked : t.value; }
     const o = w.opts, el = wp.querySelector("[data-gsaname]");
-    if (el) el.textContent = Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[w.k === "macscript" ? "mac" : w.k === "winrem" ? "rem" : "win"];
+    if (el) el.textContent = Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[w.k === "macscript" || w.k === "macprof" ? "mac" : w.k === "winrem" ? "rem" : "win"];
     // the preview follows the options, without a repaint that would steal focus
-    const pre = wp.querySelector("[data-gsapre]"), tabs = Gsa.preview(w.k, o), tab = tabs.find((x) => x.id === w.tab) || tabs[0];
+    // (32703: a profile tick changes the tab set, so that repaints)
+    if (/^(pSys|pProxy|pSet)$/.test((t.dataset && t.dataset.gsaopt) || "")) { renderGsa(); return; }
+    const pre = wp.querySelector("[data-gsapre]"), tabs = Gsa.preview(w.k, gsaPrevOpts(w)), tab = tabs.find((x) => x.id === w.tab) || tabs[0];
     if (pre && tab) pre.textContent = tab.text;
   };
   $("gsaBody").addEventListener("input", gsaOpt);
