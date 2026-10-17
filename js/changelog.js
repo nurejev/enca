@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32705, date: "2026-10-17", title: "Global Secure Access: step 7 always has a next step, and who it reaches is said plainly",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "Step 7 no longer stops at load Policies first. It says the policies are not read yet, so it cannot tell whether one requires the compliant network, and Read the policies reads them from the tenant and brings you back. When none names the compliant network, Create it in report-only opens the Policy builder pre-filled (block all resources outside the compliant network, the Intune apps left out, report-only); you set the exclusions and save. A report-only policy leads on to the proof." },
+      { kind: "improved", tool: "Global Secure Access", text: "The groups card is now Who Global Secure Access reaches, three questions: who gets the Microsoft traffic profile (All users means no group is needed), who must sign in through it (the compliant-network policies), and which devices get the client (the Intune groups per macOS and Windows, with how many managed Macs). One line on top says whether anybody's traffic goes through Global Secure Access yet." },
+    ],
+  },
+  {
     build: 32704, date: "2026-10-17", title: "Global Secure Access: the macOS chain checked by content, reach and landing — with repair",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "Step 6 has a macOS chain table: the install script, system extensions, transparent proxy and client settings, each found by what it contains rather than by its name, compared with Microsoft Learn, checked against the Macs the install script reaches, and with what Intune reports from the devices. The script's group is checked too: how many devices it holds and how many are Macs that Intune manages." },

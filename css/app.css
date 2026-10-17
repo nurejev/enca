@@ -3247,7 +3247,10 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-sect{padding:14px 16px;margin:0 0 14px}.gsa-sect h3{font-size:15px;margin:0 0 8px}.gsa-later{margin:6px 0 0}
 .gsa-warn-txt{color:var(--report)}
 /* 0.9.0 T56: the macOS chain table — found, content, reach, landed */
-.gsa-bad-txt{color:var(--off)}.gsa-ok-txt{color:var(--on)}.gsa-na-txt{color:var(--report)}
+.gsa-bad-txt{color:var(--off)}
+/* 0.9.1 T56: who it reaches */
+.gsa-who{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);white-space:nowrap}.gsa-who.dev{background:color-mix(in srgb,#7a4fc2 16%,transparent);color:#7a4fc2}
+.gsa-reachtab td{vertical-align:top}.gsa-reachtab td:last-child{text-align:right;white-space:nowrap}.gsa-ok-txt{color:var(--on)}.gsa-na-txt{color:var(--report)}
 .gsa-macsect .gsa-tablewrap{overflow-x:auto}
 .gsa-mtable{width:100%;border-collapse:collapse;font-size:13px}
 .gsa-mtable th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding:6px 8px;white-space:nowrap}

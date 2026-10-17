@@ -222,7 +222,7 @@ test("32524: the flow — eight steps in five lanes, the first that blocks opens
   assert.deepStrictEqual(Gsa.LANES.flatMap((l) => l[1]), m.links.map((l) => l.k), "the lanes cover every link once, in chain order");
   assert.strictEqual(Gsa.defaultSel(m), "profile", "demo: the profile is partly on — the first that blocks");
   const html = Gsa.render(m, {});
-  assert.strictEqual((html.match(/data-gsasel="/g) || []).length, 8 + 2, "eight nodes plus the two step buttons");
+  assert.strictEqual((html.match(/data-gsasel="/g) || []).length, 8 + 2 + 3, "eight nodes, the two step buttons, and the three step links of the reach card (0.9.1)");
   assert.match(html, /class="gsa-node warn sel" data-gsasel="profile"/);
   assert.match(html, /id="gsaDetail"/);
   assert.match(html, /Step 3 of 8/);
@@ -427,4 +427,37 @@ test("0.9.0: the macOS chain — found by content, checked against Learn, reach 
   assert.strictEqual(Gsa.bumpName("[DEPRECATED] MACOS - X - D - Y - R26.6 - v3.0"), `MACOS - X - D - Y - ${Gsa.relTag()} - v3.1`);
   assert.strictEqual(Gsa.bumpName("My GSA policy"), `My GSA policy - ${Gsa.relTag()} - v1.0`);
   void b64;
+});
+
+test("0.9.1: step 7 is never a dead end; the reach card says who is who", () => {
+  // policies not read: a read button, words that say what is not known
+  const raw = Gsa.demo(); raw.sp.appRoleAssignmentRequired = false;
+  let m = Gsa.model(raw, null), pol = m.links.find((l) => l.k === "policy");
+  assert.match(pol.note, /has not read this tenant's Conditional Access policies/);
+  let h = Gsa.render(m, { sel: "policy" });
+  assert.match(h, /data-gsareadpols>📥 Read the policies/);
+  assert.doesNotMatch(h, /Nothing ENCA can do from here/);
+  // read, none names the compliant network: the builder, pre-filled
+  m = Gsa.model(raw, []); h = Gsa.render(m, { sel: "policy" });
+  assert.match(h, /data-gsabuild>Create it in report-only…/);
+  // report-only: on to the proof
+  m = Gsa.model(raw, [policy()]); h = Gsa.render(m, { sel: "policy" });
+  assert.match(h, /data-gsasel="proof">Step 8 · the proof/);
+  // the reach card: profile for all users, no group needed; policies; devices by OS
+  raw.macChain = Gsa.demoMac();
+  m = Gsa.model(raw, null); h = Gsa.render(m, {});
+  const card = h.slice(h.indexOf('id="gsaReach"'));
+  assert.match(card, /Who gets the Microsoft traffic profile\?/);
+  assert.match(card, /<b>All users\.<\/b> <i>Assignment required<\/i> is off/);
+  assert.match(card, /makes no difference/, "a group still assigned while all users get it is named as making no difference");
+  assert.match(card, /Not known yet — the policies are not read/);
+  assert.match(card, /macOS: <b>INT-SEC-D-GSA-MAC-M365<\/b>[^<]*<span class="muted">\(install script, transparent proxy, client settings; 1 device, 0 managed Macs\)/);
+  assert.match(card, /Windows: <span class="muted">nothing assigned/);
+  assert.match(card, /client on 0 managed Macs and no Windows device — so nobody&#39;s traffic goes through Global Secure Access yet/);
+  assert.doesNotMatch(card, /No group yet/);
+  // the device group joins the Used by GSA scope
+  assert.ok(m.groupIds.includes("g-mac"));
+  // a pilot group, assignment required on: only they get it
+  const r2 = Gsa.demo(); const m2 = Gsa.model(r2, [policy()]);
+  assert.match(Gsa.render(m2, {}), /<b>GSA-SEC-U-M365Profile-Pilot<\/b> — only they get the profile/);
 });

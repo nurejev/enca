@@ -25379,6 +25379,20 @@ This is a directory write. Nothing else changes.`)) return;
     const t = e.target;
     if (t.closest("[data-gsaread]")) { readGsa(); return; }
     if (t.closest("[data-gsaproof]")) { readGsaProof(); return; }
+    // 0.9.1: step 7 is never a dead end — read the policies here and come back;
+    // with none naming the compliant network, the Policy builder opens pre-filled
+    if (t.closest("[data-gsareadpols]")) { (async () => { if (isDemo) { toast("Demo: the demo policies are already loaded"); return; } await loadFromGraph(true); gsa.sel = "policy"; openGsa(); })(); return; }
+    if (t.closest("[data-gsabuild]")) {
+      const cn = gsa.model && gsa.model.cn;
+      if (!cn) { toast("Create the compliant network location first (step 5)"); return; }
+      const tpl = { displayName: "CA200-BLOCK-Internals-OutsideCompliantNetwork-AllApps-v1.0", state: "enabledForReportingButNotEnforced",
+        conditions: { users: { includeUsers: ["All"], excludeUsers: [], excludeGroups: [], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [Gsa.INTUNE_APP, Gsa.INTUNE_ENROLL] }, clientAppTypes: ["all"], locations: { includeLocations: ["All"], excludeLocations: [cn.id] } },
+        grantControls: { operator: "OR", builtInControls: ["block"] } };
+      openBuilder({ from: tpl, as: "clone" });
+      if (pbDraft) { pbDraft.mode = "new"; pbDraft.sourceId = null; pbDraft.state = "enabledForReportingButNotEnforced"; renderBuilder(); }
+      toast("Pre-filled from Global Secure Access: set the exclusions (break-glass, admins) before you save");
+      return;
+    }
     // 32524: the flow — a step opens under it
     const sl = t.closest("[data-gsasel]"); if (sl) { gsa.sel = sl.dataset.gsasel; renderGsa(); const d = $("gsaDetail"); if (d && d.scrollIntoView) d.scrollIntoView({ block: "nearest" }); return; }
     const jp = t.closest("[data-gsajump]"); if (jp) { const el = $(jp.dataset.gsajump); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); return; }

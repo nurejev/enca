@@ -175,6 +175,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 338,
+      ws: "entra",
+      title: "🌐 Global Secure Access — step 7 always has a next step; Who it reaches replaces the groups card (T56 0.9.1)",
+      tools: ["Global Secure Access"],
+      builds: [32705],
+      risk: "low",
+      what: "js/gsa.js: the policy link says what is not known and carries a sub line per state; render adds Read the policies (data-gsareadpols, also on the policies card), Create it in report-only (data-gsabuild) and Step 8 for report-only; model.reachInfo (profile: all users / groups / backing; policies: include groups and All users; devices: Intune targets per OS with the macOS group counts) and the device groups in groupIds; the card is Who Global Secure Access reaches (three questions, users/devices chips, one summary line). js/app.js: the read runs loadFromGraph(true) and reopens T56 on step 7; the build opens openBuilder from a CA200-BLOCK template as a new draft in report-only. css: .gsa-who.",
+      why: "Mihai, 17 Oct: step 7 said load Policies first and nothing ENCA can do — nothing happens; the groups card said all users and then no group yet. Risk low: one read, and the builder only opens a draft.",
+      test: [
+        "Beta, signed in, Policies NOT loaded: 03 → Global Secure Access → step 7 says the policies are not read; Read the policies shows the loading screen and comes back to step 7 with the policies counted.",
+        "Beta, a tenant without a compliant-network policy: step 7 offers Create it in report-only; the Policy builder opens as a new policy, report-only, all users, all resources, block, the compliant network and the two Intune apps excluded; nothing is written until Save.",
+        "Beta, cloudfellows.dev: the Who it reaches card reads profile for all users (no group needed), the policies' include after the read, macOS INT-SEC-D-GSA-MAC-M365 with 0 managed Macs, Windows nothing assigned, and the line on top says nobody's traffic goes through yet; 👥 Groups → Used by GSA lists INT-SEC-D-GSA-MAC-M365.",
+      ],
+    },
+    {
       n: 337,
       ws: "entra",
       title: "🌐 Global Secure Access — the macOS chain: the three profiles come with the script, every object checked by content, reach and landing, with repair (T56 0.8.0–0.9.0)",
