@@ -1,0 +1,7 @@
+# T56 tenant restrictions v2 — allowed tenants for customer tenants (import per tenant in T56)
+# Keep this file out of the public repo, like docs/regions-pvm.csv.
+# Rows without a tenantId are looked up by domain on import (CrossTenantInformation.ReadBasic.All).
+domain,tenantId,name
+limon-it.nl,,Limon-IT
+trianti.nl,,CloudFellows
+cloudfellows.dev,020eb2d3-8046-4257-828d-64bf3ece8fbb,CloudFellows dev (devcf)

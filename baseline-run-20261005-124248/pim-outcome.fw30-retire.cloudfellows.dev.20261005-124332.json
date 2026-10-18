@@ -1,0 +1,463 @@
+{
+  "schema": "cloudfellows-pim-outcome/2.1",
+  "tenantId": "020eb2d3-8046-4257-828d-64bf3ece8fbb",
+  "planHash": "6b8e15ceff550b8db5912efe023b36883c6183e2f60bc461db3062e4ba106766",
+  "ops": [
+    {
+      "key": "ret:PIM-SG-M365-AppOps:cf1c38e5-3621-4004-a7cb-879624dced7c:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Application Developer at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:32.7430440Z",
+      "id": "e948efcc-5a58-4042-af24-508a407558de",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:29232cdf-9323-42fd-ade2-1d097af3e4de:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Exchange Administrator at / — PIM-SG-M365-AppOps-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:33.4890730Z",
+      "id": "6f2fc2ff-50fb-4627-8bdd-b63dc7079478",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:34.6499110Z",
+      "id": "b6e30663-c4c0-43b7-8c2d-a3176136f378",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:158c047a-c907-4556-b7ef-446551a6b5f7:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Cloud Application Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:35.4852290Z",
+      "id": "79a7801c-9e31-4a55-9c71-80bd1833f7b8",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:2b745bdf-0803-4d80-aa65-822c4493daac:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Office Apps Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:36.2772640Z",
+      "id": "de3f4eeb-a87b-4e41-b9fb-4cd7b54636d2",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:11648597-926c-4cf3-9c36-bcebb0ba8dcc:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Power Platform Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:37.2894620Z",
+      "id": "7d53d657-0f59-4db5-8b4a-011b22e7994c",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-AppOps:95e79109-95c0-4d8e-aee3-d01accf2d47b:/",
+      "summary": "PIM-SG-M365-AppOps no longer eligible for Guest Inviter at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:38.1244570Z",
+      "id": "26467d18-4771-4d2d-bf5c-2df0e1f32dda",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:9f06204d-73c1-4d4c-880a-6edb90606fd8:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Azure AD Joined Device Local Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:38.9552150Z",
+      "id": "19b2b983-a4ac-4260-a0a6-c5cdbd8afff1",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:729827e3-9c14-49f7-bb1b-9608f156bbb8:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Helpdesk Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:40.0095540Z",
+      "id": "f889ab1b-624f-48f8-ad3f-9d4fd28d8c76",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:40.8738360Z",
+      "id": "efc18fad-48bf-466f-86e6-e1b978d5849a",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:7698a772-787b-4ac8-901f-60d6b08affd2:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Cloud Device Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:41.7778740Z",
+      "id": "97af61db-f3be-40bb-997e-9275cf10ca0b",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:fe930be7-5e62-47db-91af-98c3a49a38b1:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for User Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:42.8022660Z",
+      "id": "f180ce81-272c-48ca-9aba-5024a78f3f32",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:966707d0-3269-4727-9be2-8c3a10f19b9d:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Password Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:43.6906090Z",
+      "id": "8d54a0ff-0cf3-41a4-a72e-196d9fb264e6",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for License Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:44.8019090Z",
+      "id": "f4858555-f89c-45c1-8b03-d7ef4a233b5f",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:fdd7a751-b60b-444a-984c-02652fe8fa1c:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Groups Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:45.8017730Z",
+      "id": "8462d68d-c3ae-469c-889c-92d648376770",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Helpdesk:c4e39bd9-1100-46d3-8c65-fb160da0071f:/",
+      "summary": "PIM-SG-M365-Helpdesk no longer eligible for Authentication Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:46.5011090Z",
+      "id": "612e047e-4002-4939-83f8-65fe37fd3851",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:f28a1f50-f6e7-4571-818b-6a12f2af6b6c:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for SharePoint Administrator at / — PIM-SG-M365-Ops-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:47.4268840Z",
+      "id": "20ec6e85-59ec-493a-a13c-5fbbeabd6dd6",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:9f06204d-73c1-4d4c-880a-6edb90606fd8:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Azure AD Joined Device Local Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:48.2782790Z",
+      "id": "74b0ccde-14eb-466d-bea3-80e88987dd5e",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Application Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:49.4761840Z",
+      "id": "4085bc13-a24f-4829-b4e2-7e25ddd837e0",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:50.3981890Z",
+      "id": "31335e98-6c2c-4146-bc02-b2f205e98004",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:0526716b-113d-4c15-b2c8-68e3c22b9f80:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Authentication Policy Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:51.4811390Z",
+      "id": "54639e6b-90e4-4525-8178-8a7d02e48d10",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:2b745bdf-0803-4d80-aa65-822c4493daac:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Office Apps Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:56.2763320Z",
+      "id": "bea07f45-fbfd-40ff-9845-44a2254ee281",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:45d8d3c5-c802-45c6-b32a-1d70b5e1e86e:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Identity Governance Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:57.1279250Z",
+      "id": "4598c9ba-c5e3-4871-ac60-f177094e7545",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:3a2c62db-5318-420d-8d74-23affee5d9d5:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Intune Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:58.5631150Z",
+      "id": "82658ba0-028d-471a-a2a7-8d39d2ff7bb4",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:fe930be7-5e62-47db-91af-98c3a49a38b1:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for User Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:43:59.4571140Z",
+      "id": "a8c9718e-adc8-45f9-85f0-20b5f41e679a",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:29232cdf-9323-42fd-ade2-1d097af3e4de:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Exchange Administrator at / — PIM-SG-M365-Ops-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:00.2799910Z",
+      "id": "45cdd0b9-4357-4ba6-a551-fe1abd39b398",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:95e79109-95c0-4d8e-aee3-d01accf2d47b:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Guest Inviter at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:00.9975670Z",
+      "id": "be1d6ff9-f725-4a8c-bdd2-171a5267690e",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:69091246-20e8-4a56-aa4d-066075b2a7a8:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Teams Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:01.9838100Z",
+      "id": "f626dcf4-c678-4865-bf53-6b75cfe5f321",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for License Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:02.7671250Z",
+      "id": "81319421-84ba-46f9-bc4c-066df615489c",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:11648597-926c-4cf3-9c36-bcebb0ba8dcc:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Power Platform Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:03.5910430Z",
+      "id": "763921ad-af63-4b8e-9dd8-fc19379e0a47",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:c4e39bd9-1100-46d3-8c65-fb160da0071f:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Authentication Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:04.3707630Z",
+      "id": "00eab79e-22c6-4cae-a64a-ee25b306a24b",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:f023fd81-a637-4b56-95fd-791ac0226033:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Service Support Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:05.2924480Z",
+      "id": "819c86d4-e1ee-448a-b000-e97e1e006191",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:3f1acade-1e04-4fbc-9b69-f0302cd84aef:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Edge Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:06.2529320Z",
+      "id": "6029a110-c654-4780-ac40-dc3cf8674ace",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-Ops:59d46f88-662b-457b-bceb-5c3809e5908f:/",
+      "summary": "PIM-SG-M365-Ops no longer eligible for Lifecycle Workflows Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:07.0745220Z",
+      "id": "fd8ad385-a42d-43a1-ab67-1d43401f4461",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:194ae4cb-b126-40b2-bd5b-6091b380977d:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Security Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:08.0878570Z",
+      "id": "7501b211-8d21-48bb-8a73-00aad08a6fdd",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Message Center Reader at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:08.8890140Z",
+      "id": "2ca27d4d-7079-4079-a222-7566d205d6a1",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:5f2222b1-57c3-48ba-8ad5-d4759f1fde6f:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Security Operator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:09.5886580Z",
+      "id": "f8f39c42-6aeb-4c64-838f-a8ccc66eefce",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:e6d1a23a-da11-4be4-9570-befc86d067a7:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Compliance Data Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:10.2368890Z",
+      "id": "6f1b1df8-0bd6-4a02-8bec-806ddc99aba4",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:17315797-102d-40b4-93e0-432062caca18:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Compliance Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:11.0732840Z",
+      "id": "ace333f3-b692-4fdc-8496-2191ceec88f0",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:892c5842-a9a6-463a-8041-72aa08ca3cf6:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Cloud App Security Administrator at / — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:11.8364970Z",
+      "id": "fb6fcf75-0925-4a6f-9d56-047265fb3118",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-M365-SecOps:b1be1c3e-b65d-4f19-8427-f6fa0d97feb9:/",
+      "summary": "PIM-SG-M365-SecOps no longer eligible for Conditional Access Administrator at / — PIM-SG-M365-SecOps-Direct carries it per role now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:12.9843660Z",
+      "id": "25a1babe-644e-426f-97a6-6d53b99476b3",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:729827e3-9c14-49f7-bb1b-9608f156bbb8:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for Helpdesk Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:13.7496870Z",
+      "id": "10aa2e26-5318-4f16-9b3b-378f62ca5e4a",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:966707d0-3269-4727-9be2-8c3a10f19b9d:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for Password Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:14.7426610Z",
+      "id": "dba33074-80d2-4614-92e7-3f0a6643ede8",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for License Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:15.6237730Z",
+      "id": "49d95f0d-cc34-40b0-8c5b-32abb07e25f0",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Helpdesk:c4e39bd9-1100-46d3-8c65-fb160da0071f:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Helpdesk no longer eligible for Authentication Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:16.8103960Z",
+      "id": "e445ae05-209f-4baf-95ea-94d2fb0fcfc5",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:7698a772-787b-4ac8-901f-60d6b08affd2:/administrativeUnits/40c102a2-72ac-43ca-b6b1-88466d17ede5",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for Cloud Device Administrator at /administrativeUnits/40c102a2-72ac-43ca-b6b1-88466d17ede5 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:17.9029260Z",
+      "id": "d0bafea2-d953-42b1-94a6-9c99e861649d",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:fe930be7-5e62-47db-91af-98c3a49a38b1:/administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for User Administrator at /administrativeUnits/2f88a2ce-ccb3-4cb1-aa64-e00194e500ab — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:18.9359760Z",
+      "id": "aaef7b11-e491-48ec-8608-3c3eea3b6615",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:69091246-20e8-4a56-aa4d-066075b2a7a8:/administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for Teams Administrator at /administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:19.9872340Z",
+      "id": "88dd7ff2-e71e-4b2c-9f23-2b3675976894",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-NL-Ops:fdd7a751-b60b-444a-984c-02652fe8fa1c:/administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46",
+      "summary": "PIM-SG-EU-NL-Ops no longer eligible for Groups Administrator at /administrativeUnits/88ea41b8-3259-49e4-93f0-9a1fd7f85a46 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:21.1454890Z",
+      "id": "89a9b503-65fb-4dc0-9b0a-5a89e3537e9f",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:729827e3-9c14-49f7-bb1b-9608f156bbb8:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for Helpdesk Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:22.0535940Z",
+      "id": "66cc2d77-92ba-4407-8a73-aba7543eab55",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:966707d0-3269-4727-9be2-8c3a10f19b9d:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for Password Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:23.6465020Z",
+      "id": "ddb802bf-c722-48c4-9c5c-8ea4c2f2e73d",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:4d6ac14f-3453-41d0-bef9-a3e0c569773a:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for License Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:25.0713270Z",
+      "id": "56df5551-fd47-4772-8687-ecc7e5e3aaaf",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Helpdesk:c4e39bd9-1100-46d3-8c65-fb160da0071f:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Helpdesk no longer eligible for Authentication Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:26.0124650Z",
+      "id": "376c0375-57bf-42af-b81f-f2447df7d862",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:7698a772-787b-4ac8-901f-60d6b08affd2:/administrativeUnits/ac1f825a-c648-4c39-9b56-c0c9066de206",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for Cloud Device Administrator at /administrativeUnits/ac1f825a-c648-4c39-9b56-c0c9066de206 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:35.0263680Z",
+      "id": "6d6788eb-f32f-430e-8de6-e2d918d8d221",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:fe930be7-5e62-47db-91af-98c3a49a38b1:/administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for User Administrator at /administrativeUnits/4c771e14-402f-446b-908d-d96bbf05ad67 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:36.3392890Z",
+      "id": "877cdbe8-d94b-4a5b-bd22-372d5c98d55b",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:69091246-20e8-4a56-aa4d-066075b2a7a8:/administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for Teams Administrator at /administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:37.3219380Z",
+      "id": "dc7919ac-0655-4dd1-a535-3430db2de8a0",
+      "error": null
+    },
+    {
+      "key": "ret:PIM-SG-EU-DE-Ops:fdd7a751-b60b-444a-984c-02652fe8fa1c:/administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84",
+      "summary": "PIM-SG-EU-DE-Ops no longer eligible for Groups Administrator at /administrativeUnits/337e472e-1af5-429d-975d-f4306701cd84 — the group holds it actively now",
+      "status": "done (Revoked)",
+      "at": "2026-10-05T10:44:38.3037550Z",
+      "id": "164e281e-c89d-4609-a6b5-cf7345c24a62",
+      "error": null
+    }
+  ]
+}
