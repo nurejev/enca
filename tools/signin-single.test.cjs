@@ -29,9 +29,13 @@ function loadConfig({ host = 'enca.limon-it.nl', encaAuth, store } = {}) {
 test('the shipped config has no login on the hosted site, and the beta host keeps its own single-tenant one', () => {
   const p = loadConfig();
   assert.equal(p.AUTH_CONFIG.clientId, ''); assert.equal(p.AUTH_CONFIG.authority, ''); assert.equal(p.AUTH_CONFIG.refused, '');
+  // The beta channel's per-host default (AUTH_HOSTS) exists on beta only; on
+  // main the beta host gets the same empty default as any other host.
   const b = loadConfig({ host: 'nurejev.github.io' });
-  assert.equal(b.AUTH_CONFIG.clientId, '6da2c636-e3ef-4fc1-b431-37e79aae2184');
-  assert.match(b.AUTH_CONFIG.authority, /\/020eb2d3-8046-4257-828d-64bf3ece8fbb$/);
+  if (/const AUTH_HOSTS/.test(read('js/authConfig.js'))) {
+    assert.equal(b.AUTH_CONFIG.clientId, '6da2c636-e3ef-4fc1-b431-37e79aae2184');
+    assert.match(b.AUTH_CONFIG.authority, /\/020eb2d3-8046-4257-828d-64bf3ece8fbb$/);
+  } else assert.equal(b.AUTH_CONFIG.clientId, '');
   assert.doesNotMatch(read('js/authConfig.js'), /4437195a/, 'the retired shared client ID must not come back');
 });
 

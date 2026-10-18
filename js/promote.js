@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v2.0.4",
+  productionBuild: "v2.0.5",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -174,28 +174,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 342,
-      ws: "platform",
-      title: "🔐 Sign-in through your own registration only — no shared multi-tenant app; the registration must belong to the tenant (R89)",
-      tools: ["Sign-in"],
-      builds: [32709],
-      risk: "high",
-      what: "js/authConfig.js: no shipped login (clientId and authority empty), and refuseShared() on the MERGED config empties a shared authority (organizations, common, consumers), a client without a tenant or a tenant without a client, keeping AUTH_CONFIG.refused and refusedFrom. js/connection.js: validate() needs both values and refuses shared endpoints; usable(); apply() of a saved login that is not whole signs in with nothing (refused = connection) instead of falling back; paintCurrent/paintPicker word the no-login and refused states and open the panel when it is the only way in; paintRoute() is one route: the Azure Cloud Shell command psLine() (Invoke-WebRequest of this copy's New-EncaAppRegistration.ps1, Get-FileHash against PS_SHA256, -RedirectUris this page, -RequireAssignment) with Copy and Read the script. js/graph.js: no MSAL without a client ID; signIn/signInRedirect reject with no_login. js/app.js: the Sign in button without a login explains and opens the panel; AADSTS50194 mapped, 65001/700016 reworded; ownRegistrationOk() before the tenant read compares the service principal's appOwnerOrganizationId with the signed-in tenant and on a foreign owner clears MSAL's session entries and reloads with the reason (enca-signin-refused). js/onboard.js: demo is its own registration, the band only for a known foreign owner, stale shared wording. New-EncaAppRegistration.ps1: single-tenant only, -TenantId check, Cloud Shell token via Get-AzAccessToken, redirect URIs merged on update, /me instead of Get-MgUser, never edits js/authConfig.js, ASCII only. selfhost: entrypoint refuses ENCA_CLIENT_ID without ENCA_TENANT_ID and a shared ENCA_AUTHORITY; install.ps1/install.sh refuse a client without a tenant; azuredeploy.json and docker-compose.yml texts. index.html: the card texts, Help 🪪, R14/R59 notes, roadmap R89. css: .conn-cmd, .conn-warn. tools/signin-single.test.cjs.",
-      why: "Mihai, 18 Oct 2026: no more multi-tenant apps — redesign, onboarding per customer, the Dovilo multi-tenant app must go, no grace period (safety first). Read the same day: the shared app 4437195a was consented in Dovilo, cloudfellows.dev, Mediacollege Amsterdam and Keij & Stefels; in Dovilo with a tenant-wide grant including RoleManagement.ReadWrite.Directory, Application.ReadWrite.All and Policy.ReadWrite.ConditionalAccess, assignment not required. Mihai deletes 4437195a and f526b060 and re-creates them single-tenant. Production 326 still ships 4437195a with /organizations, so until this is promoted the hosted Sign in button fails for everybody without a saved login.",
-      carveout: "main has no AUTH_HOSTS: port js/authConfig.js as the empty default plus refuseShared(), without the per-host block, and keep main's plain Object.assign of window.ENCA_AUTH. PS_SHA256 in js/connection.js must be recomputed on main if main's New-EncaAppRegistration.ps1 differs from beta's (tools/signin-single.test.cjs fails if it is wrong). Prose citing build 32709 becomes the production build number.",
-      test: [
-        "Beta, a private window with no saved login: the sign-in card shows the ⚙ panel open with Default — the beta host's own login (6da2c636, cloudfellows.dev); Sign in works for a cloudfellows.dev account.",
-        "Beta, ⚙ → ＋ Add with only a client ID: refused with the two-values message; with tenant organizations: refused with the shared-endpoint message; with a client ID and contoso.onmicrosoft.com: saved and selected.",
-        "Beta, a saved login from an older build with only a client ID (add it by editing localStorage enca-connections): the card shows it with the not-a-whole-login warning, Sign in says No login yet and opens the panel.",
-        "Beta, the 🪪 block in the ⚙ panel: the command names nurejev.github.io/enca-beta/New-EncaAppRegistration.ps1 and this page as -RedirectUris; Copy puts it on the clipboard; Read the script opens the file. In Azure Cloud Shell (PowerShell, no storage account) in a test tenant: the hash check passes, the script says Using the Cloud Shell session, creates a single-tenant registration, assigns you, grants consent and prints the client ID and tenant ID; ＋ Add them and sign in.",
-        "Beta, the same command after changing one character of the downloaded file: Cloud Shell stops with enca-reg.ps1 is not the file this ENCA build shipped.",
-        "Beta, R2: add a login whose client ID is a multi-tenant app owned by another tenant that your test tenant consented to (or, in jsdom, stub Graph.connectionInfo with another owner): after sign-in the page reloads to the sign-in card with Signed out: that registration belongs to another organisation, naming the app and the owner.",
-        "Beta, ?demo=1 still loads; the account menu row reads App registration: check this one, or add my own…, and no band about a foreign registration shows.",
-        "Container: docker run with ENCA_CLIENT_ID only exits with ENCA_CLIENT_ID is set without ENCA_TENANT_ID; with ENCA_AUTHORITY=https://login.microsoftonline.com/organizations exits with is a shared endpoint; with both client and tenant it starts and the card reads Single-tenant.",
-        "Production host in jsdom (location enca.limon-it.nl, no saved login): no MSAL instance, the card says No login yet, the ⚙ panel is open with the command naming https://enca.limon-it.nl/New-EncaAppRegistration.ps1, no console errors.",
-      ],
-    },
     {
       n: 341,
       ws: "entra",

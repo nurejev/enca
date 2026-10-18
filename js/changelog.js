@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32801, date: "2026-10-18", title: "Production is build 327 (v2.0.5)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 327, ENCA v2.0.5: sign-in through your own registration only. The shared multi-tenant app is gone from enca.limon-it.nl as it is from this channel, the registration must belong to the tenant you sign in to, and the first registration in a tenant comes from the Azure Cloud Shell command on the sign-in card. Everything else queued stays on this channel." },
+    ],
+  },
+  {
     build: 32709, date: "2026-10-18", title: "Sign-in through your own registration only: the shared multi-tenant app is gone",
     items: [
       { kind: "improved", tool: "Sign-in", text: "ENCA signs in only through an app registration in your own tenant. A copy of ENCA ships no login of its own any more: a login is always the client ID of your registration and the tenant it lives in, and the shared endpoints organizations, common and consumers are refused wherever a tenant can be given, with the reason on the sign-in card." },
