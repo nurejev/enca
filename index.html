@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32708"></script>
+<script src="js/popup-guard.js?v=32709"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32708" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32708">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32709" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32709">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32708"></script>
+<script src="js/selfhost-boot.js?v=32709"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32708"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32708"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32708">
-<link rel="stylesheet" href="css/workspaces.css?v=32708">
-<link rel="stylesheet" href="css/tool-layout.css?v=32708">
-<link rel="stylesheet" href="css/list-detail.css?v=32708">
-<link rel="stylesheet" href="css/flat-icons.css?v=32708">
+<script src="js/counter.js?v=32709"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32709"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32709">
+<link rel="stylesheet" href="css/workspaces.css?v=32709">
+<link rel="stylesheet" href="css/tool-layout.css?v=32709">
+<link rel="stylesheet" href="css/list-detail.css?v=32709">
+<link rel="stylesheet" href="css/flat-icons.css?v=32709">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32708" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32709" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32708" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32709" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -127,7 +127,7 @@
            Filled and wired by js/connection.js; the choice lives in THIS BROWSER
            and never reaches the site, a server or any tenant. -->
       <details class="login-conn" id="loginConn">
-        <summary id="connSummary">⚙ Sign in to another tenant, or with your own app registration</summary>
+        <summary id="connSummary">⚙ Your organisation's ENCA login</summary>
         <div class="conn-body">
           <div class="conn-row"><label for="connPick">Connection</label><select id="connPick"></select></div>
           <div class="conn-cur" id="connCur"></div>
@@ -141,10 +141,10 @@
             <input id="connName" type="text" autocomplete="off" maxlength="60" placeholder="Contoso — own registration">
             <label for="connClient">Application (client) ID</label>
             <input id="connClient" type="text" autocomplete="off" spellcheck="false" placeholder="00000000-1111-2222-3333-444444444444">
-            <p class="conn-hint">Leave empty to keep the registration this copy ships with and change only the tenant.</p>
+            <p class="conn-hint">Required — from the Overview page of your ENCA registration.</p>
             <label for="connTenant">Tenant</label>
-            <input id="connTenant" type="text" autocomplete="off" spellcheck="false" placeholder="contoso.onmicrosoft.com, a tenant ID, or organizations">
-            <p class="conn-hint">A tenant ID or verified domain signs in to that directory only — which is what a single-tenant registration needs. <code>organizations</code> is the shared endpoint: any work or school tenant.</p>
+            <input id="connTenant" type="text" autocomplete="off" spellcheck="false" placeholder="contoso.onmicrosoft.com or a tenant ID">
+            <p class="conn-hint">Required — the tenant the registration lives in, as its tenant ID or a verified domain. Shared endpoints (<code>organizations</code>, <code>common</code>) are refused: ENCA signs in only through a registration in your own tenant.</p>
             <div class="conn-err" id="connErr" style="display:none"></div>
             <div class="conn-actions">
               <button type="submit" class="btn primary sm">Save &amp; use</button>
@@ -179,10 +179,11 @@
            contradicted the self-hosted notice directly above it. setAudience()
            in js/app.js reads it from AUTH_CONFIG.authority on every host, so
            the card cannot disagree with the registration it will actually
-           use. The static text is the multi-tenant case, which is what the
-           canonical site serves and what shows if the script never runs. -->
+           use. Since 32709 there is no multi-tenant case: the static text is
+           the single-tenant one, and the script says "No login yet" when the
+           copy has none. -->
       <div class="login-note">
-        <span id="loginAudience">Multi-tenant</span> · read-only Microsoft Graph permissions<br>
+        <span id="loginAudience">Single-tenant</span> · your own app registration, delegated Microsoft Graph permissions<br>
         Runs entirely in your browser — no policy data leaves your session.
       </div>
       <div class="login-note"><a href="?demo=1">View a demo with sample policies →</a></div>
@@ -1802,6 +1803,10 @@
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R89</span> 🔐 Sign-in through your own registration only — no shared multi-tenant app <span class="tag ok">in beta today · beta 32709</span></h4>
+            <p class="mini" style="margin:0">Builds on <span class="rm-ref">R14</span>, narrows <span class="rm-ref">R59</span>. A copy of ENCA ships no login; a login is always a client ID and the tenant it lives in, and shared endpoints are refused in the code, the ⚙ panel and the container. After sign-in ENCA checks that the registration belongs to the tenant you signed in to and signs you out if it does not. The first registration in a tenant comes from Azure Cloud Shell (PowerShell, no storage account needed): the sign-in card gives the command, checked by its SHA-256. Next: a separate onboarding page, and permissions per workspace.</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R88</span> <a href="#" class="md-tool" data-tool="toolDeviceCleanup">🧹 Entra device cleanup — stale devices out in two steps</a> <span class="tag ok">in beta today · beta 32707</span></h4>
             <p class="mini" style="margin:0">T59 in Workspace 03, ported from TUNO T25: disable after 30 days without contact, delete after 90 and only what is already disabled, every write read again and read back, re-enable as the way back, and one Markdown report.</p>
           </div>
@@ -2030,7 +2035,7 @@
           </div>
           <div class="list-card rm-card" data-shipped="32301">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R59</span> 🪪 Your own registration, from the browser <span class="tag grant">live · beta 25438 · production 322 (v2.0.0)</span></h4>
-            <p class="mini" style="margin:0"><b>Builds on <span class="rm-ref">R14</span>.</b> The PowerShell route registers ENCA in your own tenant; this does the same from the page. <b>Before sign-in</b>, the sign-in card offers it on every host but the publisher's own: sign in once with the shipped registration, and a four-step wizard creates a single-tenant SPA registration in your directory with the same delegated permissions, its service principal, optionally <i>assignment required</i> with you assigned first, and optionally admin consent for the organisation — each step read back, impact and recovery stated before the write. <b>After sign-in</b>, a band on the home page (and a row in the account menu) offers it to a Global, Privileged Role, Application or Cloud Application Administrator while the copy still signs in through an app another directory owns. The result is the default sign-in: for this browser at once, for an Azure Container App deployment with one button that writes <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code> onto the container app with your own rights, and for any other host as the <code>js/authConfig.local.js</code> block and the <code>docker -e</code> lines to copy.</p>
+            <p class="mini" style="margin:0"><b>Builds on <span class="rm-ref">R14</span>. Narrowed by <span class="rm-ref">R89</span> (beta 32709):</b> the before-sign-in route needed the shared registration and is gone with it — the first registration in a tenant comes from the Cloud Shell command on the sign-in card; the wizard stays as the check and as ＋ Add a separate registration once you are signed in through your own. The PowerShell route registers ENCA in your own tenant; this does the same from the page. <b>Before sign-in</b>, the sign-in card offers it on every host but the publisher's own: sign in once with the shipped registration, and a four-step wizard creates a single-tenant SPA registration in your directory with the same delegated permissions, its service principal, optionally <i>assignment required</i> with you assigned first, and optionally admin consent for the organisation — each step read back, impact and recovery stated before the write. <b>After sign-in</b>, a band on the home page (and a row in the account menu) offers it to a Global, Privileged Role, Application or Cloud Application Administrator while the copy still signs in through an app another directory owns. The result is the default sign-in: for this browser at once, for an Azure Container App deployment with one button that writes <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code> onto the container app with your own rights, and for any other host as the <code>js/authConfig.local.js</code> block and the <code>docker -e</code> lines to copy.</p>
           </div>
           <div class="list-card rm-card" data-shipped="32301">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R23</span> <a href="#" class="md-tool" data-tool="toolBuilder">🏗 Policy builder</a> <span class="tag grant">live · beta 25437 · production 322 (v2.0.0)</span></h4>
@@ -2134,7 +2139,7 @@
           </div>
           <div class="list-card rm-card" data-shipped="25014">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R14</span> 🏢 Your own single-tenant app registration <span class="tag grant">live · beta 25014 · production 273</span></h4>
-            <p class="mini" style="margin:0">Every tenant signs in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You can run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in mechanism stays authorization code + PKCE with no client secret; only the owner changes.
+            <p class="mini" style="margin:0"><b>Since <span class="rm-ref">R89</span> (beta 32709) this is the only way ENCA signs in</b> — the shared multi-tenant registration it describes below is gone. Until then every tenant signed in through <b>one multi-tenant</b> app registration owned by Limon-IT by default — the same application ID, and therefore an application outside your directory holding a delegated grant on your data. <b>You could run ENCA on your own instead:</b> a <b>single-tenant</b> SPA (<code>AzureADMyOrg</code>) registered inside your tenant, with your own client ID, consent record, redirect URIs and audit trail — nothing to trust but the code you reviewed. The sign-in mechanism stays authorization code + PKCE with no client secret; only the owner changes.
               <br><br><b>Shipped:</b> <code>./New-EncaAppRegistration.ps1 -SingleTenant</code> creates the registration and prints what to paste; <code>js/authConfig.local.js</code> points your copy at it without editing a file upstream also changes. <code>-RequireAssignment</code> can restrict the enterprise application after assigning you first, so the script cannot seal you out.
               <br>📖 <b><a href="SINGLE-TENANT.md" id="stLink" target="_blank" rel="noopener">Read the setup manual</a></b> — prerequisites, the five steps, verification, and keeping a pinned copy current. Also in <a href="SECURITY.md" id="rmSecLink2" target="_blank" rel="noopener">Security &amp; risk</a>.</p>
           </div>
@@ -2250,14 +2255,14 @@
          default so it can never appear on enca.limon-it.nl. -->
     <section class="help-sec">
       <h4>🪪 Your own registration <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
-      <p><b>The browser version of <code>New-EncaAppRegistration.ps1 -SingleTenant</code> (R59).</b> ENCA signs in through one app registration; by default it is the one this copy ships with, owned by whoever published the copy. Registering ENCA in <i>your</i> directory changes who owns the trust decision — your application ID, your consent record, revocable by you alone — and nothing about the sign-in flow, which stays a public SPA client with authorization code + PKCE and no secret. Once made, it becomes the <b>default sign-in</b>: for this browser at once, and for the whole deployment if you set it there (step ④ below).</p>
+      <p><b>The browser companion of <code>New-EncaAppRegistration.ps1</code> (R59, narrowed by R89 in 32709).</b> ENCA signs in only through an app registration owned by the tenant you sign in to — there is no shared, multi-tenant registration any more, and a copy of ENCA ships no login of its own. That ownership is the trust decision: your application ID, your consent record, revocable by you alone. The sign-in flow is unchanged: a public SPA client with authorization code + PKCE and no secret.</p>
       <ul>
-        <li><b>Before sign-in</b> — inside the ⚙ connection panel on the sign-in card, under <i>🪪 No registration of your own yet?</i>, on every host. What it offers is decided by the registration the panel has selected, never by the web address. A registration that can sign in to <b>any</b> work or school tenant (the shared, multi-tenant kind) offers <b>Register ENCA in your own tenant →</b>: it signs you in once with that registration and opens the wizard by itself as soon as your tenant has loaded (What's new waits until the wizard is closed). A registration pinned to <b>one directory</b> cannot sign you in to yours, so the block is edged in red, names the directory it is pinned to and offers no sign-in link — only the two routes that work: <b>＋ Add</b> an ENCA registration you already have in your tenant, or create one with <code>New-EncaAppRegistration.ps1 -SingleTenant</code> (a <b>Copy</b> button puts the line on the clipboard) and ＋ Add what it prints. Signing in to that directory itself, the wizard is still there as a check — from the account menu.</li>
-        <li><b>After sign-in</b> — ENCA reads your directory roles and who owns the registration it signed in with. Ownership is judged by the registration's <b>owner tenant</b> against the tenant you signed in to, and shown as that tenant's id, never as the app's display name. When the registration belongs to another directory and you hold Global, Privileged Role, Application or Cloud Application Administrator, a <b>band</b> on the home page offers the wizard; <i>Not now</i> hides it for that tenant only. The <b>account menu</b> always has the row: <b>🪪 Add my own app registration…</b>, or, when the registration is already this tenant's, <b>🪪 App registration: check this one, or add my own…</b>.</li>
+        <li><b>Before sign-in — the first registration in a tenant.</b> A web page cannot sign you in to a tenant through a registration that tenant cannot reach, so the in-page route that used the shared registration is gone. The ⚙ panel on the sign-in card, under <i>🪪 No registration of your own yet?</i>, gives the one route that never needed one: open <b>Azure Cloud Shell</b> signed in to your tenant, choose <b>PowerShell</b> and <i>No storage account required</i>, and paste the command. It downloads <code>New-EncaAppRegistration.ps1</code> from this copy of ENCA, refuses it unless its SHA-256 is the one this build shipped, and uses the Cloud Shell session's own sign-in — no device-code prompt. It creates a single-tenant registration with this page as redirect URI, assigns you first and requires assignment, grants admin consent, and prints the client ID and tenant ID for <b>＋ Add</b>. Cloud Shell needs an Azure subscription in the tenant; without one, run the same script in PowerShell 7 with the Microsoft.Graph module.</li>
+        <li><b>After sign-in</b> — ENCA first reads who owns the registration it signed in with, by the service principal's <b>owner tenant</b>, never the display name. A registration owned by another tenant — a multi-tenant app of another organisation that your tenant once consented to — is refused: ENCA signs you out and the sign-in card says which app and which owner. The <b>account menu</b> then has <b>🪪 App registration: check this one, or add my own…</b>, which opens the wizard as a check of your own registration or as ＋ Add a separate registration.</li>
         <li><b>When the registration is already yours</b> the wizard opens as a <b>check</b> of the registration this copy signs in with, found by its application ID rather than its name. Running it adds this copy's SPA redirect URI if it is missing and <b>keeps every redirect URI the registration already has</b>, sets ENCA's delegated Graph permissions, and makes sure of the service principal and, if ticked, assignment and organisation-wide consent. Name, audience and secrets are not touched and no new connection is saved. <b>＋ Add a separate registration instead</b> switches to creating a new one in the same tenant.</li>
         <li><b>The four steps.</b> ① What changes: the name (the handle the registration is found by — the same name updates it, a new name makes a second app), the exact SPA redirect URI this copy is served from, <code>localhost:8080</code> if you want it, <i>assignment required</i> (you are assigned first, so it can never seal you out), admin consent for the organisation. ② The plan: what will be written, the likely impact, the recovery, and what ENCA needs from you now — consent, for you only, to <code>Application.ReadWrite.All</code>, <code>DelegatedPermissionGrant.ReadWrite.All</code> and, with assignment, <code>AppRoleAssignment.ReadWrite.All</code>, asked on the Create click. ③ The run, each step read back. ④ The default sign-in.</li>
         <li><b>Default sign-in.</b> This browser: saved as a ⚙ connection on the sign-in card and selected — <i>Default</i> there restores the shipped one. This deployment, on an Azure Container App: one button writes <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code> onto the container app with your own Azure rights, the way Branding settings writes <code>ENCA_BRANDING</code>; a new revision rolls and every visitor signs in with your registration. Any other host: copy the <code>js/authConfig.local.js</code> block, the <code>docker -e</code> lines or the Azure template parameters — SINGLE-TENANT.md step 3.</li>
-        <li><b>Recovery.</b> Delete the registration (it sits in the deleted applications list for 30 days), or ⚙ Forget the connection; the shared registration's consent stays until you revoke it under Enterprise applications. Nothing here can lock you out of the tenant. Demo mode simulates every step and writes nothing.</li>
+        <li><b>Recovery.</b> Delete the registration (it sits in the deleted applications list for 30 days), or ⚙ Forget the connection and pick another. Nothing here can lock you out of the tenant. Demo mode simulates every step and writes nothing.</li>
       </ul>
     </section>
     <section class="help-sec">
@@ -4187,121 +4192,121 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32708"></script>
-<script src="js/selfhost.js?v=32708"></script>
-<script src="js/version.js?v=32708"></script>
-<script src="js/verdict.js?v=32708"></script>
-<script src="js/fork.js?v=32708"></script>
-<script src="js/promote.js?v=32708"></script>
-<script src="js/authConfig.js?v=32708"></script>
-<script src="js/connection.js?v=32708"></script>
-<script src="js/labels.js?v=32708"></script>
-<script src="js/capabilities.js?v=32708"></script>
-<script src="js/graph.js?v=32708"></script>
-<script src="js/model.js?v=32708"></script>
-<script src="js/render.js?v=32708"></script>
-<script src="js/analyze.js?v=32708"></script>
-<script src="js/whatif.js?v=32708"></script>
-<script src="js/mslearn.js?v=32708"></script>
-<script src="js/learntriage.js?v=32708"></script>
-<script src="js/learnfeed.js?v=32708"></script>
-<script src="js/gapcheck.js?v=32708"></script>
-<script src="js/cisdata.js?v=32708"></script>
-<script src="js/cischeck.js?v=32708"></script>
-<script src="js/exclusions.js?v=32708"></script>
-<script src="js/cascope.js?v=32708"></script>
-<script src="js/coverage.js?v=32708"></script>
-<script src="js/runmeta.js?v=32708"></script>
-<script src="js/overview.js?v=32708"></script>
-<script src="js/validator.js?v=32708"></script>
-<script src="js/whatifeval.js?v=32708"></script>
-<script src="js/builder.js?v=32708"></script>
-<script src="js/onboard.js?v=32708"></script>
-<script src="js/compare.js?v=32708"></script>
-<script src="js/whois.js?v=32708"></script>
-<script src="js/wave.js?v=32708"></script>
-<script src="js/sessionctl.js?v=32708"></script>
-<script src="js/spgap.js?v=32708"></script>
-<script src="js/groupuse.js?v=32708"></script>
-<script src="js/iso3166.js?v=32708"></script>
-<script src="js/causes.js?v=32708"></script>
-<script src="js/locations.js?v=32708"></script>
-<script src="js/locsignin.js?v=32708"></script>
-<script src="js/workloadid.js?v=32708"></script>
-<script src="js/authcontexts.js?v=32708"></script>
-<script src="js/authstrengths.js?v=32708"></script>
-<script src="js/recycle.js?v=32708"></script>
-<script src="js/rmau.js?v=32708"></script>
-<script src="js/auinv.js?v=32708"></script>
-<script src="js/camap.js?v=32708"></script>
-<script src="js/rmaudoc.js?v=32708"></script>
-<script src="js/termsofuse.js?v=32708"></script>
-<script src="js/audit.js?v=32708"></script>
-<script src="js/drift.js?v=32708"></script>
-<script src="js/guide.js?v=32708"></script>
-<script src="js/userimpact.js?v=32708"></script>
-<script src="js/smsvoice.js?v=32708"></script>
-<script src="js/memberof.js?v=32708"></script>
-<script src="js/devcheck.js?v=32708"></script>
-<script src="js/idscore.js?v=32708"></script>
-<script src="js/xtenant.js?v=32708"></script>
-<script src="js/passkeys.js?v=32708"></script>
-<script src="js/tokencov.js?v=32708"></script>
-<script src="js/naming.js?v=32708"></script>
-<script src="js/licgap.js?v=32708"></script>
-<script src="js/teamsdev.js?v=32708"></script>
-<script src="js/signinstore.js?v=32708"></script>
-<script src="js/signins.js?v=32708"></script>
-<script src="js/reportimpact.js?v=32708"></script>
-<script src="js/changelog.js?v=32708"></script>
-<script src="js/baselineData.js?v=32708"></script>
-<script src="js/baselineJoeyData.js?v=32708"></script>
-<script src="js/baselineLive.js?v=32708"></script>
-<script src="js/pimBaselineData.js?v=32708"></script>
-<script src="js/pimbaseline.js?v=32708"></script>
-<script src="js/pimplan.js?v=32708"></script>
-<script src="js/pimrmau.js?v=32708"></script>
-<script src="js/intunerbac.js?v=32708"></script>
-<script src="js/pimroles.js?v=32708"></script>
-<script src="js/pimreport.js?v=32708"></script>
-<script src="js/pimdoc.js?v=32708"></script>
-<script src="js/pimmodules.js?v=32708"></script>
-<script src="js/pimdeploy.js?v=32708"></script>
-<script src="js/pimscript.js?v=32708"></script>
-<script src="js/pimdesigner.js?v=32708"></script>
-<script src="js/pimcatalog.js?v=32708"></script>
-<script src="js/pimlens.js?v=32708"></script>
-<script src="js/baseline.js?v=32708"></script>
-<script src="js/eadminsData.js?v=32708"></script>
-<script src="js/secdefaults.js?v=32708"></script>
-<script src="js/baselineCleanup.js?v=32708"></script>
-<script src="js/groupTemplates.js?v=32708"></script>
-<script src="js/assign.js?v=32708"></script>
-<script src="js/cagroups.js?v=32708"></script>
-<script src="js/groupmerge.js?v=32708"></script>
-<script src="js/dgfill.js?v=32708"></script>
-<script src="js/deploydash.js?v=32708"></script>
-<script src="js/trv2.js?v=32708"></script>
-<script src="js/gsa.js?v=32708"></script>
-<script src="js/egress.js?v=32708"></script>
-<script src="js/devicecleanup.js?v=32708"></script>
-<script src="js/groupsview.js?v=32708"></script>
-<script src="js/runledger.js?v=32708"></script>
-<script src="js/bgvault.js?v=32708"></script>
-<script src="js/protect.js?v=32708"></script>
-<script src="js/policy-compare.js?v=32708"></script>
-<script src="js/import.js?v=32708"></script>
-<script src="js/export.js?v=32708"></script>
-<script src="js/demo.js?v=32708"></script>
-<script src="js/list-detail.js?v=32708"></script>
-<script src="js/flat-icons.js?v=32708"></script>
-<script src="js/workspace.js?v=32708"></script>
-<script src="js/analysis-jobs.js?v=32708"></script>
-<script src="js/search-suggest.js?v=32708"></script>
-<script src="js/app.js?v=32708"></script>
-<script src="js/col-resize.js?v=32708"></script>
-<script src="js/accessibility.js?v=32708"></script>
-<script src="js/workspaces.js?v=32708"></script>
-<script src="js/tool-layout.js?v=32708"></script>
+<script src="js/branding.js?v=32709"></script>
+<script src="js/selfhost.js?v=32709"></script>
+<script src="js/version.js?v=32709"></script>
+<script src="js/verdict.js?v=32709"></script>
+<script src="js/fork.js?v=32709"></script>
+<script src="js/promote.js?v=32709"></script>
+<script src="js/authConfig.js?v=32709"></script>
+<script src="js/connection.js?v=32709"></script>
+<script src="js/labels.js?v=32709"></script>
+<script src="js/capabilities.js?v=32709"></script>
+<script src="js/graph.js?v=32709"></script>
+<script src="js/model.js?v=32709"></script>
+<script src="js/render.js?v=32709"></script>
+<script src="js/analyze.js?v=32709"></script>
+<script src="js/whatif.js?v=32709"></script>
+<script src="js/mslearn.js?v=32709"></script>
+<script src="js/learntriage.js?v=32709"></script>
+<script src="js/learnfeed.js?v=32709"></script>
+<script src="js/gapcheck.js?v=32709"></script>
+<script src="js/cisdata.js?v=32709"></script>
+<script src="js/cischeck.js?v=32709"></script>
+<script src="js/exclusions.js?v=32709"></script>
+<script src="js/cascope.js?v=32709"></script>
+<script src="js/coverage.js?v=32709"></script>
+<script src="js/runmeta.js?v=32709"></script>
+<script src="js/overview.js?v=32709"></script>
+<script src="js/validator.js?v=32709"></script>
+<script src="js/whatifeval.js?v=32709"></script>
+<script src="js/builder.js?v=32709"></script>
+<script src="js/onboard.js?v=32709"></script>
+<script src="js/compare.js?v=32709"></script>
+<script src="js/whois.js?v=32709"></script>
+<script src="js/wave.js?v=32709"></script>
+<script src="js/sessionctl.js?v=32709"></script>
+<script src="js/spgap.js?v=32709"></script>
+<script src="js/groupuse.js?v=32709"></script>
+<script src="js/iso3166.js?v=32709"></script>
+<script src="js/causes.js?v=32709"></script>
+<script src="js/locations.js?v=32709"></script>
+<script src="js/locsignin.js?v=32709"></script>
+<script src="js/workloadid.js?v=32709"></script>
+<script src="js/authcontexts.js?v=32709"></script>
+<script src="js/authstrengths.js?v=32709"></script>
+<script src="js/recycle.js?v=32709"></script>
+<script src="js/rmau.js?v=32709"></script>
+<script src="js/auinv.js?v=32709"></script>
+<script src="js/camap.js?v=32709"></script>
+<script src="js/rmaudoc.js?v=32709"></script>
+<script src="js/termsofuse.js?v=32709"></script>
+<script src="js/audit.js?v=32709"></script>
+<script src="js/drift.js?v=32709"></script>
+<script src="js/guide.js?v=32709"></script>
+<script src="js/userimpact.js?v=32709"></script>
+<script src="js/smsvoice.js?v=32709"></script>
+<script src="js/memberof.js?v=32709"></script>
+<script src="js/devcheck.js?v=32709"></script>
+<script src="js/idscore.js?v=32709"></script>
+<script src="js/xtenant.js?v=32709"></script>
+<script src="js/passkeys.js?v=32709"></script>
+<script src="js/tokencov.js?v=32709"></script>
+<script src="js/naming.js?v=32709"></script>
+<script src="js/licgap.js?v=32709"></script>
+<script src="js/teamsdev.js?v=32709"></script>
+<script src="js/signinstore.js?v=32709"></script>
+<script src="js/signins.js?v=32709"></script>
+<script src="js/reportimpact.js?v=32709"></script>
+<script src="js/changelog.js?v=32709"></script>
+<script src="js/baselineData.js?v=32709"></script>
+<script src="js/baselineJoeyData.js?v=32709"></script>
+<script src="js/baselineLive.js?v=32709"></script>
+<script src="js/pimBaselineData.js?v=32709"></script>
+<script src="js/pimbaseline.js?v=32709"></script>
+<script src="js/pimplan.js?v=32709"></script>
+<script src="js/pimrmau.js?v=32709"></script>
+<script src="js/intunerbac.js?v=32709"></script>
+<script src="js/pimroles.js?v=32709"></script>
+<script src="js/pimreport.js?v=32709"></script>
+<script src="js/pimdoc.js?v=32709"></script>
+<script src="js/pimmodules.js?v=32709"></script>
+<script src="js/pimdeploy.js?v=32709"></script>
+<script src="js/pimscript.js?v=32709"></script>
+<script src="js/pimdesigner.js?v=32709"></script>
+<script src="js/pimcatalog.js?v=32709"></script>
+<script src="js/pimlens.js?v=32709"></script>
+<script src="js/baseline.js?v=32709"></script>
+<script src="js/eadminsData.js?v=32709"></script>
+<script src="js/secdefaults.js?v=32709"></script>
+<script src="js/baselineCleanup.js?v=32709"></script>
+<script src="js/groupTemplates.js?v=32709"></script>
+<script src="js/assign.js?v=32709"></script>
+<script src="js/cagroups.js?v=32709"></script>
+<script src="js/groupmerge.js?v=32709"></script>
+<script src="js/dgfill.js?v=32709"></script>
+<script src="js/deploydash.js?v=32709"></script>
+<script src="js/trv2.js?v=32709"></script>
+<script src="js/gsa.js?v=32709"></script>
+<script src="js/egress.js?v=32709"></script>
+<script src="js/devicecleanup.js?v=32709"></script>
+<script src="js/groupsview.js?v=32709"></script>
+<script src="js/runledger.js?v=32709"></script>
+<script src="js/bgvault.js?v=32709"></script>
+<script src="js/protect.js?v=32709"></script>
+<script src="js/policy-compare.js?v=32709"></script>
+<script src="js/import.js?v=32709"></script>
+<script src="js/export.js?v=32709"></script>
+<script src="js/demo.js?v=32709"></script>
+<script src="js/list-detail.js?v=32709"></script>
+<script src="js/flat-icons.js?v=32709"></script>
+<script src="js/workspace.js?v=32709"></script>
+<script src="js/analysis-jobs.js?v=32709"></script>
+<script src="js/search-suggest.js?v=32709"></script>
+<script src="js/app.js?v=32709"></script>
+<script src="js/col-resize.js?v=32709"></script>
+<script src="js/accessibility.js?v=32709"></script>
+<script src="js/workspaces.js?v=32709"></script>
+<script src="js/tool-layout.js?v=32709"></script>
 </body>
 </html>

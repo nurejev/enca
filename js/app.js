@@ -951,8 +951,10 @@
   (function setAudience() {
     try {
       const el = document.getElementById("loginAudience");
-      if (!el || !authorityTail()) return;
-      el.textContent = isSharedAuthority() ? "Multi-tenant" : "Single-tenant";
+      if (!el) return;
+      // A shared authority cannot reach here any more (refused in
+      // js/authConfig.js since 32709); no authority means no login yet.
+      el.textContent = !authorityTail() ? "No login yet" : isSharedAuthority() ? "Refused" : "Single-tenant";
     } catch { /* cosmetic only */ }
   })();
 
@@ -986,8 +988,9 @@
       box.innerHTML =
         `<b>\u2699 Self-hosted instance.</b> Served from <b>${esc(location.hostname)}</b>` +
         (build ? ` on ${esc(build)}` : "") + `.<br>` +
-        `Signing in to app registration <code>${esc(cid || "(none configured)")}</code>` +
-        (tail ? ` \u00B7 ${shared ? "shared <b>multi-tenant</b> authority" : "<b>single-tenant</b> \u2014 your directory only (" + esc(tail) + ")"}` : "") + `.`;
+        (cid
+          ? `Signing in to app registration <code>${esc(cid)}</code>` + (tail && !shared ? ` \u00B7 <b>single-tenant</b> \u2014 your directory only (${esc(tail)})` : "") + `.`
+          : `No login configured for this deployment \u2014 whoever runs it sets <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code>; until then, add your own under \u2699 above.`);
       box.style.display = "";
     } catch { /* cosmetic only */ }
   })();
@@ -2519,6 +2522,37 @@
     return caSettingsCache;
   }
 
+  // ---------- R2: the registration belongs to the tenant (32709) ----------
+  // ENCA signs in only through a registration owned by the tenant you signed
+  // in to. A shared endpoint is refused before sign-in (js/authConfig.js,
+  // js/connection.js); this catches what that cannot: a MULTI-TENANT app of
+  // somebody else's named with a tenant-specific authority, which Entra will
+  // happily sign you in to once your tenant has consented to it. The owner is
+  // read from the service principal (Graph.connectionInfo), never the display
+  // name. Unreadable is let through — the owner is unknown, not foreign — and
+  // the account menu's registration check still shows it.
+  const REFUSED_KEY = "enca-signin-refused";
+  async function ownRegistrationOk() {
+    let info = null;
+    try { info = await Graph.connectionInfo(); } catch { info = null; }
+    const tid = String((Graph.account && Graph.account.tenantId) || "").toLowerCase();
+    const owner = String((info && info.ownerTenantId) || "").toLowerCase();
+    if (!owner || !tid || owner === tid) return true;
+    // Signed out the state-free way (EncaConn.use does the same): drop MSAL's
+    // session entries and reload, carrying the reason across in this tab only.
+    try { sessionStorage.setItem(REFUSED_KEY, JSON.stringify({ clientId: AUTH_CONFIG.clientId, name: (info && info.name) || "", owner, tid })); } catch { /* private mode */ }
+    try { if (typeof EncaConn !== "undefined") EncaConn.clearMsalCache(); } catch { /* nothing cached */ }
+    location.reload();
+    return false;
+  }
+  function showRefusedRegistration(r) {
+    const el = $("loginErr"); if (!el || !r) return;
+    el.innerHTML = `<p><b>Signed out: that registration belongs to another organisation.</b></p>` +
+      `<p>App <code>${esc(r.clientId)}</code>${r.name ? ` (${esc(r.name)})` : ""} is owned by tenant <code>${esc(r.owner)}</code>, and you signed in to <code>${esc(r.tid)}</code>. ENCA signs in only through a registration owned by the tenant you sign in to — a multi-tenant app of another organisation is refused even where your tenant consented to it. Add your own login under ⚙ below.</p>`;
+    el.style.display = "";
+    const box = $("loginConn"); if (box) box.setAttribute("open", "");
+  }
+
   async function loadFromGraph(isRefresh) {
     // A refresh used to land on the policy list whatever tool asked for it —
     // 👥 Conditional Access groups reloads after every policy write (Assign
@@ -2530,6 +2564,10 @@
     show("screen-loading");
     let phase = "loading the Conditional Access policies from your tenant";
     try {
+      if (!isRefresh) {
+        $("loadStatus").textContent = "Checking that the registration belongs to this tenant";
+        if (!(await ownRegistrationOk())) return;          // reloading to the sign-in card
+      }
       const { policies: raw, org, logo, resolve, account, context, names } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
@@ -26684,8 +26722,18 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- events ----------
   $("signInBtn").addEventListener("click", async () => {
-    if (AUTH_CONFIG.clientId.startsWith("00000000")) {
-      alert("No clientId configured yet in js/authConfig.js — see README.md step 1.\nUse the demo link below to preview the app.");
+    // No login (32709): a copy of ENCA ships none, and a refused one has been
+    // emptied by js/authConfig.js or js/connection.js. Say which, and open the
+    // ⚙ panel where the way in is — never start a sign-in with nothing.
+    if (!AUTH_CONFIG.clientId) {
+      const why = AUTH_CONFIG.refused === "connection" ? "The login selected under ⚙ is not a whole login (it needs a client ID and a tenant, and no shared endpoint)."
+        : AUTH_CONFIG.refused ? "This copy of ENCA is configured with a login ENCA refuses — a shared endpoint, or only half a login. Whoever runs it sets ENCA_CLIENT_ID and ENCA_TENANT_ID."
+        : "This copy of ENCA ships no login of its own.";
+      const el = $("loginErr");
+      el.innerHTML = `<p><b>No login yet.</b></p><p>${esc(why)} ENCA signs in only through an app registration in your own tenant: add yours under ⚙ below, or create one with the Cloud Shell command there.</p>`;
+      el.style.display = "";
+      const box = $("loginConn");
+      if (box) { box.setAttribute("open", ""); try { box.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch { /* old browser */ } }
       return;
     }
     const btn = $("signInBtn"); btn.disabled = true;
@@ -26710,8 +26758,9 @@ This is a directory write. Nothing else changes.`)) return;
     [/AADSTS53003|blocked by Conditional Access/i, "A <b>Conditional Access policy in this tenant blocks this sign-in</b>. Check the sign-in log for this account — the failure names the policy. If it requires a compliant or hybrid-joined device, a browser pop-up on an unmanaged device cannot satisfy it."],
     [/AADSTS50076|AADSTS50079|AADSTS50072/i, "This sign-in needs <b>multi-factor authentication</b>, and the pop-up closed before it completed. Try again and finish the prompt, or sign in to portal.azure.com first so the session already carries MFA."],
     [/AADSTS50005|AADSTS530003|device/i, "A <b>device policy</b> is blocking the sign-in — typically a Conditional Access rule requiring a managed or compliant device."],
-    [/AADSTS65001|AADSTS900971|consent/i, "This tenant has <b>not consented</b> to the app yet. A Global Administrator or Privileged Role Administrator must grant admin consent once — see the consent URL in the README."],
-    [/AADSTS700016|application.*not found/i, "The app is <b>not present in this tenant</b> — nobody has consented to it here yet. An administrator needs to run the admin-consent URL once. On a <b>single-tenant</b> registration it also means the client ID and the tenant do not belong together: check both under ⚙ on the sign-in card."],
+    [/AADSTS50194|not configured as a multi-tenant/i, "This registration is <b>single-tenant</b>, and the sign-in went to a shared endpoint. ENCA no longer signs in that way: under ⚙ below, give the tenant the registration lives in."],
+    [/AADSTS65001|AADSTS900971|consent/i, "Your registration has <b>no consent</b> in this tenant yet. A Global Administrator or Privileged Role Administrator grants it once — Enterprise applications → your ENCA registration → Permissions, or run New-EncaAppRegistration.ps1 again."],
+    [/AADSTS700016|application.*not found/i, "That registration is <b>not in this tenant</b>. ENCA signs in only through a registration in the tenant you sign in to, so the client ID and the tenant under ⚙ must belong together — check both."],
     [/AADSTS50011|redirect_uri/i, `<b>Redirect URI mismatch.</b> The app registration needs this exact SPA redirect URI: <code>${window.location.origin + window.location.pathname}</code>. If you picked your own registration under ⚙ on the sign-in card, that is the registration to add it to.`],
     [/AADSTS50020|AADSTS50128|AADSTS50034/i, "That account does not exist in a tenant this app can sign in to — check you used the <b>work account</b>, not a personal one."],
     [/AADSTS90094|admin.*consent/i, "The permissions need <b>admin consent</b>; a normal user cannot grant them."],
@@ -29713,6 +29762,7 @@ This is a directory write. Nothing else changes.`)) return;
     // the sign-in screen to somebody who has just signed in.
     if (resumed) { loadFromGraph(); return; }
     const err = Graph.takeRedirectError && Graph.takeRedirectError();
+    try { const r = JSON.parse(sessionStorage.getItem(REFUSED_KEY) || "null"); if (r) { sessionStorage.removeItem(REFUSED_KEY); showRefusedRegistration(r); } } catch { /* private mode */ }
     if (err) showSignInError(err);
     else if (Graph.authMode && Graph.authMode() === "redirect") markRedirectMode();
   }).catch(e => console.error("MSAL init failed", e));

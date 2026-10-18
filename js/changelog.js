@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32709, date: "2026-10-18", title: "Sign-in through your own registration only: the shared multi-tenant app is gone",
+    items: [
+      { kind: "improved", tool: "Sign-in", text: "ENCA signs in only through an app registration in your own tenant. A copy of ENCA ships no login of its own any more: a login is always the client ID of your registration and the tenant it lives in, and the shared endpoints organizations, common and consumers are refused wherever a tenant can be given, with the reason on the sign-in card." },
+      { kind: "new", tool: "Sign-in", text: "After sign-in ENCA checks that the registration belongs to the tenant you signed in to, by its owner tenant. A multi-tenant app of another organisation is refused even where your tenant once consented to it: you are signed out and the card names the app and its owner." },
+      { kind: "improved", tool: "Sign-in", text: "No registration yet? The sign-in card gives the command for Azure Cloud Shell (PowerShell, no storage account needed). It downloads New-EncaAppRegistration.ps1 from this copy, refuses it unless its SHA-256 is the one this build shipped, and creates a single-tenant registration with you assigned and admin consent granted. A saved login from an older build that lacks a client ID or a tenant is kept but not used until you edit it." },
+      { kind: "improved", tool: "Self-hosting", text: "New-EncaAppRegistration.ps1 makes single-tenant registrations only, uses the Cloud Shell session's own sign-in, keeps the redirect URIs a registration already has, and never edits js/authConfig.js. A container given ENCA_CLIENT_ID without ENCA_TENANT_ID, or a shared ENCA_AUTHORITY, refuses to start and says why." },
+    ],
+  },
+  {
     build: 32708, date: "2026-10-18", title: "Global Secure Access: the go-live checks — people or tokens, who is covered, Windows by what landed",
     items: [
       { kind: "fixed", tool: "Global Secure Access", text: "The verdict no longer turns green while people would be locked out. Only a policy that blocks every resource outside the compliant network counts; it reads green only when every link before it is ready — the client on the devices included — and everybody the policy includes gets the Microsoft traffic profile. Otherwise the board says the policy blocks people, not tokens, and names what is missing. A policy that only asks for MFA on the compliant network, or blocks one app, is listed but not counted." },

@@ -194,10 +194,12 @@ For transparency, the risks on the publishing side and their handling:
   hosting account, no third-party publishing pipeline, human-readable
   releases, and this document encouraging high-assurance tenants to fork
   rather than trust.
-- **App registration integrity.** The multi-tenant app registration is a
-  public client with no secrets — there is no credential to steal — but its
-  redirect URIs are part of the trust boundary and are kept minimal and
-  monitored. Tenants that fork use their own registration and are unaffected.
+- **App registration integrity.** Since build 32709 there is no publisher
+  registration to protect: ENCA ships no login and signs in only through a
+  single-tenant registration owned by the tenant signing in (a public client,
+  no secrets), and refuses a registration owned by any other tenant. The
+  shared multi-tenant registration used until then is retired; tenants that
+  consented to it can remove its enterprise application.
 - **No visibility, by design.** The operator sees aggregate usage counts and
   nothing else — no tenant names, no data, no errors. That is a privacy
   feature with an operational cost the operator accepts: there is no way to

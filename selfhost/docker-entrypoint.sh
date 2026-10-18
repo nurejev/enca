@@ -13,12 +13,17 @@
 #   docker run -e ENCA_CLIENT_ID=<guid> -e ENCA_TENANT_ID=<guid> ...
 #
 # ENCA_CLIENT_ID   Application (client) ID of your own registration.
-# ENCA_TENANT_ID   Directory (tenant) ID for a SINGLE-TENANT registration.
-#                  Omit it for a multi-tenant one and the shared
-#                  "organizations" authority is kept.
+# ENCA_TENANT_ID   Directory (tenant) ID the registration lives in. REQUIRED
+#                  with ENCA_CLIENT_ID since build 32709: ENCA signs in only
+#                  through a single-tenant registration, and a client ID
+#                  without a tenant makes the container refuse to start.
 # ENCA_AUTHORITY   Full authority URL, for the rare case neither of the
 #                  above shapes fits (a verified domain, a national cloud).
-#                  Wins over ENCA_TENANT_ID when both are set.
+#                  Wins over ENCA_TENANT_ID when both are set. A shared
+#                  endpoint (organizations, common, consumers) is refused.
+#
+# Neither set: the image ships NO login (there is no shared registration any
+# more), and the sign-in card tells each visitor how to add their own.
 #
 # ENCA_BRANDING       Your deployment's look, as the JSON the ⚙ gear exports —
 #                     raw, or base64 if your platform dislikes braces in an
@@ -89,6 +94,25 @@ if [ -n "$CLIENT_ID" ] || [ -n "$TENANT_ID" ] || [ -n "$AUTHORITY" ]; then
   if [ -n "$AUTHORITY" ] && ! printf '%s' "$AUTHORITY" | grep -Eq '^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]+)*/?$'; then
     echo "enca: ENCA_AUTHORITY is not a plain https URL - refusing to configure." >&2
     exit 1
+  fi
+
+  # 32709 — one tenant, always. A client ID with no tenant used to fall back to
+  # the shared "organizations" authority, and a shared authority reaches every
+  # tenant. Both are REFUSED here, at start, where the operator sees it, rather
+  # than shipped to the browser to be refused there on every visit.
+  if [ -n "$CLIENT_ID" ] && [ -z "$TENANT_ID" ] && [ -z "$AUTHORITY" ]; then
+    echo "enca: ENCA_CLIENT_ID is set without ENCA_TENANT_ID - refusing to configure." >&2
+    echo "enca: ENCA signs in only through a single-tenant registration; set ENCA_TENANT_ID to the tenant it lives in." >&2
+    exit 1
+  fi
+  if [ -n "$AUTHORITY" ]; then
+    AUTH_TAIL="$(printf '%s' "$AUTHORITY" | sed 's:/*$::' | awk -F/ '{print tolower($NF)}')"
+    case "$AUTH_TAIL" in
+      organizations|common|consumers)
+        echo "enca: ENCA_AUTHORITY is a shared endpoint ($AUTH_TAIL) - refusing to configure." >&2
+        echo "enca: ENCA signs in only through a registration in one tenant; use https://login.microsoftonline.com/<tenant ID>." >&2
+        exit 1 ;;
+    esac
   fi
 
   if [ -n "$AUTHORITY" ]; then

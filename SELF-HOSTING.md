@@ -90,9 +90,9 @@ docker run -d --name enca -p 8080:80 --restart unless-stopped `
   ghcr.io/nurejev/enca:beta
 ```
 
-`ENCA_CLIENT_ID` is the Application (client) ID printed by `New-EncaAppRegistration.ps1`. `ENCA_TENANT_ID` is only for a **single-tenant** registration (`-SingleTenant`) — omit it for a multi-tenant one and the shared `organizations` authority is kept. `ENCA_AUTHORITY` takes a full URL for a verified domain or a national cloud.
+`ENCA_CLIENT_ID` is the Application (client) ID printed by `New-EncaAppRegistration.ps1`. `ENCA_TENANT_ID` is the tenant it lives in and is **required with it since build 32709**: a client ID without a tenant, or a shared `ENCA_AUTHORITY` (`organizations`, `common`, `consumers`), makes the container refuse to start and say why. `ENCA_AUTHORITY` takes a full URL for a verified domain or a national cloud.
 
-The container's entrypoint applies them to `js/authConfig.js` at start, and **does nothing at all when they are unset** — the image without them behaves exactly as before. Values that are not a plain GUID or `https://` URL are refused rather than escaped, because a value able to close a JavaScript string literal would be script injection into the sign-in page.
+The container's entrypoint applies them to `js/authConfig.js` at start, and **does nothing at all when they are unset** — the image then ships no login (there is no shared registration any more) and each visitor adds their own on the sign-in card. Values that are not a plain GUID or `https://` URL are refused rather than escaped, because a value able to close a JavaScript string literal would be script injection into the sign-in page.
 
 The install scripts take the same thing (`ENCA_CLIENT_ID=… bash install.sh`, `.\install.ps1 -ClientId … -TenantId …`), the compose file reads both from your environment, and the Deploy to Azure template exposes them as the `clientId` and `tenantId` parameters. **Every one of these still needs that host registered as a SPA redirect URI** — the variables change which registration you sign in to, not what it will accept.
 

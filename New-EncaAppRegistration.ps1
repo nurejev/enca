@@ -1,91 +1,73 @@
 <#
 .SYNOPSIS
-  Creates (or updates) the Entra app registration for ENCA.
+  Creates (or updates) a SINGLE-TENANT Entra app registration for ENCA in the
+  tenant you are signed in to. Since ENCA build 32709 that is the only kind
+  ENCA signs in with: there is no shared, multi-tenant registration any more.
 
 .DESCRIPTION
-  - Reuses an existing Microsoft Graph PowerShell session if it has the required
-    scopes; otherwise signs in interactively.
-  - Creates a multi-tenant SPA app registration with the enca.limon-it.nl and
-    localhost redirect URIs and delegated Policy.Read.All + Directory.Read.All.
-  - Rename-safe: if the app is not found under -AppName it also looks for the
-    previous name (-PreviousAppName), so the 2026 CA Doc -> ENCA rename UPDATES
-    the existing registration instead of creating a second one. The AppId must
-    not change: every tenant that already consented is bound to it.
-  - Name it what you like with -AppName. A self-hosted instance registers in
-    YOUR tenant, and the registration shows up in your Enterprise applications
-    list next to everything else you run, so "ENCA (Limon-IT)" is rarely the
-    name you want there. The name is the only handle the script has when
-    -AppObjectId is not given, so it is also what makes a re-run an UPDATE
-    rather than a second registration - see the warning it prints.
-  - Idempotent: safe to run again (updates the existing app).
-  - Grants admin consent in your own tenant (skip with -SkipAdminConsent).
-  - Optionally restricts the app to named users/groups (-RequireAssignment):
-    sets "Assignment required" on the enterprise application and assigns the
-    creator first, so the tool is usable only by you until you widen it.
-  - Patches js/authConfig.js with the client ID when found next to this script.
+  - Single-tenant only (AzureADMyOrg), SPA (authorization code + PKCE), no
+    secret, implicit grant off. An existing registration of the same name (or
+    -AppObjectId) is UPDATED - and if it was multi-tenant, it is made
+    single-tenant, which stops every other directory signing in through it.
+  - Runs in Azure Cloud Shell (PowerShell; "No storage account required" is
+    fine - nothing is kept once the window closes). There it uses the Cloud
+    Shell session's own Microsoft Graph token: no second sign-in and no
+    device-code prompt, which a good Conditional Access baseline blocks.
+    Elsewhere it reuses a Microsoft Graph PowerShell session with the right
+    scopes, or signs in interactively.
+  - Redirect URIs: the ones given are ADDED to those the registration already
+    has, never replacing them - one registration can serve the hosted site and
+    your own copy at the same time.
+  - Grants admin consent for the organisation (skip with -SkipAdminConsent).
+  - -RequireAssignment sets "Assignment required" on the enterprise
+    application after assigning you first, so it cannot seal you out.
+  - Prints the two values ENCA needs - the client ID and the tenant ID - for
+    the sign-in card (gear panel -> + Add), a container (ENCA_CLIENT_ID /
+    ENCA_TENANT_ID) or js/authConfig.local.js. It never edits js/authConfig.js.
 
 .EXAMPLE
-  ./New-EncaAppRegistration.ps1
+  # Azure Cloud Shell, PowerShell. The ENCA sign-in card gives this line with
+  # the SHA-256 check in front of it; this is the part after the download.
+  ./New-EncaAppRegistration.ps1 -RedirectUris "https://enca.limon-it.nl/" -RequireAssignment
 
 .EXAMPLE
-  # Lock the app to yourself while you evaluate it, then widen later from the portal.
-  ./New-EncaAppRegistration.ps1 -RequireAssignment
+  # Your own copy, under your own name, with a team assigned.
+  ./New-EncaAppRegistration.ps1 -AppName "Contoso CA Review" `
+    -RedirectUris "https://enca.contoso.example/","http://localhost:8080" `
+    -RequireAssignment -AssignTo "sec-team@contoso.com","CA Administrators"
+  # Re-run with the SAME -AppName to update. A different name creates a
+  # SECOND registration - to rename one, pass -AppObjectId with the new name.
 
 .EXAMPLE
-  # Yourself plus a team, by UPN or group display name.
-  ./New-EncaAppRegistration.ps1 -RequireAssignment -AssignTo "sec-team@contoso.com","CA Administrators"
-
-.EXAMPLE
-  # High-assurance: register ENCA in YOUR tenant only, for your own hosted copy.
-  ./New-EncaAppRegistration.ps1 -SingleTenant -SingleTenantRedirectUris "https://enca.contoso.example"
-  # Prints the clientId + authority to paste into js/authConfig.local.js.
-  # Full walkthrough: SINGLE-TENANT.md
-
-.EXAMPLE
-  # The same, under your own name in your own Enterprise applications list.
-  ./New-EncaAppRegistration.ps1 -SingleTenant -AppName "Contoso CA Review" `
-    -SingleTenantRedirectUris "https://enca.contoso.example","http://localhost:8080"
-  # Re-run it with the SAME -AppName to update. A different name creates a
-  # SECOND registration - to rename an existing one, pass -AppObjectId with
-  # the new -AppName instead.
+  # Refuse to run anywhere but the tenant you meant.
+  ./New-EncaAppRegistration.ps1 -TenantId 00000000-1111-2222-3333-444444444444 -RequireAssignment
 
 .NOTES
-  Requires: Microsoft.Graph.Applications module, and a role that can create
-  app registrations + grant tenant-wide consent (e.g. Global Administrator or
-  Privileged Role Administrator + Application Administrator).
+  Requires: the Microsoft.Graph.Applications module (preinstalled in Cloud
+  Shell), and a role that can create app registrations and grant tenant-wide
+  consent: Global Administrator, or Privileged Role Administrator together
+  with Application Administrator.
 #>
 [CmdletBinding()]
 param(
   # The registration's display name, and - unless -AppObjectId is given - the
-  # only thing the script looks it up by. Self-hosters SHOULD set this: the app
-  # lands in your own Enterprise applications list, where a vendor's name on
-  # your own registration is at best confusing. Under -SingleTenant the default
-  # shortens to plain "ENCA", since the Limon-IT suffix names a publisher who
-  # does not own the app you are creating.
-  [string]$AppName = "ENCA (Limon-IT)",
-  # The pre-rename display name. Only used to FIND the existing app when it has
-  # not been renamed yet; tenants that already consented keep showing the old
-  # name in their Enterprise applications list, which is expected.
-  #
-  # It is Limon-IT's own rename history, so it applies ONLY to the default
-  # -AppName. Searching for it after somebody passed a name of their own would
-  # mean a self-hoster who happens to have an app called "CA Documenter
-  # (Limon-IT)" silently gets that app renamed to theirs.
-  [string]$PreviousAppName = "CA Documenter (Limon-IT)",
+  # only thing the script looks it up by. It lands in your own Enterprise
+  # applications list, so name it what your admins will recognise.
+  [string]$AppName = "ENCA",
   # Preferred: target the app registration by its immutable Object ID
   # (display-name lookup can match the wrong app if names collide).
   [string]$AppObjectId,
-  # cadoc.limon-it.nl stays listed while the old domain still redirects - drop
-  # it once nobody reaches the app on the old host any more.
-  [string[]]$RedirectUris = @("https://enca.limon-it.nl", "https://cadoc.limon-it.nl", "http://localhost:8080"),
-  # Register the app for THIS TENANT ONLY (AzureADMyOrg) instead of multi-tenant.
-  # This is the high-assurance route: you own the registration, its consent
-  # record and its audit trail, and no directory but yours can use it. Pair it
-  # with your own hosted copy of the app and set the client ID + authority it
-  # prints into js/authConfig.local.js. See SINGLE-TENANT.md.
+  # Where ENCA is served from, exactly as the browser shows it (origin + path).
+  # Added to the registration's SPA redirect URIs; existing ones are kept.
+  [string[]]$RedirectUris = @("https://enca.limon-it.nl/"),
+  # Only run in this tenant (tenant ID). The script stops if the session is
+  # signed in anywhere else.
+  [string]$TenantId,
+  # Accepted for scripts written for build 32708 and earlier, and ignored:
+  # every registration this script makes is single-tenant now.
   [switch]$SingleTenant,
-  # Where your own copy is served from. Ignored unless -SingleTenant.
-  [string[]]$SingleTenantRedirectUris = @("http://localhost:8080"),
+  # The old -SingleTenant companion. When given it is used as -RedirectUris.
+  [string[]]$SingleTenantRedirectUris,
   # Lock the app down to named people. Sets "Assignment required" on the
   # enterprise application (servicePrincipal.appRoleAssignmentRequired) so that
   # ANYONE not explicitly assigned is refused at sign-in with AADSTS50105, and
@@ -139,18 +121,16 @@ param(
   # add here for it - the signed-in user just needs Reader on the scopes they
   # want to see.
   [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Device.ReadWrite.All", "AuditLog.Read.All", "AdministrativeUnit.ReadWrite.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "Group-NestingSupport.ReadWrite.All", "DirectoryRecommendations.Read.All", "CrossTenantInformation.ReadBasic.All", "RoleManagement.ReadWrite.CloudPC"),
-  [string]$AuthConfigPath = (Join-Path $PSScriptRoot "js/authConfig.js"),
   [switch]$SkipAdminConsent
 )
 
 $ErrorActionPreference = "Stop"
 $GraphAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
 
-# Did the caller choose the name, or is this the canonical Limon-IT app? Asked
-# via PSBoundParameters rather than by comparing against the default string:
-# somebody passing -AppName "ENCA (Limon-IT)" explicitly means it, and a string
-# comparison cannot tell that from not passing it at all.
+# Did the caller choose the name? Only used to word the re-run hint.
 $NamedByCaller = $PSBoundParameters.ContainsKey('AppName')
+if ($SingleTenant) { Write-Host "-SingleTenant is no longer needed: every registration this script makes is single-tenant." -ForegroundColor DarkGray }
+if ($SingleTenantRedirectUris) { $RedirectUris = $SingleTenantRedirectUris }
 
 #--- 1. Connect (reuse existing session when possible) -------------------
 $requiredScopes = @("Application.ReadWrite.All")
@@ -158,15 +138,31 @@ if (-not $SkipAdminConsent) { $requiredScopes += "DelegatedPermissionGrant.ReadW
 # Assigning users/groups to the enterprise app needs its own scope.
 if ($RequireAssignment) { $requiredScopes += "AppRoleAssignment.ReadWrite.All" }
 
+# Azure Cloud Shell has no browser for an interactive sign-in, and a
+# device-code prompt is exactly what a Conditional Access baseline blocks. Its
+# own session already holds a token for Microsoft Graph (the administrator who
+# opened the shell, with their MFA and their Conditional Access) - use that.
+# What the token may do is then bounded by that person's directory roles, so
+# the scope check below does not apply to it.
+$inCloudShell = ($env:AZUREPS_HOST_ENVIRONMENT -like 'cloud-shell*') -or [bool]$env:ACC_CLOUD
 $ctx = Get-MgContext
 $missing = if ($ctx) { $requiredScopes | Where-Object { $_ -notin $ctx.Scopes } } else { $requiredScopes }
 if ($ctx -and -not $missing) {
   Write-Host "Reusing existing Graph session: $($ctx.Account) ($($ctx.TenantId))" -ForegroundColor Cyan
+} elseif ($inCloudShell) {
+  $at = Get-AzAccessToken -ResourceTypeName MSGraph -ErrorAction Stop
+  $secure = if ($at.Token -is [securestring]) { $at.Token } else { ConvertTo-SecureString $at.Token -AsPlainText -Force }
+  Connect-MgGraph -AccessToken $secure -NoWelcome
+  $ctx = Get-MgContext
+  Write-Host "Using the Cloud Shell session: $($ctx.Account) ($($ctx.TenantId))" -ForegroundColor Cyan
 } else {
   if ($ctx) { Write-Host "Existing session lacks scopes ($($missing -join ', ')) - reconnecting..." -ForegroundColor Yellow }
-  Connect-MgGraph -Scopes $requiredScopes -NoWelcome
+  if ($TenantId) { Connect-MgGraph -Scopes $requiredScopes -TenantId $TenantId -NoWelcome } else { Connect-MgGraph -Scopes $requiredScopes -NoWelcome }
   $ctx = Get-MgContext
   Write-Host "Signed in as $($ctx.Account) ($($ctx.TenantId))" -ForegroundColor Cyan
+}
+if ($TenantId -and $ctx.TenantId -and ($ctx.TenantId -ne $TenantId)) {
+  throw "Signed in to tenant $($ctx.TenantId), not $TenantId - nothing was changed. Open Cloud Shell in the right directory (or sign in to it) and run again."
 }
 
 #--- 2. Resolve delegated permission IDs from the Graph service principal ---
@@ -179,14 +175,8 @@ $resourceAccess = foreach ($name in $DelegatedScopes) {
 $requiredResourceAccess = @(@{ ResourceAppId = $GraphAppId; ResourceAccess = $resourceAccess })
 
 #--- 3. Create or update the app registration ---------------------------
-if ($SingleTenant) {
-  # Your own tenant only. The redirect URIs must point at YOUR copy of the app;
-  # the Limon-IT hosts are meaningless in a registration you own.
-  $RedirectUris = $SingleTenantRedirectUris
-  # Only the default shortens. A name the caller chose is left exactly alone.
-  if (-not $NamedByCaller) { $AppName = "ENCA" }
-}
-$audience = if ($SingleTenant) { "AzureADMyOrg" } else { "AzureADMultipleOrgs" }
+# Always this tenant only (32709). There is no multi-tenant variant to choose.
+$audience = "AzureADMyOrg"
 
 $appParams = @{
   DisplayName            = $AppName
@@ -201,18 +191,18 @@ $app = if ($AppObjectId) {
 } else {
   $safeName = $AppName.Replace("'", "''")
   $matches2 = @(Get-MgApplication -Filter "displayName eq '$safeName'")
-  # The previous-name fallback is Limon-IT's rename history and belongs only to
-  # the canonical app. Running it for a caller-chosen name would rename somebody
-  # else's registration into theirs.
-  if (-not $matches2 -and $PreviousAppName -and -not $NamedByCaller) {
-    $matches2 = @(Get-MgApplication -Filter "displayName eq '$PreviousAppName'")
-    if ($matches2) { Write-Host "Found the app under its previous name '$PreviousAppName' - it will be renamed to '$AppName' (AppId is unchanged)." -ForegroundColor Yellow }
-  }
   if ($matches2.Count -gt 1) { throw "Multiple apps named '$AppName' found. Re-run with -AppObjectId <object-id> to target the right one." }
   $matches2 | Select-Object -First 1
 }
 if ($app) {
   Write-Host "App '$($app.DisplayName)' ($($app.Id)) exists - updating..." -ForegroundColor Yellow
+  # Keep every redirect URI it already has: one registration may serve the
+  # hosted site and a copy of your own, and replacing the list signs one out.
+  $have = @($app.Spa.RedirectUris)
+  $appParams.Spa = @{ RedirectUris = @($have + $RedirectUris | Where-Object { $_ } | Select-Object -Unique) }
+  if ($app.SignInAudience -ne $audience) {
+    Write-Host "  It is $($app.SignInAudience) - making it single-tenant. Every OTHER directory stops signing in through it now." -ForegroundColor Yellow
+  }
   Update-MgApplication -ApplicationId $app.Id @appParams
   $app = Get-MgApplication -ApplicationId $app.Id
 } else {
@@ -268,11 +258,17 @@ if ($RequireAssignment) {
   Write-Host ""
   Write-Host "Restricting the app to assigned principals..." -ForegroundColor Cyan
 
-  # 1) the person running this script
+  # 1) the person running this script - read from /me, which works for every
+  # sign-in kind (a Cloud Shell token has no Account in Get-MgContext) and
+  # needs no Microsoft.Graph.Users module (Cloud Shell does not preinstall it)
   $meUpn = (Get-MgContext).Account
   $me = $null
-  try { $me = Get-MgUser -UserId $meUpn -Property Id,DisplayName,UserPrincipalName -ErrorAction Stop } catch {}
-  if ($me) {
+  try {
+    $r = Invoke-MgGraphRequest -Method GET -Uri 'https://graph.microsoft.com/v1.0/me?$select=id,displayName,userPrincipalName' -ErrorAction Stop
+    $me = [pscustomobject]@{ Id = $r.id; DisplayName = $r.displayName; UserPrincipalName = $r.userPrincipalName }
+    if (-not $meUpn) { $meUpn = $me.UserPrincipalName }
+  } catch {}
+  if ($me -and $me.Id) {
     if (Add-EncaAssignment -PrincipalId $me.Id -Label "$($me.DisplayName) <$($me.UserPrincipalName)>  (you)") {
       $assignedNames += $me.UserPrincipalName
     } else { $failed += $meUpn }
@@ -287,8 +283,8 @@ if ($RequireAssignment) {
     $n = $name.Trim(); if (-not $n) { continue }
     $principal = $null; $label = $n
     if ($n -like "*@*") {
-      try { $u = Get-MgUser -UserId $n -Property Id,DisplayName -ErrorAction Stop
-            $principal = $u.Id; $label = "$($u.DisplayName) <$n>  (user)" } catch {}
+      try { $u = Invoke-MgGraphRequest -Method GET -Uri ("https://graph.microsoft.com/v1.0/users/" + [uri]::EscapeDataString($n) + '?$select=id,displayName') -ErrorAction Stop
+            $principal = $u.id; $label = "$($u.displayName) <$n>  (user)" } catch {}
     }
     if (-not $principal) {
       # Escape on its own line: a $() holding double quotes inside a double-quoted
@@ -326,34 +322,11 @@ if (-not $SkipAdminConsent) {
   }
 }
 
-#--- 6. Patch js/authConfig.js -------------------------------------------
-# ONLY for the shared multi-tenant registration, which is what that file is:
-# the canonical app's identity, tracked in git and served from the canonical
-# host. A -SingleTenant run creates an app for YOUR tenant, and writing its
-# client id in there replaced the canonical one in a working tree - one
-# `git commit -a` away from pointing the published site at a private tenant.
-# The single-tenant route has always had its own answer printed below
-# (js/authConfig.local.js, or ENCA_CLIENT_ID on the container), and neither
-# touches a file that upstream also changes.
-if ($SingleTenant) {
-  Write-Host "Left $AuthConfigPath untouched - a single-tenant client id does not belong in the shared config." -ForegroundColor Cyan
-} elseif (Test-Path $AuthConfigPath) {
-  $cfg = Get-Content $AuthConfigPath -Raw
-  # Anchored to the start of a line and to two leading spaces: the file's header
-  # comment contains the example `//     clientId:  "<your Application (client)
-  # ID>",` and an unanchored pattern rewrote THAT too, quietly turning the
-  # documentation into a copy of somebody's tenant id.
-  $pattern = '(?m)^  clientId:\s*"[^"]*"'
-  if ($cfg -notmatch $pattern) {
-    Write-Host "Could not find the clientId assignment in $AuthConfigPath - left it alone. Set it by hand." -ForegroundColor Yellow
-  } else {
-    $cfg = $cfg -replace $pattern, "  clientId: `"$($app.AppId)`""
-    Set-Content -Path $AuthConfigPath -Value $cfg -NoNewline
-    Write-Host "Patched clientId in $AuthConfigPath" -ForegroundColor Green
-  }
-} else {
-  Write-Host "authConfig.js not found at $AuthConfigPath - set clientId manually." -ForegroundColor Yellow
-}
+#--- 6. js/authConfig.js is never edited ----------------------------------
+# Until 32708 this step wrote the client ID into js/authConfig.js for the
+# shared multi-tenant registration. There is none any more, and a tenant's own
+# client ID in a file every visitor is served is how a published site ends up
+# pointed at one customer. The values are printed below instead.
 
 #--- 7. Summary ----------------------------------------------------------
 Write-Host ""
@@ -361,8 +334,8 @@ Write-Host "==================== ENCA app registration ====================" -Fo
 Write-Host "  Display name : $($app.DisplayName)"
 Write-Host "  Client ID    : $($app.AppId)"
 Write-Host "  Object ID    : $($app.Id)"
-Write-Host "  Audience     : $(if ($SingleTenant) { 'THIS TENANT ONLY (AzureADMyOrg)' } else { 'multi-tenant (AzureADMultipleOrgs)' })"
-Write-Host "  SPA redirects: $($RedirectUris -join ', ')"
+Write-Host "  Audience     : THIS TENANT ONLY (AzureADMyOrg)"
+Write-Host "  SPA redirects: $(@((Get-MgApplication -ApplicationId $app.Id -Property Spa).Spa.RedirectUris) -join ', ')"
 Write-Host "  Permissions  : $($DelegatedScopes -join ', ') (delegated)"
 if ($RequireAssignment) {
   $spNow = Get-MgServicePrincipal -ServicePrincipalId $sp.Id -Property AppRoleAssignmentRequired,Id
@@ -372,30 +345,17 @@ if ($RequireAssignment) {
   Write-Host "  Add more     : Entra ID > Enterprise applications > $($app.DisplayName) > Users and groups"
 }
 Write-Host ""
-if ($SingleTenant) {
-  $tenantId = (Get-MgContext).TenantId
-  Write-Host "  Paste this into js/authConfig.local.js of your copy:" -ForegroundColor Cyan
-  Write-Host ""
-  Write-Host "    window.ENCA_AUTH = {"
-  Write-Host "      clientId:  `"$($app.AppId)`","
-  Write-Host "      authority: `"https://login.microsoftonline.com/$tenantId`","
-  Write-Host "    };"
-  Write-Host ""
-  Write-Host "  ...and reference it in index.html just before js/authConfig.js:" -ForegroundColor Cyan
-  Write-Host "    <script src=`"js/authConfig.local.js`"></script>"
-  Write-Host ""
-  Write-Host "  RUNNING THE PUBLISHED CONTAINER INSTEAD? Nothing to edit - pass these:" -ForegroundColor Cyan
-  Write-Host "    docker run -e ENCA_CLIENT_ID=$($app.AppId) ``"
-  Write-Host "               -e ENCA_TENANT_ID=$tenantId ..."
-  Write-Host "    Azure Container Apps: the clientId and tenantId parameters on the"
-  Write-Host "    Deploy to Azure template do the same thing."
-  Write-Host ""
-  Write-Host "  Admin-consent URL (this tenant):" -ForegroundColor Cyan
-  Write-Host "  https://login.microsoftonline.com/$tenantId/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
-  Write-Host ""
-  Write-Host "  Full walkthrough: SINGLE-TENANT.md" -ForegroundColor Cyan
-} else {
-  Write-Host "  Customer tenant admin-consent URL:" -ForegroundColor Cyan
-  Write-Host "  https://login.microsoftonline.com/organizations/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
-}
+$tenantId = (Get-MgContext).TenantId
+Write-Host "  SIGN IN WITH IT - on the ENCA sign-in card: gear panel -> + Add" -ForegroundColor Cyan
+Write-Host "    Application (client) ID : $($app.AppId)"
+Write-Host "    Tenant                  : $tenantId"
+Write-Host ""
+Write-Host "  A copy of your own? Pass the same two values:" -ForegroundColor Cyan
+Write-Host "    docker run -e ENCA_CLIENT_ID=$($app.AppId) -e ENCA_TENANT_ID=$tenantId ..."
+Write-Host "    or js/authConfig.local.js:  window.ENCA_AUTH = { clientId: `"$($app.AppId)`", authority: `"https://login.microsoftonline.com/$tenantId`" };"
+Write-Host ""
+Write-Host "  Admin-consent URL (this tenant, if you skipped consent):" -ForegroundColor Cyan
+Write-Host "  https://login.microsoftonline.com/$tenantId/adminconsent?client_id=$($app.AppId)&redirect_uri=$([uri]::EscapeDataString($RedirectUris[0]))"
+Write-Host ""
+Write-Host "  Full walkthrough: SINGLE-TENANT.md" -ForegroundColor Cyan
 Write-Host "=================================================================="
