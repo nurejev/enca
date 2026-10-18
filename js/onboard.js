@@ -1,6 +1,16 @@
 // ======================================================================
 // 🪪 Own registration — onboarding a tenant from the browser (R59, build 25438)
 //
+// SINCE BUILD 327 (R89, no shared registration) this wizard runs only when
+// you are ALREADY signed in through a registration owned by this tenant: to
+// check and complete that registration, or to add a separate one beside it.
+// It can no longer create the FIRST registration in a tenant — that needed a
+// token from the shared multi-tenant app, which no longer exists. The first
+// one is made by New-EncaAppRegistration.ps1 in Azure Cloud Shell; the sign-in
+// card's ⚙ panel gives the command (js/connection.js paintRoute). The text
+// below describes the wizard as built in 25438; read "the registration this
+// copy ships with" as "the registration you signed in with".
+//
 // WHAT IT IS. New-EncaAppRegistration.ps1 -SingleTenant, done from the page:
 // an administrator signed in through the registration this copy ships with
 // registers ENCA in THEIR directory — single-tenant, SPA, the same delegated
@@ -108,7 +118,7 @@ const Onboard = (() => {
     ops.push({ op: "CREATE", what: "service principal", sub: "the enterprise application" });
     if (f.assign) ops.push({ op: "SET", what: "assignment required", sub: `after assigning ${s.account && s.account.username || "you"} — you first, then the requirement, so it cannot seal you out` });
     if (f.consent) ops.push({ op: "GRANT", what: "admin consent for the organisation", sub: `one oauth2PermissionGrant, AllPrincipals, ${SCOPES.length} scopes` });
-    ops.push({ op: "SAVE", what: "the connection in this browser, selected", sub: "the ⚙ control on the sign-in card shows it; Default there restores the shipped registration" });
+    ops.push({ op: "SAVE", what: "the connection in this browser, selected", sub: "the ⚙ control on the sign-in card shows it and switches back" });
     return ops;
   }
   // The container-app template with the two variables set — the whole env
@@ -138,15 +148,20 @@ const Onboard = (() => {
     paintMenu(false);
     if (S.demo) {
       S.roles = [{ roleTemplateId: "62e90394-69f5-4237-9190-012177145e10" }];
-      S.owner = { ownerTenantId: "publisher", name: "ENCA (Limon-IT)", audience: "AzureADMultipleOrgs" };
+      S.owner = { ownerTenantId: "demo", name: "ENCA — Contoso", audience: "AzureADMyOrg" };
     } else {
       try { S.roles = ((await Graph.gget("/me/memberOf/microsoft.graph.directoryRole?$select=roleTemplateId,displayName")) || {}).value || []; }
       catch (e) { S.roles = null; S.reason = e && e.message || String(e); }
       try { S.owner = await Graph.connectionInfo(); } catch { S.owner = null; }
     }
-    const own = !!(!S.demo && S.owner && S.owner.ownerTenantId && S.tenantId && String(S.owner.ownerTenantId).toLowerCase() === String(S.tenantId).toLowerCase());
+    // The demo signs in "as" its own registration: since 327 that is the only
+    // kind a real session can have (js/app.js ownRegistrationOk signs out on a
+    // foreign owner), so the demo shows the check, not the band.
+    const own = S.demo ? true : !!(S.owner && S.owner.ownerTenantId && S.tenantId && String(S.owner.ownerTenantId).toLowerCase() === String(S.tenantId).toLowerCase());
     S.own = own; S.clientId = (S.owner && S.owner.clientId) || (typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.clientId) || "";
-    S.eligible = eligibleRoles(S.roles) && !own;
+    // The band is for a KNOWN foreign owner only; an unreadable owner is not
+    // evidence of anything (and a known foreign one never gets this far).
+    S.eligible = eligibleRoles(S.roles) && !own && !!(S.owner && S.owner.ownerTenantId);
     paintMenu(true);
     paintBand();
     if (S.pendingOpen) open();
@@ -217,7 +232,7 @@ const Onboard = (() => {
       <div class="ob-err mini" id="obErr" style="display:none;color:var(--off);margin-top:8px"></div>
       <div class="modal-foot"><button type="button" class="btn" id="obNewInstead" title="Create a separate registration in this tenant — for example one named for this copy — instead of completing the one it signs in with">＋ Add a separate registration instead</button><span style="flex:1"></span><button type="button" class="btn" id="obCancel">Cancel</button><button type="button" class="btn primary" id="obNext">Next: the plan →</button></div>`;
     else if (step === 1) m.innerHTML = `<h3>🪪 Your own app registration <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}
-      <table class="ob-tbl"><tr><th></th><th>Today — ${multi ? "shared, multi-tenant" : "another directory's"}</th><th>After — yours, single-tenant</th></tr>
+      <table class="ob-tbl"><tr><th></th><th>Today — ${S.own ? "the registration you signed in with" : multi ? "shared, multi-tenant" : "another directory's"}</th><th>After — yours, single-tenant</th></tr>
         <tr><td>Application</td><td>${esc(S.owner && S.owner.name || "Application")} · <code>${esc(c.clientId || "—")}</code>${multi ? ", shared by every tenant" : ""}</td><td class="y">a new one, yours alone · <code>AzureADMyOrg</code></td></tr>
         <tr><td>Application owner</td><td>${esc(ownerTenant)}</td><td class="y"><b>${esc(S.tenantName || "your tenant")}</b></td></tr>
         <tr><td>Consent record</td><td>to an app another directory owns; its owner can retire the app</td><td class="y">to an app in your directory; only you can revoke or retire it</td></tr>
@@ -233,11 +248,11 @@ const Onboard = (() => {
       <div class="ob-h">What will be written in ${esc(S.tenantName || "this tenant")} — in this order, each read back before the next</div>
       <div class="ml-apply-list">${plan(form, S).map((o) => `<div class="ml-apply-row"><span class="ml-op ${o.op === "CREATE" || o.op === "GRANT" ? "create" : ""}">${esc(o.op)}</span> ${esc(o.what)}${o.sub ? ` <span class="mini">· ${esc(o.sub)}</span>` : ""}</div>`).join("")}</div>
       <div class="ob-h">Likely impact</div>
-      <ul class="mini" style="margin:0;padding-left:18px;line-height:1.55"><li><b>Nothing that exists changes.</b> The shared registration keeps working; its consent stays until you revoke it (Enterprise applications → its name → Permissions).</li><li>People opening this copy sign in to <b>your</b> app and see one consent screen naming it — once. Which app a browser uses is decided by its ⚙ connection, or by the deployment's own setting (step ④).</li><li>Your Conditional Access policies are not touched, and no policy applies differently.</li></ul>
+      <ul class="mini" style="margin:0;padding-left:18px;line-height:1.55"><li><b>Nothing that exists changes.</b> The registration you signed in with keeps working, and so does its consent.</li><li>People opening this copy sign in to <b>your</b> app and see one consent screen naming it — once. Which app a browser uses is decided by its ⚙ connection, or by the deployment's own setting (step ④).</li><li>Your Conditional Access policies are not touched, and no policy applies differently.</li></ul>
       <div class="ob-h">Recovery</div>
-      <ul class="mini" style="margin:0;padding-left:18px;line-height:1.55"><li>Delete the registration (App registrations → Delete; it sits in the deleted applications list for 30 days) — or ⚙ <b>Forget</b> the connection on the sign-in card and the shipped registration is used again.</li><li>Nothing here can lock you out of the tenant: <i>Assignment required</i> gates who may open ENCA, not who may administer Entra.</li></ul>
+      <ul class="mini" style="margin:0;padding-left:18px;line-height:1.55"><li>Delete the registration (App registrations → Delete; it sits in the deleted applications list for 30 days) — or ⚙ <b>Forget</b> the connection on the sign-in card and pick the previous login again.</li><li>Nothing here can lock you out of the tenant: <i>Assignment required</i> gates who may open ENCA, not who may administer Entra.</li></ul>
       <div class="ob-h">What ENCA needs from you now</div>
-      <div class="ob-note">Consent, <b>for you only</b>, to <code>${NEED.join("</code>, <code>")}</code>${form.assign ? ` and <code>${NEED_ASSIGN[0]}</code>` : ""} — asked in a popup when you press Create, on that click, so it cannot be blocked mid-run. They are consented to the shipped registration for this session; the new app never requests them.</div>
+      <div class="ob-note">Consent, <b>for you only</b>, to <code>${NEED.join("</code>, <code>")}</code>${form.assign ? ` and <code>${NEED_ASSIGN[0]}</code>` : ""} — asked in a popup when you press Create, on that click, so it cannot be blocked mid-run. They are consented to the registration you are signed in with, for you only; the new app never requests them.</div>
       <div class="ob-row" style="margin-top:14px"><input type="checkbox" id="obOk"><span>I have read what will be written, and I want to create it</span></div>
       <div class="modal-foot"><button type="button" class="btn" id="obBack">← Back</button><button type="button" class="btn primary" id="obGo" disabled>Create in ${esc(S.tenantName || "this tenant")}</button></div>`;
     else if (step === 3) m.innerHTML = `<h3>🪪 Your own app registration <span class="tag block">writes to tenant</span></h3><p class="mini muted" style="margin:0 0 6px">${who()}</p>${stepsBar()}<div id="obLedger"></div><div class="modal-foot"><span class="mini muted" style="margin-right:auto">Each step is read back before the next; a failure stops the run and says where.</span></div>`;

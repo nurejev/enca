@@ -8,12 +8,12 @@
 // ======================================================================
 const APP_BUILD = {
   version: "2.0",
-  build: 326,
+  build: 327,
   // 2.0 counts its own releases: build 322 IS v2.0.0, 323 will be v2.0.1.
   // `build` keeps increasing underneath — ?v= and the What's-new seen-marker
   // compare it numerically, so it never restarts; only the label does.
   patchBase: 322,
-  date: "2026-10-15",
+  date: "2026-10-18",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Build 277 carried a local Amsterdam time in this field, so
   // the sign-in stamp claimed a release time over an hour in the future; the
@@ -24,7 +24,7 @@ const APP_BUILD = {
   // thing I just pushed actually live?" is a question about minutes, not days.
   // UTC deliberately — a shared answer beats a local one when the person
   // asking and the person who pushed are in different places.
-  released: "2026-10-15T08:19Z",
+  released: "2026-10-18T11:04Z",
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
   // but "when was this last updated?" is asked by somebody sitting in a

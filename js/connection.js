@@ -28,6 +28,15 @@
 // "Default" entry is always present and always means "whatever this copy
 // ships with" — so 2 and 3 are one keystroke away and can never be lost.
 //
+// SINCE BUILD 327 A LOGIN IS ALWAYS TWO VALUES. There is no shared,
+// multi-tenant registration any more, so "change only the tenant" and "change
+// only the client" have nothing left to fall back on: a connection names the
+// Application (client) ID AND the tenant it lives in, and a shared endpoint
+// (organizations / common / consumers) is refused here as it is in
+// js/authConfig.js. A connection saved by an older build that lacks either
+// half is kept in the list but NOT applied — the card says it needs editing,
+// and nothing signs in with a registration the person did not name.
+//
 // WHAT IT WILL NOT TOUCH: `scopes` and `graphBase`. Those are what the app
 // asks for and where it asks; a connection picker that could quietly widen
 // the permission request would be a consent screen that lies. Only WHO is
@@ -50,10 +59,24 @@ const EncaConn = (() => {
   // that cannot be a tenant at all.
   const DOMAIN = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i;
 
-  // The one route into a tenant this copy cannot reach: the script signs in
-  // with Graph PowerShell, which every tenant already has, so it needs no
-  // foothold from us. Kept as one string because the panel offers to copy it.
-  const PS_LINE = "./New-EncaAppRegistration.ps1 -SingleTenant";
+  // THE ROUTE INTO A TENANT THAT HAS NO REGISTRATION YET (327). A web page
+  // cannot sign anybody in to a tenant without a registration that tenant can
+  // reach, and there is no shared one any more — so the first write happens
+  // where the administrator is already signed in with Microsoft's own tools:
+  // Azure Cloud Shell, PowerShell, no storage account needed (an ephemeral
+  // session keeps nothing once the window closes). The script is fetched from
+  // THIS copy of ENCA and refused unless its SHA-256 is the one this build
+  // shipped (tools/signin-single.test.cjs keeps PS_SHA256 in step with the
+  // file), so what runs as an administrator is exactly the file you can read
+  // here. It prints the two values ＋ Add takes.
+  const PS_SHA256 = "3084EC5A66C8EFDFF43E694E83A630CB5CA2128C22A7597D41891840FBD1B557";
+  const scriptUrl = () => window.location.origin + window.location.pathname.replace(/[^/]*$/, "") + "New-EncaAppRegistration.ps1";
+  function psLine(redirect) {
+    const r = String(redirect || redirectUri()).replace(/'/g, "");
+    return `Invoke-WebRequest '${scriptUrl()}' -OutFile ./enca-reg.ps1; ` +
+      `if ((Get-FileHash ./enca-reg.ps1 -Algorithm SHA256).Hash -ne '${PS_SHA256}') { throw 'enca-reg.ps1 is not the file this ENCA build shipped - stopped.' }; ` +
+      `./enca-reg.ps1 -RedirectUris '${r}' -RequireAssignment`;
+  }
 
   // The values this copy was SERVED with, captured before anything here can
   // change them. This is what "Default" restores to, so it has to be read
@@ -108,8 +131,15 @@ const EncaConn = (() => {
   function apply() {
     const c = active();
     if (!c || typeof AUTH_CONFIG === "undefined") return null;
-    if (c.clientId) AUTH_CONFIG.clientId = c.clientId;
-    if (c.authority) AUTH_CONFIG.authority = c.authority;
+    if (!usable(c)) {
+      // Fail closed: falling back to the shipped login would sign somebody in
+      // with a registration other than the one the card shows them selected.
+      AUTH_CONFIG.clientId = ""; AUTH_CONFIG.authority = ""; AUTH_CONFIG.refused = "connection";
+      return c;
+    }
+    AUTH_CONFIG.clientId = c.clientId;
+    AUTH_CONFIG.authority = c.authority;
+    AUTH_CONFIG.refused = "";
     return c;
   }
 
@@ -130,16 +160,20 @@ const EncaConn = (() => {
   // written — these are the only words somebody gets before a sign-in that
   // would otherwise fail minutes later with an AADSTS code.
   function validate({ clientId, tenant }) {
-    if (clientId && !GUID.test(clientId.trim())) {
+    const id = String(clientId || "").trim();
+    const t = String(tenant || "").trim().replace(/^https?:\/\/[^/]+\//i, "").replace(/\/+$/, "");
+    if (!id || !t) return "A login is two values: the Application (client) ID of your ENCA registration and the tenant it lives in. ENCA signs in only through a registration in your own tenant.";
+    if (!GUID.test(id)) {
       return "The Application (client) ID is a GUID — 8-4-4-4-12 hex characters. Copy it from the registration's Overview blade (Application (client) ID), not the object ID or the directory ID.";
     }
-    const t = String(tenant || "").trim().replace(/^https?:\/\/[^/]+\//i, "").replace(/\/+$/, "");
-    if (t && !GUID.test(t) && !SHARED.test(t) && !DOMAIN.test(t)) {
-      return "The tenant is a tenant ID (GUID), a verified domain such as contoso.onmicrosoft.com, or one of organizations / common / consumers.";
+    if (SHARED.test(t)) return "organizations, common and consumers are shared endpoints that reach every tenant. ENCA no longer signs in that way: give the tenant ID or a verified domain of the tenant the registration lives in.";
+    if (!GUID.test(t) && !DOMAIN.test(t)) {
+      return "The tenant is a tenant ID (GUID) or a verified domain such as contoso.onmicrosoft.com.";
     }
-    if (!clientId && !t) return "Give a client ID, a tenant, or both — a connection that changes neither is the default.";
     return "";
   }
+  // A saved connection is applied only when it is a whole login (see header).
+  const usable = (c) => !!(c && GUID.test(String(c.clientId || "")) && c.authority && !isShared(c.authority));
 
   // ---------- switching ----------
   // MSAL is constructed ONCE, from AUTH_CONFIG, in Graph.init(). There is no
@@ -217,31 +251,39 @@ const EncaConn = (() => {
 
     const descr = (clientId, authority) => {
       const t = tail(authority);
-      return `<span class="conn-k">App</span> <code>${esc(clientId || "(none configured)")}</code><br>` +
-        `<span class="conn-k">Tenant</span> <code>${esc(t || "(default)")}</code> · ` +
-        (isShared(authority) ? "any work or school tenant" : "that directory only");
+      return `<span class="conn-k">App</span> <code>${esc(clientId || "(none)")}</code><br>` +
+        `<span class="conn-k">Tenant</span> <code>${esc(t || "(none)")}</code> · ` +
+        (!t ? "no login" : isShared(authority) ? "shared endpoint — refused" : "that directory only");
     };
 
     function paintCurrent() {
       const c = active();
+      const refusedShipped = !c && typeof AUTH_CONFIG !== "undefined" && AUTH_CONFIG.refusedFrom;
       cur.innerHTML = c
-        ? `<b>${esc(c.name)}</b> — saved in this browser<br>${descr(c.clientId || SHIPPED.clientId, c.authority || SHIPPED.authority)}`
-        : `<b>Default</b> — the registration this copy of ENCA is served with<br>${descr(SHIPPED.clientId, SHIPPED.authority)}`;
+        ? `<b>${esc(c.name)}</b> — saved in this browser<br>${descr(c.clientId, c.authority)}` +
+          (usable(c) ? "" : `<div class="conn-warn">This saved login is not a whole login — it needs the client ID <b>and</b> the tenant, and no shared endpoint. It is not used. <b>✎ Edit</b> it, or pick another.</div>`)
+        : SHIPPED.clientId
+          ? `<b>Default</b> — the login this copy of ENCA is served with<br>${descr(SHIPPED.clientId, SHIPPED.authority)}`
+          : refusedShipped
+            ? `<b>Default</b> — refused<br>${descr(AUTH_CONFIG.refusedFrom.clientId, AUTH_CONFIG.refusedFrom.authority)}<div class="conn-warn">This copy is configured with ${AUTH_CONFIG.refused === "shared" ? "a shared endpoint" : "only half a login"}, which ENCA refuses. Whoever runs it sets <code>ENCA_CLIENT_ID</code> and <code>ENCA_TENANT_ID</code>. Until then, ＋ Add your own login below.</div>`
+            : `<b>No login yet</b> — this copy of ENCA ships none of its own<br><span class="mini">ENCA signs in only through an app registration in your own tenant. ＋ Add yours, or create one with the command below.</span>`;
       // The summary carries the answer without opening the panel: somebody
       // who left a customer's connection selected last week must not have to
       // remember that they did.
       const sum = $("connSummary");
       if (sum) sum.innerHTML = c
         ? `⚙ Signing in as <b>${esc(c.name)}</b> — change`
-        : `⚙ Sign in to another tenant, or with your own app registration`;
+        : SHIPPED.clientId ? `⚙ Sign in with another login (another tenant, your own registration)` : `⚙ Your organisation's ENCA login`;
       $("connForget").style.display = c ? "" : "none";
       $("connEdit").style.display = c ? "" : "none";
-      if (c) box.setAttribute("open", "");                // a non-default choice is never hidden behind a closed fold
+      // A non-default choice is never hidden behind a closed fold, and neither
+      // is the panel when it is the only way in.
+      if (c || !SHIPPED.clientId) box.setAttribute("open", "");
     }
 
     function paintPicker() {
       const s = read();
-      pick.innerHTML = `<option value="">Default — as this copy ships</option>` +
+      pick.innerHTML = `<option value="">${SHIPPED.clientId ? "Default — as this copy ships" : "Default — no login"}</option>` +
         s.list.map((c) => `<option value="${esc(c.id)}"${c.id === s.active ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     }
 
@@ -256,41 +298,25 @@ const EncaConn = (() => {
     }
     const closeForm = () => { form.style.display = "none"; editing = null; };
 
-    // ---------- 🪪 the own-registration route (build 25455) ----------
-    // WHY THIS LIVES HERE. It is the third answer to the question this panel
-    // asks, so it belongs in the panel — it was a separate line under the fold
-    // until 25455, and the two contradicted each other on every single-tenant
-    // copy: the panel said "that directory only" and the line below it offered
-    // to sign you in to your own tenant.
-    //
-    // THE RULE IT ENFORCES. The wizard writes an application into the tenant
-    // you are signed in to, so it needs a TOKEN for that tenant — which means
-    // a registration that tenant can reach. A shared authority (organizations
-    // / common) is that foothold. A single-tenant registration owned by
-    // another directory is not, and cannot be made into one: the sign-in it
-    // would start ends in AADSTS50020 before the wizard ever opens. That was
-    // the whole of the bug — the offer was gated on the HOSTNAME
-    // (markOnboardLogin's isProdHost), so it was hidden on the hosted site
-    // where the shared registration would have carried it, and shown on the
-    // beta host where it could not work. The gate is the authority now.
-    //
-    // It is never hidden instead: on a copy that cannot carry the wizard,
-    // "where do I start?" is exactly the question somebody has, and the two
-    // routes that DO work are named.
+    // ---------- 🪪 the own-registration route (25455, rewritten 327) ----------
+    // Until 32708 this block had two forms: a link into the in-app wizard where
+    // the selected registration could reach any tenant (the shared one), and
+    // the PowerShell route where it could not. The first form is gone with the
+    // shared registration — the wizard needs a token for the tenant it writes
+    // into, and no single-tenant registration owned by another directory can
+    // give one. What is left is the one route that never needed a foothold:
+    // Azure Cloud Shell, signed in as the administrator, running the script
+    // this copy serves, checked by its SHA-256. The in-app wizard stays for a
+    // tenant that already signs in with its own registration (account menu).
     function paintRoute() {
       const host = $("connRouteBody"), wrap = $("loginOnboard");
       if (!host || !wrap) return;
-      const c = active();
-      const auth = (c && c.authority) || SHIPPED.authority;
-      const shared = isShared(auth), t = tail(auth) || "(default)";
-      wrap.classList.toggle("blocked", !shared);
-      host.innerHTML = shared
-        ? `<p><a href="#" id="onboardStart">Register ENCA in your own tenant →</a></p>` +
-          `<p>This copy's registration reaches any work or school tenant, so it can sign you in once. The wizard then registers ENCA inside your own directory — single-tenant, the same delegated permissions — and selects it here as the sign-in this browser uses.</p>`
-        : `<p>This copy signs in to <b>one directory only</b> (<code>${esc(t)}</code>), so it cannot sign you in to yours — and the wizard has to be signed in to your tenant before it can write anything there. Two routes:</p>` +
-          `<ol><li>You already have an ENCA registration in your tenant — <b>＋ Add</b> it above, then sign in.</li>` +
-          `<li>You do not — create it from PowerShell, then <b>＋ Add</b> what it prints:<br><code>${esc(PS_LINE)}</code> <button type="button" class="btn sm" id="connPsCopy">Copy</button></li></ol>` +
-          `<p>Signing in to <code>${esc(t)}</code> itself? The wizard is still there as a CHECK of this registration — the account menu's Connected app panel.</p>`;
+      wrap.classList.remove("blocked");
+      host.innerHTML =
+        `<p>ENCA signs in only through an app registration in <b>your own tenant</b>. To create one, open <b>Azure Cloud Shell</b> signed in to your tenant, choose <b>PowerShell</b> and <i>No storage account required</i>, and paste:</p>` +
+        `<pre class="conn-cmd" id="connPsLine">${esc(psLine())}</pre>` +
+        `<p><button type="button" class="btn sm" id="connPsCopy">Copy the command</button> <a href="${esc(scriptUrl())}" target="_blank" rel="noopener">Read the script</a></p>` +
+        `<p>It creates a <b>single-tenant</b> registration with this page as its redirect URI, assigns you to it, grants admin consent for your organisation and prints the <b>client ID</b> and <b>tenant ID</b> — ＋ Add them above. You need Global Administrator, or Privileged Role Administrator with Application Administrator. No Azure subscription for Cloud Shell? Run the same script in PowerShell 7 on your own machine with the Microsoft.Graph module.</p>`;
     }
 
     paintPicker(); paintCurrent(); paintRoute();
@@ -299,8 +325,9 @@ const EncaConn = (() => {
     const routeBox = $("loginOnboard");
     if (routeBox) routeBox.addEventListener("click", async (e) => {
       const b = e.target.closest("#connPsCopy"); if (!b) return;
-      try { await navigator.clipboard.writeText(PS_LINE); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1500); }
-      catch { window.prompt("Copy the command below:", PS_LINE); }
+      const line = psLine();
+      try { await navigator.clipboard.writeText(line); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy the command"; }, 1500); }
+      catch { const pre = $("connPsLine"); if (pre) { const r = document.createRange(); r.selectNodeContents(pre); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); } }
     });
     $("connRedirect").innerHTML =
       `Whichever registration you name must have <code>${esc(redirectUri())}</code> as a <b>SPA</b> redirect URI, ` +
@@ -313,7 +340,7 @@ const EncaConn = (() => {
     $("connForget").addEventListener("click", () => {
       const c = active();
       if (!c) return;
-      if (!confirm(`Forget "${c.name}"? The next sign-in uses the registration this copy ships with. Nothing in any tenant changes.`)) return;
+      if (!confirm(`Forget "${c.name}"? ${SHIPPED.clientId ? "The next sign-in uses the login this copy ships with." : "This copy ships no login, so you will need to add one again to sign in."} Nothing in any tenant changes.`)) return;
       forget(c.id);
       clearMsalCache();
       location.reload();
@@ -333,5 +360,5 @@ const EncaConn = (() => {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();
 
-  return { list, active, activeId, use, save, forget, validate, toAuthority, isShared, tail, redirectUri, psLine: PS_LINE, shipped: SHIPPED, applied: APPLIED };
+  return { list, active, activeId, use, save, forget, validate, usable, toAuthority, isShared, tail, redirectUri, psLine, scriptUrl, PS_SHA256, clearMsalCache, shipped: SHIPPED, applied: APPLIED };
 })();

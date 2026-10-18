@@ -1,5 +1,14 @@
 # Running ENCA on your own single-tenant app registration
 
+> **Since build 327 this is the only way ENCA signs in.** The shared,
+> multi-tenant registration this document compares against is gone: a copy of
+> ENCA ships no login, a login is always a client ID plus the tenant it lives
+> in, shared endpoints are refused, and after sign-in ENCA signs you out if the
+> registration is owned by another tenant. The fastest way to Step 2 is Azure
+> Cloud Shell (PowerShell, *No storage account required*): the ⚙ panel on the
+> sign-in card gives the command, which checks the script's SHA-256 before it
+> runs. Read the comparison below as history; the steps still apply.
+
 **Who this is for.** Organisations that would rather not have an application
 outside their directory holding a delegated grant on their Conditional Access
 configuration — regulated environments, tenants under audit, anyone whose
@@ -77,9 +86,13 @@ against upstream later.
 ```powershell
 Connect-MgGraph -Scopes "Application.ReadWrite.All","DelegatedPermissionGrant.ReadWrite.All","AppRoleAssignment.ReadWrite.All"
 
-./New-EncaAppRegistration.ps1 -SingleTenant `
-    -SingleTenantRedirectUris "https://enca.contoso.example","http://localhost:8080"
+./New-EncaAppRegistration.ps1 -RedirectUris "https://enca.contoso.example/","http://localhost:8080" -RequireAssignment
 ```
+
+(`-SingleTenant` and `-SingleTenantRedirectUris` from older builds are still
+accepted; every registration the script makes is single-tenant now. In Azure
+Cloud Shell the `Connect-MgGraph` line is not needed — the script uses the
+Cloud Shell session's own sign-in.)
 
 Pass every origin you will serve the app from. A redirect URI must match the
 origin **exactly** — scheme, host and port — or sign-in fails with
@@ -91,8 +104,8 @@ directory, listed among your own enterprise applications — so name it the way
 your organisation names things:
 
 ```powershell
-./New-EncaAppRegistration.ps1 -SingleTenant -AppName "Contoso CA Review" `
-    -SingleTenantRedirectUris "https://enca.contoso.example"
+./New-EncaAppRegistration.ps1 -AppName "Contoso CA Review" `
+    -RedirectUris "https://enca.contoso.example/"
 ```
 
 The name is also the handle the script finds the app by when `-AppObjectId` is
@@ -111,7 +124,9 @@ The script creates the registration with:
 - implicit grant explicitly **off**
 - the delegated Microsoft Graph permissions ENCA uses
 
-It is idempotent: run it again to update redirect URIs or permissions.
+It is idempotent: run it again to update redirect URIs or permissions. Redirect
+URIs are added to the ones the registration already has, never replacing them,
+and a registration that was multi-tenant is made single-tenant.
 
 When it finishes it prints the two values you need. Keep the window open.
 
@@ -119,7 +134,12 @@ When it finishes it prints the two values you need. Keep the window open.
 
 ## Step 3 — Point your copy at your registration
 
-### The quicker route: the wizard on the sign-in card (2.0, build 322)
+### The quicker route: the wizard on the sign-in card (2.0, build 322 — retired for a first registration in 327)
+
+*Since 327 this route no longer exists for a tenant without a registration:
+it signed you in through the shared registration, which is gone. The wizard
+remains in the account menu once you are signed in through your own
+registration — to check it, or to add a separate one.*
 
 From build 322 (2.0) the registration itself can be made from the page: **🪪 First
 time on this copy? Register ENCA in your own tenant** on the sign-in card (every
@@ -398,6 +418,6 @@ What you gain is ownership of the trust decision, not extra restriction.
 
 - **SECURITY.md** — the architecture, the permission model, the residual risks,
   and why this route is recommended for high-assurance environments.
-- **README.md** — the standard setup, for the shared registration.
+- **README.md** — the standard setup.
 - **New-EncaAppRegistration.ps1** — `-SingleTenant`, and the comments explaining
   each permission it requests.

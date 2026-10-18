@@ -77,6 +77,7 @@ fi
 AUTH_ENV=()
 if [ -n "${ENCA_CLIENT_ID:-}" ]; then AUTH_ENV+=(-e "ENCA_CLIENT_ID=${ENCA_CLIENT_ID}"); fi
 if [ -n "${ENCA_TENANT_ID:-}" ]; then AUTH_ENV+=(-e "ENCA_TENANT_ID=${ENCA_TENANT_ID}"); fi
+if [ -n "${ENCA_CLIENT_ID:-}" ] && [ -z "${ENCA_TENANT_ID:-}" ]; then echo "ENCA_CLIENT_ID needs ENCA_TENANT_ID - ENCA signs in only through a registration in one tenant." >&2; exit 1; fi
 if [ ${#AUTH_ENV[@]} -gt 0 ]; then say "Using your own app registration (${ENCA_CLIENT_ID:-tenant only})."; fi
 # Branding for EVERY visitor, not just this browser: the value the gear's
 # "Copy for container" button produces. The ./selfhost-branding.json mount

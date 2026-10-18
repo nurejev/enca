@@ -49,34 +49,24 @@ The writing actions are always behind an explicit review step and request their 
 
 ## Setup — steps for you
 
-### 1. Create the Entra app registration (one-time)
+### 1. Create the Entra app registration — in each tenant that uses ENCA
 
-**Option A — script (recommended):**
+**Since build 327 ENCA signs in only through a single-tenant registration in the tenant you sign in to.** There is no shared, multi-tenant registration: a copy of ENCA ships no login, and each tenant (each customer) creates its own. A shared endpoint (`organizations`, `common`) is refused by the code, the ⚙ panel and the container.
+
+**Option A — Azure Cloud Shell (recommended).** Open [shell.azure.com](https://shell.azure.com) signed in to the tenant, choose **PowerShell** and **No storage account required**. The ENCA sign-in card (⚙ → *No registration of your own yet?*) gives the exact command: it downloads `New-EncaAppRegistration.ps1` from the copy you are using, checks its SHA-256 and runs it with that page as redirect URI. The script uses the Cloud Shell session's own sign-in, creates the single-tenant SPA registration with the delegated permissions, assigns you first and sets *Assignment required* (`-RequireAssignment`), grants admin consent, and prints the **client ID** and **tenant ID**. Cloud Shell needs an Azure subscription in the tenant.
+
+**Option B — PowerShell on your machine:**
 
 ```powershell
 Install-Module Microsoft.Graph.Applications -Scope CurrentUser -RequiredVersion 2.25.0   # once, pinned
-./New-EncaAppRegistration.ps1
+./New-EncaAppRegistration.ps1 -RedirectUris "https://enca.limon-it.nl/" -RequireAssignment
 ```
 
-Re-runs: pass `-AppObjectId <object-id>` (shown in the summary output) to target the exact registration instead of matching by display name.
+Re-runs: pass `-AppObjectId <object-id>` (shown in the summary output) to target the exact registration instead of matching by display name. An existing registration is updated — made single-tenant if it was not — and keeps the redirect URIs it already has. The script never edits `js/authConfig.js`.
 
-Reuses your current Graph session if connected (otherwise signs in interactively), creates/updates the multi-tenant SPA registration with both redirect URIs and the delegated permissions, grants admin consent in your tenant, and writes the client ID into `js/authConfig.js` automatically.
+**Option C — portal:** [Entra admin center](https://entra.microsoft.com) → App registrations → New registration → *Accounts in this organizational directory only*, redirect URI platform **Single-page application (SPA)** with the address ENCA is served from; API permissions → Microsoft Graph → Delegated: the list in [Permissions](#permissions), then **Grant admin consent**. No client secret — it is a public SPA using PKCE.
 
-**Option B — portal:**
-
-1. [Entra admin center](https://entra.microsoft.com) → **Identity → Applications → App registrations → New registration**
-2. Name: `ENCA (Limon-IT)`
-3. Supported account types: **Accounts in any organizational directory (multi-tenant)**
-4. Redirect URI: platform **Single-page application (SPA)** → `https://enca.limon-it.nl`
-5. After creation, under **Authentication → Single-page application**, also add `http://localhost:8080` (local development)
-6. **API permissions → Add a permission → Microsoft Graph → Delegated:**
-   - `Policy.Read.All`
-   - `Directory.Read.All`
-   Then click **Grant admin consent** for your own tenant.
-   The remaining scopes in [Permissions](#permissions) — including `AuditLog.Read.All` for the Change audit and Sign-in failures tools — are requested **on demand** the first time you run the tool that needs them, so you can either add them here up front or consent when prompted. Option A adds them all for you.
-7. Copy the **Application (client) ID** and paste it into [`js/authConfig.js`](js/authConfig.js) (`clientId`).
-
-No client secret needed — it's a public SPA using PKCE.
+**Then sign in:** on the ENCA sign-in card, ⚙ → **＋ Add** the client ID and tenant. For a copy you host yourself, set them for every visitor instead: `ENCA_CLIENT_ID` + `ENCA_TENANT_ID` on the container, or `js/authConfig.local.js` — see [SINGLE-TENANT.md](SINGLE-TENANT.md).
 
 ### 2. Create the GitHub repo and push
 
@@ -109,15 +99,9 @@ Back in repo → Settings → Pages: confirm the custom domain shows `enca.limon
 - Local: `cd enca && python3 -m http.server 8080` → http://localhost:8080 (sign-in works because of the localhost redirect URI). Or open `?demo=1` for sample data without any setup.
 - Production: https://enca.limon-it.nl
 
-### 6. Customer tenants (multi-tenant consent)
+### 6. Customer tenants
 
-An admin of each customer tenant must consent once. Send them this URL (replace `CLIENT_ID`):
-
-```
-https://login.microsoftonline.com/organizations/adminconsent?client_id=CLIENT_ID&redirect_uri=https://enca.limon-it.nl
-```
-
-After consent, anyone in that tenant with permission to read CA policies (e.g. Security Reader/Global Reader) can sign in and document their policies.
+Each customer tenant creates its own registration with step 1 — there is nothing to consent to across tenants any more. After that, anyone in that tenant who is assigned to the registration and holds a role that can read Conditional Access (e.g. Security Reader or Global Reader) can sign in.
 
 ---
 

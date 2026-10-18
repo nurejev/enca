@@ -19,6 +19,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 327, date: "2026-10-18", release: "2.0.5",
+    title: "ENCA 2.0.5 — sign-in through your own registration only: the shared multi-tenant app is gone",
+    items: [
+      { kind: "improved", tool: "Sign-in", text: "ENCA signs in only through an app registration in your own tenant. A copy of ENCA ships no login of its own any more: a login is always the client ID of your registration and the tenant it lives in, and the shared endpoints organizations, common and consumers are refused wherever a tenant can be given, with the reason on the sign-in card." },
+      { kind: "new", tool: "Sign-in", text: "After sign-in ENCA checks that the registration belongs to the tenant you signed in to, by its owner tenant. A multi-tenant app of another organisation is refused even where your tenant once consented to it: you are signed out and the card names the app and its owner." },
+      { kind: "improved", tool: "Sign-in", text: "No registration yet? The sign-in card gives the command for Azure Cloud Shell (PowerShell, no storage account needed). It downloads New-EncaAppRegistration.ps1 from this copy, refuses it unless its SHA-256 is the one this build shipped, and creates a single-tenant registration with you assigned and admin consent granted. A saved login from an older build that lacks a client ID or a tenant is kept but not used until you edit it." },
+      { kind: "improved", tool: "Self-hosting", text: "New-EncaAppRegistration.ps1 makes single-tenant registrations only, uses the Cloud Shell session's own sign-in, keeps the redirect URIs a registration already has, and never edits js/authConfig.js. A container given ENCA_CLIENT_ID without ENCA_TENANT_ID, or a shared ENCA_AUTHORITY, refuses to start and says why." },
+    ],
+  },
+  {
     build: 326, date: "2026-10-15", release: "2.0.4",
     title: "ENCA 2.0.4 — Workspace 03 Entra Tools, Global Secure Access, Egress and location impact",
     items: [

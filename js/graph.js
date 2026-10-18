@@ -17,7 +17,13 @@ const Graph = (() => {
   const authMode = () => { try { return localStorage.getItem(AUTH_MODE_KEY) || "popup"; } catch { return "popup"; } };
   const setAuthMode = (m) => { try { m === "popup" ? localStorage.removeItem(AUTH_MODE_KEY) : localStorage.setItem(AUTH_MODE_KEY, m); } catch { /* private mode */ } };
 
+  // No login, no MSAL (327). A copy of ENCA ships without a registration
+  // and a refused one is emptied by js/authConfig.js, so there may be no
+  // client ID at all. MSAL is not built from nothing — the sign-in card says
+  // what to add instead — and the demo still loads, because it never signs in.
+  const noLogin = () => Object.assign(new Error("ENCA has no login in this browser yet: add your organisation's registration under ⚙ on the sign-in card."), { errorCode: "no_login" });
   function init() {
+    if (!AUTH_CONFIG.clientId) { msalApp = null; return Promise.resolve(false); }
     msalApp = new msal.PublicClientApplication({
       auth: {
         clientId: AUTH_CONFIG.clientId,
@@ -55,11 +61,13 @@ const Graph = (() => {
   const takeRedirectError = () => { const e = redirectError; redirectError = null; return e; };
 
   function signInRedirect() {
+    if (!msalApp) return Promise.reject(noLogin());
     setAuthMode("redirect");
     return msalApp.loginRedirect({ scopes: AUTH_CONFIG.scopes, prompt: "select_account" });
   }
 
   async function signIn() {
+    if (!msalApp) throw noLogin();
     const res = await msalApp.loginPopup({ scopes: AUTH_CONFIG.scopes, prompt: "select_account" });
     account = res.account;
     return account;
@@ -68,6 +76,7 @@ const Graph = (() => {
   function signOut() {
     const acc = account;
     account = null;
+    if (!msalApp) return Promise.resolve();
     return msalApp.logoutPopup({ account: acc }).catch(() => {});
   }
 

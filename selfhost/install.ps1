@@ -14,10 +14,11 @@
 param(
   [int]$Port = 8080,
   [string]$Tag = "latest",
-  # Your own registration, from New-EncaAppRegistration.ps1. Optional: without
-  # them the container uses the shared multi-tenant registration.
+  # Your organisation's registration, from New-EncaAppRegistration.ps1 - both
+  # values or neither (the container refuses a client ID without a tenant).
+  # Without them the copy ships no login and each visitor adds their own.
   [string]$ClientId,
-  # Only for a SINGLE-TENANT registration (-SingleTenant). Omit otherwise.
+  # The tenant the registration lives in. Required with -ClientId.
   [string]$TenantId,
   # This deployment's look for EVERY visitor - the value the branding gear's
   # "Copy for container" button produces. -BrandingUrl serves the same JSON
@@ -68,7 +69,8 @@ if (Test-Path $brandingFile) {
   Say "Found .\selfhost-branding.json - this deployment will wear your branding."
   $brandingArgs = @("-v", "${brandingFile}:/usr/share/nginx/html/selfhost-branding.json:ro")
 }
-# Your own app registration: .\selfhost\install.ps1 -ClientId <guid> [-TenantId <guid>]
+# Your organisation's registration: .\selfhost\install.ps1 -ClientId <guid> -TenantId <guid>
+if ($ClientId -and -not $TenantId) { throw "-ClientId needs -TenantId: ENCA signs in only through a registration in one tenant." }
 # Omitted values are not passed at all, so the image keeps its defaults.
 $authArgs = @()
 if ($ClientId) { $authArgs += @("-e", "ENCA_CLIENT_ID=$ClientId") }

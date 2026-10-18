@@ -25,12 +25,12 @@
     "clientId": {
       "type": "string",
       "defaultValue": "",
-      "metadata": { "description": "OPTIONAL but recommended: the Application (client) ID of YOUR OWN Entra app registration, from New-EncaAppRegistration.ps1. Leave blank to use the shared multi-tenant registration. Setting it is what makes this instance yours - own registration, own consent record, own audit trail." }
+      "metadata": { "description": "Recommended: the Application (client) ID of your organisation's single-tenant ENCA registration, from New-EncaAppRegistration.ps1. Set it together with tenantId. Left blank, the instance ships no login and each visitor adds their own on the sign-in card - there is no shared registration." }
     },
     "tenantId": {
       "type": "string",
       "defaultValue": "",
-      "metadata": { "description": "OPTIONAL: your Directory (tenant) ID, for a SINGLE-TENANT registration (New-EncaAppRegistration.ps1 -SingleTenant). Leave blank for a multi-tenant one. Ignored unless clientId is also set." }
+      "metadata": { "description": "The Directory (tenant) ID the registration lives in. Required when clientId is set: a client ID without a tenant makes the container refuse to start." }
     },
     "branding": {
       "type": "string",
