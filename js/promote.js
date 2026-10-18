@@ -175,6 +175,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 340,
+      ws: "entra",
+      title: "🧹 Entra device cleanup — stale devices out in two steps, ported from TUNO T25 (T59 0.1.0, R88)",
+      tools: ["Entra device cleanup"],
+      builds: [32707],
+      risk: "medium",
+      what: "New tool T59 in Workspace 03 (Directory objects, beside Groups; shortcut 🧹 Devices). js/devicecleanup.js is TUNO T25's logic unchanged behind an io seam — buckets, apply with a fresh read before and a read-back after every write (woke up skipped, re-enabled since refused at delete, 403 explained as the directory-role gate), afterResults, the Markdown report, a demo estate. app.js draws it with ENCA components: Verdict tiles that open their tab, a tab strip, .selbar with DELETE typed to arm, RunLedger on Results, editable thresholds. New scope Device.ReadWrite.All: New-EncaAppRegistration.ps1, js/onboard.js SCOPES, the permissions catalog and SECURITY.md in the same commit. tools/devicecleanup.test.cjs.",
+      why: "Mihai, 18 Oct: next port T25 from TUNO to the ENCA 03 Entra workspace; the layout from the mockup. Risk medium: it disables and deletes directory devices — every write is re-read first and read back, delete only what is disabled, typed DELETE.",
+      test: [
+        "Beta, demo tenant, 03 → 🧹 Entra device cleanup: tiles 4 active · 3 stale · 1 waiting · 2 delete · 1 never seen; each tile opens its tab. Tick two under ① and Disable: the ledger lists both, they turn disabled, and they appear under ↩ Re-enable at once. Re-enable one. Under ② the button stays disabled until DELETE is typed; delete one and it leaves every tab. 📝 Report has the actions with outcomes.",
+        "Beta, demo: change the thresholds to 40 / 100 — the tiles and tabs follow without a new read.",
+        "Beta, cloudfellows.dev as Cloud Device Administrator: Read — the tile counts match Entra → Devices filtered on last activity. Disable one stale test device: Graph asks for Device.ReadWrite.All once; the row turns disabled; Entra shows it disabled. Re-enable it: enabled again.",
+        "Beta, cloudfellows.dev signed in WITHOUT a device role (e.g. Security Reader + consent): Disable — the row fails and says it is the directory-role gate, not missing consent.",
+        "Beta, a disabled test device past the threshold: re-enable it in the portal after the read, then Delete it here — refused, somebody wants it back. Never delete a real device during the test.",
+      ],
+    },
+    {
       n: 339,
       ws: "ca",
       title: "🛡 Security defaults detected, and the way across to a baseline (T10 2.11.0) — Import lands Report-only and creates the E-Admins (T06 2.14.0)",

@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32706"></script>
+<script src="js/popup-guard.js?v=32707"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32706" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32706">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32707" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32707">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32706"></script>
+<script src="js/selfhost-boot.js?v=32707"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32706"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32706"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32706">
-<link rel="stylesheet" href="css/workspaces.css?v=32706">
-<link rel="stylesheet" href="css/tool-layout.css?v=32706">
-<link rel="stylesheet" href="css/list-detail.css?v=32706">
-<link rel="stylesheet" href="css/flat-icons.css?v=32706">
+<script src="js/counter.js?v=32707"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32707"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32707">
+<link rel="stylesheet" href="css/workspaces.css?v=32707">
+<link rel="stylesheet" href="css/tool-layout.css?v=32707">
+<link rel="stylesheet" href="css/list-detail.css?v=32707">
+<link rel="stylesheet" href="css/flat-icons.css?v=32707">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32706" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32707" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32706" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32707" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -229,6 +229,10 @@
       <div class="tool tool-tile" id="toolMemberOf">
         <div class="tool-ic">🧷</div><h3>memberOf retirement <span class="tag new">BETA</span></h3>
         <p>The <code>memberOf</code> dynamic rule operator leaves preview on <b>3 November 2026</b>. Rules still using it don't fail — they <b>stop updating</b> and keep handing out whatever membership they held that day. Scans all <b>three</b> surfaces Microsoft names — dynamic groups, dynamic administrative units and entitlement-management auto-assignment policies — then says what it costs: which <b>Conditional Access</b> policies point at each group, whether it's an <b>include</b> that quietly stops covering joiners or an <b>exclude</b> that becomes a permanent bypass, which groups carry licensing, and which access packages stop being handed out. Owner notification, Markdown and CSV export. <span class="tag ok">reads only</span></p>
+      </div>
+      <div class="tool tool-tile" id="toolDeviceCleanup">
+        <div class="tool-ic">🧹</div><h3>Entra device cleanup <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
+        <p><b>Workspace 03 · Entra Tools.</b> Stale directory devices in two deliberate steps: <b>disable</b> after 30 days without contact, <b>delete</b> after 90 — and only what is already disabled. Every write reads the device again first and back after; a device that woke up is skipped, one re-enabled since is never deleted, and ↩ Re-enable takes a disable back. A Markdown report of everything done. Ported from TUNO T25. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolEgress">
         <div class="tool-ic">🛰</div><h3>Egress &amp; location impact <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
@@ -1536,6 +1540,20 @@
   </section>
 
   <!-- ============ 🛰 EGRESS & LOCATION IMPACT (T57, build 32526) — a temporary tool, Workspace 03; js/egress.js judges and renders ============ -->
+  <!-- ============ 🧹 ENTRA DEVICE CLEANUP (T59, build 32707, ported from TUNO T25) — js/devicecleanup.js judges, writes, reports; app.js draws ============ -->
+  <section id="screen-dcu" class="screen tool">
+    <div class="list-card readme" id="dcuHead"></div>
+    <div class="toolbar" id="dcuToolbar">
+      <div class="dd-read mini muted" id="dcuRead"></div>
+      <label class="mini" id="dcuThresh" style="display:inline-flex;align-items:center;gap:6px">Disable after <input id="dcuDisableDays" class="txt" type="number" min="1" value="30" style="width:64px"> days · delete after <input id="dcuDeleteDays" class="txt" type="number" min="2" value="90" style="width:64px"> days</label>
+      <div class="tb-actions">
+        <button class="btn" id="dcuRefresh" title="Read the directory's devices again">↻ Read the devices</button>
+        <button class="btn" id="dcuMd">📝 Report</button>
+      </div>
+    </div>
+    <div class="tool-body" id="dcuBody"></div>
+  </section>
+
   <section id="screen-egress" class="screen tool">
     <div class="list-card readme" id="egHead"></div>
     <div class="list-card" id="egForm"></div>
@@ -1783,6 +1801,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R88</span> <a href="#" class="md-tool" data-tool="toolDeviceCleanup">🧹 Entra device cleanup — stale devices out in two steps</a> <span class="tag ok">in beta today · beta 32707</span></h4>
+            <p class="mini" style="margin:0">T59 in Workspace 03, ported from TUNO T25: disable after 30 days without contact, delete after 90 and only what is already disabled, every write read again and read back, re-enable as the way back, and one Markdown report.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R87</span> <a href="#" class="md-tool" data-tool="toolPimDoc">📄 PIM documentation — the handover, generated and readable here</a> <span class="tag ok">in beta today · beta 32609</span></h4>
             <p class="mini" style="margin:0">T58 in Workspace 02: the CloudFellows PIM framework as it applies to this tenant — profile, variant, modules and regions folded in — as twelve ticked chapters with the diagrams, readable on the page with a contents list that jumps, and downloadable as one Markdown file with every diagram embedded. As designed from the catalog, or + as found with an In this tenant column from 🧬 PIM baseline's read. The offline handover files no longer have to be kept by hand.</p>
@@ -2868,7 +2890,7 @@
     </section>
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T58</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T59</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
         <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T59</code> is next.</li>
@@ -3263,6 +3285,17 @@
         <li><b>Owner notification</b> — owners of the affected groups are read for an email that asks each owner to replace the rule, convert to assigned, or say it can go; administrative units have no owner and the modal says so. Countdown, Markdown report and CSV.</li>
       </ul>
       <p class="help-x">Reads only and asks for no extra consent beyond the optional entitlement-management scope — rewriting a membership rule changes who a Conditional Access policy hits, and that decision belongs to a person in the portal. Lives in the Temporary tools section and is removed once the retirement has passed.</p>
+    </section>
+    <section class="help-sec">
+      <h4>🧹 Entra device cleanup <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p><b>Workspace 03 · Entra Tools, T59 — ported from TUNO T25.</b> Stale directory devices, taken out in two deliberate steps: <b>disable</b> after 30 days without contact, <b>delete</b> after 90 — and only what is already disabled. A machine goes dark before it goes away, and the gap between the two is where somebody notices the laptop in the drawer still matters.</p>
+      <ul>
+        <li><b>The read</b> — the Entra device objects (<code>/devices</code>), not the Intune enrolment: <code>approximateLastSignInDateTime</code> is the directory's own last contact, and its name says approximate. No new permission: <code>Directory.Read.All</code>, held from sign-in, covers it. Both thresholds can be changed in the toolbar; the buckets follow at once.</li>
+        <li><b>The tiles</b> — Active, Stale and enabled (the disable candidates — a device past the delete line that is still enabled is STILL only a disable candidate), Disabled and waiting, Delete candidates (disabled and past the delete line), Never seen (no last sign-in — unknown is not stale, so no action is offered). Each tile opens its tab.</li>
+        <li><b>① Disable · ② Delete · ↩ Re-enable</b> — tick devices and the bar appears. Every write reads the device again first: one that signed in since the read is skipped (it woke up), one re-enabled since is refused at delete (somebody wants it back). After the write it is read back; only a verified outcome moves a device between tabs. Delete must be armed by typing <b>DELETE</b>: <b>a deleted device object takes its BitLocker recovery keys with it</b>, and Graph refuses Autopilot-registered devices until they leave Autopilot. A device marked <b>managed</b> is enrolled in Intune — removing the directory object does not unenrol it; retire it in Intune first.</li>
+        <li><b>Results</b> — the run ledger, as on every batch write: a row per device turning disabled, re-enabled, deleted, skipped, refused or failed, with ■ Stop between rows. <b>📝 Report</b> writes one Markdown file: the summary, every action with its outcome, and what is left.</li>
+      </ul>
+      <p class="help-x">Writes need <code>Device.ReadWrite.All</code> — asked for at the click, and new in <code>New-EncaAppRegistration.ps1</code> at this build, so a customer tenant gives admin consent once more. Consent is not enough on its own: Graph lets only a directory role that may change devices write them — Cloud Device Administrator or Intune Administrator. A 403 after consent is that role gate, and the row says so.</p>
     </section>
     <section class="help-sec">
       <h4>🛰 Egress &amp; location impact <span class="tag new">BETA</span></h4>
@@ -4153,120 +4186,121 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32706"></script>
-<script src="js/selfhost.js?v=32706"></script>
-<script src="js/version.js?v=32706"></script>
-<script src="js/verdict.js?v=32706"></script>
-<script src="js/fork.js?v=32706"></script>
-<script src="js/promote.js?v=32706"></script>
-<script src="js/authConfig.js?v=32706"></script>
-<script src="js/connection.js?v=32706"></script>
-<script src="js/labels.js?v=32706"></script>
-<script src="js/capabilities.js?v=32706"></script>
-<script src="js/graph.js?v=32706"></script>
-<script src="js/model.js?v=32706"></script>
-<script src="js/render.js?v=32706"></script>
-<script src="js/analyze.js?v=32706"></script>
-<script src="js/whatif.js?v=32706"></script>
-<script src="js/mslearn.js?v=32706"></script>
-<script src="js/learntriage.js?v=32706"></script>
-<script src="js/learnfeed.js?v=32706"></script>
-<script src="js/gapcheck.js?v=32706"></script>
-<script src="js/cisdata.js?v=32706"></script>
-<script src="js/cischeck.js?v=32706"></script>
-<script src="js/exclusions.js?v=32706"></script>
-<script src="js/cascope.js?v=32706"></script>
-<script src="js/coverage.js?v=32706"></script>
-<script src="js/runmeta.js?v=32706"></script>
-<script src="js/overview.js?v=32706"></script>
-<script src="js/validator.js?v=32706"></script>
-<script src="js/whatifeval.js?v=32706"></script>
-<script src="js/builder.js?v=32706"></script>
-<script src="js/onboard.js?v=32706"></script>
-<script src="js/compare.js?v=32706"></script>
-<script src="js/whois.js?v=32706"></script>
-<script src="js/wave.js?v=32706"></script>
-<script src="js/sessionctl.js?v=32706"></script>
-<script src="js/spgap.js?v=32706"></script>
-<script src="js/groupuse.js?v=32706"></script>
-<script src="js/iso3166.js?v=32706"></script>
-<script src="js/causes.js?v=32706"></script>
-<script src="js/locations.js?v=32706"></script>
-<script src="js/locsignin.js?v=32706"></script>
-<script src="js/workloadid.js?v=32706"></script>
-<script src="js/authcontexts.js?v=32706"></script>
-<script src="js/authstrengths.js?v=32706"></script>
-<script src="js/recycle.js?v=32706"></script>
-<script src="js/rmau.js?v=32706"></script>
-<script src="js/auinv.js?v=32706"></script>
-<script src="js/camap.js?v=32706"></script>
-<script src="js/rmaudoc.js?v=32706"></script>
-<script src="js/termsofuse.js?v=32706"></script>
-<script src="js/audit.js?v=32706"></script>
-<script src="js/drift.js?v=32706"></script>
-<script src="js/guide.js?v=32706"></script>
-<script src="js/userimpact.js?v=32706"></script>
-<script src="js/smsvoice.js?v=32706"></script>
-<script src="js/memberof.js?v=32706"></script>
-<script src="js/devcheck.js?v=32706"></script>
-<script src="js/idscore.js?v=32706"></script>
-<script src="js/xtenant.js?v=32706"></script>
-<script src="js/passkeys.js?v=32706"></script>
-<script src="js/tokencov.js?v=32706"></script>
-<script src="js/naming.js?v=32706"></script>
-<script src="js/licgap.js?v=32706"></script>
-<script src="js/teamsdev.js?v=32706"></script>
-<script src="js/signinstore.js?v=32706"></script>
-<script src="js/signins.js?v=32706"></script>
-<script src="js/reportimpact.js?v=32706"></script>
-<script src="js/changelog.js?v=32706"></script>
-<script src="js/baselineData.js?v=32706"></script>
-<script src="js/baselineJoeyData.js?v=32706"></script>
-<script src="js/baselineLive.js?v=32706"></script>
-<script src="js/pimBaselineData.js?v=32706"></script>
-<script src="js/pimbaseline.js?v=32706"></script>
-<script src="js/pimplan.js?v=32706"></script>
-<script src="js/pimrmau.js?v=32706"></script>
-<script src="js/intunerbac.js?v=32706"></script>
-<script src="js/pimroles.js?v=32706"></script>
-<script src="js/pimreport.js?v=32706"></script>
-<script src="js/pimdoc.js?v=32706"></script>
-<script src="js/pimmodules.js?v=32706"></script>
-<script src="js/pimdeploy.js?v=32706"></script>
-<script src="js/pimscript.js?v=32706"></script>
-<script src="js/pimdesigner.js?v=32706"></script>
-<script src="js/pimcatalog.js?v=32706"></script>
-<script src="js/pimlens.js?v=32706"></script>
-<script src="js/baseline.js?v=32706"></script>
-<script src="js/eadminsData.js?v=32706"></script>
-<script src="js/secdefaults.js?v=32706"></script>
-<script src="js/baselineCleanup.js?v=32706"></script>
-<script src="js/groupTemplates.js?v=32706"></script>
-<script src="js/assign.js?v=32706"></script>
-<script src="js/cagroups.js?v=32706"></script>
-<script src="js/groupmerge.js?v=32706"></script>
-<script src="js/dgfill.js?v=32706"></script>
-<script src="js/deploydash.js?v=32706"></script>
-<script src="js/trv2.js?v=32706"></script>
-<script src="js/gsa.js?v=32706"></script>
-<script src="js/egress.js?v=32706"></script>
-<script src="js/groupsview.js?v=32706"></script>
-<script src="js/runledger.js?v=32706"></script>
-<script src="js/bgvault.js?v=32706"></script>
-<script src="js/protect.js?v=32706"></script>
-<script src="js/policy-compare.js?v=32706"></script>
-<script src="js/import.js?v=32706"></script>
-<script src="js/export.js?v=32706"></script>
-<script src="js/demo.js?v=32706"></script>
-<script src="js/list-detail.js?v=32706"></script>
-<script src="js/flat-icons.js?v=32706"></script>
-<script src="js/workspace.js?v=32706"></script>
-<script src="js/analysis-jobs.js?v=32706"></script>
-<script src="js/search-suggest.js?v=32706"></script>
-<script src="js/app.js?v=32706"></script>
-<script src="js/col-resize.js?v=32706"></script>
-<script src="js/accessibility.js?v=32706"></script>
-<script src="js/workspaces.js?v=32706"></script>
-<script src="js/tool-layout.js?v=32706"></script>
+<script src="js/branding.js?v=32707"></script>
+<script src="js/selfhost.js?v=32707"></script>
+<script src="js/version.js?v=32707"></script>
+<script src="js/verdict.js?v=32707"></script>
+<script src="js/fork.js?v=32707"></script>
+<script src="js/promote.js?v=32707"></script>
+<script src="js/authConfig.js?v=32707"></script>
+<script src="js/connection.js?v=32707"></script>
+<script src="js/labels.js?v=32707"></script>
+<script src="js/capabilities.js?v=32707"></script>
+<script src="js/graph.js?v=32707"></script>
+<script src="js/model.js?v=32707"></script>
+<script src="js/render.js?v=32707"></script>
+<script src="js/analyze.js?v=32707"></script>
+<script src="js/whatif.js?v=32707"></script>
+<script src="js/mslearn.js?v=32707"></script>
+<script src="js/learntriage.js?v=32707"></script>
+<script src="js/learnfeed.js?v=32707"></script>
+<script src="js/gapcheck.js?v=32707"></script>
+<script src="js/cisdata.js?v=32707"></script>
+<script src="js/cischeck.js?v=32707"></script>
+<script src="js/exclusions.js?v=32707"></script>
+<script src="js/cascope.js?v=32707"></script>
+<script src="js/coverage.js?v=32707"></script>
+<script src="js/runmeta.js?v=32707"></script>
+<script src="js/overview.js?v=32707"></script>
+<script src="js/validator.js?v=32707"></script>
+<script src="js/whatifeval.js?v=32707"></script>
+<script src="js/builder.js?v=32707"></script>
+<script src="js/onboard.js?v=32707"></script>
+<script src="js/compare.js?v=32707"></script>
+<script src="js/whois.js?v=32707"></script>
+<script src="js/wave.js?v=32707"></script>
+<script src="js/sessionctl.js?v=32707"></script>
+<script src="js/spgap.js?v=32707"></script>
+<script src="js/groupuse.js?v=32707"></script>
+<script src="js/iso3166.js?v=32707"></script>
+<script src="js/causes.js?v=32707"></script>
+<script src="js/locations.js?v=32707"></script>
+<script src="js/locsignin.js?v=32707"></script>
+<script src="js/workloadid.js?v=32707"></script>
+<script src="js/authcontexts.js?v=32707"></script>
+<script src="js/authstrengths.js?v=32707"></script>
+<script src="js/recycle.js?v=32707"></script>
+<script src="js/rmau.js?v=32707"></script>
+<script src="js/auinv.js?v=32707"></script>
+<script src="js/camap.js?v=32707"></script>
+<script src="js/rmaudoc.js?v=32707"></script>
+<script src="js/termsofuse.js?v=32707"></script>
+<script src="js/audit.js?v=32707"></script>
+<script src="js/drift.js?v=32707"></script>
+<script src="js/guide.js?v=32707"></script>
+<script src="js/userimpact.js?v=32707"></script>
+<script src="js/smsvoice.js?v=32707"></script>
+<script src="js/memberof.js?v=32707"></script>
+<script src="js/devcheck.js?v=32707"></script>
+<script src="js/idscore.js?v=32707"></script>
+<script src="js/xtenant.js?v=32707"></script>
+<script src="js/passkeys.js?v=32707"></script>
+<script src="js/tokencov.js?v=32707"></script>
+<script src="js/naming.js?v=32707"></script>
+<script src="js/licgap.js?v=32707"></script>
+<script src="js/teamsdev.js?v=32707"></script>
+<script src="js/signinstore.js?v=32707"></script>
+<script src="js/signins.js?v=32707"></script>
+<script src="js/reportimpact.js?v=32707"></script>
+<script src="js/changelog.js?v=32707"></script>
+<script src="js/baselineData.js?v=32707"></script>
+<script src="js/baselineJoeyData.js?v=32707"></script>
+<script src="js/baselineLive.js?v=32707"></script>
+<script src="js/pimBaselineData.js?v=32707"></script>
+<script src="js/pimbaseline.js?v=32707"></script>
+<script src="js/pimplan.js?v=32707"></script>
+<script src="js/pimrmau.js?v=32707"></script>
+<script src="js/intunerbac.js?v=32707"></script>
+<script src="js/pimroles.js?v=32707"></script>
+<script src="js/pimreport.js?v=32707"></script>
+<script src="js/pimdoc.js?v=32707"></script>
+<script src="js/pimmodules.js?v=32707"></script>
+<script src="js/pimdeploy.js?v=32707"></script>
+<script src="js/pimscript.js?v=32707"></script>
+<script src="js/pimdesigner.js?v=32707"></script>
+<script src="js/pimcatalog.js?v=32707"></script>
+<script src="js/pimlens.js?v=32707"></script>
+<script src="js/baseline.js?v=32707"></script>
+<script src="js/eadminsData.js?v=32707"></script>
+<script src="js/secdefaults.js?v=32707"></script>
+<script src="js/baselineCleanup.js?v=32707"></script>
+<script src="js/groupTemplates.js?v=32707"></script>
+<script src="js/assign.js?v=32707"></script>
+<script src="js/cagroups.js?v=32707"></script>
+<script src="js/groupmerge.js?v=32707"></script>
+<script src="js/dgfill.js?v=32707"></script>
+<script src="js/deploydash.js?v=32707"></script>
+<script src="js/trv2.js?v=32707"></script>
+<script src="js/gsa.js?v=32707"></script>
+<script src="js/egress.js?v=32707"></script>
+<script src="js/devicecleanup.js?v=32707"></script>
+<script src="js/groupsview.js?v=32707"></script>
+<script src="js/runledger.js?v=32707"></script>
+<script src="js/bgvault.js?v=32707"></script>
+<script src="js/protect.js?v=32707"></script>
+<script src="js/policy-compare.js?v=32707"></script>
+<script src="js/import.js?v=32707"></script>
+<script src="js/export.js?v=32707"></script>
+<script src="js/demo.js?v=32707"></script>
+<script src="js/list-detail.js?v=32707"></script>
+<script src="js/flat-icons.js?v=32707"></script>
+<script src="js/workspace.js?v=32707"></script>
+<script src="js/analysis-jobs.js?v=32707"></script>
+<script src="js/search-suggest.js?v=32707"></script>
+<script src="js/app.js?v=32707"></script>
+<script src="js/col-resize.js?v=32707"></script>
+<script src="js/accessibility.js?v=32707"></script>
+<script src="js/workspaces.js?v=32707"></script>
+<script src="js/tool-layout.js?v=32707"></script>
 </body>
 </html>

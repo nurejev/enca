@@ -3248,6 +3248,8 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-warn-txt{color:var(--report)}
 /* 0.9.0 T56: the macOS chain table — found, content, reach, landed */
 .gsa-bad-txt{color:var(--off)}
+/* 32707 T59: Entra device cleanup */
+.dcu-tabs{margin:12px 0 8px}.dcu-red{color:var(--off);font-weight:700}.dcu-selbar{position:sticky;top:var(--selbar-top,168px)}.dcu-table td{vertical-align:top}
 /* 0.9.1 T56: who it reaches */
 .gsa-who{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);white-space:nowrap}.gsa-who.dev{background:color-mix(in srgb,#7a4fc2 16%,transparent);color:#7a4fc2}
 .gsa-reachtab td{vertical-align:top}.gsa-reachtab td:last-child{text-align:right;white-space:nowrap}.gsa-ok-txt{color:var(--on)}.gsa-na-txt{color:var(--report)}

@@ -2702,6 +2702,7 @@
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "User or Group analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "User or Group analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "User or Group analyzer", onDemand: true },
+    { scope: "Device.ReadWrite.All", use: "Disable, re-enable and delete stale Entra device objects — Graph also requires the signed-in admin to hold Cloud Device Administrator or Intune Administrator. Reading the devices needs nothing new (Directory.Read.All)", tools: "Entra device cleanup", onDemand: true },
     { scope: "MailboxSettings.Read", use: "Read each mailbox's purpose (user / shared / room / equipment) so never-licensed resource accounts are told apart from real users", tools: "Licence gap", onDemand: true },
     { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "User or Group analyzer", onDemand: true },
   ];
@@ -2978,6 +2979,7 @@
     ["toolSmsVoice", "📵 SMS & voice retirement"],
     ["toolMemberOf", "🧷 memberOf retirement"],
     ["toolEgress", "🛰 Egress & location impact"],
+    ["toolDeviceCleanup", "🧹 Entra device cleanup"],
     ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Checks"],
@@ -28762,6 +28764,149 @@ This is a directory write. Nothing else changes.`)) return;
     finally { eg.look = false; }
     renderEgress();
   }
+  // ======================================================================
+  // 🧹 Entra device cleanup — T59, Workspace 03 (ported from TUNO T25,
+  // 18 Oct 2026). js/devicecleanup.js judges, writes and reports; this is
+  // the screen in ENCA's components, as Mihai picked from the mockup: the
+  // KPI tiles (each one opens its tab), a tab strip in place of TUNO's rail,
+  // ENCA's floating selection bar, and the run ledger on Results.
+  // Selections are STATE keyed on device ids, so a tab switch keeps them.
+  // ======================================================================
+  let dcu = { devices: null, buckets: null, results: null, pane: "overview", sel: { disable: new Set(), delete: new Set(), enable: new Set() }, busy: false, running: false, err: null, readAt: null, session: null, ledgerHtml: "", summary: "", armed: "" };
+  const dcuSession = () => `${tenantId}:${isDemo}`;
+  const DCU_SRC = { disable: "stale", delete: "deletable", enable: "disabled" };
+  function dcuThresholds() {
+    const a = $("dcuDisableDays"), b = $("dcuDeleteDays");
+    const dis = Math.max(1, +((a && a.value) || 0) || DeviceCleanup.DEFAULTS.disableDays);
+    const del = Math.max(dis + 1, +((b && b.value) || 0) || DeviceCleanup.DEFAULTS.deleteDays);
+    return { disableDays: dis, deleteDays: del };
+  }
+  function openDcu() {
+    crumb("🧹 Entra device cleanup");
+    show("screen-dcu");
+    if (dcu.session !== dcuSession()) dcu = Object.assign(dcu, { devices: null, buckets: null, results: null, pane: "overview", err: null, readAt: null, ledgerHtml: "", summary: "", session: dcuSession() });
+    $("dcuHead").innerHTML = toolHead("toolDeviceCleanup") + '<p class="mini" style="margin:6px 0 0">Stale directory devices, taken out in two deliberate steps: <b>disable</b> after 30 days without contact, <b>delete</b> after 90 — and only what is already disabled. The read is the Entra device object (<code>approximateLastSignInDateTime</code>), not the Intune enrolment. Every write reads the device again first and reads it back after. Ported from TUNO T25.</p>';
+    renderDcu();
+    if (!dcu.devices && !dcu.busy) readDcu();
+  }
+  async function readDcu() {
+    if (dcu.busy || dcu.running) return;
+    dcu.busy = true; dcu.err = null; renderDcu();
+    try {
+      dcu.devices = isDemo ? DeviceCleanup.demo() : await DeviceCleanup.readDevices();
+      dcu.buckets = DeviceCleanup.bucketize(dcu.devices, dcuThresholds());
+      dcu.readAt = Date.now(); dcu.results = null; dcu.ledgerHtml = ""; dcu.summary = ""; dcu.pane = "overview";
+      Object.values(dcu.sel).forEach((s) => s.clear());
+    } catch (e) { dcu.err = String((e && e.message) || e); dcu.devices = null; dcu.buckets = null; }
+    finally { dcu.busy = false; }
+    renderDcu();
+  }
+  function renderDcu() {
+    if (!$("screen-dcu") || !$("screen-dcu").classList.contains("active")) return;
+    const body = $("dcuBody"), b = dcu.buckets;
+    $("dcuRead").textContent = dcu.readAt ? `Read ${new Date(dcu.readAt).toLocaleString()} · ${(dcu.devices || []).length} devices${isDemo ? " · demo" : ""}` : "";
+    if (dcu.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading the directory\'s devices…</p>'; return; }
+    if (dcu.err) { body.innerHTML = `<div class="list-card"><b>The read failed.</b><p class="mini">${esc(dcu.err)}</p></div>`; return; }
+    if (!b) { body.innerHTML = '<p class="mini muted" style="padding:12px">Not read yet — ↻ Read the devices.</p>'; return; }
+    const pane = dcu.pane;
+    const T = (k, v, s, cls, to) => ({ k, v, s, cls, btn: !!to, on: to === pane, data: to ? { dcupane: to } : {} });
+    const tiles = Verdict.tiles([
+      T("Active", b.active.length, `contact within ${b.thresholds.disableDays} days`, "ok", "overview"),
+      T("Stale, enabled", b.stale.length, "disable candidates", b.stale.length ? "warn" : "", "disable"),
+      T("Disabled, waiting", b.parked.length, `not yet ${b.thresholds.deleteDays} days silent`, "", "enable"),
+      T("Delete candidates", b.deletable.length, "disabled and past the delete line", b.deletable.length ? "bad" : "", "delete"),
+      T("Never seen", b.unknown.length, "unknown is not stale — no action", "", "unknown"),
+    ]);
+    const tab = (id, label, n, red) => `<button type="button" data-dcupane="${id}" class="${pane === id ? "on" : ""}" aria-selected="${pane === id}">${label}${n == null ? "" : ` <span class="${red && n ? "dcu-red" : "muted"}">${n}</span>`}</button>`;
+    const tabs = `<div class="gsa-tabs dcu-tabs" role="tablist">${tab("overview", "Overview")}${tab("disable", "① Disable", b.stale.length, true)}${tab("delete", "② Delete", b.deletable.length, true)}${tab("enable", "↩ Re-enable", b.disabled.length)}${tab("results", "Results", dcu.results ? dcu.results.length : null)}${tab("unknown", "Never seen", b.unknown.length)}</div>`;
+    const managed = (d) => d.isManaged ? ' <span class="tag" title="Enrolled in Intune — disabling or deleting the directory object does not unenrol it; retire it in Intune first">managed</span>' : "";
+    const devCell = (r) => `<b>${esc(r.d.displayName || r.d.id)}</b>${managed(r.d)}<div class="mini muted">${esc(r.d.operatingSystem || "—")}${r.d.operatingSystemVersion ? ` ${esc(r.d.operatingSystemVersion)}` : ""}${r.d.trustType ? ` · ${esc(r.d.trustType)}` : ""}${r.d.registrationDateTime ? ` · registered ${esc(String(r.d.registrationDateTime).slice(0, 10))}` : ""}</div>`;
+    const state = (d) => d.accountEnabled === false ? '<span class="gsa-st bad">disabled</span>' : '<span class="gsa-st ok">enabled</span>';
+    const table = (rows, kind) => {
+      const sel = kind ? dcu.sel[kind] : null, all = rows.length && sel && rows.every((r) => sel.has(r.d.id));
+      return `<div class="gu-tw"><table class="cg-table dcu-table"><thead><tr>${kind ? `<th style="width:34px"><input type="checkbox" data-dcuall="${kind}"${all ? " checked" : ""} title="Select or deselect every row"></th>` : ""}<th>Device</th><th style="width:120px">Silence</th><th style="width:100px">State</th></tr></thead><tbody>${rows.map((r) => `<tr>${kind ? `<td><input type="checkbox" data-dcutick="${kind}" data-id="${esc(r.d.id)}"${sel.has(r.d.id) ? " checked" : ""}></td>` : ""}<td>${devCell(r)}</td><td class="mini">${r.days == null ? "never seen" : `${r.days} days`}</td><td>${state(r.d)}</td></tr>`).join("") || `<tr><td colspan="${kind ? 4 : 3}" class="mini muted">Nothing here.</td></tr>`}</tbody></table></div>`;
+    };
+    const caveat = `<p class="mini muted" style="margin:10px 0 0">Last contact is the directory's <code>approximateLastSignInDateTime</code> — its name says approximate, so a day either side is noise. <b>Deleting a device object deletes its BitLocker recovery keys with it.</b> Writes need <code>${DeviceCleanup.WRITE_SCOPE}</code> (asked for at the click) and a directory role that may change devices — Cloud Device Administrator or Intune Administrator.</p>`;
+    const head = (h, txt, w) => `<h4 style="margin:0 0 6px">${h}${w ? ' <span class="tag block">writes to tenant</span>' : ""}</h4><p class="mini muted" style="margin:0 0 8px">${txt}</p>`;
+    let main = "";
+    if (pane === "overview") main = `<div class="list-card">${head("Where the estate stands", `${(dcu.devices || []).length} directory devices. The tiles open their tab: ① to disable the stale ones, ② to delete what is disabled and past the delete line, ↩ to take a disable back.`)}${caveat}</div>`;
+    else if (pane === "disable") main = `<div class="list-card">${head(`① Disable — ${b.stale.length} stale and still enabled`, `Reversible. Every device still enabled past the delete line sits HERE, not in ②: delete follows disable, never replaces it. A device that signed in since the read is skipped — it woke up.`, true)}${table(b.stale, "disable")}</div>`;
+    else if (pane === "delete") main = `<div class="list-card">${head(`② Delete — ${b.deletable.length} disabled and silent past ${b.thresholds.deleteDays} days`, `<b>Not reversible.</b> The BitLocker recovery keys go with the object. Each delete reads the device again first: re-enabled since the read → refused (somebody wants it back); signed in since → skipped. An Autopilot-registered device is refused by Graph until it leaves Autopilot. Type DELETE in the bar to arm it.`, true)}${table(b.deletable, "delete")}</div>`;
+    else if (pane === "enable") main = `<div class="list-card">${head(`↩ Re-enable — ${b.disabled.length} disabled device${b.disabled.length === 1 ? "" : "s"}`, "Every disabled device the read found — waiting ones, delete candidates and any disabled device outside the staleness buckets. Re-enabling is the undo of ①: a fresh read, the write, the read-back; no threshold applies.", true)}${table(b.disabled, "enable")}</div>`;
+    else if (pane === "unknown") main = `<div class="list-card">${head(`Never seen — ${b.unknown.length}`, "The directory returned no last sign-in — an Autopilot object that never booted, or a device the service answers nothing for. Unknown is not stale: acting on these would be a guess, so no action is offered.")}${table(b.unknown, null)}</div>`;
+    else main = `<div class="list-card">${head("Results — this session", dcu.results ? dcu.summary : "No actions run yet. Tick devices under ①, ② or ↩ and the bar appears.")}<div id="dcuLedger">${dcu.ledgerHtml}</div></div>`;
+    // the floating bar: the action follows the ticking
+    const kind = { disable: "disable", delete: "delete", enable: "enable" }[pane];
+    const n = kind ? dcu.sel[kind].size : 0;
+    const verb = { disable: "🌙 Disable the ticked", delete: "🗑 Delete the ticked", enable: "☀ Re-enable the ticked" }[kind];
+    const bar = kind ? `<div class="selbar dcu-selbar${n ? " visible" : ""}" id="dcuBar"><span><b>${n}</b> device${n === 1 ? "" : "s"} ticked</span>${kind === "delete" ? `<label class="mini" style="display:inline-flex;align-items:center;gap:6px">Type <b>DELETE</b> to arm <input id="dcuConfirm" class="txt" style="width:100px" autocomplete="off" value="${esc(dcu.armed)}"></label>` : ""}<button class="btn primary" data-dcuact="${kind}"${kind === "delete" && dcu.armed.trim() !== "DELETE" || dcu.running ? " disabled" : ""}>${verb} <span class="tag block">writes</span></button><button class="btn sm" data-dcuclear="${kind}" title="Clear the selection">✕</button></div>` : "";
+    body.innerHTML = `${tiles}${tabs}${bar}${main}`;
+  }
+  function dcuSyncBar(kind) {
+    const n = dcu.sel[kind].size, bar = $("dcuBar"), total = dcu.buckets[DCU_SRC[kind]].length;
+    if (bar) { bar.classList.toggle("visible", n > 0); const b = bar.querySelector("b"); if (b) b.textContent = n; const sp = bar.querySelector("span"); if (sp) sp.lastChild.textContent = ` device${n === 1 ? "" : "s"} ticked`; }
+    const m = $("dcuBody").querySelector(`[data-dcuall="${kind}"]`); if (m) { m.checked = n > 0 && n === total; m.indeterminate = n > 0 && n < total; }
+  }
+  async function dcuAct(kind) {
+    if (dcu.running || !dcu.buckets) return;
+    const src = dcu.buckets[DCU_SRC[kind]], sel = dcu.sel[kind];
+    const ops = src.filter((r) => sel.has(r.d.id)).map((r) => ({ kind, d: r.d, days: r.days }));
+    if (!ops.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, DeviceCleanup.WRITE_SCOPE])) return;
+    dcu.running = true; dcu.pane = "results"; dcu.ledgerHtml = ""; renderDcu();
+    const host = $("dcuLedger");
+    const word = { disable: "disabling", delete: "deleting", enable: "re-enabling" }[kind];
+    const L = host ? RunLedger.create(host, { unit: "devices", title: word, items: ops.map((op) => ({ label: op.d.displayName || op.d.id, sub: op.d.operatingSystem || "" })) }) : null;
+    let results = [];
+    try {
+      // the demo walks the same pipeline against the demo estate
+      const io = isDemo ? (() => {
+        const find = (url) => dcu.devices.find((x) => url.includes(`/devices/${x.id}`));
+        const pause = () => new Promise((r) => setTimeout(r, 120));
+        return { read: async (url) => { await pause(); const d = find(url); return d ? Object.assign({}, d) : null; }, patch: async (url, body) => { await pause(); Object.assign(find(url), body); }, del: async (url) => { await pause(); const d = find(url); dcu.devices = dcu.devices.filter((x) => x !== d); } };
+      })() : undefined;
+      results = await DeviceCleanup.apply(ops, { thresholds: dcu.buckets.thresholds, ledger: L, io });
+    } catch (e) { toast(`Stopped: <span>${esc(String((e && e.message) || e))}</span>`); }
+    finally {
+      if (L) L.finish({ report: () => dcuReport() });
+      dcu.ledgerHtml = host ? host.innerHTML : "";
+      dcu.results = (dcu.results || []).concat(results);
+      const good = results.filter((r) => ["disabled", "deleted", "enabled"].includes(r.outcome)).length, bad = results.filter((r) => r.outcome === "failed").length;
+      dcu.summary = `<b>${good} ${kind === "disable" ? "disabled" : kind === "enable" ? "re-enabled" : "deleted"}</b>${bad ? ` · <b class="gsa-bad-txt">${bad} failed</b>` : ""} · ${results.length - good - bad} skipped or refused — the tiles and tabs follow the read-backs.`;
+      // only verified outcomes move a device (the demo moved them already)
+      if (!isDemo) dcu.devices = DeviceCleanup.afterResults(dcu.devices, results);
+      dcu.buckets = DeviceCleanup.bucketize(dcu.devices, dcu.buckets.thresholds);
+      dcu.sel[kind].clear(); dcu.armed = "";
+      dcu.running = false;
+      renderDcu();
+    }
+  }
+  function dcuReport() {
+    if (!dcu.buckets) { toast("Read the devices first"); return; }
+    downloadText("entra-device-cleanup", "md", "text/markdown", DeviceCleanup.markdown({ buckets: dcu.buckets, results: dcu.results, tenant: tenantName || (isDemo ? "demo" : ""), build: APP_BUILD.label }));
+  }
+  $("toolDeviceCleanup").addEventListener("click", openDcu);
+  $("dcuRefresh").addEventListener("click", () => { dcu.devices = null; readDcu(); });
+  $("dcuMd").addEventListener("click", dcuReport);
+  $("dcuThresh").addEventListener("change", () => { if (dcu.devices) { dcu.buckets = DeviceCleanup.bucketize(dcu.devices, dcuThresholds()); Object.values(dcu.sel).forEach((s) => s.clear()); renderDcu(); } });
+  $("dcuBody").addEventListener("click", (e) => {
+    const t = e.target;
+    const p = t.closest("[data-dcupane]"); if (p) { dcu.pane = p.dataset.dcupane; renderDcu(); return; }
+    const a = t.closest("[data-dcuact]"); if (a) { dcuAct(a.dataset.dcuact); return; }
+    const c = t.closest("[data-dcuclear]"); if (c) { dcu.sel[c.dataset.dcuclear].clear(); dcu.armed = ""; renderDcu(); return; }
+  });
+  $("dcuBody").addEventListener("change", (e) => {
+    const t = e.target;
+    // a tick updates the selection, the bar and the master box in place — no
+    // repaint, so the table keeps its scroll position under the pointer
+    if (t.dataset.dcutick) { const s = dcu.sel[t.dataset.dcutick]; if (t.checked) s.add(t.dataset.id); else s.delete(t.dataset.id); dcuSyncBar(t.dataset.dcutick); return; }
+    if (t.dataset.dcuall) { const k = t.dataset.dcuall, s = dcu.sel[k]; dcu.buckets[DCU_SRC[k]].forEach((r) => { if (t.checked) s.add(r.d.id); else s.delete(r.d.id); }); $("dcuBody").querySelectorAll(`[data-dcutick="${k}"]`).forEach((c) => { c.checked = t.checked; }); dcuSyncBar(k); }
+  });
+  $("dcuBody").addEventListener("input", (e) => {
+    if (e.target.id !== "dcuConfirm") return;
+    dcu.armed = e.target.value;
+    const btn = $("dcuBody").querySelector('[data-dcuact="delete"]'); if (btn) btn.disabled = dcu.armed.trim() !== "DELETE" || dcu.running;
+  });
   $("toolEgress").addEventListener("click", openEgress);
   $("egRefresh").addEventListener("click", () => { eg.raw = null; readEgress(); });
   $("egMd").addEventListener("click", () => {

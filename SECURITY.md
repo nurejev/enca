@@ -77,7 +77,10 @@ The write scopes are the powerful ones, and there is no way to soften what
 they are: `Policy.ReadWrite.ConditionalAccess` can change the policies that
 guard the tenant, `Group.ReadWrite.All` and `RoleManagement.ReadWrite.Directory`
 can create and populate ordinary security groups, `AdministrativeUnit.ReadWrite.All`
-can create a restricted management AU. They are requested only by the tools
+can create a restricted management AU, `Device.ReadWrite.All` can disable,
+re-enable and delete directory devices (Entra device cleanup — and Graph also
+requires the admin to hold Cloud Device Administrator or Intune Administrator).
+They are requested only by the tools
 that write, only when used, and every change they make is recorded — by
 Entra, not by ENCA — in the tenant's own audit log with the administrator as
 the actor. ENCA's Change audit tool reads that same log, so the tool's own

@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32707, date: "2026-10-18", title: "Entra device cleanup — stale devices out in two steps (from TUNO)",
+    items: [
+      { kind: "new", tool: "Entra device cleanup", text: "New in Workspace 03: stale Entra devices taken out in two deliberate steps — disable after 30 days without contact, delete after 90 and only what is already disabled. Tiles show the estate (active, stale and enabled, disabled and waiting, delete candidates, never seen) and open their tab; tick devices and the bar disables, deletes or re-enables them." },
+      { kind: "new", tool: "Entra device cleanup", text: "Every write reads the device again first and reads it back after: a device that signed in since the read is skipped, one somebody re-enabled is never deleted, and a delete must be armed by typing DELETE because the BitLocker recovery keys go with the device. The run ledger shows each device as it lands, and the report writes everything to one Markdown file." },
+      { kind: "new", tool: "Entra device cleanup", text: "Writing needs the Device.ReadWrite.All permission, asked for at the click and added to the app registration script, and a directory role that may change devices: Cloud Device Administrator or Intune Administrator. Reading needs nothing new. Ported from TUNO T25." },
+    ],
+  },
+  {
     build: 32706, date: "2026-10-18", title: "Security defaults: the reason a tenant is empty, and the way across to a baseline",
     items: [
       { kind: "new", tool: "Baseline", text: "A tenant on security defaults has no Conditional Access policies, and the Baseline screen used to stop at No policies loaded. The security defaults setting is now read with the policies, and an empty tenant is compared like any other: the whole catalog shows as Missing and Import baseline knows what to import. A card above the table says why the tenant is empty and offers both baselines in three steps — deploy in Report-only (nothing changes for users), read what it would do in Report-only impact, then switch. Without Entra ID P1 the catalog is a preview and deploying is off; with security defaults off and no policies the card says nothing enforces MFA and offers to turn security defaults back on. The Overview shows the same card." },
