@@ -20,6 +20,9 @@
 //                                      what Global Secure Access has seen (seenIndex), with its own
 //                                      actions; scopeOut / scopeRecord read and write the ENCA
 //                                      settings record (open extension nl.limonit.enca on the tenant)
+//   Gsa.monitor(model, mon)          → 0.12.0: Monitor — devices, sign-ins, alerts, heartbeat, versions,
+//                                      what needs attention; renderMonitor draws it, modeBar the
+//                                      Setup / Monitor switch, demoMonitor a read for ?demo=1
 //   Gsa.windowsScript(opts)          → the Intune platform script (PowerShell) ENCA uploads
 //   Gsa.macScript()                  → the macOS shell script; macSysextBody / macProxyBody /
 //                                      macSettingsBody the three profiles it needs (0.8.0)
@@ -796,7 +799,8 @@ const Gsa = (() => {
     // 32708: Windows judged by reach and landing, in the same table form as macOS
     // 0.11.0: the two lanes and the devices table; the macOS chain table (per-row repairs) under them
     const macSect = l.k === "client" ? `${lanesHtml(l)}${l.mac && !l.macNa ? `<section class="list-card gsa-sect gsa-macsect" id="gsaMac">${macTable(l.mac)}</section>` : ""}` : "";
-    return head + flow + detail + macSect + (u.trv2Html || "") + work + polTable + ivTable + grpTable + proofSect + later;
+    // 0.12.0: the Setup / Monitor switch on top of the board
+    return modeBar(m, "setup") + head + flow + detail + macSect + (u.trv2Html || "") + work + polTable + ivTable + grpTable + proofSect + later;
   }
 
   // ---- the Intune platform script (Windows) -------------------------------
@@ -1478,6 +1482,184 @@ const Gsa = (() => {
 
   if (T2) FIXES.trv2 = T2.FIX;
 
+  // ---- 0.12.0: Monitor — after setup, the traffic ---------------------------
+  // Mihai, 18 Oct: "now the focus should be after setup to monitoring the
+  // traffic logs". READ-ONLY. The board gets two modes, Setup (the eight
+  // links) and Monitor, which it opens on once steps 1–7 are ready. Monitor
+  // reads, for 24 hours, 7 or 30 days (Graph beta, networkAccess):
+  //   reports/usageProfiling — transactions per time bucket, the heartbeat,
+  //     read from a week before the period so a drop is compared with the
+  //     same time a week earlier (Microsoft's tamper signal: offboarding
+  //     leaves no audit entry);
+  //   reports/deviceReport — every device with traffic, last seen;
+  //   logs/traffic — the transactions (user, device, destination, action,
+  //     process, client version), newest 1,000 a page;
+  //   alerts — deviceTokenInconsistency (any is critical) and crossTenantAnomaly;
+  //   and the sign-in log — through GSA or not, what the guard policies did.
+  const MON_PERIODS = { "24h": 1, "7d": 7, "30d": 30 };
+  const MON_LABEL = { "24h": "24 hours", "7d": "7 days", "30d": "30 days" };
+  // From November 2026 Windows Update upgrades the client at 2.31.125 or later;
+  // an older one stays where it is until a script or remediation reinstalls it
+  const WIN_WU_MIN = [2, 31, 125];
+  const verCmp = (a, b) => { const x = String(a || "").split(".").map((n) => parseInt(n, 10) || 0), y = Array.isArray(b) ? b : String(b || "").split(".").map((n) => parseInt(n, 10) || 0); for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
+  const TRAFFIC_SELECT = "createdDateTime,transactionId,userPrincipalName,userId,deviceId,deviceOperatingSystem,agentVersion,destinationFQDN,destinationUrl,destinationPort,trafficType,action,initiatingProcessName,policyName,sentBytes,receivedBytes";
+  // the chain is ready and a guard policy is on: the verdict is green
+  const setupDone = (m) => !!(m && m.verdict && m.verdict.cls === "ok");
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
+  function monitor(m, mon) {
+    const src = mon.sources || {}, ok = (k) => src[k] === "ok";
+    const out = { period: mon.period, label: MON_LABEL[mon.period] || mon.period, start: mon.start, end: mon.end, src, readAt: mon.readAt };
+    const endMs = Date.parse(mon.end) || Date.now(), dayAgo = new Date(endMs - 86400000).toISOString();
+    // devices: the lanes' members (expected) and every device GSA saw
+    const lanes = (m.links.find((l) => l.k === "client") || {}).lanes || null;
+    const byId = new Map();
+    const get = (id) => { const k = String(id || "").toLowerCase(); if (!k) return null; let d = byId.get(k); if (!d) { d = { deviceId: id, name: "", os: "", user: "", group: "", ver: "", verAt: "", last: "", expected: false, via: new Set() }; byId.set(k, d); } return d; };
+    if (lanes) for (const [os, L] of [["Windows", lanes.windows], ["macOS", lanes.macOS]]) { if (L.st === "na") continue; for (const x of L.devices) { const d = get(x.deviceId); Object.assign(d, { name: d.name || x.name, os: d.os || os, group: x.group, expected: true }); } }
+    const see = (id, at, name, os, user, ver, via) => {
+      const d = get(id); if (!d) return;
+      at = String(at || "");
+      if (at > d.last) { d.last = at; if (user) d.user = user; }
+      if (!d.name && name) d.name = name;
+      if (!d.os && os) d.os = os;
+      if (!d.user && user) d.user = user;
+      if (ver && at >= d.verAt) { d.ver = ver; d.verAt = at; }
+      d.via.add(via);
+    };
+    if (ok("devices")) for (const x of mon.devices || []) see(x.deviceId, x.lastAccessDateTime, x.displayName, x.operatingSystem, "", "", "traffic");
+    const traffic = ok("traffic") && mon.traffic ? mon.traffic.rows || [] : [];
+    for (const t of traffic) see(t.deviceId, t.createdDateTime, "", t.deviceOperatingSystem, t.userPrincipalName, t.agentVersion, "traffic");
+    const sIns = ok("signIns") ? mon.signIns || [] : [];
+    const via = (s) => s.isThroughGlobalSecureAccess === true || !!s.globalSecureAccessIpAddress;
+    for (const s of sIns) if (via(s)) { const dd = s.deviceDetail || {}; see(dd.deviceId, s.createdDateTime, dd.displayName, dd.operatingSystem, s.userPrincipalName, "", "sign-in"); }
+    const devices = [...byId.values()].map((d) => Object.assign(d, { via: [...d.via], st: !d.last ? "never" : !d.expected ? "outside" : d.last >= dayAgo ? "connected" : "silent" }));
+    const rank = { never: 0, silent: 1, outside: 2, connected: 3 };
+    devices.sort((a, b) => rank[a.st] - rank[b.st] || String(a.name || a.deviceId).localeCompare(String(b.name || b.deviceId)));
+    const names = new Map(devices.map((d) => [String(d.deviceId).toLowerCase(), d.name]));
+    const expected = devices.filter((d) => d.expected);
+    out.devices = devices;
+    out.counts = { expected: expected.length, seenExpected: expected.filter((d) => d.last).length, connected: devices.filter((d) => d.st === "connected").length, silent: devices.filter((d) => d.st === "silent").length, never: devices.filter((d) => d.st === "never").length, outside: devices.filter((d) => d.st === "outside").length };
+    // client versions, from the traffic read
+    const vers = new Map(); for (const d of devices) if (d.ver) vers.set(d.ver, (vers.get(d.ver) || 0) + 1);
+    const vlist = [...vers.entries()].map(([ver, n]) => ({ ver, n })).sort((a, b) => verCmp(b.ver, a.ver));
+    out.versions = { list: vlist, newest: vlist.length ? vlist[0].ver : "", winOld: devices.filter((d) => d.ver && /windows/i.test(d.os || "") && verCmp(d.ver, WIN_WU_MIN) < 0) };
+    // sign-ins: through GSA, around the tunnel, what the guard policies did
+    const guardIds = (m.guards || []).map((p) => p.id);
+    const pr = proof(sIns, guardIds.length ? guardIds : (m.policies || []).map((p) => p.id));
+    const desk = (s) => /windows|mac/i.test(((s.deviceDetail || {}).operatingSystem) || "");
+    const success = (s) => !s.status || s.status.errorCode === 0;
+    const key = (x) => String(x || "").toLowerCase();
+    const gsaUsers = new Set([...sIns.filter(via).flatMap((s) => [s.userId, s.userPrincipalName]), ...traffic.flatMap((t) => [t.userId, t.userPrincipalName])].filter(Boolean).map(key));
+    const around = sIns.filter((s) => success(s) && !via(s) && desk(s) && (gsaUsers.has(key(s.userId)) || gsaUsers.has(key(s.userPrincipalName)))).sort((a, b) => String(b.createdDateTime).localeCompare(String(a.createdDateTime)));
+    let blocked = 0, would = 0; const bu = new Map();
+    for (const s of sIns) for (const a of s.appliedConditionalAccessPolicies || []) {
+      if (!guardIds.includes(a.id)) continue;
+      if (a.result === "failure") { blocked++; const u = s.userPrincipalName || s.userId || "?"; bu.set(u, (bu.get(u) || 0) + 1); }
+      else if (a.result === "reportOnlyFailure") would++;
+    }
+    const deskAll = sIns.filter(desk), deskVia = deskAll.filter(via);
+    out.signIns = { read: ok("signIns"), total: sIns.length, capped: !!mon.signInsCapped, inScope: pr.inScope, inScopeVia: pr.inScopeVia, desk: deskAll.length, deskVia: deskVia.length, around, blocked, would, blockedUsers: [...bu.entries()].sort((a, b) => b[1] - a[1]), guards: guardIds.length };
+    // alerts
+    const al = ok("alerts") ? mon.alerts || [] : [];
+    out.alerts = { read: ok("alerts"), token: al.filter((a) => a.alertType === "deviceTokenInconsistency"), cross: al.filter((a) => a.alertType === "crossTenantAnomaly"), other: al.filter((a) => !/^(deviceTokenInconsistency|crossTenantAnomaly)$/.test(a.alertType || "")) };
+    // heartbeat: the period's buckets, each compared with the same time a week earlier
+    const all = ok("usage") ? [...(mon.usage || [])].map((x) => ({ t: x.timeStampDateTime, v: x.totalTrafficCount || 0, m365: x.microsoft365AccessTrafficCount || 0 })).sort((a, b) => String(a.t).localeCompare(String(b.t))) : [];
+    const at = new Map(all.map((x) => [Date.parse(x.t), x.v]));
+    const shown = all.filter((x) => !mon.start || String(x.t) >= String(mon.start).slice(0, 13));
+    shown.forEach((x) => { const prev = at.get(Date.parse(x.t) - 7 * 86400000); x.prev = prev == null ? null : prev; x.low = prev != null && prev >= 10 && x.v < prev / 3; });
+    out.heartbeat = { read: ok("usage"), points: shown, total: shown.reduce((a, x) => a + x.v, 0), lows: shown.filter((x) => x.low) };
+    // the traffic log, with device names
+    out.traffic = traffic.map((t) => Object.assign({}, t, { deviceName: names.get(String(t.deviceId || "").toLowerCase()) || "" }));
+    out.trafficNext = (mon.traffic && mon.traffic.next) || null;
+    // the tiles
+    const c = out.counts, T = [];
+    const anyDev = ok("devices") || ok("traffic") || ok("signIns");
+    T.push({ k: "dev", n: !anyDev ? "—" : c.expected ? `${c.seenExpected}` : `${c.connected + c.silent + c.outside}`, of: anyDev && c.expected ? ` / ${c.expected}` : "", label: "Devices through GSA", sub: !anyDev ? "not read" : c.expected ? `${c.expected - c.seenExpected} in the GSA groups not seen${c.outside ? ` · ${c.outside} seen outside them` : ""}` : "no GSA device group to compare with", st: !anyDev ? "na" : !c.expected ? (c.connected ? "ok" : "na") : c.seenExpected === c.expected ? "ok" : c.seenExpected ? "warn" : "bad" });
+    const share = pr.inScope ? Math.round(pr.inScopeVia / pr.inScope * 1000) / 10 : deskAll.length ? Math.round(deskVia.length / deskAll.length * 1000) / 10 : null;
+    T.push({ k: "via", n: share == null ? "—" : `${share}`, of: share == null ? "" : "%", label: "Sign-ins through GSA", sub: !ok("signIns") ? `not read — ${src.signIns || "read again"}` : pr.inScope ? `of ${pr.inScope.toLocaleString()} sign-ins in the policies' scope` : deskAll.length ? `of ${deskAll.length.toLocaleString()} sign-ins from Windows and macOS` : "no sign-in from Windows or macOS", st: share == null ? "na" : share >= 95 ? "ok" : share >= 80 ? "warn" : "bad" });
+    T.push({ k: "around", n: ok("signIns") ? `${around.length}` : "—", label: "Around the tunnel", sub: "successful sign-ins from Windows or macOS not through GSA, by people who also used it", st: !ok("signIns") ? "na" : around.length ? "warn" : "ok" });
+    T.push({ k: "blocked", n: ok("signIns") && guardIds.length ? `${blocked}` : "—", label: "Blocked by the policy", sub: !guardIds.length ? "no policy blocks outside the compliant network yet" : `${blocked ? plural(bu.size, "user") : "nobody blocked"}${would ? ` · ${would} would be blocked (report-only)` : ""}`, st: !ok("signIns") || !guardIds.length ? "na" : blocked || would ? "warn" : "ok" });
+    T.push({ k: "token", n: ok("alerts") ? `${out.alerts.token.length}` : "—", label: "Token / device inconsistency", sub: !ok("alerts") ? `not read — ${src.alerts || "read again"}` : `GSA's own alert — any value above 0 is critical${out.alerts.cross.length ? ` · ${plural(out.alerts.cross.length, "cross-tenant anomaly", "cross-tenant anomalies")}` : ""}`, st: !ok("alerts") ? "na" : out.alerts.token.length ? "bad" : out.alerts.cross.length ? "warn" : "ok" });
+    T.push({ k: "ver", n: vlist.length ? `${vlist.length}` : "—", label: "Client versions", sub: !vlist.length ? (ok("traffic") ? "no client in the traffic read" : `not read — ${src.traffic || "read again"}`) : out.versions.winOld.length ? `${plural(out.versions.winOld.length, "Windows device")} below 2.31.125` : `newest ${out.versions.newest}`, st: !vlist.length ? "na" : out.versions.winOld.length ? "warn" : "ok" });
+    out.tiles = T;
+    // what needs attention, most serious first
+    const A = [];
+    if (out.alerts.token.length) A.push({ sev: "bad", tag: "token", text: `${plural(out.alerts.token.length, "Token / device inconsistency alert")} — Global Secure Access saw a token used from a device other than the one it was issued to`, sub: "the strongest sign of a stolen token: investigate the user in Entra ID Protection and the sign-in log, and revoke their sessions" });
+    if (out.heartbeat.lows.length) A.push({ sev: "bad", tag: "drop", text: `Traffic fell below a third of the same time a week earlier — ${plural(out.heartbeat.lows.length, "time")}`, sub: `first at ${when(out.heartbeat.lows[0].t)} — a profile switched off, the tenant offboarded or an outage; offboarding leaves no audit entry` });
+    around.slice(0, 5).forEach((s) => { const dd = s.deviceDetail || {}; A.push({ sev: "warn", tag: "around", text: `${s.userPrincipalName || s.userId} signed in to ${s.appDisplayName || "an app"} from ${dd.displayName || dd.operatingSystem || "a device"} — not through GSA`, sub: [when(s.createdDateTime), s.ipAddress].filter(Boolean).join(" · ") }); });
+    if (around.length > 5) A.push({ sev: "warn", tag: "around", text: `and ${plural(around.length - 5, "more sign-in")} around the tunnel`, sub: "" });
+    const nv = devices.filter((d) => d.st === "never"); if (nv.length) A.push({ sev: "warn", tag: "never", text: `${plural(nv.length, "device")} in the GSA groups not seen through GSA in ${out.label}: ${nv.slice(0, 4).map((d) => d.name || d.deviceId).join(", ")}${nv.length > 4 ? "…" : ""}`, sub: "no client, not signed in, or switched off — Setup › step 6 says which" });
+    const sl = devices.filter((d) => d.st === "silent"); if (sl.length) A.push({ sev: "warn", tag: "silent", text: `${plural(sl.length, "device")} silent for more than a day: ${sl.slice(0, 4).map((d) => d.name || d.deviceId).join(", ")}${sl.length > 4 ? "…" : ""}`, sub: `last seen ${when(sl[0].last)}${sl[0].ver ? ` · client ${sl[0].ver}` : ""}` });
+    if (out.versions.winOld.length) A.push({ sev: "warn", tag: "outdated", text: `${plural(out.versions.winOld.length, "Windows device")} on a client below 2.31.125: ${out.versions.winOld.slice(0, 4).map((d) => `${d.name || d.deviceId} (${d.ver})`).join(", ")}`, sub: "Windows Update upgrades the client only from 2.31.125 — these need the script or remediation to install a newer one" });
+    if (blocked) A.push({ sev: "info", tag: "blocked", text: `${plural(blocked, "sign-in")} blocked by the policy — ${out.signIns.blockedUsers.slice(0, 3).map(([u, n]) => `${u} (${n})`).join(", ")}`, sub: "a device without a working client — or a replayed token, which is what the policy is for" });
+    if (out.alerts.cross.length) A.push({ sev: "warn", tag: "tenants", text: `${plural(out.alerts.cross.length, "Increased External Tenant Activity alert")}`, sub: "more sign-ins to other tenants than usual — compare with the cross-tenant access settings" });
+    out.attention = A;
+    return out;
+  }
+  // the traffic log rows, filtered — app.js swaps only the table body while you type
+  function monLogRows(s, f) {
+    const q = String((f && f.q) || "").trim().toLowerCase(), ty = (f && f.type) || "", ac = (f && f.action) || "";
+    const kb = (n) => (n == null ? "" : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+    const list = (s.traffic || []).filter((t) => (!ty || t.trafficType === ty) && (!ac || t.action === ac) && (!q || [t.userPrincipalName, t.deviceName, t.deviceId, t.destinationFQDN, t.destinationUrl, t.initiatingProcessName, t.policyName].some((x) => String(x || "").toLowerCase().includes(q))));
+    const row = (t) => `<tr><td class="mono">${esc(when(t.createdDateTime))}</td><td>${esc(t.userPrincipalName || "")}</td><td>${esc(t.deviceName || t.deviceId || "")}${t.deviceOperatingSystem ? `<div class="mini muted">${esc(t.deviceOperatingSystem)}</div>` : ""}</td><td class="mono">${esc(t.destinationFQDN || t.destinationUrl || "")}${t.destinationPort ? `<span class="muted">:${esc(t.destinationPort)}</span>` : ""}</td><td>${esc(t.trafficType || "")}</td><td><span class="gsa-st ${t.action === "block" ? "bad" : t.action === "allow" ? "ok" : ""}">${esc(t.action || "")}</span></td><td class="mono">${esc(t.initiatingProcessName || "")}</td><td class="mono">${esc(kb(t.sentBytes))} / ${esc(kb(t.receivedBytes))}</td></tr>`;
+    return { n: list.length, count: `${list.length.toLocaleString()} of ${(s.traffic || []).length.toLocaleString()} loaded${list.length > 300 ? " — the first 300 shown" : ""}`, html: list.slice(0, 300).map(row).join("") || '<tr><td colspan="8" class="mini muted">No transaction matches.</td></tr>' };
+  }
+  function modeBar(m, mode) {
+    const done = setupDone(m);
+    return `<div class="gsa-modes" role="tablist" aria-label="Setup or Monitor"><button type="button" role="tab" class="gsa-mode${mode === "setup" ? " on" : ""}" data-gsamode="setup" aria-selected="${mode === "setup"}">🧩 Setup <span>${m.ready} of ${m.total}</span></button><button type="button" role="tab" class="gsa-mode${mode === "monitor" ? " on" : ""}" data-gsamode="monitor" aria-selected="${mode === "monitor"}">📈 Monitor <span>${done ? "live" : "after setup"}</span></button><span class="mini muted">${done ? "Setup is complete — the tool opens on Monitor." : "The tool opens on Monitor once steps 1–7 are ready; you can look now."}</span></div>`;
+  }
+  function renderMonitor(m, s, ui) {
+    const u = ui || {}, per = u.period || "24h";
+    const done = setupDone(m), first = m.links.find((l) => l.k !== "proof" && l.st !== "ok");
+    const meter = m.links.map((l) => `<i class="${l.st === "ok" ? "ok" : l.st === "warn" ? "warn" : ""}"></i>`).join("");
+    const head = `<section class="gsa-verdict ${done ? "ok" : "bad"}"><div class="gsa-big" aria-hidden="true">${done ? "✓" : "⚠"}</div><div><h3>${done ? "Setup complete — watching the traffic" : "Watching the traffic — setup is not complete"}</h3><p>${done ? "Every link is ready and a policy blocks every resource outside the compliant network." : `Step ${m.links.indexOf(first) + 1} (${esc(first ? first.h : "")}) is not ready, so some of what follows is expected.`} <a href="#" data-gsamode="setup">Setup · ${m.ready} of ${m.total}</a></p></div><div><div class="gsa-meter">${meter}</div><div class="mini" style="margin-top:4px">${m.ready} of ${m.total} links ready</div></div></section>`;
+    const chips = `<div class="gsa-range"><span class="mini muted">Period</span>${Object.keys(MON_PERIODS).map((k) => `<button type="button" class="fchip${k === per ? " active" : ""}" data-gsaperiod="${k}"${u.monBusy ? " disabled" : ""}>${MON_LABEL[k]}</button>`).join("")}<span class="mini muted gsa-range-r">${s ? `read ${esc(new Date(s.readAt).toLocaleString())} · ` : ""}<button type="button" class="btn sm" data-gsamonread${u.monBusy ? " disabled" : ""}>${s ? "↻ Read again" : "📈 Read the traffic"}</button></span></div>`;
+    const bar = modeBar(m, "monitor");
+    if (u.monBusy) return `${bar}${head}${chips}<section class="list-card gsa-sect"><p class="mini"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading the traffic, the devices, the alerts and the sign-in log for ${esc(MON_LABEL[per])}${u.monRead ? ` — ${Number(u.monRead).toLocaleString()} sign-ins so far` : ""}…</p></section>`;
+    const err = u.monErr ? `<p class="mini" style="color:var(--off)">The read stopped — ${esc(u.monErr)}</p>` : "";
+    if (!s) return `${bar}${head}${chips}${err}<section class="list-card gsa-sect"><div class="run-prompt"><button class="btn primary" data-gsamonread>📈 Read the traffic</button><p class="mini muted">Reads, for the period chosen, Global Secure Access's own records — the traffic log, the device report, its alerts and the transactions per hour — and the sign-in log: who went through Global Secure Access, who went around it, and what the compliant-network policies blocked. NetworkAccess-Reports.Read.All, NetworkAccess.Read.All, NetworkAccessPolicy.Read.All and AuditLog.Read.All, asked on the click; the person needs Global Secure Access Log Reader, Security Administrator or Global Secure Access Administrator. Nothing is written.</p></div></section>`;
+    const unread = Object.entries(s.src || {}).filter(([, v]) => v !== "ok");
+    const notes = unread.length ? `<p class="mini gsa-warn-txt">Not read: ${unread.map(([k, v]) => `${esc({ usage: "the heartbeat", devices: "the device report", traffic: "the traffic log", alerts: "the alerts", signIns: "the sign-in log" }[k] || k)} — ${esc(v)}`).join(" · ")}</p>` : "";
+    const tiles = `<div class="gsa-tiles">${s.tiles.map((t) => `<div class="gsa-tile ${t.st}" data-gsatile="${t.k}"><div class="gsa-tn">${esc(t.n)}<small>${esc(t.of || "")}</small></div><div class="gsa-tk">${esc(t.label)}</div><div class="mini muted">${esc(t.sub)}</div></div>`).join("")}</div>`;
+    // the heartbeat, as bars
+    const pts = s.heartbeat.points, W = 680, H = 150, max = Math.max(1, ...pts.map((x) => Math.max(x.v, x.prev || 0)));
+    const bw = pts.length ? W / pts.length : W;
+    const bars = pts.map((x, i) => { const h = Math.round((x.v / max) * (H - 24)); return `<rect x="${(i * bw + 0.5).toFixed(1)}" y="${H - 16 - h}" width="${Math.max(1, bw - 1).toFixed(1)}" height="${h}" rx="1" class="${x.low ? "low" : ""}"><title>${esc(when(x.t))}: ${x.v.toLocaleString()} transactions${x.prev != null ? ` (a week earlier ${x.prev.toLocaleString()})` : ""}</title></rect>`; }).join("");
+    const ticks = pts.length ? [[0, 2, "start"], [Math.floor(pts.length / 2), null, "middle"], [pts.length - 1, W - 2, "end"]].filter(([i], k, a) => a.findIndex(([j]) => j === i) === k).map(([i, x, an]) => `<text x="${(x == null ? i * bw + bw / 2 : x).toFixed(1)}" y="${H - 3}" text-anchor="${an}">${esc(when(pts[i].t))}</text>`).join("") : "";
+    const beat = `<section class="list-card gsa-sect"><h3>Traffic <span class="mini muted">· transactions per ${per === "24h" ? "time bucket" : "day"}, all traffic types</span></h3>${!s.heartbeat.read ? `<p class="mini muted">Not read — ${esc(s.src.usage || "")}</p>` : pts.length ? `<svg class="gsa-beat" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Transactions per bucket">${bars}${ticks}</svg><p class="mini muted">${s.heartbeat.total.toLocaleString()} transactions in ${esc(s.label)}. A red bar is below a third of the same time a week earlier — Microsoft's tamper signal: a profile switched off, the tenant offboarded or an outage (offboarding leaves no audit entry).</p>` : '<p class="mini muted">No traffic in this period — no device has sent traffic through Global Secure Access.</p>'}</section>`;
+    const att = `<section class="list-card gsa-sect"><h3>Needs attention</h3>${s.attention.length ? `<ul class="gsa-att">${s.attention.map((a) => `<li><span class="gsa-st ${a.sev === "bad" ? "bad" : a.sev === "warn" ? "warn" : ""}">${esc(a.tag)}</span><div>${esc(a.text)}${a.sub ? `<div class="mini muted">${esc(a.sub)}</div>` : ""}</div></li>`).join("")}</ul>` : '<p class="mini gsa-ok-txt">✓ Nothing — every device in the GSA groups was seen, no sign-in went around the tunnel and Global Secure Access raised no alert.</p>'}</section>`;
+    const stLab = { connected: ["ok", "connected"], silent: ["warn", "silent"], never: ["bad", "not seen"], outside: ["warn", "no GSA group"] };
+    const devRows = s.devices.map((d) => { const [c, w] = stLab[d.st] || ["", d.st]; const old = d.ver && /windows/i.test(d.os || "") && verCmp(d.ver, WIN_WU_MIN) < 0; return `<tr><td><b>${esc(d.name || d.deviceId)}</b></td><td>${esc(d.os || "")}</td><td>${esc(d.user || "")}</td><td class="mini">${d.group ? esc(d.group) : '<span class="muted">—</span>'}</td><td class="mono${old ? " gsa-warn-txt" : ""}">${esc(d.ver || "—")}</td><td class="mini">${d.last ? `${esc(when(d.last))} <span class="muted">· ${esc(d.via.join(" + "))}</span>` : `not in ${esc(s.label)}`}</td><td><span class="gsa-st ${c}">${esc(w)}</span></td></tr>`; }).join("");
+    const devs = `<section class="list-card gsa-sect"><h3>Devices <span class="mini muted">· every device in the GSA groups, and every other device Global Secure Access saw</span></h3>${devRows ? `<div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Device</th><th>OS</th><th>User</th><th>Group</th><th>Client</th><th>Last seen through GSA</th><th>Status</th></tr></thead><tbody>${devRows}</tbody></table></div>` : '<p class="mini muted">No device — none is in a GSA group and none was seen.</p>'}<p class="mini muted">Connected: seen in the last 24 hours. Silent: seen in the period, not in the last day. Matched on the Entra device id; the client version comes from the traffic read.</p></section>`;
+    const f = u.filter || {}, lr = monLogRows(s, f);
+    const sel = (attr, cur, opts) => `<select class="txt" ${attr}>${opts.map(([v, l]) => `<option value="${v}"${v === (cur || "") ? " selected" : ""}>${l}</option>`).join("")}</select>`;
+    const log = `<section class="list-card gsa-sect" id="gsaMonLog"><h3>Traffic log <span class="mini muted">· newest first · <span data-gsamoncount>${esc(lr.count)}</span></span></h3><div class="gsa-monf"><input class="txt" data-gsamonq value="${esc(f.q || "")}" placeholder="User, device, destination or process…">${sel("data-gsamontype", f.type, [["", "All traffic"], ["microsoft365", "Microsoft"], ["internet", "Internet"], ["private", "Private"]])}${sel("data-gsamonact", f.action, [["", "Any action"], ["allow", "allow"], ["block", "block"]])}<button type="button" class="btn sm" data-gsamoncsv${s.traffic.length ? "" : " disabled"}>⬇ CSV</button>${s.trafficNext ? '<button type="button" class="btn sm" data-gsamonmore>Load 1,000 more</button>' : ""}</div><div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Time</th><th>User</th><th>Device</th><th>Destination</th><th>Type</th><th>Action</th><th>Process</th><th>Sent / received</th></tr></thead><tbody>${lr.html}</tbody></table></div></section>`;
+    const foot = `<section class="list-card gsa-sect"><p class="mini muted"><b>Where the numbers come from.</b> Heartbeat: networkAccess reports usageProfiling, read from a week before the period to compare. Devices: reports deviceReport and the traffic log. Client versions and the log: logs/traffic. Alerts: networkAccess alerts. Sign-ins: the sign-in log, interactive and non-interactive (${s.signIns.capped ? "capped at the newest 5,000 of each" : "up to 5,000 of each"}). <b>Retention:</b> Global Secure Access keeps its traffic log for 30 days; for longer, send NetworkAccessTrafficLogs and NetworkAccessAlerts to Log Analytics or Sentinel in Entra → Monitoring and health → Diagnostic settings — this tool does not set that. Read-only: Monitor writes nothing.</p></section>`;
+    return `${bar}${head}${chips}${err}${notes}${tiles}<div class="gsa-mon2">${beat}${att}</div>${devs}${log}${foot}`;
+  }
+  // ?demo=1: a read shaped by the board — the lanes' devices, one of them
+  // seen, one device seen outside the groups on an old client, a heartbeat
+  // with one drop, and a sign-in around the tunnel
+  function demoMonitor(m, period, start, end) {
+    const S = Date.parse(start), E = Date.parse(end), H = 3600000, days = MON_PERIODS[period] || 1, iso = (ms) => new Date(ms).toISOString();
+    let r = 7; const rnd = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+    const lanes = (m.links.find((l) => l.k === "client") || {}).lanes || { windows: { devices: [], st: "na" }, macOS: { devices: [], st: "na" } };
+    const devs = [...(lanes.windows.st === "na" ? [] : lanes.windows.devices.map((d) => ({ id: d.deviceId, name: d.name, os: "Windows 11 Enterprise" }))), ...(lanes.macOS.st === "na" ? [] : lanes.macOS.devices.map((d) => ({ id: d.deviceId, name: d.name, os: "macOS 26" })))];
+    const seen = [...devs.slice(0, 1), { id: "dw-out", name: "LT-DEMO-09", os: "Windows 11 Pro" }];
+    const users = ["a.jansen@contoso.example", "p.bakker@contoso.example", "s.smit@contoso.example"];
+    const dest = [["outlook.office365.com", "olk.exe"], ["login.microsoftonline.com", "msedge.exe"], ["contoso.sharepoint.com", "OneDrive.exe"], ["teams.microsoft.com", "ms-teams.exe"], ["graph.microsoft.com", "msedge.exe"]];
+    const rows = [];
+    for (let i = 0; i < 60; i++) { const d = seen[i % seen.length], [fq, proc] = dest[i % dest.length]; rows.push({ createdDateTime: iso(E - 60000 - i * Math.round((days * 24 * H) / 60)), transactionId: `demo-${i}`, userPrincipalName: users[i % 3], deviceId: d.id, deviceOperatingSystem: d.os, agentVersion: d.id === "dw-out" ? "2.28.96" : "2.31.125", destinationFQDN: fq, destinationPort: 443, trafficType: "microsoft365", action: "allow", initiatingProcessName: proc, sentBytes: Math.round(2000 + rnd() * 40000), receivedBytes: Math.round(8000 + rnd() * 400000) }); }
+    const bucket = days === 1 ? H : 24 * H, usage = [];
+    for (let t = Math.floor((S - 7 * 24 * H) / bucket) * bucket; t <= E; t += bucket) { const d = new Date(t), work = bucket === H ? d.getUTCHours() >= 7 && d.getUTCHours() <= 17 : d.getUTCDay() >= 1 && d.getUTCDay() <= 5; let v = Math.round((work ? 600 : 90) * (0.75 + rnd() * 0.5)); if (t > E - 4 * bucket && t <= E - 3 * bucket) v = Math.round(v / 8); usage.push({ timeStampDateTime: iso(t), totalTrafficCount: v, microsoft365AccessTrafficCount: v }); }
+    const g = (m.guards || [])[0], on = !!g && g.state === "enabled";
+    const signIns = [];
+    for (let i = 0; i < 24; i++) { const d = seen[i % seen.length]; signIns.push({ createdDateTime: iso(E - (i + 1) * Math.round((days * 24 * H) / 30)), userId: `u${i % 3}`, userPrincipalName: users[i % 3], appDisplayName: ["Office 365 Exchange Online", "Microsoft Teams", "Office 365 SharePoint Online"][i % 3], isThroughGlobalSecureAccess: true, deviceDetail: { deviceId: d.id, displayName: d.name, operatingSystem: /mac/i.test(d.os) ? "MacOs" : "Windows10" }, status: { errorCode: 0 }, appliedConditionalAccessPolicies: g ? [{ id: g.id, result: on ? "notApplied" : "reportOnlyNotApplied", conditionsNotSatisfied: "location" }] : [] }); }
+    const off = devs[1] || { id: "dw-2", name: "LT-DEMO-02", os: "Windows 11 Enterprise" };
+    signIns.push({ createdDateTime: iso(E - 5 * H), userId: "u0", userPrincipalName: users[0], appDisplayName: "Office 365 Exchange Online", ipAddress: "203.0.113.24", isThroughGlobalSecureAccess: false, deviceDetail: { deviceId: off.id, displayName: off.name, operatingSystem: "Windows10" }, status: { errorCode: on ? 53003 : 0 }, appliedConditionalAccessPolicies: g ? [{ id: g.id, result: on ? "failure" : "reportOnlyFailure", conditionsNotSatisfied: "none" }] : [] });
+    signIns.push({ createdDateTime: iso(E - 6 * H), userId: "u1", userPrincipalName: users[1], appDisplayName: "Microsoft Teams", isThroughGlobalSecureAccess: false, deviceDetail: { operatingSystem: "Ios" }, status: { errorCode: 0 }, appliedConditionalAccessPolicies: [] });
+    const last = (id) => rows.filter((x) => x.deviceId === id).map((x) => x.createdDateTime).sort().pop();
+    return { period, start: iso(S), end: iso(E), readAt: Date.now(), usage, devices: seen.map((d) => ({ deviceId: d.id, displayName: d.name, operatingSystem: d.os, trafficType: "microsoft365", lastAccessDateTime: last(d.id) })), traffic: { rows, next: null }, alerts: [], signIns, sources: { usage: "ok", devices: "ok", traffic: "ok", alerts: "ok", signIns: "ok" } };
+  }
   // ---- demo -----------------------------------------------------------------
   function demo() {
     return {
@@ -1523,6 +1705,6 @@ const Gsa = (() => {
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

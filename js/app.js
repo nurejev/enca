@@ -25187,7 +25187,8 @@ This is a directory write. Nothing else changes.`)) return;
   // per fix kind, each with its own options, log and busy flag; gsa.sel is
   // the step open under the flow (null = the first that blocks)
   const gsaDefOpts = () => ({ why: "", group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", enforce: false, pSys: null, pProxy: null, pSet: null });
-  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "" };
+  // 0.12.0: mode (setup | monitor), chosen by the person or by the board; mon the Monitor read
+  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "", mode: null, modeChosen: false, mon: null, monBusy: false, monErr: null, monRead: 0, monPeriod: "24h", monFilter: {} };
   const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
   const gsaSession = () => `${tenantId}:${isDemo}`;
   const gsaPolicies = () => {
@@ -25342,8 +25343,8 @@ This is a directory write. Nothing else changes.`)) return;
   function openGsa() {
     crumb("🌐 Global Secure Access");
     show("screen-gsa");
-    if (gsa.session !== gsaSession()) gsa = Object.assign(gsa, { raw: null, model: null, err: null, proof: null, work: [], sel: null, session: gsaSession() });
-    $("gsaHead").innerHTML = toolHead("toolGsa") + '<p class="mini" style="margin:6px 0 0">Stolen session tokens only work if Entra accepts them from the attacker\'s network. This board checks every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can safely go on — the <b>Microsoft traffic profile</b> first; Internet Access and Private Access come later — finds the link that is missing, and fixes the links that live in Entra and Intune. Every fix says what it changes, who it affects and how to undo it before it runs. It never switches a policy on and never changes a policy\'s exclusions.</p>';
+    if (gsa.session !== gsaSession()) gsa = Object.assign(gsa, { raw: null, model: null, err: null, proof: null, work: [], sel: null, session: gsaSession(), mode: null, modeChosen: false, mon: null, monErr: null, monFilter: {} });
+    $("gsaHead").innerHTML = toolHead("toolGsa") + '<p class="mini" style="margin:6px 0 0">Stolen session tokens only work if Entra accepts them from the attacker\'s network. This board checks every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can safely go on — the <b>Microsoft traffic profile</b> first; Internet Access and Private Access come later — finds the link that is missing, and fixes the links that live in Entra and Intune. Every fix says what it changes, who it affects and how to undo it before it runs. It never switches a policy on and never changes a policy\'s exclusions. Once every link is ready it opens on <b>📈 Monitor</b>: the devices Global Secure Access sees, its traffic log and alerts, and the sign-ins that went around the tunnel.</p>';
     renderGsa();
   }
   function renderGsa() {
@@ -25352,7 +25353,9 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
     if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
     gsa.model = Gsa.model(gsa.raw, gsaPolicies());
-    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info(), { open: !!gsa.trv2Open || gsa.work.some((w) => w.k === "trv2") }) : "" });
+    // 0.12.0: Setup or Monitor — Monitor by default once steps 1–7 are ready, until the person picks
+    if (!gsa.modeChosen) gsa.mode = Gsa.setupDone(gsa.model) ? "monitor" : "setup";
+    body.innerHTML = gsa.mode === "monitor" ? Gsa.renderMonitor(gsa.model, gsa.mon ? Gsa.monitor(gsa.model, gsa.mon) : null, { monBusy: gsa.monBusy, monRead: gsa.monRead, monErr: gsa.monErr, period: gsa.monPeriod, filter: gsa.monFilter }) : Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info(), { open: !!gsa.trv2Open || gsa.work.some((w) => w.k === "trv2") }) : "" });
     $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
   }
   async function readGsa() {
@@ -25551,6 +25554,58 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) { gsa.proofErr = gsaErr(e); toast(`Sign-in read failed: <span>${esc(gsaErr(e))}</span>`); }
     finally { gsa.proofBusy = false; }
     renderGsa();
+  }
+  // ---- 0.12.0: 📈 Monitor — after setup, the traffic (read-only) ----
+  // Mihai, 18 Oct: "now the focus should be after setup to monitoring the
+  // traffic logs". Each source is read on its own; one refused leaves the
+  // others standing and is named on the screen.
+  const GSA_MON = ["NetworkAccess-Reports.Read.All", "NetworkAccess.Read.All", "NetworkAccessPolicy.Read.All", "AuditLog.Read.All"];
+  async function readGsaMon() {
+    if (gsa.monBusy || !gsa.model) return;
+    gsa.monBusy = true; gsa.monErr = null; gsa.monRead = 0; renderGsa();
+    try {
+      const per = gsa.monPeriod || "24h", days = Gsa.MON_PERIODS[per] || 1, end = new Date(), start = new Date(end.getTime() - days * 86400000);
+      if (isDemo) { await new Promise((r) => setTimeout(r, 250)); gsa.mon = Gsa.demoMonitor(gsa.model, per, start.toISOString(), end.toISOString()); }
+      else {
+        const sc = [...AUTH_CONFIG.scopes, ...GSA_MON];
+        if (!await preConsent(sc)) throw new Error("the monitoring permissions were not granted (NetworkAccess-Reports.Read.All)");
+        const S = start.toISOString(), E = end.toISOString(), W = new Date(start.getTime() - 7 * 86400000).toISOString();
+        const mon = { period: per, start: S, end: E, sources: {}, readAt: Date.now() };
+        const one = async (k, fn) => { try { mon[k] = await fn(); mon.sources[k] = "ok"; } catch (e) { mon[k] = null; mon.sources[k] = gsaErr(e); } };
+        // the heartbeat from a week before the period, to compare each bucket with the same time a week earlier
+        await one("usage", () => Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.usageProfiling(startDateTime=${W},endDateTime=${E},aggregatedBy='transactions',discoveredApplicationSegmentId=null)`, { scopes: sc, cap: 5000 }));
+        await one("devices", () => Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.deviceReport(startDateTime=${S},endDateTime=${E})`, { scopes: sc, cap: 5000 }));
+        await one("traffic", async () => { const j = await Graph.gget(`/networkAccess/logs/traffic?$filter=${encodeURIComponent(`createdDateTime ge ${S} and createdDateTime le ${E}`)}&$orderby=${encodeURIComponent("createdDateTime desc")}&$top=1000&$select=${Gsa.TRAFFIC_SELECT}`, sc); return { rows: j.value || [], next: j["@odata.nextLink"] || null }; });
+        await one("alerts", async () => { try { return await Graph.ggetAll(`/networkAccess/alerts?$filter=${encodeURIComponent(`creationDateTime ge ${S}`)}&$top=200`, { scopes: sc, cap: 1000 }); } catch { return (await Graph.ggetAll("/networkAccess/alerts?$top=200", { scopes: sc, cap: 1000 })).filter((a) => String(a.creationDateTime || "") >= S); } });
+        await one("signIns", async () => {
+          const sel = "$select=createdDateTime,userId,userPrincipalName,appDisplayName,ipAddress,isThroughGlobalSecureAccess,globalSecureAccessIpAddress,deviceDetail,status,appliedConditionalAccessPolicies,signInEventTypes&$top=999";
+          const base = `createdDateTime ge ${S}`;
+          const a = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(base)}&${sel}`, { scopes: sc, cap: 5000, onPage: (items) => { gsa.monRead = (items || []).length; renderGsa(); } });
+          const done1 = a.length; let b = [];
+          try { b = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`${base} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&${sel}`, { scopes: sc, cap: 5000, onPage: (items) => { gsa.monRead = done1 + (items || []).length; renderGsa(); } }); } catch { /* the interactive ones stand */ }
+          b.forEach((x) => { if (!x.signInEventTypes) x.signInEventTypes = ["nonInteractiveUser"]; });
+          mon.signInsCapped = !!((a.readState && a.readState.capped) || (b.readState && b.readState.capped));
+          return [...a, ...b];
+        });
+        if (Object.values(mon.sources).every((v) => v !== "ok")) throw new Error(Object.entries(mon.sources).map(([k, v]) => `${k}: ${v}`).join(" · "));
+        gsa.mon = mon;
+      }
+    } catch (e) { gsa.monErr = gsaErr(e); }
+    finally { gsa.monBusy = false; }
+    renderGsa();
+  }
+  async function readGsaMonMore() {
+    const t = gsa.mon && gsa.mon.traffic; if (!t || !t.next || gsa.monBusy) return;
+    try { const j = await Graph.gget(t.next, [...AUTH_CONFIG.scopes, ...GSA_MON]); t.rows = [...t.rows, ...(j.value || [])]; t.next = j["@odata.nextLink"] || null; }
+    catch (e) { toast(`More traffic not read: <span>${esc(gsaErr(e))}</span>`); }
+    renderGsa();
+  }
+  // every loaded transaction, with the device's name
+  function gsaMonCsv() {
+    if (!gsa.mon || !gsa.model) return;
+    const s = Gsa.monitor(gsa.model, gsa.mon), cols = ["createdDateTime", "userPrincipalName", "deviceName", "deviceId", "deviceOperatingSystem", "agentVersion", "destinationFQDN", "destinationUrl", "destinationPort", "trafficType", "action", "policyName", "initiatingProcessName", "sentBytes", "receivedBytes", "transactionId"];
+    const q = (v) => { const x = String(v == null ? "" : v); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
+    downloadText(`ENCA-GSA-traffic-${isDemo ? "demo" : (tenantName || tenantId)}-${s.period}`, "csv", "text/csv", [cols.join(","), ...s.traffic.map((t) => cols.map((c) => q(t[c])).join(","))].join("\n"));
   }
   // ---- the fixes: described first, then run ----
   // what the preview needs beside the options: the TRv2 plan, or (32703) the
@@ -25912,10 +25967,17 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "ztnasp") r.ztna = [{ id: "sp-ztna", appId: Gsa.ZTNA_CLIENT }];
   }
   $("toolGsa").addEventListener("click", () => openGsa());
-  $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; readGsa(); });
+  // 0.12.0: in Monitor the refresh reads the traffic again too
+  $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; readGsa().then(() => { if (gsa.mode === "monitor" && gsa.mon) readGsaMon(); }); });
   $("gsaBody").addEventListener("click", (e) => {
     const t = e.target;
     if (t.closest("[data-gsaread]")) { readGsa(); return; }
+    // 0.12.0: Setup / Monitor, the period, read, more, CSV
+    const md = t.closest("[data-gsamode]"); if (md) { e.preventDefault(); gsa.mode = md.dataset.gsamode; gsa.modeChosen = true; if (gsa.mode === "monitor" && !gsa.mon && !gsa.monBusy && gsa.model) { readGsaMon(); return; } renderGsa(); return; }
+    if (t.closest("[data-gsamonread]")) { readGsaMon(); return; }
+    const pd = t.closest("[data-gsaperiod]"); if (pd) { gsa.monPeriod = pd.dataset.gsaperiod; readGsaMon(); return; }
+    if (t.closest("[data-gsamonmore]")) { readGsaMonMore(); return; }
+    if (t.closest("[data-gsamoncsv]")) { gsaMonCsv(); return; }
     if (t.closest("[data-gsaproof]")) { readGsaProof(); return; }
     // 0.9.1: step 7 is never a dead end — read the policies here and come back;
     // with none naming the compliant network, the Policy builder opens pre-filled
@@ -26003,6 +26065,18 @@ This is a directory write. Nothing else changes.`)) return;
   $("gsaBody").addEventListener("toggle", (e) => { const d = e.target; if (d && d.matches && d.matches("[data-trv2fold]")) gsa.trv2Open = d.open; }, true);
   $("gsaBody").addEventListener("input", gsaOpt);
   $("gsaBody").addEventListener("change", gsaOpt);
+  // 0.12.0: the traffic log filter swaps only the table body, so typing keeps its focus
+  const gsaMonFilter = (e) => {
+    const t = e.target; if (!t || !t.closest || !t.closest("#gsaMonLog") || !gsa.mon || !gsa.model) return;
+    const f = gsa.monFilter;
+    if (t.hasAttribute("data-gsamonq")) f.q = t.value; else if (t.hasAttribute("data-gsamontype")) f.type = t.value; else if (t.hasAttribute("data-gsamonact")) f.action = t.value; else return;
+    const r = Gsa.monLogRows(Gsa.monitor(gsa.model, gsa.mon), f);
+    const tb = document.querySelector("#gsaMonLog tbody"), cn = document.querySelector("#gsaMonLog [data-gsamoncount]");
+    if (tb) tb.innerHTML = r.html;
+    if (cn) cn.textContent = r.count;
+  };
+  $("gsaBody").addEventListener("input", gsaMonFilter);
+  $("gsaBody").addEventListener("change", gsaMonFilter);
   $("ddReady").addEventListener("click", () => readDeployReadiness());
   $("ddHtml").addEventListener("click", () => { if (!ddModel) return; const name = downloadText("ENCA-deployment-dashboard", "html", "text/html", DeployDash.exportHtml(ddModel, { tenant: tenantName, build: APP_BUILD.label, now: Date.now() })); toast(`Saved ${esc(name)} — a snapshot that names users; share it like tenant data`); });
   $("ddCsv").addEventListener("click", () => { if (!ddModel) return; downloadText("ENCA-deployment-dashboard", "csv", "text/csv", DeployDash.toCsv(ddModel)); });

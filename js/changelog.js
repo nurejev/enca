@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32807, date: "2026-10-18", title: "Global Secure Access: Monitor — after setup, the traffic",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "Monitor: the board has two modes, Setup (the eight links) and Monitor, and opens on Monitor once steps 1 to 7 are ready. Monitor is read-only and reads, for 24 hours, 7 or 30 days, Global Secure Access's own traffic log, device report, alerts and transactions per hour, and the sign-in log." },
+      { kind: "new", tool: "Global Secure Access", text: "Six tiles: devices through Global Secure Access against the GSA groups; the share of sign-ins through it; sign-ins around the tunnel (successful sign-ins from Windows or macOS not through it, by people who also used it); sign-ins blocked by the policy; Token / device inconsistency — Global Secure Access's own alert that a token was used from a device it was not issued to, where any value above 0 is critical; and the client versions, naming Windows clients below 2.31.125, which Windows Update does not upgrade." },
+      { kind: "new", tool: "Global Secure Access", text: "The traffic heartbeat compares every hour or day with the same time a week earlier and marks a drop below a third — the sign of a profile switched off or a tenant offboarded, which leaves no audit entry. Needs attention lists what to look at first, the devices table says per device when it was last seen, by whom and on which client version, and the traffic log can be filtered on user, device, destination or process and exported as CSV." },
+    ],
+  },
+  {
     build: 32806, date: "2026-10-18", title: "Global Secure Access: step 6 in two lanes, decided by what Global Secure Access has seen",
     items: [
       { kind: "improved", tool: "Global Secure Access", text: "Step 6 (the client on devices) is two lanes now, Windows and macOS, each with its own actions that stay whatever you do on the other platform. Before, Windows lost its only button as soon as a remediation existed and was assigned, so after working on macOS there was nothing left to press for Windows. Each lane shows what was deployed, whom it reaches, whether it may run, what Intune reports and — the stage that decides — Connected." },

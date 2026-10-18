@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32806"></script>
+<script src="js/popup-guard.js?v=32807"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32806" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32806">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32807" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32807">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32806"></script>
+<script src="js/selfhost-boot.js?v=32807"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32806"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32806"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32806">
-<link rel="stylesheet" href="css/workspaces.css?v=32806">
-<link rel="stylesheet" href="css/tool-layout.css?v=32806">
-<link rel="stylesheet" href="css/list-detail.css?v=32806">
-<link rel="stylesheet" href="css/flat-icons.css?v=32806">
+<script src="js/counter.js?v=32807"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32807"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32807">
+<link rel="stylesheet" href="css/workspaces.css?v=32807">
+<link rel="stylesheet" href="css/tool-layout.css?v=32807">
+<link rel="stylesheet" href="css/list-detail.css?v=32807">
+<link rel="stylesheet" href="css/flat-icons.css?v=32807">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32806" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32807" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32806" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32807" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -353,7 +353,7 @@
       </div>
       <div class="tool tool-tile" id="toolGsa">
         <div class="tool-ic">🌐</div><h3>Global Secure Access <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
-        <p><b>Workspace 03 · Entra Tools.</b> Make stolen tokens useless: every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can go on — licence, the tenant activated, the <b>Microsoft traffic profile</b> on and assigned, signalling, the compliant network location, the client on devices (Windows and macOS each in its own lane, ready only when Global Secure Access has seen the devices), the policy, and the proof from the sign-in log — on one board. Each missing link that lives in Entra or Intune has its fix, described with its impact and its way back before it runs. Internet Access and Private Access come later. <span class="tag block">writes to tenant</span></p>
+        <p><b>Workspace 03 · Entra Tools.</b> Make stolen tokens useless: every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can go on — licence, the tenant activated, the <b>Microsoft traffic profile</b> on and assigned, signalling, the compliant network location, the client on devices (Windows and macOS each in its own lane, ready only when Global Secure Access has seen the devices), the policy, and the proof from the sign-in log — on one board; once it is ready, <b>📈 Monitor</b> watches the traffic: devices, the traffic log, Global Secure Access alerts and sign-ins that went around the tunnel. Each missing link that lives in Entra or Intune has its fix, described with its impact and its way back before it runs. Internet Access and Private Access come later. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolDeploy"><div class="tool-ic">↗</div><h3>Guided rollout <span class="tag new">NEW</span></h3><p>CloudFellows from a backup ZIP, Joey via Fetch latest. Review the import, observed impact and enforcement with the existing confirmations.</p></div>
       <div class="tool tool-tile" id="toolImport">
@@ -3115,6 +3115,7 @@
         <li><b>The flow</b> <span class="tag new">NEW</span> (32524) — the eight links are one flow in five lanes (Foundation, Traffic path, Endpoint, Enforce, Verify); the step that blocks opens under it, any step opens on a click, with what ENCA read and what you can do. A fix opens as a <b>workspace</b> below the step — several can be open at once, newest first, each with what it sends (the script as uploaded, or the Graph request; Copy and Download), its options, impact, way back, Apply and the log. One Apply runs at a time. (32525: an assignment whose remediation Graph reports as off is NOT treated as detect only — Graph said off in devcf while Intune showed it on.)</li>
         <li><b>Go-live checks</b> <span class="tag upd">UPDATED</span> (0.10.0, build 32708, from the go-live recheck of 18 Oct) — the verdict is green only when a policy that <b>blocks every resource outside the compliant network</b> is on, <b>every link before it is ready — the client included</b>, and <b>everybody it includes gets the Microsoft profile</b>; otherwise it says the policy blocks people, not tokens. A policy that only requires MFA on the compliant network, or blocks outside it for one app, is listed but not counted. <b>Who must pass against who can</b>: the policy's include is compared with the profile's assignment (groups by id, All users, users named directly; nested membership is not expanded) and with the devices that carry the client — a gap is a warning in report-only and red when on. <b>Windows</b> is judged like macOS: the deployment's groups are read (Windows devices by join type — an Entra registered device gets Private Access only — and users) and its run summary decides (has not run, failing, found without the client and not remediated). <b>Remediations need Windows Enterprise E3/E5, Education A3/A5 or VDA</b>: the licences are read, and on Business Premium (Windows Business) the fix offers the platform script instead. A remediation step 6 found — any name, any release — is the one the fix assigns, and its other assignments are written back with remediation on. No Intune-managed Mac and no macOS script: macOS is not in scope and step 6 can be green on Windows alone. <b>The proof</b> reads interactive and non-interactive sign-ins (up to 5,000 each); a sign-in the policy did not apply to only because of the compliant network counts as passed through GSA, and the share is over the sign-ins in the policies' scope. <b>Create it in report-only</b> pre-fills Windows and macOS and the profile's groups. The policy card shows other apps a policy leaves out — each one a resource a stolen token still reaches. Adding the GSA ids to the baseline's System Extensions policy keeps its name; a deprecated Extensions profile that also sets system extensions is named.</li>
         <li><b>Step 6 in two lanes</b> <span class="tag upd">UPDATED</span> (0.11.0, build 32806) — the client on devices is <b>two lanes</b>, Windows and macOS, each with its own actions that stay whatever you do on the other platform. A lane shows what was deployed, whom it reaches, whether it may run (a remediation needs Windows Enterprise E3/E5, Education A3/A5 or VDA), what Intune reports and — the stage that decides — <b>Connected</b>: Global Secure Access itself has seen the device in the last 7 days, in its <b>device report</b> or in a <b>sign-in marked through Global Secure Access</b>. Step 6 is ready when every device in the deployment's groups is seen; Intune's run state explains why one is not there yet, and macOS no longer turns ready on assignments alone. A <b>Devices in scope</b> table lists every device with its group and when it was last seen. <b>Replace…</b> (Windows, on a tenant whose licence cannot run the remediation) hands the remediation's groups to the platform script — a JSON backup of its assignments first, the script assigned next, and only then the remediation unassigned (it stays in Intune). <b>Not in scope…</b> takes a platform out of step 6 with a reason, kept in the tenant as the ENCA settings record (the open extension <code>nl.limonit.enca</code> on the organization object, Organization.ReadWrite.All on Apply), so every browser and colleague sees it; <b>Back in scope…</b> undoes it. A tenant without an Intune-managed Mac and without a macOS script counts macOS as not in scope by itself. <b>Check a Mac</b> gives three read-only Terminal commands: the app, its system extension and the install log.</li>
+        <li><b>📈 Monitor</b> <span class="tag new">NEW</span> (0.12.0, build 32807) — the board has two modes, <b>Setup</b> (the eight links) and <b>Monitor</b>, and opens on Monitor once steps 1–7 are ready; the switch is on top of both. Monitor is <b>read-only</b> and reads, for 24 hours, 7 or 30 days, Global Secure Access's own records — the <b>traffic log</b>, the <b>device report</b>, its <b>alerts</b> and the transactions per time bucket — and the sign-in log. <b>Six tiles</b>: devices through GSA against the GSA groups; sign-ins through GSA (of the guard policies' scope, else of the Windows and macOS sign-ins); <b>around the tunnel</b> — successful Windows or macOS sign-ins not through GSA by people who also used it (a phone never tunnels and is not counted); blocked by the policy (and would be, in report-only); <b>Token / device inconsistency</b>, Global Secure Access's own alert that a token was used from a device it was not issued to — any value above 0 is critical; and the client versions (a Windows client below 2.31.125 does not upgrade through Windows Update). Then the <b>traffic heartbeat</b> — each bucket compared with the same time a week earlier; a red bar is below a third of it, Microsoft's tamper signal for a profile switched off or a tenant offboarded, which leaves no audit entry — <b>Needs attention</b>, most serious first, the <b>devices</b> (connected in the last day, silent, not seen, or seen outside the GSA groups, with user and client version) and the <b>traffic log</b>: newest first, 1,000 a page with Load more, a filter on user, device, destination or process, traffic type and action, and ⬇ CSV of what is loaded. Each source is read on its own: a refused one is named, never counted. Global Secure Access keeps its traffic log for 30 days; for longer, send NetworkAccessTrafficLogs and NetworkAccessAlerts to Log Analytics or Sentinel in Entra's diagnostic settings — this tool does not set that.</li>
         <li><b>What it never does</b> — switch a policy on, or change a policy's users, exclusions or controls. A policy's state is changed in 🗂 Policies or 🎚 Set policy state when the proof says nobody is blocked who should not be; its exclusions stay as they are (the admin-role question is in the admin handover).</li>
         <li><b>Policies that name the compliant network</b> <span class="tag upd">UPDATED</span> — a card of its own under the board (32522): every policy loaded in 🗂 Policies that names the compliant network, on either side — excluded (the policy applies outside it, the token-replay shape) or included (it applies on it) — with its state, the grant, who it covers and whether the Intune and Intune Enrollment apps are out. Load 🗂 Policies first; the card says so when they are not.</li>
         <li><b>Intune policies and scripts for the client</b> <span class="tag new">NEW</span> — a card under the policies (32523): every remediation, platform script, app, macOS shell script and macOS profile with Global Secure Access or GSA in its name — where it sits in Intune, whether ENCA made it, and the groups it is assigned to and excluded from. Duplicates are marked, a Windows client deployed more than one way is called out, and a missing macOS profile is named. Read only.</li>
@@ -3123,7 +3124,7 @@
         <li><b>What the board cannot see</b> <span class="tag upd">UPDATED</span> (32518, from a lab deployment) — the Microsoft profile's <b>device platforms</b> are set on its Assignments page in the portal (no documented Graph call): a profile has User and device assignments AND Device platform assignments, and a device gets it only when it matches both — All users and devices with no platform ticked means nobody (step 3 says so, and shows assignmentRules when Graph returns any). On Windows, <b>secure DNS</b> (DNS over HTTPS) must be off in Edge and Chrome or the client cannot tunnel by name. The portal makes a <code>_GSA_&lt;guid&gt;</code> backing group per profile — the groups table marks it; do not use it in Intune or Conditional Access. The tenant link mentions, as information only (32521), when the <b>ZTNA Policy Service Client</b> app is not in the tenant — Microsoft does not require it; create it with the optional button only if clients stay Partially Connected. The Windows script writes pilot client settings unless <b>Lock down</b> is ticked; the macOS script installs only on macOS 14 or later and only a package signed by Microsoft.</li>
         <li><b>Caveats</b> — the client tunnels IPv4 only: a device that reaches Entra over IPv6 goes around it and is blocked by the policy. A platform script runs once and installs whatever version Microsoft serves then; from November 2026 Windows Update upgrades clients at 2.31.125 or later. The Graph routes for activation, the profile, signalling and the location are Microsoft's beta network access API.</li>
       </ul>
-      <p class="help-x">Reads: networkAccess tenant status, forwarding profiles and settings (NetworkAccessPolicy.Read.All, NetworkAccess.Read.All), the profile's service principal and assignments (Application.Read.All), named locations, Intune scripts and apps (DeviceManagementConfiguration.Read.All, DeviceManagementApps.Read.All), subscribed SKUs, cross-tenant access settings (Policy.Read.All) and universal tenant restrictions; the sign-ins marked through Global Secure Access (step 6 and the proof) AuditLog.Read.All, the device report NetworkAccessPolicy.Read.All, the ENCA settings record the organization object, a domain look-up CrossTenantInformation.ReadBasic.All. Writes ask for their own scope on Apply (tenant restrictions: Policy.ReadWrite.CrossTenantAccess and NetworkAccess.ReadWrite.All; Not in scope: Organization.ReadWrite.All).</p>
+      <p class="help-x">Reads: networkAccess tenant status, forwarding profiles and settings (NetworkAccessPolicy.Read.All, NetworkAccess.Read.All), the profile's service principal and assignments (Application.Read.All), named locations, Intune scripts and apps (DeviceManagementConfiguration.Read.All, DeviceManagementApps.Read.All), subscribed SKUs, cross-tenant access settings (Policy.Read.All) and universal tenant restrictions; the sign-ins marked through Global Secure Access (step 6 and the proof) AuditLog.Read.All, the device report NetworkAccessPolicy.Read.All, the ENCA settings record the organization object, a domain look-up CrossTenantInformation.ReadBasic.All. Monitor adds NetworkAccess-Reports.Read.All (the traffic log and the alerts; the person needs Global Secure Access Log Reader, Security Administrator or Global Secure Access Administrator), asked on the click. Writes ask for their own scope on Apply (tenant restrictions: Policy.ReadWrite.CrossTenantAccess and NetworkAccess.ReadWrite.All; Not in scope: Organization.ReadWrite.All).</p>
     </section>
 
     <section class="help-sec">
@@ -4233,122 +4234,122 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32806"></script>
-<script src="js/selfhost.js?v=32806"></script>
-<script src="js/version.js?v=32806"></script>
-<script src="js/verdict.js?v=32806"></script>
-<script src="js/fork.js?v=32806"></script>
-<script src="js/promote.js?v=32806"></script>
-<script src="js/authConfig.js?v=32806"></script>
-<script src="js/connection.js?v=32806"></script>
-<script src="js/labels.js?v=32806"></script>
-<script src="js/capabilities.js?v=32806"></script>
-<script src="js/graph.js?v=32806"></script>
-<script src="js/model.js?v=32806"></script>
-<script src="js/render.js?v=32806"></script>
-<script src="js/analyze.js?v=32806"></script>
-<script src="js/whatif.js?v=32806"></script>
-<script src="js/mslearn.js?v=32806"></script>
-<script src="js/learntriage.js?v=32806"></script>
-<script src="js/learnfeed.js?v=32806"></script>
-<script src="js/gapcheck.js?v=32806"></script>
-<script src="js/cisdata.js?v=32806"></script>
-<script src="js/cischeck.js?v=32806"></script>
-<script src="js/exclusions.js?v=32806"></script>
-<script src="js/cascope.js?v=32806"></script>
-<script src="js/coverage.js?v=32806"></script>
-<script src="js/runmeta.js?v=32806"></script>
-<script src="js/overview.js?v=32806"></script>
-<script src="js/validator.js?v=32806"></script>
-<script src="js/whatifeval.js?v=32806"></script>
-<script src="js/builder.js?v=32806"></script>
-<script src="js/onboard.js?v=32806"></script>
-<script src="js/compare.js?v=32806"></script>
-<script src="js/whois.js?v=32806"></script>
-<script src="js/wave.js?v=32806"></script>
-<script src="js/sessionctl.js?v=32806"></script>
-<script src="js/spgap.js?v=32806"></script>
-<script src="js/groupuse.js?v=32806"></script>
-<script src="js/iso3166.js?v=32806"></script>
-<script src="js/causes.js?v=32806"></script>
-<script src="js/locations.js?v=32806"></script>
-<script src="js/locsignin.js?v=32806"></script>
-<script src="js/workloadid.js?v=32806"></script>
-<script src="js/authcontexts.js?v=32806"></script>
-<script src="js/authstrengths.js?v=32806"></script>
-<script src="js/recycle.js?v=32806"></script>
-<script src="js/rmau.js?v=32806"></script>
-<script src="js/auinv.js?v=32806"></script>
-<script src="js/camap.js?v=32806"></script>
-<script src="js/rmaudoc.js?v=32806"></script>
-<script src="js/termsofuse.js?v=32806"></script>
-<script src="js/audit.js?v=32806"></script>
-<script src="js/drift.js?v=32806"></script>
-<script src="js/guide.js?v=32806"></script>
-<script src="js/userimpact.js?v=32806"></script>
-<script src="js/smsvoice.js?v=32806"></script>
-<script src="js/memberof.js?v=32806"></script>
-<script src="js/devcheck.js?v=32806"></script>
-<script src="js/idscore.js?v=32806"></script>
-<script src="js/xtenant.js?v=32806"></script>
-<script src="js/passkeys.js?v=32806"></script>
-<script src="js/tokencov.js?v=32806"></script>
-<script src="js/naming.js?v=32806"></script>
-<script src="js/licgap.js?v=32806"></script>
-<script src="js/teamsdev.js?v=32806"></script>
-<script src="js/signinstore.js?v=32806"></script>
-<script src="js/signins.js?v=32806"></script>
-<script src="js/reportimpact.js?v=32806"></script>
-<script src="js/changelog.js?v=32806"></script>
-<script src="js/baselineData.js?v=32806"></script>
-<script src="js/baselineJoeyData.js?v=32806"></script>
-<script src="js/baselineLive.js?v=32806"></script>
-<script src="js/pimBaselineData.js?v=32806"></script>
-<script src="js/pimbaseline.js?v=32806"></script>
-<script src="js/pimplan.js?v=32806"></script>
-<script src="js/pimrmau.js?v=32806"></script>
-<script src="js/intunerbac.js?v=32806"></script>
-<script src="js/pimroles.js?v=32806"></script>
-<script src="js/pimreport.js?v=32806"></script>
-<script src="js/pimdoc.js?v=32806"></script>
-<script src="js/pimmodules.js?v=32806"></script>
-<script src="js/pimdeploy.js?v=32806"></script>
-<script src="js/pimscript.js?v=32806"></script>
-<script src="js/pimdesigner.js?v=32806"></script>
-<script src="js/pimcatalog.js?v=32806"></script>
-<script src="js/pimlens.js?v=32806"></script>
-<script src="js/baseline.js?v=32806"></script>
-<script src="js/eadminsData.js?v=32806"></script>
-<script src="js/secdefaults.js?v=32806"></script>
-<script src="js/baselineCleanup.js?v=32806"></script>
-<script src="js/groupTemplates.js?v=32806"></script>
-<script src="js/assign.js?v=32806"></script>
-<script src="js/cagroups.js?v=32806"></script>
-<script src="js/groupmerge.js?v=32806"></script>
-<script src="js/dgfill.js?v=32806"></script>
-<script src="js/deploydash.js?v=32806"></script>
-<script src="js/trv2.js?v=32806"></script>
-<script src="js/gsa.js?v=32806"></script>
-<script src="js/egress.js?v=32806"></script>
-<script src="js/devicecleanup.js?v=32806"></script>
-<script src="js/appaccess.js?v=32806"></script>
-<script src="js/groupsview.js?v=32806"></script>
-<script src="js/runledger.js?v=32806"></script>
-<script src="js/bgvault.js?v=32806"></script>
-<script src="js/protect.js?v=32806"></script>
-<script src="js/policy-compare.js?v=32806"></script>
-<script src="js/import.js?v=32806"></script>
-<script src="js/export.js?v=32806"></script>
-<script src="js/demo.js?v=32806"></script>
-<script src="js/list-detail.js?v=32806"></script>
-<script src="js/flat-icons.js?v=32806"></script>
-<script src="js/workspace.js?v=32806"></script>
-<script src="js/analysis-jobs.js?v=32806"></script>
-<script src="js/search-suggest.js?v=32806"></script>
-<script src="js/app.js?v=32806"></script>
-<script src="js/col-resize.js?v=32806"></script>
-<script src="js/accessibility.js?v=32806"></script>
-<script src="js/workspaces.js?v=32806"></script>
-<script src="js/tool-layout.js?v=32806"></script>
+<script src="js/branding.js?v=32807"></script>
+<script src="js/selfhost.js?v=32807"></script>
+<script src="js/version.js?v=32807"></script>
+<script src="js/verdict.js?v=32807"></script>
+<script src="js/fork.js?v=32807"></script>
+<script src="js/promote.js?v=32807"></script>
+<script src="js/authConfig.js?v=32807"></script>
+<script src="js/connection.js?v=32807"></script>
+<script src="js/labels.js?v=32807"></script>
+<script src="js/capabilities.js?v=32807"></script>
+<script src="js/graph.js?v=32807"></script>
+<script src="js/model.js?v=32807"></script>
+<script src="js/render.js?v=32807"></script>
+<script src="js/analyze.js?v=32807"></script>
+<script src="js/whatif.js?v=32807"></script>
+<script src="js/mslearn.js?v=32807"></script>
+<script src="js/learntriage.js?v=32807"></script>
+<script src="js/learnfeed.js?v=32807"></script>
+<script src="js/gapcheck.js?v=32807"></script>
+<script src="js/cisdata.js?v=32807"></script>
+<script src="js/cischeck.js?v=32807"></script>
+<script src="js/exclusions.js?v=32807"></script>
+<script src="js/cascope.js?v=32807"></script>
+<script src="js/coverage.js?v=32807"></script>
+<script src="js/runmeta.js?v=32807"></script>
+<script src="js/overview.js?v=32807"></script>
+<script src="js/validator.js?v=32807"></script>
+<script src="js/whatifeval.js?v=32807"></script>
+<script src="js/builder.js?v=32807"></script>
+<script src="js/onboard.js?v=32807"></script>
+<script src="js/compare.js?v=32807"></script>
+<script src="js/whois.js?v=32807"></script>
+<script src="js/wave.js?v=32807"></script>
+<script src="js/sessionctl.js?v=32807"></script>
+<script src="js/spgap.js?v=32807"></script>
+<script src="js/groupuse.js?v=32807"></script>
+<script src="js/iso3166.js?v=32807"></script>
+<script src="js/causes.js?v=32807"></script>
+<script src="js/locations.js?v=32807"></script>
+<script src="js/locsignin.js?v=32807"></script>
+<script src="js/workloadid.js?v=32807"></script>
+<script src="js/authcontexts.js?v=32807"></script>
+<script src="js/authstrengths.js?v=32807"></script>
+<script src="js/recycle.js?v=32807"></script>
+<script src="js/rmau.js?v=32807"></script>
+<script src="js/auinv.js?v=32807"></script>
+<script src="js/camap.js?v=32807"></script>
+<script src="js/rmaudoc.js?v=32807"></script>
+<script src="js/termsofuse.js?v=32807"></script>
+<script src="js/audit.js?v=32807"></script>
+<script src="js/drift.js?v=32807"></script>
+<script src="js/guide.js?v=32807"></script>
+<script src="js/userimpact.js?v=32807"></script>
+<script src="js/smsvoice.js?v=32807"></script>
+<script src="js/memberof.js?v=32807"></script>
+<script src="js/devcheck.js?v=32807"></script>
+<script src="js/idscore.js?v=32807"></script>
+<script src="js/xtenant.js?v=32807"></script>
+<script src="js/passkeys.js?v=32807"></script>
+<script src="js/tokencov.js?v=32807"></script>
+<script src="js/naming.js?v=32807"></script>
+<script src="js/licgap.js?v=32807"></script>
+<script src="js/teamsdev.js?v=32807"></script>
+<script src="js/signinstore.js?v=32807"></script>
+<script src="js/signins.js?v=32807"></script>
+<script src="js/reportimpact.js?v=32807"></script>
+<script src="js/changelog.js?v=32807"></script>
+<script src="js/baselineData.js?v=32807"></script>
+<script src="js/baselineJoeyData.js?v=32807"></script>
+<script src="js/baselineLive.js?v=32807"></script>
+<script src="js/pimBaselineData.js?v=32807"></script>
+<script src="js/pimbaseline.js?v=32807"></script>
+<script src="js/pimplan.js?v=32807"></script>
+<script src="js/pimrmau.js?v=32807"></script>
+<script src="js/intunerbac.js?v=32807"></script>
+<script src="js/pimroles.js?v=32807"></script>
+<script src="js/pimreport.js?v=32807"></script>
+<script src="js/pimdoc.js?v=32807"></script>
+<script src="js/pimmodules.js?v=32807"></script>
+<script src="js/pimdeploy.js?v=32807"></script>
+<script src="js/pimscript.js?v=32807"></script>
+<script src="js/pimdesigner.js?v=32807"></script>
+<script src="js/pimcatalog.js?v=32807"></script>
+<script src="js/pimlens.js?v=32807"></script>
+<script src="js/baseline.js?v=32807"></script>
+<script src="js/eadminsData.js?v=32807"></script>
+<script src="js/secdefaults.js?v=32807"></script>
+<script src="js/baselineCleanup.js?v=32807"></script>
+<script src="js/groupTemplates.js?v=32807"></script>
+<script src="js/assign.js?v=32807"></script>
+<script src="js/cagroups.js?v=32807"></script>
+<script src="js/groupmerge.js?v=32807"></script>
+<script src="js/dgfill.js?v=32807"></script>
+<script src="js/deploydash.js?v=32807"></script>
+<script src="js/trv2.js?v=32807"></script>
+<script src="js/gsa.js?v=32807"></script>
+<script src="js/egress.js?v=32807"></script>
+<script src="js/devicecleanup.js?v=32807"></script>
+<script src="js/appaccess.js?v=32807"></script>
+<script src="js/groupsview.js?v=32807"></script>
+<script src="js/runledger.js?v=32807"></script>
+<script src="js/bgvault.js?v=32807"></script>
+<script src="js/protect.js?v=32807"></script>
+<script src="js/policy-compare.js?v=32807"></script>
+<script src="js/import.js?v=32807"></script>
+<script src="js/export.js?v=32807"></script>
+<script src="js/demo.js?v=32807"></script>
+<script src="js/list-detail.js?v=32807"></script>
+<script src="js/flat-icons.js?v=32807"></script>
+<script src="js/workspace.js?v=32807"></script>
+<script src="js/analysis-jobs.js?v=32807"></script>
+<script src="js/search-suggest.js?v=32807"></script>
+<script src="js/app.js?v=32807"></script>
+<script src="js/col-resize.js?v=32807"></script>
+<script src="js/accessibility.js?v=32807"></script>
+<script src="js/workspaces.js?v=32807"></script>
+<script src="js/tool-layout.js?v=32807"></script>
 </body>
 </html>

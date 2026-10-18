@@ -175,6 +175,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 346,
+      ws: "entra",
+      title: "🌐 Global Secure Access — 📈 Monitor after setup: the traffic log, devices, alerts, sign-ins around the tunnel, the heartbeat (T56 0.12.0)",
+      tools: ["Global Secure Access"],
+      builds: [32807],
+      risk: "low",
+      what: "js/gsa.js: monitor(model, mon) — the devices (the lanes members as expected, plus every device in deviceReport, the traffic log and the sign-ins through GSA, by Entra device id: connected in the last day, silent, not seen, outside the GSA groups), client versions (Windows below 2.31.125 named), sign-ins (proof() over the guard policies, around the tunnel seeded by the users seen through GSA, Windows and macOS only, blocked and would-block per guard), alerts (deviceTokenInconsistency, crossTenantAnomaly), the heartbeat (usageProfiling buckets compared with the same time a week earlier, low below a third), six tiles and Needs attention, most serious first. renderMonitor, modeBar (also on top of the Setup board), monLogRows (the filtered traffic rows), demoMonitor, setupDone. js/app.js: gsa.mode with Monitor as default once setupDone until the person picks; readGsaMon — usageProfiling from a week before the period, deviceReport, logs/traffic (newest 1,000, $select, $orderby; Load more by nextLink), alerts (filtered by creationDateTime, else read and filtered here), sign-ins interactive and non-interactive (newest 5,000 each), each source on its own; CSV of the loaded transactions; the filter swaps only the table body; Refresh in Monitor reads the traffic again. GSA_MON adds NetworkAccess-Reports.Read.All, asked on the click. css/app.css: modes, tiles, heartbeat, attention, filter. tools/gsa.test.cjs: 4 new tests (41 pass).",
+      why: "Mihai, 18 Oct: after setup the focus should be monitoring the traffic logs. Built from the mockup review/2026-10-18/t56-step6-monitor (go build). Risk low: read-only; the new permission is asked on the click and a refused source is named, never counted.",
+      test: [
+        "Beta, demo tenant, 03 → 🌐 Global Secure Access → Read: the Setup / Monitor switch sits on top; Monitor (after setup) → it reads at once and shows six tiles, a heartbeat with one red bar, Needs attention (a drop, a sign-in around the tunnel from LT-DEMO-02, a device not seen, LT-DEMO-09 on client 2.28.96), the devices with LT-DEMO-09 marked no GSA group, and the traffic log.",
+        "Beta, demo: type sharepoint in the traffic log filter — the rows narrow while the cursor stays in the box; Traffic and Action filters work; ⬇ CSV downloads the loaded transactions with device names.",
+        "Beta, demo: 7 days and 30 days read again and the heartbeat turns to daily bars; Setup · 5 of 8 in the head returns to the board.",
+        "Beta, Limon-IT: Monitor → the click asks NetworkAccess-Reports.Read.All once; with nothing tunnelled yet the device tile reads 0 / 2, the heartbeat says no traffic in this period, and Needs attention names CPC-mihai-2L8IB and MacBook Pro van Mihai as not seen.",
+        "Beta, Limon-IT after the Mac or the Cloud PC connects: Read again — the device turns connected with its client version; the traffic log shows its Microsoft 365 transactions; Sign-ins through GSA rises above 0.",
+        "Beta, an account without Global Secure Access Log Reader: Monitor — the traffic log and alerts say not read with Graph's answer; the heartbeat, devices and sign-ins still show.",
+        "Beta, a tenant where setup is complete (every link ready, CA215 on): open the tool — it opens on Monitor by itself; pick Setup, Refresh — it stays on Setup.",
+      ],
+    },
+    {
       n: 345,
       ws: "entra",
       title: "🌐 Global Secure Access — step 6 in two lanes, decided by what GSA has seen; Replace with the platform script; Not in scope kept in the tenant (T56 0.11.0)",

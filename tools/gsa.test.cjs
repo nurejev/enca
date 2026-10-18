@@ -760,3 +760,86 @@ test("0.11.0: what Replace and Not in scope send, before they run", () => {
   assert.match(s2, /^PATCH \/v1\.0\/organization\/\{tenant id\}\/extensions\/nl\.limonit\.enca/);
   assert.match(s2, /"t56MacOutAt": ""/);
 });
+
+// ---- 0.12.0: Monitor — after setup, the traffic (18 Oct 2026) ----
+const monRaw = (over) => Object.assign({ period: "24h", start: "2026-10-18T00:00:00Z", end: "2026-10-19T00:00:00Z", readAt: 1, sources: { usage: "ok", devices: "ok", traffic: "ok", alerts: "ok", signIns: "ok" }, usage: [], devices: [], traffic: { rows: [], next: null }, alerts: [], signIns: [] }, over || {});
+
+test("0.12.0 Monitor: devices connected, not seen and outside the groups; client versions; the tiles", () => {
+  const m = Gsa.model(okRaw(), [block()]); // LT-1 (d1) and LT-2 (d2) in the Windows group
+  const s = Gsa.monitor(m, monRaw({
+    devices: [{ deviceId: "d1", displayName: "LT-1", operatingSystem: "Windows 11", lastAccessDateTime: "2026-10-18T22:00:00Z" }, { deviceId: "x9", displayName: "LT-9", operatingSystem: "Windows 11", lastAccessDateTime: "2026-10-18T21:00:00Z" }],
+    traffic: { rows: [{ createdDateTime: "2026-10-18T22:00:00Z", deviceId: "D1", agentVersion: "2.31.125", userPrincipalName: "a@x" }, { createdDateTime: "2026-10-18T21:00:00Z", deviceId: "x9", agentVersion: "2.28.96", userPrincipalName: "b@x" }], next: "https://graph.microsoft.com/beta/networkAccess/logs/traffic?$skiptoken=1" },
+  }));
+  assert.deepStrictEqual(s.counts, { expected: 2, seenExpected: 1, connected: 1, silent: 0, never: 1, outside: 1 });
+  assert.deepStrictEqual(s.devices.map((d) => [d.name, d.st]), [["LT-2", "never"], ["LT-9", "outside"], ["LT-1", "connected"]]);
+  assert.strictEqual(s.devices.find((d) => d.name === "LT-1").ver, "2.31.125", "the traffic row's device id matched in any case");
+  assert.deepStrictEqual(s.versions.winOld.map((d) => d.name), ["LT-9"]);
+  const tile = (k) => s.tiles.find((t) => t.k === k);
+  assert.deepStrictEqual([tile("dev").n, tile("dev").of, tile("dev").st], ["1", " / 2", "warn"]);
+  assert.strictEqual(tile("ver").st, "warn");
+  assert.ok(s.trafficNext);
+  assert.deepStrictEqual(s.attention.map((a) => a.tag), ["never", "outdated"]);
+  // 7 days: a group device seen earlier in the period is silent
+  const s7 = Gsa.monitor(m, monRaw({ period: "7d", start: "2026-10-12T00:00:00Z", devices: [{ deviceId: "d2", lastAccessDateTime: "2026-10-15T10:00:00Z" }] }));
+  assert.strictEqual(s7.devices.find((d) => d.deviceId === "d2").st, "silent");
+});
+
+test("0.12.0 Monitor: through GSA, around the tunnel, blocked, the token alert first, a drop against a week earlier", () => {
+  const m = Gsa.model(okRaw(), [block()]), g = m.guards[0].id;
+  const si = (o) => Object.assign({ createdDateTime: "2026-10-18T10:00:00Z", userId: "u1", userPrincipalName: "a@x", appDisplayName: "Exchange", status: { errorCode: 0 }, deviceDetail: { deviceId: "d1", operatingSystem: "Windows10" }, appliedConditionalAccessPolicies: [{ id: g, result: "notApplied", conditionsNotSatisfied: "location" }] }, o);
+  const s = Gsa.monitor(m, monRaw({
+    signIns: [
+      si({ isThroughGlobalSecureAccess: true }),
+      si({ isThroughGlobalSecureAccess: true, createdDateTime: "2026-10-18T11:00:00Z" }),
+      si({ isThroughGlobalSecureAccess: false, deviceDetail: { deviceId: "d2", displayName: "LT-2", operatingSystem: "Windows10" }, status: { errorCode: 53003 }, appliedConditionalAccessPolicies: [{ id: g, result: "failure", conditionsNotSatisfied: "none" }] }),
+      si({ isThroughGlobalSecureAccess: false, deviceDetail: { displayName: "MB", operatingSystem: "MacOs" }, appliedConditionalAccessPolicies: [] }),
+      si({ isThroughGlobalSecureAccess: false, userId: "u9", userPrincipalName: "z@x", deviceDetail: { operatingSystem: "Ios" }, appliedConditionalAccessPolicies: [] }),
+    ],
+    alerts: [{ alertType: "deviceTokenInconsistency", creationDateTime: "2026-10-18T12:00:00Z" }, { alertType: "crossTenantAnomaly" }],
+    usage: [{ timeStampDateTime: "2026-10-11T10:00:00Z", totalTrafficCount: 600 }, { timeStampDateTime: "2026-10-18T10:00:00Z", totalTrafficCount: 50 }, { timeStampDateTime: "2026-10-18T11:00:00Z", totalTrafficCount: 500 }],
+  }));
+  const tile = (k) => s.tiles.find((t) => t.k === k);
+  assert.deepStrictEqual([s.signIns.inScope, s.signIns.inScopeVia], [3, 2]);
+  assert.deepStrictEqual([tile("via").n, tile("via").st], ["66.7", "bad"]);
+  assert.deepStrictEqual(s.signIns.around.map((x) => x.deviceDetail.displayName), ["MB"], "a phone never tunnels — it is not around the tunnel");
+  assert.deepStrictEqual([s.signIns.blocked, s.signIns.blockedUsers], [1, [["a@x", 1]]]);
+  assert.deepStrictEqual([tile("token").n, tile("token").st], ["1", "bad"]);
+  assert.deepStrictEqual(s.heartbeat.points.map((x) => [x.v, x.low]), [[50, true], [500, false]], "the week before the period is read to compare, not shown");
+  assert.deepStrictEqual(s.attention.map((a) => a.tag), ["token", "drop", "around", "never", "blocked", "tenants"]);
+});
+
+test("0.12.0 Monitor: the mode switch, the prompt, the board, the log filter", () => {
+  const m = Gsa.model(okRaw(), [block()]);
+  assert.strictEqual(Gsa.setupDone(m), true);
+  assert.strictEqual(Gsa.setupDone(Gsa.model(Gsa.demo(), [])), false);
+  assert.match(Gsa.render(m, {}), /data-gsamode="setup" aria-selected="true">🧩 Setup <span>/);
+  const empty = Gsa.renderMonitor(m, null, {});
+  assert.match(empty, /data-gsamonread>📈 Read the traffic/);
+  assert.match(empty, /NetworkAccess-Reports\.Read\.All/);
+  assert.match(Gsa.renderMonitor(m, null, { monBusy: true, monRead: 1200 }), /1,200 sign-ins so far/);
+  const s = Gsa.monitor(m, monRaw({ traffic: { rows: [{ createdDateTime: "2026-10-18T22:00:00Z", deviceId: "d1", userPrincipalName: "a@x", destinationFQDN: "outlook.office365.com", trafficType: "microsoft365", action: "allow", initiatingProcessName: "olk.exe", sentBytes: 4096, receivedBytes: 2097152 }, { createdDateTime: "2026-10-18T21:00:00Z", deviceId: "d2", userPrincipalName: "b@x", destinationFQDN: "contoso.sharepoint.com", trafficType: "microsoft365", action: "block" }], next: null } }));
+  const html = Gsa.renderMonitor(m, s, { period: "24h" });
+  assert.match(html, /Setup complete — watching the traffic/);
+  assert.match(html, /data-gsatile="dev"/);
+  assert.match(html, /outlook\.office365\.com/);
+  assert.match(html, /4 KB \/ 2\.0 MB/);
+  assert.match(html, /class="fchip active" data-gsaperiod="24h"/);
+  assert.match(html, /data-gsamode="monitor" aria-selected="true">📈 Monitor <span>live/);
+  const f = Gsa.monLogRows(s, { q: "sharepoint" });
+  assert.strictEqual(f.n, 1); assert.match(f.count, /^1 of 2 loaded/);
+  assert.strictEqual(Gsa.monLogRows(s, { action: "block" }).n, 1);
+  assert.strictEqual(Gsa.monLogRows(s, { q: "LT-1" }).n, 1, "matches the device name, not only its id");
+});
+
+test("0.12.0 Monitor: a refused source is named, never counted; the demo read", () => {
+  const m = Gsa.model(Gsa.demo(), []);
+  const s = Gsa.monitor(m, monRaw({ sources: { usage: "403", devices: "403", traffic: "Graph request failed (403)", alerts: "403", signIns: "ok" } }));
+  assert.strictEqual(s.tiles.find((t) => t.k === "token").st, "na");
+  assert.match(s.tiles.find((t) => t.k === "ver").sub, /not read — Graph request failed \(403\)/);
+  assert.match(Gsa.renderMonitor(m, s, {}), /Not read: the heartbeat — 403/);
+  const md = Gsa.model(Gsa.demo(), [Gsa.demoPolicy()]);
+  const sd = Gsa.monitor(md, Gsa.demoMonitor(md, "24h", "2026-10-17T20:00:00.000Z", "2026-10-18T20:00:00.000Z"));
+  assert.deepStrictEqual([sd.signIns.around.length, sd.signIns.would, sd.heartbeat.lows.length], [1, 1, 1]);
+  assert.deepStrictEqual(sd.versions.winOld.map((d) => d.name), ["LT-DEMO-09"]);
+  assert.ok(sd.devices.some((d) => d.name === "LT-DEMO-09" && d.st === "outside"));
+});
