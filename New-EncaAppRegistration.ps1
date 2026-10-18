@@ -111,16 +111,17 @@ param(
   # CrossTenantInformation.ReadBasic.All: look up partner tenant names and
   # default domains (Checks - Cross-tenant, Show partner names), read-only,
   # on demand.
-  # Device.ReadWrite.All: Entra device cleanup (T59, Workspace 03) - disable, re-enable
-  # and delete stale directory devices, on demand. Reading them needs nothing new
-  # (Directory.Read.All). The signed-in user also needs Cloud Device Administrator or
-  # Intune Administrator: Graph gates device writes on that role.
+  # NOT Device.ReadWrite.All (removed 32803): Microsoft Graph has it as an
+  # APPLICATION permission only, so asking for it as a delegated scope stopped
+  # this script at step 2 ("not found on Microsoft Graph"). Delegated device
+  # writes (Entra device cleanup, T59) are Directory.AccessAsUser.All per
+  # Microsoft Learn (Update device) - left to that tool to decide.
   # Azure RBAC is NOT a Graph permission: it uses the Azure Resource Manager
   # resource (https://management.azure.com/user_impersonation), consented
   # separately in the browser when the Azure area is switched on. Nothing to
   # add here for it - the signed-in user just needs Reader on the scopes they
   # want to see.
-  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "Device.ReadWrite.All", "AuditLog.Read.All", "AdministrativeUnit.ReadWrite.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "Group-NestingSupport.ReadWrite.All", "DirectoryRecommendations.Read.All", "CrossTenantInformation.ReadBasic.All", "RoleManagement.ReadWrite.CloudPC"),
+  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "AdministrativeUnit.ReadWrite.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "Group-NestingSupport.ReadWrite.All", "DirectoryRecommendations.Read.All", "CrossTenantInformation.ReadBasic.All", "RoleManagement.ReadWrite.CloudPC"),
   [switch]$SkipAdminConsent
 )
 

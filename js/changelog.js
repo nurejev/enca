@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32803, date: "2026-10-18", title: "Sign-in card: open Cloud Shell from the card, name the registration; the script no longer asks for a permission Graph does not have",
+    items: [
+      { kind: "improved", tool: "Sign-in", text: "The way to a first registration is four steps on the sign-in card: Open Azure Cloud Shell (straight into PowerShell, in a new tab), the name of the registration, the command to paste, and ＋ Add for the two values it prints. The name is what your admins see in Entra and the handle a re-run updates; the command follows it as you type." },
+      { kind: "fixed", tool: "Sign-in", text: "New-EncaAppRegistration.ps1 stopped at step 2 with Delegated permission Device.ReadWrite.All not found on Microsoft Graph: that permission exists for applications only. It is no longer in the script's list or in the registration the page writes, so the Cloud Shell command runs through. Nothing was written in a tenant before the stop." },
+    ],
+  },
+  {
     build: 32802, date: "2026-10-18", title: "Entra device cleanup: one lifecycle row, clearer cards",
     items: [
       { kind: "improved", tool: "Entra device cleanup", text: "The tiles and the tabs are one row now: Active, Stale and enabled, Disabled and waiting, Delete candidates, with the 30-day and 90-day lines between them. Click a stage to open it; Re-enable, Never seen and Results sit beside the row, and the stage with work opens first." },

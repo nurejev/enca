@@ -115,3 +115,17 @@ test('Graph builds no MSAL instance without a login, and sign-in says so', async
   assert.equal(await box.api.init(), false); assert.equal(built, 0);
   await assert.rejects(() => box.api.signIn(), (e) => e.errorCode === 'no_login');
 });
+
+test('32803: the card names the registration, opens Cloud Shell in PowerShell, and the script asks for no permission Graph does not have', () => {
+  const { EncaConn } = loadConfig();
+  assert.equal(EncaConn.CLOUD_SHELL_URL, 'https://shell.azure.com/powershell');
+  assert.match(EncaConn.psLine(null, 'ENCA (Keij & Stefels)'), /\.\/enca-reg\.ps1 -AppName 'ENCA \(Keij & Stefels\)' -RedirectUris /);
+  assert.doesNotMatch(EncaConn.psLine(), /-AppName/, 'no name, no -AppName: the script default applies');
+  assert.equal(EncaConn.cleanName(" O'Brien \"$x\" `y` "), 'OBrien x y', 'quotes, $ and backticks never reach the pasted PowerShell');
+  assert.match(read('js/connection.js'), /id="connShellOpen" href="\$\{CLOUD_SHELL_URL\}" target="_blank" rel="noopener"/);
+  // Device.ReadWrite.All is an APPLICATION permission only in Microsoft Graph
+  // (permissions reference); as a delegated scope it stopped the script at step 2.
+  const ps = read('New-EncaAppRegistration.ps1');
+  const list = (ps.match(/\[string\[\]\]\$DelegatedScopes = @\(([^)]*)\)/) || [])[1] || '';
+  assert.ok(list.length > 0); assert.doesNotMatch(list, /"Device\.ReadWrite\.All"/);
+});

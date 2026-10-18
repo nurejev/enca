@@ -175,6 +175,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 343,
+      ws: "platform",
+      title: "🔐 Sign-in card: Open Azure Cloud Shell and the registration's name; Device.ReadWrite.All out of the script (R89)",
+      tools: ["Sign-in"],
+      builds: [32803],
+      risk: "medium",
+      what: "js/connection.js paintRoute: four numbered steps — Open Azure Cloud Shell (CLOUD_SHELL_URL https://shell.azure.com/powershell, new tab), the registration's name (#connRegName, default ENCA; cleanName drops quotes, backticks, $ and control characters, 120 at most), the command (psLine(redirect, name) adds -AppName), ＋ Add; a delegated input listener rewrites the command as the name is typed and Copy takes the current name. New-EncaAppRegistration.ps1 and js/onboard.js SCOPES lose Device.ReadWrite.All (application-only in Microsoft Graph); PS_SHA256 recomputed. css: .conn-steps, .conn-name. Help 🪪. tools/signin-single.test.cjs (+1).",
+      why: "Mihai, 18 Oct, running the card's command in Cloud Shell on keij-stefels.nl: it stopped with Delegated permission Device.ReadWrite.All not found on Microsoft Graph (the permission is application-only; T59 added it in 32707). With the list passed by hand the registration was made, single-tenant with both redirect URIs and assignment. Then: make sure the app on the login page has the right settings, and add a link button to open Cloud Shell.",
+      carveout: "Production 327 already has a script without Device.ReadWrite.All (main kept its own scope list), so main needs the card part only: port paintRoute, psLine/cleanName/CLOUD_SHELL_URL, the input listener, the css and the Help line; do NOT copy beta's New-EncaAppRegistration.ps1 or its PS_SHA256 — main's PS_SHA256 stays the hash of main's own script.",
+      test: [
+        "Beta, a private window: the ⚙ panel shows four numbered steps; Open Azure Cloud Shell opens shell.azure.com in a new tab in PowerShell.",
+        "Beta: type a name in Name of the registration — the command shows -AppName with that name as you type; a quote or $ typed in the name does not appear in the command; Copy the command copies the same line.",
+        "Beta, Cloud Shell (PowerShell, no storage account) in a test tenant: paste the copied command — the hash check passes, step 2 no longer stops, the registration is created under the name typed, single-tenant, with you assigned; the summary prints the client ID and tenant ID.",
+        "Beta: run the same command again with the same name — the registration is updated, not duplicated.",
+      ],
+    },
+    {
       n: 341,
       ws: "entra",
       title: "🌐 Global Secure Access — the go-live checks: people or tokens, who is covered, Windows by what landed; tenant restrictions optional (T56 0.10.0)",
