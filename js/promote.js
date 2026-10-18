@@ -175,6 +175,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 339,
+      ws: "ca",
+      title: "🛡 Security defaults detected, and the way across to a baseline (T10 2.11.0) — Import lands Report-only and creates the E-Admins (T06 2.14.0)",
+      tools: ["Baseline", "Import", "Overview"],
+      builds: [32706],
+      risk: "medium",
+      what: "js/secdefaults.js (new, pure apart from read): verdict over the setting, the policy count and the P1 evidence; coverage of the four protections security defaults gives (MFA all users, MFA for the Global Administrator role, legacy authentication, device code flow) plus the break-glass group; the start card, the switch band and the three confirmations. app.js: the setting and the licences are read in loadFromGraph; openBaseline compares an empty tenant instead of returning; the card in blSecDef and on the Overview; sdPick opens Import on Report-only (CloudFellows ZIP or Joey from the repository); sdSwitchRun, sdBackRun and sdTurnOnRun write through Graph.gpatch with read-backs and a never-neither rule; demo tenants ?demo=sd and ?demo=sdro. js/import.js: opts.landState and opts.sdOn, and the softState fallback in afterCreate. js/eadminsData.js (new): the six E-Admins policies read from cloudfellows.dev 2026-10-18 as a raw bundle; imEaAddBundled through Importer.mergeShared, automatic on the Joey import paths.",
+      why: "Mihai, 18 Oct, from a screenshot of Baseline on a security-defaults tenant: nothing gets loaded — detect security defaults and offer to deploy one of the baselines; on the mockup he chose that only the replacing set goes On and that ENCA writes the setting itself, and asked that the E-Admins be created with the Joey baseline from configs ENCA carries rather than imported from a ZIP. Risk medium: the switch turns security defaults off in a live tenant. Not yet run against a real security-defaults tenant; Microsoft Learn does not state outright that Graph accepts a Report-only policy while security defaults is on, which the landing fallback covers.",
+      test: [
+        "Beta, ?demo=sd: Home shows the card (Security defaults ON, P1, 0 policies) and the Overview status line names security defaults; Baseline shows the same card above the full catalog as Missing, and Import baseline counts the catalog.",
+        "Beta, ?demo=sd, Joey Verlinden on the card: Import opens with Land new policies as on Report-only and the six E-Admins listed; Import 6 reports them created Off (simulated).",
+        "Beta, ?demo=sdro: the band lists MFA for every user (CA000), MFA for admins (CA100), legacy (CA002), device code (CA004) and Break-glass excluded with 2 members, all ticked; Switch opens the confirmation with CA100 flagged for its strength; the run shows security defaults Off, four policies On, the setting read back; the band becomes Switched from security defaults with Back to security defaults; Back reverses it and the band returns to the switch.",
+        "Beta, a real tenant with security defaults ON and no policies (a fresh trial tenant): sign-in shows the card with the setting read; Choose ZIP with the CloudFellows backup lands the policies Report-only — or, if Entra refuses Report-only while security defaults is on, Off with that said per policy in the import report.",
+        "Beta, the same tenant after step one, break-glass group with members: the switch turns security defaults Off in Entra (Entra ID, Overview, Properties, Manage security defaults reads Disabled), the five replacing policies are On, everything else unchanged; then Back to security defaults restores both — and if Entra refuses security defaults, the five are On again.",
+        "Beta, a tenant with security defaults OFF and policies: no card, no band, nothing changed on the Baseline screen.",
+        "Beta, Joey Verlinden import from the Baseline screen in a tenant without the E-Admins: the six are ticked, the break-glass group reads CA-BreakGlassAccounts - Exclude, the strength Phishing-resistant MFA + TAP is created or reused, all six land Off.",
+      ],
+    },
+    {
       n: 338,
       ws: "entra",
       title: "🌐 Global Secure Access — step 7 always has a next step; Who it reaches replaces the groups card (T56 0.9.1)",

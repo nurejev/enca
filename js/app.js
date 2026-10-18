@@ -19,6 +19,12 @@
   let tenantDefaultDomain = "";   // 32429: the tenant's default verified domain — an MSP admin's sign-in domain is not the customer's
   let tenantId = "";        // for the account menu's Copy tenant ID; "" in the demo
   let capabilityCache = null;
+  // 32706 — 🛡 security defaults, read with the policies (js/secdefaults.js):
+  // secDef { enabled: true|false|null, at, error }, secCaps the P1/P2 evidence
+  // read alongside it when the answer needs it, sdBg the break-glass member
+  // count the switch band waits for. All three belong to one policy read.
+  let secDef = null, secCaps = null, sdBg = null;
+  let sdDemoState = null;   // the demo's own security defaults, so a simulated switch sticks for the session
   async function readCapabilities(force = false) {
     const key = `${tenantId}:${isDemo}`;
     if (!force && capabilityCache?.key === key && Date.now() - capabilityCache.at < 60000) return capabilityCache.value;
@@ -2574,6 +2580,14 @@
       showSideNav();
       selected = new Set();
       policiesReadAt = Date.now();
+      // 32706: a tenant on security defaults has no policies — read the
+      // setting with them, so every screen can say WHY the list is empty.
+      // The licences are read only when the answer needs them (on, or no
+      // policies), and a refused read is shown as not known, never as off.
+      secDef = null; secCaps = null; sdBg = null;
+      try { $("loadStatus").textContent = "Reading the security defaults setting…"; } catch {}
+      try { secDef = await SecDefaults.read((u) => Graph.gget(u)); } catch { secDef = null; }
+      if (secDef && (secDef.enabled !== false || !policies.length)) { try { secCaps = await readCapabilities(true); } catch { secCaps = null; } }
       noteSnapshot();
       // the one Overview paint for this snapshot — after the identity and the
       // read time are settled, so the paint is computed from them (25422)
@@ -2636,9 +2650,19 @@
     try { Baseline.use("demo"); } catch {}
     try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
-    const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
+    // 32706 — two demo tenants for the security defaults path: ?demo=sd is a
+    // tenant on security defaults with no policies (the empty-tenant card),
+    // ?demo=sdro the same tenant after step ① (the replacing policies
+    // Report-only, the ⇄ switch band). A simulated switch sticks for the session.
+    const dv = new URLSearchParams(location.search).get("demo");
+    const sdDemo = dv === "sd" || dv === "sdro";
+    const sdNames = sdDemo ? SecDefaults.DEMO_NAMES : {};
+    const resolve = (id, map) => (map && map[id]) || sdNames[id] || DEMO_DATA.names[id] || id;
     policyResolve = resolve;
-    policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
+    policies = (dv === "sd" ? [] : dv === "sdro" ? SecDefaults.demoPolicies() : DEMO_DATA.policies).map((r, i) => buildViewModel(r, resolve, i));
+    if (sdDemoState == null) sdDemoState = sdDemo;
+    secDef = { enabled: !!sdDemoState, at: Date.now(), error: null };
+    secCaps = sdDemo ? { p1: true, p2: false, intune: true } : null; sdBg = sdDemo ? { key: "demo", n: 2 } : null;
     try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
     policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
@@ -3792,6 +3816,10 @@
   // imEa — the 🚨 E-Admins taken from a CloudFellows backup into this import.
   // imRepair — 🔧 policies already here that point at the file's source ids.
   let imRaw = null, imEa = null, imRepair = null;
+  // 32706 — the state new policies land in: "disabled" (Off, the default) or
+  // "enabledForReportingButNotEnforced"; the security defaults path opens
+  // the import on Report-only, because step ② reads what they would do.
+  let imLand = "disabled";
   // Workload ID licence state for this tenant: { known, licensed, sku }. Read
   // once per file load — a workload-identity policy cannot be created without it.
   let imLic = { known: false, licensed: false, sku: null };
@@ -3801,7 +3829,7 @@
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
     imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
-    imRaw = null; imEa = null; imRepair = null;
+    imRaw = null; imEa = null; imRepair = null; imLand = "disabled";
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -4231,7 +4259,7 @@
     const toCat = imTargetCatalog();
     if (imEa && imEa.added && imEa.added.length) {
       return `<div class="cg-panel">
-        <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED FROM ${esc(String(imEa.label).toUpperCase())}</h4>
+        <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED${imEa.bundled ? " — CREATED FROM ENCA'S OWN COPY" : ` FROM ${esc(String(imEa.label).toUpperCase())}`}</h4>
         <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
       </div>`;
     }
@@ -4239,15 +4267,52 @@
     if (imPlan.some((p) => p.asIs)) return "";
     const shared = (typeof Baseline !== "undefined" && Baseline.sharedPolicies && toCat) ? Baseline.sharedPolicies(toCat) : [];
     const cf = Baseline.catalog("limonit");
+    // 32706 (Mihai: "read those configs and add a create button for those
+    // instead of import"): ENCA ships the six itself (js/eadminsData.js, read
+    // from cloudfellows.dev), so CREATE is the button and a backup ZIP is
+    // only the way to bring a newer copy than the one ENCA carries.
+    const nEa = typeof E_ADMINS !== "undefined" ? E_ADMINS.count : 0;
     return `<div class="cg-panel">
       <h4>🚨 E-ADMINS — NOT IN THIS FILE</h4>
-      <p class="mini" style="margin:0 0 8px">The emergency-access policies${shared.length ? ` (${shared.length}: ${esc(shared.map((p) => `CA${p.num}`).join(", "))})` : ""} are expected under every baseline, and only a CloudFellows backup ships them. Add them to this import from one: only the E-Admins policies and the groups, locations and authentication strengths they use are taken${toCat && cf && toCat.breakGlassGroup && cf.breakGlassGroup && toCat.breakGlassGroup !== cf.breakGlassGroup ? `, the break-glass group becomes ${esc(toCat.label)}'s (<code>${esc(toCat.breakGlassGroup)}</code>)` : ""}, and they land <b>Off</b>.</p>
+      <p class="mini" style="margin:0 0 8px">The emergency-access policies${shared.length ? ` (${shared.length}: ${esc(shared.map((p) => `CA${p.num}`).join(", "))})` : ""} are expected under every baseline. ENCA carries its own copy${typeof E_ADMINS !== "undefined" ? ` (${esc(E_ADMINS.source.tenant)}, read ${esc(E_ADMINS.source.read)})` : ""}: Create adds them to this import with the groups and the authentication strength they use${toCat && cf && toCat.breakGlassGroup && cf.breakGlassGroup && toCat.breakGlassGroup !== cf.breakGlassGroup ? `, the break-glass group becomes ${esc(toCat.label)}'s (<code>${esc(toCat.breakGlassGroup)}</code>)` : ""}, and they land <b>Off</b>.</p>
       ${imEa && imEa.error ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">${esc(imEa.error)}</p>` : ""}
-      <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
-        <button class="btn sm" id="imEaZip">＋ E-Admins from a CloudFellows backup ZIP</button>
-        <button class="btn sm" id="imEaFolder">＋ from an extracted backup folder</button>
+      <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap;align-items:center">
+        ${nEa ? `<button class="btn sm primary" id="imEaCreate">＋ Create the ${nEa} E-Admins policies</button>` : ""}
+        <span class="mini muted">or take a newer copy from</span>
+        <button class="btn sm" id="imEaZip">a CloudFellows backup ZIP</button>
+        <button class="btn sm" id="imEaFolder">an extracted backup folder</button>
       </div>
     </div>`;
+  }
+  // 32706 — the six E-Admins from ENCA's own copy (js/eadminsData.js), through
+  // the same Importer.mergeShared() a backup ZIP goes through: break-glass
+  // group renamed to the target baseline's, forced Off. `auto` is the Joey
+  // path (Mihai: "those need to be created when choosing joey"): quiet when
+  // there is nothing to add, and never over a file that ships its own.
+  async function imEaAddBundled(opts = {}) {
+    if (!imRaw || !imPlan || typeof E_ADMINS === "undefined") return;
+    if (opts.auto && imPlan.some((p) => p.asIs)) return;
+    const label = E_ADMINS.source.label;
+    try {
+      const toCat = imTargetCatalog();
+      const cf = Baseline.catalog("limonit");
+      const m = Importer.mergeShared(imRaw, E_ADMINS.bundle(), { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
+      if (!m.added.length) { if (!opts.auto) toast("The E-Admins policies are already in this import"); return; }
+      const keep = new Set([...document.querySelectorAll("[data-imp]:checked")].map((cb) => imPlan[+cb.dataset.imp].name));
+      // only what the tenant does not already hold is ticked — the plan marks
+      // the rest skip, and an auto-add must never re-tick what was unticked
+      m.added.forEach((n) => keep.add(n));
+      imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed, bundled: true };
+      const keepLand = imLand;
+      await imLoaded(m.bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins from ENCA's own copy`, { mode: imMode, only: keep });
+      imLand = keepLand;
+      const r = document.querySelector(`input[name="imLand"][value="${imLand}"]`); if (r) r.checked = true;
+      toast(`<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} added from ENCA's own copy — they land Off`);
+    } catch (err) {
+      console.error(err);
+      imEa = { label, error: `Could not add the E-Admins: ${err.message || err}` };
+      imRenderList();
+    }
   }
   function imEaPick(folder) {
     if (!imRaw) return;
@@ -4485,7 +4550,13 @@
         Buy or trial the licence, then re-import; nothing else has to be redone.</div>` : ""}
       ${nWid && imLic.known && imLic.licensed ? `<p class="mini" style="margin:8px 0">✅ Workload ID licence found${imLic.sku ? ` (<b>${esc(imLic.sku)}</b>)` : ""} — the ${nWid} workload-identity ${nWid === 1 ? "policy" : "policies"} can be imported.</p>` : ""}
       ${nWid && !imLic.known ? `<p class="mini" style="margin:8px 0">⚠ Could not read the tenant's licences, so the ${nWid} workload-identity ${nWid === 1 ? "policy is" : "policies are"} attempted anyway — a 400 on those means the Workload ID licence is missing.</p>` : ""}
-      <p class="mini" style="margin:8px 0">Dependencies are imported first (create-if-missing). Policies always land in state <b>Off</b>, and one with the same CA number + version is skipped.${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
+      <div class="im-land" role="radiogroup" aria-label="State new policies land in">
+        <span class="mini"><b>Land new policies as</b></span>
+        <label class="chk" style="margin:0"><input type="radio" name="imLand" value="disabled" ${imLand !== "enabledForReportingButNotEnforced" ? "checked" : ""}> Off</label>
+        <label class="chk" style="margin:0"><input type="radio" name="imLand" value="enabledForReportingButNotEnforced" ${imLand === "enabledForReportingButNotEnforced" ? "checked" : ""}> Report-only</label>
+        <span class="mini muted">${secDef && secDef.enabled === true ? "On is not offered: security defaults is on in this tenant, and Entra will not turn a policy On until it is off (⇄ on the 🧬 Baseline screen does that)." : "On is never offered here — a policy goes On after you have read what it would do."} 🚨 E-Admins taken from another file always land Off.</span>
+      </div>
+      <p class="mini" style="margin:8px 0">Dependencies are imported first (create-if-missing). New policies are created Off, read back, and only then set to the state chosen above; one with the same CA number + version is skipped.${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
       <p class="mini" style="margin:6px 0 4px"><b>Import only:</b> pick a persona to select just its policies, or use All / None.</p>
       <div class="persona-row" style="margin-bottom:10px">
         <button class="btn sm" data-im-persona="__all">All (${importable.length})</button>
@@ -4527,6 +4598,7 @@
   }
   $("imBody").addEventListener("click", async (e) => {
     if (e.target.id === "imEaZip" || e.target.id === "imEaFolder") { imEaPick(e.target.id === "imEaFolder"); return; }
+    if (e.target.id === "imEaCreate") { await imEaAddBundled({}); return; }
     if (e.target.id === "imRepairGo") { await imRepairRun(e.target); return; }
     if (e.target.id === "imAuAll") {
       imAu.sel = imAu.sel.size === imAu.missing.length ? new Set() : new Set(imAu.missing.map(r => r.name));
@@ -4568,6 +4640,7 @@
   });
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); return; }
+    if (e.target.matches('input[name="imLand"]')) { imLand = e.target.value; return; }
     if (e.target.matches("[data-imp]")) updateImGo();
     const f = e.target.closest("[data-imfix]");
     if (f) {
@@ -4707,7 +4780,7 @@
     imHost.innerHTML = "";
     const L = RunLedger.create(imHost, { unit: "policies", items: [
       { label: "Dependencies", sub: "groups, named locations, authentication strengths, contexts, terms of use — created if missing" },
-      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : "new policy, Off" })),
+      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : p.forceOff || imLand !== "enabledForReportingButNotEnforced" ? "new policy, Off" : "new policy, Report-only" })),
     ], onStop: () => {} });
     const depSay = (m) => L.note(0, m);
     let stoppedEarly = false;
@@ -4729,7 +4802,7 @@
           const matched = imMode === "replace" && p.upgrade;
           const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
           const asShipped = imMode === "shipped" && !matched;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching || asShipped ? null : p.personaGroup, matched, switched: !!switching, shipped: asShipped, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: p.forceOff ? "disabled" : matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs, forceOff: !!p.forceOff };
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching || asShipped ? null : p.personaGroup, matched, switched: !!switching, shipped: asShipped, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: p.forceOff ? "disabled" : matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : imLand === "enabledForReportingButNotEnforced" ? imLand : "disabled", asIs: p.asIs, forceOff: !!p.forceOff };
         });
         depLog.groupNotes = (imBundle.groupNotes || []).slice();
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
@@ -4771,6 +4844,7 @@
         (heldBack ? L.part : L.done)(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${heldBack ? ` · ${heldBack} group${heldBack === 1 ? "" : "s"} could not be created — the policies naming ${heldBack === 1 ? "it are" : "them are"} held back` : ""}${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, heldBack ? "partly done" : "ready");
         res = await Importer.importPolicies(chosen, maps, (m) => { const i = chosen.findIndex((p) => m.startsWith(p.name + ":")); if (i >= 0) L.note(i + 1, m.slice(chosen[i].name.length + 1).trim()); }, {
           mode: imMode, shouldStop: () => L.stopped,
+          landState: imLand, sdOn: !!(secDef && secDef.enabled === true),
           onItem: (i, phase, r) => {
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
@@ -10983,7 +11057,12 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-baseline");
     mountToolTabs("baseline", "baseline");
     if (catId) blCat = catId;
-    if (!policies.length) {
+    // 32706: an EMPTY tenant is the most useful comparison there is — every
+    // policy Missing — so only "nothing read yet" stops here. Until now a
+    // tenant with no policies (security defaults, a new tenant) got "No
+    // policies loaded." and an Import button that knew of nothing to import.
+    sdPaint();
+    if (!policiesReadAt) {
       $("blHead").innerHTML = '<p class="mini">No policies loaded.</p>';
       $("blChips").innerHTML = ""; $("blBody").innerHTML = "";
       return;
@@ -11512,7 +11591,7 @@ This is a directory write. Nothing else changes.`)) return;
     const res = blResult;
     const n = res ? res.toImport.length : 0;
     const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
-      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships — add ${res.toImportShared.length === 1 ? "it" : "them"} below with ＋ E-Admins` : "") + ". ";
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"}, added from ENCA's own copy (or ＋ Create below)` : "") + ". ";
     if (res && res.catalog.id === "joey" && typeof BaselineLive !== "undefined" && !isDemo) {
       const btn = $("blImport");
       btn.disabled = true;
@@ -11528,6 +11607,8 @@ This is a directory write. Nothing else changes.`)) return;
           $("imDesc").textContent = gapNote() + `Reading the repository at ${b.release}${b.commit ? ` (${String(b.commit).slice(0, 7)})` : ""}…`;
           const only = new Set(res.toImport.map((r) => r.baseline.name));
           await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`, { only });
+          // 32706: the shared E-Admins come with a Joey import, from ENCA's own copy
+          await imEaAddBundled({ auto: true });
           $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. 🧩 As shipped creates the baseline's own groups by name and attaches them; 🔀 Switch baseline also carries the members of this tenant's existing groups across.`;
           return;
         }
@@ -11542,6 +11623,269 @@ This is a directory write. Nothing else changes.`)) return;
         + "Select the baseline backup zip (or its extracted folder). Choose an assignment mode: deploy new policies onto this tenant's persona groups, "
         + "match & replace — an updated policy keeps the current one's assignment and its old version is switched Off — or switch baseline, which carries the members of the other baseline's groups across.";
     }
+  });
+
+  // ---------- 🛡 Security defaults → a baseline (32706) ----------
+  // js/secdefaults.js holds the verdict, the coverage and the HTML; this is
+  // the wiring: which card, the reads it waits for, and the three writes
+  // (⇄ switch, ↩ back, turn on). One card for 🧬 Baseline and the Overview.
+  const SD_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  const SD_SWITCH_KEY = () => `enca-sdswitch:${tenantId || "demo"}`;
+  // What ⇄ turned On, kept in THIS browser so ↩ is still offered after a
+  // reload: { at, policies: [{ id, name, prev }] }. Hidden with ✓ Keep.
+  const sdSwitchLoad = () => { try { const r = JSON.parse(localStorage.getItem(SD_SWITCH_KEY()) || "null"); return r && Array.isArray(r.policies) && r.policies.length ? r : null; } catch { return null; } };
+  const sdSwitchSave = (r) => { try { if (r) localStorage.setItem(SD_SWITCH_KEY(), JSON.stringify(r)); else localStorage.removeItem(SD_SWITCH_KEY()); } catch { /* private mode: ↩ lives for this page only */ } };
+  const sdWord = (s) => SecDefaults.STATE[s] || s;
+  const sdPause = (ms) => new Promise((r) => setTimeout(r, ms));
+  function sdKind() {
+    if (!secDef || !policiesReadAt) return null;
+    return SecDefaults.verdict({ sd: secDef, count: policies.length, caps: secCaps, switched: secDef.enabled === false && !!sdSwitchLoad() });
+  }
+  function sdBreakGlass() { try { return (Baseline.withContract(Baseline.active()) || {}).breakGlassGroup || ""; } catch { return ""; } }
+  const sdBgKey = () => `${tenantId || "demo"}:${policiesReadAt}:${sdBreakGlass()}`;
+  function sdCoverage() {
+    const n = isDemo ? (sdBg ? sdBg.n : 2) : sdBg && sdBg.key === sdBgKey() ? sdBg.n : null;
+    return SecDefaults.coverage(policies, { breakGlass: sdBreakGlass(), bgMembers: n });
+  }
+  // The break-glass group's members, read once per policy read: the switch
+  // waits for them, because MFA for everyone without the emergency accounts
+  // carved out is the lockout security defaults never had.
+  async function sdBgRead() {
+    const key = sdBgKey(), name = sdBreakGlass();
+    if (isDemo || !name || (sdBg && sdBg.key === key)) return;
+    sdBg = { key, n: null };
+    try {
+      const hit = await Graph.ggetAll(`/groups?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id`);
+      if (!hit.length) sdBg = { key, n: -1 };
+      else { const m = await Graph.gget(`/groups/${hit[0].id}/members?$select=id&$top=25`); sdBg = { key, n: ((m && m.value) || []).length }; }
+    } catch (e) { console.warn("break-glass members:", e); sdBg = { key, n: -2 }; }
+    if (sdBg.key === sdBgKey()) sdPaint(true);
+  }
+  // The baselines on offer, with what this tenant's licences hold back.
+  function sdCatalogs() {
+    const lic = (re, not) => (c) => (c.policies || []).filter((p) => re.test(JSON.stringify([p.conditions, p.grant, p.name])) && !(not && not.test(JSON.stringify([p.conditions, p.name])))).length;
+    const p2Of = lic(/risk/i, /insider/i), purviewOf = lic(/insider/i);
+    return Baseline.catalogs().map((c0) => {
+      const c = Baseline.withContract(c0) || c0;
+      const n = (c.policies || []).length, p2 = p2Of(c), pv = purviewOf(c);
+      const points = c.id === "limonit"
+        ? [`Persona model — ${(c.personaGroups || []).length} persona groups, break-glass ${c.breakGlassGroup}`, "Loaded from your CloudFellows baseline backup ZIP, the six 🚨 E-Admins included"]
+        : ["Fewer, broader policies — his groups created by name", "Fetched live from his GitHub repository", `The six 🚨 E-Admins policies are created with it, from ENCA's own copy`];
+      if (secCaps && secCaps.p2 === false && p2) points.push(`${p2} risk ${p2 === 1 ? "policy needs" : "policies need"} Entra ID P2 — held back here`);
+      if (secCaps && secCaps.purview !== true && pv) points.push(`${pv} insider-risk ${pv === 1 ? "policy needs" : "policies need"} Purview Insider Risk Management — held back unless it is present`);
+      return { id: c.id, label: c.label, icon: c.icon, release: [c.release, c.line].filter(Boolean).join(" · "), total: n, points };
+    });
+  }
+  function sdCtx() {
+    let impact = null;
+    try { impact = riBusy || riCapped || !riReadAt || riReadAt < policiesReadAt || riReadTenant !== (tenantId || tenantName) ? null : { ...riRes, readAt: riReadAt }; } catch { impact = null; }
+    return { sd: secDef, caps: secCaps, count: policies.length, at: secDef && secDef.at, tenantName, demo: isDemo, impact,
+      reportOnly: policies.filter((p) => p.raw && p.raw.state === "enabledForReportingButNotEnforced").length,
+      off: policies.filter((p) => p.raw && p.raw.state === "disabled").length,
+      switched: sdSwitchLoad(), catalogs: sdCatalogs() };
+  }
+  function sdHtml() {
+    const kind = sdKind();
+    if (!kind) return "";
+    const ctx = sdCtx();
+    if (kind === "sd-on-policies" || kind === "sd-switched") {
+      const cov = kind === "sd-on-policies" ? sdCoverage() : null;
+      if (cov && cov.breakGlass.group && cov.breakGlass.members == null) setTimeout(() => { sdBgRead(); }, 0);
+      return SecDefaults.band(kind, cov, ctx);
+    }
+    return SecDefaults.startCard(kind, ctx);
+  }
+  function sdPaint(overviewToo) {
+    const el = $("blSecDef");
+    if (el) { try { el.innerHTML = sdHtml(); } catch (e) { console.warn("security defaults:", e); el.innerHTML = ""; } }
+    if (overviewToo) { try { renderOverview({ force: true }); } catch { /* not painted yet */ } }
+  }
+
+  // Step ①, either baseline: 📥 Import, new policies landing Report-only.
+  async function sdPick(id) {
+    const RO = "enabledForReportingButNotEnforced";
+    if (id === "joey") {
+      if (isDemo || typeof BaselineLive === "undefined") {
+        $("toolImport").click(); imLand = RO;
+        await imLoaded(E_ADMINS.bundle(), "Demo — Joey Verlinden's repository is not read in demo mode; ENCA's own copy of the six 🚨 E-Admins stands in for it");
+        return;
+      }
+      let b = BaselineLive.bundle();
+      if (!b || !b.complete) { toast("Reading the repository first…"); await blLiveFetch(true); b = BaselineLive.bundle(); }
+      if (!b || !b.complete) { toast(`Could not read the repository — <span>${esc(BaselineLive.status().error || "no usable read")}</span>. Download it and import the folder instead.`); return; }
+      $("toolImport").click(); imLand = RO;
+      await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`);
+      await imEaAddBundled({ auto: true });
+      $("imDesc").textContent = `Step ① of moving off security defaults: ${b.label} ${b.release}, every policy ticked, the six E-Admins from ENCA's own copy added. New policies land Report-only — nothing changes for users until ⇄ on the 🧬 Baseline screen.`;
+      return;
+    }
+    $("toolImport").click(); imLand = RO;
+    $("imDesc").textContent = "Step ① of moving off security defaults: choose the CloudFellows baseline backup ZIP. Every policy is listed for review and lands Report-only — nothing changes for users until ⇄ on the 🧬 Baseline screen.";
+    $("imZip").value = "";
+    $("imZip").click();
+  }
+
+  // ---- the writes ----
+  async function sdWriteSd(enabled) {
+    if (isDemo) { await sdPause(80); sdDemoState = enabled; return; }
+    await Graph.gpatch(SecDefaults.PATH, { isEnabled: enabled }, [...AUTH_CONFIG.scopes, ...SD_WRITE]);
+    for (const w of [0, 1000, 2000, 4000, 8000]) {
+      if (w) await sdPause(w);
+      const r = await Graph.gget(SecDefaults.PATH);
+      if (r && r.isEnabled === enabled) return;
+    }
+    throw new Error(`security defaults did not read back ${enabled ? "On" : "Off"} within 15 s — ⟳ read the tenant again before retrying`);
+  }
+  async function sdWriteState(p, state) {
+    if (isDemo) {
+      await sdPause(60);
+      const vm = policies.find((x) => x.id === p.id);
+      if (vm) { vm.raw.state = state; vm.state = state === "enabled" ? "on" : state === "disabled" ? "off" : "report"; }
+      return;
+    }
+    const url = `/identity/conditionalAccess/policies/${p.id}`;
+    await Graph.gpatch(url, { state }, [...AUTH_CONFIG.scopes, ...SD_WRITE]);
+    const back = await Importer.readSettled(url, (x) => x && x.state === state);
+    if (!back || back.state !== state) throw new Error(`written, but reads back as ${sdWord(back && back.state)}`);
+  }
+  let sdAction = null, sdPlan = [];
+  function sdOpen(kind) {
+    sdAction = kind;
+    const ctx = { tenantName, demo: isDemo };
+    $("sdLedger").innerHTML = "";
+    $("sdGo").style.display = ""; $("sdGo").disabled = false;
+    if (kind === "switch") {
+      const cov = sdCoverage();
+      if (!cov.ready) { toast("Not ready to switch yet — every ✗ on the band has to be ✓ first"); return; }
+      sdPlan = cov.toOn;
+      $("sdTitle").textContent = `⇄ Switch ${tenantName || "this tenant"} from security defaults to Conditional Access`;
+      $("sdBody").innerHTML = SecDefaults.switchBody(cov, ctx);
+    } else if (kind === "back") {
+      const rec = sdSwitchLoad();
+      if (!rec) { toast("Nothing to undo — no switch was recorded in this browser"); return; }
+      $("sdTitle").textContent = `↩ Back to security defaults in ${tenantName || "this tenant"}`;
+      $("sdBody").innerHTML = SecDefaults.backBody(rec, ctx);
+    } else {
+      $("sdTitle").textContent = `Turn security defaults on in ${tenantName || "this tenant"}`;
+      $("sdBody").innerHTML = SecDefaults.turnOnBody(ctx);
+    }
+    sdGoLabel();
+    $("sdModal").classList.add("open");
+  }
+  function sdGoLabel() {
+    const n = [...document.querySelectorAll("#sdBody [data-sdpol]")].filter((x) => x.checked).length;
+    const rec = sdAction === "back" ? sdSwitchLoad() : null;
+    $("sdGo").textContent = sdAction === "switch" ? `Switch — security defaults Off, ${n} ${n === 1 ? "policy" : "policies"} On`
+      : sdAction === "back" ? `↩ Back — ${(rec && rec.policies.length) || 0} back, security defaults On` : "Turn security defaults on";
+    if (sdAction === "switch") $("sdGo").disabled = !n;
+  }
+  $("sdBody").addEventListener("change", (e) => { if (e.target.matches("[data-sdpol]")) sdGoLabel(); });
+  $("sdCancel").addEventListener("click", () => $("sdModal").classList.remove("open"));
+  async function sdAfterRun() {
+    if (isDemo) { secDef = { enabled: !!sdDemoState, at: Date.now(), error: null }; refreshViews(); sdPaint(true); if (shownScreen === "screen-baseline") openBaseline(blCat, true); return; }
+    await loadFromGraph(true);
+    if (shownScreen === "screen-baseline") openBaseline(blCat, true);
+  }
+  async function sdSwitchRun() {
+    const picks = [...document.querySelectorAll("#sdBody [data-sdpol]")].filter((x) => x.checked).map((x) => sdPlan[+x.dataset.sdpol]).filter(Boolean);
+    if (!picks.length) { toast("Tick at least one policy"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SD_WRITE])) return;
+    $("sdGo").disabled = true;
+    document.querySelectorAll("#sdBody input").forEach((x) => { x.disabled = true; });
+    const last = picks.length + 1;
+    const L = RunLedger.create($("sdLedger"), { unit: "steps", title: "switch from security defaults", items: [
+      { label: "Security defaults → Off", sub: "read back until Entra says so" },
+      ...picks.map((p) => ({ label: p.name, sub: `${sdWord(p.state)} → On` })),
+      { label: "Security defaults read back" }] });
+    const rec = { at: new Date().toISOString(), policies: [] };
+    let off = false, failed = 0, fatal = null;
+    try {
+      // the tenant as it is NOW, not as it was read
+      if (!isDemo) { const cur = await Graph.gget(SecDefaults.PATH); if (cur && cur.isEnabled === false) { off = true; L.skip(0, "already Off"); } }
+      if (!off) { L.start(0); await sdWriteSd(false); off = true; L.done(0, "Off", "written"); }
+    } catch (e) { fatal = e; L.fail(0, `${e.message || e} — no policy was changed`); }
+    if (off) {
+      for (let i = 0; i < picks.length; i++) {
+        L.start(i + 1);
+        try { await sdWriteState(picks[i], "enabled"); rec.policies.push({ id: picks[i].id, name: picks[i].name, prev: picks[i].state }); L.done(i + 1, "On", "written"); }
+        catch (e) { failed++; L.fail(i + 1, e.message || String(e)); }
+      }
+      L.start(last);
+      if (!rec.policies.length) {
+        // NEVER NEITHER: security defaults is off and nothing went On — put it back.
+        try { await sdWriteSd(true); L.part(last, "no policy went On, so security defaults was turned back On — the tenant is as it was"); off = false; }
+        catch (e) { L.fail(last, `no policy went On AND security defaults could not be turned back on (${e.message || e}) — turn it on in Entra now: Overview → Properties → Manage security defaults`); }
+      } else if (isDemo) L.done(last, "Off (simulated)");
+      else {
+        try { const r = await Graph.gget(SecDefaults.PATH); (r && r.isEnabled === false ? L.done : L.fail)(last, r && r.isEnabled === false ? "Off" : "reads On again — check Entra"); }
+        catch (e) { L.fail(last, e.message || String(e)); }
+      }
+    } else for (let i = 0; i <= picks.length; i++) L.skip(i + 1, "not attempted");
+    L.finish();
+    if (rec.policies.length) sdSwitchSave(rec);
+    $("sdGo").style.display = "none";
+    toast(fatal ? `Nothing changed — <span>${esc(fatal.message || fatal)}</span>`
+      : !rec.policies.length ? "No policy went On — security defaults is <span>back on</span>"
+      : failed ? `Switched with <span>${failed} failure(s)</span> — the reasons are on the rows; ↩ is on the band`
+      : `<span>Conditional Access</span> protects ${esc(tenantName || "the tenant")} now — ${rec.policies.length} ${rec.policies.length === 1 ? "policy" : "policies"} On, security defaults Off${isDemo ? " (simulated)" : ""}`);
+    if (!fatal) await sdAfterRun();
+  }
+  async function sdBackRun() {
+    const rec = sdSwitchLoad(); if (!rec) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SD_WRITE])) return;
+    $("sdGo").disabled = true;
+    const ps = rec.policies, last = ps.length;
+    const L = RunLedger.create($("sdLedger"), { unit: "steps", title: "back to security defaults", items: [
+      ...ps.map((p) => ({ label: p.name, sub: `On → ${sdWord(p.prev)}` })), { label: "Security defaults → On", sub: "read back until Entra says so" }] });
+    const done = [];
+    for (let i = 0; i < ps.length; i++) {
+      L.start(i);
+      try { await sdWriteState(ps[i], ps[i].prev); done.push(ps[i]); L.done(i, sdWord(ps[i].prev)); }
+      catch (e) { L.fail(i, e.message || String(e)); }
+    }
+    L.start(last);
+    let back = false;
+    try { await sdWriteSd(true); back = true; L.done(last, "On", "written"); }
+    catch (e) {
+      // never neither: what this run took off goes On again at once
+      let again = 0;
+      for (const p of done) { try { await sdWriteState(p, "enabled"); again++; } catch (e2) { console.warn("roll forward:", e2); } }
+      L.fail(last, `${e.message || e} — Entra refuses security defaults while a policy is On; the ${again} ${again === 1 ? "policy" : "policies"} this run had taken back ${again === 1 ? "is" : "are"} On again, so Conditional Access still protects the tenant`);
+    }
+    L.finish();
+    if (back) sdSwitchSave(null);
+    $("sdGo").style.display = "none";
+    toast(back ? `Security defaults is <span>on</span> again${isDemo ? " (simulated)" : ""}` : "Security defaults could not be turned on — <span>Conditional Access stays</span>; the reason is on the last row");
+    await sdAfterRun();
+  }
+  async function sdTurnOnRun() {
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SD_WRITE])) return;
+    $("sdGo").disabled = true;
+    const L = RunLedger.create($("sdLedger"), { unit: "steps", items: [{ label: "Security defaults → On", sub: "read back until Entra says so" }] });
+    L.start(0);
+    let ok = false;
+    try { await sdWriteSd(true); ok = true; L.done(0, "On", "written"); } catch (e) { L.fail(0, e.message || String(e)); }
+    L.finish();
+    $("sdGo").style.display = "none";
+    toast(ok ? `Security defaults is <span>on</span>${isDemo ? " (simulated)" : ""}` : "Security defaults could not be turned on — the reason is on the row");
+    if (ok) await sdAfterRun();
+  }
+  $("sdGo").addEventListener("click", async () => {
+    if (sdAction === "switch") await sdSwitchRun();
+    else if (sdAction === "back") await sdBackRun();
+    else if (sdAction === "turnon") await sdTurnOnRun();
+  });
+  // One listener for the card and the band, wherever they are painted.
+  document.addEventListener("click", async (e) => {
+    const t = e.target.closest("[data-sdpick],[data-sdswitch],[data-sdimpact],[data-sdback],[data-sddone],[data-sdturnon],[data-sdread]");
+    if (!t || t.disabled || !t.closest(".sd-card, .sd-band")) return;
+    if (t.dataset.sdpick) { await sdPick(t.dataset.sdpick); return; }
+    if (t.hasAttribute("data-sdswitch")) { sdOpen("switch"); return; }
+    if (t.hasAttribute("data-sdback")) { sdOpen("back"); return; }
+    if (t.hasAttribute("data-sdturnon")) { sdOpen("turnon"); return; }
+    if (t.hasAttribute("data-sdimpact")) { openImpact(); return; }
+    if (t.hasAttribute("data-sddone")) { sdSwitchSave(null); sdPaint(true); toast("Conditional Access it is — the switch note is hidden"); return; }
+    if (t.hasAttribute("data-sdread")) { if (isDemo) loadDemo(); else await loadFromGraph(true); if (shownScreen === "screen-baseline") openBaseline(blCat, true); }
   });
 
   // ---------- CA Exclusion analyzer ----------
@@ -26950,7 +27294,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (leadEl) leadEl.textContent = Overview.lead(base);
     host.hidden = false;
     if (isRaw) isRebuild();
+    if (status.kind === "empty" && secDef) status.sd = secDef.enabled;
     let html = Overview.header({ ...base, counts, status, idScore: policies.length ? IdScore.dashboardTile(isModel, { busy: isBusy, error: isErr }) : null });
+    // 32706 — the security defaults card or band, the same one 🧬 Baseline shows
+    if (!ovLoading) { try { html += sdHtml(); } catch (e) { console.warn("security defaults:", e); } }
     if (policies.length) {
       // what the two retirement tools found in THIS tenant, once they have run
       const impact = {};
@@ -29034,6 +29381,7 @@ This is a directory write. Nothing else changes.`)) return;
     prepareJoey: async bundle => {
       $("toolImport").click();
       await imLoaded(bundle, `Joey Verlinden ${bundle.release} — fetched at ${String(bundle.commit || '').slice(0, 7)}`);
+      await imEaAddBundled({ auto: true });
     },
     impact: () => riBusy || riCapped || !riReadAt || riReadAt < policiesReadAt || riReadTenant !== (tenantId || tenantName) ? null : { ...riRes, readAt: riReadAt, days: riDays },
     state: () => { $("toolPolicies").click(); $("selActState").click(); },

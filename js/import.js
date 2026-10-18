@@ -1720,12 +1720,24 @@ const Importer = (() => {
           saved = await readSettled(url, null, waits);
           if (!contains(saved, staged)) throw new Error("Stored policy differs from the approved plan");
           if (payload.state !== "disabled") {
-            await Graph.gpatch(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE]);
-            saved = await readSettled(url, (s) => contains(s, payload), waits);
-            if (!contains(saved, payload)) throw new Error("Activated policy could not be verified");
+            try {
+              await Graph.gpatch(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE]);
+              saved = await readSettled(url, (s) => contains(s, payload), waits);
+              if (!contains(saved, payload)) throw new Error("Activated policy could not be verified");
+            } catch (e) {
+              // 32706: the state came from the import's own "Land new policies
+              // as" choice (Report-only on a security-defaults tenant), not from
+              // the file. Microsoft Learn does not say outright that Graph takes
+              // a Report-only policy while security defaults is on, so a refusal
+              // here leaves the policy as created — verified, Off — and says so,
+              // instead of failing a policy that exists and is correct.
+              if (!c.softState) throw e;
+              warnings.push(`${it.name}: created Off — Entra refused ${STATE_WORD[payload.state] || payload.state} (${e.message || e})`);
+              c.landedOff = true;
+            }
           }
         }
-        const newState = payload.state;
+        const newState = c.landedOff ? "disabled" : payload.state;
         let disabledOld = false;
         const oldName = it.existing?.name || null;
         if (supersedes) {
@@ -1761,6 +1773,16 @@ const Importer = (() => {
         let payload = buildPolicyPayload(it.raw, maps, gid, warnings, it.asIs, matchFrom, switching || shipped);
         // E-Admins taken from another backup land Off, whatever their source state
         if (it.forceOff) payload.state = "disabled";
+        // 32706 — "Land new policies as": Off (the default since the first
+        // import) or Report-only, which a tenant moving off security defaults
+        // needs for step ② (Report-only impact). Only a NEW policy that would
+        // land Off moves; a forced-Off E-Admins policy and a replacement that
+        // takes over its predecessor's state do not.
+        let softState = false;
+        if (opts.landState === "enabledForReportingButNotEnforced" && !it.forceOff && !matchFrom && payload.state === "disabled") { payload.state = opts.landState; softState = true; }
+        // Entra will not turn a policy On while security defaults is on: a file
+        // that ships one On (an as-is E-Admins policy) lands Report-only there.
+        if (opts.sdOn && payload.state === "enabled" && !matchFrom) { payload.state = "enabledForReportingButNotEnforced"; softState = true; warnings.push(`${it.name}: the file ships it On — it lands Report-only, because security defaults is on in this tenant`); }
         // agent policies go out in the create shape Graph documents
         const agentNotes = [];
         let retryWithoutContext = false;
@@ -1793,7 +1815,7 @@ const Importer = (() => {
         }
         if (!created?.id) throw new Error("Create returned no policy id; verify the tenant before retrying. Previous policy was not changed.");
         createdId = created.id;
-        const c = { it, created, staged, payload, supersedes, matchFrom, dropped, agentNotes, replace, switching, shipped, warnings };
+        const c = { it, created, staged, payload, supersedes, matchFrom, dropped, agentNotes, replace, switching, shipped, warnings, softState };
         let r;
         try { r = await afterCreate(c, opts.readWaits); }
         catch (e) {

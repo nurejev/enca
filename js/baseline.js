@@ -655,7 +655,7 @@ const Baseline = (() => {
     const sharedOk = res.rows.filter((r) => r.shared && r.tenant && r.status !== "conflict").length;
     const parts = [];
     parts.push(`<b>${own} of ${esc(cat.label)}${/s$/i.test(cat.label) ? "'" : "'s"} ${ownTotal} policies are in this tenant</b>${res.shared ? `, plus ${sharedOk} of the ${res.shared} 🚨 E-Admins policies every baseline expects` : ""}.`);
-    if (n("missing")) parts.push(`<b>${n("missing")} missing</b> — no policy with that CA number here${res.toImportShared && res.toImportShared.length ? ` (${res.toImportShared.length} of them E-Admins, which only the CloudFellows backup ships)` : ""}.`);
+    if (n("missing")) parts.push(`<b>${n("missing")} missing</b> — no policy with that CA number here${res.toImportShared && res.toImportShared.length ? ` (${res.toImportShared.length} of them E-Admins — 📥 Import creates them from ENCA's own copy)` : ""}.`);
     if (n("outdated")) parts.push(`<b>${n("outdated")} outdated</b> — deployed at an older version than the baseline.`);
     if (n("conflict")) {
       const who = tally(res.rows.filter((r) => r.status === "conflict"));
@@ -699,7 +699,7 @@ const Baseline = (() => {
         <div style="font-size:26px;font-weight:700">${res.coverage}%<span class="mini" style="font-weight:400"> coverage</span></div>
         <div class="mini">${res.covered} of ${res.baselineTotal} expected policies present</div>
         ${res.shared ? `<div class="mini" title="Emergency access is expected whichever baseline a tenant deploys; only the CloudFellows catalog writes these policies out, so they are listed under every catalog.">${res.baselineTotal - res.shared} of ${esc(res.catalog.label)} + ${res.shared} 🚨 E-Admins every baseline expects</div>` : ""}
-        <div class="mini"><b>${res.toImport.length}</b> to import${gap.length ? ` (${gap.join(" + ")})` : ""}${res.toImportShared && res.toImportShared.length ? ` · +${res.toImportShared.length} E-Admins from the CloudFellows backup` : ""}</div>
+        <div class="mini"><b>${res.toImport.length}</b> to import${gap.length ? ` (${gap.join(" + ")})` : ""}${res.toImportShared && res.toImportShared.length ? ` · +${res.toImportShared.length} E-Admins from ENCA's own copy` : ""}</div>
         ${res.catalog.note ? `<div class="mini" style="max-width:280px;margin-top:6px">${esc(res.catalog.note)}</div>` : ""}
       </div>
     </div>
@@ -1216,7 +1216,7 @@ const Baseline = (() => {
     ["missing", "conflict", "outdated", "ok", "present", "ahead", "unversioned", "extra"].forEach((k) => {
       if (res.counts[k]) L.push(`- ${STATUS[k].label}: **${res.counts[k]}**`);
     });
-    L.push(`- Import would add or update **${res.toImport.length}** policies${res.toImportShared && res.toImportShared.length ? `, plus **${res.toImportShared.length}** shared E-Admins policies from the CloudFellows backup` : ""}.`);
+    L.push(`- Import would add or update **${res.toImport.length}** policies${res.toImportShared && res.toImportShared.length ? `, plus **${res.toImportShared.length}** shared E-Admins policies, created from ENCA's own copy` : ""}.`);
     L.push("");
     L.push("| Status | CA | Baseline policy | In tenant | Version |");
     L.push("| --- | --- | --- | --- | --- |");
