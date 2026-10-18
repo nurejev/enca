@@ -121,7 +121,17 @@ param(
   # separately in the browser when the Azure area is switched on. Nothing to
   # add here for it - the signed-in user just needs Reader on the scopes they
   # want to see.
-  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "AdministrativeUnit.ReadWrite.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "Group-NestingSupport.ReadWrite.All", "DirectoryRecommendations.Read.All", "CrossTenantInformation.ReadBasic.All", "RoleManagement.ReadWrite.CloudPC"),
+  # App access review (T60, 32804) writes - each asked for at the click:
+  # AppRoleAssignment.ReadWrite.All: assign a group to an app (Restrict) and
+  # take an application permission away from an app or give it back.
+  # DelegatedPermissionGrant.ReadWrite.All: take delegated permissions, or a
+  # user's own consent, away from an app and give them back.
+  # Policy.ReadWrite.ConsentRequest: switch the admin consent requests (admin
+  # consent workflow) on or off with a group as reviewers.
+  # The role still decides: Cloud Application Administrator or Application
+  # Administrator; Privileged Role Administrator to give a Microsoft Graph
+  # application permission back.
+  [string[]]$DelegatedScopes = @("Policy.Read.All", "Directory.Read.All", "AuditLog.Read.All", "AdministrativeUnit.ReadWrite.All", "Agreement.Read.All", "Application.Read.All", "Application.ReadWrite.All", "Policy.ReadWrite.ConditionalAccess", "Policy.ReadWrite.AuthenticationMethod", "Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "RoleManagement.Read.Directory", "EntitlementManagement.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "DeviceManagementServiceConfig.Read.All", "DeviceManagementScripts.Read.All", "Group-NestingSupport.ReadWrite.All", "DirectoryRecommendations.Read.All", "CrossTenantInformation.ReadBasic.All", "RoleManagement.ReadWrite.CloudPC", "AppRoleAssignment.ReadWrite.All", "DelegatedPermissionGrant.ReadWrite.All", "Policy.ReadWrite.ConsentRequest"),
   [switch]$SkipAdminConsent
 )
 

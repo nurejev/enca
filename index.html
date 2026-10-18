@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=32803"></script>
+<script src="js/popup-guard.js?v=32804"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=32803" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=32803">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=32804" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=32804">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=32803"></script>
+<script src="js/selfhost-boot.js?v=32804"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=32803"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32803"></script>
-<link rel="stylesheet" href="css/workspace.css?v=32803">
-<link rel="stylesheet" href="css/workspaces.css?v=32803">
-<link rel="stylesheet" href="css/tool-layout.css?v=32803">
-<link rel="stylesheet" href="css/list-detail.css?v=32803">
-<link rel="stylesheet" href="css/flat-icons.css?v=32803">
+<script src="js/counter.js?v=32804"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=32804"></script>
+<link rel="stylesheet" href="css/workspace.css?v=32804">
+<link rel="stylesheet" href="css/workspaces.css?v=32804">
+<link rel="stylesheet" href="css/tool-layout.css?v=32804">
+<link rel="stylesheet" href="css/list-detail.css?v=32804">
+<link rel="stylesheet" href="css/flat-icons.css?v=32804">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32803" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=32804" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32803" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=32804" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -234,6 +234,10 @@
       <div class="tool tool-tile" id="toolDeviceCleanup">
         <div class="tool-ic">🧹</div><h3>Entra device cleanup <span class="tag new">BETA</span> <span class="tag new">NEW</span> <span class="tag upd">UPDATED</span></h3>
         <p><b>Workspace 03 · Entra Tools.</b> Stale directory devices in two deliberate steps: <b>disable</b> after 30 days without contact, <b>delete</b> after 90 — and only what is already disabled. Every write reads the device again first and back after; a device that woke up is skipped, one re-enabled since is never deleted, and ↩ Re-enable takes a disable back. A Markdown report of everything done. Ported from TUNO T25. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool tool-tile" id="toolAppAccess">
+        <div class="tool-ic">🔑</div><h3>App access review <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
+        <p><b>Workspace 03 · Entra Tools.</b> Every app that can reach this tenant’s data — <b>what it can do</b>, <b>who let it in</b>, <b>whether it is still used</b> — one row per app with the verdict in plain words. App governance for tenants without Defender for Cloud Apps (Business Premium): Tier 0 and endpoint apps first, unverified publishers, unused apps and client secrets; <b>who can do what</b> (assign roles, push to every device, reach every mailbox); the consent settings; and per app approve, restrict, reduce, quarantine or remove — each with its impact and way back first, the decision written on the app. Markdown report and CSV. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolEgress">
         <div class="tool-ic">🛰</div><h3>Egress &amp; location impact <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
@@ -1555,6 +1559,25 @@
     <div class="tool-body" id="dcuBody"></div>
   </section>
 
+  <!-- ============ 🔑 APP ACCESS REVIEW (T60, build 32804) — js/appaccess.js reads, judges, writes, reports; app.js draws ============ -->
+  <section id="screen-aa" class="screen tool">
+    <div class="list-card readme" id="aaHead"></div>
+    <div class="toolbar" id="aaToolbar">
+      <div class="dd-read mini muted" id="aaRead"></div>
+      <div class="tb-actions">
+        <button class="btn" id="aaRefresh" title="Read the service principals, grants, roles and consent settings again">↻ Read again</button>
+        <button class="btn" id="aaAudit" title="Read the last sign-in of every app and who consented in the last 30 days (AuditLog.Read.All, asked once)">⌚ Last use &amp; who consented</button>
+        <button class="btn" id="aaPartnersBtn" title="The tenants whose apps count as partner apps">⚙ Partners</button>
+        <button class="btn" id="aaCustomBtn" title="Your own classification in the community table’s format: Type, Permission, Privilege, Reason">📥 Your table</button>
+        <input type="file" id="aaCustomFile" accept=".csv,text/csv" hidden>
+        <button class="btn" id="aaMd">📝 Report</button>
+        <button class="btn" id="aaCsv" title="One row per app">⬇ CSV</button>
+        <button class="btn" id="aaPermCsv" title="One row per app and permission">⬇ Permissions CSV</button>
+      </div>
+    </div>
+    <div class="tool-body" id="aaBody"></div>
+  </section>
+
   <section id="screen-egress" class="screen tool">
     <div class="list-card readme" id="egHead"></div>
     <div class="list-card" id="egForm"></div>
@@ -1802,6 +1825,10 @@
         </div>
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
+          <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R90</span> <a href="#" class="md-tool" data-tool="toolAppAccess">🔑 App access review — app governance for Business Premium</a> <span class="tag ok">in beta today · beta 32804</span></h4>
+            <p class="mini" style="margin:0">T60 in Workspace 03, a new 🔌 Applications group: every app that can reach the tenant's data — what it can do, who let it in, whether it is still used — judged per app instead of per permission name, Tier 0 and endpoint apps first. Who can do what as a matrix, users' own consents, the consent settings with the admin consent requests switched on from here, and per app approve, restrict, reduce, quarantine or remove, each with its impact and way back, the decision written on the app's Notes. Markdown report and CSV. For tenants without Defender for Cloud Apps app governance; replaces the community Export-MsIdAppConsentGrantReport workbook.</p>
+          </div>
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R88</span> <a href="#" class="md-tool" data-tool="toolDeviceCleanup">🧹 Entra device cleanup — stale devices out in two steps</a> <span class="tag ok">in beta today · beta 32707</span></h4>
             <p class="mini" style="margin:0">T59 in Workspace 03, ported from TUNO T25: disable after 30 days without contact, delete after 90 and only what is already disabled, every write read again and read back, re-enable as the way back, and one Markdown report.</p>
@@ -2895,10 +2922,10 @@
     </section>
     <section class="help-sec">
       <h4>🔢 Tool numbers</h4>
-      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T59</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
+      <p>Each tool carries a permanent <b>T-number</b> — <code>T01</code> to <code>T60</code> — shown in the corner of its tile and in its own header beside the per-tool version. Quote it and it means one thing: across the beta and production channels, in every build, and in any future translation of the interface.</p>
       <ul>
         <li><b>Assigned in the order the tool entered ENCA</b>, reconstructed from the repository rather than by preference — the first commit that added each tile, in commit order. So <code>T01</code>–<code>T04</code> are 🗂 List Policies, 📄 Create documentation, 🔍 Gap analyse and 🗄 Backup: the day this app existed at all.</li>
-        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T59</code> is next.</li>
+        <li><b>Never reused.</b> Not when a tool is retired, not when it is folded into another. A recycled number would make every older note about it wrong, which is exactly what the number exists to prevent. A new tool takes the next free number — <code>T61</code> is next.</li>
         <li><b>Folded tools keep their number, and the mapping is published here.</b> A rule that says a number is never reused is only worth something if you can still find out what the number means. Twenty-one numbers have no tile of their own:
           <ul>
             <li><code>T02</code> 📄 Create documentation → <b>🗂 Policies</b>, action bar (build 25338)</li>
@@ -3302,6 +3329,19 @@
         <li><b>Results</b> — the run ledger, as on every batch write: a row per device turning disabled, re-enabled, deleted, skipped, refused or failed, with ■ Stop between rows. <b>📝 Report</b> writes one Markdown file: the summary, every action with its outcome, and what is left.</li>
       </ul>
       <p class="help-x">Writes need <code>Device.ReadWrite.All</code> — asked for at the click, and new in <code>New-EncaAppRegistration.ps1</code> at this build, so a customer tenant gives admin consent once more. Consent is not enough on its own: Graph lets only a directory role that may change devices write them — Cloud Device Administrator or Intune Administrator. A 403 after consent is that role gate, and the row says so.</p>
+    </section>
+    <section class="help-sec">
+      <h4>🔑 App access review <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p><b>Workspace 03 · Entra Tools, T60.</b> App governance for tenants without Defender for Cloud Apps — Microsoft 365 Business Premium, Entra ID P1. Every app that can reach this tenant's data, one row per app: <b>what it can do</b>, <b>who let it in</b>, <b>whether it is still used</b>, and a verdict in plain words. It replaces the community <code>Export-MsIdAppConsentGrantReport</code> workbook: same data, read correctly, judged per app instead of per permission name, and with a decision you can act on and find again.</p>
+      <ul>
+        <li><b>The read</b> — the service principals with their application permissions, every delegated grant (<code>oauth2PermissionGrants</code>), the app registrations (owners, secrets, certificates), the directory roles held by apps, and the consent settings. Nothing new is needed to read: the read permissions held from sign-in cover it. Graph returns at most 20 application permissions per app in this read and says nothing about the rest; an app that comes back with 20 is read again on its own, so an app with 88 shows 88. <b>⌚ Last use &amp; who consented</b> adds the last sign-in of every app and the consent events of the last 30 days (<code>AuditLog.Read.All</code>, asked once, plus Reports Reader, Security Reader or Security Administrator).</li>
+        <li><b>The verdict</b> — a tier per app, the worst of what it holds: <b>TIER 0</b> (can give itself or others more: assign roles, grant permissions, change authentication or Conditional Access), <b>ENDPOINT</b> (can push to every device), <b>HIGH</b>, <b>MEDIUM</b>, <b>LOW</b>, <b>INFO</b>. A delegated permission tops out at HIGH: it acts as the signed-in user and never more. The origin is said too — your organisation, a partner (Limon-IT, Dovilo, CloudFellows; ⚙ Partners edits the list), Microsoft, or a third party with its verified publisher or the word unverified. Microsoft's admin tools (Graph CLI, Graph Explorer, Azure CLI and PowerShell, the Exchange, SharePoint and Teams shells) are judged like any third-party app, because a consent to them is a consent to everything they can ask for. <b>📥 Your table</b> loads your own classification in the community format (Type, Permission, Privilege, Reason) and it wins over the built-in rules.</li>
+        <li><b>The tabs</b> — <b>Needs a decision</b> (Tier 0 and endpoint first, then unverified, unused for 90 days, client secrets, consented for every user), <b>All apps</b>, <b>Who can do what</b> (a matrix: who can assign roles, change Conditional Access, push to devices, read every mailbox, reach every file — one click opens the app), <b>Users' own consents</b>, <b>Consent settings</b> and <b>Decisions</b>. Click a row for the app's card: the plain verdict, the facts, every permission with why it matters, and the five rungs.</li>
+        <li><b>Five rungs</b>, mildest first, each with its impact and its way back before the button. <b>✓ Approve</b> changes nothing. <b>👥 Restrict</b> assigns one group and switches assignment required on — anyone outside is refused at sign-in (direct members only). <b>✂ Reduce</b> revokes the permissions you tick. <b>🧊 Quarantine</b> disables sign-in for this tenant; <b>↻ Enable again</b> undoes it with nothing lost. <b>🗑 Remove</b> revokes every grant and deletes the service principal, and only after a quarantine. Every decision is written to the app's own <b>Notes</b> field as one line — <code>ENCA T60 · Quarantined 2026-10-18 · by · review 2027-01-18 · reason</code> — so it is in Entra, not in a spreadsheet, and the next read shows it. <b>↩ Grant back</b> and <b>↩ Restore</b> (within 30 days) sit on Decisions; this browser keeps what was taken. ENCA's own registration is refused for every rung but Approve, and Microsoft's own services for Revoke and Remove.</li>
+        <li><b>Consent settings</b> — who may consent (users, to what), the admin consent requests (admin consent workflow) and the low-impact permission classification, each with Microsoft's recommendation. <b>Switch admin consent requests on</b> with a group as reviewers and the days a request stays open: users then ask instead of being stopped cold, and the request reaches the group.</li>
+        <li><b>Report</b> — <b>📝 Report</b> writes one Markdown file (the summary, the queue with the reason for each app, the matrix, the settings and the decisions). <b>⬇ CSV</b> has one row per app; <b>⬇ Permissions CSV</b> one row per app and permission.</li>
+      </ul>
+      <p class="help-x">Writes are asked for at the click and are new in <code>New-EncaAppRegistration.ps1</code> at this build, so a customer tenant gives admin consent once more: <code>Application.ReadWrite.All</code> (Notes, sign-in on or off, delete and restore), <code>AppRoleAssignment.ReadWrite.All</code> (Restrict, and taking an application permission away or back), <code>DelegatedPermissionGrant.ReadWrite.All</code> (taking delegated permissions or a user's consent away or back) and <code>Policy.ReadWrite.ConsentRequest</code> (the admin consent requests). Roles: Cloud Application Administrator or Application Administrator for the apps and for the admin consent requests; Privileged Role Administrator to give a Microsoft Graph application permission back.</p>
     </section>
     <section class="help-sec">
       <h4>🛰 Egress &amp; location impact <span class="tag new">BETA</span></h4>
@@ -4192,121 +4232,122 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=32803"></script>
-<script src="js/selfhost.js?v=32803"></script>
-<script src="js/version.js?v=32803"></script>
-<script src="js/verdict.js?v=32803"></script>
-<script src="js/fork.js?v=32803"></script>
-<script src="js/promote.js?v=32803"></script>
-<script src="js/authConfig.js?v=32803"></script>
-<script src="js/connection.js?v=32803"></script>
-<script src="js/labels.js?v=32803"></script>
-<script src="js/capabilities.js?v=32803"></script>
-<script src="js/graph.js?v=32803"></script>
-<script src="js/model.js?v=32803"></script>
-<script src="js/render.js?v=32803"></script>
-<script src="js/analyze.js?v=32803"></script>
-<script src="js/whatif.js?v=32803"></script>
-<script src="js/mslearn.js?v=32803"></script>
-<script src="js/learntriage.js?v=32803"></script>
-<script src="js/learnfeed.js?v=32803"></script>
-<script src="js/gapcheck.js?v=32803"></script>
-<script src="js/cisdata.js?v=32803"></script>
-<script src="js/cischeck.js?v=32803"></script>
-<script src="js/exclusions.js?v=32803"></script>
-<script src="js/cascope.js?v=32803"></script>
-<script src="js/coverage.js?v=32803"></script>
-<script src="js/runmeta.js?v=32803"></script>
-<script src="js/overview.js?v=32803"></script>
-<script src="js/validator.js?v=32803"></script>
-<script src="js/whatifeval.js?v=32803"></script>
-<script src="js/builder.js?v=32803"></script>
-<script src="js/onboard.js?v=32803"></script>
-<script src="js/compare.js?v=32803"></script>
-<script src="js/whois.js?v=32803"></script>
-<script src="js/wave.js?v=32803"></script>
-<script src="js/sessionctl.js?v=32803"></script>
-<script src="js/spgap.js?v=32803"></script>
-<script src="js/groupuse.js?v=32803"></script>
-<script src="js/iso3166.js?v=32803"></script>
-<script src="js/causes.js?v=32803"></script>
-<script src="js/locations.js?v=32803"></script>
-<script src="js/locsignin.js?v=32803"></script>
-<script src="js/workloadid.js?v=32803"></script>
-<script src="js/authcontexts.js?v=32803"></script>
-<script src="js/authstrengths.js?v=32803"></script>
-<script src="js/recycle.js?v=32803"></script>
-<script src="js/rmau.js?v=32803"></script>
-<script src="js/auinv.js?v=32803"></script>
-<script src="js/camap.js?v=32803"></script>
-<script src="js/rmaudoc.js?v=32803"></script>
-<script src="js/termsofuse.js?v=32803"></script>
-<script src="js/audit.js?v=32803"></script>
-<script src="js/drift.js?v=32803"></script>
-<script src="js/guide.js?v=32803"></script>
-<script src="js/userimpact.js?v=32803"></script>
-<script src="js/smsvoice.js?v=32803"></script>
-<script src="js/memberof.js?v=32803"></script>
-<script src="js/devcheck.js?v=32803"></script>
-<script src="js/idscore.js?v=32803"></script>
-<script src="js/xtenant.js?v=32803"></script>
-<script src="js/passkeys.js?v=32803"></script>
-<script src="js/tokencov.js?v=32803"></script>
-<script src="js/naming.js?v=32803"></script>
-<script src="js/licgap.js?v=32803"></script>
-<script src="js/teamsdev.js?v=32803"></script>
-<script src="js/signinstore.js?v=32803"></script>
-<script src="js/signins.js?v=32803"></script>
-<script src="js/reportimpact.js?v=32803"></script>
-<script src="js/changelog.js?v=32803"></script>
-<script src="js/baselineData.js?v=32803"></script>
-<script src="js/baselineJoeyData.js?v=32803"></script>
-<script src="js/baselineLive.js?v=32803"></script>
-<script src="js/pimBaselineData.js?v=32803"></script>
-<script src="js/pimbaseline.js?v=32803"></script>
-<script src="js/pimplan.js?v=32803"></script>
-<script src="js/pimrmau.js?v=32803"></script>
-<script src="js/intunerbac.js?v=32803"></script>
-<script src="js/pimroles.js?v=32803"></script>
-<script src="js/pimreport.js?v=32803"></script>
-<script src="js/pimdoc.js?v=32803"></script>
-<script src="js/pimmodules.js?v=32803"></script>
-<script src="js/pimdeploy.js?v=32803"></script>
-<script src="js/pimscript.js?v=32803"></script>
-<script src="js/pimdesigner.js?v=32803"></script>
-<script src="js/pimcatalog.js?v=32803"></script>
-<script src="js/pimlens.js?v=32803"></script>
-<script src="js/baseline.js?v=32803"></script>
-<script src="js/eadminsData.js?v=32803"></script>
-<script src="js/secdefaults.js?v=32803"></script>
-<script src="js/baselineCleanup.js?v=32803"></script>
-<script src="js/groupTemplates.js?v=32803"></script>
-<script src="js/assign.js?v=32803"></script>
-<script src="js/cagroups.js?v=32803"></script>
-<script src="js/groupmerge.js?v=32803"></script>
-<script src="js/dgfill.js?v=32803"></script>
-<script src="js/deploydash.js?v=32803"></script>
-<script src="js/trv2.js?v=32803"></script>
-<script src="js/gsa.js?v=32803"></script>
-<script src="js/egress.js?v=32803"></script>
-<script src="js/devicecleanup.js?v=32803"></script>
-<script src="js/groupsview.js?v=32803"></script>
-<script src="js/runledger.js?v=32803"></script>
-<script src="js/bgvault.js?v=32803"></script>
-<script src="js/protect.js?v=32803"></script>
-<script src="js/policy-compare.js?v=32803"></script>
-<script src="js/import.js?v=32803"></script>
-<script src="js/export.js?v=32803"></script>
-<script src="js/demo.js?v=32803"></script>
-<script src="js/list-detail.js?v=32803"></script>
-<script src="js/flat-icons.js?v=32803"></script>
-<script src="js/workspace.js?v=32803"></script>
-<script src="js/analysis-jobs.js?v=32803"></script>
-<script src="js/search-suggest.js?v=32803"></script>
-<script src="js/app.js?v=32803"></script>
-<script src="js/col-resize.js?v=32803"></script>
-<script src="js/accessibility.js?v=32803"></script>
-<script src="js/workspaces.js?v=32803"></script>
-<script src="js/tool-layout.js?v=32803"></script>
+<script src="js/branding.js?v=32804"></script>
+<script src="js/selfhost.js?v=32804"></script>
+<script src="js/version.js?v=32804"></script>
+<script src="js/verdict.js?v=32804"></script>
+<script src="js/fork.js?v=32804"></script>
+<script src="js/promote.js?v=32804"></script>
+<script src="js/authConfig.js?v=32804"></script>
+<script src="js/connection.js?v=32804"></script>
+<script src="js/labels.js?v=32804"></script>
+<script src="js/capabilities.js?v=32804"></script>
+<script src="js/graph.js?v=32804"></script>
+<script src="js/model.js?v=32804"></script>
+<script src="js/render.js?v=32804"></script>
+<script src="js/analyze.js?v=32804"></script>
+<script src="js/whatif.js?v=32804"></script>
+<script src="js/mslearn.js?v=32804"></script>
+<script src="js/learntriage.js?v=32804"></script>
+<script src="js/learnfeed.js?v=32804"></script>
+<script src="js/gapcheck.js?v=32804"></script>
+<script src="js/cisdata.js?v=32804"></script>
+<script src="js/cischeck.js?v=32804"></script>
+<script src="js/exclusions.js?v=32804"></script>
+<script src="js/cascope.js?v=32804"></script>
+<script src="js/coverage.js?v=32804"></script>
+<script src="js/runmeta.js?v=32804"></script>
+<script src="js/overview.js?v=32804"></script>
+<script src="js/validator.js?v=32804"></script>
+<script src="js/whatifeval.js?v=32804"></script>
+<script src="js/builder.js?v=32804"></script>
+<script src="js/onboard.js?v=32804"></script>
+<script src="js/compare.js?v=32804"></script>
+<script src="js/whois.js?v=32804"></script>
+<script src="js/wave.js?v=32804"></script>
+<script src="js/sessionctl.js?v=32804"></script>
+<script src="js/spgap.js?v=32804"></script>
+<script src="js/groupuse.js?v=32804"></script>
+<script src="js/iso3166.js?v=32804"></script>
+<script src="js/causes.js?v=32804"></script>
+<script src="js/locations.js?v=32804"></script>
+<script src="js/locsignin.js?v=32804"></script>
+<script src="js/workloadid.js?v=32804"></script>
+<script src="js/authcontexts.js?v=32804"></script>
+<script src="js/authstrengths.js?v=32804"></script>
+<script src="js/recycle.js?v=32804"></script>
+<script src="js/rmau.js?v=32804"></script>
+<script src="js/auinv.js?v=32804"></script>
+<script src="js/camap.js?v=32804"></script>
+<script src="js/rmaudoc.js?v=32804"></script>
+<script src="js/termsofuse.js?v=32804"></script>
+<script src="js/audit.js?v=32804"></script>
+<script src="js/drift.js?v=32804"></script>
+<script src="js/guide.js?v=32804"></script>
+<script src="js/userimpact.js?v=32804"></script>
+<script src="js/smsvoice.js?v=32804"></script>
+<script src="js/memberof.js?v=32804"></script>
+<script src="js/devcheck.js?v=32804"></script>
+<script src="js/idscore.js?v=32804"></script>
+<script src="js/xtenant.js?v=32804"></script>
+<script src="js/passkeys.js?v=32804"></script>
+<script src="js/tokencov.js?v=32804"></script>
+<script src="js/naming.js?v=32804"></script>
+<script src="js/licgap.js?v=32804"></script>
+<script src="js/teamsdev.js?v=32804"></script>
+<script src="js/signinstore.js?v=32804"></script>
+<script src="js/signins.js?v=32804"></script>
+<script src="js/reportimpact.js?v=32804"></script>
+<script src="js/changelog.js?v=32804"></script>
+<script src="js/baselineData.js?v=32804"></script>
+<script src="js/baselineJoeyData.js?v=32804"></script>
+<script src="js/baselineLive.js?v=32804"></script>
+<script src="js/pimBaselineData.js?v=32804"></script>
+<script src="js/pimbaseline.js?v=32804"></script>
+<script src="js/pimplan.js?v=32804"></script>
+<script src="js/pimrmau.js?v=32804"></script>
+<script src="js/intunerbac.js?v=32804"></script>
+<script src="js/pimroles.js?v=32804"></script>
+<script src="js/pimreport.js?v=32804"></script>
+<script src="js/pimdoc.js?v=32804"></script>
+<script src="js/pimmodules.js?v=32804"></script>
+<script src="js/pimdeploy.js?v=32804"></script>
+<script src="js/pimscript.js?v=32804"></script>
+<script src="js/pimdesigner.js?v=32804"></script>
+<script src="js/pimcatalog.js?v=32804"></script>
+<script src="js/pimlens.js?v=32804"></script>
+<script src="js/baseline.js?v=32804"></script>
+<script src="js/eadminsData.js?v=32804"></script>
+<script src="js/secdefaults.js?v=32804"></script>
+<script src="js/baselineCleanup.js?v=32804"></script>
+<script src="js/groupTemplates.js?v=32804"></script>
+<script src="js/assign.js?v=32804"></script>
+<script src="js/cagroups.js?v=32804"></script>
+<script src="js/groupmerge.js?v=32804"></script>
+<script src="js/dgfill.js?v=32804"></script>
+<script src="js/deploydash.js?v=32804"></script>
+<script src="js/trv2.js?v=32804"></script>
+<script src="js/gsa.js?v=32804"></script>
+<script src="js/egress.js?v=32804"></script>
+<script src="js/devicecleanup.js?v=32804"></script>
+<script src="js/appaccess.js?v=32804"></script>
+<script src="js/groupsview.js?v=32804"></script>
+<script src="js/runledger.js?v=32804"></script>
+<script src="js/bgvault.js?v=32804"></script>
+<script src="js/protect.js?v=32804"></script>
+<script src="js/policy-compare.js?v=32804"></script>
+<script src="js/import.js?v=32804"></script>
+<script src="js/export.js?v=32804"></script>
+<script src="js/demo.js?v=32804"></script>
+<script src="js/list-detail.js?v=32804"></script>
+<script src="js/flat-icons.js?v=32804"></script>
+<script src="js/workspace.js?v=32804"></script>
+<script src="js/analysis-jobs.js?v=32804"></script>
+<script src="js/search-suggest.js?v=32804"></script>
+<script src="js/app.js?v=32804"></script>
+<script src="js/col-resize.js?v=32804"></script>
+<script src="js/accessibility.js?v=32804"></script>
+<script src="js/workspaces.js?v=32804"></script>
+<script src="js/tool-layout.js?v=32804"></script>
 </body>
 </html>

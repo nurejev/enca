@@ -2723,11 +2723,14 @@
   const SCOPE_INFO = [
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
-    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes, the registration-details report, and the sign-in log for CA failures", tools: "Change audit, Sign-in failures, SMS & voice retirement", onDemand: true },
+    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes, the registration-details report, and the sign-in log for CA failures", tools: "Change audit, Sign-in failures, SMS & voice retirement, App access review (last use, who consented)", onDemand: true },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
-    { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
+    { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference; write an app’s Notes, switch its sign-in off or on, and delete or restore it", tools: "MS Learn apply, App access review", onDemand: true },
+    { scope: "AppRoleAssignment.ReadWrite.All", use: "Assign a group to an app (Restrict), take an application permission away from an app and give it back", tools: "App access review", onDemand: true },
+    { scope: "DelegatedPermissionGrant.ReadWrite.All", use: "Take delegated permissions — or a user’s own consent — away from an app, and give them back", tools: "App access review", onDemand: true },
+    { scope: "Policy.ReadWrite.ConsentRequest", use: "Switch the admin consent requests (admin consent workflow) on or off, with a group as reviewers", tools: "App access review (Consent settings)", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths; configure the Passkey (FIDO2) method", tools: "Import, Checks → Passkeys", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
@@ -3018,6 +3021,7 @@
     ["toolMemberOf", "🧷 memberOf retirement"],
     ["toolEgress", "🛰 Egress & location impact"],
     ["toolDeviceCleanup", "🧹 Entra device cleanup"],
+    ["toolAppAccess", "🔑 App access review"],
     ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Checks"],
@@ -29058,6 +29062,488 @@ This is a directory write. Nothing else changes.`)) return;
     dcu.armed = e.target.value;
     const btn = $("dcuBody").querySelector('[data-dcuact="delete"]'); if (btn) btn.disabled = dcu.armed.trim() !== "DELETE" || dcu.running;
   });
+  // ======================================================================
+  // 🔑 App access review — T60, Workspace 03 (18 Oct 2026). js/appaccess.js
+  // reads, judges, writes and reports; this is the screen, in ENCA's own
+  // components as in the approved mockup (review/2026-10-18/t60-app-access):
+  // the consent-posture strip, KPI tiles that filter, a tab strip, one row
+  // per app, the app opened in place with the five-rung ladder, the floating
+  // selection bar, a confirm card that names impact and way back BEFORE any
+  // write, and the run ledger on Decisions. Mihai's decisions (18 Oct):
+  // decisions on the app's Notes, partners Limon-IT / CloudFellows / Dovilo,
+  // no Excel (CSV + Markdown), the two new scopes asked at the click, and
+  // admin consent requests switched on from here.
+  // ======================================================================
+  let aa = { raw: null, model: null, busy: false, err: null, step: "", session: null, tab: "queue", origin: "all", acts: "any", kpi: null, q: "", sel: new Set(), open: null, ptick: new Set(), running: false, ledgerHtml: "", summary: "", confirm: null, armed: "", pick: { for: "", q: "", res: [], busy: false }, restrictGroup: null, acrpGroup: null, acrpDays: 14, auditBusy: false, names: {}, newIds: null, prevAt: null, custom: null, customName: "", showPartners: false, reason: "", review: "" };
+  const aaSession = () => `${tenantId}:${isDemo}`;
+  const AA_PARTNERS = "enca-t60-partners", aaLastKey = () => `enca-t60-last:${tenantId || "demo"}`, aaUndoKey = () => `enca-t60-undo:${tenantId || "demo"}`;
+  function aaPartners() { try { const j = JSON.parse(localStorage.getItem(AA_PARTNERS) || "null"); if (Array.isArray(j)) return j; } catch { /* default */ } return AppAccess.PARTNERS_DEFAULT.slice(); }
+  function aaSavePartners(list) { try { localStorage.setItem(AA_PARTNERS, JSON.stringify(list)); } catch { /* best effort */ } }
+  function aaUndo() { try { return JSON.parse(localStorage.getItem(aaUndoKey()) || "[]"); } catch { return []; } }
+  function aaSaveUndo(list) { try { localStorage.setItem(aaUndoKey(), JSON.stringify(list.slice(-200))); } catch { /* best effort */ } }
+  const aaWho = () => (Graph.account && (Graph.account.username || Graph.account.name)) || (isDemo ? "demo" : "");
+  const aaToday = () => new Date().toISOString().slice(0, 10);
+  const aaPlus = (months) => { const d = new Date(); d.setMonth(d.getMonth() + months); return d.toISOString().slice(0, 10); };
+  function aaAnalyze() {
+    if (!aa.raw) return null;
+    return AppAccess.analyze(aa.raw, { tenantId: aa.raw.tenantId || tenantId, partners: aaPartners(), selfAppId: AUTH_CONFIG.clientId, custom: aa.custom });
+  }
+  const aaReadIO = (scopes) => ({ all: (url) => Graph.ggetAll(url, scopes ? { scopes } : undefined), one: (url) => Graph.gget(url, scopes) });
+  function aaWriteIO(scopes) {
+    const gone = (e) => /\(404\)|ResourceNotFound|does not exist|Request_ResourceNotFound/i.test(String((e && e.message) || e));
+    return {
+      read: async (url) => { try { return await Graph.gget(url, scopes); } catch (e) { if (gone(e)) return null; throw e; } },
+      all: (url) => Graph.ggetAll(url, { scopes }),
+      patch: (url, body) => Graph.gpatch(url, body, scopes),
+      post: (url, body) => Graph.gpost(url, body, scopes),
+      del: (url) => Graph.gdelete(url, scopes),
+      put: (url, body) => Graph.gput(url, body, scopes),
+    };
+  }
+  // the demo walks the same write pipeline against its own tenant
+  function aaDemoIO() {
+    const r = aa.raw, pause = () => new Promise((ok) => setTimeout(ok, 90));
+    r.deleted = r.deleted || [];
+    const spOf = (url) => r.sps.find((s) => new RegExp(`/servicePrincipals/${s.id}(\\?|/|$)`).test(url));
+    const grantOf = (url) => r.grants.find((g) => new RegExp(`/oauth2PermissionGrants/${g.id}$`).test(url.split("?")[0]));
+    return {
+      read: async (url) => { await pause(); if (/adminConsentRequestPolicy/.test(url)) return Object.assign({}, r.settings.acrp); const g = grantOf(url); if (g) return Object.assign({}, g); const s = spOf(url); return s ? Object.assign({ appRoles: [] }, s) : null; },
+      all: async (url) => { await pause(); const s = spOf(url); if (s && /appRoleAssignments/.test(url)) return (s.appRoleAssignments || []).map((a) => Object.assign({ principalId: s.id }, a)); const m = /clientId eq '([^']+)'/.exec(decodeURIComponent(url)); return m ? r.grants.filter((g) => g.clientId === m[1]) : []; },
+      patch: async (url, body) => { await pause(); const g = grantOf(url); if (g) { Object.assign(g, body); return; } Object.assign(spOf(url), body); },
+      post: async (url, body) => {
+        await pause();
+        let m = /\/directory\/deletedItems\/([^/]+)\/restore$/.exec(url);
+        if (m) { const i = r.deleted.findIndex((s) => s.id === m[1]); if (i >= 0) r.sps.push(r.deleted.splice(i, 1)[0]); return {}; }
+        m = /\/servicePrincipals\/([^/]+)\/appRoleAssignments$/.exec(url);
+        if (m) { const s = r.sps.find((x) => x.id === m[1]); s.appRoleAssignments = (s.appRoleAssignments || []).concat([{ id: `ara-back-${Date.now()}`, appRoleId: body.appRoleId, resourceId: body.resourceId }]); return {}; }
+        if (/\/oauth2PermissionGrants$/.test(url)) { r.grants.push(Object.assign({ id: `g-back-${Date.now()}` }, body)); return {}; }
+        return {};   // appRoleAssignedTo (a group) — nothing to show in the demo
+      },
+      del: async (url) => {
+        await pause();
+        let m = /\/servicePrincipals\/([^/]+)\/appRoleAssignedTo\/([^/]+)$/.exec(url);
+        if (m) { for (const s of r.sps) s.appRoleAssignments = (s.appRoleAssignments || []).filter((a) => a.id !== m[2]); return; }
+        const g = grantOf(url); if (g) { r.grants = r.grants.filter((x) => x !== g); return; }
+        const s = spOf(url); if (s) { r.sps = r.sps.filter((x) => x !== s); r.grants = r.grants.filter((x) => x.clientId !== s.id); r.deleted.push(Object.assign({}, s, { appRoleAssignments: [] })); }
+      },
+      put: async (url, body) => { await pause(); Object.assign(r.settings.acrp, body); },
+    };
+  }
+  function openAa() {
+    crumb("🔑 App access review");
+    show("screen-aa");
+    if (aa.session !== aaSession()) aa = Object.assign(aa, { raw: null, model: null, err: null, tab: "queue", sel: new Set(), open: null, ptick: new Set(), ledgerHtml: "", summary: "", confirm: null, names: {}, newIds: null, prevAt: null, session: aaSession() });
+    $("aaHead").innerHTML = toolHead("toolAppAccess") + '<p class="mini" style="margin:6px 0 0">Every app that can reach this tenant’s data — <b>what it can do</b>, <b>who let it in</b>, <b>whether it is still used</b> — and a decision for each one. For tenants without Defender for Cloud Apps app governance (Business Premium). One row per app, the verdict in plain words; nothing is written until you choose an action, and every action says its impact and its way back first.</p>';
+    renderAa();
+    if (!aa.raw && !aa.busy) aaRead();
+  }
+  async function aaRead(after) {
+    if (aa.busy) return;
+    const keepAudit = after && aa.raw && aa.raw.activity;
+    aa.busy = true; aa.err = null; aa.step = "Reading…"; renderAa();
+    try {
+      if (isDemo) { await new Promise((ok) => setTimeout(ok, 250)); aa.raw = AppAccess.demo(); }
+      else {
+        const raw = await AppAccess.read(aaReadIO(), { onStep: (m) => { aa.step = m; aaPaintStep(); } });
+        raw.tenantId = tenantId;
+        if (keepAudit || Graph.hasScopes([...AUTH_CONFIG.scopes, "AuditLog.Read.All"])) Object.assign(raw, await AppAccess.readAudit(aaReadIO([...AUTH_CONFIG.scopes, "AuditLog.Read.All"]), { onStep: (m) => { aa.step = m; aaPaintStep(); } }));
+        aa.raw = raw;
+      }
+      aa.model = aaAnalyze();
+      await aaNames();
+      aaMarkNew();
+    } catch (e) { aa.err = String((e && e.message) || e); }
+    finally { aa.busy = false; }
+    renderAa();
+  }
+  async function aaAudit() {
+    if (aa.auditBusy || !aa.raw) return;
+    const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
+    if (!isDemo && !await preConsent(sc)) return;
+    aa.auditBusy = true; renderAa();
+    try {
+      if (!isDemo) Object.assign(aa.raw, await AppAccess.readAudit(aaReadIO(sc), {}));
+      aa.model = aaAnalyze();
+      if (aa.raw.activityErr || aa.raw.consentsErr) toast(`Partly read: <span>${esc(aa.raw.activityErr || aa.raw.consentsErr)}</span> — the account needs Reports Reader, Security Reader or Security Administrator`);
+    } catch (e) { toast(`Could not read: <span>${esc((e && e.message) || e)}</span>`); }
+    finally { aa.auditBusy = false; }
+    renderAa();
+  }
+  // names of the people behind the users' own consents
+  async function aaNames() {
+    const ids = [...new Set(((aa.model && aa.model.userGrants) || []).map((g) => g.principalId).filter(Boolean))].filter((id) => !aa.names[id]);
+    if (!ids.length) return;
+    if (isDemo) { ids.forEach((id) => { aa.names[id] = id === "u-admin" ? "adm-admin@contoso.example" : id; }); return; }
+    for (let i = 0; i < ids.length; i += 900) {
+      try { const res = await Graph.gpost("/v1.0/directoryObjects/getByIds", { ids: ids.slice(i, i + 900), types: ["user"] }); ((res && res.value) || []).forEach((o) => { aa.names[o.id] = o.userPrincipalName || o.displayName || o.id; }); }
+      catch (e) { console.warn("T60 names:", e); }
+    }
+  }
+  // what is new since the previous read in this browser
+  function aaMarkNew() {
+    if (!aa.model) return;
+    const ids = aa.model.apps.map((a) => a.id);
+    let prev = null; try { prev = JSON.parse(localStorage.getItem(aaLastKey()) || "null"); } catch { /* none */ }
+    if (prev && Array.isArray(prev.ids)) { const had = new Set(prev.ids); aa.newIds = new Set(ids.filter((id) => !had.has(id))); aa.prevAt = prev.at; }
+    else { aa.newIds = null; aa.prevAt = null; }
+    if (!isDemo) { try { localStorage.setItem(aaLastKey(), JSON.stringify({ at: Date.now(), ids })); } catch { /* best effort */ } }
+  }
+  function aaPaintStep() { const el = $("aaStep"); if (el) el.textContent = aa.step; }
+  // ---- small pieces ----
+  const AA_V = { t0: "t0", ep: "ep", high: "high", med: "med", low: "low", info: "info" };
+  const aaPill = (tier) => `<span class="aa-v ${AA_V[tier]}">${AppAccess.TIER_LABEL[tier]}</span>`;
+  function aaOrigin(a) {
+    const o = a.origin;
+    const cls = { org: "org", partner: "partner", ms: "ms", tp: "tp" }[o.kind];
+    let h = `<span class="aa-o ${cls}">${esc(o.label)}${o.kind === "org" && o.multi ? " · multi-tenant" : ""}</span>`;
+    if (o.kind === "tp") h += o.verified ? ` <span class="aa-o ver">✓ ${esc(o.publisher)}</span>` : ' <span class="aa-o unv">publisher not verified</span>';
+    if (aa.newIds && aa.newIds.has(a.id)) h += ' <span class="aa-o new">new since last read</span>';
+    if (!a.enabled) h += ' <span class="aa-o off">sign-in off</span>';
+    return h;
+  }
+  const aaActs = (a) => ({ app: "App-only", user: "As a user", both: "App-only<span class=\"aa-sub\">+ as a user</span>", role: "Directory role" }[a.acts] || a.acts);
+  const aaWhoCan = (a) => (a.acts === "app" || a.acts === "role" ? '<span class="muted">no user needed</span>' : a.everyUser ? '<b>every user</b><span class="aa-sub">assignment not required</span>' : a.delAll.length ? "assigned users" : `${a.consentUsers.length} user${a.consentUsers.length === 1 ? "" : "s"} who consented`);
+  function aaLast(a) {
+    if (a.last === undefined) return '<span class="muted">not read</span>';
+    if (a.last == null) return '<span class="aa-stale">no sign-in on record</span>';
+    const d = a.lastDays, cls = d >= AppAccess.UNUSED_DAYS ? "aa-stale" : d >= 45 ? "aa-warn" : "";
+    return `<span class="${cls}">${d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`}</span>`;
+  }
+  function aaCreds(a) {
+    const c = a.creds;
+    if (!c) return a.appPerms.length && a.origin.kind !== "org" ? `<span class="muted">held by ${a.origin.kind === "partner" ? "the partner" : "the vendor"}</span>` : '<span class="muted">—</span>';
+    const bits = [];
+    const soon = (iso) => { const d = Math.round((Date.parse(iso) - Date.now()) / 86400000); return d < 60 ? `expires in ${d} days` : `until ${String(iso).slice(0, 7)}`; };
+    if (c.secrets.length) bits.push(`<span class="aa-bad">${c.secrets.length === 1 ? "secret" : `${c.secrets.length} secrets`}</span><span class="aa-sub">${esc(soon(c.secrets.map((s) => s.end).sort()[0]))}</span>`);
+    if (c.certs.length) bits.push(`certificate${c.certs.length === 1 ? "" : "s"}${c.sharedWith ? `<span class="aa-sub aa-warn">shared with ${c.sharedWith} other app${c.sharedWith === 1 ? "" : "s"}</span>` : ""}`);
+    if (c.expired) bits.push(`<span class="aa-sub">${c.expired} expired still stored</span>`);
+    return bits.join("") || '<span class="muted">none</span>';
+  }
+  const AA_SUGG = { remove: "suggested: remove", quarantine: "suggested: quarantine", restrict: "suggested: restrict", certificate: "suggested: certificate only" };
+  function aaDecision(a) {
+    if (a.decision && a.decision.decision !== "Enabled again") return `<span class="aa-dec">${esc(a.decision.decision)}</span><span class="aa-sub">${esc(a.decision.date)}${a.decision.review ? ` · review ${esc(a.decision.review)}` : ""}</span>`;
+    if (a.ms) return '<span class="muted">Microsoft</span>';
+    if (a.self) return '<span class="muted">this tool</span>';
+    return a.suggest ? `<span class="aa-sugg">${AA_SUGG[a.suggest]}</span>` : '<button class="btn sm" type="button" data-aaopen="' + esc(a.id) + '">Decide…</button>';
+  }
+  function aaFiltered() {
+    const m = aa.model; if (!m) return [];
+    let list = m.apps;
+    if (aa.tab === "queue") list = list.filter((a) => a.queue);
+    if (aa.origin !== "all") list = list.filter((a) => a.origin.kind === aa.origin);
+    if (aa.acts === "app") list = list.filter((a) => a.acts === "app" || a.acts === "both" || a.acts === "role");
+    if (aa.acts === "user") list = list.filter((a) => a.acts === "user" || a.acts === "both");
+    const R = AppAccess.RANK, K = aa.kpi;
+    if (K === "t0") list = list.filter((a) => R[a.tier] >= R.ep && !a.ms);
+    if (K === "high") list = list.filter((a) => a.tier === "high" && !a.ms);
+    if (K === "unverified") list = list.filter((a) => a.origin.kind === "tp" && !a.origin.verified);
+    if (K === "unused") list = list.filter((a) => a.unused);
+    if (K === "secrets") list = list.filter((a) => a.flags.some((f) => f.k === "secret" || f.k === "expired"));
+    if (K === "decided") list = list.filter((a) => a.decision && a.decision.decision !== "Enabled again");
+    const q = aa.q.trim().toLowerCase();
+    if (q) list = list.filter((a) => [a.name, a.appId, a.origin.label, a.origin.publisher || "", ...a.perms.map((p) => p.value), ...a.roles.map((r) => r.name)].join(" ").toLowerCase().includes(q));
+    return list;
+  }
+  // ---- the screen ----
+  function renderAa() {
+    if (!$("screen-aa") || !$("screen-aa").classList.contains("active")) return;
+    const body = $("aaBody"), m = aa.model;
+    $("aaRead").innerHTML = m ? `Read ${esc(new Date(m.readAt).toLocaleString())} · <b>${m.total}</b> service principals · <b>${m.grants}</b> delegated grants · <b>${m.appPerms}</b> application permissions${m.recapped.length ? ` (${m.recapped.length} re-read past Graph’s 20-item expand)` : ""} · ${m.rolesRead ? `<b>${m.roleCount}</b> directory-role assignment${m.roleCount === 1 ? "" : "s"} held by apps` : "roles not read"} · last use ${m.activityRead ? "✓" : "not read"} · consent events ${m.consentsRead ? "last 30 days" : "not read"}${aa.newIds && aa.prevAt ? ` · <b>${aa.newIds.size}</b> new since ${esc(new Date(aa.prevAt).toLocaleDateString())}` : ""}${isDemo ? " · demo" : ""}` : "";
+    const ab = $("aaAudit"); if (ab) { ab.disabled = !m || aa.auditBusy; ab.textContent = aa.auditBusy ? "Reading…" : m && m.activityRead ? "⌚ Read last use again" : "⌚ Last use & who consented"; }
+    if (aa.busy) { body.innerHTML = `<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> <span id="aaStep">${esc(aa.step)}</span></p>`; return; }
+    if (aa.err) { body.innerHTML = `<div class="list-card aa-card"><b>The read failed.</b><p class="mini">${esc(aa.err)}</p></div>`; return; }
+    if (!m) { body.innerHTML = '<p class="mini muted" style="padding:12px">Not read yet.</p>'; return; }
+    const k = m.kpi;
+    const posture = `<div class="aa-posture">${m.settings.filter((s) => ["userconsent", "acrp", "createapps", "classes"].includes(s.k)).map((s) => `<button type="button" class="aa-pchip ${s.sev}" data-aatab="settings"><small>${esc(s.title.split(" — ")[0])}</small><b>${s.sev === "ok" ? "✓" : s.sev === "bad" ? "✗" : s.sev === "warn" ? "⚠" : "ⓘ"} ${esc(s.title.split(" — ")[1] || "")}</b></button>`).join("")}</div>`;
+    const tile = (key, n, lab, sub, tone) => `<button type="button" class="aa-kpi ${tone}${aa.kpi === key ? " sel" : ""}" data-aakpi="${key}" aria-pressed="${aa.kpi === key}"><span class="n">${n}</span><span class="l">${lab}</span><span class="s">${sub}</span></button>`;
+    const kpis = `<div class="aa-kpis">${tile("t0", k.t0, "⛔ Tier 0 &amp; endpoint", "can take over identities or every device", "crit")}${tile("high", k.high, "▲ Tenant-wide reach", "all mail, files, users, Intune, PIM…", "high")}${tile("unverified", k.unverified, "❓ Third-party, unverified", "publisher not verified by Microsoft", "warn")}${tile("unused", k.unused == null ? "—" : k.unused, "💤 Unused 90+ days", k.unused == null ? "⌚ read last use first" : "or never signed in", "warn")}${tile("secrets", k.secrets, "🔑 Secrets on powerful apps", `${k.expired} expired credential${k.expired === 1 ? "" : "s"} still stored`, "")}${tile("decided", `${k.decided}<small>/${k.apps}</small>`, "🧾 Decided", "approved, restricted or removed", "")}</div>`;
+    const undo = aaUndo();
+    const tab = (id, lab, n) => `<button type="button" class="aa-tab${aa.tab === id ? " on" : ""}" data-aatab="${id}">${lab}${n != null ? `<em>${n}</em>` : ""}</button>`;
+    const bad = m.settings.filter((s) => s.sev === "bad").length;
+    const tabs = `<div class="aa-tabs">${tab("queue", "Needs a decision", k.queue)}${tab("all", "All apps", m.apps.length)}${tab("matrix", "Who can do what")}${tab("consents", "Users’ own consents", m.userGrants.length)}${tab("settings", "Consent settings", bad ? `${bad} ✗` : "✓")}${tab("decisions", "Decisions", k.decided + undo.length || null)}</div>`;
+    let content = "";
+    if (aa.confirm) content = aaConfirmHtml();
+    else if ((aa.tab === "queue" || aa.tab === "all") && aa.open) content = aaDrawer(m.apps.find((a) => a.id === aa.open));
+    else if (aa.tab === "queue" || aa.tab === "all") content = aaListHtml();
+    else if (aa.tab === "matrix") content = aaMatrixHtml();
+    else if (aa.tab === "consents") content = aaConsentsHtml();
+    else if (aa.tab === "settings") content = aaSettingsHtml();
+    else content = aaDecisionsHtml();
+    const partners = aa.showPartners ? aaPartnersHtml() : "";
+    const extra = [m.notes.length ? `<div class="scope-note">${m.notes.map(esc).join(" · ")}</div>` : "", aa.raw && (aa.raw.activityErr || aa.raw.consentsErr) ? `<div class="scope-note">Last use / consent events: ${esc(aa.raw.activityErr || aa.raw.consentsErr)}</div>` : "", aa.custom ? `<div class="mini" style="margin:0 0 8px">📥 Your table: <b>${aa.custom.size}</b> rule${aa.custom.size === 1 ? "" : "s"} from ${esc(aa.customName)} win over ENCA’s tiers · <a href="#" data-aacustomoff>remove</a></div>` : ""].join("");
+    body.innerHTML = `${partners}${extra}${posture}${kpis}${tabs}<div class="aa-pane">${content}</div>`;
+  }
+  function aaListHtml() {
+    const rows = aaFiltered(), m = aa.model;
+    const seg = (name, val, lab) => `<button type="button" class="${aa[name] === val ? "active" : ""}" data-aaseg="${name}" data-v="${val}">${lab}</button>`;
+    const o = m.kpi.origins;
+    const filters = `<div class="aa-filters"><input class="txt aa-search" id="aaQ" placeholder="Search app, publisher, appId, permission or role…" value="${esc(aa.q)}" autocomplete="off"><div class="seg">${seg("origin", "all", "All")}${seg("origin", "org", `Your org ${o.org}`)}${seg("origin", "partner", `Partner ${o.partner}`)}${seg("origin", "tp", `Third-party ${o.tp}`)}${seg("origin", "ms", `Microsoft ${o.ms}`)}</div><div class="seg">${seg("acts", "any", "Any")}${seg("acts", "app", "App-only")}${seg("acts", "user", "As a user")}</div>${aa.kpi ? `<button class="btn sm" type="button" data-aakpi="${aa.kpi}">✕ tile filter</button>` : ""}</div>`;
+    if (!rows.length) return filters + `<div class="aa-empty"><div class="ic">✓</div><div><b>${aa.tab === "queue" && !aa.kpi && !aa.q && aa.origin === "all" ? "Nothing waits for a decision." : "No app matches."}</b><div class="mini muted">${aa.tab === "queue" ? "Every app with tenant-wide reach, an unverified publisher, no recent use or a stale credential has a decision on it." : "Clear the filter or the search."}</div></div></div>`;
+    const groups = aa.tab === "queue" ? [["⛔ Tier 0 &amp; endpoint", (a) => AppAccess.RANK[a.tier] >= AppAccess.RANK.ep], ["▲ Tenant-wide reach", (a) => a.tier === "high"], ["● Unverified, unused or stale, lower reach", () => true]] : [["", () => true]];
+    const seen = new Set();
+    let tb = "";
+    for (const [lab, test] of groups) {
+      const part = rows.filter((a) => !seen.has(a.id) && test(a)); part.forEach((a) => seen.add(a.id));
+      if (!part.length) continue;
+      if (lab) tb += `<tr class="aa-grp"><td colspan="8">${lab} — ${part.length}</td></tr>`;
+      tb += part.map((a) => `<tr data-aarow="${esc(a.id)}"${aa.sel.has(a.id) ? ' class="sel"' : ""}><td><input type="checkbox" data-aatick="${esc(a.id)}"${aa.sel.has(a.id) ? " checked" : ""} aria-label="Select ${esc(a.name)}"></td><td><span class="aa-nm">${esc(a.name)}</span>${aaOrigin(a)}</td><td class="aa-why">${aaPill(a.tier)} ${esc(a.why)}</td><td>${aaActs(a)}</td><td>${aaWhoCan(a)}</td><td>${aaLast(a)}</td><td>${aaCreds(a)}</td><td>${aaDecision(a)}</td></tr>`).join("");
+    }
+    const table = `<div class="gu-tw"><table class="cg-table aa-table"><colgroup><col style="width:34px"><col style="width:19%"><col style="width:33%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:10%"></colgroup><thead><tr><th></th><th>App</th><th>Verdict — why, in plain words</th><th>Acts as</th><th>Who can use it</th><th>Last used</th><th>Credentials</th><th>Decision</th></tr></thead><tbody>${tb}</tbody></table></div>`;
+    return filters + table + aaSelbar();
+  }
+  function aaSelbar() {
+    const n = aa.sel.size; if (!n) return "";
+    const picked = aa.model.apps.filter((a) => aa.sel.has(a.id));
+    const allOff = picked.every((a) => !a.enabled), one = picked.length === 1 && (picked[0].acts === "user" || picked[0].acts === "both");
+    return `<div class="selbar visible aa-selbar"><span><b>${n}</b> app${n === 1 ? "" : "s"} selected</span><span class="mini" style="opacity:.8">${esc(picked.slice(0, 3).map((a) => a.name).join(" · "))}${picked.length > 3 ? " …" : ""}</span><button class="btn sm" data-aago="approve">✓ Approve…</button>${one ? '<button class="btn sm" data-aaopenone>👥 Restrict…</button>' : ""}<button class="btn sm primary" data-aago="quarantine">🧊 Quarantine (disable sign-in) <span class="tag block">writes</span></button>${allOff ? '<button class="btn sm" data-aago="remove">🗑 Remove…</button>' : ""}<button class="btn sm" data-aaclear title="Clear the selection">✕</button></div>`;
+  }
+  function aaDrawer(a) {
+    if (!a) { aa.open = null; return aaListHtml(); }
+    const m = aa.model, canAct = !a.self && !a.ms, canQ = !a.self && (!a.ms || a.origin.devTool);
+    const who = (() => {
+      if (a.consents.length) return a.consents.slice(0, 3).map((e) => `${e.admin ? "Admin consent" : "User consent"} by <b>${esc(e.by || "unknown")}</b> on ${esc(String(e.at).slice(0, 10))}`).join("<br>");
+      const kind = a.appPerms.length || a.delAll.length ? "Admin consent" : a.delOne.length ? "User consent" : "A directory role";
+      if (m.consentsRead) return `${kind}, before the 30-day audit window — ENCA cannot name who. ${a.appPerms.length || a.delAll.length ? "The grant is tenant-wide, so it was someone with an admin role." : ""}`;
+      return `${kind}. Who and when: <a href="#" data-aaaudit>⌚ read the audit log</a> (AuditLog.Read.All).`;
+    })();
+    const used = a.last === undefined ? 'Not read — <a href="#" data-aaaudit>⌚ read last use</a>.' : a.last == null ? "No sign-in on record." : `Last sign-in ${esc(String(a.last).slice(0, 10))} — ${a.lastDays} day${a.lastDays === 1 ? "" : "s"} ago.`;
+    const creds = a.creds ? [a.creds.secrets.length ? `${a.creds.secrets.length} client secret${a.creds.secrets.length === 1 ? "" : "s"} (next ends ${esc(String(a.creds.secrets.map((s) => s.end).sort()[0]).slice(0, 10))})` : "", a.creds.certs.length ? `${a.creds.certs.length} certificate${a.creds.certs.length === 1 ? "" : "s"}${a.creds.sharedWith ? ` — also used by ${a.creds.sharedWith} other app${a.creds.sharedWith === 1 ? "" : "s"}` : ""}` : "", a.creds.expired ? `${a.creds.expired} expired, still stored` : ""].filter(Boolean).join(" · ") || "None stored." : a.appPerms.length && a.origin.kind !== "org" ? `Held in ${a.origin.kind === "partner" ? `${esc(a.origin.partner)}’s` : "the vendor’s"} tenant — not visible from here; revoke or disable are the levers.` : "Signs in as the user — no credential of its own here.";
+    const ca = a.acts === "user" ? "Its users’ sign-ins are evaluated by your Conditional Access like any app’s." : a.origin.kind === "org" && !a.origin.multi ? "App-only sign-ins are reached only by workload-identity policies (single-tenant apps registered here) — those need Workload Identities Premium, which Business Premium does not include." : "Out of reach for app-only sign-ins: workload-identity policies only target single-tenant apps registered in this tenant.";
+    const roles = (a.roles.length ? `Holds ${a.roles.map((r) => `<b>${esc(r.name)}</b>${r.scope && r.scope !== "/" ? " (scoped)" : ""}`).join(", ")}.` : "No directory role.") + (a.creds && a.creds.owners.length ? ` Owners: ${a.creds.owners.map(esc).join(", ")}.` : a.origin.kind !== "org" ? " Owners live in the publisher’s tenant." : " No owners.");
+    const sevBox = RANK_BOX(a.tier);
+    const perms = a.perms.slice().sort((x, y) => AppAccess.RANK[y.tier] - AppAccess.RANK[x.tier] || x.value.localeCompare(y.value));
+    const ptable = `<div class="gu-tw"><table class="cg-table aa-ptable"><thead><tr>${canAct ? '<th style="width:34px"></th>' : ""}<th>Permission</th><th>Type</th><th>API</th><th>ENCA — what it lets the app do</th></tr></thead><tbody>${perms.map((p, i) => `<tr>${canAct ? `<td><input type="checkbox" data-aaptick="${i}"${aa.ptick.has(i) ? " checked" : ""} aria-label="Select ${esc(p.value)}"></td>` : ""}<td><code>${esc(p.value)}</code>${p.custom ? ` <span class="aa-o">your table: ${esc(p.custom)}</span>` : ""}</td><td>${p.type === "app" ? "Application" : p.all ? "Delegated · every user" : `Delegated · ${esc(aa.names[p.principalId] || "one user")}`}</td><td class="mini">${esc(p.api)}</td><td>${aaPill(p.tier)} ${esc((AppAccess.CAPS[p.cap] || AppAccess.CAPS.read).verb)}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">No permission grant — it reaches the tenant through a directory role.</td></tr>'}</tbody></table></div>`;
+    const flags = a.flags.length ? `<ul class="aa-flags">${a.flags.map((f) => `<li class="${f.sev}">${esc(f.t)}</li>`).join("")}</ul>` : "";
+    const rung = (id, t, lvl, what, imp, back, btn, rec) => `<div class="aa-rung${rec ? ` ${rec}` : ""}"><span class="lvl">${lvl}</span><span class="t">${t}</span>${what}<span class="k">Impact</span>${imp}<span class="k">Way back</span>${back}${btn ? `<div class="aa-rbtn">${btn}</div>` : ""}</div>`;
+    const sug = a.suggest;
+    const groupPick = aaGroupPick("restrict");
+    const ladder = `<div class="aa-ladder">
+      ${rung("approve", "✓ Approve", "no change", "Keep as it is; the decision, reason and review date go on the app’s Notes.", "None.", "Nothing to undo.", `<button class="btn sm" data-aago1="approve">✓ Approve…</button>`, "")}
+      ${rung("restrict", "👥 Restrict", "who signs in", a.acts === "app" || a.acts === "role" ? "Not for this app — nobody signs in to it." : "Assignment required, one group assigned (direct members only; nested groups are not honoured).", a.acts === "app" || a.acts === "role" ? "—" : "Anyone outside the group is refused at sign-in. App-only access is untouched.", "Assignment required off — the group stays assigned.", a.acts === "app" || a.acts === "role" || a.self ? "" : groupPick + `<button class="btn sm" data-aago1="restrict"${aa.restrictGroup ? "" : " disabled"}>👥 Restrict…</button>`, sug === "restrict" ? "rec" : "")}
+      ${rung("reduce", "✂ Reduce", "per permission", "Revoke the permissions ticked above, keep the rest.", "What needs them fails at the next token (60–90 min).", "↩ Grant back on Decisions — this browser keeps what was taken.", canAct ? `<button class="btn sm" data-aago1="revoke"${aa.ptick.size ? "" : " disabled"}>✂ Revoke ${aa.ptick.size || ""} ticked…</button>` : "", "")}
+      ${rung("quarantine", a.enabled ? "🧊 Quarantine" : "↻ Enable again", "reversible", a.enabled ? "Disable sign-in for this tenant (accountEnabled false)." : "Sign-in is off. Switch it back on.", a.enabled ? "No new tokens here; issued ones run out (60–90 min). Grants kept." : "The app gets tokens again.", a.enabled ? "↻ Enable again — nothing lost." : "🧊 Quarantine again.", canQ ? `<button class="btn sm ${a.enabled ? "primary" : ""}" data-aago1="${a.enabled ? "quarantine" : "enable"}">${a.enabled ? "🧊 Quarantine…" : "↻ Enable again…"}</button>` : "", sug === "quarantine" ? "rec" : "")}
+      ${rung("remove", "🗑 Remove", "30-day bin", "Revoke every grant, then delete the service principal. Only an app already quarantined.", "Gone from this tenant; a user who consents again brings it back unless consent is closed.", "↩ Restore on Decisions within 30 days — restored and granted back.", canAct ? `<button class="btn sm" data-aago1="remove"${a.enabled ? " disabled title=\"Quarantine first — an app goes dark before it goes\"" : ""}>🗑 Remove…</button>` : "", sug === "remove" ? (a.enabled ? "next" : "rec") : "")}
+    </div>`;
+    const record = `<div class="aa-record"><label class="mini">Reason <input class="txt" id="aaReason" value="${esc(aa.reason)}" placeholder="why it stays, or why it goes — and the business owner"></label><label class="mini">Review again <input class="txt" id="aaReview" type="date" value="${esc(aa.review || aaPlus(AppAccess.RANK[a.tier] >= AppAccess.RANK.high ? 6 : 12))}"></label></div><p class="mini muted" style="margin:6px 0 0">Every rung writes one line on the app’s <b>Notes</b> in Entra — <code>${esc(AppAccess.stamp("Approved", { date: aaToday(), by: aaWho(), review: aa.review || aaPlus(6), reason: aa.reason || "…" }))}</code> — so the portal and the next admin see it. ${a.decision ? `Now: <b>${esc(a.decision.decision)}</b> ${esc(a.decision.date)}${a.decision.by ? ` by ${esc(a.decision.by)}` : ""}${a.decision.reason ? ` — ${esc(a.decision.reason)}` : ""}.` : ""}</p>`;
+    const entra = `https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ManagedAppMenuBlade/~/Overview/objectId/${encodeURIComponent(a.id)}/appId/${encodeURIComponent(a.appId)}`;
+    return `<div class="list-card aa-card aa-drawer">
+      <div class="aa-dh"><button class="btn sm" type="button" data-aaback>← Back to the list</button><h3>${esc(a.name)} ${aaPill(a.tier)}</h3><span class="mini muted">appId ${esc(a.appId)} · <a href="${entra}" target="_blank" rel="noopener noreferrer">Entra ↗</a></span></div>
+      <div class="aa-origins">${aaOrigin(a)}${a.created ? ` <span class="aa-o">added ${esc(String(a.created).slice(0, 10))}</span>` : ""}</div>
+      <div class="aa-plain ${sevBox}"><b>In plain words:</b> ${esc(a.why)}.${flags}</div>
+      <div class="aa-facts"><div class="aa-f"><b>Who let it in</b>${who}</div><div class="aa-f"><b>Who can use it</b>${a.acts === "app" || a.acts === "role" ? "Nobody signs in — assignment does not limit it." : a.everyUser ? "Every user — assignment is not required." : a.assignmentRequired ? "Only assigned users and groups." : `${a.consentUsers.length} user${a.consentUsers.length === 1 ? "" : "s"} who consented for themselves.`}</div><div class="aa-f${a.unused ? " warn" : ""}"><b>Is it used</b>${used}</div><div class="aa-f${a.flags.some((f) => f.k === "secret") ? " bad" : ""}"><b>Credentials</b>${creds}</div><div class="aa-f"><b>Conditional Access</b>${ca}</div><div class="aa-f"><b>Roles &amp; owners</b>${roles}</div></div>
+      <h4 class="aa-h4">What it can do — ${a.perms.length} permission${a.perms.length === 1 ? "" : "s"}${a.roles.length ? ` and ${a.roles.length} role${a.roles.length === 1 ? "" : "s"}` : ""}</h4>${ptable}
+      ${a.ms && !a.origin.devTool ? '<p class="mini muted">One of Microsoft’s own apps: it is not switched off or removed from here. Approve it, or restrict who signs in.</p>' : ""}${a.self ? '<p class="mini muted">The registration ENCA is signed in with — only Approve is offered, so this tool cannot lock itself out.</p>' : ""}
+      <h4 class="aa-h4">Decision — five rungs, each with its impact and its way back</h4>${ladder}${record}
+    </div>`;
+  }
+  const RANK_BOX = (t) => (t === "t0" || t === "ep" ? "bad" : t === "high" ? "warn" : "ok");
+  function aaGroupPick(ctx) {
+    const chosen = ctx === "restrict" ? aa.restrictGroup : aa.acrpGroup;
+    const p = aa.pick;
+    const res = p.for === ctx && p.res.length ? `<div class="aa-gres">${p.res.map((g) => `<button type="button" class="aa-gopt" data-aagpick="${esc(ctx)}" data-id="${esc(g.id)}" data-name="${esc(g.displayName)}">${esc(g.displayName)}</button>`).join("")}</div>` : p.for === ctx && p.done ? '<div class="mini muted">No group starts with that.</div>' : "";
+    return `<div class="aa-gpick">${chosen ? `<span class="aa-o partner">${esc(chosen.displayName)}</span> <a href="#" data-aagclear="${ctx}">change</a>` : `<input class="txt" data-aagq="${ctx}" placeholder="Group name starts with…" value="${esc(p.for === ctx ? p.q : "")}"><button class="btn sm" type="button" data-aagsearch="${ctx}">${p.busy && p.for === ctx ? "…" : "Find"}</button>${res}`}</div>`;
+  }
+  async function aaGroupSearch(ctx) {
+    const q = aa.pick.for === ctx ? aa.pick.q.trim() : "";
+    if (!q) { toast("Type the start of a group name"); return; }
+    aa.pick = { for: ctx, q, res: [], busy: true, done: false }; renderAa();
+    try {
+      if (isDemo) aa.pick.res = ["PIM-SG-M365-AppOps", "CAB-SEC-U-Admins", "IT-Admins", "Workplace team"].filter((n) => n.toLowerCase().startsWith(q.toLowerCase())).map((n, i) => ({ id: `grp-demo-${i}`, displayName: n }));
+      else aa.pick.res = await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(`startswith(displayName,'${q.replace(/'/g, "''")}')`)}&$select=id,displayName&$top=10`, { cap: 10 });
+    } catch (e) { toast(`Group search failed: <span>${esc((e && e.message) || e)}</span>`); }
+    finally { aa.pick.busy = false; aa.pick.done = true; }
+    renderAa();
+  }
+  function aaMatrixHtml() {
+    const pills = (list, own) => list.map((a) => `<button type="button" class="aa-mpill${own ? " c" : ""}" data-aaopenm="${esc(a.id)}">${esc(a.name)}${a.ms ? ' <span class="muted">· Microsoft</span>' : ""}</button>`).join("") || '<span class="muted">—</span>';
+    return `<div class="gu-tw"><table class="cg-table aa-mx"><thead><tr><th style="width:26%">Capability</th><th style="width:5%">#</th><th>On its own (app-only)</th><th>As a signed-in user — for every user</th></tr></thead><tbody>${aa.model.matrix.map((r) => `<tr><td><b>${esc(r.label)}</b></td><td class="aa-cnt">${r.own.length + r.user.length}</td><td>${pills(r.own, true)}</td><td>${pills(r.user, false)}</td></tr>`).join("")}</tbody></table></div><p class="mini muted" style="margin:8px 0 0">Red pills act without any user: no role caps them and Conditional Access does not see them. The right-hand column is capped by what the signed-in person may do — there the risk is <b>who</b> can sign in, which is what 👥 Restrict changes. Click a pill to open the app.</p>`;
+  }
+  function aaConsentsHtml() {
+    const g = aa.model.userGrants;
+    if (!g.length) return '<div class="aa-empty"><div class="ic">✓</div><div><b>No user consented to an app for themselves.</b><div class="mini muted">Every delegated grant in this tenant was given by an admin for everyone.</div></div></div>';
+    return `<p class="mini muted" style="margin:0 0 8px">Consents a person gave for themselves (consentType Principal). The portal cannot revoke these — ✂ Revoke here takes the grant away; the person sees the consent prompt again next time, unless consent is closed for that app.</p><div class="gu-tw"><table class="cg-table"><thead><tr><th>User</th><th>App</th><th>API</th><th>Scopes</th><th style="width:120px"></th></tr></thead><tbody>${g.map((x) => { const tierMax = x.scopes.reduce((t, s) => { const r = AppAccess.tierOf(s, "del", (aa.raw.resources[x.resourceId] || {}).appId || (x.api === "Microsoft Graph" ? AppAccess.GRAPH_APP : "")).tier; return AppAccess.RANK[r] > AppAccess.RANK[t] ? r : t; }, "info"); return `<tr><td>${esc(aa.names[x.principalId] || x.principalId)}</td><td>${esc(x.app ? x.app.displayName : x.clientId)}</td><td class="mini">${esc(x.api)}</td><td class="mini">${aaPill(tierMax)} ${esc(x.scopes.join(" "))}</td><td><button class="btn sm" data-aarevgrant="${esc(x.grantId)}">✂ Revoke…</button></td></tr>`; }).join("")}</tbody></table></div>`;
+  }
+  function aaSettingsHtml() {
+    const s = aa.model.settings;
+    const icon = { ok: "✅", bad: "❌", warn: "⚠️", info: "ⓘ", unknown: "?" };
+    return `<div class="list-card aa-card">${s.map((c) => `<div class="aa-chk"><span class="ic">${icon[c.sev] || "ⓘ"}</span><div><h5>${esc(c.title)}</h5><p>${esc(c.text)}</p>${c.fix ? `<p class="aa-imp"><b>Fix:</b> ${esc(c.fix)}</p>` : ""}${c.k === "acrp" ? aaAcrpHtml(c) : ""}</div></div>`).join("")}<p class="mini muted" style="margin:10px 0 0">User consent settings are changed in Entra (Enterprise apps → Consent and permissions); only future consents change, existing grants stay — that is what the other tabs are for.</p></div>`;
+  }
+  function aaAcrpHtml(c) {
+    const on = c.acrp && c.acrp.isEnabled === true;
+    if (on) return `<p class="aa-imp"><b>Way back:</b> switch it off — open requests expire, reviewers are kept. <button class="btn sm" data-aaacrp="off">Switch off…</button></p>`;
+    return `<div class="aa-acrp"><p class="aa-imp"><b>Turn on</b> with the members of one group as reviewers (for example the AppOps PIM group that holds Cloud Application Administrator), email to reviewers, reminders, and requests that expire after <input class="txt" id="aaAcrpDays" type="number" min="1" max="30" value="${aa.acrpDays}" style="width:60px"> days. Reviewers approve delegated requests; Microsoft Graph application permissions still need a Privileged Role Administrator or Global Administrator.</p>${aaGroupPick("acrp")}<p class="aa-imp"><b>Impact:</b> none for users today — they gain a Request approval button. <b>Way back:</b> switch it off again; open requests expire. <b>Needs:</b> Policy.ReadWrite.ConsentRequest (asked at the click) and Cloud Application Administrator or Application Administrator.</p><button class="btn sm primary" data-aaacrp="on"${aa.acrpGroup ? "" : " disabled"}>Turn on admin consent requests… <span class="tag block">writes</span></button></div>`;
+  }
+  function aaDecisionsHtml() {
+    const m = aa.model, decided = m.apps.filter((a) => a.decision);
+    const undo = aaUndo();
+    const results = `<div id="aaLedger">${aa.ledgerHtml}</div>${aa.summary ? `<p class="mini" style="margin:8px 0">${aa.summary}</p>` : ""}`;
+    const tbl = decided.length ? `<div class="gu-tw"><table class="cg-table"><thead><tr><th>App</th><th>Decision</th><th>By</th><th>Review</th><th>Reason</th><th style="width:220px"></th></tr></thead><tbody>${decided.map((a) => `<tr><td><span class="aa-nm">${esc(a.name)}</span>${aaOrigin(a)}</td><td><span class="aa-dec">${esc(a.decision.decision)}</span><span class="aa-sub">${esc(a.decision.date)}</span></td><td class="mini">${esc(a.decision.by || "—")}</td><td class="mini${a.decision.review && a.decision.review <= aaToday() ? " aa-stale" : ""}">${esc(a.decision.review || "—")}</td><td class="mini">${esc(a.decision.reason || "")}</td><td>${!a.enabled ? `<button class="btn sm" data-aago1id="enable" data-id="${esc(a.id)}">↻ Enable again…</button> <button class="btn sm" data-aago1id="remove" data-id="${esc(a.id)}">🗑 Remove…</button>` : `<button class="btn sm" data-aaopen="${esc(a.id)}">Open</button>`}</td></tr>`).join("")}</tbody></table></div>` : '<p class="mini muted">No decision recorded on any app yet.</p>';
+    const back = undo.length ? `<h4 class="aa-h4">Taken by this browser — the way back</h4><div class="gu-tw"><table class="cg-table"><thead><tr><th>App</th><th>What</th><th>When</th><th style="width:160px"></th></tr></thead><tbody>${undo.slice().reverse().map((u) => `<tr><td>${esc(u.name)}</td><td class="mini">${u.removed ? "<b>removed</b> · " : ""}${u.undo.length} permission${u.undo.length === 1 ? "" : "s"}: ${esc(u.undo.map((x) => x.value || (x.scopes || []).join(" ")).join(", ").slice(0, 220))}</td><td class="mini">${esc(String(u.at).slice(0, 16).replace("T", " "))}</td><td><button class="btn sm" data-aarestore="${esc(u.id)}|${esc(u.at)}">↩ ${u.removed ? "Restore" : "Grant back"}…</button></td></tr>`).join("")}</tbody></table></div><p class="mini muted">Kept in this browser (localStorage), and in the run’s report. A removed app can be restored for 30 days.</p>` : "";
+    return `${results}<h4 class="aa-h4">Decisions on the apps (from their Notes)</h4>${tbl}${back}`;
+  }
+  function aaPartnersHtml() {
+    const list = aaPartners();
+    return `<div class="list-card aa-card aa-partners"><div class="aa-dh"><h3>Partner tenants</h3><span class="mini muted">Apps owned by these tenants show as <b>Partner</b>, not third-party. Kept in this browser.</span><button class="btn sm" data-aapartners>Close</button></div><table class="cg-table"><tbody>${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mini"><code>${esc(p.tenantId)}</code></td><td style="width:60px"><button class="btn sm" data-aapdel="${i}" title="Remove">✕</button></td></tr>`).join("")}</tbody></table><div class="aa-filters" style="margin-top:8px"><input class="txt" id="aaPName" placeholder="Name"><input class="txt" id="aaPTid" placeholder="Tenant ID (GUID)" style="flex:1"><button class="btn sm" data-aapadd>＋ Add</button><button class="btn sm" data-aapreset>Reset to the default</button></div></div>`;
+  }
+  // ---- the confirm card: impact and way back BEFORE the write ----
+  function aaPlan(kind, apps, extra) {
+    const x = extra || {}, by = aaWho(), reason = (aa.reason || "").trim(), review = aa.review || "";
+    const base = { kind, by, reason, review };
+    const ops = apps.map((a) => Object.assign({ app: { id: a.id, appId: a.appId, name: a.name, ms: a.ms, devTool: !!a.origin.devTool } }, base));
+    const n = apps.length, names = apps.map((a) => a.name).join(", ");
+    const P = {
+      approve: { title: `✓ Approve ${n} app${n === 1 ? "" : "s"}`, word: "", scopes: AppAccess.SCOPES.notes, verb: "approving", impact: "None — only the Notes field changes.", back: "Overwrite the decision any time.", diff: apps.map((a) => `${a.name}   notes + "${AppAccess.stamp("Approved", { date: aaToday(), by, review, reason })}"`) },
+      quarantine: { title: `🧊 Quarantine ${n} app${n === 1 ? "" : "s"} — disable sign-in`, word: "QUARANTINE", scopes: AppAccess.SCOPES.notes, verb: "quarantining", impact: "No new tokens for these apps in this tenant within minutes; tokens already issued expire on their own (60–90 min). Their users see the app as disabled.", back: "↻ Enable again — on the app or on Decisions. Permissions, owners and settings are untouched.", diff: apps.map((a) => `${a.name}   accountEnabled true → false · notes + "ENCA T60 · Quarantined ${aaToday()}"`) },
+      enable: { title: `↻ Enable ${names} again`, word: "", scopes: AppAccess.SCOPES.notes, verb: "enabling", impact: "The app gets tokens again.", back: "🧊 Quarantine again.", diff: apps.map((a) => `${a.name}   accountEnabled false → true`) },
+      restrict: { title: `👥 Restrict ${names} to ${x.group ? x.group.displayName : "a group"}`, word: "RESTRICT", scopes: AppAccess.SCOPES.assign, verb: "restricting", impact: "Anyone who is not a direct member of the group is refused at sign-in (AADSTS50105). App-only access is untouched.", back: "Switch Assignment required off in Entra (Enterprise app → Properties) or ask for it here later; the group assignment can stay.", diff: apps.map((a) => `${a.name}   + assignment ${x.group ? x.group.displayName : ""} (first) · appRoleAssignmentRequired false → true`) },
+      revoke: { title: `✂ Revoke ${x.count} permission${x.count === 1 ? "" : "s"} from ${names}`, word: "REVOKE", scopes: AppAccess.SCOPES.revoke, verb: "revoking", impact: "What needs these permissions fails at the next token (60–90 min). Revoking does not stop a user consenting again — the consent settings decide that.", back: "↩ Grant back on Decisions — this browser keeps exactly what was taken. Microsoft Graph application permissions need Privileged Role Administrator to grant back.", diff: x.lines || [] },
+      remove: { title: `🗑 Remove ${n} app${n === 1 ? "" : "s"} from this tenant`, word: "REMOVE", scopes: AppAccess.SCOPES.revoke, verb: "removing", impact: "Every grant is revoked, then the service principal is deleted. Only apps already quarantined; anything still in use is refused.", back: "↩ Restore on Decisions within 30 days — the app comes back from deleted items and is granted back what was taken.", diff: apps.map((a) => `${a.name}   revoke ${a.appPerms.length} application permission${a.appPerms.length === 1 ? "" : "s"} and ${new Set(a.perms.filter((p) => p.type === "del").map((p) => p.grantId)).size} grant(s) · DELETE servicePrincipal`) },
+    }[kind];
+    if (kind === "restrict") ops.forEach((op) => { op.groupId = x.group && x.group.id; });
+    if (kind === "revoke") ops.forEach((op) => { op.revoke = x.items; });
+    if (kind === "remove") ops.forEach((op, i) => { op.names = Object.fromEntries(apps[i].appPerms.map((p) => [p.appRoleId, p.value])); });
+    return Object.assign({ kind, ops }, P);
+  }
+  function aaConfirmHtml() {
+    const c = aa.confirm;
+    const needs = `${c.scopes.join(", ")} — and the signed-in account needs Cloud Application Administrator or Application Administrator.`;
+    return `<div class="list-card aa-card aa-confirm"><h3>${esc(c.title)}</h3><p class="mini muted">${c.kind === "approve" ? "Nothing about the app changes." : "Read again just before each write and read back after it — the run ledger shows every outcome."}</p><pre class="aa-diff">${c.diff.map(esc).join("\n")}</pre><div class="aa-facts"><div class="aa-f warn"><b>Impact</b>${esc(c.impact)}</div><div class="aa-f ok"><b>Way back</b>${esc(c.back)}</div><div class="aa-f"><b>Needs</b>${esc(needs)}</div></div>${c.word ? `<label class="mini" style="display:flex;gap:8px;align-items:center;margin-top:10px">Type <b>${c.word}</b> to go on <input id="aaConfirm" class="txt" autocomplete="off" value="${esc(aa.armed)}" style="width:150px"></label>` : ""}<div class="aa-filters" style="margin-top:10px"><button class="btn" data-aacancel>Cancel</button><button class="btn primary" data-aarun${c.word && aa.armed.trim() !== c.word ? " disabled" : ""}>${esc(c.title.replace(/^\S+\s/, ""))} <span class="tag block">writes</span></button></div></div>`;
+  }
+  async function aaRun() {
+    const c = aa.confirm; if (!c || aa.running) return;
+    const scopes = [...AUTH_CONFIG.scopes, ...c.scopes];
+    if (!isDemo && !await preConsent(scopes)) return;
+    aa.running = true; aa.confirm = null; aa.armed = ""; aa.open = null; aa.tab = "decisions"; aa.ledgerHtml = ""; aa.summary = ""; renderAa();
+    const host = $("aaLedger");
+    const L = host ? RunLedger.create(host, { unit: c.kind === "acrp" ? "setting" : c.ops.length === 1 ? "app" : "apps", title: c.verb, items: c.ops.map((op) => ({ label: (op.app || op.record || { name: "Admin consent requests" }).name, sub: c.kind })) }) : null;
+    const io = isDemo ? aaDemoIO() : aaWriteIO(scopes);
+    let results = [];
+    try {
+      if (c.kind === "acrp") {
+        if (L) L.start(0);
+        const r = await AppAccess.setAcrp(io, c.on, c.groupId, c.days);
+        results = [{ kind: "acrp", outcome: r.ok ? (c.on ? "switched on" : "switched off") : "failed", detail: r.ok ? `read back isEnabled: ${c.on}` : "read back unchanged" }];
+        if (L) { if (r.ok) L.done(0, results[0].detail, results[0].outcome); else L.fail(0, results[0].detail); }
+        if (r.after) aa.raw.settings.acrp = r.after;
+      } else results = await AppAccess.apply(c.ops, { io, ledger: L, selfAppId: AUTH_CONFIG.clientId, today: aaToday() });
+    } catch (e) { toast(`Stopped: <span>${esc((e && e.message) || e)}</span>`); }
+    finally {
+      if (L) L.finish({ report: aaReport });
+      aa.ledgerHtml = host ? host.innerHTML : "";
+      let undo = aaUndo();
+      for (const r of results) {
+        if (r.kind === "restore" && (r.outcome === "restored" || r.outcome === "partly")) undo = undo.filter((u) => `${u.id}|${u.at}` !== c.restoreKey);
+        if ((r.kind === "revoke" || r.kind === "remove") && r.undo && r.undo.length) undo.push({ id: r.id, name: r.name, at: new Date().toISOString(), removed: r.outcome === "removed", undo: r.undo });
+      }
+      aaSaveUndo(undo);
+      const good = results.filter((r) => !["failed", "skipped", "refused"].includes(r.outcome)).length, bad = results.filter((r) => r.outcome === "failed").length;
+      aa.summary = `<b>${good} done</b>${bad ? ` · <b class="aa-bad">${bad} failed</b>` : ""}${results.length - good - bad ? ` · ${results.length - good - bad} skipped or refused` : ""} — the lists follow ${isDemo ? "the demo tenant" : "a fresh read"}.`;
+      aa.sel.clear(); aa.ptick.clear(); aa.reason = ""; aa.review = "";
+      aa.running = false;
+      if (isDemo) aa.model = aaAnalyze(); else await aaRead(true);
+      renderAa();
+    }
+  }
+  function aaStart(kind, apps, extra) {
+    if (!apps.length) return;
+    aa.confirm = aaPlan(kind, apps, extra); aa.armed = "";
+    renderAa();
+  }
+  function aaReport() {
+    if (!aa.model) { toast("Read the apps first"); return; }
+    downloadText("app-access-review", "md", "text/markdown", AppAccess.markdown(aa.model, { tenant: tenantName || (isDemo ? "demo" : ""), build: APP_BUILD.label }));
+  }
+  $("toolAppAccess").addEventListener("click", openAa);
+  $("aaRefresh").addEventListener("click", () => { aa.raw = null; aa.open = null; aaRead(); });
+  $("aaAudit").addEventListener("click", aaAudit);
+  $("aaMd").addEventListener("click", aaReport);
+  $("aaCsv").addEventListener("click", () => { if (!aa.model) return toast("Read the apps first"); downloadText("app-access-apps", "csv", "text/csv", AppAccess.csv(aa.model)); });
+  $("aaPermCsv").addEventListener("click", () => { if (!aa.model) return toast("Read the apps first"); downloadText("app-access-permissions", "csv", "text/csv", AppAccess.permCsv(aa.model)); });
+  $("aaPartnersBtn").addEventListener("click", () => { aa.showPartners = !aa.showPartners; renderAa(); });
+  $("aaCustomBtn").addEventListener("click", () => $("aaCustomFile").click());
+  $("aaCustomFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try { aa.custom = AppAccess.parseCustomCsv(await f.text()); aa.customName = f.name; aa.model = aaAnalyze(); toast(`Your table: <span>${aa.custom.size}</span> rules applied`); }
+    catch (err) { toast(`Not used: <span>${esc(err.message || err)}</span>`); }
+    e.target.value = ""; renderAa();
+  });
+  $("aaBody").addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("input,label") && !t.closest("button")) return;
+    const pick = (sel) => t.closest(sel);
+    let el;
+    if ((el = pick("[data-aatab]"))) { aa.tab = el.dataset.aatab; aa.open = null; aa.confirm = null; renderAa(); return; }
+    if ((el = pick("[data-aakpi]"))) { const k = el.dataset.aakpi; aa.kpi = aa.kpi === k ? null : k; if (aa.tab !== "queue" && aa.tab !== "all") aa.tab = "all"; aa.open = null; renderAa(); return; }
+    if ((el = pick("[data-aaseg]"))) { aa[el.dataset.aaseg] = el.dataset.v; renderAa(); return; }
+    if ((el = pick("[data-aaback]"))) { aa.open = null; aa.ptick.clear(); renderAa(); return; }
+    if ((el = pick("[data-aaopen]")) || (el = pick("[data-aaopenm]"))) { aa.open = el.dataset.aaopen || el.dataset.aaopenm; if (aa.tab !== "all" && aa.tab !== "queue") aa.tab = "all"; aa.ptick.clear(); aa.confirm = null; renderAa(); window.scrollTo && window.scrollTo({ top: 0 }); return; }
+    if ((el = pick("[data-aaopenone]"))) { aa.open = [...aa.sel][0]; renderAa(); return; }
+    if ((el = pick("[data-aaclear]"))) { aa.sel.clear(); renderAa(); return; }
+    if ((el = pick("[data-aaaudit]"))) { e.preventDefault(); aaAudit(); return; }
+    if ((el = pick("[data-aacustomoff]"))) { e.preventDefault(); aa.custom = null; aa.model = aaAnalyze(); renderAa(); return; }
+    if ((el = pick("[data-aacancel]"))) { aa.confirm = null; renderAa(); return; }
+    if ((el = pick("[data-aarun]"))) { aaRun(); return; }
+    if ((el = pick("[data-aago]"))) { const apps = aa.model.apps.filter((a) => aa.sel.has(a.id)); aaStart(el.dataset.aago, apps); return; }
+    if ((el = pick("[data-aago1]"))) {
+      const a = aa.model.apps.find((x) => x.id === aa.open); if (!a) return;
+      const kind = el.dataset.aago1;
+      if (kind === "restrict") { aaStart("restrict", [a], { group: aa.restrictGroup }); return; }
+      if (kind === "revoke") {
+        const perms = a.perms.slice().sort((x, y) => AppAccess.RANK[y.tier] - AppAccess.RANK[x.tier] || x.value.localeCompare(y.value)).filter((p, i) => aa.ptick.has(i));
+        const items = [], byGrant = new Map();
+        for (const p of perms) { if (p.type === "app") items.push({ type: "app", resourceId: p.resourceId, assignmentId: p.assignmentId, appRoleId: p.appRoleId, value: p.value, api: p.api }); else { if (!byGrant.has(p.grantId)) byGrant.set(p.grantId, { type: "del", grantId: p.grantId, scopes: [], api: p.api }); byGrant.get(p.grantId).scopes.push(p.value); } }
+        items.push(...byGrant.values());
+        aaStart("revoke", [a], { items, count: perms.length, lines: perms.map((p) => `${a.name}   − ${p.value} (${p.type === "app" ? "application" : p.all ? "delegated, every user" : "delegated, one user"}, ${p.api})`) });
+        return;
+      }
+      aaStart(kind, [a]); return;
+    }
+    if ((el = pick("[data-aago1id]"))) { const a = aa.model.apps.find((x) => x.id === el.dataset.id); if (a) aaStart(el.dataset.aago1id, [a]); return; }
+    if ((el = pick("[data-aarevgrant]"))) {
+      const g = aa.model.userGrants.find((x) => x.grantId === el.dataset.aarevgrant); if (!g) return;
+      const a = aa.model.apps.find((x) => x.id === g.clientId) || { id: g.clientId, appId: "", name: g.app ? g.app.displayName : g.clientId, ms: false, origin: {}, appPerms: [], perms: [] };
+      aaStart("revoke", [a], { items: [{ type: "del", grantId: g.grantId, scopes: g.scopes, api: g.api }], count: g.scopes.length, lines: [`${a.name}   − the consent of ${aa.names[g.principalId] || g.principalId}: ${g.scopes.join(" ")}`] });
+      return;
+    }
+    if ((el = pick("[data-aarestore]"))) {
+      const rec = aaUndo().find((u) => `${u.id}|${u.at}` === el.dataset.aarestore); if (!rec) return;
+      aa.confirm = { kind: "restore", title: `↩ ${rec.removed ? "Restore" : "Grant back"} ${rec.name}`, word: "", scopes: AppAccess.SCOPES.revoke, verb: "restoring", restoreKey: el.dataset.aarestore, impact: "The app gets back exactly what this browser took from it.", back: "✂ Reduce or 🗑 Remove again.", diff: [rec.removed ? `POST /directory/deletedItems/${rec.id}/restore` : "", ...rec.undo.map((u) => `+ ${u.value || (u.scopes || []).join(" ")} (${u.type === "app" ? "application" : "delegated"}, ${u.api || ""})`)].filter(Boolean), ops: [{ kind: "restore", record: rec }] };
+      aa.armed = ""; renderAa(); return;
+    }
+    if ((el = pick("[data-aagsearch]"))) { aaGroupSearch(el.dataset.aagsearch); return; }
+    if ((el = pick("[data-aagpick]"))) { const g = { id: el.dataset.id, displayName: el.dataset.name }; if (el.dataset.aagpick === "restrict") aa.restrictGroup = g; else aa.acrpGroup = g; aa.pick = { for: "", q: "", res: [], busy: false }; renderAa(); return; }
+    if ((el = pick("[data-aagclear]"))) { e.preventDefault(); if (el.dataset.aagclear === "restrict") aa.restrictGroup = null; else aa.acrpGroup = null; renderAa(); return; }
+    if ((el = pick("[data-aaacrp]"))) {
+      const on = el.dataset.aaacrp === "on";
+      aa.confirm = { kind: "acrp", on, groupId: aa.acrpGroup && aa.acrpGroup.id, days: aa.acrpDays, title: on ? "Turn on admin consent requests" : "Switch admin consent requests off", word: "", scopes: AppAccess.SCOPES.acrp, verb: on ? "switching on" : "switching off", impact: on ? "None for users today — they gain a Request approval button; reviewers get email." : "Users lose the Request approval button; open requests expire.", back: on ? "Switch it off again here." : "Turn it on again here.", diff: [`PUT /v1.0/policies/adminConsentRequestPolicy`, JSON.stringify(AppAccess.acrpBody(on, aa.acrpGroup && aa.acrpGroup.id, aa.acrpDays))], ops: [{ record: { name: "Admin consent requests" } }] };
+      aa.armed = ""; renderAa(); return;
+    }
+    if ((el = pick("[data-aapartners]"))) { aa.showPartners = false; renderAa(); return; }
+    if ((el = pick("[data-aapdel]"))) { const l = aaPartners(); l.splice(+el.dataset.aapdel, 1); aaSavePartners(l); aa.model = aaAnalyze(); renderAa(); return; }
+    if ((el = pick("[data-aapreset]"))) { try { localStorage.removeItem(AA_PARTNERS); } catch { /* none */ } aa.model = aaAnalyze(); renderAa(); return; }
+    if ((el = pick("[data-aapadd]"))) {
+      const name = ($("aaPName").value || "").trim(), tid = ($("aaPTid").value || "").trim().toLowerCase();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(tid) || !name) { toast("A name and a tenant ID (GUID) are needed"); return; }
+      const l = aaPartners().filter((p) => p.tenantId !== tid); l.push({ tenantId: tid, name }); aaSavePartners(l); aa.model = aaAnalyze(); renderAa(); return;
+    }
+    // a click on a row (not on its controls) opens the app
+    if ((el = pick("tr[data-aarow]")) && !t.closest("button,a,input")) { aa.open = el.dataset.aarow; aa.ptick.clear(); renderAa(); return; }
+  });
+  $("aaBody").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset.aatick) { if (t.checked) aa.sel.add(t.dataset.aatick); else aa.sel.delete(t.dataset.aatick); renderAa(); return; }
+    if (t.dataset.aaptick != null && t.dataset.aaptick !== undefined && t.hasAttribute("data-aaptick")) { const i = +t.dataset.aaptick; if (t.checked) aa.ptick.add(i); else aa.ptick.delete(i); renderAa(); return; }
+    if (t.id === "aaReview") { aa.review = t.value; return; }
+    if (t.id === "aaAcrpDays") { aa.acrpDays = Math.min(30, Math.max(1, +t.value || 14)); return; }
+  });
+  $("aaBody").addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.id === "aaQ") { aa.q = t.value; clearTimeout(aa.qt); aa.qt = setTimeout(() => { const pos = t.selectionStart; renderAa(); const q = $("aaQ"); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch { /* jsdom */ } } }, 200); return; }
+    if (t.id === "aaConfirm") { aa.armed = t.value; const b = $("aaBody").querySelector("[data-aarun]"); if (b && aa.confirm) b.disabled = aa.confirm.word && aa.armed.trim() !== aa.confirm.word; return; }
+    if (t.id === "aaReason") { aa.reason = t.value; return; }
+    if (t.dataset.aagq) { aa.pick = Object.assign({}, aa.pick, { for: t.dataset.aagq, q: t.value, done: false }); return; }
+  });
+  $("aaBody").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.dataset && e.target.dataset.aagq) { e.preventDefault(); aaGroupSearch(e.target.dataset.aagq); } });
   $("toolEgress").addEventListener("click", openEgress);
   $("egRefresh").addEventListener("click", () => { eg.raw = null; readEgress(); });
   $("egMd").addEventListener("click", () => {

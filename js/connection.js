@@ -69,7 +69,7 @@ const EncaConn = (() => {
   // shipped (tools/signin-single.test.cjs keeps PS_SHA256 in step with the
   // file), so what runs as an administrator is exactly the file you can read
   // here. It prints the two values ＋ Add takes.
-  const PS_SHA256 = "14B581272106372017DF7199150BD6748BC3972FDE3A594282E2F0AD3E33BDFA";
+  const PS_SHA256 = "3BAA4A532AD6A72D228DBC5F53D798DFB067938356C8FA9ED6576FB8E472B40C";
   const scriptUrl = () => window.location.origin + window.location.pathname.replace(/[^/]*$/, "") + "New-EncaAppRegistration.ps1";
   // The registration's name (32803): what the admins of that tenant will see
   // in App registrations, Enterprise applications and on the consent screen,
