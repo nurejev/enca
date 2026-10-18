@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32805, date: "2026-10-18", title: "App access review: a shared certificate names the other apps",
+    items: [
+      { kind: "fixed", tool: "App access review", text: "An app's card said its certificate also signs in as 5 other apps, but not which ones, and nothing on the screen led to them. The card now names them: the warning lists the other apps as links to their own card, and Credentials shows each certificate with its name, end date and thumbprint (to match under App registrations, Certificates and secrets) and every app that holds the same certificate. A certificate written as hex on one registration and as base64 on another is still recognised as the same one." },
+      { kind: "improved", tool: "App access review", text: "The report has a Shared certificates table (certificate, thumbprint, end date and every registration that holds it), and the CSV names the apps a certificate is shared with. Same permissions as another registration is linked the same way, and the role an app holds reads as part of the sentence on the card instead of a small grey caption on its own line." },
+    ],
+  },
+  {
     build: 32804, date: "2026-10-18", title: "App access review (T60): every app that can reach the tenant, and a decision for each",
     items: [
       { kind: "new", tool: "App access review", text: "New in Workspace 03, in a new Applications group: every app that can reach this tenant's data, one row per app — what it can do, who let it in, whether it is still used — with the verdict in plain words. App governance for tenants without Defender for Cloud Apps, such as Microsoft 365 Business Premium. Tier 0 apps (they can give themselves or others more) and endpoint apps (they can push to every device) come first, then unverified publishers, apps unused for 90 days, client secrets and consents for every user." },

@@ -307,6 +307,7 @@ const AppAccess = (() => {
   }
 
   // ---- credentials -----------------------------------------------------
+  const nameList = (names, max) => { const n = max || 6; return names.length > n ? `${names.slice(0, n).join(", ")} and ${names.length - n} more` : names.join(", "); };
   // the same certificate is written as hex or as base64 of the same bytes
   function thumb(k) {
     const c = String((k && k.customKeyIdentifier) || "");
@@ -324,9 +325,12 @@ const AppAccess = (() => {
     const liveSec = sec.filter((c) => end(c) > t), deadSec = sec.filter((c) => end(c) <= t);
     const liveKey = keys.filter((c) => end(c) > t), deadKey = keys.filter((c) => end(c) <= t);
     const next = [...liveSec, ...liveKey].map(end).sort((a, b) => a - b)[0] || null;
-    const thumbs = [...new Set(liveKey.map(thumb).filter(Boolean))];
-    const sharedWith = thumbs.reduce((n, th) => Math.max(n, ((shared && shared.get(th)) || 1) - 1), 0);
-    return { secrets: liveSec.map((c) => ({ name: c.displayName || "", end: c.endDateTime })), certs: liveKey.map((c) => ({ name: c.displayName || "", end: c.endDateTime, thumb: thumb(c) })), expired: deadSec.length + deadKey.length, next, sharedWith, owners: (app.owners || []).map((o) => o.userPrincipalName || o.displayName || o.id) };
+    // the other registrations that hold the same certificate (by thumbprint), named — "5 other apps" alone sends you hunting
+    const others = (th) => ((shared && shared.get(th)) || []).filter((o) => lc(o.appId) !== lc(app.appId)).map((o) => ({ appId: o.appId, name: o.name, id: null }));
+    const certs = liveKey.map((c) => { const th = thumb(c); return { name: c.displayName || "", end: c.endDateTime, thumb: th, others: th ? others(th) : [] }; });
+    const sharedApps = [], seen = new Set();
+    for (const c of certs) for (const o of c.others) if (!seen.has(lc(o.appId))) { seen.add(lc(o.appId)); sharedApps.push(o); }
+    return { secrets: liveSec.map((c) => ({ name: c.displayName || "", end: c.endDateTime })), certs, expired: deadSec.length + deadKey.length, next, sharedWith: sharedApps.length, sharedApps, owners: (app.owners || []).map((o) => o.userPrincipalName || o.displayName || o.id) };
   }
 
   // ---- analyse ----------------------------------------------------------
@@ -336,8 +340,12 @@ const AppAccess = (() => {
     const sps = raw.sps || [], byId = new Map(sps.map((s) => [s.id, s]));
     const appByAppId = new Map((raw.apps || []).map((a) => [lc(a.appId), a]));
     // shared certificates across registrations in this tenant
+    // thumbprint → [{ appId, name, cert, end }], one entry per registration
     const shared = new Map();
-    for (const a of raw.apps || []) for (const th of new Set((a.keyCredentials || []).filter((k) => Date.parse(k.endDateTime || "") > now).map(thumb).filter(Boolean))) shared.set(th, (shared.get(th) || 0) + 1);
+    for (const a of raw.apps || []) {
+      const live = (a.keyCredentials || []).filter((k) => Date.parse(k.endDateTime || "") > now), done = new Set();
+      for (const k of live) { const th = thumb(k); if (!th || done.has(th)) continue; done.add(th); if (!shared.has(th)) shared.set(th, []); shared.get(th).push({ appId: a.appId, name: a.displayName || a.appId, cert: k.displayName || "", end: k.endDateTime }); }
+    }
     const resName = (id) => (raw.resources && raw.resources[id]) || (byId.get(id) ? { appId: byId.get(id).appId, displayName: byId.get(id).displayName, roles: {} } : { appId: null, displayName: id, roles: {} });
     const perms = new Map(), add = (id, p) => { if (!perms.has(id)) perms.set(id, []); perms.get(id).push(p); };
     // application permissions
@@ -406,7 +414,7 @@ const AppAccess = (() => {
       if (everyUser && !msApp && RANK[delTier] >= RANK.high) flags.push({ k: "everyone", sev: "warn", t: "Every user can sign in to it — assignment not required" });
       if (creds && creds.secrets.length && RANK[tier] >= RANK.high && appPerms.length) flags.push({ k: "secret", sev: "bad", t: `Client secret${creds.secrets.length === 1 ? "" : "s"} on an app that acts on its own — a certificate is safer` });
       if (creds && creds.expired) flags.push({ k: "expired", sev: "info", t: `${creds.expired} expired credential${creds.expired === 1 ? "" : "s"} still stored` });
-      if (creds && creds.sharedWith) flags.push({ k: "sharedcert", sev: "warn", t: `Its certificate also signs in as ${creds.sharedWith} other app${creds.sharedWith === 1 ? "" : "s"}` });
+      if (creds && creds.sharedWith) flags.push({ k: "sharedcert", sev: "warn", t: `Its certificate also signs in as ${creds.sharedWith} other app${creds.sharedWith === 1 ? "" : "s"}: ${nameList(creds.sharedApps.map((o) => o.name))}`, lead: `Its certificate also signs in as ${creds.sharedWith} other app${creds.sharedWith === 1 ? "" : "s"}:`, apps: creds.sharedApps });
       if (creds && creds.owners.length && RANK[tier] >= RANK.ep) flags.push({ k: "owners", sev: "warn", t: `${creds.owners.length} owner${creds.owners.length === 1 ? "" : "s"} can add a secret and act as this app` });
       if (origin.kind === "tp" && appPerms.length) flags.push({ k: "vendorkeys", sev: "info", t: "Acts on its own with keys held in the vendor's tenant — you can revoke or disable, not rotate" });
       if (origin.kind === "partner") flags.push({ k: "multi", sev: "info", t: `Multi-tenant registration from ${origin.partner} — check whether your own registration replaces it` });
@@ -416,10 +424,14 @@ const AppAccess = (() => {
     // duplicates: two of your registrations with the same app-only permission set (3 or more)
     const sets = new Map();
     for (const a of apps) if (a.origin.kind === "org" && a.appPerms.length >= 3) { if (!sets.has(a.appSet)) sets.set(a.appSet, []); sets.get(a.appSet).push(a); }
-    for (const grp of sets.values()) if (grp.length > 1) for (const a of grp) a.flags.push({ k: "duplicate", sev: "warn", t: `Same ${a.appPerms.length} application permissions as ${grp.filter((x) => x !== a).map((x) => x.name).join(", ")}` });
+    for (const grp of sets.values()) if (grp.length > 1) for (const a of grp) a.flags.push({ k: "duplicate", sev: "warn", t: `Same ${a.appPerms.length} application permissions as ${grp.filter((x) => x !== a).map((x) => x.name).join(", ")}`, lead: `Same ${a.appPerms.length} application permissions as`, apps: grp.filter((x) => x !== a).map((x) => ({ appId: x.appId, name: x.name, id: x.id })) });
+    // the apps a shared certificate names, linked to their rows (a registration without a service principal here stays a name)
+    const idByAppId = new Map(apps.map((a) => [lc(a.appId), a.id]));
+    for (const a of apps) if (a.creds) for (const o of [...a.creds.sharedApps, ...a.creds.certs.flatMap((c) => c.others)]) o.id = idByAppId.get(lc(o.appId)) || null;
+    const sharedCerts = [...shared.entries()].filter(([, l]) => l.length > 1).map(([th, l]) => ({ thumb: th, cert: l[0].cert, end: l.map((x) => x.end).sort()[0], apps: l.map((x) => ({ appId: x.appId, name: x.name, id: idByAppId.get(lc(x.appId)) || null })) })).sort((x, y) => y.apps.length - x.apps.length);
     for (const a of apps) { a.ms = a.origin.kind === "ms" && !a.origin.devTool; a.why = whyOf(a); a.suggest = suggestOf(a); a.queue = inQueue(a); }
     apps.sort((x, y) => RANK[y.tier] - RANK[x.tier] || Number(y.queue) - Number(x.queue) || x.name.localeCompare(y.name));
-    const model = { apps, readAt: raw.readAt, total: sps.length, grants: (raw.grants || []).length, appPerms: apps.reduce((n, a) => n + a.appPerms.length, 0), roleHolders: apps.filter((a) => a.roles.length).length, roleCount: (raw.roles || []).length, rolesRead: raw.roles != null, appsRead: raw.apps != null, activityRead: !!raw.activity, consentsRead: !!raw.consents, auditErr: raw.activityErr || raw.consentsErr || null, recapped: raw.recapped || [], notes: raw.notes || [], userGrants: userGrants.map((g) => Object.assign(g, { app: byId.get(g.clientId) })), settings: settingsOf(raw.settings || {}) };
+    const model = { apps, readAt: raw.readAt, total: sps.length, grants: (raw.grants || []).length, appPerms: apps.reduce((n, a) => n + a.appPerms.length, 0), roleHolders: apps.filter((a) => a.roles.length).length, roleCount: (raw.roles || []).length, rolesRead: raw.roles != null, appsRead: raw.apps != null, activityRead: !!raw.activity, consentsRead: !!raw.consents, auditErr: raw.activityErr || raw.consentsErr || null, recapped: raw.recapped || [], notes: raw.notes || [], userGrants: userGrants.map((g) => Object.assign(g, { app: byId.get(g.clientId) })), settings: settingsOf(raw.settings || {}), sharedCerts };
     model.kpi = kpis(model);
     model.matrix = matrix(apps);
     return model;
@@ -643,7 +655,7 @@ const AppAccess = (() => {
   // ---- report ------------------------------------------------------------
   const days = (a) => (a.last === undefined ? "not read" : a.last == null ? "no sign-in on record" : a.lastDays === 0 ? "today" : `${a.lastDays} days ago`);
   const whoCan = (a) => (a.acts === "app" ? "no user needed" : a.acts === "role" ? "—" : a.everyUser ? "every user" : a.delAll.length ? "assigned users" : `${a.consentUsers.length} user(s) who consented`);
-  const credLine = (a) => (!a.creds ? (a.origin.kind === "tp" && a.appPerms.length ? "held by the vendor" : "—") : [a.creds.secrets.length ? `${a.creds.secrets.length} secret(s)` : "", a.creds.certs.length ? `${a.creds.certs.length} certificate(s)${a.creds.sharedWith ? ` shared with ${a.creds.sharedWith}` : ""}` : "", a.creds.expired ? `${a.creds.expired} expired` : ""].filter(Boolean).join(", ") || "none");
+  const credLine = (a) => (!a.creds ? (a.origin.kind === "tp" && a.appPerms.length ? "held by the vendor" : "—") : [a.creds.secrets.length ? `${a.creds.secrets.length} secret(s)` : "", a.creds.certs.length ? `${a.creds.certs.length} certificate(s)${a.creds.sharedWith ? ` shared with ${a.creds.sharedApps.map((o) => o.name).join("; ")}` : ""}` : "", a.creds.expired ? `${a.creds.expired} expired` : ""].filter(Boolean).join(", ") || "none");
   function markdown(m, meta) {
     const x = meta || {}, k = m.kpi, L = [];
     const cell = (s) => String(s ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
@@ -658,6 +670,10 @@ const AppAccess = (() => {
     for (const s of m.settings) L.push(`- ${s.sev === "ok" ? "✓" : s.sev === "bad" ? "✗" : s.sev === "warn" ? "⚠" : "ⓘ"} **${s.title}** — ${s.text}`);
     L.push("", "## Every app", "", "| App | Origin | Verdict | Acts as | Who can use it | Last used | Credentials | Roles | Decision |", "|---|---|---|---|---|---|---|---|---|");
     for (const a of m.apps) L.push(`| ${cell(a.name)} | ${cell(a.origin.label)} | ${TIER_LABEL[a.tier]} | ${a.acts} | ${whoCan(a)} | ${days(a)} | ${cell(credLine(a))} | ${cell(a.roles.map((r) => r.name).join(", ") || "—")} | ${a.decision ? `${a.decision.decision} ${a.decision.date}` : "—"} |`);
+    if (m.sharedCerts && m.sharedCerts.length) {
+      L.push("", "## Shared certificates", "", "One certificate on several registrations: whoever holds its private key can sign in as every one of them. Give each app its own certificate, then delete the shared one from the others (App registrations → the app → Certificates & secrets — match the thumbprint).", "", "| Certificate | Thumbprint | Ends | Registrations |", "|---|---|---|---|");
+      for (const c of m.sharedCerts) L.push(`| ${cell(c.cert || "—")} | ${c.thumb} | ${String(c.end || "").slice(0, 10)} | ${cell(c.apps.map((x) => x.name).join(", "))} |`);
+    }
     L.push("", "## What was read", "");
     L.push(`- ${m.total} service principals, ${m.grants} delegated grants, ${m.appPerms} application permissions${m.recapped.length ? ` (${m.recapped.length} app(s) re-read past Graph's 20-item expand)` : ""}`);
     L.push(`- Directory roles: ${m.rolesRead ? `${m.roleCount} held by ${m.roleHolders} app(s)` : "not read"} · app registrations: ${m.appsRead ? "read" : "not read"}`);
@@ -753,6 +769,6 @@ const AppAccess = (() => {
   }
 
   return { V1, EXPAND_CAP, UNUSED_DAYS, SCOPES, RANK, TIER_LABEL, CAPS, DEV_TOOLS, MS_TENANTS, PARTNERS_DEFAULT, GRAPH_APP, DECISIONS,
-    tierOf, parseCustomCsv, originOf, partnerMap, read, readAudit, parseStamp, stamp, withStamp, thumb, credsOf, analyze, settingsOf, acrpBody, refuse, apply, restore, setAcrp, markdown, csv, permCsv, demo };
+    tierOf, parseCustomCsv, originOf, partnerMap, read, readAudit, parseStamp, stamp, withStamp, thumb, nameList, credsOf, analyze, settingsOf, acrpBody, refuse, apply, restore, setAcrp, markdown, csv, permCsv, demo };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = AppAccess;

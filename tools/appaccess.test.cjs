@@ -65,6 +65,15 @@ test("analyze (demo): one row per app, the queue, Microsoft's own app kept out o
   assert.ok(by("Teams automation (old)").flags.some((f) => f.k === "duplicate"));
   const ps = by("Graph automation (PowerShell)");
   assert.ok(ps.flags.some((f) => f.k === "sharedcert"), "the same certificate written as base64 and as hex is one certificate");
+  // 32805 (Mihai: which apps? I cannot find that part): the flag and the card NAME the other apps, linked to their rows
+  const sc = ps.flags.find((f) => f.k === "sharedcert");
+  assert.ok(/Lokka MCP/.test(sc.t) && /Exchange automation/.test(sc.t), "the flag text names the other registrations");
+  assert.strictEqual(sc.apps.length, ps.creds.sharedWith);
+  assert.ok(sc.apps.every((o) => o.id && o.id !== ps.id), "each named app links to its own row, never to itself");
+  assert.ok(ps.creds.certs.some((c) => c.thumb && c.others.length === ps.creds.sharedWith));
+  assert.ok(m.sharedCerts.length >= 1 && m.sharedCerts[0].apps.length === ps.creds.sharedWith + 1, "the model lists each shared certificate once, with every registration on it");
+  assert.match(A.markdown(m, {}), /## Shared certificates/);
+  assert.match(A.csv(m), /shared with Lokka MCP/);
   assert.ok(ps.flags.some((f) => f.k === "secret") && ps.flags.some((f) => f.k === "owners"));
   assert.strictEqual(by("Harvest uploader").tier, "low");
   assert.strictEqual(by("Intune Documentation").consentUsers.length, 1);
