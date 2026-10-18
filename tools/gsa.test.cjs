@@ -161,7 +161,8 @@ test("32520 the Windows remediation: detect, if there, else deploy", () => {
   assert.match(Gsa.remediationAssignment("g1").runSchedule["@odata.type"], /Daily/);
   const raw = Gsa.demo(); raw.healthScripts = [{ id: "h", displayName: b.displayName, assigned: true, runSummary: { noIssueDetectedDeviceCount: 3, issueRemediatedDeviceCount: 1 } }];
   const c = Gsa.model(raw, []).links.find((l) => l.k === "client");
-  assert.match(c.note, /3 without issue · 1 remediated · 0 failing/);
+  // 32708: judged by reach and landing — the note says what landed
+  assert.match(c.note, /4 with the client · 0 failing/);
   assert.strictEqual(c.fix, null);
   raw.healthScripts[0].assigned = false;
   assert.strictEqual(Gsa.model(raw, []).links.find((l) => l.k === "client").fix, "winrem", "an unassigned remediation offers the fix again");
@@ -177,11 +178,16 @@ test("32522: the policy card lists every policy that names the compliant network
   assert.strictEqual(m.policies[1].cnSide, "included");
   assert.strictEqual(m.policies[1].grant, "mfa AND compliantDevice");
   const l = m.links.find((x) => x.k === "policy");
-  assert.strictEqual(l.h, "3 policies");
+  // 32708 (B1): only the guarding policies count — p2 requires MFA ON the
+  // compliant network and blocks nothing outside it
+  assert.strictEqual(l.h, "2 policies");
+  assert.deepStrictEqual(m.guards.map((p) => p.id), ["p1", "p3"]);
+  assert.match(l.note, /1 other policy names it without blocking everything outside it — not counted/);
   const html = Gsa.render(m, {});
   ["CA215-BLOCK-Internals-CN", "CA216-REQ-Admins-OnCN", "CA217-BLOCK-Guests-CN"].forEach((n) => assert.ok(html.includes(n), n));
   assert.ok(!html.includes("CA001-no-cn"));
   assert.match(html, /3 found · 1 on · 1 report-only · 1 off/);
+  assert.match(html, /not counted — it does not block sign-ins outside the compliant network/);
   const m2 = Gsa.model(Gsa.demo(), [off]);
   assert.strictEqual(m2.links.find((x) => x.k === "policy").word, "off");
   assert.match(Gsa.render(m2, {}), /gsa-nv">off</, "32524: the node says off");
@@ -256,14 +262,16 @@ test("32524/32525 devcf (read 14 Oct, every link live): the chain as the board s
   raw.macProfiles = Gsa.macProfiles(raw._macPolicies, raw._macConfigs);
   const m = Gsa.model(raw, raw._ca);
   const st = Object.fromEntries(m.links.map((l) => [l.k, l.st]));
-  assert.deepStrictEqual(st, { licence: "ok", tenant: "ok", profile: "ok", signal: "ok", location: "ok", client: "ok", policy: "bad", proof: "wait" });
+  // 32708 (B3): the remediation was assigned but had not run on any device —
+  // step 6 is partly, not ready
+  assert.deepStrictEqual(st, { licence: "ok", tenant: "ok", profile: "ok", signal: "ok", location: "ok", client: "warn", policy: "bad", proof: "wait" });
   assert.strictEqual(m.links.find((l) => l.k === "licence").note, "4 of 4 used");
   assert.match(m.links.find((l) => l.k === "profile").note, /enabled · 1 group assigned/);
   assert.strictEqual(raw.healthScripts[0].assignments[0].runRemediationScript, false, "what Graph returns — the portal shows remediation on");
   assert.strictEqual(m.links.find((l) => l.k === "client").fix, null, "no fix offered for it");
   assert.doesNotMatch(m.links.find((l) => l.k === "client").note, /DETECT ONLY/);
-  assert.match(m.verdict.p, /Blocked at step 7 — 1 policy/);
-  assert.strictEqual(Gsa.defaultSel(m), "policy");
+  assert.match(m.verdict.p, /Blocked at step 6 — GSA client/);
+  assert.strictEqual(Gsa.defaultSel(m), "client");
   assert.ok(m.groups.some((g) => g.name === "GSA-SEC-U-M365-ALL-PILOT"));
 });
 
@@ -274,7 +282,7 @@ test("0.6.3: Read the proof says it is reading, how far, and answers in the step
   const pr = Gsa.proof([{ userId: "u1", isThroughGlobalSecureAccess: true, appliedConditionalAccessPolicies: [{ id: "p1", result: "reportOnlySuccess" }] }, { userId: "u2", appliedConditionalAccessPolicies: [{ id: "p1", result: "reportOnlyFailure" }] }], ["p1"]);
   const done = Gsa.render(m(), { sel: "proof", proof: pr });
   assert.match(done, /↻ Read again \(7 days\)/);
-  assert.match(done, /read 2 sign-ins · 1 through Global Secure Access/);
+  assert.match(done, /read 2 sign-ins · 2 in the policies(?:&#39;|') scope, 1 of them through Global Secure Access/);
   assert.match(done, /data-gsajump="gsaPols">Show per policy/);
   const err = Gsa.render(m(), { sel: "proof", proofErr: "AuditLog.Read.All was not granted" });
   assert.match(err, /The read stopped[\s\S]*AuditLog\.Read\.All was not granted/);
@@ -460,4 +468,179 @@ test("0.9.1: step 7 is never a dead end; the reach card says who is who", () => 
   // a pilot group, assignment required on: only they get it
   const r2 = Gsa.demo(); const m2 = Gsa.model(r2, [policy()]);
   assert.match(Gsa.render(m2, {}), /<b>GSA-SEC-U-M365Profile-Pilot<\/b> — only they get the profile/);
+});
+
+// ---- 32708: the go-live recheck (18 Oct 2026) --------------------------------
+const W_GROUP = "g-win";
+const okRaw = (over) => {
+  // a tenant where every link is ready: profile for all users, the remediation
+  // on a group of two joined devices that ran on both, no Mac in the tenant
+  const r = Gsa.demo();
+  r.profile.policies.forEach((p) => { p.state = "enabled"; });
+  r.sp.appRoleAssignmentRequired = false;
+  r.macProfiles = {}; r.macManaged = 0;
+  r.groupNames[W_GROUP] = "INT-SEC-D-GSA-WIN-M365";
+  r.winGroups = { [W_GROUP]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } };
+  r.healthScripts = [{ id: "h", displayName: "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", assigned: true, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: W_GROUP } }], runSummary: { noIssueDetectedDeviceCount: 1, issueRemediatedDeviceCount: 1 } }];
+  return Object.assign(r, over || {});
+};
+const block = (o) => policy(Object.assign({ state: "enabled", conditions: { users: { includeUsers: ["All"] }, applications: { includeApplications: ["All"], excludeApplications: [Gsa.INTUNE_APP, Gsa.INTUNE_ENROLL] }, platforms: { includePlatforms: ["windows", "macOS"] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] } } }, o || {}));
+
+test("32708 B1: the verdict is green only for a block-outside policy on All resources, the whole chain ready, everybody covered", () => {
+  const good = Gsa.model(okRaw(), [block()]);
+  assert.strictEqual(good.links.find((l) => l.k === "client").st, "ok", "Windows-only tenant: step 6 can be green (S7)");
+  assert.strictEqual(good.verdict.cls, "ok");
+  assert.strictEqual(good.links.find((l) => l.k === "policy").st, "ok");
+  // (a) the only enabled policy requires MFA ON the compliant network
+  const a = Gsa.model(okRaw(), [policy({ state: "enabled", conditions: { users: { includeUsers: ["All"] }, applications: { includeApplications: ["All"] }, locations: { includeLocations: ["loc-cn"] } }, grantControls: { builtInControls: ["mfa"] } })]);
+  assert.strictEqual(a.verdict.cls, "bad");
+  assert.match(a.verdict.p, /none blocks every resource outside it/);
+  assert.strictEqual(a.links.find((l) => l.k === "policy").word, "none blocks");
+  // (b) block outside, one app only
+  const b = Gsa.model(okRaw(), [block({ conditions: { users: { includeUsers: ["All"] }, applications: { includeApplications: ["00000002-0000-0ff1-ce00-000000000000"] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] } } })]);
+  assert.strictEqual(b.verdict.cls, "bad");
+  assert.strictEqual(b.guards.length, 0);
+  assert.match(Gsa.render(b, {}), /not counted — it does not cover All resources/);
+  // (c) on for All users, profile on one pilot group, no client anywhere
+  const c = Gsa.model(Gsa.demo(), [block()]);
+  assert.strictEqual(c.verdict.cls, "bad");
+  assert.strictEqual(c.verdict.h, "The policy is on — it blocks people, not tokens");
+  assert.match(c.verdict.p, /step 6 \(GSA client\)/);
+  assert.match(c.verdict.p, /do not get the Microsoft profile or the client/);
+  assert.strictEqual(c.links.find((l) => l.k === "policy").st, "bad");
+  assert.match(c.links.find((l) => l.k === "policy").sub, /blocks people, not tokens/);
+});
+
+test("32708 B2: who must pass against who can — groups by id, All users, devices with the client", () => {
+  const raw = okRaw(); raw.sp.appRoleAssignmentRequired = true; // profile: the demo's one pilot group
+  const m = Gsa.model(raw, [block()]);
+  assert.strictEqual(m.scope.st, "bad");
+  assert.match(m.scope.lines[0].t, /requires the compliant network of All users, but the Microsoft profile is assigned to GSA-SEC-U-M365Profile-Pilot/);
+  // scoped to the profile's own group: covered
+  const m2 = Gsa.model(raw, [block({ conditions: { users: { includeGroups: ["g-gsa-pilot"] }, applications: { includeApplications: ["All"] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] } } })]);
+  assert.strictEqual(m2.scope.st, "ok");
+  assert.strictEqual(m2.verdict.cls, "ok");
+  // report-only: the same gap is a warning before anybody switches it on
+  const m3 = Gsa.model(raw, [block({ state: "enabledForReportingButNotEnforced" })]);
+  assert.strictEqual(m3.scope.st, "warn");
+  assert.match(m3.scope.lines[0].t, /would require/);
+  assert.match(Gsa.render(m3, {}), /gsa-scope warn/);
+  // no device carries the client
+  const raw4 = okRaw(); raw4.winGroups[W_GROUP] = { devices: 0, windows: 0, joined: 0, hybrid: 0, registered: 0, users: 0 };
+  const m4 = Gsa.model(raw4, [block()]);
+  assert.ok(m4.scope.lines.some((x) => /no device carries the Global Secure Access client/.test(x.t)));
+  assert.strictEqual(m4.verdict.cls, "bad");
+});
+
+test("32708 B3/S8: Windows judged by reach and landing, not by name", () => {
+  const w = (over, rs) => { const r = okRaw(); Object.assign(r.winGroups[W_GROUP], over || {}); if (rs) r.healthScripts[0].runSummary = rs; return Gsa.model(r, []).links.find((l) => l.k === "client"); };
+  assert.strictEqual(w().win.st, "ok");
+  const empty = w({ devices: 0, windows: 0, joined: 0 });
+  assert.strictEqual(empty.win.st, "bad");
+  assert.match(empty.note, /no Windows device and no user in it/);
+  const never = w(null, { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0 });
+  assert.strictEqual(never.win.st, "warn");
+  assert.match(never.note, /has not run on any device yet/);
+  const held = w(null, { noIssueDetectedDeviceCount: 1, issueDetectedDeviceCount: 3 });
+  assert.match(held.sub, /found without the client and not remediated — check in Intune that the assignment has remediation on/);
+  const reg = w({ registered: 1 });
+  assert.strictEqual(reg.win.st, "warn");
+  assert.match(reg.sub, /Entra registered device/);
+  const html = Gsa.render(Gsa.model(okRaw(), []), { sel: "client" });
+  assert.match(html, /Windows — found by name, judged by reach and landing/);
+  assert.match(html, /INT-SEC-D-GSA-WIN-M365 — 2 Windows devices/);
+  assert.match(html, /no Intune-managed Mac in this tenant and no macOS script — not in scope/);
+});
+
+test("32708 B4: remediations need Windows Enterprise; Business Premium gets the platform script", () => {
+  const bp = [{ skuPartNumber: "SPB", prepaidUnits: { enabled: 10 }, servicePlans: [{ servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", servicePlanName: "AAD_PREMIUM" }, { servicePlanId: "8e229017-d77b-43d5-9305-903395523b99", servicePlanName: "WINBIZ" }] }];
+  const lic = Gsa.winLicence(bp);
+  assert.deepStrictEqual([lic.known, lic.ent, lic.biz], [true, false, true]);
+  assert.strictEqual(Gsa.winLicence(Gsa.demo().skus).ent, true);
+  assert.strictEqual(Gsa.winLicence(null).known, false);
+  // nothing deployed, Business Premium → the platform script is the fix
+  const r = Gsa.demo(); r.skus = bp;
+  const c = Gsa.model(r, []).links.find((l) => l.k === "client");
+  assert.strictEqual(c.fix, "winscript");
+  assert.match(c.sub, /remediations are not licensed/);
+  // a remediation already there on Business Premium is said, red
+  const r2 = okRaw({ skus: bp });
+  const c2 = Gsa.model(r2, []).links.find((l) => l.k === "client");
+  assert.strictEqual(c2.win.st, "bad");
+  assert.match(c2.sub, /remediations need Windows Enterprise E3\/E5, Education A3\/A5 or VDA/);
+  assert.match(Gsa.render(Gsa.model(r2, []), { sel: "client" }), /Windows Business \(Business Premium\): remediations not licensed/);
+});
+
+test("32708 S1: a found but unassigned remediation, any release tag, is the one the fix assigns", () => {
+  const r = okRaw();
+  r.healthScripts[0].displayName = "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.9 - v1.0";
+  r.healthScripts[0].assigned = false; r.healthScripts[0].assignments = [];
+  const c = Gsa.model(r, []).links.find((l) => l.k === "client");
+  assert.strictEqual(c.fix, "winrem");
+  assert.strictEqual(c.win.obj.id, "h", "the runner reuses this object, whatever name the form would build");
+  assert.strictEqual(c.win.st, "bad");
+  assert.match(c.note, /assigned to nobody/);
+});
+
+test("32708 S3: the compliant network location's well-known id is recognised without the locations read", () => {
+  assert.strictEqual(Gsa.CN_ID, "3d46dbda-8382-466a-856d-eb00cbc6b910");
+  const r = okRaw(); r.sources.locations = "403 Forbidden"; r.locations = [];
+  const m = Gsa.model(r, [block({ conditions: { users: { includeUsers: ["All"] }, applications: { includeApplications: ["All"] }, locations: { includeLocations: ["All"], excludeLocations: [Gsa.CN_ID] } } })]);
+  assert.strictEqual(m.policies.length, 1);
+  assert.strictEqual(m.policies[0].guard, true);
+  assert.match(Gsa.FIXES.location.changes.join(" "), /Read the named locations again first[\s\S]*NOT create/);
+});
+
+test("32708 S5: the proof — not applied for the location alone means in scope and through GSA; non-interactive counted", () => {
+  const a = (r, ns) => [{ id: "p1", result: r, conditionsNotSatisfied: ns }];
+  const pr = Gsa.proof([
+    { userId: "u1", signInEventTypes: ["nonInteractiveUser"], isThroughGlobalSecureAccess: true, appliedConditionalAccessPolicies: a("reportOnlyNotApplied", "location") },
+    { userId: "u2", signInEventTypes: ["interactiveUser"], appliedConditionalAccessPolicies: a("reportOnlyFailure", "none") },
+    { userId: "u3", signInEventTypes: ["interactiveUser"], appliedConditionalAccessPolicies: a("reportOnlyNotApplied", "users") },
+    { userId: "u4", signInEventTypes: ["nonInteractiveUser"], appliedConditionalAccessPolicies: a("notApplied", "location") },
+  ], ["p1"]);
+  assert.deepStrictEqual([pr.total, pr.inScope, pr.inScopeVia, pr.interactive, pr.nonInteractive], [4, 3, 2, 2, 2]);
+  assert.deepStrictEqual([pr.per.p1.wouldBlock, pr.per.p1.wouldPass, pr.per.p1.notApplied], [1, 2, 1]);
+  const m = Gsa.model(okRaw(), [block({ state: "enabledForReportingButNotEnforced" })]);
+  const html = Gsa.render(m, { sel: "proof", proof: pr });
+  assert.match(html, /67% of 3 sign-ins in the policies(?:&#39;|') scope passed through GSA · 1 would be or were blocked · read 2 interactive and 2 non-interactive/);
+});
+
+test("32708 S4/L: the report-only template and the texts that drifted", () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const src = fs.readFileSync(path.join(__dirname, "../js/app.js"), "utf8");
+  assert.match(src, /CA215-BLOCK-Internals-CN-AllApps-WindowsOrMACOS-Require Global Secure Access client active-v1\.0/);
+  assert.match(src, /platforms: \{ includePlatforms: \["windows", "macOS"\]/);
+  assert.doesNotMatch(src, /CA200-BLOCK-Internals-OutsideCompliantNetwork/);
+  assert.doesNotMatch(src, /"scr-app-108-install-global-secure-access"/);
+  assert.doesNotMatch(Gsa.FIXES.macscript.changes.join(" "), /scr-app-108|root, once/);
+  assert.match(Gsa.FIXES.macscript.changes.join(" "), /weekly[\s\S]*scr-app-109/);
+  const html = Gsa.render(Gsa.model(Gsa.demo(), []), {});
+  assert.doesNotMatch(html, /the macOS profiles are read, never written/);
+  assert.doesNotMatch(html, /ENCA does not make this policy here/);
+  assert.match(html, /Create it in report-only…<\/b> opens the 🏗 Policy builder pre-filled/);
+});
+
+test("32708 L6: other excluded apps are shown as holes, by count", () => {
+  const p = block({ conditions: { users: { includeUsers: ["All"] }, applications: { includeApplications: ["All"], excludeApplications: [Gsa.INTUNE_APP, Gsa.INTUNE_ENROLL, "00000002-0000-0000-c000-000000000000", "2793995e-0a7d-40d7-bd35-6968ba142197"] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] } } });
+  const m = Gsa.model(okRaw(), [p]);
+  assert.deepStrictEqual(m.policies[0].otherOut, ["00000002-0000-0000-c000-000000000000", "2793995e-0a7d-40d7-bd35-6968ba142197"]);
+  assert.match(Gsa.render(m, {}), /2 other apps excluded — a stolen token still reaches them/);
+});
+
+test("32708 L7/L8: adding the GSA ids keeps the baseline policy's name; a legacy Extensions profile is flagged", () => {
+  const chain = Gsa.demoMac();
+  const sx = chain.policies[0];
+  sx.assignments = [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-mac" } }];
+  // the baseline's consolidated policy, broken (team in both lists) → repair, which ADDS to it
+  sx.settings = Gsa.macSysextSettings();
+  sx.settings.push({ settingInstance: { settingDefinitionId: "com.apple.system-extension-policy_allowedteamidentifiers", simpleSettingCollectionValue: [{ value: "UBF8T346G9" }] } });
+  const plan = Gsa.macFixPlan("macfix-sysext", Gsa.macCheck(chain, {}), {});
+  assert.strictEqual(plan.mode, "add");
+  const put = plan.ops.find((o) => o.do === "put");
+  assert.strictEqual(put.body.name, "MACOS - DCP - Device Security - D - System Extensions - R26.10 - v1.0", "name unchanged — the importer matches it by name");
+  assert.match(put.body.description, /added by ENCA T56/);
+  const legacy = Gsa.macCheck(Object.assign({}, Gsa.demoMac(), { configs: [...Gsa.demoMac().configs, { "@odata.type": "#microsoft.graph.macOSExtensionsConfiguration", id: "x-old", displayName: "Old Extensions", systemExtensionsAllowedTeamIdentifiers: ["ABCDE12345"], assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-mac" } }] }] }), {});
+  assert.deepStrictEqual(legacy.otherSxLegacy.map((x) => x.name), ["Old Extensions"]);
+  assert.match(Gsa.macTable(legacy), /A deprecated Extensions profile also sets system extensions on these Macs \(Old Extensions\)/);
 });

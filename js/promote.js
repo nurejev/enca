@@ -175,6 +175,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 341,
+      ws: "entra",
+      title: "🌐 Global Secure Access — the go-live checks: people or tokens, who is covered, Windows by what landed; tenant restrictions optional (T56 0.10.0)",
+      tools: ["Global Secure Access"],
+      builds: [32708],
+      risk: "medium",
+      what: "js/gsa.js: cnPolicies marks guard (block outside the compliant network, All resources), allApps and otherOut, and matches the well-known location id CN_ID (3d46dbda) without the locations read; verdict() is green only with a guard on, steps 2-6 ok and scopeCheck ok, else 'blocks people, not tokens' naming what is missing; step 7 counts guards only and carries the scope lines; scopeCheck compares the guard's include (groups by id, All users, users named, roles flagged) with the profile's assignment and the devices with the client. winCheck/winTable judge Windows by reach (raw.winGroups: devices by trustType, users) and landing (remediation and platform script runSummary, app installSummary); winLicence reads Windows Enterprise/Education/VDA service plan ids; on Business Premium the fix is winscript and a found remediation reads red. macOS out of scope when raw.macManaged is 0 and no script. proof() counts not applied with only the location unsatisfied as passed through GSA, inScope/inScopeVia, interactive/non-interactive. Step 3 shows assignmentRules or the platform reminder. Texts: macscript weekly file 109, profiles made by ENCA, the policies card. sysext add keeps the policy's name; otherSxLegacy. js/trv2.js: the card is folded and marked optional, outside the chain; plan refuses Enforce with nothing allowed (list or tenant allow-all partners); the card names the tenant's allow-all partners. js/app.js: the read adds platform script run summaries, app assignments and install summaries, the Windows groups' members, the managed-Mac count (Entra devices MacMDM/macOS isManaged); the winrem runner reuses the remediation step 6 found and writes every assignment back with remediation on, winscript reuses the found script; signal waits for the location; location reads first, POST only when missing with the portal route on refusal; the proof reads nonInteractiveUser beside interactive; the report-only template is Windows and macOS, the profile's groups, named CA215; download name 109; the TRv2 fold remembered. css: .gsa-scope, the TRv2 summary. Help: Go-live checks item. tools/gsa.test.cjs (31) and trv2.test.cjs (20).",
+      why: "The go-live recheck of 18 Oct (review/2026-10-18/t56-golive): the board could read green while nobody could pass, the Windows step was green on a remediation assigned to an empty group that never ran, remediations were offered on Business Premium, the fix could make a second remediation, the proof missed non-interactive sign-ins. Mihai: tenant restrictions must be optional, for the rest go fix. Risk medium: the verdict and the Windows fix change; the new reads are read-only, the winrem runner now writes remediation on for existing assignments of the GSA remediation.",
+      test: [
+        "Beta, demo tenant, 03 → 🌐 Global Secure Access → Read: verdict says CA215 is not on; step 7 is partly with the line that CA215 would require the compliant network of g-internals while the profile is assigned to GSA-SEC-U-M365Profile-Pilot; the Who it reaches card shows the same warning.",
+        "Beta, demo: step 6 shows the Windows table (Deployment not found, licence ✓ Windows 10/11 Enterprise) above the macOS chain; Create Windows remediation → Apply; the table then reads INT-SEC-D-GSA-WIN-M365 — 2 Windows devices and has not run on any device yet, step 6 stays partly.",
+        "Beta, demo: the Tenant restrictions v2 card is folded with optional on it; open it, Set up, tick Enforce with no tenant listed — Apply is refused with Enforce needs at least one allowed tenant; untick Enforce and Apply writes the policy only (simulated).",
+        "Beta, cloudfellows.dev, Read: step 6 Windows reads the remediation on INT-SEC-D-GSA-WIN-M365 — no Windows device and no user in it (the group is empty) and is not ready; macOS reads as before; the verdict names step 6; step 7 (after Read the policies) says CA215 would require the compliant network of CAB-SEC-U-Persona-Internals while the profile is on GSA-SEC-U-M365-ALL-PILOT.",
+        "Beta, cloudfellows.dev: add one Entra-joined Windows test device to INT-SEC-D-GSA-WIN-M365, Read again — the table reads 1 Windows device; after the hourly run it reads 1 with the client (or the held line if remediation turns out to be off — then check the assignment in Intune).",
+        "Beta, a Business Premium tenant without a GSA deployment: step 6 offers Create Windows platform script, the Windows table says Windows Business — remediations not licensed.",
+        "Beta, cloudfellows.dev, step 7 with CA215 not counted as covered: Create it in report-only is offered only when no guard policy exists — on a tenant without one, the builder opens with Windows and macOS and the profile's group, report-only.",
+        "Beta, any tenant with a report-only guard policy: Read the proof — the toast and step 8 name the sign-ins in the policies' scope and how many came through GSA, and step 8 says how many interactive and non-interactive were read.",
+      ],
+    },
+    {
       n: 340,
       ws: "entra",
       title: "🧹 Entra device cleanup — stale devices out in two steps, ported from TUNO T25 (T59 0.1.0, R88)",
@@ -222,7 +242,7 @@ const PROMOTE = {
       test: [
         "Beta, signed in, Policies NOT loaded: 03 → Global Secure Access → step 7 says the policies are not read; Read the policies shows the loading screen and comes back to step 7 with the policies counted.",
         "Beta, a tenant without a compliant-network policy: step 7 offers Create it in report-only; the Policy builder opens as a new policy, report-only, all users, all resources, block, the compliant network and the two Intune apps excluded; nothing is written until Save.",
-        "Beta, cloudfellows.dev: the Who it reaches card reads profile for all users (no group needed), the policies' include after the read, macOS INT-SEC-D-GSA-MAC-M365 with 0 managed Macs, Windows nothing assigned, and the line on top says nobody's traffic goes through yet; 👥 Groups → Used by GSA lists INT-SEC-D-GSA-MAC-M365.",
+        "Beta, cloudfellows.dev: the Who it reaches card reads the profile on GSA-SEC-U-M365-ALL-PILOT (Assignment required is on there, read 18 Oct), the policies' include after the read, macOS INT-SEC-D-GSA-MAC-M365 with 0 managed Macs, Windows INT-SEC-D-GSA-WIN-M365 (remediation), and the line on top says nobody's traffic goes through yet; 👥 Groups → Used by GSA lists both device groups.",
       ],
     },
     {
@@ -249,7 +269,7 @@ const PROMOTE = {
     {
       n: 336,
       ws: "entra",
-      title: "🚧 Global Secure Access — tenant restrictions v2: only the tenants you allow on your devices (T56 0.7.0)",
+      title: "🚧 Global Secure Access — tenant restrictions v2 (optional): only the tenants you allow on your devices (T56 0.7.0)",
       tools: ["Global Secure Access"],
       builds: [32702],
       risk: "high",

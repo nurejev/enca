@@ -25309,7 +25309,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
     if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
     gsa.model = Gsa.model(gsa.raw, gsaPolicies());
-    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info()) : "" });
+    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info(), { open: !!gsa.trv2Open || gsa.work.some((w) => w.k === "trv2") }) : "" });
     $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
   }
   async function readGsa() {
@@ -25342,9 +25342,22 @@ This is a directory write. Nothing else changes.`)) return;
         await one("trv2", async () => ({ default: await Graph.gget("/v1.0/policies/crossTenantAccessPolicy/default", sc), partners: await Graph.ggetAll("/v1.0/policies/crossTenantAccessPolicy/partners", { scopes: sc }), utr: await Graph.gget("/networkAccess/settings/crossTenantAccess", sc).catch((e) => ({ error: gsaErr(e) })) }));
         // 32523: the GSA ones read with their assignments, for the Intune card
         const withAsg = async (base, list) => { for (const s of list.filter((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`))) { try { s.assignments = (await Graph.gget(`${base}/${s.id}/assignments`, sc)).value || []; } catch { /* left unknown */ } } return list; };
-        await one("scripts", async () => withAsg("/deviceManagement/deviceManagementScripts", await Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName,description", { scopes: sc })));
+        await one("scripts", async () => {
+          const list = await withAsg("/deviceManagement/deviceManagementScripts", await Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName,description", { scopes: sc }));
+          // 32708 (B3): a platform script is judged by what ran, like the remediation
+          for (const x of list.filter((y) => /global\s*secure\s*access/i.test(`${y.displayName} ${y.fileName}`))) { try { x.runSummary = await Graph.gget(`/deviceManagement/deviceManagementScripts/${x.id}/runSummary`, sc); } catch { x.runSummary = null; } }
+          return list;
+        });
         await one("shellScripts", async () => withAsg("/deviceManagement/deviceShellScripts", await Graph.ggetAll("/deviceManagement/deviceShellScripts?$select=id,displayName,fileName,description", { scopes: sc })));
-        await one("apps", () => Graph.ggetAll("/deviceAppManagement/mobileApps?$filter=" + encodeURIComponent("startswith(displayName,'Global Secure Access')") + "&$select=id,displayName", { scopes: sc }));
+        await one("apps", async () => {
+          const list = await Graph.ggetAll("/deviceAppManagement/mobileApps?$filter=" + encodeURIComponent("startswith(displayName,'Global Secure Access')") + "&$select=id,displayName", { scopes: sc });
+          // 32708 (B3): an app is judged by its assignments and install summary
+          for (const a of list) {
+            try { a.assignments = (await Graph.gget(`/deviceAppManagement/mobileApps/${a.id}/assignments`, sc)).value || []; } catch { /* left unknown */ }
+            try { a.installSummary = await Graph.gget(`/deviceAppManagement/mobileApps/${a.id}/installSummary`, sc); } catch { a.installSummary = null; }
+          }
+          return list;
+        });
         // 32520: the Windows client as a remediation — matched by name, then
         // its assignments and its run summary (detected / remediated / failing)
         await one("healthScripts", async () => {
@@ -25355,6 +25368,26 @@ This is a directory write. Nothing else changes.`)) return;
           }
           return hs;
         });
+        // 32708 (B3, S8): who the Windows deployments reach — the members of
+        // their groups: Windows devices by join type (AzureAd joined, ServerAd
+        // hybrid joined, Workplace registered) and users
+        raw.winGroups = {};
+        {
+          const rxW = /global\s*secure\s*access/i;
+          const asgW = [...(raw.healthScripts || []), ...(raw.scripts || []).filter((x) => rxW.test(`${x.displayName} ${x.fileName}`)), ...(raw.apps || [])].flatMap((x) => (x.assignments || []).map((a) => a.target || {})).filter((t) => t.groupId && !/exclusion/i.test(t["@odata.type"] || ""));
+          for (const gid of [...new Set(asgW.map((t) => t.groupId))].slice(0, 20)) {
+            try {
+              const mem = await Graph.ggetAll(`/v1.0/groups/${gid}/members?$select=id,operatingSystem,trustType&$top=999`, { scopes: sc, cap: 5000 });
+              const dev = mem.filter((x) => /device$/i.test(x["@odata.type"] || "")), winD = dev.filter((x) => /^windows/i.test(x.operatingSystem || ""));
+              raw.winGroups[gid] = { devices: dev.length, windows: winD.length, joined: winD.filter((x) => x.trustType === "AzureAd").length, hybrid: winD.filter((x) => x.trustType === "ServerAd").length, registered: winD.filter((x) => x.trustType === "Workplace").length, users: mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length };
+            } catch { /* members not read — the step says so */ }
+          }
+        }
+        // 32708 (S7): is macOS in scope at all — any Intune-managed Mac in Entra
+        try {
+          const macs = await Graph.ggetAll("/v1.0/devices?$filter=" + encodeURIComponent("operatingSystem eq 'MacMDM' or operatingSystem eq 'macOS'") + "&$select=id,isManaged&$top=100", { scopes: sc, cap: 200 });
+          raw.macManaged = macs.filter((x) => x.isManaged === true).length;
+        } catch { raw.macManaged = null; }
         // 32517: the three macOS profiles (system extensions, transparent proxy,
         // client settings) — listed, matched by Gsa.macProfiles, then read with
         // their assignments; nothing here writes them
@@ -25423,21 +25456,27 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.proofBusy || !gsa.model) return;
     gsa.proofBusy = true; gsa.proofRead = 0; gsa.proofErr = null; gsa.sel = "proof"; renderGsa();
     try {
-      const ids = gsa.model.policies.map((p) => p.id);
+      const ids = (gsa.model.guards && gsa.model.guards.length ? gsa.model.guards : gsa.model.policies).map((p) => p.id);
       if (isDemo) {
         await new Promise((r) => setTimeout(r, 250));
-        const s = (r, via, u) => ({ userId: u, isThroughGlobalSecureAccess: via, appliedConditionalAccessPolicies: ids.map((id) => ({ id, result: r })) });
-        gsa.proof = Gsa.proof([...Array(40)].map((_, i) => s(i % 5 === 0 ? "reportOnlySuccess" : "reportOnlyFailure", i % 5 === 0, `u${i % 12}`)), ids);
+        const s = (r, via, u, ni) => ({ userId: u, isThroughGlobalSecureAccess: via, signInEventTypes: [ni ? "nonInteractiveUser" : "interactiveUser"], appliedConditionalAccessPolicies: ids.map((id) => ({ id, result: r, conditionsNotSatisfied: r === "reportOnlyNotApplied" ? "location" : "none" })) });
+        gsa.proof = Gsa.proof([...Array(40)].map((_, i) => s(i % 5 === 0 ? "reportOnlyNotApplied" : "reportOnlyFailure", i % 5 === 0, `u${i % 12}`, i % 2 === 0)), ids);
       } else {
         const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
         if (!await preConsent(sc)) throw new Error("AuditLog.Read.All was not granted");
         const since = new Date(Date.now() - 7 * 86400000).toISOString();
+        // 32708 (S5): the default read is interactive sign-ins only (Learn); token
+        // refresh — where a replayed token shows — is non-interactive, read beside it
         const rows = await Graph.ggetAll(`/auditLogs/signIns?$filter=createdDateTime ge ${since}&$top=999`, { cap: 5000, scopes: sc, onPage: (items) => { gsa.proofRead = (items || []).length; renderGsa(); } });
-        gsa.proof = Gsa.proof(rows, ids);
-        gsa.proof.capped = !!(rows.readState && rows.readState.capped);
+        const done1 = rows.length;
+        let rowsNi = [];
+        try { rowsNi = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&$top=999`, { cap: 5000, scopes: sc, onPage: (items) => { gsa.proofRead = done1 + (items || []).length; renderGsa(); } }); } catch (e) { toast(`Non-interactive sign-ins not read: <span>${esc(gsaErr(e))}</span>`); }
+        rowsNi.forEach((x) => { if (!x.signInEventTypes) x.signInEventTypes = ["nonInteractiveUser"]; });
+        gsa.proof = Gsa.proof([...rows, ...rowsNi], ids);
+        gsa.proof.capped = !!((rows.readState && rows.readState.capped) || (rowsNi.readState && rowsNi.readState.capped));
       }
       const pr = gsa.proof;
-      toast(`Proof read: <span>${pr.total.toLocaleString()} sign-ins · ${pr.viaGsa.toLocaleString()} through GSA</span>`);
+      toast(`Proof read: <span>${pr.total.toLocaleString()} sign-ins · ${(pr.inScope || 0).toLocaleString()} in the policies' scope · ${(pr.inScopeVia || 0).toLocaleString()} of them through GSA</span>`);
     } catch (e) { gsa.proofErr = gsaErr(e); toast(`Sign-in read failed: <span>${esc(gsaErr(e))}</span>`); }
     finally { gsa.proofBusy = false; }
     renderGsa();
@@ -25468,7 +25507,7 @@ This is a directory write. Nothing else changes.`)) return;
     const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">${which === "rem" ? "detection + remediation, SYSTEM, 64-bit" : `file ${esc(which === "win" ? Gsa.WIN_FILE : Gsa.MAC_FILE)}`}</span></div>`;
     const grp = (key, def) => `<input class="txt" data-gsaopt="${key}" value="${esc(o[key] || def)}" placeholder="Device group display name" style="min-width:min(320px,100%)"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label>`;
     const lockBox = `<label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label>`;
-    if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><p class="mini muted">A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet.</p>`;
+    if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><p class="mini muted">${(() => { const fw = ((gsa.model.links.find((l) => l.k === "client") || {}).win || {}); return fw.kind === "rem" && fw.obj ? `Step 6 found ${esc(fw.obj.displayName)} — it is reused and assigned, never made a second time; its other assignments are kept with remediation on.` : "A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet."; })()}</p>`;
     if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`;
     if (k === "macscript" || k === "macprof") {
       // 32703: the three profiles come with the script — ticked when missing
@@ -25563,13 +25602,30 @@ This is a directory write. Nothing else changes.`)) return;
         }
       } else if (k === "signal") {
         if (isDemo) await sim("signalling enabled");
-        else { await Graph.gpatch("/networkAccess/settings/conditionalAccess", { "@odata.type": "#microsoft.graph.networkaccess.conditionalAccessSettings", signalingStatus: "enabled" }, sc); say("Conditional Access signalling enabled", true); }
+        else {
+          await Graph.gpatch("/networkAccess/settings/conditionalAccess", { "@odata.type": "#microsoft.graph.networkaccess.conditionalAccessSettings", signalingStatus: "enabled" }, sc); say("Conditional Access signalling enabled", true);
+          // 32708 (S3): Entra makes the compliant network location itself —
+          // wait up to a minute for it, so step 5 needs no undocumented create
+          for (let i = 0; i < 6; i++) {
+            await new Promise((r) => setTimeout(r, 10000));
+            try { const locs = await Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc }); if (locs.some((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""))) { say(`${Gsa.LOCATION_NAME} is there — made by Entra`, true); break; } } catch { /* read again later */ }
+            if (i === 5) say(`${Gsa.LOCATION_NAME} not there yet — read the tenant again in a few minutes; step 5 says what to do if it stays missing`);
+          }
+        }
       } else if (k === "ztnasp") {
         if (isDemo) await sim("ZTNA Policy Service Client created");
         else { await Graph.gpost("/v1.0/servicePrincipals", { appId: Gsa.ZTNA_CLIENT }, sc); say("ZTNA Policy Service Client service principal created", true); }
       } else if (k === "location") {
         if (isDemo) await sim(`${Gsa.LOCATION_NAME} created`);
-        else { await Graph.gpost("/identity/conditionalAccess/namedLocations", { "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: Gsa.LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false }, sc); say(`${Gsa.LOCATION_NAME} created`, true); }
+        else {
+          const locs = await Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc });
+          const have = locs.find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
+          if (have) say(`${have.displayName} is there — Entra made it; nothing written`, true);
+          else {
+            try { await Graph.gpost("/identity/conditionalAccess/namedLocations", { "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: Gsa.LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false }, sc); say(`${Gsa.LOCATION_NAME} created (not a documented call — check it in Entra → Conditional Access → Named locations)`, true); }
+            catch (e) { throw new Error(`Graph refused to create it (${gsaErr(e)}). Learn documents no create for this location: in Global Secure Access → Settings → Session management → Adaptive access, switch the signalling off and on, then read the tenant again`); }
+          }
+        }
       } else if (k === "winrem") {
         // 32520: the Windows client as a remediation — detect, else deploy
         const nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4 };
@@ -25577,18 +25633,23 @@ This is a directory write. Nothing else changes.`)) return;
         const body = Gsa.remediationBody(nameOpts), path = "/deviceManagement/deviceHealthScripts";
         if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName} (${o.schedule === "hourly" ? "hourly" : "daily"})`);
         else {
-          const same = (await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          // 32708 (go-live recheck S1): the GSA remediation step 6 found — any
+          // name, any release tag — is reused; one of this exact name next; a
+          // new one only when there is none. Two installers never.
+          const foundW = ((m.links.find((l) => l.k === "client") || {}).win || {});
+          const same = foundW.kind === "rem" && foundW.obj ? [foundW.obj] : (await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
           if (same.length > 1) say(`${same.length} remediations are called ${body.displayName} — one is used; delete the others in Intune → Scripts and remediations`, false);
           const s = same.length ? same[0] : await Graph.gpost(path, body, sc);
-          say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
-          // /assign replaces the assignments: keep what a reused one has
-          const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => ({ target: x.target, runRemediationScript: x.runRemediationScript, runSchedule: x.runSchedule })).filter((x) => x.target) : [];
-          // 32525: runRemediationScript as read is no signal (Graph said false
-          // in devcf while the portal showed remediation on) — never rewritten
+          say(same.length ? `${s.displayName || body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          // /assign replaces the assignments: keep what a reused one has.
+          // 32708 (S2): written back with remediation ON — Graph reads false on
+          // assignments the portal shows as on (32525), and writing that false
+          // back would turn the installer into detect-only
+          const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => ({ target: x.target, runRemediationScript: true, runSchedule: x.runSchedule })).filter((x) => x.target) : [];
           if (had.some((x) => x.target.groupId === g.id)) say(`already assigned to ${g.displayName}`, true);
           else {
             await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: [...had, Gsa.remediationAssignment(g.id, o.schedule)] }, sc);
-            say(`assigned to ${g.displayName} — remediation on, ${o.schedule === "hourly" ? "every hour" : "daily"}`, true);
+            say(`assigned to ${g.displayName} — remediation on, ${o.schedule === "hourly" ? "every hour" : "daily"}${had.length ? `; its ${had.length} other assignment${had.length === 1 ? "" : "s"} kept, remediation on` : ""}`, true);
           }
         }
       } else if (k === "winscript" || k === "macscript" || k === "macprof") {
@@ -25602,7 +25663,9 @@ This is a directory write. Nothing else changes.`)) return;
         else {
           // 32519: idempotent — a script of this name already in Intune is
           // reused (and only assigned), never made a second time
-          const same = (await Graph.ggetAll(`${path}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          // 32708 (S1): on Windows the platform script step 6 found is reused
+          const foundS = win ? ((m.links.find((l) => l.k === "client") || {}).win || {}) : {};
+          const same = foundS.kind === "script" && foundS.obj ? [foundS.obj] : (await Graph.ggetAll(`${path}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
           if (same.length > 1) say(`${same.length} scripts are called ${body.displayName} — one is used; delete the others in Intune → Scripts`, false);
           const s = same.length ? same[0] : await Graph.gpost(path, body, sc);
           say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
@@ -25701,8 +25764,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "assign") { if (o.allUsers) r.sp.appRoleAssignmentRequired = false; else r.assigned.push({ principalId: "g-demo-" + o.group.trim().length, principalType: "Group", principalDisplayName: o.group.trim() }); }
     if (k === "signal") r.signaling.signalingStatus = "enabled";
     if (k === "location") r.locations.push({ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", id: "loc-cn", displayName: Gsa.LOCATION_NAME });
-    if (k === "winrem") r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } });
-    if (k === "winscript") r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE });
+    // 32708: the demo remediation lands on a group with two Entra-joined Windows
+    // devices and has not run yet — what a real first read looks like
+    if (k === "winrem") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.groupNames[gid] = String(o.devGroup || Gsa.GROUPS.win).trim(); r.winGroups = Object.assign({}, r.winGroups, { [gid]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } }); r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }], runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } }); }
+    if (k === "winscript") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.groupNames[gid] = String(o.devGroup || Gsa.GROUPS.win).trim(); r.winGroups = Object.assign({}, r.winGroups, { [gid]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } }); r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }], runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }); }
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
     // 0.9.0: a chain fix lands in the demo chain — the plan's new body takes the row's place
     if (/^macfix-/.test(k) && r.macChain) {
@@ -25731,12 +25796,18 @@ This is a directory write. Nothing else changes.`)) return;
     if (t.closest("[data-gsabuild]")) {
       const cn = gsa.model && gsa.model.cn;
       if (!cn) { toast("Create the compliant network location first (step 5)"); return; }
-      const tpl = { displayName: "CA200-BLOCK-Internals-OutsideCompliantNetwork-AllApps-v1.0", state: "enabledForReportingButNotEnforced",
-        conditions: { users: { includeUsers: ["All"], excludeUsers: [], excludeGroups: [], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [Gsa.INTUNE_APP, Gsa.INTUNE_ENROLL] }, clientAppTypes: ["all"], locations: { includeLocations: ["All"], excludeLocations: [cn.id] } },
+      // 32708 (go-live recheck S4): Windows and macOS only — the platforms T56
+      // puts the client on; iOS and Android have none and would be blocked —
+      // and the Microsoft profile's own groups, so the policy never includes
+      // anybody the profile does not reach (all users only when the profile is)
+      const pr = (gsa.model.reachInfo && gsa.model.reachInfo.profile) || {};
+      const pg = (pr.groups || []).map((g) => g.id);
+      const tpl = { displayName: "CA215-BLOCK-Internals-CN-AllApps-WindowsOrMACOS-Require Global Secure Access client active-v1.0", state: "enabledForReportingButNotEnforced",
+        conditions: { users: { includeUsers: pr.allUsers || !pg.length ? ["All"] : [], includeGroups: pr.allUsers ? [] : pg, excludeUsers: [], excludeGroups: [], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [Gsa.INTUNE_APP, Gsa.INTUNE_ENROLL] }, clientAppTypes: ["all"], platforms: { includePlatforms: ["windows", "macOS"], excludePlatforms: [] }, locations: { includeLocations: ["All"], excludeLocations: [cn.id] } },
         grantControls: { operator: "OR", builtInControls: ["block"] } };
       openBuilder({ from: tpl, as: "clone" });
       if (pbDraft) { pbDraft.mode = "new"; pbDraft.sourceId = null; pbDraft.state = "enabledForReportingButNotEnforced"; renderBuilder(); }
-      toast("Pre-filled from Global Secure Access: set the exclusions (break-glass, admins) before you save");
+      toast(`Pre-filled from Global Secure Access: Windows and macOS, ${pr.allUsers || !pg.length ? "all users" : "the profile's groups"} — set the exclusions (break-glass, admins) before you save`);
       return;
     }
     // 32524: the flow — a step opens under it
@@ -25765,7 +25836,7 @@ This is a directory write. Nothing else changes.`)) return;
     const dl = w && t.closest("[data-gsadl]"), wo = w ? w.opts : gsaDefOpts();
     if (dl && dl.dataset.gsadl === "det") { downloadText("Detect-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.detectScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
     if (dl && dl.dataset.gsadl === "rem") { downloadText("Remediate-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.remediationScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
-    if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: wo.lock, ipv4: wo.ipv4 })); else downloadText("scr-app-108-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
+    if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: wo.lock, ipv4: wo.ipv4 })); else downloadText("scr-app-109-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
     // 32603: showDetail takes the policy ID — it was handed the object, found
     // nothing and returned without a word (Mihai: "clicking a policy in T57,
     // nothing happens"; T56 had the same line). full = true: not the list screen.
@@ -25798,6 +25869,9 @@ This is a directory write. Nothing else changes.`)) return;
     const pre = wp.querySelector("[data-gsapre]"), tabs = Gsa.preview(w.k, gsaPrevOpts(w)), tab = tabs.find((x) => x.id === w.tab) || tabs[0];
     if (pre && tab) pre.textContent = tab.text;
   };
+  // 32708: tenant restrictions are optional and folded — the fold the person
+  // opened stays open across repaints (toggle does not bubble: capture)
+  $("gsaBody").addEventListener("toggle", (e) => { const d = e.target; if (d && d.matches && d.matches("[data-trv2fold]")) gsa.trv2Open = d.open; }, true);
   $("gsaBody").addEventListener("input", gsaOpt);
   $("gsaBody").addEventListener("change", gsaOpt);
   $("ddReady").addEventListener("click", () => readDeployReadiness());

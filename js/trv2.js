@@ -191,7 +191,12 @@
     if (st.default.all === "blocked") notes.push("The default already blocks all external users and applications.");
     else ops.push({ id: "default-block", kind: "default-block", label: "Default: block accounts from every other tenant (all users, all applications)", method: "PATCH", url: URL_DEFAULT, body: { tenantRestrictions: BLOCK_ALL() }, before: st.defaultRaw, requires: allowOps.slice() });
 
-    // 5. Enforcement through GSA: separate opt-in
+    // 5. Enforcement through GSA: separate opt-in. 32708 (go-live recheck B5):
+    // never with nothing allowed — that blocks every account from another
+    // tenant on these devices at once. The tenant's own allow-all partners
+    // count, so a second browser without the local list is not refused.
+    const tenantAllowed = st.partners.filter((p) => p.tr.all === "allowed" && p.tenantId !== MSA_TENANT);
+    if (s.enforce && !norm.ok.length && !tenantAllowed.length) refusals.push("Enforce needs at least one allowed tenant. With none, every account from another tenant is blocked on these devices at once — add the tenants first, or leave Enforce off.");
     if (s.enforce) {
       if (st.utr === "enabled") notes.push("Universal tenant restrictions are already on.");
       else ops.push({ id: "utr-on", kind: "utr", label: "Global Secure Access: turn on universal tenant restrictions", method: "PATCH", url: URL_UTR, body: { "@odata.type": "#microsoft.graph.networkaccess.crossTenantAccessSettings", networkPacketTaggingStatus: "enabled" }, before: st.utr, requires: ops.some((o) => o.id === "default-block") ? ["default-block"] : allowOps.slice() });
@@ -252,28 +257,34 @@
   const esc = (x) => String(x == null ? "" : x).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const VERDICT_CLS = { enforced: ["ok", "enforced"], policy: ["warn", "policy only"], incomplete: ["bad", "check"], off: ["wait", "not set up"] };
 
-  // info: {err} | {st, settings, verdict}
-  function card(info) {
-    const head = (cls, word) => `<h3>🚧 Tenant restrictions v2 <span class="gsa-st ${cls}">${esc(word)}</span></h3><p class="mini">Which other tenants' accounts may be used on devices that send their traffic through Global Secure Access. This tenant's own accounts are never restricted; Conditional Access cannot see these sign-ins, because they happen in the other tenant.</p>`;
-    const btn = `<div class="gsa-actrow"><div><b>Set up tenant restrictions</b><div class="mini muted">allowed tenants first, then block the rest, then enforce · writes to tenant · opens a workspace below with impact and the way back</div></div><button class="btn sm" data-gsafix="trv2">Set up…</button></div>`;
-    if (!info || info.err) return `<section class="list-card gsa-sect gsa-trv2" id="gsaTrv2">${head("wait", "not read")}<p class="mini gsa-warn-txt">Not read${info && info.err ? " — " + esc(info.err) : ""}. Cross-tenant access settings need Policy.Read.All; enforcement needs NetworkAccess.Read.All.</p></section>`;
+  // info: {err} | {st, settings, verdict}; ui: {open}
+  // 32708 (Mihai, 18 Oct: "tenant restrictions must be optional"): an
+  // OPTIONAL extra, folded by default, never a step of the chain and never
+  // part of the verdict — the stolen-token protection is complete without it.
+  function card(info, ui) {
+    const open = !!(ui && ui.open);
+    const wrap = (cls, word, body) => `<section class="list-card gsa-sect gsa-trv2" id="gsaTrv2"><details data-trv2fold${open ? " open" : ""}><summary><h3>🚧 Tenant restrictions v2</h3><span class="tag">optional</span><span class="gsa-st ${cls}">${esc(word)}</span><span class="mini muted">not part of the chain or the verdict</span></summary><p class="mini">Which other tenants' accounts may be used on devices that send their traffic through Global Secure Access. This tenant's own accounts are never restricted; Conditional Access cannot see these sign-ins, because they happen in the other tenant. Leave it off unless you have decided the allowed list — once enforced it also blocks accounts and app registrations from customer tenants used on these devices.</p>${body}</details></section>`;
+    const btn = `<div class="gsa-actrow"><div><b>Set up tenant restrictions</b><div class="mini muted">optional · allowed tenants first, then block the rest, then enforce · writes to tenant · opens a workspace below with impact and the way back</div></div><button class="btn sm" data-gsafix="trv2">Set up…</button></div>`;
+    if (!info || info.err) return wrap("wait", "not read", `<p class="mini gsa-warn-txt">Not read${info && info.err ? " — " + esc(info.err) : ""}. Cross-tenant access settings need Policy.Read.All; enforcement needs NetworkAccess.Read.All.</p>`);
     const st = info.st, s = info.settings || {}, v = info.verdict || verdict(st, s, {});
     const [cls, word] = VERDICT_CLS[v.state] || VERDICT_CLS.off;
     const allowIds = new Set((s.allow || []).map((e) => e.tenantId));
     const inherit = st.partners.filter((p) => p.inherits && !allowIds.has(p.tenantId) && p.tenantId !== MSA_TENANT).length;
     const def = st.default.all === "blocked" ? "blocks accounts from every other tenant" : st.default.all === "allowed" ? "allows every other tenant (set explicitly)" : st.default.set ? "customised — not all users and applications" : "Microsoft default — nothing restricted";
     const names = (s.allow || []).map((e) => `${e.name}${st ? ` (${effective(st, e.tenantId)})` : ""}`);
+    const inTenant = st.partners.filter((p) => p.tr.all === "allowed" && p.tenantId !== MSA_TENANT && !(s.allow || []).some((e) => e.tenantId === p.tenantId)).map((p) => p.tenantId);
     const lines = [
       `Default: ${def}`,
       `Allowed tenants (kept in this browser, for this tenant): ${names.length ? names.join(", ") : "none yet"}`,
+      ...(inTenant.length ? [`Also allowed in the tenant itself (not on this browser's list): ${inTenant.join(", ")}`] : []),
       `Partners that inherit the default: ${inherit}${inherit ? " — blocked once the default blocks, unless kept" : ""}`,
       `Enforcement through Global Secure Access: ${st.utr === "enabled" ? "on" : st.utr === "disabled" ? "off" : "not read" + (st.utrError ? " — " + st.utrError : "")}`,
     ];
-    return `<section class="list-card gsa-sect gsa-trv2" id="gsaTrv2">${head(cls, word)}<p class="mini"><b>${esc(v.text)}.</b></p><ul class="gsa-read">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>${btn}</section>`;
+    return wrap(cls, word, `<p class="mini"><b>${esc(v.text)}.</b></p><ul class="gsa-read">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>${btn}`);
   }
 
   const FIX = {
-    title: "Set up tenant restrictions v2",
+    title: "Set up tenant restrictions v2 (optional)",
     scopes: ["Policy.ReadWrite.CrossTenantAccess", "NetworkAccess.ReadWrite.All"],
     role: "Security Administrator, and Global Secure Access Administrator to enforce",
     changes: [
@@ -281,7 +292,7 @@
       "Then Default settings → Tenant restrictions: block all external users and all external applications.",
       "Only when Enforce is ticked: Global Secure Access → Settings → Session management → Universal tenant restrictions on.",
     ],
-    impact: "Nothing changes for anybody until enforcement is on. Then, on devices with the GSA client in the Microsoft traffic profile's assigned group, sign-ins with an account from a tenant not on the list are refused: vendor and other customer tenants, personal Microsoft accounts unless allowed, and existing partners that inherit the default unless kept. This tenant's own accounts and its B2B guests are never affected. There is no report-only mode — keep the profile on a pilot group first.",
+    impact: "Optional — the compliant-network protection does not need it. Nothing changes for anybody until enforcement is on. Then, on devices with the GSA client in the Microsoft traffic profile's assigned group, sign-ins with an account from a tenant not on the list are refused: vendor and customer tenants (an MSP's per-customer admin accounts and app registrations used from these devices included — Learn: service principals are blocked too, AADSTS5000211), personal Microsoft accounts unless allowed, and existing partners that inherit the default unless kept. This tenant's own accounts, its B2B guests and GDAP sign-ins with this tenant's accounts are never affected. There is no report-only mode — keep the profile on a pilot group first. Enforce is refused while no tenant is allowed.",
     recovery: "A backup of what the run changes is downloaded before the first write. ↩ Put back reads it and undoes in reverse: enforcement off first, the default as it was, the partners as they were, and the partner entries the run added removed. By hand: Global Secure Access → Settings → Session management → Universal tenant restrictions off.",
   };
 

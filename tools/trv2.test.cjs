@@ -99,6 +99,31 @@ test("an empty allowed list still plans, with a warning", () => {
   assert.ok(p.findings.some((f) => /No tenant is on the allowed list/.test(f.text)));
 });
 
+test("32708: Enforce is refused while no tenant is allowed — on the list or in the tenant", () => {
+  const p = T.plan(fresh(), { allow: [], enforce: true }, { ownTenantId: OWN });
+  assert.ok(p.refusals.some((r) => /Enforce needs at least one allowed tenant/.test(r)));
+  assert.equal(p.canRun, false);
+  // a partner already allow-all in the tenant counts (a second browser without the local list)
+  const st = T.state({ tenantRestrictions: null }, [{ tenantId: P, tenantRestrictions: T.ALLOW_ALL() }], { networkPacketTaggingStatus: "disabled" });
+  const q = T.plan(st, { allow: [], enforce: true }, { ownTenantId: OWN });
+  assert.equal(q.refusals.length, 0);
+  assert.ok(q.ops.some((o) => o.id === "utr-on"));
+  // without Enforce an empty list still only writes the policy
+  assert.equal(T.plan(fresh(), { allow: [] }, { ownTenantId: OWN }).refusals.length, 0);
+});
+
+test("32708: the card is optional and folded unless asked open; tenant allow-all partners are named", () => {
+  const st = T.state({}, [{ tenantId: P, tenantRestrictions: T.ALLOW_ALL() }], { networkPacketTaggingStatus: "disabled" });
+  const shut = T.card({ st, settings: { allow: [] } });
+  assert.match(shut, /<details data-trv2fold>/);
+  assert.match(shut, /class="tag">optional</);
+  assert.match(shut, /not part of the chain or the verdict/);
+  assert.match(shut, new RegExp("Also allowed in the tenant itself[^<]*" + P));
+  assert.match(T.card({ st, settings: { allow: [] } }, { open: true }), /<details data-trv2fold open>/);
+  assert.match(T.card({ err: "403" }), /optional/);
+  assert.match(T.FIX.title, /optional/);
+});
+
 test("Microsoft accounts: blocked by the default, allowed only by their own entry", () => {
   const p = T.plan(fresh(), { allow, allowMsa: true }, { ownTenantId: OWN });
   assert.ok(p.ops.some((o) => o.id === "allow:msa" && o.url.endsWith(T.MSA_TENANT)));

@@ -3254,6 +3254,13 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-who{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);white-space:nowrap}.gsa-who.dev{background:color-mix(in srgb,#7a4fc2 16%,transparent);color:#7a4fc2}
 .gsa-reachtab td{vertical-align:top}.gsa-reachtab td:last-child{text-align:right;white-space:nowrap}.gsa-ok-txt{color:var(--on)}.gsa-na-txt{color:var(--report)}
 .gsa-macsect .gsa-tablewrap{overflow-x:auto}
+/* 32708: who must pass against who can (T56 B2); tenant restrictions folded, optional */
+.gsa-scope{margin:6px 0 10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border)}.gsa-scope p{margin:2px 0}
+.gsa-scope.bad{border-color:color-mix(in srgb,var(--off) 45%,var(--border));background:color-mix(in srgb,var(--off) 6%,var(--surface))}
+.gsa-scope.warn{border-color:color-mix(in srgb,var(--report) 50%,var(--border));background:color-mix(in srgb,var(--report) 6%,var(--surface))}
+.gsa-scope.ok{border-color:color-mix(in srgb,var(--on) 45%,var(--border));background:color-mix(in srgb,var(--on) 6%,var(--surface))}
+.gsa-trv2>details>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.gsa-trv2>details>summary::-webkit-details-marker{display:none}
+.gsa-trv2>details>summary::before{content:"▸";color:var(--muted);font-size:12px}.gsa-trv2>details[open]>summary::before{content:"▾"}.gsa-trv2>details>summary h3{margin:0}.gsa-trv2>details[open]>summary{margin-bottom:8px}
 .gsa-mtable{width:100%;border-collapse:collapse;font-size:13px}
 .gsa-mtable th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding:6px 8px;white-space:nowrap}
 .gsa-mtable td{border-bottom:1px solid var(--border);padding:8px;vertical-align:top;overflow-wrap:anywhere}
