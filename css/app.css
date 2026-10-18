@@ -3257,7 +3257,34 @@ details.pr-role[open]>summary{margin-bottom:6px}
 /* 0.9.0 T56: the macOS chain table — found, content, reach, landed */
 .gsa-bad-txt{color:var(--off)}
 /* 32707 T59: Entra device cleanup */
-.dcu-tabs{margin:12px 0 8px}.dcu-red{color:var(--off);font-weight:700}.dcu-selbar{position:sticky;top:var(--selbar-top,168px)}.dcu-table td{vertical-align:top}
+.dcu-tabs{margin:12px 0 8px}
+/* 0.2.0 T59: the lifecycle row and the work card (v2 from the mockup) */
+.dcu-life{display:grid;grid-template-columns:1fr 64px 1fr 64px 1fr 64px 1fr;align-items:stretch;margin:4px 0 0}
+.dcu-stage{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;position:relative;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-top-width:4px;border-radius:12px;padding:12px 14px;transition:box-shadow .15s}
+.dcu-stage:hover{box-shadow:var(--shadow)}.dcu-stage:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.dcu-stage.sel{outline:2px solid var(--blue);outline-offset:-1px}
+.dcu-stage.ok{border-top-color:var(--on)}.dcu-stage.warn{border-top-color:var(--report)}.dcu-stage.bad{border-top-color:var(--off)}.dcu-stage.idle{border-top-color:var(--border)}
+.dcu-lab{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.dcu-n{font-size:28px;font-weight:700;line-height:1.15;margin:2px 0}
+.dcu-s{font-size:12.5px;color:var(--muted)}
+.dcu-act{position:absolute;top:10px;right:12px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+.dcu-act.d{background:color-mix(in srgb,var(--report) 18%,transparent);color:var(--report)}.dcu-act.x{background:color-mix(in srgb,var(--off) 14%,transparent);color:var(--off)}
+.dcu-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.15;color:var(--muted)}.dcu-arrow b{font-size:18px;line-height:1;opacity:.6}
+.dcu-side{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 12px}
+.dcu-pill{all:unset;cursor:pointer;display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:999px;padding:5px 12px;background:var(--surface);font-size:13px}
+.dcu-pill .c{font-size:12px;color:var(--muted)}.dcu-pill.sel{border-color:var(--blue);color:var(--blue);font-weight:600}.dcu-pill:focus-visible{outline:2px solid var(--blue)}
+.dcu-card{padding:16px 18px;overflow:visible}
+.dcu-wh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}.dcu-wh h3{margin:0;font-size:17px}.dcu-wh p{margin:4px 0 0;max-width:860px}
+.dcu-tools{display:flex;gap:6px}
+.dcu-rules{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 10px}
+.dcu-rule{font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:4px 9px;background:color-mix(in srgb,var(--border) 22%,transparent)}
+.dcu-os{font-size:12px;color:var(--muted);margin-top:1px}
+.dcu-meter{display:inline-block;width:90px;height:6px;border-radius:3px;background:color-mix(in srgb,var(--border) 60%,transparent);vertical-align:middle;margin-right:8px;position:relative;overflow:hidden}
+.dcu-meter i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}.dcu-meter i.a{background:var(--on)}.dcu-meter i.d{background:var(--report)}.dcu-meter i.x{background:var(--off)}
+.dcu-empty{display:flex;gap:14px;align-items:center;border:1px dashed var(--border);border-radius:12px;padding:18px 20px;margin-top:12px}
+.dcu-empty .ic{width:40px;height:40px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;background:color-mix(in srgb,var(--on) 15%,transparent);color:var(--on)}
+.dcu-card .selbar{margin:12px 0 0}
+@media (max-width:900px){.dcu-life{grid-template-columns:1fr}.dcu-arrow{flex-direction:row;gap:6px;padding:4px 0}.dcu-arrow b{transform:rotate(90deg)}}.dcu-red{color:var(--off);font-weight:700}.dcu-selbar{position:sticky;top:var(--selbar-top,168px)}.dcu-table td{vertical-align:top}
 /* 0.9.1 T56: who it reaches */
 .gsa-who{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);white-space:nowrap}.gsa-who.dev{background:color-mix(in srgb,#7a4fc2 16%,transparent);color:#7a4fc2}
 .gsa-reachtab td{vertical-align:top}.gsa-reachtab td:last-child{text-align:right;white-space:nowrap}.gsa-ok-txt{color:var(--on)}.gsa-na-txt{color:var(--report)}

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32802, date: "2026-10-18", title: "Entra device cleanup: one lifecycle row, clearer cards",
+    items: [
+      { kind: "improved", tool: "Entra device cleanup", text: "The tiles and the tabs are one row now: Active, Stale and enabled, Disabled and waiting, Delete candidates, with the 30-day and 90-day lines between them. Click a stage to open it; Re-enable, Never seen and Results sit beside the row, and the stage with work opens first." },
+      { kind: "improved", tool: "Entra device cleanup", text: "The cards read better: the rules of each step as short chips, how long a device has been silent as a bar, Select all and Clear on the card, and an empty stage that says what is true — for example that every enabled device signed in within 30 days, and which one is the quietest." },
+    ],
+  },
+  {
     build: 32801, date: "2026-10-18", title: "Production is build 327 (v2.0.5)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 327, ENCA v2.0.5: sign-in through your own registration only. The shared multi-tenant app is gone from enca.limon-it.nl as it is from this channel, the registration must belong to the tenant you sign in to, and the first registration in a tenant comes from the Azure Cloud Shell command on the sign-in card. Everything else queued stays on this channel." },

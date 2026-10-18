@@ -28902,12 +28902,14 @@ This is a directory write. Nothing else changes.`)) return;
     const a = $("dcuDisableDays"), b = $("dcuDeleteDays");
     const dis = Math.max(1, +((a && a.value) || 0) || DeviceCleanup.DEFAULTS.disableDays);
     const del = Math.max(dis + 1, +((b && b.value) || 0) || DeviceCleanup.DEFAULTS.deleteDays);
+    // the delete line can never sit before the disable line — said in the box, not only applied
+    if (b && +b.value !== del) b.value = del;
     return { disableDays: dis, deleteDays: del };
   }
   function openDcu() {
     crumb("🧹 Entra device cleanup");
     show("screen-dcu");
-    if (dcu.session !== dcuSession()) dcu = Object.assign(dcu, { devices: null, buckets: null, results: null, pane: "overview", err: null, readAt: null, ledgerHtml: "", summary: "", session: dcuSession() });
+    if (dcu.session !== dcuSession()) dcu = Object.assign(dcu, { devices: null, buckets: null, results: null, pane: "auto", err: null, readAt: null, ledgerHtml: "", summary: "", session: dcuSession() });
     $("dcuHead").innerHTML = toolHead("toolDeviceCleanup") + '<p class="mini" style="margin:6px 0 0">Stale directory devices, taken out in two deliberate steps: <b>disable</b> after 30 days without contact, <b>delete</b> after 90 — and only what is already disabled. The read is the Entra device object (<code>approximateLastSignInDateTime</code>), not the Intune enrolment. Every write reads the device again first and reads it back after. Ported from TUNO T25.</p>';
     renderDcu();
     if (!dcu.devices && !dcu.busy) readDcu();
@@ -28918,52 +28920,77 @@ This is a directory write. Nothing else changes.`)) return;
     try {
       dcu.devices = isDemo ? DeviceCleanup.demo() : await DeviceCleanup.readDevices();
       dcu.buckets = DeviceCleanup.bucketize(dcu.devices, dcuThresholds());
-      dcu.readAt = Date.now(); dcu.results = null; dcu.ledgerHtml = ""; dcu.summary = ""; dcu.pane = "overview";
+      dcu.readAt = Date.now(); dcu.results = null; dcu.ledgerHtml = ""; dcu.summary = ""; dcu.pane = "auto";
       Object.values(dcu.sel).forEach((s) => s.clear());
     } catch (e) { dcu.err = String((e && e.message) || e); dcu.devices = null; dcu.buckets = null; }
     finally { dcu.busy = false; }
     renderDcu();
   }
+  // 0.2.0 (Mihai 18 Oct: "the layout can be nicer than this"; v2 picked from
+  // the mockup): the tiles and the tab strip are ONE lifecycle row — Active →
+  // 30 days → Stale → disabled → Disabled, waiting → 90 days → Delete — each
+  // stage opens its own work card; Re-enable, Never seen and Results are pills
+  // beside it. The card is padded, the rules are chips, silence is a bar, and
+  // an empty stage says what is true instead of "Nothing here". No emoji in
+  // the labels: ENCA's icon set drew ↩ as a grid.
   function renderDcu() {
     if (!$("screen-dcu") || !$("screen-dcu").classList.contains("active")) return;
     const body = $("dcuBody"), b = dcu.buckets;
-    $("dcuRead").textContent = dcu.readAt ? `Read ${new Date(dcu.readAt).toLocaleString()} · ${(dcu.devices || []).length} devices${isDemo ? " · demo" : ""}` : "";
+    $("dcuRead").innerHTML = dcu.readAt ? `Read ${esc(new Date(dcu.readAt).toLocaleString())} · <b>${(dcu.devices || []).length}</b> directory devices${isDemo ? " · demo" : ""}` : "";
     if (dcu.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading the directory\'s devices…</p>'; return; }
-    if (dcu.err) { body.innerHTML = `<div class="list-card"><b>The read failed.</b><p class="mini">${esc(dcu.err)}</p></div>`; return; }
-    if (!b) { body.innerHTML = '<p class="mini muted" style="padding:12px">Not read yet — ↻ Read the devices.</p>'; return; }
-    const pane = dcu.pane;
-    const T = (k, v, s, cls, to) => ({ k, v, s, cls, btn: !!to, on: to === pane, data: to ? { dcupane: to } : {} });
-    const tiles = Verdict.tiles([
-      T("Active", b.active.length, `contact within ${b.thresholds.disableDays} days`, "ok", "overview"),
-      T("Stale, enabled", b.stale.length, "disable candidates", b.stale.length ? "warn" : "", "disable"),
-      T("Disabled, waiting", b.parked.length, `not yet ${b.thresholds.deleteDays} days silent`, "", "enable"),
-      T("Delete candidates", b.deletable.length, "disabled and past the delete line", b.deletable.length ? "bad" : "", "delete"),
-      T("Never seen", b.unknown.length, "unknown is not stale — no action", "", "unknown"),
-    ]);
-    const tab = (id, label, n, red) => `<button type="button" data-dcupane="${id}" class="${pane === id ? "on" : ""}" aria-selected="${pane === id}">${label}${n == null ? "" : ` <span class="${red && n ? "dcu-red" : "muted"}">${n}</span>`}</button>`;
-    const tabs = `<div class="gsa-tabs dcu-tabs" role="tablist">${tab("overview", "Overview")}${tab("disable", "① Disable", b.stale.length, true)}${tab("delete", "② Delete", b.deletable.length, true)}${tab("enable", "↩ Re-enable", b.disabled.length)}${tab("results", "Results", dcu.results ? dcu.results.length : null)}${tab("unknown", "Never seen", b.unknown.length)}</div>`;
-    const managed = (d) => d.isManaged ? ' <span class="tag" title="Enrolled in Intune — disabling or deleting the directory object does not unenrol it; retire it in Intune first">managed</span>' : "";
-    const devCell = (r) => `<b>${esc(r.d.displayName || r.d.id)}</b>${managed(r.d)}<div class="mini muted">${esc(r.d.operatingSystem || "—")}${r.d.operatingSystemVersion ? ` ${esc(r.d.operatingSystemVersion)}` : ""}${r.d.trustType ? ` · ${esc(r.d.trustType)}` : ""}${r.d.registrationDateTime ? ` · registered ${esc(String(r.d.registrationDateTime).slice(0, 10))}` : ""}</div>`;
+    if (dcu.err) { body.innerHTML = `<div class="list-card dcu-card"><b>The read failed.</b><p class="mini">${esc(dcu.err)}</p></div>`; return; }
+    if (!b) { body.innerHTML = '<p class="mini muted" style="padding:12px">Not read yet — Read the devices.</p>'; return; }
+    if (!["active", "disable", "parked", "delete", "enable", "unknown", "results"].includes(dcu.pane)) dcu.pane = b.stale.length ? "disable" : b.deletable.length ? "delete" : "disable";
+    const pane = dcu.pane, th = b.thresholds;
+    // ---- the lifecycle row ----
+    const stage = (id, lab, n, sub, tone, act) => `<button type="button" class="dcu-stage ${tone}${pane === id ? " sel" : ""}" data-dcupane="${id}" aria-pressed="${pane === id}">${act ? `<span class="dcu-act ${act[0]}">${act[1]}</span>` : ""}<span class="dcu-lab">${lab}</span><span class="dcu-n">${n}</span><span class="dcu-s">${sub}</span></button>`;
+    const arrow = (txt) => `<div class="dcu-arrow" aria-hidden="true"><b>→</b>${txt}</div>`;
+    const life = `<div class="dcu-life">${stage("active", "Active", b.active.length, `signed in within ${th.disableDays} days`, "ok")}${arrow(`${th.disableDays} days<br>silent`)}${stage("disable", "Stale, enabled", b.stale.length, b.stale.length ? "disable candidates" : "nothing to disable", b.stale.length ? "warn" : "idle", b.stale.length ? ["d", "① DISABLE"] : null)}${arrow("disabled")}${stage("parked", "Disabled, waiting", b.parked.length, `until ${th.deleteDays} days silent`, "idle")}${arrow(`${th.deleteDays} days<br>silent`)}${stage("delete", "Delete candidates", b.deletable.length, b.deletable.length ? `disabled and past ${th.deleteDays} days` : "nothing to delete", b.deletable.length ? "bad" : "idle", b.deletable.length ? ["x", "② DELETE"] : null)}</div>`;
+    const pill = (id, lab, c) => `<button type="button" class="dcu-pill${pane === id ? " sel" : ""}" data-dcupane="${id}">${lab} <span class="c">${c}</span></button>`;
+    const side = `<div class="dcu-side">${pill("enable", "Re-enable", `${b.disabled.length} disabled`)}${pill("unknown", "Never seen", `${b.unknown.length}${b.unknown.length ? " · no action" : ""}`)}${pill("results", "Results", dcu.results ? dcu.results.length : "—")}<span class="mini muted" style="margin-left:auto">Click a stage to open it</span></div>`;
+    // ---- the work card ----
+    const join = { AzureAd: "Entra joined", ServerAd: "hybrid joined", Workplace: "Entra registered" };
+    const managed = (d) => d.isManaged ? ' <span class="tag" title="Enrolled in Intune — removing the directory object does not unenrol it; retire it in Intune first">managed</span>' : "";
+    const devCell = (r) => `<b>${esc(r.d.displayName || r.d.id)}</b>${managed(r.d)}<div class="dcu-os">${esc(r.d.operatingSystem === "MacMDM" ? "macOS" : r.d.operatingSystem || "—")}${r.d.operatingSystemVersion ? ` ${esc(r.d.operatingSystemVersion)}` : ""}${r.d.trustType ? ` · ${esc(join[r.d.trustType] || r.d.trustType)}` : ""}${r.d.registrationDateTime ? ` · added ${esc(String(r.d.registrationDateTime).slice(0, 10))}` : ""}</div>`;
+    const silence = (r) => r.days == null ? '<span class="muted">never seen</span>' : `<span class="dcu-meter"><i class="${r.days >= th.deleteDays ? "x" : r.days >= th.disableDays ? "d" : "a"}" style="width:${Math.min(100, Math.round(r.days / th.deleteDays * 100))}%"></i></span>${r.days} day${r.days === 1 ? "" : "s"}`;
     const state = (d) => d.accountEnabled === false ? '<span class="gsa-st bad">disabled</span>' : '<span class="gsa-st ok">enabled</span>';
     const table = (rows, kind) => {
       const sel = kind ? dcu.sel[kind] : null, all = rows.length && sel && rows.every((r) => sel.has(r.d.id));
-      return `<div class="gu-tw"><table class="cg-table dcu-table"><thead><tr>${kind ? `<th style="width:34px"><input type="checkbox" data-dcuall="${kind}"${all ? " checked" : ""} title="Select or deselect every row"></th>` : ""}<th>Device</th><th style="width:120px">Silence</th><th style="width:100px">State</th></tr></thead><tbody>${rows.map((r) => `<tr>${kind ? `<td><input type="checkbox" data-dcutick="${kind}" data-id="${esc(r.d.id)}"${sel.has(r.d.id) ? " checked" : ""}></td>` : ""}<td>${devCell(r)}</td><td class="mini">${r.days == null ? "never seen" : `${r.days} days`}</td><td>${state(r.d)}</td></tr>`).join("") || `<tr><td colspan="${kind ? 4 : 3}" class="mini muted">Nothing here.</td></tr>`}</tbody></table></div>`;
+      return `<div class="gu-tw"><table class="cg-table dcu-table"><thead><tr>${kind ? `<th style="width:36px"><input type="checkbox" data-dcuall="${kind}"${all ? " checked" : ""} title="Select or deselect every row"></th>` : ""}<th>Device</th><th style="width:220px">Silent for</th><th style="width:110px">State</th></tr></thead><tbody>${rows.map((r) => `<tr>${kind ? `<td><input type="checkbox" data-dcutick="${kind}" data-id="${esc(r.d.id)}"${sel.has(r.d.id) ? " checked" : ""}></td>` : ""}<td>${devCell(r)}</td><td class="mini">${silence(r)}</td><td>${state(r.d)}</td></tr>`).join("")}</tbody></table></div>`;
     };
-    const caveat = `<p class="mini muted" style="margin:10px 0 0">Last contact is the directory's <code>approximateLastSignInDateTime</code> — its name says approximate, so a day either side is noise. <b>Deleting a device object deletes its BitLocker recovery keys with it.</b> Writes need <code>${DeviceCleanup.WRITE_SCOPE}</code> (asked for at the click) and a directory role that may change devices — Cloud Device Administrator or Intune Administrator.</p>`;
-    const head = (h, txt, w) => `<h4 style="margin:0 0 6px">${h}${w ? ' <span class="tag block">writes to tenant</span>' : ""}</h4><p class="mini muted" style="margin:0 0 8px">${txt}</p>`;
-    let main = "";
-    if (pane === "overview") main = `<div class="list-card">${head("Where the estate stands", `${(dcu.devices || []).length} directory devices. The tiles open their tab: ① to disable the stale ones, ② to delete what is disabled and past the delete line, ↩ to take a disable back.`)}${caveat}</div>`;
-    else if (pane === "disable") main = `<div class="list-card">${head(`① Disable — ${b.stale.length} stale and still enabled`, `Reversible. Every device still enabled past the delete line sits HERE, not in ②: delete follows disable, never replaces it. A device that signed in since the read is skipped — it woke up.`, true)}${table(b.stale, "disable")}</div>`;
-    else if (pane === "delete") main = `<div class="list-card">${head(`② Delete — ${b.deletable.length} disabled and silent past ${b.thresholds.deleteDays} days`, `<b>Not reversible.</b> The BitLocker recovery keys go with the object. Each delete reads the device again first: re-enabled since the read → refused (somebody wants it back); signed in since → skipped. An Autopilot-registered device is refused by Graph until it leaves Autopilot. Type DELETE in the bar to arm it.`, true)}${table(b.deletable, "delete")}</div>`;
-    else if (pane === "enable") main = `<div class="list-card">${head(`↩ Re-enable — ${b.disabled.length} disabled device${b.disabled.length === 1 ? "" : "s"}`, "Every disabled device the read found — waiting ones, delete candidates and any disabled device outside the staleness buckets. Re-enabling is the undo of ①: a fresh read, the write, the read-back; no threshold applies.", true)}${table(b.disabled, "enable")}</div>`;
-    else if (pane === "unknown") main = `<div class="list-card">${head(`Never seen — ${b.unknown.length}`, "The directory returned no last sign-in — an Autopilot object that never booted, or a device the service answers nothing for. Unknown is not stale: acting on these would be a guess, so no action is offered.")}${table(b.unknown, null)}</div>`;
-    else main = `<div class="list-card">${head("Results — this session", dcu.results ? dcu.summary : "No actions run yet. Tick devices under ①, ② or ↩ and the bar appears.")}<div id="dcuLedger">${dcu.ledgerHtml}</div></div>`;
-    // the floating bar: the action follows the ticking
+    const empty = (h, s) => `<div class="dcu-empty"><div class="ic">✓</div><div><b>${h}</b>${s ? `<div class="mini muted">${s}</div>` : ""}</div></div>`;
+    const rules = (list) => `<div class="dcu-rules">${list.map((x) => `<span class="dcu-rule">${x}</span>`).join("")}</div>`;
+    const sel = (kind) => `<div class="dcu-tools"><button class="btn sm" data-dcuselall="${kind}">Select all</button><button class="btn sm" data-dcuclear="${kind}">Clear</button></div>`;
+    const wh = (h, p, tools) => `<div class="dcu-wh"><div><h3>${h}</h3>${p ? `<p class="mini muted">${p}</p>` : ""}</div>${tools || ""}</div>`;
+    const quietest = b.active.filter((r) => r.d.accountEnabled !== false).sort((x, y) => y.days - x.days)[0];
+    const soonest = [...b.parked].sort((x, y) => y.days - x.days)[0];
+    const W = ' <span class="tag block">writes to tenant</span>';
+    let card = "";
+    if (pane === "disable") card = b.stale.length
+      ? wh(`① Disable ${b.stale.length} stale device${b.stale.length === 1 ? "" : "s"} that ${b.stale.length === 1 ? "is" : "are"} still enabled${W}`, `Reversible. A device still enabled and past ${th.deleteDays} days is listed here too: deletion comes after disabling, never instead of it.`, sel("disable"))
+        + rules(["↻ each device is read again just before the write", "⏰ signed in since the read → skipped", "✓ read back after the write", "managed = enrolled in Intune: retire it there first"]) + table(b.stale, "disable")
+      : wh("① Disable: nothing to do") + empty(`Every enabled device signed in within the last ${th.disableDays} days.`, quietest ? `${b.active.length} active device${b.active.length === 1 ? "" : "s"}; the quietest signed in ${quietest.days} day${quietest.days === 1 ? "" : "s"} ago (${esc(quietest.d.displayName || quietest.d.id)}). Lower the disable line in the bar above to look further back.` : "");
+    else if (pane === "delete") card = b.deletable.length
+      ? wh(`② Delete ${b.deletable.length} disabled device${b.deletable.length === 1 ? "" : "s"} past ${th.deleteDays} days${W}`, "<b>Not reversible.</b> The BitLocker recovery keys go with the device object. Graph refuses Autopilot-registered devices until they leave Autopilot. Type DELETE in the bar to arm it.", sel("delete"))
+        + rules(["↻ each device is read again just before the delete", "re-enabled since the read → refused: somebody wants it back", "⏰ signed in since → skipped", "✓ gone from the directory afterwards"]) + table(b.deletable, "delete")
+      : wh("② Delete: nothing to do") + empty(`No disabled device is past ${th.deleteDays} days.`, soonest ? `${b.parked.length} disabled device${b.parked.length === 1 ? " is" : "s are"} waiting; the next one reaches the delete line in ${Math.max(0, th.deleteDays - soonest.days)} day${th.deleteDays - soonest.days === 1 ? "" : "s"} (${esc(soonest.d.displayName || soonest.d.id)}).` : "Disable stale devices first — only a disabled device can become a delete candidate.");
+    else if (pane === "enable") card = b.disabled.length
+      ? wh(`Re-enable — ${b.disabled.length} disabled device${b.disabled.length === 1 ? "" : "s"}${W}`, "The way back from ①: every disabled device the read found, whatever its stage. A fresh read, the write, the read-back; no threshold applies.", sel("enable")) + table(b.disabled, "enable")
+      : wh("Re-enable: nothing to do") + empty("No device is disabled.");
+    else if (pane === "parked") card = b.parked.length
+      ? wh(`Disabled, waiting — ${b.parked.length}`, `Disabled and not yet ${th.deleteDays} days silent. They become delete candidates when they cross the line; to take one back, open Re-enable.`) + table(b.parked, null)
+      : wh("Disabled, waiting") + empty("No disabled device is waiting out the delete line.");
+    else if (pane === "active") card = wh(`Active — ${b.active.length}`, `Signed in within the last ${th.disableDays} days. Nothing to do here; listed so the count can be checked.`) + (b.active.length ? table(b.active, null) : empty(`No device signed in within ${th.disableDays} days.`, "Check the read and the thresholds before acting on anything."));
+    else if (pane === "unknown") card = b.unknown.length
+      ? wh(`Never seen — ${b.unknown.length}`, "The directory returned no last sign-in — an Autopilot object that never booted, or a device the service answers nothing for. Unknown is not stale, so no action is offered.") + table(b.unknown, null)
+      : wh("Never seen") + empty("Every device has a last sign-in.");
+    else card = wh("Results — this session", dcu.results ? dcu.summary : "") + (dcu.results ? "" : empty("No actions run yet.", "Tick devices under ① Disable, ② Delete or Re-enable and the bar appears.")) + `<div id="dcuLedger">${dcu.ledgerHtml}</div>`;
+    // ---- the bar: the action follows the ticking ----
     const kind = { disable: "disable", delete: "delete", enable: "enable" }[pane];
     const n = kind ? dcu.sel[kind].size : 0;
-    const verb = { disable: "🌙 Disable the ticked", delete: "🗑 Delete the ticked", enable: "☀ Re-enable the ticked" }[kind];
-    const bar = kind ? `<div class="selbar dcu-selbar${n ? " visible" : ""}" id="dcuBar"><span><b>${n}</b> device${n === 1 ? "" : "s"} ticked</span>${kind === "delete" ? `<label class="mini" style="display:inline-flex;align-items:center;gap:6px">Type <b>DELETE</b> to arm <input id="dcuConfirm" class="txt" style="width:100px" autocomplete="off" value="${esc(dcu.armed)}"></label>` : ""}<button class="btn primary" data-dcuact="${kind}"${kind === "delete" && dcu.armed.trim() !== "DELETE" || dcu.running ? " disabled" : ""}>${verb} <span class="tag block">writes</span></button><button class="btn sm" data-dcuclear="${kind}" title="Clear the selection">✕</button></div>` : "";
-    body.innerHTML = `${tiles}${tabs}${bar}${main}`;
+    const verb = { disable: "Disable the ticked", delete: "Delete the ticked", enable: "Re-enable the ticked" }[kind];
+    const bar = kind && b[DCU_SRC[kind]].length ? `<div class="selbar dcu-selbar${n ? " visible" : ""}" id="dcuBar"><span><b>${n}</b> device${n === 1 ? "" : "s"} ticked</span>${kind === "delete" ? `<label class="mini" style="display:inline-flex;align-items:center;gap:6px">Type <b>DELETE</b> to arm <input id="dcuConfirm" class="txt" style="width:100px" autocomplete="off" value="${esc(dcu.armed)}"></label>` : ""}<button class="btn primary" data-dcuact="${kind}"${kind === "delete" && dcu.armed.trim() !== "DELETE" || dcu.running ? " disabled" : ""}>${verb} <span class="tag block">writes</span></button><button class="btn sm" data-dcuclear="${kind}" title="Clear the selection">✕</button></div>` : "";
+    body.innerHTML = `${life}${side}<div class="list-card dcu-card">${card}${bar}</div>`;
   }
   function dcuSyncBar(kind) {
     const n = dcu.sel[kind].size, bar = $("dcuBar"), total = dcu.buckets[DCU_SRC[kind]].length;
@@ -29017,6 +29044,7 @@ This is a directory write. Nothing else changes.`)) return;
     const p = t.closest("[data-dcupane]"); if (p) { dcu.pane = p.dataset.dcupane; renderDcu(); return; }
     const a = t.closest("[data-dcuact]"); if (a) { dcuAct(a.dataset.dcuact); return; }
     const c = t.closest("[data-dcuclear]"); if (c) { dcu.sel[c.dataset.dcuclear].clear(); dcu.armed = ""; renderDcu(); return; }
+    const sa = t.closest("[data-dcuselall]"); if (sa) { const k = sa.dataset.dcuselall; dcu.buckets[DCU_SRC[k]].forEach((r) => dcu.sel[k].add(r.d.id)); renderDcu(); return; }
   });
   $("dcuBody").addEventListener("change", (e) => {
     const t = e.target;
