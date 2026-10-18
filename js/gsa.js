@@ -16,6 +16,10 @@
 //   Gsa.render(model, ui)            → the flow, the selected step, the workspaces, the policy table, the proof, the groups
 //   Gsa.preview(fix, opts)           → what a fix sends: the script(s) or the Graph request, for the workspace (32524)
 //   Gsa.defaultSel(model)            → the step the flow opens on: the first that blocks
+//   Gsa.clientLanes(raw, c)          → 0.11.0: step 6 as two lanes (Windows, macOS), each decided by
+//                                      what Global Secure Access has seen (seenIndex), with its own
+//                                      actions; scopeOut / scopeRecord read and write the ENCA
+//                                      settings record (open extension nl.limonit.enca on the tenant)
 //   Gsa.windowsScript(opts)          → the Intune platform script (PowerShell) ENCA uploads
 //   Gsa.macScript()                  → the macOS shell script; macSysextBody / macProxyBody /
 //                                      macSettingsBody the three profiles it needs (0.8.0)
@@ -250,6 +254,196 @@ const Gsa = (() => {
     const notes = win.issues.map((i) => `<p class="mini ${i.sev === "bad" ? "gsa-bad-txt" : "gsa-warn-txt"}">${esc(i.t)}</p>`).join("");
     return `<div class="gsa-mac"><div class="gsa-lab" style="margin:10px 0 4px">Windows — found by name, judged by reach and landing${win.st === "ok" ? ' · <span class="gsa-ok-txt">complete</span>' : ` · <span class="gsa-${cls(win.st)}-txt">${win.st === "bad" ? "not ready" : "partly"}</span>`}</div><div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Object</th><th>Found</th><th>Reaches</th><th>Landed</th><th>Licence</th></tr></thead><tbody>${row}</tbody></table></div>${notes}</div>`;
   }
+  // ---- 0.11.0: step 6 as two lanes, decided by what GSA has seen ------------
+  // Mihai, 18 Oct: "I am still stuck at step 6. I cannot complete it and just
+  // see that everything is now ok" — and, mid-review, "if I choose mac, I
+  // don't see the options for windows later". The step had one Windows and
+  // one macOS fix slot, and the Windows one went as soon as a remediation
+  // existed and was assigned: on Limon-IT (Business Premium) the remediation
+  // could not run and nothing was left to press. Now each platform is a LANE
+  // with its own actions that never disappear, and the stage that DECIDES a
+  // lane is Connected: has Global Secure Access itself seen the devices in
+  // the deployment's groups — its device report and the sign-ins marked
+  // through GSA, the last 7 days. Intune's run state explains why not; it no
+  // longer decides (macOS turned green on assignments alone before this).
+  const ENCA_EXT = "nl.limonit.enca";
+  const SEEN_DAYS = 7;
+  const MAC_CHECK_CMDS = [
+    'ls -d "/Applications/Global Secure Access Client.app" "/Applications/GlobalSecureAccessClient/Global Secure Access Client.app" 2>/dev/null',
+    "systemextensionsctl list | grep -i globalsecureaccess",
+    "tail -n 30 /Library/Logs/Microsoft/IntuneScripts/GlobalSecureAccess/install.log",
+  ];
+  const TRUST = { AzureAd: "Entra joined", ServerAd: "hybrid joined", Workplace: "Entra registered" };
+  const when = (iso) => { const d = new Date(iso); return iso && !isNaN(d) ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : String(iso || ""); };
+  // The ENCA settings record (agreed 18 Oct): ONE open extension on the
+  // tenant's organization object, so a choice made here holds in every
+  // browser and for every colleague. Step 6 keeps per platform when, by whom
+  // and why it was taken out of scope; "" means in scope (written as "" rather
+  // than removed, so a PATCH means the same whether Graph merges or replaces).
+  function scopeOut(rec) {
+    const r = rec || {};
+    const one = (p) => (r[`t56${p}OutAt`] ? { at: String(r[`t56${p}OutAt`]), by: String(r[`t56${p}OutBy`] || ""), why: String(r[`t56${p}OutWhy`] || "") } : null);
+    return { windows: one("Win"), macOS: one("Mac") };
+  }
+  function scopeRecord(rec, platform, outOn, who, why, at) {
+    const p = platform === "macOS" ? "Mac" : "Win";
+    const body = { "@odata.type": "microsoft.graph.openTypeExtension", extensionName: ENCA_EXT };
+    for (const [k, v] of Object.entries(rec || {})) if (!/^@odata|^id$|^extensionName$/.test(k)) body[k] = v;
+    body[`t56${p}OutAt`] = outOn ? String(at || new Date().toISOString()) : "";
+    body[`t56${p}OutBy`] = outOn ? String(who || "") : "";
+    body[`t56${p}OutWhy`] = outOn ? String(why || "").trim().slice(0, 200) : "";
+    return body;
+  }
+  // what Global Secure Access has seen, by Entra device id (lower case):
+  // raw.seen.report — /networkAccess/reports/deviceReport, the devices with
+  // traffic through GSA and their lastAccessDateTime — and raw.seen.signIns —
+  // the sign-ins marked isThroughGlobalSecureAccess, interactive and not
+  function seenIndex(raw) {
+    const src = raw.sources || {}, s = raw.seen || null;
+    const okR = src.seenReport === "ok", okS = src.seenSignins === "ok";
+    const map = new Map();
+    const add = (id, at, name, os, via) => {
+      if (!id) return;
+      const k = String(id).toLowerCase(), e = map.get(k) || { last: "", name: "", os: "", via: new Set() };
+      if (String(at || "") > e.last) e.last = String(at || "");
+      if (!e.name && name) e.name = name;
+      if (!e.os && os) e.os = os;
+      e.via.add(via); map.set(k, e);
+    };
+    if (s && okR) for (const d of s.report || []) add(d.deviceId, d.lastAccessDateTime, d.displayName, d.operatingSystem, "traffic");
+    if (s && okS) for (const x of s.signIns || []) { const dd = x.deviceDetail || {}; add(dd.deviceId, x.createdDateTime, dd.displayName, dd.operatingSystem, "sign-in"); }
+    const errs = [src.seenReport && !okR ? `device report: ${src.seenReport}` : "", src.seenSignins && !okS ? `sign-ins: ${src.seenSignins}` : ""].filter(Boolean);
+    return { read: !!s && (okR || okS), err: !s ? "read the tenant again" : errs.join(" · "), map, days: (s && s.days) || SEEN_DAYS, capped: !!(s && s.capped) };
+  }
+  // the devices a lane expects: the members of the groups its deployment is
+  // assigned to, as read (lists[gid].list), one per Entra device id
+  function groupDevices(gids, lists, names, osRx) {
+    const devices = [], unknown = [];
+    for (const gid of gids) {
+      const g = lists[gid];
+      if (!g || !Array.isArray(g.list)) { unknown.push(gid); continue; }
+      for (const d of g.list) {
+        if (!d.deviceId || !osRx.test(d.operatingSystem || "") || devices.some((x) => x.deviceId === d.deviceId)) continue;
+        devices.push({ deviceId: d.deviceId, name: d.displayName || d.deviceId, trust: TRUST[d.trustType] || d.trustType || "", group: names[gid] || gid });
+      }
+    }
+    return { devices, unknown };
+  }
+  // the stage that decides a lane: how many of its devices GSA has seen
+  function connectedGate(dev, seen, os, osRx, allTargets) {
+    for (const d of dev.devices) { const e = seen.map.get(String(d.deviceId).toLowerCase()); d.seen = e ? { last: e.last, via: [...e.via] } : null; }
+    const total = dev.devices.length, n = dev.devices.filter((d) => d.seen).length, days = seen.days;
+    const noun = (k) => (os === "macOS" ? `Mac${k === 1 ? "" : "s"}` : `Windows device${k === 1 ? "" : "s"}`);
+    if (!seen.read) return { st: "unread", text: `not read — ${seen.err}`, connected: 0, total };
+    if (allTargets) {
+      const k = [...seen.map.values()].filter((e) => osRx.test(e.os || "")).length;
+      return { st: k ? "ok" : "bad", text: `${k} ${noun(k)} seen through GSA in the last ${days} days — the deployment targets everyone, so ENCA cannot list who is missing`, connected: k, total: null };
+    }
+    if (!total && dev.unknown.length) return { st: "unread", text: "the group's members were not read — read the tenant again", connected: 0, total: 0, membersUnknown: true };
+    if (!total) return { st: "bad", text: `no ${noun(2)} in the group`, connected: 0, total: 0 };
+    return { st: n === total ? "ok" : n ? "warn" : "bad", text: `${n} of ${total} ${noun(total)} seen through GSA in the last ${days} days${seen.capped ? " (sign-ins: the newest read)" : ""}`, connected: n, total, membersUnknown: dev.unknown.length > 0 };
+  }
+  const scopeAct = (platform, off) => ({ fix: platform === "macOS" ? "scope-mac" : "scope-win", label: off ? "Back in scope…" : "Not in scope…", title: off ? `Put ${platform} back in scope` : `${platform} is not in scope here`, sub: off ? `out since ${when(off.at)}${off.by ? ` by ${off.by}` : ""}${off.why ? ` — ${off.why}` : ""} · kept in the tenant's ENCA settings record` : "accept and skip — kept in the tenant (the ENCA settings record), so every browser and colleague sees it" });
+  const offStage = (platform, off) => ({ k: "Scope", st: "na", text: `${platform} taken out of scope ${when(off.at)}${off.by ? ` by ${off.by}` : ""}${off.why ? ` — ${off.why}` : ""}`, sub: `step 6 does not wait for ${platform}; a compliant-network policy that covers ${platform} sign-ins still blocks every device without the client` });
+  function clientLanes(raw, c) {
+    const { win, lic, mac, macScriptX, mp, off, seen } = c, names = raw.groupNames || {};
+    // ---- Windows
+    const W = { os: "Windows", icon: "🪟", stages: [], actions: [], devices: [] };
+    const asg = win.obj && Array.isArray(win.obj.assignments) ? win.obj.assignments : [];
+    const wGroups = (win.reach && win.reach.groups) || [];
+    const wAll = !!(win.obj && !win.unassigned && win.reach && (win.reach.all || win.reach.allUsers));
+    const wDev = groupDevices(wGroups, raw.winGroups || {}, names, /^windows/i);
+    const wGate = connectedGate(wDev, seen, "Windows", /windows/i, wAll);
+    if (!win.obj && seen.read) {
+      const k = [...seen.map.values()].filter((e) => /windows/i.test(e.os || "")).length;
+      Object.assign(wGate, k ? { st: "warn", text: `${k} Windows device${k === 1 ? "" : "s"} seen through GSA, but nothing in Intune keeps the client on them` } : { st: "bad", text: "no Windows device seen through GSA — nothing deploys the client yet" });
+    }
+    W.devices = wDev.devices; W.connected = wGate.connected; W.membersUnknown = !!wGate.membersUnknown || wAll;
+    const licBad = win.kind === "rem" && lic.known && !lic.ent;
+    W.fix = off.windows ? null : !win.obj ? (lic.known && !lic.ent ? "winscript" : "winrem") : win.kind === "rem" && win.unassigned ? "winrem" : win.kind === "script" && win.unassigned ? "winscript" : licBad ? "winswap" : null;
+    if (off.windows) { W.st = "na"; W.word = "not in scope"; W.summary = "not in scope"; W.stages.push(offStage("Windows", off.windows)); }
+    else {
+      const kindName = { rem: "Remediation", script: "Platform script", app: "App" }[win.kind] || "Deployment";
+      const sch = (asg.find((a) => a.runSchedule) || {}).runSchedule;
+      W.stages.push({ k: "Deployed", st: win.obj ? "ok" : "bad", text: win.obj ? `${kindName} ${win.name}` : "Nothing installs the client — no remediation, platform script or app", sub: win.kind === "rem" ? (sch ? (/Hourly/i.test(sch["@odata.type"] || "") ? "runs every hour" : /Daily/i.test(sch["@odata.type"] || "") ? "runs daily" : "runs once") : "") : win.kind === "script" ? "runs once per device" : "" });
+      if (win.obj) W.stages.push({ k: "Reaches", st: win.reach.st === "ok" ? "ok" : win.reach.st === "na" ? "na" : "bad", text: win.reach.text, sub: (win.issues.find((i) => /registered device/.test(i.t)) || {}).t || "" });
+      if (win.kind === "rem") {
+        const detectOnly = asg.length > 0 && asg.every((a) => a.runRemediationScript === false);
+        W.stages.push({ k: "Allowed to run", st: !lic.known ? "na" : lic.ent ? "ok" : "bad", text: !lic.known ? "licences not read" : lic.ent ? `Licensed — ${lic.entNames.join(", ")}` : `No — remediations need Windows Enterprise E3/E5, Education A3/A5 or VDA; this tenant holds ${lic.biz ? "Windows Business (Business Premium)" : "none of them"}`, sub: detectOnly ? "Graph reads the assignment as detect-only — if Intune also shows Remediation script: No, it detects and installs nothing" : "" });
+      }
+      if (win.obj) W.stages.push({ k: "Ran (Intune)", st: win.landed.st === "ok" ? "ok" : win.landed.st === "na" ? "na" : "warn", text: win.landed.text, sub: (win.issues.find((i) => /not remediated/.test(i.t)) || {}).t || "" });
+      W.stages.push({ k: "Connected", gate: true, st: wGate.st === "unread" ? "na" : wGate.st, text: wGate.text });
+      W.st = wGate.st === "unread" ? (win.obj ? "warn" : "bad") : wGate.st;
+      W.word = W.st === "ok" ? "connected" : !win.obj ? "nothing deployed" : licBad && W.st === "bad" ? "blocked · licence" : wGate.st === "unread" ? "not read" : W.st === "warn" ? "partly connected" : "not connected";
+      W.summary = wGate.text;
+    }
+    if (W.fix) W.actions.push({ fix: W.fix, primary: true, sub: W.fix === "winswap" ? "same groups · the remediation is unassigned and kept, after the script's assignment lands · way back: reassign it from the backup" : "" });
+    if (!off.windows && wGroups.length) W.actions.push({ groups: true, title: "Devices in the group", sub: `${wGroups.map((id) => names[id] || id).join(", ")} — add or remove devices in 👥 Groups (Used by GSA)` });
+    W.actions.push(scopeAct("Windows", off.windows));
+    // ---- macOS
+    const M = { os: "macOS", icon: "🍎", stages: [], actions: [], devices: [] };
+    const rows = mac ? mac.rows : null;
+    const scriptAsg = mac ? mac.scriptAsg || [] : (macScriptX && macScriptX.assignments) || [];
+    const mt = tgt(scriptAsg), mGroups = mt.inc.map((x) => x.id), mAll = !!(mt.all || mt.allUsers);
+    const mDev = groupDevices(mGroups, (raw.macChain && raw.macChain.groups) || {}, names, /mac/i);
+    const mGate = connectedGate(mDev, seen, "macOS", /mac/i, mAll && !!macScriptX);
+    M.devices = mDev.devices; M.connected = mGate.connected; M.membersUnknown = !!mGate.membersUnknown || mAll;
+    M.fix = c.macNa ? null : mac ? (!macScriptX ? "macscript" : null) : !macScriptX ? "macscript" : !c.macProfOk ? "macprof" : null;
+    if (off.macOS) { M.st = "na"; M.word = "not in scope"; M.summary = "not in scope"; M.stages.push(offStage("macOS", off.macOS)); }
+    else if (c.macAuto) { M.st = "na"; M.word = "not in scope"; M.summary = "no Intune-managed Mac — not in scope"; M.stages.push({ k: "Scope", st: "na", text: "no Intune-managed Mac in this tenant and no macOS script — not in scope", sub: "the macOS lane returns when a Mac is enrolled" }); }
+    else {
+      const profFound = rows ? rows.slice(1).filter((r) => r.found).length : ["sysext", "proxy", "settings"].filter((k) => mp[k]).length;
+      M.stages.push({ k: "Deployed", st: !macScriptX ? "bad" : profFound === 3 ? "ok" : "warn", text: macScriptX ? `Install script ${macScriptX.displayName} + ${profFound} of 3 profiles` : "No install script for the client", sub: macScriptX ? "system extensions, transparent proxy, client settings" : "" });
+      if (macScriptX) {
+        const grp = mac && mac.groups.length ? mac.groups.map((g) => `${g.name} · ${typeof g.devices === "number" ? `${g.devices} device${g.devices === 1 ? "" : "s"}, ${g.managedMacs} managed Mac${g.managedMacs === 1 ? "" : "s"}` : "members not read"}`).join(", ") : scriptAsg.length ? (mAll ? "All devices" : "assigned") : "assigned to nobody";
+        const pr = rows ? rows.slice(1).filter((r) => r.found && r.reach.st !== "ok" && r.reach.st !== "na") : [];
+        M.stages.push({ k: "Reaches", st: !scriptAsg.length || (mac && mac.noMac) || pr.some((r) => r.reach.st === "bad") ? "bad" : pr.length ? "warn" : "ok", text: grp, sub: [mac && mac.noMac ? "no managed Mac in the group — nothing lands" : "", ...pr.map((r) => `${r.label}: ${r.reach.text}`)].filter(Boolean).join(" · ") });
+      }
+      if (rows) {
+        const iss = rows.flatMap((r) => (r.found ? r.issues : []));
+        M.stages.push({ k: "Content", st: iss.some((i) => i.sev === "bad") ? "bad" : iss.length ? "warn" : "ok", text: iss.length ? `${iss.length} issue${iss.length === 1 ? "" : "s"} — the chain table below fixes each` : "script and profiles as Learn" });
+        const land = rows.slice(1).filter((r) => r.found);
+        const sx2 = [...(mac.otherSx || []), ...(mac.otherSxLegacy || [])].map((x) => x.name);
+        const landSt = land.some((r) => r.landed.bad) ? "bad" : sx2.length ? "warn" : land.length && land.every((r) => !/no device|not read/.test(r.landed.text)) ? "ok" : land.length ? "warn" : "na";
+        M.stages.push({ k: "Profiles landed", st: landSt, text: land.length ? land.map((r) => `${r.label}: ${r.landed.text}`).join(" · ") : "no profile found", sub: sx2.length ? `A second system-extension payload reaches these Macs: ${sx2.join(", ")}` : "" });
+        const sr = rows[0], rs = sr.found && sr.found.runSummary;
+        if (sr.found) M.stages.push({ k: "Ran (Intune)", st: !rs ? "na" : (rs.errorDeviceCount || 0) > 0 ? "bad" : (rs.successDeviceCount || 0) > 0 ? "ok" : "warn", text: !rs ? "not read" : rs.successDeviceCount || rs.errorDeviceCount ? `${rs.successDeviceCount || 0} ok · ${rs.errorDeviceCount || 0} failed` : "the install script has not reported a run yet", sub: "on a first install it waits until both approvals are on the Mac, then installs" });
+      }
+      M.stages.push({ k: "Connected", gate: true, st: mGate.st === "unread" ? "na" : mGate.st, text: mGate.text });
+      M.st = mGate.st === "unread" ? (macScriptX ? "warn" : "bad") : mGate.st === "ok" ? "ok" : !macScriptX ? "bad" : mGate.st;
+      M.word = M.st === "ok" ? "connected" : !macScriptX ? "nothing deployed" : mGate.st === "unread" ? "not read" : M.st === "warn" ? "partly connected" : "deployed · not connected";
+      M.summary = mGate.text;
+    }
+    if (M.fix) M.actions.push({ fix: M.fix, primary: true });
+    if (!off.macOS && !c.macAuto && mac && mac.problems) M.actions.push({ jump: "gsaMac", label: "Show the chain", title: "Repair the chain", sub: `${mac.problems} problem${mac.problems === 1 ? "" : "s"} — the chain table below has a fix per row` });
+    if (!off.macOS && !c.macAuto && macScriptX) M.actions.push({ copy: true, title: "Check a Mac", sub: "three read-only commands — run them in Terminal on a Mac in the group" });
+    M.actions.push(scopeAct("macOS", off.macOS));
+    return { windows: W, macOS: M };
+  }
+  // the lanes, the rule and the devices table — under the step 6 detail
+  function laneHtml(L) {
+    const cls = (st) => (st === "ok" ? "ok" : st === "bad" ? "bad" : st === "na" ? "na" : "warn");
+    const ic = (st) => ({ ok: "✓", bad: "✕", na: "–" }[cls(st)] || "!");
+    const li = (s) => `<li${s.gate ? ' class="gate"' : ""}><span class="gsa-ic ${cls(s.st)}">${ic(s.st)}</span><span class="gsa-sk">${esc(s.k)}${s.gate ? "<small>decides the step</small>" : ""}</span><span class="gsa-sv">${esc(s.text)}${s.sub ? `<span class="mini muted">${esc(s.sub)}</span>` : ""}</span></li>`;
+    const row = (title, sub, btn) => `<div class="gsa-actrow"><div><b>${esc(title)}</b>${sub ? `<div class="mini muted">${esc(sub)}</div>` : ""}</div>${btn}</div>`;
+    const act = (a) => {
+      if (a.fix) { const f = FIXES[a.fix] || {}; return row(a.title || f.title || FIX_LABEL[a.fix] || a.fix, a.sub || "writes to tenant · opens a workspace below with what it sends, its impact and the way back", `<button class="btn sm${a.primary ? " primary" : ""}" data-gsafix="${esc(a.fix)}">${esc(a.label || FIX_LABEL[a.fix] || "Open…")}</button>`); }
+      if (a.groups) return row(a.title, a.sub, '<button class="btn sm" data-gsagroups>Open in Groups</button>');
+      if (a.jump) return row(a.title, a.sub, `<button class="btn sm" data-gsajump="${esc(a.jump)}">${esc(a.label || "Show")}</button>`);
+      if (a.copy) return `<div class="gsa-actrow gsa-cmd"><div><b>${esc(a.title)}</b><div class="mini muted">${esc(a.sub)}</div><pre class="gsa-pre" data-gsacmd>${esc(MAC_CHECK_CMDS.join("\n"))}</pre></div><button class="btn sm" data-gsacopycmd>Copy</button></div>`;
+      return "";
+    };
+    return `<div class="gsa-pl ${cls(L.st)}"><div class="gsa-pl-h"><b>${L.icon} ${esc(L.os)}</b><span class="gsa-st ${cls(L.st)}">${esc(L.word)}</span></div><ul class="gsa-stages">${L.stages.map(li).join("")}</ul><div class="gsa-pl-acts"><div class="gsa-lab">What you can do — ${esc(L.os)}, whatever you do on the other</div>${L.actions.map(act).join("")}</div></div>`;
+  }
+  function lanesHtml(l) {
+    const ln = l.lanes; if (!ln) return "";
+    const sn = l.seen || { read: false, err: "", days: SEEN_DAYS };
+    const dev = [["Windows", ln.windows], ["macOS", ln.macOS]].filter(([, L]) => L.st !== "na").flatMap(([os, L]) => L.devices.map((d) => Object.assign({ os }, d)));
+    const rows = dev.map((d) => `<tr><td><b>${esc(d.name)}</b>${d.trust ? `<div class="mini muted">${esc(d.trust)}</div>` : ""}</td><td>${esc(d.os)}</td><td class="mini">${esc(d.group)}</td><td class="mini">${d.seen ? `${esc(when(d.seen.last))} <span class="muted">· ${esc(d.seen.via.join(" + "))}</span>` : sn.read ? `not in the last ${sn.days} days` : "not read"}</td><td>${d.seen ? '<span class="gsa-st ok">connected</span>' : sn.read ? '<span class="gsa-st bad">not connected</span>' : '<span class="gsa-st">not read</span>'}</td></tr>`).join("");
+    const table = rows ? `<h3 style="margin:14px 0 6px">Devices in scope <span class="mini muted">· one row per device, both platforms</span></h3><div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Device</th><th>Platform</th><th>Group</th><th>Last seen through GSA</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` : "";
+    const rule = `<div class="gsa-rule"><span aria-hidden="true">ⓘ</span><span><b>Ready when every device in scope has been seen through Global Secure Access</b> in the last ${sn.days} days — in its device report and in the sign-ins marked through Global Secure Access. Intune's run state stays on screen to explain why a device is not there yet; it no longer decides the step.${sn.read ? "" : ` <span class="gsa-warn-txt">Not read: ${esc(sn.err)}</span>`}</span></div>`;
+    return `<section class="list-card gsa-sect gsa-lanes2" id="gsaLanes">${rule}<div class="gsa-pl-grid">${laneHtml(ln.windows)}${laneHtml(ln.macOS)}</div>${table}</section>`;
+  }
   // ---- 32708 (B2): who must pass against who can ----------------------------
   // A guarding policy that includes people the Microsoft profile does not
   // reach, or reaches no device with the client, blocks people, not tokens.
@@ -345,23 +539,28 @@ const Gsa = (() => {
     const macOk = mac ? mac.ok : !!macScript && macProfOk;
     // 32708 (S7): no Intune-managed Mac and no macOS script — macOS is not in
     // scope, so a Windows-only tenant can reach a green step 6
-    const macNa = raw.macManaged === 0 && !macScriptX;
-    const macSt = macNa ? "na" : macOk ? "ok" : macScriptX ? "warn" : "bad";
-    const sts = [win.st, macSt].filter((x) => x !== "na");
+    // 0.11.0: a platform an admin took out of scope (the ENCA settings record
+    // on the organization object) is not in scope, like a tenant without a Mac
+    const scopeOff = scopeOut(raw.encaSettings), seenIx = seenIndex(raw);
+    const macAuto = raw.macManaged === 0 && !macScriptX;
+    const macNa = !!scopeOff.macOS || macAuto;
+    // 0.11.0: two lanes, each decided by what Global Secure Access has seen
+    const pl = clientLanes(raw, { win, lic, mac, macScriptX, macProfOk, mp, macNa, macAuto, off: scopeOff, seen: seenIx });
+    const sts = [pl.windows.st, pl.macOS.st].filter((x) => x !== "na");
     const clientSt = unread("scripts") && unread("apps") && unread("healthScripts") ? "unread" : !sts.length ? "bad" : sts.every((x) => x === "ok") ? "ok" : sts.every((x) => x === "bad") ? "bad" : "warn";
     // the Windows fix: nothing deployed → the remediation, or the platform
     // script where the licence does not cover remediations; a found but
     // unassigned remediation → the same workspace, which assigns THAT one (S1)
-    const winFix = !win.obj ? (lic.known && !lic.ent ? "winscript" : "winrem") : win.kind === "rem" && win.unassigned ? "winrem" : win.kind === "script" && win.unassigned ? "winscript" : null;
+    const winFix = pl.windows.fix;
     L.push({ k: "client", lab: "Devices", h: "GSA client", st: clientSt,
-      note: [`Windows: ${win.text}`, macNa ? "macOS: no Intune-managed Mac — not in scope" : macScriptX ? `macOS: ${macScriptX.displayName}` : "macOS: no shell script"].join(" · "),
+      note: [`Windows: ${pl.windows.summary}${scopeOff.windows ? "" : ` — ${win.text}`}`, `macOS: ${pl.macOS.summary}${macNa ? "" : macScriptX ? ` — ${macScriptX.displayName}` : " — no shell script"}`].join(" · "),
       sub: [...win.issues.map((i) => `Windows: ${i.t}`), macNa ? "" : mac ? (unread("macChain") ? `macOS chain not read — ${src.macChain}` : mac.problems ? `macOS: ${mac.problems} problem${mac.problems === 1 ? "" : "s"} in the chain — the table below says which and fixes each` : "macOS: the script and the three profiles are complete, as Learn, and reach the same Macs") : unread("macProfiles") ? `macOS profiles not read — ${src.macProfiles}` : `macOS profiles: ${mprof("sysext", "system extensions")} · ${mprof("proxy", "transparent proxy")} · ${mprof("settings", "client settings")}`].filter(Boolean).join(" "),
-      help: "Windows: the device must be Entra joined or hybrid joined — on an Entra registered device the client carries Private Access only (Learn). Secure DNS (DNS over HTTPS) must be off in Edge and Chrome, or the client cannot tunnel by name — a settings catalog policy on the same devices. QUIC only matters once Internet Access is added. From November 2026 Windows Update upgrades clients at 2.31.125 or later.",
+      help: "Step 6 is ready when every device in scope has been seen through Global Secure Access in the last 7 days — its device report and the sign-ins marked through GSA; Intune's run state explains why a device is not there yet. Windows: the device must be Entra joined or hybrid joined — on an Entra registered device the client carries Private Access only (Learn). Secure DNS (DNS over HTTPS) must be off in Edge and Chrome, or the client cannot tunnel by name — a settings catalog policy on the same devices. QUIC only matters once Internet Access is added. From November 2026 Windows Update upgrades clients at 2.31.125 or later.",
       // 0.8.0 (Mihai 17 Oct: after creating the macOS script the profiles
       // were missing and nothing was offered): no script → the script
       // workspace, which makes the profiles too; script there but a profile
       // missing or unassigned → the same workspace from the profiles' side
-      fix: winFix, fix2: macNa ? null : mac ? (!macScriptX ? "macscript" : null) : !macScript ? "macscript" : !macProfOk ? "macprof" : null, winScript, winApp, winRem, win, lic, macScript: macScriptX, macProfOk, macProf: mp, mac, macNa });
+      fix: winFix, fix2: macNa ? null : mac ? (!macScriptX ? "macscript" : null) : !macScript ? "macscript" : !macProfOk ? "macprof" : null, winScript, winApp, winRem, win, lic, macScript: macScriptX, macProfOk, macProf: mp, mac, macNa, lanes: pl, seen: { read: seenIx.read, err: seenIx.err, days: seenIx.days }, split: [{ t: "Win", st: pl.windows.st }, { t: "Mac", st: pl.macOS.st }] });
     // 7 policy
     const policies = cnPolicies(caPolicies, cn && cn.id);
     // 32708 (B1): only the GUARDING policies count — block outside the
@@ -373,7 +572,7 @@ const Gsa = (() => {
     const pGroups = groups.filter((g) => !isBacking(g.principalDisplayName || "")).map((g) => g.principalId), pUsers = users.map((u) => u.principalId);
     const macDev = macNa || !macScriptX ? 0 : mac && mac.groups.length && mac.groups.every((g) => typeof g.managedMacs === "number") ? mac.groups.reduce((n, g) => n + g.managedMacs, 0) : null;
     const winDev = !win.obj || win.reach.st === "bad" ? 0 : win.reach.st === "na" || win.reach.all || win.reach.allUsers || win.reach.unknown || win.reach.users ? null : win.reach.windows;
-    const devCount = winDev === 0 && macDev === 0 ? 0 : (winDev || 0) + (macDev || 0) > 0 ? (winDev || 0) + (macDev || 0) : null;
+    const devCount = seenIx.read && !pl.windows.membersUnknown && !pl.macOS.membersUnknown ? pl.windows.connected + pl.macOS.connected : winDev === 0 && macDev === 0 ? 0 : (winDev || 0) + (macDev || 0) > 0 ? (winDev || 0) + (macDev || 0) : null;
     const scope = scopeCheck(policies, onboarded && prof && !unread("assigned") ? { allUsers, groupIds: pGroups, userIds: pUsers } : null, devCount, raw.groupNames || {});
     const chain = ["tenant", "profile", "signal", "location", "client"].map((k) => L.find((l) => l.k === k)).filter((l) => l.st !== "ok");
     const word7 = !guards.length && policies.length ? "none blocks" : guards.length && !on.length && !ro.length ? "off" : null;
@@ -498,7 +697,7 @@ const Gsa = (() => {
   // the step the flow opens on: the first that blocks, else Proof
   const defaultSel = (m) => ((m.links.find((l) => l.st === "bad" || l.st === "warn") || m.links.find((l) => l.k === "proof") || m.links[0]).k);
   const ST = { ok: ["ok", "ready"], warn: ["warn", "partly"], bad: ["bad", "missing"], wait: ["wait", "waits"], unread: ["wait", "not read"] };
-  const FIX_LABEL = { onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", "macfix-script": "Fix the macOS script…", "macfix-sysext": "Fix system extensions…", "macfix-proxy": "Fix the transparent proxy…", "macfix-settings": "Fix the client settings…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…" };
+  const FIX_LABEL = { winswap: "Replace…", "scope-win": "Not in scope…", "scope-mac": "Not in scope…", onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", "macfix-script": "Fix the macOS script…", "macfix-sysext": "Fix system extensions…", "macfix-proxy": "Fix the transparent proxy…", "macfix-settings": "Fix the client settings…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…" };
   function render(m, ui) {
     const u = ui || {};
     if (u.proof) proofLink(m, u.proof);
@@ -512,7 +711,7 @@ const Gsa = (() => {
     const sel = m.links.find((l) => l.k === u.sel) ? u.sel : defaultSel(m);
     const node = (l, i) => {
       const [cls, w0] = ST[l.st] || ST.wait, word = l.word || w0;
-      return `<button type="button" class="gsa-node ${cls}${l.k === sel ? " sel" : ""}" data-gsasel="${l.k}" aria-pressed="${l.k === sel}" title="${esc(l.note)}"><span class="gsa-dot" aria-hidden="true">${ICON[cls] || "…"}</span><span class="gsa-lab">${i + 1} · ${esc(l.lab)}</span><b>${esc(l.h)}</b><span class="gsa-nv">${esc(word)}</span></button>`;
+      return `<button type="button" class="gsa-node ${cls}${l.k === sel ? " sel" : ""}" data-gsasel="${l.k}" aria-pressed="${l.k === sel}" title="${esc(l.note)}"><span class="gsa-dot" aria-hidden="true">${ICON[cls] || "…"}</span><span class="gsa-lab">${i + 1} · ${esc(l.lab)}</span><b>${esc(l.h)}</b><span class="gsa-nv">${esc(word)}</span>${l.split ? `<span class="gsa-split">${l.split.map((s) => `<i class="${s.st === "ok" ? "ok" : s.st === "bad" ? "bad" : s.st === "na" ? "na" : "warn"}">${s.t} ${s.st === "ok" ? "✓" : s.st === "bad" ? "✕" : s.st === "na" ? "–" : "!"}</i>`).join("")}</span>` : ""}</button>`;
     };
     const lanes = LANES.map(([name, keys]) => `<div class="gsa-lane" style="grid-column:span ${keys.length}">${esc(name)}</div>`).join("");
     const flow = `<section class="list-card gsa-flow" aria-label="The chain, step by step"><div class="gsa-flow-in"><div class="gsa-lanes">${lanes}</div><div class="gsa-nodes">${m.links.map(node).join("")}</div></div><div class="gsa-legend mini muted"><span><i class="ok"></i>ready</span><span><i class="warn"></i>partly</span><span><i class="bad"></i>missing or off</span><span><i class="wait"></i>waits or not read</span><span>· click a step for its detail and fixes</span></div></section>`;
@@ -521,13 +720,15 @@ const Gsa = (() => {
     const acts = [];
     const act = (btn, h, sub) => acts.push(`<div class="gsa-actrow"><div><b>${esc(h)}</b>${sub ? `<div class="mini muted">${esc(sub)}</div>` : ""}</div>${btn}</div>`);
     const fixAct = (k, primary, optional) => { const f = FIXES[k] || {}; act(`<button class="btn sm${primary ? " primary" : ""}${optional ? " gsa-optional" : ""}" data-gsafix="${k}">${esc(FIX_LABEL[k].replace(/ \(only if[^)]*\)/, ""))}</button>`, f.title || FIX_LABEL[k], `${optional ? "Optional — only if clients stay Partially Connected. " : ""}writes to tenant · opens a workspace below with what it sends, its impact and the way back`); };
-    if (l.fix) fixAct(l.fix, l.st === "bad", false);
-    if (l.fix2 && l.fix2 !== l.fix) fixAct(l.fix2, false, l.fix2 === "ztnasp");
+    // 0.11.0: step 6's fixes live in its two lanes, below — never in one slot here
+    if (l.fix && l.k !== "client") fixAct(l.fix, l.st === "bad", false);
+    if (l.fix2 && l.fix2 !== l.fix && l.k !== "client") fixAct(l.fix2, false, l.fix2 === "ztnasp");
     if (l.k === "policy" && !m.policiesLoaded) act(`<button class="btn sm primary" data-gsareadpols>📥 Read the policies</button>`, "Read the policies", "the same read as 🗂 Policies → from the tenant; back here when it is done");
     if (l.k === "policy" && m.policiesLoaded && !(m.guards || []).length && m.cn) act(`<button class="btn sm primary" data-gsabuild>Create it in report-only…</button>`, "Create the policy, report-only", `opens 🏗 Policy builder pre-filled — block all resources outside the compliant network, Windows and macOS, ${m.allUsers ? "all users" : "the Microsoft profile's groups"}, the Intune apps out — you set the exclusions and save`);
     if (l.k === "policy" && m.policies.some((p) => p.state === "enabledForReportingButNotEnforced")) act(`<button class="btn sm" data-gsasel="proof">Step 8 · the proof</button>`, "Read the proof", "what the report-only policy would have blocked in the last 7 days");
     if (l.k === "policy" && l.open) act(`<button class="btn sm" data-gsaopen="${esc(l.open)}">Open in Policies</button>`, "Open the policy", "state and exclusions are changed in 🗂 Policies — this tool leaves them as they are");
     if (l.k === "policy" && m.policies.length) act(`<button class="btn sm" data-gsajump="gsaPols">Show the list</button>`, `Every policy that names the compliant network (${m.policies.length})`, "the card below the workspaces");
+    if (l.k === "client") act(`<button class="btn sm primary" data-gsajump="gsaLanes">Show the lanes</button>`, "Windows and macOS — each with its own actions", "below: what each platform needs, and which devices Global Secure Access has seen");
     if (l.k === "client") act(`<button class="btn sm" data-gsajump="gsaIntune">Show the Intune card</button>`, "Every GSA remediation, script, app and macOS profile", "where it is in Intune and whom it is assigned to");
     // 0.6.3 (Mihai: nothing happens when selecting Read the proof): the read
     // ran, but its only signs were a line at the foot of the page and the
@@ -593,7 +794,8 @@ const Gsa = (() => {
     // not a link of the compliant-network chain, so the eight steps and the
     // verdict stay about stolen tokens
     // 32708: Windows judged by reach and landing, in the same table form as macOS
-    const macSect = l.k === "client" ? `<section class="list-card gsa-sect gsa-macsect" id="gsaMac">${winTable(l.win, l.lic)}${l.mac && !l.macNa ? macTable(l.mac) : l.macNa ? '<p class="mini muted" style="margin-top:10px">macOS: no Intune-managed Mac in this tenant and no macOS script — not in scope. The macOS fixes return when a Mac is enrolled.</p>' : ""}</section>` : "";
+    // 0.11.0: the two lanes and the devices table; the macOS chain table (per-row repairs) under them
+    const macSect = l.k === "client" ? `${lanesHtml(l)}${l.mac && !l.macNa ? `<section class="list-card gsa-sect gsa-macsect" id="gsaMac">${macTable(l.mac)}</section>` : ""}` : "";
     return head + flow + detail + macSect + (u.trv2Html || "") + work + polTable + ivTable + grpTable + proofSect + later;
   }
 
@@ -1198,6 +1400,12 @@ const Gsa = (() => {
     const j = (x) => JSON.stringify(x, null, 2);
     if (k === "winrem") return [{ id: "det", label: "Detection", lang: "powershell", text: detectScript(o) }, { id: "rem", label: "Remediation", lang: "powershell", text: remediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.rem})`, `POST /deviceManagement/deviceHealthScripts/{id}/assign`, j({ deviceHealthScriptAssignments: [remediationAssignment("<" + (o.devGroup || GROUPS.win) + ">", o.schedule)] })])];
     if (k === "winscript") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }];
+    // 0.11.0: the platform script takes the remediation's groups; the record that keeps a platform out of scope
+    if (k === "winswap") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }, ...req([`POST /deviceManagement/deviceManagementScripts   (${nm.win}; a GSA platform script already in Intune is reused)`, "POST /deviceManagement/deviceManagementScripts/{id}/assign", j({ deviceManagementScriptAssignments: (o.remGroups && o.remGroups.length ? o.remGroups : ["the remediation's groups"]).map((g) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: `<${g}>` } })) }), "", `then, only when that landed: POST /deviceManagement/deviceHealthScripts/${o.remId || "{remediation}"}/assign`, j({ deviceHealthScriptAssignments: [] }), "", "a backup of the remediation's assignments is downloaded first"])];
+    if (k === "scope-win" || k === "scope-mac") {
+      const platform = k === "scope-mac" ? "macOS" : "Windows", cur = scopeOut(o.rec)[platform === "macOS" ? "macOS" : "windows"];
+      return req([o.rec ? `PATCH /v1.0/organization/{tenant id}/extensions/${ENCA_EXT}` : "POST /v1.0/organization/{tenant id}/extensions", j(scopeRecord(o.rec, platform, !cur, o.who || "<you>", o.why || "", "<now>"))]);
+    }
     if (k === "trv2") return T2 ? T2.preview(o.plan) : [];
     if (/^macfix-/.test(k)) {
       const plan = macFixPlan(k, o.mac, o); if (!plan) return [];
@@ -1259,7 +1467,14 @@ const Gsa = (() => {
     ztnasp: { title: "Create the ZTNA Policy Service Client service principal", scopes: ["Application.ReadWrite.All"], role: "Application Administrator", changes: [`POST /servicePrincipals with appId ${ZTNA_CLIENT} — Microsoft's first-party app the client signs in through.`], impact: "Optional — Microsoft documents no requirement for this app. None for users: it adds Microsoft's enterprise application to the tenant. In the LearnGraphAPI lab the client stayed Partially Connected (sign-in errors 50097, 50187) while it was missing; whether creating it alone fixed that was not proven.", recovery: "Delete the enterprise application again (Enterprise applications → ZTNA Policy Service Client → Properties → Delete)." },
     location: { title: `Make “${LOCATION_NAME}” appear`, scopes: ["Policy.ReadWrite.ConditionalAccess"], role: "Conditional Access Administrator", changes: ["Read the named locations again first — Entra creates this location itself when Conditional Access signalling is switched on (Learn), often a little after the switch. Found: nothing is written.", `Still missing: POST a compliantNetworkNamedLocation “${LOCATION_NAME}” (allTenantCompliantNetworks, not trusted). Learn documents List, Get and Update for this type, NOT create — if Graph refuses, switch signalling off and on in Global Secure Access → Settings → Session management → Adaptive access and read again.`], impact: "None until a policy names it.", recovery: "Delete the named location in 🧩 Policy building blocks → Locations, once no policy uses it." },
     winscript: { title: "Create the Windows platform script (Business Premium route)", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) that downloads the client from aka.ms, installs it and sets the lock-down keys.", `Assign it to the device group you name — ${GROUPS.win} by default, created as an empty assigned security group when it does not exist and the tick is on.`], impact: "Every device in the group installs the Global Secure Access client at its next Intune check-in. Pilot settings (Learn's sample) hide sign-out and Disable Private Access but leave Disable visible; locked down, users cannot disable or sign out of the client. A platform script runs once and installs whatever version Microsoft serves then — it does not update the client.", recovery: "Remove the assignment or delete the script in Intune → Devices → Scripts; uninstall the client per device (Apps & features) if needed." },
+    // 0.11.0 (Mihai 18 Oct, go build): the remediation that cannot run on a
+    // Business Premium tenant hands its groups to the platform script; and a
+    // platform can be taken out of step 6's scope, kept in the tenant
+    winswap: { title: "Replace the Windows remediation with the platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All"], role: "Intune Administrator", changes: ["Download a backup of the remediation's assignments first.", "POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) — a GSA platform script already in Intune is reused, never made a second time.", "Assign it to the remediation's groups, the script's own assignments kept.", "Only when that assignment has landed: remove the remediation's assignments. The remediation itself stays in Intune."], impact: "The devices in those groups get the client from the platform script at their next Intune Management Extension check-in. A platform script runs once per device, and again only when the script changes — a user who removes the client does not get it back the way a remediation puts it back. Nobody outside those groups is affected, and nothing that worked stops: the remediation could not run on this tenant's licence.", recovery: "Reassign the remediation from the backup (Intune → Scripts and remediations → Remediations → Assignments) and remove the platform script's assignments. The client stays installed where the script already ran." },
+    "scope-win": { title: "Windows — in or out of step 6's scope", scopes: ["Organization.ReadWrite.All"], role: "Global Administrator, or another role that may update the organization", changes: [`Write the ENCA settings record — the open extension ${ENCA_EXT} on this tenant's organization object — with Windows out of scope (when, by whom and why) or back in scope. POST when the record is not there yet, else PATCH; the other settings in it are kept.`], impact: "Only ENCA reads this record: step 6 stops waiting for Windows devices, or waits for them again. Nothing changes for users, devices or policies — and a compliant-network policy that covers Windows sign-ins still blocks every Windows device without the client.", recovery: `Put Windows back in scope here — the same record. Or remove the record with Graph: DELETE /organization/{tenant id}/extensions/${ENCA_EXT}.` },
+    "scope-mac": { title: "macOS — in or out of step 6's scope", scopes: ["Organization.ReadWrite.All"], role: "Global Administrator, or another role that may update the organization", changes: [`Write the ENCA settings record — the open extension ${ENCA_EXT} on this tenant's organization object — with macOS out of scope (when, by whom and why) or back in scope. POST when the record is not there yet, else PATCH; the other settings in it are kept.`], impact: "Only ENCA reads this record: step 6 stops waiting for Macs, or waits for them again. Nothing changes for users, devices or policies — and a compliant-network policy whose platforms include macOS still blocks every Mac without the client; leave macOS out of its platforms then.", recovery: `Put macOS back in scope here — the same record. Or remove the record with Graph: DELETE /organization/{tenant id}/extensions/${ENCA_EXT}.` },
   };
+
 
   if (T2) FIXES.trv2 = T2.FIX;
 
@@ -1278,10 +1493,13 @@ const Gsa = (() => {
       macProfiles: { sysext: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - Allow GSA System extensions- R26.6 - v3.0", assigned: false }, proxy: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.6 - v3.0", assigned: true }, settings: { name: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.6 - v3.0", assigned: true } },
       groupNames: { "g-gsa-pilot": "GSA-SEC-U-M365Profile-Pilot", "g-mac": "INT-SEC-D-GSA-MAC-M365" },
       ztna: [],
+      // 0.11.0: what GSA has seen (nothing yet) and the ENCA settings record (none)
+      seen: { days: 7, since: new Date(Date.now() - 7 * 86400000).toISOString(), report: [], signIns: [], capped: false },
+      encaSettings: null,
       // 0.7.0: cross-tenant access as a fresh tenant has it — no tenant
       // restrictions, one partner that inherits the default, enforcement off
       trv2: { default: { tenantRestrictions: null }, partners: [{ tenantId: "5f0c1a2b-0000-4000-8000-00000000d3e0", tenantRestrictions: null }], utr: { networkPacketTaggingStatus: "disabled" } },
-      sources: { trv2: "ok", ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
+      sources: { seenReport: "ok", seenSignins: "ok", encaSettings: "ok", trv2: "ok", ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
     };
   }
   // 0.9.0: devcf as read on 17 Oct before the repairs — a v1.1-style script
@@ -1298,13 +1516,13 @@ const Gsa = (() => {
       configs: [
         { "@odata.type": "#microsoft.graph.macOSCustomConfiguration", id: "c-px", displayName: "[OPTIONAL] MACOS - DCP - Device Configuration - D - GSA Transparent Proxy - R26.10 - v3.0", payload: b64(macProxyPlist()), deploymentChannel: "deviceChannel", assignments: asg, overview: { successCount: 0, errorCount: 0, conflictCount: 0, pendingCount: 0 } },
         { "@odata.type": "#microsoft.graph.macOSCustomAppConfiguration", id: "c-st", displayName: "[OPTIONAL] MACOS - DCP - Device Configuration - U - GSA System settings - R26.10 - v3.1", bundleId: "com.microsoft.globalsecureaccess.plist", fileName: "Policies.plist", configurationXml: b64(xml), assignments: asg, overview: { successCount: 0, errorCount: 0, conflictCount: 0, pendingCount: 0 } }],
-      groups: { "g-mac": { devices: 1, managedMacs: 0, users: 0 } },
+      groups: { "g-mac": { devices: 1, managedMacs: 0, users: 0, list: [{ deviceId: "dm-1", displayName: "BYO-VM-DEMO", operatingSystem: "MacMDM", trustType: "Workplace" }] } },
     };
   }
   // a demo CA policy that requires the compliant network, for ?demo=1 when
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

@@ -175,6 +175,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 345,
+      ws: "entra",
+      title: "🌐 Global Secure Access — step 6 in two lanes, decided by what GSA has seen; Replace with the platform script; Not in scope kept in the tenant (T56 0.11.0)",
+      tools: ["Global Secure Access"],
+      builds: [32806],
+      risk: "medium",
+      what: "js/gsa.js: clientLanes(raw, c) builds the Windows and macOS lanes — stages Deployed, Reaches, Allowed to run (remediation), Ran (Intune), Content and Profiles landed (macOS chain) and Connected, which decides — with actions per lane that never disappear (winswap, groups, scope-win; macscript or macprof, Show the chain, Check a Mac, scope-mac). seenIndex(raw) merges the networkAccess deviceReport (7 days) and the sign-ins marked isThroughGlobalSecureAccess (interactive and non-interactive, newest 2,000 each) by Entra device id; connectedGate counts the members of the deployment groups that were seen (a deployment for All devices or All users: the seen devices of that OS). scopeOut and scopeRecord read and write the ENCA settings record — the open extension nl.limonit.enca on the organization: t56WinOutAt, By, Why and t56MacOutAt, By, Why, written as empty strings when back in scope. Step 6 takes its status from the lanes, its detail no longer carries fix slots, the scope check counts the seen devices, the flow node shows Win and Mac chips. New FIXES winswap (backup, a GSA platform script reused or made, assigned to the remediation targets, then the remediation unassigned) and scope-win, scope-mac (Organization.ReadWrite.All). js/app.js: the read lists the group members (device id, name, join type) for both platforms, reads the device report, the sign-ins through GSA (GSA_READ + AuditLog.Read.All) and the ENCA settings record (404 is none); the runner, the forms, the preview options, Check a Mac copy, the demo. css/app.css: the lanes. tools/gsa.test.cjs: 6 new tests, 5 updated to the new rule.",
+      why: "Mihai, 18 Oct: still stuck at step 6, he cannot complete it and see that everything is ok; and choosing mac leaves no Windows options. Read live on Limon-IT: the remediation (Business Premium, no Windows Enterprise) never ran, no device has ever sent traffic through GSA, and the board had no Windows action left. Mockup review/2026-10-18/t56-step6-monitor approved: go build. Risk medium: step 6 and the verdict now need the evidence of GSA itself, and there are two new writes (the swap, the settings record); every new read is read-only and either source may be refused without breaking the board.",
+      test: [
+        "Beta, demo tenant, 03 → 🌐 Global Secure Access → Read: the step 6 node reads Win ✕ Mac ✕; the step's action column offers Show the lanes; the Windows lane reads nothing deployed with Create Windows remediation… and Not in scope…; the macOS lane shows the demo chain with Show the chain, Check a Mac and Not in scope….",
+        "Beta, demo: Create Windows remediation → Apply; the Windows lane reads 1 of 2 Windows devices seen through GSA, partly connected, and Devices in scope lists LT-DEMO-01 connected and LT-DEMO-02 not connected. Open a macOS fix: the Windows actions are still in the Windows lane.",
+        "Beta, demo: macOS → Not in scope… with a reason → Apply; the macOS lane reads not in scope with when, who and the reason, and offers Back in scope…; Apply that and the lane comes back.",
+        "Beta, Limon-IT (Business Premium): Read — the Windows lane says Allowed to run: No (Windows Business), blocked · licence, and offers Replace…; the workspace shows the script, the Graph requests and the backup step. Apply: a JSON backup downloads, the platform script is assigned to INT-SEC-D-GSA-WIN-M365, and in Intune the remediation has no assignment and still exists.",
+        "Beta, Limon-IT, after the Cloud PC ran the platform script and signed in: Read again — the Windows lane reads 1 of 1 Windows device seen through GSA, connected, with the source under Last seen.",
+        "Beta, Limon-IT: Check a Mac → Copy and run the three commands on the MacBook — the app, the system extension and the install log say whether the client is there.",
+        "Beta, a tenant where AuditLog.Read.All is not consented or the device report is refused: Read — the lanes say not read and name the source; step 6 is never green on what was not read.",
+        "Graph Explorer, Limon-IT after Not in scope: GET /v1.0/organization/{tenant id}/extensions/nl.limonit.enca returns t56MacOutAt, t56MacOutBy and t56MacOutWhy; after Back in scope they are empty strings.",
+      ],
+    },
+    {
       n: 344,
       ws: "entra",
       title: "🔑 App access review — every app that can reach the tenant, and a decision for each (T60 0.1.1, R90)",

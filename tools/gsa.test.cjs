@@ -268,7 +268,9 @@ test("32524/32525 devcf (read 14 Oct, every link live): the chain as the board s
   assert.strictEqual(m.links.find((l) => l.k === "licence").note, "4 of 4 used");
   assert.match(m.links.find((l) => l.k === "profile").note, /enabled · 1 group assigned/);
   assert.strictEqual(raw.healthScripts[0].assignments[0].runRemediationScript, false, "what Graph returns — the portal shows remediation on");
-  assert.strictEqual(m.links.find((l) => l.k === "client").fix, null, "no fix offered for it");
+  // 0.11.0: devcf holds no Windows Enterprise licence — the remediation cannot run, so the lane offers
+  // the platform script; the detect-only reading is still no signal (no fix is offered BECAUSE of it)
+  assert.strictEqual(m.links.find((l) => l.k === "client").fix, "winswap");
   assert.doesNotMatch(m.links.find((l) => l.k === "client").note, /DETECT ONLY/);
   assert.match(m.verdict.p, /Blocked at step 6 — GSA client/);
   assert.strictEqual(Gsa.defaultSel(m), "client");
@@ -326,7 +328,7 @@ test("0.8.0 (32703): the three macOS profiles come with the script — Learn's s
   assert.ok(client(raw).macProf && client(raw).macProf.proxy, "the profiles as read travel on the link");
   raw.macProfiles.sysext.assigned = true;
   assert.strictEqual(client(raw).fix2, null);
-  assert.strictEqual(client(raw).st, "warn", "Windows still missing");
+  assert.strictEqual(client(raw).st, "bad", "0.11.0: assignments alone no longer make macOS ready — nothing is seen through GSA, and Windows is still missing");
   // ticks: unset = missing or unassigned; a false stays false
   const mp = raw.macProfiles;
   assert.strictEqual(Gsa.wantProfile({}, Gsa.MAC_PROFILES[0], mp), false, "assigned → not ticked");
@@ -382,7 +384,7 @@ test("0.9.0: the macOS chain — found by content, checked against Learn, reach 
   assert.ok(by.settings.issues.some((i) => i.sev === "note" && /named U/.test(i.t)));
   assert.strictEqual(by.settings.mood, "lock-down");
   assert.strictEqual(mac.noMac, true, "one member, no managed Mac");
-  assert.strictEqual(mac.problems, 4); assert.strictEqual(c.st, "warn"); assert.match(c.sub, /4 problems/);
+  assert.strictEqual(mac.problems, 4); assert.strictEqual(c.st, "bad", "0.11.0: neither platform seen through GSA"); assert.match(c.sub, /4 problems/);
   // repair: new version, assigned like the old one, old unassigned and renamed — never deleted
   const rp = Gsa.macFixPlan("macfix-settings", mac, { rel: "R26.10" });
   assert.deepStrictEqual(rp.ops.map((x) => x.do), ["post", "assign", "assign", "patch"]);
@@ -480,7 +482,9 @@ const okRaw = (over) => {
   r.sp.appRoleAssignmentRequired = false;
   r.macProfiles = {}; r.macManaged = 0;
   r.groupNames[W_GROUP] = "INT-SEC-D-GSA-WIN-M365";
-  r.winGroups = { [W_GROUP]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } };
+  r.winGroups = { [W_GROUP]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0, list: [{ deviceId: "d1", displayName: "LT-1", operatingSystem: "Windows", trustType: "AzureAd" }, { deviceId: "d2", displayName: "LT-2", operatingSystem: "Windows", trustType: "AzureAd" }] } };
+  // 0.11.0: both devices seen by Global Secure Access — one in its device report, one by a sign-in through it
+  r.seen = { days: 7, report: [{ deviceId: "d1", displayName: "LT-1", operatingSystem: "Windows 11 Enterprise", trafficType: "microsoft365", lastAccessDateTime: "2026-10-18T10:00:00Z" }], signIns: [{ createdDateTime: "2026-10-18T11:00:00Z", deviceDetail: { deviceId: "D2", displayName: "LT-2", operatingSystem: "Windows10" } }] };
   r.healthScripts = [{ id: "h", displayName: "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", assigned: true, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: W_GROUP } }], runSummary: { noIssueDetectedDeviceCount: 1, issueRemediatedDeviceCount: 1 } }];
   return Object.assign(r, over || {});
 };
@@ -547,9 +551,9 @@ test("32708 B3/S8: Windows judged by reach and landing, not by name", () => {
   assert.strictEqual(reg.win.st, "warn");
   assert.match(reg.sub, /Entra registered device/);
   const html = Gsa.render(Gsa.model(okRaw(), []), { sel: "client" });
-  assert.match(html, /Windows — found by name, judged by reach and landing/);
+  assert.match(html, /Ready when every device in scope has been seen through Global Secure Access/);
   assert.match(html, /INT-SEC-D-GSA-WIN-M365 — 2 Windows devices/);
-  assert.match(html, /no Intune-managed Mac in this tenant and no macOS script — not in scope/);
+  assert.match(html, /no Intune-managed Mac in this tenant and no macOS script — not in scope/i);
 });
 
 test("32708 B4: remediations need Windows Enterprise; Business Premium gets the platform script", () => {
@@ -568,7 +572,8 @@ test("32708 B4: remediations need Windows Enterprise; Business Premium gets the 
   const c2 = Gsa.model(r2, []).links.find((l) => l.k === "client");
   assert.strictEqual(c2.win.st, "bad");
   assert.match(c2.sub, /remediations need Windows Enterprise E3\/E5, Education A3\/A5 or VDA/);
-  assert.match(Gsa.render(Gsa.model(r2, []), { sel: "client" }), /Windows Business \(Business Premium\): remediations not licensed/);
+  assert.match(Gsa.render(Gsa.model(r2, []), { sel: "client" }), /this tenant holds Windows Business \(Business Premium\)/);
+  assert.strictEqual(c2.fix, "winswap", "0.11.0: the remediation that cannot run hands its groups to the platform script");
 });
 
 test("32708 S1: a found but unassigned remediation, any release tag, is the one the fix assigns", () => {
@@ -643,4 +648,115 @@ test("32708 L7/L8: adding the GSA ids keeps the baseline policy's name; a legacy
   const legacy = Gsa.macCheck(Object.assign({}, Gsa.demoMac(), { configs: [...Gsa.demoMac().configs, { "@odata.type": "#microsoft.graph.macOSExtensionsConfiguration", id: "x-old", displayName: "Old Extensions", systemExtensionsAllowedTeamIdentifiers: ["ABCDE12345"], assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-mac" } }] }] }), {});
   assert.deepStrictEqual(legacy.otherSxLegacy.map((x) => x.name), ["Old Extensions"]);
   assert.match(Gsa.macTable(legacy), /A deprecated Extensions profile also sets system extensions on these Macs \(Old Extensions\)/);
+});
+
+// ---- 0.11.0: step 6 as two lanes, decided by what GSA has seen (18 Oct 2026) ----
+const BP = [{ skuPartNumber: "SPB", prepaidUnits: { enabled: 1 }, servicePlans: [{ servicePlanId: "41781fb2-bc02-4b7c-bd55-b576c07bb09d", servicePlanName: "AAD_PREMIUM" }, { servicePlanId: "8e229017-d77b-43d5-9305-903395523b99", servicePlanName: "WINBIZ" }] }];
+const limonIt = () => {
+  // Limon-IT as read on 18 Oct 20:30: the remediation on the Cloud PC that its
+  // licence cannot run, the macOS chain on the MacBook, nothing seen through GSA
+  const r = okRaw({ skus: BP });
+  r.winGroups[W_GROUP].list = [{ deviceId: "cpc-1", displayName: "CPC-mihai-2L8IB", operatingSystem: "Windows", trustType: "AzureAd" }];
+  Object.assign(r.winGroups[W_GROUP], { devices: 1, windows: 1, joined: 1 });
+  r.healthScripts[0].runSummary = { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0 };
+  r.healthScripts[0].assignments[0].runRemediationScript = false;
+  r.seen = { days: 7, report: [], signIns: [] };
+  const chain = Gsa.demoMac();
+  chain.groups["g-mac"] = { devices: 1, managedMacs: 1, users: 0, list: [{ deviceId: "mac-1", displayName: "MacBook Pro van Mihai", operatingSystem: "MacMDM", trustType: "AzureAd" }] };
+  r.macChain = chain; r.shellScripts = chain.scripts; r.macManaged = 1;
+  return r;
+};
+const actKeys = (L) => L.actions.map((a) => a.fix || (a.groups ? "groups" : a.jump ? "jump" : a.copy ? "copy" : ""));
+
+test("0.11.0 Limon-IT: nothing seen through GSA — both lanes red, each with its own actions", () => {
+  const m = Gsa.model(limonIt(), []), c = m.links.find((l) => l.k === "client"), W = c.lanes.windows, M = c.lanes.macOS;
+  assert.strictEqual(c.st, "bad");
+  assert.deepStrictEqual([W.st, W.word, W.fix, c.fix], ["bad", "blocked · licence", "winswap", "winswap"]);
+  assert.deepStrictEqual(actKeys(W), ["winswap", "groups", "scope-win"]);
+  const allowed = W.stages.find((s) => s.k === "Allowed to run");
+  assert.match(allowed.text, /this tenant holds Windows Business \(Business Premium\)/);
+  assert.match(allowed.sub, /detect-only/);
+  assert.deepStrictEqual(W.stages.find((s) => s.gate), { k: "Connected", gate: true, st: "bad", text: "0 of 1 Windows device seen through GSA in the last 7 days" });
+  assert.deepStrictEqual([M.st, M.word], ["bad", "deployed · not connected"]);
+  assert.deepStrictEqual(actKeys(M), ["jump", "copy", "scope-mac"]);
+  assert.match(M.stages.find((s) => s.gate).text, /^0 of 1 Mac seen through GSA/);
+  const html = Gsa.render(m, { sel: "client" });
+  assert.match(html, /data-gsafix="winswap">Replace…/);
+  assert.match(html, /systemextensionsctl list \| grep -i globalsecureaccess/);
+  assert.match(html, /CPC-mihai-2L8IB[\s\S]*?not connected/);
+  assert.match(html, /<span class="gsa-split"><i class="bad">Win ✕<\/i><i class="bad">Mac ✕<\/i><\/span>/);
+});
+
+test("0.11.0: the Windows lane keeps its actions whatever happens on macOS (Mihai: if I choose mac, I don't see the options for windows later)", () => {
+  const r = limonIt(); r.skus = Gsa.demo().skus; // licensed — nothing to replace
+  const m = Gsa.model(r, []), W = m.links.find((l) => l.k === "client").lanes.windows;
+  assert.deepStrictEqual([W.fix, W.word], [null, "not connected"]);
+  assert.deepStrictEqual(actKeys(W), ["groups", "scope-win"]);
+  const html = Gsa.render(m, { sel: "client" });
+  assert.match(html, /data-gsafix="scope-win"/);
+  assert.match(html, /data-gsagroups/);
+  const detail = html.split('id="gsaDetail"')[1].split("</section>")[0];
+  assert.doesNotMatch(detail, /data-gsafix=/, "the step's own action column carries no single fix slot any more");
+  assert.match(detail, /data-gsajump="gsaLanes"/);
+});
+
+test("0.11.0: connected — the device report and the sign-ins through GSA, by Entra device id, any case", () => {
+  const ix = Gsa.seenIndex({ sources: { seenReport: "ok", seenSignins: "ok" }, seen: { days: 7, report: [{ deviceId: "AA", lastAccessDateTime: "2026-10-17T10:00:00Z", operatingSystem: "Windows 11" }], signIns: [{ createdDateTime: "2026-10-18T09:00:00Z", deviceDetail: { deviceId: "aa" } }, { createdDateTime: "2026-10-16T09:00:00Z", deviceDetail: {} }] } });
+  assert.strictEqual(ix.read, true); assert.strictEqual(ix.map.size, 1);
+  const e = ix.map.get("aa");
+  assert.strictEqual(e.last, "2026-10-18T09:00:00Z");
+  assert.deepStrictEqual([...e.via].sort(), ["sign-in", "traffic"]);
+  const half = Gsa.seenIndex({ sources: { seenReport: "Graph request failed (403)", seenSignins: "ok" }, seen: { report: null, signIns: [] } });
+  assert.strictEqual(half.read, true); assert.match(half.err, /device report: Graph request failed \(403\)/);
+  const r = okRaw(); r.sources.seenReport = "403"; r.sources.seenSignins = "403";
+  const c = Gsa.model(r, []).links.find((l) => l.k === "client");
+  assert.deepStrictEqual([c.lanes.windows.st, c.lanes.windows.word], ["warn", "not read"]);
+  assert.notStrictEqual(c.st, "ok", "never green on what was not read");
+  const r2 = okRaw(); r2.seen.signIns = [];
+  const c2 = Gsa.model(r2, []).links.find((l) => l.k === "client");
+  assert.deepStrictEqual([c2.lanes.windows.st, c2.st], ["warn", "warn"]);
+  assert.match(c2.note, /1 of 2 Windows devices seen through GSA/);
+  // B2: the scope check counts the devices GSA has seen
+  const good = Gsa.model(okRaw(), [block()]);
+  assert.match(good.scope.lines[0].t, /and 2 devices carry the client/);
+});
+
+test("0.11.0: a platform out of scope is kept in the tenant (the ENCA settings record) and leaves the step to the other", () => {
+  const rec = Gsa.scopeRecord({ "@odata.context": "x", id: "nl.limonit.enca", extensionName: "nl.limonit.enca", other: 1 }, "macOS", true, "mihai@limon-it.nl", " no Macs here ", "2026-10-18T19:00:00Z");
+  assert.deepStrictEqual(rec, { "@odata.type": "microsoft.graph.openTypeExtension", extensionName: "nl.limonit.enca", other: 1, t56MacOutAt: "2026-10-18T19:00:00Z", t56MacOutBy: "mihai@limon-it.nl", t56MacOutWhy: "no Macs here" });
+  assert.deepStrictEqual(Gsa.scopeOut(rec).macOS, { at: "2026-10-18T19:00:00Z", by: "mihai@limon-it.nl", why: "no Macs here" });
+  assert.strictEqual(Gsa.scopeOut(rec).windows, null);
+  const back = Gsa.scopeRecord(rec, "macOS", false);
+  assert.deepStrictEqual([back.t56MacOutAt, Gsa.scopeOut(back).macOS, back.other], ["", null, 1]);
+  const r = limonIt(); r.encaSettings = rec;
+  r.seen.report = [{ deviceId: "CPC-1", lastAccessDateTime: "2026-10-18T19:30:00Z", operatingSystem: "Windows 11 Enterprise" }];
+  const c = Gsa.model(r, []).links.find((l) => l.k === "client");
+  assert.deepStrictEqual([c.lanes.windows.st, c.lanes.macOS.st, c.st], ["ok", "na", "ok"]);
+  assert.strictEqual(c.fix2, null, "no macOS fix while macOS is out of scope");
+  assert.deepStrictEqual(actKeys(c.lanes.macOS), ["scope-mac"]);
+  assert.strictEqual(c.lanes.macOS.actions[0].label, "Back in scope…");
+  assert.match(c.lanes.macOS.stages[0].text, /taken out of scope .* by mihai@limon-it\.nl — no Macs here/);
+  r.encaSettings = Gsa.scopeRecord(rec, "Windows", true, "x", "", "2026-10-18T19:00:00Z");
+  assert.strictEqual(Gsa.model(r, []).links.find((l) => l.k === "client").st, "bad", "both out: nothing carries the client — never green");
+});
+
+test("0.11.0: a deployment for everyone is judged by the Windows devices GSA has seen", () => {
+  const r = okRaw(); r.healthScripts[0].assignments = [{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" }, runRemediationScript: true }];
+  const W = Gsa.model(r, []).links.find((l) => l.k === "client").lanes.windows;
+  assert.strictEqual(W.st, "ok");
+  assert.match(W.summary, /^2 Windows devices seen through GSA .* cannot list who is missing/);
+});
+
+test("0.11.0: what Replace and Not in scope send, before they run", () => {
+  const tabs = Gsa.preview("winswap", { remId: "rem-1", remGroups: ["INT-SEC-D-GSA-WIN-M365"] });
+  assert.deepStrictEqual(tabs.map((t) => t.id), ["win", "req"]);
+  assert.match(tabs[1].text, /deviceManagementScripts\/\{id\}\/assign[\s\S]*<INT-SEC-D-GSA-WIN-M365>[\s\S]*only when that landed: POST \/deviceManagement\/deviceHealthScripts\/rem-1\/assign/);
+  assert.match(Gsa.FIXES.winswap.impact, /runs once per device/);
+  assert.match(Gsa.FIXES.winswap.recovery, /backup/);
+  const s = Gsa.preview("scope-mac", { rec: null, who: "a@b", why: "no Macs" })[0].text;
+  assert.match(s, /^POST \/v1\.0\/organization\/\{tenant id\}\/extensions\n/);
+  assert.match(s, /"t56MacOutWhy": "no Macs"/);
+  const s2 = Gsa.preview("scope-mac", { rec: { t56MacOutAt: "2026-10-18T19:00:00Z" } })[0].text;
+  assert.match(s2, /^PATCH \/v1\.0\/organization\/\{tenant id\}\/extensions\/nl\.limonit\.enca/);
+  assert.match(s2, /"t56MacOutAt": ""/);
 });

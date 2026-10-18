@@ -3364,6 +3364,28 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-back{border-left:3px solid var(--on);background:color-mix(in srgb,var(--on) 9%,var(--surface));padding:7px 10px;border-radius:0 6px 6px 0;margin:0 0 8px;font-size:12.5px}
 .gsa-wbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:900px){.gsa-detail,.gsa-wgrid{grid-template-columns:1fr}.gsa-detail-act,.gsa-wgrid>div+div{border-left:0;border-top:1px solid var(--border)}}
+/* 0.11.0 (T56): step 6 as two platform lanes, decided by what GSA has seen */
+.gsa-rule{display:flex;gap:8px;align-items:flex-start;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 30%,var(--border));border-radius:10px;padding:8px 12px;margin:0 0 12px;font-size:13px;line-height:1.45}
+.gsa-pl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.gsa-pl-grid{grid-template-columns:1fr}}
+.gsa-pl{border:1px solid var(--border);border-radius:12px;background:var(--surface);display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.gsa-pl-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;background:var(--soft2);border-bottom:1px solid var(--border)}
+.gsa-pl-h b{font-size:14px}
+.gsa-stages{list-style:none;margin:0;padding:4px 12px}
+.gsa-stages li{display:grid;grid-template-columns:22px 110px minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:12.5px;align-items:start}
+.gsa-stages li:last-child{border-bottom:0}
+.gsa-stages li.gate{margin:0 -12px;padding:8px 12px;border-bottom:0;border-top:2px solid color-mix(in srgb,var(--blue) 35%,var(--border));background:color-mix(in srgb,var(--blue) 5%,transparent)}
+.gsa-sk{font-weight:650}.gsa-sk small{display:block;font-size:10.5px;font-weight:700;color:var(--blue)}
+.gsa-sv{overflow-wrap:anywhere}.gsa-sv .mini{display:block;margin-top:2px}
+.gsa-ic{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;color:#fff;background:var(--report)}
+.gsa-ic.ok{background:var(--on)}.gsa-ic.bad{background:var(--off)}.gsa-ic.na{background:var(--na);color:var(--ink)}
+.gsa-pl-acts{margin-top:auto;padding:8px 12px 10px;border-top:1px solid var(--border);background:color-mix(in srgb,var(--soft) 45%,var(--surface))}
+.gsa-pl .gsa-cmd .gsa-pre{margin-top:6px;max-height:none;white-space:pre-wrap;overflow-wrap:anywhere}
+.gsa-split{display:flex;gap:3px;justify-content:center;margin-top:2px}
+.gsa-split i{font-style:normal;font-size:10px;font-weight:700;border-radius:999px;padding:0 5px;border:1px solid var(--border);color:var(--muted);background:var(--surface)}
+.gsa-split i.ok{color:var(--on)}.gsa-split i.bad{color:var(--off)}.gsa-split i.warn{color:var(--report)}
+.gsa-st.na{color:var(--muted)}
+@media(max-width:560px){.gsa-stages li{grid-template-columns:22px minmax(0,1fr)}.gsa-stages li .gsa-sv{grid-column:2}}
 
 /* ---- 🛰 T57 Egress & location impact (32526) ---- */
 #screen-egress .eg-form{display:grid;grid-template-columns:2fr 1.2fr 1.2fr;gap:14px;padding:12px 14px}

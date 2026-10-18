@@ -25181,11 +25181,12 @@ This is a directory write. Nothing else changes.`)) return;
   // Focus: the Microsoft traffic profile. It never switches a policy on and
   // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
   // ======================================================================
-  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "Policy.Read.All"];
+  // 0.11.0: + AuditLog.Read.All — step 6 is decided by the sign-ins marked through GSA, beside the device report
+  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "Policy.Read.All", "AuditLog.Read.All"];
   // 32524: fixes open as stacked workspaces — gsa.work, newest first, one
   // per fix kind, each with its own options, log and busy flag; gsa.sel is
   // the step open under the flow (null = the first that blocks)
-  const gsaDefOpts = () => ({ group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", enforce: false, pSys: null, pProxy: null, pSet: null });
+  const gsaDefOpts = () => ({ why: "", group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", enforce: false, pSys: null, pProxy: null, pSet: null });
   let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "" };
   const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
   const gsaSession = () => `${tenantId}:${isDemo}`;
@@ -25419,9 +25420,9 @@ This is a directory write. Nothing else changes.`)) return;
           const asgW = [...(raw.healthScripts || []), ...(raw.scripts || []).filter((x) => rxW.test(`${x.displayName} ${x.fileName}`)), ...(raw.apps || [])].flatMap((x) => (x.assignments || []).map((a) => a.target || {})).filter((t) => t.groupId && !/exclusion/i.test(t["@odata.type"] || ""));
           for (const gid of [...new Set(asgW.map((t) => t.groupId))].slice(0, 20)) {
             try {
-              const mem = await Graph.ggetAll(`/v1.0/groups/${gid}/members?$select=id,operatingSystem,trustType&$top=999`, { scopes: sc, cap: 5000 });
+              const mem = await Graph.ggetAll(`/v1.0/groups/${gid}/members?$select=id,displayName,deviceId,operatingSystem,trustType&$top=999`, { scopes: sc, cap: 5000 });
               const dev = mem.filter((x) => /device$/i.test(x["@odata.type"] || "")), winD = dev.filter((x) => /^windows/i.test(x.operatingSystem || ""));
-              raw.winGroups[gid] = { devices: dev.length, windows: winD.length, joined: winD.filter((x) => x.trustType === "AzureAd").length, hybrid: winD.filter((x) => x.trustType === "ServerAd").length, registered: winD.filter((x) => x.trustType === "Workplace").length, users: mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length };
+              raw.winGroups[gid] = { list: winD.map((x) => ({ deviceId: x.deviceId, displayName: x.displayName, operatingSystem: x.operatingSystem, trustType: x.trustType })), devices: dev.length, windows: winD.length, joined: winD.filter((x) => x.trustType === "AzureAd").length, hybrid: winD.filter((x) => x.trustType === "ServerAd").length, registered: winD.filter((x) => x.trustType === "Workplace").length, users: mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length };
             } catch { /* members not read — the step says so */ }
           }
         }
@@ -25471,14 +25472,42 @@ This is a directory write. Nothing else changes.`)) return;
           }
           for (const g of mac.groups) {
             try {
-              const mem = await Graph.ggetAll(`/v1.0/groups/${g.id}/members?$select=id,displayName,deviceId,operatingSystem&$top=100`, { scopes: sc });
+              const mem = await Graph.ggetAll(`/v1.0/groups/${g.id}/members?$select=id,displayName,deviceId,operatingSystem,trustType&$top=100`, { scopes: sc });
               const devs = mem.filter((x) => /device$/i.test(x["@odata.type"] || "")), users = mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length;
               let managed = 0;
               for (const d of devs.filter((x) => /mac/i.test(x.operatingSystem || "")).slice(0, 25)) { try { if ((await Graph.ggetAll(`/deviceManagement/managedDevices?$filter=${encodeURIComponent(`azureADDeviceId eq '${d.deviceId}'`)}&$select=id`, { scopes: sc })).length) managed++; } catch { /* unknown */ } }
-              chain.groups[g.id] = { devices: devs.length, managedMacs: managed, users };
+              chain.groups[g.id] = { devices: devs.length, managedMacs: managed, users, list: devs.filter((x) => /mac/i.test(x.operatingSystem || "")).map((x) => ({ deviceId: x.deviceId, displayName: x.displayName, operatingSystem: x.operatingSystem, trustType: x.trustType })) };
             } catch { /* members not read */ }
           }
           return chain;
+        });
+        // 0.11.0: what Global Secure Access itself has seen, the last 7 days —
+        // its device report (devices with traffic through GSA) and the sign-ins
+        // marked through GSA, interactive and non-interactive. This decides
+        // step 6; Intune's run state only explains. Either source may be
+        // refused; the lane says which.
+        {
+          const now = new Date(), since = new Date(now.getTime() - Gsa.SEEN_DAYS * 86400000);
+          raw.seen = { days: Gsa.SEEN_DAYS, since: since.toISOString(), report: null, signIns: null, capped: false };
+          if (raw.status && raw.status.onboardingStatus === "onboarded") {
+            try { raw.seen.report = await Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.deviceReport(startDateTime=${since.toISOString()},endDateTime=${now.toISOString()})`, { scopes: sc, cap: 5000 }); raw.sources.seenReport = "ok"; } catch (e) { raw.sources.seenReport = gsaErr(e); }
+            try {
+              const sel = "$select=createdDateTime,deviceDetail,userPrincipalName&$top=999";
+              const base = `createdDateTime ge ${since.toISOString()} and isThroughGlobalSecureAccess eq true`;
+              const a = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(base)}&${sel}`, { scopes: sc, cap: 2000 });
+              let b = [];
+              try { b = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`${base} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&${sel}`, { scopes: sc, cap: 2000 }); } catch { /* the interactive ones stand */ }
+              raw.seen.signIns = [...a, ...b];
+              raw.seen.capped = !!((a.readState && a.readState.capped) || (b.readState && b.readState.capped));
+              raw.sources.seenSignins = "ok";
+            } catch (e) { raw.sources.seenSignins = gsaErr(e); }
+          } else { raw.sources.seenReport = raw.sources.seenSignins = "Global Secure Access is not activated (step 2)"; }
+        }
+        // 0.11.0: the ENCA settings record — which platforms an admin took out
+        // of step 6's scope, kept on the organization object (none yet: null)
+        await one("encaSettings", async () => {
+          try { return await Graph.gget(`/v1.0/organization/${tenantId}/extensions/${Gsa.ENCA_EXT}`, sc); }
+          catch (e) { if (/\(404\)|ResourceNotFound|not found/i.test(gsaErr(e))) return null; throw e; }
         });
         // names of the groups the compliant-network policies include
         const cn = (raw.locations || []).find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
@@ -25527,7 +25556,9 @@ This is a directory write. Nothing else changes.`)) return;
   // what the preview needs beside the options: the TRv2 plan, or (32703) the
   // macOS profiles as read, so a found one shows as reused
   const gsaMacOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).mac || null;
-  const gsaPrevOpts = (w) => /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
+  // 0.11.0: Replace needs the remediation and its groups; Not in scope the record as read
+  const gsaWinOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).win || {};
+  const gsaPrevOpts = (w) => w.k === "winswap" ? Object.assign({}, w.opts, { remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
   function gsaWorkHtml(w) {
     // 0.9.0: a chain fix takes its words from its plan (create, repair, assign or add)
     const plan = /^macfix-/.test(w.k) ? Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w)) : null;
@@ -25559,6 +25590,14 @@ This is a directory write. Nothing else changes.`)) return;
       const lockMac = `<label class="chk" style="margin-left:22px"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — Pause, Disable, Quit and Disable Private Access all hidden (devcf v3.1). Off = Learn's sample: Pause and Disable shown, Quit and Disable Private Access hidden</label>`;
       form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<div class="mini" style="margin:10px 0 4px"><b>Profiles</b> — the three the client cannot run without, same release and version, same group${k === "macprof" && c.macScript ? ` · the script ${esc(c.macScript.displayName)} stays as it is` : ""}</div>${Gsa.MAC_PROFILES.map(row).join("")}${lockMac}`;
     }
+    // 0.11.0: the platform script takes over the remediation's groups
+    if (k === "winswap") { const fw = gsaWinOf(); form = `<div class="mini"><b>Now:</b> ${esc(fw.obj ? fw.obj.displayName : "no remediation found")}${fw.reach ? ` — ${esc(fw.reach.text)}` : ""}</div>${naming("win")}${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`; }
+    // 0.11.0: a platform in or out of step 6's scope, kept in the tenant
+    if (k === "scope-win" || k === "scope-mac") {
+      const platform = k === "scope-mac" ? "macOS" : "Windows", cur = Gsa.scopeOut(gsa.raw && gsa.raw.encaSettings)[k === "scope-mac" ? "macOS" : "windows"];
+      form = cur ? `<p class="mini"><b>Now:</b> out of scope since ${esc(new Date(cur.at).toLocaleString())}${cur.by ? ` by ${esc(cur.by)}` : ""}${cur.why ? ` — ${esc(cur.why)}` : ""}. Apply puts ${platform} back in scope: step 6 waits for its devices again.</p>`
+        : `<p class="mini"><b>Now:</b> in scope — step 6 waits for ${platform === "macOS" ? "the Macs" : "the Windows devices"} in the deployment's groups.</p><label class="mini">Why — kept with the record, optional <input class="txt" data-gsaopt="why" value="${esc(o.why || "")}" placeholder="${platform === "macOS" ? "e.g. no Macs in this tenant" : "e.g. Windows devices get the client another way"}" style="min-width:min(320px,100%)"></label>`;
+    }
     if (k === "trv2") form = trv2Form(w);
     const tabs = Gsa.preview(k, gsaPrevOpts(w)), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
     const dlBtn = { det: "det", rem: "rem", win: "win", mac: "mac" }[tab && tab.id];
@@ -25567,7 +25606,7 @@ This is a directory write. Nothing else changes.`)) return;
     const done = !!(w.log && w.log.done), failed = !!(w.log && !w.log.done && !w.busy);
     const otherBusy = gsa.work.some((x) => x !== w && x.busy);
     const step = (i, t) => `<span class="${w.busy ? (i === 2 ? "on" : i < 2 ? "dn" : "") : done ? "dn" : i === 1 ? "on" : ""}">${(w.busy && i < 2) || done ? "✓ " : ""}${i} ${t}</span>`;
-    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || /^macfix-/.test(k) && l.k === "client");
+    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || /^(macfix-|scope-|winswap)/.test(k) && l.k === "client");
     return `<section class="gsa-wpanel" data-gsaw="${esc(k)}" id="gsaW-${esc(k)}"><div class="gsa-whead"><b>🔧 ${esc(f.title)}</b><span class="tag block">writes to tenant</span>${from ? `<span class="mini muted">from step ${gsa.model.links.indexOf(from) + 1} · ${esc(from.lab)}</span>` : ""}<button class="btn sm gsa-wclose" data-gsacancel${w.busy ? " disabled" : ""}>✕ ${done ? "Close" : "Cancel"}</button></div>
       <div class="gsa-wsteps">${step(1, "Review")}${step(2, "Apply")}${step(3, "Read the tenant again")}${failed ? '<span style="color:var(--off)">✗ stopped — see the log</span>' : ""}</div>
       <div class="gsa-wgrid"><div><ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}${prev}</div>
@@ -25752,6 +25791,49 @@ This is a directory write. Nothing else changes.`)) return;
             }
           }
         }
+      } else if (k === "winswap") {
+        // 0.11.0 (Limon-IT, 18 Oct: Business Premium, the remediation never
+        // ran): the platform script takes the remediation's groups — backup
+        // first, the script's assignment next, and only when that landed the
+        // remediation's assignments come off. The remediation stays in Intune.
+        const fw = gsaWinOf();
+        if (fw.kind !== "rem" || !fw.obj) throw new Error("no Global Secure Access remediation to replace — read the tenant again");
+        const remPath = "/deviceManagement/deviceHealthScripts", scrPath = "/deviceManagement/deviceManagementScripts";
+        const body = Gsa.windowsScriptBody(Object.assign({ lock: o.lock, ipv4: o.ipv4 }, { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }));
+        if (isDemo) { await sim(`backup of the assignments of ${fw.obj.displayName} saved`); await sim(`${body.displayName} created and assigned to the remediation's groups`); await sim(`${fw.obj.displayName} unassigned — it stays in Intune`); }
+        else {
+          const remAsg = (await Graph.gget(`${remPath}/${fw.obj.id}/assignments`, sc)).value || [];
+          const targets = remAsg.map((a) => a.target).filter((t) => t && (t.groupId || /allDevices|allLicensedUsers/i.test(t["@odata.type"] || "")));
+          if (!targets.length) throw new Error(`${fw.obj.displayName} has no assignment to hand over — use Create Windows script instead`);
+          const file = downloadText(`ENCA-GSA-remediation-assignments-${isDemo ? "demo" : (tenantName || tenantId)}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, remediation: { id: fw.obj.id, displayName: fw.obj.displayName }, assignments: remAsg }, null, 2));
+          say(`backup of the remediation's assignments saved${file ? ` as ${file}` : ""} — keep it for the way back`, true);
+          const foundS = (gsa.raw.scripts || []).find((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`));
+          const same = foundS ? [foundS] : (await Graph.ggetAll(`${scrPath}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          const s = same.length ? same[0] : await Graph.gpost(scrPath, body, sc);
+          say(same.length ? `${s.displayName || body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          const had = same.length ? ((await Graph.gget(`${scrPath}/${s.id}/assignments`, sc)).value || []).map((x) => x.target).filter(Boolean) : [];
+          const key = (t) => `${t["@odata.type"]}|${t.groupId || ""}`, clean = (t) => (t.groupId ? { "@odata.type": t["@odata.type"], groupId: t.groupId } : { "@odata.type": t["@odata.type"] });
+          const all = [...had.map(clean), ...targets.map(clean).filter((t) => !had.some((h) => key(h) === key(t)))];
+          await Graph.gpost(`${scrPath}/${s.id}/assign`, { deviceManagementScriptAssignments: all.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+          const gn = targets.map((t) => (t.groupId ? `${/exclusion/i.test(t["@odata.type"] || "") ? "excluding " : ""}${(gsa.raw.groupNames || {})[t.groupId] || t.groupId}` : /allDevices/i.test(t["@odata.type"] || "") ? "All devices" : "All users"));
+          say(`${s.displayName || body.displayName} assigned to ${gn.join(", ")}`, true);
+          await Graph.gpost(`${remPath}/${fw.obj.id}/assign`, { deviceHealthScriptAssignments: [] }, sc);
+          say(`${fw.obj.displayName} unassigned — it stays in Intune; the backup has its assignments`, true);
+        }
+      } else if (k === "scope-win" || k === "scope-mac") {
+        // 0.11.0: the ENCA settings record on the organization object —
+        // read with the tenant, written whole (the other settings kept)
+        const platform = k === "scope-mac" ? "macOS" : "Windows";
+        if (!isDemo && (gsa.raw.sources || {}).encaSettings !== "ok") throw new Error(`the ENCA settings record could not be read (${(gsa.raw.sources || {}).encaSettings || "not read"}) — nothing was written; read the tenant again`);
+        const rec = gsa.raw.encaSettings || null, cur = Gsa.scopeOut(rec)[k === "scope-mac" ? "macOS" : "windows"];
+        const body = Gsa.scopeRecord(rec, platform, !cur, (Graph.account && Graph.account.username) || (isDemo ? "demo" : ""), o.why, new Date().toISOString());
+        if (isDemo) { gsa.raw.encaSettings = body; await sim(cur ? `${platform} back in scope` : `${platform} out of scope — kept in the ENCA settings record`); }
+        else {
+          if (!tenantId) throw new Error("the tenant id is not known — sign in again");
+          if (rec) await Graph.gpatch(`/v1.0/organization/${tenantId}/extensions/${Gsa.ENCA_EXT}`, body, sc);
+          else await Graph.gpost(`/v1.0/organization/${tenantId}/extensions`, body, sc);
+          say(cur ? `${platform} is back in scope — step 6 waits for its devices again` : `${platform} is out of scope — kept in the tenant's ENCA settings record (${Gsa.ENCA_EXT})`, true);
+        }
       } else if (k === "trv2") {
         await runTrv2(w, sc, say, sim);
       } else if (/^macfix-/.test(k)) {
@@ -25810,6 +25892,9 @@ This is a directory write. Nothing else changes.`)) return;
     // devices and has not run yet — what a real first read looks like
     if (k === "winrem") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.groupNames[gid] = String(o.devGroup || Gsa.GROUPS.win).trim(); r.winGroups = Object.assign({}, r.winGroups, { [gid]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } }); r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }], runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } }); }
     if (k === "winscript") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.groupNames[gid] = String(o.devGroup || Gsa.GROUPS.win).trim(); r.winGroups = Object.assign({}, r.winGroups, { [gid]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } }); r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }], runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }); }
+    // 0.11.0: the demo Windows group holds two devices, one of them seen through GSA — partly connected
+    if (k === "winrem" || k === "winscript") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.winGroups[gid].list = [{ deviceId: "dw-1", displayName: "LT-DEMO-01", operatingSystem: "Windows", trustType: "AzureAd" }, { deviceId: "dw-2", displayName: "LT-DEMO-02", operatingSystem: "Windows", trustType: "AzureAd" }]; if (r.seen && Array.isArray(r.seen.report) && !r.seen.report.some((x) => x.deviceId === "dw-1")) r.seen.report.push({ deviceId: "dw-1", displayName: "LT-DEMO-01", operatingSystem: "Windows 11 Enterprise", trafficType: "microsoft365", lastAccessDateTime: new Date(Date.now() - 3 * 3600000).toISOString() }); }
+    if (k === "winswap") { const rem = (r.healthScripts || []).find((h) => /global\s*secure\s*access/i.test(h.displayName || "")); if (rem) { r.scripts.push({ id: "s-swap", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE, assignments: rem.assignments, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }); rem.assignments = []; rem.assigned = false; } }
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
     // 0.9.0: a chain fix lands in the demo chain — the plan's new body takes the row's place
     if (/^macfix-/.test(k) && r.macChain) {
@@ -25854,6 +25939,8 @@ This is a directory write. Nothing else changes.`)) return;
     }
     // 32524: the flow — a step opens under it
     const sl = t.closest("[data-gsasel]"); if (sl) { gsa.sel = sl.dataset.gsasel; renderGsa(); const d = $("gsaDetail"); if (d && d.scrollIntoView) d.scrollIntoView({ block: "nearest" }); return; }
+    // 0.11.0: Check a Mac — the three read-only commands to the clipboard
+    const cc = t.closest("[data-gsacopycmd]"); if (cc) { const pre = cc.closest(".gsa-actrow") && cc.closest(".gsa-actrow").querySelector("[data-gsacmd]"); const txt = pre ? pre.textContent : ""; try { navigator.clipboard.writeText(txt).then(() => toast("Copied — run it in Terminal on a Mac in the group"), () => toast("Copy failed — select the text instead")); } catch { toast("Copy failed — select the text instead"); } return; }
     const jp = t.closest("[data-gsajump]"); if (jp) { const el = $(jp.dataset.gsajump); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
     // a fix opens its own workspace (or brings its open one to the top)
     const fx = t.closest("[data-gsafix]"); if (fx) {

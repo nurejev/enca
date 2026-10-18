@@ -29,6 +29,16 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32806, date: "2026-10-18", title: "Global Secure Access: step 6 in two lanes, decided by what Global Secure Access has seen",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "Step 6 (the client on devices) is two lanes now, Windows and macOS, each with its own actions that stay whatever you do on the other platform. Before, Windows lost its only button as soon as a remediation existed and was assigned, so after working on macOS there was nothing left to press for Windows. Each lane shows what was deployed, whom it reaches, whether it may run, what Intune reports and — the stage that decides — Connected." },
+      { kind: "improved", tool: "Global Secure Access", text: "Connected means Global Secure Access itself has seen the device in the last 7 days: in its device report, or in a sign-in marked through Global Secure Access. Step 6 is ready when every device in the deployment's groups has been seen; Intune's run state stays on screen to explain why a device is not there yet, and macOS no longer turns ready on assignments alone. A Devices in scope table lists every device, its group and when it was last seen through Global Secure Access." },
+      { kind: "new", tool: "Global Secure Access", text: "Replace with the platform script: on a tenant without Windows Enterprise E3/E5, Education A3/A5 or VDA (Business Premium) a remediation never runs. The Windows lane offers to hand its groups to the platform script — a backup of the assignments first, the script assigned next, and only then the remediation unassigned. The remediation stays in Intune." },
+      { kind: "new", tool: "Global Secure Access", text: "Not in scope, per platform: take Windows or macOS out of step 6, with a reason. The choice is kept in the tenant (an ENCA settings record on the organization object), so every browser and colleague sees it, and Back in scope undoes it. A tenant without any Intune-managed Mac and no macOS script still counts macOS as not in scope by itself." },
+      { kind: "new", tool: "Global Secure Access", text: "Check a Mac: three read-only Terminal commands that say whether the client app is installed, whether its system extension is on, and what the install script logged." },
+    ],
+  },
+  {
     build: 32805, date: "2026-10-18", title: "App access review: a shared certificate names the other apps",
     items: [
       { kind: "fixed", tool: "App access review", text: "An app's card said its certificate also signs in as 5 other apps, but not which ones, and nothing on the screen led to them. The card now names them: the warning lists the other apps as links to their own card, and Credentials shows each certificate with its name, end date and thumbprint (to match under App registrations, Certificates and secrets) and every app that holds the same certificate. A certificate written as hex on one registration and as base64 on another is still recognised as the same one." },
