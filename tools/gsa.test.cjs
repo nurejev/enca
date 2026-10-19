@@ -778,7 +778,8 @@ test("0.12.0 Monitor: devices connected, not seen and outside the groups; client
   assert.deepStrictEqual([tile("dev").n, tile("dev").of, tile("dev").st], ["1", " / 2", "warn"]);
   assert.strictEqual(tile("ver").st, "warn");
   assert.ok(s.trafficNext);
-  assert.deepStrictEqual(s.attention.map((a) => a.tag), ["never", "outdated"]);
+  // 0.13.0: okRaw keeps the demo group assigned and its app visible — the My Apps line comes last
+  assert.deepStrictEqual(s.attention.map((a) => a.tag), ["never", "outdated", "my apps"]);
   // 7 days: a group device seen earlier in the period is silent
   const s7 = Gsa.monitor(m, monRaw({ period: "7d", start: "2026-10-12T00:00:00Z", devices: [{ deviceId: "d2", lastAccessDateTime: "2026-10-15T10:00:00Z" }] }));
   assert.strictEqual(s7.devices.find((d) => d.deviceId === "d2").st, "silent");
@@ -805,7 +806,7 @@ test("0.12.0 Monitor: through GSA, around the tunnel, blocked, the token alert f
   assert.deepStrictEqual([s.signIns.blocked, s.signIns.blockedUsers], [1, [["a@x", 1]]]);
   assert.deepStrictEqual([tile("token").n, tile("token").st], ["1", "bad"]);
   assert.deepStrictEqual(s.heartbeat.points.map((x) => [x.v, x.low]), [[50, true], [500, false]], "the week before the period is read to compare, not shown");
-  assert.deepStrictEqual(s.attention.map((a) => a.tag), ["token", "drop", "around", "never", "blocked", "tenants"]);
+  assert.deepStrictEqual(s.attention.map((a) => a.tag), ["token", "drop", "around", "never", "blocked", "tenants", "my apps"]);
 });
 
 test("0.12.0 Monitor: the mode switch, the prompt, the board, the log filter", () => {
@@ -842,4 +843,55 @@ test("0.12.0 Monitor: a refused source is named, never counted; the demo read", 
   assert.deepStrictEqual([sd.signIns.around.length, sd.signIns.would, sd.heartbeat.lows.length], [1, 1, 1]);
   assert.deepStrictEqual(sd.versions.winOld.map((d) => d.name), ["LT-DEMO-09"]);
   assert.ok(sd.devices.some((d) => d.name === "LT-DEMO-09" && d.st === "outside"));
+});
+
+test("0.13.0 My Apps: the profile's app shows for the assigned group, hides on a tag, the step stays as it was", () => {
+  const by = (raw) => Gsa.model(raw, [block()]).links.find((l) => l.k === "profile");
+  const shown = by(okRaw());
+  assert.strictEqual(shown.st, "ok", "the tile is cosmetic — it never changes step 3");
+  assert.deepStrictEqual([shown.myApps.known, shown.myApps.hidden, shown.myApps.shown, shown.myApps.who], [true, false, true, "1 group"]);
+  assert.strictEqual(shown.fix3, "hideapp");
+  assert.strictEqual(shown.badge, "in My Apps");
+  assert.match(shown.note, /shown in My Apps to them/);
+  const hid = by(okRaw({ sp: Object.assign({}, okRaw().sp, { tags: ["WindowsAzureActiveDirectoryIntegratedApp", "HideApp"] }) }));
+  assert.deepStrictEqual([hid.myApps.hidden, hid.myApps.shown, hid.fix3, hid.badge], [true, false, "showapp", null]);
+  assert.match(hid.note, /hidden from My Apps/);
+  // all users and nobody assigned: no tile, nothing to hide
+  const all = by(okRaw({ assigned: [] }));
+  assert.deepStrictEqual([all.myApps.shown, all.fix3, all.badge], [false, null, null]);
+  // tags not returned by the read: not known, nothing offered
+  const r = okRaw(); delete r.sp.tags;
+  const unk = by(r);
+  assert.deepStrictEqual([unk.myApps.known, unk.fix3, unk.badge], [false, null, null]);
+  assert.doesNotMatch(unk.note, /My Apps/);
+});
+
+test("0.13.0 My Apps: the tag list keeps every other tag; the preview, the board and Monitor offer the same fix", () => {
+  assert.deepStrictEqual(Gsa.appTags(["A", "B"], true), ["A", "B", "HideApp"]);
+  assert.deepStrictEqual(Gsa.appTags(["A", "HideApp", "B"], true), ["A", "B", "HideApp"], "never twice");
+  assert.deepStrictEqual(Gsa.appTags(["A", "HideApp", "B"], false), ["A", "B"]);
+  assert.deepStrictEqual(Gsa.appTags(undefined, false), []);
+  const p = Gsa.preview("hideapp", { spId: "sp-1", tags: ["WindowsAzureActiveDirectoryIntegratedApp"] })[0].text;
+  assert.match(p, /PATCH \/v1\.0\/servicePrincipals\/sp-1/);
+  assert.match(p, /"WindowsAzureActiveDirectoryIntegratedApp",\s*"HideApp"/);
+  assert.doesNotMatch(Gsa.preview("showapp", { spId: "sp-1", tags: ["X", "HideApp"] })[0].text, /"HideApp"/);
+  // Assign: the tick adds the tag write for a pilot group, never for all users or an app already hidden
+  const asg = (o) => Gsa.preview("assign", Object.assign({ group: "G", known: true, hidden: false, tags: [] }, o))[0].text;
+  assert.match(asg({}), /Also hide ticked/);
+  assert.doesNotMatch(asg({ hide: false }), /HideApp/);
+  assert.doesNotMatch(asg({ allUsers: true }), /HideApp/);
+  assert.doesNotMatch(asg({ hidden: true }), /HideApp/);
+  for (const k of ["hideapp", "showapp"]) { const f = Gsa.FIXES[k]; assert.ok(f.title && f.impact && f.recovery && f.changes.length); assert.deepStrictEqual(f.scopes, ["Application.ReadWrite.All"]); }
+  const m = Gsa.model(okRaw(), [block()]);
+  const html = Gsa.render(m, { sel: "profile" });
+  assert.match(html, /data-gsafix="hideapp"/);
+  assert.match(html, /class="gsa-badge">in My Apps</);
+  const s = Gsa.monitor(m, monRaw());
+  const a = s.attention.find((x) => x.tag === "my apps");
+  assert.strictEqual(a.fix, "hideapp");
+  assert.match(a.sub, /GSA-SEC-U-M365Profile-Pilot see the GSA-Microsoft365trafficforwardingprofile tile/);
+  assert.match(Gsa.renderMonitor(m, s, {}), /data-gsafix="hideapp"/);
+  const hidden = Gsa.model(okRaw({ sp: Object.assign({}, okRaw().sp, { tags: ["HideApp"] }) }), [block()]);
+  assert.ok(!Gsa.monitor(hidden, monRaw()).attention.some((x) => x.tag === "my apps"), "the line goes once hidden");
+  assert.match(Gsa.render(hidden, { sel: "profile" }), /data-gsafix="showapp"/);
 });

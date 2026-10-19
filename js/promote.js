@@ -175,6 +175,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 347,
+      ws: "entra",
+      title: "🌐 Global Secure Access — hide the Microsoft profile's app from My Apps (T56 0.13.0)",
+      tools: ["Global Secure Access"],
+      builds: [32808],
+      risk: "low",
+      what: "js/gsa.js: model() reads the profile's service principal tags — myApps (known, hidden, shown to whom) on step 3; the note says shown in My Apps to them or hidden from My Apps, the node carries an in My Apps badge, fix3 is hideapp or showapp; FIXES hideapp and showapp with impact and way back; appTags(tags, hide) keeps every other tag; preview for both, and Assign's extra PATCH when Also hide is ticked; monitor() adds a my apps line to Needs attention with the fix and renderMonitor draws its button; the demo app has a name and tags. js/app.js: tags in the service principal read; gsaAppVisible reads the tags fresh, PATCHes them with or without HideApp, reads back, and names the portal setting when Graph refuses; Assign hides in the same run when ticked (hide true by default); a fix pressed on Monitor opens on Setup at its step; the demo applies the tag. css/app.css: .gsa-badge. tools/gsa.test.cjs: 2 new tests (43 pass).",
+      why: "Mihai, 19 Oct, from the sastu-insights post on deploying the Global Secure Access client with Business Premium: an option to remove the app visibility from the user. Built from the mockup (part A; part B, locking the client after go-live, not asked for). Risk low: one tag on one service principal, the assignment untouched, undone by Show again. Not verified live: whether Graph accepts the tag on this Microsoft-owned app.",
+      test: [
+        "Beta, demo tenant, 03 → 🌐 Global Secure Access → Setup: step 3 carries an in My Apps badge; open it — the note ends shown in My Apps to them and What you can do offers Hide from My Apps…; the step stays partly (one traffic policy off), not changed by the tile.",
+        "Beta, demo: Hide from My Apps… → the workspace shows the PATCH with WindowsAzureActiveDirectoryIntegratedApp and HideApp, the impact and the way back; Apply → simulated, the badge goes, step 3 reads hidden from My Apps and offers Show again…; Show again → back as before.",
+        "Beta, demo: Monitor → Needs attention has The Microsoft profile's app shows in My Apps for 1 group with Hide from My Apps…; the button opens Setup at step 3 with the workspace open.",
+        "Beta, demo: Assign… → Pilot group shows Also hide the app from My Apps, ticked; the request adds the tag PATCH; untick it or pick All users — the PATCH goes.",
+        "Beta, Limon-IT (profile assigned to a group): Read → step 3 says shown in My Apps to them; as a member, myapps.microsoft.com shows the profile's tile. Hide from My Apps… → Apply asks Application.ReadWrite.All; the log says hidden and read back; Entra → Enterprise applications → the app → Properties shows Visible to users? No; the tile leaves My Apps within minutes; the member's client stays Connected and Monitor still shows traffic.",
+        "Beta, Limon-IT: if Graph refuses the PATCH, the log names the portal setting; set Visible to users? No there, Read — step 3 reads hidden from My Apps.",
+        "Beta, Limon-IT: Show again… → Visible to users? Yes in the portal and the tile returns.",
+      ],
+    },
+    {
       n: 346,
       ws: "entra",
       title: "🌐 Global Secure Access — 📈 Monitor after setup: the traffic log, devices, alerts, sign-ins around the tunnel, the heartbeat (T56 0.12.0)",

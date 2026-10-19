@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32808, date: "2026-10-19", title: "Global Secure Access: the profile's app out of My Apps",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "Hide the Microsoft traffic profile's app from My Apps: everybody assigned to the profile sees its app as a tile in My Apps and the Microsoft 365 app launcher, and the tile opens nothing useful. Step 3 now says whether the tile shows, and Hide from My Apps sets Visible to users to No on that app — the assignment, the traffic and the client stay as they are. Show again brings it back." },
+      { kind: "improved", tool: "Global Secure Access", text: "Assigning the profile to a pilot group hides the app from My Apps in the same run (ticked by default), and Monitor's Needs attention shows one line with the same button while the tile is visible." },
+    ],
+  },
+  {
     build: 32807, date: "2026-10-18", title: "Global Secure Access: Monitor — after setup, the traffic",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "Monitor: the board has two modes, Setup (the eight links) and Monitor, and opens on Monitor once steps 1 to 7 are ready. Monitor is read-only and reads, for 24 hours, 7 or 30 days, Global Secure Access's own traffic log, device report, alerts and transactions per hour, and the sign-in log." },

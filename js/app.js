@@ -25186,7 +25186,7 @@ This is a directory write. Nothing else changes.`)) return;
   // 32524: fixes open as stacked workspaces — gsa.work, newest first, one
   // per fix kind, each with its own options, log and busy flag; gsa.sel is
   // the step open under the flow (null = the first that blocks)
-  const gsaDefOpts = () => ({ why: "", group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", enforce: false, pSys: null, pProxy: null, pSet: null });
+  const gsaDefOpts = () => ({ why: "", group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", hide: true, enforce: false, pSys: null, pProxy: null, pSet: null });
   // 0.12.0: mode (setup | monitor), chosen by the person or by the board; mon the Monitor read
   let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "", mode: null, modeChosen: false, mon: null, monBusy: false, monErr: null, monRead: 0, monPeriod: "24h", monFilter: {} };
   const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
@@ -25377,7 +25377,7 @@ This is a directory write. Nothing else changes.`)) return;
           await one("signaling", () => Graph.gget("/networkAccess/settings/conditionalAccess", sc));
           const spId = raw.profile && raw.profile.servicePrincipal && raw.profile.servicePrincipal.id;
           if (spId) {
-            await one("sp", () => Graph.gget(`/v1.0/servicePrincipals/${spId}?$select=id,appId,displayName,appRoleAssignmentRequired,appRoles`, sc));
+            await one("sp", () => Graph.gget(`/v1.0/servicePrincipals/${spId}?$select=id,appId,displayName,appRoleAssignmentRequired,appRoles,tags`, sc));
             await one("assigned", () => Graph.ggetAll(`/v1.0/servicePrincipals/${spId}/appRoleAssignedTo?$top=999`, { scopes: sc }));
           }
         }
@@ -25613,7 +25613,9 @@ This is a directory write. Nothing else changes.`)) return;
   const gsaMacOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).mac || null;
   // 0.11.0: Replace needs the remediation and its groups; Not in scope the record as read
   const gsaWinOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).win || {};
-  const gsaPrevOpts = (w) => w.k === "winswap" ? Object.assign({}, w.opts, { remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
+  // 0.13.0: the profile's app and its tags, for hide / show again and Assign's tick
+  const gsaAppOf = () => { const s = (gsa.model && gsa.model.sp) || {}, a = (gsa.model && gsa.model.myApps) || {}; return { spId: s.id, tags: s.tags, known: !!a.known, hidden: !!a.hidden, spName: s.displayName || "" }; };
+  const gsaPrevOpts = (w) => /^(hideapp|showapp|assign)$/.test(w.k) ? Object.assign({}, w.opts, gsaAppOf()) : w.k === "winswap" ? Object.assign({}, w.opts, { remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
   function gsaWorkHtml(w) {
     // 0.9.0: a chain fix takes its words from its plan (create, repair, assign or add)
     const plan = /^macfix-/.test(w.k) ? Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w)) : null;
@@ -25629,6 +25631,8 @@ This is a directory write. Nothing else changes.`)) return;
       form = `${r.found ? `<div class="mini"><b>Now:</b> ${esc(r.name)}</div>` : ""}${issues}${sx}${lock}${grpIn}${plan.mode === "none" ? '<p class="mini gsa-ok-txt">Nothing to do — this row is complete.</p>' : ""}`;
     }
     if (k === "assign") form = `<label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="group"${o.allUsers ? "" : " checked"}> <b>Pilot group</b> (recommended)</label> <input class="txt" data-gsaopt="group" value="${esc(o.group)}" placeholder="Group display name, e.g. GSA-SEC-U-M365Profile-Pilot" style="min-width:min(320px,100%)"><br><label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="all"${o.allUsers ? " checked" : ""}> <b>All users</b> — Assignment required off on the profile's app</label>`;
+    // 0.13.0: hide the profile's app from My Apps in the same run — ticked by default
+    if (k === "assign") { const ma = (gsa.model && gsa.model.myApps) || null; if (ma && ma.known) form += ma.hidden ? `<div class="mini muted" style="margin-top:6px">The profile's app is already hidden from My Apps — the new members see no tile.</div>` : `<br><label class="chk"><input type="checkbox" data-gsaopt="hide"${o.hide !== false ? " checked" : ""}> <b>Also hide the app from My Apps</b> (recommended) — only the tile goes, the assignment stays. With All users nobody is assigned, so no tile shows and nothing is hidden</label>`; }
     // 32517: names by the CloudFellows convention read from devcf; release
     // and version editable, the device group defaulted and made when missing
     const nm = () => Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" });
@@ -25661,7 +25665,7 @@ This is a directory write. Nothing else changes.`)) return;
     const done = !!(w.log && w.log.done), failed = !!(w.log && !w.log.done && !w.busy);
     const otherBusy = gsa.work.some((x) => x !== w && x.busy);
     const step = (i, t) => `<span class="${w.busy ? (i === 2 ? "on" : i < 2 ? "dn" : "") : done ? "dn" : i === 1 ? "on" : ""}">${(w.busy && i < 2) || done ? "✓ " : ""}${i} ${t}</span>`;
-    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || /^(macfix-|scope-|winswap)/.test(k) && l.k === "client");
+    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k || /^(macfix-|scope-|winswap)/.test(k) && l.k === "client");
     return `<section class="gsa-wpanel" data-gsaw="${esc(k)}" id="gsaW-${esc(k)}"><div class="gsa-whead"><b>🔧 ${esc(f.title)}</b><span class="tag block">writes to tenant</span>${from ? `<span class="mini muted">from step ${gsa.model.links.indexOf(from) + 1} · ${esc(from.lab)}</span>` : ""}<button class="btn sm gsa-wclose" data-gsacancel${w.busy ? " disabled" : ""}>✕ ${done ? "Close" : "Cancel"}</button></div>
       <div class="gsa-wsteps">${step(1, "Review")}${step(2, "Apply")}${step(3, "Read the tenant again")}${failed ? '<span style="color:var(--off)">✗ stopped — see the log</span>' : ""}</div>
       <div class="gsa-wgrid"><div><ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}${prev}</div>
@@ -25689,6 +25693,20 @@ This is a directory write. Nothing else changes.`)) return;
       say(`${name} created — empty: add the pilot devices`, true);
       return g;
     }
+  }
+  // 0.13.0: the profile's app in My Apps — the HideApp tag on its service
+  // principal, read fresh first so no other tag is lost (Graph replaces the list)
+  async function gsaAppVisible(sp, show, sc, say) {
+    if (!sp) throw new Error("the profile's service principal was not read");
+    if (isDemo) { await new Promise((r) => setTimeout(r, 150)); say(`${show ? "shown in My Apps again" : "hidden from My Apps — the assignment stays"} (simulated)`, true); return; }
+    const cur = await Graph.gget(`/v1.0/servicePrincipals/${sp.id}?$select=id,tags`, sc);
+    const tags = Array.isArray(cur.tags) ? cur.tags : [], next = Gsa.appTags(tags, !show);
+    if (next.length === tags.length && next.every((t, i) => t === tags[i])) { say(show ? "already shown in My Apps — nothing written" : "already hidden from My Apps — nothing written", true); return; }
+    try { await Graph.gpatch(`/v1.0/servicePrincipals/${sp.id}`, { tags: next }, sc); }
+    catch (e) { throw new Error(`Graph refused the tag (${gsaErr(e)}) — set Visible to users? to ${show ? "Yes" : "No"} in Enterprise applications → ${sp.displayName || "the profile's app"} → Properties instead`); }
+    const back = await Graph.gget(`/v1.0/servicePrincipals/${sp.id}?$select=id,tags`, sc).catch(() => null);
+    const ok = !!back && (back.tags || []).includes("HideApp") === !show;
+    say(ok ? (show ? "shown in My Apps again — the tile can take a few minutes to come back" : "hidden from My Apps and the Microsoft 365 app launcher — the assignment stays; the tile can take a few minutes to go") : "written — the read-back does not show it yet; read the tenant again in a minute", ok ? true : undefined);
   }
   async function runGsaFix(w) {
     const k = w && w.k, f = Gsa.FIXES[k], m = gsa.model, o = w && w.opts;
@@ -25735,7 +25753,10 @@ This is a directory write. Nothing else changes.`)) return;
             await Graph.gpost(`/v1.0/servicePrincipals/${sp.id}/appRoleAssignedTo`, { principalId: g.id, resourceId: sp.id, appRoleId: role ? role.id : "00000000-0000-0000-0000-000000000000" }, sc);
             say(`${g.displayName} assigned to the Microsoft traffic profile`, true);
           }
+          if (o.hide !== false && m.myApps && m.myApps.known && !m.myApps.hidden) await gsaAppVisible(m.sp, false, sc, say);
         }
+      } else if (k === "hideapp" || k === "showapp") {
+        await gsaAppVisible(m.sp, k === "showapp", sc, say);
       } else if (k === "signal") {
         if (isDemo) await sim("signalling enabled");
         else {
@@ -25965,6 +25986,8 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "macscript" || k === "macprof") { r.macProfiles = r.macProfiles || {}; for (const p of Gsa.MAC_PROFILES) { if (!Gsa.wantProfile(o, p, r.macProfiles)) continue; const x = r.macProfiles[p.key]; r.macProfiles[p.key] = x ? Object.assign({}, x, { assigned: true }) : { id: `demo-${p.key}`, name: p.name({ rel: o.rel, ver: o.ver }), assigned: true }; } }
     if (k === "onboard") r.status.onboardingStatus = "onboarded";
     if (k === "ztnasp") r.ztna = [{ id: "sp-ztna", appId: Gsa.ZTNA_CLIENT }];
+    // 0.13.0: the HideApp tag, as Hide / Show again and Assign's tick write it
+    if (k === "hideapp" || k === "showapp" || (k === "assign" && !o.allUsers && o.hide !== false)) r.sp.tags = Gsa.appTags(r.sp.tags || [], k !== "showapp");
   }
   $("toolGsa").addEventListener("click", () => openGsa());
   // 0.12.0: in Monitor the refresh reads the traffic again too
@@ -26007,6 +26030,8 @@ This is a directory write. Nothing else changes.`)) return;
     // a fix opens its own workspace (or brings its open one to the top)
     const fx = t.closest("[data-gsafix]"); if (fx) {
       const k = fx.dataset.gsafix, had = gsaW(k);
+      // 0.13.0: a fix offered on Monitor (Needs attention) opens on Setup, at its step
+      if (gsa.mode === "monitor") { gsa.mode = "setup"; gsa.modeChosen = true; const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k); if (from) gsa.sel = from.k; }
       if (had) gsa.work = [had, ...gsa.work.filter((x) => x !== had)];
       // 0.9.0: a chain repair keeps the old settings' lock-down or pilot unless the person ticks otherwise
       else gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), /^macfix-/.test(k) ? { lock: null } : {}), log: null, busy: false, tab: null });

@@ -3382,6 +3382,8 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-pl-acts{margin-top:auto;padding:8px 12px 10px;border-top:1px solid var(--border);background:color-mix(in srgb,var(--soft) 45%,var(--surface))}
 .gsa-pl .gsa-cmd .gsa-pre{margin-top:6px;max-height:none;white-space:pre-wrap;overflow-wrap:anywhere}
 .gsa-split{display:flex;gap:3px;justify-content:center;margin-top:2px}
+/* 0.13.0: a small note on a node — step 3 while the profile's app shows in My Apps */
+.gsa-badge{display:inline-block;margin-top:3px;font-size:10px;font-weight:700;border-radius:999px;padding:0 6px;color:var(--muted);border:1px solid var(--border);background:var(--surface);white-space:nowrap}
 .gsa-split i{font-style:normal;font-size:10px;font-weight:700;border-radius:999px;padding:0 5px;border:1px solid var(--border);color:var(--muted);background:var(--surface)}
 .gsa-split i.ok{color:var(--on)}.gsa-split i.bad{color:var(--off)}.gsa-split i.warn{color:var(--report)}
 .gsa-st.na{color:var(--muted)}
