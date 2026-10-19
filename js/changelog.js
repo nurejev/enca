@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32818, date: "2026-10-19", title: "Waiting for production: the order no longer tells a port to skip the shell files",
+    items: [
+      { kind: "fixed", tool: "Help", text: "A promotion order listed index.html, js/app.js and css/app.css under Never port whenever only the other workspace's items named them, which is almost always, because most items name no files. The same order's carve-outs then said to port parts of exactly those files. Shell files every workspace is wired through are now listed as port by hunk: this order's changes go, the other workspace's stay on beta. Never port keeps the files a workspace owns." },
+      { kind: "fixed", tool: "Help", text: "The after-port checks of a Conditional Access or Platform order expected Global Secure Access and the 03 chip to be absent from main. 03 Entra Tools has been in production since build 326, so main failed those checks before anything was ported. They now check that main's 03 files are untouched by the port, and the PIM-buddy check no longer expects main to have no workspace chip." },
+    ],
+  },
+  {
     build: 32817, date: "2026-10-19", title: "Global Secure Access: the install remediation upgrades an old client and checks what it runs",
     items: [
       { kind: "improved", tool: "Global Secure Access", text: "The Windows install remediation no longer stops at installed or not installed. Detection now compares the installed version with a floor (2.34.222.0) and the remediation upgrades an older client in place; a client at or above the floor is left alone. Before this, a Cloud PC that got 2.32.294 kept it for ever while aka.ms moved on. The versions are compared as four numbers, so 2.34.222 and 2.34.222.0 are the same version." },

@@ -134,3 +134,40 @@ test("the Help page no longer hosts the queue; the tool is a hidden tile with it
   assert.match(app, /const promoteShown = \(\) => typeof PROMOTE !== "undefined" && deploymentKind\(\) === "beta" && isPublisherTenant\(\);/);
   assert.ok(!/isCisTenant/.test(app));
 });
+
+// 32818 — the 19 Oct orders: items 336–353 list no files, so every shell file
+// that only a PIM item declared came out under Never port (index.html, js/app.js,
+// css/app.css …) while the carve-outs of 343 and 344 said to port hunks of them.
+test("a shell file the other workspace changes is port-by-hunk, never Never port", () => {
+  const Q = load();
+  Q.items.push(
+    { n: 90011, ws: "ca", title: "fixture ca, no files", tools: ["Baseline"], builds: [1], risk: "low", test: ["x"] },
+    { n: 90012, ws: "pim", title: "fixture pim", tools: ["PIM"], builds: [2], risk: "low", test: ["x"], files: ["index.html", "js/app.js", "css/app.css", "js/pimfixture.js", "docs/only-pim.md"] },
+  );
+  const c = Q.checkOrder([90011], "ca");
+  for (const f of ["index.html", "js/app.js", "css/app.css"]) {
+    assert.ok(!c.neverPort.includes(f), `${f} listed under Never port`);
+    assert.ok(c.byHunk.includes(f), `${f} not listed as port by hunk`);
+  }
+  assert.ok(c.neverPort.includes("docs/only-pim.md"), "a non-shell file only the other workspace touches is still Never port");
+  assert.ok(c.neverPort.includes("js/pim*.js"));
+  const o = Q.buildOrder([90011], BUILD, "ca");
+  const hunk = o.text.split("## Shell files the other workspace also changes")[1].split("\n## ")[0];
+  for (const f of ["index.html", "js/app.js", "css/app.css"]) assert.ok(hunk.includes(`\n- ${f}\n`), hunk);
+  const never = o.text.split("## Never port")[1].split("\n## ")[0];
+  assert.ok(!/\n- (index\.html|js\/app\.js|css\/app\.css)\n/.test(never), never);
+});
+
+test("after-port checks never expect a workspace that is on main to be absent", () => {
+  for (const [ws, w] of Object.entries(P.workspaces)) {
+    for (const c of w.mainChecks || []) {
+      assert.ok(!/no workspace chip/.test(c), `${ws}: main has had the workspace chip since 326 — ${c}`);
+      if (w.onMain) assert.ok(!/expect nothing\)$/.test(c) || /git diff/.test(c), `${ws} is on main since ${w.onMain} but a check expects it absent: ${c}`);
+    }
+  }
+  assert.strictEqual(P.workspaces.entra.onMain, 326);
+  const n = byWs("ca").find((x) => !(P.items.find((i) => i.n === x).requires || []).length);
+  const o = P.buildOrder([n], BUILD, "ca");
+  assert.ok(!/GsaTool\|toolGsa\|screen-gsa' js\/\*\.js index\.html  \(expect nothing\)/.test(o.text));
+  assert.match(o.text, /03 Entra Tools in the workspace chip as before the port/);
+});

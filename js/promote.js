@@ -152,7 +152,10 @@ const PROMOTE = {
       mainChecks: [
         "grep -nE 'pmb[A-Z]|pimPlan|pimApply|prlOn|pimLensPaint|PIM-SG' js/*.js index.html  (expect nothing)",
         "grep -n 'src=\"js/pim' index.html  (expect nothing)",
-        "whole-page boot on main: no workspace chip, no 02 in the rail, no console errors",
+        // 32818: main has had the workspace chip since production 326 (01 and
+        // 03, with 02 listed as on the beta channel) — "no workspace chip" was
+        // true when this was written at 32439 and failed on main from 326 on.
+        "whole-page boot on main: 02 PIM-buddy only as 'On the beta channel — not in this build', no 02 tools in the rail, no console errors",
       ],
     },
     // 32515: 03 Entra Tools (Mihai, 14 Oct). It owns 🌐 Global Secure Access;
@@ -160,11 +163,15 @@ const PROMOTE = {
     entra: {
       num: "03", label: "Entra Tools",
       owns: ["js/gsa.js", "tools/gsa.test.cjs", "js/trv2.js", "tools/trv2.test.cjs", "js/egress.js", "tools/egress.test.cjs"],
+      // 32818: 03 SHIPPED in production 326 (v2.0.4). The checks below used to
+      // expect GsaTool, js/gsa.js and the 03 chip to be ABSENT from main, which
+      // main failed before any port began. An order for another workspace must
+      // leave main's 03 exactly as it was — that is what is checked now.
+      onMain: 326,
       mainChecks: [
-        "grep -nE 'GsaTool|toolGsa|screen-gsa' js/*.js index.html  (expect nothing)",
-        "grep -nE 'toolEgress|screen-egress|js/egress' js/*.js index.html  (expect nothing)",
-        "grep -n 'src=\"js/gsa' index.html  (expect nothing)",
-        "whole-page boot on main: no 03 in the workspace chip, no console errors",
+        "git diff <main before the port> HEAD -- js/gsa.js js/trv2.js js/egress.js tools/gsa.test.cjs tools/trv2.test.cjs tools/egress.test.cjs  (expect nothing: main keeps its own 03 files)",
+        "grep -c 'src=\"js/gsa' index.html  (expect 1, as before the port)",
+        "whole-page boot on main: 03 Entra Tools in the workspace chip as before the port, no console errors",
       ],
     },
     platform: {
@@ -174,6 +181,23 @@ const PROMOTE = {
   },
 
   items: [
+    {
+      n: 355,
+      ws: "platform",
+      title: "🚚 Promotion order: shell files are port-by-hunk, not Never port; the after-port checks know 03 is on main",
+      tools: ["Help"],
+      builds: [32818],
+      risk: "low",
+      files: ["js/promote.js", "js/app.js", "tools/promote-ws.test.cjs"],
+      what: "js/promote.js: PROMOTE.SHELL (index.html, js/app.js, css/app.css, css/workspaces.css, js/demo.js, js/flat-icons.js, js/workspaces.js, js/graph.js, js/connection.js, js/onboard.js, README.md, SECURITY.md, New-EncaAppRegistration.ps1) never goes under Never port; checkOrder returns byHunk, the shell files the other workspace's items change, and the order prints them as Shell files the other workspace also changes: port this order's hunks only. The 03 workspace carries onMain: 326 and its after-port checks now prove main's 03 files are untouched (git diff against main before the port, one js/gsa.js script tag, 03 in the chip as before) instead of expecting GsaTool and the 03 chip to be absent; the 02 check no longer expects no workspace chip. js/app.js: the order check in the tool shows the port-by-hunk line. tools/promote-ws.test.cjs: two tests.",
+      why: "Mihai's 19 Oct orders (ca 7075618b, entra 4e572170, platform 5f779c04): items 336-353 list no files, so every shell file only a PIM item declared came out as Never port — index.html, js/app.js, css/app.css — while the carve-outs of 343 and 344 said to port hunks of exactly those; and the CA and Platform orders' after-port greps expected no GsaTool and no 03 on main, which main has carried since production 326, so main failed them before the port began.",
+      carveout: "Beta-only, like the queue itself: nothing of it ports to main (promote.js and openPromote do not exist there). Ticking it clears it from the queue.",
+      test: [
+        "Beta, cloudfellows.dev, 🚚 Waiting for production on 01: tick 339 — the order check shows ⇄ Port by hunk with index.html, js/app.js and css/app.css, and Never port lists only the PIM-buddy and 03 files.",
+        "Export that order: the file has the Shell files … port this order's hunks only section, and After the port says 03 Entra Tools in the workspace chip as before the port — no grep for GsaTool expecting nothing.",
+        "Switch to 03 and tick 344: Never port lists only the PIM-buddy files; the fingerprint for the same ticks is the one the 19 Oct order carried (4e572170 for the full 03 order).",
+      ],
+    },
     {
       n: 354,
       ws: "entra",
@@ -1123,6 +1147,15 @@ const PROMOTE = {
 // Bookkeeping files are per channel and never "shared" in the sense that
 // matters: every item touches them and every port rewrites them.
 PROMOTE.BOOKKEEPING = ["js/version.js", "js/changelog.js", "js/promote.js"];
+// Shell files (32818): every workspace's tools are wired through these, so no
+// workspace's items can make one "only theirs". Until 32818 a shell file that
+// only the other workspace's items DECLARED was listed under Never port — and
+// most items declare no files at all, so the 19 Oct orders told the session
+// never to port index.html, js/app.js and css/app.css while their own
+// carve-outs said to port hunks of exactly those. A shell file the other
+// workspace changes is listed as PORT BY HUNK instead: this order's hunks go,
+// the other workspace's stay on beta.
+PROMOTE.SHELL = ["index.html", "js/app.js", "css/app.css", "css/workspaces.css", "js/demo.js", "js/flat-icons.js", "js/workspaces.js", "js/graph.js", "js/connection.js", "js/onboard.js", "README.md", "SECURITY.md", "New-EncaAppRegistration.ps1"];
 PROMOTE.wsOf = (it) => (it && Object.prototype.hasOwnProperty.call(PROMOTE.workspaces, it.ws)) ? it.ws : null;
 // An order for `ws` may carry that workspace's items and platform's.
 PROMOTE.inOrder = (it, ws) => { const w = PROMOTE.wsOf(it); return !!w && (w === ws || w === "platform"); };
@@ -1149,7 +1182,7 @@ PROMOTE.checkOrder = function (pickedNs, ws) {
   const all = PROMOTE.items || [];
   const byN = new Map(all.map((i) => [i.n, i]));
   const ns = [...new Set((pickedNs || []).map(Number))].sort((a, b) => a - b);
-  const out = { ws, ns: [], blocks: [], warns: [], unlabelled: [], foreign: [], gone: [], shared: [], sameTool: [], neverPort: [], excluded: [] };
+  const out = { ws, ns: [], blocks: [], warns: [], unlabelled: [], foreign: [], gone: [], shared: [], sameTool: [], neverPort: [], byHunk: [], excluded: [] };
   if (!PROMOTE.workspaces[ws]) { out.blocks.push(`Unknown workspace ${ws}.`); return out; }
   out.unlabelled = all.filter((i) => !PROMOTE.wsOf(i)).map((i) => i.n);
   if (out.unlabelled.length) out.blocks.push(`Item${out.unlabelled.length === 1 ? "" : "s"} ${out.unlabelled.join(", ")} carr${out.unlabelled.length === 1 ? "ies" : "y"} no workspace. Label ${out.unlabelled.length === 1 ? "it" : "them"} in js/promote.js before any order is exported.`);
@@ -1193,8 +1226,12 @@ PROMOTE.checkOrder = function (pickedNs, ws) {
   // never port: what the other workspaces own, and files only their items touch
   const owns = Object.entries(PROMOTE.workspaces).filter(([k]) => k !== ws && k !== "platform").flatMap(([, w]) => w.owns || []);
   const usedHere = new Set(all.filter((i) => PROMOTE.inOrder(i, ws)).flatMap((i) => (i.files || []).map(clean)));
-  const onlyThere = [...new Set(other.flatMap((i) => (i.files || []).map(clean)))].filter((f) => !book.has(f) && !usedHere.has(f) && !owns.some((g) => PROMOTE.globMatch(g, f)));
+  const shell = new Set(PROMOTE.SHELL);
+  const theirFiles = [...new Set(other.flatMap((i) => (i.files || []).map(clean)))];
+  const onlyThere = theirFiles.filter((f) => !book.has(f) && !shell.has(f) && !usedHere.has(f) && !owns.some((g) => PROMOTE.globMatch(g, f)));
   out.neverPort = [...owns, ...onlyThere.sort()];
+  // a shell file is never "theirs": port this order's hunks of it, not the file
+  out.byHunk = theirFiles.filter((f) => shell.has(f) && !out.shared.some((x) => x.file === f)).sort();
   out.mainChecks = Object.entries(PROMOTE.workspaces).filter(([k]) => k !== ws && k !== "platform").flatMap(([, w]) => w.mainChecks || []);
   return out;
 };
@@ -1230,6 +1267,11 @@ PROMOTE.buildOrder = function (pickedNs, appBuild, ws) {
   if (chk.neverPort.length) {
     L.push("## Never port: the other workspace's files (where main has its own copy, it keeps it)");
     chk.neverPort.forEach((f) => L.push(`- ${f}`));
+    L.push("");
+  }
+  if (chk.byHunk.length) {
+    L.push("## Shell files the other workspace also changes: port this order's hunks only, never the whole file");
+    chk.byHunk.forEach((f) => L.push(`- ${f}`));
     L.push("");
   }
   if (chk.shared.length || chk.sameTool.length) {

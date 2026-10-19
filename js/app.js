@@ -1398,6 +1398,7 @@
         c.blocks.forEach((b) => rows.push(line("block", "✗", `<b>Blocks the export.</b> ${esc2(b)}`)));
         c.warns.forEach((w) => rows.push(line("warn", "!", esc2(w))));
         if (c.neverPort.length) rows.push(line("info", "⊘", `<b>Never port</b> (the other workspace's files; where main has its own copy, it keeps it): ${c.neverPort.map((f) => `<code>${esc2(f)}</code>`).join(" ")}`));
+        if ((c.byHunk || []).length) rows.push(line("info", "⇄", `<b>Port by hunk</b> (shell files the other workspace also changes; this order's hunks only, never the whole file): ${c.byHunk.map((f) => `<code>${esc2(f)}</code>`).join(" ")}`));
         box.innerHTML = `<h4 style="margin:0 0 6px">Order check · ${esc2(PROMOTE.wsLabel(ws))}</h4><ul class="pq-cklist">${rows.join("")}</ul>`;
         return c;
       };

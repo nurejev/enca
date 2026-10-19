@@ -42,7 +42,7 @@ const APP_BUILD = {
   // 2.0.5 (production 327): the next cycle is 328 — builds 32801+, v2.0.6-beta.N.
   cycle: 328,
   patchBase: 322,
-  build: 32817,
+  build: 32818,
   date: "2026-10-19",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
