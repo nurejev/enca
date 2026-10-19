@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 357,
+      ws: "ca",
+      title: "🏢 SMB Basic 1.0.2: CA005 with the admin portals, CA007 device join, CA008 unmanaged Windows and Mac 4 hours never persistent; two pre-flight checks",
+      tools: ["Baseline", "Import"],
+      builds: [32903],
+      risk: "medium",
+      files: ["js/baselineSmbData.js", "js/import.js", "js/app.js", "index.html", "tools/baseline-smb.test.cjs", "tools/import-preflight.test.cjs"],
+      what: "js/baselineSmbData.js: VERSION 5/7/8 at 1.0.2, CATALOG_RELEASE 1.0.2, ADDED_IN 7/8 (tag NEW); CA005 AdminPortalsAndAzureMgmt includeApplications MicrosoftAdminPortals + Windows Azure Service Management API, everyoneButSync; CA007 RegisterOrJoinDevices, urn:user:registerdevice, built-in MFA strength, guests out; CA008 WindowsOrMacOS-Unmanaged-SIF4h-NeverPersistent, all users minus sync roles, platforms windows+macOS, deviceFilter include device.trustType -ne AzureAD, SIF 4 h, persistent browser never. js/import.js preflight: devreg (deviceRegistrationPolicy.multiFactorAuthConfiguration) and unmanaged (device counts). js/app.js: the demo pre-flight shows both. index.html: Help for Baseline and Import.",
+      why: "Mihai, 19 Oct: does SMB Basic cover the guide's Appendix 1 baseline? Gaps were MFA for the admin portals, MFA to register or join devices, and no persistent browser on unmanaged devices. From the mockup ENCA — SMB Basic 1.0.2: GSA stays for everyone, unmanaged Windows and Mac get 4 hours never persistent, they should be Entra joined, hybrid is unmanaged in SMB, a Mac should be joined just as Windows. Terms of use left out.",
+      carveout: "None beyond the usual: promote.js stays beta-only; the SMB data file ports whole, the import.js and app.js hunks as they are.",
+      test: [
+        "devcf or gimi, 🧬 Baseline SMB Basic: release 1.0.2, 17 policies; a tenant holding 1.0.1 shows CA005 Outdated and CA007, CA008 Missing.",
+        "📥 Import baseline SMB Basic: the pre-flight shows the device setting Require MFA to register or join devices (warn while Yes) and the count of Windows PCs and Macs CA008 would treat as unmanaged; import CA005, CA007, CA008 on Report-only.",
+        "In the portal: CA007 targets User actions, Register or join devices, with the Multifactor authentication strength; CA008 has Device platforms Windows and macOS, Filter for devices include trustType not equals Microsoft Entra joined, sign-in frequency 4 hours and persistent browser never.",
+        "Report-only impact after a day: CA008 hits the hybrid-joined PCs and Macs without Platform SSO only; an Entra-joined Windows PC and a Platform SSO Mac show not applied.",
+      ],
+    },
+    {
       n: 356,
       ws: "ca",
       title: "🏢 SMB Basic 1.0.1 and 📥 an import that does not stop half-way: state retried, never twice, 🛫 pre-flight",

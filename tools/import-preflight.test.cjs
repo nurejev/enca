@@ -34,6 +34,7 @@ function world(opts = {}) {
       if (url.startsWith('/policies/authenticationStrengthPolicies')) { if (opts.strengthReadFails) throw new Error('Graph request failed (403)'); return opts.strengths || []; }
       if (url.startsWith('/identity/conditionalAccess/policies')) { if (opts.listFails) throw new Error('Graph request failed (503)'); return opts.staleList ? tenant : [...tenant, ...[...pols.values()].map((p) => ({ id: p.id, displayName: p.displayName, state: p.state }))]; }
       if (url.startsWith('/identity/conditionalAccess/namedLocations')) return opts.locations || [];
+      if (url.startsWith('/devices')) { if (opts.devicesFail) throw new Error('Graph request failed (403)'); return opts.devices || []; }
       return [];
     },
     async gpost(url, body) {
@@ -57,6 +58,7 @@ function world(opts = {}) {
     async gget(url) {
       if (url.endsWith('/fido2')) { if (opts.fido === 'error') throw new Error('Graph request failed (403)'); return { id: 'fido2', state: opts.fido || 'disabled' }; }
       if (url.startsWith('/networkAccess')) return { signalingStatus: opts.gsa || 'disabled' };
+      if (url.startsWith('/policies/deviceRegistrationPolicy')) return { multiFactorAuthConfiguration: opts.devreg || 'notRequired' };
       const p = pols.get(url.split('/').pop()) || tenant.find((t) => t.id === url.split('/').pop());
       return p ? strip(structuredClone(p)) : {};
     },
@@ -226,4 +228,37 @@ test('the ticked repair sets each policy Report-only and reads it back', async (
   const w = world({ tenant: [{ id: 'p5', displayName: 'CA005-x', state: 'disabled' }, { id: 'p6', displayName: 'CA006-x', state: 'disabled' }], notYet: { 'CA006-x': 1 } });
   const out = await w.I.setStates([{ id: 'p5', name: 'CA005-x' }, { id: 'p6', name: 'CA006-x' }], 'enabledForReportingButNotEnforced', { readWaits: fast });
   assert.deepEqual(plain(out.map((r) => [r.id, r.ok])), [['p5', true], ['p6', true]]);
+});
+
+test('🛫 pre-flight, SMB 1.0.2: the device-join MFA setting, and whom CA008 would treat as unmanaged', async () => {
+  const devices = [
+    { id: 'w1', operatingSystem: 'Windows', trustType: 'AzureAD', accountEnabled: true },
+    { id: 'w2', operatingSystem: 'Windows', trustType: 'ServerAD', accountEnabled: true },
+    { id: 'w3', operatingSystem: 'Windows', trustType: 'ServerAD', accountEnabled: false },
+    { id: 'w4', operatingSystem: 'Windows', trustType: 'Workplace', accountEnabled: true },
+    { id: 'm1', operatingSystem: 'MacMDM', trustType: 'AzureAD', accountEnabled: true },
+    { id: 'm2', operatingSystem: 'MacMDM', trustType: 'Workplace', accountEnabled: true },
+    { id: 'i1', operatingSystem: 'iOS', trustType: 'Workplace', accountEnabled: true },
+  ];
+  const w = world({ devreg: 'required', devices });
+  const prepared = w.I.prepareBundle(w.S.bundle());
+  const pf = await w.I.preflight(prepared, w.I.plan(prepared, []), { tenantKey: 't9' });
+  const by = Object.fromEntries(pf.checks.map((c) => [c.key, c]));
+  assert.equal(by.devreg.level, 'warn');
+  assert.match(by.devreg.detail, /CA007/);
+  assert.equal(by.unmanaged.level, 'warn');
+  assert.match(by.unmanaged.title, /CA008 would treat 3 enabled devices as unmanaged/);
+  assert.match(by.unmanaged.detail, /1 hybrid-joined Windows PC, 1 Mac not Entra joined \(no Platform SSO yet\), 1 Windows PC only registered/);
+  assert.match(by.unmanaged.detail, /2 Entra joined/);
+  const w2 = world({ devreg: 'notRequired', devices: devices.filter((d) => d.trustType === 'AzureAD') });
+  const p2 = w2.I.prepareBundle(w2.S.bundle());
+  const pf2 = await w2.I.preflight(p2, w2.I.plan(p2, []), { tenantKey: 't10' });
+  const by2 = Object.fromEntries(pf2.checks.map((c) => [c.key, c]));
+  assert.equal(by2.devreg.level, 'ok');
+  assert.equal(by2.unmanaged.level, 'ok');
+  // not choosing CA007 / CA008: neither check is asked
+  const w3 = world({ devreg: 'required' });
+  const p3 = w3.I.prepareBundle(w3.S.bundle());
+  const pf3 = await w3.I.preflight(p3, w3.I.plan(p3, []).filter((p) => !/^CA00[78]/.test(p.name)), { tenantKey: 't11' });
+  assert.equal(pf3.checks.some((c) => c.key === 'devreg' || c.key === 'unmanaged'), false);
 });

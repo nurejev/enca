@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32903, date: "2026-10-19", title: "SMB Basic 1.0.2: device join, unmanaged desktops and the admin portals",
+    items: [
+      { kind: "new", tool: "Baseline", text: "SMB Basic CA007: registering or joining a device to Entra needs MFA or a Temporary Access Pass. It is only enforced while the device setting Require MFA to register or join devices is No, and the import checks that setting." },
+      { kind: "new", tool: "Baseline", text: "SMB Basic CA008: on a Windows PC or Mac that is not Entra joined, a session lasts 4 hours and is never kept in the browser. Hybrid joined counts as unmanaged; a Mac counts as joined once Platform SSO has registered it. Phones and tablets are not in it: they stay BYOD with app protection and the Global Secure Access client." },
+      { kind: "improved", tool: "Baseline", text: "SMB Basic CA005 asks MFA for the Microsoft admin portals as well as Azure management, and leaves the directory sync accounts out. The catalog is release 1.0.2 with 17 policies; a tenant on 1.0.1 sees CA005 as Outdated and CA007 and CA008 as Missing." },
+      { kind: "improved", tool: "Import", text: "The pre-flight checks the device setting Require MFA to register or join devices when the run includes a register-or-join policy, and counts the Windows PCs and Macs that a not-Entra-joined policy would treat as unmanaged: hybrid joined, Macs without Platform SSO, registered only." },
+    ],
+  },
+  {
     build: 32902, date: "2026-10-19", title: "SMB Basic 1.0.1, and an import that does not stop half-way",
     items: [
       { kind: "improved", tool: "Baseline", text: "SMB Basic CA901 asks the break-glass accounts for a passkey: a security key, a passkey in Microsoft Authenticator, or a synced passkey when the Passkey (FIDO2) profile that targets them allows synced passkeys. The strength is now SMB - Passkey (FIDO2)." },

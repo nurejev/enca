@@ -1970,6 +1970,44 @@ const Importer = (() => {
       else add("breakglass", "ok", `${bgName}: ${n} member${n === 1 ? "" : "s"}`, "");
     }
 
+    // 32903 (SMB Basic 1.0.2): a policy on the Register or join devices user
+    // action is only enforced while the device setting "Require MFA to
+    // register or join devices" is No (Learn, policy-all-users-device-
+    // registration) — read it from the device registration policy.
+    const joins = chosen.filter((p) => ((p.raw && p.raw.conditions && p.raw.conditions.applications && p.raw.conditions.applications.includeUserActions) || []).some((a) => /registerdevice/i.test(String(a))));
+    if (joins.length) {
+      let drp = null, err = null;
+      try { drp = await Graph.gget("/policies/deviceRegistrationPolicy"); } catch (e) { err = e.message || String(e); }
+      const mfa = drp && String(drp.multiFactorAuthConfiguration || "").toLowerCase();
+      const names = joins.map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]).join(", ");
+      if (err) add("devreg", "info", "The device registration setting could not be read", `${err}. ${names} is only enforced while Require MFA to register or join devices is No (Entra ID → Devices → Device settings).`);
+      else if (mfa === "required" || mfa === "1") add("devreg", "warn", "Device setting “Require MFA to register or join devices” is Yes", `${names} is not enforced while it is — set it to No (Entra ID → Devices → Device settings); the policy then asks the MFA instead.`);
+      else add("devreg", "ok", "Device setting “Require MFA to register or join devices” is No", `${names} will be enforced.`);
+    }
+    // 32903: a policy that treats every Windows PC or Mac that is not Entra
+    // joined as unmanaged (device.trustType -ne "AzureAD") — say whom it
+    // reaches: hybrid joined Windows, registered-only Macs (no Platform SSO)
+    // and registered Windows PCs.
+    const unmanaged = chosen.filter((p) => /trustType\s+-ne\s+"?AzureAD"?/i.test(((p.raw && p.raw.conditions && p.raw.conditions.devices && p.raw.conditions.devices.deviceFilter) || {}).rule || ""));
+    if (unmanaged.length) {
+      let devs = null, err = null;
+      try { devs = await Graph.ggetAll("/devices?$select=id,operatingSystem,trustType,accountEnabled&$top=999", 20000); } catch (e) { err = e.message || String(e); }
+      const names = unmanaged.map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]).join(", ");
+      if (err) add("unmanaged", "info", "Devices could not be read", `${err}. ${names} treats every Windows PC and Mac that is not Entra joined as unmanaged: 4-hour sessions, nothing kept in the browser.`);
+      else {
+        const on = (devs || []).filter((d) => d && d.accountEnabled !== false);
+        const os = (d) => String(d.operatingSystem || "").toLowerCase();
+        const win = (d) => /windows/.test(os(d)), mac = (d) => /mac/.test(os(d));
+        const hybrid = on.filter((d) => win(d) && d.trustType === "ServerAD").length;
+        const macReg = on.filter((d) => mac(d) && d.trustType !== "AzureAD").length;
+        const winReg = on.filter((d) => win(d) && d.trustType === "Workplace").length;
+        const joined = on.filter((d) => (win(d) || mac(d)) && d.trustType === "AzureAD").length;
+        const bits = [hybrid && `${hybrid} hybrid-joined Windows PC${hybrid === 1 ? "" : "s"}`, macReg && `${macReg} Mac${macReg === 1 ? "" : "s"} not Entra joined (no Platform SSO yet)`, winReg && `${winReg} Windows PC${winReg === 1 ? "" : "s"} only registered`].filter(Boolean);
+        add("unmanaged", bits.length ? "warn" : "ok", bits.length ? `${names} would treat ${hybrid + macReg + winReg} enabled device${hybrid + macReg + winReg === 1 ? "" : "s"} as unmanaged` : `${names}: every enabled Windows PC and Mac here is Entra joined`,
+          `${bits.length ? bits.join(", ") + " — 4-hour sessions, nothing kept in the browser, until they are Entra joined (Macs: Platform SSO). " : ""}${joined} Entra joined. Home PCs and browsers Entra does not know get it too.`);
+      }
+    }
+
     if (opts.sdOn) add("sd", "info", "Security defaults is on", "Entra refuses On while it is: new policies land Report-only or Off, and ⇄ on 🧬 Baseline makes the switch.");
     const blocked = checks.some((c) => c.level === "block");
     return { checks, repair, blocked, present: present.names.size, readAt: Date.now() };

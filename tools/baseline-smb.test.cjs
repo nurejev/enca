@@ -64,15 +64,15 @@ function world(opts = {}) {
 }
 const nameOf = (w, gid) => (w.groups.get(gid) || {}).displayName || `MISSING ${gid}`;
 
-test('the catalog: 15 policies in four sections, numbered where every tool reads a CA number', () => {
+test('the catalog: 17 policies in four sections, numbered where every tool reads a CA number', () => {
   const { S } = world();
-  assert.equal(S.policies.length, 15);
-  assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 101, 102, 103, 104, 201, 202, 203, 204, 901]);
+  assert.equal(S.policies.length, 17);
+  assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 7, 8, 101, 102, 103, 104, 201, 202, 203, 204, 901]);
   for (const p of S.policies) {
-    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.1)?$/, p.name);
+    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[12])?$/, p.name);
     assert.equal(S.personaOfPolicy(S, p.name) != null, true, `${p.name} has a section`);
   }
-  assert.equal(new Set(S.policies.map((p) => p.name)).size, 15, 'names are unique');
+  assert.equal(new Set(S.policies.map((p) => p.name)).size, 17, 'names are unique');
   assert.equal(S.adminRoles.length, 16, 'the 16 roles security defaults names (Learn, Oct 2026)');
 });
 
@@ -96,7 +96,7 @@ test('the contract: exclusion group per policy, a unit per section, break-glass 
   assert.equal(c.codeForGroup('CAB-SEC-U-CA001-Exclusion'), null, "CloudFellows' group is not SMB's");
   assert.deepEqual(plain(['GLO', 'ADM', 'CN', 'BreakGlass'].map((k) => c.auName(k))), ['CA-RMAU-SMB-BASE', 'CA-RMAU-SMB-ADM', 'CA-RMAU-SMB-CN', 'CA-RMAU-BreakGlass']);
   assert.equal(c.personaOfPolicy('CA001-GRANT-Global-IP-AnyApp-AnyPlatform-MFA-v1.0.3'), null, "a CA001 without SMB is someone else's");
-  assert.equal(c.templates().length, 16, 'break-glass + one per policy');
+  assert.equal(c.templates().length, 18, 'break-glass + one per policy');
 });
 
 test('among the catalogs: third, no shared E-Admins expected, Emergency_Access groups not expected', () => {
@@ -107,14 +107,14 @@ test('among the catalogs: third, no shared E-Admins expected, Emergency_Access g
   assert.ok(B.sharedPolicies(B.catalog('joey')).length > 0, 'Joey still gets them');
   assert.equal(B.sharedGroups(smb).filter((g) => g.family === 'eadmins' && g.expected).length, 0);
   const r = B.compare([], 'smb');
-  assert.equal(r.rows.filter((x) => x.status === 'missing').length, 15);
+  assert.equal(r.rows.filter((x) => x.status === 'missing').length, 17);
 });
 
 test('compare: a tenant holding the SMB policies is Up to date, and CloudFellows names do not pass for them', () => {
   const { B, S } = world();
   const vms = S.policies.map((p) => ({ id: `t${p.num}`, name: p.name }));
   const r = B.compare(vms, 'smb');
-  assert.equal(r.rows.filter((x) => x.status === 'ok').length, 15);
+  assert.equal(r.rows.filter((x) => x.status === 'ok').length, 17);
   const cf = B.compare([{ id: 'x', name: 'CA001-BLOCK-Global-ASR-AnyApp-AnyPlatform-CountryWhitelist-v1.0.2' }], 'smb');
   assert.notEqual(cf.rows.find((x) => x.num === 1).status, 'ok');
 });
@@ -125,7 +125,7 @@ test('import of ENCA\'s own copy: groups, location and passkey strength by name;
   assert.equal(w.I.catalogOfBundle(bundle), 'smb');
   const prepared = w.I.prepareBundle(bundle);
   const chosen = w.I.plan(prepared, []).filter((p) => !p.exists);
-  assert.equal(chosen.length, 15);
+  assert.equal(chosen.length, 17);
   assert.deepEqual(plain(chosen.filter((p) => p.forceOff).map((p) => p.num)), [103, 201, 202, 203, 204]);
   const scoped = w.I.scopeBundle(prepared, chosen.map((p) => p.raw));
   const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((p) => p.name) });
@@ -133,10 +133,10 @@ test('import of ENCA\'s own copy: groups, location and passkey strength by name;
   const bad = res.results.filter((r) => !r.ok);
   assert.deepEqual(plain(bad.map((r) => `${r.name}: ${r.error}`)), []);
   const created = [...w.pols.values()];
-  assert.equal(created.length, 15);
+  assert.equal(created.length, 17);
   const st = Object.fromEntries(created.map((p) => [p.displayName.slice(0, 5), p.state]));
   for (const k of ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']) assert.equal(st[k], 'disabled', k);
-  for (const k of ['CA001', 'CA002', 'CA003', 'CA004', 'CA005', 'CA006', 'CA101', 'CA102', 'CA104', 'CA901']) assert.equal(st[k], 'enabledForReportingButNotEnforced', k);
+  for (const k of ['CA001', 'CA002', 'CA003', 'CA004', 'CA005', 'CA006', 'CA007', 'CA008', 'CA101', 'CA102', 'CA104', 'CA901']) assert.equal(st[k], 'enabledForReportingButNotEnforced', k);
   // every exclusion is this tenant's group, by name
   const by = (n) => created.find((p) => p.displayName.startsWith(n));
   assert.deepEqual(by('CA001').conditions.users.excludeGroups.map((g) => nameOf(w, g)).sort(), ['CAB-SEC-U-BreakGlass', 'CAB-SEC-U-SMB-CA001-Exclusion']);
@@ -144,7 +144,7 @@ test('import of ENCA\'s own copy: groups, location and passkey strength by name;
   assert.deepEqual(by('CA901').conditions.users.excludeGroups.map((g) => nameOf(w, g)), ['CAB-SEC-U-SMB-CA901-Exclusion']);
   assert.equal(by('CA004').conditions.users.includeRoles.length, 16);
   assert.deepEqual(by('CA001').conditions.users.includeUsers, ['All'], 'as shipped: All users, never a deploy group');
-  assert.equal(w.groups.size, 16);
+  assert.equal(w.groups.size, 18);
   assert.ok(w.posts.some(([u, b]) => u === '/identity/conditionalAccess/namedLocations' && b.displayName === 'SMB - Allowed countries'));
   assert.ok(w.posts.some(([u, b]) => /authenticationStrengthPolicies/.test(u) && b.displayName === 'SMB - Passkey (FIDO2)' && b.allowedCombinations.join() === 'fido2'));
   assert.equal(by('CA201').conditions.locations.excludeLocations[0], '3d46dbda-8382-466a-856d-eb00cbc6b910', 'Microsoft\'s compliant network location, as-is');
@@ -158,7 +158,7 @@ test('import on a tenant without Global Secure Access: the compliant-network pol
   const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((p) => p.name) });
   const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped' });
   assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => r.name.slice(0, 5)).sort()), ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']);
-  assert.equal(res.results.filter((r) => r.ok).length, 10);
+  assert.equal(res.results.filter((r) => r.ok).length, 12);
 });
 
 test('security defaults: the SMB policies cover all four protections plus Azure management, and the switch is CA001–CA005', () => {
@@ -207,10 +207,11 @@ test('32817 exclusions: every policy its own group, break-glass out of all but C
     const want = [`CAB-SEC-U-SMB-CA${String(num).padStart(3, '0')}-Exclusion`, ...(num === 901 ? [] : ['CAB-SEC-U-BreakGlass'])].sort();
     assert.deepEqual(plain(ex), want, p.displayName);
     const everyoneEverywhere = (u.includeUsers || []).includes('All') && (p.conditions.applications.includeApplications || []).includes('All');
-    assert.deepEqual(plain((u.excludeRoles || []).slice().sort()), everyoneEverywhere ? SYNC.slice().sort() : [], `${p.displayName}: sync roles`);
+    // 1.0.2: CA005 (admin portals + Azure management, all users) leaves them out too
+    assert.deepEqual(plain((u.excludeRoles || []).slice().sort()), everyoneEverywhere || num === 5 ? SYNC.slice().sort() : [], `${p.displayName}: sync roles`);
     // guests are out where they cannot comply (registration, compliant network)
     const guestsOut = !!u.excludeGuestsOrExternalUsers;
-    assert.equal(guestsOut, [6, 201, 202, 203, 204].includes(num), `${p.displayName}: guests`);
+    assert.equal(guestsOut, [6, 7, 201, 202, 203, 204].includes(num), `${p.displayName}: guests`);
     // nobody is excluded by user id — ids never travel between tenants
     assert.deepEqual(plain(u.excludeUsers), [], p.displayName);
   }
@@ -265,12 +266,14 @@ test('32817 gap matrix under SMB Basic: sections, not CloudFellows personas — 
 
 test('32817 a tenant on 1.0: the eight changed policies read Outdated, and Match & replace brings the sync-role exclusion along', async () => {
   const w = world();
-  const v10 = (n) => n.replace(/-v1\.0\.1$/, '-v1.0').replace('-Passkey-', '-FIDO2-');
-  const tenant = w.S.bundle().policies.map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
+  const v10 = (n) => n.replace(/-v1\.0\.[12]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
+  // 1.0 had no CA007 and CA008 (added in 1.0.2)
+  const tenant = w.S.bundle().policies.filter((p) => !/^CA00[78]-/.test(p.displayName)).map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
   for (const t of tenant) { delete t.conditions.users.excludeRoles; t.state = 'enabledForReportingButNotEnforced'; w.pols.set(t.id, t); }
   const r = w.B.compare(tenant.map((t) => ({ id: t.id, name: t.displayName })), 'smb');
-  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'outdated').map((x) => x.num).sort((a, b) => a - b)), [1, 2, 3, 201, 202, 203, 204, 901]);
-  assert.equal(r.rows.filter((x) => x.status === 'ok').length, 7);
+  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'outdated').map((x) => x.num).sort((a, b) => a - b)), [1, 2, 3, 5, 201, 202, 203, 204, 901]);
+  assert.equal(r.rows.filter((x) => x.status === 'ok').length, 6);
+  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'missing').map((x) => x.num)), [7, 8]);
   const prepared = w.I.prepareBundle(w.S.bundle());
   const chosen = w.I.plan(prepared, tenant).filter((p) => p.upgrade && p.num === 1);
   assert.equal(chosen.length, 1);
@@ -280,4 +283,28 @@ test('32817 a tenant on 1.0: the eight changed policies read Outdated, and Match
   assert.equal(res.results[0].ok, true, res.results[0].error);
   const made = [...w.pols.values()].find((p) => p.displayName === 'CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1.0.1');
   assert.deepEqual(plain(made.conditions.users.excludeRoles.slice().sort()), ['a92aed5d-d78a-4d16-b381-09adb37eb3b0', 'd29b2b05-8046-44ba-8758-1e26182fcf32']);
+});
+
+test('1.0.2 (the guide\'s Appendix 1): CA005 adds the admin portals, CA007 guards device join, CA008 holds unmanaged Windows and Macs to 4 hours', () => {
+  const { S } = world();
+  const b = S.bundle();
+  const by = (n) => b.policies.find((p) => p.displayName.startsWith(n));
+  assert.equal(S.release, '1.0.2');
+  assert.deepEqual(plain(by('CA005').conditions.applications.includeApplications), ['MicrosoftAdminPortals', '797f4846-ba00-4fd7-ba43-dac1f8f63013']);
+  const ca7 = by('CA007');
+  assert.equal(ca7.displayName, 'CA007-GRANT-SMB-Global-RegisterOrJoinDevices-AnyPlatform-MFA-v1.0.2');
+  assert.deepEqual(plain(ca7.conditions.applications.includeUserActions), ['urn:user:registerdevice']);
+  assert.deepEqual(plain(ca7.conditions.applications.includeApplications), []);
+  assert.equal(ca7.grantControls.authenticationStrength.id, '00000000-0000-0000-0000-000000000002', 'the built-in Multifactor authentication strength (TAP accepted)');
+  assert.equal(ca7.conditions.devices, undefined, 'Learn: no device filter with this user action');
+  const ca8 = by('CA008');
+  assert.equal(ca8.displayName, 'CA008-SESSION-SMB-Global-AnyApp-WindowsOrMacOS-Unmanaged-SIF4h-NeverPersistent-v1.0.2');
+  assert.deepEqual(plain(ca8.conditions.platforms.includePlatforms), ['windows', 'macOS']);
+  assert.deepEqual(plain(ca8.conditions.devices.deviceFilter), { mode: 'include', rule: 'device.trustType -ne "AzureAD"' });
+  assert.deepEqual(plain(ca8.conditions.applications.includeApplications), ['All'], 'persistent browser needs all resources');
+  assert.equal(ca8.grantControls, null);
+  assert.deepEqual(plain([ca8.sessionControls.signInFrequency.value, ca8.sessionControls.signInFrequency.type, ca8.sessionControls.persistentBrowser.mode]), [4, 'hours', 'never']);
+  assert.equal(b.forceOff.includes(ca8.displayName), false, 'lands as the run lands — Report-only from the security-defaults card');
+  const cat = Object.fromEntries(S.policies.map((p) => [p.num, p.tag]));
+  assert.deepEqual(plain([cat[5], cat[7], cat[8]]), ['UP', 'NEW', 'NEW']);
 });
