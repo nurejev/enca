@@ -80,6 +80,9 @@ const Baseline = (() => {
       const live = typeof BaselineLive !== "undefined" ? BaselineLive.catalog() : null;
       out.push(live || BASELINE_JOEY);
     }
+    // 32816 (R91): SMB Basic — security defaults rebuilt as CA, plus Global
+    // Secure Access, stricter admins and a break-glass policy. Bundled.
+    if (typeof BASELINE_SMB !== "undefined") out.push(BASELINE_SMB);
     return out;
   }
   const catalog = (id) => catalogs().find((c) => c.id === id) || catalogs()[0];
@@ -399,6 +402,8 @@ const Baseline = (() => {
   // the other catalog's repository can say it does not ship them.
   function sharedPolicies(cat) {
     if (!cat || cat.id === DEFAULT_ID || typeof BASELINE === "undefined") return [];
+    // a catalog that covers its own admins and break-glass (SMB Basic) says so
+    if (cat.sharedEAdmins === false) return [];
     return (BASELINE.policies || []).filter((p) => personaKey(p.name) === "eadmin")
       .map((p) => ({ ...p, persona: "🚨 E-Admins", shared: "CloudFellows" }));
   }
@@ -443,7 +448,9 @@ const Baseline = (() => {
     const own = !c || c.id === DEFAULT_ID;
     const out = eAdminsGroupNames().map((name) => ({
       name, family: "eadmins",
-      expected: own || name.toLowerCase() !== CF_BREAKGLASS.toLowerCase(),
+      // a catalog without the shared E-Admins (SMB Basic) recognises their
+      // groups where a tenant has them, and expects none of them
+      expected: c && c.sharedEAdmins === false ? false : own || name.toLowerCase() !== CF_BREAKGLASS.toLowerCase(),
     }));
     for (const name of CF_PREDEFINED) {
       if (isDeployGroup(name)) out.push({ name, family: "deploy", expected: false });
@@ -818,7 +825,7 @@ const Baseline = (() => {
     return {
       from: { id: from.id, label: from.label, icon: from.icon || "🧬", groups: tplFrom.length, vaults: vaultsFrom, defaultAu: from.defaultAuName, breakGlass: from.breakGlassGroup, mapCount: (f.mapFrom || []).length },
       to: { id: to.id, label: to.label, icon: to.icon || "🧬", release: to.release, source: to.source, defaultAu: to.defaultAuName, breakGlass: to.breakGlassGroup, mapCount: (f.mapTo || []).length,
-        exclusionShape: to.id === "joey" ? "“<policy name> - Exclude”" : "CAB-SEC-U-CAnnn-Exclusion" },
+        exclusionShape: to.exclusionShape || (to.id === "joey" ? "“<policy name> - Exclude”" : "CAB-SEC-U-CAnnn-Exclusion") },
       groupsTo, groupsExist: groupsTo.filter((g) => g.exists).length,
       vaults, routing,
       scanned: groups.length, ausScanned: aus.length,

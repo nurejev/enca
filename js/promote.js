@@ -175,6 +175,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 353,
+      ws: "ca",
+      title: "🏢 SMB Basic — a third Conditional Access baseline (R91)",
+      tools: ["Baseline", "Import", "Guided rollout"],
+      builds: [32816],
+      risk: "medium",
+      what: "js/baselineSmbData.js (new): BASELINE_SMB, 15 policies CA001-CA006 / CA101-CA104 / CA201-CA204 / CA901 named CAnnn-KIND-SMB-..., the Joey-shaped contract (personaOfPolicy, codeForGroup, exclusionGroupFor, templates, auName by section), sharedEAdmins false, and bundle(): a raw backup bundle with 16 groups, SMB - Allowed countries, the built-in MFA and phishing-resistant strengths, a custom SMB - FIDO2 security key, forceOff for CA103 and CA201-CA204. js/baseline.js: catalogs() lists it; sharedPolicies and sharedGroups honour sharedEAdmins false; exclusionShape from the catalog. js/secdefaults.js: optional azureMgmt protection (joins the switch, never gates it), SMB card text. js/app.js: imSmbLoad (setActive smb, then imLoaded), sdPick smb, Import baseline for smb, Guided rollout action smb, SMB texts in the convention, unit and guide panels. js/workspace.js: SMB source card. index.html: script tag, tile, Help (Baseline, Import), roadmap R91.",
+      why: "Mihai, 19 Oct: a third CA baseline, SMB basic: security defaults with GSA policies, extra requirements for admins and something for the break-glass. Mockup approved with: no compliant device (SMB tenants do not enrol admin devices), compliant network with GSA instead; protect security-info registration; an exclusion group per policy and an RMAU per section; the break-glass RMAU also holds the accounts; the whole framework must embrace it like Joey and CloudFellows; break-glass alert left for later.",
+      carveout: "None beyond the usual: the new file plus the hunks in baseline.js, secdefaults.js, app.js, workspace.js and index.html port as they are; promote.js stays beta-only.",
+      test: [
+        "Beta, ?demo=1: 🧬 Baseline, the picker shows 🏢 SMB Basic third; pick it — 15 rows in four sections (Base, Admins, Compliant network, Break-glass), no 🚨 E-Admins section.",
+        "Beta, ?demo=1: Import baseline on SMB Basic opens 📥 Import with 15 policies, 16 groups, 1 named location and 3 strengths; assignment mode is As shipped; CA103 and CA201-CA204 say new policy, Off in the confirmation.",
+        "Beta, ?demo=sd: the security-defaults card lists three baselines; SMB Basic reads carried by ENCA and its button is Deploy in Report-only.",
+        "Beta, devcf or a test tenant WITHOUT Global Secure Access: import SMB Basic — CA001-CA006, CA101, CA102, CA104 and CA901 land; the five compliant-network policies are reported as refused or land Off; groups CAB-SEC-U-SMB-CA001-Exclusion ... and the location SMB - Allowed countries exist.",
+        "Same tenant: 🛡 Restricted AUs, the baseline panel offers CA-RMAU-SMB-BASE, -ADM, -CN and CA-RMAU-BreakGlass; 🔒 Protect exclusions files every SMB exclusion group by CA number into its section's unit and offers the break-glass accounts for CA-RMAU-BreakGlass.",
+        "A security-defaults tenant: deploy SMB Basic from the card, then the band shows MFA for Azure management ticked by CA005; ⇄ switch lists CA001-CA005 to go On, CA006 and the admin policies stay Report-only.",
+        "👥 CA groups under SMB Basic: Emergency_Access1/2 are not reported missing.",
+      ],
+    },
+    {
       n: 352,
       ws: "entra",
       title: "🌐 Global Secure Access 0.15.1: no false filter warning, and a read that cannot hang in silence",

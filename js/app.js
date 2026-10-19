@@ -10316,7 +10316,7 @@ This is a directory write. Nothing else changes.`)) return;
     };
     const idx = new Map(asPlan.map((r, i) => [r, i]));
     return `<h4 class="mini" style="margin-bottom:6px">CONVENTION EXCLUSIONS — ${total} POLIC${total === 1 ? "Y" : "IES"} IN SCOPE</h4>
-      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — ${Baseline.activeCatalogId() === "joey" ? "“&lt;policy name&gt; - Exclude”, named after the policy" : "CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion"} (the ${esc(Baseline.active().label)} convention) — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
+      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — ${Baseline.activeCatalogId() === "joey" ? "“&lt;policy name&gt; - Exclude”, named after the policy" : Baseline.activeCatalogId() === "smb" ? "CA001 gets CAB-SEC-U-SMB-CA001-Exclusion, CA101 gets CAB-SEC-U-SMB-CA101-Exclusion" : "CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion"} (the ${esc(Baseline.active().label)} convention) — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 10px;flex-wrap:wrap">
         <span class="tag ok">✅ ${c.present || 0} already correct</span>
         <span class="tag new">⚠️ ${missing.length} missing the reference</span>
@@ -11636,6 +11636,11 @@ This is a directory write. Nothing else changes.`)) return;
     const n = res ? res.toImport.length : 0;
     const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
       + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"}, added from ENCA's own copy (or ＋ Create below)` : "") + ". ";
+    if (res && res.catalog.id === "smb") {
+      const only = new Set(res.toImport.map((r) => r.baseline.name));
+      if (await imSmbLoad({ only })) $("imDesc").textContent = gapNote() + `From ENCA's own copy of ${res.catalog.label} ${res.catalog.release}: the ${only.size} in the gap are ticked. 🧩 As shipped creates the exclusion groups and the break-glass group by name; CA103 and CA201–CA204 land Off.`;
+      return;
+    }
     if (res && res.catalog.id === "joey" && typeof BaselineLive !== "undefined" && !isDemo) {
       const btn = $("blImport");
       btn.disabled = true;
@@ -11712,7 +11717,9 @@ This is a directory write. Nothing else changes.`)) return;
     return Baseline.catalogs().map((c0) => {
       const c = Baseline.withContract(c0) || c0;
       const n = (c.policies || []).length, p2 = p2Of(c), pv = purviewOf(c);
-      const points = c.id === "limonit"
+      const points = c.id === "smb"
+        ? [`No personas — ${(c.adminRoles || []).length} admin roles, break-glass ${c.breakGlassGroup}`, "Security defaults as Conditional Access, plus Global Secure Access, stricter admins and a break-glass policy", "Carried by ENCA — an exclusion group per policy, a restricted unit per section"]
+        : c.id === "limonit"
         ? [`Persona model — ${(c.personaGroups || []).length} persona groups, break-glass ${c.breakGlassGroup}`, "Loaded from your CloudFellows baseline backup ZIP, the six 🚨 E-Admins included"]
         : ["Fewer, broader policies — his groups created by name", "Fetched live from his GitHub repository", `The six 🚨 E-Admins policies are created with it, from ENCA's own copy`];
       if (secCaps && secCaps.p2 === false && p2) points.push(`${p2} risk ${p2 === 1 ? "policy needs" : "policies need"} Entra ID P2 — held back here`);
@@ -11745,9 +11752,28 @@ This is a directory write. Nothing else changes.`)) return;
     if (overviewToo) { try { renderOverview({ force: true }); } catch { /* not painted yet */ } }
   }
 
-  // Step ①, either baseline: 📥 Import, new policies landing Report-only.
+  // 32816 (R91): SMB Basic is carried by ENCA, so its import needs no ZIP
+  // and no repository read. Choosing to deploy it is choosing it: it becomes
+  // the tenant's active baseline FIRST, so the import's restricted-unit step
+  // offers ITS units (CA-RMAU-SMB-BASE / -ADM / -CN, CA-RMAU-BreakGlass) and
+  // files each exclusion group into its section's unit.
+  async function imSmbLoad(opts = {}) {
+    if (typeof BASELINE_SMB === "undefined") { toast("The SMB Basic catalog is not loaded in this build"); return false; }
+    try { Baseline.setActive("smb"); } catch (e) { console.warn("SMB active baseline:", e); }
+    $("toolImport").click();
+    if (opts.land) imLand = opts.land;
+    await imLoaded(BASELINE_SMB.bundle(), BASELINE_SMB.bundleLabel, opts.only ? { only: opts.only } : {});
+    return true;
+  }
+
+  // Step ①, any baseline: 📥 Import, new policies landing Report-only.
   async function sdPick(id) {
     const RO = "enabledForReportingButNotEnforced";
+    if (id === "smb") {
+      if (!(await imSmbLoad({ land: RO }))) return;
+      $("imDesc").textContent = `Step ① of moving off security defaults: ${BASELINE_SMB.label} ${BASELINE_SMB.release}, every policy ticked. New policies land Report-only — CA103 and CA201–CA204 land Off, they wait for 🌐 Global Secure Access. Nothing changes for users until ⇄ on the 🧬 Baseline screen, which turns CA001–CA005 On.`;
+      return;
+    }
     if (id === "joey") {
       if (isDemo || typeof BaselineLive === "undefined") {
         $("toolImport").click(); imLand = RO;
@@ -13170,7 +13196,7 @@ This is a directory write. Nothing else changes.`)) return;
 
     return `<div class="cg-panel" id="ruBasePanel">
       <h4>BASELINE — ONE RESTRICTED AU PER PERSONA</h4>
-      <p class="mini" style="margin:0 0 8px">One restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. ${Baseline.activeCatalogId() === "joey"
+      <p class="mini" style="margin:0 0 8px">One restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. ${Baseline.active() && Baseline.active().unitNote ? esc(Baseline.active().unitNote) : Baseline.activeCatalogId() === "joey"
         ? `The Joey Verlinden baseline defines no administrative units — the per-persona vault is ENCA's hardening on top of it, named <code>CA-RMAU-&lt;Persona&gt;-Exclusions</code> under his prefix, one per persona he defines (Global, Admins, Internals, Service accounts, Guests, Agents) plus break-glass.`
         : `Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).`}</p>
       <p style="margin:0 0 8px">${Baseline.activeChip()}</p>
@@ -14031,7 +14057,9 @@ This is a directory write. Nothing else changes.`)) return;
       if (!code) throw new Error("this administrative unit is not one of the baseline persona units, so there is no persona to gather groups for");
       let groups = [];
       if (isDemo) {
-        groups = Baseline.activeCatalogId() === "joey"
+        groups = Baseline.activeCatalogId() === "smb"
+          ? [{ id: "d1", displayName: "CAB-SEC-U-SMB-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-SMB-CA102-Exclusion" }]
+          : Baseline.activeCatalogId() === "joey"
           ? [{ id: "d1", displayName: "CA101-Admins-IdentityProtection-AnyApp-AnyPlatform-MFA - Exclude" }, { id: "d2", displayName: "CA102-Admins-IdentityProtection-AllApps-AnyPlatform-SigninFrequency - Exclude" }]
           : [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
       } else {
@@ -15364,7 +15392,7 @@ This is a directory write. Nothing else changes.`)) return;
       <p style="margin-bottom:4px">The deployment order with the <b>reason</b> for each step, not just the sequence — and, once the tenant has been read, a readiness check per step that says what is missing <b>before</b> you run it instead of after.</p>
       <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>
       <p style="margin:8px 0 0">${Baseline.activeChip()}</p>
-      ${Guide.activeId() === "joey" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. The <b>readiness checks</b> read the active baseline — Joey Verlinden's groups, his persona units and his policies — but his persona model is Global / Admins / Internals / Service accounts / Guests / Agents, and his CA300 block is service accounts, not externals. Read the ranges in step 1 as his catalog lists them, not as the prose describes them.</p>` : ""}`;
+      ${Guide.activeId() === "smb" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. Under SMB Basic there are no persona or deploy groups: the readiness checks read its own groups (one exclusion group per policy, the break-glass group) and its four units (CA-RMAU-SMB-BASE, -ADM, -CN and CA-RMAU-BreakGlass). Skip the persona and deploy-group steps.</p>` : ""}${Guide.activeId() === "joey" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. The <b>readiness checks</b> read the active baseline — Joey Verlinden's groups, his persona units and his policies — but his persona model is Global / Admins / Internals / Service accounts / Guests / Agents, and his CA300 block is service accounts, not externals. Read the ranges in step 1 as his catalog lists them, not as the prose describes them.</p>` : ""}`;
     if (ugBusy) return;   // the run panel owns ugBody until the read finishes
 
     if (!ugRes) {
@@ -30596,6 +30624,9 @@ This is a directory write. Nothing else changes.`)) return;
     action: name => {
       const ids = { policies: "toolPolicies", baseline: "toolBaseline", groups: "toolCaGroups", checks: "toolGapCheck", whatif: "toolWhatIf", import: "toolImport" };
       if (name === "deploy") openRollout();
+      else if (name === "smb") {
+        imSmbLoad({}).then((ok) => { if (ok) $("imDesc").textContent = `${BASELINE_SMB.label} ${BASELINE_SMB.release} from ENCA's own copy: review the policies and the restricted-unit step before importing. CA103 and CA201–CA204 land Off.`; });
+      }
       else if (name === "cloudfellows") {
         $("toolImport").click();
         $("imDesc").textContent = "Choose the CloudFellows baseline backup ZIP. Its policies and dependencies will be listed for review before import.";

@@ -30,7 +30,8 @@
 const SecDefaults = (() => {
   const PATH = "/v1.0/policies/identitySecurityDefaultsEnforcementPolicy";
   const GA = "62e90394-69f5-4237-9190-012177145e10";   // Global Administrator (role template id)
-  const MFA_STRENGTH = "00000000-0000-0000-0000-000000000002";   // built-in "Multifactor authentication"
+  const MFA_STRENGTH = "00000000-0000-0000-0000-000000000002";
+  const AZURE_MGMT = "797f4846-ba00-4fd7-ba43-dac1f8f63013";   // Windows Azure Service Management API   // built-in "Multifactor authentication"
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const when = (t) => t ? new Date(t).toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
   const STATE = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
@@ -102,6 +103,12 @@ const SecDefaults = (() => {
       test: (r) => allUsers(r) && allApps(r) && isBlock(r) && has(r.conditions && r.conditions.clientAppTypes, "exchangeActiveSync") && has(r.conditions && r.conditions.clientAppTypes, "other") },
     { key: "deviceCode", label: "Block device code flow", sd: "Security defaults blocks the device code flow.",
       test: (r) => allUsers(r) && isBlock(r) && transfers(r).includes("deviceCodeFlow") },
+    // 32816 (R91): security defaults also asks MFA for Azure Resource Manager
+    // (portal, PowerShell, CLI). OPTIONAL — it joins the switch when a policy
+    // does it (SMB Basic CA005) and never holds the switch back, because the
+    // CloudFellows and Joey catalogs cover it inside their all-users MFA.
+    { key: "azureMgmt", optional: true, label: "MFA for Azure management", sd: "Security defaults asks every user for MFA on the Azure portal, Azure PowerShell and Azure CLI.",
+      test: (r) => allUsers(r) && has(apps(r).includeApplications, AZURE_MGMT) && asksMfa(r) && !narrowed(r) },
   ];
 
   // vms: the app's view models ({ id, name, state, raw, users:{exc} }).
@@ -112,14 +119,22 @@ const SecDefaults = (() => {
     const list = (vms || []).filter((p) => p && p.raw);
     const items = PROTECTIONS.map((pr) => {
       const hits = list.filter((p) => { try { return pr.test(p.raw); } catch { return false; } });
-      return { key: pr.key, label: pr.label, sd: pr.sd, ok: hits.length > 0,
+      return { key: pr.key, label: pr.label, sd: pr.sd, optional: !!pr.optional, ok: hits.length > 0,
         // a strength other than the built-in "Multifactor authentication" one
         // (which is MFA by another name) asks for methods security defaults never did
         policies: hits.map((p) => { const st = grant(p.raw).authenticationStrength; return { id: p.id, name: p.name, state: p.raw.state, strength: !!st && st.id !== MFA_STRENGTH }; }) };
     });
+    // The set that replaces security defaults: per protection, the policies
+    // that do it with plain MFA when there are any — a stricter strength on
+    // top (SMB Basic CA101 beside CA004) is not needed to replace security
+    // defaults and stays in the normal rollout. A protection only a strength
+    // policy covers (CloudFellows CA100) still brings that policy, flagged.
     const seen = new Set();
     const set = [];
-    for (const it of items) for (const p of it.policies) if (!seen.has(p.id)) { seen.add(p.id); set.push(p); }
+    for (const it of items) {
+      const plainMfa = it.policies.filter((p) => !p.strength);
+      for (const p of plainMfa.length ? plainMfa : it.policies) if (!seen.has(p.id)) { seen.add(p.id); set.push(p); }
+    }
     const toOn = set.filter((p) => p.state !== "enabled");
     // Break-glass: the group exists, has members, and every policy going On
     // excludes it. A switch that turns on MFA for all users without the
@@ -135,7 +150,7 @@ const SecDefaults = (() => {
     const bgItem = { key: "breakGlass", label: "Break-glass excluded", ok: bgOk, group: bg || null, members: members == null ? null : members, missingIn,
       why: !bg ? "this baseline names no break-glass group" : missingIn.length ? `not excluded by ${missingIn.join(", ")}` : members == null ? "its members are being read" : members === -1 ? "the group does not exist in this tenant" : members === -2 ? "its members could not be read — ⟳ Refresh to try again" : members === 0 ? "the group has no members — add the emergency accounts first" : null };
     const strengthOn = toOn.filter((p) => p.strength);
-    return { items, breakGlass: bgItem, set, toOn, strengthOn, ready: items.every((i) => i.ok) && bgOk && toOn.length > 0 };
+    return { items, breakGlass: bgItem, set, toOn, strengthOn, ready: items.every((i) => i.ok || i.optional) && bgOk && toOn.length > 0 };
   }
 
   // ---- HTML ------------------------------------------------------------
@@ -157,12 +172,12 @@ const SecDefaults = (() => {
     const cards = (ctx.catalogs || []).map((c) => `<div class="sd-bcard">
         ${c.id === "limonit" ? '<span class="sd-rec">default</span>' : ""}
         <h4>${esc(c.icon || "🧬")} ${esc(c.label)}</h4>
-        <div class="mini muted">${esc(c.release || "")} · ${c.total} policies${c.id === "joey" ? " · read live from GitHub" : " · from your baseline backup ZIP"}</div>
+        <div class="mini muted">${esc(c.release || "")} · ${c.total} policies${c.id === "joey" ? " · read live from GitHub" : c.id === "smb" ? " · carried by ENCA, nothing to download" : " · from your baseline backup ZIP"}</div>
         <ul class="mini">${(c.points || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-        <button class="btn lemon" data-sdpick="${esc(c.id)}"${disabled ? " disabled" : ""}>${c.id === "joey" ? "⟳ Fetch latest — deploy in Report-only →" : "📥 Choose ZIP — deploy in Report-only →"}</button>
+        <button class="btn lemon" data-sdpick="${esc(c.id)}"${disabled ? " disabled" : ""}>${c.id === "joey" ? "⟳ Fetch latest — deploy in Report-only →" : c.id === "smb" ? "📥 Deploy in Report-only →" : "📥 Choose ZIP — deploy in Report-only →"}</button>
       </div>`).join("");
     return `<div class="sd-choose-h"><b>Choose the baseline to deploy</b></div><div class="sd-choose">${cards}</div>
-      <p class="mini muted" style="margin:8px 0 0">Both open 📥 Import with the catalog ticked and new policies landing <b>Report-only</b> — On is not offered while security defaults is on. The licence check every import runs decides what is held back. Joey Verlinden's baseline brings the six shared 🚨 E-Admins policies along, created from ENCA's own copy.</p>`;
+      <p class="mini muted" style="margin:8px 0 0">Each opens 📥 Import with the catalog ticked and new policies landing <b>Report-only</b> — On is not offered while security defaults is on. The licence check every import runs decides what is held back. Joey Verlinden's baseline brings the six shared 🚨 E-Admins policies along, created from ENCA's own copy. SMB Basic needs none: its admin and break-glass policies are its own, and its Global Secure Access policies land <b>Off</b> until 🌐 Global Secure Access is green.</p>`;
   }
 
   // The card for a tenant with NO policies (the screenshot's case).
@@ -206,7 +221,7 @@ const SecDefaults = (() => {
     }
     if (kind !== "sd-on-policies" || !cov) return "";
     const nRO = (c.reportOnly || 0), nOff = (c.off || 0);
-    const cell = (it) => `<div class="sd-cv"><span class="k ${it.ok ? "ok" : "no"}">${it.ok ? "✓" : "✗"} ${esc(it.label)}</span><small>${it.ok
+    const cell = (it) => !it.ok && it.optional ? `<div class="sd-cv"><span class="k warn">○ ${esc(it.label)}</span><small>optional — no policy here does it on its own; the switch does not wait for it</small></div>` : `<div class="sd-cv"><span class="k ${it.ok ? "ok" : "no"}">${it.ok ? "✓" : "✗"} ${esc(it.label)}</span><small>${it.ok
       ? esc(it.policies.map((p) => `${(String(p.name).match(/CA\d{3,4}/) || [p.name])[0]} · ${STATE[p.state] || p.state}`).join(", "))
       : "no policy here does this yet — deploy it with the baseline"}</small></div>`;
     const bg = cov.breakGlass;

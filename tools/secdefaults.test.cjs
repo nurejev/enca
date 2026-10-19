@@ -54,7 +54,7 @@ test('coverage on the demo tenant after step ①: four replacing policies, break
   const { S } = load();
   const cov = S.coverage(vmOf(S, S.demoPolicies()), { breakGlass: 'CAB-SEC-U-BreakGlass', bgMembers: 2 });
   const by = Object.fromEntries(cov.items.map((i) => [i.key, i.policies.map((p) => p.name.slice(0, 5))]));
-  assert.deepEqual(plain(by), { mfaAll: ['CA000'], mfaAdmins: ['CA100'], legacy: ['CA002'], deviceCode: ['CA004'] });
+  assert.deepEqual(plain(by), { mfaAll: ['CA000'], mfaAdmins: ['CA100'], legacy: ['CA002'], deviceCode: ['CA004'], azureMgmt: [] }, 'azureMgmt (32816) is optional: nothing here does it, and the switch does not wait for it');
   assert.equal(cov.toOn.length, 4, 'CA101 (a persona group) and CA200 (internals) are not part of the switch');
   assert.equal(cov.breakGlass.ok, true);
   assert.equal(cov.ready, true);

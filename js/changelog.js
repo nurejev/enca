@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32816, date: "2026-10-19", title: "SMB Basic: a third Conditional Access baseline",
+    items: [
+      { kind: "new", tool: "Baseline", text: "A third catalog in the Baseline picker: SMB Basic, for small tenants on Business Premium. It is security defaults rebuilt as Conditional Access (MFA for everyone and for the 16 admin roles, legacy authentication and the device code flow blocked, MFA for Azure management) plus protected security-info registration, stricter admins (phishing-resistant MFA, 4-hour sessions, the compliant network, allowed countries), Global Secure Access per platform and a FIDO2-only break-glass policy. 15 policies, CA001 to CA901, an exclusion group per policy and a restricted unit per section; the break-glass unit also holds the break-glass accounts. No personas, deploy groups or shared E-Admins." },
+      { kind: "new", tool: "Baseline", text: "On a tenant still on security defaults, SMB Basic is the third choice on the card. Deploying it lands the policies Report-only (the Global Secure Access ones Off), and the switch turns CA001 to CA005 On. The switch now also counts a policy that asks MFA for Azure management, without waiting for one." },
+      { kind: "new", tool: "Import", text: "SMB Basic needs no ZIP and no download: Import baseline, the security-defaults card and Guided rollout load ENCA's own copy, create its groups, named location and FIDO2 strength by name, and make it the tenant's active baseline so its four restricted units are offered and filled." },
+    ],
+  },
+  {
     build: 32815, date: "2026-10-19", title: "Global Secure Access: a false filter warning and a board that never finished loading",
     items: [
       { kind: "fixed", tool: "Global Secure Access", text: "A policy and a script on the SAME group no longer read as having another filter than the script. Intune stores no filter as nothing on a policy and as an all-zeros id on a remediation, and the check compared the two. Seen on the Secure DNS off row in Limon-IT: assigned to INT-SEC-D-GSA-WIN-M365 like the install, with no filter on either side. Only a real filter is compared now." },
