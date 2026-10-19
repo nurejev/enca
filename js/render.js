@@ -126,13 +126,28 @@ const Render = (() => {
     900: "Workload identities", 1000: "DevOps", 1100: "E-Admins",
     1200: "Factory workers",
   };
+  const SMB_NAME = /^\(?(?:NEW|UP)?\)?\s*CA\d{3,4}-[A-Z]+-SMB-/i;
+  function smbSection(name, n) {
+    try {
+      if (!SMB_NAME.test(String(name || "")) || typeof BASELINE_SMB === "undefined") return null;
+      if (typeof Baseline === "undefined" || !Baseline.activeCatalogId || Baseline.activeCatalogId() !== "smb") return null;
+      const p = (BASELINE_SMB.personas || []).find((x) => n >= x.lo && n <= x.hi);
+      return p ? p.label : null;
+    } catch { return null; }
+  }
   function caGroup(name) {
     const m = /CA(\d{3,4})/i.exec(name || "");
     if (!m) return { key: 99999, num: null, label: "Other / unnumbered" };
     const n = +m[1];
     const base = Math.floor(n / 100) * 100;
-    const persona = CA_RANGES[base] || `CA${base}+`;
     const hi = base + 99;
+    // 32817 (R91, Mihai 19 Oct: "persona's are section in the smb"): under
+    // the SMB Basic baseline a policy it claims (CAnnn-KIND-SMB-…) is grouped
+    // under its SECTION — Base, Admins, Compliant network, Break-glass — not
+    // under the CloudFellows persona the number range would give it.
+    const sec = smbSection(name, n);
+    if (sec) return { key: base, num: n, label: `${sec} (CA${String(base).padStart(3, "0")}–CA${String(hi).padStart(3, "0")})` };
+    const persona = CA_RANGES[base] || `CA${base}+`;
     return { key: base, num: n, label: `${persona} (CA${String(base).padStart(3, "0")}–CA${String(hi).padStart(3, "0")})` };
   }
 

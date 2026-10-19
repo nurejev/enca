@@ -19,6 +19,21 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 329, date: "2026-10-19", release: "2.0.7",
+    title: "ENCA 2.0.7 — SMB Basic 1.0.2 and an import that does not stop half-way",
+    items: [
+      { kind: "improved", tool: "All tools", text: "Production is build 329 (v2.0.7): SMB Basic 1.0.2, and an import that tries a state again instead of leaving a policy Off, never creates a policy twice, and checks the tenant before anything is written." },
+      { kind: "new", tool: "Import", text: "Pre-flight at the top of every import, read before anything is written: policies already in the tenant, this baseline's policies that are there and Off (with a tick to set them Report-only), a policy that is there twice, room for the new ones, authentication strengths and their limit, named locations, Global Secure Access signalling, the break-glass group and its members, the Passkey (FIDO2) method, the device setting Require MFA to register or join devices, and the Windows PCs and Macs a policy would treat as unmanaged. Anything marked as blocking holds Import until it is fixed." },
+      { kind: "fixed", tool: "Import", text: "A policy that was created and read back but whose state Conditional Access was not ready for (it answered that the policy did not exist yet) is no longer left Off: the state is tried again, and once more at the end of the run." },
+      { kind: "fixed", tool: "Import", text: "A policy is never created twice. Every run re-reads the policy names, including the compliant-network policies that Graph v1.0 leaves out, and remembers what it created in this session, so a second run straight after the first skips what the first one made." },
+      { kind: "improved", tool: "Import", text: "A custom authentication strength with exactly the same methods as one the tenant has is reused instead of created again, and a strength or named location that could not be created stops only the policy that needs it, with the reason, before that policy is created. Match and replace now also brings new excluded roles along, not only exclusion groups." },
+      { kind: "fixed", tool: "Import", text: "Under SMB Basic the import no longer offers to add the six E-Admins policies: its own admin and break-glass policies cover them." },
+      { kind: "improved", tool: "Baseline", text: "SMB Basic 1.0.2, 17 policies. CA901 asks the break-glass accounts for a passkey (synced passkeys too when the Passkey (FIDO2) profile allows them). The all-users policies that reach every resource leave out the directory sync accounts, as security defaults does. CA005 asks MFA for the Microsoft admin portals as well as Azure management." },
+      { kind: "new", tool: "Baseline", text: "SMB Basic CA007: registering or joining a device to Entra needs MFA or a Temporary Access Pass; enforced while the device setting Require MFA to register or join devices is No. CA008: on a Windows PC or Mac that is not Entra joined (hybrid joined counts as unmanaged; a Mac counts as joined once Platform SSO registered it) a session lasts 4 hours and is never kept in the browser." },
+      { kind: "improved", tool: "Policies", text: "Under SMB Basic the policy list and the Checks persona matrix group the policies by section: Base, Admins, Compliant network and Break-glass, each asked for what it is for." },
+    ],
+  },
+  {
     build: 328, date: "2026-10-19", release: "2.0.6",
     title: "ENCA 2.0.6 — App access review, Entra device cleanup, SMB Basic, from security defaults to a baseline, and Global Secure Access to go-live",
     items: [

@@ -23,7 +23,8 @@
 // written the CloudFellows way: CAnnn-KIND-SMB-Persona-…-vX.Y. "SMB" is the
 // marker this catalog claims a name by — a CA001 without it is someone
 // else's CA001.
-//   BASE  CA001–CA006  replaces security defaults (+ registration)
+//   BASE  CA001–CA008  replaces security defaults (+ registration, device
+//                      join, unmanaged desktop sessions — 1.0.2)
 //   ADM   CA101–CA104  admins, stricter than security defaults
 //   CN    CA201–CA204  Global Secure Access, per platform (as CA215–CA218)
 //   BG    CA901        the break-glass accounts themselves
@@ -65,7 +66,17 @@ const BASELINE_SMB = (() => {
   const CN_LOCATION = "3d46dbda-8382-466a-856d-eb00cbc6b910";  // All Compliant Network locations (Microsoft's, every tenant)
   const S_MFA = "00000000-0000-0000-0000-000000000002";        // built-in: Multifactor authentication (TAP included)
   const S_PR = "00000000-0000-0000-0000-000000000004";         // built-in: Phishing-resistant MFA
-  const S_FIDO = "5b5b0000-0000-4000-8000-0000000000f2";       // custom: SMB - FIDO2 security key (placeholder id)
+  const S_PASSKEY = "5b5b0000-0000-4000-8000-0000000000f2";    // custom: SMB - Passkey (FIDO2) (placeholder id)
+  // The two roles the directory sync accounts hold (Entra Connect / Cloud
+  // Sync). Security defaults leaves them out, so the all-users policies that
+  // reach every resource do too — a block outside the compliant network would
+  // otherwise stop the sync server, which runs no Global Secure Access client.
+  const SYNC_ROLES = [
+    ["d29b2b05-8046-44ba-8758-1e26182fcf32", "Directory Synchronization Accounts"],
+    ["a92aed5d-d78a-4d16-b381-09adb37eb3b0", "On Premises Directory Sync Account"],
+  ];
+  const SYNC_IDS = SYNC_ROLES.map((r) => r[0]);
+  const SYNC_TXT = SYNC_ROLES.map((r) => `${r[1]} (role)`);
   const L_COUNTRIES = "5b5b0000-0000-4000-8000-0000000000c1";  // SMB - Allowed countries (placeholder id)
   const BG = "CAB-SEC-U-BreakGlass";
   const excl = (num) => `CAB-SEC-U-SMB-CA${String(num).padStart(3, "0")}-Exclusion`;
@@ -84,9 +95,21 @@ const BASELINE_SMB = (() => {
   // `entry` is the catalog's descriptive half (the CloudFellows entry shape);
   // `raw` is the Graph v1.0 create body before the import maps its groups.
   const P = [];
+  // 32817: a policy whose definition changed after 1.0 carries its own
+  // version, so a tenant that imported 1.0 sees it as Outdated in 🧬 Baseline
+  // and the import can replace it in place.
+  const VERSION = { 1: "1.0.1", 2: "1.0.1", 3: "1.0.1", 201: "1.0.1", 202: "1.0.1", 203: "1.0.1", 204: "1.0.1", 901: "1.0.1",
+    // 32903 (1.0.2, Mihai 19 Oct, against the guide's Appendix 1 — mockup
+    // "ENCA — SMB Basic 1.0.2"): CA005 adds Microsoft Admin Portals; CA007
+    // MFA to register or join devices; CA008 unmanaged Windows and Mac
+    5: "1.0.2", 7: "1.0.2", 8: "1.0.2" };
+  // the catalog's own release: the newest policy version in it
+  const CATALOG_RELEASE = "1.0.2";
+  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2" };
   const add = (num, kind, persona, words, entry, raw) => {
-    const name = `CA${String(num).padStart(3, "0")}-${kind}-SMB-${persona}-${words}-v${RELEASE}`;
-    P.push({ num, name, entry, raw });
+    const version = VERSION[num] || RELEASE;
+    const name = `CA${String(num).padStart(3, "0")}-${kind}-SMB-${persona}-${words}-v${version}`;
+    P.push({ num, name, version, entry, raw });
   };
   const users = (o, ex) => ({ includeUsers: [], excludeUsers: [], includeGroups: [], includeRoles: [], excludeRoles: [], excludeGroups: ex, ...o });
   const apps = (o) => ({ includeApplications: ["All"], excludeApplications: [], includeUserActions: [], includeAuthenticationContextClassReferences: [], ...(o || {}) });
@@ -97,7 +120,10 @@ const BASELINE_SMB = (() => {
   const ex2 = (num) => [gid(num), G_BG];
   const roles = (num, extra) => users({ includeRoles: ROLE_IDS.slice(), ...(extra || {}) }, ex2(num));
   const everyone = (num, extra) => users({ includeUsers: ["All"], ...(extra || {}) }, ex2(num));
+  // all users on all resources: the sync accounts are left out as security defaults leaves them out
+  const everyoneButSync = (num, extra) => everyone(num, { excludeRoles: SYNC_IDS.slice(), ...(extra || {}) });
   const internal = (num) => everyone(num, { excludeGuestsOrExternalUsers: ALL_EXTERNAL() });
+  const internalButSync = (num) => everyoneButSync(num, { excludeGuestsOrExternalUsers: ALL_EXTERNAL() });
   const ROLES_TXT = `${ADMIN_ROLES.length} directory roles (the security-defaults admin roles)`;
   const XG = "Guests & external users (all types, incl. service providers)";
   const cnPlatform = (p) => ({ platforms: { includePlatforms: [p], excludePlatforms: [] } });
@@ -106,29 +132,48 @@ const BASELINE_SMB = (() => {
 
   // BASE — replaces security defaults
   add(1, "GRANT", "Global", "AnyApp-AnyPlatform-MFA",
-    { persona: "🌐 Base", include: ["All users"], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Require multifactor authentication", block: false, session: "",
+    { persona: "🌐 Base", include: ["All users"], exclude: SYNC_TXT, resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Require multifactor authentication", block: false, session: "",
       replacesSd: true, description: "MFA for every user on every resource — security defaults' 'MFA when necessary', made explicit. Goes On at the ⇄ switch." },
-    { conditions: cond(everyone(1)), grantControls: mfa });
+    { conditions: cond(everyoneButSync(1)), grantControls: mfa });
   add(2, "BLOCK", "Global", "AnyApp-AnyPlatform-LegacyAuthentication",
-    { persona: "🌐 Base", include: ["All users"], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Exchange ActiveSync clients, Other clients (legacy authentication)"], grant: "Block access", block: true, session: "",
+    { persona: "🌐 Base", include: ["All users"], exclude: SYNC_TXT, resources: "All resources", network: "Any network or location", conditions: ["Client apps: Exchange ActiveSync clients, Other clients (legacy authentication)"], grant: "Block access", block: true, session: "",
       replacesSd: true, description: "Blocks every legacy-protocol sign-in (IMAP, POP, SMTP AUTH, Exchange ActiveSync basic), as security defaults does. Goes On at the ⇄ switch." },
-    { conditions: cond(everyone(2), { clientAppTypes: ["exchangeActiveSync", "other"] }), grantControls: block });
+    { conditions: cond(everyoneButSync(2), { clientAppTypes: ["exchangeActiveSync", "other"] }), grantControls: block });
   add(3, "BLOCK", "Global", "AnyApp-AnyPlatform-DeviceCodeFlow",
-    { persona: "🌐 Base", include: ["All users"], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app", "Auth flows: Device code flow, Authentication transfer"], grant: "Block access", block: true, session: "",
+    { persona: "🌐 Base", include: ["All users"], exclude: SYNC_TXT, resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app", "Auth flows: Device code flow, Authentication transfer"], grant: "Block access", block: true, session: "",
       replacesSd: true, description: "Blocks the device code flow and authentication transfer, as security defaults does for new tenants since 1 July 2026. Goes On at the ⇄ switch." },
-    { conditions: cond(everyone(3), { authenticationFlows: { transferMethods: "deviceCodeFlow,authenticationTransfer" } }), grantControls: block });
+    { conditions: cond(everyoneButSync(3), { authenticationFlows: { transferMethods: "deviceCodeFlow,authenticationTransfer" } }), grantControls: block });
   add(4, "GRANT", "Admins", "AnyApp-AnyPlatform-MFA",
     { persona: "🌐 Base", include: [ROLES_TXT], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Require multifactor authentication", block: false, session: "",
       replacesSd: true, description: "MFA for the admin roles security defaults names, on every resource. Kept apart from CA001 so an admin is never only as safe as the all-users policy. Goes On at the ⇄ switch." },
     { conditions: cond(roles(4)), grantControls: mfa });
-  add(5, "GRANT", "Global", "AzureManagement-AnyPlatform-MFA",
-    { persona: "🌐 Base", include: ["All users"], resources: "Windows Azure Service Management API", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Require multifactor authentication", block: false, session: "",
-      replacesSd: true, description: "MFA for Azure Resource Manager — the Azure portal, Azure PowerShell and Azure CLI — for every user, as security defaults does. Goes On at the ⇄ switch." },
-    { conditions: { ...cond(everyone(5)), applications: apps({ includeApplications: [AZURE_MGMT] }) }, grantControls: mfa });
+  add(5, "GRANT", "Global", "AdminPortalsAndAzureMgmt-AnyPlatform-MFA",
+    { persona: "🌐 Base", include: ["All users"], exclude: SYNC_TXT, resources: "Microsoft Admin Portals · Windows Azure Service Management API", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Require multifactor authentication", block: false, session: "",
+      replacesSd: true, description: "MFA for management — the Microsoft admin portals, and Azure Resource Manager (the Azure portal, Azure PowerShell, Azure CLI) — for every user, as security defaults does for Azure and the guide's Appendix 1 asks for both. Goes On at the ⇄ switch." },
+    { conditions: { ...cond(everyoneButSync(5)), applications: apps({ includeApplications: ["MicrosoftAdminPortals", AZURE_MGMT] }) }, grantControls: mfa });
   add(6, "GRANT", "Global", "RegisterSecurityInfo-AnyPlatform-MFAorTAP",
     { persona: "🌐 Base", include: ["All users"], exclude: [XG], resources: "User action: register security information", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Authentication strength: Multifactor authentication", block: false, session: "",
       description: "Registering or changing a sign-in method needs MFA — or a Temporary Access Pass, which the built-in Multifactor authentication strength accepts, so a new user's first method is registered with a TAP. Stays Report-only at the switch." },
     { conditions: { ...cond(internal(6)), applications: apps({ includeApplications: [], includeUserActions: ["urn:user:registersecurityinfo"] }) }, grantControls: strength(S_MFA) });
+  // 1.0.2: joining a device to Entra needs MFA (or a TAP). Learn: with this
+  // user action only MFA or an authentication strength may be granted, no
+  // device filter or device state, and the device setting "Require MFA to
+  // register or join devices" must be No or the policy is not enforced —
+  // the import's pre-flight reads that setting.
+  add(7, "GRANT", "Global", "RegisterOrJoinDevices-AnyPlatform-MFA",
+    { persona: "🌐 Base", include: ["All users"], exclude: [XG], resources: "User action: register or join devices", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Authentication strength: Multifactor authentication", block: false, session: "",
+      description: "Registering or Entra-joining a device needs MFA — or a Temporary Access Pass, so a new laptop is joined with a TAP. Needs Entra ID → Devices → Device settings, Require MFA to register or join devices, set to No." },
+    { conditions: { ...cond(internal(7)), applications: apps({ includeApplications: [], includeUserActions: ["urn:user:registerdevice"] }) }, grantControls: strength(S_MFA) });
+  // 1.0.2: Windows and Macs that are not Entra joined are unmanaged — hybrid
+  // joined, Entra registered and unregistered alike (Mihai: "hybrid is
+  // unmanaged in SMB; Mac should be joined just as Windows"). A negative
+  // operator also matches a device Entra does not know (Learn, filter for
+  // devices). Mobiles stay out: BYOD with app protection, CA203/CA204.
+  add(8, "SESSION", "Global", "AnyApp-WindowsOrMacOS-Unmanaged-SIF4h-NeverPersistent",
+    { persona: "🌐 Base", include: ["All users"], exclude: SYNC_TXT, resources: "All resources", network: "Any network or location", conditions: ["Platforms: Windows, macOS", "Client apps: Any client app", 'Filter for devices: include device.trustType -ne "AzureAD" (not Entra joined)'], grant: "No controls (grant)", block: false, session: "Sign-in frequency: 4 hours · Persistent browser: never",
+      description: "On a Windows PC or Mac that is not Entra joined — hybrid joined, only registered, or unknown — a session lasts 4 hours and is never kept in the browser. Macs count as joined once Platform SSO has registered them. The pre-flight counts the devices that would get it." },
+    { conditions: cond(everyoneButSync(8), { platforms: { includePlatforms: ["windows", "macOS"], excludePlatforms: [] }, devices: { deviceFilter: { mode: "include", rule: 'device.trustType -ne "AzureAD"' } } }), grantControls: null,
+      sessionControls: { signInFrequency: { value: 4, type: "hours", authenticationType: "primaryAndSecondaryAuthentication", frequencyInterval: "timeBased", isEnabled: true }, persistentBrowser: { mode: "never", isEnabled: true } } });
 
   // ADM — admins, stricter than security defaults
   add(101, "GRANT", "Admins", "AnyApp-AnyPlatform-PhishingResistantMFA",
@@ -153,21 +198,26 @@ const BASELINE_SMB = (() => {
   const PLAT = [[201, "Windows", "windows"], [202, "macOS", "macOS"], [203, "iOS", "iOS"], [204, "Android", "android"]];
   for (const [num, label, plat] of PLAT) {
     add(num, "BLOCK", "Users", `AnyApp-${label}-OutsideCompliantNetwork`,
-      { persona: "🔒 Compliant network", include: ["All users"], exclude: [XG], resources: "All resources · − Microsoft Intune · − Microsoft Intune Enrollment", network: "Any network or location · − All Compliant Network locations", conditions: [`Platforms: ${label}`, "Client apps: Any client app"], grant: "Block access", block: true, session: "",
+      { persona: "🔒 Compliant network", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources · − Microsoft Intune · − Microsoft Intune Enrollment", network: "Any network or location · − All Compliant Network locations", conditions: [`Platforms: ${label}`, "Client apps: Any client app"], grant: "Block access", block: true, session: "",
         landsOff: true, description: `Every user on ${label} only through the Global Secure Access client${/iOS|Android/.test(label) ? " (BYOD with app protection)" : ""}, so a stolen token is useless elsewhere. Admins are not excluded. Guests are: their device cannot carry this tenant's client. Lands Off until 🌐 Global Secure Access shows the chain green.` },
-      { conditions: { ...cond(internal(num), { ...cnLoc, ...cnPlatform(plat) }), applications: cnApps }, grantControls: block });
+      { conditions: { ...cond(internalButSync(num), { ...cnLoc, ...cnPlatform(plat) }), applications: cnApps }, grantControls: block });
   }
 
   // BG — the emergency accounts
-  add(901, "GRANT", "BreakGlass", "AnyApp-AnyPlatform-FIDO2",
-    { persona: "🚨 Break-glass", include: [`${BG} (group)`], exclude: [`${excl(901)} (group)`], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Authentication strength: SMB - FIDO2 security key", block: false, session: "",
-      description: "The break-glass accounts sign in with a FIDO2 security key and nothing else. Excluded from every other SMB policy. Keep it Report-only until both accounts have a key registered — a wrong key or no key locks the last way in." },
-    { conditions: cond(users({ includeGroups: [G_BG] }, [gid(901)])), grantControls: strength(S_FIDO) });
+  // Mihai, 19 Oct (on the beta site): "the ca901 change to a passkey. may also
+  // be sync passkey". A strength allows METHODS; whether a synced passkey
+  // (iCloud Keychain, Google Password Manager) counts is the Passkey (FIDO2)
+  // method's passkey profile, not the strength — so the strength is the
+  // passkey combination, and the profile decides device-bound or synced.
+  add(901, "GRANT", "BreakGlass", "AnyApp-AnyPlatform-Passkey",
+    { persona: "🚨 Break-glass", include: [`${BG} (group)`], exclude: [`${excl(901)} (group)`], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Authentication strength: SMB - Passkey (FIDO2)", block: false, session: "",
+      description: "The break-glass accounts sign in with a passkey and nothing else — a security key, a passkey in Microsoft Authenticator, or a synced passkey when the Passkey (FIDO2) profile that targets them allows synced passkeys. Excluded from every other SMB policy. Keep it Report-only until both accounts have a passkey registered — no passkey locks the last way in." },
+    { conditions: cond(users({ includeGroups: [G_BG] }, [gid(901)])), grantControls: strength(S_PASSKEY) });
 
   // ---- the catalog ----
   const cat = {
     id: "smb", label: "SMB Basic", icon: "🏢", source: "bundled",
-    release: RELEASE, released: "19-10-2026", line: "Security defaults + Global Secure Access", author: "ENCA",
+    release: CATALOG_RELEASE, released: "19-10-2026", line: "Security defaults + Global Secure Access", author: "ENCA",
     url: null,
     breakGlassGroup: BG,
     // No CloudFellows E-Admins under this baseline (Mihai, mockup 19 Oct):
@@ -177,8 +227,9 @@ const BASELINE_SMB = (() => {
     groupFilterPrefix: "CAB-SEC-U-",
     defaultAuName: "CA-RMAU-SMB-BASE",
     exclusionShape: "CAB-SEC-U-SMB-CAnnn-Exclusion",
-    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA006), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA204) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
+    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA008), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA204) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
     adminRoles: ADMIN_ROLES.map(([id, name]) => ({ id, name })),
+    syncRoles: SYNC_ROLES.map(([id, name]) => ({ id, name })),
     personas: [
       { code: "GLO",        token: "BASE", emoji: "🌐", label: "Base",              caRange: "CA001–CA099", lo: 0,   hi: 99,  name: "CA-RMAU-SMB-BASE" },
       { code: "ADM",        token: "ADM",  emoji: "🛡", label: "Admins",            caRange: "CA100–CA199", lo: 100, hi: 199, name: "CA-RMAU-SMB-ADM" },
@@ -192,8 +243,8 @@ const BASELINE_SMB = (() => {
     predefined: [BG],
     groups: [BG, "one CAB-SEC-U-SMB-CAnnn-Exclusion group per policy"],
     namedLocations: ["SMB - Allowed countries", "All Compliant Network locations"],
-    note: "Needs Entra ID P1 (Microsoft 365 Business Premium includes it). CA103 and CA201–CA204 need Global Secure Access with Conditional Access signalling on — they land Off.",
-    policies: P.map((p) => ({ num: p.num, name: p.name, version: RELEASE, tag: "NEW", ...p.entry,
+    note: "Needs Entra ID P1 (Microsoft 365 Business Premium includes it). CA103 and CA201–CA204 need Global Secure Access with Conditional Access signalling on — they land Off. CA901 needs the Passkey (FIDO2) method on for the break-glass accounts; allow synced passkeys in its profile if they use one.",
+    policies: P.map((p) => ({ num: p.num, name: p.name, version: p.version, tag: p.version === RELEASE || ADDED_IN[p.num] ? "NEW" : "UP", ...p.entry,
       // the CloudFellows entry shape: groups first, then the other exclusions
       exclude: [`${excl(p.num)} (group)`, ...(p.num === 901 ? [] : [`${BG} (group)`]), ...((p.entry.exclude || []).filter((x) => !/\(group\)$/.test(x)))] })),
   };
@@ -238,7 +289,7 @@ const BASELINE_SMB = (() => {
   const nick = (s) => String(s || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 60) || "CAGroup";
   cat.templates = function (c) {
     const out = [{ displayName: c.breakGlassGroup, mailNickname: nick(c.breakGlassGroup), persona: "BreakGlass",
-      description: "Break-glass (emergency access) accounts — excluded from every SMB Basic policy except CA901, which asks them for a FIDO2 key. Keep it to the two emergency accounts." }];
+      description: "Break-glass (emergency access) accounts — excluded from every SMB Basic policy except CA901, which asks them for a passkey. Keep it to the two emergency accounts." }];
     for (const p of c.policies || []) {
       out.push({ displayName: excl(p.num), mailNickname: nick(excl(p.num)), persona: c.personaOfPolicy(c, p.name), policy: p.name,
         description: `Exclusion group for ${p.name} (SMB Basic ${c.release}). Members are exempt from that one policy.` });
@@ -254,7 +305,7 @@ const BASELINE_SMB = (() => {
   const groupsOf = () => [
     { id: G_BG, displayName: BG, mailNickname: nick(BG), description: cat.templates(cat)[0].description, securityEnabled: true, mailEnabled: false, groupTypes: [] },
     ...P.map((p) => ({ id: gid(p.num), displayName: excl(p.num), mailNickname: nick(excl(p.num)),
-      description: `Exclusion group for ${p.name} (SMB Basic ${RELEASE}). Members are exempt from that one policy.`, securityEnabled: true, mailEnabled: false, groupTypes: [] })),
+      description: `Exclusion group for ${p.name} (SMB Basic ${CATALOG_RELEASE}). Members are exempt from that one policy.`, securityEnabled: true, mailEnabled: false, groupTypes: [] })),
   ];
   const landsOff = P.filter((p) => p.entry.landsOff).map((p) => p.name);
   cat.bundle = function () {
@@ -267,7 +318,7 @@ const BASELINE_SMB = (() => {
       authStrengths: [
         { id: S_MFA, displayName: "Multifactor authentication", policyType: "builtIn" },
         { id: S_PR, displayName: "Phishing-resistant MFA", policyType: "builtIn" },
-        { id: S_FIDO, displayName: "SMB - FIDO2 security key", description: "Break-glass accounts: a FIDO2 security key only (SMB Basic CA901).", policyType: "custom", requirementsSatisfied: "mfa", allowedCombinations: ["fido2"] },
+        { id: S_PASSKEY, displayName: "SMB - Passkey (FIDO2)", description: "Break-glass accounts: a passkey only — device-bound or synced, as the Passkey (FIDO2) profile allows (SMB Basic CA901).", policyType: "custom", requirementsSatisfied: "mfa", allowedCombinations: ["fido2"] },
       ],
       authContexts: [], termsOfUse: [],
       // CA103 and CA201–CA204 land Off whatever the import's landing state:
@@ -277,6 +328,6 @@ const BASELINE_SMB = (() => {
   };
   cat.landsOff = () => landsOff.slice();
   cat.replacing = () => P.filter((p) => p.entry.replacesSd).map((p) => p.name);
-  cat.bundleLabel = `SMB Basic ${RELEASE} — ENCA's own copy`;
+  cat.bundleLabel = `SMB Basic ${CATALOG_RELEASE} — ENCA's own copy`;
   return cat;
 })();

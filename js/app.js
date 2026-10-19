@@ -3749,6 +3749,11 @@
   // "enabledForReportingButNotEnforced"; the security defaults path opens
   // the import on Report-only, because step ② reads what they would do.
   let imLand = "disabled";
+  // 32902: 🛫 pre-flight — what the run needs from the tenant, read before
+  // Import is pressed (Importer.preflight). imPreFix: the ticked repair of
+  // this baseline's policies that are here and Off while the run lands
+  // Report-only.
+  let imPre = null, imPreBusy = false, imPreFix = false, imPreErr = null;
   // Workload ID licence state for this tenant: { known, licensed, sku }. Read
   // once per file load — a workload-identity policy cannot be created without it.
   let imLic = { known: false, licensed: false, sku: null };
@@ -3758,7 +3763,7 @@
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
     imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
-    imRaw = null; imEa = null; imRepair = null; imLand = "disabled";
+    imRaw = null; imEa = null; imRepair = null; imLand = "disabled"; imPre = null; imPreFix = false; imPreErr = null;
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -4194,6 +4199,9 @@
     }
     // a file that ships its own E-Admins (a CloudFellows backup) needs nothing
     if (imPlan.some((p) => p.asIs)) return "";
+    // 32902: nor does a baseline that covers its own admins and break-glass
+    // (SMB Basic, sharedEAdmins false) — the panel offered the six anyway
+    if ((toCat && toCat.sharedEAdmins === false) || Importer.catalogOfBundle(imBundle) === "smb") return "";
     const shared = (typeof Baseline !== "undefined" && Baseline.sharedPolicies && toCat) ? Baseline.sharedPolicies(toCat) : [];
     const cf = Baseline.catalog("limonit");
     // 32706 (Mihai: "read those configs and add a create button for those
@@ -4405,6 +4413,7 @@
     await imLoadRoleAssignable();
     await imLoadRepair();
     imRenderList();
+    imLoadPre();   // not awaited: the list is usable while the tenant is read
     if (opts.only) {
       imPlan.forEach((p, i) => {
         const cb = document.querySelector(`[data-imp="${i}"]`);
@@ -4413,6 +4422,65 @@
       updateImGo();
     }
     $("imPick").style.display = "none";
+  }
+
+  // ---- 🛫 pre-flight (32902) ----
+  // Mihai, 19 Oct, after the SMB Basic run on gimi left six policies Off and
+  // CA901 twice: "add the necessary checks in the import to prevent not
+  // importing". The checks are Importer.preflight; this reads them for the
+  // file loaded, keeps them on screen, and Import refuses while one blocks.
+  async function imLoadPre() {
+    if (!imBundle) return;
+    imPreBusy = true; imPreErr = null; imPrePaint();
+    try {
+      const items = imPlan.filter((p) => !p.exists);
+      const cat = (() => { try { return Baseline.catalog(Importer.catalogOfBundle(imBundle) || Baseline.activeCatalogId()); } catch { return null; } })();
+      const opts = { landState: imLand, mode: imMode, tenantKey: tenantId || tenantName, sdOn: !!(secDef && secDef.enabled === true), breakGlassGroup: cat && cat.breakGlassGroup };
+      imPre = isDemo ? imPreDemo(items) : await Importer.preflight(imBundle, items, opts);
+      if (!imPre.repair.length) imPreFix = false;
+    } catch (e) { imPre = null; imPreErr = e.message || String(e); }
+    imPreBusy = false; imPrePaint(); updateImGo();
+  }
+  function imPreDemo(items) {
+    const n = (k) => (items.find((p) => (p.name.match(/CA\d{3,4}/) || [""])[0] === k) || { name: k }).name;
+    const checks = [
+      { key: "names", level: "warn", title: "1 already in this tenant — skipped, not created twice", detail: n("CA901") },
+      { key: "repair", level: "warn", title: "2 of this baseline's policies are here and Off — this run lands policies Report-only", detail: "An earlier run created them but could not set their state." },
+      { key: "twins", level: "warn", title: "1 policy is in the tenant twice", detail: "CA901 v1.0 and CA901 v1.0.1 — keep one: 🧹 Housekeeping → Duplicates." },
+      { key: "capacity", level: "ok", title: `16 + ${items.length} new = ${16 + items.length} of 240`, detail: "" },
+      { key: "strengths", level: "ok", title: "Authentication strengths", detail: "SMB - Passkey (FIDO2): the tenant's “SMB - FIDO2 security key” has the same methods — reused" },
+      { key: "passkey", level: "warn", title: "The Passkey (FIDO2) method is off in this tenant", detail: "CA901 asks for a passkey and nothing else." },
+      { key: "gsa", level: "info", title: "Global Secure Access signalling is off", detail: "5 policies use the compliant network location — created all the same, Off." },
+      { key: "breakglass", level: "ok", title: "CAB-SEC-U-BreakGlass: 2 members", detail: "" },
+      { key: "devreg", level: "warn", title: "Device setting “Require MFA to register or join devices” is Yes", detail: "CA007 is not enforced while it is — set it to No (Entra ID → Devices → Device settings)." },
+      { key: "unmanaged", level: "warn", title: "CA008 would treat 17 enabled devices as unmanaged", detail: "12 hybrid-joined Windows PCs, 5 Macs not Entra joined (no Platform SSO yet) — 4-hour sessions, nothing kept in the browser, until they are Entra joined. 41 Entra joined." },
+    ];
+    return { checks, repair: [{ id: "demo-5", name: n("CA005") }, { id: "demo-101", name: n("CA101") }], blocked: false, present: 16, readAt: Date.now(), demo: true };
+  }
+  function imPrePanel() {
+    if (!imBundle) return "";
+    const ico = { ok: "✓", info: "ℹ", warn: "⚠", block: "✗" };
+    const col = { ok: "var(--on)", info: "var(--muted)", warn: "var(--report)", block: "var(--off)" };
+    let body;
+    if (imPreBusy) body = `<p class="mini muted" style="margin:0">Reading the tenant — policies on /beta, strengths, locations, Global Secure Access, the break-glass group…</p>`;
+    else if (imPreErr) body = `<p class="mini" style="margin:0;color:var(--off)">The pre-flight could not run (${esc(imPreErr)}). Import still re-reads the policy names itself and never creates one twice.</p>`;
+    else if (!imPre) body = "";
+    else {
+      const rows = imPre.checks.map((c) => `<li style="margin:3px 0"><span style="color:${col[c.level]};font-weight:600">${ico[c.level]}</span> <b>${esc(c.title)}</b>${c.detail ? `<div class="mini muted" style="margin-left:18px">${esc(c.detail)}</div>` : ""}</li>`).join("");
+      const landRO = imLand === "enabledForReportingButNotEnforced";
+      const fix = imPre.repair.length && landRO ? `<label class="chk" style="margin:8px 0 0;align-items:flex-start"><input type="checkbox" id="imPreFix" ${imPreFix ? "checked" : ""}><span>Also set these ${imPre.repair.length} to <b>Report-only</b> with this run: ${esc(imPre.repair.map((r) => (r.name.match(/CA\d{3,4}/) || [r.name])[0]).join(", "))}<span class="mini muted"> — each read back; nothing else about them changes</span></span></label>` : "";
+      body = `<ul style="list-style:none;margin:0;padding:0">${rows}</ul>${fix}${imPre.blocked ? `<p class="mini" style="margin:8px 0 0;color:var(--off)"><b>Import is held</b> — fix what is marked ✗ first, then ⟳ Check again.</p>` : ""}`;
+    }
+    const n = imPre ? imPre.checks.filter((c) => c.level === "warn" || c.level === "block").length : 0;
+    return `<div class="cg-panel" id="imPre"${imPre && imPre.blocked ? ' style="border-color:var(--off)"' : ""}>
+      <h4 style="display:flex;justify-content:space-between;align-items:center;gap:8px">🛫 PRE-FLIGHT${imPre ? ` — ${n ? `${n} TO READ` : "ALL CLEAR"}` : ""}${imPre && imPre.demo ? " (DEMO)" : ""}
+        <button class="btn sm" id="imPreAgain" ${imPreBusy ? "disabled" : ""}>⟳ Check again</button></h4>
+      <p class="mini muted" style="margin:0 0 6px">Read from the tenant before anything is written, so a run does not stop half-way: a policy already here is never created twice, a state Conditional Access is not ready for is tried again at the end of the run.</p>
+      ${body}</div>`;
+  }
+  function imPrePaint() {
+    const el = $("imPre");
+    if (el) el.outerHTML = imPrePanel();
   }
 
   // Rebuilds the plan list — called on load and whenever the assignment mode
@@ -4458,6 +4526,7 @@
           <b>🔀 Switch baseline</b><span class="mini">Not available for this file: it matches no other baseline's group naming, so there is nothing to carry members from.</span></label>`;
 
     $("imBody").innerHTML = `
+      ${imPrePanel()}
       ${imRepairPanel()}
       ${imEaPanel()}
       ${imGroupsPanel()}
@@ -4522,13 +4591,15 @@
   function updateImGo() {
     const n = document.querySelectorAll("[data-imp]:checked").length;
     const btn = $("imGo");
-    btn.disabled = n === 0;
-    btn.textContent = n ? `Import ${n}` : "Import";
+    const held = !!(imPre && imPre.blocked);
+    btn.disabled = n === 0 || held;
+    btn.textContent = held ? "Import — held by the pre-flight" : n ? `Import ${n}` : "Import";
   }
   $("imBody").addEventListener("click", async (e) => {
     if (e.target.id === "imEaZip" || e.target.id === "imEaFolder") { imEaPick(e.target.id === "imEaFolder"); return; }
     if (e.target.id === "imEaCreate") { await imEaAddBundled({}); return; }
     if (e.target.id === "imRepairGo") { await imRepairRun(e.target); return; }
+    if (e.target.id === "imPreAgain") { await imLoadPre(); return; }
     if (e.target.id === "imAuAll") {
       imAu.sel = imAu.sel.size === imAu.missing.length ? new Set() : new Set(imAu.missing.map(r => r.name));
       imRenderList();
@@ -4568,8 +4639,9 @@
     }
   });
   $("imBody").addEventListener("change", (e) => {
-    if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); return; }
-    if (e.target.matches('input[name="imLand"]')) { imLand = e.target.value; return; }
+    if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); imLoadPre(); return; }
+    if (e.target.matches('input[name="imLand"]')) { imLand = e.target.value; imLoadPre(); return; }
+    if (e.target.id === "imPreFix") { imPreFix = e.target.checked; return; }
     if (e.target.matches("[data-imp]")) updateImGo();
     const f = e.target.closest("[data-imfix]");
     if (f) {
@@ -4686,7 +4758,10 @@
   $("imGo").addEventListener("click", async () => {
     const chosen = [...document.querySelectorAll("[data-imp]:checked")].map(cb => imPlan[+cb.dataset.imp]);
     if (!chosen.length) { toast("Nothing selected to import"); return; }
+    if (imPreBusy) { toast("The pre-flight is still reading the tenant — a moment"); return; }
+    if (imPre && imPre.blocked) { toast("Held by the pre-flight — fix what is marked ✗, then ⟳ Check again"); return; }
     try { await checkImportPlan(chosen); } catch (e) { toast(esc(e.message)); return; }
+    const preFix = imPreFix && imPre && imPre.repair.length && imLand === "enabledForReportingButNotEnforced" ? imPre.repair.slice() : [];
     // Consent first, while the click is still fresh — an import creates
     // dependencies (groups, locations) as well as policies, so ask for both.
     const placing = !!(imAu && !imAu.error && Object.keys(imAu.byCode).length);
@@ -4710,6 +4785,7 @@
     const L = RunLedger.create(imHost, { unit: "policies", items: [
       { label: "Dependencies", sub: "groups, named locations, authentication strengths, contexts, terms of use — created if missing" },
       ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : p.forceOff || imLand !== "enabledForReportingButNotEnforced" ? "new policy, Off" : "new policy, Report-only" })),
+      ...(preFix.length ? [{ label: `Set ${preFix.length} existing ${preFix.length === 1 ? "policy" : "policies"} Report-only`, sub: preFix.map((r) => r.name).join(", ") }] : []),
     ], onStop: () => {} });
     const depSay = (m) => L.note(0, m);
     let stoppedEarly = false;
@@ -4773,10 +4849,14 @@
         (heldBack ? L.part : L.done)(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${heldBack ? ` · ${heldBack} group${heldBack === 1 ? "" : "s"} could not be created — the policies naming ${heldBack === 1 ? "it are" : "them are"} held back` : ""}${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, heldBack ? "partly done" : "ready");
         res = await Importer.importPolicies(chosen, maps, (m) => { const i = chosen.findIndex((p) => m.startsWith(p.name + ":")); if (i >= 0) L.note(i + 1, m.slice(chosen[i].name.length + 1).trim()); }, {
           mode: imMode, shouldStop: () => L.stopped,
-          landState: imLand, sdOn: !!(secDef && secDef.enabled === true),
+          landState: imLand, sdOn: !!(secDef && secDef.enabled === true), tenantKey: tenantId || tenantName,
           onItem: (i, phase, r) => {
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
+            // 32902: already here — not created twice; and a state that is
+            // tried again at the end of the run keeps its row open
+            if (r.skipped) { L.skip(i + 1, r.note, "already here"); return; }
+            if (r.statePending) { L.note(i + 1, r.note); return; }
             // 25483: created, not yet visible — the item stays open and is
             // settled by the second check at the end of the run
             if (phase === "pending") { L.note(i + 1, "created · Conditional Access has not shown it yet — checked again at the end of the run"); return; }
@@ -4786,6 +4866,17 @@
           },
         });
       }
+      // 32902: the ticked repair — this baseline's policies that were here and
+      // Off while the run lands Report-only, set and read back
+      if (preFix.length) {
+        const ri = chosen.length + 1;
+        L.start(ri);
+        const out = isDemo ? preFix.map((r) => ({ ...r, ok: true })) : await Importer.setStates(preFix, "enabledForReportingButNotEnforced");
+        depLog.stateRepair = out;
+        const bad = out.filter((r) => !r.ok).length;
+        (bad ? (bad === out.length ? L.fail : L.part) : L.done)(ri, bad ? `${out.length - bad} Report-only · ${bad} not: ${out.filter((r) => !r.ok).map((r) => r.name).join(", ")}` : `${out.length} Report-only, read back`);
+      }
+      if (imPre) depLog.preflight = imPre.checks;
       // R04: finish the job on the groups this import REUSED — but only if the
       // policies actually landed. An import that failed has no business having
       // changed an existing group on the way past.
@@ -4807,7 +4898,7 @@
       else { $("imGo").style.display = "none"; imHost.insertAdjacentHTML("beforeend", `<p class="mini" style="margin-top:10px;color:var(--off)"><b>${failed} refused${stoppedEarly ? ", stopped early" : ""}</b> — the reasons are on the rows and in the report; Close when read.</p>`); }
       showReport("📥 Import report", "CA-Import-Report", md);
       toast(failed ? `Import done with <span>${failed} failure(s)</span>`
-        : `Imported <span>${res.results.length}</span> policies (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${res.results.filter(r => r.ok && r.state === s).length} ${s === "enabled" ? "On" : s === "disabled" ? "Off" : "Report-only"}`).join(", ")})${isDemo ? " (simulated)" : ""}`);
+        : `Imported <span>${res.results.filter((r) => !r.skipped).length}</span> policies${res.results.some((r) => r.skipped) ? ` · ${res.results.filter((r) => r.skipped).length} already here, not created twice` : ""} (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${res.results.filter(r => r.ok && r.state === s).length} ${s === "enabled" ? "On" : s === "disabled" ? "Off" : "Report-only"}`).join(", ")})${isDemo ? " (simulated)" : ""}`);
       if (!isDemo && res.results.some(r => r.ok || r.createdId)) await loadFromGraph(true);
     } catch (e) {
       console.error(e); toast(`Import failed: <span>${esc(e.message || e)}</span>`);
@@ -28408,7 +28499,10 @@ This is a directory write. Nothing else changes.`)) return;
       already = Capabilities.requirements(raw);   // restoring what Entra already accepted once
     }
     if (method === "PATCH") {
-      const existing = await Graph.gget(url);
+      // 32902: a policy created seconds ago can answer "does not exist" to
+      // this read on another replica — read it the way the import does,
+      // repeating a 404, instead of failing the write that follows a create
+      const existing = await Importer.readSettled(url, null, { missing: [1000, 2000, 3000], stale: [] });
       raw = { ...existing, ...body, conditions: { ...(existing.conditions || {}), ...(body.conditions || {}) } };
       // 25491: only what this write ADDS has to be proven. An edit of a
       // policy that already carries an insider-risk condition (CA012, CA013,

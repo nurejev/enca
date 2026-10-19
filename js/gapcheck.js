@@ -822,6 +822,21 @@ const GapCheck = (() => {
   // Personas always shown even when the tenant has no policy for them — a gap
   // here is meaningful. Other ranges are only shown when populated.
   const CORE_PERSONAS = new Set(["0", "100", "200"]);
+  // 32817 (R91, Mihai 19 Oct: "persona's are section in the smb"): under the
+  // SMB Basic baseline the CA-number blocks are its SECTIONS, not the
+  // CloudFellows personas — CA2xx is the compliant network, not Internals, and
+  // admins get the compliant network instead of a compliant device. The matrix
+  // asks each section for what that section is for.
+  const SMB_PERSONAS = [
+    ["0", "🌐 Base", ["require-mfa", "block-legacy-auth"]],
+    ["100", "🛡 Admins", ["require-mfa", "phishing-resistant-mfa", "session-sif", "block-countries", "block-non-corp-network"]],
+    ["200", "🔒 Compliant network", ["block-non-corp-network"]],
+    ["900", "🚨 Break-glass", ["phishing-resistant-mfa"]],
+  ];
+  const SMB_CORE = new Set(["0", "100", "900"]);
+  const smbActive = () => { try { return typeof Baseline !== "undefined" && Baseline.activeCatalogId && Baseline.activeCatalogId() === "smb"; } catch { return false; } };
+  const personaSet = () => (smbActive() ? SMB_PERSONAS : PERSONAS);
+  const coreSet = () => (smbActive() ? SMB_CORE : CORE_PERSONAS);
 
   const TB = "(?<=^|[^A-Za-z0-9])", TE = "(?=$|[^a-z0-9])";
   // Fallback for tenants that do not use the CA-number naming convention.
@@ -845,7 +860,7 @@ const GapCheck = (() => {
     // primary: the CA number, exactly as the Policies view groups them
     try {
       const g = Render.caGroup(name);
-      if (g && g.num != null && PERSONAS.some(([id]) => id === String(g.key))) return String(g.key);
+      if (g && g.num != null && personaSet().some(([id]) => id === String(g.key))) return String(g.key);
     } catch { /* Render not available — fall through to name patterns */ }
     for (const [persona, re] of PERSONA_PATTERNS) if (re.test(name)) return persona;
     return null;
@@ -909,15 +924,16 @@ const GapCheck = (() => {
 
   function personaCoverage(raws, ctx, out) {
     const det = makeDetectors(ctx);
-    const buckets = new Map(PERSONAS.map(([id]) => [id, []]));
+    const PS = personaSet(), CORE = coreSet();
+    const buckets = new Map(PS.map(([id]) => [id, []]));
     for (const p of raws) for (const per of policyPersonas(p)) buckets.get(per)?.push(p);
 
     const rows = [];
-    for (const [id, label, expected] of PERSONAS) {
+    for (const [id, label, expected] of PS) {
       const assigned = buckets.get(id);
       // ranges the tenant does not use are left out entirely (the Policies view
       // does the same); core personas stay so a real gap is still reported.
-      if (!assigned.length && !CORE_PERSONAS.has(id)) continue;
+      if (!assigned.length && !CORE.has(id)) continue;
       const cells = CONTROLS.map(([cid]) => {
         if (!expected.includes(cid)) return { control: cid, status: "na", policies: [] };
         const hit = assigned.filter((p) => isEnabled(p) && det[cid](p));
