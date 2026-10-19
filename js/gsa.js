@@ -30,6 +30,11 @@
 //                                      content; runIndex / authIndex tell installed, policy fetched
 //                                      and tunnel per device (Intune run state, the client's sign-ins)
 //   Gsa.windowsScript(opts)          → the Intune platform script (PowerShell) ENCA uploads
+//   Gsa.cfgRemediationScript(opts)   → 0.15.0: install and configuration split — detectScript,
+//                                      remediationScript and windowsScript install the client
+//                                      only; the cfg* scripts write the four client settings (and
+//                                      IPv4 preferred), the remediation checking for the client
+//                                      first; winRole tells a deployment's part by its content
 //   Gsa.macScript()                  → the macOS shell script; macSysextBody / macProxyBody /
 //                                      macSettingsBody the three profiles it needs (0.8.0)
 //   Gsa.demo()                       → a raw read for ?demo=1
@@ -57,6 +62,9 @@ const Gsa = (() => {
   const names = (o) => { const rel = (o && o.rel) || relTag(), ver = (o && o.ver) || "v1.0"; return {
     win: `Win - PSH - Device Security - D - Install Global Secure Access Client - ${rel} - ${ver}`,
     rem: `Win - DHS - Device Security - D - Install Global Secure Access Client - ${rel} - ${ver}`,
+    // 0.15.0 (Mihai 19 Oct: split installation from configuration; no mode in the name)
+    remCfg: `Win - DHS - Device Security - D - Configure Global Secure Access Client - ${rel} - ${ver}`,
+    winCfg: `Win - PSH - Device Security - D - Configure Global Secure Access Client - ${rel} - ${ver}`,
     mac: `MACOS - SH - Software Installation - D - Install Global Secure Access Client - ${rel} - ${ver}`,
     // 0.8.0: the three macOS profiles, devcf's names without its [OPTIONAL]
     sysext: `MACOS - DCP - Device Configuration - D - Allow GSA System Extensions - ${rel} - ${ver}`,
@@ -64,7 +72,7 @@ const Gsa = (() => {
     // 0.9.0 (Mihai: a device policy with a U name): D — a preference file is a device payload
     settings: `MACOS - DCP - Device Configuration - D - GSA System settings - ${rel} - ${ver}`,
   }; };
-  const WIN_FILE = "Install-GlobalSecureAccessClient.ps1", MAC_FILE = "scr-app-109-install-global-secure-access.zsh";
+  const WIN_FILE = "Install-GlobalSecureAccessClient.ps1", MAC_FILE = "scr-app-109-install-global-secure-access.zsh", CFG_FILE = "Configure-GlobalSecureAccessClient.ps1";
   const GROUPS = { win: "INT-SEC-D-GSA-WIN-M365", mac: "INT-SEC-D-GSA-MAC-M365" };
   // 32518, from Jhope188/LearnGraphAPI Baseline/Entra/GSA (lab, 12 Oct 2026):
   // the client signs in to the ZTNA Policy Service through this first-party
@@ -187,8 +195,10 @@ const Gsa = (() => {
           assigned: known ? x.assignments.length > 0 : x.assigned, t: known ? targets(x.assignments, names) : null });
       });
     };
-    add("healthScripts", (raw.healthScripts || []).filter((h) => rx.test(h.displayName || "")), "Remediation", "Windows", WHERE.rem);
-    add("scripts", (raw.scripts || []).filter((s) => rx.test(`${s.displayName} ${s.fileName}`)), "Platform script", "Windows", WHERE.win);
+    // 0.15.0: each Windows deployment with its part — install, configuration, or both (before the split)
+    const withPart = (x) => Object.assign({}, x, { role: ({ install: "install", config: "configuration", both: "install + settings, split it" })[winRole(x)] });
+    add("healthScripts", (raw.healthScripts || []).filter((h) => rx.test(h.displayName || "")).map(withPart), "Remediation", "Windows", WHERE.rem);
+    add("scripts", (raw.scripts || []).filter((s) => rx.test(`${s.displayName} ${s.fileName}`)).map(withPart), "Platform script", "Windows", WHERE.win);
     add("apps", (raw.apps || []).filter((a) => rx.test(a.displayName || "")), "App", "Windows", WHERE.app);
     add("shellScripts", (raw.shellScripts || []).filter((s) => rx.test(`${s.displayName} ${s.fileName}`)), "Shell script", "macOS", WHERE.mac);
     const mp = raw.macProfiles || {};
@@ -207,16 +217,43 @@ const Gsa = (() => {
   function winCheck(raw, lic) {
     const rx = /global\s*secure\s*access/i, nm = raw.groupNames || {}, wg = raw.winGroups || {};
     const isAsg = (x) => (Array.isArray(x.assignments) ? x.assignments.length > 0 : x.assigned !== false);
-    const pick = (list) => [...list].sort((a, b) => isAsg(b) - isAsg(a))[0] || null;
-    const rem = pick((raw.healthScripts || []).filter((h) => rx.test(h.displayName || "")));
-    const scr = pick((raw.scripts || []).filter((x) => rx.test(`${x.displayName} ${x.fileName}`)));
+    // 0.15.0 (Mihai 19 Oct: split installation from configuration, separate to run and
+    // assign): a deployment's part is read from its content (by name when the content was
+    // not read) — install, configure, or both (the combined script before 0.15.0). The
+    // install candidate prefers an assigned install-only one; [DEPRECATED] ones are left out.
+    const live = (l) => l.filter((x) => !DEP_RX.test(x.displayName || ""));
+    const score = (x) => isAsg(x) * 2 + (winRole(x) === "install" ? 1 : 0);
+    const pick = (list) => [...list].sort((a, b) => score(b) - score(a))[0] || null;
+    const remsAll = live((raw.healthScripts || []).filter((h) => rx.test(h.displayName || "")));
+    const scrsAll = live((raw.scripts || []).filter((x) => rx.test(`${x.displayName} ${x.fileName}`)));
+    const rem = pick(remsAll.filter((x) => winRole(x) !== "config"));
+    const scr = pick(scrsAll.filter((x) => winRole(x) !== "config"));
     const app = pick((raw.apps || []).filter((a) => rx.test(a.displayName || "")));
     const obj = rem || scr || app, kind = rem ? "rem" : scr ? "script" : app ? "app" : null;
+    const combined = !!(obj && kind !== "app" && winRole(obj) === "both");
+    // the configuration's own reach, read the way the install's is
+    const reachOf = (asgX) => {
+      const a = Array.isArray(asgX) ? asgX : null;
+      if (!a) return { st: "na", text: "assignments not read", groups: [] };
+      if (!a.length) return { st: "bad", text: "assigned to nobody", groups: [] };
+      const q = { all: false, allUsers: false, groups: [], windows: 0, users: 0, unknown: 0 };
+      for (const x of a) { const t = x.target || {}, ty = t["@odata.type"] || ""; if (/exclusion/i.test(ty)) continue; if (/allDevices/i.test(ty)) q.all = true; else if (/allLicensedUsers/i.test(ty)) q.allUsers = true; else if (t.groupId) q.groups.push(t.groupId); }
+      for (const id of q.groups) { const g = wg[id]; if (!g) { q.unknown++; continue; } q.windows += g.windows || 0; q.users += g.users || 0; }
+      const where = [q.all ? "All devices" : "", q.allUsers ? "All users" : "", ...q.groups.map((id) => nm[id] || id)].filter(Boolean).join(", ");
+      if (q.all || q.allUsers) return Object.assign({ st: "ok", text: where }, q);
+      if (!q.unknown && !q.windows && !q.users) return Object.assign({ st: "bad", text: `${where} — no Windows device and no user in ${q.groups.length === 1 ? "it" : "them"}` }, q);
+      return Object.assign({ st: "ok", text: `${where}${q.unknown ? " — members not read" : ` — ${q.windows} Windows device${q.windows === 1 ? "" : "s"}`}` }, q);
+    };
+    // Mihai: one configuration only — more than one assigned is flagged by the chain
+    const cfgs = [...remsAll.filter((x) => winRole(x) === "config").map((x) => ({ kind: "rem", obj: x })), ...scrsAll.filter((x) => winRole(x) === "config").map((x) => ({ kind: "script", obj: x }))];
+    const cfgA = cfgs.filter((c) => isAsg(c.obj)), cfgP = cfgA[0] || cfgs[0] || null;
+    const cfg = cfgP ? Object.assign({ name: cfgP.obj.displayName, unassigned: !isAsg(cfgP.obj), reach: reachOf(cfgP.obj.assignments) }, cfgP) : null;
+    const deprecated = [...(raw.healthScripts || []), ...(raw.scripts || [])].filter((x) => rx.test(`${x.displayName} ${x.fileName || ""}`) && DEP_RX.test(x.displayName || "")).map((x) => x.displayName);
     const issues = [], bad = (t) => issues.push({ t, sev: "bad" }), warn = (t) => issues.push({ t, sev: "warn" });
     const L = lic || { known: false };
     if (!obj) {
       if (L.known && !L.ent) warn("no Windows Enterprise, Education or VDA licence in this tenant — remediations are not part of the licence (Business Premium carries Windows Business). ENCA offers the platform script; Intune runs a remediation there when it is switched on — using it outside the licence is your choice.");
-      return { st: "bad", kind: null, obj: null, name: "", unassigned: false, issues, reach: { st: "bad", text: "—", windows: 0 }, landed: { st: "na", text: "—" }, text: "no remediation, script or app" };
+      return { st: "bad", kind: null, obj: null, name: "", unassigned: false, issues, reach: { st: "bad", text: "—", windows: 0 }, landed: { st: "na", text: "—" }, text: "no remediation, script or app", combined: false, cfg, cfgCount: cfgA.length, deprecated };
     }
     const asg = Array.isArray(obj.assignments) ? obj.assignments : null;
     const unassigned = asg ? !asg.length : obj.assigned === false;
@@ -254,7 +291,7 @@ const Gsa = (() => {
     if (kind === "rem" && L.known && !L.ent) warn("remediations need Windows Enterprise E3/E5, Education A3/A5 or VDA — this tenant holds none (Business Premium carries Windows Business). Intune runs a remediation there when it is switched on — using it outside the licence is your choice; Replace… moves the devices to the platform script, inside the licence.");
     const st = reachSt === "bad" || issues.some((i) => i.sev === "bad") ? "bad" : reachSt === "ok" && landSt === "ok" && !issues.length ? "ok" : "warn";
     const kindName = { rem: "remediation", script: "platform script", app: "app" }[kind];
-    return { st, kind, obj, name: obj.displayName, unassigned, issues, reach: Object.assign({ st: reachSt, text: reachText }, r), landed: { st: landSt, text: landText }, text: `${kindName} ${obj.displayName} — ${reachText}; ${landText}` };
+    return { combined, cfg, cfgCount: cfgA.length, deprecated, st, kind, obj, name: obj.displayName, unassigned, issues, reach: Object.assign({ st: reachSt, text: reachText }, r), landed: { st: landSt, text: landText }, text: `${kindName} ${obj.displayName} — ${reachText}; ${landText}` };
   }
   function winTable(win, lic) {
     if (!win) return "";
@@ -427,9 +464,19 @@ const Gsa = (() => {
     // 0.14.1: New-Item -Force on an existing registry key replaces it with an empty key (Learn: New-Item) —
     // on the client's own key that wipes what the client keeps there (CertCommonName among them)
     const wipes = t.split(/\r?\n/).some((l) => !/^\s*#/.test(l) && /\bNew-Item\b/i.test(l) && /-Force\b/i.test(l) && !/-ItemType\s+Directory/i.test(l) && /\$key\b|Global Secure Access Client/i.test(l) && !/Test-Path/i.test(l));
-    return { known, vals, mode, wipes, ipv4: /DisabledComponents/.test(t), aka: /aka\.ms\/GlobalSecureAccess-Windows\b/i.test(t), arm: /aka\.ms\/GlobalSecureAccess-WindowsOnArm/i.test(t) };
+    // 0.15.0: does it install the client, does a configuration check for the client first, and its part
+    const installs = /aka\.ms\/GlobalSecureAccess-Windows/i.test(t) || (/Start-Process/i.test(t) && /GlobalSecureAccessClient\.exe/i.test(t));
+    const checksClient = /if \(-not \$app\) \{ Write-Output '[^'\r\n]*'; exit 0 \}/.test(t);
+    const role = installs && known ? "both" : installs ? "install" : known ? "config" : "";
+    return { known, vals, mode, wipes, installs, checksClient, role, ipv4: /DisabledComponents/.test(t), aka: /aka\.ms\/GlobalSecureAccess-Windows\b/i.test(t), arm: /aka\.ms\/GlobalSecureAccess-WindowsOnArm/i.test(t) };
   }
   // Windows settings catalog policies that set one of the four DNS settings
+  // 0.15.0: a Windows deployment's part — install, config or both — by content, else by name
+  function winRole(x) {
+    const t = x && x.contentText;
+    if (typeof t === "string" && t) { const c = contentSettings(t); if (c.role) return c.role; }
+    return /\bconfigure\b/i.test((x && x.displayName) || "") ? "config" : "install";
+  }
   function dnsCheck(pols) {
     const set = {}, by = new Set();
     for (const p of pols || []) for (const x of p.settings || []) {
@@ -460,12 +507,16 @@ const Gsa = (() => {
     const contentRead = !!(win.obj && typeof win.obj.contentText === "string" && win.obj.contentText);
     const ct = contentSettings(win.obj && win.obj.contentText);
     const devs = devices || [], tot = devs.length, rows = [];
+    // 0.15.0: the configuration, its own deployment
+    const cfg = win.cfg || null, cct = contentSettings(cfg && cfg.obj && cfg.obj.contentText), cRead = !!(cfg && cfg.obj && typeof cfg.obj.contentText === "string" && cfg.obj.contentText);
+    const cKind = cfg ? { rem: "remediation", script: "platform script" }[cfg.kind] : "";
     // 1 install
     const iss = [];
     if (contentRead && win.kind !== "app") {
       if (!ct.aka) iss.push({ sev: "bad", t: "does not download the client from aka.ms/GlobalSecureAccess-Windows" });
       if (!ct.arm) iss.push({ sev: "warn", t: "no ARM64 download (aka.ms/GlobalSecureAccess-WindowsOnArm) — an Arm device gets nothing" });
       if (ct.wipes) iss.push({ sev: "bad", t: "re-creates the client's registry key with New-Item -Force — PowerShell replaces an existing key with an empty one, so every run that writes the settings wipes the client's own values (the client can sign out with a configuration issue). Replace the script, then reinstall the client where it ran" });
+      if (win.combined) iss.push({ sev: "warn", t: "installs and configures in one — Split… gives the install and the client settings each their own deployment, to run and assign separately" });
     }
     if (win.obj && win.obj.runAsAccount && win.obj.runAsAccount !== "system") iss.push({ sev: "bad", t: `runs as ${win.obj.runAsAccount} — the installer needs SYSTEM` });
     if (win.obj && win.obj.runAs32Bit === true) iss.push({ sev: "warn", t: "runs in 32-bit PowerShell — the client settings land under WOW6432Node" });
@@ -473,10 +524,30 @@ const Gsa = (() => {
     const vers = [...new Set(devs.map((d) => d.run && d.run.ver).filter(Boolean))];
     const landed = runs && runs.read && tot ? { st: inst === tot ? "ok" : fail ? "bad" : "warn", text: `${inst} of ${tot} installed · ${fail} failed${vers.length ? ` · client ${vers.join(", ")}` : ""}` } : win.obj ? { st: win.landed.st === "ok" ? "ok" : "warn", text: win.landed.text } : { st: "na", text: "—" };
     const licWarn = win.kind === "rem" && lic && lic.known && !lic.ent;
-    rows.push({ key: "install", label: "Install client", found: !!win.obj, name: win.obj ? win.name : "", sub: win.obj ? `${kindName}${licWarn ? " · ⚠ not in the licence — your choice" : ""}` : "", issues: iss, contentRead: contentRead || win.kind === "app", reach: win.obj ? { st: win.reach.st, text: win.reach.text } : { st: "na", text: "—" }, landed, st: !win.obj ? "bad" : iss.some((i) => i.sev === "bad") || win.reach.st === "bad" ? "bad" : landed.st === "ok" ? "ok" : "warn", fix: !win.obj ? (lic && lic.known && !lic.ent ? "winscript" : "winrem") : win.kind === "rem" ? "winrun" : win.kind === "script" ? "winredeploy" : null, fixLabel: !win.obj ? "Create…" : "Redeploy…" });
-    // 2 client settings — read here; changed through the install script (Mihai chose not to add a lock-after-go-live)
-    const setOk = devs.filter((d) => d.run && /settings as required/i.test(d.run.out || "")).length;
-    rows.push({ key: "settings", label: "Client settings", found: ct.known, name: ct.known ? `in the install ${kindName}` : "", sub: ct.mode, issues: contentRead && !ct.known ? [{ sev: "warn", t: "the install script does not write the four client settings" }] : [], contentRead, valuesText: ct.known ? WIN_SET_KEYS.map((k) => `${k} ${ct.vals[k]}`).join(" · ") : "", reach: ct.known ? { st: "ok", text: "same group" } : { st: "na", text: "—" }, landed: runs && runs.read && tot && ct.known && win.kind === "rem" ? { st: setOk === tot ? "ok" : "warn", text: `${setOk} of ${tot}: settings as required` } : { st: "na", text: "—" }, st: !win.obj || !contentRead ? "na" : ct.known ? "ok" : "warn", fix: null });
+    rows.push({ key: "install", label: "Install client", found: !!win.obj, name: win.obj ? win.name : "", sub: win.obj ? `${kindName}${licWarn ? " · ⚠ not in the licence — your choice" : ""}` : "", issues: iss, contentRead: contentRead || win.kind === "app", reach: win.obj ? { st: win.reach.st, text: win.reach.text } : { st: "na", text: "—" }, landed, st: !win.obj ? "bad" : iss.some((i) => i.sev === "bad") || win.reach.st === "bad" ? "bad" : landed.st === "ok" ? "ok" : "warn", fix: !win.obj ? (lic && lic.known && !lic.ent ? "winscript" : "winrem") : (win.combined || ct.wipes) ? (win.kind === "rem" || win.kind === "script" ? "winsplit" : null) : win.kind === "rem" ? "winrun" : win.kind === "script" ? "winredeploy" : null, fixLabel: !win.obj ? "Create…" : (win.combined || ct.wipes) ? "Split…" : "Redeploy…" });
+    // 2 client settings — 0.15.0: their own deployment (Configure Global Secure Access Client);
+    // a combined script's settings are read from it as before, until it is split
+    if (cfg) {
+      const cIss = [];
+      if (cRead && !cct.known) cIss.push({ sev: "warn", t: "does not write the four client settings" });
+      if (cRead && cct.wipes) cIss.push({ sev: "bad", t: "re-creates the client's registry key with New-Item -Force — it wipes the client's own values; replace it" });
+      if (cRead && cfg.kind === "rem" && !cct.checksClient) cIss.push({ sev: "warn", t: "does not check for the client first — devices without the client count as issues in its report" });
+      if (win.cfgCount > 1) cIss.push({ sev: "bad", t: `${win.cfgCount} configurations are assigned — keep one: where two reach a device they rewrite each other` });
+      if (cfg.obj.runAs32Bit === true) cIss.push({ sev: "warn", t: "runs in 32-bit PowerShell — the settings land under WOW6432Node" });
+      const cAsg = Array.isArray(cfg.obj.assignments) ? cfg.obj.assignments : [];
+      if (cAsg.length && asg.length) { const rv = reach(cAsg, asg, names); if (rv.st === "bad") cIss.push({ sev: "warn", t: `${rv.text.replace(" — the script's group", ", the install's group")} — devices there get the client without these settings` }); }
+      const cr = runIndex(cfg.obj);
+      const by = (d) => (cr.read ? cr.byAad.get(String(d.deviceId).toLowerCase()) || cr.byName.get(String(d.name).toLowerCase()) || null : null);
+      const okN = devs.filter((d) => { const x = by(d); return x && /settings (as required|written)/i.test(x.out || ""); }).length;
+      const waitN = devs.filter((d) => { const x = by(d); return x && /not installed/i.test(x.out || ""); }).length;
+      const cLand = cr.read && tot ? { st: okN === tot ? "ok" : "warn", text: `${okN} of ${tot} as required${waitN ? ` · ${waitN} waiting for the client` : ""}` } : { st: "na", text: cfg.unassigned ? "—" : "not read" };
+      rows.push({ key: "settings", label: "Client settings", sublabel: "own deployment", found: true, name: cfg.name, sub: `${cKind}${cct.known ? ` · ${cct.mode}` : ""}${cfg.kind === "rem" && cct.checksClient ? " · checks the client first" : ""}`, issues: cIss, contentRead: cRead, valuesText: cct.known ? WIN_SET_KEYS.map((k) => `${k} ${cct.vals[k]}`).join(" · ") : "", reach: { st: cfg.reach.st, text: cfg.reach.text }, landed: cLand, st: cIss.some((i) => i.sev === "bad") || cfg.reach.st === "bad" ? "bad" : cIss.length || cLand.st === "warn" ? "warn" : "ok", fix: null });
+    } else if (win.obj && (win.combined || ct.known)) {
+      const setOk = devs.filter((d) => d.run && /settings as required/i.test(d.run.out || "")).length;
+      rows.push({ key: "settings", label: "Client settings", found: true, name: `in the install ${kindName}`, sub: `${ct.mode} · combined`, issues: [], contentRead, valuesText: WIN_SET_KEYS.map((k) => `${k} ${ct.vals[k]}`).join(" · "), reach: { st: "ok", text: "same group" }, landed: runs && runs.read && tot && win.kind === "rem" ? { st: setOk === tot ? "ok" : "warn", text: `${setOk} of ${tot}: settings as required` } : { st: "na", text: "—" }, st: "ok", fix: null });
+    } else {
+      rows.push({ key: "settings", label: "Client settings", found: false, name: "", sub: "", issues: [{ sev: "warn", t: "no configuration — the client runs with its defaults (Disable shown, Sign out hidden); create the configuration, its own deployment" }], contentRead: true, valuesText: "", reach: { st: "na", text: "—" }, landed: { st: "na", text: "—" }, st: "warn", fix: "wincfg", fixLabel: "Create…" });
+    }
     // 3 secure DNS off in Edge and Chrome
     const dnsRead = src.winDns === "ok", dn = dnsCheck(raw.winDns || []);
     const wrong = DNS_SETTINGS.filter((d) => dn.set[d.k] && !dn.set[d.k].off), need = DNS_SETTINGS.filter((d) => !dn.set[d.k]);
@@ -491,7 +562,8 @@ const Gsa = (() => {
     ];
     rows.push({ key: "dns", label: "Secure DNS off", sublabel: "Edge + Chrome", found: dn.by.length > 0, name: dn.by.join(" · "), issues: dIss, contentRead: dnsRead, err: dnsRead ? "" : src.winDns || "not read", reach: dReach, landed: { st: "na", text: "—" }, st: !dnsRead ? "na" : dIss.some((i) => i.sev === "bad") ? "bad" : dIss.length ? "warn" : dReach.st === "bad" ? "bad" : "ok", fix: dnsRead && need.length ? "windns" : null, fixLabel: "Create…", need: need.map((d) => d.k) });
     // 4 IPv4 preferred — optional (Learn: when the profile acquires by IP and the name also resolves to IPv6)
-    rows.push({ key: "ipv4", label: "IPv4 preferred", sublabel: "optional", optional: true, found: ct.ipv4, name: ct.ipv4 ? `in the install ${kindName}` : "", issues: [], contentRead, reach: ct.ipv4 ? { st: "ok", text: "same group" } : { st: "na", text: "—" }, landed: { st: "na", text: ct.ipv4 ? "takes effect after a restart" : "—" }, st: ct.ipv4 ? "ok" : "na", fix: null });
+    const v4 = cfg ? cct.ipv4 : ct.ipv4, v4In = cfg ? `in ${cfg.name}` : `in the install ${kindName}`;
+    rows.push({ key: "ipv4", label: "IPv4 preferred", sublabel: "optional", optional: true, found: v4, name: v4 ? v4In : "", issues: [], contentRead: cfg ? cRead : contentRead, reach: v4 ? { st: "ok", text: cfg ? "the configuration's groups" : "same group" } : { st: "na", text: "—" }, landed: { st: "na", text: v4 ? "takes effect after a restart" : "—" }, st: v4 ? "ok" : "na", fix: null });
     const gl = (win.reach && win.reach.groups) || [];
     return { rows, problems: rows.filter((r) => !r.optional && r.st === "bad").length, need: need.map((d) => d.k), groupsText: gl.length ? `The install ${kindName}'s group${gl.length > 1 ? "s" : ""}: ${gl.map((id) => names[id] || id).join(", ")} — ${tot} Windows device${tot === 1 ? "" : "s"}${runs && runs.read ? `, ${devs.filter((d) => d.run).length} with an Intune run state` : ""}.` : "" };
   }
@@ -558,10 +630,14 @@ const Gsa = (() => {
     // 0.14.0: Redeploy — the remediation on demand, per device; or a new version of the platform script
     const wipes = !!(win.obj && contentSettings(win.obj.contentText).wipes);
     if (!off.windows && win.obj && !win.unassigned && (win.kind === "rem" || win.kind === "script") && W.st !== "ok" && !wipes) W.actions.push({ fix: win.kind === "rem" ? "winrun" : "winredeploy", primary: !W.fix, title: "Redeploy…", sub: win.kind === "rem" ? "run the remediation now on the devices that are not connected — on demand, one device at a time" : "a new version of the platform script — every device in its groups runs it again" });
+    // 0.15.0: a combined install-and-settings script splits into two deployments; without a
+    // configuration the lane offers one (before, with or after the install — it waits for the client)
+    if (!off.windows && win.combined && (win.kind === "rem" || win.kind === "script")) W.actions.push({ fix: "winsplit", primary: !W.actions.some((a) => a.primary), title: "Split install and configuration…", sub: `the install as ${majorName(win.name).replace(/^.* - /, "")} and the configuration, same groups; ${win.name} unassigned and renamed [DEPRECATED] · way back: reassign it from the backup` });
+    if (!off.windows && !win.combined && !win.cfg) W.actions.push({ fix: "wincfg", primary: false, title: "Create the Windows configuration…", sub: win.obj ? "the client settings as their own deployment — daily, it checks for the client first" : "before, with or after the install — it waits for the client" });
     W.chain = off.windows ? null : winChain(raw, { win, lic, runs, devices: wDev.devices });
     if (W.chain && W.chain.problems) W.actions.push({ jump: "gsaWin", label: "Show the chain", title: "The Windows chain", sub: `${W.chain.problems} problem${W.chain.problems === 1 ? "" : "s"} — the table below has a fix per row` });
     // 0.13.1: outside the licence is the admin's choice — the other route stays one click away
-    if (!off.windows && licBad) W.actions.push({ fix: "winswap", primary: false, title: "Stay inside the licence (optional)", sub: "Replace… hands the remediation's groups to the platform script — same groups, the remediation unassigned and kept · way back: reassign it from the backup" });
+    if (!off.windows && licBad) W.actions.push({ fix: "winswap", primary: false, title: "Stay inside the licence (optional)", sub: `Replace… hands the remediation's groups to the platform script${win.cfg || win.combined ? "s (install and configuration)" : ""} — same groups, the remediation${win.cfg && win.cfg.kind === "rem" ? "s" : ""} unassigned and kept · way back: reassign from the backup` });
     if (!off.windows && !win.obj && lic.known && !lic.ent) W.actions.push({ fix: "winrem", primary: false, title: "Or a remediation — outside the licence, your choice", sub: "Intune runs it when it is switched on and it puts the client back every run; Business Premium does not include remediations" });
     if (!off.windows && wGroups.length) W.actions.push({ groups: true, title: "Devices in the group", sub: `${wGroups.map((id) => names[id] || id).join(", ")} — add or remove devices in 👥 Groups (Used by GSA)` });
     W.actions.push(scopeAct("Windows", off.windows));
@@ -803,8 +879,10 @@ const Gsa = (() => {
     const devs = { macOS: new Map(), Windows: new Map() };
     const rxG = /global\s*secure\s*access/i;
     const addDev = (os, what, asg) => (asg || []).forEach((a) => { const t = a.target || {}, ty = t["@odata.type"] || ""; if (/exclusion/i.test(ty)) return; const id = /allDevices/i.test(ty) ? "__all" : /allLicensedUsers/i.test(ty) ? "__users" : t.groupId; if (!id) return; const e = devs[os].get(id) || { id, name: nmOf(id), what: new Set() }; e.what.add(what); devs[os].set(id, e); });
-    (raw.healthScripts || []).filter((h) => rxG.test(h.displayName || "")).forEach((h) => addDev("Windows", "remediation", h.assignments));
-    (raw.scripts || []).filter((x) => rxG.test(`${x.displayName} ${x.fileName}`)).forEach((x) => addDev("Windows", "platform script", x.assignments));
+    // 0.15.0: the install and the configuration named apart
+    const part = (x) => ({ install: "", config: " (configuration)", both: " (install + settings)" })[winRole(x)] || "";
+    (raw.healthScripts || []).filter((h) => rxG.test(h.displayName || "")).forEach((h) => addDev("Windows", `remediation${part(h)}`, h.assignments));
+    (raw.scripts || []).filter((x) => rxG.test(`${x.displayName} ${x.fileName}`)).forEach((x) => addDev("Windows", `platform script${part(x)}`, x.assignments));
     const macL = L.find((l) => l.k === "client"), macC = macL && macL.mac;
     if (macC) macC.rows.filter((r) => r.found && !isDep(r.name)).forEach((r) => addDev("macOS", r.label.toLowerCase(), r.found.assignments));
     else { (raw.shellScripts || []).filter((x) => rxG.test(`${x.displayName} ${x.fileName}`)).forEach((x) => addDev("macOS", "install script", x.assignments)); (((raw.macProfiles || {}).found) || []).forEach((x) => addDev("macOS", x.role || "profile", x.assignments)); }
@@ -896,7 +974,7 @@ const Gsa = (() => {
   // the step the flow opens on: the first that blocks, else Proof
   const defaultSel = (m) => ((m.links.find((l) => l.st === "bad" || l.st === "warn") || m.links.find((l) => l.k === "proof") || m.links[0]).k);
   const ST = { ok: ["ok", "ready"], warn: ["warn", "partly"], bad: ["bad", "missing"], wait: ["wait", "waits"], unread: ["wait", "not read"] };
-  const FIX_LABEL = { winswap: "Replace…", "scope-win": "Not in scope…", "scope-mac": "Not in scope…", onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", "macfix-script": "Fix the macOS script…", "macfix-sysext": "Fix system extensions…", "macfix-proxy": "Fix the transparent proxy…", "macfix-settings": "Fix the client settings…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…", hideapp: "Hide from My Apps…", showapp: "Show again…", winrun: "Redeploy…", winredeploy: "Redeploy…", windns: "Create…" };
+  const FIX_LABEL = { winswap: "Replace…", "scope-win": "Not in scope…", "scope-mac": "Not in scope…", onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows install script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", "macfix-script": "Fix the macOS script…", "macfix-sysext": "Fix system extensions…", "macfix-proxy": "Fix the transparent proxy…", "macfix-settings": "Fix the client settings…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows install remediation…", trv2: "Set up tenant restrictions…", hideapp: "Hide from My Apps…", showapp: "Show again…", winrun: "Redeploy…", winredeploy: "Redeploy…", windns: "Create…", wincfg: "Create Windows configuration…", winsplit: "Split…" };
   function render(m, ui) {
     const u = ui || {};
     if (u.proof) proofLink(m, u.proof);
@@ -1007,112 +1085,155 @@ const Gsa = (() => {
   // the client for the device's architecture from aka.ms, install it quietly,
   // and lock it down (the users-can't-disable keys). Prefer-IPv4 is optional
   // and off by default: it changes the network stack and needs a reboot.
-  function windowsScript(opts) {
-    // 32518: two client settings. Pilot = Learn's sample (and the
-    // LearnGraphAPI lab): sign-out and Disable Private Access hidden, Disable
-    // visible, every user may change it. Locked = all four on.
-    const o = opts || {}, lock = o.lock === true;
-    const vals = lock ? { HideDisableButton: 1, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 1 } : { HideDisableButton: 0, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 0 };
-    return [
-      "# Global Secure Access client — install and lock down",
-      "# Written by ENCA T56 (Workspace 03 · Entra Tools). Runs as SYSTEM, once, as an Intune platform script.",
-      "$ErrorActionPreference = 'Stop'",
-      "$exe = Join-Path $env:ProgramFiles 'Global Secure Access Client\\TrayApp\\GlobalSecureAccessClient.exe'",
-      "if (-not (Test-Path $exe)) {",
-      "  $arm = ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') -or ($env:PROCESSOR_ARCHITEW6432 -eq 'ARM64')",
-      "  $url = if ($arm) { 'https://aka.ms/GlobalSecureAccess-WindowsOnArm' } else { 'https://aka.ms/GlobalSecureAccess-windows' }",
-      "  $file = Join-Path $env:TEMP 'GlobalSecureAccessClient.exe'",
-      "  Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing",
-      "  $p = Start-Process -FilePath $file -ArgumentList '/quiet', '/norestart' -Wait -PassThru",
-      "  Remove-Item $file -Force -ErrorAction SilentlyContinue",
-      "  if ($p.ExitCode -notin 0, 3010) { throw \"Global Secure Access client installer exit code $($p.ExitCode)\" }",
-      "}",
-      "$key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
-      "# never New-Item -Force on this key: PowerShell would replace it with an empty key and wipe the client's own values",
-      "if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }",
-      `# client settings: ${lock ? "locked down" : "pilot (Learn sample)"}`,
-      ...Object.entries(vals).map(([k, v]) => `Set-ItemProperty -Path $key -Name '${k}' -Value ${v} -Type DWord -Force`),
-      ...(o.ipv4 ? [
-        "# Prefer IPv4: the client tunnels IPv4 only, so an IPv6 path to Entra goes around it. Takes effect after a reboot (Intune does not reboot for a platform script).",
-        "$tcp6 = 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters'",
-        "Set-ItemProperty -Path $tcp6 -Name 'DisabledComponents' -Value 0x20 -Type DWord -Force",
-      ] : []),
-      "exit 0",
-    ].join("\r\n");
-  }
-  // ---- the Windows remediation (32520) ------------------------------------
-  // DETECT: the client in the uninstall keys (the walkthrough's detect_gsa.ps1,
-  // no version baked in) and the client settings as chosen → exit 0 when both
-  // hold, exit 1 otherwise. REMEDIATE: install when missing (the walkthrough's
-  // install_gsa.ps1: architecture from Win32_Processor, the aka.ms installer,
-  // TLS 1.2, quiet), then write the client settings. No restart — Intune says
-  // never to restart from a remediation; prefer-IPv4 waits for the next one.
-  // Output stays short: Intune keeps 2,048 characters.
+  // ---- 0.15.0 (Mihai 19 Oct): installation and configuration split ----------
+  // "Split installation from configuration ... make the configuration detect
+  // first if the client is installed ... make them separate to run and assign."
+  // INSTALL writes no client settings. CONFIGURE writes the four values (and
+  // IPv4 preferred when ticked): as a remediation it checks for the client
+  // first and exits 0 when it is not there yet — the two run on their own
+  // schedules, so a new device often configures before it installs; as a
+  // platform script it writes them whether or not the client is there, since a
+  // platform script runs once (Learn) and a skip would never run again. Neither
+  // runs New-Item -Force on the client's key (0.14.1: that empties the key).
+  // 32518: the two client settings. Pilot = Learn's sample (and the
+  // LearnGraphAPI lab): sign-out and Disable Private Access hidden, Disable
+  // visible, every user may change it. Locked = all four on. A split keeps the
+  // exact values the combined script wrote (custom ones too).
   const settingVals = (lock) => lock ? { HideDisableButton: 1, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 1 } : { HideDisableButton: 0, HideSignOutButton: 1, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 0 };
+  const valsOf = (o) => (o && o.vals && WIN_SET_KEYS.every((k) => k in o.vals) ? Object.fromEntries(WIN_SET_KEYS.map((k) => [k, Number(o.vals[k])])) : settingVals(!!(o && o.lock === true)));
+  const modeOf = (o) => { const v = valsOf(o); return WIN_SET_KEYS.every((k) => v[k] === 1) ? "locked down" : v.HideDisableButton === 0 && v.RestrictNonPrivilegedUsers === 0 && v.HideSignOutButton === 1 && v.HideDisablePrivateAccessButton === 1 ? "pilot" : "custom"; };
   const psHash = (o) => `@{ ${Object.entries(o).map(([k, v]) => `${k} = ${v}`).join("; ")} }`;
-  function detectScript(opts) {
-    const o = opts || {};
+  const APP_LOOKUP = "$app = Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Global Secure Access Client*' } | Select-Object -First 1";
+  const KEY_LINE = "$key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'";
+  const KEEP_KEY = ["# never New-Item -Force on this key: PowerShell would replace it with an empty key and wipe the client's own values", "if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }"];
+  const TCP6 = "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters";
+  const LOG_LINES = ["$log = \"$env:ProgramData\\GSAInstall\\install.log\"", "New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null", "function Log($m) { Add-Content -Path $log -Value ('{0} - {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) }"];
+  // the walkthrough's install_gsa.ps1: architecture from Win32_Processor, the aka.ms installer, TLS 1.2, quiet, no restart
+  const INSTALL_LINES = [
+    "# Win32_Processor.Architecture: 9 = x64, 12 = ARM64",
+    "$arm = ((Get-CimInstance Win32_Processor | Select-Object -First 1).Architecture -eq 12)",
+    "$url = if ($arm) { 'https://aka.ms/GlobalSecureAccess-WindowsOnArm' } else { 'https://aka.ms/GlobalSecureAccess-Windows' }",
+    "$exe = Join-Path $env:TEMP 'GlobalSecureAccessClient.exe'",
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12",
+    "Log \"Downloading $url\"",
+    "Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing",
+    "$p = Start-Process -FilePath $exe -ArgumentList '/quiet', '/norestart' -Wait -PassThru",
+    "Remove-Item $exe -Force -ErrorAction SilentlyContinue",
+    "Log \"Installer exit code $($p.ExitCode)\"",
+    "if ($p.ExitCode -notin 0, 3010) { Write-Output \"GSA install failed, exit code $($p.ExitCode)\"; exit 1 }",
+  ];
+  const installBody = (head) => [
+    ...head,
+    "$ErrorActionPreference = 'Stop'",
+    ...LOG_LINES,
+    "try {",
+    `  ${APP_LOOKUP}`,
+    "  if ($app) { Write-Output \"GSA client $($app.DisplayVersion) already installed\"; exit 0 }",
+    ...INSTALL_LINES.map((l) => `  ${l}`),
+    "  Write-Output \"GSA client installed (exit $($p.ExitCode))\"",
+    "  exit 0",
+    "} catch { Log \"Fatal: $_\"; Write-Output \"GSA install failed: $_\"; exit 1 }",
+  ].join("\r\n");
+  // INSTALL — the platform script: runs once; installs when missing; no settings
+  function windowsScript() {
+    return installBody([
+      "# Global Secure Access client — install. Written by ENCA T56 (Workspace 03 · Entra Tools).",
+      "# Runs as SYSTEM, once, as an Intune platform script. Writes no client settings: the configuration script does.",
+    ]);
+  }
+  // INSTALL — the remediation: detection says installed or not (the walkthrough's detect_gsa.ps1, no version baked in)
+  function detectScript() {
     return [
-      "# Detect Global Secure Access Client — ENCA T56. Exit 0 = installed and settings as required; exit 1 = remediate.",
-      "$app = Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Global Secure Access Client*' } | Select-Object -First 1",
+      "# Detect Global Secure Access Client (install) — ENCA T56. Exit 0 = installed; exit 1 = install it.",
+      APP_LOOKUP,
       "if (-not $app) { Write-Output 'GSA client not installed'; exit 1 }",
-      "$key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
-      `$want = ${psHash(settingVals(o.lock === true))}`,
-      "$drift = @(); foreach ($k in $want.Keys) { $cur = (Get-ItemProperty -Path $key -Name $k -ErrorAction SilentlyContinue).$k; if ($cur -ne $want[$k]) { $drift += \"$k=$cur\" } }",
-      ...(o.ipv4 ? ["$v6 = (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters' -Name DisabledComponents -ErrorAction SilentlyContinue).DisabledComponents", "if ($v6 -ne 0x20) { $drift += \"DisabledComponents=$v6\" }"] : []),
-      "if ($drift.Count) { Write-Output \"GSA client $($app.DisplayVersion) installed; settings differ: $($drift -join ', ')\"; exit 1 }",
-      "Write-Output \"GSA client $($app.DisplayVersion) installed; settings as required\"",
+      "Write-Output \"GSA client $($app.DisplayVersion) installed\"",
       "exit 0",
     ].join("\r\n");
   }
-  function remediationScript(opts) {
-    const o = opts || {};
+  // no restart — Intune says never to restart from a remediation. Output stays short: Intune keeps 2,048 characters.
+  function remediationScript() {
+    return installBody(["# Remediate Global Secure Access Client (install) — ENCA T56. aka.ms, x64 or ARM64, quiet, no restart. Runs as SYSTEM, 64-bit. Writes no client settings."]);
+  }
+  // CONFIGURE — the remediation's detection: nothing to do until the client is there
+  function cfgDetectScript(opts) {
+    const o = opts || {}, mode = modeOf(o);
     return [
-      "# Remediate Global Secure Access Client — ENCA T56. Install when missing, then the client settings. Runs as SYSTEM, 64-bit.",
-      "$ErrorActionPreference = 'Stop'",
-      "$log = \"$env:ProgramData\\GSAInstall\\install.log\"",
-      "New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null",
-      "function Log($m) { Add-Content -Path $log -Value ('{0} - {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) }",
-      "try {",
-      "  $app = Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Global Secure Access Client*' } | Select-Object -First 1",
-      "  if (-not $app) {",
-      "    # Win32_Processor.Architecture: 9 = x64, 12 = ARM64",
-      "    $arm = ((Get-CimInstance Win32_Processor | Select-Object -First 1).Architecture -eq 12)",
-      "    $url = if ($arm) { 'https://aka.ms/GlobalSecureAccess-WindowsOnArm' } else { 'https://aka.ms/GlobalSecureAccess-Windows' }",
-      "    $exe = Join-Path $env:TEMP 'GlobalSecureAccessClient.exe'",
-      "    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12",
-      "    Log \"Downloading $url\"",
-      "    Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing",
-      "    $p = Start-Process -FilePath $exe -ArgumentList '/quiet', '/norestart' -Wait -PassThru",
-      "    Remove-Item $exe -Force -ErrorAction SilentlyContinue",
-      "    Log \"Installer exit code $($p.ExitCode)\"",
-      "    if ($p.ExitCode -notin 0, 3010) { Write-Output \"GSA install failed, exit code $($p.ExitCode)\"; exit 1 }",
-      "  }",
-      "  $key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
-      "  # never New-Item -Force on this key: PowerShell would replace it with an empty key and wipe the client's own values",
-      "  if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }",
-      `  $want = ${psHash(settingVals(o.lock === true))}`,
-      "  foreach ($k in $want.Keys) { Set-ItemProperty -Path $key -Name $k -Value $want[$k] -Type DWord -Force }",
-      ...(o.ipv4 ? ["  # prefer IPv4 — the client tunnels IPv4 only; takes effect at the next restart (no restart here)", "  Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters' -Name DisabledComponents -Value 0x20 -Type DWord -Force"] : []),
-      `  Log 'Client settings written (${o.lock === true ? "locked down" : "pilot"})'`,
-      "  Write-Output ('GSA client {0}; settings written' -f ($(if ($app) { 'present' } else { 'installed' })))",
-      "  exit 0",
-      "} catch { Log \"Fatal: $_\"; Write-Output \"GSA remediation failed: $_\"; exit 1 }",
+      `# Detect Global Secure Access Client settings (${mode}) — ENCA T56. Exit 0 = client not installed yet (nothing to configure) or settings as required; exit 1 = write them.`,
+      APP_LOOKUP,
+      "if (-not $app) { Write-Output 'GSA client not installed - nothing to configure yet'; exit 0 }",
+      KEY_LINE,
+      `$want = ${psHash(valsOf(o))}`,
+      "$drift = @(); foreach ($k in $want.Keys) { $cur = (Get-ItemProperty -Path $key -Name $k -ErrorAction SilentlyContinue).$k; if ($cur -ne $want[$k]) { $drift += \"$k=$cur\" } }",
+      ...(o.ipv4 ? [`$v6 = (Get-ItemProperty '${TCP6}' -Name DisabledComponents -ErrorAction SilentlyContinue).DisabledComponents`, "if ($v6 -ne 0x20) { $drift += \"DisabledComponents=$v6\" }"] : []),
+      "if ($drift.Count) { Write-Output \"GSA client $($app.DisplayVersion); settings differ: $($drift -join ', ')\"; exit 1 }",
+      `Write-Output "GSA client $($app.DisplayVersion); settings as required (${mode})"`,
+      "exit 0",
     ].join("\r\n");
   }
-  function remediationBody(opts) {
-    return { "@odata.type": "#microsoft.graph.deviceHealthScript", displayName: names(opts).rem, description: "Detects the Global Secure Access client and its client settings; installs it from aka.ms (x64 or ARM64) when missing and writes the settings (" + ((opts && opts.lock) ? "locked down" : "pilot") + "). Created by ENCA T56.", publisher: "ENCA", runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], detectionScriptContent: b64(detectScript(opts)), remediationScriptContent: b64(remediationScript(opts)) };
+  // CONFIGURE — the remediation: the values, the client's key kept; nothing when the client is not there
+  function cfgRemediationScript(opts) {
+    const o = opts || {}, mode = modeOf(o);
+    return [
+      `# Remediate Global Secure Access Client settings (${mode}) — ENCA T56. Writes the four client values${o.ipv4 ? " and IPv4 preferred" : ""}; does nothing when the client is not installed. Runs as SYSTEM, 64-bit. No restart.`,
+      "$ErrorActionPreference = 'Stop'",
+      "try {",
+      `  ${APP_LOOKUP}`,
+      "  if (-not $app) { Write-Output 'GSA client not installed - skipped'; exit 0 }",
+      `  ${KEY_LINE}`,
+      ...KEEP_KEY.map((l) => `  ${l}`),
+      `  $want = ${psHash(valsOf(o))}`,
+      "  foreach ($k in $want.Keys) { Set-ItemProperty -Path $key -Name $k -Value $want[$k] -Type DWord -Force }",
+      ...(o.ipv4 ? ["  # prefer IPv4 — the client tunnels IPv4 only; takes effect at the next restart (no restart here)", `  Set-ItemProperty -Path '${TCP6}' -Name DisabledComponents -Value 0x20 -Type DWord -Force`] : []),
+      `  Write-Output 'GSA client settings written (${mode})'`,
+      "  exit 0",
+      "} catch { Write-Output \"GSA configuration failed: $_\"; exit 1 }",
+    ].join("\r\n");
   }
-  // the assignment: the device group, remediation on, daily (default) or hourly
-  function remediationAssignment(groupId, schedule) {
-    const runSchedule = schedule === "hourly" ? { "@odata.type": "#microsoft.graph.deviceHealthScriptHourlySchedule", interval: 1 } : { "@odata.type": "#microsoft.graph.deviceHealthScriptDailySchedule", interval: 1, time: "09:00:00.0000000", useUtc: false };
-    return { target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId }, runRemediationScript: true, runSchedule };
+  // CONFIGURE — the platform script: runs once, so it writes the values whether or not the client is there yet
+  function cfgScript(opts) {
+    const o = opts || {}, mode = modeOf(o);
+    return [
+      `# Global Secure Access client — configuration (${mode}). Written by ENCA T56 (Workspace 03 · Entra Tools). Runs as SYSTEM, once, as an Intune platform script.`,
+      "# Writes the values whether or not the client is installed yet: a platform script runs once, and the client reads them when it starts.",
+      "$ErrorActionPreference = 'Stop'",
+      KEY_LINE,
+      ...KEEP_KEY,
+      `$want = ${psHash(valsOf(o))}`,
+      "foreach ($k in $want.Keys) { Set-ItemProperty -Path $key -Name $k -Value $want[$k] -Type DWord -Force }",
+      ...(o.ipv4 ? ["# Prefer IPv4: the client tunnels IPv4 only, so an IPv6 path to Entra goes around it. Takes effect after a restart (Intune does not restart for a platform script).", `Set-ItemProperty -Path '${TCP6}' -Name DisabledComponents -Value 0x20 -Type DWord -Force`] : []),
+      `Write-Output 'GSA client settings written (${mode})'`,
+      "exit 0",
+    ].join("\r\n");
   }
-
   // UTF-8 → base64, for scriptContent
   const b64 = (text) => { const bytes = new TextEncoder().encode(text); let s = ""; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); };
+  const valsText = (o) => WIN_SET_KEYS.map((k) => `${k} ${valsOf(o)[k]}`).join(", ");
+  function remediationBody(opts) {
+    return { "@odata.type": "#microsoft.graph.deviceHealthScript", displayName: (opts && opts.name) || names(opts).rem, description: "Detects the Global Secure Access client and installs it from aka.ms (x64 or ARM64) when it is missing — quiet, no restart. Writes no client settings: the Configure remediation does. Created by ENCA T56.", publisher: "ENCA", runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], detectionScriptContent: b64(detectScript(opts)), remediationScriptContent: b64(remediationScript(opts)) };
+  }
+  function cfgRemediationBody(opts) {
+    const o = opts || {};
+    return { "@odata.type": "#microsoft.graph.deviceHealthScript", displayName: o.name || names(o).remCfg, description: `Writes the Global Secure Access client settings (${modeOf(o)}: ${valsText(o)}${o.ipv4 ? "; IPv4 preferred" : ""}) where the client is installed; reports nothing to configure yet where it is not. Keeps the client's own registry key. Created by ENCA T56.`, publisher: "ENCA", runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], detectionScriptContent: b64(cfgDetectScript(o)), remediationScriptContent: b64(cfgRemediationScript(o)) };
+  }
+  // the assignment: a device group (its id, or a target as read), remediation on, daily or hourly
+  function remediationAssignment(t, schedule) {
+    const runSchedule = schedule === "hourly" ? { "@odata.type": "#microsoft.graph.deviceHealthScriptHourlySchedule", interval: 1 } : { "@odata.type": "#microsoft.graph.deviceHealthScriptDailySchedule", interval: 1, time: "09:00:00.0000000", useUtc: false };
+    const target = typeof t === "string" ? { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: t } : t;
+    return { target, runRemediationScript: true, runSchedule };
+  }
   function windowsScriptBody(opts) {
-    return { "@odata.type": "#microsoft.graph.deviceManagementScript", displayName: names(opts).win, description: "Downloads the Global Secure Access client (x64 or ARM64) from aka.ms, installs it quietly and hides Disable, Sign out and Disable Private Access for users (lock-down). Runs once as SYSTEM. Created by ENCA T56.", fileName: WIN_FILE, runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], scriptContent: b64(windowsScript(opts)) };
+    return { "@odata.type": "#microsoft.graph.deviceManagementScript", displayName: (opts && opts.name) || names(opts).win, description: "Downloads the Global Secure Access client (x64 or ARM64) from aka.ms and installs it quietly. Writes no client settings: the Configure script does. Runs once as SYSTEM. Created by ENCA T56.", fileName: WIN_FILE, runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], scriptContent: b64(windowsScript(opts)) };
+  }
+  function cfgScriptBody(opts) {
+    const o = opts || {};
+    return { "@odata.type": "#microsoft.graph.deviceManagementScript", displayName: o.name || names(o).winCfg, description: `Writes the Global Secure Access client settings (${modeOf(o)}: ${valsText(o)}${o.ipv4 ? "; IPv4 preferred" : ""}). Runs once as SYSTEM, whether or not the client is installed yet. Keeps the client's own registry key. Created by ENCA T56.`, fileName: CFG_FILE, runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], scriptContent: b64(cfgScript(o)) };
+  }
+  // a split's install: the next major version (v1.0 → v2.0), this month's release tag
+  function majorName(old, d) {
+    const n = String(old || "").replace(DEP_RX, "").trim();
+    const mm = n.match(/^(.*?)(?: - R\d+(?:\.\d+)?)? - v(\d+)(?:\.\d+)*\s*$/);
+    return mm ? `${mm[1]} - ${relTag(d)} - v${+mm[2] + 1}.0` : `${n} - ${relTag(d)} - v2.0`;
   }
   // macOS: the shell script in the style of the devcf scr-app-1NN installers
   // (zsh, a log under /Library/Logs/Microsoft/IntuneScripts, skip when the app
@@ -1603,14 +1724,29 @@ const Gsa = (() => {
     const o = opts || {}, nm = names({ rel: o.rel, ver: o.ver });
     const req = (lines) => [{ id: "req", label: "Graph request", lang: "http", text: lines.join("\n") }];
     const j = (x) => JSON.stringify(x, null, 2);
-    if (k === "winrem") return [{ id: "det", label: "Detection", lang: "powershell", text: detectScript(o) }, { id: "rem", label: "Remediation", lang: "powershell", text: remediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.rem})`, `POST /deviceManagement/deviceHealthScripts/{id}/assign`, j({ deviceHealthScriptAssignments: [remediationAssignment("<" + (o.devGroup || GROUPS.win) + ">", o.schedule)] })])];
+    if (k === "winrem") return [{ id: "det", label: "Detection", lang: "powershell", text: detectScript(o) }, { id: "rem", label: "Remediation", lang: "powershell", text: remediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.rem})`, `POST /deviceManagement/deviceHealthScripts/{id}/assign`, j({ deviceHealthScriptAssignments: [remediationAssignment("<" + (o.devGroup || GROUPS.win) + ">", o.schedule || "hourly")] })])];
     if (k === "winscript") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }];
+    // 0.15.0: the configuration, and the split of a combined script
+    if (k === "wincfg") {
+      const asScript = o.kind === "script", tg = o.targets && o.targets.length ? o.targets : [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: `<${o.devGroup || GROUPS.win}>` }];
+      return asScript
+        ? [{ id: "cfg", label: CFG_FILE, lang: "powershell", text: cfgScript(o) }, ...req([`POST /deviceManagement/deviceManagementScripts   (${nm.winCfg})`, "POST /deviceManagement/deviceManagementScripts/{id}/assign", j({ deviceManagementScriptAssignments: tg.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) })])]
+        : [{ id: "cdet", label: "Detection", lang: "powershell", text: cfgDetectScript(o) }, { id: "crem", label: "Remediation", lang: "powershell", text: cfgRemediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.remCfg})`, "POST /deviceManagement/deviceHealthScripts/{id}/assign", j({ deviceHealthScriptAssignments: tg.map((t) => remediationAssignment(t, o.schedule || "daily")) })])];
+    }
+    if (k === "winsplit") {
+      const asScript = o.kind === "script", base = asScript ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceHealthScripts";
+      const old = o.oldName || "{the combined script}", iName = o.installName || "{its name, next major version}", cName = asScript ? nm.winCfg : nm.remCfg, id = o.oldId || "{id}";
+      const tabs = asScript
+        ? [{ id: "win", label: `Install · ${WIN_FILE}`, text: windowsScript(o) }, { id: "cfg", label: `Configure · ${CFG_FILE}`, text: cfgScript(o) }]
+        : [{ id: "det", label: "Install · detection", text: detectScript(o) }, { id: "rem", label: "Install · remediation", text: remediationScript(o) }, { id: "cdet", label: "Configure · detection", text: cfgDetectScript(o) }, { id: "crem", label: "Configure · remediation", text: cfgRemediationScript(o) }];
+      return [...tabs.map((t) => Object.assign({ lang: "powershell" }, t)), ...req([`GET ${base}/${id} and its assignments — a backup is downloaded first`, "", `POST ${base}   (${iName})`, `POST ${base}/{new install}/assign   (the same targets${asScript ? "" : " and schedule"} as ${old})`, "", `POST ${base}   (${cName})`, `POST ${base}/{new configuration}/assign   (the same targets${asScript ? "" : `, ${o.schedule === "hourly" ? "every hour" : "daily"}`})`, "", "read both back; only then:", `POST ${base}/${id}/assign`, j(asScript ? { deviceManagementScriptAssignments: [] } : { deviceHealthScriptAssignments: [] }), `PATCH ${base}/${id}`, j({ displayName: `[DEPRECATED] ${old}`, description: `DEPRECATED <today>: split into install and configuration; replaced by ${iName} and ${cName} (ENCA T56). | <its description>` })])];
+    }
     // 0.14.0: Redeploy and secure DNS
     if (k === "winrun") { const ds = (o.devs || []).filter((d) => d.on); return req([...(o.sync ? ds.map((d) => `POST /beta/deviceManagement/managedDevices/${d.id}/syncDevice   (${d.name})`) : []), ...(o.sync && ds.length ? [""] : []), ...(ds.length ? ds.flatMap((d) => [`POST /beta/deviceManagement/managedDevices/${d.id}/initiateOnDemandProactiveRemediation   (${d.name})`, j({ scriptPolicyId: o.scriptId || "{the install remediation}" }), ""]) : ["no device ticked"])]); }
     if (k === "winredeploy") { const nn = o.name ? bumpName(o.name) : "{the script's name, version bumped}"; const body = `# redeploy ${new Date().toISOString().slice(0, 10)} — ENCA T56\r\n${o.content || "{the script as it is}"}`; return [{ id: "win", label: "The script, new version", lang: "powershell", text: body }, ...req([`PATCH /deviceManagement/deviceManagementScripts/${o.scriptId || "{id}"}`, j({ displayName: nn, scriptContent: "<the script above, base64>" })])]; }
     if (k === "windns") return req([`POST /deviceManagement/configurationPolicies`, j(winDnsBody(o, o.need || [])), "", `POST /deviceManagement/configurationPolicies/{new}/assign`, j({ assignments: (o.targets && o.targets.length ? o.targets : [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: `<${o.devGroup || GROUPS.win}>` }]).map((target) => ({ target })) })]);
     // 0.11.0: the platform script takes the remediation's groups; the record that keeps a platform out of scope
-    if (k === "winswap") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }, ...req([`POST /deviceManagement/deviceManagementScripts   (${nm.win}; a GSA platform script already in Intune is reused)`, "POST /deviceManagement/deviceManagementScripts/{id}/assign", j({ deviceManagementScriptAssignments: (o.remGroups && o.remGroups.length ? o.remGroups : ["the remediation's groups"]).map((g) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: `<${g}>` } })) }), "", `then, only when that landed: POST /deviceManagement/deviceHealthScripts/${o.remId || "{remediation}"}/assign`, j({ deviceHealthScriptAssignments: [] }), "", "a backup of the remediation's assignments is downloaded first"])];
+    if (k === "winswap") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }, ...(o.withCfg ? [{ id: "cfg", label: CFG_FILE, lang: "powershell", text: cfgScript(o) }] : []), ...req([`POST /deviceManagement/deviceManagementScripts   (${nm.win}; a GSA install script already in Intune is reused)`, ...(o.withCfg ? [`POST /deviceManagement/deviceManagementScripts   (${nm.winCfg})`] : []), `POST /deviceManagement/deviceManagementScripts/{id}/assign${o.withCfg ? "   (each of them)" : ""}`, j({ deviceManagementScriptAssignments: (o.remGroups && o.remGroups.length ? o.remGroups : ["the remediation's groups"]).map((g) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: `<${g}>` } })) }), "", `then, only when that landed: POST /deviceManagement/deviceHealthScripts/${o.remId || "{remediation}"}/assign`, j({ deviceHealthScriptAssignments: [] }), ...(o.cfgRemId ? ["", `and POST /deviceManagement/deviceHealthScripts/${o.cfgRemId}/assign   (the configuration remediation)`, j({ deviceHealthScriptAssignments: [] })] : []), "", "a backup of the remediations' assignments is downloaded first"])];
     if (k === "scope-win" || k === "scope-mac") {
       const platform = k === "scope-mac" ? "macOS" : "Windows", cur = scopeOut(o.rec)[platform === "macOS" ? "macOS" : "windows"];
       return req([o.rec ? `PATCH /v1.0/organization/{tenant id}/extensions/${ENCA_EXT}` : "POST /v1.0/organization/{tenant id}/extensions", j(scopeRecord(o.rec, platform, !cur, o.who || "<you>", o.why || "", "<now>"))]);
@@ -1668,7 +1804,7 @@ const Gsa = (() => {
     profile: { title: "Enable the Microsoft traffic profile", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH the Microsoft traffic profile: state enabled.", "PATCH every traffic policy of the profile that is not enabled: state enabled."], impact: "Devices of ASSIGNED users that run the client start sending Microsoft 365 and Entra traffic through Global Secure Access. Nobody without an assignment or a client is affected.", recovery: "Set the profile back to disabled in Global Secure Access → Connect → Traffic forwarding (or here, after a re-read); traffic falls back to direct." },
     assign: { title: "Assign the Microsoft traffic profile", scopes: ["AppRoleAssignment.ReadWrite.All", "Application.ReadWrite.All"], role: "Application Administrator", changes: ["Pilot group (recommended): add the group to the profile's enterprise app (an app role assignment on its service principal).", "Or all users: set appRoleAssignmentRequired to false on that service principal — the CyberDrain route.", "Pilot group with Also hide ticked (the default): the profile's app is hidden from My Apps in the same run — the HideApp tag added to that service principal, its other tags kept."], impact: "The assigned users' client starts tunnelling Microsoft traffic. A compliant-network policy will then pass them; anybody not assigned keeps failing it. Assigned users see the profile's app as a tile in My Apps unless it is hidden — the tick hides it, the assignment stays.", recovery: "Remove the assignment (Enterprise applications → the profile's app → Users and groups), or set Assignment required back to Yes. Show again… on step 3 brings the My Apps tile back." },
     signal: { title: "Enable Conditional Access signalling", scopes: ["NetworkAccess.ReadWrite.All"], role: "Global Secure Access Administrator", changes: ["PATCH /networkAccess/settings/conditionalAccess: signalingStatus enabled."], impact: "Entra sees the user's real source IP for traffic through the tunnel and can evaluate the compliant network. Named-location policies on IP ranges start seeing the original IP for those sign-ins.", recovery: "Turn it off in Global Secure Access → Settings → Session management only AFTER the policies that require the compliant network are off or deleted — Microsoft warns against disabling signalling while they exist, they would then fail everyone." },
-    winrem: { title: "Create the Windows remediation", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune remediation (Devices → Scripts and remediations) named by the CloudFellows convention (Win - DHS - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit). Detection: the client in the uninstall keys and the client settings as chosen. Remediation: install from aka.ms (x64 or ARM64) when missing, then write the settings.", `Assign it to the device group you name — ${GROUPS.win} by default, made empty when missing and the tick is on — with remediation on, daily or hourly.`], impact: "At its next scheduled run every device in the group installs the Global Secure Access client when it is missing, and every run puts the client settings back. Pilot settings hide sign-out and Disable Private Access but leave Disable visible; locked down hides all four. Nothing restarts the device. Licence: remediations need Windows Enterprise E3/E5, Education A3/A5 or VDA (Learn) and the tenant's Windows license verification (Intune → Tenant administration → Connectors and tokens → Windows data) — Business Premium carries Windows Business, which does not include them. Intune still runs a remediation there when it is switched on; using it outside the licence is your choice, and step 6 offers the platform script as the route inside the licence. A remediation found by step 6 is reused and assigned, never made a second time; every assignment it has is written back with remediation ON.", recovery: "Remove the assignment or delete the remediation in Intune → Devices → Scripts and remediations; it stops running. The client stays installed — uninstall it per device from Apps & features if needed." },
+    winrem: { title: "Create the Windows install remediation", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune remediation (Devices → Scripts and remediations) named by the CloudFellows convention (Win - DHS - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit). Detection: the client in the uninstall keys. Remediation: install it from aka.ms (x64 or ARM64) when missing — quiet, no restart. It writes no client settings: the configuration is its own deployment.", `Assign it to the device group you name — ${GROUPS.win} by default, made empty when missing and the tick is on — with remediation on, every hour (or daily).`], impact: "At its next scheduled run every device in the group installs the Global Secure Access client when it is missing; where it is there, nothing happens. Nothing restarts the device and the client's own registry key is never touched. Licence: remediations need Windows Enterprise E3/E5, Education A3/A5 or VDA (Learn) and the tenant's Windows license verification (Intune → Tenant administration → Connectors and tokens → Windows data) — Business Premium carries Windows Business, which does not include them. Intune still runs a remediation there when it is switched on; using it outside the licence is your choice, and step 6 offers the platform script as the route inside the licence. A remediation found by step 6 is reused and assigned, never made a second time; every assignment it has is written back with remediation ON.", recovery: "Remove the assignment or delete the remediation in Intune → Devices → Scripts and remediations; it stops running. The client stays installed — uninstall it per device from Apps & features if needed." },
     macscript: { title: "Create the macOS client — script and profiles", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune macOS shell script named by the CloudFellows convention (MACOS - SH - Software Installation - D - Install Global Secure Access Client - R… - v…; root, weekly, three retries, notifications blocked, file scr-app-109-install-global-secure-access.zsh — the CloudFellows baseline script v1.2) that downloads the client package from aka.ms, installs it only when it is signed by Microsoft (team UBF8T346G9), waits on a first install until the system-extension and proxy approvals are on the Mac, and upgrades in place when aka.ms serves a newer client — reused, not made again, when a script of that name is there.", "POST the three profiles the client cannot run without, as ticked below (ticked by default when missing or unassigned; one already in Intune is reused and only assigned): a settings catalog policy allowing the system extensions com.microsoft.globalsecureaccess.tunnel and com.microsoft.globalsecureaccess (team UBF8T346G9), a custom profile with Learn's transparent-proxy plist (com.apple.vpn.managed, device channel), and a preference file for com.microsoft.globalsecureaccess with the four Hide… keys as chosen.", `Assign all of them to the device group you name — ${GROUPS.mac} by default (the group the GSA macOS profiles target in the baseline), created empty when missing and the tick is on.`], impact: "Every Mac in the group installs the Global Secure Access client at its next Intune check-in and gets the profiles — before or after the script, the order does not matter. Nothing moves until the Microsoft profile is on and assigned to the user. The profiles pre-approve the extension and the proxy; without them the client asks the user to approve them or cannot tunnel. The client settings only hide tray buttons.", recovery: "Unassign or delete the three profiles in Intune → Devices → macOS → Configuration and the script in Devices → macOS → Shell scripts; the client stays installed (uninstall: the Uninstall Global Secure Access Client app). Nothing in Entra changes." },
     // 0.9.0: one entry per chain row; macFixPlan(k, mac, opts) says create, repair, assign or add
     "macfix-script": { title: "Fix the macOS install script", scopes: ["DeviceManagementScripts.ReadWrite.All", "DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["As the plan below says."], impact: "As the plan below says.", recovery: "As the plan below says." },
@@ -1678,15 +1814,18 @@ const Gsa = (() => {
     macprof: { title: "Create the macOS profiles", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST the profiles the client cannot run without, as ticked below (ticked by default when missing or unassigned; one already in Intune is reused and only assigned): a settings catalog policy allowing the system extensions com.microsoft.globalsecureaccess.tunnel and com.microsoft.globalsecureaccess (team UBF8T346G9), a custom profile with Learn's transparent-proxy plist (com.apple.vpn.managed, device channel), and a preference file for com.microsoft.globalsecureaccess with the four Hide… keys as chosen. The shell script already in Intune is left as it is.", `Assign them to the device group you name — ${GROUPS.mac} by default, created empty when missing and the tick is on.`], impact: "Every Mac in the group gets the profiles at its next Intune check-in: the extension and the proxy are pre-approved, so the installed client loads its extension and tunnels without an approval prompt. Nothing moves until the Microsoft profile is on and assigned to the user. The client settings only hide tray buttons.", recovery: "Unassign or delete the profiles in Intune → Devices → macOS → Configuration; the client stays installed and falls back to asking the user. Nothing in Entra changes." },
     ztnasp: { title: "Create the ZTNA Policy Service Client service principal", scopes: ["Application.ReadWrite.All"], role: "Application Administrator", changes: [`POST /servicePrincipals with appId ${ZTNA_CLIENT} — Microsoft's first-party app the client signs in through.`], impact: "Optional — Microsoft documents no requirement for this app. None for users: it adds Microsoft's enterprise application to the tenant. In the LearnGraphAPI lab the client stayed Partially Connected (sign-in errors 50097, 50187) while it was missing; whether creating it alone fixed that was not proven.", recovery: "Delete the enterprise application again (Enterprise applications → ZTNA Policy Service Client → Properties → Delete)." },
     location: { title: `Make “${LOCATION_NAME}” appear`, scopes: ["Policy.ReadWrite.ConditionalAccess"], role: "Conditional Access Administrator", changes: ["Read the named locations again first — Entra creates this location itself when Conditional Access signalling is switched on (Learn), often a little after the switch. Found: nothing is written.", `Still missing: POST a compliantNetworkNamedLocation “${LOCATION_NAME}” (allTenantCompliantNetworks, not trusted). Learn documents List, Get and Update for this type, NOT create — if Graph refuses, switch signalling off and on in Global Secure Access → Settings → Session management → Adaptive access and read again.`], impact: "None until a policy names it.", recovery: "Delete the named location in 🧩 Policy building blocks → Locations, once no policy uses it." },
-    winscript: { title: "Create the Windows platform script (Business Premium route)", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) that downloads the client from aka.ms, installs it and sets the lock-down keys.", `Assign it to the device group you name — ${GROUPS.win} by default, created as an empty assigned security group when it does not exist and the tick is on.`], impact: "Every device in the group installs the Global Secure Access client at its next Intune check-in. Pilot settings (Learn's sample) hide sign-out and Disable Private Access but leave Disable visible; locked down, users cannot disable or sign out of the client. A platform script runs once and installs whatever version Microsoft serves then — it does not update the client.", recovery: "Remove the assignment or delete the script in Intune → Devices → Scripts; uninstall the client per device (Apps & features) if needed." },
+    winscript: { title: "Create the Windows install script (Business Premium route)", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) that downloads the client from aka.ms and installs it when it is missing. It writes no client settings: the configuration script is its own deployment.", `Assign it to the device group you name — ${GROUPS.win} by default, created as an empty assigned security group when it does not exist and the tick is on.`], impact: "Every device in the group installs the Global Secure Access client at its next Intune Management Extension check-in. A platform script runs once (Learn; on a failure Intune retries three times) and installs whatever version Microsoft serves then — it does not update the client. Nothing restarts.", recovery: "Remove the assignment or delete the script in Intune → Devices → Scripts; uninstall the client per device (Apps & features) if needed." },
     // 0.11.0 (Mihai 18 Oct, go build): the remediation that cannot run on a
     // Business Premium tenant hands its groups to the platform script; and a
     // platform can be taken out of step 6's scope, kept in the tenant
     // 0.14.0 (Mihai 19 Oct: where is the redeploy): the Windows client again, now
-    winrun: { title: "Redeploy the Windows client — run the remediation now", scopes: ["DeviceManagementManagedDevices.PrivilegedOperations.All", "DeviceManagementManagedDevices.Read.All"], role: "Intune role with Remote tasks › Run remediation (Help Desk Operator or Intune Administrator)", changes: ["For each ticked device: POST /deviceManagement/managedDevices/{id}/initiateOnDemandProactiveRemediation with the install remediation's id — one device at a time; a second run on the same device overwrites the first.", "With Sync ticked, first POST /deviceManagement/managedDevices/{id}/syncDevice so the device checks in now.", "Read the tenant again after a minute: the device's run state (detection output) and its sign-ins."], impact: "Each ticked device runs the remediation now, if it is online and reachable through WNS: where the client is missing it installs it and writes the client settings; where it is there it only checks the settings — nothing is reinstalled and the device does not restart. It does not fix an empty policy: a device that is installed but has no tunnel needs the checks the Tunnel stage names. On a tenant whose licence does not include remediations (Business Premium) running it is your choice, like the remediation itself. Not verified live: on-demand remediation is a beta action.", recovery: "Nothing to undo — it is the script that already runs on its schedule. A client installed by it is uninstalled from Apps & features on that device." },
+    winrun: { title: "Redeploy the Windows client — run the remediation now", scopes: ["DeviceManagementManagedDevices.PrivilegedOperations.All", "DeviceManagementManagedDevices.Read.All"], role: "Intune role with Remote tasks › Run remediation (Help Desk Operator or Intune Administrator)", changes: ["For each ticked device: POST /deviceManagement/managedDevices/{id}/initiateOnDemandProactiveRemediation with the install remediation's id — one device at a time; a second run on the same device overwrites the first.", "With Sync ticked, first POST /deviceManagement/managedDevices/{id}/syncDevice so the device checks in now.", "Read the tenant again after a minute: the device's run state (detection output) and its sign-ins."], impact: "Each ticked device runs the remediation now, if it is online and reachable through WNS: where the client is missing it installs it; where it is there nothing happens — the client settings are the configuration's own deployment. Nothing is reinstalled and the device does not restart. It does not fix an empty policy: a device that is installed but has no tunnel needs the checks the Tunnel stage names. On a tenant whose licence does not include remediations (Business Premium) running it is your choice, like the remediation itself. Not verified live: on-demand remediation is a beta action.", recovery: "Nothing to undo — it is the script that already runs on its schedule. A client installed by it is uninstalled from Apps & features on that device." },
     winredeploy: { title: "Redeploy the Windows client — a new version of the platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All"], role: "Intune Administrator", changes: ["Download a backup of the script — its content, name and assignments.", "PATCH the script: a dated # redeploy line at the top and the version in its name bumped (your naming rule) — the assignments are not touched.", "Intune runs a changed platform script again on every device in its groups (Learn: it does not run again unless the script or policy changes)."], impact: "Every device in the script's groups runs it again at its next Intune Management Extension check-in: a missing client is installed, an installed one is left and only its settings are written again. A platform script cannot be run on one device — it is all its devices or none. Nothing restarts.", recovery: "PATCH the content and name back from the backup — it runs once more, harmlessly." },
     windns: { title: "Turn secure DNS off in Edge and Chrome", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST a Windows settings catalog policy with only the settings no policy sets yet: Edge and Chrome Control the mode of DNS-over-HTTPS = Disable DNS-over-HTTPS (Learn: the client must see the DNS requests to tunnel by name), Edge and Chrome Use built-in DNS client = Disabled (Learn: DNS over TCP). A setting another policy already sets is left to that policy — two policies setting it differently conflict.", "Assign it to the install script's groups, or the device group you name (made when missing and the tick is on)."], impact: "Edge and Chrome on those devices stop using secure DNS and use the operating system's DNS client, so the Global Secure Access client sees the names and tunnels Microsoft 365 by name. Users cannot switch secure DNS back on in those browsers. Browsing is otherwise unchanged.", recovery: "Unassign or delete the policy in Intune → Devices → Configuration; the browsers go back to their own defaults at the next check-in." },
-    winswap: { title: "Replace the Windows remediation with the platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All"], role: "Intune Administrator", changes: ["Download a backup of the remediation's assignments first.", "POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) — a GSA platform script already in Intune is reused, never made a second time.", "Assign it to the remediation's groups, the script's own assignments kept.", "Only when that assignment has landed: remove the remediation's assignments. The remediation itself stays in Intune."], impact: "The devices in those groups get the client from the platform script at their next Intune Management Extension check-in. A platform script runs once per device, and again only when the script changes — a user who removes the client does not get it back the way a remediation puts it back. Nobody outside those groups is affected, and nothing that worked stops — the platform script is inside this tenant's licence, the remediation was outside it.", recovery: "Reassign the remediation from the backup (Intune → Scripts and remediations → Remediations → Assignments) and remove the platform script's assignments. The client stays installed where the script already ran." },
+    winswap: { title: "Replace the Windows remediation with the platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All"], role: "Intune Administrator", changes: ["Download a backup of the remediations' assignments first (the install, and the configuration when there is one).", "POST the install platform script (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) — a GSA install script already in Intune is reused, never made a second time.", "When the remediation configured the client too, or a configuration remediation exists: POST the configuration platform script (Win - PSH - Device Security - D - Configure Global Secure Access Client - R… - v…, file Configure-GlobalSecureAccessClient.ps1) with the same values.", "Assign both to the remediation's groups, the scripts' own assignments kept.", "Only when that has landed: remove the remediations' assignments. The remediations themselves stay in Intune."], impact: "The devices in those groups get the client and its settings from the platform scripts at their next Intune Management Extension check-in. A platform script runs once per device, and again only when the script changes — a user who removes the client does not get it back the way a remediation puts it back. Nobody outside those groups is affected, and nothing that worked stops — the platform scripts are inside this tenant's licence, the remediations were outside it.", recovery: "Reassign the remediations from the backup (Intune → Scripts and remediations → Remediations → Assignments) and remove the platform scripts' assignments. The client stays installed where the script already ran." },
+    // 0.15.0 (Mihai 19 Oct: split installation from configuration, separate to run and assign)
+    wincfg: { title: "Create the Windows configuration", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST the client settings as their own deployment, named by the CloudFellows convention (Win - DHS or Win - PSH - Device Security - D - Configure Global Secure Access Client - R… - v…; SYSTEM, 64-bit): the four values under HKLM\\SOFTWARE\\Microsoft\\Global Secure Access Client (pilot or locked down), and IPv4 preferred when ticked. The key is only created when it is missing — never with New-Item -Force.", "As a remediation: detection exits 0 with nothing to configure yet where the client is not installed, so it can go before, with or after the install; the remediation writes the values. As a platform script: it runs once and writes the values whether or not the client is there yet.", "Assign it to the install's targets (or the device group you name) — a remediation daily by default. One configuration only: the chain flags a second one."], impact: "Every device in its groups gets the client settings: pilot hides Sign out and Disable Private Access and leaves Disable visible; locked down hides all four and asks for an administrator to disable the client. A remediation puts them back every run; a platform script writes them once. Nothing is installed or restarted by it, and the client's own values in its registry key stay. IPv4 preferred takes effect after a restart.", recovery: "Remove its assignment or delete it in Intune; the values stay on the devices until changed — the client then behaves as set. To go back to the defaults, run the other mode or remove the four values per device." },
+    winsplit: { title: "Split the Windows install and configuration", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All"], role: "Intune Administrator", changes: ["Download a backup of the combined script first — its content, name and assignments.", "POST the install as the next major version of its name (v1.0 → v2.0; install only) and assign it to the same targets, a remediation with the same schedule.", "POST the configuration (Configure Global Secure Access Client) with the values the combined script wrote — and IPv4 preferred when it set it — and assign it to the same targets, a remediation daily by default.", "Read both back. Only then: assign the combined script to nobody and rename it [DEPRECATED], with the date and the reason in its description. It is kept, never deleted."], impact: "At their next run, devices that have the client get installed from the install and settings as required from the configuration — nothing is reinstalled and nothing restarts. The combined script stops running, so it can no longer empty the client's registry key (0.14.1). A device whose client was already emptied by it still needs the client reinstalled once: uninstall it there, and the install puts it back.", recovery: "Reassign the combined script from the backup and take [DEPRECATED] off its name; assign the install and the configuration to nobody. Devices see no change: the client and its values are already there." },
     // 0.13.0 (Mihai 19 Oct, from the sastu-insights post): Visible to users? No
     hideapp: { title: "Hide the Microsoft profile's app from My Apps", scopes: ["Application.ReadWrite.All"], role: "Cloud Application Administrator or Application Administrator", changes: ["Read the profile's app (its service principal) again, with its tags.", "PATCH /v1.0/servicePrincipals/{the profile's app} with the tags it has plus HideApp — Graph replaces the whole list, so every tag it already has is sent back.", "Read it back: step 3 shows it hidden."], impact: "The users assigned to the Microsoft traffic profile no longer see its app as a tile in My Apps or the Microsoft 365 app launcher — the same as Visible to users? No in the portal. Nothing else changes: the assignment stays, the profile keeps applying to them, the client keeps tunnelling and Conditional Access is untouched. The tile can take a few minutes to go. Not verified live: Learn writes its Graph steps for non-Microsoft apps and this app is Microsoft's; if Graph refuses the tag, the log says so and names the portal setting.", recovery: "Show again… on step 3 (the same PATCH without HideApp), or Enterprise applications → the profile's app → Properties → Visible to users? Yes." },
     showapp: { title: "Show the Microsoft profile's app in My Apps again", scopes: ["Application.ReadWrite.All"], role: "Cloud Application Administrator or Application Administrator", changes: ["Read the profile's app (its service principal) again, with its tags.", "PATCH /v1.0/servicePrincipals/{the profile's app} with the tags it has minus HideApp — every other tag sent back as it is.", "Read it back: step 3 shows it in My Apps."], impact: "The users assigned to the Microsoft traffic profile see its app as a tile in My Apps and the Microsoft 365 app launcher again; it opens nothing useful. The assignment, the traffic and Conditional Access are unchanged.", recovery: "Hide from My Apps… on step 3, or Enterprise applications → the profile's app → Properties → Visible to users? No." },
@@ -1925,6 +2064,6 @@ const Gsa = (() => {
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { GSA_CLIENT_APP, DNS_SETTINGS, WIN_SET_KEYS, winDnsName, authIndex, runIndex, contentSettings, dnsCheck, winDnsBody, winChain, winChainHtml, b64, appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { CFG_FILE, winRole, majorName, settingVals, cfgDetectScript, cfgRemediationScript, cfgScript, cfgRemediationBody, cfgScriptBody, GSA_CLIENT_APP, DNS_SETTINGS, WIN_SET_KEYS, winDnsName, authIndex, runIndex, contentSettings, dnsCheck, winDnsBody, winChain, winChainHtml, b64, appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32813, date: "2026-10-19", title: "Global Secure Access: Windows install and configuration as two deployments",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "The Windows install remediation and install script now only install the Global Secure Access client. The install remediation runs every hour by default." },
+      { kind: "new", tool: "Global Secure Access", text: "The client settings are their own deployment, Configure Global Secure Access Client, created and assigned on their own, daily by default. As a remediation it first checks that the client is installed and waits until it is; as a platform script it writes the settings straight away. One configuration only: a second one is marked red." },
+      { kind: "new", tool: "Global Secure Access", text: "Split: a Windows script that installs and configures in one (the ones made before this build) is replaced by the install as its next version and the configuration with the same settings, on the same groups. The old one is kept, assigned to nobody and renamed DEPRECATED." },
+      { kind: "fixed", tool: "Global Secure Access", text: "Clicking a fix whose workspace is already open brings that workspace to the top instead of opening a second one." },
+    ],
+  },
+  {
     build: 32812, date: "2026-10-19", title: "Baseline: Global Secure Access on every platform, one policy each (CA215-CA218)",
     items: [
       { kind: "improved", tool: "Baseline", text: "The Global Secure Access block is now one policy per platform in the CloudFellows catalog: CA215 Windows (v3.0.4, it was Windows and macOS together), CA216 macOS, CA217 iOS and CA218 Android. Each blocks every Internals sign-in that does not come through the Global Secure Access client, so each platform can go from report-only to on by itself." },

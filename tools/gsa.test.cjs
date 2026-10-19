@@ -56,17 +56,17 @@ test("proof counts report-only results per policy and sign-ins through GSA", () 
   assert.strictEqual(pr.per.p1.wouldPass, 1);
 });
 
-test("the Windows script: both architectures, the lock-down keys, IPv4 only when asked", () => {
-  const t = Gsa.windowsScript({});
+test("the Windows install script: both architectures, installs only — the settings are the configuration's (0.15.0)", () => {
+  const t = Gsa.windowsScript({ lock: true, ipv4: true });
   assert.match(t, /GlobalSecureAccess-WindowsOnArm/);
-  assert.match(t, /GlobalSecureAccess-windows/);
-  assert.match(t, /RestrictNonPrivilegedUsers/);
-  assert.match(t, /-Value 1 -Type DWord/);
-  assert.doesNotMatch(t, /DisabledComponents/);
-  assert.match(Gsa.windowsScript({ ipv4: true, lock: false }), /DisabledComponents[\s\S]*0x20/);
-  assert.match(Gsa.windowsScript({ lock: false }), /-Value 0 -Type DWord/);
+  assert.match(t, /'https:\/\/aka\.ms\/GlobalSecureAccess-Windows'/);
+  assert.match(t, /'\/quiet', '\/norestart'/);
+  assert.match(t, /if \(\$app\) \{ Write-Output "GSA client \$\(\$app\.DisplayVersion\) already installed"; exit 0 \}/, "installs only when missing");
+  assert.doesNotMatch(t, /RestrictNonPrivilegedUsers|HideSignOutButton|DisabledComponents|Global Secure Access Client'$/m, "no client settings in the install");
   const b = Gsa.windowsScriptBody({});
   assert.strictEqual(b.runAsAccount, "system");
+  assert.strictEqual(b.fileName, Gsa.WIN_FILE);
+  assert.match(b.description, /Writes no client settings/);
   assert.strictEqual(Buffer.from(b.scriptContent, "base64").toString("utf8"), Gsa.windowsScript({}));
 });
 
@@ -116,13 +116,11 @@ test("macProfiles recognises the devcf GSA profiles and their assignment", () =>
 });
 
 test("32518 from the LearnGraphAPI lab: pilot vs locked client settings, the backing group, the macOS guards", () => {
-  const pilot = Gsa.windowsScript({});
-  assert.match(pilot, /'HideDisableButton' -Value 0/);
-  assert.match(pilot, /'HideSignOutButton' -Value 1/);
-  assert.match(pilot, /'RestrictNonPrivilegedUsers' -Value 0/);
-  const locked = Gsa.windowsScript({ lock: true });
-  assert.match(locked, /'HideDisableButton' -Value 1/);
-  assert.match(locked, /'RestrictNonPrivilegedUsers' -Value 1/);
+  // 0.15.0: the client settings live in the configuration
+  const pilot = Gsa.cfgScript({});
+  assert.match(pilot, /HideDisableButton = 0; HideSignOutButton = 1; HideDisablePrivateAccessButton = 1; RestrictNonPrivilegedUsers = 0/);
+  const locked = Gsa.cfgScript({ lock: true });
+  assert.match(locked, /HideDisableButton = 1; HideSignOutButton = 1; HideDisablePrivateAccessButton = 1; RestrictNonPrivilegedUsers = 1/);
   assert.ok(Gsa.isBacking("_GSA_2ec642ab-1111-2222-3333-444455556666"));
   assert.ok(!Gsa.isBacking("INT-SEC-D-GSA-MAC-M365"));
   const raw = Gsa.demo(); raw.assigned.push({ principalId: "g-back", principalType: "Group", principalDisplayName: "_GSA_2ec642ab-1111" });
@@ -137,19 +135,19 @@ test("32518 from the LearnGraphAPI lab: pilot vs locked client settings, the bac
 });
 
 test("32520 the Windows remediation: detect, if there, else deploy", () => {
+  // 0.15.0: the install remediation installs, nothing else
   const d = Gsa.detectScript({});
   assert.match(d, /DisplayName -like 'Global Secure Access Client\*'/);
-  assert.match(d, /exit 1/);
-  assert.match(d, /exit 0/);
-  const r = Gsa.remediationScript({ lock: true });
-  assert.match(r, /if \(-not \$app\)/, "installs only when missing");
+  assert.match(d, /if \(-not \$app\) \{ Write-Output 'GSA client not installed'; exit 1 \}/);
+  assert.match(d, /installed"\r\nexit 0$/);
+  assert.doesNotMatch(d, /\$want|HideDisableButton/, "settings are the configuration's");
+  const r = Gsa.remediationScript({ lock: true, ipv4: true });
+  assert.match(r, /if \(\$app\) \{ Write-Output "GSA client \$\(\$app\.DisplayVersion\) already installed"; exit 0 \}/, "installs only when missing");
   assert.match(r, /Architecture -eq 12/);
   assert.match(r, /GlobalSecureAccess-WindowsOnArm/);
   assert.match(r, /Tls12/);
-  assert.match(r, /'RestrictNonPrivilegedUsers' -Value|RestrictNonPrivilegedUsers = 1/);
+  assert.doesNotMatch(r, /RestrictNonPrivilegedUsers|DisabledComponents|Global Secure Access Client'$/m);
   assert.doesNotMatch(r, /Restart-Computer|shutdown/i, "a remediation never restarts");
-  assert.doesNotMatch(Gsa.remediationScript({}), /DisabledComponents/);
-  assert.match(Gsa.remediationScript({ ipv4: true }), /DisabledComponents -Value 0x20/);
   const b = Gsa.remediationBody({ rel: "R26.10", ver: "v1.0" });
   assert.strictEqual(b.displayName, "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0");
   assert.strictEqual(b.runAsAccount, "system");
@@ -682,7 +680,8 @@ test("0.11.0 Limon-IT: nothing seen through GSA — both lanes red, each with it
   // 0.13.1: the licence is a warning and the admin's choice — Connected decides the lane, Replace… is optional
   assert.deepStrictEqual([W.st, W.word, W.fix, c.fix], ["bad", "not connected", null, null]);
   // 0.14.0: Redeploy… (the remediation on demand) and the Windows chain (no policy turns secure DNS off) come first
-  assert.deepStrictEqual(actKeys(W), ["winrun", "jump", "winswap", "groups", "scope-win"]);
+  // 0.15.0: no configuration deployment yet (this fixture has the install only) — the lane offers one
+  assert.deepStrictEqual(actKeys(W), ["winrun", "wincfg", "jump", "winswap", "groups", "scope-win"]);
   const allowed = W.stages.find((s) => s.k === "Licence");
   assert.strictEqual(allowed.st, "warn");
   assert.match(allowed.text, /^Not in the licence — .*this tenant holds Windows Business \(Business Premium\)/);
@@ -703,7 +702,7 @@ test("0.11.0: the Windows lane keeps its actions whatever happens on macOS (Miha
   const r = limonIt(); r.skus = Gsa.demo().skus; // licensed — nothing to replace
   const m = Gsa.model(r, []), W = m.links.find((l) => l.k === "client").lanes.windows;
   assert.deepStrictEqual([W.fix, W.word], [null, "not connected"]);
-  assert.deepStrictEqual(actKeys(W), ["winrun", "jump", "groups", "scope-win"]);
+  assert.deepStrictEqual(actKeys(W), ["winrun", "wincfg", "jump", "groups", "scope-win"]);
   const html = Gsa.render(m, { sel: "client" });
   assert.match(html, /data-gsafix="scope-win"/);
   assert.match(html, /data-gsagroups/);
@@ -918,14 +917,24 @@ const DEVCF_DNS_IDS = [
   "device_vendor_msft_policy_config_microsoft_edge~policy~microsoft_edge_builtindnsclientenabled",
   "device_vendor_msft_policy_config_chromeintunev1~policy~googlechrome_builtindnsclientenabled",
 ];
-const remText = (lock) => `${Gsa.detectScript({ lock })}\n${Gsa.remediationScript({ lock })}`;
+// the combined remediation and platform script ENCA wrote before 0.15.0 (the 32810 generator — the
+// one deployed on Limon-IT, pilot, and devcf, locked down, on 18 Oct): install and settings in one
+const LEGACY = require("./fixtures/gsa-win-combined-v1.json");
+const remText = () => `${Gsa.detectScript()}\n${Gsa.remediationScript()}`;
+const cfgText = (o) => `${Gsa.cfgDetectScript(o)}\n${Gsa.cfgRemediationScript(o)}`;
 const limon19 = (o) => {
   // Limon-IT as read on 19 Oct: the remediation's detection on the Cloud PC
-  // says installed, the client fetched its policy at 00:41Z, no tunnel token
+  // says installed, the client fetched its policy at 00:41Z, no tunnel token.
+  // 0.15.0: by default as after Split… (install v2.0 + Configure v1.0, pilot);
+  // { legacy: true } = the combined v1.0 deployed today
   const x = o || {};
   const r = limonIt();
   const h = r.healthScripts[0];
-  h.contentText = remText(true);
+  h.contentText = x.legacy ? LEGACY.remPilot : remText();
+  if (!x.legacy) {
+    h.displayName = "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v2.0";
+    r.healthScripts.push({ id: "hc", displayName: "Win - DHS - Device Security - D - Configure Global Secure Access Client - R26.10 - v1.0", assigned: true, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: W_GROUP }, runRemediationScript: true }], runSummary: { noIssueDetectedDeviceCount: 1 }, contentText: cfgText({}), runs: [{ id: "hc:mdm-1", detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: x.missing ? "GSA client not installed - nothing to configure yet" : "GSA client 2.32.294; settings as required (pilot)", managedDevice: { id: "mdm-1", deviceName: "CPC-mihai-2L8IB", azureADDeviceId: null } }] });
+  }
   h.runs = [{ id: "h:mdm-1", detectionState: x.missing ? "fail" : "success", remediationState: x.missing ? "remediationFailed" : "skipped", preRemediationDetectionScriptOutput: x.missing ? "GSA client not installed" : "GSA client 2.32.294 installed; settings as required", remediationScriptError: x.missing ? "download failed" : "", managedDevice: { id: "mdm-1", deviceName: "CPC-mihai-2L8IB", azureADDeviceId: null } }];
   r.sources.gsaAuth = "ok";
   r.gsaAuth = x.missing ? [] : [{ createdDateTime: "2026-10-19T00:41:00Z", appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "CPC-1", displayName: "CPC-mihai-2L8IB" }, status: { errorCode: 0 } }];
@@ -966,12 +975,15 @@ test("0.14.0 runIndex: Intune's run state per device — installed and the clien
   assert.strictEqual(ix.byAad.get("d3").installed, true, "a platform script that ran successfully");
 });
 
-test("0.14.0 contentSettings: the four client settings, IPv4 and the download, read from ENCA's own scripts", () => {
+test("0.14.0/0.15.0 contentSettings: the four client settings, IPv4, the download and each script's part, read from ENCA's own scripts", () => {
   for (const lock of [false, true]) for (const ipv4 of [false, true]) {
-    const rem = Gsa.contentSettings(`${Gsa.detectScript({ lock, ipv4 })}\n${Gsa.remediationScript({ lock, ipv4 })}`);
-    const scr = Gsa.contentSettings(Gsa.windowsScript({ lock, ipv4 }));
-    for (const c of [rem, scr]) assert.deepStrictEqual([c.known, c.mode, c.ipv4, c.aka, c.arm], [true, lock ? "locked down" : "pilot", ipv4, true, true]);
+    const rem = Gsa.contentSettings(cfgText({ lock, ipv4 }));
+    const scr = Gsa.contentSettings(Gsa.cfgScript({ lock, ipv4 }));
+    for (const c of [rem, scr]) assert.deepStrictEqual([c.known, c.mode, c.ipv4, c.installs, c.role], [true, lock ? "locked down" : "pilot", ipv4, false, "config"]);
+    assert.deepStrictEqual([rem.checksClient, scr.checksClient], [true, false]);
   }
+  for (const t of [remText(), Gsa.windowsScript()]) { const c = Gsa.contentSettings(t); assert.deepStrictEqual([c.role, c.known, c.aka, c.arm, c.wipes], ["install", false, true, true, false]); }
+  for (const k of ["remPilot", "remLocked", "scriptPilot", "scriptLockedIpv4"]) assert.strictEqual(Gsa.contentSettings(LEGACY[k]).role, "both", k);
   const custom = Gsa.contentSettings("$want = @{ HideDisableButton = 1; HideSignOutButton = 0; HideDisablePrivateAccessButton = 1; RestrictNonPrivilegedUsers = 1 }");
   assert.deepStrictEqual([custom.known, custom.mode], [true, "custom"]);
   assert.deepStrictEqual([Gsa.contentSettings("Write-Output hi").known, Gsa.contentSettings(null).mode], [false, ""]);
@@ -1005,10 +1017,12 @@ test("0.14.0 Windows chain: install, client settings, secure DNS (devcf: no poli
   const m = Gsa.model(limon19(), []), W = m.links.find((l) => l.k === "client").lanes.windows, ch = W.chain;
   assert.deepStrictEqual(ch.rows.map((r) => r.key), ["install", "settings", "dns", "ipv4"]);
   const [inst, set, dns, v4] = ch.rows;
-  assert.deepStrictEqual([inst.found, inst.issues.length], [true, 0]);
+  assert.deepStrictEqual([inst.found, inst.issues.length, inst.fix], [true, 0, "winrun"]);
   assert.match(inst.sub, /remediation · ⚠ not in the licence — your choice/);
   assert.match(inst.landed.text, /^1 of 1 installed · 0 failed · client 2\.32\.294/);
-  assert.deepStrictEqual([set.found, set.sub], [true, "locked down"]);
+  // 0.15.0: the configuration is its own row — its own deployment, reach and runs
+  assert.deepStrictEqual([set.found, set.name, set.sub, set.st], [true, "Win - DHS - Device Security - D - Configure Global Secure Access Client - R26.10 - v1.0", "remediation · pilot · checks the client first", "ok"]);
+  assert.deepStrictEqual([set.landed.st, set.landed.text, set.reach.text], ["ok", "1 of 1 as required", "INT-SEC-D-GSA-WIN-M365 — 1 Windows device"]);
   assert.deepStrictEqual([dns.st, dns.found], ["bad", false]);
   assert.match(dns.issues.map((i) => i.t).join(" | "), /Edge: no policy turns DNS-over-HTTPS off[\s\S]*Chrome: no policy turns DNS-over-HTTPS off[\s\S]*built-in DNS client is not turned off/);
   assert.deepStrictEqual([v4.optional, v4.st], [true, "na"]);
@@ -1076,21 +1090,22 @@ test("0.14.0 Redeploy: a platform script gets a new version, never a per-device 
 // Learn (New-Item): with -Force an existing registry key is replaced by an empty
 // one. The remediations ENCA wrote on Limon-IT and devcf ran it on
 // HKLM\SOFTWARE\Microsoft\Global Secure Access Client right after the install.
-const oldText = (t) => t.replace(/  # never New-Item -Force[^\r\n]*\r\n  if \(-not \(Test-Path \$key\)\) \{ New-Item -Path \$key \| Out-Null \}/, "  New-Item -Path $key -Force | Out-Null");
 test("0.14.1: the scripts ENCA writes never re-create the client's key; the ones deployed before are flagged and not redeployed", () => {
   for (const lock of [false, true]) {
-    const rem = Gsa.remediationScript({ lock }), scr = Gsa.windowsScript({ lock });
+    // 0.15.0: only the configuration touches the key; the install never does
+    const rem = Gsa.cfgRemediationScript({ lock }), scr = Gsa.cfgScript({ lock });
     for (const t of [rem, scr]) {
       assert.doesNotMatch(t.split("\r\n").filter((l) => !/^\s*#/.test(l)).join("\n"), /New-Item -Path \$key -Force/);
       assert.match(t, /if \(-not \(Test-Path \$key\)\) \{ New-Item -Path \$key \| Out-Null \}/);
     }
-    assert.strictEqual(Gsa.contentSettings(`${Gsa.detectScript({ lock })}\n${rem}`).wipes, false);
+    assert.strictEqual(Gsa.contentSettings(cfgText({ lock })).wipes, false);
     assert.strictEqual(Gsa.contentSettings(scr).wipes, false);
+    for (const t of [remText(), Gsa.windowsScript()]) assert.doesNotMatch(t, /\$key|Global Secure Access Client'/);
   }
   // the log folder's New-Item -ItemType Directory -Force is fine
   assert.strictEqual(Gsa.contentSettings("New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null").wipes, false);
   // Limon-IT as deployed (pilot, v1.0): the old line is there
-  const r = limon19(); r.healthScripts[0].contentText = oldText(remText(false));
+  const r = limon19({ legacy: true });
   assert.match(r.healthScripts[0].contentText, /\n  New-Item -Path \$key -Force \| Out-Null/);
   assert.strictEqual(Gsa.contentSettings(r.healthScripts[0].contentText).wipes, true);
   const W = Gsa.model(r, []).links.find((l) => l.k === "client").lanes.windows;
@@ -1099,4 +1114,114 @@ test("0.14.1: the scripts ENCA writes never re-create the client's key; the ones
   assert.match(inst.issues.map((i) => i.t).join(" | "), /re-creates the client's registry key with New-Item -Force/);
   assert.ok(!actKeys(W).includes("winrun"), "Redeploy would run the wipe again — withheld");
   assert.ok(actKeys(W).includes("jump"), "the chain is one click away");
+});
+
+// ---- 0.15.0: installation and configuration split (19 Oct 2026) ----
+// Mihai: "split installation from configuration ... make the configuration
+// detect first if the client is installed ... separate to run and assign";
+// then: [DEPRECATED] after the split yes, no mode in the name, one
+// configuration only, install hourly and configuration daily.
+test("0.15.0 the configuration scripts: the client checked first (remediation), written anyway (platform script), the key kept", () => {
+  const d = Gsa.cfgDetectScript({}), r = Gsa.cfgRemediationScript({ ipv4: true }), p = Gsa.cfgScript({ lock: true });
+  assert.match(d, /if \(-not \$app\) \{ Write-Output 'GSA client not installed - nothing to configure yet'; exit 0 \}/);
+  assert.match(d, /settings differ: [\s\S]*exit 1/);
+  assert.match(r, /if \(-not \$app\) \{ Write-Output 'GSA client not installed - skipped'; exit 0 \}/);
+  assert.match(r, /DisabledComponents -Value 0x20/);
+  assert.doesNotMatch(p, /\$app/, "a platform script runs once — it writes whether or not the client is there");
+  for (const t of [r, p]) { assert.match(t, /if \(-not \(Test-Path \$key\)\) \{ New-Item -Path \$key \| Out-Null \}/); assert.strictEqual(Gsa.contentSettings(t).wipes, false); assert.doesNotMatch(t, /aka\.ms|Start-Process/); }
+  // a split keeps the exact values a combined script wrote, custom ones too
+  const vals = { HideDisableButton: 1, HideSignOutButton: 0, HideDisablePrivateAccessButton: 1, RestrictNonPrivilegedUsers: 0 };
+  const c = Gsa.contentSettings(Gsa.cfgScript({ vals }));
+  assert.deepStrictEqual([c.mode, c.vals], ["custom", vals]);
+  const n = Gsa.names({ rel: "R26.10", ver: "v1.0" });
+  assert.strictEqual(n.remCfg, "Win - DHS - Device Security - D - Configure Global Secure Access Client - R26.10 - v1.0", "no mode in the name (Mihai)");
+  assert.strictEqual(n.winCfg, "Win - PSH - Device Security - D - Configure Global Secure Access Client - R26.10 - v1.0");
+  const b = Gsa.cfgRemediationBody({ rel: "R26.10", ver: "v1.0", lock: true });
+  assert.strictEqual(b.displayName, n.remCfg);
+  assert.match(b.description, /locked down: HideDisableButton 1, HideSignOutButton 1, HideDisablePrivateAccessButton 1, RestrictNonPrivilegedUsers 1/);
+  assert.strictEqual(Buffer.from(b.remediationScriptContent, "base64").toString("utf8"), Gsa.cfgRemediationScript({ lock: true }));
+  const sb = Gsa.cfgScriptBody({ rel: "R26.10", ver: "v1.0" });
+  assert.deepStrictEqual([sb.displayName, sb.fileName, sb.runAsAccount], [n.winCfg, Gsa.CFG_FILE, "system"]);
+  // the defaults: the install hourly, the configuration daily (Mihai)
+  assert.match(Gsa.preview("winrem", {}).find((t) => t.id === "req").text, /Hourly/);
+  assert.match(Gsa.preview("wincfg", {}).find((t) => t.id === "req").text, /Daily/);
+  const tgt = { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" };
+  assert.deepStrictEqual(Gsa.remediationAssignment(tgt, "daily").target, tgt, "a target as read is kept");
+});
+
+test("0.15.0 winRole and winCheck: install and configuration told apart by content; [DEPRECATED] left out; one configuration only", () => {
+  assert.strictEqual(Gsa.winRole({ contentText: remText() }), "install");
+  assert.strictEqual(Gsa.winRole({ contentText: cfgText({}) }), "config");
+  assert.strictEqual(Gsa.winRole({ contentText: LEGACY.remPilot }), "both");
+  assert.strictEqual(Gsa.winRole({ displayName: "Win - DHS - Device Security - D - Configure Global Secure Access Client - R26.10 - v1.0" }), "config", "by name when the content was not read");
+  assert.strictEqual(Gsa.winRole({ displayName: "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0" }), "install");
+  const W = Gsa.model(limon19(), []).links.find((l) => l.k === "client").win;
+  assert.deepStrictEqual([W.kind, W.combined, W.cfg && W.cfg.kind, W.cfgCount], ["rem", false, "rem", 1]);
+  assert.match(W.name, /Install .* - v2\.0$/);
+  // after the split: the old one, [DEPRECATED] and assigned to nobody, is never picked
+  const r = limon19(); r.healthScripts.push({ id: "old", displayName: "[DEPRECATED] Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", assignments: [], assigned: false, contentText: LEGACY.remPilot });
+  const W2 = Gsa.model(r, []).links.find((l) => l.k === "client").win;
+  assert.deepStrictEqual([W2.obj.id, W2.deprecated.length, W2.combined], ["h", 1, false]);
+  // a second assigned configuration is flagged: they would rewrite each other
+  const r3 = limon19(); r3.healthScripts.push(Object.assign({}, r3.healthScripts[1], { id: "hc2", displayName: "Win - DHS - Device Security - D - Configure Global Secure Access Client - R26.10 - v1.1", contentText: cfgText({ lock: true }) }));
+  const set3 = Gsa.model(r3, []).links.find((l) => l.k === "client").lanes.windows.chain.rows[1];
+  assert.strictEqual(set3.st, "bad");
+  assert.match(set3.issues.map((i) => i.t).join(" | "), /2 configurations are assigned — keep one/);
+});
+
+test("0.15.0 Limon-IT today: the combined v1.0 — Split… is the fix; its settings are read from it until then", () => {
+  const m = Gsa.model(limon19({ legacy: true }), []), c = m.links.find((l) => l.k === "client"), W = c.lanes.windows;
+  assert.deepStrictEqual([c.win.combined, c.win.cfg], [true, null]);
+  const [inst, set] = W.chain.rows;
+  assert.deepStrictEqual([inst.fix, inst.fixLabel, inst.st], ["winsplit", "Split…", "bad"]);
+  assert.match(inst.issues.map((i) => i.t).join(" | "), /installs and configures in one — Split…/);
+  assert.deepStrictEqual([set.found, set.sub, set.name], [true, "pilot · combined", "in the install remediation"]);
+  assert.deepStrictEqual(actKeys(W), ["winsplit", "jump", "winswap", "groups", "scope-win"]);
+  assert.strictEqual(W.actions[0].primary, true);
+  assert.match(W.actions[0].sub, /the install as v2\.0 and the configuration, same groups; .* renamed \[DEPRECATED\]/);
+  // what Split… sends: backup, install v2.0, configuration, both read back, then [DEPRECATED]
+  const o = { kind: "rem", oldId: "h", oldName: c.win.name, installName: Gsa.majorName(c.win.name) };
+  const tabs = Gsa.preview("winsplit", o);
+  assert.deepStrictEqual(tabs.map((t) => t.id), ["det", "rem", "cdet", "crem", "req"]);
+  assert.match(tabs.find((t) => t.id === "req").text, /a backup is downloaded first[\s\S]*Install Global Secure Access Client - R\d+\.\d+ - v2\.0[\s\S]*Configure Global Secure Access Client[\s\S]*read both back; only then:[\s\S]*"deviceHealthScriptAssignments": \[\][\s\S]*\[DEPRECATED\] Win - DHS/);
+  assert.deepStrictEqual(Gsa.preview("winsplit", Object.assign({}, o, { kind: "script" })).map((t) => t.id), ["win", "cfg", "req"]);
+  assert.match(Gsa.FIXES.winsplit.recovery, /Reassign the combined script from the backup/);
+  assert.strictEqual(Gsa.majorName("Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", new Date(2026, 9, 19)), "Win - DHS - Device Security - D - Install Global Secure Access Client - R26.10 - v2.0");
+  assert.strictEqual(Gsa.majorName("[DEPRECATED] Win - PSH - X - R26.6 - v3.1", new Date(2026, 9, 19)), "Win - PSH - X - R26.10 - v4.0");
+  // the same for the platform script written before 0.15.0
+  const r2 = okRaw({ healthScripts: [] }); r2.scripts = [{ id: "w1", displayName: "Win - PSH - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: W_GROUP } }], contentText: LEGACY.scriptLockedIpv4 }];
+  const W2 = Gsa.model(r2, []).links.find((l) => l.k === "client").lanes.windows;
+  assert.deepStrictEqual([W2.chain.rows[0].fix, W2.chain.rows[3].found], ["winsplit", true]);
+  assert.ok(!actKeys(W2).includes("winredeploy"), "a new version of a combined script would wipe again");
+});
+
+test("0.15.0 no configuration yet: the chain and the lane offer it, as a remediation or a platform script", () => {
+  const r = limon19(); r.healthScripts.pop();
+  const W = Gsa.model(r, []).links.find((l) => l.k === "client").lanes.windows, set = W.chain.rows[1];
+  assert.deepStrictEqual([set.found, set.st, set.fix], [false, "warn", "wincfg"]);
+  assert.match(set.issues[0].t, /no configuration — the client runs with its defaults/);
+  assert.ok(actKeys(W).includes("wincfg"));
+  assert.strictEqual(W.chain.problems, 1, "a missing configuration is a warning, not a problem — DNS is the one");
+  // nothing deployed at all: the install first, the configuration beside it
+  const W0 = Gsa.model(okRaw({ healthScripts: [] }), []).links.find((l) => l.k === "client").lanes.windows;
+  assert.deepStrictEqual(actKeys(W0).slice(0, 2), ["winrem", "wincfg"]);
+  const tg = [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-win" }];
+  const rem = Gsa.preview("wincfg", { targets: tg, lock: true });
+  assert.deepStrictEqual(rem.map((t) => t.id), ["cdet", "crem", "req"]);
+  assert.match(rem[2].text, /Configure Global Secure Access Client[\s\S]*"groupId": "g-win"[\s\S]*Daily/);
+  const scr = Gsa.preview("wincfg", { targets: tg, kind: "script" });
+  assert.deepStrictEqual(scr.map((t) => t.id), ["cfg", "req"]);
+  assert.match(scr[1].text, /deviceManagementScripts[\s\S]*Win - PSH - Device Security - D - Configure Global Secure Access Client/);
+  // the configuration misses the install's group: devices there get the client without the settings
+  const r2 = limon19(); r2.healthScripts[1].assignments = [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-other" } }]; r2.groupNames["g-other"] = "Pilot";
+  const set2 = Gsa.model(r2, []).links.find((l) => l.k === "client").lanes.windows.chain.rows[1];
+  assert.match(set2.issues.map((i) => i.t).join(" | "), /misses INT-SEC-D-GSA-WIN-M365, the install's group — devices there get the client without these settings/);
+});
+
+test("0.15.0 Replace… carries the configuration to the platform scripts", () => {
+  const tabs = Gsa.preview("winswap", { remId: "h", cfgRemId: "hc", withCfg: true, remGroups: ["INT-SEC-D-GSA-WIN-M365"] });
+  assert.deepStrictEqual(tabs.map((t) => t.id), ["win", "cfg", "req"]);
+  assert.match(tabs[2].text, /Configure Global Secure Access Client[\s\S]*deviceHealthScripts\/hc\/assign/);
+  const W = Gsa.model(limon19(), []).links.find((l) => l.k === "client").lanes.windows;
+  assert.match(W.actions.find((a) => a.fix === "winswap").sub, /platform scripts \(install and configuration\) — same groups, the remediations unassigned/);
 });

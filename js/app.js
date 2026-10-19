@@ -25644,7 +25644,20 @@ This is a directory write. Nothing else changes.`)) return;
   const gsaWinLane = () => ((((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lanes) || {}).windows || {};
   const gsaInstallTargets = () => ((((gsaWinOf().obj || {}).assignments) || []).map((a) => a.target || {})).filter((t) => (t.groupId && !/exclusion/i.test(t["@odata.type"] || "")) || /allDevices/i.test(t["@odata.type"] || "")).map((t) => (t.groupId ? { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: t.groupId } : { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" }));
   const gsaRunDevs = (o) => { const sel = new Set(o.devSel || []); return (gsaWinLane().devices || []).filter((d) => d.run && d.run.managedId).map((d) => ({ id: d.run.managedId, name: d.name, on: sel.has(d.run.managedId), seen: !!d.seen, state: d.seen ? "connected" : d.run.installed ? `installed${d.auth && d.auth.policy ? (d.auth.tunnel ? "" : " · no tunnel") : " · no policy yet"}` : d.run.failed ? "failed" : "not installed" })); };
-  const gsaPrevOpts = (w) => w.k === "winrun" ? Object.assign({}, w.opts, { devs: gsaRunDevs(w.opts), scriptId: (gsaWinOf().obj || {}).id }) : w.k === "winredeploy" ? Object.assign({}, w.opts, { scriptId: (gsaWinOf().obj || {}).id, name: (gsaWinOf().obj || {}).displayName, content: (gsaWinOf().obj || {}).contentText }) : w.k === "windns" ? Object.assign({}, w.opts, { need: (gsaWinLane().chain || {}).need || [], targets: gsaInstallTargets() }) : /^(hideapp|showapp|assign)$/.test(w.k) ? Object.assign({}, w.opts, gsaAppOf()) : w.k === "winswap" ? Object.assign({}, w.opts, { remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
+  // 0.15.0: what a Windows workspace starts from — the install hourly, the configuration
+  // daily; a split or a swap keeps the settings the old script wrote (custom ones too)
+  const gsaFixDefaults = (k) => {
+    if (/^macfix-/.test(k)) return { lock: null };
+    const fw = gsaWinOf(), lc = (((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic) || {};
+    const from = (x) => { const c = Gsa.contentSettings(x && x.contentText); return c.known ? { lock: c.mode === "locked down", vals: c.mode === "custom" ? c.vals : null, ipv4: c.ipv4 } : {}; };
+    if (k === "winrem") return { schedule: "hourly" };
+    if (k === "wincfg") return { schedule: "daily", kind: fw.kind === "script" || (!fw.obj && lc.known && !lc.ent) ? "script" : "rem" };
+    if (k === "winsplit") return Object.assign({ schedule: "daily" }, from(fw.obj));
+    if (k === "winswap") return from((fw.cfg && fw.cfg.obj) || (fw.combined ? fw.obj : null));
+    return {};
+  };
+  const gsaSplitOf = () => { const fw = gsaWinOf(), ob = fw.obj || {}; return { kind: fw.kind, oldId: ob.id, oldName: ob.displayName, installName: ob.displayName ? Gsa.majorName(ob.displayName) : "" }; };
+  const gsaPrevOpts = (w) => w.k === "wincfg" ? Object.assign({}, w.opts, { targets: w.opts.useInstall !== false ? gsaInstallTargets() : [] }) : w.k === "winsplit" ? Object.assign({}, w.opts, gsaSplitOf()) : w.k === "winrun" ? Object.assign({}, w.opts, { devs: gsaRunDevs(w.opts), scriptId: (gsaWinOf().obj || {}).id }) : w.k === "winredeploy" ? Object.assign({}, w.opts, { scriptId: (gsaWinOf().obj || {}).id, name: (gsaWinOf().obj || {}).displayName, content: (gsaWinOf().obj || {}).contentText }) : w.k === "windns" ? Object.assign({}, w.opts, { need: (gsaWinLane().chain || {}).need || [], targets: gsaInstallTargets() }) : /^(hideapp|showapp|assign)$/.test(w.k) ? Object.assign({}, w.opts, gsaAppOf()) : w.k === "winswap" ? Object.assign({}, w.opts, { withCfg: !!(gsaWinOf().cfg || gsaWinOf().combined), cfgRemId: gsaWinOf().cfg && gsaWinOf().cfg.kind === "rem" ? gsaWinOf().cfg.obj.id : "", remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
   function gsaWorkHtml(w) {
     // 0.9.0: a chain fix takes its words from its plan (create, repair, assign or add)
     const plan = /^macfix-/.test(w.k) ? Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w)) : null;
@@ -25665,13 +25678,26 @@ This is a directory write. Nothing else changes.`)) return;
     // 32517: names by the CloudFellows convention read from devcf; release
     // and version editable, the device group defaulted and made when missing
     const nm = () => Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" });
-    const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">${which === "rem" ? "detection + remediation, SYSTEM, 64-bit" : `file ${esc(which === "win" ? Gsa.WIN_FILE : Gsa.MAC_FILE)}`}</span></div>`;
+    const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">${/^rem/.test(which) ? "detection + remediation, SYSTEM, 64-bit" : `file ${esc(which === "win" ? Gsa.WIN_FILE : which === "winCfg" ? Gsa.CFG_FILE : Gsa.MAC_FILE)}`}</span></div>`;
     const grp = (key, def) => `<input class="txt" data-gsaopt="${key}" value="${esc(o[key] || def)}" placeholder="Device group display name" style="min-width:min(320px,100%)"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label>`;
     const lockBox = `<label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label>`;
-    if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><p class="mini muted">${(() => { const fw = ((gsa.model.links.find((l) => l.k === "client") || {}).win || {}); return fw.kind === "rem" && fw.obj ? `Step 6 found ${esc(fw.obj.displayName)} — it is reused and assigned, never made a second time; its other assignments are kept with remediation on.` : "A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet."; })()}</p>`;
+    if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="hourly"${o.schedule !== "daily" ? " selected" : ""}>every hour</option><option value="daily"${o.schedule === "daily" ? " selected" : ""}>daily (09:00 device time)</option></select> — detect, and install when the client is not there</label><p class="mini muted">Installs the client only. The client settings are the Windows configuration — its own deployment (Create Windows configuration…), to run and assign separately.</p><p class="mini muted">${(() => { const fw = ((gsa.model.links.find((l) => l.k === "client") || {}).win || {}); return fw.kind === "rem" && fw.obj ? `Step 6 found ${esc(fw.obj.displayName)} — it is reused and assigned, never made a second time; its other assignments are kept with remediation on.` : "A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet."; })()}</p>`;
     // 0.13.1: a remediation outside the tenant's licence is the admin's choice — say so before Apply
     if (k === "winrem") { const lc = ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic || {}; if (lc.known && !lc.ent) form = `<p class="mini gsa-warn-txt">⚠ This tenant's licence does not include remediations — they need Windows Enterprise E3/E5, Education A3/A5 or VDA${lc.biz ? "; Business Premium carries Windows Business" : ""}. Intune runs the remediation when it is switched on, so it works; using it outside the licence is your choice. The platform script is the route inside the licence.</p>${form}`; }
-    if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`;
+    if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<p class="mini muted">Installs the client only. The client settings are the Windows configuration — its own script (Create Windows configuration…).</p>`;
+    // 0.15.0 (Mihai 19 Oct): the configuration on its own, and the split of a combined script
+    const v4Box = `<label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart</label>`;
+    const remLic = () => { const lc = ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic || {}; return lc.known && !lc.ent ? `<p class="mini gsa-warn-txt">⚠ This tenant's licence does not include remediations — Intune runs them when they are switched on; using one outside the licence is your choice.</p>` : ""; };
+    if (k === "wincfg") {
+      const fw = gsaWinOf(), tg = gsaInstallTargets(), asScript = o.kind === "script";
+      const tn = tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", ");
+      const useI = tg.length && o.useInstall !== false;
+      form = `<div class="mini" style="margin:2px 0 6px"><b>As</b> <label class="chk"><input type="radio" name="gsaCfgKind" data-gsaopt="kind" value="rem"${asScript ? "" : " checked"}> a remediation</label> <label class="chk"><input type="radio" name="gsaCfgKind" data-gsaopt="kind" value="script"${asScript ? " checked" : ""}> a platform script</label><br><span class="muted">${asScript ? "Runs once and writes the values whether or not the client is there yet (a platform script that skipped would never run again)." : "Checks for the client first — nothing to configure yet where it is not installed — and puts the values back every run."}</span></div>${naming(asScript ? "winCfg" : "remCfg")}${tg.length ? `<div class="mini"><label class="chk"><input type="checkbox" data-gsaopt="useInstall"${useI ? " checked" : ""}> Assign to the install's targets: <b>${esc(tn)}</b></label></div>` : ""}${useI ? "" : grp("devGroup", Gsa.GROUPS.win)}${asScript ? "" : `<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select></label>`}<br>${lockBox}<br>${v4Box}${fw.obj ? "" : `<p class="mini muted">No install yet — the configuration can go first; it waits for the client.</p>`}${asScript ? "" : remLic()}`;
+    }
+    if (k === "winsplit") {
+      const fw = gsaWinOf(), ob = fw.obj || {}, asScript = fw.kind === "script", ct = Gsa.contentSettings(ob.contentText);
+      form = `<div class="mini"><b>Now:</b> ${esc(ob.displayName || "—")}${fw.reach ? ` — ${esc(fw.reach.text)}` : ""}<br><b>Install:</b> ${esc(ob.displayName ? Gsa.majorName(ob.displayName) : "—")} <span class="muted">— install only, same targets${asScript ? "" : " and schedule"}</span><br><b>Configuration:</b> <span data-gsaname>${esc(nm()[asScript ? "winCfg" : "remCfg"])}</span> <span class="muted">— same targets</span><br><b>Then:</b> ${esc(ob.displayName || "the combined script")} assigned to nobody and renamed [DEPRECATED] — kept, not deleted</div><div class="mini" style="margin:6px 0">The configuration's release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"></div>${ct.known ? `<div class="mini">Settings read from it: <b>${esc(ct.mode)}</b> — ${esc(Gsa.WIN_SET_KEYS.map((x) => `${x} ${ct.vals[x]}`).join(" · "))}${ct.ipv4 ? " · IPv4 preferred" : ""}. The configuration writes the same.</div>` : `<div class="mini gsa-warn-txt">Its content could not be read — choose the settings:</div>${lockBox}<br>${v4Box}`}${asScript ? "" : `<br><label class="chk">The configuration runs <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select></label>`}${asScript ? "" : remLic()}`;
+    }
     if (k === "macscript" || k === "macprof") {
       // 32703: the three profiles come with the script — ticked when missing
       // or unassigned, a found one named and reused (assigned only)
@@ -25688,7 +25714,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
     if (k === "winredeploy") { const ob = gsaWinOf().obj || {}; form = `<div class="mini"><b>Now:</b> ${esc(ob.displayName || "—")}<br><b>Becomes:</b> ${esc(ob.displayName ? Gsa.bumpName(ob.displayName) : "—")}</div>`; }
     if (k === "windns") { const tg = gsaInstallTargets(), need = (gsaWinLane().chain || {}).need || []; form = `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(Gsa.winDnsName({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }))}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"></div><div class="mini"><b>Settings</b> — only the ones no policy sets yet: ${esc(Gsa.DNS_SETTINGS.filter((d) => need.includes(d.k)).map((d) => d.label).join("; ") || "none")}</div><div class="mini" style="margin-top:6px"><b>Assigned to</b> ${tg.length ? esc(tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", ")) + " — the install script's targets" : `${grp("devGroup", Gsa.GROUPS.win)}`}</div>`; }
-    if (k === "winswap") { const fw = gsaWinOf(); form = `<div class="mini"><b>Now:</b> ${esc(fw.obj ? fw.obj.displayName : "no remediation found")}${fw.reach ? ` — ${esc(fw.reach.text)}` : ""}</div>${naming("win")}${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`; }
+    if (k === "winswap") { const fw = gsaWinOf(), withCfg = !!(fw.cfg || fw.combined); form = `<div class="mini"><b>Now:</b> ${esc(fw.obj ? fw.obj.displayName : "no remediation found")}${fw.reach ? ` — ${esc(fw.reach.text)}` : ""}${fw.cfg ? `<br><b>And:</b> ${esc(fw.cfg.name)} (the configuration)` : ""}</div>${naming("win")}${withCfg ? `<div class="mini"><b>Configuration script</b> ${esc(nm().winCfg)} <span class="muted">— file ${esc(Gsa.CFG_FILE)}, the same values</span></div>${lockBox}<br>${v4Box}` : `<p class="mini muted">No client settings to carry over — create the configuration script afterwards if you want them.</p>`}`; }
     // 0.11.0: a platform in or out of step 6's scope, kept in the tenant
     if (k === "scope-win" || k === "scope-mac") {
       const platform = k === "scope-mac" ? "macOS" : "Windows", cur = Gsa.scopeOut(gsa.raw && gsa.raw.encaSettings)[k === "scope-mac" ? "macOS" : "windows"];
@@ -25697,13 +25723,13 @@ This is a directory write. Nothing else changes.`)) return;
     }
     if (k === "trv2") form = trv2Form(w);
     const tabs = Gsa.preview(k, gsaPrevOpts(w)), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
-    const dlBtn = { det: "det", rem: "rem", win: "win", mac: "mac" }[tab && tab.id];
+    const dlBtn = { det: "det", rem: "rem", cdet: "cdet", crem: "crem", win: "win", cfg: "cfg", mac: "mac" }[tab && tab.id];
     const prev = tabs.length ? `<div class="gsa-lab" style="margin-bottom:4px">What it sends</div>${tabs.length > 1 ? `<div class="gsa-tabs" role="tablist">${tabs.map((t) => `<button type="button" role="tab" data-gsatab="${t.id}" class="${t === tab ? "on" : ""}" aria-selected="${t === tab}">${esc(t.label)}</button>`).join("")}</div>` : `<div class="mini muted" style="margin-bottom:4px">${esc(tab.label)}</div>`}<pre class="gsa-pre" data-gsapre>${esc(tab.text)}</pre><div class="gsa-wbtns"><button class="btn sm" data-gsacopy>Copy</button>${dlBtn ? `<button class="btn sm" data-gsadl="${dlBtn}">⬇ Download</button>` : ""}</div>` : "";
     const log = w.log ? `<div class="gsa-log">${w.log.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
     const done = !!(w.log && w.log.done), failed = !!(w.log && !w.log.done && !w.busy);
     const otherBusy = gsa.work.some((x) => x !== w && x.busy);
     const step = (i, t) => `<span class="${w.busy ? (i === 2 ? "on" : i < 2 ? "dn" : "") : done ? "dn" : i === 1 ? "on" : ""}">${(w.busy && i < 2) || done ? "✓ " : ""}${i} ${t}</span>`;
-    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k || /^(macfix-|scope-|winswap|winrun|winredeploy|windns)/.test(k) && l.k === "client");
+    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k || /^(macfix-|scope-|winswap|winrun|winredeploy|windns|wincfg|winsplit)/.test(k) && l.k === "client");
     return `<section class="gsa-wpanel" data-gsaw="${esc(k)}" id="gsaW-${esc(k)}"><div class="gsa-whead"><b>🔧 ${esc(f.title)}</b><span class="tag block">writes to tenant</span>${from ? `<span class="mini muted">from step ${gsa.model.links.indexOf(from) + 1} · ${esc(from.lab)}</span>` : ""}<button class="btn sm gsa-wclose" data-gsacancel${w.busy ? " disabled" : ""}>✕ ${done ? "Close" : "Cancel"}</button></div>
       <div class="gsa-wsteps">${step(1, "Review")}${step(2, "Apply")}${step(3, "Read the tenant again")}${failed ? '<span style="color:var(--off)">✗ stopped — see the log</span>' : ""}</div>
       <div class="gsa-wgrid"><div><ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}${prev}</div>
@@ -25823,10 +25849,10 @@ This is a directory write. Nothing else changes.`)) return;
         }
       } else if (k === "winrem") {
         // 32520: the Windows client as a remediation — detect, else deploy
-        const nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4 };
+        const nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }, sched = o.schedule === "daily" ? "daily" : "hourly";
         const g = await gsaDeviceGroup(String(o.devGroup || Gsa.GROUPS.win).trim(), o.mkGroup, sc, say);
         const body = Gsa.remediationBody(nameOpts), path = "/deviceManagement/deviceHealthScripts";
-        if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName} (${o.schedule === "hourly" ? "hourly" : "daily"})`);
+        if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName} (${sched === "hourly" ? "hourly" : "daily"})`);
         else {
           // 32708 (go-live recheck S1): the GSA remediation step 6 found — any
           // name, any release tag — is reused; one of this exact name next; a
@@ -25843,9 +25869,64 @@ This is a directory write. Nothing else changes.`)) return;
           const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => ({ target: x.target, runRemediationScript: true, runSchedule: x.runSchedule })).filter((x) => x.target) : [];
           if (had.some((x) => x.target.groupId === g.id)) say(`already assigned to ${g.displayName}`, true);
           else {
-            await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: [...had, Gsa.remediationAssignment(g.id, o.schedule)] }, sc);
-            say(`assigned to ${g.displayName} — remediation on, ${o.schedule === "hourly" ? "every hour" : "daily"}${had.length ? `; its ${had.length} other assignment${had.length === 1 ? "" : "s"} kept, remediation on` : ""}`, true);
+            await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: [...had, Gsa.remediationAssignment(g.id, sched)] }, sc);
+            say(`assigned to ${g.displayName} — remediation on, ${sched === "hourly" ? "every hour" : "daily"}${had.length ? `; its ${had.length} other assignment${had.length === 1 ? "" : "s"} kept, remediation on` : ""}`, true);
           }
+        }
+      } else if (k === "wincfg") {
+        // 0.15.0 (Mihai 19 Oct: split installation from configuration, separate to run and
+        // assign): the client settings as their own deployment — one configuration only
+        const asScript = o.kind === "script", path = asScript ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceHealthScripts";
+        const opts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4, vals: o.vals || null };
+        const body = asScript ? Gsa.cfgScriptBody(opts) : Gsa.cfgRemediationBody(opts), fw = gsaWinOf();
+        if (fw.cfg && !fw.cfg.unassigned) throw new Error(`${fw.cfg.name} is already the configuration — one configuration only`);
+        let tg = o.useInstall !== false ? gsaInstallTargets() : [];
+        if (!tg.length) { const g = await gsaDeviceGroup(String(o.devGroup || Gsa.GROUPS.win).trim(), o.mkGroup, sc, say); tg = [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }]; if (gsa.raw && gsa.raw.groupNames) gsa.raw.groupNames[g.id] = g.displayName; }
+        const tn = tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", "), when = asScript ? "" : ` — ${o.schedule === "hourly" ? "every hour" : "daily"}`;
+        if (isDemo) { await sim(`${body.displayName} created`); await sim(`assigned to ${tn}${when}`); }
+        else {
+          const same = (await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          const c = same.length ? same[0] : await Graph.gpost(path, body, sc);
+          say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          if (asScript) await Graph.gpost(`${path}/${c.id}/assign`, { deviceManagementScriptAssignments: tg.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+          else await Graph.gpost(`${path}/${c.id}/assign`, { deviceHealthScriptAssignments: tg.map((t) => Gsa.remediationAssignment(t, o.schedule === "hourly" ? "hourly" : "daily")) }, sc);
+          say(`assigned to ${tn}${when}`, true);
+        }
+      } else if (k === "winsplit") {
+        // 0.15.0: the combined install-and-settings script split in two — backup first, the
+        // install (next major version) and the configuration on the same targets, both read
+        // back, and only then the combined one unassigned and renamed [DEPRECATED] (kept)
+        const fw = gsaWinOf(), ob = fw.obj;
+        if (!ob || !fw.combined || (fw.kind !== "rem" && fw.kind !== "script")) throw new Error("no combined Global Secure Access script to split — read the tenant again");
+        const asScript = fw.kind === "script", path = asScript ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceHealthScripts";
+        const opts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4, vals: o.vals || null };
+        const iName = Gsa.majorName(ob.displayName), iBody = asScript ? Gsa.windowsScriptBody({ name: iName }) : Gsa.remediationBody({ name: iName });
+        const cBody = asScript ? Gsa.cfgScriptBody(opts) : Gsa.cfgRemediationBody(opts), depName = `[DEPRECATED] ${ob.displayName}`.slice(0, 250);
+        const cWhen = asScript ? "" : ` — ${o.schedule === "hourly" ? "every hour" : "daily"}`;
+        if (isDemo) { await sim(`backup of ${ob.displayName} saved`); await sim(`${iName} created and assigned to the same targets`); await sim(`${cBody.displayName} created and assigned to the same targets${cWhen}`); await sim(`${ob.displayName} assigned to nobody and renamed ${depName} — kept`); }
+        else {
+          const cur = await Graph.gget(`${path}/${ob.id}`, sc), asgs = ((await Graph.gget(`${path}/${ob.id}/assignments`, sc)).value || []).filter((a) => a.target);
+          const file = downloadText(`ENCA-GSA-${asScript ? "platform-script" : "remediation"}-backup-${tenantName || tenantId}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, object: cur, assignments: asgs }, null, 2));
+          say(`backup of ${ob.displayName} saved${file ? ` as ${file}` : ""} — keep it for the way back`, true);
+          if (!asgs.some((a) => !/exclusion/i.test(a.target["@odata.type"] || ""))) throw new Error(`${ob.displayName} has no assignment to hand over — create the install and the configuration instead`);
+          const list = await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc });
+          const mk = async (body) => { const same = list.filter((x) => x.displayName === body.displayName); const x = same.length ? same[0] : await Graph.gpost(path, body, sc); say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true); return x; };
+          const scr = (id, targets) => Graph.gpost(`${path}/${id}/assign`, { deviceManagementScriptAssignments: targets.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+          const si = await mk(iBody);
+          // the install keeps the old schedule; written back with remediation ON (32708 S2)
+          if (asScript) await scr(si.id, asgs.map((a) => a.target));
+          else await Graph.gpost(`${path}/${si.id}/assign`, { deviceHealthScriptAssignments: asgs.map((a) => ({ target: a.target, runRemediationScript: true, runSchedule: a.runSchedule || null })) }, sc);
+          say(`${iName} assigned to the same targets${asScript ? "" : " with the same schedule"}`, true);
+          const sc2 = await mk(cBody);
+          if (asScript) await scr(sc2.id, asgs.map((a) => a.target));
+          else await Graph.gpost(`${path}/${sc2.id}/assign`, { deviceHealthScriptAssignments: asgs.map((a) => (/exclusion/i.test(a.target["@odata.type"] || "") ? { target: a.target, runRemediationScript: true, runSchedule: a.runSchedule || null } : Gsa.remediationAssignment(a.target, o.schedule === "hourly" ? "hourly" : "daily"))) }, sc);
+          say(`${cBody.displayName} assigned to the same targets${cWhen}`, true);
+          const n1 = ((await Graph.gget(`${path}/${si.id}/assignments`, sc)).value || []).length, n2 = ((await Graph.gget(`${path}/${sc2.id}/assignments`, sc)).value || []).length;
+          if (!n1 || !n2) throw new Error(`the new ${!n1 ? "install" : "configuration"} reads back with no assignment — ${ob.displayName} is left as it is; read the tenant again`);
+          say(`both read back with their assignments (${n1} and ${n2})`, true);
+          await Graph.gpost(`${path}/${ob.id}/assign`, asScript ? { deviceManagementScriptAssignments: [] } : { deviceHealthScriptAssignments: [] }, sc);
+          await Graph.gpatch(`${path}/${ob.id}`, { "@odata.type": asScript ? "#microsoft.graph.deviceManagementScript" : "#microsoft.graph.deviceHealthScript", displayName: depName, description: `DEPRECATED ${new Date().toISOString().slice(0, 10)}: split into install and configuration; replaced by ${iName} and ${cBody.displayName} (ENCA T56). | ${cur.description || ""}`.slice(0, 1000) }, sc);
+          say(`${ob.displayName} assigned to nobody and renamed ${depName} — kept in Intune; the backup has its assignments`, true);
         }
       } else if (k === "winscript" || k === "macscript" || k === "macprof") {
         const win = k === "winscript", nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" };
@@ -25955,14 +26036,16 @@ This is a directory write. Nothing else changes.`)) return;
         if (fw.kind !== "rem" || !fw.obj) throw new Error("no Global Secure Access remediation to replace — read the tenant again");
         const remPath = "/deviceManagement/deviceHealthScripts", scrPath = "/deviceManagement/deviceManagementScripts";
         const body = Gsa.windowsScriptBody(Object.assign({ lock: o.lock, ipv4: o.ipv4 }, { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }));
-        if (isDemo) { await sim(`backup of the assignments of ${fw.obj.displayName} saved`); await sim(`${body.displayName} created and assigned to the remediation's groups`); await sim(`${fw.obj.displayName} unassigned — it stays in Intune`); }
+        if (isDemo) { await sim(`backup of the assignments of ${fw.obj.displayName} saved`); await sim(`${body.displayName} created and assigned to the remediation's groups`); await sim(`${fw.obj.displayName} unassigned — it stays in Intune`); if (fw.cfg || fw.combined) await sim(`${Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }).winCfg} created and assigned to the remediation's groups`); if (fw.cfg && fw.cfg.kind === "rem") await sim(`${fw.cfg.name} unassigned — it stays in Intune`); }
         else {
           const remAsg = (await Graph.gget(`${remPath}/${fw.obj.id}/assignments`, sc)).value || [];
+          // 0.15.0: the configuration remediation hands over too
+          const cfgRem = fw.cfg && fw.cfg.kind === "rem" ? fw.cfg.obj : null, cfgAsg = cfgRem ? ((await Graph.gget(`${remPath}/${cfgRem.id}/assignments`, sc)).value || []) : [];
           const targets = remAsg.map((a) => a.target).filter((t) => t && (t.groupId || /allDevices|allLicensedUsers/i.test(t["@odata.type"] || "")));
-          if (!targets.length) throw new Error(`${fw.obj.displayName} has no assignment to hand over — use Create Windows script instead`);
-          const file = downloadText(`ENCA-GSA-remediation-assignments-${isDemo ? "demo" : (tenantName || tenantId)}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, remediation: { id: fw.obj.id, displayName: fw.obj.displayName }, assignments: remAsg }, null, 2));
+          if (!targets.length) throw new Error(`${fw.obj.displayName} has no assignment to hand over — use Create Windows install script instead`);
+          const file = downloadText(`ENCA-GSA-remediation-assignments-${isDemo ? "demo" : (tenantName || tenantId)}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, remediation: { id: fw.obj.id, displayName: fw.obj.displayName }, assignments: remAsg, configuration: cfgRem ? { id: cfgRem.id, displayName: cfgRem.displayName, assignments: cfgAsg } : null }, null, 2));
           say(`backup of the remediation's assignments saved${file ? ` as ${file}` : ""} — keep it for the way back`, true);
-          const foundS = (gsa.raw.scripts || []).find((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`));
+          const foundS = (gsa.raw.scripts || []).find((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`) && Gsa.winRole(x) !== "config" && !/^\s*\[DEPRECATED\]/i.test(x.displayName || ""));
           const same = foundS ? [foundS] : (await Graph.ggetAll(`${scrPath}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
           const s = same.length ? same[0] : await Graph.gpost(scrPath, body, sc);
           say(same.length ? `${s.displayName || body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
@@ -25972,8 +26055,18 @@ This is a directory write. Nothing else changes.`)) return;
           await Graph.gpost(`${scrPath}/${s.id}/assign`, { deviceManagementScriptAssignments: all.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
           const gn = targets.map((t) => (t.groupId ? `${/exclusion/i.test(t["@odata.type"] || "") ? "excluding " : ""}${(gsa.raw.groupNames || {})[t.groupId] || t.groupId}` : /allDevices/i.test(t["@odata.type"] || "") ? "All devices" : "All users"));
           say(`${s.displayName || body.displayName} assigned to ${gn.join(", ")}`, true);
+          // 0.15.0: the client settings move with it — the configuration script, the same values and targets
+          if (cfgRem || fw.combined) {
+            const cb = Gsa.cfgScriptBody({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4, vals: o.vals || null });
+            const sameC = (await Graph.ggetAll(`${scrPath}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === cb.displayName);
+            const c = sameC.length ? sameC[0] : await Graph.gpost(scrPath, cb, sc);
+            say(sameC.length ? `${cb.displayName} already in Intune — reused, not created again` : `${cb.displayName} created`, true);
+            await Graph.gpost(`${scrPath}/${c.id}/assign`, { deviceManagementScriptAssignments: all.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+            say(`${cb.displayName} assigned to ${gn.join(", ")}`, true);
+          }
           await Graph.gpost(`${remPath}/${fw.obj.id}/assign`, { deviceHealthScriptAssignments: [] }, sc);
           say(`${fw.obj.displayName} unassigned — it stays in Intune; the backup has its assignments`, true);
+          if (cfgRem) { await Graph.gpost(`${remPath}/${cfgRem.id}/assign`, { deviceHealthScriptAssignments: [] }, sc); say(`${cfgRem.displayName} unassigned — it stays in Intune; the backup has its assignments`, true); }
         }
       } else if (k === "scope-win" || k === "scope-mac") {
         // 0.11.0: the ENCA settings record on the organization object —
@@ -26052,13 +26145,43 @@ This is a directory write. Nothing else changes.`)) return;
     // 0.14.0: the demo deployment's content and per-device runs; one device fetched its policy and tunnels, the other only fetched
     if (k === "winrem" || k === "winscript") {
       const ob = k === "winrem" ? (r.healthScripts || []).slice(-1)[0] : (r.scripts || []).slice(-1)[0];
-      if (ob) { ob.contentText = k === "winrem" ? `${Gsa.detectScript(o)}\n${Gsa.remediationScript(o)}` : Gsa.windowsScript(o); ob.runs = [{ id: `${ob.id}:md-1`, detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: "GSA client 2.32.294 installed; settings as required", lastStateUpdateDateTime: new Date(Date.now() - 2 * 3600000).toISOString(), runState: "success", managedDevice: { id: "md-1", deviceName: "LT-DEMO-01" } }, { id: `${ob.id}:md-2`, detectionState: "fail", remediationState: "success", preRemediationDetectionScriptOutput: "GSA client not installed", postRemediationDetectionScriptOutput: "GSA client 2.32.294 installed; settings as required", lastStateUpdateDateTime: new Date(Date.now() - 3600000).toISOString(), runState: "success", managedDevice: { id: "md-2", deviceName: "LT-DEMO-02" } }]; }
+      if (ob) { ob.contentText = k === "winrem" ? `${Gsa.detectScript(o)}\n${Gsa.remediationScript(o)}` : Gsa.windowsScript(o); ob.runs = [{ id: `${ob.id}:md-1`, detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: "GSA client 2.32.294 installed", lastStateUpdateDateTime: new Date(Date.now() - 2 * 3600000).toISOString(), runState: "success", managedDevice: { id: "md-1", deviceName: "LT-DEMO-01" } }, { id: `${ob.id}:md-2`, detectionState: "fail", remediationState: "success", preRemediationDetectionScriptOutput: "GSA client not installed", postRemediationDetectionScriptOutput: "GSA client 2.32.294 installed", lastStateUpdateDateTime: new Date(Date.now() - 3600000).toISOString(), runState: "success", managedDevice: { id: "md-2", deviceName: "LT-DEMO-02" } }]; }
       r.sources.gsaAuth = "ok"; r.gsaAuth = [{ createdDateTime: new Date(Date.now() - 50 * 60000).toISOString(), appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "dw-2", displayName: "LT-DEMO-02" }, status: { errorCode: 0 } }, { createdDateTime: new Date(Date.now() - 4 * 3600000).toISOString(), appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "dw-1", displayName: "LT-DEMO-01" }, status: { errorCode: 0 } }];
+    }
+    // 0.15.0: the configuration lands on the install's targets (or its own group) and has run on both demo devices
+    if (k === "wincfg") {
+      const asScript = o.kind === "script", nm = Gsa.names({ rel: o.rel, ver: o.ver }), mode = o.lock ? "locked down" : "pilot", opts2 = { lock: o.lock, ipv4: o.ipv4 };
+      let asg = (o.useInstall !== false ? gsaInstallTargets() : []).map((target) => ({ target }));
+      if (!asg.length) { const gn = String(o.devGroup || Gsa.GROUPS.win).trim(), gid = "g-demo-" + gn.length; r.groupNames[gid] = gn; r.winGroups = Object.assign({}, r.winGroups, { [gid]: (r.winGroups || {})[gid] || { devices: 0, windows: 0, joined: 0, hybrid: 0, registered: 0, users: 0, list: [] } }); asg = [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }]; }
+      const runs = [{ id: "c:md-1", detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: `GSA client 2.32.294; settings as required (${mode})`, runState: "success", resultMessage: `GSA client settings written (${mode})`, managedDevice: { id: "md-1", deviceName: "LT-DEMO-01" } }, { id: "c:md-2", detectionState: "fail", remediationState: "success", preRemediationDetectionScriptOutput: "GSA client 2.32.294; settings differ: HideSignOutButton=", postRemediationDetectionScriptOutput: `GSA client 2.32.294; settings as required (${mode})`, runState: "success", resultMessage: `GSA client settings written (${mode})`, managedDevice: { id: "md-2", deviceName: "LT-DEMO-02" } }];
+      if (asScript) r.scripts.push({ id: "s-cfg", displayName: nm.winCfg, fileName: Gsa.CFG_FILE, assignments: asg, runSummary: { successDeviceCount: 2, errorDeviceCount: 0 }, contentText: Gsa.cfgScript(opts2), runs });
+      else r.healthScripts.push({ id: "h-cfg", displayName: nm.remCfg, assigned: true, assignments: asg.map((a) => Object.assign({ runRemediationScript: true }, a)), runSummary: { noIssueDetectedDeviceCount: 1, issueRemediatedDeviceCount: 1 }, contentText: `${Gsa.cfgDetectScript(opts2)}\n${Gsa.cfgRemediationScript(opts2)}`, runs });
+    }
+    if (k === "winsplit") {
+      const fw = gsaWinOf(), ob = fw.obj ? (fw.kind === "rem" ? r.healthScripts : r.scripts).find((x) => x.id === fw.obj.id) : null;
+      if (ob) {
+        const asScript = fw.kind === "script", ct = Gsa.contentSettings(ob.contentText), opts2 = { lock: ct.mode === "locked down", ipv4: ct.ipv4, vals: ct.mode === "custom" ? ct.vals : null };
+        const iName = Gsa.majorName(ob.displayName), cName = Gsa.names({ rel: o.rel, ver: o.ver })[asScript ? "winCfg" : "remCfg"], asg = ob.assignments || [];
+        const iRuns = (ob.runs || []).map((x) => Object.assign({}, x, { id: `i-${x.id}`, preRemediationDetectionScriptOutput: /not installed/i.test(x.preRemediationDetectionScriptOutput || "") ? x.preRemediationDetectionScriptOutput : "GSA client 2.32.294 installed", postRemediationDetectionScriptOutput: x.postRemediationDetectionScriptOutput ? "GSA client 2.32.294 installed" : "" }));
+        const cRuns = (ob.runs || []).map((x) => Object.assign({}, x, { id: `c-${x.id}`, detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: `GSA client 2.32.294; settings as required (${ct.mode || "pilot"})`, postRemediationDetectionScriptOutput: "" }));
+        if (asScript) r.scripts.push({ id: "s-i2", displayName: iName, fileName: Gsa.WIN_FILE, assignments: asg, runSummary: ob.runSummary, contentText: Gsa.windowsScript(), runs: iRuns }, { id: "s-c1", displayName: cName, fileName: Gsa.CFG_FILE, assignments: asg, runSummary: ob.runSummary, contentText: Gsa.cfgScript(opts2), runs: cRuns });
+        else r.healthScripts.push({ id: "h-i2", displayName: iName, assigned: true, assignments: asg, runSummary: ob.runSummary, contentText: `${Gsa.detectScript()}\n${Gsa.remediationScript()}`, runs: iRuns }, { id: "h-c1", displayName: cName, assigned: true, assignments: asg, runSummary: { noIssueDetectedDeviceCount: (ob.runs || []).length }, contentText: `${Gsa.cfgDetectScript(opts2)}\n${Gsa.cfgRemediationScript(opts2)}`, runs: cRuns });
+        ob.displayName = `[DEPRECATED] ${ob.displayName}`; ob.assignments = []; ob.assigned = false;
+      }
     }
     if (k === "winrun") { for (const id of o.devSel || []) { const dev = id === "md-2" ? { deviceId: "dw-2", displayName: "LT-DEMO-02" } : id === "md-1" ? { deviceId: "dw-1", displayName: "LT-DEMO-01" } : null; if (dev && r.seen && Array.isArray(r.seen.report) && !r.seen.report.some((x) => x.deviceId === dev.deviceId)) r.seen.report.push(Object.assign({ operatingSystem: "Windows 11 Enterprise", trafficType: "microsoft365", lastAccessDateTime: new Date().toISOString() }, dev)); } }
     if (k === "windns") { const need = (gsaWinLane().chain || {}).need || []; const b = Gsa.winDnsBody({ rel: o.rel, ver: o.ver }, need); r.winDns = [...(r.winDns || []), { id: "p-dns", name: b.name, settings: b.settings, assignments: gsaInstallTargets().map((target) => ({ target })) }]; r.sources.winDns = "ok"; }
-    if (k === "winredeploy") { const ob = (r.scripts || []).find((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`)); if (ob) ob.displayName = Gsa.bumpName(ob.displayName); }
-    if (k === "winswap") { const rem = (r.healthScripts || []).find((h) => /global\s*secure\s*access/i.test(h.displayName || "")); if (rem) { r.scripts.push({ id: "s-swap", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE, assignments: rem.assignments, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }); rem.assignments = []; rem.assigned = false; } }
+    if (k === "winredeploy") { const ob = (r.scripts || []).find((x) => x.id === (gsaWinOf().obj || {}).id); if (ob) ob.displayName = Gsa.bumpName(ob.displayName); }
+    if (k === "winswap") {
+      const fw = gsaWinOf(), rem = (r.healthScripts || []).find((h) => h.id === (fw.obj || {}).id), crem = fw.cfg && fw.cfg.kind === "rem" ? (r.healthScripts || []).find((h) => h.id === fw.cfg.obj.id) : null;
+      if (rem) {
+        const nm = Gsa.names({ rel: o.rel, ver: o.ver });
+        r.scripts.push({ id: "s-swap", displayName: nm.win, fileName: Gsa.WIN_FILE, assignments: rem.assignments, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 }, contentText: Gsa.windowsScript() });
+        if (crem || fw.combined) r.scripts.push({ id: "s-swapc", displayName: nm.winCfg, fileName: Gsa.CFG_FILE, assignments: rem.assignments, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 }, contentText: Gsa.cfgScript({ lock: o.lock, ipv4: o.ipv4, vals: o.vals || null }) });
+        rem.assignments = []; rem.assigned = false;
+        if (crem) { crem.assignments = []; crem.assigned = false; }
+      }
+    }
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
     // 0.9.0: a chain fix lands in the demo chain — the plan's new body takes the row's place
     if (/^macfix-/.test(k) && r.macChain) {
@@ -26123,7 +26246,8 @@ This is a directory write. Nothing else changes.`)) return;
       if (had) gsa.work = [had, ...gsa.work.filter((x) => x !== had)];
       if (k === "winrun") { const nw = had || null, sel = fx.dataset.gsadev ? [fx.dataset.gsadev] : (gsaWinLane().devices || []).filter((d) => !d.seen && d.run && d.run.managedId).map((d) => d.run.managedId); if (nw) nw.opts.devSel = sel; else gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), { devSel: sel }), log: null, busy: false, tab: null }); renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
       // 0.9.0: a chain repair keeps the old settings' lock-down or pilot unless the person ticks otherwise
-      else gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), /^macfix-/.test(k) ? { lock: null } : {}), log: null, busy: false, tab: null });
+      // 0.15.0: an open workspace is brought to the top, never opened a second time
+      else if (!had) gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), gsaFixDefaults(k)), log: null, busy: false, tab: null });
       renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return;
     }
     const wp = t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
@@ -26139,9 +26263,14 @@ This is a directory write. Nothing else changes.`)) return;
     const tb = t.closest("[data-gsatab]"); if (w && tb) { w.tab = tb.dataset.gsatab; renderGsa(); return; }
     if (w && t.closest("[data-gsacopy]")) { const pre = wp.querySelector("[data-gsapre]"); const txt = pre ? pre.textContent : ""; try { navigator.clipboard.writeText(txt).then(() => toast("Copied"), () => toast("Copy failed — select the text instead")); } catch { toast("Copy failed — select the text instead"); } return; }
     const dl = w && t.closest("[data-gsadl]"), wo = w ? w.opts : gsaDefOpts();
-    if (dl && dl.dataset.gsadl === "det") { downloadText("Detect-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.detectScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
-    if (dl && dl.dataset.gsadl === "rem") { downloadText("Remediate-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.remediationScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
-    if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: wo.lock, ipv4: wo.ipv4 })); else downloadText("scr-app-109-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
+    // 0.15.0: a script tab downloads exactly as it is shown
+    if (dl) {
+      const tabs = w ? Gsa.preview(w.k, gsaPrevOpts(w)) : [], tb = tabs.find((x) => x.id === dl.dataset.gsadl), id = dl.dataset.gsadl;
+      const file = { det: "Detect-GlobalSecureAccessClient", rem: "Remediate-GlobalSecureAccessClient", cdet: "Detect-GlobalSecureAccessClientSettings", crem: "Remediate-GlobalSecureAccessClientSettings", win: "Install-GlobalSecureAccessClient", cfg: "Configure-GlobalSecureAccessClient", mac: "scr-app-109-install-global-secure-access" }[id] || "GlobalSecureAccess";
+      if (id === "mac") downloadText(file, "zsh", "text/x-shellscript", tb ? tb.text : Gsa.macScript());
+      else if (tb) downloadText(file, "ps1", "text/plain", tb.text);
+      return;
+    }
     // 32603: showDetail takes the policy ID — it was handed the object, found
     // nothing and returned without a word (Mihai: "clicking a policy in T57,
     // nothing happens"; T56 had the same line). full = true: not the list screen.
@@ -26168,10 +26297,12 @@ This is a directory write. Nothing else changes.`)) return;
     else if (t.dataset && t.dataset.gsadevsel) { const cur = new Set(w.opts.devSel || []); if (t.checked) cur.add(t.dataset.gsadevsel); else cur.delete(t.dataset.gsadevsel); w.opts.devSel = [...cur]; renderGsa(); return; }
     else { const k = t.dataset && t.dataset.gsaopt; if (!k) return; w.opts[k] = t.type === "checkbox" ? t.checked : t.value; }
     const o = w.opts, el = wp.querySelector("[data-gsaname]");
-    if (el) el.textContent = Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[w.k === "macscript" || w.k === "macprof" ? "mac" : w.k === "winrem" ? "rem" : "win"];
+    // 0.15.0: the name the workspace makes, its part and kind kept apart (windns has its own)
+    const nk = w.k === "macscript" || w.k === "macprof" ? "mac" : w.k === "winrem" ? "rem" : w.k === "wincfg" ? (o.kind === "script" ? "winCfg" : "remCfg") : w.k === "winsplit" ? (gsaWinOf().kind === "script" ? "winCfg" : "remCfg") : "win";
+    if (el) el.textContent = w.k === "windns" ? Gsa.winDnsName({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }) : Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[nk];
     // the preview follows the options, without a repaint that would steal focus
     // (32703: a profile tick changes the tab set, so that repaints)
-    if (/^(pSys|pProxy|pSet)$/.test((t.dataset && t.dataset.gsaopt) || "")) { renderGsa(); return; }
+    if (/^(pSys|pProxy|pSet|kind|useInstall)$/.test((t.dataset && t.dataset.gsaopt) || "")) { renderGsa(); return; }
     const pre = wp.querySelector("[data-gsapre]"), tabs = Gsa.preview(w.k, gsaPrevOpts(w)), tab = tabs.find((x) => x.id === w.tab) || tabs[0];
     if (pre && tab) pre.textContent = tab.text;
   };
