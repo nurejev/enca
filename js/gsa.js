@@ -1553,11 +1553,18 @@ const Gsa = (() => {
     return iss;
   }
   function settingsMode(o) { const k = settingsKeys(o).keys; return SET_KEYS.every((x) => k[x] === true) ? "lock-down" : k.HideQuitButton === true && k.HideDisablePrivateAccessButton === true && k.HidePauseButton === false && k.HideDisableButton === false ? "pilot" : "custom"; }
+  // 32815: Intune stores "no filter" two ways — configuration policies return null, remediations
+  // return the all-zeros GUID, both with type none — so a policy and a script on the same group
+  // looked as if they carried different filters. Only a real filter id with include or exclude counts.
+  function realFilter(id, mode) {
+    if (!id || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(id) || mode === "none") return null;
+    return { id, mode };
+  }
   // assignments → what they reach
   function tgt(asg) {
     const r = { inc: [], exc: [], all: null, allUsers: null };
     for (const a of asg || []) {
-      const t = a.target || a, ty = t["@odata.type"] || "", f = t.deviceAndAppManagementAssignmentFilterId ? { id: t.deviceAndAppManagementAssignmentFilterId, mode: t.deviceAndAppManagementAssignmentFilterType } : null;
+      const t = a.target || a, ty = t["@odata.type"] || "", f = realFilter(t.deviceAndAppManagementAssignmentFilterId, t.deviceAndAppManagementAssignmentFilterType);
       if (/exclusion/i.test(ty)) r.exc.push(t.groupId);
       else if (/allDevices/i.test(ty)) r.all = { filter: f };
       else if (/allLicensedUsers/i.test(ty)) r.allUsers = { filter: f };
@@ -2064,6 +2071,6 @@ const Gsa = (() => {
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { CFG_FILE, winRole, majorName, settingVals, cfgDetectScript, cfgRemediationScript, cfgScript, cfgRemediationBody, cfgScriptBody, GSA_CLIENT_APP, DNS_SETTINGS, WIN_SET_KEYS, winDnsName, authIndex, runIndex, contentSettings, dnsCheck, winDnsBody, winChain, winChainHtml, b64, appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { realFilter, CFG_FILE, winRole, majorName, settingVals, cfgDetectScript, cfgRemediationScript, cfgScript, cfgRemediationBody, cfgScriptBody, GSA_CLIENT_APP, DNS_SETTINGS, WIN_SET_KEYS, winDnsName, authIndex, runIndex, contentSettings, dnsCheck, winDnsBody, winChain, winChainHtml, b64, appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

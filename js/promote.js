@@ -175,6 +175,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 352,
+      ws: "entra",
+      title: "🌐 Global Secure Access 0.15.1: no false filter warning, and a read that cannot hang in silence",
+      tools: ["Global Secure Access"],
+      builds: [32815],
+      risk: "low",
+      what: "js/gsa.js: realFilter(id, mode) returns null for a null id, the all-zeros GUID or type none; tgt() uses it, so reach() no longer reports another filter than the script for a settings catalog policy (null) and a remediation (zero GUID) on the same group, and All devices with the zero GUID reads as All devices. Exported for the test. js/app.js readGsa: the winDns source lists the Windows settings catalog policies by name and opens settings and assignments only for those named like edge, chrome, browser, dns, doh, gsa or global secure access (60 at most, Graph.mapLimit 4) instead of one expand over all of them; one() and the device report, sign-in, group member, Mac and group name reads run through within() with GSA_SRC_MS (120 s), a source that passes it is recorded as not read; gsaStep() puts the source being read in the spinner line (#gsaStep); renderGsa wraps Gsa.model and the draw in try/catch and shows the error with Read the tenant again. tools/gsa.test.cjs: one test (57 in all).",
+      why: "Mihai, 19 Oct: the Secure DNS off row in Limon-IT said INT-SEC-D-GSA-WIN-M365, but with another filter than the script although neither had a filter; and Global Secure Access on devcf kept loading and never showed. Not reproduced live (the board needs his sign-in): the pure model and render draw on a devcf-shaped combined remediation, so the hang is in the read; this removes the heaviest read and makes any remaining stall visible.",
+      carveout: "None: js/gsa.js and the readGsa block are the same on main apart from the promotion series; port both files whole with the build numbers rewritten.",
+      test: [
+        "Beta, gimi (Limon-IT): Global Secure Access, Read the tenant, step 6, the Windows chain: Secure DNS off reads green with the install remediation's group and no warning about another filter.",
+        "Beta, devcf (cloudfellows.dev): Read the tenant. The spinner line says now: followed by the source being read, and the board appears. If a source stalls, after two minutes it is listed as not read and the board still draws.",
+        "Beta, devcf: step 6, Secure DNS off still finds the browser DNS policy when there is one (named Edge, Chrome, browser, DNS or GSA); a policy with another name is not opened.",
+        "Beta, ?demo=1: Global Secure Access opens as before.",
+      ],
+    },
+    {
       n: 351,
       ws: "platform",
       title: "🔐 Sign-in card: the ⚙ login panel stays collapsed once a login is saved",

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32815, date: "2026-10-19", title: "Global Secure Access: a false filter warning and a board that never finished loading",
+    items: [
+      { kind: "fixed", tool: "Global Secure Access", text: "A policy and a script on the SAME group no longer read as having another filter than the script. Intune stores no filter as nothing on a policy and as an all-zeros id on a remediation, and the check compared the two. Seen on the Secure DNS off row in Limon-IT: assigned to INT-SEC-D-GSA-WIN-M365 like the install, with no filter on either side. Only a real filter is compared now." },
+      { kind: "fixed", tool: "Global Secure Access", text: "The board could keep loading for ever on a big tenant (cloudfellows.dev). The Secure DNS read opened the settings of every Windows settings catalog policy at once; it now lists the names and opens only the browser, DNS and Global Secure Access ones, four at a time. The spinner line says what is being read, a source that takes longer than two minutes is named as not read instead of waited for, and a read that comes back but cannot be drawn says so with Read the tenant again instead of leaving the spinner." },
+    ],
+  },
+  {
     build: 32814, date: "2026-10-19", title: "Sign-in card: the login panel stays closed once a login is saved",
     items: [
       { kind: "fixed", tool: "Sign-in", text: "After you saved a connection under the ⚙ control on the sign-in card, the panel came back OPEN on every visit. It now stays closed: its title line already says which login you sign in with (Signing in as NAME — change). It opens by itself only when this copy has no login at all, because then it is the only way in." },

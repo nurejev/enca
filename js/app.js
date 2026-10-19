@@ -25198,6 +25198,11 @@ This is a directory write. Nothing else changes.`)) return;
     return list;
   };
   const gsaErr = (e) => String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "");
+  // 32815: what the Global Secure Access read is busy with, shown in the spinner line, and the
+  // longest one source may take before the board names it as not read
+  const GSA_SRC_MS = 120000;
+  const GSA_SRC_LABEL = { skus: "the licences", status: "the tenant status", ztna: "the ZTNA client app", profile: "the Microsoft traffic profile", signaling: "Conditional Access signalling", sp: "the profile's app", assigned: "who the profile is assigned to", locations: "the named locations", trv2: "the cross-tenant access settings", scripts: "the Windows platform scripts", shellScripts: "the macOS shell scripts", apps: "the Intune apps", healthScripts: "the Windows remediations", winDns: "the Windows secure DNS policies", macProfiles: "the macOS profiles", macChain: "the macOS chain", encaSettings: "the ENCA settings record", winGroups: "the members of the install groups", macManaged: "the Intune-managed Macs", seenReport: "the Global Secure Access device report", seenSignins: "the sign-ins through Global Secure Access", gsaAuth: "the client's own sign-ins", groupNames: "the group names" };
+  const gsaStep = (k) => { gsa.step = GSA_SRC_LABEL[k] || k; const el = document.getElementById("gsaStep"); if (el) el.textContent = gsa.step; };
   // ---- 🚧 Tenant restrictions v2 (T56 0.7.0, Mihai 17 Oct: "our GSA setup
   // will need a tenant restrict v2, allowing Limon-IT and CloudFellows").
   // js/trv2.js plans; this block reads, keeps the allowed list per tenant in
@@ -25350,12 +25355,15 @@ This is a directory write. Nothing else changes.`)) return;
   function renderGsa() {
     if (!$("screen-gsa").classList.contains("active")) return;
     const body = $("gsaBody");
-    if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
+    if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences… <span class="muted">now: <span id="gsaStep">${esc(gsa.step || "starting")}</span></span></p>'; return; }
     if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
-    gsa.model = Gsa.model(gsa.raw, gsaPolicies());
+    // 32815: a read that came back but cannot be drawn used to leave the spinner on screen for ever
+    try { gsa.model = Gsa.model(gsa.raw, gsaPolicies()); }
+    catch (e) { console.error("Global Secure Access board", e); body.innerHTML = `<p class="mini" style="color:var(--off)">The tenant was read but the board could not be drawn — ${esc(gsaErr(e))}</p><div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant again</button></div>`; return; }
     // 0.12.0: Setup or Monitor — Monitor by default once steps 1–7 are ready, until the person picks
     if (!gsa.modeChosen) gsa.mode = Gsa.setupDone(gsa.model) ? "monitor" : "setup";
-    body.innerHTML = gsa.mode === "monitor" ? Gsa.renderMonitor(gsa.model, gsa.mon ? Gsa.monitor(gsa.model, gsa.mon) : null, { monBusy: gsa.monBusy, monRead: gsa.monRead, monErr: gsa.monErr, period: gsa.monPeriod, filter: gsa.monFilter }) : Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info(), { open: !!gsa.trv2Open || gsa.work.some((w) => w.k === "trv2") }) : "" });
+    try { body.innerHTML = gsa.mode === "monitor" ? Gsa.renderMonitor(gsa.model, gsa.mon ? Gsa.monitor(gsa.model, gsa.mon) : null, { monBusy: gsa.monBusy, monRead: gsa.monRead, monErr: gsa.monErr, period: gsa.monPeriod, filter: gsa.monFilter }) : Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info(), { open: !!gsa.trv2Open || gsa.work.some((w) => w.k === "trv2") }) : "" }); }
+    catch (e) { console.error("Global Secure Access board", e); body.innerHTML = `<p class="mini" style="color:var(--off)">The tenant was read but the board could not be drawn — ${esc(gsaErr(e))}</p><div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant again</button></div>`; return; }
     $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
   }
   async function readGsa() {
@@ -25367,7 +25375,10 @@ This is a directory write. Nothing else changes.`)) return;
         const sc = [...AUTH_CONFIG.scopes, ...GSA_READ];
         if (!await preConsent(sc)) throw new Error("the Global Secure Access read permissions were not granted");
         const raw = { sources: {}, groupNames: {} };
-        const one = async (k, fn) => { try { raw[k] = await fn(); raw.sources[k] = "ok"; } catch (e) { raw.sources[k] = gsaErr(e); } };
+        // 32815: devcf kept loading with no word on where — every source now says what is being read
+        // and gives up after GSA_SRC_MS, named in the board as not read, instead of waiting for ever
+        const within = (p, label) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} took longer than ${GSA_SRC_MS / 1000} seconds — skipped`)), GSA_SRC_MS))]);
+        const one = async (k, fn) => { gsaStep(k); try { raw[k] = await within(Promise.resolve().then(fn), GSA_SRC_LABEL[k] || k); raw.sources[k] = "ok"; } catch (e) { raw.sources[k] = gsaErr(e); } };
         await one("skus", () => Graph.ggetAll("/v1.0/subscribedSkus", { scopes: sc }));
         await one("status", () => Graph.gget("/networkAccess/tenantStatus", sc));
         // 32518: the ZTNA Policy Service Client app the client signs in through
@@ -25431,7 +25442,8 @@ This is a directory write. Nothing else changes.`)) return;
           const asgW = [...(raw.healthScripts || []), ...(raw.scripts || []).filter((x) => rxW.test(`${x.displayName} ${x.fileName}`)), ...(raw.apps || [])].flatMap((x) => (x.assignments || []).map((a) => a.target || {})).filter((t) => t.groupId && !/exclusion/i.test(t["@odata.type"] || ""));
           for (const gid of [...new Set(asgW.map((t) => t.groupId))].slice(0, 20)) {
             try {
-              const mem = await Graph.ggetAll(`/v1.0/groups/${gid}/members?$select=id,displayName,deviceId,operatingSystem,trustType&$top=999`, { scopes: sc, cap: 5000 });
+              gsaStep("winGroups");
+              const mem = await within(Graph.ggetAll(`/v1.0/groups/${gid}/members?$select=id,displayName,deviceId,operatingSystem,trustType&$top=999`, { scopes: sc, cap: 5000 }), "the group members");
               const dev = mem.filter((x) => /device$/i.test(x["@odata.type"] || "")), winD = dev.filter((x) => /^windows/i.test(x.operatingSystem || ""));
               raw.winGroups[gid] = { list: winD.map((x) => ({ deviceId: x.deviceId, displayName: x.displayName, operatingSystem: x.operatingSystem, trustType: x.trustType })), devices: dev.length, windows: winD.length, joined: winD.filter((x) => x.trustType === "AzureAd").length, hybrid: winD.filter((x) => x.trustType === "ServerAd").length, registered: winD.filter((x) => x.trustType === "Workplace").length, users: mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length };
             } catch { /* members not read — the step says so */ }
@@ -25439,18 +25451,20 @@ This is a directory write. Nothing else changes.`)) return;
         }
         // 0.14.0: secure DNS off in Edge and Chrome — the Windows settings catalog policies that set it, found by content
         await one("winDns", async () => {
-          let pols;
-          try { pols = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'windows10'") + "&$expand=settings,assignments&$select=id,name", { scopes: sc }); }
-          catch {
-            pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'windows10'") + "&$select=id,name", { scopes: sc })).filter((p) => /edge|chrome|browser|dns|gsa|global secure access/i.test(p.name || ""));
-            for (const p of pols.slice(0, 40)) { try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.settings = []; } }
-          }
+          // 32815: devcf kept loading here — the old read opened the settings of EVERY Windows settings
+          // catalog policy in one expand (a baseline tenant has many, and Intune returns them a few per page).
+          // Now the names are listed and only the browser, DNS and GSA ones are opened, four at a time
+          const all = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'windows10'") + "&$select=id,name", { scopes: sc });
+          const pols = all.filter((p) => /edge|chrome|browser|dns|doh|gsa|global secure access/i.test(p.name || "")).slice(0, 60);
+          await Graph.mapLimit(pols, 4, async (p) => {
+            try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.settings = []; }
+          });
           const ids = Gsa.DNS_SETTINGS.map((d) => d.def);
           return pols.filter((p) => (p.settings || []).some((x) => ids.includes((x.settingInstance || {}).settingDefinitionId)));
         });
         // 32708 (S7): is macOS in scope at all — any Intune-managed Mac in Entra
         try {
-          const macs = await Graph.ggetAll("/v1.0/devices?$filter=" + encodeURIComponent("operatingSystem eq 'MacMDM' or operatingSystem eq 'macOS'") + "&$select=id,isManaged&$top=100", { scopes: sc, cap: 200 });
+          gsaStep("macManaged"); const macs = await within(Graph.ggetAll("/v1.0/devices?$filter=" + encodeURIComponent("operatingSystem eq 'MacMDM' or operatingSystem eq 'macOS'") + "&$select=id,isManaged&$top=100", { scopes: sc, cap: 200 }), "the Macs");
           raw.macManaged = macs.filter((x) => x.isManaged === true).length;
         } catch { raw.macManaged = null; }
         // 32517: the three macOS profiles (system extensions, transparent proxy,
@@ -25512,13 +25526,14 @@ This is a directory write. Nothing else changes.`)) return;
           const now = new Date(), since = new Date(now.getTime() - Gsa.SEEN_DAYS * 86400000);
           raw.seen = { days: Gsa.SEEN_DAYS, since: since.toISOString(), report: null, signIns: null, capped: false };
           if (raw.status && raw.status.onboardingStatus === "onboarded") {
-            try { raw.seen.report = await Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.deviceReport(startDateTime=${since.toISOString()},endDateTime=${now.toISOString()})`, { scopes: sc, cap: 5000 }); raw.sources.seenReport = "ok"; } catch (e) { raw.sources.seenReport = gsaErr(e); }
+            try { gsaStep("seenReport"); raw.seen.report = await within(Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.deviceReport(startDateTime=${since.toISOString()},endDateTime=${now.toISOString()})`, { scopes: sc, cap: 5000 }), "the device report"); raw.sources.seenReport = "ok"; } catch (e) { raw.sources.seenReport = gsaErr(e); }
             try {
               const sel = "$select=createdDateTime,deviceDetail,userPrincipalName&$top=999";
               const base = `createdDateTime ge ${since.toISOString()} and isThroughGlobalSecureAccess eq true`;
-              const a = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(base)}&${sel}`, { scopes: sc, cap: 2000 });
+              gsaStep("seenSignins");
+              const a = await within(Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(base)}&${sel}`, { scopes: sc, cap: 2000 }), "the sign-ins");
               let b = [];
-              try { b = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`${base} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&${sel}`, { scopes: sc, cap: 2000 }); } catch { /* the interactive ones stand */ }
+              try { b = await within(Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`${base} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&${sel}`, { scopes: sc, cap: 2000 }), "the non-interactive sign-ins"); } catch { /* the interactive ones stand */ }
               raw.seen.signIns = [...a, ...b];
               raw.seen.capped = !!((a.readState && a.readState.capped) || (b.readState && b.readState.capped));
               raw.sources.seenSignins = "ok";
@@ -25526,7 +25541,8 @@ This is a directory write. Nothing else changes.`)) return;
             // 0.14.0: the client's own sign-ins — its policy and its tunnel token, per device
             try {
               const f = `createdDateTime ge ${since.toISOString()} and (appId eq '${Gsa.ZTNA_CLIENT}' or appId eq '${Gsa.GSA_CLIENT_APP}') and signInEventTypes/any(t: t eq 'nonInteractiveUser')`;
-              raw.gsaAuth = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$select=createdDateTime,appId,appDisplayName,resourceDisplayName,deviceDetail,status&$top=999`, { scopes: sc, cap: 3000 });
+              gsaStep("gsaAuth");
+              raw.gsaAuth = await within(Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$select=createdDateTime,appId,appDisplayName,resourceDisplayName,deviceDetail,status&$top=999`, { scopes: sc, cap: 3000 }), "the client's sign-ins");
               raw.sources.gsaAuth = "ok";
             } catch (e) { raw.sources.gsaAuth = gsaErr(e); }
           } else { raw.sources.seenReport = raw.sources.seenSignins = raw.sources.gsaAuth = "Global Secure Access is not activated (step 2)"; }
@@ -25541,8 +25557,9 @@ This is a directory write. Nothing else changes.`)) return;
         const cn = (raw.locations || []).find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
         const asgIds = [...(raw.scripts || []), ...(raw.shellScripts || []), ...(raw.healthScripts || []), ...((raw.macProfiles && raw.macProfiles.found) || []), ...(raw.macChain ? [...raw.macChain.policies, ...raw.macChain.configs, ...raw.macChain.scripts] : [])].flatMap((x) => (x.assignments || []).map((a) => (a.target || {}).groupId));
         const ids = [...new Set([...Gsa.cnPolicies(gsaPolicies(), cn && cn.id).flatMap((p) => p.includeGroups), ...asgIds])].filter((id) => /^[0-9a-f-]{36}$/i.test(id || ""));
+        gsaStep("groupNames");
         for (let i = 0; i < ids.length; i += 15) {
-          try { (await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(ids.slice(i, i + 15).map((x) => `id eq '${x}'`).join(" or "))}&$select=id,displayName`, { scopes: sc })).forEach((g) => { raw.groupNames[g.id] = g.displayName; }); } catch { /* ids stay */ }
+          try { (await within(Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(ids.slice(i, i + 15).map((x) => `id eq '${x}'`).join(" or "))}&$select=id,displayName`, { scopes: sc }), "the group names")).forEach((g) => { raw.groupNames[g.id] = g.displayName; }); } catch { /* ids stay */ }
         }
         raw.readAt = Date.now();
         gsa.raw = raw;

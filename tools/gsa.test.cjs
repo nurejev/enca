@@ -1225,3 +1225,25 @@ test("0.15.0 Replace… carries the configuration to the platform scripts", () =
   const W = Gsa.model(limon19(), []).links.find((l) => l.k === "client").lanes.windows;
   assert.match(W.actions.find((a) => a.fix === "winswap").sub, /platform scripts \(install and configuration\) — same groups, the remediations unassigned/);
 });
+
+test("32815: no filter is no filter — null, the all-zeros GUID and type none read the same (gimi: a DNS policy and the install remediation on one group)", () => {
+  const ZERO = "00000000-0000-0000-0000-000000000000", G = "48cf006b-2c1a-4748-8c5d-e4dbda8e099b";
+  const grp = (fid, ft) => [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: G, deviceAndAppManagementAssignmentFilterId: fid, deviceAndAppManagementAssignmentFilterType: ft } }];
+  const policyAsg = grp(null, "none"), scriptAsg = grp(ZERO, "none");
+  assert.strictEqual(Gsa.realFilter(null, "none"), null);
+  assert.strictEqual(Gsa.realFilter(ZERO, "none"), null);
+  assert.strictEqual(Gsa.realFilter(ZERO, undefined), null);
+  assert.deepStrictEqual(Gsa.realFilter("f-1", "include"), { id: "f-1", mode: "include" });
+  const r = Gsa.reach(policyAsg, scriptAsg, { [G]: "INT-SEC-D-GSA-WIN-M365" });
+  assert.strictEqual(r.st, "ok", r.text);
+  assert.strictEqual(r.text, "same group");
+  assert.strictEqual(Gsa.reach(scriptAsg, policyAsg, {}).st, "ok", "the other way round too");
+  // a real filter on one side is still told apart
+  assert.strictEqual(Gsa.reach(grp("f-1", "include"), scriptAsg, { [G]: "G" }).st, "warn");
+  assert.match(Gsa.reach(grp("f-1", "include"), scriptAsg, { [G]: "G" }).text, /another filter than the script/);
+  assert.strictEqual(Gsa.reach(grp("f-1", "include"), grp("f-1", "include"), {}).st, "ok");
+  assert.strictEqual(Gsa.reach(grp("f-1", "include"), grp("f-2", "include"), {}).st, "warn");
+  // All devices with the zero-GUID filter is All devices, not "with a filter"
+  const allDev = [{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget", deviceAndAppManagementAssignmentFilterId: ZERO, deviceAndAppManagementAssignmentFilterType: "none" } }];
+  assert.strictEqual(Gsa.reach(allDev, scriptAsg, {}).text, "All devices");
+});
