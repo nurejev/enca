@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33001, date: "2026-10-19", title: "Production is build 329 (v2.0.7)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 329, ENCA v2.0.7: SMB Basic 1.0.2 (CA901 passkey, the sync accounts left out, CA005 with the admin portals, CA007 device join, CA008 unmanaged Windows and Mac) and the import that tries a state again, never creates a policy twice and runs a pre-flight. Queue items 356 and 357 are out of the queue; 354 and 355 stay, with everything PIM-buddy." },
+    ],
+  },
+  {
     build: 32903, date: "2026-10-19", title: "SMB Basic 1.0.2: device join, unmanaged desktops and the admin portals",
     items: [
       { kind: "new", tool: "Baseline", text: "SMB Basic CA007: registering or joining a device to Entra needs MFA or a Temporary Access Pass. It is only enforced while the device setting Require MFA to register or join devices is No, and the import checks that setting." },

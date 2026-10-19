@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v2.0.6",
+  productionBuild: "v2.0.7",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -181,44 +181,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 357,
-      ws: "ca",
-      title: "🏢 SMB Basic 1.0.2: CA005 with the admin portals, CA007 device join, CA008 unmanaged Windows and Mac 4 hours never persistent; two pre-flight checks",
-      tools: ["Baseline", "Import"],
-      builds: [32903],
-      risk: "medium",
-      files: ["js/baselineSmbData.js", "js/import.js", "js/app.js", "index.html", "tools/baseline-smb.test.cjs", "tools/import-preflight.test.cjs"],
-      what: "js/baselineSmbData.js: VERSION 5/7/8 at 1.0.2, CATALOG_RELEASE 1.0.2, ADDED_IN 7/8 (tag NEW); CA005 AdminPortalsAndAzureMgmt includeApplications MicrosoftAdminPortals + Windows Azure Service Management API, everyoneButSync; CA007 RegisterOrJoinDevices, urn:user:registerdevice, built-in MFA strength, guests out; CA008 WindowsOrMacOS-Unmanaged-SIF4h-NeverPersistent, all users minus sync roles, platforms windows+macOS, deviceFilter include device.trustType -ne AzureAD, SIF 4 h, persistent browser never. js/import.js preflight: devreg (deviceRegistrationPolicy.multiFactorAuthConfiguration) and unmanaged (device counts). js/app.js: the demo pre-flight shows both. index.html: Help for Baseline and Import.",
-      why: "Mihai, 19 Oct: does SMB Basic cover the guide's Appendix 1 baseline? Gaps were MFA for the admin portals, MFA to register or join devices, and no persistent browser on unmanaged devices. From the mockup ENCA — SMB Basic 1.0.2: GSA stays for everyone, unmanaged Windows and Mac get 4 hours never persistent, they should be Entra joined, hybrid is unmanaged in SMB, a Mac should be joined just as Windows. Terms of use left out.",
-      carveout: "None beyond the usual: promote.js stays beta-only; the SMB data file ports whole, the import.js and app.js hunks as they are.",
-      test: [
-        "devcf or gimi, 🧬 Baseline SMB Basic: release 1.0.2, 17 policies; a tenant holding 1.0.1 shows CA005 Outdated and CA007, CA008 Missing.",
-        "📥 Import baseline SMB Basic: the pre-flight shows the device setting Require MFA to register or join devices (warn while Yes) and the count of Windows PCs and Macs CA008 would treat as unmanaged; import CA005, CA007, CA008 on Report-only.",
-        "In the portal: CA007 targets User actions, Register or join devices, with the Multifactor authentication strength; CA008 has Device platforms Windows and macOS, Filter for devices include trustType not equals Microsoft Entra joined, sign-in frequency 4 hours and persistent browser never.",
-        "Report-only impact after a day: CA008 hits the hybrid-joined PCs and Macs without Platform SSO only; an Entra-joined Windows PC and a Platform SSO Mac show not applied.",
-      ],
-    },
-    {
-      n: 356,
-      ws: "ca",
-      title: "🏢 SMB Basic 1.0.1 and 📥 an import that does not stop half-way: state retried, never twice, 🛫 pre-flight",
-      tools: ["Baseline", "Import", "Policies", "Best-practice checks"],
-      builds: [32902],
-      risk: "medium",
-      files: ["js/baselineSmbData.js", "js/import.js", "js/app.js", "js/render.js", "js/gapcheck.js", "index.html", "tools/baseline-smb.test.cjs", "tools/import-preflight.test.cjs"],
-      what: "SMB Basic 1.0.1 (the stranded bundle commit 370f8df, ported): CA901 passkey strength SMB - Passkey (FIDO2), the directory sync roles excluded from CA001-CA003 and CA201-CA204, 1.0.1 for the eight changed policies, Match and replace merges excluded roles, Render.caGroup sections under SMB, gapcheck SMB_PERSONAS. Import: Importer.patchSettled (state PATCH retried on 404/409/412/423/429/5xx), stateRetry at the end of the run, presentNames (fresh /beta names) + SESSION_MADE (this page's creates per tenant) so a policy is never created twice, sameCombinations reuse of a custom strength, dependencyGaps stops a policy whose strength or location failed before its create, Importer.preflight + setStates, the 🛫 pre-flight panel (imLoadPre, imPrePanel, imPreFix, held Import on a block), the write guard reads with readSettled, buildReport lists not-created-twice, the state repair and the pre-flight; imEaPanel hidden under SMB Basic.",
-      why: "Mihai, 19 Oct: read the previous chat about the SMB policies, continue, fix everything and add the necessary checks in the import to prevent not importing. gimi (SMB 1.0 import on 32816, Land as Report-only): CA002, CA003, CA005, CA101, CA102 and CA901 were created and read back but stayed Off with no update in the audit log; CA901 was created twice (19:39 and 19:44); CA103 and CA201-CA204 exist but Graph v1.0 does not list them (1037, preview feature). The 32817 SMB commit from the chat was only in a bundle that could not fast-forward onto beta.",
-      carveout: "None beyond the usual: promote.js stays beta-only. js/import.js and js/app.js hunks port as they are; the SMB data file ports whole.",
-      test: [
-        "gimi (or any tenant on security defaults), 📥 Import baseline SMB Basic, Land as Report-only: the 🛫 pre-flight lists the SMB 1.0 policies already here, the ones Off (CA005, CA101, CA102 at least), CA901 twice, GSA signalling and the Passkey (FIDO2) method; tick the repair and import — every new policy except CA103 and CA201-CA204 reads Report-only in the portal, the ticked ones too.",
-        "Run the same import again straight after: nothing is created; the ledger rows say already here and the report has Not created twice.",
-        "A tenant whose strengths list has SMB - FIDO2 security key: the run creates no new strength, CA901 1.0.1 uses the existing one (report: allows exactly the same methods, reused).",
-        "A tenant with 15 custom strengths and none matching: the pre-flight marks strengths ✗ and Import is held.",
-        "CA001 and CA201 1.0.1 show Directory Synchronization Accounts and On Premises Directory Sync Account under excluded roles; CA901 shows SMB - Passkey (FIDO2) or the reused strength.",
-        "Under SMB Basic the E-Admins panel is not shown in the import; under Joey it still is.",
-      ],
-    },
     {
       n: 355,
       ws: "platform",
