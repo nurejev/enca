@@ -1071,3 +1071,32 @@ test("0.14.0 Redeploy: a platform script gets a new version, never a per-device 
   assert.doesNotMatch(dns, /microsoft_edge/);
   assert.strictEqual(Gsa.b64("é"), "w6k=", "the redeployed script is UTF-8 base64");
 });
+
+// ---- 0.14.1: never New-Item -Force on the client's own key (19 Oct 2026) ----
+// Learn (New-Item): with -Force an existing registry key is replaced by an empty
+// one. The remediations ENCA wrote on Limon-IT and devcf ran it on
+// HKLM\SOFTWARE\Microsoft\Global Secure Access Client right after the install.
+const oldText = (t) => t.replace(/  # never New-Item -Force[^\r\n]*\r\n  if \(-not \(Test-Path \$key\)\) \{ New-Item -Path \$key \| Out-Null \}/, "  New-Item -Path $key -Force | Out-Null");
+test("0.14.1: the scripts ENCA writes never re-create the client's key; the ones deployed before are flagged and not redeployed", () => {
+  for (const lock of [false, true]) {
+    const rem = Gsa.remediationScript({ lock }), scr = Gsa.windowsScript({ lock });
+    for (const t of [rem, scr]) {
+      assert.doesNotMatch(t.split("\r\n").filter((l) => !/^\s*#/.test(l)).join("\n"), /New-Item -Path \$key -Force/);
+      assert.match(t, /if \(-not \(Test-Path \$key\)\) \{ New-Item -Path \$key \| Out-Null \}/);
+    }
+    assert.strictEqual(Gsa.contentSettings(`${Gsa.detectScript({ lock })}\n${rem}`).wipes, false);
+    assert.strictEqual(Gsa.contentSettings(scr).wipes, false);
+  }
+  // the log folder's New-Item -ItemType Directory -Force is fine
+  assert.strictEqual(Gsa.contentSettings("New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null").wipes, false);
+  // Limon-IT as deployed (pilot, v1.0): the old line is there
+  const r = limon19(); r.healthScripts[0].contentText = oldText(remText(false));
+  assert.match(r.healthScripts[0].contentText, /\n  New-Item -Path \$key -Force \| Out-Null/);
+  assert.strictEqual(Gsa.contentSettings(r.healthScripts[0].contentText).wipes, true);
+  const W = Gsa.model(r, []).links.find((l) => l.k === "client").lanes.windows;
+  const inst = W.chain.rows[0];
+  assert.strictEqual(inst.st, "bad");
+  assert.match(inst.issues.map((i) => i.t).join(" | "), /re-creates the client's registry key with New-Item -Force/);
+  assert.ok(!actKeys(W).includes("winrun"), "Redeploy would run the wipe again — withheld");
+  assert.ok(actKeys(W).includes("jump"), "the chain is one click away");
+});

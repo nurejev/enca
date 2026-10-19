@@ -424,7 +424,10 @@ const Gsa = (() => {
     for (const x of t.matchAll(/-Name\s+'(HideDisableButton|HideSignOutButton|HideDisablePrivateAccessButton|RestrictNonPrivilegedUsers)'\s+-Value\s+(\d+)/g)) vals[x[1]] = Number(x[2]);
     const known = WIN_SET_KEYS.every((k) => k in vals);
     const mode = !known ? "" : WIN_SET_KEYS.every((k) => vals[k] === 1) ? "locked down" : vals.HideDisableButton === 0 && vals.RestrictNonPrivilegedUsers === 0 && vals.HideSignOutButton === 1 && vals.HideDisablePrivateAccessButton === 1 ? "pilot" : "custom";
-    return { known, vals, mode, ipv4: /DisabledComponents/.test(t), aka: /aka\.ms\/GlobalSecureAccess-Windows\b/i.test(t), arm: /aka\.ms\/GlobalSecureAccess-WindowsOnArm/i.test(t) };
+    // 0.14.1: New-Item -Force on an existing registry key replaces it with an empty key (Learn: New-Item) —
+    // on the client's own key that wipes what the client keeps there (CertCommonName among them)
+    const wipes = t.split(/\r?\n/).some((l) => !/^\s*#/.test(l) && /\bNew-Item\b/i.test(l) && /-Force\b/i.test(l) && !/-ItemType\s+Directory/i.test(l) && /\$key\b|Global Secure Access Client/i.test(l) && !/Test-Path/i.test(l));
+    return { known, vals, mode, wipes, ipv4: /DisabledComponents/.test(t), aka: /aka\.ms\/GlobalSecureAccess-Windows\b/i.test(t), arm: /aka\.ms\/GlobalSecureAccess-WindowsOnArm/i.test(t) };
   }
   // Windows settings catalog policies that set one of the four DNS settings
   function dnsCheck(pols) {
@@ -462,6 +465,7 @@ const Gsa = (() => {
     if (contentRead && win.kind !== "app") {
       if (!ct.aka) iss.push({ sev: "bad", t: "does not download the client from aka.ms/GlobalSecureAccess-Windows" });
       if (!ct.arm) iss.push({ sev: "warn", t: "no ARM64 download (aka.ms/GlobalSecureAccess-WindowsOnArm) — an Arm device gets nothing" });
+      if (ct.wipes) iss.push({ sev: "bad", t: "re-creates the client's registry key with New-Item -Force — PowerShell replaces an existing key with an empty one, so every run that writes the settings wipes the client's own values (the client can sign out with a configuration issue). Replace the script, then reinstall the client where it ran" });
     }
     if (win.obj && win.obj.runAsAccount && win.obj.runAsAccount !== "system") iss.push({ sev: "bad", t: `runs as ${win.obj.runAsAccount} — the installer needs SYSTEM` });
     if (win.obj && win.obj.runAs32Bit === true) iss.push({ sev: "warn", t: "runs in 32-bit PowerShell — the client settings land under WOW6432Node" });
@@ -552,7 +556,8 @@ const Gsa = (() => {
     }
     if (W.fix) W.actions.push({ fix: W.fix, primary: true, sub: "" });
     // 0.14.0: Redeploy — the remediation on demand, per device; or a new version of the platform script
-    if (!off.windows && win.obj && !win.unassigned && (win.kind === "rem" || win.kind === "script") && W.st !== "ok") W.actions.push({ fix: win.kind === "rem" ? "winrun" : "winredeploy", primary: !W.fix, title: "Redeploy…", sub: win.kind === "rem" ? "run the remediation now on the devices that are not connected — on demand, one device at a time" : "a new version of the platform script — every device in its groups runs it again" });
+    const wipes = !!(win.obj && contentSettings(win.obj.contentText).wipes);
+    if (!off.windows && win.obj && !win.unassigned && (win.kind === "rem" || win.kind === "script") && W.st !== "ok" && !wipes) W.actions.push({ fix: win.kind === "rem" ? "winrun" : "winredeploy", primary: !W.fix, title: "Redeploy…", sub: win.kind === "rem" ? "run the remediation now on the devices that are not connected — on demand, one device at a time" : "a new version of the platform script — every device in its groups runs it again" });
     W.chain = off.windows ? null : winChain(raw, { win, lic, runs, devices: wDev.devices });
     if (W.chain && W.chain.problems) W.actions.push({ jump: "gsaWin", label: "Show the chain", title: "The Windows chain", sub: `${W.chain.problems} problem${W.chain.problems === 1 ? "" : "s"} — the table below has a fix per row` });
     // 0.13.1: outside the licence is the admin's choice — the other route stays one click away
@@ -1023,7 +1028,8 @@ const Gsa = (() => {
       "  if ($p.ExitCode -notin 0, 3010) { throw \"Global Secure Access client installer exit code $($p.ExitCode)\" }",
       "}",
       "$key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
-      "New-Item -Path $key -Force | Out-Null",
+      "# never New-Item -Force on this key: PowerShell would replace it with an empty key and wipe the client's own values",
+      "if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }",
       `# client settings: ${lock ? "locked down" : "pilot (Learn sample)"}`,
       ...Object.entries(vals).map(([k, v]) => `Set-ItemProperty -Path $key -Name '${k}' -Value ${v} -Type DWord -Force`),
       ...(o.ipv4 ? [
@@ -1083,7 +1089,8 @@ const Gsa = (() => {
       "    if ($p.ExitCode -notin 0, 3010) { Write-Output \"GSA install failed, exit code $($p.ExitCode)\"; exit 1 }",
       "  }",
       "  $key = 'HKLM:\\SOFTWARE\\Microsoft\\Global Secure Access Client'",
-      "  New-Item -Path $key -Force | Out-Null",
+      "  # never New-Item -Force on this key: PowerShell would replace it with an empty key and wipe the client's own values",
+      "  if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }",
       `  $want = ${psHash(settingVals(o.lock === true))}`,
       "  foreach ($k in $want.Keys) { Set-ItemProperty -Path $key -Name $k -Value $want[$k] -Type DWord -Force }",
       ...(o.ipv4 ? ["  # prefer IPv4 — the client tunnels IPv4 only; takes effect at the next restart (no restart here)", "  Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters' -Name DisabledComponents -Value 0x20 -Type DWord -Force"] : []),

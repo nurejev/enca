@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32811, date: "2026-10-19", title: "Global Secure Access: the Windows scripts keep the client's own settings",
+    items: [
+      { kind: "fixed", tool: "Global Secure Access", text: "The Windows install remediation and platform script created the client's registry key with a command that empties it when it already exists, right after installing the client. That wiped the values the client keeps there and could sign it out with a configuration issue. The scripts now only create the key when it is missing. A script deployed before this build is marked red in the Windows chain, and Redeploy is held back until it is replaced." },
+    ],
+  },
+  {
     build: 32810, date: "2026-10-19", title: "Global Secure Access: the Windows chain and Redeploy",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "Step 6 now shows a Windows chain beside the macOS one: the install script, the client settings it writes, secure DNS off in Edge and Chrome, and IPv4 preferred, each checked against Learn. When no policy turns secure DNS off, Create makes one with only the missing settings and assigns it to the install groups." },
