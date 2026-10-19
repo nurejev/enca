@@ -25,6 +25,10 @@
 //                                      Setup / Monitor switch, demoMonitor a read for ?demo=1
 //   Gsa.appTags(tags, hide)          → 0.13.0: the profile's app in My Apps — its tags with or without
 //                                      HideApp (Visible to users? No), every other tag kept
+//   Gsa.winChain(raw, c)             → 0.14.0: the Windows chain as macOS has one — install, client
+//                                      settings, secure DNS off in Edge and Chrome, IPv4 — found by
+//                                      content; runIndex / authIndex tell installed, policy fetched
+//                                      and tunnel per device (Intune run state, the client's sign-ins)
 //   Gsa.windowsScript(opts)          → the Intune platform script (PowerShell) ENCA uploads
 //   Gsa.macScript()                  → the macOS shell script; macSysextBody / macProxyBody /
 //                                      macSettingsBody the three profiles it needs (0.8.0)
@@ -354,6 +358,147 @@ const Gsa = (() => {
   }
   const scopeAct = (platform, off) => ({ fix: platform === "macOS" ? "scope-mac" : "scope-win", label: off ? "Back in scope…" : "Not in scope…", title: off ? `Put ${platform} back in scope` : `${platform} is not in scope here`, sub: off ? `out since ${when(off.at)}${off.by ? ` by ${off.by}` : ""}${off.why ? ` — ${off.why}` : ""} · kept in the tenant's ENCA settings record` : "accept and skip — kept in the tenant (the ENCA settings record), so every browser and colleague sees it" });
   const offStage = (platform, off) => ({ k: "Scope", st: "na", text: `${platform} taken out of scope ${when(off.at)}${off.by ? ` by ${off.by}` : ""}${off.why ? ` — ${off.why}` : ""}`, sub: `step 6 does not wait for ${platform}; a compliant-network policy that covers ${platform} sign-ins still blocks every device without the client` });
+  // ---- 0.14.0: the Windows chain, as macOS has one ---------------------------
+  // Mihai 19 Oct: "where is the windows chain", "and where is the redeploy";
+  // then "test it first against devcf". Read on devcf with Lokka: the
+  // settings catalog ids below; neither the baseline's Edge nor its Chrome
+  // policy turns DNS-over-HTTPS off; the remediation's content is readable;
+  // no Intune-managed device there (the per-device states were read on
+  // Limon-IT instead); writes are refused by devcf's Lokka guardrail, so they
+  // are tested on beta. The client's own sign-ins (Limon-IT, 19 Oct) tell
+  // installed from signed in from tunnelling: ZTNA Policy Service Client →
+  // ZTNA Policy Service is the policy, Global Secure Access Client →
+  // Microsoft apps with Global Secure Access the tunnel token (seen from an
+  // iPhone; the Windows client is matched by that app or that resource).
+  const GSA_CLIENT_APP = "cde6adac-58fd-4b78-8d6d-9beaf1b0d668";
+  const DNS_SETTINGS = [
+    { k: "edgeDoh", b: "Edge", label: "Edge — Control the mode of DNS-over-HTTPS: Disable DNS-over-HTTPS", child: true, def: "device_vendor_msft_policy_config_microsoft_edgev83diff~policy~microsoft_edge_dnsoverhttpsmode" },
+    { k: "chromeDoh", b: "Chrome", label: "Chrome — Controls the mode of DNS-over-HTTPS: Disable DNS-over-HTTPS", child: true, def: "device_vendor_msft_policy_config_chromeintunev1~policy~googlechrome_dnsoverhttpsmode" },
+    { k: "edgeDns", b: "Edge", label: "Edge — Use built-in DNS client: Disabled", child: false, def: "device_vendor_msft_policy_config_microsoft_edge~policy~microsoft_edge_builtindnsclientenabled" },
+    { k: "chromeDns", b: "Chrome", label: "Chrome — Use built-in DNS client: Disabled", child: false, def: "device_vendor_msft_policy_config_chromeintunev1~policy~googlechrome_builtindnsclientenabled" },
+  ];
+  const WIN_SET_KEYS = ["HideDisableButton", "HideSignOutButton", "HideDisablePrivateAccessButton", "RestrictNonPrivilegedUsers"];
+  const winDnsName = (o) => `Win - DCP - Device Configuration - D - GSA Browser DNS - ${(o && o.rel) || relTag()} - ${(o && o.ver) || "v1.0"}`;
+  // the client's own sign-ins, per Entra device id: the last policy fetch,
+  // the last tunnel token, the last failure
+  function authIndex(raw) {
+    const src = raw.sources || {}, map = new Map();
+    if (src.gsaAuth !== "ok") return { read: false, err: src.gsaAuth || "not read", map };
+    for (const x of raw.gsaAuth || []) {
+      const dd = x.deviceDetail || {}; if (!dd.deviceId) continue;
+      const k = String(dd.deviceId).toLowerCase(), e = map.get(k) || { policy: "", tunnel: "", fail: "", failAt: "" };
+      const at = String(x.createdDateTime || ""), ok = !x.status || !x.status.errorCode;
+      const tunnel = x.appId === GSA_CLIENT_APP || /with Global Secure Access/i.test(x.resourceDisplayName || "");
+      const policy = !tunnel && x.appId === ZTNA_CLIENT && (!x.resourceDisplayName || /ZTNA Policy Service/i.test(x.resourceDisplayName));
+      if (!ok) { if (at > e.failAt) { e.failAt = at; e.fail = `${x.appDisplayName || x.appId} → ${x.resourceDisplayName || "?"}: ${(x.status && (x.status.failureReason || x.status.errorCode)) || "failed"}`; } }
+      else if (tunnel) { if (at > e.tunnel) e.tunnel = at; }
+      else if (policy) { if (at > e.policy) e.policy = at; }
+      map.set(k, e);
+    }
+    return { read: true, err: "", map };
+  }
+  // Intune's run state of the Windows deployment, per device (remediation:
+  // detection and remediation state with the detection output; platform
+  // script: run state and result) — matched by Entra device id, else by name
+  function runIndex(obj) {
+    const byName = new Map(), byAad = new Map();
+    if (!obj || !Array.isArray(obj.runs)) return { read: false, err: (obj && obj.runsErr) || "not read", byName, byAad };
+    for (const r of obj.runs) {
+      const md = r.managedDevice || {}, out = r.postRemediationDetectionScriptOutput || r.preRemediationDetectionScriptOutput || r.resultMessage || "";
+      const ver = (String(out).match(/GSA client ([\d.]+)/i) || [])[1] || "";
+      const installed = r.remediationState === "success" || r.runState === "success" || (/\binstalled\b/i.test(out) && !/not installed/i.test(out));
+      const failed = !installed && /fail|error/i.test(`${r.detectionState || ""} ${r.remediationState || ""} ${r.runState || ""}`);
+      const e = { name: md.deviceName || "", managedId: md.id || String(r.id || "").split(":").pop() || "", ver, out: String(out), at: r.lastStateUpdateDateTime || "", installed, failed, err: r.remediationScriptError || r.preRemediationDetectionScriptError || r.errorDescription || "" };
+      if (md.deviceName) byName.set(String(md.deviceName).toLowerCase(), e);
+      if (md.azureADDeviceId) byAad.set(String(md.azureADDeviceId).toLowerCase(), e);
+    }
+    return { read: true, err: "", byName, byAad };
+  }
+  // what the install script itself says: the four client settings (the
+  // remediation's $want hash or the platform script's Set-ItemProperty
+  // lines), IPv4 preferred, and where it downloads the client from
+  function contentSettings(text) {
+    const t = String(text || ""), vals = {};
+    const m = t.match(/\$want\s*=\s*@\{([^}]*)\}/);
+    if (m) for (const p of m[1].split(";")) { const kv = p.split("="); if (kv.length === 2 && kv[0].trim()) vals[kv[0].trim()] = Number(kv[1].trim()); }
+    for (const x of t.matchAll(/-Name\s+'(HideDisableButton|HideSignOutButton|HideDisablePrivateAccessButton|RestrictNonPrivilegedUsers)'\s+-Value\s+(\d+)/g)) vals[x[1]] = Number(x[2]);
+    const known = WIN_SET_KEYS.every((k) => k in vals);
+    const mode = !known ? "" : WIN_SET_KEYS.every((k) => vals[k] === 1) ? "locked down" : vals.HideDisableButton === 0 && vals.RestrictNonPrivilegedUsers === 0 && vals.HideSignOutButton === 1 && vals.HideDisablePrivateAccessButton === 1 ? "pilot" : "custom";
+    return { known, vals, mode, ipv4: /DisabledComponents/.test(t), aka: /aka\.ms\/GlobalSecureAccess-Windows\b/i.test(t), arm: /aka\.ms\/GlobalSecureAccess-WindowsOnArm/i.test(t) };
+  }
+  // Windows settings catalog policies that set one of the four DNS settings
+  function dnsCheck(pols) {
+    const set = {}, by = new Set();
+    for (const p of pols || []) for (const x of p.settings || []) {
+      const inst = x.settingInstance || {}, d = DNS_SETTINGS.find((y) => y.def === inst.settingDefinitionId); if (!d) continue;
+      const v = inst.choiceSettingValue || {}, val = String(v.value || "");
+      let off, mode;
+      if (d.child) { const on = /_1$/.test(val), ch = (((v.children || [])[0] || {}).choiceSettingValue) || {}; mode = on ? String(ch.value || "").replace(/.*_/, "") || "set" : "policy disabled"; off = on && mode === "off"; }
+      else { off = /_0$/.test(val); mode = off ? "disabled" : "enabled"; }
+      if (!set[d.k] || (off && !set[d.k].off)) set[d.k] = { off, mode, by: p.name, policy: p };
+      by.add(p.name);
+    }
+    return { set, by: [...by] };
+  }
+  function winDnsBody(o, keys) {
+    const S = "#microsoft.graph.deviceManagementConfigurationSetting", C = "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance";
+    const inst = (d) => d.child
+      ? { "@odata.type": C, settingDefinitionId: d.def, choiceSettingValue: { value: `${d.def}_1`, children: [{ "@odata.type": C, settingDefinitionId: `${d.def}_dnsoverhttpsmode`, choiceSettingValue: { value: `${d.def}_dnsoverhttpsmode_off`, children: [] } }] } }
+      : { "@odata.type": C, settingDefinitionId: d.def, choiceSettingValue: { value: `${d.def}_0`, children: [] } };
+    const ds = DNS_SETTINGS.filter((d) => (keys || []).includes(d.k));
+    return { name: winDnsName(o), description: `Secure DNS off for the Global Secure Access client (Learn: DNS-over-HTTPS must be off for the client to tunnel by name; the browser's built-in DNS client off for DNS over TCP). ${ds.map((d) => d.label).join("; ")}. ${MADE}`, platforms: "windows10", technologies: "mdm", roleScopeTagIds: ["0"], settings: ds.map((d) => ({ "@odata.type": S, settingInstance: inst(d) })) };
+  }
+  // the four rows, each found by content and checked against Learn
+  function winChain(raw, c) {
+    const { win, lic, runs, devices } = c, names = raw.groupNames || {}, src = raw.sources || {};
+    if (!win) return null;
+    const asg = win.obj && Array.isArray(win.obj.assignments) ? win.obj.assignments : [];
+    const kindName = { rem: "remediation", script: "platform script", app: "app" }[win.kind] || "deployment";
+    const contentRead = !!(win.obj && typeof win.obj.contentText === "string" && win.obj.contentText);
+    const ct = contentSettings(win.obj && win.obj.contentText);
+    const devs = devices || [], tot = devs.length, rows = [];
+    // 1 install
+    const iss = [];
+    if (contentRead && win.kind !== "app") {
+      if (!ct.aka) iss.push({ sev: "bad", t: "does not download the client from aka.ms/GlobalSecureAccess-Windows" });
+      if (!ct.arm) iss.push({ sev: "warn", t: "no ARM64 download (aka.ms/GlobalSecureAccess-WindowsOnArm) — an Arm device gets nothing" });
+    }
+    if (win.obj && win.obj.runAsAccount && win.obj.runAsAccount !== "system") iss.push({ sev: "bad", t: `runs as ${win.obj.runAsAccount} — the installer needs SYSTEM` });
+    if (win.obj && win.obj.runAs32Bit === true) iss.push({ sev: "warn", t: "runs in 32-bit PowerShell — the client settings land under WOW6432Node" });
+    const inst = devs.filter((d) => d.run && d.run.installed).length, fail = devs.filter((d) => d.run && d.run.failed).length;
+    const vers = [...new Set(devs.map((d) => d.run && d.run.ver).filter(Boolean))];
+    const landed = runs && runs.read && tot ? { st: inst === tot ? "ok" : fail ? "bad" : "warn", text: `${inst} of ${tot} installed · ${fail} failed${vers.length ? ` · client ${vers.join(", ")}` : ""}` } : win.obj ? { st: win.landed.st === "ok" ? "ok" : "warn", text: win.landed.text } : { st: "na", text: "—" };
+    const licWarn = win.kind === "rem" && lic && lic.known && !lic.ent;
+    rows.push({ key: "install", label: "Install client", found: !!win.obj, name: win.obj ? win.name : "", sub: win.obj ? `${kindName}${licWarn ? " · ⚠ not in the licence — your choice" : ""}` : "", issues: iss, contentRead: contentRead || win.kind === "app", reach: win.obj ? { st: win.reach.st, text: win.reach.text } : { st: "na", text: "—" }, landed, st: !win.obj ? "bad" : iss.some((i) => i.sev === "bad") || win.reach.st === "bad" ? "bad" : landed.st === "ok" ? "ok" : "warn", fix: !win.obj ? (lic && lic.known && !lic.ent ? "winscript" : "winrem") : win.kind === "rem" ? "winrun" : win.kind === "script" ? "winredeploy" : null, fixLabel: !win.obj ? "Create…" : "Redeploy…" });
+    // 2 client settings — read here; changed through the install script (Mihai chose not to add a lock-after-go-live)
+    const setOk = devs.filter((d) => d.run && /settings as required/i.test(d.run.out || "")).length;
+    rows.push({ key: "settings", label: "Client settings", found: ct.known, name: ct.known ? `in the install ${kindName}` : "", sub: ct.mode, issues: contentRead && !ct.known ? [{ sev: "warn", t: "the install script does not write the four client settings" }] : [], contentRead, valuesText: ct.known ? WIN_SET_KEYS.map((k) => `${k} ${ct.vals[k]}`).join(" · ") : "", reach: ct.known ? { st: "ok", text: "same group" } : { st: "na", text: "—" }, landed: runs && runs.read && tot && ct.known && win.kind === "rem" ? { st: setOk === tot ? "ok" : "warn", text: `${setOk} of ${tot}: settings as required` } : { st: "na", text: "—" }, st: !win.obj || !contentRead ? "na" : ct.known ? "ok" : "warn", fix: null });
+    // 3 secure DNS off in Edge and Chrome
+    const dnsRead = src.winDns === "ok", dn = dnsCheck(raw.winDns || []);
+    const wrong = DNS_SETTINGS.filter((d) => dn.set[d.k] && !dn.set[d.k].off), need = DNS_SETTINGS.filter((d) => !dn.set[d.k]);
+    const dohMissing = need.filter((d) => d.child), dnsMissing = need.filter((d) => !d.child);
+    const ps = [...new Set(DNS_SETTINGS.map((d) => dn.set[d.k] && dn.set[d.k].policy).filter(Boolean))];
+    const rr = ps.map((p) => reach(p.assignments || [], asg, names));
+    const dReach = !ps.length ? { st: "na", text: "—" } : rr.find((r) => r.st === "bad") || rr.find((r) => r.st === "warn") || rr[0];
+    const dIss = [
+      ...wrong.map((d) => ({ sev: d.child ? "bad" : "warn", t: `${d.b}: ${d.child ? `DNS-over-HTTPS is ${dn.set[d.k].mode}` : "the built-in DNS client is enabled"} in ${dn.set[d.k].by} — change it there (a second policy setting it differently conflicts)` })),
+      ...dohMissing.map((d) => ({ sev: "bad", t: `${d.b}: no policy turns DNS-over-HTTPS off — the client cannot tunnel by name` })),
+      ...dnsMissing.map((d) => ({ sev: "warn", t: `${d.b}: the built-in DNS client is not turned off (Learn: DNS over TCP)` })),
+    ];
+    rows.push({ key: "dns", label: "Secure DNS off", sublabel: "Edge + Chrome", found: dn.by.length > 0, name: dn.by.join(" · "), issues: dIss, contentRead: dnsRead, err: dnsRead ? "" : src.winDns || "not read", reach: dReach, landed: { st: "na", text: "—" }, st: !dnsRead ? "na" : dIss.some((i) => i.sev === "bad") ? "bad" : dIss.length ? "warn" : dReach.st === "bad" ? "bad" : "ok", fix: dnsRead && need.length ? "windns" : null, fixLabel: "Create…", need: need.map((d) => d.k) });
+    // 4 IPv4 preferred — optional (Learn: when the profile acquires by IP and the name also resolves to IPv6)
+    rows.push({ key: "ipv4", label: "IPv4 preferred", sublabel: "optional", optional: true, found: ct.ipv4, name: ct.ipv4 ? `in the install ${kindName}` : "", issues: [], contentRead, reach: ct.ipv4 ? { st: "ok", text: "same group" } : { st: "na", text: "—" }, landed: { st: "na", text: ct.ipv4 ? "takes effect after a restart" : "—" }, st: ct.ipv4 ? "ok" : "na", fix: null });
+    const gl = (win.reach && win.reach.groups) || [];
+    return { rows, problems: rows.filter((r) => !r.optional && r.st === "bad").length, need: need.map((d) => d.k), groupsText: gl.length ? `The install ${kindName}'s group${gl.length > 1 ? "s" : ""}: ${gl.map((id) => names[id] || id).join(", ")} — ${tot} Windows device${tot === 1 ? "" : "s"}${runs && runs.read ? `, ${devs.filter((d) => d.run).length} with an Intune run state` : ""}.` : "" };
+  }
+  function winChainHtml(ch) {
+    if (!ch) return "";
+    const cls = (st) => (st === "ok" ? "ok" : st === "bad" ? "bad" : "warn"), icon = (st) => (st === "ok" ? "✓" : st === "bad" ? "✕" : "!");
+    const cell = (x) => (x && x.st && x.st !== "na" ? `<td class="gsa-${cls(x.st)}-txt">${icon(x.st)} ${esc(x.text)}</td>` : `<td class="muted">${esc((x && x.text) || "—")}</td>`);
+    const content = (r) => !r.contentRead ? `<span class="muted">${r.key === "dns" ? `not read — ${esc(r.err || "")}` : r.found || r.key !== "install" ? "content not read" : "—"}</span>` : r.issues.length ? r.issues.map((i) => `<div class="${i.sev === "bad" ? "gsa-bad-txt" : "muted"}">${i.sev === "bad" ? "✕" : "·"} ${esc(i.t)}</div>`).join("") : r.found ? `<span class="gsa-ok-txt">✓ as Learn</span>${r.valuesText ? `<div class="mini muted">${esc(r.valuesText)}</div>` : ""}` : "—";
+    const rows = ch.rows.map((r) => `<tr><td><b>${esc(r.label)}</b>${r.sublabel ? `<div class="mini muted">${esc(r.sublabel)}</div>` : ""}</td><td>${r.found ? `${esc(r.name)}${r.sub ? ` <span class="muted">· ${esc(r.sub)}</span>` : ""}` : `<span class="${r.optional ? "muted" : "gsa-warn-txt"}">${r.optional ? "not set" : "not found"}</span>`}</td><td>${content(r)}</td>${cell(r.reach)}${cell(r.landed)}<td>${r.fix ? `<button class="btn sm${r.st === "bad" ? " primary" : ""}" data-gsafix="${esc(r.fix)}">${esc(r.fixLabel || FIX_LABEL[r.fix] || "Open…")}</button>` : ""}</td></tr>`).join("");
+    return `<section class="list-card gsa-sect gsa-macsect" id="gsaWin"><div class="gsa-mac"><div class="gsa-lab" style="margin:10px 0 4px">Windows chain — found by content, checked against Learn${ch.problems ? ` · <span class="gsa-bad-txt">${ch.problems} problem${ch.problems === 1 ? "" : "s"}</span>` : ' · <span class="gsa-ok-txt">complete</span>'}</div><div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Object</th><th>Found</th><th>Content</th><th>Reaches the client's devices</th><th>Landed</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${ch.groupsText ? `<p class="mini muted">${esc(ch.groupsText)}</p>` : ""}</div></section>`;
+  }
   function clientLanes(raw, c) {
     const { win, lic, mac, macScriptX, mp, off, seen } = c, names = raw.groupNames || {};
     // ---- Windows
@@ -368,6 +513,12 @@ const Gsa = (() => {
       Object.assign(wGate, k ? { st: "warn", text: `${k} Windows device${k === 1 ? "" : "s"} seen through GSA, but nothing in Intune keeps the client on them` } : { st: "bad", text: "no Windows device seen through GSA — nothing deploys the client yet" });
     }
     W.devices = wDev.devices; W.connected = wGate.connected; W.membersUnknown = !!wGate.membersUnknown || wAll;
+    // 0.14.0: per device — Intune's run state (installed, version) and the client's own sign-ins
+    const runs = runIndex(win.obj), auth = authIndex(raw);
+    for (const d of wDev.devices) { d.run = runs.byAad.get(String(d.deviceId).toLowerCase()) || runs.byName.get(String(d.name).toLowerCase()) || null; d.auth = auth.map.get(String(d.deviceId).toLowerCase()) || null; }
+    W.kind = win.kind; W.runs = runs; W.auth = auth;
+    const wt = wDev.devices.length, instN = wDev.devices.filter((d) => d.run && d.run.installed).length;
+    const polN = wDev.devices.filter((d) => (d.auth && d.auth.policy) || d.seen).length, tunN = wDev.devices.filter((d) => (d.auth && d.auth.tunnel) || d.seen).length;
     const licBad = win.kind === "rem" && lic.known && !lic.ent;
     // 0.13.1: an unlicensed remediation that is deployed is the admin's choice — Replace… stays on offer, not as the fix
     W.fix = off.windows ? null : !win.obj ? (lic.known && !lic.ent ? "winscript" : "winrem") : win.kind === "rem" && win.unassigned ? "winrem" : win.kind === "script" && win.unassigned ? "winscript" : null;
@@ -381,13 +532,29 @@ const Gsa = (() => {
         const detectOnly = asg.length > 0 && asg.every((a) => a.runRemediationScript === false);
         W.stages.push({ k: "Licence", st: !lic.known ? "na" : lic.ent ? "ok" : "warn", text: !lic.known ? "licences not read" : lic.ent ? `Licensed — ${lic.entNames.join(", ")}` : `Not in the licence — remediations need Windows Enterprise E3/E5, Education A3/A5 or VDA; this tenant holds ${lic.biz ? "Windows Business (Business Premium)" : "none of them"}`, sub: [lic.known && !lic.ent ? `⚠ ${CHOICE_TXT}` : "", detectOnly ? "Graph reads the assignment as detect-only — if Intune also shows Remediation script: No, it detects and installs nothing" : ""].filter(Boolean).join(" · ") });
       }
-      if (win.obj) W.stages.push({ k: "Ran (Intune)", st: win.landed.st === "ok" ? "ok" : win.landed.st === "na" ? "na" : "warn", text: win.landed.text, sub: (win.issues.find((i) => /not remediated/.test(i.t)) || {}).t || "" });
+      // 0.14.0: Installed per device when Intune's run states were read; the summary otherwise
+      const failD = wDev.devices.filter((d) => d.run && d.run.failed), noRun = wDev.devices.filter((d) => !d.run);
+      const vers = [...new Set(wDev.devices.map((d) => d.run && d.run.ver).filter(Boolean))];
+      if (win.obj && runs.read && wt) W.stages.push({ k: "Installed", st: instN === wt ? "ok" : failD.length ? "bad" : "warn", text: `${instN} of ${wt}${vers.length ? ` — client ${vers.join(", ")}` : ""}`, sub: [failD.length ? `failing: ${failD.map((d) => `${d.name}${d.run.err ? ` (${d.run.err})` : ""}`).join(", ")}` : "", noRun.length ? `no run reported yet: ${noRun.map((d) => d.name).join(", ")}` : "", "per device, from the script's run state in Intune"].filter(Boolean).join(" · ") });
+      else if (win.obj) W.stages.push({ k: "Ran (Intune)", st: win.landed.st === "ok" ? "ok" : win.landed.st === "na" ? "na" : "warn", text: win.landed.text, sub: (win.issues.find((i) => /not remediated/.test(i.t)) || {}).t || "" });
+      // 0.14.0: the client's own sign-ins — its policy, then its tunnel token
+      if (win.obj && auth.read && wt) {
+        const noTun = wDev.devices.filter((d) => ((d.auth && d.auth.policy) || d.seen) && !((d.auth && d.auth.tunnel) || d.seen)), failA = wDev.devices.find((d) => d.auth && d.auth.fail);
+        W.stages.push({ k: "Policy fetched", st: polN === wt ? "ok" : polN ? "warn" : !runs.read ? "warn" : instN ? "bad" : "na", text: `${polN} of ${wt}${polN ? ` — ${wDev.devices.filter((d) => d.auth && d.auth.policy).slice(0, 3).map((d) => `${d.name} at ${when(d.auth.policy)}`).join(", ")}` : ""}`, sub: ["sign-in log: ZTNA Policy Service Client → ZTNA Policy Service", failA ? `last failure: ${failA.auth.fail}` : ""].filter(Boolean).join(" · ") });
+        W.stages.push({ k: "Tunnel", st: tunN === wt ? "ok" : tunN ? "warn" : polN ? "bad" : "na", text: `${tunN} of ${wt}${tunN < wt ? " — no token for the Microsoft traffic tunnel" : ""}`, sub: ["sign-in log: Global Secure Access Client → Microsoft apps with Global Secure Access", noTun.length ? `${noTun.map((d) => d.name).join(", ")} fetched a policy without the Microsoft profile (Learn: Disabled by your organization) — restart the device (the client installs with /norestart), check that the Microsoft profile's device platforms include Windows, check Windows is signed in with an Entra user (dsregcmd /status: AzureAdPrt YES), then Sign In in the client` : ""].filter(Boolean).join(" · ") });
+      }
       W.stages.push({ k: "Connected", gate: true, st: wGate.st === "unread" ? "na" : wGate.st, text: wGate.text });
       W.st = wGate.st === "unread" ? (win.obj ? "warn" : "bad") : wGate.st;
-      W.word = W.st === "ok" ? "connected" : !win.obj ? "nothing deployed" : wGate.st === "unread" ? "not read" : W.st === "warn" ? "partly connected" : "not connected";
+      // 0.14.0: the first stage that fails names the lane
+      const wordWin = !win.obj || W.st === "ok" || !wt ? "" : runs.read && instN === 0 ? "not installed" : runs.read && auth.read && polN === 0 ? "installed · not signed in" : runs.read && auth.read && polN && tunN === 0 ? "installed · no tunnel" : "";
+      W.word = W.st === "ok" ? "connected" : !win.obj ? "nothing deployed" : wordWin ? wordWin : wGate.st === "unread" ? "not read" : W.st === "warn" ? "partly connected" : "not connected";
       W.summary = wGate.text;
     }
     if (W.fix) W.actions.push({ fix: W.fix, primary: true, sub: "" });
+    // 0.14.0: Redeploy — the remediation on demand, per device; or a new version of the platform script
+    if (!off.windows && win.obj && !win.unassigned && (win.kind === "rem" || win.kind === "script") && W.st !== "ok") W.actions.push({ fix: win.kind === "rem" ? "winrun" : "winredeploy", primary: !W.fix, title: "Redeploy…", sub: win.kind === "rem" ? "run the remediation now on the devices that are not connected — on demand, one device at a time" : "a new version of the platform script — every device in its groups runs it again" });
+    W.chain = off.windows ? null : winChain(raw, { win, lic, runs, devices: wDev.devices });
+    if (W.chain && W.chain.problems) W.actions.push({ jump: "gsaWin", label: "Show the chain", title: "The Windows chain", sub: `${W.chain.problems} problem${W.chain.problems === 1 ? "" : "s"} — the table below has a fix per row` });
     // 0.13.1: outside the licence is the admin's choice — the other route stays one click away
     if (!off.windows && licBad) W.actions.push({ fix: "winswap", primary: false, title: "Stay inside the licence (optional)", sub: "Replace… hands the remediation's groups to the platform script — same groups, the remediation unassigned and kept · way back: reassign it from the backup" });
     if (!off.windows && !win.obj && lic.known && !lic.ent) W.actions.push({ fix: "winrem", primary: false, title: "Or a remediation — outside the licence, your choice", sub: "Intune runs it when it is switched on and it puts the client back every run; Business Premium does not include remediations" });
@@ -452,8 +619,12 @@ const Gsa = (() => {
     const ln = l.lanes; if (!ln) return "";
     const sn = l.seen || { read: false, err: "", days: SEEN_DAYS };
     const dev = [["Windows", ln.windows], ["macOS", ln.macOS]].filter(([, L]) => L.st !== "na").flatMap(([os, L]) => L.devices.map((d) => Object.assign({ os }, d)));
-    const rows = dev.map((d) => `<tr><td><b>${esc(d.name)}</b>${d.trust ? `<div class="mini muted">${esc(d.trust)}</div>` : ""}</td><td>${esc(d.os)}</td><td class="mini">${esc(d.group)}</td><td class="mini">${d.seen ? `${esc(when(d.seen.last))} <span class="muted">· ${esc(d.seen.via.join(" + "))}</span>` : sn.read ? `not in the last ${sn.days} days` : "not read"}</td><td>${d.seen ? '<span class="gsa-st ok">connected</span>' : sn.read ? '<span class="gsa-st bad">not connected</span>' : '<span class="gsa-st">not read</span>'}</td></tr>`).join("");
-    const table = rows ? `<h3 style="margin:14px 0 6px">Devices in scope <span class="mini muted">· one row per device, both platforms</span></h3><div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Device</th><th>Platform</th><th>Group</th><th>Last seen through GSA</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` : "";
+    // 0.14.0: what the client did on a Windows device — installed, its policy, its tunnel token
+    const wk = ln.windows.kind;
+    const cc = (d) => d.os !== "Windows" ? '<span class="muted">—</span>' : [d.run ? (d.run.installed ? `<span class="gsa-ok-txt">✓ ${esc(d.run.ver || "installed")}</span>` : `<span class="gsa-bad-txt">✕ ${d.run.failed ? "failed" : "not installed"}</span>`) : '<span class="muted">no run yet</span>', d.auth && d.auth.policy ? `<span class="gsa-ok-txt">policy ${esc(when(d.auth.policy))}</span>` : "", d.seen || (d.auth && d.auth.tunnel) ? `<span class="gsa-ok-txt">tunnel</span>` : d.auth && d.auth.policy ? '<span class="gsa-bad-txt">no tunnel</span>' : ""].filter(Boolean).join(" · ");
+    const runNow = (d) => d.os === "Windows" && wk === "rem" && !d.seen && d.run && d.run.managedId ? ` <button class="btn sm" data-gsafix="winrun" data-gsadev="${esc(d.run.managedId)}">Run now…</button>` : "";
+    const rows = dev.map((d) => `<tr><td><b>${esc(d.name)}</b>${d.trust ? `<div class="mini muted">${esc(d.trust)}</div>` : ""}</td><td>${esc(d.os)}</td><td class="mini">${esc(d.group)}</td><td class="mini">${cc(d)}</td><td class="mini">${d.seen ? `${esc(when(d.seen.last))} <span class="muted">· ${esc(d.seen.via.join(" + "))}</span>` : sn.read ? `not in the last ${sn.days} days` : "not read"}</td><td>${d.seen ? '<span class="gsa-st ok">connected</span>' : sn.read ? '<span class="gsa-st bad">not connected</span>' : '<span class="gsa-st">not read</span>'}${runNow(d)}</td></tr>`).join("");
+    const table = rows ? `<h3 style="margin:14px 0 6px">Devices in scope <span class="mini muted">· one row per device, both platforms</span></h3><div class="gsa-tablewrap"><table class="gsa-mtable"><thead><tr><th>Device</th><th>Platform</th><th>Group</th><th>Client</th><th>Last seen through GSA</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` : "";
     const rule = `<div class="gsa-rule"><span aria-hidden="true">ⓘ</span><span><b>Ready when every device in scope has been seen through Global Secure Access</b> in the last ${sn.days} days — in its device report and in the sign-ins marked through Global Secure Access. Intune's run state stays on screen to explain why a device is not there yet; it no longer decides the step.${sn.read ? "" : ` <span class="gsa-warn-txt">Not read: ${esc(sn.err)}</span>`}</span></div>`;
     return `<section class="list-card gsa-sect gsa-lanes2" id="gsaLanes">${rule}<div class="gsa-pl-grid">${laneHtml(ln.windows)}${laneHtml(ln.macOS)}</div>${table}</section>`;
   }
@@ -720,7 +891,7 @@ const Gsa = (() => {
   // the step the flow opens on: the first that blocks, else Proof
   const defaultSel = (m) => ((m.links.find((l) => l.st === "bad" || l.st === "warn") || m.links.find((l) => l.k === "proof") || m.links[0]).k);
   const ST = { ok: ["ok", "ready"], warn: ["warn", "partly"], bad: ["bad", "missing"], wait: ["wait", "waits"], unread: ["wait", "not read"] };
-  const FIX_LABEL = { winswap: "Replace…", "scope-win": "Not in scope…", "scope-mac": "Not in scope…", onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", "macfix-script": "Fix the macOS script…", "macfix-sysext": "Fix system extensions…", "macfix-proxy": "Fix the transparent proxy…", "macfix-settings": "Fix the client settings…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…", hideapp: "Hide from My Apps…", showapp: "Show again…" };
+  const FIX_LABEL = { winswap: "Replace…", "scope-win": "Not in scope…", "scope-mac": "Not in scope…", onboard: "Activate…", profile: "Enable profile…", assign: "Assign…", signal: "Enable…", location: "Create…", winscript: "Create Windows script…", macscript: "Create macOS script and profiles…", macprof: "Create macOS profiles…", "macfix-script": "Fix the macOS script…", "macfix-sysext": "Fix system extensions…", "macfix-proxy": "Fix the transparent proxy…", "macfix-settings": "Fix the client settings…", ztnasp: "Create ZTNA client SP (only if clients stay Partially Connected)…", winrem: "Create Windows remediation…", trv2: "Set up tenant restrictions…", hideapp: "Hide from My Apps…", showapp: "Show again…", winrun: "Redeploy…", winredeploy: "Redeploy…", windns: "Create…" };
   function render(m, ui) {
     const u = ui || {};
     if (u.proof) proofLink(m, u.proof);
@@ -821,7 +992,7 @@ const Gsa = (() => {
     // verdict stay about stolen tokens
     // 32708: Windows judged by reach and landing, in the same table form as macOS
     // 0.11.0: the two lanes and the devices table; the macOS chain table (per-row repairs) under them
-    const macSect = l.k === "client" ? `${lanesHtml(l)}${l.mac && !l.macNa ? `<section class="list-card gsa-sect gsa-macsect" id="gsaMac">${macTable(l.mac)}</section>` : ""}` : "";
+    const macSect = l.k === "client" ? `${lanesHtml(l)}${l.lanes && l.lanes.windows && l.lanes.windows.chain ? winChainHtml(l.lanes.windows.chain) : ""}${l.mac && !l.macNa ? `<section class="list-card gsa-sect gsa-macsect" id="gsaMac">${macTable(l.mac)}</section>` : ""}` : "";
     // 0.12.0: the Setup / Monitor switch on top of the board
     return modeBar(m, "setup") + head + flow + detail + macSect + (u.trv2Html || "") + work + polTable + ivTable + grpTable + proofSect + later;
   }
@@ -1427,6 +1598,10 @@ const Gsa = (() => {
     const j = (x) => JSON.stringify(x, null, 2);
     if (k === "winrem") return [{ id: "det", label: "Detection", lang: "powershell", text: detectScript(o) }, { id: "rem", label: "Remediation", lang: "powershell", text: remediationScript(o) }, ...req([`POST /deviceManagement/deviceHealthScripts   (${nm.rem})`, `POST /deviceManagement/deviceHealthScripts/{id}/assign`, j({ deviceHealthScriptAssignments: [remediationAssignment("<" + (o.devGroup || GROUPS.win) + ">", o.schedule)] })])];
     if (k === "winscript") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }];
+    // 0.14.0: Redeploy and secure DNS
+    if (k === "winrun") { const ds = (o.devs || []).filter((d) => d.on); return req([...(o.sync ? ds.map((d) => `POST /beta/deviceManagement/managedDevices/${d.id}/syncDevice   (${d.name})`) : []), ...(o.sync && ds.length ? [""] : []), ...(ds.length ? ds.flatMap((d) => [`POST /beta/deviceManagement/managedDevices/${d.id}/initiateOnDemandProactiveRemediation   (${d.name})`, j({ scriptPolicyId: o.scriptId || "{the install remediation}" }), ""]) : ["no device ticked"])]); }
+    if (k === "winredeploy") { const nn = o.name ? bumpName(o.name) : "{the script's name, version bumped}"; const body = `# redeploy ${new Date().toISOString().slice(0, 10)} — ENCA T56\r\n${o.content || "{the script as it is}"}`; return [{ id: "win", label: "The script, new version", lang: "powershell", text: body }, ...req([`PATCH /deviceManagement/deviceManagementScripts/${o.scriptId || "{id}"}`, j({ displayName: nn, scriptContent: "<the script above, base64>" })])]; }
+    if (k === "windns") return req([`POST /deviceManagement/configurationPolicies`, j(winDnsBody(o, o.need || [])), "", `POST /deviceManagement/configurationPolicies/{new}/assign`, j({ assignments: (o.targets && o.targets.length ? o.targets : [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: `<${o.devGroup || GROUPS.win}>` }]).map((target) => ({ target })) })]);
     // 0.11.0: the platform script takes the remediation's groups; the record that keeps a platform out of scope
     if (k === "winswap") return [{ id: "win", label: WIN_FILE, lang: "powershell", text: windowsScript(o) }, ...req([`POST /deviceManagement/deviceManagementScripts   (${nm.win}; a GSA platform script already in Intune is reused)`, "POST /deviceManagement/deviceManagementScripts/{id}/assign", j({ deviceManagementScriptAssignments: (o.remGroups && o.remGroups.length ? o.remGroups : ["the remediation's groups"]).map((g) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: `<${g}>` } })) }), "", `then, only when that landed: POST /deviceManagement/deviceHealthScripts/${o.remId || "{remediation}"}/assign`, j({ deviceHealthScriptAssignments: [] }), "", "a backup of the remediation's assignments is downloaded first"])];
     if (k === "scope-win" || k === "scope-mac") {
@@ -1500,6 +1675,10 @@ const Gsa = (() => {
     // 0.11.0 (Mihai 18 Oct, go build): the remediation that cannot run on a
     // Business Premium tenant hands its groups to the platform script; and a
     // platform can be taken out of step 6's scope, kept in the tenant
+    // 0.14.0 (Mihai 19 Oct: where is the redeploy): the Windows client again, now
+    winrun: { title: "Redeploy the Windows client — run the remediation now", scopes: ["DeviceManagementManagedDevices.PrivilegedOperations.All", "DeviceManagementManagedDevices.Read.All"], role: "Intune role with Remote tasks › Run remediation (Help Desk Operator or Intune Administrator)", changes: ["For each ticked device: POST /deviceManagement/managedDevices/{id}/initiateOnDemandProactiveRemediation with the install remediation's id — one device at a time; a second run on the same device overwrites the first.", "With Sync ticked, first POST /deviceManagement/managedDevices/{id}/syncDevice so the device checks in now.", "Read the tenant again after a minute: the device's run state (detection output) and its sign-ins."], impact: "Each ticked device runs the remediation now, if it is online and reachable through WNS: where the client is missing it installs it and writes the client settings; where it is there it only checks the settings — nothing is reinstalled and the device does not restart. It does not fix an empty policy: a device that is installed but has no tunnel needs the checks the Tunnel stage names. On a tenant whose licence does not include remediations (Business Premium) running it is your choice, like the remediation itself. Not verified live: on-demand remediation is a beta action.", recovery: "Nothing to undo — it is the script that already runs on its schedule. A client installed by it is uninstalled from Apps & features on that device." },
+    winredeploy: { title: "Redeploy the Windows client — a new version of the platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All"], role: "Intune Administrator", changes: ["Download a backup of the script — its content, name and assignments.", "PATCH the script: a dated # redeploy line at the top and the version in its name bumped (your naming rule) — the assignments are not touched.", "Intune runs a changed platform script again on every device in its groups (Learn: it does not run again unless the script or policy changes)."], impact: "Every device in the script's groups runs it again at its next Intune Management Extension check-in: a missing client is installed, an installed one is left and only its settings are written again. A platform script cannot be run on one device — it is all its devices or none. Nothing restarts.", recovery: "PATCH the content and name back from the backup — it runs once more, harmlessly." },
+    windns: { title: "Turn secure DNS off in Edge and Chrome", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "Group.ReadWrite.All"], role: "Intune Administrator", changes: ["POST a Windows settings catalog policy with only the settings no policy sets yet: Edge and Chrome Control the mode of DNS-over-HTTPS = Disable DNS-over-HTTPS (Learn: the client must see the DNS requests to tunnel by name), Edge and Chrome Use built-in DNS client = Disabled (Learn: DNS over TCP). A setting another policy already sets is left to that policy — two policies setting it differently conflict.", "Assign it to the install script's groups, or the device group you name (made when missing and the tick is on)."], impact: "Edge and Chrome on those devices stop using secure DNS and use the operating system's DNS client, so the Global Secure Access client sees the names and tunnels Microsoft 365 by name. Users cannot switch secure DNS back on in those browsers. Browsing is otherwise unchanged.", recovery: "Unassign or delete the policy in Intune → Devices → Configuration; the browsers go back to their own defaults at the next check-in." },
     winswap: { title: "Replace the Windows remediation with the platform script", scopes: ["DeviceManagementConfiguration.ReadWrite.All", "DeviceManagementScripts.ReadWrite.All"], role: "Intune Administrator", changes: ["Download a backup of the remediation's assignments first.", "POST an Intune platform script named by the CloudFellows convention (Win - PSH - Device Security - D - Install Global Secure Access Client - R… - v…; SYSTEM, 64-bit, file Install-GlobalSecureAccessClient.ps1) — a GSA platform script already in Intune is reused, never made a second time.", "Assign it to the remediation's groups, the script's own assignments kept.", "Only when that assignment has landed: remove the remediation's assignments. The remediation itself stays in Intune."], impact: "The devices in those groups get the client from the platform script at their next Intune Management Extension check-in. A platform script runs once per device, and again only when the script changes — a user who removes the client does not get it back the way a remediation puts it back. Nobody outside those groups is affected, and nothing that worked stops — the platform script is inside this tenant's licence, the remediation was outside it.", recovery: "Reassign the remediation from the backup (Intune → Scripts and remediations → Remediations → Assignments) and remove the platform script's assignments. The client stays installed where the script already ran." },
     // 0.13.0 (Mihai 19 Oct, from the sastu-insights post): Visible to users? No
     hideapp: { title: "Hide the Microsoft profile's app from My Apps", scopes: ["Application.ReadWrite.All"], role: "Cloud Application Administrator or Application Administrator", changes: ["Read the profile's app (its service principal) again, with its tags.", "PATCH /v1.0/servicePrincipals/{the profile's app} with the tags it has plus HideApp — Graph replaces the whole list, so every tag it already has is sent back.", "Read it back: step 3 shows it hidden."], impact: "The users assigned to the Microsoft traffic profile no longer see its app as a tile in My Apps or the Microsoft 365 app launcher — the same as Visible to users? No in the portal. Nothing else changes: the assignment stays, the profile keeps applying to them, the client keeps tunnelling and Conditional Access is untouched. The tile can take a few minutes to go. Not verified live: Learn writes its Graph steps for non-Microsoft apps and this app is Microsoft's; if Graph refuses the tag, the log says so and names the portal setting.", recovery: "Show again… on step 3 (the same PATCH without HideApp), or Enterprise applications → the profile's app → Properties → Visible to users? Yes." },
@@ -1714,7 +1893,8 @@ const Gsa = (() => {
       // 0.7.0: cross-tenant access as a fresh tenant has it — no tenant
       // restrictions, one partner that inherits the default, enforcement off
       trv2: { default: { tenantRestrictions: null }, partners: [{ tenantId: "5f0c1a2b-0000-4000-8000-00000000d3e0", tenantRestrictions: null }], utr: { networkPacketTaggingStatus: "disabled" } },
-      sources: { seenReport: "ok", seenSignins: "ok", encaSettings: "ok", trv2: "ok", ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
+      winDns: [], gsaAuth: [],
+      sources: { seenReport: "ok", seenSignins: "ok", winDns: "ok", gsaAuth: "ok", encaSettings: "ok", trv2: "ok", ztna: "ok", skus: "ok", status: "ok", profile: "ok", signaling: "ok", locations: "ok", scripts: "ok", apps: "ok", shellScripts: "ok", healthScripts: "ok", macProfiles: "ok" },
     };
   }
   // 0.9.0: devcf as read on 17 Oct before the repairs — a v1.1-style script
@@ -1738,6 +1918,6 @@ const Gsa = (() => {
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { GSA_CLIENT_APP, DNS_SETTINGS, WIN_SET_KEYS, winDnsName, authIndex, runIndex, contentSettings, dnsCheck, winDnsBody, winChain, winChainHtml, b64, appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

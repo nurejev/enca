@@ -25182,11 +25182,11 @@ This is a directory write. Nothing else changes.`)) return;
   // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
   // ======================================================================
   // 0.11.0: + AuditLog.Read.All — step 6 is decided by the sign-ins marked through GSA, beside the device report
-  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "Policy.Read.All", "AuditLog.Read.All"];
+  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "Policy.Read.All", "AuditLog.Read.All", "DeviceManagementManagedDevices.Read.All"];
   // 32524: fixes open as stacked workspaces — gsa.work, newest first, one
   // per fix kind, each with its own options, log and busy flag; gsa.sel is
   // the step open under the flow (null = the first that blocks)
-  const gsaDefOpts = () => ({ why: "", group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", hide: true, enforce: false, pSys: null, pProxy: null, pSet: null });
+  const gsaDefOpts = () => ({ why: "", group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", hide: true, sync: true, devSel: null, enforce: false, pSys: null, pProxy: null, pSet: null });
   // 0.12.0: mode (setup | monitor), chosen by the person or by the board; mon the Monitor read
   let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "", mode: null, modeChosen: false, mon: null, monBusy: false, monErr: null, monRead: 0, monPeriod: "24h", monFilter: {} };
   const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
@@ -25391,7 +25391,12 @@ This is a directory write. Nothing else changes.`)) return;
         await one("scripts", async () => {
           const list = await withAsg("/deviceManagement/deviceManagementScripts", await Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName,description", { scopes: sc }));
           // 32708 (B3): a platform script is judged by what ran, like the remediation
-          for (const x of list.filter((y) => /global\s*secure\s*access/i.test(`${y.displayName} ${y.fileName}`))) { try { x.runSummary = await Graph.gget(`/deviceManagement/deviceManagementScripts/${x.id}/runSummary`, sc); } catch { x.runSummary = null; } }
+          for (const x of list.filter((y) => /global\s*secure\s*access/i.test(`${y.displayName} ${y.fileName}`))) {
+            try { x.runSummary = await Graph.gget(`/deviceManagement/deviceManagementScripts/${x.id}/runSummary`, sc); } catch { x.runSummary = null; }
+            // 0.14.0: its content and each device's run
+            try { const y = await Graph.gget(`/deviceManagement/deviceManagementScripts/${x.id}?$select=scriptContent,runAsAccount,runAs32Bit`, sc); x.contentText = Gsa.b64dec(y.scriptContent); x.runAsAccount = y.runAsAccount; x.runAs32Bit = y.runAs32Bit; } catch { /* content unknown */ }
+            try { x.runs = await Graph.ggetAll(`/deviceManagement/deviceManagementScripts/${x.id}/deviceRunStates?$expand=${encodeURIComponent("managedDevice($select=id,deviceName,azureADDeviceId)")}`, { scopes: sc, cap: 2000 }); } catch (e) { x.runsErr = gsaErr(e); }
+          }
           return list;
         });
         await one("shellScripts", async () => withAsg("/deviceManagement/deviceShellScripts", await Graph.ggetAll("/deviceManagement/deviceShellScripts?$select=id,displayName,fileName,description", { scopes: sc })));
@@ -25411,6 +25416,9 @@ This is a directory write. Nothing else changes.`)) return;
           for (const h of hs) {
             try { h.assignments = (await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/assignments`, sc)).value || []; h.assigned = h.assignments.length > 0; } catch { h.assigned = null; }
             try { h.runSummary = await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/runSummary`, sc); } catch { h.runSummary = null; }
+            // 0.14.0: what the script says (client settings, download) and how each device ran it
+            try { const x = await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}?$select=detectionScriptContent,remediationScriptContent,runAsAccount,runAs32Bit`, sc); h.contentText = `${Gsa.b64dec(x.detectionScriptContent)}\n${Gsa.b64dec(x.remediationScriptContent)}`; h.runAsAccount = x.runAsAccount; h.runAs32Bit = x.runAs32Bit; } catch { /* content unknown */ }
+            try { h.runs = await Graph.ggetAll(`/deviceManagement/deviceHealthScripts/${h.id}/deviceRunStates?$expand=${encodeURIComponent("managedDevice($select=id,deviceName,azureADDeviceId)")}`, { scopes: sc, cap: 2000 }); } catch (e) { h.runsErr = gsaErr(e); }
           }
           return hs;
         });
@@ -25429,6 +25437,17 @@ This is a directory write. Nothing else changes.`)) return;
             } catch { /* members not read — the step says so */ }
           }
         }
+        // 0.14.0: secure DNS off in Edge and Chrome — the Windows settings catalog policies that set it, found by content
+        await one("winDns", async () => {
+          let pols;
+          try { pols = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'windows10'") + "&$expand=settings,assignments&$select=id,name", { scopes: sc }); }
+          catch {
+            pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'windows10'") + "&$select=id,name", { scopes: sc })).filter((p) => /edge|chrome|browser|dns|gsa|global secure access/i.test(p.name || ""));
+            for (const p of pols.slice(0, 40)) { try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.settings = []; } }
+          }
+          const ids = Gsa.DNS_SETTINGS.map((d) => d.def);
+          return pols.filter((p) => (p.settings || []).some((x) => ids.includes((x.settingInstance || {}).settingDefinitionId)));
+        });
         // 32708 (S7): is macOS in scope at all — any Intune-managed Mac in Entra
         try {
           const macs = await Graph.ggetAll("/v1.0/devices?$filter=" + encodeURIComponent("operatingSystem eq 'MacMDM' or operatingSystem eq 'macOS'") + "&$select=id,isManaged&$top=100", { scopes: sc, cap: 200 });
@@ -25504,7 +25523,13 @@ This is a directory write. Nothing else changes.`)) return;
               raw.seen.capped = !!((a.readState && a.readState.capped) || (b.readState && b.readState.capped));
               raw.sources.seenSignins = "ok";
             } catch (e) { raw.sources.seenSignins = gsaErr(e); }
-          } else { raw.sources.seenReport = raw.sources.seenSignins = "Global Secure Access is not activated (step 2)"; }
+            // 0.14.0: the client's own sign-ins — its policy and its tunnel token, per device
+            try {
+              const f = `createdDateTime ge ${since.toISOString()} and (appId eq '${Gsa.ZTNA_CLIENT}' or appId eq '${Gsa.GSA_CLIENT_APP}') and signInEventTypes/any(t: t eq 'nonInteractiveUser')`;
+              raw.gsaAuth = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$select=createdDateTime,appId,appDisplayName,resourceDisplayName,deviceDetail,status&$top=999`, { scopes: sc, cap: 3000 });
+              raw.sources.gsaAuth = "ok";
+            } catch (e) { raw.sources.gsaAuth = gsaErr(e); }
+          } else { raw.sources.seenReport = raw.sources.seenSignins = raw.sources.gsaAuth = "Global Secure Access is not activated (step 2)"; }
         }
         // 0.11.0: the ENCA settings record — which platforms an admin took out
         // of step 6's scope, kept on the organization object (none yet: null)
@@ -25615,7 +25640,11 @@ This is a directory write. Nothing else changes.`)) return;
   const gsaWinOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).win || {};
   // 0.13.0: the profile's app and its tags, for hide / show again and Assign's tick
   const gsaAppOf = () => { const s = (gsa.model && gsa.model.sp) || {}, a = (gsa.model && gsa.model.myApps) || {}; return { spId: s.id, tags: s.tags, known: !!a.known, hidden: !!a.hidden, spName: s.displayName || "" }; };
-  const gsaPrevOpts = (w) => /^(hideapp|showapp|assign)$/.test(w.k) ? Object.assign({}, w.opts, gsaAppOf()) : w.k === "winswap" ? Object.assign({}, w.opts, { remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
+  // 0.14.0: the Windows lane (its devices, its chain) and the install script's targets
+  const gsaWinLane = () => ((((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lanes) || {}).windows || {};
+  const gsaInstallTargets = () => ((((gsaWinOf().obj || {}).assignments) || []).map((a) => a.target || {})).filter((t) => (t.groupId && !/exclusion/i.test(t["@odata.type"] || "")) || /allDevices/i.test(t["@odata.type"] || "")).map((t) => (t.groupId ? { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: t.groupId } : { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" }));
+  const gsaRunDevs = (o) => { const sel = new Set(o.devSel || []); return (gsaWinLane().devices || []).filter((d) => d.run && d.run.managedId).map((d) => ({ id: d.run.managedId, name: d.name, on: sel.has(d.run.managedId), seen: !!d.seen, state: d.seen ? "connected" : d.run.installed ? `installed${d.auth && d.auth.policy ? (d.auth.tunnel ? "" : " · no tunnel") : " · no policy yet"}` : d.run.failed ? "failed" : "not installed" })); };
+  const gsaPrevOpts = (w) => w.k === "winrun" ? Object.assign({}, w.opts, { devs: gsaRunDevs(w.opts), scriptId: (gsaWinOf().obj || {}).id }) : w.k === "winredeploy" ? Object.assign({}, w.opts, { scriptId: (gsaWinOf().obj || {}).id, name: (gsaWinOf().obj || {}).displayName, content: (gsaWinOf().obj || {}).contentText }) : w.k === "windns" ? Object.assign({}, w.opts, { need: (gsaWinLane().chain || {}).need || [], targets: gsaInstallTargets() }) : /^(hideapp|showapp|assign)$/.test(w.k) ? Object.assign({}, w.opts, gsaAppOf()) : w.k === "winswap" ? Object.assign({}, w.opts, { remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
   function gsaWorkHtml(w) {
     // 0.9.0: a chain fix takes its words from its plan (create, repair, assign or add)
     const plan = /^macfix-/.test(w.k) ? Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w)) : null;
@@ -25652,6 +25681,13 @@ This is a directory write. Nothing else changes.`)) return;
       form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<div class="mini" style="margin:10px 0 4px"><b>Profiles</b> — the three the client cannot run without, same release and version, same group${k === "macprof" && c.macScript ? ` · the script ${esc(c.macScript.displayName)} stays as it is` : ""}</div>${Gsa.MAC_PROFILES.map(row).join("")}${lockMac}`;
     }
     // 0.11.0: the platform script takes over the remediation's groups
+    // 0.14.0: Redeploy and secure DNS
+    if (k === "winrun") {
+      const devs = gsaRunDevs(o), lc = ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic || {};
+      form = `${lc.known && !lc.ent ? '<p class="mini gsa-warn-txt">⚠ This tenant\'s licence does not include remediations — running it on demand is your choice, like the remediation itself.</p>' : ""}<div class="mini"><b>Devices</b> — the ones not connected are ticked${devs.length ? "" : ": none has an Intune run state yet — read the tenant again after the remediation's first run"}</div>${devs.map((d) => `<label class="chk"><input type="checkbox" data-gsadevsel="${esc(d.id)}"${d.on ? " checked" : ""}> <b>${esc(d.name)}</b> — ${esc(d.state)}</label>`).join("<br>")}<br><label class="chk"><input type="checkbox" data-gsaopt="sync"${o.sync !== false ? " checked" : ""}> Sync each device first, so it checks in now</label>`;
+    }
+    if (k === "winredeploy") { const ob = gsaWinOf().obj || {}; form = `<div class="mini"><b>Now:</b> ${esc(ob.displayName || "—")}<br><b>Becomes:</b> ${esc(ob.displayName ? Gsa.bumpName(ob.displayName) : "—")}</div>`; }
+    if (k === "windns") { const tg = gsaInstallTargets(), need = (gsaWinLane().chain || {}).need || []; form = `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(Gsa.winDnsName({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }))}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"></div><div class="mini"><b>Settings</b> — only the ones no policy sets yet: ${esc(Gsa.DNS_SETTINGS.filter((d) => need.includes(d.k)).map((d) => d.label).join("; ") || "none")}</div><div class="mini" style="margin-top:6px"><b>Assigned to</b> ${tg.length ? esc(tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", ")) + " — the install script's targets" : `${grp("devGroup", Gsa.GROUPS.win)}`}</div>`; }
     if (k === "winswap") { const fw = gsaWinOf(); form = `<div class="mini"><b>Now:</b> ${esc(fw.obj ? fw.obj.displayName : "no remediation found")}${fw.reach ? ` — ${esc(fw.reach.text)}` : ""}</div>${naming("win")}${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`; }
     // 0.11.0: a platform in or out of step 6's scope, kept in the tenant
     if (k === "scope-win" || k === "scope-mac") {
@@ -25667,7 +25703,7 @@ This is a directory write. Nothing else changes.`)) return;
     const done = !!(w.log && w.log.done), failed = !!(w.log && !w.log.done && !w.busy);
     const otherBusy = gsa.work.some((x) => x !== w && x.busy);
     const step = (i, t) => `<span class="${w.busy ? (i === 2 ? "on" : i < 2 ? "dn" : "") : done ? "dn" : i === 1 ? "on" : ""}">${(w.busy && i < 2) || done ? "✓ " : ""}${i} ${t}</span>`;
-    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k || /^(macfix-|scope-|winswap)/.test(k) && l.k === "client");
+    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k || /^(macfix-|scope-|winswap|winrun|winredeploy|windns)/.test(k) && l.k === "client");
     return `<section class="gsa-wpanel" data-gsaw="${esc(k)}" id="gsaW-${esc(k)}"><div class="gsa-whead"><b>🔧 ${esc(f.title)}</b><span class="tag block">writes to tenant</span>${from ? `<span class="mini muted">from step ${gsa.model.links.indexOf(from) + 1} · ${esc(from.lab)}</span>` : ""}<button class="btn sm gsa-wclose" data-gsacancel${w.busy ? " disabled" : ""}>✕ ${done ? "Close" : "Cancel"}</button></div>
       <div class="gsa-wsteps">${step(1, "Review")}${step(2, "Apply")}${step(3, "Read the tenant again")}${failed ? '<span style="color:var(--off)">✗ stopped — see the log</span>' : ""}</div>
       <div class="gsa-wgrid"><div><ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}${prev}</div>
@@ -25869,6 +25905,47 @@ This is a directory write. Nothing else changes.`)) return;
             }
           }
         }
+      } else if (k === "winrun") {
+        // 0.14.0 (Mihai 19 Oct: where is the redeploy): the remediation on demand, device by device
+        const fw = gsaWinOf(), sel = new Set(o.devSel || []);
+        const ds = (gsaWinLane().devices || []).filter((d) => d.run && d.run.managedId && sel.has(d.run.managedId));
+        if (!fw.obj || fw.kind !== "rem") throw new Error("no Global Secure Access remediation found — read the tenant again");
+        if (!ds.length) throw new Error("tick at least one device");
+        for (const d of ds) {
+          if (isDemo) { await sim(`${d.name}: ${o.sync !== false ? "synced, " : ""}the remediation runs now`); continue; }
+          if (o.sync !== false) { try { await Graph.gpost(`/deviceManagement/managedDevices/${d.run.managedId}/syncDevice`, {}, sc); say(`${d.name}: sync sent`, true); } catch (e) { say(`${d.name}: sync not sent — ${gsaErr(e)}`, false); } }
+          await Graph.gpost(`/deviceManagement/managedDevices/${d.run.managedId}/initiateOnDemandProactiveRemediation`, { scriptPolicyId: fw.obj.id }, sc);
+          say(`${d.name}: the remediation runs now — read the tenant again in a minute or two`, true);
+        }
+      } else if (k === "winredeploy") {
+        // 0.14.0: a platform script runs again only when it changes — a dated line and the version bumped
+        const fw = gsaWinOf(), ob = fw.obj;
+        if (!ob || fw.kind !== "script") throw new Error("no Global Secure Access platform script found — read the tenant again");
+        const path = `/deviceManagement/deviceManagementScripts/${ob.id}`, nn = Gsa.bumpName(ob.displayName);
+        if (isDemo) { await sim(`backup of ${ob.displayName} saved`); await sim(`${ob.displayName} → ${nn}: changed, so every device in its groups runs it again`); }
+        else {
+          const cur = await Graph.gget(path, sc), asgs = (await Graph.gget(`${path}/assignments`, sc)).value || [];
+          const file = downloadText(`ENCA-GSA-platform-script-backup-${tenantName || tenantId}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, script: cur, assignments: asgs }, null, 2));
+          say(`backup of ${ob.displayName} saved${file ? ` as ${file}` : ""} — keep it for the way back`, true);
+          const text = `# redeploy ${new Date().toISOString().slice(0, 10)} — ENCA T56\r\n${Gsa.b64dec(cur.scriptContent)}`;
+          await Graph.gpatch(path, { "@odata.type": "#microsoft.graph.deviceManagementScript", displayName: nn, scriptContent: Gsa.b64(text) }, sc);
+          say(`${ob.displayName} → ${nn}: the content changed, so every device in its groups runs it again at its next check-in`, true);
+        }
+      } else if (k === "windns") {
+        // 0.14.0: secure DNS off — only the settings no policy sets yet, on the install script's targets
+        const need = (gsaWinLane().chain || {}).need || [];
+        if (!need.length) throw new Error("every DNS setting is already set by a policy — nothing to create");
+        const body = Gsa.winDnsBody({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }, need);
+        let tg = gsaInstallTargets();
+        if (!tg.length) { const g = await gsaDeviceGroup(o.devGroup || Gsa.GROUPS.win, o.mkGroup, sc, say); tg = [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }]; }
+        const tn = tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", ");
+        if (isDemo) { await sim(`${body.name} created`); await sim(`assigned to ${tn}`); }
+        else {
+          const p = await Graph.gpost("/deviceManagement/configurationPolicies", body, sc);
+          say(`${body.name} created`, true);
+          await Graph.gpost(`/deviceManagement/configurationPolicies/${p.id}/assign`, { assignments: tg.map((target) => ({ target })) }, sc);
+          say(`assigned to ${tn}`, true);
+        }
       } else if (k === "winswap") {
         // 0.11.0 (Limon-IT, 18 Oct: Business Premium, the remediation never
         // ran): the platform script takes the remediation's groups — backup
@@ -25972,6 +26049,15 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "winscript") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.groupNames[gid] = String(o.devGroup || Gsa.GROUPS.win).trim(); r.winGroups = Object.assign({}, r.winGroups, { [gid]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } }); r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }], runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }); }
     // 0.11.0: the demo Windows group holds two devices, one of them seen through GSA — partly connected
     if (k === "winrem" || k === "winscript") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.winGroups[gid].list = [{ deviceId: "dw-1", displayName: "LT-DEMO-01", operatingSystem: "Windows", trustType: "AzureAd" }, { deviceId: "dw-2", displayName: "LT-DEMO-02", operatingSystem: "Windows", trustType: "AzureAd" }]; if (r.seen && Array.isArray(r.seen.report) && !r.seen.report.some((x) => x.deviceId === "dw-1")) r.seen.report.push({ deviceId: "dw-1", displayName: "LT-DEMO-01", operatingSystem: "Windows 11 Enterprise", trafficType: "microsoft365", lastAccessDateTime: new Date(Date.now() - 3 * 3600000).toISOString() }); }
+    // 0.14.0: the demo deployment's content and per-device runs; one device fetched its policy and tunnels, the other only fetched
+    if (k === "winrem" || k === "winscript") {
+      const ob = k === "winrem" ? (r.healthScripts || []).slice(-1)[0] : (r.scripts || []).slice(-1)[0];
+      if (ob) { ob.contentText = k === "winrem" ? `${Gsa.detectScript(o)}\n${Gsa.remediationScript(o)}` : Gsa.windowsScript(o); ob.runs = [{ id: `${ob.id}:md-1`, detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: "GSA client 2.32.294 installed; settings as required", lastStateUpdateDateTime: new Date(Date.now() - 2 * 3600000).toISOString(), runState: "success", managedDevice: { id: "md-1", deviceName: "LT-DEMO-01" } }, { id: `${ob.id}:md-2`, detectionState: "fail", remediationState: "success", preRemediationDetectionScriptOutput: "GSA client not installed", postRemediationDetectionScriptOutput: "GSA client 2.32.294 installed; settings as required", lastStateUpdateDateTime: new Date(Date.now() - 3600000).toISOString(), runState: "success", managedDevice: { id: "md-2", deviceName: "LT-DEMO-02" } }]; }
+      r.sources.gsaAuth = "ok"; r.gsaAuth = [{ createdDateTime: new Date(Date.now() - 50 * 60000).toISOString(), appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "dw-2", displayName: "LT-DEMO-02" }, status: { errorCode: 0 } }, { createdDateTime: new Date(Date.now() - 4 * 3600000).toISOString(), appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "dw-1", displayName: "LT-DEMO-01" }, status: { errorCode: 0 } }];
+    }
+    if (k === "winrun") { for (const id of o.devSel || []) { const dev = id === "md-2" ? { deviceId: "dw-2", displayName: "LT-DEMO-02" } : id === "md-1" ? { deviceId: "dw-1", displayName: "LT-DEMO-01" } : null; if (dev && r.seen && Array.isArray(r.seen.report) && !r.seen.report.some((x) => x.deviceId === dev.deviceId)) r.seen.report.push(Object.assign({ operatingSystem: "Windows 11 Enterprise", trafficType: "microsoft365", lastAccessDateTime: new Date().toISOString() }, dev)); } }
+    if (k === "windns") { const need = (gsaWinLane().chain || {}).need || []; const b = Gsa.winDnsBody({ rel: o.rel, ver: o.ver }, need); r.winDns = [...(r.winDns || []), { id: "p-dns", name: b.name, settings: b.settings, assignments: gsaInstallTargets().map((target) => ({ target })) }]; r.sources.winDns = "ok"; }
+    if (k === "winredeploy") { const ob = (r.scripts || []).find((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`)); if (ob) ob.displayName = Gsa.bumpName(ob.displayName); }
     if (k === "winswap") { const rem = (r.healthScripts || []).find((h) => /global\s*secure\s*access/i.test(h.displayName || "")); if (rem) { r.scripts.push({ id: "s-swap", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE, assignments: rem.assignments, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }); rem.assignments = []; rem.assigned = false; } }
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
     // 0.9.0: a chain fix lands in the demo chain — the plan's new body takes the row's place
@@ -26035,6 +26121,7 @@ This is a directory write. Nothing else changes.`)) return;
       // 0.13.0: a fix offered on Monitor (Needs attention) opens on Setup, at its step
       if (gsa.mode === "monitor") { gsa.mode = "setup"; gsa.modeChosen = true; const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k); if (from) gsa.sel = from.k; }
       if (had) gsa.work = [had, ...gsa.work.filter((x) => x !== had)];
+      if (k === "winrun") { const nw = had || null, sel = fx.dataset.gsadev ? [fx.dataset.gsadev] : (gsaWinLane().devices || []).filter((d) => !d.seen && d.run && d.run.managedId).map((d) => d.run.managedId); if (nw) nw.opts.devSel = sel; else gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), { devSel: sel }), log: null, busy: false, tab: null }); renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
       // 0.9.0: a chain repair keeps the old settings' lock-down or pilot unless the person ticks otherwise
       else gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), /^macfix-/.test(k) ? { lock: null } : {}), log: null, busy: false, tab: null });
       renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return;
@@ -26078,6 +26165,7 @@ This is a directory write. Nothing else changes.`)) return;
       return;
     }
     if (t.hasAttribute("data-gsahow")) { w.opts.allUsers = t.value === "all"; }
+    else if (t.dataset && t.dataset.gsadevsel) { const cur = new Set(w.opts.devSel || []); if (t.checked) cur.add(t.dataset.gsadevsel); else cur.delete(t.dataset.gsadevsel); w.opts.devSel = [...cur]; renderGsa(); return; }
     else { const k = t.dataset && t.dataset.gsaopt; if (!k) return; w.opts[k] = t.type === "checkbox" ? t.checked : t.value; }
     const o = w.opts, el = wp.querySelector("[data-gsaname]");
     if (el) el.textContent = Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[w.k === "macscript" || w.k === "macprof" ? "mac" : w.k === "winrem" ? "rem" : "win"];

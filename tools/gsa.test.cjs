@@ -681,7 +681,8 @@ test("0.11.0 Limon-IT: nothing seen through GSA — both lanes red, each with it
   assert.strictEqual(c.st, "bad");
   // 0.13.1: the licence is a warning and the admin's choice — Connected decides the lane, Replace… is optional
   assert.deepStrictEqual([W.st, W.word, W.fix, c.fix], ["bad", "not connected", null, null]);
-  assert.deepStrictEqual(actKeys(W), ["winswap", "groups", "scope-win"]);
+  // 0.14.0: Redeploy… (the remediation on demand) and the Windows chain (no policy turns secure DNS off) come first
+  assert.deepStrictEqual(actKeys(W), ["winrun", "jump", "winswap", "groups", "scope-win"]);
   const allowed = W.stages.find((s) => s.k === "Licence");
   assert.strictEqual(allowed.st, "warn");
   assert.match(allowed.text, /^Not in the licence — .*this tenant holds Windows Business \(Business Premium\)/);
@@ -702,7 +703,7 @@ test("0.11.0: the Windows lane keeps its actions whatever happens on macOS (Miha
   const r = limonIt(); r.skus = Gsa.demo().skus; // licensed — nothing to replace
   const m = Gsa.model(r, []), W = m.links.find((l) => l.k === "client").lanes.windows;
   assert.deepStrictEqual([W.fix, W.word], [null, "not connected"]);
-  assert.deepStrictEqual(actKeys(W), ["groups", "scope-win"]);
+  assert.deepStrictEqual(actKeys(W), ["winrun", "jump", "groups", "scope-win"]);
   const html = Gsa.render(m, { sel: "client" });
   assert.match(html, /data-gsafix="scope-win"/);
   assert.match(html, /data-gsagroups/);
@@ -905,4 +906,168 @@ test("0.13.0 My Apps: the tag list keeps every other tag; the preview, the board
   const hidden = Gsa.model(okRaw({ sp: Object.assign({}, okRaw().sp, { tags: ["HideApp"] }) }), [block()]);
   assert.ok(!Gsa.monitor(hidden, monRaw()).attention.some((x) => x.tag === "my apps"), "the line goes once hidden");
   assert.match(Gsa.render(hidden, { sel: "profile" }), /data-gsafix="showapp"/);
+});
+
+// ---- 0.14.0: the Windows chain, per-device stages, Redeploy (19 Oct 2026) ----
+// Mihai: "where is the windows chain", "and where is the redeploy", "got
+// installed but not windows config"; then "test it first against devcf".
+const DEVCF_DNS_IDS = [
+  // read on cloudfellows.dev with Lokka, 19 Oct: each definition and its child option
+  "device_vendor_msft_policy_config_microsoft_edgev83diff~policy~microsoft_edge_dnsoverhttpsmode",
+  "device_vendor_msft_policy_config_chromeintunev1~policy~googlechrome_dnsoverhttpsmode",
+  "device_vendor_msft_policy_config_microsoft_edge~policy~microsoft_edge_builtindnsclientenabled",
+  "device_vendor_msft_policy_config_chromeintunev1~policy~googlechrome_builtindnsclientenabled",
+];
+const remText = (lock) => `${Gsa.detectScript({ lock })}\n${Gsa.remediationScript({ lock })}`;
+const limon19 = (o) => {
+  // Limon-IT as read on 19 Oct: the remediation's detection on the Cloud PC
+  // says installed, the client fetched its policy at 00:41Z, no tunnel token
+  const x = o || {};
+  const r = limonIt();
+  const h = r.healthScripts[0];
+  h.contentText = remText(true);
+  h.runs = [{ id: "h:mdm-1", detectionState: x.missing ? "fail" : "success", remediationState: x.missing ? "remediationFailed" : "skipped", preRemediationDetectionScriptOutput: x.missing ? "GSA client not installed" : "GSA client 2.32.294 installed; settings as required", remediationScriptError: x.missing ? "download failed" : "", managedDevice: { id: "mdm-1", deviceName: "CPC-mihai-2L8IB", azureADDeviceId: null } }];
+  r.sources.gsaAuth = "ok";
+  r.gsaAuth = x.missing ? [] : [{ createdDateTime: "2026-10-19T00:41:00Z", appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "CPC-1", displayName: "CPC-mihai-2L8IB" }, status: { errorCode: 0 } }];
+  r.sources.winDns = "ok"; r.winDns = [];
+  return r;
+};
+
+test("0.14.0 authIndex: the client's policy fetch and its tunnel token, per Entra device id; failures kept apart", () => {
+  const ix = Gsa.authIndex({ sources: { gsaAuth: "ok" }, gsaAuth: [
+    { createdDateTime: "2026-10-19T00:41:00Z", appId: Gsa.ZTNA_CLIENT, resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "A" }, status: { errorCode: 0 } },
+    { createdDateTime: "2026-10-19T00:10:00Z", appId: Gsa.ZTNA_CLIENT, resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "a" }, status: { errorCode: 0 } },
+    { createdDateTime: "2026-10-19T02:00:00Z", appId: Gsa.GSA_CLIENT_APP, appDisplayName: "Global Secure Access Client", resourceDisplayName: "Microsoft apps with Global Secure Access", deviceDetail: { deviceId: "b" }, status: { errorCode: 0 } },
+    { createdDateTime: "2026-10-19T03:00:00Z", appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "b" }, status: { errorCode: 50076, failureReason: "MFA required" } },
+    { createdDateTime: "2026-10-19T03:00:00Z", appId: Gsa.ZTNA_CLIENT, deviceDetail: {}, status: { errorCode: 0 } },
+  ] });
+  assert.strictEqual(ix.read, true); assert.strictEqual(ix.map.size, 2);
+  assert.deepStrictEqual(ix.map.get("a"), { policy: "2026-10-19T00:41:00Z", tunnel: "", fail: "", failAt: "" });
+  const b = ix.map.get("b");
+  assert.deepStrictEqual([b.policy, b.tunnel], ["", "2026-10-19T02:00:00Z"]);
+  assert.match(b.fail, /ZTNA Policy Service Client → ZTNA Policy Service: MFA required/);
+  const no = Gsa.authIndex({ sources: { gsaAuth: "Graph request failed (403)" } });
+  assert.deepStrictEqual([no.read, no.err], [false, "Graph request failed (403)"]);
+});
+
+test("0.14.0 runIndex: Intune's run state per device — installed and the client version from the detection output, by Entra id or by name", () => {
+  assert.deepStrictEqual(Gsa.runIndex({}).read, false, "no runs read → not read, never 'not installed'");
+  assert.strictEqual(Gsa.runIndex({ runsErr: "403" }).err, "403");
+  const ix = Gsa.runIndex({ runs: [
+    { detectionState: "success", preRemediationDetectionScriptOutput: "GSA client 2.32.294 installed; settings as required", managedDevice: { id: "m1", deviceName: "CPC-mihai-2L8IB", azureADDeviceId: null } },
+    { detectionState: "fail", remediationState: "remediationFailed", preRemediationDetectionScriptOutput: "GSA client not installed", remediationScriptError: "download failed", managedDevice: { id: "m2", deviceName: "LT-2", azureADDeviceId: "D2" } },
+    { runState: "success", resultMessage: "", managedDevice: { id: "m3", deviceName: "LT-3", azureADDeviceId: "d3" } },
+  ] });
+  const a = ix.byName.get("cpc-mihai-2l8ib");
+  assert.deepStrictEqual([a.installed, a.ver, a.managedId, a.failed], [true, "2.32.294", "m1", false]);
+  assert.strictEqual(ix.byAad.size, 2, "a device with no Entra id is matched by name only");
+  const b = ix.byAad.get("d2");
+  assert.deepStrictEqual([b.installed, b.failed, b.err], [false, true, "download failed"]);
+  assert.strictEqual(ix.byAad.get("d3").installed, true, "a platform script that ran successfully");
+});
+
+test("0.14.0 contentSettings: the four client settings, IPv4 and the download, read from ENCA's own scripts", () => {
+  for (const lock of [false, true]) for (const ipv4 of [false, true]) {
+    const rem = Gsa.contentSettings(`${Gsa.detectScript({ lock, ipv4 })}\n${Gsa.remediationScript({ lock, ipv4 })}`);
+    const scr = Gsa.contentSettings(Gsa.windowsScript({ lock, ipv4 }));
+    for (const c of [rem, scr]) assert.deepStrictEqual([c.known, c.mode, c.ipv4, c.aka, c.arm], [true, lock ? "locked down" : "pilot", ipv4, true, true]);
+  }
+  const custom = Gsa.contentSettings("$want = @{ HideDisableButton = 1; HideSignOutButton = 0; HideDisablePrivateAccessButton = 1; RestrictNonPrivilegedUsers = 1 }");
+  assert.deepStrictEqual([custom.known, custom.mode], [true, "custom"]);
+  assert.deepStrictEqual([Gsa.contentSettings("Write-Output hi").known, Gsa.contentSettings(null).mode], [false, ""]);
+});
+
+test("0.14.0 devcf: the four DNS settings by their settings catalog ids; the policy ENCA writes reads back as off", () => {
+  assert.deepStrictEqual(Gsa.DNS_SETTINGS.map((d) => d.def), DEVCF_DNS_IDS);
+  const body = Gsa.winDnsBody({ rel: "R26.10" }, ["edgeDoh", "chromeDoh", "edgeDns", "chromeDns"]);
+  assert.strictEqual(body.name, "Win - DCP - Device Configuration - D - GSA Browser DNS - R26.10 - v1.0");
+  assert.deepStrictEqual([body.platforms, body.technologies], ["windows10", "mdm"]);
+  const edge = body.settings[0].settingInstance;
+  assert.strictEqual(edge.choiceSettingValue.value, `${DEVCF_DNS_IDS[0]}_1`);
+  // devcf 19 Oct: the child is <id>_dnsoverhttpsmode, the option <id>_dnsoverhttpsmode_off ("Disable DNS-over-HTTPS")
+  assert.deepStrictEqual(edge.choiceSettingValue.children[0].settingDefinitionId, `${DEVCF_DNS_IDS[0]}_dnsoverhttpsmode`);
+  assert.deepStrictEqual(edge.choiceSettingValue.children[0].choiceSettingValue.value, `${DEVCF_DNS_IDS[0]}_dnsoverhttpsmode_off`);
+  assert.strictEqual(body.settings[3].settingInstance.choiceSettingValue.value, `${DEVCF_DNS_IDS[3]}_0`);
+  assert.match(body.description, /DNS-over-HTTPS must be off/);
+  const back = Gsa.dnsCheck([Object.assign({ id: "p", assignments: [] }, body)]);
+  assert.deepStrictEqual(Object.values(back.set).map((x) => x.off), [true, true, true, true]);
+  // only what is missing goes into the policy
+  assert.deepStrictEqual(Gsa.winDnsBody({}, ["chromeDoh"]).settings.map((x) => x.settingInstance.settingDefinitionId), [DEVCF_DNS_IDS[1]]);
+  // a baseline that sets automatic: reported, never rewritten
+  const auto = JSON.parse(JSON.stringify(Gsa.winDnsBody({}, ["edgeDoh"])));
+  auto.name = "Win - Edge baseline";
+  auto.settings[0].settingInstance.choiceSettingValue.children[0].choiceSettingValue.value = `${DEVCF_DNS_IDS[0]}_dnsoverhttpsmode_automatic`;
+  const ck = Gsa.dnsCheck([auto]);
+  assert.deepStrictEqual([ck.set.edgeDoh.off, ck.set.edgeDoh.mode, ck.set.edgeDoh.by], [false, "automatic", "Win - Edge baseline"]);
+});
+
+test("0.14.0 Windows chain: install, client settings, secure DNS (devcf: no policy turns it off), IPv4 optional", () => {
+  const m = Gsa.model(limon19(), []), W = m.links.find((l) => l.k === "client").lanes.windows, ch = W.chain;
+  assert.deepStrictEqual(ch.rows.map((r) => r.key), ["install", "settings", "dns", "ipv4"]);
+  const [inst, set, dns, v4] = ch.rows;
+  assert.deepStrictEqual([inst.found, inst.issues.length], [true, 0]);
+  assert.match(inst.sub, /remediation · ⚠ not in the licence — your choice/);
+  assert.match(inst.landed.text, /^1 of 1 installed · 0 failed · client 2\.32\.294/);
+  assert.deepStrictEqual([set.found, set.sub], [true, "locked down"]);
+  assert.deepStrictEqual([dns.st, dns.found], ["bad", false]);
+  assert.match(dns.issues.map((i) => i.t).join(" | "), /Edge: no policy turns DNS-over-HTTPS off[\s\S]*Chrome: no policy turns DNS-over-HTTPS off[\s\S]*built-in DNS client is not turned off/);
+  assert.deepStrictEqual([v4.optional, v4.st], [true, "na"]);
+  assert.deepStrictEqual([ch.problems, ch.need], [1, ["edgeDoh", "chromeDoh", "edgeDns", "chromeDns"]]);
+  const html = Gsa.render(m, { sel: "client" });
+  assert.match(html, /id="gsaWin"[\s\S]*Windows chain — found by content/);
+  assert.match(html, /data-gsafix="windns"/);
+  // DNS set by a policy ENCA made → the row is ok, nothing more to create
+  const r2 = limon19();
+  r2.winDns = [Object.assign({ id: "p", assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: W_GROUP } }] }, Gsa.winDnsBody({}, ["edgeDoh", "chromeDoh", "edgeDns", "chromeDns"]))];
+  const ch2 = Gsa.model(r2, []).links.find((l) => l.k === "client").lanes.windows.chain;
+  assert.deepStrictEqual([ch2.rows[2].st, ch2.problems, ch2.need], ["ok", 0, []]);
+  // DNS not read → the row says so and is never green
+  const r3 = limon19(); r3.sources.winDns = "Graph request failed (403)";
+  const d3 = Gsa.model(r3, []).links.find((l) => l.k === "client").lanes.windows.chain.rows[2];
+  assert.deepStrictEqual([d3.st, d3.err], ["na", "Graph request failed (403)"]);
+});
+
+test("0.14.0 Limon-IT 19 Oct: installed, policy fetched, no tunnel — the lane says so and offers Redeploy per device", () => {
+  const m = Gsa.model(limon19(), []), W = m.links.find((l) => l.k === "client").lanes.windows;
+  const st = (k) => W.stages.find((s) => s.k === k);
+  assert.deepStrictEqual([st("Installed").st, st("Installed").text], ["ok", "1 of 1 — client 2.32.294"]);
+  assert.strictEqual(st("Ran (Intune)"), undefined, "Installed replaces the summary once run states are read");
+  assert.strictEqual(st("Policy fetched").st, "ok");
+  assert.match(st("Policy fetched").text, /^1 of 1 — CPC-mihai-2L8IB at /);
+  assert.deepStrictEqual([st("Tunnel").st, st("Tunnel").text], ["bad", "0 of 1 — no token for the Microsoft traffic tunnel"]);
+  assert.match(st("Tunnel").sub, /CPC-mihai-2L8IB fetched a policy without the Microsoft profile/);
+  assert.deepStrictEqual([W.st, W.word], ["bad", "installed · no tunnel"]);
+  assert.strictEqual(W.actions[0].fix, "winrun"); assert.strictEqual(W.actions[0].primary, true);
+  const html = Gsa.render(m, { sel: "client" });
+  assert.match(html, /<th>Client<\/th>/);
+  assert.match(html, /CPC-mihai-2L8IB[\s\S]*?✓ 2\.32\.294[\s\S]*?policy /);
+  assert.match(html, /data-gsafix="winrun" data-gsadev="mdm-1">Run now…/);
+  // the client never installed: the lane names the first stage that fails
+  const W2 = Gsa.model(limon19({ missing: true }), []).links.find((l) => l.k === "client").lanes.windows;
+  assert.deepStrictEqual([W2.word, W2.stages.find((s) => s.k === "Installed").st], ["not installed", "bad"]);
+  assert.match(W2.stages.find((s) => s.k === "Installed").sub, /failing: CPC-mihai-2L8IB \(download failed\)/);
+  assert.strictEqual(W2.stages.find((s) => s.k === "Policy fetched").st, "na", "not installed comes first");
+  // installed, never signed in
+  const r3 = limon19(); r3.gsaAuth = [];
+  assert.strictEqual(Gsa.model(r3, []).links.find((l) => l.k === "client").lanes.windows.word, "installed · not signed in");
+});
+
+test("0.14.0 Redeploy: a platform script gets a new version, never a per-device run; each write says its impact and way back", () => {
+  const r = okRaw({ healthScripts: [] });
+  r.scripts = [{ id: "w1", displayName: "Win - PSH - Device Security - D - Install Global Secure Access Client - R26.10 - v1.0", assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: W_GROUP } }] }];
+  r.seen = { days: 7, report: [], signIns: [] };
+  const W = Gsa.model(r, []).links.find((l) => l.k === "client").lanes.windows;
+  assert.ok(actKeys(W).includes("winredeploy")); assert.ok(!actKeys(W).includes("winrun"));
+  for (const k of ["winrun", "winredeploy", "windns"]) assert.ok(Gsa.FIXES[k].impact && Gsa.FIXES[k].recovery, `${k} is described before it runs`);
+  assert.deepStrictEqual(Gsa.FIXES.winrun.scopes, ["DeviceManagementManagedDevices.PrivilegedOperations.All", "DeviceManagementManagedDevices.Read.All"]);
+  const run = Gsa.preview("winrun", { scriptId: "h1", sync: true, devs: [{ id: "m1", name: "CPC-1", on: true }, { id: "m2", name: "LT-2", on: false }] })[0].text;
+  assert.match(run, /syncDevice   \(CPC-1\)[\s\S]*initiateOnDemandProactiveRemediation   \(CPC-1\)[\s\S]*"scriptPolicyId": "h1"/);
+  assert.doesNotMatch(run, /LT-2/);
+  const red = Gsa.preview("winredeploy", { name: "Win - PSH - X - R26.10 - v1.0", content: "Write-Output 1", scriptId: "w1" });
+  assert.match(red[0].text, /^# redeploy \d{4}-\d\d-\d\d — ENCA T56\r\nWrite-Output 1$/);
+  assert.match(red.map((t) => t.text).join("\n"), /PATCH \/deviceManagement\/deviceManagementScripts\/w1[\s\S]*v1\.1/);
+  const dns = Gsa.preview("windns", { need: ["chromeDoh"], targets: [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: "g-win" }] })[0].text;
+  assert.match(dns, /POST \/deviceManagement\/configurationPolicies[\s\S]*googlechrome_dnsoverhttpsmode_dnsoverhttpsmode_off[\s\S]*\/assign[\s\S]*g-win/);
+  assert.doesNotMatch(dns, /microsoft_edge/);
+  assert.strictEqual(Gsa.b64("é"), "w6k=", "the redeployed script is UTF-8 base64");
 });

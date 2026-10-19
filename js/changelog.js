@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32810, date: "2026-10-19", title: "Global Secure Access: the Windows chain and Redeploy",
+    items: [
+      { kind: "new", tool: "Global Secure Access", text: "Step 6 now shows a Windows chain beside the macOS one: the install script, the client settings it writes, secure DNS off in Edge and Chrome, and IPv4 preferred, each checked against Learn. When no policy turns secure DNS off, Create makes one with only the missing settings and assigns it to the install groups." },
+      { kind: "new", tool: "Global Secure Access", text: "The Windows lane reads each device: installed and which client version, whether the client fetched its policy, and whether it got its tunnel token. A device that is installed but has no tunnel gets the checks for Disabled by your organization." },
+      { kind: "new", tool: "Global Secure Access", text: "Redeploy: run the install remediation now on the devices you tick (or Run now on one device), with a Sync first; a platform script gets a new version instead, because Intune only runs it again when it changes." },
+    ],
+  },
+  {
     build: 32809, date: "2026-10-19", title: "Global Secure Access: a remediation outside the licence is your choice",
     items: [
       { kind: "improved", tool: "Global Secure Access", text: "On Business Premium the Windows lane no longer reads blocked by the licence. Remediations are not part of that licence, but Intune runs them when they are switched on — the lane now says so as a warning and leaves the choice to you; whether the devices connect decides the lane. Replace with the platform script stays available as the route inside the licence, and on a tenant with nothing deployed yet a remediation is offered beside the platform script." },

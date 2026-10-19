@@ -3356,6 +3356,10 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-wgrid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
 .gsa-wgrid>div{padding:12px 14px;min-width:0}.gsa-wgrid>div+div{border-left:1px solid var(--border)}
 .gsa-wgrid ul{margin:4px 0;padding-left:18px}
+/* 0.14.0: a Graph path or a scope name never pushes a workspace past a phone's width */
+.gsa-wgrid li,.gsa-wgrid p{overflow-wrap:anywhere}
+/* 0.14.0: the Windows chain scrolls sideways on a phone instead of squeezing six columns */
+#gsaWin .gsa-mtable{min-width:760px}
 .gsa-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 6px}
 .gsa-tabs button{font:inherit;font-size:12px;padding:3px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--muted);cursor:pointer}
 .gsa-tabs button.on{border-color:var(--blue);color:var(--blue);font-weight:700}
@@ -3363,7 +3367,7 @@ details.pr-role[open]>summary{margin-bottom:6px}
 .gsa-impact{border-left:3px solid var(--report);background:color-mix(in srgb,var(--report) 9%,var(--surface));padding:7px 10px;border-radius:0 6px 6px 0;margin:0 0 8px;font-size:12.5px}
 .gsa-back{border-left:3px solid var(--on);background:color-mix(in srgb,var(--on) 9%,var(--surface));padding:7px 10px;border-radius:0 6px 6px 0;margin:0 0 8px;font-size:12.5px}
 .gsa-wbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-@media(max-width:900px){.gsa-detail,.gsa-wgrid{grid-template-columns:1fr}.gsa-detail-act,.gsa-wgrid>div+div{border-left:0;border-top:1px solid var(--border)}}
+@media(max-width:900px){.gsa-detail,.gsa-wgrid{grid-template-columns:minmax(0,1fr)}.gsa-detail-act,.gsa-wgrid>div+div{border-left:0;border-top:1px solid var(--border)}}
 /* 0.11.0 (T56): step 6 as two platform lanes, decided by what GSA has seen */
 .gsa-rule{display:flex;gap:8px;align-items:flex-start;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 30%,var(--border));border-radius:10px;padding:8px 12px;margin:0 0 12px;font-size:13px;line-height:1.45}
 .gsa-pl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
