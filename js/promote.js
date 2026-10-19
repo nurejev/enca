@@ -182,6 +182,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 356,
+      ws: "ca",
+      title: "🏢 SMB Basic 1.0.1 and 📥 an import that does not stop half-way: state retried, never twice, 🛫 pre-flight",
+      tools: ["Baseline", "Import", "Policies", "Best-practice checks"],
+      builds: [32902],
+      risk: "medium",
+      files: ["js/baselineSmbData.js", "js/import.js", "js/app.js", "js/render.js", "js/gapcheck.js", "index.html", "tools/baseline-smb.test.cjs", "tools/import-preflight.test.cjs"],
+      what: "SMB Basic 1.0.1 (the stranded bundle commit 370f8df, ported): CA901 passkey strength SMB - Passkey (FIDO2), the directory sync roles excluded from CA001-CA003 and CA201-CA204, 1.0.1 for the eight changed policies, Match and replace merges excluded roles, Render.caGroup sections under SMB, gapcheck SMB_PERSONAS. Import: Importer.patchSettled (state PATCH retried on 404/409/412/423/429/5xx), stateRetry at the end of the run, presentNames (fresh /beta names) + SESSION_MADE (this page's creates per tenant) so a policy is never created twice, sameCombinations reuse of a custom strength, dependencyGaps stops a policy whose strength or location failed before its create, Importer.preflight + setStates, the 🛫 pre-flight panel (imLoadPre, imPrePanel, imPreFix, held Import on a block), the write guard reads with readSettled, buildReport lists not-created-twice, the state repair and the pre-flight; imEaPanel hidden under SMB Basic.",
+      why: "Mihai, 19 Oct: read the previous chat about the SMB policies, continue, fix everything and add the necessary checks in the import to prevent not importing. gimi (SMB 1.0 import on 32816, Land as Report-only): CA002, CA003, CA005, CA101, CA102 and CA901 were created and read back but stayed Off with no update in the audit log; CA901 was created twice (19:39 and 19:44); CA103 and CA201-CA204 exist but Graph v1.0 does not list them (1037, preview feature). The 32817 SMB commit from the chat was only in a bundle that could not fast-forward onto beta.",
+      carveout: "None beyond the usual: promote.js stays beta-only. js/import.js and js/app.js hunks port as they are; the SMB data file ports whole.",
+      test: [
+        "gimi (or any tenant on security defaults), 📥 Import baseline SMB Basic, Land as Report-only: the 🛫 pre-flight lists the SMB 1.0 policies already here, the ones Off (CA005, CA101, CA102 at least), CA901 twice, GSA signalling and the Passkey (FIDO2) method; tick the repair and import — every new policy except CA103 and CA201-CA204 reads Report-only in the portal, the ticked ones too.",
+        "Run the same import again straight after: nothing is created; the ledger rows say already here and the report has Not created twice.",
+        "A tenant whose strengths list has SMB - FIDO2 security key: the run creates no new strength, CA901 1.0.1 uses the existing one (report: allows exactly the same methods, reused).",
+        "A tenant with 15 custom strengths and none matching: the pre-flight marks strengths ✗ and Import is held.",
+        "CA001 and CA201 1.0.1 show Directory Synchronization Accounts and On Premises Directory Sync Account under excluded roles; CA901 shows SMB - Passkey (FIDO2) or the reused strength.",
+        "Under SMB Basic the E-Admins panel is not shown in the import; under Joey it still is.",
+      ],
+    },
+    {
       n: 355,
       ws: "platform",
       title: "🚚 Promotion order: shell files are port-by-hunk, not Never port; the after-port checks know 03 is on main",

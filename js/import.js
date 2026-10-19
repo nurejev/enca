@@ -1345,25 +1345,41 @@ const Importer = (() => {
           const created = await Graph.gpost("/identity/conditionalAccess/namedLocations", body, [...AUTH_CONFIG.scopes, ...WRITE]);
           maps.loc[raw.id] = created.id;
           log.created.push(`Named location: ${raw.displayName}`);
-        } catch (e) { log.warnings.push(`Named location ${raw.displayName}: ${e.message}`); }
+        } catch (e) {
+          // 32902: recorded, so the policies that name it fail BEFORE their
+          // create with this reason — not after it with a bare 400
+          (maps.locFailed = maps.locFailed || {})[raw.id] = { name: raw.displayName, error: e.message || String(e) };
+          log.warnings.push(`Named location ${raw.displayName}: ${e.message}`);
+        }
       }
     }
 
     if (bundle.authStrengths.length) {
       onStatus?.("Authentication strengths…");
-      let existing = [];
-      try { existing = await Graph.ggetAll("/policies/authenticationStrengthPolicies"); } catch {}
+      let existing = [], readErr = null;
+      try { existing = await Graph.ggetAll("/policies/authenticationStrengthPolicies"); } catch (e) { readErr = e.message || String(e); }
+      if (readErr) log.warnings.push(`The authentication strengths could not be read (${readErr}) — a custom strength this file names is created, and may duplicate one the tenant already has.`);
       for (const raw of bundle.authStrengths) {
         const found = existing.find(x => x.displayName === raw.displayName || x.id === raw.id);
         if (found) { maps.strength[raw.id] = found.id; log.reused.push(`Auth strength: ${raw.displayName}`); continue; }
         if (raw.policyType === "builtIn") { maps.strength[raw.id] = raw.id; log.reused.push(`Auth strength (built-in): ${raw.displayName}`); continue; }
+        // 32902: a custom strength with exactly the same methods under
+        // another name is the same strength — reused rather than made again
+        // (a tenant holds at most 15 custom strengths). gimi holds SMB 1.0's
+        // "SMB - FIDO2 security key" (fido2); SMB 1.0.1 calls the same thing
+        // "SMB - Passkey (FIDO2)".
+        const same = existing.find((x) => x.policyType !== "builtIn" && String(x.policyType).toLowerCase() !== "builtin" && sameCombinations(x.allowedCombinations, raw.allowedCombinations));
+        if (same) { maps.strength[raw.id] = same.id; log.reused.push(`Auth strength: ${raw.displayName} — the tenant's “${same.displayName}” allows exactly the same methods, reused`); continue; }
         try {
           const created = await Graph.gpost("/policies/authenticationStrengthPolicies",
             { displayName: raw.displayName, description: raw.description || "", allowedCombinations: raw.allowedCombinations || [] },
             [...AUTH_CONFIG.scopes, ...STRENGTH_WRITE]);
           maps.strength[raw.id] = created.id;
           log.created.push(`Auth strength: ${raw.displayName}`);
-        } catch (e) { log.warnings.push(`Auth strength ${raw.displayName}: ${e.message}`); }
+        } catch (e) {
+          (maps.strengthFailed = maps.strengthFailed || {})[raw.id] = { name: raw.displayName, error: e.message || String(e) };
+          log.warnings.push(`Auth strength ${raw.displayName}: ${e.message}`);
+        }
       }
     }
 
@@ -1490,6 +1506,9 @@ const Importer = (() => {
       // doesn't have (e.g. a new break-glass / TeamsSharedDevices exclusion) —
       // those must not be lost, so they are merged onto the kept assignment.
       const newExcludeGroups = Array.isArray(u.excludeGroups) ? u.excludeGroups.slice() : [];
+      // 32817: the same for excluded ROLES (SMB Basic 1.0.1 leaves the directory
+      // sync roles out) — a role template id is the same in every tenant.
+      const newExcludeRoles = Array.isArray(u.excludeRoles) ? u.excludeRoles.slice() : [];
       const eu = (matchFrom.conditions && matchFrom.conditions.users) || {};
       u.includeUsers = Array.isArray(eu.includeUsers) ? [...eu.includeUsers] : ["None"];
       u.includeGroups = Array.isArray(eu.includeGroups) ? [...eu.includeGroups] : [];
@@ -1508,7 +1527,10 @@ const Importer = (() => {
         catch (e) { throw new Error(`Required exclusion could not be resolved: ${e.message}`); }
         if (id && !u.excludeGroups.includes(id)) { u.excludeGroups.push(id); added++; }
       }
+      let addedRoles = 0;
+      for (const r of newExcludeRoles) if (r && !u.excludeRoles.includes(r)) { u.excludeRoles.push(r); addedRoles++; }
       if (added) warnings.push(`${raw.displayName}: kept the current assignment and merged ${added} new exclusion group(s) introduced by this baseline version.`);
+      if (addedRoles) warnings.push(`${raw.displayName}: kept the current assignment and merged ${addedRoles} excluded role(s) introduced by this baseline version.`);
     } else if (asIs || keepAssignment || isWorkloadIdentity(raw)) {
       // as-is, a baseline switch, or a workload-identity policy: keep the
       // assignment exactly as it is. Injecting a persona group into a
@@ -1625,6 +1647,29 @@ const Importer = (() => {
     }
   }
 
+  // ---------- a write right after a create (beta 32902) ----------
+  // The read-back is not the only thing that can land on a replica that has
+  // not seen the policy yet: the PATCH that sets its state can too. gimi, 19
+  // Oct (SMB Basic, Land as Report-only): CA001, CA004, CA006 and CA104 went
+  // Report-only, while CA002, CA003, CA005, CA101, CA102 and CA901 — read
+  // back fine a moment earlier — stayed Off with no update in the audit log:
+  // the state write was answered "does not exist" (or the write guard's own
+  // read was) and the run took that for Entra refusing Report-only. So a
+  // state write is repeated on an answer that says "not here yet / busy",
+  // and only a real refusal (a 400 that is not one of those) is final.
+  const TRANSIENT_WRITE = /\((404|409|412|423|429|500|502|503|504)\)|ResourceNotFound|does not exist|temporarily|try again|snapshot changed/i;
+  const WRITE_WAITS = [1500, 3000, 6000, 10000];
+  async function patchSettled(url, body, scopes, waits) {
+    const w = (waits && (waits.write || waits.missing)) || WRITE_WAITS;
+    for (let n = 0; ; n++) {
+      try { return await Graph.gpatch(url, body, scopes); }
+      catch (e) {
+        if (!TRANSIENT_WRITE.test(e.message || "") || n >= w.length) throw e;
+        await pause(w[n]);
+      }
+    }
+  }
+
   // ---------- Conditional Access for agents: the WRITE shape (beta 25384) ----------
   // An export is a READ. Graph's "Create conditionalAccessPolicy" (beta,
   // examples 5–9) documents a different body for agent policies than the one a
@@ -1721,9 +1766,10 @@ const Importer = (() => {
           if (!contains(saved, staged)) throw new Error("Stored policy differs from the approved plan");
           if (payload.state !== "disabled") {
             try {
-              await Graph.gpatch(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE]);
+              await patchSettled(url, { state: payload.state }, [...AUTH_CONFIG.scopes, ...WRITE], waits);
               saved = await readSettled(url, (s) => contains(s, payload), waits);
               if (!contains(saved, payload)) throw new Error("Activated policy could not be verified");
+              c.landedOff = false; c.statePending = false;
             } catch (e) {
               // 32706: the state came from the import's own "Land new policies
               // as" choice (Report-only on a security-defaults tenant), not from
@@ -1732,7 +1778,16 @@ const Importer = (() => {
               // here leaves the policy as created — verified, Off — and says so,
               // instead of failing a policy that exists and is correct.
               if (!c.softState) throw e;
-              warnings.push(`${it.name}: created Off — Entra refused ${STATE_WORD[payload.state] || payload.state} (${e.message || e})`);
+              // 32902: an answer that says "not here yet" is not a refusal.
+              // The first time, the state is tried once more at the END of
+              // the run (importPolicies, stateRetry) — minutes later, after
+              // every other policy; only then is Off the outcome.
+              if (TRANSIENT_WRITE.test(e.message || "") && !c.stateLate) {
+                c.statePending = true; c.stateError = e.message || String(e);
+              } else {
+                warnings.push(`${it.name}: created Off — Entra refused ${STATE_WORD[payload.state] || payload.state} (${e.message || e})${c.stateLate ? " — tried again at the end of the run" : ""}. Set it with 🗂 Policies → Policy state once it shows.`);
+                c.statePending = false;
+              }
               c.landedOff = true;
             }
           }
@@ -1744,7 +1799,7 @@ const Importer = (() => {
           // switch the superseded policy Off; both land disabled, so the admin
           // reviews the new one and removes the old when satisfied.
           try {
-            await Graph.gpatch(`/identity/conditionalAccess/policies/${supersedes.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE]);
+            await patchSettled(`/identity/conditionalAccess/policies/${supersedes.id}`, { state: "disabled" }, [...AUTH_CONFIG.scopes, ...WRITE], waits);
             const oldReadback = await readSettled(`/identity/conditionalAccess/policies/${supersedes.id}`, (s) => s && s.state === "disabled", waits);
             if (oldReadback.state !== "disabled") throw new Error("previous policy did not read back as Off");
             disabledOld = true;
@@ -1752,20 +1807,233 @@ const Importer = (() => {
             warnings.push(`${it.name}: the new version was created, but disabling the current policy "${oldName}" failed — disable it manually: ${e.message}`);
           }
         }
-        return ({ name: it.name, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching || shipped ? null : it.personaGroup, asIs: it.asIs, forceOff: !!it.forceOff, matched: !!matchFrom, switched: switching, shipped: shipped && !matchFrom, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped, agentNotes });
+        return ({ name: it.name, statePending: !!c.statePending, ok: !supersedes || disabledOld, createdId: created.id, verified: true, error: supersedes && !disabledOld ? `Replacement ${created.id} verified as ${newState}, but previous policy ${supersedes.id} is not confirmed Off. Inspect both before retrying.` : null, persona: it.persona, personaGroup: matchFrom || switching || shipped ? null : it.personaGroup, asIs: it.asIs, forceOff: !!it.forceOff, matched: !!matchFrom, switched: switching, shipped: shipped && !matchFrom, disabledOld, oldName: supersedes ? oldName : null, state: newState, dropped, agentNotes });
   }
   const UNREAD = /\(404\)|ResourceNotFound|does not exist/i;
   const LATE_WAITS = { missing: [2000, 4000, 8000, 15000, 30000], stale: [1000, 2000, 4000] };
 
+  // Two lists of authentication-method combinations allow the same thing
+  // when they hold the same entries, in any order and any letter case (Graph
+  // writes fido2, the audit log Fido2).
+  function sameCombinations(a, b) {
+    const n = (x) => [...new Set((x || []).map((v) => String(v).replace(/\s+/g, "").toLowerCase()))].sort().join("|");
+    return !!(a && b && a.length && b.length) && n(a) === n(b);
+  }
+
+  // 32902: what a policy needs that the dependency pass could not provide,
+  // asked BEFORE its create — so it fails with the reason, and nothing is
+  // made half-way. A strength or a named location that failed to be created,
+  // and an application with no service principal here.
+  function dependencyGaps(raw, maps) {
+    const out = [];
+    const sid = raw && raw.grantControls && raw.grantControls.authenticationStrength && raw.grantControls.authenticationStrength.id;
+    if (sid && maps.strengthFailed && maps.strengthFailed[sid]) out.push(`its authentication strength “${maps.strengthFailed[sid].name}” could not be created (${maps.strengthFailed[sid].error})`);
+    const l = (raw && raw.conditions && raw.conditions.locations) || {};
+    for (const id of [...(l.includeLocations || []), ...(l.excludeLocations || [])]) {
+      const f = maps.locFailed && maps.locFailed[id];
+      if (f) out.push(`its named location “${f.name}” could not be created (${f.error})`);
+    }
+    return out;
+  }
+
+  // ---------- 🛫 pre-flight (beta 32902) ----------
+  // Mihai, 19 Oct, after the SMB Basic import on gimi: "add the necessary
+  // checks in the import to prevent not importing". What the run needs from
+  // the tenant is read BEFORE Import is pressed, and said in one panel:
+  //   names      a policy this file would create is already here (by name, on
+  //              /beta) — skipped, never created twice
+  //   repair     one already here is Off while this run lands Report-only —
+  //              offered (ticked by hand) to be set Report-only with the run
+  //   twins      the tenant holds the same policy twice (same CA number of the
+  //              same baseline) — say so before a third copy is made
+  //   capacity   policies here + new ones within the Conditional Access limit
+  //   strengths  each custom strength: found, reused (same methods), created —
+  //              and the 15-custom-strength limit
+  //   locations  each named location: found or created; the compliant network
+  //              location with Global Secure Access signalling on or not
+  //   breakglass the baseline's break-glass group: there, with members
+  //   passkey    a policy that asks for a passkey only, with the Passkey
+  //              (FIDO2) method off — nobody could satisfy it
+  //   sd         security defaults on: On is refused, policies land Report-only
+  // level: ok | info | warn | block. A block stops the run before anything is
+  // written; the rest are said and the run goes on.
+  const CA_LIMIT = 240, STRENGTH_LIMIT = 15;
+  const baseOf = (name) => cleanName(name).replace(/-v\d+(\.\d+)*\s*$/i, "");
+  const numOf = (name) => { const m = /CA(\d{3,4})/i.exec(String(name || "")); return m ? +m[1] : null; };
+  async function preflight(bundle, items, opts = {}) {
+    const checks = [];
+    const add = (key, level, title, detail, extra) => checks.push({ key, level, title, detail: detail || "", ...(extra || {}) });
+    const chosen = items || [];
+    const smb = (bundle && bundle.catalogId) === "smb";
+    const marker = smb ? /^CA(\d{3,4})-[A-Z]+-SMB-/i : null;
+
+    // names + repair + twins
+    const present = await presentNames(opts.tenantKey);
+    if (present.error) add("names", "warn", "Could not re-read the tenant's policies", `${present.error} — the run still refuses a name this session created, but cannot see one made elsewhere since sign-in.`);
+    const here = chosen.filter((p) => present.names.has(cleanName(p.raw && p.raw.displayName || p.name)));
+    if (here.length) add("names", "warn", `${here.length} already in this tenant — skipped, not created twice`, here.map((p) => p.name).join(", "), { names: here.map((p) => p.name) });
+    else if (!present.error) add("names", "ok", "No policy this run creates is in the tenant yet", `${present.names.size} policies read on /beta, preview-feature policies included`);
+
+    const landRO = opts.landState === "enabledForReportingButNotEnforced";
+    const forced = new Set(((bundle && bundle.forceOff) || []).map(cleanName));
+    const repair = [];
+    if (landRO) {
+      for (const p of (bundle && bundle.policies) || []) {
+        const n = cleanName(p.displayName);
+        const h = present.names.get(n);
+        if (h && h.id && h.state === "disabled" && !forced.has(n)) repair.push({ id: h.id, name: h.name || p.displayName });
+      }
+      if (repair.length) add("repair", "warn", `${repair.length} of this baseline's policies are here and Off — this run lands policies Report-only`, "An earlier run created them but could not set their state. Tick below to set them Report-only with this run (read back after the write).", { rows: repair });
+    }
+
+    const groupsBy = new Map();
+    for (const [n, v] of present.names) {
+      if (v.session && !v.state) continue;
+      const num = numOf(n);
+      if (num == null) continue;
+      const key = marker ? (marker.test(v.name || n) ? `smb:${num}` : null) : `b:${baseOf(n)}`;
+      if (!key) continue;
+      if (!groupsBy.has(key)) groupsBy.set(key, []);
+      groupsBy.get(key).push(v);
+    }
+    const twins = [...groupsBy.values()].filter((g) => g.length > 1);
+    if (twins.length) add("twins", "warn", `${twins.length} polic${twins.length === 1 ? "y is" : "ies are"} in the tenant twice`, twins.map((g) => g.map((v) => `${v.name} (${v.id || "?"}, ${STATE_WORD[v.state] || v.state || "?"})`).join(" and ")).join(" · ") + " — keep one: 🧹 Housekeeping → Duplicates.", { twins });
+
+    // capacity
+    const newOnes = chosen.filter((p) => !here.includes(p) && !(opts.mode === "replace" && p.upgrade));
+    const total = present.names.size + newOnes.length;
+    if (!present.error) add("capacity", total > CA_LIMIT ? "block" : "ok", total > CA_LIMIT ? `${total} policies would exceed the limit of ${CA_LIMIT}` : `${present.names.size} + ${newOnes.length} new = ${total} of ${CA_LIMIT}`, total > CA_LIMIT ? "Remove unused policies first (🧹 Housekeeping)." : "");
+
+    // strengths
+    const usedS = new Set(chosen.map((p) => p.raw && p.raw.grantControls && p.raw.grantControls.authenticationStrength && p.raw.grantControls.authenticationStrength.id).filter(Boolean));
+    const custom = ((bundle && bundle.authStrengths) || []).filter((x) => usedS.has(x.id) && x.policyType !== "builtIn");
+    if (custom.length) {
+      let have = null, err = null;
+      try { have = await Graph.ggetAll("/policies/authenticationStrengthPolicies"); } catch (e) { err = e.message || String(e); }
+      if (err) add("strengths", "warn", "Authentication strengths could not be read", `${err} — ${custom.map((x) => x.displayName).join(", ")} will be created, and could duplicate one already here.`);
+      else {
+        const lines = [], make = [];
+        for (const x of custom) {
+          const byName = have.find((h) => h.displayName === x.displayName);
+          const same = !byName && have.find((h) => String(h.policyType).toLowerCase() !== "builtin" && sameCombinations(h.allowedCombinations, x.allowedCombinations));
+          if (byName) lines.push(`${x.displayName}: found`);
+          else if (same) lines.push(`${x.displayName}: the tenant's “${same.displayName}” has the same methods — reused`);
+          else { lines.push(`${x.displayName}: created`); make.push(x); }
+        }
+        const nCustom = have.filter((h) => String(h.policyType).toLowerCase() !== "builtin").length;
+        const over = nCustom + make.length > STRENGTH_LIMIT;
+        add("strengths", over ? "block" : "ok", over ? `Custom authentication strengths: ${nCustom} here + ${make.length} new is over the limit of ${STRENGTH_LIMIT}` : "Authentication strengths", lines.join(" · ") + (over ? " — delete an unused custom strength first." : ""));
+      }
+      // passkey-only strength with the Passkey (FIDO2) method off
+      const pkOnly = custom.filter((x) => (x.allowedCombinations || []).length && (x.allowedCombinations || []).every((c) => /^fido2$/i.test(String(c))));
+      if (pkOnly.length) {
+        let fido = null, ferr = null;
+        try { fido = await Graph.gget("/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/fido2"); } catch (e) { ferr = e.message || String(e); }
+        const users = chosen.filter((p) => pkOnly.some((x) => x.id === (p.raw && p.raw.grantControls && p.raw.grantControls.authenticationStrength && p.raw.grantControls.authenticationStrength.id))).map((p) => p.name);
+        if (ferr) add("passkey", "info", "Passkey (FIDO2) method could not be read", `${ferr}. ${users.join(", ")} asks for a passkey only: check the method is enabled for those accounts before it leaves Report-only.`);
+        else if (!fido || fido.state !== "enabled") add("passkey", "warn", "The Passkey (FIDO2) method is off in this tenant", `${users.join(", ")} asks for a passkey and nothing else — no one in it could sign in once it is On. Enable Passkey (FIDO2) for those accounts (Entra → Authentication methods), and allow synced passkeys in its profile if they use one.`);
+        else add("passkey", "ok", "Passkey (FIDO2) method is on", users.join(", "));
+      }
+    }
+
+    // named locations
+    const usedL = new Set();
+    for (const p of chosen) { const l = (p.raw && p.raw.conditions && p.raw.conditions.locations) || {}; [...(l.includeLocations || []), ...(l.excludeLocations || [])].forEach((x) => usedL.add(String(x).toLowerCase())); }
+    const locs = ((bundle && bundle.namedLocations) || []).filter((x) => usedL.has(String(x.id).toLowerCase()) && String(x.id).toLowerCase() !== COMPLIANT_NETWORK_ID);
+    if (locs.length) {
+      let have = null, err = null;
+      try { have = await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); } catch (e) { err = e.message || String(e); }
+      if (err) add("locations", "warn", "Named locations could not be read", err);
+      else add("locations", "ok", "Named locations", locs.map((x) => `${x.displayName}: ${have.some((h) => h.displayName === x.displayName) ? "found" : "created"}`).join(" · "));
+    }
+    if (usedL.has(COMPLIANT_NETWORK_ID)) {
+      const cn = chosen.filter((p) => JSON.stringify((p.raw && p.raw.conditions && p.raw.conditions.locations) || {}).toLowerCase().includes(COMPLIANT_NETWORK_ID)).map((p) => p.name);
+      let sig = null, err = null;
+      try { sig = await Graph.gget("/networkAccess/settings/conditionalAccess"); } catch (e) { err = e.message || String(e); }
+      const on = sig && /enabled/i.test(String(sig.signalingStatus || ""));
+      add("gsa", on ? "ok" : "info", on ? "Global Secure Access signalling is on" : err ? "Global Secure Access signalling could not be read" : "Global Secure Access signalling is off",
+        `${cn.length} polic${cn.length === 1 ? "y uses" : "ies use"} the compliant network location (${cn.map((n) => (n.match(/CA\d{3,4}/) || [n])[0]).join(", ")}). ${on ? "" : "They are created all the same and land Off; they enforce nothing until signalling is on — 🌐 Global Secure Access. "}Note: Graph v1.0 does not list a policy that uses it (1037, preview feature); ENCA reads /beta.`);
+    }
+
+    // break-glass
+    const bgName = opts.breakGlassGroup || null;
+    if (bgName && chosen.some((p) => JSON.stringify(p.raw || {}).toLowerCase().includes(bgName.toLowerCase()))) {
+      let g = null, n = null, err = null;
+      try {
+        const hit = await Graph.ggetAll(`/groups?$filter=displayName eq '${bgName.replace(/'/g, "''")}'&$select=id,displayName`);
+        g = (hit || [])[0] || null;
+        if (g) { const m = await Graph.ggetAll(`/groups/${g.id}/members?$select=id`); n = (m || []).length; }
+      } catch (e) { err = e.message || String(e); }
+      if (err) add("breakglass", "info", `${bgName} could not be read`, err);
+      else if (!g) add("breakglass", "warn", `${bgName} does not exist yet — created empty by this run`, "Add the two emergency accounts before any policy leaves Report-only; until then the policies exclude nobody.");
+      else if (!n) add("breakglass", "warn", `${bgName} has no members`, "Add the two emergency accounts before any policy leaves Report-only.");
+      else add("breakglass", "ok", `${bgName}: ${n} member${n === 1 ? "" : "s"}`, "");
+    }
+
+    if (opts.sdOn) add("sd", "info", "Security defaults is on", "Entra refuses On while it is: new policies land Report-only or Off, and ⇄ on 🧬 Baseline makes the switch.");
+    const blocked = checks.some((c) => c.level === "block");
+    return { checks, repair, blocked, present: present.names.size, readAt: Date.now() };
+  }
+
+  // Set a list of policies to one state, each read back (the ticked repair).
+  async function setStates(rows, state, opts = {}) {
+    const out = [];
+    for (const r of rows || []) {
+      const url = `/identity/conditionalAccess/policies/${r.id}`;
+      try {
+        await patchSettled(url, { state }, [...AUTH_CONFIG.scopes, ...WRITE], opts.readWaits);
+        const back = await readSettled(url, (b) => b && b.state === state, opts.readWaits);
+        out.push({ ...r, ok: !!back && back.state === state, state: back && back.state, error: back && back.state === state ? null : `reads back as ${STATE_WORD[back && back.state] || (back && back.state) || "?"}` });
+      } catch (e) { out.push({ ...r, ok: false, error: e.message || String(e) }); }
+    }
+    return out;
+  }
+
+  // ---------- never the same policy twice (beta 32902) ----------
+  // gimi, 19 Oct: CA901 was created at 19:39 and again at 19:44. The plan
+  // marks a policy "already here" from the policy list the app read, and the
+  // list re-read right after an import can miss a policy created seconds
+  // before (Conditional Access is eventually consistent) — so a second run
+  // offered CA901 as missing and made it again. Two guards close that:
+  //   * every run re-reads the tenant's policy NAMES itself, on /beta (v1.0
+  //     leaves out a policy that uses a preview feature — CA103 and
+  //     CA201–CA204 answer 1037 there — so a v1.0 list would miss them);
+  //   * every policy this page created is remembered per tenant for the
+  //     session, whatever a list says.
+  // A name already there is not created: the row says so and carries its id.
+  const SESSION_MADE = new Map();   // tenantKey -> Map(clean name -> { id, at })
+  const madeIn = (key) => { const k = key || "?"; if (!SESSION_MADE.has(k)) SESSION_MADE.set(k, new Map()); return SESSION_MADE.get(k); };
+  function rememberCreated(tenantKey, name, id) { madeIn(tenantKey).set(cleanName(name), { id, at: Date.now() }); }
+  async function presentNames(tenantKey) {
+    const out = new Map();
+    let error = null;
+    try {
+      const list = await Graph.ggetAll("/identity/conditionalAccess/policies?$select=id,displayName,state");
+      for (const p of list || []) if (p && p.displayName) out.set(cleanName(p.displayName), { id: p.id, state: p.state, name: p.displayName });
+    } catch (e) { error = e.message || String(e); }
+    for (const [n, v] of madeIn(tenantKey)) if (!out.has(n)) out.set(n, { id: v.id, state: null, name: n, session: true });
+    return { names: out, error };
+  }
+
   async function importPolicies(items, maps, onStatus, opts = {}) {
     const replace = opts.mode === "replace", switching = opts.mode === "switch", shipped = opts.mode === "shipped";
-    const results = [], warnings = [], deferred = [];
+    const results = [], warnings = [], deferred = [], stateRetry = [];
+    const present = opts.skipPresentCheck ? { names: new Map(), error: null } : await presentNames(opts.tenantKey);
+    if (present.error) warnings.push(`The tenant's policy list could not be re-read before the run (${present.error}) — the check that stops a policy being created twice used the list read at sign-in and this session's own creates only.`);
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (opts.shouldStop && opts.shouldStop()) { results.push({ name: it.name, ok: false, stopped: true, error: "stopped before this policy — nothing changed" }); continue; }
       opts.onItem?.(i, "start");
       onStatus?.(`Importing ${it.name} (${i + 1}/${items.length})…`);
       let createdId = null;
+      const here = present.names.get(cleanName(it.raw && it.raw.displayName || it.name));
+      if (here) {
+        results.push({ name: it.name, ok: true, skipped: true, existingId: here.id, state: here.state, verified: false,
+          error: null, note: `already in this tenant${here.id ? ` (${here.id})` : ""}${here.session ? ", created earlier in this session" : ""} — not created a second time` });
+        warnings.push(`${it.name}: already in this tenant${here.id ? ` as ${here.id}` : ""}${here.session ? " (created earlier in this session — the policy list had not shown it yet)" : ""} — skipped, not created twice.`);
+        opts.onItem?.(i, "end", results[results.length - 1]);
+        continue;
+      }
       try {
         const gid = it.personaGroup && !switching && !shipped ? maps.personaGroupIds?.[it.personaGroup] : null;
         const matchFrom = replace && it.upgrade && it.existing ? it.existing.raw : null;
@@ -1794,6 +2062,8 @@ const Importer = (() => {
           retryWithoutContext = !!(payload.conditions && payload.conditions.agentContext);
         }
         const dropped = [];
+        const gaps = dependencyGaps(it.raw, maps);
+        if (gaps.length) throw new Error(`Not created: ${gaps.join("; ")}. Fix that, then import again — a re-run creates only what is missing.`);
         const missing = appRefs([payload]).filter(id => maps.missingApps?.has(String(id).toLowerCase()));
         if (missing.length) throw new Error(`Required application references are missing: ${missing.map(appLabel).join(", ")}. No policy was created.`);
         // Create disabled, verify material settings, then restore the approved state.
@@ -1815,6 +2085,8 @@ const Importer = (() => {
         }
         if (!created?.id) throw new Error("Create returned no policy id; verify the tenant before retrying. Previous policy was not changed.");
         createdId = created.id;
+        rememberCreated(opts.tenantKey, staged.displayName || it.name, created.id);
+        present.names.set(cleanName(staged.displayName || it.name), { id: created.id, state: "disabled", name: staged.displayName || it.name, session: true });
         const c = { it, created, staged, payload, supersedes, matchFrom, dropped, agentNotes, replace, switching, shipped, warnings, softState };
         let r;
         try { r = await afterCreate(c, opts.readWaits); }
@@ -1834,6 +2106,10 @@ const Importer = (() => {
             continue;
           }
           throw new Error(`${e.message}. New policy ${created.id} may exist; inspect it before retrying. Previous policy was not changed.`);
+        }
+        if (r.statePending) {
+          stateRetry.push({ at: results.length, i, c });
+          r.note = `created and verified Off — ${STATE_WORD[c.payload.state] || c.payload.state} is tried again at the end of the run (${c.stateError})`;
         }
         results.push(r);
         for (const n of agentNotes) warnings.push(`${it.name}: ${n}`);
@@ -1881,13 +2157,29 @@ const Importer = (() => {
         opts.onItem?.(d.i, "end", results[d.at]); continue;
       }
       onStatus?.(`${it.name}: checking again…`);
-      try { results[d.at] = await afterCreate(d.c, opts.lateWaits || LATE_WAITS); results[d.at].late = true; for (const n of d.c.agentNotes) warnings.push(`${it.name}: ${n}`); }
+      try { results[d.at] = await afterCreate(d.c, opts.lateWaits || LATE_WAITS); results[d.at].late = true; for (const n of d.c.agentNotes) warnings.push(`${it.name}: ${n}`); if (results[d.at].statePending) stateRetry.push(d); }
       catch (e) {
         const hint = d.c.supersedes ? ` · the previous policy "${d.c.supersedes.name || it.name}" is only changed after a verified replacement — finish it with 🧹 Housekeeping → Switch over, or by hand` : "";
         results[d.at] = { name: it.name, ok: false, createdId: created.id, error: (UNREAD.test(e.message || "")
           ? `Created as ${created.id}, but Conditional Access still answered “does not exist” — at once, and again at the end of the run a minute or more later — so its settings are not verified. It is almost certainly there, Off; a re-run skips it by name. Previous policy was not changed.`
           : `${e.message}. New policy ${created.id} may exist; inspect it before retrying. Previous policy was not changed.`) + hint };
       }
+      opts.onItem?.(d.i, "end", results[d.at]);
+    }
+    // 32902: the second try at a state Conditional Access answered "not here
+    // yet" for. Created, verified and Off already — only the state is left.
+    if (stateRetry.length) onStatus?.(`Setting the state of ${stateRetry.length} polic${stateRetry.length === 1 ? "y" : "ies"} Conditional Access was not ready for…`);
+    for (const d of stateRetry) {
+      const { it } = d.c;
+      if (opts.shouldStop && opts.shouldStop()) {
+        warnings.push(`${it.name}: stopped before its state was tried again — it is in the tenant, Off. Set it with 🗂 Policies → Policy state.`);
+        results[d.at] = { ...results[d.at], statePending: false, note: "created and verified Off — stopped before the state was tried again" };
+        opts.onItem?.(d.i, "end", results[d.at]); continue;
+      }
+      onStatus?.(`${it.name}: setting ${STATE_WORD[d.c.payload.state] || d.c.payload.state} again…`);
+      d.c.stateLate = true;
+      try { results[d.at] = { ...(await afterCreate(d.c, opts.lateWaits || LATE_WAITS)), late: true }; }
+      catch (e) { results[d.at] = { ...results[d.at], statePending: false, note: null }; warnings.push(`${it.name}: created Off — its state could not be set (${e.message || e}). Set it with 🗂 Policies → Policy state.`); }
       opts.onItem?.(d.i, "end", results[d.at]);
     }
     return { results, warnings };
@@ -1994,9 +2286,9 @@ const Importer = (() => {
         : mode === "switch" ? `Switch baseline — policies land with the baseline's own groups (created here), members copied across from the ${depLog.switchFrom ? depLog.switchFrom + " " : ""}counterpart groups; a superseded policy is switched Off`
         : mode === "shipped" ? "As shipped — the baseline's own groups, created or found by name in this tenant and attached; no id from the source tenant is written into a policy"
         : "Deployment groups — includes remapped to the deploy persona group (CAD-SEC-U-DG-*)"}`,
-      `- **Policies imported:** ${results.filter(r => r.ok).length} (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${results.filter(r => r.ok && r.state === s).length} ${stateLabel(s)}`).join(", ")})`,
+      `- **Policies imported:** ${results.filter(r => r.ok && !r.skipped).length} (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${results.filter(r => r.ok && !r.skipped && r.state === s).length} ${stateLabel(s)}`).join(", ")})`,
       ...(replaced.length ? [`- **Policies replaced (old version disabled):** ${replaced.filter(r => r.disabledOld).length} of ${replaced.length}`] : []),
-      `- **Policies skipped (already exist):** ${skipped.length}`,
+      `- **Policies skipped (already exist):** ${skipped.length + results.filter(r => r.skipped).length}`,
       `- **Failures:** ${results.filter(r => !r.ok).length}`,
       ``,
       `## Dependencies`,
@@ -2048,7 +2340,7 @@ const Importer = (() => {
       ] : []),
       `## Imported policies`,
       ``,
-      ...(results.filter(r => r.ok).map(r => r.asIs && r.forceOff
+      ...(results.filter(r => r.ok && !r.skipped).map(r => r.asIs && r.forceOff
         ? `- 🚨 **${r.name}** — **imported Off** (E-Admins taken from ${depLog.sharedFrom || "another backup"})${depLog.sharedRenamed ? `; break-glass group \`${depLog.sharedRenamed.from}\` → \`${depLog.sharedRenamed.to}\`` : ""} — check the trusted locations and the emergency accounts' sign-in methods before switching it On`
         : r.asIs
         ? `- ✅ **${r.name}** — **imported as-is** (E-Admins: state and assignments unchanged)`
@@ -2061,6 +2353,9 @@ const Importer = (() => {
         : `- ✅ **${r.name}** — state set to Off; include assignment → ${r.personaGroup ? `\`${r.personaGroup}\` (persona: ${r.persona})` : "kept as in source"}${(r.agentNotes || []).length ? ` · 🤖 ${r.agentNotes.join("; ")}` : ""}`)),
       ``,
       ...(skipped.length ? [`## Skipped (already exist by CA number + version)`, ``, ...skipped.map(p => `- ⏭ ${p.name} — ${p.reason}`), ``] : []),
+      ...(results.some((r) => r.skipped) ? [`## Not created twice — already in this tenant`, ``, `Found by name when the run re-read the tenant's policies on /beta, or created earlier in this session (beta 32902). Nothing was written for these.`, ``, ...results.filter((r) => r.skipped).map((r) => `- ⏭ ${r.name} — ${r.note}`), ``] : []),
+      ...((depLog.stateRepair || []).length ? [`## Existing policies set Report-only (ticked in the pre-flight)`, ``, ...depLog.stateRepair.map((r) => `- ${r.ok ? "✅" : "❌"} ${r.name}${r.ok ? " — Report-only, read back" : ` — ${r.error}`}`), ``] : []),
+      ...((depLog.preflight || []).length ? [`## 🛫 Pre-flight`, ``, ...depLog.preflight.map((c) => `- ${({ ok: "✓", info: "ℹ", warn: "⚠", block: "✗" })[c.level] || "·"} ${c.title}${c.detail ? ` — ${c.detail}` : ""}`), ``] : []),
       ...(results.some((r) => r.ok && (r.dropped || []).length) ? [
         `## ⚠ App references dropped to get the policy in`,
         ``,
@@ -2106,5 +2401,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled };
+  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates };
 })();

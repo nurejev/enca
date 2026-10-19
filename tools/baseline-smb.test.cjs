@@ -69,7 +69,7 @@ test('the catalog: 15 policies in four sections, numbered where every tool reads
   assert.equal(S.policies.length, 15);
   assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 101, 102, 103, 104, 201, 202, 203, 204, 901]);
   for (const p of S.policies) {
-    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0$/, p.name);
+    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.1)?$/, p.name);
     assert.equal(S.personaOfPolicy(S, p.name) != null, true, `${p.name} has a section`);
   }
   assert.equal(new Set(S.policies.map((p) => p.name)).size, 15, 'names are unique');
@@ -119,7 +119,7 @@ test('compare: a tenant holding the SMB policies is Up to date, and CloudFellows
   assert.notEqual(cf.rows.find((x) => x.num === 1).status, 'ok');
 });
 
-test('import of ENCA\'s own copy: groups, location and FIDO2 strength by name; GSA policies Off; the rest Report-only', async () => {
+test('import of ENCA\'s own copy: groups, location and passkey strength by name; GSA policies Off; the rest Report-only', async () => {
   const w = world();
   const bundle = w.S.bundle();
   assert.equal(w.I.catalogOfBundle(bundle), 'smb');
@@ -146,7 +146,7 @@ test('import of ENCA\'s own copy: groups, location and FIDO2 strength by name; G
   assert.deepEqual(by('CA001').conditions.users.includeUsers, ['All'], 'as shipped: All users, never a deploy group');
   assert.equal(w.groups.size, 16);
   assert.ok(w.posts.some(([u, b]) => u === '/identity/conditionalAccess/namedLocations' && b.displayName === 'SMB - Allowed countries'));
-  assert.ok(w.posts.some(([u, b]) => /authenticationStrengthPolicies/.test(u) && b.displayName === 'SMB - FIDO2 security key' && b.allowedCombinations.join() === 'fido2'));
+  assert.ok(w.posts.some(([u, b]) => /authenticationStrengthPolicies/.test(u) && b.displayName === 'SMB - Passkey (FIDO2)' && b.allowedCombinations.join() === 'fido2'));
   assert.equal(by('CA201').conditions.locations.excludeLocations[0], '3d46dbda-8382-466a-856d-eb00cbc6b910', 'Microsoft\'s compliant network location, as-is');
 });
 
@@ -194,4 +194,90 @@ test('the security-defaults card offers SMB Basic with its own source and button
   assert.match(html, /data-sdpick="smb"/);
   assert.match(html, /carried by ENCA, nothing to download/);
   assert.match(html, /📥 Deploy in Report-only →/);
+});
+
+test('32817 exclusions: every policy its own group, break-glass out of all but CA901, sync accounts out of every all-users all-resources policy', () => {
+  const { S } = world();
+  const b = S.bundle();
+  const gname = Object.fromEntries(b.groups.map((g) => [g.id, g.displayName]));
+  const SYNC = ['d29b2b05-8046-44ba-8758-1e26182fcf32', 'a92aed5d-d78a-4d16-b381-09adb37eb3b0'];
+  for (const p of b.policies) {
+    const u = p.conditions.users, num = +/CA(\d{3})/.exec(p.displayName)[1];
+    const ex = (u.excludeGroups || []).map((g) => gname[g]).sort();
+    const want = [`CAB-SEC-U-SMB-CA${String(num).padStart(3, '0')}-Exclusion`, ...(num === 901 ? [] : ['CAB-SEC-U-BreakGlass'])].sort();
+    assert.deepEqual(plain(ex), want, p.displayName);
+    const everyoneEverywhere = (u.includeUsers || []).includes('All') && (p.conditions.applications.includeApplications || []).includes('All');
+    assert.deepEqual(plain((u.excludeRoles || []).slice().sort()), everyoneEverywhere ? SYNC.slice().sort() : [], `${p.displayName}: sync roles`);
+    // guests are out where they cannot comply (registration, compliant network)
+    const guestsOut = !!u.excludeGuestsOrExternalUsers;
+    assert.equal(guestsOut, [6, 201, 202, 203, 204].includes(num), `${p.displayName}: guests`);
+    // nobody is excluded by user id — ids never travel between tenants
+    assert.deepEqual(plain(u.excludeUsers), [], p.displayName);
+  }
+});
+
+test('32817 CA901 asks for a passkey — the passkey combination, synced or device-bound as the profile allows', () => {
+  const { S } = world();
+  const b = S.bundle();
+  const p = b.policies.find((x) => x.displayName.startsWith('CA901'));
+  assert.equal(p.displayName, 'CA901-GRANT-SMB-BreakGlass-AnyApp-AnyPlatform-Passkey-v1.0.1');
+  const st = b.authStrengths.find((x) => x.id === p.grantControls.authenticationStrength.id);
+  assert.equal(st.displayName, 'SMB - Passkey (FIDO2)');
+  assert.deepEqual(plain(st.allowedCombinations), ['fido2']);
+});
+
+test('32817 under SMB Basic the CA-number blocks are its sections — in the Policies list and the gap matrix', () => {
+  const ls = new Map();
+  const box = { console: { log() {}, warn() {}, error() {} }, Set, Map, JSON, Date, Math, structuredClone, encodeURIComponent, decodeURIComponent,
+    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) }, document: { dispatchEvent() {}, createElement: () => ({}) }, CustomEvent: class {} };
+  vm.createContext(box);
+  const src = ['render.js', 'baselineData.js', 'baselineJoeyData.js', 'baselineSmbData.js', 'baseline.js'].map((f) => read(f)).join('\n;\n');
+  vm.runInContext(`${src}\n;globalThis.R = Render; globalThis.B = Baseline;`, box);
+  const { R, B } = box;
+  const smbName = 'CA201-BLOCK-SMB-Users-AnyApp-Windows-OutsideCompliantNetwork-v1.0';
+  assert.match(R.caGroup(smbName).label, /^Internals/, 'not active: the CloudFellows persona');
+  B.setActive('smb');
+  assert.equal(R.caGroup(smbName).label, 'Compliant network (CA200–CA299)');
+  assert.equal(R.caGroup('CA901-GRANT-SMB-BreakGlass-AnyApp-AnyPlatform-Passkey-v1.0').label, 'Break-glass (CA900–CA999)');
+  assert.equal(R.caGroup('CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1.0').label, 'Base (CA000–CA099)');
+  assert.match(R.caGroup('CA215-BLOCK-Internals-CN-AllApps-Windows-v3.0.4').label, /^Internals/, 'a name SMB does not claim keeps its persona');
+});
+
+test('32817 gap matrix under SMB Basic: sections, not CloudFellows personas — no "Internals: missing MFA", no compliant-device ask for admins', () => {
+  const run = (active) => {
+    const box = { console: { log() {}, warn() {}, error() {} }, Set, Map, JSON, Math, Date, Array, Object, Number, String, RegExp, Error,
+      Render: { caGroup }, Brand: { generatedBy: () => '' }, toolHead: () => '',
+      Baseline: { activeCatalogId: () => active } };
+    vm.createContext(box);
+    vm.runInContext(`${read('gapcheck.js')}\n;globalThis.G = GapCheck;`, box);
+    const { S } = world();
+    const raws = S.bundle().policies.map((p, i) => ({ ...p, id: `p${i}`, state: 'enabled' }));
+    return box.G.run(raws, {});
+  };
+  const smb = run('smb');
+  assert.deepEqual(plain(smb.personas.map((p) => p.label || p.persona || p.id)).length, 4);
+  const titles = smb.findings.map((f) => f.title);
+  assert.equal(titles.some((t) => /Internals: missing/.test(t)), false);
+  assert.equal(titles.some((t) => /missing Compliant device/.test(t)), false);
+  const cf = run('limonit');
+  assert.ok(cf.findings.some((f) => /Internals: missing/.test(f.title)), 'under CloudFellows the persona matrix is unchanged');
+});
+
+test('32817 a tenant on 1.0: the eight changed policies read Outdated, and Match & replace brings the sync-role exclusion along', async () => {
+  const w = world();
+  const v10 = (n) => n.replace(/-v1\.0\.1$/, '-v1.0').replace('-Passkey-', '-FIDO2-');
+  const tenant = w.S.bundle().policies.map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
+  for (const t of tenant) { delete t.conditions.users.excludeRoles; t.state = 'enabledForReportingButNotEnforced'; w.pols.set(t.id, t); }
+  const r = w.B.compare(tenant.map((t) => ({ id: t.id, name: t.displayName })), 'smb');
+  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'outdated').map((x) => x.num).sort((a, b) => a - b)), [1, 2, 3, 201, 202, 203, 204, 901]);
+  assert.equal(r.rows.filter((x) => x.status === 'ok').length, 7);
+  const prepared = w.I.prepareBundle(w.S.bundle());
+  const chosen = w.I.plan(prepared, tenant).filter((p) => p.upgrade && p.num === 1);
+  assert.equal(chosen.length, 1);
+  const scoped = w.I.scopeBundle(prepared, chosen.map((p) => p.raw));
+  const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((p) => p.name) });
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'replace' });
+  assert.equal(res.results[0].ok, true, res.results[0].error);
+  const made = [...w.pols.values()].find((p) => p.displayName === 'CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1.0.1');
+  assert.deepEqual(plain(made.conditions.users.excludeRoles.slice().sort()), ['a92aed5d-d78a-4d16-b381-09adb37eb3b0', 'd29b2b05-8046-44ba-8758-1e26182fcf32']);
 });

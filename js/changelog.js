@@ -29,6 +29,21 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32902, date: "2026-10-19", title: "SMB Basic 1.0.1, and an import that does not stop half-way",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "SMB Basic CA901 asks the break-glass accounts for a passkey: a security key, a passkey in Microsoft Authenticator, or a synced passkey when the Passkey (FIDO2) profile that targets them allows synced passkeys. The strength is now SMB - Passkey (FIDO2)." },
+      { kind: "fixed", tool: "Baseline", text: "The SMB Basic policies that reach every user on every resource (CA001 to CA003 and the four compliant-network policies) now leave out the directory sync accounts, as security defaults does. Without it the sync server, which runs no Global Secure Access client, would be blocked once those policies are On." },
+      { kind: "improved", tool: "Import", text: "The eight changed SMB Basic policies are version 1.0.1, so a tenant that imported 1.0 sees them as Outdated on the Baseline screen. Match and replace updates them in place and now also brings excluded roles along, not only exclusion groups." },
+      { kind: "improved", tool: "Policies", text: "Under SMB Basic the policy list groups its policies by section: Base, Admins, Compliant network and Break-glass." },
+      { kind: "improved", tool: "Best-practice checks", text: "Under SMB Basic the persona coverage matrix asks each section for what it is for. It no longer reports Internals missing MFA for the compliant-network policies, or admins missing a compliant device." },
+      { kind: "new", tool: "Import", text: "Pre-flight at the top of every import, read before anything is written: policies already in the tenant, this baseline's policies that are there and Off (with a tick to set them Report-only), a policy that is there twice, room for the new ones, authentication strengths and their limit, named locations, Global Secure Access signalling, the break-glass group and its members, and the Passkey (FIDO2) method. Anything marked as blocking holds Import until it is fixed." },
+      { kind: "fixed", tool: "Import", text: "A policy that was created and read back but whose state Conditional Access was not ready for (it answered that the policy did not exist yet) is no longer left Off: the state is tried again, and once more at the end of the run. On the 19 October SMB Basic run six policies stayed Off for this reason." },
+      { kind: "fixed", tool: "Import", text: "A policy is never created twice. Every run re-reads the policy names, including the compliant-network policies that Graph v1.0 leaves out, and remembers what it created in this session, so a second run straight after the first skips what the first one made instead of making it again." },
+      { kind: "improved", tool: "Import", text: "A custom authentication strength with exactly the same methods as one the tenant has is reused instead of created again, and a strength or named location that could not be created stops only the policy that needs it, with the reason, before that policy is created." },
+      { kind: "fixed", tool: "Import", text: "Under SMB Basic the import no longer offers to add the six E-Admins policies: its own admin and break-glass policies cover them." },
+    ],
+  },
+  {
     build: 32901, date: "2026-10-19", title: "Production is build 328 (v2.0.6)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 328, ENCA v2.0.6, from the 01 Conditional Access and 03 Entra Tools orders of 19 October: App access review, Entra device cleanup, SMB Basic, security defaults to a baseline, Global Secure Access from setup to go-live (tenant restrictions v2, the macOS and Windows chains, the go-live checks, Monitor), the CA215 to CA218 Global Secure Access block and the sign-in card's Cloud Shell steps. Queue items 336 to 341 and 343 to 353 are out of the queue; 354 and 355 stay, with everything PIM-buddy." },
