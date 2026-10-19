@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32809, date: "2026-10-19", title: "Global Secure Access: a remediation outside the licence is your choice",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "On Business Premium the Windows lane no longer reads blocked by the licence. Remediations are not part of that licence, but Intune runs them when they are switched on — the lane now says so as a warning and leaves the choice to you; whether the devices connect decides the lane. Replace with the platform script stays available as the route inside the licence, and on a tenant with nothing deployed yet a remediation is offered beside the platform script." },
+    ],
+  },
+  {
     build: 32808, date: "2026-10-19", title: "Global Secure Access: the profile's app out of My Apps",
     items: [
       { kind: "new", tool: "Global Secure Access", text: "Hide the Microsoft traffic profile's app from My Apps: everybody assigned to the profile sees its app as a tile in My Apps and the Microsoft 365 app launcher, and the tile opens nothing useful. Step 3 now says whether the tile shows, and Hide from My Apps sets Visible to users to No on that app — the assignment, the traffic and the client stay as they are. Show again brings it back." },

@@ -268,9 +268,11 @@ test("32524/32525 devcf (read 14 Oct, every link live): the chain as the board s
   assert.strictEqual(m.links.find((l) => l.k === "licence").note, "4 of 4 used");
   assert.match(m.links.find((l) => l.k === "profile").note, /enabled · 1 group assigned/);
   assert.strictEqual(raw.healthScripts[0].assignments[0].runRemediationScript, false, "what Graph returns — the portal shows remediation on");
-  // 0.11.0: devcf holds no Windows Enterprise licence — the remediation cannot run, so the lane offers
-  // the platform script; the detect-only reading is still no signal (no fix is offered BECAUSE of it)
-  assert.strictEqual(m.links.find((l) => l.k === "client").fix, "winswap");
+  // 0.13.1: devcf holds no Windows Enterprise licence — the remediation is outside the licence, which is the
+  // admin's choice (Mihai: it can be enabled and works), so no fix is pushed; Replace… stays an option.
+  // The detect-only reading is still no signal (no fix is offered BECAUSE of it)
+  assert.strictEqual(m.links.find((l) => l.k === "client").fix, null);
+  assert.ok(m.links.find((l) => l.k === "client").lanes.windows.actions.some((a) => a.fix === "winswap" && !a.primary));
   assert.doesNotMatch(m.links.find((l) => l.k === "client").note, /DETECT ONLY/);
   assert.match(m.verdict.p, /Blocked at step 6 — GSA client/);
   assert.strictEqual(Gsa.defaultSel(m), "client");
@@ -566,14 +568,20 @@ test("32708 B4: remediations need Windows Enterprise; Business Premium gets the 
   const r = Gsa.demo(); r.skus = bp;
   const c = Gsa.model(r, []).links.find((l) => l.k === "client");
   assert.strictEqual(c.fix, "winscript");
-  assert.match(c.sub, /remediations are not licensed/);
-  // a remediation already there on Business Premium is said, red
+  assert.match(c.sub, /remediations are not part of the licence/);
+  // 0.13.1: …and a remediation is offered beside it, outside the licence, the admin's choice
+  assert.ok(c.lanes.windows.actions.some((a) => a.fix === "winrem" && !a.primary && /your choice/.test(a.title)));
+  // a remediation already there on Business Premium is a warning, never red (0.13.1)
   const r2 = okRaw({ skus: bp });
   const c2 = Gsa.model(r2, []).links.find((l) => l.k === "client");
-  assert.strictEqual(c2.win.st, "bad");
+  assert.strictEqual(c2.win.st, "warn");
+  assert.match(c2.sub, /using it outside the licence is your choice/);
+  const lic2 = c2.lanes.windows.stages.find((x) => x.k === "Licence");
+  assert.deepStrictEqual([lic2.st, /your choice/.test(lic2.sub)], ["warn", true]);
+  assert.strictEqual(c2.lanes.windows.st, "ok", "the devices are seen — the licence never decides the lane");
   assert.match(c2.sub, /remediations need Windows Enterprise E3\/E5, Education A3\/A5 or VDA/);
   assert.match(Gsa.render(Gsa.model(r2, []), { sel: "client" }), /this tenant holds Windows Business \(Business Premium\)/);
-  assert.strictEqual(c2.fix, "winswap", "0.11.0: the remediation that cannot run hands its groups to the platform script");
+  assert.strictEqual(c2.fix, null, "0.13.1: Replace… is offered, never pushed");
 });
 
 test("32708 S1: a found but unassigned remediation, any release tag, is the one the fix assigns", () => {
@@ -671,10 +679,13 @@ const actKeys = (L) => L.actions.map((a) => a.fix || (a.groups ? "groups" : a.ju
 test("0.11.0 Limon-IT: nothing seen through GSA — both lanes red, each with its own actions", () => {
   const m = Gsa.model(limonIt(), []), c = m.links.find((l) => l.k === "client"), W = c.lanes.windows, M = c.lanes.macOS;
   assert.strictEqual(c.st, "bad");
-  assert.deepStrictEqual([W.st, W.word, W.fix, c.fix], ["bad", "blocked · licence", "winswap", "winswap"]);
+  // 0.13.1: the licence is a warning and the admin's choice — Connected decides the lane, Replace… is optional
+  assert.deepStrictEqual([W.st, W.word, W.fix, c.fix], ["bad", "not connected", null, null]);
   assert.deepStrictEqual(actKeys(W), ["winswap", "groups", "scope-win"]);
-  const allowed = W.stages.find((s) => s.k === "Allowed to run");
-  assert.match(allowed.text, /this tenant holds Windows Business \(Business Premium\)/);
+  const allowed = W.stages.find((s) => s.k === "Licence");
+  assert.strictEqual(allowed.st, "warn");
+  assert.match(allowed.text, /^Not in the licence — .*this tenant holds Windows Business \(Business Premium\)/);
+  assert.match(allowed.sub, /using it outside the licence is your choice/);
   assert.match(allowed.sub, /detect-only/);
   assert.deepStrictEqual(W.stages.find((s) => s.gate), { k: "Connected", gate: true, st: "bad", text: "0 of 1 Windows device seen through GSA in the last 7 days" });
   assert.deepStrictEqual([M.st, M.word], ["bad", "deployed · not connected"]);
