@@ -285,9 +285,10 @@ const EncaConn = (() => {
         : SHIPPED.clientId ? `⚙ Sign in with another login (another tenant, your own registration)` : `⚙ Your organisation's ENCA login`;
       $("connForget").style.display = c ? "" : "none";
       $("connEdit").style.display = c ? "" : "none";
-      // A non-default choice is never hidden behind a closed fold, and neither
-      // is the panel when it is the only way in.
-      if (c || !SHIPPED.clientId) box.setAttribute("open", "");
+      // Open only when it is the only way in (no login at all). A saved
+      // connection leaves it collapsed: the summary line above already says
+      // which login is selected, and saving one reloads the page.
+      if (!c && !SHIPPED.clientId) box.setAttribute("open", "");
     }
 
     function paintPicker() {

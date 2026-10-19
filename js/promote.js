@@ -175,6 +175,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 351,
+      ws: "platform",
+      title: "🔐 Sign-in card: the ⚙ login panel stays collapsed once a login is saved",
+      tools: ["Sign-in"],
+      builds: [32814],
+      risk: "low",
+      what: "js/connection.js paintCurrent: the details element #loginConn is opened only when there is no saved connection and this copy ships no login (!c && !SHIPPED.clientId). Before, any saved connection opened it on every load. The summary line (Signing in as NAME — change) already carries the answer. Saving a connection still reloads the page.",
+      why: "Mihai, 19 Oct: on the logon screen, after adjusting the new create-app-registration section and saving, the panel should always be collapsed instead of expanded.",
+      carveout: "None: js/connection.js is the same on main apart from the route text; port the one condition.",
+      test: [
+        "Beta, a private window, no saved connection and no shipped login: the ⚙ panel is open (it is the only way in).",
+        "Beta: ＋ Add a connection, Save — the page reloads and the panel is closed, the title line reads Signing in as NAME — change; click it and the panel opens with the connection selected.",
+        "Beta: ⚙ Forget the connection with a shipped login present — the panel stays closed after the reload.",
+      ],
+    },
+    {
       n: 350,
       ws: "entra",
       title: "🌐 Global Secure Access — Windows install and configuration as two deployments; Split for the combined script (T56 0.15.0)",

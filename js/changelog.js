@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32814, date: "2026-10-19", title: "Sign-in card: the login panel stays closed once a login is saved",
+    items: [
+      { kind: "fixed", tool: "Sign-in", text: "After you saved a connection under the ⚙ control on the sign-in card, the panel came back OPEN on every visit. It now stays closed: its title line already says which login you sign in with (Signing in as NAME — change). It opens by itself only when this copy has no login at all, because then it is the only way in." },
+    ],
+  },
+  {
     build: 32813, date: "2026-10-19", title: "Global Secure Access: Windows install and configuration as two deployments",
     items: [
       { kind: "improved", tool: "Global Secure Access", text: "The Windows install remediation and install script now only install the Global Secure Access client. The install remediation runs every hour by default." },
