@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-10-12T04:44:00.786Z",
+ "generated": "2026-10-19T04:33:38.953Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "ac77894020",
+  "head": "b585282831",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -14,13 +14,41 @@
   ]
  },
  "counts": {
-  "docs": 18,
+  "docs": 15,
   "newDocs": 1,
-  "substantive": 14,
+  "substantive": 11,
   "watched": 16,
   "unwatched": 5
  },
  "docs": [
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-risks",
+   "path": "docs/id-protection/concept-identity-protection-risks.md",
+   "title": "What are risk detections?",
+   "kind": "changed",
+   "lastChange": "2026-10-15T15:43:30-04:00",
+   "lines": 6,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "2d2e626c16",
+     "date": "2026-10-15T15:43:30-04:00",
+     "subject": "Update atypical travel detection table",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "f6b02dd237",
+     "date": "2026-10-15T15:28:07-04:00",
+     "subject": "Update atypical travel detection details",
+     "add": 2,
+     "del": 2,
+     "bulk": false
+    }
+   ]
+  },
   {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-enforcement-resource-exclusions",
    "path": "docs/identity/conditional-access/concept-enforcement-resource-exclusions.md",
@@ -354,102 +382,6 @@
      "add": 1,
      "del": 1,
      "bulk": true
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-apple",
-   "path": "docs/identity/conditional-access/deployment-guide-token-protection-apple.md",
-   "title": "Token Protection Deployment Guide - Apple Platforms",
-   "kind": "changed",
-   "lastChange": "2026-08-18T14:37:01-07:00",
-   "lines": 28,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "fbfb7815a5",
-     "date": "2026-08-18T14:37:01-07:00",
-     "subject": "Update Platform SSO configuration instructions",
-     "add": 2,
-     "del": 2,
-     "bulk": false
-    },
-    {
-     "sha": "c13a041750",
-     "date": "2026-08-14T12:03:35-07:00",
-     "subject": "Update Apple token protection guidance for GA",
-     "add": 8,
-     "del": 16,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-guests-mfa-strength",
-   "path": "docs/identity/conditional-access/policy-guests-mfa-strength.md",
-   "title": "Conditional Access - Authentication strength for external users",
-   "kind": "changed",
-   "lastChange": "2026-08-15T09:19:00-04:00",
-   "lines": 2,
-   "bulkOnly": false,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "a7e4516e6b",
-     "date": "2026-08-15T09:19:00-04:00",
-     "subject": "Update policy-guests-mfa-strength.md",
-     "add": 1,
-     "del": 1,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies",
-   "path": "docs/id-protection/concept-identity-protection-policies.md",
-   "title": "Microsoft Entra ID Protection risk-based access policies",
-   "kind": "changed",
-   "lastChange": "2026-08-14T16:13:02-04:00",
-   "lines": 4,
-   "bulkOnly": false,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "39cb88eb19",
-     "date": "2026-08-14T16:13:02-04:00",
-     "subject": "Update attacker-added device remediation details",
-     "add": 1,
-     "del": 1,
-     "bulk": false
-    },
-    {
-     "sha": "5bb02b95b3",
-     "date": "2026-08-14T12:22:21-04:00",
-     "subject": "Revise attacker-added device risk remediation details",
-     "add": 1,
-     "del": 1,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection",
-   "path": "docs/identity/conditional-access/concept-token-protection.md",
-   "title": "How Token Protection Enhances Conditional Access Policies",
-   "kind": "changed",
-   "lastChange": "2026-08-14T12:03:35-07:00",
-   "lines": 6,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "c13a041750",
-     "date": "2026-08-14T12:03:35-07:00",
-     "subject": "Update Apple token protection guidance for GA",
-     "add": 3,
-     "del": 3,
-     "bulk": false
     }
    ]
   }
