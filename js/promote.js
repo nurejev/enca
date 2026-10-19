@@ -175,6 +175,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 349,
+      ws: "ca",
+      title: "🧬 Baseline catalog — the Global Secure Access block per platform: CA215 Windows, CA216 macOS, CA217 iOS, CA218 Android (T10 2.11.1)",
+      tools: ["Baseline"],
+      builds: [32812],
+      risk: "low",
+      what: "js/baselineData.js: CA215 becomes CA215-BLOCK-Internals-CN-AllApps-Windows-Require Global Secure Access client active-v3.0.4 (was WindowsOrMACOS v3.0.3, exclusions unchanged), and three new NEW entries after it — CA216 macOS, CA217 iOS, CA218 Android, v3.0: include CAB-SEC-U-Persona-Internals, exclude CAB-SEC-U-BreakGlass and their own CAB-SEC-U-CA21x-Exclusion, All resources minus the nine CA215 exclusions (plus MicrosoftDefenderATP XPlat and Microsoft Defender for Mobile TVM on iOS and Android), Any location minus All Compliant Network locations, Block. revised 2026-10-19 with a note. js/groupTemplates.js: templates CAB-SEC-U-CA216-Exclusion to CAB-SEC-U-CA218-Exclusion. Data only, no code.",
+      why: "Mihai, 19 Oct: CA215 covers Windows and macOS, so a token replayed with an iOS or Android user agent passes; split per platform (215 Windows, 216 macOS, 217 iOS, 218 Android) so each goes on by itself. Mobile is BYOD with app protection, no enrolled devices, and the GSA client is required on BYOD too. Built in cloudfellows.dev as (NEW)CA215-CA218 in report-only; the combined (NEW)CA215 WindowsOrMACOS v3.0.3 stays there, Off (Mihai: devcf is the development tenant, off is good). NOT changed: the T56 step 7 builder still pre-fills one combined Windows and macOS CA215 (js/app.js data-gsabuild). Risk low: the catalog drives compare and Import, and Import creates new policies Off or report-only.",
+      test: [
+        "Beta, devcf (cloudfellows.dev), with the combined (NEW)CA215 WindowsOrMACOS v3.0.3 still there, Off: 🧬 Baseline → CloudFellows catalog → Internals: CA215 to CA218 read ok, CA215 matched to the Windows v3.0.4 policy (checked offline 19 Oct with Baseline.compare and entryDiff on the live policies: all four ok, no content difference).",
+        "Beta, devcf: 🧱 Update the catalog → CA215 to CA218 are not offered as changed (the catalog entries equal what the serialiser makes of the tenant policies).",
+        "Beta, a tenant with the old combined CA215 v3.0.3: Baseline reads CA215 outdated (3.0.3 against 3.0.4) and CA216 to CA218 Missing.",
+        "Beta, a tenant without any of them (demo or Limon-IT): Baseline → Internals lists CA215 to CA218 as Missing; Import with them ticked → the plan creates CAB-SEC-U-CA216-Exclusion to CAB-SEC-U-CA218-Exclusion and the four policies, never On.",
+        "Beta, group checks: CAB-SEC-U-CA216-Exclusion to CAB-SEC-U-CA218-Exclusion are expected groups; on devcf they read present.",
+        "node --test tools/*.test.cjs passes.",
+      ],
+    },
+    {
       n: 348,
       ws: "entra",
       title: "🌐 Global Secure Access — the Windows chain, per-device stages and Redeploy; the scripts keep the client's own registry key (T56 0.14.0, 0.14.1)",

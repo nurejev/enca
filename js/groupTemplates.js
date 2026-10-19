@@ -310,6 +310,21 @@ const GROUP_TEMPLATES = [
     "mailNickname": "CABSECUCA214Exclusion"
   },
   {
+    "displayName": "CAB-SEC-U-CA216-Exclusion",
+    "description": "Description of CAB-SEC-U-CA216-Exclusion",
+    "mailNickname": "CABSECUCA216Exclusion"
+  },
+  {
+    "displayName": "CAB-SEC-U-CA217-Exclusion",
+    "description": "Description of CAB-SEC-U-CA217-Exclusion",
+    "mailNickname": "CABSECUCA217Exclusion"
+  },
+  {
+    "displayName": "CAB-SEC-U-CA218-Exclusion",
+    "description": "Description of CAB-SEC-U-CA218-Exclusion",
+    "mailNickname": "CABSECUCA218Exclusion"
+  },
+  {
     "displayName": "CAB-SEC-U-CA300-Exclusion",
     "description": "Description of CAB-SEC-U-CA300-Exclusion",
     "mailNickname": "CABSECUCA300Exclusion"

@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32812, date: "2026-10-19", title: "Baseline: Global Secure Access on every platform, one policy each (CA215-CA218)",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "The Global Secure Access block is now one policy per platform in the CloudFellows catalog: CA215 Windows (v3.0.4, it was Windows and macOS together), CA216 macOS, CA217 iOS and CA218 Android. Each blocks every Internals sign-in that does not come through the Global Secure Access client, so each platform can go from report-only to on by itself." },
+      { kind: "new", tool: "Baseline", text: "CA217 and CA218 are built for personal phones with app protection: the client comes with the Microsoft Defender app, so the two Defender apps are excluded and the person can sign in to switch the tunnel on." },
+      { kind: "new", tool: "Baseline", text: "CA216, CA217 and CA218 each have their own exclusion group (CAB-SEC-U-CA216-Exclusion to CAB-SEC-U-CA218-Exclusion), and the group checks and Import create them like the other CAxxx exclusion groups." },
+    ],
+  },
+  {
     build: 32811, date: "2026-10-19", title: "Global Secure Access: the Windows scripts keep the client's own settings",
     items: [
       { kind: "fixed", tool: "Global Secure Access", text: "The Windows install remediation and platform script created the client's registry key with a command that empties it when it already exists, right after installing the client. That wiped the values the client keeps there and could sign it out with a configuration issue. The scripts now only create the key when it is missing. A script deployed before this build is marked red in the Windows chain, and Redeploy is held back until it is replaced." },
