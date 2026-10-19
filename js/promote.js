@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 358,
+      ws: "ca",
+      title: "🏢 SMB Basic 1.0.3: the exclusions matrix from Swiss cheese and MS Learn, CA205 unknown platforms; two false Swiss-cheese findings fixed",
+      tools: ["Baseline", "Best-practice checks"],
+      builds: [33002],
+      risk: "medium",
+      files: ["js/baselineSmbData.js", "js/gapcheck.js", "index.html", "tools/baseline-smb.test.cjs"],
+      what: "js/baselineSmbData.js: CAB-SEC-U-TeamsSharedDevices group (filed GLO), EXCLUDE matrix applied after the adds (shared: CA001, CA003, CA008, CA201-CA204; vm: CA001; defender: CA103, CA203, CA204; directConnect: CA008), applications cloned per policy before the push (cnApps was shared), CA205-BLOCK-SMB-Users-AnyApp-UnknownPlatforms (include all, exclude android iOS windows macOS), catalog 1.0.3, versions 1/3/8/103/201-204/205 at 1.0.3. js/gapcheck.js: break-glass coverage skips a policy that includes the break-glass id; the named-location hygiene skips 3d46dbda (compliant network). index.html: Help Baseline and Import.",
+      why: "Mihai, 19 Oct: also make sure every policy has the right exclusions — see the cheese model and the MS Learn modules in ENCA. Both engines over the 1.0.2 catalog found: shared devices (5 MS Learn checks), Azure VM sign-in, Defender mobile apps, B2B direct connect, platform bypass, plus two false findings in the engine itself.",
+      carveout: "None beyond the usual: the SMB data file ports whole, the gapcheck.js hunks as they are.",
+      test: [
+        "devcf, 🧬 Baseline SMB Basic: release 1.0.3, 18 policies; Import baseline creates CAB-SEC-U-TeamsSharedDevices empty and CA205 Report-only.",
+        "In the portal: CA001 excludes CAB-SEC-U-TeamsSharedDevices and Azure Windows VM Sign-In; CA203 excludes the two Defender apps besides Intune; CA008 excludes B2B direct connect users; CA205 platforms any device except Android, iOS, Windows, macOS.",
+        "🛡 Checks on a tenant holding SMB 1.0.3: Break-glass excluded from all user-targeting policies, Platform-scoped policies covered by an unknown-platform block, no missing named location for CA103 or CA201-CA204; 📘 MS Learn shows only the baseline-scopes and directory-sync findings.",
+        "Report-only impact on CA205 after a day: who signs in from Linux or an unknown platform.",
+      ],
+    },
+    {
       n: 355,
       ws: "platform",
       title: "🚚 Promotion order: shell files are port-by-hunk, not Never port; the after-port checks know 03 is on main",

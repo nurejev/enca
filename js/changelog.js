@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33002, date: "2026-10-19", title: "SMB Basic 1.0.3: the right exclusions on every policy",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "SMB Basic 1.0.3 runs clean through ENCA's own Bypass and Swiss cheese and MS Learn checks. Teams Rooms, phones, panels and Surface Hub (the new group CAB-SEC-U-TeamsSharedDevices) are left out of the controls their resource accounts cannot meet: MFA for all users, the device code block, the unmanaged-desktop session and the compliant network. Azure Windows VM Sign-In is left out of MFA for all users, the Defender mobile apps (they carry the Global Secure Access client on iOS and Android) out of the compliant-network blocks, and B2B direct connect users out of CA008." },
+      { kind: "new", tool: "Baseline", text: "SMB Basic CA205 blocks every sign-in from a platform that is not Android, iOS, Windows or macOS, so nobody steps around the per-platform Global Secure Access policies and CA008 by being none of the platforms they name." },
+      { kind: "fixed", tool: "Best-practice checks", text: "A policy written for the break-glass accounts (it includes their group) is no longer reported as missing the break-glass exclusion, and Microsoft's All Compliant Network locations is no longer reported as a deleted or missing named location." },
+    ],
+  },
+  {
     build: 33001, date: "2026-10-19", title: "Production is build 329 (v2.0.7)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 329, ENCA v2.0.7: SMB Basic 1.0.2 (CA901 passkey, the sync accounts left out, CA005 with the admin portals, CA007 device join, CA008 unmanaged Windows and Mac) and the import that tries a state again, never creates a policy twice and runs a pre-flight. Queue items 356 and 357 are out of the queue; 354 and 355 stay, with everything PIM-buddy." },

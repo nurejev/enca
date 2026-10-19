@@ -26,7 +26,8 @@
 //   BASE  CA001–CA008  replaces security defaults (+ registration, device
 //                      join, unmanaged desktop sessions — 1.0.2)
 //   ADM   CA101–CA104  admins, stricter than security defaults
-//   CN    CA201–CA204  Global Secure Access, per platform (as CA215–CA218)
+//   CN    CA201–CA205  Global Secure Access, per platform (as CA215–CA218),
+//                      and the unknown platforms (1.0.3)
 //   BG    CA901        the break-glass accounts themselves
 // Exclusion groups: CAB-SEC-U-SMB-CAnnn-Exclusion, one per policy.
 // Restricted units: CA-RMAU-SMB-BASE / -ADM / -CN, and the shared
@@ -83,6 +84,14 @@ const BASELINE_SMB = (() => {
   // placeholder group ids: one per name, never written into a tenant
   const gid = (n) => `5b5b0000-0000-4000-8000-${String(n).padStart(12, "0")}`;
   const G_BG = gid(999999);
+  // 1.0.3: Teams Rooms, Teams phones and panels and Surface Hub sign in with
+  // a resource account nobody sits at — the CloudFellows convention's group,
+  // created empty here and filled by 📞 Teams devices (its dynamic rule).
+  const TSD = "CAB-SEC-U-TeamsSharedDevices";
+  const G_TSD = gid(888888);
+  const AZURE_VM_SIGNIN = "372140e0-b3b7-4226-8ef9-d57986796201";   // Azure Windows VM Sign-In
+  const DEFENDER_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";    // MicrosoftDefenderATP XPlat
+  const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";      // Microsoft Defender for Mobile TVM
 
   // The guest-and-external clause: every type, every tenant. Written with
   // the derived type Graph needs on a create (see js/builder.js guestClause).
@@ -102,10 +111,14 @@ const BASELINE_SMB = (() => {
     // 32903 (1.0.2, Mihai 19 Oct, against the guide's Appendix 1 — mockup
     // "ENCA — SMB Basic 1.0.2"): CA005 adds Microsoft Admin Portals; CA007
     // MFA to register or join devices; CA008 unmanaged Windows and Mac
-    5: "1.0.2", 7: "1.0.2", 8: "1.0.2" };
+    5: "1.0.2", 7: "1.0.2", 8: "1.0.2",
+    // 1.0.3 (Mihai 19 Oct: "make sure every policy has the right exclusions —
+    // see the cheese model and the MS Learn modules in ENCA"): the exclusions
+    // matrix below, and CA205 for the unknown platforms
+    1: "1.0.3", 3: "1.0.3", 8: "1.0.3", 103: "1.0.3", 201: "1.0.3", 202: "1.0.3", 203: "1.0.3", 204: "1.0.3", 205: "1.0.3" };
   // the catalog's own release: the newest policy version in it
-  const CATALOG_RELEASE = "1.0.2";
-  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2" };
+  const CATALOG_RELEASE = "1.0.3";
+  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 205: "1.0.3" };
   const add = (num, kind, persona, words, entry, raw) => {
     const version = VERSION[num] || RELEASE;
     const name = `CA${String(num).padStart(3, "0")}-${kind}-SMB-${persona}-${words}-v${version}`;
@@ -203,6 +216,18 @@ const BASELINE_SMB = (() => {
       { conditions: { ...cond(internalButSync(num), { ...cnLoc, ...cnPlatform(plat) }), applications: cnApps }, grantControls: block });
   }
 
+  // 1.0.3 — CA205: the Swiss-cheese hole the per-platform policies leave.
+  // CA201–CA204 (and CA008) are scoped to platforms; a sign-in whose platform
+  // Entra cannot tell (a spoofed or unknown user agent, Linux, ChromeOS) is in
+  // none of them. 🛡 Bypass & Swiss cheese: "platform-scoped policies with no
+  // unknown-platform block". The CloudFellows answer (CA107, CA204, CA1004):
+  // any device except Android, iOS, Windows and macOS is blocked. Lands as
+  // the run lands — it waits for nothing.
+  add(205, "BLOCK", "Users", "AnyApp-UnknownPlatforms",
+    { persona: "🔒 Compliant network", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources", network: "Any network or location", conditions: ["Platforms: Any device (excl. Android, iOS, Windows, macOS)", "Client apps: Any client app"], grant: "Block access", block: true, session: "",
+      description: "Blocks every sign-in from a platform that is not Android, iOS, Windows or macOS — Linux, ChromeOS and an unknown or spoofed platform — so nobody steps around CA201–CA204 and CA008 by being none of the platforms they name. Check the Report-only results for Linux users before it goes On." },
+    { conditions: cond(internalButSync(205), { platforms: { includePlatforms: ["all"], excludePlatforms: ["android", "iOS", "windows", "macOS"] } }), grantControls: block });
+
   // BG — the emergency accounts
   // Mihai, 19 Oct (on the beta site): "the ca901 change to a passkey. may also
   // be sync passkey". A strength allows METHODS; whether a synced passkey
@@ -213,6 +238,51 @@ const BASELINE_SMB = (() => {
     { persona: "🚨 Break-glass", include: [`${BG} (group)`], exclude: [`${excl(901)} (group)`], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Authentication strength: SMB - Passkey (FIDO2)", block: false, session: "",
       description: "The break-glass accounts sign in with a passkey and nothing else — a security key, a passkey in Microsoft Authenticator, or a synced passkey when the Passkey (FIDO2) profile that targets them allows synced passkeys. Excluded from every other SMB policy. Keep it Report-only until both accounts have a passkey registered — no passkey locks the last way in." },
     { conditions: cond(users({ includeGroups: [G_BG] }, [gid(901)])), grantControls: strength(S_PASSKEY) });
+
+  // ---- 1.0.3: the exclusions matrix ----
+  // One place that says who and what each policy leaves out beyond its own
+  // exclusion group and the break-glass group, each line from a check in
+  // ENCA (📘 MS Learn, 🛡 Bypass & Swiss cheese) or a Microsoft Learn page:
+  //   SHARED   Teams Rooms / phones / panels / Surface Hub resource accounts
+  //            cannot do MFA, a sign-in frequency, a persistent-browser
+  //            setting, a device-code block (Teams Android remote sign-in) or
+  //            run the Global Secure Access client (teams-rooms-mfa,
+  //            surface-hub-mfa, device-code-teams-android,
+  //            signin-freq-teams-rooms, shared-device-unsupported)
+  //   VM       Azure Windows VM Sign-In: MFA over RDP needs WHfB or FIDO2 on
+  //            the connecting client (azure-vm-signin-mfa; CloudFellows CA000)
+  //   DEFENDER the Defender mobile app carries the Global Secure Access client
+  //            on iOS and Android and must reach its service from anywhere
+  //            (defender-mobile-exclusion; Learn, compliant network, Mobile
+  //            app support) — the admins' CA103 too, it is any platform
+  //   DC       B2B direct connect users: sign-in frequency and persistent
+  //            browser are not supported for them (dc-unsupported-control;
+  //            CloudFellows CA008, CA009)
+  // Not taken over from the CloudFellows CA215–CA218: their extra app
+  // exclusions (Windows Azure Active Directory, My Apps, My Profile …) — Learn
+  // asks only Intune and Intune Enrollment of a compliant-network policy, and
+  // every extra app exclusion is a hole.
+  const EXCLUDE = {
+    shared: [1, 3, 8, 201, 202, 203, 204],
+    vm: [1],
+    defender: [103, 203, 204],
+    directConnect: [8],
+  };
+  for (const p of P) {
+    // cnApps and friends are shared objects: each policy gets its own copy
+    // before anything is pushed into it
+    p.raw.conditions.applications = JSON.parse(JSON.stringify(p.raw.conditions.applications));
+    const u = p.raw.conditions.users, a = p.raw.conditions.applications;
+    const why = [];
+    if (EXCLUDE.shared.includes(p.num)) { u.excludeGroups.push(G_TSD); p.entry.sharedDevices = true; }
+    if (EXCLUDE.vm.includes(p.num)) { a.excludeApplications.push(AZURE_VM_SIGNIN); why.push("Azure Windows VM Sign-In"); }
+    if (EXCLUDE.defender.includes(p.num)) { a.excludeApplications.push(DEFENDER_XPLAT, DEFENDER_TVM); why.push("MicrosoftDefenderATP XPlat", "Microsoft Defender for Mobile TVM"); }
+    if (EXCLUDE.directConnect.includes(p.num)) {
+      u.excludeGuestsOrExternalUsers = { guestOrExternalUserTypes: "b2bDirectConnectUser", externalTenants: { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } };
+      p.entry.exclude = [...(p.entry.exclude || []), "Guests & external users: B2B direct connect"];
+    }
+    if (why.length) p.entry.resources = `${p.entry.resources}${why.map((x) => ` · − ${x}`).join("")}`;
+  }
 
   // ---- the catalog ----
   const cat = {
@@ -227,7 +297,7 @@ const BASELINE_SMB = (() => {
     groupFilterPrefix: "CAB-SEC-U-",
     defaultAuName: "CA-RMAU-SMB-BASE",
     exclusionShape: "CAB-SEC-U-SMB-CAnnn-Exclusion",
-    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA008), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA204) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
+    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA008), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA205) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
     adminRoles: ADMIN_ROLES.map(([id, name]) => ({ id, name })),
     syncRoles: SYNC_ROLES.map(([id, name]) => ({ id, name })),
     personas: [
@@ -240,13 +310,14 @@ const BASELINE_SMB = (() => {
       { key: "global", label: "🌐 All users", group: null },
       { key: "breakglass", label: "🚨 Break-glass", group: BG },
     ],
-    predefined: [BG],
-    groups: [BG, "one CAB-SEC-U-SMB-CAnnn-Exclusion group per policy"],
+    predefined: [BG, TSD],
+    sharedDevicesGroup: TSD,
+    groups: [BG, TSD, "one CAB-SEC-U-SMB-CAnnn-Exclusion group per policy"],
     namedLocations: ["SMB - Allowed countries", "All Compliant Network locations"],
     note: "Needs Entra ID P1 (Microsoft 365 Business Premium includes it). CA103 and CA201–CA204 need Global Secure Access with Conditional Access signalling on — they land Off. CA901 needs the Passkey (FIDO2) method on for the break-glass accounts; allow synced passkeys in its profile if they use one.",
     policies: P.map((p) => ({ num: p.num, name: p.name, version: p.version, tag: p.version === RELEASE || ADDED_IN[p.num] ? "NEW" : "UP", ...p.entry,
       // the CloudFellows entry shape: groups first, then the other exclusions
-      exclude: [`${excl(p.num)} (group)`, ...(p.num === 901 ? [] : [`${BG} (group)`]), ...((p.entry.exclude || []).filter((x) => !/\(group\)$/.test(x)))] })),
+      exclude: [`${excl(p.num)} (group)`, ...(p.num === 901 ? [] : [`${BG} (group)`]), ...(p.entry.sharedDevices ? [`${TSD} (group)`] : []), ...((p.entry.exclude || []).filter((x) => !/\(group\)$/.test(x)))] })),
   };
 
   // ---- the contract (same shape as Joey Verlinden's: catalog first) ----
@@ -271,6 +342,8 @@ const BASELINE_SMB = (() => {
     const n = norm(name);
     if (!n) return null;
     if (n === norm(c.breakGlassGroup)) return "BreakGlass";
+    // the shared-device group is excluded across sections: filed with Base
+    if (n === norm(TSD)) return "GLO";
     const m = EXCL_RE.exec(String(name || "").trim());
     if (!m) return null;
     // only a group this catalog defines — not every number in a range
@@ -289,7 +362,9 @@ const BASELINE_SMB = (() => {
   const nick = (s) => String(s || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 60) || "CAGroup";
   cat.templates = function (c) {
     const out = [{ displayName: c.breakGlassGroup, mailNickname: nick(c.breakGlassGroup), persona: "BreakGlass",
-      description: "Break-glass (emergency access) accounts — excluded from every SMB Basic policy except CA901, which asks them for a passkey. Keep it to the two emergency accounts." }];
+      description: "Break-glass (emergency access) accounts — excluded from every SMB Basic policy except CA901, which asks them for a passkey. Keep it to the two emergency accounts." },
+      { displayName: TSD, mailNickname: nick(TSD), persona: "GLO",
+        description: "Teams Rooms, Teams phones and panels and Surface Hub resource accounts — excluded from the SMB Basic controls they cannot meet (MFA, device-code block, sign-in frequency, persistent browser, the compliant network). Fill it with 📞 Teams devices." }];
     for (const p of c.policies || []) {
       out.push({ displayName: excl(p.num), mailNickname: nick(excl(p.num)), persona: c.personaOfPolicy(c, p.name), policy: p.name,
         description: `Exclusion group for ${p.name} (SMB Basic ${c.release}). Members are exempt from that one policy.` });
@@ -304,6 +379,7 @@ const BASELINE_SMB = (() => {
   // ---- the create bundle ----
   const groupsOf = () => [
     { id: G_BG, displayName: BG, mailNickname: nick(BG), description: cat.templates(cat)[0].description, securityEnabled: true, mailEnabled: false, groupTypes: [] },
+    { id: G_TSD, displayName: TSD, mailNickname: nick(TSD), description: cat.templates(cat)[1].description, securityEnabled: true, mailEnabled: false, groupTypes: [] },
     ...P.map((p) => ({ id: gid(p.num), displayName: excl(p.num), mailNickname: nick(excl(p.num)),
       description: `Exclusion group for ${p.name} (SMB Basic ${CATALOG_RELEASE}). Members are exempt from that one policy.`, securityEnabled: true, mailEnabled: false, groupTypes: [] })),
   ];
