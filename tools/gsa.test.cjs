@@ -139,10 +139,21 @@ test("32520 the Windows remediation: detect, if there, else deploy", () => {
   const d = Gsa.detectScript({});
   assert.match(d, /DisplayName -like 'Global Secure Access Client\*'/);
   assert.match(d, /if \(-not \$app\) \{ Write-Output 'GSA client not installed'; exit 1 \}/);
-  assert.match(d, /installed"\r\nexit 0$/);
+  assert.match(d, /\$MinVersion = '2\.34\.222\.0'/, "32817: the floor is in the script");
+  assert.match(d, /-lt \(ConvertTo-Ver \$MinVersion\)\) \{[^}]*exit 1 \}/, "older than the floor: run the remediation");
+  assert.match(d, /while \(\$n\.Count -lt 4\)/, "three-part DisplayVersion padded to four");
+  assert.doesNotMatch(d, /\[version\]\$app|\[version\]\s*\$app/, "never [version] on the raw DisplayVersion");
+  assert.match(d, /Detection error, not remediating: \$_"; exit 0/, "an unexpected error never starts a reinstall loop");
+  assert.doesNotMatch(d, /Start-Service|Stop-Service|Set-Service/, "service state is reported, never enforced");
+  assert.match(d, /exit 0 \}$/m);
   assert.doesNotMatch(d, /\$want|HideDisableButton/, "settings are the configuration's");
   const r = Gsa.remediationScript({ lock: true, ipv4: true });
-  assert.match(r, /if \(\$app\) \{ Write-Output "GSA client \$\(\$app\.DisplayVersion\) already installed"; exit 0 \}/, "installs only when missing");
+  assert.match(r, /if \(\$app -and \(\(ConvertTo-Ver \$app\.DisplayVersion\) -ge \(ConvertTo-Ver \$MinVersion\)\)\) \{[^}]*exit 0 \}/, "32817: leaves a client at or above the floor alone, upgrades below it");
+  assert.match(r, /TotalHours -lt 6/, "retry guard");
+  assert.match(r, /Get-AuthenticodeSignature/);
+  assert.match(r, /O=Microsoft Corporation/);
+  assert.match(r, /finally \{ Remove-Item \$exe/, "temp installer always removed");
+  assert.match(r, /aka\.ms served a build below the minimum/, "post-install version check");
   assert.match(r, /Architecture -eq 12/);
   assert.match(r, /GlobalSecureAccess-WindowsOnArm/);
   assert.match(r, /Tls12/);
@@ -1246,4 +1257,16 @@ test("32815: no filter is no filter — null, the all-zeros GUID and type none r
   // All devices with the zero-GUID filter is All devices, not "with a filter"
   const allDev = [{ target: { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget", deviceAndAppManagementAssignmentFilterId: ZERO, deviceAndAppManagementAssignmentFilterType: "none" } }];
   assert.strictEqual(Gsa.reach(allDev, scriptAsg, {}).text, "All devices");
+});
+
+test("32817 the install floor: one constant, identical in detection and remediation; the platform script checks the signature", () => {
+  assert.match(Gsa.GSA_MIN_VERSION, /^\d+\.\d+\.\d+\.\d+$/);
+  const f = (t) => (t.match(/\$MinVersion = '([^']+)'/) || [])[1];
+  assert.strictEqual(f(Gsa.detectScript()), Gsa.GSA_MIN_VERSION);
+  assert.strictEqual(f(Gsa.remediationScript()), Gsa.GSA_MIN_VERSION);
+  assert.match(Gsa.windowsScript(), /Get-AuthenticodeSignature/);
+  assert.match(Gsa.remediationBody({}).description, new RegExp(Gsa.GSA_MIN_VERSION.replace(/\./g, "\\.")));
+  // the analyzer still reads the new scripts as an install
+  const c = Gsa.contentSettings(`${Gsa.detectScript()}\n${Gsa.remediationScript()}`);
+  assert.deepStrictEqual([c.role, c.known, c.aka, c.arm, c.wipes], ["install", false, true, true, false]);
 });

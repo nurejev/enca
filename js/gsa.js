@@ -1108,6 +1108,15 @@ const Gsa = (() => {
   const KEEP_KEY = ["# never New-Item -Force on this key: PowerShell would replace it with an empty key and wipe the client's own values", "if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }"];
   const TCP6 = "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters";
   const LOG_LINES = ["$log = \"$env:ProgramData\\GSAInstall\\install.log\"", "New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null", "function Log($m) { Add-Content -Path $log -Value ('{0} - {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) }"];
+  // 32817: the install floor. aka.ms always serves the newest client, so a floor is the tested version: a client
+  // below it is upgraded in place, one at or above it is left alone. Raise it deliberately, after a build has been tried.
+  const GSA_MIN_VERSION = "2.34.222.0";
+  // DisplayVersion is often three-part ('2.34.222') where the client shows four ('2.34.222.0'), and .NET reads
+  // [version]'2.34.222' as LESS than [version]'2.34.222.0' — so both sides are padded to four parts before comparing.
+  const VER_LINES = [
+    "$MinVersion = '" + GSA_MIN_VERSION + "'",
+    "function ConvertTo-Ver([string]$s) { $n = @(($s -split '\\.') | ForEach-Object { if ($_ -match '^\\d+$') { [int]$_ } else { 0 } }); while ($n.Count -lt 4) { $n += 0 }; [version]::new($n[0], $n[1], $n[2], $n[3]) }",
+  ];
   // the walkthrough's install_gsa.ps1: architecture from Win32_Processor, the aka.ms installer, TLS 1.2, quiet, no restart
   const INSTALL_LINES = [
     "# Win32_Processor.Architecture: 9 = x64, 12 = ARM64",
@@ -1116,7 +1125,10 @@ const Gsa = (() => {
     "$exe = Join-Path $env:TEMP 'GlobalSecureAccessClient.exe'",
     "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12",
     "Log \"Downloading $url\"",
-    "Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing",
+    "Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing -TimeoutSec 600",
+    "# 32817: run it only when Microsoft signed it",
+    "$sig = Get-AuthenticodeSignature -FilePath $exe",
+    "if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { Remove-Item $exe -Force -ErrorAction SilentlyContinue; Log \"Signature check failed: $($sig.Status)\"; Write-Output \"GSA installer signature not valid ($($sig.Status)); not run\"; exit 1 }",
     "$p = Start-Process -FilePath $exe -ArgumentList '/quiet', '/norestart' -Wait -PassThru",
     "Remove-Item $exe -Force -ErrorAction SilentlyContinue",
     "Log \"Installer exit code $($p.ExitCode)\"",
@@ -1141,19 +1153,54 @@ const Gsa = (() => {
       "# Runs as SYSTEM, once, as an Intune platform script. Writes no client settings: the configuration script does.",
     ]);
   }
-  // INSTALL — the remediation: detection says installed or not (the walkthrough's detect_gsa.ps1, no version baked in)
+  // INSTALL — the remediation: detection (32817: installed at or above the floor; service state reported, never enforced —
+  // a user may switch the client off with the Disable button on purpose; an unexpected error exits 0, never a reinstall loop)
   function detectScript() {
     return [
-      "# Detect Global Secure Access Client (install) — ENCA T56. Exit 0 = installed; exit 1 = install it.",
-      APP_LOOKUP,
-      "if (-not $app) { Write-Output 'GSA client not installed'; exit 1 }",
-      "Write-Output \"GSA client $($app.DisplayVersion) installed\"",
-      "exit 0",
+      "# Detect Global Secure Access Client (install) — ENCA T56. Exit 0 = installed at or above the minimum; exit 1 = install or upgrade it.",
+      ...VER_LINES,
+      "try {",
+      `  ${APP_LOOKUP}`,
+      "  if (-not $app) { Write-Output 'GSA client not installed'; exit 1 }",
+      "  $svc = (Get-Service -DisplayName 'Global Secure Access*' -ErrorAction SilentlyContinue | ForEach-Object { '{0}={1}' -f ($_.DisplayName -replace '^Global Secure Access\\s*', '' -replace '\\s*Service$', ''), $_.Status }) -join ', '",
+      "  if (-not $svc) { $svc = 'no GSA services found' }",
+      "  if ((ConvertTo-Ver $app.DisplayVersion) -lt (ConvertTo-Ver $MinVersion)) { Write-Output \"GSA client $($app.DisplayVersion) is older than $MinVersion; services: $svc\"; exit 1 }",
+      "  Write-Output \"GSA client $($app.DisplayVersion) installed (minimum $MinVersion); services: $svc\"",
+      "  exit 0",
+      "} catch { Write-Output \"Detection error, not remediating: $_\"; exit 0 }",
     ].join("\r\n");
   }
   // no restart — Intune says never to restart from a remediation. Output stays short: Intune keeps 2,048 characters.
+  // 32817: installs when missing AND upgrades in place below the floor; a 6-hour retry guard (aka.ms serving a build
+  // below the floor must not mean a download every hour); the installed version is read back; the temp installer is
+  // always removed. Writes no client settings. The platform script (windowsScript) stays install-when-missing.
   function remediationScript() {
-    return installBody(["# Remediate Global Secure Access Client (install) — ENCA T56. aka.ms, x64 or ARM64, quiet, no restart. Runs as SYSTEM, 64-bit. Writes no client settings."]);
+    return [
+      "# Remediate Global Secure Access Client (install) — ENCA T56. aka.ms, x64 or ARM64, quiet, no restart; installs when missing, upgrades below the minimum. Runs as SYSTEM, 64-bit. Writes no client settings.",
+      "$ErrorActionPreference = 'Stop'",
+      ...VER_LINES,
+      ...LOG_LINES,
+      "$marker = Join-Path (Split-Path $log) 'last-attempt.txt'",
+      "$exe = Join-Path $env:TEMP 'GlobalSecureAccessClient.exe'",
+      "try {",
+      `  ${APP_LOOKUP}`,
+      "  if ($app -and ((ConvertTo-Ver $app.DisplayVersion) -ge (ConvertTo-Ver $MinVersion))) { Write-Output \"GSA client $($app.DisplayVersion) already at or above $MinVersion\"; exit 0 }",
+      "  $from = if ($app) { \"upgrade from $($app.DisplayVersion)\" } else { 'new install' }",
+      "  if (Test-Path $marker) {",
+      "    $last = [datetime]::Parse((Get-Content $marker -Raw).Trim(), [Globalization.CultureInfo]::InvariantCulture, 'RoundtripKind')",
+      "    if (((Get-Date) - $last).TotalHours -lt 6) { Write-Output \"Install attempted at $last, waiting 6 hours before the next try\"; exit 1 }",
+      "  }",
+      "  Set-Content -Path $marker -Value (Get-Date).ToString('o')",
+      ...INSTALL_LINES.map((l) => `  ${l}`),
+      `  ${APP_LOOKUP}`,
+      "  if (-not $app) { Log 'Installed entry not found after install'; Write-Output 'GSA install finished but the client is not listed'; exit 1 }",
+      "  Log \"Installed version $($app.DisplayVersion)\"",
+      "  if ((ConvertTo-Ver $app.DisplayVersion) -lt (ConvertTo-Ver $MinVersion)) { Write-Output \"GSA client $($app.DisplayVersion) installed, but aka.ms served a build below the minimum $MinVersion\"; exit 1 }",
+      "  Write-Output \"GSA client $($app.DisplayVersion) installed ($from, exit $($p.ExitCode))\"",
+      "  exit 0",
+      "} catch { Log \"Fatal: $_\"; Write-Output \"GSA install failed: $_\"; exit 1 }",
+      "finally { Remove-Item $exe -Force -ErrorAction SilentlyContinue }",
+    ].join("\r\n");
   }
   // CONFIGURE — the remediation's detection: nothing to do until the client is there
   function cfgDetectScript(opts) {
@@ -1210,7 +1257,7 @@ const Gsa = (() => {
   const b64 = (text) => { const bytes = new TextEncoder().encode(text); let s = ""; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); };
   const valsText = (o) => WIN_SET_KEYS.map((k) => `${k} ${valsOf(o)[k]}`).join(", ");
   function remediationBody(opts) {
-    return { "@odata.type": "#microsoft.graph.deviceHealthScript", displayName: (opts && opts.name) || names(opts).rem, description: "Detects the Global Secure Access client and installs it from aka.ms (x64 or ARM64) when it is missing — quiet, no restart. Writes no client settings: the Configure remediation does. Created by ENCA T56.", publisher: "ENCA", runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], detectionScriptContent: b64(detectScript(opts)), remediationScriptContent: b64(remediationScript(opts)) };
+    return { "@odata.type": "#microsoft.graph.deviceHealthScript", displayName: (opts && opts.name) || names(opts).rem, description: "Detects the Global Secure Access client and installs it from aka.ms (x64 or ARM64) when it is missing, or upgrades it in place when it is older than " + GSA_MIN_VERSION + " — Microsoft-signed installer only, quiet, no restart. Writes no client settings: the Configure remediation does. Created by ENCA T56.", publisher: "ENCA", runAsAccount: "system", runAs32Bit: false, enforceSignatureCheck: false, roleScopeTagIds: ["0"], detectionScriptContent: b64(detectScript(opts)), remediationScriptContent: b64(remediationScript(opts)) };
   }
   function cfgRemediationBody(opts) {
     const o = opts || {};
@@ -2071,6 +2118,6 @@ const Gsa = (() => {
   // the demo set has none
   const demoPolicy = () => ({ raw: { id: "d-ca215", displayName: "CA215-BLOCK-Internals-CN-AllApps-WinMac-v1.0", state: "enabledForReportingButNotEnforced", conditions: { users: { includeGroups: ["g-internals"], excludeGroups: ["g-bg"], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [INTUNE_APP, INTUNE_ENROLL] }, locations: { includeLocations: ["All"], excludeLocations: ["loc-cn"] }, platforms: { includePlatforms: ["windows", "macOS"] } }, grantControls: { operator: "OR", builtInControls: ["block"] } } });
 
-  return { realFilter, CFG_FILE, winRole, majorName, settingVals, cfgDetectScript, cfgRemediationScript, cfgScript, cfgRemediationBody, cfgScriptBody, GSA_CLIENT_APP, DNS_SETTINGS, WIN_SET_KEYS, winDnsName, authIndex, runIndex, contentSettings, dnsCheck, winDnsBody, winChain, winChainHtml, b64, appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
+  return { realFilter, GSA_MIN_VERSION, CFG_FILE, winRole, majorName, settingVals, cfgDetectScript, cfgRemediationScript, cfgScript, cfgRemediationBody, cfgScriptBody, GSA_CLIENT_APP, DNS_SETTINGS, WIN_SET_KEYS, winDnsName, authIndex, runIndex, contentSettings, dnsCheck, winDnsBody, winChain, winChainHtml, b64, appTags, MON_PERIODS, MON_LABEL, TRAFFIC_SELECT, verCmp, setupDone, monitor, monLogRows, modeBar, renderMonitor, demoMonitor, ENCA_EXT, SEEN_DAYS, MAC_CHECK_CMDS, scopeOut, scopeRecord, seenIndex, clientLanes, lanesHtml, CN_ID, WIN_ENT_PLANS, winLicence, winCheck, winTable, scopeCheck, verdict, MAC_PATHS: PATHS, macCheck, macFixPlan, macTable, bumpName, sysextAdd, sysextFacts, contentIssues, reach, demoMac, b64dec, preview, defaultSel, LANES, detectScript, remediationScript, remediationBody, remediationAssignment, ZTNA_CLIENT, isBacking, model, macProfiles, proof, render, windowsScript, windowsScriptBody, macScript, macScriptBody, macSysextBody, macSysextSettings, macProxyBody, macProxyPlist, macSettingsBody, macSettingsPlist, MAC_PROFILES, wantProfile, GSA_TEAM, GSA_EXTS, GSA_DOMAIN, FIXES, demo, demoPolicy, cnPolicies, intune, names, relTag, GROUPS, WIN_FILE, MAC_FILE, SCRIPT_NAME, LOCATION_NAME, INTUNE_APP, INTUNE_ENROLL };
 })();
 if (typeof module !== "undefined") module.exports = Gsa;

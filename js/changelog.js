@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32817, date: "2026-10-19", title: "Global Secure Access: the install remediation upgrades an old client and checks what it runs",
+    items: [
+      { kind: "improved", tool: "Global Secure Access", text: "The Windows install remediation no longer stops at installed or not installed. Detection now compares the installed version with a floor (2.34.222.0) and the remediation upgrades an older client in place; a client at or above the floor is left alone. Before this, a Cloud PC that got 2.32.294 kept it for ever while aka.ms moved on. The versions are compared as four numbers, so 2.34.222 and 2.34.222.0 are the same version." },
+      { kind: "improved", tool: "Global Secure Access", text: "The installer is run only when Microsoft signed it (a valid signature from Microsoft Corporation), the installed version is read back afterwards, a failed or too-old install waits 6 hours before the next try instead of downloading every hour, the download times out after 10 minutes, and the temporary installer is always removed. The log is in C:\\ProgramData\\GSAInstall\\install.log. The platform script gets the signature check too; it still installs only when the client is missing." },
+      { kind: "improved", tool: "Global Secure Access", text: "Detection reports the state of the Global Secure Access services in its output but never acts on it: a user may switch the client off with the Disable button on purpose, and an unexpected error in detection leaves the device alone instead of reinstalling. Found on Mihai's new Windows 365 Cloud PC, where the first install left the client with a blank Device ID until it was reinstalled." },
+    ],
+  },
+  {
     build: 32816, date: "2026-10-19", title: "SMB Basic: a third Conditional Access baseline",
     items: [
       { kind: "new", tool: "Baseline", text: "A third catalog in the Baseline picker: SMB Basic, for small tenants on Business Premium. It is security defaults rebuilt as Conditional Access (MFA for everyone and for the 16 admin roles, legacy authentication and the device code flow blocked, MFA for Azure management) plus protected security-info registration, stricter admins (phishing-resistant MFA, 4-hour sessions, the compliant network, allowed countries), Global Secure Access per platform and a FIDO2-only break-glass policy. 15 policies, CA001 to CA901, an exclusion group per policy and a restricted unit per section; the break-glass unit also holds the break-glass accounts. No personas, deploy groups or shared E-Admins." },

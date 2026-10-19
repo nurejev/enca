@@ -175,6 +175,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 354,
+      ws: "entra",
+      title: "🌐 Global Secure Access 0.15.2: the Windows install remediation upgrades an old client and checks the installer",
+      tools: ["Global Secure Access"],
+      builds: [32817],
+      risk: "medium",
+      what: "js/gsa.js: new GSA_MIN_VERSION (2.34.222.0) and VER_LINES (a four-part version compare). detectScript exits 1 when the client is missing or below the floor, reports the GSA service state without acting on it, and exits 0 on an unexpected error. remediationScript installs when missing and upgrades below the floor, with a 6-hour retry guard, the installed version read back and the temp installer removed in a finally. INSTALL_LINES (also the platform script) gets a 600 s download timeout and an Authenticode check (valid, signed by Microsoft Corporation). remediationBody description names the floor. tools/gsa.test.cjs: the 32520 test follows the new scripts, new 32817 test. Existing deployments are not touched: a GSA remediation found in a tenant is reused, never rewritten.",
+      why: "Mihai, 19 Oct: a new Cloud PC (CPC-mihai-FDEEM, Limon-IT) got client 2.32.294 with a blank Device ID, so the forwarding profile stayed empty; an uninstall and the remediation's reinstall gave 2.34.222.0 and a working client. The v2.0 install could never upgrade an old client (detection only asked installed or not) and ran an unchecked installer. The same scripts, as plain files, are in ScriptsAndCode/Intune/Intune-Remediations_scripts/Install-GSA-Client-Windows, tested with a mock harness on PowerShell 7.4.6 (23 of 23, also on the text this generator emits).",
+      carveout: "None: js/gsa.js, the two test and changelog hunks port as they are; promote.js stays beta-only.",
+      test: [
+        "Beta, demo tenant, 03 → 🌐 Global Secure Access → Setup → step 6: open Create Windows install remediation…; Detection shows $MinVersion = '2.34.222.0' and the version compare, Remediation shows the retry guard, Get-AuthenticodeSignature and the version read-back; the Graph request tab description names 2.34.222.0.",
+        "Same workspace, switch to the platform script: it has the signature check and still exits 0 when the client is there.",
+        "Limon-IT, Read: the existing v2.0 install remediation is still reported as the Install client row, unchanged (nothing is rewritten).",
+        "On a Windows test device with the client older than 2.34.222.0 (or after uninstalling it): run the new detection as SYSTEM, it exits 1 and says why; run the remediation, the client installs or upgrades, C:\\ProgramData\\GSAInstall\\install.log shows signed by Microsoft and the installed version, and a second run exits 0 without downloading. Then log off and on: the client signs in by itself.",
+      ],
+    },
+    {
       n: 353,
       ws: "ca",
       title: "🏢 SMB Basic — a third Conditional Access baseline (R91)",
