@@ -43,6 +43,8 @@
     toolPermissions: 'View session permissions, consent and revocation guidance.',
     toolHelp: 'Find guidance, permissions and release information.',
     toolEgress: 'What a different public IP — a cloud proxy such as Netskope, a new line, a VPN — does to every policy with a location condition: today against via the egress, the country looked up in the sign-in log.',
+    toolDeviceCleanup: 'Stale Entra devices in two steps: disable after 30 days without contact, delete after 90 and only what is already disabled — every write read again and read back, the way back included. Ported from TUNO T25.',
+    toolAppAccess: 'Every app that can reach the tenant — what it can do, who let it in, whether it is still used — Tier 0 and endpoint apps first, and per app approve, restrict, reduce, quarantine or remove. App governance for Business Premium.',
     toolGsa: 'Global Secure Access, the Microsoft traffic profile: switched on, assigned, signalling, the compliant network, the client on devices — every link a compliant-network Conditional Access policy needs, and the fixes that live in Entra and Intune.',
   };
   // ---- 32407: the two workspaces ----------------------------------------
@@ -72,10 +74,16 @@
   // Global Secure Access lives only here.
   // 32526 (Mihai, 14 Oct: all temporary tools may be moved to Workspace 03
   // — that is T33 and T34): the dated tools live here only, with T57.
-  const ENTRA_ONLY = new Set(['toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
+  const ENTRA_ONLY = new Set(['toolDeviceCleanup', 'toolAppAccess', 'toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
   const ENTRA_ROSTER = [
     { group: '🧱 Directory objects', tools: [
+      // 32707: T59 Entra device cleanup (from TUNO T25), beside Groups
       { id: 'toolCaGroups', name: 'Groups', blurb: 'Every security group in the tenant with what uses it — Conditional Access policies and Global Secure Access. Opens on All groups; the scope narrows it to one workload.' },
+      { id: 'toolDeviceCleanup', blurb: blurbs.toolDeviceCleanup },
+    ] },
+    // 32804: T60 App access review — the apps and their consent, for tenants without app governance
+    { group: '🔌 Applications', tools: [
+      { id: 'toolAppAccess', blurb: blurbs.toolAppAccess },
     ] },
     { group: '🌐 Global Secure Access', tools: [
       { id: 'toolGsa', blurb: blurbs.toolGsa },
@@ -100,7 +108,7 @@
     pim: { num: '02', name: 'PIM-buddy', betaOnly: true, note: 'On the beta channel — not in this build' },
     entra: { num: '03', name: 'Entra Tools', title: 'Entra Tools overview', context: 'Entra Tools / Workspace 03',
       lead: 'The directory objects every workload leans on — groups first, with what uses each one: Conditional Access and Global Secure Access. 🌐 Global Secure Access starts with the Microsoft traffic profile; Internet Access and Private Access come later. The ⏳ temporary tools — dated retirements and decisions — live here too.',
-      shortcuts: [['toolCaGroups','👥','Groups'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
+      shortcuts: [['toolCaGroups','👥','Groups'],['toolDeviceCleanup','🧹','Devices'],['toolAppAccess','🔑','Apps'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
   };
   const WS_IDS = Object.keys(WORKSPACES).filter((id) => !WORKSPACES[id].betaOnly);
   const switchable = (id) => !!WORKSPACES[id] && !WORKSPACES[id].betaOnly;

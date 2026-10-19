@@ -19,6 +19,12 @@
   let tenantDefaultDomain = "";
   let tenantId = "";        // for the account menu's Copy tenant ID; "" in the demo
   let capabilityCache = null;
+  // 32706 — 🛡 security defaults, read with the policies (js/secdefaults.js):
+  // secDef { enabled: true|false|null, at, error }, secCaps the P1/P2 evidence
+  // read alongside it when the answer needs it, sdBg the break-glass member
+  // count the switch band waits for. All three belong to one policy read.
+  let secDef = null, secCaps = null, sdBg = null;
+  let sdDemoState = null;   // the demo's own security defaults, so a simulated switch sticks for the session
   async function readCapabilities(force = false) {
     const key = `${tenantId}:${isDemo}`;
     if (!force && capabilityCache?.key === key && Date.now() - capabilityCache.at < 60000) return capabilityCache.value;
@@ -2509,6 +2515,14 @@
       showSideNav();
       selected = new Set();
       policiesReadAt = Date.now();
+      // 32706: a tenant on security defaults has no policies — read the
+      // setting with them, so every screen can say WHY the list is empty.
+      // The licences are read only when the answer needs them (on, or no
+      // policies), and a refused read is shown as not known, never as off.
+      secDef = null; secCaps = null; sdBg = null;
+      try { $("loadStatus").textContent = "Reading the security defaults setting…"; } catch {}
+      try { secDef = await SecDefaults.read((u) => Graph.gget(u)); } catch { secDef = null; }
+      if (secDef && (secDef.enabled !== false || !policies.length)) { try { secCaps = await readCapabilities(true); } catch { secCaps = null; } }
       noteSnapshot();
       // the one Overview paint for this snapshot — after the identity and the
       // read time are settled, so the paint is computed from them (25422)
@@ -2571,9 +2585,19 @@
     try { Baseline.use("demo"); } catch {}
     try { CaMap.use("demo"); } catch { /* storage refused; in-memory is fine */ }
     $("anResults").style.display = "none"; $("anStatus").textContent = "";
-    const resolve = (id, map) => (map && map[id]) || DEMO_DATA.names[id] || id;
+    // 32706 — two demo tenants for the security defaults path: ?demo=sd is a
+    // tenant on security defaults with no policies (the empty-tenant card),
+    // ?demo=sdro the same tenant after step ① (the replacing policies
+    // Report-only, the ⇄ switch band). A simulated switch sticks for the session.
+    const dv = new URLSearchParams(location.search).get("demo");
+    const sdDemo = dv === "sd" || dv === "sdro";
+    const sdNames = sdDemo ? SecDefaults.DEMO_NAMES : {};
+    const resolve = (id, map) => (map && map[id]) || sdNames[id] || DEMO_DATA.names[id] || id;
     policyResolve = resolve;
-    policies = DEMO_DATA.policies.map((r, i) => buildViewModel(r, resolve, i));
+    policies = (dv === "sd" ? [] : dv === "sdro" ? SecDefaults.demoPolicies() : DEMO_DATA.policies).map((r, i) => buildViewModel(r, resolve, i));
+    if (sdDemoState == null) sdDemoState = sdDemo;
+    secDef = { enabled: !!sdDemoState, at: Date.now(), error: null };
+    secCaps = sdDemo ? { p1: true, p2: false, intune: true } : null; sdBg = sdDemo ? { key: "demo", n: 2 } : null;
     try { blAutoPick(); } catch (e) { console.warn("baseline match:", e); }
     policiesReadAt = Date.now();
     $("tenantName").textContent = tenantName;
@@ -2596,11 +2620,14 @@
   const SCOPE_INFO = [
     { scope: "Policy.Read.All", use: "Read CA policies, named locations, auth strengths & contexts", tools: "all tools", onDemand: false },
     { scope: "Directory.Read.All", use: "Resolve users/groups/roles/apps to names; expand memberships", tools: "all tools", onDemand: false },
-    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes, the registration-details report, and the sign-in log for CA failures", tools: "Change audit, Sign-in failures, SMS & voice retirement", onDemand: true },
+    { scope: "AuditLog.Read.All", use: "Read the directory audit log for Conditional Access changes, the registration-details report, and the sign-in log for CA failures", tools: "Change audit, Sign-in failures, SMS & voice retirement, App access review (last use, who consented)", onDemand: true },
     { scope: "Agreement.Read.All", use: "Read terms-of-use agreements", tools: "Backup", onDemand: true },
     { scope: "Policy.ReadWrite.ConditionalAccess", use: "Update policy group assignments / state, create policies, manage named locations", tools: "CA groups (assign), Set Policy state, Import, Named locations, MS Learn apply", onDemand: true },
     { scope: "Application.Read.All", use: "Required by Graph to create policies with app conditions", tools: "Import", onDemand: true },
-    { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference", tools: "MS Learn apply", onDemand: true },
+    { scope: "Application.ReadWrite.All", use: "Create service principals for Microsoft apps a policy must reference; write an app’s Notes, switch its sign-in off or on, and delete or restore it", tools: "MS Learn apply, App access review", onDemand: true },
+    { scope: "AppRoleAssignment.ReadWrite.All", use: "Assign a group to an app (Restrict), take an application permission away from an app and give it back", tools: "App access review", onDemand: true },
+    { scope: "DelegatedPermissionGrant.ReadWrite.All", use: "Take delegated permissions — or a user’s own consent — away from an app, and give them back", tools: "App access review", onDemand: true },
+    { scope: "Policy.ReadWrite.ConsentRequest", use: "Switch the admin consent requests (admin consent workflow) on or off, with a group as reviewers", tools: "App access review (Consent settings)", onDemand: true },
     { scope: "Policy.ReadWrite.AuthenticationMethod", use: "Create authentication strengths; configure the Passkey (FIDO2) method", tools: "Import, Checks → Passkeys", onDemand: true },
     { scope: "Group.ReadWrite.All", use: "Create missing persona groups; add members from a CSV", tools: "CA groups (create, import members)", onDemand: true },
     { scope: "AdministrativeUnit.ReadWrite.All", use: "Create/edit administrative units, manage their members", tools: "CA groups (protect), Restricted AUs", onDemand: true },
@@ -2611,6 +2638,7 @@
     { scope: "DeviceManagementConfiguration.Read.All", use: "Read Intune compliance policies, configuration profiles, scripts and update profiles", tools: "User or Group analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementApps.Read.All", use: "Read Intune app assignments, app protection and app configuration policies", tools: "User or Group analyzer, Device reality check", onDemand: true },
     { scope: "DeviceManagementServiceConfig.Read.All", use: "Read Intune enrolment restrictions and Autopilot deployment profiles", tools: "User or Group analyzer", onDemand: true },
+    { scope: "Device.ReadWrite.All", use: "Disable, re-enable and delete stale Entra device objects — Graph also requires the signed-in admin to hold Cloud Device Administrator or Intune Administrator. Reading the devices needs nothing new (Directory.Read.All)", tools: "Entra device cleanup", onDemand: true },
     { scope: "MailboxSettings.Read", use: "Read each mailbox's purpose (user / shared / room / equipment) so never-licensed resource accounts are told apart from real users", tools: "Licence gap", onDemand: true },
     { scope: "DeviceManagementScripts.Read.All", use: "Read Intune PowerShell scripts, macOS shell scripts and remediations — a separate scope, not covered by DeviceManagementConfiguration.Read.All", tools: "User or Group analyzer", onDemand: true },
   ];
@@ -2887,6 +2915,8 @@
     ["toolSmsVoice", "📵 SMS & voice retirement"],
     ["toolMemberOf", "🧷 memberOf retirement"],
     ["toolEgress", "🛰 Egress & location impact"],
+    ["toolDeviceCleanup", "🧹 Entra device cleanup"],
+    ["toolAppAccess", "🔑 App access review"],
     ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Checks"],
@@ -3715,6 +3745,10 @@
   // imEa — the 🚨 E-Admins taken from a CloudFellows backup into this import.
   // imRepair — 🔧 policies already here that point at the file's source ids.
   let imRaw = null, imEa = null, imRepair = null;
+  // 32706 — the state new policies land in: "disabled" (Off, the default) or
+  // "enabledForReportingButNotEnforced"; the security defaults path opens
+  // the import on Report-only, because step ② reads what they would do.
+  let imLand = "disabled";
   // Workload ID licence state for this tenant: { known, licensed, sku }. Read
   // once per file load — a workload-identity policy cannot be created without it.
   let imLic = { known: false, licensed: false, sku: null };
@@ -3724,7 +3758,7 @@
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
     imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
-    imRaw = null; imEa = null; imRepair = null;
+    imRaw = null; imEa = null; imRepair = null; imLand = "disabled";
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -4154,7 +4188,7 @@
     const toCat = imTargetCatalog();
     if (imEa && imEa.added && imEa.added.length) {
       return `<div class="cg-panel">
-        <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED FROM ${esc(String(imEa.label).toUpperCase())}</h4>
+        <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED${imEa.bundled ? " — CREATED FROM ENCA'S OWN COPY" : ` FROM ${esc(String(imEa.label).toUpperCase())}`}</h4>
         <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
       </div>`;
     }
@@ -4162,15 +4196,52 @@
     if (imPlan.some((p) => p.asIs)) return "";
     const shared = (typeof Baseline !== "undefined" && Baseline.sharedPolicies && toCat) ? Baseline.sharedPolicies(toCat) : [];
     const cf = Baseline.catalog("limonit");
+    // 32706 (Mihai: "read those configs and add a create button for those
+    // instead of import"): ENCA ships the six itself (js/eadminsData.js, read
+    // from cloudfellows.dev), so CREATE is the button and a backup ZIP is
+    // only the way to bring a newer copy than the one ENCA carries.
+    const nEa = typeof E_ADMINS !== "undefined" ? E_ADMINS.count : 0;
     return `<div class="cg-panel">
       <h4>🚨 E-ADMINS — NOT IN THIS FILE</h4>
-      <p class="mini" style="margin:0 0 8px">The emergency-access policies${shared.length ? ` (${shared.length}: ${esc(shared.map((p) => `CA${p.num}`).join(", "))})` : ""} are expected under every baseline, and only a CloudFellows backup ships them. Add them to this import from one: only the E-Admins policies and the groups, locations and authentication strengths they use are taken${toCat && cf && toCat.breakGlassGroup && cf.breakGlassGroup && toCat.breakGlassGroup !== cf.breakGlassGroup ? `, the break-glass group becomes ${esc(toCat.label)}'s (<code>${esc(toCat.breakGlassGroup)}</code>)` : ""}, and they land <b>Off</b>.</p>
+      <p class="mini" style="margin:0 0 8px">The emergency-access policies${shared.length ? ` (${shared.length}: ${esc(shared.map((p) => `CA${p.num}`).join(", "))})` : ""} are expected under every baseline. ENCA carries its own copy${typeof E_ADMINS !== "undefined" ? ` (${esc(E_ADMINS.source.tenant)}, read ${esc(E_ADMINS.source.read)})` : ""}: Create adds them to this import with the groups and the authentication strength they use${toCat && cf && toCat.breakGlassGroup && cf.breakGlassGroup && toCat.breakGlassGroup !== cf.breakGlassGroup ? `, the break-glass group becomes ${esc(toCat.label)}'s (<code>${esc(toCat.breakGlassGroup)}</code>)` : ""}, and they land <b>Off</b>.</p>
       ${imEa && imEa.error ? `<p class="mini" style="margin:0 0 8px;color:var(--off)">${esc(imEa.error)}</p>` : ""}
-      <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
-        <button class="btn sm" id="imEaZip">＋ E-Admins from a CloudFellows backup ZIP</button>
-        <button class="btn sm" id="imEaFolder">＋ from an extracted backup folder</button>
+      <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap;align-items:center">
+        ${nEa ? `<button class="btn sm primary" id="imEaCreate">＋ Create the ${nEa} E-Admins policies</button>` : ""}
+        <span class="mini muted">or take a newer copy from</span>
+        <button class="btn sm" id="imEaZip">a CloudFellows backup ZIP</button>
+        <button class="btn sm" id="imEaFolder">an extracted backup folder</button>
       </div>
     </div>`;
+  }
+  // 32706 — the six E-Admins from ENCA's own copy (js/eadminsData.js), through
+  // the same Importer.mergeShared() a backup ZIP goes through: break-glass
+  // group renamed to the target baseline's, forced Off. `auto` is the Joey
+  // path (Mihai: "those need to be created when choosing joey"): quiet when
+  // there is nothing to add, and never over a file that ships its own.
+  async function imEaAddBundled(opts = {}) {
+    if (!imRaw || !imPlan || typeof E_ADMINS === "undefined") return;
+    if (opts.auto && imPlan.some((p) => p.asIs)) return;
+    const label = E_ADMINS.source.label;
+    try {
+      const toCat = imTargetCatalog();
+      const cf = Baseline.catalog("limonit");
+      const m = Importer.mergeShared(imRaw, E_ADMINS.bundle(), { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
+      if (!m.added.length) { if (!opts.auto) toast("The E-Admins policies are already in this import"); return; }
+      const keep = new Set([...document.querySelectorAll("[data-imp]:checked")].map((cb) => imPlan[+cb.dataset.imp].name));
+      // only what the tenant does not already hold is ticked — the plan marks
+      // the rest skip, and an auto-add must never re-tick what was unticked
+      m.added.forEach((n) => keep.add(n));
+      imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed, bundled: true };
+      const keepLand = imLand;
+      await imLoaded(m.bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins from ENCA's own copy`, { mode: imMode, only: keep });
+      imLand = keepLand;
+      const r = document.querySelector(`input[name="imLand"][value="${imLand}"]`); if (r) r.checked = true;
+      toast(`<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} added from ENCA's own copy — they land Off`);
+    } catch (err) {
+      console.error(err);
+      imEa = { label, error: `Could not add the E-Admins: ${err.message || err}` };
+      imRenderList();
+    }
   }
   function imEaPick(folder) {
     if (!imRaw) return;
@@ -4408,7 +4479,13 @@
         Buy or trial the licence, then re-import; nothing else has to be redone.</div>` : ""}
       ${nWid && imLic.known && imLic.licensed ? `<p class="mini" style="margin:8px 0">✅ Workload ID licence found${imLic.sku ? ` (<b>${esc(imLic.sku)}</b>)` : ""} — the ${nWid} workload-identity ${nWid === 1 ? "policy" : "policies"} can be imported.</p>` : ""}
       ${nWid && !imLic.known ? `<p class="mini" style="margin:8px 0">⚠ Could not read the tenant's licences, so the ${nWid} workload-identity ${nWid === 1 ? "policy is" : "policies are"} attempted anyway — a 400 on those means the Workload ID licence is missing.</p>` : ""}
-      <p class="mini" style="margin:8px 0">Dependencies are imported first (create-if-missing). Policies always land in state <b>Off</b>, and one with the same CA number + version is skipped.${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
+      <div class="im-land" role="radiogroup" aria-label="State new policies land in">
+        <span class="mini"><b>Land new policies as</b></span>
+        <label class="chk" style="margin:0"><input type="radio" name="imLand" value="disabled" ${imLand !== "enabledForReportingButNotEnforced" ? "checked" : ""}> Off</label>
+        <label class="chk" style="margin:0"><input type="radio" name="imLand" value="enabledForReportingButNotEnforced" ${imLand === "enabledForReportingButNotEnforced" ? "checked" : ""}> Report-only</label>
+        <span class="mini muted">${secDef && secDef.enabled === true ? "On is not offered: security defaults is on in this tenant, and Entra will not turn a policy On until it is off (⇄ on the 🧬 Baseline screen does that)." : "On is never offered here — a policy goes On after you have read what it would do."} 🚨 E-Admins taken from another file always land Off.</span>
+      </div>
+      <p class="mini" style="margin:8px 0">Dependencies are imported first (create-if-missing). New policies are created Off, read back, and only then set to the state chosen above; one with the same CA number + version is skipped.${isDemo ? " <b>Demo — simulated.</b>" : ""}</p>
       <p class="mini" style="margin:6px 0 4px"><b>Import only:</b> pick a persona to select just its policies, or use All / None.</p>
       <div class="persona-row" style="margin-bottom:10px">
         <button class="btn sm" data-im-persona="__all">All (${importable.length})</button>
@@ -4450,6 +4527,7 @@
   }
   $("imBody").addEventListener("click", async (e) => {
     if (e.target.id === "imEaZip" || e.target.id === "imEaFolder") { imEaPick(e.target.id === "imEaFolder"); return; }
+    if (e.target.id === "imEaCreate") { await imEaAddBundled({}); return; }
     if (e.target.id === "imRepairGo") { await imRepairRun(e.target); return; }
     if (e.target.id === "imAuAll") {
       imAu.sel = imAu.sel.size === imAu.missing.length ? new Set() : new Set(imAu.missing.map(r => r.name));
@@ -4491,6 +4569,7 @@
   });
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); return; }
+    if (e.target.matches('input[name="imLand"]')) { imLand = e.target.value; return; }
     if (e.target.matches("[data-imp]")) updateImGo();
     const f = e.target.closest("[data-imfix]");
     if (f) {
@@ -4630,7 +4709,7 @@
     imHost.innerHTML = "";
     const L = RunLedger.create(imHost, { unit: "policies", items: [
       { label: "Dependencies", sub: "groups, named locations, authentication strengths, contexts, terms of use — created if missing" },
-      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : "new policy, Off" })),
+      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : p.forceOff || imLand !== "enabledForReportingButNotEnforced" ? "new policy, Off" : "new policy, Report-only" })),
     ], onStop: () => {} });
     const depSay = (m) => L.note(0, m);
     let stoppedEarly = false;
@@ -4652,7 +4731,7 @@
           const matched = imMode === "replace" && p.upgrade;
           const sup = (imMode === "replace" || imMode === "switch") && p.upgrade;
           const asShipped = imMode === "shipped" && !matched;
-          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching || asShipped ? null : p.personaGroup, matched, switched: !!switching, shipped: asShipped, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: p.forceOff ? "disabled" : matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : "disabled", asIs: p.asIs, forceOff: !!p.forceOff };
+          return { name: p.name, ok: true, persona: p.persona, personaGroup: matched || switching || asShipped ? null : p.personaGroup, matched, switched: !!switching, shipped: asShipped, disabledOld: sup, oldName: sup ? p.existing?.name : null, state: p.forceOff ? "disabled" : matched ? (p.existing?.raw?.state || "disabled") : p.asIs ? p.raw.state : imLand === "enabledForReportingButNotEnforced" ? imLand : "disabled", asIs: p.asIs, forceOff: !!p.forceOff };
         });
         depLog.groupNotes = (imBundle.groupNotes || []).slice();
         depLog.created = scoped.groups.map(g => "Group: " + g.displayName + " (assigned)");
@@ -4694,6 +4773,7 @@
         (heldBack ? L.part : L.done)(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused${heldBack ? ` · ${heldBack} group${heldBack === 1 ? "" : "s"} could not be created — the policies naming ${heldBack === 1 ? "it are" : "them are"} held back` : ""}${depLog.warnings.length ? ` · ${depLog.warnings.length} warning${depLog.warnings.length === 1 ? "" : "s"} — in the report` : ""}${switching && depLog.copied ? ` · members copied for ${depLog.copied.length} group${depLog.copied.length === 1 ? "" : "s"}` : ""}`, heldBack ? "partly done" : "ready");
         res = await Importer.importPolicies(chosen, maps, (m) => { const i = chosen.findIndex((p) => m.startsWith(p.name + ":")); if (i >= 0) L.note(i + 1, m.slice(chosen[i].name.length + 1).trim()); }, {
           mode: imMode, shouldStop: () => L.stopped,
+          landState: imLand, sdOn: !!(secDef && secDef.enabled === true),
           onItem: (i, phase, r) => {
             if (phase === "start") { L.start(i + 1); return; }
             if (!r) return;
@@ -10049,7 +10129,7 @@ This is a directory write. Nothing else changes.`)) return;
     };
     const idx = new Map(asPlan.map((r, i) => [r, i]));
     return `<h4 class="mini" style="margin-bottom:6px">CONVENTION EXCLUSIONS — ${total} POLIC${total === 1 ? "Y" : "IES"} IN SCOPE</h4>
-      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — ${Baseline.activeCatalogId() === "joey" ? "“&lt;policy name&gt; - Exclude”, named after the policy" : "CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion"} (the ${esc(Baseline.active().label)} convention) — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
+      <p class="mini muted" style="margin-bottom:8px">Each policy gets <b>its own</b> exclusion group — ${Baseline.activeCatalogId() === "joey" ? "“&lt;policy name&gt; - Exclude”, named after the policy" : Baseline.activeCatalogId() === "smb" ? "CA001 gets CAB-SEC-U-SMB-CA001-Exclusion, CA101 gets CAB-SEC-U-SMB-CA101-Exclusion" : "CA200 gets CAB-SEC-U-CA200-Exclusion, CA201 gets CA201-Exclusion"} (the ${esc(Baseline.active().label)} convention) — so this is a mapping rather than one group applied to everything. Nothing is replaced: the group is <b>added</b> to whatever the policy already excludes, and a policy that already has it is left alone.</p>
       <div class="row" style="justify-content:flex-start;gap:8px;margin:0 0 10px;flex-wrap:wrap">
         <span class="tag ok">✅ ${c.present || 0} already correct</span>
         <span class="tag new">⚠️ ${missing.length} missing the reference</span>
@@ -10834,7 +10914,12 @@ This is a directory write. Nothing else changes.`)) return;
     show("screen-baseline");
     mountToolTabs("baseline", "baseline");
     if (catId) blCat = catId;
-    if (!policies.length) {
+    // 32706: an EMPTY tenant is the most useful comparison there is — every
+    // policy Missing — so only "nothing read yet" stops here. Until now a
+    // tenant with no policies (security defaults, a new tenant) got "No
+    // policies loaded." and an Import button that knew of nothing to import.
+    sdPaint();
+    if (!policiesReadAt) {
       $("blHead").innerHTML = '<p class="mini">No policies loaded.</p>';
       $("blChips").innerHTML = ""; $("blBody").innerHTML = "";
       return;
@@ -11363,7 +11448,12 @@ This is a directory write. Nothing else changes.`)) return;
     const res = blResult;
     const n = res ? res.toImport.length : 0;
     const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
-      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"} that only the CloudFellows backup ships — add ${res.toImportShared.length === 1 ? "it" : "them"} below with ＋ E-Admins` : "") + ". ";
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"}, added from ENCA's own copy (or ＋ Create below)` : "") + ". ";
+    if (res && res.catalog.id === "smb") {
+      const only = new Set(res.toImport.map((r) => r.baseline.name));
+      if (await imSmbLoad({ only })) $("imDesc").textContent = gapNote() + `From ENCA's own copy of ${res.catalog.label} ${res.catalog.release}: the ${only.size} in the gap are ticked. 🧩 As shipped creates the exclusion groups and the break-glass group by name; CA103 and CA201–CA204 land Off.`;
+      return;
+    }
     if (res && res.catalog.id === "joey" && typeof BaselineLive !== "undefined" && !isDemo) {
       const btn = $("blImport");
       btn.disabled = true;
@@ -11379,6 +11469,8 @@ This is a directory write. Nothing else changes.`)) return;
           $("imDesc").textContent = gapNote() + `Reading the repository at ${b.release}${b.commit ? ` (${String(b.commit).slice(0, 7)})` : ""}…`;
           const only = new Set(res.toImport.map((r) => r.baseline.name));
           await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`, { only });
+          // 32706: the shared E-Admins come with a Joey import, from ENCA's own copy
+          await imEaAddBundled({ auto: true });
           $("imDesc").textContent = gapNote() + `The ${only.size} in the gap are ticked; the rest of the release is listed unticked. 🧩 As shipped creates the baseline's own groups by name and attaches them; 🔀 Switch baseline also carries the members of this tenant's existing groups across.`;
           return;
         }
@@ -11393,6 +11485,290 @@ This is a directory write. Nothing else changes.`)) return;
         + "Select the baseline backup zip (or its extracted folder). Choose an assignment mode: deploy new policies onto this tenant's persona groups, "
         + "match & replace — an updated policy keeps the current one's assignment and its old version is switched Off — or switch baseline, which carries the members of the other baseline's groups across.";
     }
+  });
+
+  // ---------- 🛡 Security defaults → a baseline (32706) ----------
+  // js/secdefaults.js holds the verdict, the coverage and the HTML; this is
+  // the wiring: which card, the reads it waits for, and the three writes
+  // (⇄ switch, ↩ back, turn on). One card for 🧬 Baseline and the Overview.
+  const SD_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  const SD_SWITCH_KEY = () => `enca-sdswitch:${tenantId || "demo"}`;
+  // What ⇄ turned On, kept in THIS browser so ↩ is still offered after a
+  // reload: { at, policies: [{ id, name, prev }] }. Hidden with ✓ Keep.
+  const sdSwitchLoad = () => { try { const r = JSON.parse(localStorage.getItem(SD_SWITCH_KEY()) || "null"); return r && Array.isArray(r.policies) && r.policies.length ? r : null; } catch { return null; } };
+  const sdSwitchSave = (r) => { try { if (r) localStorage.setItem(SD_SWITCH_KEY(), JSON.stringify(r)); else localStorage.removeItem(SD_SWITCH_KEY()); } catch { /* private mode: ↩ lives for this page only */ } };
+  const sdWord = (s) => SecDefaults.STATE[s] || s;
+  const sdPause = (ms) => new Promise((r) => setTimeout(r, ms));
+  function sdKind() {
+    if (!secDef || !policiesReadAt) return null;
+    return SecDefaults.verdict({ sd: secDef, count: policies.length, caps: secCaps, switched: secDef.enabled === false && !!sdSwitchLoad() });
+  }
+  function sdBreakGlass() { try { return (Baseline.withContract(Baseline.active()) || {}).breakGlassGroup || ""; } catch { return ""; } }
+  const sdBgKey = () => `${tenantId || "demo"}:${policiesReadAt}:${sdBreakGlass()}`;
+  function sdCoverage() {
+    const n = isDemo ? (sdBg ? sdBg.n : 2) : sdBg && sdBg.key === sdBgKey() ? sdBg.n : null;
+    return SecDefaults.coverage(policies, { breakGlass: sdBreakGlass(), bgMembers: n });
+  }
+  // The break-glass group's members, read once per policy read: the switch
+  // waits for them, because MFA for everyone without the emergency accounts
+  // carved out is the lockout security defaults never had.
+  async function sdBgRead() {
+    const key = sdBgKey(), name = sdBreakGlass();
+    if (isDemo || !name || (sdBg && sdBg.key === key)) return;
+    sdBg = { key, n: null };
+    try {
+      const hit = await Graph.ggetAll(`/groups?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id`);
+      if (!hit.length) sdBg = { key, n: -1 };
+      else { const m = await Graph.gget(`/groups/${hit[0].id}/members?$select=id&$top=25`); sdBg = { key, n: ((m && m.value) || []).length }; }
+    } catch (e) { console.warn("break-glass members:", e); sdBg = { key, n: -2 }; }
+    if (sdBg.key === sdBgKey()) sdPaint(true);
+  }
+  // The baselines on offer, with what this tenant's licences hold back.
+  function sdCatalogs() {
+    const lic = (re, not) => (c) => (c.policies || []).filter((p) => re.test(JSON.stringify([p.conditions, p.grant, p.name])) && !(not && not.test(JSON.stringify([p.conditions, p.name])))).length;
+    const p2Of = lic(/risk/i, /insider/i), purviewOf = lic(/insider/i);
+    return Baseline.catalogs().map((c0) => {
+      const c = Baseline.withContract(c0) || c0;
+      const n = (c.policies || []).length, p2 = p2Of(c), pv = purviewOf(c);
+      const points = c.id === "smb"
+        ? [`No personas — ${(c.adminRoles || []).length} admin roles, break-glass ${c.breakGlassGroup}`, "Security defaults as Conditional Access, plus Global Secure Access, stricter admins and a break-glass policy", "Carried by ENCA — an exclusion group per policy, a restricted unit per section"]
+        : c.id === "limonit"
+        ? [`Persona model — ${(c.personaGroups || []).length} persona groups, break-glass ${c.breakGlassGroup}`, "Loaded from your CloudFellows baseline backup ZIP, the six 🚨 E-Admins included"]
+        : ["Fewer, broader policies — his groups created by name", "Fetched live from his GitHub repository", `The six 🚨 E-Admins policies are created with it, from ENCA's own copy`];
+      if (secCaps && secCaps.p2 === false && p2) points.push(`${p2} risk ${p2 === 1 ? "policy needs" : "policies need"} Entra ID P2 — held back here`);
+      if (secCaps && secCaps.purview !== true && pv) points.push(`${pv} insider-risk ${pv === 1 ? "policy needs" : "policies need"} Purview Insider Risk Management — held back unless it is present`);
+      return { id: c.id, label: c.label, icon: c.icon, release: [c.release, c.line].filter(Boolean).join(" · "), total: n, points };
+    });
+  }
+  function sdCtx() {
+    let impact = null;
+    try { impact = riBusy || riCapped || !riReadAt || riReadAt < policiesReadAt || riReadTenant !== (tenantId || tenantName) ? null : { ...riRes, readAt: riReadAt }; } catch { impact = null; }
+    return { sd: secDef, caps: secCaps, count: policies.length, at: secDef && secDef.at, tenantName, demo: isDemo, impact,
+      reportOnly: policies.filter((p) => p.raw && p.raw.state === "enabledForReportingButNotEnforced").length,
+      off: policies.filter((p) => p.raw && p.raw.state === "disabled").length,
+      switched: sdSwitchLoad(), catalogs: sdCatalogs() };
+  }
+  function sdHtml() {
+    const kind = sdKind();
+    if (!kind) return "";
+    const ctx = sdCtx();
+    if (kind === "sd-on-policies" || kind === "sd-switched") {
+      const cov = kind === "sd-on-policies" ? sdCoverage() : null;
+      if (cov && cov.breakGlass.group && cov.breakGlass.members == null) setTimeout(() => { sdBgRead(); }, 0);
+      return SecDefaults.band(kind, cov, ctx);
+    }
+    return SecDefaults.startCard(kind, ctx);
+  }
+  function sdPaint(overviewToo) {
+    const el = $("blSecDef");
+    if (el) { try { el.innerHTML = sdHtml(); } catch (e) { console.warn("security defaults:", e); el.innerHTML = ""; } }
+    if (overviewToo) { try { renderOverview({ force: true }); } catch { /* not painted yet */ } }
+  }
+
+  // 32816 (R91): SMB Basic is carried by ENCA, so its import needs no ZIP
+  // and no repository read. Choosing to deploy it is choosing it: it becomes
+  // the tenant's active baseline FIRST, so the import's restricted-unit step
+  // offers ITS units (CA-RMAU-SMB-BASE / -ADM / -CN, CA-RMAU-BreakGlass) and
+  // files each exclusion group into its section's unit.
+  async function imSmbLoad(opts = {}) {
+    if (typeof BASELINE_SMB === "undefined") { toast("The SMB Basic catalog is not loaded in this build"); return false; }
+    try { Baseline.setActive("smb"); } catch (e) { console.warn("SMB active baseline:", e); }
+    $("toolImport").click();
+    if (opts.land) imLand = opts.land;
+    await imLoaded(BASELINE_SMB.bundle(), BASELINE_SMB.bundleLabel, opts.only ? { only: opts.only } : {});
+    return true;
+  }
+
+  // Step ①, any baseline: 📥 Import, new policies landing Report-only.
+  async function sdPick(id) {
+    const RO = "enabledForReportingButNotEnforced";
+    if (id === "smb") {
+      if (!(await imSmbLoad({ land: RO }))) return;
+      $("imDesc").textContent = `Step ① of moving off security defaults: ${BASELINE_SMB.label} ${BASELINE_SMB.release}, every policy ticked. New policies land Report-only — CA103 and CA201–CA204 land Off, they wait for 🌐 Global Secure Access. Nothing changes for users until ⇄ on the 🧬 Baseline screen, which turns CA001–CA005 On.`;
+      return;
+    }
+    if (id === "joey") {
+      if (isDemo || typeof BaselineLive === "undefined") {
+        $("toolImport").click(); imLand = RO;
+        await imLoaded(E_ADMINS.bundle(), "Demo — Joey Verlinden's repository is not read in demo mode; ENCA's own copy of the six 🚨 E-Admins stands in for it");
+        return;
+      }
+      let b = BaselineLive.bundle();
+      if (!b || !b.complete) { toast("Reading the repository first…"); await blLiveFetch(true); b = BaselineLive.bundle(); }
+      if (!b || !b.complete) { toast(`Could not read the repository — <span>${esc(BaselineLive.status().error || "no usable read")}</span>. Download it and import the folder instead.`); return; }
+      $("toolImport").click(); imLand = RO;
+      await imLoaded(b, `${b.label} ${b.release} — read from the repository${b.commit ? ` at ${String(b.commit).slice(0, 7)}` : ""}`);
+      await imEaAddBundled({ auto: true });
+      $("imDesc").textContent = `Step ① of moving off security defaults: ${b.label} ${b.release}, every policy ticked, the six E-Admins from ENCA's own copy added. New policies land Report-only — nothing changes for users until ⇄ on the 🧬 Baseline screen.`;
+      return;
+    }
+    $("toolImport").click(); imLand = RO;
+    $("imDesc").textContent = "Step ① of moving off security defaults: choose the CloudFellows baseline backup ZIP. Every policy is listed for review and lands Report-only — nothing changes for users until ⇄ on the 🧬 Baseline screen.";
+    $("imZip").value = "";
+    $("imZip").click();
+  }
+
+  // ---- the writes ----
+  async function sdWriteSd(enabled) {
+    if (isDemo) { await sdPause(80); sdDemoState = enabled; return; }
+    await Graph.gpatch(SecDefaults.PATH, { isEnabled: enabled }, [...AUTH_CONFIG.scopes, ...SD_WRITE]);
+    for (const w of [0, 1000, 2000, 4000, 8000]) {
+      if (w) await sdPause(w);
+      const r = await Graph.gget(SecDefaults.PATH);
+      if (r && r.isEnabled === enabled) return;
+    }
+    throw new Error(`security defaults did not read back ${enabled ? "On" : "Off"} within 15 s — ⟳ read the tenant again before retrying`);
+  }
+  async function sdWriteState(p, state) {
+    if (isDemo) {
+      await sdPause(60);
+      const vm = policies.find((x) => x.id === p.id);
+      if (vm) { vm.raw.state = state; vm.state = state === "enabled" ? "on" : state === "disabled" ? "off" : "report"; }
+      return;
+    }
+    const url = `/identity/conditionalAccess/policies/${p.id}`;
+    await Graph.gpatch(url, { state }, [...AUTH_CONFIG.scopes, ...SD_WRITE]);
+    const back = await Importer.readSettled(url, (x) => x && x.state === state);
+    if (!back || back.state !== state) throw new Error(`written, but reads back as ${sdWord(back && back.state)}`);
+  }
+  let sdAction = null, sdPlan = [];
+  function sdOpen(kind) {
+    sdAction = kind;
+    const ctx = { tenantName, demo: isDemo };
+    $("sdLedger").innerHTML = "";
+    $("sdGo").style.display = ""; $("sdGo").disabled = false;
+    if (kind === "switch") {
+      const cov = sdCoverage();
+      if (!cov.ready) { toast("Not ready to switch yet — every ✗ on the band has to be ✓ first"); return; }
+      sdPlan = cov.toOn;
+      $("sdTitle").textContent = `⇄ Switch ${tenantName || "this tenant"} from security defaults to Conditional Access`;
+      $("sdBody").innerHTML = SecDefaults.switchBody(cov, ctx);
+    } else if (kind === "back") {
+      const rec = sdSwitchLoad();
+      if (!rec) { toast("Nothing to undo — no switch was recorded in this browser"); return; }
+      $("sdTitle").textContent = `↩ Back to security defaults in ${tenantName || "this tenant"}`;
+      $("sdBody").innerHTML = SecDefaults.backBody(rec, ctx);
+    } else {
+      $("sdTitle").textContent = `Turn security defaults on in ${tenantName || "this tenant"}`;
+      $("sdBody").innerHTML = SecDefaults.turnOnBody(ctx);
+    }
+    sdGoLabel();
+    $("sdModal").classList.add("open");
+  }
+  function sdGoLabel() {
+    const n = [...document.querySelectorAll("#sdBody [data-sdpol]")].filter((x) => x.checked).length;
+    const rec = sdAction === "back" ? sdSwitchLoad() : null;
+    $("sdGo").textContent = sdAction === "switch" ? `Switch — security defaults Off, ${n} ${n === 1 ? "policy" : "policies"} On`
+      : sdAction === "back" ? `↩ Back — ${(rec && rec.policies.length) || 0} back, security defaults On` : "Turn security defaults on";
+    if (sdAction === "switch") $("sdGo").disabled = !n;
+  }
+  $("sdBody").addEventListener("change", (e) => { if (e.target.matches("[data-sdpol]")) sdGoLabel(); });
+  $("sdCancel").addEventListener("click", () => $("sdModal").classList.remove("open"));
+  async function sdAfterRun() {
+    if (isDemo) { secDef = { enabled: !!sdDemoState, at: Date.now(), error: null }; refreshViews(); sdPaint(true); if (shownScreen === "screen-baseline") openBaseline(blCat, true); return; }
+    await loadFromGraph(true);
+    if (shownScreen === "screen-baseline") openBaseline(blCat, true);
+  }
+  async function sdSwitchRun() {
+    const picks = [...document.querySelectorAll("#sdBody [data-sdpol]")].filter((x) => x.checked).map((x) => sdPlan[+x.dataset.sdpol]).filter(Boolean);
+    if (!picks.length) { toast("Tick at least one policy"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SD_WRITE])) return;
+    $("sdGo").disabled = true;
+    document.querySelectorAll("#sdBody input").forEach((x) => { x.disabled = true; });
+    const last = picks.length + 1;
+    const L = RunLedger.create($("sdLedger"), { unit: "steps", title: "switch from security defaults", items: [
+      { label: "Security defaults → Off", sub: "read back until Entra says so" },
+      ...picks.map((p) => ({ label: p.name, sub: `${sdWord(p.state)} → On` })),
+      { label: "Security defaults read back" }] });
+    const rec = { at: new Date().toISOString(), policies: [] };
+    let off = false, failed = 0, fatal = null;
+    try {
+      // the tenant as it is NOW, not as it was read
+      if (!isDemo) { const cur = await Graph.gget(SecDefaults.PATH); if (cur && cur.isEnabled === false) { off = true; L.skip(0, "already Off"); } }
+      if (!off) { L.start(0); await sdWriteSd(false); off = true; L.done(0, "Off", "written"); }
+    } catch (e) { fatal = e; L.fail(0, `${e.message || e} — no policy was changed`); }
+    if (off) {
+      for (let i = 0; i < picks.length; i++) {
+        L.start(i + 1);
+        try { await sdWriteState(picks[i], "enabled"); rec.policies.push({ id: picks[i].id, name: picks[i].name, prev: picks[i].state }); L.done(i + 1, "On", "written"); }
+        catch (e) { failed++; L.fail(i + 1, e.message || String(e)); }
+      }
+      L.start(last);
+      if (!rec.policies.length) {
+        // NEVER NEITHER: security defaults is off and nothing went On — put it back.
+        try { await sdWriteSd(true); L.part(last, "no policy went On, so security defaults was turned back On — the tenant is as it was"); off = false; }
+        catch (e) { L.fail(last, `no policy went On AND security defaults could not be turned back on (${e.message || e}) — turn it on in Entra now: Overview → Properties → Manage security defaults`); }
+      } else if (isDemo) L.done(last, "Off (simulated)");
+      else {
+        try { const r = await Graph.gget(SecDefaults.PATH); (r && r.isEnabled === false ? L.done : L.fail)(last, r && r.isEnabled === false ? "Off" : "reads On again — check Entra"); }
+        catch (e) { L.fail(last, e.message || String(e)); }
+      }
+    } else for (let i = 0; i <= picks.length; i++) L.skip(i + 1, "not attempted");
+    L.finish();
+    if (rec.policies.length) sdSwitchSave(rec);
+    $("sdGo").style.display = "none";
+    toast(fatal ? `Nothing changed — <span>${esc(fatal.message || fatal)}</span>`
+      : !rec.policies.length ? "No policy went On — security defaults is <span>back on</span>"
+      : failed ? `Switched with <span>${failed} failure(s)</span> — the reasons are on the rows; ↩ is on the band`
+      : `<span>Conditional Access</span> protects ${esc(tenantName || "the tenant")} now — ${rec.policies.length} ${rec.policies.length === 1 ? "policy" : "policies"} On, security defaults Off${isDemo ? " (simulated)" : ""}`);
+    if (!fatal) await sdAfterRun();
+  }
+  async function sdBackRun() {
+    const rec = sdSwitchLoad(); if (!rec) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SD_WRITE])) return;
+    $("sdGo").disabled = true;
+    const ps = rec.policies, last = ps.length;
+    const L = RunLedger.create($("sdLedger"), { unit: "steps", title: "back to security defaults", items: [
+      ...ps.map((p) => ({ label: p.name, sub: `On → ${sdWord(p.prev)}` })), { label: "Security defaults → On", sub: "read back until Entra says so" }] });
+    const done = [];
+    for (let i = 0; i < ps.length; i++) {
+      L.start(i);
+      try { await sdWriteState(ps[i], ps[i].prev); done.push(ps[i]); L.done(i, sdWord(ps[i].prev)); }
+      catch (e) { L.fail(i, e.message || String(e)); }
+    }
+    L.start(last);
+    let back = false;
+    try { await sdWriteSd(true); back = true; L.done(last, "On", "written"); }
+    catch (e) {
+      // never neither: what this run took off goes On again at once
+      let again = 0;
+      for (const p of done) { try { await sdWriteState(p, "enabled"); again++; } catch (e2) { console.warn("roll forward:", e2); } }
+      L.fail(last, `${e.message || e} — Entra refuses security defaults while a policy is On; the ${again} ${again === 1 ? "policy" : "policies"} this run had taken back ${again === 1 ? "is" : "are"} On again, so Conditional Access still protects the tenant`);
+    }
+    L.finish();
+    if (back) sdSwitchSave(null);
+    $("sdGo").style.display = "none";
+    toast(back ? `Security defaults is <span>on</span> again${isDemo ? " (simulated)" : ""}` : "Security defaults could not be turned on — <span>Conditional Access stays</span>; the reason is on the last row");
+    await sdAfterRun();
+  }
+  async function sdTurnOnRun() {
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...SD_WRITE])) return;
+    $("sdGo").disabled = true;
+    const L = RunLedger.create($("sdLedger"), { unit: "steps", items: [{ label: "Security defaults → On", sub: "read back until Entra says so" }] });
+    L.start(0);
+    let ok = false;
+    try { await sdWriteSd(true); ok = true; L.done(0, "On", "written"); } catch (e) { L.fail(0, e.message || String(e)); }
+    L.finish();
+    $("sdGo").style.display = "none";
+    toast(ok ? `Security defaults is <span>on</span>${isDemo ? " (simulated)" : ""}` : "Security defaults could not be turned on — the reason is on the row");
+    if (ok) await sdAfterRun();
+  }
+  $("sdGo").addEventListener("click", async () => {
+    if (sdAction === "switch") await sdSwitchRun();
+    else if (sdAction === "back") await sdBackRun();
+    else if (sdAction === "turnon") await sdTurnOnRun();
+  });
+  // One listener for the card and the band, wherever they are painted.
+  document.addEventListener("click", async (e) => {
+    const t = e.target.closest("[data-sdpick],[data-sdswitch],[data-sdimpact],[data-sdback],[data-sddone],[data-sdturnon],[data-sdread]");
+    if (!t || t.disabled || !t.closest(".sd-card, .sd-band")) return;
+    if (t.dataset.sdpick) { await sdPick(t.dataset.sdpick); return; }
+    if (t.hasAttribute("data-sdswitch")) { sdOpen("switch"); return; }
+    if (t.hasAttribute("data-sdback")) { sdOpen("back"); return; }
+    if (t.hasAttribute("data-sdturnon")) { sdOpen("turnon"); return; }
+    if (t.hasAttribute("data-sdimpact")) { openImpact(); return; }
+    if (t.hasAttribute("data-sddone")) { sdSwitchSave(null); sdPaint(true); toast("Conditional Access it is — the switch note is hidden"); return; }
+    if (t.hasAttribute("data-sdread")) { if (isDemo) loadDemo(); else await loadFromGraph(true); if (shownScreen === "screen-baseline") openBaseline(blCat, true); }
   });
 
   // ---------- CA Exclusion analyzer ----------
@@ -12490,7 +12866,7 @@ This is a directory write. Nothing else changes.`)) return;
 
     return `<div class="cg-panel" id="ruBasePanel">
       <h4>BASELINE — ONE RESTRICTED AU PER PERSONA</h4>
-      <p class="mini" style="margin:0 0 8px">One restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. ${Baseline.activeCatalogId() === "joey"
+      <p class="mini" style="margin:0 0 8px">One restricted management administrative unit per persona, so a scoped administrator for one persona's exclusion groups cannot edit another's. ${Baseline.active() && Baseline.active().unitNote ? esc(Baseline.active().unitNote) : Baseline.activeCatalogId() === "joey"
         ? `The Joey Verlinden baseline defines no administrative units — the per-persona vault is ENCA's hardening on top of it, named <code>CA-RMAU-&lt;Persona&gt;-Exclusions</code> under his prefix, one per persona he defines (Global, Admins, Internals, Service accounts, Guests, Agents) plus break-glass.`
         : `Names mirror the deployment groups (<code>CAD-SEC-U-DG-&lt;CODE&gt;</code>).`}</p>
       <p style="margin:0 0 8px">${Baseline.activeChip()}</p>
@@ -13294,7 +13670,9 @@ This is a directory write. Nothing else changes.`)) return;
       if (!code) throw new Error("this administrative unit is not one of the baseline persona units, so there is no persona to gather groups for");
       let groups = [];
       if (isDemo) {
-        groups = Baseline.activeCatalogId() === "joey"
+        groups = Baseline.activeCatalogId() === "smb"
+          ? [{ id: "d1", displayName: "CAB-SEC-U-SMB-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-SMB-CA102-Exclusion" }]
+          : Baseline.activeCatalogId() === "joey"
           ? [{ id: "d1", displayName: "CA101-Admins-IdentityProtection-AnyApp-AnyPlatform-MFA - Exclude" }, { id: "d2", displayName: "CA102-Admins-IdentityProtection-AllApps-AnyPlatform-SigninFrequency - Exclude" }]
           : [{ id: "d1", displayName: "CAB-SEC-U-CA101-Exclusion" }, { id: "d2", displayName: "CAB-SEC-U-CA102-Exclusion" }];
       } else {
@@ -14625,7 +15003,7 @@ This is a directory write. Nothing else changes.`)) return;
       <p style="margin-bottom:4px">The deployment order with the <b>reason</b> for each step, not just the sequence — and, once the tenant has been read, a readiness check per step that says what is missing <b>before</b> you run it instead of after.</p>
       <p class="mini muted" style="margin:0">Reads only — nothing is written. Every step links the tool that does the work. The guide ends where <a href="#" class="md-tool" data-tool="toolImpact">🎚 Report-only impact</a> begins.</p>
       <p style="margin:8px 0 0">${Baseline.activeChip()}</p>
-      ${Guide.activeId() === "joey" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. The <b>readiness checks</b> read the active baseline — Joey Verlinden's groups, his persona units and his policies — but his persona model is Global / Admins / Internals / Service accounts / Guests / Agents, and his CA300 block is service accounts, not externals. Read the ranges in step 1 as his catalog lists them, not as the prose describes them.</p>` : ""}`;
+      ${Guide.activeId() === "smb" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. Under SMB Basic there are no persona or deploy groups: the readiness checks read its own groups (one exclusion group per policy, the break-glass group) and its four units (CA-RMAU-SMB-BASE, -ADM, -CN and CA-RMAU-BreakGlass). Skip the persona and deploy-group steps.</p>` : ""}${Guide.activeId() === "joey" ? `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ The step texts were written for the CloudFellows deployment. The <b>readiness checks</b> read the active baseline — Joey Verlinden's groups, his persona units and his policies — but his persona model is Global / Admins / Internals / Service accounts / Guests / Agents, and his CA300 block is service accounts, not externals. Read the ranges in step 1 as his catalog lists them, not as the prose describes them.</p>` : ""}`;
     if (ugBusy) return;   // the run panel owns ugBody until the read finishes
 
     if (!ugRes) {
@@ -22683,12 +23061,14 @@ This is a directory write. Nothing else changes.`)) return;
   // Focus: the Microsoft traffic profile. It never switches a policy on and
   // never changes a policy's exclusions (Mihai, 14 Oct: leave CA215 as is).
   // ======================================================================
-  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All"];
+  // 0.11.0: + AuditLog.Read.All — step 6 is decided by the sign-ins marked through GSA, beside the device report
+  const GSA_READ = ["NetworkAccessPolicy.Read.All", "NetworkAccess.Read.All", "Application.Read.All", "DeviceManagementConfiguration.Read.All", "DeviceManagementApps.Read.All", "Policy.Read.All", "AuditLog.Read.All", "DeviceManagementManagedDevices.Read.All"];
   // 32524: fixes open as stacked workspaces — gsa.work, newest first, one
   // per fix kind, each with its own options, log and busy flag; gsa.sel is
   // the step open under the flow (null = the first that blocks)
-  const gsaDefOpts = () => ({ group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily" });
-  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "" };
+  const gsaDefOpts = () => ({ why: "", group: "", allUsers: false, devGroup: "", macGroup: "", mkGroup: true, lock: false, ipv4: false, rel: "", ver: "v1.0", schedule: "daily", q: "", hide: true, sync: true, devSel: null, enforce: false, pSys: null, pProxy: null, pSet: null });
+  // 0.12.0: mode (setup | monitor), chosen by the person or by the board; mon the Monitor read
+  let gsa = { raw: null, model: null, busy: false, err: null, proof: null, proofBusy: false, work: [], sel: null, session: "", mode: null, modeChosen: false, mon: null, monBusy: false, monErr: null, monRead: 0, monPeriod: "24h", monFilter: {} };
   const gsaW = (k) => gsa.work.find((w) => w.k === k) || null;
   const gsaSession = () => `${tenantId}:${isDemo}`;
   const gsaPolicies = () => {
@@ -22698,6 +23078,148 @@ This is a directory write. Nothing else changes.`)) return;
     return list;
   };
   const gsaErr = (e) => String((e && e.message) || e).replace(/\s*·\s*inner:.*$/, "");
+  // 32815: what the Global Secure Access read is busy with, shown in the spinner line, and the
+  // longest one source may take before the board names it as not read
+  const GSA_SRC_MS = 120000;
+  const GSA_SRC_LABEL = { skus: "the licences", status: "the tenant status", ztna: "the ZTNA client app", profile: "the Microsoft traffic profile", signaling: "Conditional Access signalling", sp: "the profile's app", assigned: "who the profile is assigned to", locations: "the named locations", trv2: "the cross-tenant access settings", scripts: "the Windows platform scripts", shellScripts: "the macOS shell scripts", apps: "the Intune apps", healthScripts: "the Windows remediations", winDns: "the Windows secure DNS policies", macProfiles: "the macOS profiles", macChain: "the macOS chain", encaSettings: "the ENCA settings record", winGroups: "the members of the install groups", macManaged: "the Intune-managed Macs", seenReport: "the Global Secure Access device report", seenSignins: "the sign-ins through Global Secure Access", gsaAuth: "the client's own sign-ins", groupNames: "the group names" };
+  const gsaStep = (k) => { gsa.step = GSA_SRC_LABEL[k] || k; const el = document.getElementById("gsaStep"); if (el) el.textContent = gsa.step; };
+  // ---- 🚧 Tenant restrictions v2 (T56 0.7.0, Mihai 17 Oct: "our GSA setup
+  // will need a tenant restrict v2, allowing Limon-IT and CloudFellows").
+  // js/trv2.js plans; this block reads, keeps the allowed list per tenant in
+  // this browser (no tenant names in the code), runs the plan with a backup
+  // first, and puts a backup back.
+  const trv2Own = () => (isDemo ? "00000000-0000-4000-8000-0000000de305" : String(tenantId || "").toLowerCase());
+  const trv2Key = () => Trv2.storeKey(isDemo ? "demo" : tenantId);
+  function trv2Settings() {
+    let s = null; try { s = JSON.parse(localStorage.getItem(trv2Key()) || "null"); } catch { /* private mode */ }
+    s = s && typeof s === "object" ? s : {};
+    return { allow: Array.isArray(s.allow) ? s.allow : [], keepPartners: Array.isArray(s.keepPartners) ? s.keepPartners : [], allowMsa: s.allowMsa === true };
+  }
+  function trv2Save(s) { try { localStorage.setItem(trv2Key(), JSON.stringify({ allow: s.allow || [], keepPartners: s.keepPartners || [], allowMsa: !!s.allowMsa })); } catch { toast("This browser does not keep settings — the allowed list lasts for this page only"); } }
+  const trv2Path = (url) => String(url).replace(/^https:\/\/graph\.microsoft\.com\/beta/, "").replace(/^https:\/\/graph\.microsoft\.com/, "");
+  function trv2Info() {
+    const r = gsa.raw; if (!r) return null;
+    const src = (r.sources || {}).trv2;
+    if (!r.trv2 || (src && src !== "ok")) return { err: src && src !== "ok" ? src : "read the tenant again" };
+    const st = Trv2.state(r.trv2.default, r.trv2.partners, r.trv2.utr), settings = trv2Settings();
+    return { st, settings, verdict: Trv2.verdict(st, settings, { ownTenantId: trv2Own() }) };
+  }
+  function trv2Plan(o) { const i = trv2Info(); return i && !i.err ? Trv2.plan(i.st, Object.assign({}, i.settings, { enforce: !!(o && o.enforce) }), { ownTenantId: trv2Own() }) : null; }
+  // the demo: a stable tenant id per domain, so the flow can be walked end to end
+  const trv2DemoId = (d) => { let h = 0; for (const c of String(d)) h = (h * 31 + c.charCodeAt(0)) >>> 0; const x = h.toString(16).padStart(8, "0"); return `${x}-0000-4000-8000-${x}${x.slice(0, 4)}`; };
+  async function trv2Lookup(entry) {
+    if (isDemo) return { tenantId: trv2DemoId(entry.domain), displayName: entry.domain };
+    const sc = [...AUTH_CONFIG.scopes, ...Trv2.PERMS.lookup];
+    if (!await preConsent(sc)) throw new Error("CrossTenantInformation.ReadBasic.All was not granted");
+    return Graph.gget(trv2Path(Trv2.lookupUrl(entry.domain)), sc);
+  }
+  async function trv2Add(w) {
+    const q = String((w.opts && w.opts.q) || "").trim().toLowerCase();
+    if (!q) { toast("Type a domain or a tenant ID first"); return; }
+    const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(q);
+    let e = isId ? { tenantId: q, name: q } : { domain: q, name: q };
+    try {
+      if (!isId) { const got = Trv2.applyLookup(e, await trv2Lookup(e)); if (!got) throw new Error(`no tenant found for ${q}`); e = got; }
+      const s = trv2Settings(), n = Trv2.normalizeAllow([...s.allow, e], trv2Own());
+      if (n.ok.length === s.allow.length) { const r = n.refused[n.refused.length - 1]; toast(esc(r ? r.reason : "Not added")); return; }
+      s.allow = n.ok; trv2Save(s); w.opts.q = "";
+      toast(`Added <span>${esc(e.name)}</span>`);
+    } catch (err) { toast(`Look-up failed: <span>${esc(gsaErr(err))}</span>`); }
+    renderGsa();
+  }
+  async function trv2Import(text) {
+    const r = Trv2.parseCsv(text);
+    if (r.error) { toast(esc(r.error)); return; }
+    const s = trv2Settings(), n = Trv2.normalizeAllow([...s.allow, ...r.rows], trv2Own());
+    const out = n.ok.slice(), msgs = n.refused.filter((x) => !/Listed twice/.test(x.reason)).map((x) => x.reason);
+    for (const e of n.needLookup) {
+      try {
+        const got = Trv2.applyLookup(e, await trv2Lookup(e));
+        if (!got) msgs.push(`${e.domain}: no tenant found`);
+        else if (got.tenantId === trv2Own()) msgs.push(`${e.domain} is this tenant — never restricted, left off the list`);
+        else if (!out.some((x) => x.tenantId === got.tenantId)) out.push(got);
+      } catch (err) { msgs.push(`${e.domain}: ${gsaErr(err)}`); }
+    }
+    const added = out.length - s.allow.length;
+    s.allow = out; trv2Save(s);
+    toast(`${added} tenant${added === 1 ? "" : "s"} added${msgs.length ? ` · <span>${esc(msgs.join(" · "))}</span>` : ""}`);
+    renderGsa();
+  }
+  // the demo shows a write landing (and a put-back undoing it)
+  function trv2DemoApply(op) {
+    const t = gsa.raw && gsa.raw.trv2; if (!t) return;
+    const id = op.tenantId || String(op.url).split("/").pop();
+    if (op.kind === "partner-create") t.partners.push({ tenantId: id, tenantRestrictions: null });
+    else if (op.kind === "partner-allow" || op.kind === "partner-restore") { const p = t.partners.find((x) => x.tenantId === id); if (p) p.tenantRestrictions = op.body.tenantRestrictions; }
+    else if (op.kind === "partner-delete") t.partners = t.partners.filter((x) => x.tenantId !== id);
+    else if (op.kind === "default-block" || op.kind === "default-restore") t.default = { tenantRestrictions: op.body.tenantRestrictions };
+    else if (op.kind === "utr") t.utr = { networkPacketTaggingStatus: op.body.networkPacketTaggingStatus };
+  }
+  // run the plan: backup first, then the ops in order; an op whose
+  // `requires` failed is skipped, so nothing is blocked before its allows land
+  async function runTrv2(w, sc, say, sim) {
+    const info = trv2Info();
+    if (!info || info.err) throw new Error(`tenant restrictions were not read — ${info ? info.err : "read the tenant first"}`);
+    const p = Trv2.plan(info.st, Object.assign({}, info.settings, { enforce: !!w.opts.enforce }), { ownTenantId: trv2Own() });
+    if (p.refusals.length) throw new Error(p.refusals.join(" · "));
+    if (!p.ops.length) { say(`nothing to change — ${p.notes.join(" ") || "the tenant already matches"}`, true); return; }
+    const bk = Trv2.backup(info.st, trv2Own(), null, p.ops);
+    const file = downloadText(`ENCA-tenant-restrictions-backup-${isDemo ? "demo" : (tenantName || tenantId)}`, "json", "application/json", JSON.stringify(bk, null, 2));
+    say(`backup saved${file ? ` as ${file}` : ""} — keep it for ↩ Put back`, true);
+    const failed = new Set();
+    for (const op of p.ops) {
+      if ((op.requires || []).some((id) => failed.has(id))) { failed.add(op.id); say(`skipped: ${op.label} — a step it needs did not land`, false); continue; }
+      try {
+        if (isDemo) { await sim(op.label); trv2DemoApply(op); }
+        else { if (op.method === "POST") await Graph.gpost(trv2Path(op.url), op.body, sc); else await Graph.gpatch(trv2Path(op.url), op.body, sc); say(op.label, true); }
+      } catch (e) { failed.add(op.id); say(`${op.label} — ${gsaErr(e)}`, false); }
+    }
+    if (failed.size) throw new Error(`${failed.size} of ${p.ops.length} steps did not land; a step after a failed one was skipped. ↩ Put back with the backup undoes what did land.`);
+  }
+  async function trv2PutBack(w, text) {
+    if (!w || w.busy || gsa.work.some((x) => x.busy)) return;
+    let bk = null; try { bk = JSON.parse(text); } catch { /* refused below */ }
+    let ops; try { ops = Trv2.undoOps(bk); } catch (e) { toast(esc(gsaErr(e))); return; }
+    if (!isDemo && bk.tenantId !== trv2Own()) { toast(`That backup is for tenant <span>${esc(bk.tenantId)}</span>, not this one — nothing was changed`); return; }
+    const log = w.log = []; const say = (t, ok) => { log.push({ t, ok }); renderGsa(); };
+    w.busy = true; renderGsa();
+    const sc = [...AUTH_CONFIG.scopes, ...Trv2.FIX.scopes];
+    try {
+      if (!isDemo && !await preConsent(sc)) throw new Error("permission not granted — nothing was changed");
+      say(`putting back the backup of ${new Date(bk.at).toLocaleString()} — ${ops.length} step${ops.length === 1 ? "" : "s"}`);
+      let bad = 0;
+      for (const op of ops) {
+        try {
+          if (isDemo) { await new Promise((r) => setTimeout(r, 150)); trv2DemoApply(op); }
+          else if (op.method === "DELETE") await Graph.gdelete(trv2Path(op.url), sc);
+          else await Graph.gpatch(trv2Path(op.url), op.body, sc);
+          say(`${op.label}${isDemo ? " (simulated)" : ""}`, true);
+        } catch (e) { bad++; say(`${op.label} — ${gsaErr(e)}`, false); }
+      }
+      if (bad) throw new Error(`${bad} step${bad === 1 ? "" : "s"} could not be put back — finish by hand in Entra → External Identities → Cross-tenant access settings`);
+      log.done = true; say("put back — reading the tenant again", true);
+    } catch (e) { say(gsaErr(e), false); }
+    finally { w.busy = false; }
+    if (log.done) { if (isDemo) renderGsa(); else { gsa.raw = null; await readGsa(); } } else renderGsa();
+  }
+  function trv2Form(w) {
+    const o = w.opts, info = trv2Info();
+    if (!info || info.err) return `<p class="mini gsa-warn-txt">Cross-tenant access settings were not read${info && info.err ? ` — ${esc(info.err)}` : ""}. Read the tenant again; it needs Policy.Read.All.</p>`;
+    const s = info.settings, st = info.st, p = trv2Plan(o);
+    const rows = s.allow.map((e) => `<div class="gsa-actrow"><div><b>${esc(e.name)}</b><div class="mini muted">${esc([e.domain, e.tenantId].filter(Boolean).join(" · "))} · now ${esc(Trv2.effective(st, e.tenantId))}</div></div><button class="btn sm" data-trv2rm="${esc(e.tenantId)}"${w.busy ? " disabled" : ""}>Remove</button></div>`).join("") || '<p class="mini">No tenant on the list yet — every other tenant would be blocked.</p>';
+    const allowIds = new Set(s.allow.map((e) => e.tenantId)), keep = new Set(s.keepPartners);
+    const inh = st.partners.filter((x) => x.inherits && !allowIds.has(x.tenantId) && x.tenantId !== Trv2.MSA_TENANT);
+    const inhHtml = inh.length ? `<div class="gsa-lab" style="margin-top:8px">Partners that inherit the default (${inh.length})</div>${inh.map((x) => `<label class="chk"><input type="checkbox" data-trv2keep="${esc(x.tenantId)}"${keep.has(x.tenantId) ? " checked" : ""}> Keep <b>${esc(x.tenantId)}</b> allowed — unticked, its accounts are blocked once the default blocks</label>`).join("<br>")}` : "";
+    const msgs = p ? [...p.refusals.map((t) => ["bad", t]), ...p.findings.map((f) => [f.sev === "warn" ? "warn" : "info", f.text]), ...p.notes.map((t) => ["info", t])] : [];
+    return `<div class="gsa-lab">Allowed tenants — kept in this browser for this tenant</div>${rows}`
+      + `<div style="margin:8px 0"><input class="txt" data-gsaopt="q" value="${esc(o.q || "")}" placeholder="Domain or tenant ID, e.g. contoso.com" style="min-width:min(260px,100%)"> <button class="btn sm" data-trv2add>Look up and add</button> <button class="btn sm" data-trv2csv>Import CSV…</button> <button class="btn sm" data-trv2export>Export CSV</button><input type="file" accept=".csv,text/csv" data-trv2file hidden></div>`
+      + '<p class="mini muted">A domain is looked up in Microsoft\'s directory (CrossTenantInformation.ReadBasic.All, asked on the click). CSV columns domain,tenantId,name — a row without a tenant ID is looked up.</p>'
+      + inhHtml
+      + `<label class="chk"><input type="checkbox" data-trv2msa${s.allowMsa ? " checked" : ""}> Allow personal Microsoft accounts — off is the safer choice; the default block covers them</label><br>`
+      + `<label class="chk"><input type="checkbox" data-gsaopt="enforce"${o.enforce ? " checked" : ""}> <b>Enforce</b> through Global Secure Access — universal tenant restrictions on. Off: the policy is written and nothing is blocked yet</label>`
+      + (msgs.length ? `<ul class="mini">${msgs.map(([c, t]) => `<li${c === "bad" ? ' style="color:var(--off)"' : c === "warn" ? ' class="gsa-warn-txt"' : ""}>${esc(t)}</li>`).join("")}</ul>` : "")
+      + `<div class="gsa-wbtns"><button class="btn sm" data-trv2undo${w.busy ? " disabled" : ""}>↩ Put back from a backup…</button><input type="file" accept=".json,application/json" data-trv2bk hidden></div>`;
+  }
   globalThis.GsaTool = {
     groupIds: () => (gsa.model && gsa.session === gsaSession() ? gsa.model.groupIds : null),
     nameOf: (id) => { const g = gsa.model && gsa.model.groups.find((x) => x.id === id); return g ? g.name : id; },
@@ -22706,29 +23228,37 @@ This is a directory write. Nothing else changes.`)) return;
   function openGsa() {
     crumb("🌐 Global Secure Access");
     show("screen-gsa");
-    if (gsa.session !== gsaSession()) gsa = Object.assign(gsa, { raw: null, model: null, err: null, proof: null, work: [], sel: null, session: gsaSession() });
-    $("gsaHead").innerHTML = toolHead("toolGsa") + '<p class="mini" style="margin:6px 0 0">Stolen session tokens only work if Entra accepts them from the attacker\'s network. This board checks every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can safely go on — the <b>Microsoft traffic profile</b> first; Internet Access and Private Access come later — finds the link that is missing, and fixes the links that live in Entra and Intune. Every fix says what it changes, who it affects and how to undo it before it runs. It never switches a policy on and never changes a policy\'s exclusions.</p>';
+    if (gsa.session !== gsaSession()) gsa = Object.assign(gsa, { raw: null, model: null, err: null, proof: null, work: [], sel: null, session: gsaSession(), mode: null, modeChosen: false, mon: null, monErr: null, monFilter: {} });
+    $("gsaHead").innerHTML = toolHead("toolGsa") + '<p class="mini" style="margin:6px 0 0">Stolen session tokens only work if Entra accepts them from the attacker\'s network. This board checks every link Global Secure Access needs before a <b>compliant-network-only</b> Conditional Access policy can safely go on — the <b>Microsoft traffic profile</b> first; Internet Access and Private Access come later — finds the link that is missing, and fixes the links that live in Entra and Intune. Every fix says what it changes, who it affects and how to undo it before it runs. It never switches a policy on and never changes a policy\'s exclusions. Once every link is ready it opens on <b>📈 Monitor</b>: the devices Global Secure Access sees, its traffic log and alerts, and the sign-ins that went around the tunnel.</p>';
     renderGsa();
   }
   function renderGsa() {
     if (!$("screen-gsa").classList.contains("active")) return;
     const body = $("gsaBody");
-    if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences…</p>'; return; }
+    if (gsa.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading Global Secure Access, the profile, the named locations, Intune scripts and the licences… <span class="muted">now: <span id="gsaStep">${esc(gsa.step || "starting")}</span></span></p>'; return; }
     if (!gsa.raw) { body.innerHTML = `${gsa.err ? `<p class="mini" style="color:var(--off)">Could not be read — ${esc(gsa.err)}</p>` : ""}<div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant</button><p class="mini muted">Reads the tenant status, the Microsoft traffic profile and who it is assigned to, Conditional Access signalling, the named locations, the Intune scripts and apps, and the licences (${esc(GSA_READ.join(", "))}, asked on the click). Nothing is written.</p></div>`; return; }
-    gsa.model = Gsa.model(gsa.raw, gsaPolicies());
-    body.innerHTML = Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml) });
+    // 32815: a read that came back but cannot be drawn used to leave the spinner on screen for ever
+    try { gsa.model = Gsa.model(gsa.raw, gsaPolicies()); }
+    catch (e) { console.error("Global Secure Access board", e); body.innerHTML = `<p class="mini" style="color:var(--off)">The tenant was read but the board could not be drawn — ${esc(gsaErr(e))}</p><div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant again</button></div>`; return; }
+    // 0.12.0: Setup or Monitor — Monitor by default once steps 1–7 are ready, until the person picks
+    if (!gsa.modeChosen) gsa.mode = Gsa.setupDone(gsa.model) ? "monitor" : "setup";
+    try { body.innerHTML = gsa.mode === "monitor" ? Gsa.renderMonitor(gsa.model, gsa.mon ? Gsa.monitor(gsa.model, gsa.mon) : null, { monBusy: gsa.monBusy, monRead: gsa.monRead, monErr: gsa.monErr, period: gsa.monPeriod, filter: gsa.monFilter }) : Gsa.render(gsa.model, { proof: gsa.proof, proofBusy: gsa.proofBusy, proofRead: gsa.proofRead, proofErr: gsa.proofErr, sel: gsa.sel, work: gsa.work.map(gsaWorkHtml), trv2Html: typeof Trv2 !== "undefined" ? Trv2.card(trv2Info(), { open: !!gsa.trv2Open || gsa.work.some((w) => w.k === "trv2") }) : "" }); }
+    catch (e) { console.error("Global Secure Access board", e); body.innerHTML = `<p class="mini" style="color:var(--off)">The tenant was read but the board could not be drawn — ${esc(gsaErr(e))}</p><div class="run-prompt"><button class="btn primary" data-gsaread>▶ Read the tenant again</button></div>`; return; }
     $("gsaRead").textContent = gsa.raw.readAt ? `Read ${new Date(gsa.raw.readAt).toLocaleString()}${gsa.raw.demo ? " · demo" : ""}` : "";
   }
   async function readGsa() {
     if (gsa.busy) return;
     gsa.busy = true; gsa.err = null; gsa.proof = null; renderGsa();
     try {
-      if (isDemo) { await new Promise((r) => setTimeout(r, 250)); gsa.raw = Gsa.demo(); }
+      if (isDemo) { await new Promise((r) => setTimeout(r, 250)); gsa.raw = gsa.demoRaw || Object.assign(Gsa.demo(), { macChain: Gsa.demoMac() }); gsa.demoRaw = gsa.raw; }
       else {
         const sc = [...AUTH_CONFIG.scopes, ...GSA_READ];
         if (!await preConsent(sc)) throw new Error("the Global Secure Access read permissions were not granted");
         const raw = { sources: {}, groupNames: {} };
-        const one = async (k, fn) => { try { raw[k] = await fn(); raw.sources[k] = "ok"; } catch (e) { raw.sources[k] = gsaErr(e); } };
+        // 32815: devcf kept loading with no word on where — every source now says what is being read
+        // and gives up after GSA_SRC_MS, named in the board as not read, instead of waiting for ever
+        const within = (p, label) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} took longer than ${GSA_SRC_MS / 1000} seconds — skipped`)), GSA_SRC_MS))]);
+        const one = async (k, fn) => { gsaStep(k); try { raw[k] = await within(Promise.resolve().then(fn), GSA_SRC_LABEL[k] || k); raw.sources[k] = "ok"; } catch (e) { raw.sources[k] = gsaErr(e); } };
         await one("skus", () => Graph.ggetAll("/v1.0/subscribedSkus", { scopes: sc }));
         await one("status", () => Graph.gget("/networkAccess/tenantStatus", sc));
         // 32518: the ZTNA Policy Service Client app the client signs in through
@@ -22738,16 +23268,38 @@ This is a directory write. Nothing else changes.`)) return;
           await one("signaling", () => Graph.gget("/networkAccess/settings/conditionalAccess", sc));
           const spId = raw.profile && raw.profile.servicePrincipal && raw.profile.servicePrincipal.id;
           if (spId) {
-            await one("sp", () => Graph.gget(`/v1.0/servicePrincipals/${spId}?$select=id,appId,displayName,appRoleAssignmentRequired,appRoles`, sc));
+            await one("sp", () => Graph.gget(`/v1.0/servicePrincipals/${spId}?$select=id,appId,displayName,appRoleAssignmentRequired,appRoles,tags`, sc));
             await one("assigned", () => Graph.ggetAll(`/v1.0/servicePrincipals/${spId}/appRoleAssignedTo?$top=999`, { scopes: sc }));
           }
         }
         await one("locations", () => Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc }));
+        // 0.7.0: tenant restrictions v2 — the cross-tenant access default and
+        // partners (v1.0, Policy.Read.All) and GSA universal tenant
+        // restrictions (beta); an unreadable GSA setting is carried, not fatal
+        await one("trv2", async () => ({ default: await Graph.gget("/v1.0/policies/crossTenantAccessPolicy/default", sc), partners: await Graph.ggetAll("/v1.0/policies/crossTenantAccessPolicy/partners", { scopes: sc }), utr: await Graph.gget("/networkAccess/settings/crossTenantAccess", sc).catch((e) => ({ error: gsaErr(e) })) }));
         // 32523: the GSA ones read with their assignments, for the Intune card
         const withAsg = async (base, list) => { for (const s of list.filter((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`))) { try { s.assignments = (await Graph.gget(`${base}/${s.id}/assignments`, sc)).value || []; } catch { /* left unknown */ } } return list; };
-        await one("scripts", async () => withAsg("/deviceManagement/deviceManagementScripts", await Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName,description", { scopes: sc })));
+        await one("scripts", async () => {
+          const list = await withAsg("/deviceManagement/deviceManagementScripts", await Graph.ggetAll("/deviceManagement/deviceManagementScripts?$select=id,displayName,fileName,description", { scopes: sc }));
+          // 32708 (B3): a platform script is judged by what ran, like the remediation
+          for (const x of list.filter((y) => /global\s*secure\s*access/i.test(`${y.displayName} ${y.fileName}`))) {
+            try { x.runSummary = await Graph.gget(`/deviceManagement/deviceManagementScripts/${x.id}/runSummary`, sc); } catch { x.runSummary = null; }
+            // 0.14.0: its content and each device's run
+            try { const y = await Graph.gget(`/deviceManagement/deviceManagementScripts/${x.id}?$select=scriptContent,runAsAccount,runAs32Bit`, sc); x.contentText = Gsa.b64dec(y.scriptContent); x.runAsAccount = y.runAsAccount; x.runAs32Bit = y.runAs32Bit; } catch { /* content unknown */ }
+            try { x.runs = await Graph.ggetAll(`/deviceManagement/deviceManagementScripts/${x.id}/deviceRunStates?$expand=${encodeURIComponent("managedDevice($select=id,deviceName,azureADDeviceId)")}`, { scopes: sc, cap: 2000 }); } catch (e) { x.runsErr = gsaErr(e); }
+          }
+          return list;
+        });
         await one("shellScripts", async () => withAsg("/deviceManagement/deviceShellScripts", await Graph.ggetAll("/deviceManagement/deviceShellScripts?$select=id,displayName,fileName,description", { scopes: sc })));
-        await one("apps", () => Graph.ggetAll("/deviceAppManagement/mobileApps?$filter=" + encodeURIComponent("startswith(displayName,'Global Secure Access')") + "&$select=id,displayName", { scopes: sc }));
+        await one("apps", async () => {
+          const list = await Graph.ggetAll("/deviceAppManagement/mobileApps?$filter=" + encodeURIComponent("startswith(displayName,'Global Secure Access')") + "&$select=id,displayName", { scopes: sc });
+          // 32708 (B3): an app is judged by its assignments and install summary
+          for (const a of list) {
+            try { a.assignments = (await Graph.gget(`/deviceAppManagement/mobileApps/${a.id}/assignments`, sc)).value || []; } catch { /* left unknown */ }
+            try { a.installSummary = await Graph.gget(`/deviceAppManagement/mobileApps/${a.id}/installSummary`, sc); } catch { a.installSummary = null; }
+          }
+          return list;
+        });
         // 32520: the Windows client as a remediation — matched by name, then
         // its assignments and its run summary (detected / remediated / failing)
         await one("healthScripts", async () => {
@@ -22755,25 +23307,139 @@ This is a directory write. Nothing else changes.`)) return;
           for (const h of hs) {
             try { h.assignments = (await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/assignments`, sc)).value || []; h.assigned = h.assignments.length > 0; } catch { h.assigned = null; }
             try { h.runSummary = await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}/runSummary`, sc); } catch { h.runSummary = null; }
+            // 0.14.0: what the script says (client settings, download) and how each device ran it
+            try { const x = await Graph.gget(`/deviceManagement/deviceHealthScripts/${h.id}?$select=detectionScriptContent,remediationScriptContent,runAsAccount,runAs32Bit`, sc); h.contentText = `${Gsa.b64dec(x.detectionScriptContent)}\n${Gsa.b64dec(x.remediationScriptContent)}`; h.runAsAccount = x.runAsAccount; h.runAs32Bit = x.runAs32Bit; } catch { /* content unknown */ }
+            try { h.runs = await Graph.ggetAll(`/deviceManagement/deviceHealthScripts/${h.id}/deviceRunStates?$expand=${encodeURIComponent("managedDevice($select=id,deviceName,azureADDeviceId)")}`, { scopes: sc, cap: 2000 }); } catch (e) { h.runsErr = gsaErr(e); }
           }
           return hs;
         });
+        // 32708 (B3, S8): who the Windows deployments reach — the members of
+        // their groups: Windows devices by join type (AzureAd joined, ServerAd
+        // hybrid joined, Workplace registered) and users
+        raw.winGroups = {};
+        {
+          const rxW = /global\s*secure\s*access/i;
+          const asgW = [...(raw.healthScripts || []), ...(raw.scripts || []).filter((x) => rxW.test(`${x.displayName} ${x.fileName}`)), ...(raw.apps || [])].flatMap((x) => (x.assignments || []).map((a) => a.target || {})).filter((t) => t.groupId && !/exclusion/i.test(t["@odata.type"] || ""));
+          for (const gid of [...new Set(asgW.map((t) => t.groupId))].slice(0, 20)) {
+            try {
+              gsaStep("winGroups");
+              const mem = await within(Graph.ggetAll(`/v1.0/groups/${gid}/members?$select=id,displayName,deviceId,operatingSystem,trustType&$top=999`, { scopes: sc, cap: 5000 }), "the group members");
+              const dev = mem.filter((x) => /device$/i.test(x["@odata.type"] || "")), winD = dev.filter((x) => /^windows/i.test(x.operatingSystem || ""));
+              raw.winGroups[gid] = { list: winD.map((x) => ({ deviceId: x.deviceId, displayName: x.displayName, operatingSystem: x.operatingSystem, trustType: x.trustType })), devices: dev.length, windows: winD.length, joined: winD.filter((x) => x.trustType === "AzureAd").length, hybrid: winD.filter((x) => x.trustType === "ServerAd").length, registered: winD.filter((x) => x.trustType === "Workplace").length, users: mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length };
+            } catch { /* members not read — the step says so */ }
+          }
+        }
+        // 0.14.0: secure DNS off in Edge and Chrome — the Windows settings catalog policies that set it, found by content
+        await one("winDns", async () => {
+          // 32815: devcf kept loading here — the old read opened the settings of EVERY Windows settings
+          // catalog policy in one expand (a baseline tenant has many, and Intune returns them a few per page).
+          // Now the names are listed and only the browser, DNS and GSA ones are opened, four at a time
+          const all = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'windows10'") + "&$select=id,name", { scopes: sc });
+          const pols = all.filter((p) => /edge|chrome|browser|dns|doh|gsa|global secure access/i.test(p.name || "")).slice(0, 60);
+          await Graph.mapLimit(pols, 4, async (p) => {
+            try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.settings = []; }
+          });
+          const ids = Gsa.DNS_SETTINGS.map((d) => d.def);
+          return pols.filter((p) => (p.settings || []).some((x) => ids.includes((x.settingInstance || {}).settingDefinitionId)));
+        });
+        // 32708 (S7): is macOS in scope at all — any Intune-managed Mac in Entra
+        try {
+          gsaStep("macManaged"); const macs = await within(Graph.ggetAll("/v1.0/devices?$filter=" + encodeURIComponent("operatingSystem eq 'MacMDM' or operatingSystem eq 'macOS'") + "&$select=id,isManaged&$top=100", { scopes: sc, cap: 200 }), "the Macs");
+          raw.macManaged = macs.filter((x) => x.isManaged === true).length;
+        } catch { raw.macManaged = null; }
         // 32517: the three macOS profiles (system extensions, transparent proxy,
         // client settings) — listed, matched by Gsa.macProfiles, then read with
         // their assignments; nothing here writes them
         await one("macProfiles", async () => {
-          const pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name,description", { scopes: sc })).filter((p) => /GSA|Global Secure Access/i.test(p.name || ""));
+          // 32703: a baseline's consolidated system-extension policy names the
+          // GSA extensions in its settings, not its name — those are opened
+          const pols = (await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name,description", { scopes: sc })).filter((p) => /GSA|Global Secure Access|system.?extension/i.test(p.name || ""));
+          for (const p of pols) { if (!/GSA|Global Secure Access/i.test(p.name || "")) { try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; } catch { p.settings = []; } } }
           const cfgs = (await Graph.ggetAll("/deviceManagement/deviceConfigurations?$select=id,displayName", { scopes: sc })).filter((c) => /macOSCustom/.test(c["@odata.type"] || "") && /GSA|Global Secure Access/i.test(c.displayName || ""));
           for (const p of pols) { try { p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.assignments = []; } }
           for (const c of cfgs) { try { Object.assign(c, await Graph.gget(`/deviceManagement/deviceConfigurations/${c.id}?$expand=assignments`, sc)); } catch { c.assignments = c.assignments || []; } }
           return Gsa.macProfiles(pols, cfgs);
         });
+        // 0.9.0 (Mihai: robust and complete): the macOS chain FOUND BY CONTENT —
+        // every macOS settings catalog policy with its settings, the macOS
+        // custom / preference / extension profiles with their payload, the
+        // shell scripts that name the client with their content — each with its
+        // assignments and what Intune reports (device status, run summary), and
+        // the script's groups: devices and how many are Intune-managed Macs
+        await one("macChain", async () => {
+          let policies;
+          try { policies = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$expand=settings,assignments&$select=id,name,description,platforms,technologies,roleScopeTagIds,lastModifiedDateTime", { scopes: sc }); }
+          catch {
+            policies = await Graph.ggetAll("/deviceManagement/configurationPolicies?$filter=" + encodeURIComponent("platforms eq 'macOS'") + "&$select=id,name,description,platforms,technologies,roleScopeTagIds,lastModifiedDateTime", { scopes: sc });
+            for (const p of policies.filter((x) => /GSA|Global Secure Access|system.?extension/i.test(x.name || ""))) { try { p.settings = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/settings`, sc)).value || []; p.assignments = (await Graph.gget(`/deviceManagement/configurationPolicies/${p.id}/assignments`, sc)).value || []; } catch { p.settings = p.settings || []; } }
+          }
+          policies = policies.filter((p) => JSON.stringify(p.settings || []).includes("com.apple.system-extension-policy"));
+          const types = ["macOSCustomConfiguration", "macOSCustomAppConfiguration", "macOSExtensionsConfiguration"];
+          const configs = await Graph.ggetAll("/deviceManagement/deviceConfigurations?$filter=" + encodeURIComponent(types.map((t) => `isof('microsoft.graph.${t}')`).join(" or ")), { scopes: sc });
+          for (const c of configs.slice(0, 60)) { try { Object.assign(c, await Graph.gget(`/deviceManagement/deviceConfigurations/${c.id}?$expand=assignments`, sc)); } catch { c.assignments = c.assignments || []; } }
+          const scripts = (await Graph.ggetAll("/deviceManagement/deviceShellScripts?$expand=assignments", { scopes: sc })).filter((s) => /global.?secure.?access|\bgsa\b/i.test(`${s.displayName} ${s.fileName} ${s.description || ""}`));
+          for (const s of scripts) { try { s.scriptContent = (await Graph.gget(`/deviceManagement/deviceShellScripts/${s.id}`, sc)).scriptContent; } catch { /* content unknown */ } try { s.runSummary = await Graph.gget(`/deviceManagement/deviceShellScripts/${s.id}/runSummary`, sc); } catch { s.runSummary = null; } }
+          const chain = { policies, configs, scripts, groups: {} };
+          const mac = Gsa.macCheck(chain, raw.groupNames);
+          for (const r of mac.rows.filter((x) => x.found && x.key !== "script")) {
+            const o = r.found;
+            if (o.settings !== undefined && o.name !== undefined) { try { const rep = await Graph.gpost("/deviceManagement/reports/getConfigurationPolicyDevicesReport", { select: ["DeviceName", "PolicyStatus"], filter: `(PolicyId eq '${o.id}')`, top: 50 }, sc); o.reported = (typeof rep === "string" ? JSON.parse(rep) : rep).TotalRowCount; } catch { /* not read */ } }
+            else { try { o.overview = await Graph.gget(`/deviceManagement/deviceConfigurations/${o.id}/deviceStatusOverview`, sc); } catch { /* not read */ } }
+          }
+          for (const g of mac.groups) {
+            try {
+              const mem = await Graph.ggetAll(`/v1.0/groups/${g.id}/members?$select=id,displayName,deviceId,operatingSystem,trustType&$top=100`, { scopes: sc });
+              const devs = mem.filter((x) => /device$/i.test(x["@odata.type"] || "")), users = mem.filter((x) => /user$/i.test(x["@odata.type"] || "")).length;
+              let managed = 0;
+              for (const d of devs.filter((x) => /mac/i.test(x.operatingSystem || "")).slice(0, 25)) { try { if ((await Graph.ggetAll(`/deviceManagement/managedDevices?$filter=${encodeURIComponent(`azureADDeviceId eq '${d.deviceId}'`)}&$select=id`, { scopes: sc })).length) managed++; } catch { /* unknown */ } }
+              chain.groups[g.id] = { devices: devs.length, managedMacs: managed, users, list: devs.filter((x) => /mac/i.test(x.operatingSystem || "")).map((x) => ({ deviceId: x.deviceId, displayName: x.displayName, operatingSystem: x.operatingSystem, trustType: x.trustType })) };
+            } catch { /* members not read */ }
+          }
+          return chain;
+        });
+        // 0.11.0: what Global Secure Access itself has seen, the last 7 days —
+        // its device report (devices with traffic through GSA) and the sign-ins
+        // marked through GSA, interactive and non-interactive. This decides
+        // step 6; Intune's run state only explains. Either source may be
+        // refused; the lane says which.
+        {
+          const now = new Date(), since = new Date(now.getTime() - Gsa.SEEN_DAYS * 86400000);
+          raw.seen = { days: Gsa.SEEN_DAYS, since: since.toISOString(), report: null, signIns: null, capped: false };
+          if (raw.status && raw.status.onboardingStatus === "onboarded") {
+            try { gsaStep("seenReport"); raw.seen.report = await within(Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.deviceReport(startDateTime=${since.toISOString()},endDateTime=${now.toISOString()})`, { scopes: sc, cap: 5000 }), "the device report"); raw.sources.seenReport = "ok"; } catch (e) { raw.sources.seenReport = gsaErr(e); }
+            try {
+              const sel = "$select=createdDateTime,deviceDetail,userPrincipalName&$top=999";
+              const base = `createdDateTime ge ${since.toISOString()} and isThroughGlobalSecureAccess eq true`;
+              gsaStep("seenSignins");
+              const a = await within(Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(base)}&${sel}`, { scopes: sc, cap: 2000 }), "the sign-ins");
+              let b = [];
+              try { b = await within(Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`${base} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&${sel}`, { scopes: sc, cap: 2000 }), "the non-interactive sign-ins"); } catch { /* the interactive ones stand */ }
+              raw.seen.signIns = [...a, ...b];
+              raw.seen.capped = !!((a.readState && a.readState.capped) || (b.readState && b.readState.capped));
+              raw.sources.seenSignins = "ok";
+            } catch (e) { raw.sources.seenSignins = gsaErr(e); }
+            // 0.14.0: the client's own sign-ins — its policy and its tunnel token, per device
+            try {
+              const f = `createdDateTime ge ${since.toISOString()} and (appId eq '${Gsa.ZTNA_CLIENT}' or appId eq '${Gsa.GSA_CLIENT_APP}') and signInEventTypes/any(t: t eq 'nonInteractiveUser')`;
+              gsaStep("gsaAuth");
+              raw.gsaAuth = await within(Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$select=createdDateTime,appId,appDisplayName,resourceDisplayName,deviceDetail,status&$top=999`, { scopes: sc, cap: 3000 }), "the client's sign-ins");
+              raw.sources.gsaAuth = "ok";
+            } catch (e) { raw.sources.gsaAuth = gsaErr(e); }
+          } else { raw.sources.seenReport = raw.sources.seenSignins = raw.sources.gsaAuth = "Global Secure Access is not activated (step 2)"; }
+        }
+        // 0.11.0: the ENCA settings record — which platforms an admin took out
+        // of step 6's scope, kept on the organization object (none yet: null)
+        await one("encaSettings", async () => {
+          try { return await Graph.gget(`/v1.0/organization/${tenantId}/extensions/${Gsa.ENCA_EXT}`, sc); }
+          catch (e) { if (/\(404\)|ResourceNotFound|not found/i.test(gsaErr(e))) return null; throw e; }
+        });
         // names of the groups the compliant-network policies include
         const cn = (raw.locations || []).find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
-        const asgIds = [...(raw.scripts || []), ...(raw.shellScripts || []), ...(raw.healthScripts || []), ...((raw.macProfiles && raw.macProfiles.found) || [])].flatMap((x) => (x.assignments || []).map((a) => (a.target || {}).groupId));
+        const asgIds = [...(raw.scripts || []), ...(raw.shellScripts || []), ...(raw.healthScripts || []), ...((raw.macProfiles && raw.macProfiles.found) || []), ...(raw.macChain ? [...raw.macChain.policies, ...raw.macChain.configs, ...raw.macChain.scripts] : [])].flatMap((x) => (x.assignments || []).map((a) => (a.target || {}).groupId));
         const ids = [...new Set([...Gsa.cnPolicies(gsaPolicies(), cn && cn.id).flatMap((p) => p.includeGroups), ...asgIds])].filter((id) => /^[0-9a-f-]{36}$/i.test(id || ""));
+        gsaStep("groupNames");
         for (let i = 0; i < ids.length; i += 15) {
-          try { (await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(ids.slice(i, i + 15).map((x) => `id eq '${x}'`).join(" or "))}&$select=id,displayName`, { scopes: sc })).forEach((g) => { raw.groupNames[g.id] = g.displayName; }); } catch { /* ids stay */ }
+          try { (await within(Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(ids.slice(i, i + 15).map((x) => `id eq '${x}'`).join(" or "))}&$select=id,displayName`, { scopes: sc }), "the group names")).forEach((g) => { raw.groupNames[g.id] = g.displayName; }); } catch { /* ids stay */ }
         }
         raw.readAt = Date.now();
         gsa.raw = raw;
@@ -22786,48 +23452,181 @@ This is a directory write. Nothing else changes.`)) return;
     if (gsa.proofBusy || !gsa.model) return;
     gsa.proofBusy = true; gsa.proofRead = 0; gsa.proofErr = null; gsa.sel = "proof"; renderGsa();
     try {
-      const ids = gsa.model.policies.map((p) => p.id);
+      const ids = (gsa.model.guards && gsa.model.guards.length ? gsa.model.guards : gsa.model.policies).map((p) => p.id);
       if (isDemo) {
         await new Promise((r) => setTimeout(r, 250));
-        const s = (r, via, u) => ({ userId: u, isThroughGlobalSecureAccess: via, appliedConditionalAccessPolicies: ids.map((id) => ({ id, result: r })) });
-        gsa.proof = Gsa.proof([...Array(40)].map((_, i) => s(i % 5 === 0 ? "reportOnlySuccess" : "reportOnlyFailure", i % 5 === 0, `u${i % 12}`)), ids);
+        const s = (r, via, u, ni) => ({ userId: u, isThroughGlobalSecureAccess: via, signInEventTypes: [ni ? "nonInteractiveUser" : "interactiveUser"], appliedConditionalAccessPolicies: ids.map((id) => ({ id, result: r, conditionsNotSatisfied: r === "reportOnlyNotApplied" ? "location" : "none" })) });
+        gsa.proof = Gsa.proof([...Array(40)].map((_, i) => s(i % 5 === 0 ? "reportOnlyNotApplied" : "reportOnlyFailure", i % 5 === 0, `u${i % 12}`, i % 2 === 0)), ids);
       } else {
         const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
         if (!await preConsent(sc)) throw new Error("AuditLog.Read.All was not granted");
         const since = new Date(Date.now() - 7 * 86400000).toISOString();
+        // 32708 (S5): the default read is interactive sign-ins only (Learn); token
+        // refresh — where a replayed token shows — is non-interactive, read beside it
         const rows = await Graph.ggetAll(`/auditLogs/signIns?$filter=createdDateTime ge ${since}&$top=999`, { cap: 5000, scopes: sc, onPage: (items) => { gsa.proofRead = (items || []).length; renderGsa(); } });
-        gsa.proof = Gsa.proof(rows, ids);
-        gsa.proof.capped = !!(rows.readState && rows.readState.capped);
+        const done1 = rows.length;
+        let rowsNi = [];
+        try { rowsNi = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`createdDateTime ge ${since} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&$top=999`, { cap: 5000, scopes: sc, onPage: (items) => { gsa.proofRead = done1 + (items || []).length; renderGsa(); } }); } catch (e) { toast(`Non-interactive sign-ins not read: <span>${esc(gsaErr(e))}</span>`); }
+        rowsNi.forEach((x) => { if (!x.signInEventTypes) x.signInEventTypes = ["nonInteractiveUser"]; });
+        gsa.proof = Gsa.proof([...rows, ...rowsNi], ids);
+        gsa.proof.capped = !!((rows.readState && rows.readState.capped) || (rowsNi.readState && rowsNi.readState.capped));
       }
       const pr = gsa.proof;
-      toast(`Proof read: <span>${pr.total.toLocaleString()} sign-ins · ${pr.viaGsa.toLocaleString()} through GSA</span>`);
+      toast(`Proof read: <span>${pr.total.toLocaleString()} sign-ins · ${(pr.inScope || 0).toLocaleString()} in the policies' scope · ${(pr.inScopeVia || 0).toLocaleString()} of them through GSA</span>`);
     } catch (e) { gsa.proofErr = gsaErr(e); toast(`Sign-in read failed: <span>${esc(gsaErr(e))}</span>`); }
     finally { gsa.proofBusy = false; }
     renderGsa();
   }
+  // ---- 0.12.0: 📈 Monitor — after setup, the traffic (read-only) ----
+  // Mihai, 18 Oct: "now the focus should be after setup to monitoring the
+  // traffic logs". Each source is read on its own; one refused leaves the
+  // others standing and is named on the screen.
+  const GSA_MON = ["NetworkAccess-Reports.Read.All", "NetworkAccess.Read.All", "NetworkAccessPolicy.Read.All", "AuditLog.Read.All"];
+  async function readGsaMon() {
+    if (gsa.monBusy || !gsa.model) return;
+    gsa.monBusy = true; gsa.monErr = null; gsa.monRead = 0; renderGsa();
+    try {
+      const per = gsa.monPeriod || "24h", days = Gsa.MON_PERIODS[per] || 1, end = new Date(), start = new Date(end.getTime() - days * 86400000);
+      if (isDemo) { await new Promise((r) => setTimeout(r, 250)); gsa.mon = Gsa.demoMonitor(gsa.model, per, start.toISOString(), end.toISOString()); }
+      else {
+        const sc = [...AUTH_CONFIG.scopes, ...GSA_MON];
+        if (!await preConsent(sc)) throw new Error("the monitoring permissions were not granted (NetworkAccess-Reports.Read.All)");
+        const S = start.toISOString(), E = end.toISOString(), W = new Date(start.getTime() - 7 * 86400000).toISOString();
+        const mon = { period: per, start: S, end: E, sources: {}, readAt: Date.now() };
+        const one = async (k, fn) => { try { mon[k] = await fn(); mon.sources[k] = "ok"; } catch (e) { mon[k] = null; mon.sources[k] = gsaErr(e); } };
+        // the heartbeat from a week before the period, to compare each bucket with the same time a week earlier
+        await one("usage", () => Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.usageProfiling(startDateTime=${W},endDateTime=${E},aggregatedBy='transactions',discoveredApplicationSegmentId=null)`, { scopes: sc, cap: 5000 }));
+        await one("devices", () => Graph.ggetAll(`/networkAccess/reports/microsoft.graph.networkaccess.deviceReport(startDateTime=${S},endDateTime=${E})`, { scopes: sc, cap: 5000 }));
+        await one("traffic", async () => { const j = await Graph.gget(`/networkAccess/logs/traffic?$filter=${encodeURIComponent(`createdDateTime ge ${S} and createdDateTime le ${E}`)}&$orderby=${encodeURIComponent("createdDateTime desc")}&$top=1000&$select=${Gsa.TRAFFIC_SELECT}`, sc); return { rows: j.value || [], next: j["@odata.nextLink"] || null }; });
+        await one("alerts", async () => { try { return await Graph.ggetAll(`/networkAccess/alerts?$filter=${encodeURIComponent(`creationDateTime ge ${S}`)}&$top=200`, { scopes: sc, cap: 1000 }); } catch { return (await Graph.ggetAll("/networkAccess/alerts?$top=200", { scopes: sc, cap: 1000 })).filter((a) => String(a.creationDateTime || "") >= S); } });
+        await one("signIns", async () => {
+          const sel = "$select=createdDateTime,userId,userPrincipalName,appDisplayName,ipAddress,isThroughGlobalSecureAccess,globalSecureAccessIpAddress,deviceDetail,status,appliedConditionalAccessPolicies,signInEventTypes&$top=999";
+          const base = `createdDateTime ge ${S}`;
+          const a = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(base)}&${sel}`, { scopes: sc, cap: 5000, onPage: (items) => { gsa.monRead = (items || []).length; renderGsa(); } });
+          const done1 = a.length; let b = [];
+          try { b = await Graph.ggetAll(`/auditLogs/signIns?$filter=${encodeURIComponent(`${base} and signInEventTypes/any(t: t eq 'nonInteractiveUser')`)}&${sel}`, { scopes: sc, cap: 5000, onPage: (items) => { gsa.monRead = done1 + (items || []).length; renderGsa(); } }); } catch { /* the interactive ones stand */ }
+          b.forEach((x) => { if (!x.signInEventTypes) x.signInEventTypes = ["nonInteractiveUser"]; });
+          mon.signInsCapped = !!((a.readState && a.readState.capped) || (b.readState && b.readState.capped));
+          return [...a, ...b];
+        });
+        if (Object.values(mon.sources).every((v) => v !== "ok")) throw new Error(Object.entries(mon.sources).map(([k, v]) => `${k}: ${v}`).join(" · "));
+        gsa.mon = mon;
+      }
+    } catch (e) { gsa.monErr = gsaErr(e); }
+    finally { gsa.monBusy = false; }
+    renderGsa();
+  }
+  async function readGsaMonMore() {
+    const t = gsa.mon && gsa.mon.traffic; if (!t || !t.next || gsa.monBusy) return;
+    try { const j = await Graph.gget(t.next, [...AUTH_CONFIG.scopes, ...GSA_MON]); t.rows = [...t.rows, ...(j.value || [])]; t.next = j["@odata.nextLink"] || null; }
+    catch (e) { toast(`More traffic not read: <span>${esc(gsaErr(e))}</span>`); }
+    renderGsa();
+  }
+  // every loaded transaction, with the device's name
+  function gsaMonCsv() {
+    if (!gsa.mon || !gsa.model) return;
+    const s = Gsa.monitor(gsa.model, gsa.mon), cols = ["createdDateTime", "userPrincipalName", "deviceName", "deviceId", "deviceOperatingSystem", "agentVersion", "destinationFQDN", "destinationUrl", "destinationPort", "trafficType", "action", "policyName", "initiatingProcessName", "sentBytes", "receivedBytes", "transactionId"];
+    const q = (v) => { const x = String(v == null ? "" : v); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
+    downloadText(`ENCA-GSA-traffic-${isDemo ? "demo" : (tenantName || tenantId)}-${s.period}`, "csv", "text/csv", [cols.join(","), ...s.traffic.map((t) => cols.map((c) => q(t[c])).join(","))].join("\n"));
+  }
   // ---- the fixes: described first, then run ----
+  // what the preview needs beside the options: the TRv2 plan, or (32703) the
+  // macOS profiles as read, so a found one shows as reused
+  const gsaMacOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).mac || null;
+  // 0.11.0: Replace needs the remediation and its groups; Not in scope the record as read
+  const gsaWinOf = () => ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).win || {};
+  // 0.13.0: the profile's app and its tags, for hide / show again and Assign's tick
+  const gsaAppOf = () => { const s = (gsa.model && gsa.model.sp) || {}, a = (gsa.model && gsa.model.myApps) || {}; return { spId: s.id, tags: s.tags, known: !!a.known, hidden: !!a.hidden, spName: s.displayName || "" }; };
+  // 0.14.0: the Windows lane (its devices, its chain) and the install script's targets
+  const gsaWinLane = () => ((((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lanes) || {}).windows || {};
+  const gsaInstallTargets = () => ((((gsaWinOf().obj || {}).assignments) || []).map((a) => a.target || {})).filter((t) => (t.groupId && !/exclusion/i.test(t["@odata.type"] || "")) || /allDevices/i.test(t["@odata.type"] || "")).map((t) => (t.groupId ? { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: t.groupId } : { "@odata.type": "#microsoft.graph.allDevicesAssignmentTarget" }));
+  const gsaRunDevs = (o) => { const sel = new Set(o.devSel || []); return (gsaWinLane().devices || []).filter((d) => d.run && d.run.managedId).map((d) => ({ id: d.run.managedId, name: d.name, on: sel.has(d.run.managedId), seen: !!d.seen, state: d.seen ? "connected" : d.run.installed ? `installed${d.auth && d.auth.policy ? (d.auth.tunnel ? "" : " · no tunnel") : " · no policy yet"}` : d.run.failed ? "failed" : "not installed" })); };
+  // 0.15.0: what a Windows workspace starts from — the install hourly, the configuration
+  // daily; a split or a swap keeps the settings the old script wrote (custom ones too)
+  const gsaFixDefaults = (k) => {
+    if (/^macfix-/.test(k)) return { lock: null };
+    const fw = gsaWinOf(), lc = (((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic) || {};
+    const from = (x) => { const c = Gsa.contentSettings(x && x.contentText); return c.known ? { lock: c.mode === "locked down", vals: c.mode === "custom" ? c.vals : null, ipv4: c.ipv4 } : {}; };
+    if (k === "winrem") return { schedule: "hourly" };
+    if (k === "wincfg") return { schedule: "daily", kind: fw.kind === "script" || (!fw.obj && lc.known && !lc.ent) ? "script" : "rem" };
+    if (k === "winsplit") return Object.assign({ schedule: "daily" }, from(fw.obj));
+    if (k === "winswap") return from((fw.cfg && fw.cfg.obj) || (fw.combined ? fw.obj : null));
+    return {};
+  };
+  const gsaSplitOf = () => { const fw = gsaWinOf(), ob = fw.obj || {}; return { kind: fw.kind, oldId: ob.id, oldName: ob.displayName, installName: ob.displayName ? Gsa.majorName(ob.displayName) : "" }; };
+  const gsaPrevOpts = (w) => w.k === "wincfg" ? Object.assign({}, w.opts, { targets: w.opts.useInstall !== false ? gsaInstallTargets() : [] }) : w.k === "winsplit" ? Object.assign({}, w.opts, gsaSplitOf()) : w.k === "winrun" ? Object.assign({}, w.opts, { devs: gsaRunDevs(w.opts), scriptId: (gsaWinOf().obj || {}).id }) : w.k === "winredeploy" ? Object.assign({}, w.opts, { scriptId: (gsaWinOf().obj || {}).id, name: (gsaWinOf().obj || {}).displayName, content: (gsaWinOf().obj || {}).contentText }) : w.k === "windns" ? Object.assign({}, w.opts, { need: (gsaWinLane().chain || {}).need || [], targets: gsaInstallTargets() }) : /^(hideapp|showapp|assign)$/.test(w.k) ? Object.assign({}, w.opts, gsaAppOf()) : w.k === "winswap" ? Object.assign({}, w.opts, { withCfg: !!(gsaWinOf().cfg || gsaWinOf().combined), cfgRemId: gsaWinOf().cfg && gsaWinOf().cfg.kind === "rem" ? gsaWinOf().cfg.obj.id : "", remId: (gsaWinOf().obj || {}).id, remGroups: ((gsaWinOf().reach || {}).groups || []).map((id) => ((gsa.raw && gsa.raw.groupNames) || {})[id] || id) }) : /^scope-/.test(w.k) ? Object.assign({}, w.opts, { rec: (gsa.raw && gsa.raw.encaSettings) || null, who: (Graph.account && Graph.account.username) || "" }) : /^macfix-/.test(w.k) ? Object.assign({}, w.opts, { mac: gsaMacOf() }) : w.k === "trv2" ? Object.assign({}, w.opts, { plan: trv2Plan(w.opts) }) : (w.k === "macscript" || w.k === "macprof") ? Object.assign({}, w.opts, { macProf: ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).macProf || {} }) : w.opts;
   function gsaWorkHtml(w) {
-    const f = Gsa.FIXES[w.k]; if (!f) return "";
+    // 0.9.0: a chain fix takes its words from its plan (create, repair, assign or add)
+    const plan = /^macfix-/.test(w.k) ? Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w)) : null;
+    const f = plan ? Object.assign({}, Gsa.FIXES[w.k], { title: plan.title, changes: plan.changes, impact: plan.impact, recovery: plan.recovery }) : Gsa.FIXES[w.k]; if (!f) return "";
     const o = w.opts, k = w.k;
     let form = "";
+    if (plan) {
+      const r = plan.row, mac = gsaMacOf();
+      const issues = r.issues.length ? `<ul class="mini">${r.issues.map((i) => `<li class="${i.sev === "bad" ? "gsa-bad-txt" : "muted"}">${esc(i.t)}</li>`).join("")}</ul>` : "";
+      const sx = r.key === "sysext" && (plan.mode === "add" || (mac && mac.otherSx.length && !r.found) || r.consolidated && r.mode === "repair") ? `<div class="mini" style="margin:6px 0"><label class="chk"><input type="radio" name="gsaSx" data-gsaopt="sxMode" value="add"${(o.sxMode || "add") === "add" ? " checked" : ""}> <b>Add the GSA ids to the policy that already sets system extensions</b> (recommended — one policy, no conflict; a backup is downloaded first)</label><br><label class="chk"><input type="radio" name="gsaSx" data-gsaopt="sxMode" value="new"${o.sxMode === "new" ? " checked" : ""}> Make a separate GSA policy — Intune reports a conflict where both reach a Mac</label></div>` : "";
+      const lock = r.key === "settings" && plan.mode !== "assign" ? `<label class="chk"><input type="checkbox" data-gsaopt="lock"${(o.lock != null ? o.lock : r.mood === "lock-down") ? " checked" : ""}> Lock the client down — Pause, Disable, Quit and Disable Private Access hidden${r.mood ? ` (now: ${esc(r.mood)})` : ""}</label>` : "";
+      const grpIn = plan.ops.some((x) => x.do === "group") ? `<div class="mini" style="margin:6px 0">No assigned install script to follow — assign to <input class="txt" data-gsaopt="macGroup" value="${esc(o.macGroup || Gsa.GROUPS.mac)}" placeholder="Device group display name" style="min-width:min(320px,100%)"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label></div>` : "";
+      form = `${r.found ? `<div class="mini"><b>Now:</b> ${esc(r.name)}</div>` : ""}${issues}${sx}${lock}${grpIn}${plan.mode === "none" ? '<p class="mini gsa-ok-txt">Nothing to do — this row is complete.</p>' : ""}`;
+    }
     if (k === "assign") form = `<label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="group"${o.allUsers ? "" : " checked"}> <b>Pilot group</b> (recommended)</label> <input class="txt" data-gsaopt="group" value="${esc(o.group)}" placeholder="Group display name, e.g. GSA-SEC-U-M365Profile-Pilot" style="min-width:min(320px,100%)"><br><label class="chk"><input type="radio" name="gsaAssignHow-${k}" data-gsahow value="all"${o.allUsers ? " checked" : ""}> <b>All users</b> — Assignment required off on the profile's app</label>`;
+    // 0.13.0: hide the profile's app from My Apps in the same run — ticked by default
+    if (k === "assign") { const ma = (gsa.model && gsa.model.myApps) || null; if (ma && ma.known) form += ma.hidden ? `<div class="mini muted" style="margin-top:6px">The profile's app is already hidden from My Apps — the new members see no tile.</div>` : `<br><label class="chk"><input type="checkbox" data-gsaopt="hide"${o.hide !== false ? " checked" : ""}> <b>Also hide the app from My Apps</b> (recommended) — only the tile goes, the assignment stays. With All users nobody is assigned, so no tile shows and nothing is hidden</label>`; }
     // 32517: names by the CloudFellows convention read from devcf; release
     // and version editable, the device group defaulted and made when missing
     const nm = () => Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" });
-    const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">${which === "rem" ? "detection + remediation, SYSTEM, 64-bit" : `file ${esc(which === "win" ? Gsa.WIN_FILE : Gsa.MAC_FILE)}`}</span></div>`;
+    const naming = (which) => `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(nm()[which])}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"> <span class="muted">${/^rem/.test(which) ? "detection + remediation, SYSTEM, 64-bit" : `file ${esc(which === "win" ? Gsa.WIN_FILE : which === "winCfg" ? Gsa.CFG_FILE : Gsa.MAC_FILE)}`}</span></div>`;
     const grp = (key, def) => `<input class="txt" data-gsaopt="${key}" value="${esc(o[key] || def)}" placeholder="Device group display name" style="min-width:min(320px,100%)"> <label class="chk"><input type="checkbox" data-gsaopt="mkGroup"${o.mkGroup ? " checked" : ""}> create it (assigned, empty) when it does not exist</label>`;
     const lockBox = `<label class="chk"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — all four keys on, users cannot disable it or sign out. Off = pilot settings (Learn's sample): sign-out and Disable Private Access hidden, Disable visible</label>`;
-    if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select> — detect, and install when the client is not there</label><br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart, the remediation never restarts</label><p class="mini muted">A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet.</p>`;
-    if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<br>${lockBox}<br><label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20, needs a reboot) — the client tunnels IPv4 only</label>`;
-    if (k === "macscript") { const c = (gsa.model.links.find((l) => l.k === "client") || {}); form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<p class="mini${c.macProfOk ? " muted" : " gsa-warn-txt"}">${esc(c.sub || "")}${c.macProfOk ? "" : " — assign them to the same group in Intune, or the client cannot load its extension and tunnel."}</p>`; }
-    const tabs = Gsa.preview(k, o), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
-    const dlBtn = { det: "det", rem: "rem", win: "win", mac: "mac" }[tab && tab.id];
+    if (k === "winrem") form = `${naming("rem")}${grp("devGroup", Gsa.GROUPS.win)}<br><label class="chk">Run <select data-gsaopt="schedule"><option value="hourly"${o.schedule !== "daily" ? " selected" : ""}>every hour</option><option value="daily"${o.schedule === "daily" ? " selected" : ""}>daily (09:00 device time)</option></select> — detect, and install when the client is not there</label><p class="mini muted">Installs the client only. The client settings are the Windows configuration — its own deployment (Create Windows configuration…), to run and assign separately.</p><p class="mini muted">${(() => { const fw = ((gsa.model.links.find((l) => l.k === "client") || {}).win || {}); return fw.kind === "rem" && fw.obj ? `Step 6 found ${esc(fw.obj.displayName)} — it is reused and assigned, never made a second time; its other assignments are kept with remediation on.` : "A remediation of this name already in Intune is reused, and only assigned when the group is not on it yet."; })()}</p>`;
+    // 0.13.1: a remediation outside the tenant's licence is the admin's choice — say so before Apply
+    if (k === "winrem") { const lc = ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic || {}; if (lc.known && !lc.ent) form = `<p class="mini gsa-warn-txt">⚠ This tenant's licence does not include remediations — they need Windows Enterprise E3/E5, Education A3/A5 or VDA${lc.biz ? "; Business Premium carries Windows Business" : ""}. Intune runs the remediation when it is switched on, so it works; using it outside the licence is your choice. The platform script is the route inside the licence.</p>${form}`; }
+    if (k === "winscript") form = `${naming("win")}${grp("devGroup", Gsa.GROUPS.win)}<p class="mini muted">Installs the client only. The client settings are the Windows configuration — its own script (Create Windows configuration…).</p>`;
+    // 0.15.0 (Mihai 19 Oct): the configuration on its own, and the split of a combined script
+    const v4Box = `<label class="chk"><input type="checkbox" data-gsaopt="ipv4"${o.ipv4 ? " checked" : ""}> Prefer IPv4 (DisabledComponents 0x20) — the client tunnels IPv4 only; takes effect at the next restart</label>`;
+    const remLic = () => { const lc = ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic || {}; return lc.known && !lc.ent ? `<p class="mini gsa-warn-txt">⚠ This tenant's licence does not include remediations — Intune runs them when they are switched on; using one outside the licence is your choice.</p>` : ""; };
+    if (k === "wincfg") {
+      const fw = gsaWinOf(), tg = gsaInstallTargets(), asScript = o.kind === "script";
+      const tn = tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", ");
+      const useI = tg.length && o.useInstall !== false;
+      form = `<div class="mini" style="margin:2px 0 6px"><b>As</b> <label class="chk"><input type="radio" name="gsaCfgKind" data-gsaopt="kind" value="rem"${asScript ? "" : " checked"}> a remediation</label> <label class="chk"><input type="radio" name="gsaCfgKind" data-gsaopt="kind" value="script"${asScript ? " checked" : ""}> a platform script</label><br><span class="muted">${asScript ? "Runs once and writes the values whether or not the client is there yet (a platform script that skipped would never run again)." : "Checks for the client first — nothing to configure yet where it is not installed — and puts the values back every run."}</span></div>${naming(asScript ? "winCfg" : "remCfg")}${tg.length ? `<div class="mini"><label class="chk"><input type="checkbox" data-gsaopt="useInstall"${useI ? " checked" : ""}> Assign to the install's targets: <b>${esc(tn)}</b></label></div>` : ""}${useI ? "" : grp("devGroup", Gsa.GROUPS.win)}${asScript ? "" : `<br><label class="chk">Run <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select></label>`}<br>${lockBox}<br>${v4Box}${fw.obj ? "" : `<p class="mini muted">No install yet — the configuration can go first; it waits for the client.</p>`}${asScript ? "" : remLic()}`;
+    }
+    if (k === "winsplit") {
+      const fw = gsaWinOf(), ob = fw.obj || {}, asScript = fw.kind === "script", ct = Gsa.contentSettings(ob.contentText);
+      form = `<div class="mini"><b>Now:</b> ${esc(ob.displayName || "—")}${fw.reach ? ` — ${esc(fw.reach.text)}` : ""}<br><b>Install:</b> ${esc(ob.displayName ? Gsa.majorName(ob.displayName) : "—")} <span class="muted">— install only, same targets${asScript ? "" : " and schedule"}</span><br><b>Configuration:</b> <span data-gsaname>${esc(nm()[asScript ? "winCfg" : "remCfg"])}</span> <span class="muted">— same targets</span><br><b>Then:</b> ${esc(ob.displayName || "the combined script")} assigned to nobody and renamed [DEPRECATED] — kept, not deleted</div><div class="mini" style="margin:6px 0">The configuration's release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"></div>${ct.known ? `<div class="mini">Settings read from it: <b>${esc(ct.mode)}</b> — ${esc(Gsa.WIN_SET_KEYS.map((x) => `${x} ${ct.vals[x]}`).join(" · "))}${ct.ipv4 ? " · IPv4 preferred" : ""}. The configuration writes the same.</div>` : `<div class="mini gsa-warn-txt">Its content could not be read — choose the settings:</div>${lockBox}<br>${v4Box}`}${asScript ? "" : `<br><label class="chk">The configuration runs <select data-gsaopt="schedule"><option value="daily"${o.schedule !== "hourly" ? " selected" : ""}>daily (09:00 device time)</option><option value="hourly"${o.schedule === "hourly" ? " selected" : ""}>every hour</option></select></label>`}${asScript ? "" : remLic()}`;
+    }
+    if (k === "macscript" || k === "macprof") {
+      // 32703: the three profiles come with the script — ticked when missing
+      // or unassigned, a found one named and reused (assigned only)
+      const c = (gsa.model.links.find((l) => l.k === "client") || {}), mp = c.macProf || {};
+      const row = (p) => { const x = mp[p.key], on = Gsa.wantProfile(o, p, mp); return `<label class="chk"><input type="checkbox" data-gsaopt="${p.opt}"${on ? " checked" : ""}> <b>${esc(p.role[0].toUpperCase() + p.role.slice(1))}</b> — ${x ? `found: ${esc(x.name)} · ${x.assigned ? "assigned" : "NOT ASSIGNED"}${x.consolidated ? " · the baseline's consolidated policy" : ""}${on ? " · assigned to the group, not made again" : ""}` : `${esc(p.name({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }))} <span class="muted">(${esc(p.kind)})</span>`}</label>`; };
+      const lockMac = `<label class="chk" style="margin-left:22px"><input type="checkbox" data-gsaopt="lock"${o.lock ? " checked" : ""}> Lock the client down — Pause, Disable, Quit and Disable Private Access all hidden (devcf v3.1). Off = Learn's sample: Pause and Disable shown, Quit and Disable Private Access hidden</label>`;
+      form = `${naming("mac")}${grp("macGroup", Gsa.GROUPS.mac)}<div class="mini" style="margin:10px 0 4px"><b>Profiles</b> — the three the client cannot run without, same release and version, same group${k === "macprof" && c.macScript ? ` · the script ${esc(c.macScript.displayName)} stays as it is` : ""}</div>${Gsa.MAC_PROFILES.map(row).join("")}${lockMac}`;
+    }
+    // 0.11.0: the platform script takes over the remediation's groups
+    // 0.14.0: Redeploy and secure DNS
+    if (k === "winrun") {
+      const devs = gsaRunDevs(o), lc = ((gsa.model && gsa.model.links.find((l) => l.k === "client")) || {}).lic || {};
+      form = `${lc.known && !lc.ent ? '<p class="mini gsa-warn-txt">⚠ This tenant\'s licence does not include remediations — running it on demand is your choice, like the remediation itself.</p>' : ""}<div class="mini"><b>Devices</b> — the ones not connected are ticked${devs.length ? "" : ": none has an Intune run state yet — read the tenant again after the remediation's first run"}</div>${devs.map((d) => `<label class="chk"><input type="checkbox" data-gsadevsel="${esc(d.id)}"${d.on ? " checked" : ""}> <b>${esc(d.name)}</b> — ${esc(d.state)}</label>`).join("<br>")}<br><label class="chk"><input type="checkbox" data-gsaopt="sync"${o.sync !== false ? " checked" : ""}> Sync each device first, so it checks in now</label>`;
+    }
+    if (k === "winredeploy") { const ob = gsaWinOf().obj || {}; form = `<div class="mini"><b>Now:</b> ${esc(ob.displayName || "—")}<br><b>Becomes:</b> ${esc(ob.displayName ? Gsa.bumpName(ob.displayName) : "—")}</div>`; }
+    if (k === "windns") { const tg = gsaInstallTargets(), need = (gsaWinLane().chain || {}).need || []; form = `<div class="mini" style="margin:6px 0"><b>Name</b> <span data-gsaname>${esc(Gsa.winDnsName({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }))}</span><br>Release <input class="txt" data-gsaopt="rel" value="${esc(o.rel || Gsa.relTag())}" style="width:90px"> Version <input class="txt" data-gsaopt="ver" value="${esc(o.ver || "v1.0")}" style="width:70px"></div><div class="mini"><b>Settings</b> — only the ones no policy sets yet: ${esc(Gsa.DNS_SETTINGS.filter((d) => need.includes(d.k)).map((d) => d.label).join("; ") || "none")}</div><div class="mini" style="margin-top:6px"><b>Assigned to</b> ${tg.length ? esc(tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", ")) + " — the install script's targets" : `${grp("devGroup", Gsa.GROUPS.win)}`}</div>`; }
+    if (k === "winswap") { const fw = gsaWinOf(), withCfg = !!(fw.cfg || fw.combined); form = `<div class="mini"><b>Now:</b> ${esc(fw.obj ? fw.obj.displayName : "no remediation found")}${fw.reach ? ` — ${esc(fw.reach.text)}` : ""}${fw.cfg ? `<br><b>And:</b> ${esc(fw.cfg.name)} (the configuration)` : ""}</div>${naming("win")}${withCfg ? `<div class="mini"><b>Configuration script</b> ${esc(nm().winCfg)} <span class="muted">— file ${esc(Gsa.CFG_FILE)}, the same values</span></div>${lockBox}<br>${v4Box}` : `<p class="mini muted">No client settings to carry over — create the configuration script afterwards if you want them.</p>`}`; }
+    // 0.11.0: a platform in or out of step 6's scope, kept in the tenant
+    if (k === "scope-win" || k === "scope-mac") {
+      const platform = k === "scope-mac" ? "macOS" : "Windows", cur = Gsa.scopeOut(gsa.raw && gsa.raw.encaSettings)[k === "scope-mac" ? "macOS" : "windows"];
+      form = cur ? `<p class="mini"><b>Now:</b> out of scope since ${esc(new Date(cur.at).toLocaleString())}${cur.by ? ` by ${esc(cur.by)}` : ""}${cur.why ? ` — ${esc(cur.why)}` : ""}. Apply puts ${platform} back in scope: step 6 waits for its devices again.</p>`
+        : `<p class="mini"><b>Now:</b> in scope — step 6 waits for ${platform === "macOS" ? "the Macs" : "the Windows devices"} in the deployment's groups.</p><label class="mini">Why — kept with the record, optional <input class="txt" data-gsaopt="why" value="${esc(o.why || "")}" placeholder="${platform === "macOS" ? "e.g. no Macs in this tenant" : "e.g. Windows devices get the client another way"}" style="min-width:min(320px,100%)"></label>`;
+    }
+    if (k === "trv2") form = trv2Form(w);
+    const tabs = Gsa.preview(k, gsaPrevOpts(w)), tab = tabs.find((t) => t.id === w.tab) || tabs[0];
+    const dlBtn = { det: "det", rem: "rem", cdet: "cdet", crem: "crem", win: "win", cfg: "cfg", mac: "mac" }[tab && tab.id];
     const prev = tabs.length ? `<div class="gsa-lab" style="margin-bottom:4px">What it sends</div>${tabs.length > 1 ? `<div class="gsa-tabs" role="tablist">${tabs.map((t) => `<button type="button" role="tab" data-gsatab="${t.id}" class="${t === tab ? "on" : ""}" aria-selected="${t === tab}">${esc(t.label)}</button>`).join("")}</div>` : `<div class="mini muted" style="margin-bottom:4px">${esc(tab.label)}</div>`}<pre class="gsa-pre" data-gsapre>${esc(tab.text)}</pre><div class="gsa-wbtns"><button class="btn sm" data-gsacopy>Copy</button>${dlBtn ? `<button class="btn sm" data-gsadl="${dlBtn}">⬇ Download</button>` : ""}</div>` : "";
     const log = w.log ? `<div class="gsa-log">${w.log.map((l) => `<div class="mini" style="color:${l.ok === false ? "var(--off)" : l.ok ? "var(--on)" : "inherit"}">${l.ok === false ? "✗" : l.ok ? "✓" : "·"} ${esc(l.t)}</div>`).join("")}</div>` : "";
     const done = !!(w.log && w.log.done), failed = !!(w.log && !w.log.done && !w.busy);
     const otherBusy = gsa.work.some((x) => x !== w && x.busy);
     const step = (i, t) => `<span class="${w.busy ? (i === 2 ? "on" : i < 2 ? "dn" : "") : done ? "dn" : i === 1 ? "on" : ""}">${(w.busy && i < 2) || done ? "✓ " : ""}${i} ${t}</span>`;
-    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k);
+    const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k || /^(macfix-|scope-|winswap|winrun|winredeploy|windns|wincfg|winsplit)/.test(k) && l.k === "client");
     return `<section class="gsa-wpanel" data-gsaw="${esc(k)}" id="gsaW-${esc(k)}"><div class="gsa-whead"><b>🔧 ${esc(f.title)}</b><span class="tag block">writes to tenant</span>${from ? `<span class="mini muted">from step ${gsa.model.links.indexOf(from) + 1} · ${esc(from.lab)}</span>` : ""}<button class="btn sm gsa-wclose" data-gsacancel${w.busy ? " disabled" : ""}>✕ ${done ? "Close" : "Cancel"}</button></div>
       <div class="gsa-wsteps">${step(1, "Review")}${step(2, "Apply")}${step(3, "Read the tenant again")}${failed ? '<span style="color:var(--off)">✗ stopped — see the log</span>' : ""}</div>
       <div class="gsa-wgrid"><div><ul class="mini">${f.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${form ? `<div style="margin:8px 0">${form}</div>` : ""}${prev}</div>
@@ -22855,6 +23654,20 @@ This is a directory write. Nothing else changes.`)) return;
       say(`${name} created — empty: add the pilot devices`, true);
       return g;
     }
+  }
+  // 0.13.0: the profile's app in My Apps — the HideApp tag on its service
+  // principal, read fresh first so no other tag is lost (Graph replaces the list)
+  async function gsaAppVisible(sp, show, sc, say) {
+    if (!sp) throw new Error("the profile's service principal was not read");
+    if (isDemo) { await new Promise((r) => setTimeout(r, 150)); say(`${show ? "shown in My Apps again" : "hidden from My Apps — the assignment stays"} (simulated)`, true); return; }
+    const cur = await Graph.gget(`/v1.0/servicePrincipals/${sp.id}?$select=id,tags`, sc);
+    const tags = Array.isArray(cur.tags) ? cur.tags : [], next = Gsa.appTags(tags, !show);
+    if (next.length === tags.length && next.every((t, i) => t === tags[i])) { say(show ? "already shown in My Apps — nothing written" : "already hidden from My Apps — nothing written", true); return; }
+    try { await Graph.gpatch(`/v1.0/servicePrincipals/${sp.id}`, { tags: next }, sc); }
+    catch (e) { throw new Error(`Graph refused the tag (${gsaErr(e)}) — set Visible to users? to ${show ? "Yes" : "No"} in Enterprise applications → ${sp.displayName || "the profile's app"} → Properties instead`); }
+    const back = await Graph.gget(`/v1.0/servicePrincipals/${sp.id}?$select=id,tags`, sc).catch(() => null);
+    const ok = !!back && (back.tags || []).includes("HideApp") === !show;
+    say(ok ? (show ? "shown in My Apps again — the tile can take a few minutes to come back" : "hidden from My Apps and the Microsoft 365 app launcher — the assignment stays; the tile can take a few minutes to go") : "written — the read-back does not show it yet; read the tenant again in a minute", ok ? true : undefined);
   }
   async function runGsaFix(w) {
     const k = w && w.k, f = Gsa.FIXES[k], m = gsa.model, o = w && w.opts;
@@ -22901,47 +23714,131 @@ This is a directory write. Nothing else changes.`)) return;
             await Graph.gpost(`/v1.0/servicePrincipals/${sp.id}/appRoleAssignedTo`, { principalId: g.id, resourceId: sp.id, appRoleId: role ? role.id : "00000000-0000-0000-0000-000000000000" }, sc);
             say(`${g.displayName} assigned to the Microsoft traffic profile`, true);
           }
+          if (o.hide !== false && m.myApps && m.myApps.known && !m.myApps.hidden) await gsaAppVisible(m.sp, false, sc, say);
         }
+      } else if (k === "hideapp" || k === "showapp") {
+        await gsaAppVisible(m.sp, k === "showapp", sc, say);
       } else if (k === "signal") {
         if (isDemo) await sim("signalling enabled");
-        else { await Graph.gpatch("/networkAccess/settings/conditionalAccess", { "@odata.type": "#microsoft.graph.networkaccess.conditionalAccessSettings", signalingStatus: "enabled" }, sc); say("Conditional Access signalling enabled", true); }
+        else {
+          await Graph.gpatch("/networkAccess/settings/conditionalAccess", { "@odata.type": "#microsoft.graph.networkaccess.conditionalAccessSettings", signalingStatus: "enabled" }, sc); say("Conditional Access signalling enabled", true);
+          // 32708 (S3): Entra makes the compliant network location itself —
+          // wait up to a minute for it, so step 5 needs no undocumented create
+          for (let i = 0; i < 6; i++) {
+            await new Promise((r) => setTimeout(r, 10000));
+            try { const locs = await Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc }); if (locs.some((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""))) { say(`${Gsa.LOCATION_NAME} is there — made by Entra`, true); break; } } catch { /* read again later */ }
+            if (i === 5) say(`${Gsa.LOCATION_NAME} not there yet — read the tenant again in a few minutes; step 5 says what to do if it stays missing`);
+          }
+        }
       } else if (k === "ztnasp") {
         if (isDemo) await sim("ZTNA Policy Service Client created");
         else { await Graph.gpost("/v1.0/servicePrincipals", { appId: Gsa.ZTNA_CLIENT }, sc); say("ZTNA Policy Service Client service principal created", true); }
       } else if (k === "location") {
         if (isDemo) await sim(`${Gsa.LOCATION_NAME} created`);
-        else { await Graph.gpost("/identity/conditionalAccess/namedLocations", { "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: Gsa.LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false }, sc); say(`${Gsa.LOCATION_NAME} created`, true); }
-      } else if (k === "winrem") {
-        // 32520: the Windows client as a remediation — detect, else deploy
-        const nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4 };
-        const g = await gsaDeviceGroup(String(o.devGroup || Gsa.GROUPS.win).trim(), o.mkGroup, sc, say);
-        const body = Gsa.remediationBody(nameOpts), path = "/deviceManagement/deviceHealthScripts";
-        if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName} (${o.schedule === "hourly" ? "hourly" : "daily"})`);
         else {
-          const same = (await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
-          if (same.length > 1) say(`${same.length} remediations are called ${body.displayName} — one is used; delete the others in Intune → Scripts and remediations`, false);
-          const s = same.length ? same[0] : await Graph.gpost(path, body, sc);
-          say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
-          // /assign replaces the assignments: keep what a reused one has
-          const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => ({ target: x.target, runRemediationScript: x.runRemediationScript, runSchedule: x.runSchedule })).filter((x) => x.target) : [];
-          // 32525: runRemediationScript as read is no signal (Graph said false
-          // in devcf while the portal showed remediation on) — never rewritten
-          if (had.some((x) => x.target.groupId === g.id)) say(`already assigned to ${g.displayName}`, true);
+          const locs = await Graph.ggetAll("/identity/conditionalAccess/namedLocations", { scopes: sc });
+          const have = locs.find((l) => /compliantNetworkNamedLocation/i.test(l["@odata.type"] || ""));
+          if (have) say(`${have.displayName} is there — Entra made it; nothing written`, true);
           else {
-            await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: [...had, Gsa.remediationAssignment(g.id, o.schedule)] }, sc);
-            say(`assigned to ${g.displayName} — remediation on, ${o.schedule === "hourly" ? "every hour" : "daily"}`, true);
+            try { await Graph.gpost("/identity/conditionalAccess/namedLocations", { "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", displayName: Gsa.LOCATION_NAME, compliantNetworkType: "allTenantCompliantNetworks", isTrusted: false }, sc); say(`${Gsa.LOCATION_NAME} created (not a documented call — check it in Entra → Conditional Access → Named locations)`, true); }
+            catch (e) { throw new Error(`Graph refused to create it (${gsaErr(e)}). Learn documents no create for this location: in Global Secure Access → Settings → Session management → Adaptive access, switch the signalling off and on, then read the tenant again`); }
           }
         }
-      } else if (k === "winscript" || k === "macscript") {
+      } else if (k === "winrem") {
+        // 32520: the Windows client as a remediation — detect, else deploy
+        const nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }, sched = o.schedule === "daily" ? "daily" : "hourly";
+        const g = await gsaDeviceGroup(String(o.devGroup || Gsa.GROUPS.win).trim(), o.mkGroup, sc, say);
+        const body = Gsa.remediationBody(nameOpts), path = "/deviceManagement/deviceHealthScripts";
+        if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName} (${sched === "hourly" ? "hourly" : "daily"})`);
+        else {
+          // 32708 (go-live recheck S1): the GSA remediation step 6 found — any
+          // name, any release tag — is reused; one of this exact name next; a
+          // new one only when there is none. Two installers never.
+          const foundW = ((m.links.find((l) => l.k === "client") || {}).win || {});
+          const same = foundW.kind === "rem" && foundW.obj ? [foundW.obj] : (await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          if (same.length > 1) say(`${same.length} remediations are called ${body.displayName} — one is used; delete the others in Intune → Scripts and remediations`, false);
+          const s = same.length ? same[0] : await Graph.gpost(path, body, sc);
+          say(same.length ? `${s.displayName || body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          // /assign replaces the assignments: keep what a reused one has.
+          // 32708 (S2): written back with remediation ON — Graph reads false on
+          // assignments the portal shows as on (32525), and writing that false
+          // back would turn the installer into detect-only
+          const had = same.length ? ((await Graph.gget(`${path}/${s.id}/assignments`, sc)).value || []).map((x) => ({ target: x.target, runRemediationScript: true, runSchedule: x.runSchedule })).filter((x) => x.target) : [];
+          if (had.some((x) => x.target.groupId === g.id)) say(`already assigned to ${g.displayName}`, true);
+          else {
+            await Graph.gpost(`${path}/${s.id}/assign`, { deviceHealthScriptAssignments: [...had, Gsa.remediationAssignment(g.id, sched)] }, sc);
+            say(`assigned to ${g.displayName} — remediation on, ${sched === "hourly" ? "every hour" : "daily"}${had.length ? `; its ${had.length} other assignment${had.length === 1 ? "" : "s"} kept, remediation on` : ""}`, true);
+          }
+        }
+      } else if (k === "wincfg") {
+        // 0.15.0 (Mihai 19 Oct: split installation from configuration, separate to run and
+        // assign): the client settings as their own deployment — one configuration only
+        const asScript = o.kind === "script", path = asScript ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceHealthScripts";
+        const opts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4, vals: o.vals || null };
+        const body = asScript ? Gsa.cfgScriptBody(opts) : Gsa.cfgRemediationBody(opts), fw = gsaWinOf();
+        if (fw.cfg && !fw.cfg.unassigned) throw new Error(`${fw.cfg.name} is already the configuration — one configuration only`);
+        let tg = o.useInstall !== false ? gsaInstallTargets() : [];
+        if (!tg.length) { const g = await gsaDeviceGroup(String(o.devGroup || Gsa.GROUPS.win).trim(), o.mkGroup, sc, say); tg = [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }]; if (gsa.raw && gsa.raw.groupNames) gsa.raw.groupNames[g.id] = g.displayName; }
+        const tn = tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", "), when = asScript ? "" : ` — ${o.schedule === "hourly" ? "every hour" : "daily"}`;
+        if (isDemo) { await sim(`${body.displayName} created`); await sim(`assigned to ${tn}${when}`); }
+        else {
+          const same = (await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          const c = same.length ? same[0] : await Graph.gpost(path, body, sc);
+          say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          if (asScript) await Graph.gpost(`${path}/${c.id}/assign`, { deviceManagementScriptAssignments: tg.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+          else await Graph.gpost(`${path}/${c.id}/assign`, { deviceHealthScriptAssignments: tg.map((t) => Gsa.remediationAssignment(t, o.schedule === "hourly" ? "hourly" : "daily")) }, sc);
+          say(`assigned to ${tn}${when}`, true);
+        }
+      } else if (k === "winsplit") {
+        // 0.15.0: the combined install-and-settings script split in two — backup first, the
+        // install (next major version) and the configuration on the same targets, both read
+        // back, and only then the combined one unassigned and renamed [DEPRECATED] (kept)
+        const fw = gsaWinOf(), ob = fw.obj;
+        if (!ob || !fw.combined || (fw.kind !== "rem" && fw.kind !== "script")) throw new Error("no combined Global Secure Access script to split — read the tenant again");
+        const asScript = fw.kind === "script", path = asScript ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceHealthScripts";
+        const opts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4, vals: o.vals || null };
+        const iName = Gsa.majorName(ob.displayName), iBody = asScript ? Gsa.windowsScriptBody({ name: iName }) : Gsa.remediationBody({ name: iName });
+        const cBody = asScript ? Gsa.cfgScriptBody(opts) : Gsa.cfgRemediationBody(opts), depName = `[DEPRECATED] ${ob.displayName}`.slice(0, 250);
+        const cWhen = asScript ? "" : ` — ${o.schedule === "hourly" ? "every hour" : "daily"}`;
+        if (isDemo) { await sim(`backup of ${ob.displayName} saved`); await sim(`${iName} created and assigned to the same targets`); await sim(`${cBody.displayName} created and assigned to the same targets${cWhen}`); await sim(`${ob.displayName} assigned to nobody and renamed ${depName} — kept`); }
+        else {
+          const cur = await Graph.gget(`${path}/${ob.id}`, sc), asgs = ((await Graph.gget(`${path}/${ob.id}/assignments`, sc)).value || []).filter((a) => a.target);
+          const file = downloadText(`ENCA-GSA-${asScript ? "platform-script" : "remediation"}-backup-${tenantName || tenantId}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, object: cur, assignments: asgs }, null, 2));
+          say(`backup of ${ob.displayName} saved${file ? ` as ${file}` : ""} — keep it for the way back`, true);
+          if (!asgs.some((a) => !/exclusion/i.test(a.target["@odata.type"] || ""))) throw new Error(`${ob.displayName} has no assignment to hand over — create the install and the configuration instead`);
+          const list = await Graph.ggetAll(`${path}?$select=id,displayName`, { scopes: sc });
+          const mk = async (body) => { const same = list.filter((x) => x.displayName === body.displayName); const x = same.length ? same[0] : await Graph.gpost(path, body, sc); say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true); return x; };
+          const scr = (id, targets) => Graph.gpost(`${path}/${id}/assign`, { deviceManagementScriptAssignments: targets.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+          const si = await mk(iBody);
+          // the install keeps the old schedule; written back with remediation ON (32708 S2)
+          if (asScript) await scr(si.id, asgs.map((a) => a.target));
+          else await Graph.gpost(`${path}/${si.id}/assign`, { deviceHealthScriptAssignments: asgs.map((a) => ({ target: a.target, runRemediationScript: true, runSchedule: a.runSchedule || null })) }, sc);
+          say(`${iName} assigned to the same targets${asScript ? "" : " with the same schedule"}`, true);
+          const sc2 = await mk(cBody);
+          if (asScript) await scr(sc2.id, asgs.map((a) => a.target));
+          else await Graph.gpost(`${path}/${sc2.id}/assign`, { deviceHealthScriptAssignments: asgs.map((a) => (/exclusion/i.test(a.target["@odata.type"] || "") ? { target: a.target, runRemediationScript: true, runSchedule: a.runSchedule || null } : Gsa.remediationAssignment(a.target, o.schedule === "hourly" ? "hourly" : "daily"))) }, sc);
+          say(`${cBody.displayName} assigned to the same targets${cWhen}`, true);
+          const n1 = ((await Graph.gget(`${path}/${si.id}/assignments`, sc)).value || []).length, n2 = ((await Graph.gget(`${path}/${sc2.id}/assignments`, sc)).value || []).length;
+          if (!n1 || !n2) throw new Error(`the new ${!n1 ? "install" : "configuration"} reads back with no assignment — ${ob.displayName} is left as it is; read the tenant again`);
+          say(`both read back with their assignments (${n1} and ${n2})`, true);
+          await Graph.gpost(`${path}/${ob.id}/assign`, asScript ? { deviceManagementScriptAssignments: [] } : { deviceHealthScriptAssignments: [] }, sc);
+          await Graph.gpatch(`${path}/${ob.id}`, { "@odata.type": asScript ? "#microsoft.graph.deviceManagementScript" : "#microsoft.graph.deviceHealthScript", displayName: depName, description: `DEPRECATED ${new Date().toISOString().slice(0, 10)}: split into install and configuration; replaced by ${iName} and ${cBody.displayName} (ENCA T56). | ${cur.description || ""}`.slice(0, 1000) }, sc);
+          say(`${ob.displayName} assigned to nobody and renamed ${depName} — kept in Intune; the backup has its assignments`, true);
+        }
+      } else if (k === "winscript" || k === "macscript" || k === "macprof") {
         const win = k === "winscript", nameOpts = { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" };
         const g = await gsaDeviceGroup(String((win ? o.devGroup : o.macGroup) || (win ? Gsa.GROUPS.win : Gsa.GROUPS.mac)).trim(), o.mkGroup, sc, say);
         const body = win ? Gsa.windowsScriptBody(Object.assign({ lock: o.lock, ipv4: o.ipv4 }, nameOpts)) : Gsa.macScriptBody(nameOpts);
+        // 32703: from the profiles' side the script in Intune stays as it is
+        if (k === "macprof") say("the shell script is left as it is", true); else {
         const path = win ? "/deviceManagement/deviceManagementScripts" : "/deviceManagement/deviceShellScripts";
         if (isDemo) await sim(`${body.displayName} created and assigned to ${g.displayName}`);
         else {
           // 32519: idempotent — a script of this name already in Intune is
           // reused (and only assigned), never made a second time
-          const same = (await Graph.ggetAll(`${path}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          // 32708 (S1): on Windows the platform script step 6 found is reused
+          const foundS = win ? ((m.links.find((l) => l.k === "client") || {}).win || {}) : {};
+          const same = foundS.kind === "script" && foundS.obj ? [foundS.obj] : (await Graph.ggetAll(`${path}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
           if (same.length > 1) say(`${same.length} scripts are called ${body.displayName} — one is used; delete the others in Intune → Scripts`, false);
           const s = same.length ? same[0] : await Graph.gpost(path, body, sc);
           say(same.length ? `${body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
@@ -22955,6 +23852,137 @@ This is a directory write. Nothing else changes.`)) return;
             say(`assigned to ${g.displayName}`, true);
           }
         }
+        }
+        // 32703 (Mihai 17 Oct: the profiles were missing after the script):
+        // the three macOS profiles, as ticked — a found one (by the read, so
+        // a baseline's consolidated policy too) is reused and only assigned;
+        // otherwise one of the name is reused, else made. Both endpoints'
+        // /assign REPLACE the assignments, so what is there is kept.
+        if (!win) {
+          const mp = (gsa.raw && gsa.raw.macProfiles) || {};
+          for (const p of Gsa.MAC_PROFILES) {
+            if (!Gsa.wantProfile(o, p, mp)) continue;
+            const pb = p.body(Object.assign({ lock: o.lock }, nameOpts)), label = pb.name || pb.displayName, found = mp[p.key];
+            if (isDemo) { await sim(found ? `${found.name} assigned to ${g.displayName}` : `${label} created and assigned to ${g.displayName}`); continue; }
+            let id, nm, had;
+            if (found && found.id) {
+              id = found.id; nm = found.name; had = (found.assignments || []).map((a) => a.target).filter(Boolean);
+              say(`${nm} already in Intune — reused, not created again`, true);
+            } else {
+              const same = (await Graph.ggetAll(`${p.path}?$filter=${encodeURIComponent(`${p.nameKey} eq '${label.replace(/'/g, "''")}'`)}&$select=id,${p.nameKey}`, { scopes: sc })).filter((x) => x[p.nameKey] === label);
+              if (same.length > 1) say(`${same.length} profiles are called ${label} — one is used; delete the others in Intune → Devices → macOS → Configuration`, false);
+              const made = same.length ? same[0] : await Graph.gpost(p.path, pb, sc);
+              id = made.id; nm = label;
+              say(same.length ? `${label} already in Intune — reused, not created again` : `${label} created (${p.kind})`, true);
+              had = same.length ? ((await Graph.gget(`${p.path}/${id}/assignments`, sc)).value || []).map((x) => x.target).filter(Boolean) : [];
+            }
+            if (had.some((t) => t.groupId === g.id)) say(`${nm} already assigned to ${g.displayName}`, true);
+            else {
+              await Graph.gpost(`${p.path}/${id}/assign`, { assignments: [...had, { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }].map((target) => ({ target })) }, sc);
+              say(`${nm} assigned to ${g.displayName}`, true);
+            }
+          }
+        }
+      } else if (k === "winrun") {
+        // 0.14.0 (Mihai 19 Oct: where is the redeploy): the remediation on demand, device by device
+        const fw = gsaWinOf(), sel = new Set(o.devSel || []);
+        const ds = (gsaWinLane().devices || []).filter((d) => d.run && d.run.managedId && sel.has(d.run.managedId));
+        if (!fw.obj || fw.kind !== "rem") throw new Error("no Global Secure Access remediation found — read the tenant again");
+        if (!ds.length) throw new Error("tick at least one device");
+        for (const d of ds) {
+          if (isDemo) { await sim(`${d.name}: ${o.sync !== false ? "synced, " : ""}the remediation runs now`); continue; }
+          if (o.sync !== false) { try { await Graph.gpost(`/deviceManagement/managedDevices/${d.run.managedId}/syncDevice`, {}, sc); say(`${d.name}: sync sent`, true); } catch (e) { say(`${d.name}: sync not sent — ${gsaErr(e)}`, false); } }
+          await Graph.gpost(`/deviceManagement/managedDevices/${d.run.managedId}/initiateOnDemandProactiveRemediation`, { scriptPolicyId: fw.obj.id }, sc);
+          say(`${d.name}: the remediation runs now — read the tenant again in a minute or two`, true);
+        }
+      } else if (k === "winredeploy") {
+        // 0.14.0: a platform script runs again only when it changes — a dated line and the version bumped
+        const fw = gsaWinOf(), ob = fw.obj;
+        if (!ob || fw.kind !== "script") throw new Error("no Global Secure Access platform script found — read the tenant again");
+        const path = `/deviceManagement/deviceManagementScripts/${ob.id}`, nn = Gsa.bumpName(ob.displayName);
+        if (isDemo) { await sim(`backup of ${ob.displayName} saved`); await sim(`${ob.displayName} → ${nn}: changed, so every device in its groups runs it again`); }
+        else {
+          const cur = await Graph.gget(path, sc), asgs = (await Graph.gget(`${path}/assignments`, sc)).value || [];
+          const file = downloadText(`ENCA-GSA-platform-script-backup-${tenantName || tenantId}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, script: cur, assignments: asgs }, null, 2));
+          say(`backup of ${ob.displayName} saved${file ? ` as ${file}` : ""} — keep it for the way back`, true);
+          const text = `# redeploy ${new Date().toISOString().slice(0, 10)} — ENCA T56\r\n${Gsa.b64dec(cur.scriptContent)}`;
+          await Graph.gpatch(path, { "@odata.type": "#microsoft.graph.deviceManagementScript", displayName: nn, scriptContent: Gsa.b64(text) }, sc);
+          say(`${ob.displayName} → ${nn}: the content changed, so every device in its groups runs it again at its next check-in`, true);
+        }
+      } else if (k === "windns") {
+        // 0.14.0: secure DNS off — only the settings no policy sets yet, on the install script's targets
+        const need = (gsaWinLane().chain || {}).need || [];
+        if (!need.length) throw new Error("every DNS setting is already set by a policy — nothing to create");
+        const body = Gsa.winDnsBody({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }, need);
+        let tg = gsaInstallTargets();
+        if (!tg.length) { const g = await gsaDeviceGroup(o.devGroup || Gsa.GROUPS.win, o.mkGroup, sc, say); tg = [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }]; }
+        const tn = tg.map((t) => (t.groupId ? ((gsa.raw && gsa.raw.groupNames) || {})[t.groupId] || t.groupId : "All devices")).join(", ");
+        if (isDemo) { await sim(`${body.name} created`); await sim(`assigned to ${tn}`); }
+        else {
+          const p = await Graph.gpost("/deviceManagement/configurationPolicies", body, sc);
+          say(`${body.name} created`, true);
+          await Graph.gpost(`/deviceManagement/configurationPolicies/${p.id}/assign`, { assignments: tg.map((target) => ({ target })) }, sc);
+          say(`assigned to ${tn}`, true);
+        }
+      } else if (k === "winswap") {
+        // 0.11.0 (Limon-IT, 18 Oct: Business Premium, the remediation never
+        // ran): the platform script takes the remediation's groups — backup
+        // first, the script's assignment next, and only when that landed the
+        // remediation's assignments come off. The remediation stays in Intune.
+        const fw = gsaWinOf();
+        if (fw.kind !== "rem" || !fw.obj) throw new Error("no Global Secure Access remediation to replace — read the tenant again");
+        const remPath = "/deviceManagement/deviceHealthScripts", scrPath = "/deviceManagement/deviceManagementScripts";
+        const body = Gsa.windowsScriptBody(Object.assign({ lock: o.lock, ipv4: o.ipv4 }, { rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }));
+        if (isDemo) { await sim(`backup of the assignments of ${fw.obj.displayName} saved`); await sim(`${body.displayName} created and assigned to the remediation's groups`); await sim(`${fw.obj.displayName} unassigned — it stays in Intune`); if (fw.cfg || fw.combined) await sim(`${Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }).winCfg} created and assigned to the remediation's groups`); if (fw.cfg && fw.cfg.kind === "rem") await sim(`${fw.cfg.name} unassigned — it stays in Intune`); }
+        else {
+          const remAsg = (await Graph.gget(`${remPath}/${fw.obj.id}/assignments`, sc)).value || [];
+          // 0.15.0: the configuration remediation hands over too
+          const cfgRem = fw.cfg && fw.cfg.kind === "rem" ? fw.cfg.obj : null, cfgAsg = cfgRem ? ((await Graph.gget(`${remPath}/${cfgRem.id}/assignments`, sc)).value || []) : [];
+          const targets = remAsg.map((a) => a.target).filter((t) => t && (t.groupId || /allDevices|allLicensedUsers/i.test(t["@odata.type"] || "")));
+          if (!targets.length) throw new Error(`${fw.obj.displayName} has no assignment to hand over — use Create Windows install script instead`);
+          const file = downloadText(`ENCA-GSA-remediation-assignments-${isDemo ? "demo" : (tenantName || tenantId)}`, "json", "application/json", JSON.stringify({ at: new Date().toISOString(), tenantId, remediation: { id: fw.obj.id, displayName: fw.obj.displayName }, assignments: remAsg, configuration: cfgRem ? { id: cfgRem.id, displayName: cfgRem.displayName, assignments: cfgAsg } : null }, null, 2));
+          say(`backup of the remediation's assignments saved${file ? ` as ${file}` : ""} — keep it for the way back`, true);
+          const foundS = (gsa.raw.scripts || []).find((x) => /global\s*secure\s*access/i.test(`${x.displayName} ${x.fileName}`) && Gsa.winRole(x) !== "config" && !/^\s*\[DEPRECATED\]/i.test(x.displayName || ""));
+          const same = foundS ? [foundS] : (await Graph.ggetAll(`${scrPath}?$filter=${encodeURIComponent(`displayName eq '${body.displayName.replace(/'/g, "''")}'`)}&$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === body.displayName);
+          const s = same.length ? same[0] : await Graph.gpost(scrPath, body, sc);
+          say(same.length ? `${s.displayName || body.displayName} already in Intune — reused, not created again` : `${body.displayName} created`, true);
+          const had = same.length ? ((await Graph.gget(`${scrPath}/${s.id}/assignments`, sc)).value || []).map((x) => x.target).filter(Boolean) : [];
+          const key = (t) => `${t["@odata.type"]}|${t.groupId || ""}`, clean = (t) => (t.groupId ? { "@odata.type": t["@odata.type"], groupId: t.groupId } : { "@odata.type": t["@odata.type"] });
+          const all = [...had.map(clean), ...targets.map(clean).filter((t) => !had.some((h) => key(h) === key(t)))];
+          await Graph.gpost(`${scrPath}/${s.id}/assign`, { deviceManagementScriptAssignments: all.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+          const gn = targets.map((t) => (t.groupId ? `${/exclusion/i.test(t["@odata.type"] || "") ? "excluding " : ""}${(gsa.raw.groupNames || {})[t.groupId] || t.groupId}` : /allDevices/i.test(t["@odata.type"] || "") ? "All devices" : "All users"));
+          say(`${s.displayName || body.displayName} assigned to ${gn.join(", ")}`, true);
+          // 0.15.0: the client settings move with it — the configuration script, the same values and targets
+          if (cfgRem || fw.combined) {
+            const cb = Gsa.cfgScriptBody({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0", lock: o.lock, ipv4: o.ipv4, vals: o.vals || null });
+            const sameC = (await Graph.ggetAll(`${scrPath}?$select=id,displayName`, { scopes: sc })).filter((x) => x.displayName === cb.displayName);
+            const c = sameC.length ? sameC[0] : await Graph.gpost(scrPath, cb, sc);
+            say(sameC.length ? `${cb.displayName} already in Intune — reused, not created again` : `${cb.displayName} created`, true);
+            await Graph.gpost(`${scrPath}/${c.id}/assign`, { deviceManagementScriptAssignments: all.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) }, sc);
+            say(`${cb.displayName} assigned to ${gn.join(", ")}`, true);
+          }
+          await Graph.gpost(`${remPath}/${fw.obj.id}/assign`, { deviceHealthScriptAssignments: [] }, sc);
+          say(`${fw.obj.displayName} unassigned — it stays in Intune; the backup has its assignments`, true);
+          if (cfgRem) { await Graph.gpost(`${remPath}/${cfgRem.id}/assign`, { deviceHealthScriptAssignments: [] }, sc); say(`${cfgRem.displayName} unassigned — it stays in Intune; the backup has its assignments`, true); }
+        }
+      } else if (k === "scope-win" || k === "scope-mac") {
+        // 0.11.0: the ENCA settings record on the organization object —
+        // read with the tenant, written whole (the other settings kept)
+        const platform = k === "scope-mac" ? "macOS" : "Windows";
+        if (!isDemo && (gsa.raw.sources || {}).encaSettings !== "ok") throw new Error(`the ENCA settings record could not be read (${(gsa.raw.sources || {}).encaSettings || "not read"}) — nothing was written; read the tenant again`);
+        const rec = gsa.raw.encaSettings || null, cur = Gsa.scopeOut(rec)[k === "scope-mac" ? "macOS" : "windows"];
+        const body = Gsa.scopeRecord(rec, platform, !cur, (Graph.account && Graph.account.username) || (isDemo ? "demo" : ""), o.why, new Date().toISOString());
+        if (isDemo) { gsa.raw.encaSettings = body; await sim(cur ? `${platform} back in scope` : `${platform} out of scope — kept in the ENCA settings record`); }
+        else {
+          if (!tenantId) throw new Error("the tenant id is not known — sign in again");
+          if (rec) await Graph.gpatch(`/v1.0/organization/${tenantId}/extensions/${Gsa.ENCA_EXT}`, body, sc);
+          else await Graph.gpost(`/v1.0/organization/${tenantId}/extensions`, body, sc);
+          say(cur ? `${platform} is back in scope — step 6 waits for its devices again` : `${platform} is out of scope — kept in the tenant's ENCA settings record (${Gsa.ENCA_EXT})`, true);
+        }
+      } else if (k === "trv2") {
+        await runTrv2(w, sc, say, sim);
+      } else if (/^macfix-/.test(k)) {
+        await runMacFix(w, sc, say, sim);
       }
       log.done = true;
       say("done — reading the tenant again", true);
@@ -22963,6 +23991,41 @@ This is a directory write. Nothing else changes.`)) return;
     if (log.done) { if (isDemo) { gsaDemoApply(k, o); renderGsa(); } else { gsa.raw = null; await readGsa(); } }
     else renderGsa();
   }
+  // 0.9.0: a chain fix is a list of ops from Gsa.macFixPlan — run in order,
+  // the new object's id carried to its assignment. A post reuses an object of
+  // the same name (only assigned then, its own assignments kept). /assign
+  // replaces, so every target list is the whole list.
+  async function runMacFix(w, sc, say, sim) {
+    const plan = Gsa.macFixPlan(w.k, gsaMacOf(), gsaPrevOpts(w));
+    if (!plan || !plan.ops.length) { say("nothing to do — the row is complete", true); return; }
+    const v = {}, path = (kind) => Gsa.MAC_PATHS[kind];
+    for (const op of plan.ops) {
+      if (isDemo) { await sim(op.label || op.do); continue; }
+      if (op.do === "group") { const g = await gsaDeviceGroup(op.name, op.make, sc, say); v.group = [{ "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: g.id }]; continue; }
+      if (op.do === "backup") { downloadText(op.file, "json", "application/json", JSON.stringify(op.data, null, 2)); say(op.label, true); continue; }
+      if (op.do === "post") {
+        const key = op.kind === "pol" ? "name" : "displayName", nm = op.body[key];
+        let same = [];
+        try { same = (await Graph.ggetAll(`${op.path}?$filter=${encodeURIComponent(`${key} eq '${nm.replace(/'/g, "''")}'`)}&$select=id,${key}`, { scopes: sc })).filter((x) => x[key] === nm); } catch { same = []; }
+        const made = same.length ? same[0] : await Graph.gpost(op.path, op.body, sc);
+        v.new = made.id;
+        v.newHad = same.length ? ((await Graph.gget(`${op.path}/${made.id}/assignments`, sc)).value || []).map((a) => a.target).filter(Boolean) : [];
+        say(same.length ? `${nm} already in Intune — reused, not created again` : op.label, true);
+        continue;
+      }
+      if (op.do === "assign") {
+        const id = op.id === "$new" ? v.new : op.id;
+        let targets = op.targets === "$group" ? v.group || [] : op.targets;
+        if (op.id === "$new" && v.newHad && v.newHad.length) targets = [...v.newHad, ...targets.filter((t) => !v.newHad.some((h) => h.groupId === t.groupId && h["@odata.type"] === t["@odata.type"]))];
+        const body = op.kind === "script" ? { deviceManagementScriptAssignments: targets.map((target) => ({ "@odata.type": "#microsoft.graph.deviceManagementScriptAssignment", target })) } : { assignments: targets.map((target) => ({ target })) };
+        await Graph.gpost(`${path(op.kind)}/${id}/assign`, body, sc);
+        say(op.label, true);
+        continue;
+      }
+      if (op.do === "patch") { await Graph.gpatch(op.path, op.body, sc); say(op.label, true); continue; }
+      if (op.do === "put") { await Graph.gput(op.path, op.body, sc); say(op.label, true); continue; }
+    }
+  }
   // the demo shows a fix landing, so the board can be walked end to end
   function gsaDemoApply(k, o) {
     const r = gsa.raw;
@@ -22970,37 +24033,141 @@ This is a directory write. Nothing else changes.`)) return;
     if (k === "assign") { if (o.allUsers) r.sp.appRoleAssignmentRequired = false; else r.assigned.push({ principalId: "g-demo-" + o.group.trim().length, principalType: "Group", principalDisplayName: o.group.trim() }); }
     if (k === "signal") r.signaling.signalingStatus = "enabled";
     if (k === "location") r.locations.push({ "@odata.type": "#microsoft.graph.compliantNetworkNamedLocation", id: "loc-cn", displayName: Gsa.LOCATION_NAME });
-    if (k === "winrem") r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } });
-    if (k === "winscript") r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE });
+    // 32708: the demo remediation lands on a group with two Entra-joined Windows
+    // devices and has not run yet — what a real first read looks like
+    if (k === "winrem") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.groupNames[gid] = String(o.devGroup || Gsa.GROUPS.win).trim(); r.winGroups = Object.assign({}, r.winGroups, { [gid]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } }); r.healthScripts.push({ id: "h1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).rem, assigned: true, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }], runSummary: { noIssueDetectedDeviceCount: 0, issueRemediatedDeviceCount: 0, issueReoccurredDeviceCount: 0, remediationScriptErrorDeviceCount: 0, detectionScriptErrorDeviceCount: 0 } }); }
+    if (k === "winscript") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.groupNames[gid] = String(o.devGroup || Gsa.GROUPS.win).trim(); r.winGroups = Object.assign({}, r.winGroups, { [gid]: { devices: 2, windows: 2, joined: 2, hybrid: 0, registered: 0, users: 0 } }); r.scripts.push({ id: "s1", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).win, fileName: Gsa.WIN_FILE, assignments: [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }], runSummary: { successDeviceCount: 0, errorDeviceCount: 0 } }); }
+    // 0.11.0: the demo Windows group holds two devices, one of them seen through GSA — partly connected
+    if (k === "winrem" || k === "winscript") { const gid = "g-demo-" + String(o.devGroup || Gsa.GROUPS.win).trim().length; r.winGroups[gid].list = [{ deviceId: "dw-1", displayName: "LT-DEMO-01", operatingSystem: "Windows", trustType: "AzureAd" }, { deviceId: "dw-2", displayName: "LT-DEMO-02", operatingSystem: "Windows", trustType: "AzureAd" }]; if (r.seen && Array.isArray(r.seen.report) && !r.seen.report.some((x) => x.deviceId === "dw-1")) r.seen.report.push({ deviceId: "dw-1", displayName: "LT-DEMO-01", operatingSystem: "Windows 11 Enterprise", trafficType: "microsoft365", lastAccessDateTime: new Date(Date.now() - 3 * 3600000).toISOString() }); }
+    // 0.14.0: the demo deployment's content and per-device runs; one device fetched its policy and tunnels, the other only fetched
+    if (k === "winrem" || k === "winscript") {
+      const ob = k === "winrem" ? (r.healthScripts || []).slice(-1)[0] : (r.scripts || []).slice(-1)[0];
+      if (ob) { ob.contentText = k === "winrem" ? `${Gsa.detectScript(o)}\n${Gsa.remediationScript(o)}` : Gsa.windowsScript(o); ob.runs = [{ id: `${ob.id}:md-1`, detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: "GSA client 2.32.294 installed", lastStateUpdateDateTime: new Date(Date.now() - 2 * 3600000).toISOString(), runState: "success", managedDevice: { id: "md-1", deviceName: "LT-DEMO-01" } }, { id: `${ob.id}:md-2`, detectionState: "fail", remediationState: "success", preRemediationDetectionScriptOutput: "GSA client not installed", postRemediationDetectionScriptOutput: "GSA client 2.32.294 installed", lastStateUpdateDateTime: new Date(Date.now() - 3600000).toISOString(), runState: "success", managedDevice: { id: "md-2", deviceName: "LT-DEMO-02" } }]; }
+      r.sources.gsaAuth = "ok"; r.gsaAuth = [{ createdDateTime: new Date(Date.now() - 50 * 60000).toISOString(), appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "dw-2", displayName: "LT-DEMO-02" }, status: { errorCode: 0 } }, { createdDateTime: new Date(Date.now() - 4 * 3600000).toISOString(), appId: Gsa.ZTNA_CLIENT, appDisplayName: "ZTNA Policy Service Client", resourceDisplayName: "ZTNA Policy Service", deviceDetail: { deviceId: "dw-1", displayName: "LT-DEMO-01" }, status: { errorCode: 0 } }];
+    }
+    // 0.15.0: the configuration lands on the install's targets (or its own group) and has run on both demo devices
+    if (k === "wincfg") {
+      const asScript = o.kind === "script", nm = Gsa.names({ rel: o.rel, ver: o.ver }), mode = o.lock ? "locked down" : "pilot", opts2 = { lock: o.lock, ipv4: o.ipv4 };
+      let asg = (o.useInstall !== false ? gsaInstallTargets() : []).map((target) => ({ target }));
+      if (!asg.length) { const gn = String(o.devGroup || Gsa.GROUPS.win).trim(), gid = "g-demo-" + gn.length; r.groupNames[gid] = gn; r.winGroups = Object.assign({}, r.winGroups, { [gid]: (r.winGroups || {})[gid] || { devices: 0, windows: 0, joined: 0, hybrid: 0, registered: 0, users: 0, list: [] } }); asg = [{ target: { "@odata.type": "#microsoft.graph.groupAssignmentTarget", groupId: gid } }]; }
+      const runs = [{ id: "c:md-1", detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: `GSA client 2.32.294; settings as required (${mode})`, runState: "success", resultMessage: `GSA client settings written (${mode})`, managedDevice: { id: "md-1", deviceName: "LT-DEMO-01" } }, { id: "c:md-2", detectionState: "fail", remediationState: "success", preRemediationDetectionScriptOutput: "GSA client 2.32.294; settings differ: HideSignOutButton=", postRemediationDetectionScriptOutput: `GSA client 2.32.294; settings as required (${mode})`, runState: "success", resultMessage: `GSA client settings written (${mode})`, managedDevice: { id: "md-2", deviceName: "LT-DEMO-02" } }];
+      if (asScript) r.scripts.push({ id: "s-cfg", displayName: nm.winCfg, fileName: Gsa.CFG_FILE, assignments: asg, runSummary: { successDeviceCount: 2, errorDeviceCount: 0 }, contentText: Gsa.cfgScript(opts2), runs });
+      else r.healthScripts.push({ id: "h-cfg", displayName: nm.remCfg, assigned: true, assignments: asg.map((a) => Object.assign({ runRemediationScript: true }, a)), runSummary: { noIssueDetectedDeviceCount: 1, issueRemediatedDeviceCount: 1 }, contentText: `${Gsa.cfgDetectScript(opts2)}\n${Gsa.cfgRemediationScript(opts2)}`, runs });
+    }
+    if (k === "winsplit") {
+      const fw = gsaWinOf(), ob = fw.obj ? (fw.kind === "rem" ? r.healthScripts : r.scripts).find((x) => x.id === fw.obj.id) : null;
+      if (ob) {
+        const asScript = fw.kind === "script", ct = Gsa.contentSettings(ob.contentText), opts2 = { lock: ct.mode === "locked down", ipv4: ct.ipv4, vals: ct.mode === "custom" ? ct.vals : null };
+        const iName = Gsa.majorName(ob.displayName), cName = Gsa.names({ rel: o.rel, ver: o.ver })[asScript ? "winCfg" : "remCfg"], asg = ob.assignments || [];
+        const iRuns = (ob.runs || []).map((x) => Object.assign({}, x, { id: `i-${x.id}`, preRemediationDetectionScriptOutput: /not installed/i.test(x.preRemediationDetectionScriptOutput || "") ? x.preRemediationDetectionScriptOutput : "GSA client 2.32.294 installed", postRemediationDetectionScriptOutput: x.postRemediationDetectionScriptOutput ? "GSA client 2.32.294 installed" : "" }));
+        const cRuns = (ob.runs || []).map((x) => Object.assign({}, x, { id: `c-${x.id}`, detectionState: "success", remediationState: "skipped", preRemediationDetectionScriptOutput: `GSA client 2.32.294; settings as required (${ct.mode || "pilot"})`, postRemediationDetectionScriptOutput: "" }));
+        if (asScript) r.scripts.push({ id: "s-i2", displayName: iName, fileName: Gsa.WIN_FILE, assignments: asg, runSummary: ob.runSummary, contentText: Gsa.windowsScript(), runs: iRuns }, { id: "s-c1", displayName: cName, fileName: Gsa.CFG_FILE, assignments: asg, runSummary: ob.runSummary, contentText: Gsa.cfgScript(opts2), runs: cRuns });
+        else r.healthScripts.push({ id: "h-i2", displayName: iName, assigned: true, assignments: asg, runSummary: ob.runSummary, contentText: `${Gsa.detectScript()}\n${Gsa.remediationScript()}`, runs: iRuns }, { id: "h-c1", displayName: cName, assigned: true, assignments: asg, runSummary: { noIssueDetectedDeviceCount: (ob.runs || []).length }, contentText: `${Gsa.cfgDetectScript(opts2)}\n${Gsa.cfgRemediationScript(opts2)}`, runs: cRuns });
+        ob.displayName = `[DEPRECATED] ${ob.displayName}`; ob.assignments = []; ob.assigned = false;
+      }
+    }
+    if (k === "winrun") { for (const id of o.devSel || []) { const dev = id === "md-2" ? { deviceId: "dw-2", displayName: "LT-DEMO-02" } : id === "md-1" ? { deviceId: "dw-1", displayName: "LT-DEMO-01" } : null; if (dev && r.seen && Array.isArray(r.seen.report) && !r.seen.report.some((x) => x.deviceId === dev.deviceId)) r.seen.report.push(Object.assign({ operatingSystem: "Windows 11 Enterprise", trafficType: "microsoft365", lastAccessDateTime: new Date().toISOString() }, dev)); } }
+    if (k === "windns") { const need = (gsaWinLane().chain || {}).need || []; const b = Gsa.winDnsBody({ rel: o.rel, ver: o.ver }, need); r.winDns = [...(r.winDns || []), { id: "p-dns", name: b.name, settings: b.settings, assignments: gsaInstallTargets().map((target) => ({ target })) }]; r.sources.winDns = "ok"; }
+    if (k === "winredeploy") { const ob = (r.scripts || []).find((x) => x.id === (gsaWinOf().obj || {}).id); if (ob) ob.displayName = Gsa.bumpName(ob.displayName); }
+    if (k === "winswap") {
+      const fw = gsaWinOf(), rem = (r.healthScripts || []).find((h) => h.id === (fw.obj || {}).id), crem = fw.cfg && fw.cfg.kind === "rem" ? (r.healthScripts || []).find((h) => h.id === fw.cfg.obj.id) : null;
+      if (rem) {
+        const nm = Gsa.names({ rel: o.rel, ver: o.ver });
+        r.scripts.push({ id: "s-swap", displayName: nm.win, fileName: Gsa.WIN_FILE, assignments: rem.assignments, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 }, contentText: Gsa.windowsScript() });
+        if (crem || fw.combined) r.scripts.push({ id: "s-swapc", displayName: nm.winCfg, fileName: Gsa.CFG_FILE, assignments: rem.assignments, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 }, contentText: Gsa.cfgScript({ lock: o.lock, ipv4: o.ipv4, vals: o.vals || null }) });
+        rem.assignments = []; rem.assigned = false;
+        if (crem) { crem.assignments = []; crem.assigned = false; }
+      }
+    }
     if (k === "macscript") r.shellScripts.push({ id: "s2", displayName: Gsa.names({ rel: o.rel, ver: o.ver }).mac, fileName: Gsa.MAC_FILE });
+    // 0.9.0: a chain fix lands in the demo chain — the plan's new body takes the row's place
+    if (/^macfix-/.test(k) && r.macChain) {
+      const mac = gsaMacOf(), plan = Gsa.macFixPlan(k, mac, Object.assign({}, o, { mac }));
+      const ch = r.macChain, scriptAsg = (mac.scriptAsg || []).map((a) => ({ target: a.target || a }));
+      if (plan && plan.mode === "assign" || plan && plan.mode === "add") { const f = plan.row.found || (ch.policies[0]); f.assignments = [...(f.assignments || []), ...scriptAsg]; if (plan.mode === "add") { const put = plan.ops.find((x) => x.do === "put"); if (put) Object.assign(f, { name: put.body.name, settings: put.body.settings }); } }
+      else if (plan) {
+        const post = plan.ops.find((x) => x.do === "post"); const nb = Object.assign({ id: `demo-${k}-${Date.now()}`, assignments: plan.row.found ? (plan.row.found.assignments || []) : scriptAsg, overview: { successCount: 0, errorCount: 0, conflictCount: 0, pendingCount: 0 }, runSummary: { successDeviceCount: 0, errorDeviceCount: 0 }, lastModifiedDateTime: new Date().toISOString() }, post.body);
+        if (plan.row.found) { plan.row.found.assignments = []; if (plan.row.found.name !== undefined) plan.row.found.name = `[DEPRECATED] ${plan.row.found.name}`; else plan.row.found.displayName = `[DEPRECATED] ${plan.row.found.displayName}`; }
+        (plan.row.key === "sysext" ? ch.policies : plan.row.key === "script" ? ch.scripts : ch.configs).push(nb);
+      }
+    }
+    if (k === "macscript" || k === "macprof") { r.macProfiles = r.macProfiles || {}; for (const p of Gsa.MAC_PROFILES) { if (!Gsa.wantProfile(o, p, r.macProfiles)) continue; const x = r.macProfiles[p.key]; r.macProfiles[p.key] = x ? Object.assign({}, x, { assigned: true }) : { id: `demo-${p.key}`, name: p.name({ rel: o.rel, ver: o.ver }), assigned: true }; } }
     if (k === "onboard") r.status.onboardingStatus = "onboarded";
     if (k === "ztnasp") r.ztna = [{ id: "sp-ztna", appId: Gsa.ZTNA_CLIENT }];
+    // 0.13.0: the HideApp tag, as Hide / Show again and Assign's tick write it
+    if (k === "hideapp" || k === "showapp" || (k === "assign" && !o.allUsers && o.hide !== false)) r.sp.tags = Gsa.appTags(r.sp.tags || [], k !== "showapp");
   }
   $("toolGsa").addEventListener("click", () => openGsa());
-  $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; readGsa(); });
+  // 0.12.0: in Monitor the refresh reads the traffic again too
+  $("gsaRefresh").addEventListener("click", () => { gsa.raw = null; readGsa().then(() => { if (gsa.mode === "monitor" && gsa.mon) readGsaMon(); }); });
   $("gsaBody").addEventListener("click", (e) => {
     const t = e.target;
     if (t.closest("[data-gsaread]")) { readGsa(); return; }
+    // 0.12.0: Setup / Monitor, the period, read, more, CSV
+    const md = t.closest("[data-gsamode]"); if (md) { e.preventDefault(); gsa.mode = md.dataset.gsamode; gsa.modeChosen = true; if (gsa.mode === "monitor" && !gsa.mon && !gsa.monBusy && gsa.model) { readGsaMon(); return; } renderGsa(); return; }
+    if (t.closest("[data-gsamonread]")) { readGsaMon(); return; }
+    const pd = t.closest("[data-gsaperiod]"); if (pd) { gsa.monPeriod = pd.dataset.gsaperiod; readGsaMon(); return; }
+    if (t.closest("[data-gsamonmore]")) { readGsaMonMore(); return; }
+    if (t.closest("[data-gsamoncsv]")) { gsaMonCsv(); return; }
     if (t.closest("[data-gsaproof]")) { readGsaProof(); return; }
+    // 0.9.1: step 7 is never a dead end — read the policies here and come back;
+    // with none naming the compliant network, the Policy builder opens pre-filled
+    if (t.closest("[data-gsareadpols]")) { (async () => { if (isDemo) { toast("Demo: the demo policies are already loaded"); return; } await loadFromGraph(true); gsa.sel = "policy"; openGsa(); })(); return; }
+    if (t.closest("[data-gsabuild]")) {
+      const cn = gsa.model && gsa.model.cn;
+      if (!cn) { toast("Create the compliant network location first (step 5)"); return; }
+      // 32708 (go-live recheck S4): Windows and macOS only — the platforms T56
+      // puts the client on; iOS and Android have none and would be blocked —
+      // and the Microsoft profile's own groups, so the policy never includes
+      // anybody the profile does not reach (all users only when the profile is)
+      const pr = (gsa.model.reachInfo && gsa.model.reachInfo.profile) || {};
+      const pg = (pr.groups || []).map((g) => g.id);
+      const tpl = { displayName: "CA215-BLOCK-Internals-CN-AllApps-WindowsOrMACOS-Require Global Secure Access client active-v1.0", state: "enabledForReportingButNotEnforced",
+        conditions: { users: { includeUsers: pr.allUsers || !pg.length ? ["All"] : [], includeGroups: pr.allUsers ? [] : pg, excludeUsers: [], excludeGroups: [], excludeRoles: [] }, applications: { includeApplications: ["All"], excludeApplications: [Gsa.INTUNE_APP, Gsa.INTUNE_ENROLL] }, clientAppTypes: ["all"], platforms: { includePlatforms: ["windows", "macOS"], excludePlatforms: [] }, locations: { includeLocations: ["All"], excludeLocations: [cn.id] } },
+        grantControls: { operator: "OR", builtInControls: ["block"] } };
+      openBuilder({ from: tpl, as: "clone" });
+      if (pbDraft) { pbDraft.mode = "new"; pbDraft.sourceId = null; pbDraft.state = "enabledForReportingButNotEnforced"; renderBuilder(); }
+      toast(`Pre-filled from Global Secure Access: Windows and macOS, ${pr.allUsers || !pg.length ? "all users" : "the profile's groups"} — set the exclusions (break-glass, admins) before you save`);
+      return;
+    }
     // 32524: the flow — a step opens under it
     const sl = t.closest("[data-gsasel]"); if (sl) { gsa.sel = sl.dataset.gsasel; renderGsa(); const d = $("gsaDetail"); if (d && d.scrollIntoView) d.scrollIntoView({ block: "nearest" }); return; }
+    // 0.11.0: Check a Mac — the three read-only commands to the clipboard
+    const cc = t.closest("[data-gsacopycmd]"); if (cc) { const pre = cc.closest(".gsa-actrow") && cc.closest(".gsa-actrow").querySelector("[data-gsacmd]"); const txt = pre ? pre.textContent : ""; try { navigator.clipboard.writeText(txt).then(() => toast("Copied — run it in Terminal on a Mac in the group"), () => toast("Copy failed — select the text instead")); } catch { toast("Copy failed — select the text instead"); } return; }
     const jp = t.closest("[data-gsajump]"); if (jp) { const el = $(jp.dataset.gsajump); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
     // a fix opens its own workspace (or brings its open one to the top)
     const fx = t.closest("[data-gsafix]"); if (fx) {
       const k = fx.dataset.gsafix, had = gsaW(k);
+      // 0.13.0: a fix offered on Monitor (Needs attention) opens on Setup, at its step
+      if (gsa.mode === "monitor") { gsa.mode = "setup"; gsa.modeChosen = true; const from = gsa.model && gsa.model.links.find((l) => l.fix === k || l.fix2 === k || l.fix3 === k); if (from) gsa.sel = from.k; }
       if (had) gsa.work = [had, ...gsa.work.filter((x) => x !== had)];
-      else gsa.work.unshift({ k, opts: gsaDefOpts(), log: null, busy: false, tab: null });
+      if (k === "winrun") { const nw = had || null, sel = fx.dataset.gsadev ? [fx.dataset.gsadev] : (gsaWinLane().devices || []).filter((d) => !d.seen && d.run && d.run.managedId).map((d) => d.run.managedId); if (nw) nw.opts.devSel = sel; else gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), { devSel: sel }), log: null, busy: false, tab: null }); renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
+      // 0.9.0: a chain repair keeps the old settings' lock-down or pilot unless the person ticks otherwise
+      // 0.15.0: an open workspace is brought to the top, never opened a second time
+      else if (!had) gsa.work.unshift({ k, opts: Object.assign(gsaDefOpts(), gsaFixDefaults(k)), log: null, busy: false, tab: null });
       renderGsa(); const p = $(`gsaW-${k}`); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" }); return;
     }
     const wp = t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
+    if (w && w.k === "trv2") {
+      if (t.closest("[data-trv2add]")) { trv2Add(w); return; }
+      if (t.closest("[data-trv2csv]")) { const f = wp.querySelector("[data-trv2file]"); if (f) f.click(); return; }
+      if (t.closest("[data-trv2undo]")) { const f = wp.querySelector("[data-trv2bk]"); if (f) f.click(); return; }
+      if (t.closest("[data-trv2export]")) { downloadText("ENCA-tenant-restrictions-allowed", "csv", "text/csv", Trv2.toCsv(trv2Settings().allow)); return; }
+      const rm = t.closest("[data-trv2rm]"); if (rm) { const s = trv2Settings(); s.allow = s.allow.filter((e) => e.tenantId !== rm.dataset.trv2rm); trv2Save(s); renderGsa(); return; }
+    }
     if (w && t.closest("[data-gsacancel]")) { if (!w.busy) { gsa.work = gsa.work.filter((x) => x !== w); renderGsa(); } return; }
     if (w && t.closest("[data-gsago]")) { runGsaFix(w); return; }
     const tb = t.closest("[data-gsatab]"); if (w && tb) { w.tab = tb.dataset.gsatab; renderGsa(); return; }
     if (w && t.closest("[data-gsacopy]")) { const pre = wp.querySelector("[data-gsapre]"); const txt = pre ? pre.textContent : ""; try { navigator.clipboard.writeText(txt).then(() => toast("Copied"), () => toast("Copy failed — select the text instead")); } catch { toast("Copy failed — select the text instead"); } return; }
     const dl = w && t.closest("[data-gsadl]"), wo = w ? w.opts : gsaDefOpts();
-    if (dl && dl.dataset.gsadl === "det") { downloadText("Detect-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.detectScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
-    if (dl && dl.dataset.gsadl === "rem") { downloadText("Remediate-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.remediationScript({ lock: wo.lock, ipv4: wo.ipv4 })); return; }
-    if (dl) { if (dl.dataset.gsadl === "win") downloadText("Install-GlobalSecureAccessClient", "ps1", "text/plain", Gsa.windowsScript({ lock: wo.lock, ipv4: wo.ipv4 })); else downloadText("scr-app-108-install-global-secure-access", "zsh", "text/x-shellscript", Gsa.macScript()); return; }
+    // 0.15.0: a script tab downloads exactly as it is shown
+    if (dl) {
+      const tabs = w ? Gsa.preview(w.k, gsaPrevOpts(w)) : [], tb = tabs.find((x) => x.id === dl.dataset.gsadl), id = dl.dataset.gsadl;
+      const file = { det: "Detect-GlobalSecureAccessClient", rem: "Remediate-GlobalSecureAccessClient", cdet: "Detect-GlobalSecureAccessClientSettings", crem: "Remediate-GlobalSecureAccessClientSettings", win: "Install-GlobalSecureAccessClient", cfg: "Configure-GlobalSecureAccessClient", mac: "scr-app-109-install-global-secure-access" }[id] || "GlobalSecureAccess";
+      if (id === "mac") downloadText(file, "zsh", "text/x-shellscript", tb ? tb.text : Gsa.macScript());
+      else if (tb) downloadText(file, "ps1", "text/plain", tb.text);
+      return;
+    }
     // 32603: showDetail takes the policy ID — it was handed the object, found
     // nothing and returned without a word (Mihai: "clicking a policy in T57,
     // nothing happens"; T56 had the same line). full = true: not the list screen.
@@ -23010,16 +24177,49 @@ This is a directory write. Nothing else changes.`)) return;
   const gsaOpt = (e) => {
     const t = e.target, wp = t.closest && t.closest("[data-gsaw]"), w = wp ? gsaW(wp.dataset.gsaw) : null;
     if (!w) return;
+    if (w.k === "trv2") {
+      const isChange = e.type === "change";
+      if (isChange && t.hasAttribute("data-trv2file") || isChange && t.hasAttribute("data-trv2bk")) {
+        const file = t.files && t.files[0], back = t.hasAttribute("data-trv2bk"); t.value = "";
+        if (file) file.text().then((txt) => (back ? trv2PutBack(w, txt) : trv2Import(txt)));
+        return;
+      }
+      if (isChange && t.hasAttribute("data-trv2keep")) { const s = trv2Settings(), id = t.dataset.trv2keep; s.keepPartners = t.checked ? [...new Set([...s.keepPartners, id])] : s.keepPartners.filter((x) => x !== id); trv2Save(s); renderGsa(); return; }
+      if (isChange && t.hasAttribute("data-trv2msa")) { const s = trv2Settings(); s.allowMsa = t.checked; trv2Save(s); renderGsa(); return; }
+      if (t.dataset && t.dataset.gsaopt === "enforce") { if (isChange) { w.opts.enforce = t.checked; renderGsa(); } return; }
+      if (t.dataset && t.dataset.gsaopt === "q") w.opts.q = t.value;
+      return;
+    }
     if (t.hasAttribute("data-gsahow")) { w.opts.allUsers = t.value === "all"; }
+    else if (t.dataset && t.dataset.gsadevsel) { const cur = new Set(w.opts.devSel || []); if (t.checked) cur.add(t.dataset.gsadevsel); else cur.delete(t.dataset.gsadevsel); w.opts.devSel = [...cur]; renderGsa(); return; }
     else { const k = t.dataset && t.dataset.gsaopt; if (!k) return; w.opts[k] = t.type === "checkbox" ? t.checked : t.value; }
     const o = w.opts, el = wp.querySelector("[data-gsaname]");
-    if (el) el.textContent = Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[w.k === "macscript" ? "mac" : w.k === "winrem" ? "rem" : "win"];
+    // 0.15.0: the name the workspace makes, its part and kind kept apart (windns has its own)
+    const nk = w.k === "macscript" || w.k === "macprof" ? "mac" : w.k === "winrem" ? "rem" : w.k === "wincfg" ? (o.kind === "script" ? "winCfg" : "remCfg") : w.k === "winsplit" ? (gsaWinOf().kind === "script" ? "winCfg" : "remCfg") : "win";
+    if (el) el.textContent = w.k === "windns" ? Gsa.winDnsName({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" }) : Gsa.names({ rel: o.rel || Gsa.relTag(), ver: o.ver || "v1.0" })[nk];
     // the preview follows the options, without a repaint that would steal focus
-    const pre = wp.querySelector("[data-gsapre]"), tabs = Gsa.preview(w.k, o), tab = tabs.find((x) => x.id === w.tab) || tabs[0];
+    // (32703: a profile tick changes the tab set, so that repaints)
+    if (/^(pSys|pProxy|pSet|kind|useInstall)$/.test((t.dataset && t.dataset.gsaopt) || "")) { renderGsa(); return; }
+    const pre = wp.querySelector("[data-gsapre]"), tabs = Gsa.preview(w.k, gsaPrevOpts(w)), tab = tabs.find((x) => x.id === w.tab) || tabs[0];
     if (pre && tab) pre.textContent = tab.text;
   };
+  // 32708: tenant restrictions are optional and folded — the fold the person
+  // opened stays open across repaints (toggle does not bubble: capture)
+  $("gsaBody").addEventListener("toggle", (e) => { const d = e.target; if (d && d.matches && d.matches("[data-trv2fold]")) gsa.trv2Open = d.open; }, true);
   $("gsaBody").addEventListener("input", gsaOpt);
   $("gsaBody").addEventListener("change", gsaOpt);
+  // 0.12.0: the traffic log filter swaps only the table body, so typing keeps its focus
+  const gsaMonFilter = (e) => {
+    const t = e.target; if (!t || !t.closest || !t.closest("#gsaMonLog") || !gsa.mon || !gsa.model) return;
+    const f = gsa.monFilter;
+    if (t.hasAttribute("data-gsamonq")) f.q = t.value; else if (t.hasAttribute("data-gsamontype")) f.type = t.value; else if (t.hasAttribute("data-gsamonact")) f.action = t.value; else return;
+    const r = Gsa.monLogRows(Gsa.monitor(gsa.model, gsa.mon), f);
+    const tb = document.querySelector("#gsaMonLog tbody"), cn = document.querySelector("#gsaMonLog [data-gsamoncount]");
+    if (tb) tb.innerHTML = r.html;
+    if (cn) cn.textContent = r.count;
+  };
+  $("gsaBody").addEventListener("input", gsaMonFilter);
+  $("gsaBody").addEventListener("change", gsaMonFilter);
   $("ddReady").addEventListener("click", () => readDeployReadiness());
   $("ddHtml").addEventListener("click", () => { if (!ddModel) return; const name = downloadText("ENCA-deployment-dashboard", "html", "text/html", DeployDash.exportHtml(ddModel, { tenant: tenantName, build: APP_BUILD.label, now: Date.now() })); toast(`Saved ${esc(name)} — a snapshot that names users; share it like tenant data`); });
   $("ddCsv").addEventListener("click", () => { if (!ddModel) return; downloadText("ENCA-deployment-dashboard", "csv", "text/csv", DeployDash.toCsv(ddModel)); });
@@ -24430,7 +25630,10 @@ This is a directory write. Nothing else changes.`)) return;
     if (leadEl) leadEl.textContent = Overview.lead(base);
     host.hidden = false;
     if (isRaw) isRebuild();
+    if (status.kind === "empty" && secDef) status.sd = secDef.enabled;
     let html = Overview.header({ ...base, counts, status, idScore: policies.length ? IdScore.dashboardTile(isModel, { busy: isBusy, error: isErr }) : null });
+    // 32706 — the security defaults card or band, the same one 🧬 Baseline shows
+    if (!ovLoading) { try { html += sdHtml(); } catch (e) { console.warn("security defaults:", e); } }
     if (policies.length) {
       // what the two retirement tools found in THIS tenant, once they have run
       const impact = {};
@@ -25895,6 +27098,661 @@ This is a directory write. Nothing else changes.`)) return;
     finally { eg.look = false; }
     renderEgress();
   }
+  // ======================================================================
+  // 🧹 Entra device cleanup — T59, Workspace 03 (ported from TUNO T25,
+  // 18 Oct 2026). js/devicecleanup.js judges, writes and reports; this is
+  // the screen in ENCA's components, as Mihai picked from the mockup: the
+  // KPI tiles (each one opens its tab), a tab strip in place of TUNO's rail,
+  // ENCA's floating selection bar, and the run ledger on Results.
+  // Selections are STATE keyed on device ids, so a tab switch keeps them.
+  // ======================================================================
+  let dcu = { devices: null, buckets: null, results: null, pane: "overview", sel: { disable: new Set(), delete: new Set(), enable: new Set() }, busy: false, running: false, err: null, readAt: null, session: null, ledgerHtml: "", summary: "", armed: "" };
+  const dcuSession = () => `${tenantId}:${isDemo}`;
+  const DCU_SRC = { disable: "stale", delete: "deletable", enable: "disabled" };
+  function dcuThresholds() {
+    const a = $("dcuDisableDays"), b = $("dcuDeleteDays");
+    const dis = Math.max(1, +((a && a.value) || 0) || DeviceCleanup.DEFAULTS.disableDays);
+    const del = Math.max(dis + 1, +((b && b.value) || 0) || DeviceCleanup.DEFAULTS.deleteDays);
+    // the delete line can never sit before the disable line — said in the box, not only applied
+    if (b && +b.value !== del) b.value = del;
+    return { disableDays: dis, deleteDays: del };
+  }
+  function openDcu() {
+    crumb("🧹 Entra device cleanup");
+    show("screen-dcu");
+    if (dcu.session !== dcuSession()) dcu = Object.assign(dcu, { devices: null, buckets: null, results: null, pane: "auto", err: null, readAt: null, ledgerHtml: "", summary: "", session: dcuSession() });
+    $("dcuHead").innerHTML = toolHead("toolDeviceCleanup") + '<p class="mini" style="margin:6px 0 0">Stale directory devices, taken out in two deliberate steps: <b>disable</b> after 30 days without contact, <b>delete</b> after 90 — and only what is already disabled. The read is the Entra device object (<code>approximateLastSignInDateTime</code>), not the Intune enrolment. Every write reads the device again first and reads it back after. Ported from TUNO T25.</p>';
+    renderDcu();
+    if (!dcu.devices && !dcu.busy) readDcu();
+  }
+  async function readDcu() {
+    if (dcu.busy || dcu.running) return;
+    dcu.busy = true; dcu.err = null; renderDcu();
+    try {
+      dcu.devices = isDemo ? DeviceCleanup.demo() : await DeviceCleanup.readDevices();
+      dcu.buckets = DeviceCleanup.bucketize(dcu.devices, dcuThresholds());
+      dcu.readAt = Date.now(); dcu.results = null; dcu.ledgerHtml = ""; dcu.summary = ""; dcu.pane = "auto";
+      Object.values(dcu.sel).forEach((s) => s.clear());
+    } catch (e) { dcu.err = String((e && e.message) || e); dcu.devices = null; dcu.buckets = null; }
+    finally { dcu.busy = false; }
+    renderDcu();
+  }
+  // 0.2.0 (Mihai 18 Oct: "the layout can be nicer than this"; v2 picked from
+  // the mockup): the tiles and the tab strip are ONE lifecycle row — Active →
+  // 30 days → Stale → disabled → Disabled, waiting → 90 days → Delete — each
+  // stage opens its own work card; Re-enable, Never seen and Results are pills
+  // beside it. The card is padded, the rules are chips, silence is a bar, and
+  // an empty stage says what is true instead of "Nothing here". No emoji in
+  // the labels: ENCA's icon set drew ↩ as a grid.
+  function renderDcu() {
+    if (!$("screen-dcu") || !$("screen-dcu").classList.contains("active")) return;
+    const body = $("dcuBody"), b = dcu.buckets;
+    $("dcuRead").innerHTML = dcu.readAt ? `Read ${esc(new Date(dcu.readAt).toLocaleString())} · <b>${(dcu.devices || []).length}</b> directory devices${isDemo ? " · demo" : ""}` : "";
+    if (dcu.busy) { body.innerHTML = '<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> Reading the directory\'s devices…</p>'; return; }
+    if (dcu.err) { body.innerHTML = `<div class="list-card dcu-card"><b>The read failed.</b><p class="mini">${esc(dcu.err)}</p></div>`; return; }
+    if (!b) { body.innerHTML = '<p class="mini muted" style="padding:12px">Not read yet — Read the devices.</p>'; return; }
+    if (!["active", "disable", "parked", "delete", "enable", "unknown", "results"].includes(dcu.pane)) dcu.pane = b.stale.length ? "disable" : b.deletable.length ? "delete" : "disable";
+    const pane = dcu.pane, th = b.thresholds;
+    // ---- the lifecycle row ----
+    const stage = (id, lab, n, sub, tone, act) => `<button type="button" class="dcu-stage ${tone}${pane === id ? " sel" : ""}" data-dcupane="${id}" aria-pressed="${pane === id}">${act ? `<span class="dcu-act ${act[0]}">${act[1]}</span>` : ""}<span class="dcu-lab">${lab}</span><span class="dcu-n">${n}</span><span class="dcu-s">${sub}</span></button>`;
+    const arrow = (txt) => `<div class="dcu-arrow" aria-hidden="true"><b>→</b>${txt}</div>`;
+    const life = `<div class="dcu-life">${stage("active", "Active", b.active.length, `signed in within ${th.disableDays} days`, "ok")}${arrow(`${th.disableDays} days<br>silent`)}${stage("disable", "Stale, enabled", b.stale.length, b.stale.length ? "disable candidates" : "nothing to disable", b.stale.length ? "warn" : "idle", b.stale.length ? ["d", "① DISABLE"] : null)}${arrow("disabled")}${stage("parked", "Disabled, waiting", b.parked.length, `until ${th.deleteDays} days silent`, "idle")}${arrow(`${th.deleteDays} days<br>silent`)}${stage("delete", "Delete candidates", b.deletable.length, b.deletable.length ? `disabled and past ${th.deleteDays} days` : "nothing to delete", b.deletable.length ? "bad" : "idle", b.deletable.length ? ["x", "② DELETE"] : null)}</div>`;
+    const pill = (id, lab, c) => `<button type="button" class="dcu-pill${pane === id ? " sel" : ""}" data-dcupane="${id}">${lab} <span class="c">${c}</span></button>`;
+    const side = `<div class="dcu-side">${pill("enable", "Re-enable", `${b.disabled.length} disabled`)}${pill("unknown", "Never seen", `${b.unknown.length}${b.unknown.length ? " · no action" : ""}`)}${pill("results", "Results", dcu.results ? dcu.results.length : "—")}<span class="mini muted" style="margin-left:auto">Click a stage to open it</span></div>`;
+    // ---- the work card ----
+    const join = { AzureAd: "Entra joined", ServerAd: "hybrid joined", Workplace: "Entra registered" };
+    const managed = (d) => d.isManaged ? ' <span class="tag" title="Enrolled in Intune — removing the directory object does not unenrol it; retire it in Intune first">managed</span>' : "";
+    const devCell = (r) => `<b>${esc(r.d.displayName || r.d.id)}</b>${managed(r.d)}<div class="dcu-os">${esc(r.d.operatingSystem === "MacMDM" ? "macOS" : r.d.operatingSystem || "—")}${r.d.operatingSystemVersion ? ` ${esc(r.d.operatingSystemVersion)}` : ""}${r.d.trustType ? ` · ${esc(join[r.d.trustType] || r.d.trustType)}` : ""}${r.d.registrationDateTime ? ` · added ${esc(String(r.d.registrationDateTime).slice(0, 10))}` : ""}</div>`;
+    const silence = (r) => r.days == null ? '<span class="muted">never seen</span>' : `<span class="dcu-meter"><i class="${r.days >= th.deleteDays ? "x" : r.days >= th.disableDays ? "d" : "a"}" style="width:${Math.min(100, Math.round(r.days / th.deleteDays * 100))}%"></i></span>${r.days} day${r.days === 1 ? "" : "s"}`;
+    const state = (d) => d.accountEnabled === false ? '<span class="gsa-st bad">disabled</span>' : '<span class="gsa-st ok">enabled</span>';
+    const table = (rows, kind) => {
+      const sel = kind ? dcu.sel[kind] : null, all = rows.length && sel && rows.every((r) => sel.has(r.d.id));
+      return `<div class="gu-tw"><table class="cg-table dcu-table"><thead><tr>${kind ? `<th style="width:36px"><input type="checkbox" data-dcuall="${kind}"${all ? " checked" : ""} title="Select or deselect every row"></th>` : ""}<th>Device</th><th style="width:220px">Silent for</th><th style="width:110px">State</th></tr></thead><tbody>${rows.map((r) => `<tr>${kind ? `<td><input type="checkbox" data-dcutick="${kind}" data-id="${esc(r.d.id)}"${sel.has(r.d.id) ? " checked" : ""}></td>` : ""}<td>${devCell(r)}</td><td class="mini">${silence(r)}</td><td>${state(r.d)}</td></tr>`).join("")}</tbody></table></div>`;
+    };
+    const empty = (h, s) => `<div class="dcu-empty"><div class="ic">✓</div><div><b>${h}</b>${s ? `<div class="mini muted">${s}</div>` : ""}</div></div>`;
+    const rules = (list) => `<div class="dcu-rules">${list.map((x) => `<span class="dcu-rule">${x}</span>`).join("")}</div>`;
+    const sel = (kind) => `<div class="dcu-tools"><button class="btn sm" data-dcuselall="${kind}">Select all</button><button class="btn sm" data-dcuclear="${kind}">Clear</button></div>`;
+    const wh = (h, p, tools) => `<div class="dcu-wh"><div><h3>${h}</h3>${p ? `<p class="mini muted">${p}</p>` : ""}</div>${tools || ""}</div>`;
+    const quietest = b.active.filter((r) => r.d.accountEnabled !== false).sort((x, y) => y.days - x.days)[0];
+    const soonest = [...b.parked].sort((x, y) => y.days - x.days)[0];
+    const W = ' <span class="tag block">writes to tenant</span>';
+    let card = "";
+    if (pane === "disable") card = b.stale.length
+      ? wh(`① Disable ${b.stale.length} stale device${b.stale.length === 1 ? "" : "s"} that ${b.stale.length === 1 ? "is" : "are"} still enabled${W}`, `Reversible. A device still enabled and past ${th.deleteDays} days is listed here too: deletion comes after disabling, never instead of it.`, sel("disable"))
+        + rules(["↻ each device is read again just before the write", "⏰ signed in since the read → skipped", "✓ read back after the write", "managed = enrolled in Intune: retire it there first"]) + table(b.stale, "disable")
+      : wh("① Disable: nothing to do") + empty(`Every enabled device signed in within the last ${th.disableDays} days.`, quietest ? `${b.active.length} active device${b.active.length === 1 ? "" : "s"}; the quietest signed in ${quietest.days} day${quietest.days === 1 ? "" : "s"} ago (${esc(quietest.d.displayName || quietest.d.id)}). Lower the disable line in the bar above to look further back.` : "");
+    else if (pane === "delete") card = b.deletable.length
+      ? wh(`② Delete ${b.deletable.length} disabled device${b.deletable.length === 1 ? "" : "s"} past ${th.deleteDays} days${W}`, "<b>Not reversible.</b> The BitLocker recovery keys go with the device object. Graph refuses Autopilot-registered devices until they leave Autopilot. Type DELETE in the bar to arm it.", sel("delete"))
+        + rules(["↻ each device is read again just before the delete", "re-enabled since the read → refused: somebody wants it back", "⏰ signed in since → skipped", "✓ gone from the directory afterwards"]) + table(b.deletable, "delete")
+      : wh("② Delete: nothing to do") + empty(`No disabled device is past ${th.deleteDays} days.`, soonest ? `${b.parked.length} disabled device${b.parked.length === 1 ? " is" : "s are"} waiting; the next one reaches the delete line in ${Math.max(0, th.deleteDays - soonest.days)} day${th.deleteDays - soonest.days === 1 ? "" : "s"} (${esc(soonest.d.displayName || soonest.d.id)}).` : "Disable stale devices first — only a disabled device can become a delete candidate.");
+    else if (pane === "enable") card = b.disabled.length
+      ? wh(`Re-enable — ${b.disabled.length} disabled device${b.disabled.length === 1 ? "" : "s"}${W}`, "The way back from ①: every disabled device the read found, whatever its stage. A fresh read, the write, the read-back; no threshold applies.", sel("enable")) + table(b.disabled, "enable")
+      : wh("Re-enable: nothing to do") + empty("No device is disabled.");
+    else if (pane === "parked") card = b.parked.length
+      ? wh(`Disabled, waiting — ${b.parked.length}`, `Disabled and not yet ${th.deleteDays} days silent. They become delete candidates when they cross the line; to take one back, open Re-enable.`) + table(b.parked, null)
+      : wh("Disabled, waiting") + empty("No disabled device is waiting out the delete line.");
+    else if (pane === "active") card = wh(`Active — ${b.active.length}`, `Signed in within the last ${th.disableDays} days. Nothing to do here; listed so the count can be checked.`) + (b.active.length ? table(b.active, null) : empty(`No device signed in within ${th.disableDays} days.`, "Check the read and the thresholds before acting on anything."));
+    else if (pane === "unknown") card = b.unknown.length
+      ? wh(`Never seen — ${b.unknown.length}`, "The directory returned no last sign-in — an Autopilot object that never booted, or a device the service answers nothing for. Unknown is not stale, so no action is offered.") + table(b.unknown, null)
+      : wh("Never seen") + empty("Every device has a last sign-in.");
+    else card = wh("Results — this session", dcu.results ? dcu.summary : "") + (dcu.results ? "" : empty("No actions run yet.", "Tick devices under ① Disable, ② Delete or Re-enable and the bar appears.")) + `<div id="dcuLedger">${dcu.ledgerHtml}</div>`;
+    // ---- the bar: the action follows the ticking ----
+    const kind = { disable: "disable", delete: "delete", enable: "enable" }[pane];
+    const n = kind ? dcu.sel[kind].size : 0;
+    const verb = { disable: "Disable the ticked", delete: "Delete the ticked", enable: "Re-enable the ticked" }[kind];
+    const bar = kind && b[DCU_SRC[kind]].length ? `<div class="selbar dcu-selbar${n ? " visible" : ""}" id="dcuBar"><span><b>${n}</b> device${n === 1 ? "" : "s"} ticked</span>${kind === "delete" ? `<label class="mini" style="display:inline-flex;align-items:center;gap:6px">Type <b>DELETE</b> to arm <input id="dcuConfirm" class="txt" style="width:100px" autocomplete="off" value="${esc(dcu.armed)}"></label>` : ""}<button class="btn primary" data-dcuact="${kind}"${kind === "delete" && dcu.armed.trim() !== "DELETE" || dcu.running ? " disabled" : ""}>${verb} <span class="tag block">writes</span></button><button class="btn sm" data-dcuclear="${kind}" title="Clear the selection">✕</button></div>` : "";
+    body.innerHTML = `${life}${side}<div class="list-card dcu-card">${card}${bar}</div>`;
+  }
+  function dcuSyncBar(kind) {
+    const n = dcu.sel[kind].size, bar = $("dcuBar"), total = dcu.buckets[DCU_SRC[kind]].length;
+    if (bar) { bar.classList.toggle("visible", n > 0); const b = bar.querySelector("b"); if (b) b.textContent = n; const sp = bar.querySelector("span"); if (sp) sp.lastChild.textContent = ` device${n === 1 ? "" : "s"} ticked`; }
+    const m = $("dcuBody").querySelector(`[data-dcuall="${kind}"]`); if (m) { m.checked = n > 0 && n === total; m.indeterminate = n > 0 && n < total; }
+  }
+  async function dcuAct(kind) {
+    if (dcu.running || !dcu.buckets) return;
+    const src = dcu.buckets[DCU_SRC[kind]], sel = dcu.sel[kind];
+    const ops = src.filter((r) => sel.has(r.d.id)).map((r) => ({ kind, d: r.d, days: r.days }));
+    if (!ops.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, DeviceCleanup.WRITE_SCOPE])) return;
+    dcu.running = true; dcu.pane = "results"; dcu.ledgerHtml = ""; renderDcu();
+    const host = $("dcuLedger");
+    const word = { disable: "disabling", delete: "deleting", enable: "re-enabling" }[kind];
+    const L = host ? RunLedger.create(host, { unit: "devices", title: word, items: ops.map((op) => ({ label: op.d.displayName || op.d.id, sub: op.d.operatingSystem || "" })) }) : null;
+    let results = [];
+    try {
+      // the demo walks the same pipeline against the demo estate
+      const io = isDemo ? (() => {
+        const find = (url) => dcu.devices.find((x) => url.includes(`/devices/${x.id}`));
+        const pause = () => new Promise((r) => setTimeout(r, 120));
+        return { read: async (url) => { await pause(); const d = find(url); return d ? Object.assign({}, d) : null; }, patch: async (url, body) => { await pause(); Object.assign(find(url), body); }, del: async (url) => { await pause(); const d = find(url); dcu.devices = dcu.devices.filter((x) => x !== d); } };
+      })() : undefined;
+      results = await DeviceCleanup.apply(ops, { thresholds: dcu.buckets.thresholds, ledger: L, io });
+    } catch (e) { toast(`Stopped: <span>${esc(String((e && e.message) || e))}</span>`); }
+    finally {
+      if (L) L.finish({ report: () => dcuReport() });
+      dcu.ledgerHtml = host ? host.innerHTML : "";
+      dcu.results = (dcu.results || []).concat(results);
+      const good = results.filter((r) => ["disabled", "deleted", "enabled"].includes(r.outcome)).length, bad = results.filter((r) => r.outcome === "failed").length;
+      dcu.summary = `<b>${good} ${kind === "disable" ? "disabled" : kind === "enable" ? "re-enabled" : "deleted"}</b>${bad ? ` · <b class="gsa-bad-txt">${bad} failed</b>` : ""} · ${results.length - good - bad} skipped or refused — the tiles and tabs follow the read-backs.`;
+      // only verified outcomes move a device (the demo moved them already)
+      if (!isDemo) dcu.devices = DeviceCleanup.afterResults(dcu.devices, results);
+      dcu.buckets = DeviceCleanup.bucketize(dcu.devices, dcu.buckets.thresholds);
+      dcu.sel[kind].clear(); dcu.armed = "";
+      dcu.running = false;
+      renderDcu();
+    }
+  }
+  function dcuReport() {
+    if (!dcu.buckets) { toast("Read the devices first"); return; }
+    downloadText("entra-device-cleanup", "md", "text/markdown", DeviceCleanup.markdown({ buckets: dcu.buckets, results: dcu.results, tenant: tenantName || (isDemo ? "demo" : ""), build: APP_BUILD.label }));
+  }
+  $("toolDeviceCleanup").addEventListener("click", openDcu);
+  $("dcuRefresh").addEventListener("click", () => { dcu.devices = null; readDcu(); });
+  $("dcuMd").addEventListener("click", dcuReport);
+  $("dcuThresh").addEventListener("change", () => { if (dcu.devices) { dcu.buckets = DeviceCleanup.bucketize(dcu.devices, dcuThresholds()); Object.values(dcu.sel).forEach((s) => s.clear()); renderDcu(); } });
+  $("dcuBody").addEventListener("click", (e) => {
+    const t = e.target;
+    const p = t.closest("[data-dcupane]"); if (p) { dcu.pane = p.dataset.dcupane; renderDcu(); return; }
+    const a = t.closest("[data-dcuact]"); if (a) { dcuAct(a.dataset.dcuact); return; }
+    const c = t.closest("[data-dcuclear]"); if (c) { dcu.sel[c.dataset.dcuclear].clear(); dcu.armed = ""; renderDcu(); return; }
+    const sa = t.closest("[data-dcuselall]"); if (sa) { const k = sa.dataset.dcuselall; dcu.buckets[DCU_SRC[k]].forEach((r) => dcu.sel[k].add(r.d.id)); renderDcu(); return; }
+  });
+  $("dcuBody").addEventListener("change", (e) => {
+    const t = e.target;
+    // a tick updates the selection, the bar and the master box in place — no
+    // repaint, so the table keeps its scroll position under the pointer
+    if (t.dataset.dcutick) { const s = dcu.sel[t.dataset.dcutick]; if (t.checked) s.add(t.dataset.id); else s.delete(t.dataset.id); dcuSyncBar(t.dataset.dcutick); return; }
+    if (t.dataset.dcuall) { const k = t.dataset.dcuall, s = dcu.sel[k]; dcu.buckets[DCU_SRC[k]].forEach((r) => { if (t.checked) s.add(r.d.id); else s.delete(r.d.id); }); $("dcuBody").querySelectorAll(`[data-dcutick="${k}"]`).forEach((c) => { c.checked = t.checked; }); dcuSyncBar(k); }
+  });
+  $("dcuBody").addEventListener("input", (e) => {
+    if (e.target.id !== "dcuConfirm") return;
+    dcu.armed = e.target.value;
+    const btn = $("dcuBody").querySelector('[data-dcuact="delete"]'); if (btn) btn.disabled = dcu.armed.trim() !== "DELETE" || dcu.running;
+  });
+  // ======================================================================
+  // 🔑 App access review — T60, Workspace 03 (18 Oct 2026). js/appaccess.js
+  // reads, judges, writes and reports; this is the screen, in ENCA's own
+  // components as in the approved mockup (review/2026-10-18/t60-app-access):
+  // the consent-posture strip, KPI tiles that filter, a tab strip, one row
+  // per app, the app opened in place with the five-rung ladder, the floating
+  // selection bar, a confirm card that names impact and way back BEFORE any
+  // write, and the run ledger on Decisions. Mihai's decisions (18 Oct):
+  // decisions on the app's Notes, partners Limon-IT / CloudFellows / Dovilo,
+  // no Excel (CSV + Markdown), the two new scopes asked at the click, and
+  // admin consent requests switched on from here.
+  // ======================================================================
+  let aa = { raw: null, model: null, busy: false, err: null, step: "", session: null, tab: "queue", origin: "all", acts: "any", kpi: null, q: "", sel: new Set(), open: null, ptick: new Set(), running: false, ledgerHtml: "", summary: "", confirm: null, armed: "", pick: { for: "", q: "", res: [], busy: false }, restrictGroup: null, acrpGroup: null, acrpDays: 14, auditBusy: false, names: {}, newIds: null, prevAt: null, custom: null, customName: "", showPartners: false, reason: "", review: "" };
+  const aaSession = () => `${tenantId}:${isDemo}`;
+  const AA_PARTNERS = "enca-t60-partners", aaLastKey = () => `enca-t60-last:${tenantId || "demo"}`, aaUndoKey = () => `enca-t60-undo:${tenantId || "demo"}`;
+  function aaPartners() { try { const j = JSON.parse(localStorage.getItem(AA_PARTNERS) || "null"); if (Array.isArray(j)) return j; } catch { /* default */ } return AppAccess.PARTNERS_DEFAULT.slice(); }
+  function aaSavePartners(list) { try { localStorage.setItem(AA_PARTNERS, JSON.stringify(list)); } catch { /* best effort */ } }
+  function aaUndo() { try { return JSON.parse(localStorage.getItem(aaUndoKey()) || "[]"); } catch { return []; } }
+  function aaSaveUndo(list) { try { localStorage.setItem(aaUndoKey(), JSON.stringify(list.slice(-200))); } catch { /* best effort */ } }
+  const aaWho = () => (Graph.account && (Graph.account.username || Graph.account.name)) || (isDemo ? "demo" : "");
+  const aaToday = () => new Date().toISOString().slice(0, 10);
+  const aaPlus = (months) => { const d = new Date(); d.setMonth(d.getMonth() + months); return d.toISOString().slice(0, 10); };
+  function aaAnalyze() {
+    if (!aa.raw) return null;
+    return AppAccess.analyze(aa.raw, { tenantId: aa.raw.tenantId || tenantId, partners: aaPartners(), selfAppId: AUTH_CONFIG.clientId, custom: aa.custom });
+  }
+  const aaReadIO = (scopes) => ({ all: (url) => Graph.ggetAll(url, scopes ? { scopes } : undefined), one: (url) => Graph.gget(url, scopes) });
+  function aaWriteIO(scopes) {
+    const gone = (e) => /\(404\)|ResourceNotFound|does not exist|Request_ResourceNotFound/i.test(String((e && e.message) || e));
+    return {
+      read: async (url) => { try { return await Graph.gget(url, scopes); } catch (e) { if (gone(e)) return null; throw e; } },
+      all: (url) => Graph.ggetAll(url, { scopes }),
+      patch: (url, body) => Graph.gpatch(url, body, scopes),
+      post: (url, body) => Graph.gpost(url, body, scopes),
+      del: (url) => Graph.gdelete(url, scopes),
+      put: (url, body) => Graph.gput(url, body, scopes),
+    };
+  }
+  // the demo walks the same write pipeline against its own tenant
+  function aaDemoIO() {
+    const r = aa.raw, pause = () => new Promise((ok) => setTimeout(ok, 90));
+    r.deleted = r.deleted || [];
+    const spOf = (url) => r.sps.find((s) => new RegExp(`/servicePrincipals/${s.id}(\\?|/|$)`).test(url));
+    const grantOf = (url) => r.grants.find((g) => new RegExp(`/oauth2PermissionGrants/${g.id}$`).test(url.split("?")[0]));
+    return {
+      read: async (url) => { await pause(); if (/adminConsentRequestPolicy/.test(url)) return Object.assign({}, r.settings.acrp); const g = grantOf(url); if (g) return Object.assign({}, g); const s = spOf(url); return s ? Object.assign({ appRoles: [] }, s) : null; },
+      all: async (url) => { await pause(); const s = spOf(url); if (s && /appRoleAssignments/.test(url)) return (s.appRoleAssignments || []).map((a) => Object.assign({ principalId: s.id }, a)); const m = /clientId eq '([^']+)'/.exec(decodeURIComponent(url)); return m ? r.grants.filter((g) => g.clientId === m[1]) : []; },
+      patch: async (url, body) => { await pause(); const g = grantOf(url); if (g) { Object.assign(g, body); return; } Object.assign(spOf(url), body); },
+      post: async (url, body) => {
+        await pause();
+        let m = /\/directory\/deletedItems\/([^/]+)\/restore$/.exec(url);
+        if (m) { const i = r.deleted.findIndex((s) => s.id === m[1]); if (i >= 0) r.sps.push(r.deleted.splice(i, 1)[0]); return {}; }
+        m = /\/servicePrincipals\/([^/]+)\/appRoleAssignments$/.exec(url);
+        if (m) { const s = r.sps.find((x) => x.id === m[1]); s.appRoleAssignments = (s.appRoleAssignments || []).concat([{ id: `ara-back-${Date.now()}`, appRoleId: body.appRoleId, resourceId: body.resourceId }]); return {}; }
+        if (/\/oauth2PermissionGrants$/.test(url)) { r.grants.push(Object.assign({ id: `g-back-${Date.now()}` }, body)); return {}; }
+        return {};   // appRoleAssignedTo (a group) — nothing to show in the demo
+      },
+      del: async (url) => {
+        await pause();
+        let m = /\/servicePrincipals\/([^/]+)\/appRoleAssignedTo\/([^/]+)$/.exec(url);
+        if (m) { for (const s of r.sps) s.appRoleAssignments = (s.appRoleAssignments || []).filter((a) => a.id !== m[2]); return; }
+        const g = grantOf(url); if (g) { r.grants = r.grants.filter((x) => x !== g); return; }
+        const s = spOf(url); if (s) { r.sps = r.sps.filter((x) => x !== s); r.grants = r.grants.filter((x) => x.clientId !== s.id); r.deleted.push(Object.assign({}, s, { appRoleAssignments: [] })); }
+      },
+      put: async (url, body) => { await pause(); Object.assign(r.settings.acrp, body); },
+    };
+  }
+  function openAa() {
+    crumb("🔑 App access review");
+    show("screen-aa");
+    if (aa.session !== aaSession()) aa = Object.assign(aa, { raw: null, model: null, err: null, tab: "queue", sel: new Set(), open: null, ptick: new Set(), ledgerHtml: "", summary: "", confirm: null, names: {}, newIds: null, prevAt: null, session: aaSession() });
+    $("aaHead").innerHTML = toolHead("toolAppAccess") + '<p class="mini" style="margin:6px 0 0">Every app that can reach this tenant’s data — <b>what it can do</b>, <b>who let it in</b>, <b>whether it is still used</b> — and a decision for each one. For tenants without Defender for Cloud Apps app governance (Business Premium). One row per app, the verdict in plain words; nothing is written until you choose an action, and every action says its impact and its way back first.</p>';
+    renderAa();
+    if (!aa.raw && !aa.busy) aaRead();
+  }
+  async function aaRead(after) {
+    if (aa.busy) return;
+    const keepAudit = after && aa.raw && aa.raw.activity;
+    aa.busy = true; aa.err = null; aa.step = "Reading…"; renderAa();
+    try {
+      if (isDemo) { await new Promise((ok) => setTimeout(ok, 250)); aa.raw = AppAccess.demo(); }
+      else {
+        const raw = await AppAccess.read(aaReadIO(), { onStep: (m) => { aa.step = m; aaPaintStep(); } });
+        raw.tenantId = tenantId;
+        if (keepAudit || Graph.hasScopes([...AUTH_CONFIG.scopes, "AuditLog.Read.All"])) Object.assign(raw, await AppAccess.readAudit(aaReadIO([...AUTH_CONFIG.scopes, "AuditLog.Read.All"]), { onStep: (m) => { aa.step = m; aaPaintStep(); } }));
+        aa.raw = raw;
+      }
+      aa.model = aaAnalyze();
+      await aaNames();
+      aaMarkNew();
+    } catch (e) { aa.err = String((e && e.message) || e); }
+    finally { aa.busy = false; }
+    renderAa();
+  }
+  async function aaAudit() {
+    if (aa.auditBusy || !aa.raw) return;
+    const sc = [...AUTH_CONFIG.scopes, "AuditLog.Read.All"];
+    if (!isDemo && !await preConsent(sc)) return;
+    aa.auditBusy = true; renderAa();
+    try {
+      if (!isDemo) Object.assign(aa.raw, await AppAccess.readAudit(aaReadIO(sc), {}));
+      aa.model = aaAnalyze();
+      if (aa.raw.activityErr || aa.raw.consentsErr) toast(`Partly read: <span>${esc(aa.raw.activityErr || aa.raw.consentsErr)}</span> — the account needs Reports Reader, Security Reader or Security Administrator`);
+    } catch (e) { toast(`Could not read: <span>${esc((e && e.message) || e)}</span>`); }
+    finally { aa.auditBusy = false; }
+    renderAa();
+  }
+  // names of the people behind the users' own consents
+  async function aaNames() {
+    const ids = [...new Set(((aa.model && aa.model.userGrants) || []).map((g) => g.principalId).filter(Boolean))].filter((id) => !aa.names[id]);
+    if (!ids.length) return;
+    if (isDemo) { ids.forEach((id) => { aa.names[id] = id === "u-admin" ? "adm-admin@contoso.example" : id; }); return; }
+    for (let i = 0; i < ids.length; i += 900) {
+      try { const res = await Graph.gpost("/v1.0/directoryObjects/getByIds", { ids: ids.slice(i, i + 900), types: ["user"] }); ((res && res.value) || []).forEach((o) => { aa.names[o.id] = o.userPrincipalName || o.displayName || o.id; }); }
+      catch (e) { console.warn("T60 names:", e); }
+    }
+  }
+  // what is new since the previous read in this browser
+  function aaMarkNew() {
+    if (!aa.model) return;
+    const ids = aa.model.apps.map((a) => a.id);
+    let prev = null; try { prev = JSON.parse(localStorage.getItem(aaLastKey()) || "null"); } catch { /* none */ }
+    if (prev && Array.isArray(prev.ids)) { const had = new Set(prev.ids); aa.newIds = new Set(ids.filter((id) => !had.has(id))); aa.prevAt = prev.at; }
+    else { aa.newIds = null; aa.prevAt = null; }
+    if (!isDemo) { try { localStorage.setItem(aaLastKey(), JSON.stringify({ at: Date.now(), ids })); } catch { /* best effort */ } }
+  }
+  function aaPaintStep() { const el = $("aaStep"); if (el) el.textContent = aa.step; }
+  // ---- small pieces ----
+  const AA_V = { t0: "t0", ep: "ep", high: "high", med: "med", low: "low", info: "info" };
+  const aaPill = (tier) => `<span class="aa-v ${AA_V[tier]}">${AppAccess.TIER_LABEL[tier]}</span>`;
+  function aaOrigin(a) {
+    const o = a.origin;
+    const cls = { org: "org", partner: "partner", ms: "ms", tp: "tp" }[o.kind];
+    let h = `<span class="aa-o ${cls}">${esc(o.label)}${o.kind === "org" && o.multi ? " · multi-tenant" : ""}</span>`;
+    if (o.kind === "tp") h += o.verified ? ` <span class="aa-o ver">✓ ${esc(o.publisher)}</span>` : ' <span class="aa-o unv">publisher not verified</span>';
+    if (aa.newIds && aa.newIds.has(a.id)) h += ' <span class="aa-o new">new since last read</span>';
+    if (!a.enabled) h += ' <span class="aa-o off">sign-in off</span>';
+    return h;
+  }
+  const aaActs = (a) => ({ app: "App-only", user: "As a user", both: "App-only<span class=\"aa-sub\">+ as a user</span>", role: "Directory role" }[a.acts] || a.acts);
+  const aaWhoCan = (a) => (a.acts === "app" || a.acts === "role" ? '<span class="muted">no user needed</span>' : a.everyUser ? '<b>every user</b><span class="aa-sub">assignment not required</span>' : a.delAll.length ? "assigned users" : `${a.consentUsers.length} user${a.consentUsers.length === 1 ? "" : "s"} who consented`);
+  function aaLast(a) {
+    if (a.last === undefined) return '<span class="muted">not read</span>';
+    if (a.last == null) return '<span class="aa-stale">no sign-in on record</span>';
+    const d = a.lastDays, cls = d >= AppAccess.UNUSED_DAYS ? "aa-stale" : d >= 45 ? "aa-warn" : "";
+    return `<span class="${cls}">${d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`}</span>`;
+  }
+  function aaCreds(a) {
+    const c = a.creds;
+    if (!c) return a.appPerms.length && a.origin.kind !== "org" ? `<span class="muted">held by ${a.origin.kind === "partner" ? "the partner" : "the vendor"}</span>` : '<span class="muted">—</span>';
+    const bits = [];
+    const soon = (iso) => { const d = Math.round((Date.parse(iso) - Date.now()) / 86400000); return d < 60 ? `expires in ${d} days` : `until ${String(iso).slice(0, 7)}`; };
+    if (c.secrets.length) bits.push(`<span class="aa-bad">${c.secrets.length === 1 ? "secret" : `${c.secrets.length} secrets`}</span><span class="aa-sub">${esc(soon(c.secrets.map((s) => s.end).sort()[0]))}</span>`);
+    if (c.certs.length) bits.push(`certificate${c.certs.length === 1 ? "" : "s"}${c.sharedWith ? `<span class="aa-sub aa-warn" title="${esc(c.sharedApps.map((o) => o.name).join(", "))}">shared with ${c.sharedWith} other app${c.sharedWith === 1 ? "" : "s"}</span>` : ""}`);
+    if (c.expired) bits.push(`<span class="aa-sub">${c.expired} expired still stored</span>`);
+    return bits.join("") || '<span class="muted">none</span>';
+  }
+  const AA_SUGG = { remove: "suggested: remove", quarantine: "suggested: quarantine", restrict: "suggested: restrict", certificate: "suggested: certificate only" };
+  function aaDecision(a) {
+    if (a.decision && a.decision.decision !== "Enabled again") return `<span class="aa-dec">${esc(a.decision.decision)}</span><span class="aa-sub">${esc(a.decision.date)}${a.decision.review ? ` · review ${esc(a.decision.review)}` : ""}</span>`;
+    if (a.ms) return '<span class="muted">Microsoft</span>';
+    if (a.self) return '<span class="muted">this tool</span>';
+    return a.suggest ? `<span class="aa-sugg">${AA_SUGG[a.suggest]}</span>` : '<button class="btn sm" type="button" data-aaopen="' + esc(a.id) + '">Decide…</button>';
+  }
+  function aaFiltered() {
+    const m = aa.model; if (!m) return [];
+    let list = m.apps;
+    if (aa.tab === "queue") list = list.filter((a) => a.queue);
+    if (aa.origin !== "all") list = list.filter((a) => a.origin.kind === aa.origin);
+    if (aa.acts === "app") list = list.filter((a) => a.acts === "app" || a.acts === "both" || a.acts === "role");
+    if (aa.acts === "user") list = list.filter((a) => a.acts === "user" || a.acts === "both");
+    const R = AppAccess.RANK, K = aa.kpi;
+    if (K === "t0") list = list.filter((a) => R[a.tier] >= R.ep && !a.ms);
+    if (K === "high") list = list.filter((a) => a.tier === "high" && !a.ms);
+    if (K === "unverified") list = list.filter((a) => a.origin.kind === "tp" && !a.origin.verified);
+    if (K === "unused") list = list.filter((a) => a.unused);
+    if (K === "secrets") list = list.filter((a) => a.flags.some((f) => f.k === "secret" || f.k === "expired"));
+    if (K === "decided") list = list.filter((a) => a.decision && a.decision.decision !== "Enabled again");
+    const q = aa.q.trim().toLowerCase();
+    if (q) list = list.filter((a) => [a.name, a.appId, a.origin.label, a.origin.publisher || "", ...a.perms.map((p) => p.value), ...a.roles.map((r) => r.name)].join(" ").toLowerCase().includes(q));
+    return list;
+  }
+  // ---- the screen ----
+  function renderAa() {
+    if (!$("screen-aa") || !$("screen-aa").classList.contains("active")) return;
+    const body = $("aaBody"), m = aa.model;
+    $("aaRead").innerHTML = m ? `Read ${esc(new Date(m.readAt).toLocaleString())} · <b>${m.total}</b> service principals · <b>${m.grants}</b> delegated grants · <b>${m.appPerms}</b> application permissions${m.recapped.length ? ` (${m.recapped.length} re-read past Graph’s 20-item expand)` : ""} · ${m.rolesRead ? `<b>${m.roleCount}</b> directory-role assignment${m.roleCount === 1 ? "" : "s"} held by apps` : "roles not read"} · last use ${m.activityRead ? "✓" : "not read"} · consent events ${m.consentsRead ? "last 30 days" : "not read"}${aa.newIds && aa.prevAt ? ` · <b>${aa.newIds.size}</b> new since ${esc(new Date(aa.prevAt).toLocaleDateString())}` : ""}${isDemo ? " · demo" : ""}` : "";
+    const ab = $("aaAudit"); if (ab) { ab.disabled = !m || aa.auditBusy; ab.textContent = aa.auditBusy ? "Reading…" : m && m.activityRead ? "⌚ Read last use again" : "⌚ Last use & who consented"; }
+    if (aa.busy) { body.innerHTML = `<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> <span id="aaStep">${esc(aa.step)}</span></p>`; return; }
+    if (aa.err) { body.innerHTML = `<div class="list-card aa-card"><b>The read failed.</b><p class="mini">${esc(aa.err)}</p></div>`; return; }
+    if (!m) { body.innerHTML = '<p class="mini muted" style="padding:12px">Not read yet.</p>'; return; }
+    const k = m.kpi;
+    const posture = `<div class="aa-posture">${m.settings.filter((s) => ["userconsent", "acrp", "createapps", "classes"].includes(s.k)).map((s) => `<button type="button" class="aa-pchip ${s.sev}" data-aatab="settings"><small>${esc(s.title.split(" — ")[0])}</small><b>${s.sev === "ok" ? "✓" : s.sev === "bad" ? "✗" : s.sev === "warn" ? "⚠" : "ⓘ"} ${esc(s.title.split(" — ")[1] || "")}</b></button>`).join("")}</div>`;
+    const tile = (key, n, lab, sub, tone) => `<button type="button" class="aa-kpi ${tone}${aa.kpi === key ? " sel" : ""}" data-aakpi="${key}" aria-pressed="${aa.kpi === key}"><span class="n">${n}</span><span class="l">${lab}</span><span class="s">${sub}</span></button>`;
+    const kpis = `<div class="aa-kpis">${tile("t0", k.t0, "⛔ Tier 0 &amp; endpoint", "can take over identities or every device", "crit")}${tile("high", k.high, "▲ Tenant-wide reach", "all mail, files, users, Intune, PIM…", "high")}${tile("unverified", k.unverified, "❓ Third-party, unverified", "publisher not verified by Microsoft", "warn")}${tile("unused", k.unused == null ? "—" : k.unused, "💤 Unused 90+ days", k.unused == null ? "⌚ read last use first" : "or never signed in", "warn")}${tile("secrets", k.secrets, "🔑 Secrets on powerful apps", `${k.expired} expired credential${k.expired === 1 ? "" : "s"} still stored`, "")}${tile("decided", `${k.decided}<small>/${k.apps}</small>`, "🧾 Decided", "approved, restricted or removed", "")}</div>`;
+    const undo = aaUndo();
+    const tab = (id, lab, n) => `<button type="button" class="aa-tab${aa.tab === id ? " on" : ""}" data-aatab="${id}">${lab}${n != null ? `<em>${n}</em>` : ""}</button>`;
+    const bad = m.settings.filter((s) => s.sev === "bad").length;
+    const tabs = `<div class="aa-tabs">${tab("queue", "Needs a decision", k.queue)}${tab("all", "All apps", m.apps.length)}${tab("matrix", "Who can do what")}${tab("consents", "Users’ own consents", m.userGrants.length)}${tab("settings", "Consent settings", bad ? `${bad} ✗` : "✓")}${tab("decisions", "Decisions", k.decided + undo.length || null)}</div>`;
+    let content = "";
+    if (aa.confirm) content = aaConfirmHtml();
+    else if ((aa.tab === "queue" || aa.tab === "all") && aa.open) content = aaDrawer(m.apps.find((a) => a.id === aa.open));
+    else if (aa.tab === "queue" || aa.tab === "all") content = aaListHtml();
+    else if (aa.tab === "matrix") content = aaMatrixHtml();
+    else if (aa.tab === "consents") content = aaConsentsHtml();
+    else if (aa.tab === "settings") content = aaSettingsHtml();
+    else content = aaDecisionsHtml();
+    const partners = aa.showPartners ? aaPartnersHtml() : "";
+    const extra = [m.notes.length ? `<div class="scope-note">${m.notes.map(esc).join(" · ")}</div>` : "", aa.raw && (aa.raw.activityErr || aa.raw.consentsErr) ? `<div class="scope-note">Last use / consent events: ${esc(aa.raw.activityErr || aa.raw.consentsErr)}</div>` : "", aa.custom ? `<div class="mini" style="margin:0 0 8px">📥 Your table: <b>${aa.custom.size}</b> rule${aa.custom.size === 1 ? "" : "s"} from ${esc(aa.customName)} win over ENCA’s tiers · <a href="#" data-aacustomoff>remove</a></div>` : ""].join("");
+    body.innerHTML = `${partners}${extra}${posture}${kpis}${tabs}<div class="aa-pane">${content}</div>`;
+  }
+  function aaListHtml() {
+    const rows = aaFiltered(), m = aa.model;
+    const seg = (name, val, lab) => `<button type="button" class="${aa[name] === val ? "active" : ""}" data-aaseg="${name}" data-v="${val}">${lab}</button>`;
+    const o = m.kpi.origins;
+    const filters = `<div class="aa-filters"><input class="txt aa-search" id="aaQ" placeholder="Search app, publisher, appId, permission or role…" value="${esc(aa.q)}" autocomplete="off"><div class="seg">${seg("origin", "all", "All")}${seg("origin", "org", `Your org ${o.org}`)}${seg("origin", "partner", `Partner ${o.partner}`)}${seg("origin", "tp", `Third-party ${o.tp}`)}${seg("origin", "ms", `Microsoft ${o.ms}`)}</div><div class="seg">${seg("acts", "any", "Any")}${seg("acts", "app", "App-only")}${seg("acts", "user", "As a user")}</div>${aa.kpi ? `<button class="btn sm" type="button" data-aakpi="${aa.kpi}">✕ tile filter</button>` : ""}</div>`;
+    if (!rows.length) return filters + `<div class="aa-empty"><div class="ic">✓</div><div><b>${aa.tab === "queue" && !aa.kpi && !aa.q && aa.origin === "all" ? "Nothing waits for a decision." : "No app matches."}</b><div class="mini muted">${aa.tab === "queue" ? "Every app with tenant-wide reach, an unverified publisher, no recent use or a stale credential has a decision on it." : "Clear the filter or the search."}</div></div></div>`;
+    const groups = aa.tab === "queue" ? [["⛔ Tier 0 &amp; endpoint", (a) => AppAccess.RANK[a.tier] >= AppAccess.RANK.ep], ["▲ Tenant-wide reach", (a) => a.tier === "high"], ["● Unverified, unused or stale, lower reach", () => true]] : [["", () => true]];
+    const seen = new Set();
+    let tb = "";
+    for (const [lab, test] of groups) {
+      const part = rows.filter((a) => !seen.has(a.id) && test(a)); part.forEach((a) => seen.add(a.id));
+      if (!part.length) continue;
+      if (lab) tb += `<tr class="aa-grp"><td colspan="8">${lab} — ${part.length}</td></tr>`;
+      tb += part.map((a) => `<tr data-aarow="${esc(a.id)}"${aa.sel.has(a.id) ? ' class="sel"' : ""}><td><input type="checkbox" data-aatick="${esc(a.id)}"${aa.sel.has(a.id) ? " checked" : ""} aria-label="Select ${esc(a.name)}"></td><td><span class="aa-nm">${esc(a.name)}</span>${aaOrigin(a)}</td><td class="aa-why">${aaPill(a.tier)} ${esc(a.why)}</td><td>${aaActs(a)}</td><td>${aaWhoCan(a)}</td><td>${aaLast(a)}</td><td>${aaCreds(a)}</td><td>${aaDecision(a)}</td></tr>`).join("");
+    }
+    const table = `<div class="gu-tw"><table class="cg-table aa-table"><colgroup><col style="width:34px"><col style="width:19%"><col style="width:33%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:10%"></colgroup><thead><tr><th></th><th>App</th><th>Verdict — why, in plain words</th><th>Acts as</th><th>Who can use it</th><th>Last used</th><th>Credentials</th><th>Decision</th></tr></thead><tbody>${tb}</tbody></table></div>`;
+    return filters + table + aaSelbar();
+  }
+  function aaSelbar() {
+    const n = aa.sel.size; if (!n) return "";
+    const picked = aa.model.apps.filter((a) => aa.sel.has(a.id));
+    const allOff = picked.every((a) => !a.enabled), one = picked.length === 1 && (picked[0].acts === "user" || picked[0].acts === "both");
+    return `<div class="selbar visible aa-selbar"><span><b>${n}</b> app${n === 1 ? "" : "s"} selected</span><span class="mini" style="opacity:.8">${esc(picked.slice(0, 3).map((a) => a.name).join(" · "))}${picked.length > 3 ? " …" : ""}</span><button class="btn sm" data-aago="approve">✓ Approve…</button>${one ? '<button class="btn sm" data-aaopenone>👥 Restrict…</button>' : ""}<button class="btn sm primary" data-aago="quarantine">🧊 Quarantine (disable sign-in) <span class="tag block">writes</span></button>${allOff ? '<button class="btn sm" data-aago="remove">🗑 Remove…</button>' : ""}<button class="btn sm" data-aaclear title="Clear the selection">✕</button></div>`;
+  }
+  function aaDrawer(a) {
+    if (!a) { aa.open = null; return aaListHtml(); }
+    const m = aa.model, canAct = !a.self && !a.ms, canQ = !a.self && (!a.ms || a.origin.devTool);
+    const who = (() => {
+      if (a.consents.length) return a.consents.slice(0, 3).map((e) => `${e.admin ? "Admin consent" : "User consent"} by <b>${esc(e.by || "unknown")}</b> on ${esc(String(e.at).slice(0, 10))}`).join("<br>");
+      const kind = a.appPerms.length || a.delAll.length ? "Admin consent" : a.delOne.length ? "User consent" : "A directory role";
+      if (m.consentsRead) return `${kind}, before the 30-day audit window — ENCA cannot name who. ${a.appPerms.length || a.delAll.length ? "The grant is tenant-wide, so it was someone with an admin role." : ""}`;
+      return `${kind}. Who and when: <a href="#" data-aaaudit>⌚ read the audit log</a> (AuditLog.Read.All).`;
+    })();
+    // a flag that names other apps (shared certificate, duplicate) names them as links to their own card
+    const appPills = (list) => list.map((o) => (o.id && o.id !== a.id ? `<button type="button" class="aa-mpill" data-aaopenm="${esc(o.id)}" title="Open ${esc(o.name)}">${esc(o.name)}</button>` : `<span class="aa-mpill" title="Registered here, no enterprise app in this tenant">${esc(o.name)}</span>`)).join("");
+    const used = a.last === undefined ? 'Not read — <a href="#" data-aaaudit>⌚ read last use</a>.' : a.last == null ? "No sign-in on record." : `Last sign-in ${esc(String(a.last).slice(0, 10))} — ${a.lastDays} day${a.lastDays === 1 ? "" : "s"} ago.`;
+    const creds = a.creds ? [a.creds.secrets.length ? `${a.creds.secrets.length} client secret${a.creds.secrets.length === 1 ? "" : "s"} (next ends ${esc(String(a.creds.secrets.map((s) => s.end).sort()[0]).slice(0, 10))})` : "", a.creds.certs.length ? a.creds.certs.map((c) => `<span class="aa-cert">Certificate <b>${esc(c.name || "(no name)")}</b>, ends ${esc(String(c.end || "").slice(0, 10))}${c.thumb ? `<span class="aa-sub" title="Match it under App registrations → the app → Certificates &amp; secrets">thumbprint <code>${esc(c.thumb)}</code></span>` : ""}${c.others.length ? `<span class="aa-sub aa-warn">also on ${c.others.length} other app${c.others.length === 1 ? "" : "s"} — whoever holds its key signs in as all of them:</span><span class="aa-shared">${appPills(c.others)}</span>` : ""}</span>`).join("") : "", a.creds.expired ? `${a.creds.expired} expired, still stored` : ""].filter(Boolean).join(" · ") || "None stored." : a.appPerms.length && a.origin.kind !== "org" ? `Held in ${a.origin.kind === "partner" ? `${esc(a.origin.partner)}’s` : "the vendor’s"} tenant — not visible from here; revoke or disable are the levers.` : "Signs in as the user — no credential of its own here.";
+    const ca = a.acts === "user" ? "Its users’ sign-ins are evaluated by your Conditional Access like any app’s." : a.origin.kind === "org" && !a.origin.multi ? "App-only sign-ins are reached only by workload-identity policies (single-tenant apps registered here) — those need Workload Identities Premium, which Business Premium does not include." : "Out of reach for app-only sign-ins: workload-identity policies only target single-tenant apps registered in this tenant.";
+    const roles = (a.roles.length ? `Holds ${a.roles.map((r) => `<b>${esc(r.name)}</b>${r.scope && r.scope !== "/" ? " (scoped)" : ""}`).join(", ")}.` : "No directory role.") + (a.creds && a.creds.owners.length ? ` Owners: ${a.creds.owners.map(esc).join(", ")}.` : a.origin.kind !== "org" ? " Owners live in the publisher’s tenant." : " No owners.");
+    const sevBox = RANK_BOX(a.tier);
+    const perms = a.perms.slice().sort((x, y) => AppAccess.RANK[y.tier] - AppAccess.RANK[x.tier] || x.value.localeCompare(y.value));
+    const ptable = `<div class="gu-tw"><table class="cg-table aa-ptable"><thead><tr>${canAct ? '<th style="width:34px"></th>' : ""}<th>Permission</th><th>Type</th><th>API</th><th>ENCA — what it lets the app do</th></tr></thead><tbody>${perms.map((p, i) => `<tr>${canAct ? `<td><input type="checkbox" data-aaptick="${i}"${aa.ptick.has(i) ? " checked" : ""} aria-label="Select ${esc(p.value)}"></td>` : ""}<td><code>${esc(p.value)}</code>${p.custom ? ` <span class="aa-o">your table: ${esc(p.custom)}</span>` : ""}</td><td>${p.type === "app" ? "Application" : p.all ? "Delegated · every user" : `Delegated · ${esc(aa.names[p.principalId] || "one user")}`}</td><td class="mini">${esc(p.api)}</td><td>${aaPill(p.tier)} ${esc((AppAccess.CAPS[p.cap] || AppAccess.CAPS.read).verb)}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">No permission grant — it reaches the tenant through a directory role.</td></tr>'}</tbody></table></div>`;
+    const flags = a.flags.length ? `<ul class="aa-flags">${a.flags.map((f) => `<li class="${f.sev}">${f.apps && f.apps.length ? `${esc(f.lead)} ${appPills(f.apps)}` : esc(f.t)}</li>`).join("")}</ul>` : "";
+    const rung = (id, t, lvl, what, imp, back, btn, rec) => `<div class="aa-rung${rec ? ` ${rec}` : ""}"><span class="lvl">${lvl}</span><span class="t">${t}</span>${what}<span class="k">Impact</span>${imp}<span class="k">Way back</span>${back}${btn ? `<div class="aa-rbtn">${btn}</div>` : ""}</div>`;
+    const sug = a.suggest;
+    const groupPick = aaGroupPick("restrict");
+    const ladder = `<div class="aa-ladder">
+      ${rung("approve", "✓ Approve", "no change", "Keep as it is; the decision, reason and review date go on the app’s Notes.", "None.", "Nothing to undo.", `<button class="btn sm" data-aago1="approve">✓ Approve…</button>`, "")}
+      ${rung("restrict", "👥 Restrict", "who signs in", a.acts === "app" || a.acts === "role" ? "Not for this app — nobody signs in to it." : "Assignment required, one group assigned (direct members only; nested groups are not honoured).", a.acts === "app" || a.acts === "role" ? "—" : "Anyone outside the group is refused at sign-in. App-only access is untouched.", "Assignment required off — the group stays assigned.", a.acts === "app" || a.acts === "role" || a.self ? "" : groupPick + `<button class="btn sm" data-aago1="restrict"${aa.restrictGroup ? "" : " disabled"}>👥 Restrict…</button>`, sug === "restrict" ? "rec" : "")}
+      ${rung("reduce", "✂ Reduce", "per permission", "Revoke the permissions ticked above, keep the rest.", "What needs them fails at the next token (60–90 min).", "↩ Grant back on Decisions — this browser keeps what was taken.", canAct ? `<button class="btn sm" data-aago1="revoke"${aa.ptick.size ? "" : " disabled"}>✂ Revoke ${aa.ptick.size || ""} ticked…</button>` : "", "")}
+      ${rung("quarantine", a.enabled ? "🧊 Quarantine" : "↻ Enable again", "reversible", a.enabled ? "Disable sign-in for this tenant (accountEnabled false)." : "Sign-in is off. Switch it back on.", a.enabled ? "No new tokens here; issued ones run out (60–90 min). Grants kept." : "The app gets tokens again.", a.enabled ? "↻ Enable again — nothing lost." : "🧊 Quarantine again.", canQ ? `<button class="btn sm ${a.enabled ? "primary" : ""}" data-aago1="${a.enabled ? "quarantine" : "enable"}">${a.enabled ? "🧊 Quarantine…" : "↻ Enable again…"}</button>` : "", sug === "quarantine" ? "rec" : "")}
+      ${rung("remove", "🗑 Remove", "30-day bin", "Revoke every grant, then delete the service principal. Only an app already quarantined.", "Gone from this tenant; a user who consents again brings it back unless consent is closed.", "↩ Restore on Decisions within 30 days — restored and granted back.", canAct ? `<button class="btn sm" data-aago1="remove"${a.enabled ? " disabled title=\"Quarantine first — an app goes dark before it goes\"" : ""}>🗑 Remove…</button>` : "", sug === "remove" ? (a.enabled ? "next" : "rec") : "")}
+    </div>`;
+    const record = `<div class="aa-record"><label class="mini">Reason <input class="txt" id="aaReason" value="${esc(aa.reason)}" placeholder="why it stays, or why it goes — and the business owner"></label><label class="mini">Review again <input class="txt" id="aaReview" type="date" value="${esc(aa.review || aaPlus(AppAccess.RANK[a.tier] >= AppAccess.RANK.high ? 6 : 12))}"></label></div><p class="mini muted" style="margin:6px 0 0">Every rung writes one line on the app’s <b>Notes</b> in Entra — <code>${esc(AppAccess.stamp("Approved", { date: aaToday(), by: aaWho(), review: aa.review || aaPlus(6), reason: aa.reason || "…" }))}</code> — so the portal and the next admin see it. ${a.decision ? `Now: <b>${esc(a.decision.decision)}</b> ${esc(a.decision.date)}${a.decision.by ? ` by ${esc(a.decision.by)}` : ""}${a.decision.reason ? ` — ${esc(a.decision.reason)}` : ""}.` : ""}</p>`;
+    const entra = `https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ManagedAppMenuBlade/~/Overview/objectId/${encodeURIComponent(a.id)}/appId/${encodeURIComponent(a.appId)}`;
+    return `<div class="list-card aa-card aa-drawer">
+      <div class="aa-dh"><button class="btn sm" type="button" data-aaback>← Back to the list</button><h3>${esc(a.name)} ${aaPill(a.tier)}</h3><span class="mini muted">appId ${esc(a.appId)} · <a href="${entra}" target="_blank" rel="noopener noreferrer">Entra ↗</a></span></div>
+      <div class="aa-origins">${aaOrigin(a)}${a.created ? ` <span class="aa-o">added ${esc(String(a.created).slice(0, 10))}</span>` : ""}</div>
+      <div class="aa-plain ${sevBox}"><b>In plain words:</b> ${esc(a.why)}.${flags}</div>
+      <div class="aa-facts"><div class="aa-f"><b>Who let it in</b>${who}</div><div class="aa-f"><b>Who can use it</b>${a.acts === "app" || a.acts === "role" ? "Nobody signs in — assignment does not limit it." : a.everyUser ? "Every user — assignment is not required." : a.assignmentRequired ? "Only assigned users and groups." : `${a.consentUsers.length} user${a.consentUsers.length === 1 ? "" : "s"} who consented for themselves.`}</div><div class="aa-f${a.unused ? " warn" : ""}"><b>Is it used</b>${used}</div><div class="aa-f${a.flags.some((f) => f.k === "secret") ? " bad" : ""}"><b>Credentials</b>${creds}</div><div class="aa-f"><b>Conditional Access</b>${ca}</div><div class="aa-f"><b>Roles &amp; owners</b>${roles}</div></div>
+      <h4 class="aa-h4">What it can do — ${a.perms.length} permission${a.perms.length === 1 ? "" : "s"}${a.roles.length ? ` and ${a.roles.length} role${a.roles.length === 1 ? "" : "s"}` : ""}</h4>${ptable}
+      ${a.ms && !a.origin.devTool ? '<p class="mini muted">One of Microsoft’s own apps: it is not switched off or removed from here. Approve it, or restrict who signs in.</p>' : ""}${a.self ? '<p class="mini muted">The registration ENCA is signed in with — only Approve is offered, so this tool cannot lock itself out.</p>' : ""}
+      <h4 class="aa-h4">Decision — five rungs, each with its impact and its way back</h4>${ladder}${record}
+    </div>`;
+  }
+  const RANK_BOX = (t) => (t === "t0" || t === "ep" ? "bad" : t === "high" ? "warn" : "ok");
+  function aaGroupPick(ctx) {
+    const chosen = ctx === "restrict" ? aa.restrictGroup : aa.acrpGroup;
+    const p = aa.pick;
+    const res = p.for === ctx && p.res.length ? `<div class="aa-gres">${p.res.map((g) => `<button type="button" class="aa-gopt" data-aagpick="${esc(ctx)}" data-id="${esc(g.id)}" data-name="${esc(g.displayName)}">${esc(g.displayName)}</button>`).join("")}</div>` : p.for === ctx && p.done ? '<div class="mini muted">No group starts with that.</div>' : "";
+    return `<div class="aa-gpick">${chosen ? `<span class="aa-o partner">${esc(chosen.displayName)}</span> <a href="#" data-aagclear="${ctx}">change</a>` : `<input class="txt" data-aagq="${ctx}" placeholder="Group name starts with…" value="${esc(p.for === ctx ? p.q : "")}"><button class="btn sm" type="button" data-aagsearch="${ctx}">${p.busy && p.for === ctx ? "…" : "Find"}</button>${res}`}</div>`;
+  }
+  async function aaGroupSearch(ctx) {
+    const q = aa.pick.for === ctx ? aa.pick.q.trim() : "";
+    if (!q) { toast("Type the start of a group name"); return; }
+    aa.pick = { for: ctx, q, res: [], busy: true, done: false }; renderAa();
+    try {
+      if (isDemo) aa.pick.res = ["PIM-SG-M365-AppOps", "CAB-SEC-U-Admins", "IT-Admins", "Workplace team"].filter((n) => n.toLowerCase().startsWith(q.toLowerCase())).map((n, i) => ({ id: `grp-demo-${i}`, displayName: n }));
+      else aa.pick.res = await Graph.ggetAll(`/v1.0/groups?$filter=${encodeURIComponent(`startswith(displayName,'${q.replace(/'/g, "''")}')`)}&$select=id,displayName&$top=10`, { cap: 10 });
+    } catch (e) { toast(`Group search failed: <span>${esc((e && e.message) || e)}</span>`); }
+    finally { aa.pick.busy = false; aa.pick.done = true; }
+    renderAa();
+  }
+  function aaMatrixHtml() {
+    const pills = (list, own) => list.map((a) => `<button type="button" class="aa-mpill${own ? " c" : ""}" data-aaopenm="${esc(a.id)}">${esc(a.name)}${a.ms ? ' <span class="muted">· Microsoft</span>' : ""}</button>`).join("") || '<span class="muted">—</span>';
+    return `<div class="gu-tw"><table class="cg-table aa-mx"><thead><tr><th style="width:26%">Capability</th><th style="width:5%">#</th><th>On its own (app-only)</th><th>As a signed-in user — for every user</th></tr></thead><tbody>${aa.model.matrix.map((r) => `<tr><td><b>${esc(r.label)}</b></td><td class="aa-cnt">${r.own.length + r.user.length}</td><td>${pills(r.own, true)}</td><td>${pills(r.user, false)}</td></tr>`).join("")}</tbody></table></div><p class="mini muted" style="margin:8px 0 0">Red pills act without any user: no role caps them and Conditional Access does not see them. The right-hand column is capped by what the signed-in person may do — there the risk is <b>who</b> can sign in, which is what 👥 Restrict changes. Click a pill to open the app.</p>`;
+  }
+  function aaConsentsHtml() {
+    const g = aa.model.userGrants;
+    if (!g.length) return '<div class="aa-empty"><div class="ic">✓</div><div><b>No user consented to an app for themselves.</b><div class="mini muted">Every delegated grant in this tenant was given by an admin for everyone.</div></div></div>';
+    return `<p class="mini muted" style="margin:0 0 8px">Consents a person gave for themselves (consentType Principal). The portal cannot revoke these — ✂ Revoke here takes the grant away; the person sees the consent prompt again next time, unless consent is closed for that app.</p><div class="gu-tw"><table class="cg-table"><thead><tr><th>User</th><th>App</th><th>API</th><th>Scopes</th><th style="width:120px"></th></tr></thead><tbody>${g.map((x) => { const tierMax = x.scopes.reduce((t, s) => { const r = AppAccess.tierOf(s, "del", (aa.raw.resources[x.resourceId] || {}).appId || (x.api === "Microsoft Graph" ? AppAccess.GRAPH_APP : "")).tier; return AppAccess.RANK[r] > AppAccess.RANK[t] ? r : t; }, "info"); return `<tr><td>${esc(aa.names[x.principalId] || x.principalId)}</td><td>${esc(x.app ? x.app.displayName : x.clientId)}</td><td class="mini">${esc(x.api)}</td><td class="mini">${aaPill(tierMax)} ${esc(x.scopes.join(" "))}</td><td><button class="btn sm" data-aarevgrant="${esc(x.grantId)}">✂ Revoke…</button></td></tr>`; }).join("")}</tbody></table></div>`;
+  }
+  function aaSettingsHtml() {
+    const s = aa.model.settings;
+    const icon = { ok: "✅", bad: "❌", warn: "⚠️", info: "ⓘ", unknown: "?" };
+    return `<div class="list-card aa-card">${s.map((c) => `<div class="aa-chk"><span class="ic">${icon[c.sev] || "ⓘ"}</span><div><h5>${esc(c.title)}</h5><p>${esc(c.text)}</p>${c.fix ? `<p class="aa-imp"><b>Fix:</b> ${esc(c.fix)}</p>` : ""}${c.k === "acrp" ? aaAcrpHtml(c) : ""}</div></div>`).join("")}<p class="mini muted" style="margin:10px 0 0">User consent settings are changed in Entra (Enterprise apps → Consent and permissions); only future consents change, existing grants stay — that is what the other tabs are for.</p></div>`;
+  }
+  function aaAcrpHtml(c) {
+    const on = c.acrp && c.acrp.isEnabled === true;
+    if (on) return `<p class="aa-imp"><b>Way back:</b> switch it off — open requests expire, reviewers are kept. <button class="btn sm" data-aaacrp="off">Switch off…</button></p>`;
+    return `<div class="aa-acrp"><p class="aa-imp"><b>Turn on</b> with the members of one group as reviewers (for example the AppOps PIM group that holds Cloud Application Administrator), email to reviewers, reminders, and requests that expire after <input class="txt" id="aaAcrpDays" type="number" min="1" max="30" value="${aa.acrpDays}" style="width:60px"> days. Reviewers approve delegated requests; Microsoft Graph application permissions still need a Privileged Role Administrator or Global Administrator.</p>${aaGroupPick("acrp")}<p class="aa-imp"><b>Impact:</b> none for users today — they gain a Request approval button. <b>Way back:</b> switch it off again; open requests expire. <b>Needs:</b> Policy.ReadWrite.ConsentRequest (asked at the click) and Cloud Application Administrator or Application Administrator.</p><button class="btn sm primary" data-aaacrp="on"${aa.acrpGroup ? "" : " disabled"}>Turn on admin consent requests… <span class="tag block">writes</span></button></div>`;
+  }
+  function aaDecisionsHtml() {
+    const m = aa.model, decided = m.apps.filter((a) => a.decision);
+    const undo = aaUndo();
+    const results = `<div id="aaLedger">${aa.ledgerHtml}</div>${aa.summary ? `<p class="mini" style="margin:8px 0">${aa.summary}</p>` : ""}`;
+    const tbl = decided.length ? `<div class="gu-tw"><table class="cg-table"><thead><tr><th>App</th><th>Decision</th><th>By</th><th>Review</th><th>Reason</th><th style="width:220px"></th></tr></thead><tbody>${decided.map((a) => `<tr><td><span class="aa-nm">${esc(a.name)}</span>${aaOrigin(a)}</td><td><span class="aa-dec">${esc(a.decision.decision)}</span><span class="aa-sub">${esc(a.decision.date)}</span></td><td class="mini">${esc(a.decision.by || "—")}</td><td class="mini${a.decision.review && a.decision.review <= aaToday() ? " aa-stale" : ""}">${esc(a.decision.review || "—")}</td><td class="mini">${esc(a.decision.reason || "")}</td><td>${!a.enabled ? `<button class="btn sm" data-aago1id="enable" data-id="${esc(a.id)}">↻ Enable again…</button> <button class="btn sm" data-aago1id="remove" data-id="${esc(a.id)}">🗑 Remove…</button>` : `<button class="btn sm" data-aaopen="${esc(a.id)}">Open</button>`}</td></tr>`).join("")}</tbody></table></div>` : '<p class="mini muted">No decision recorded on any app yet.</p>';
+    const back = undo.length ? `<h4 class="aa-h4">Taken by this browser — the way back</h4><div class="gu-tw"><table class="cg-table"><thead><tr><th>App</th><th>What</th><th>When</th><th style="width:160px"></th></tr></thead><tbody>${undo.slice().reverse().map((u) => `<tr><td>${esc(u.name)}</td><td class="mini">${u.removed ? "<b>removed</b> · " : ""}${u.undo.length} permission${u.undo.length === 1 ? "" : "s"}: ${esc(u.undo.map((x) => x.value || (x.scopes || []).join(" ")).join(", ").slice(0, 220))}</td><td class="mini">${esc(String(u.at).slice(0, 16).replace("T", " "))}</td><td><button class="btn sm" data-aarestore="${esc(u.id)}|${esc(u.at)}">↩ ${u.removed ? "Restore" : "Grant back"}…</button></td></tr>`).join("")}</tbody></table></div><p class="mini muted">Kept in this browser (localStorage), and in the run’s report. A removed app can be restored for 30 days.</p>` : "";
+    return `${results}<h4 class="aa-h4">Decisions on the apps (from their Notes)</h4>${tbl}${back}`;
+  }
+  function aaPartnersHtml() {
+    const list = aaPartners();
+    return `<div class="list-card aa-card aa-partners"><div class="aa-dh"><h3>Partner tenants</h3><span class="mini muted">Apps owned by these tenants show as <b>Partner</b>, not third-party. Kept in this browser.</span><button class="btn sm" data-aapartners>Close</button></div><table class="cg-table"><tbody>${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mini"><code>${esc(p.tenantId)}</code></td><td style="width:60px"><button class="btn sm" data-aapdel="${i}" title="Remove">✕</button></td></tr>`).join("")}</tbody></table><div class="aa-filters" style="margin-top:8px"><input class="txt" id="aaPName" placeholder="Name"><input class="txt" id="aaPTid" placeholder="Tenant ID (GUID)" style="flex:1"><button class="btn sm" data-aapadd>＋ Add</button><button class="btn sm" data-aapreset>Reset to the default</button></div></div>`;
+  }
+  // ---- the confirm card: impact and way back BEFORE the write ----
+  function aaPlan(kind, apps, extra) {
+    const x = extra || {}, by = aaWho(), reason = (aa.reason || "").trim(), review = aa.review || "";
+    const base = { kind, by, reason, review };
+    const ops = apps.map((a) => Object.assign({ app: { id: a.id, appId: a.appId, name: a.name, ms: a.ms, devTool: !!a.origin.devTool } }, base));
+    const n = apps.length, names = apps.map((a) => a.name).join(", ");
+    const P = {
+      approve: { title: `✓ Approve ${n} app${n === 1 ? "" : "s"}`, word: "", scopes: AppAccess.SCOPES.notes, verb: "approving", impact: "None — only the Notes field changes.", back: "Overwrite the decision any time.", diff: apps.map((a) => `${a.name}   notes + "${AppAccess.stamp("Approved", { date: aaToday(), by, review, reason })}"`) },
+      quarantine: { title: `🧊 Quarantine ${n} app${n === 1 ? "" : "s"} — disable sign-in`, word: "QUARANTINE", scopes: AppAccess.SCOPES.notes, verb: "quarantining", impact: "No new tokens for these apps in this tenant within minutes; tokens already issued expire on their own (60–90 min). Their users see the app as disabled.", back: "↻ Enable again — on the app or on Decisions. Permissions, owners and settings are untouched.", diff: apps.map((a) => `${a.name}   accountEnabled true → false · notes + "ENCA T60 · Quarantined ${aaToday()}"`) },
+      enable: { title: `↻ Enable ${names} again`, word: "", scopes: AppAccess.SCOPES.notes, verb: "enabling", impact: "The app gets tokens again.", back: "🧊 Quarantine again.", diff: apps.map((a) => `${a.name}   accountEnabled false → true`) },
+      restrict: { title: `👥 Restrict ${names} to ${x.group ? x.group.displayName : "a group"}`, word: "RESTRICT", scopes: AppAccess.SCOPES.assign, verb: "restricting", impact: "Anyone who is not a direct member of the group is refused at sign-in (AADSTS50105). App-only access is untouched.", back: "Switch Assignment required off in Entra (Enterprise app → Properties) or ask for it here later; the group assignment can stay.", diff: apps.map((a) => `${a.name}   + assignment ${x.group ? x.group.displayName : ""} (first) · appRoleAssignmentRequired false → true`) },
+      revoke: { title: `✂ Revoke ${x.count} permission${x.count === 1 ? "" : "s"} from ${names}`, word: "REVOKE", scopes: AppAccess.SCOPES.revoke, verb: "revoking", impact: "What needs these permissions fails at the next token (60–90 min). Revoking does not stop a user consenting again — the consent settings decide that.", back: "↩ Grant back on Decisions — this browser keeps exactly what was taken. Microsoft Graph application permissions need Privileged Role Administrator to grant back.", diff: x.lines || [] },
+      remove: { title: `🗑 Remove ${n} app${n === 1 ? "" : "s"} from this tenant`, word: "REMOVE", scopes: AppAccess.SCOPES.revoke, verb: "removing", impact: "Every grant is revoked, then the service principal is deleted. Only apps already quarantined; anything still in use is refused.", back: "↩ Restore on Decisions within 30 days — the app comes back from deleted items and is granted back what was taken.", diff: apps.map((a) => `${a.name}   revoke ${a.appPerms.length} application permission${a.appPerms.length === 1 ? "" : "s"} and ${new Set(a.perms.filter((p) => p.type === "del").map((p) => p.grantId)).size} grant(s) · DELETE servicePrincipal`) },
+    }[kind];
+    if (kind === "restrict") ops.forEach((op) => { op.groupId = x.group && x.group.id; });
+    if (kind === "revoke") ops.forEach((op) => { op.revoke = x.items; });
+    if (kind === "remove") ops.forEach((op, i) => { op.names = Object.fromEntries(apps[i].appPerms.map((p) => [p.appRoleId, p.value])); });
+    return Object.assign({ kind, ops }, P);
+  }
+  function aaConfirmHtml() {
+    const c = aa.confirm;
+    const needs = `${c.scopes.join(", ")} — and the signed-in account needs Cloud Application Administrator or Application Administrator.`;
+    return `<div class="list-card aa-card aa-confirm"><h3>${esc(c.title)}</h3><p class="mini muted">${c.kind === "approve" ? "Nothing about the app changes." : "Read again just before each write and read back after it — the run ledger shows every outcome."}</p><pre class="aa-diff">${c.diff.map(esc).join("\n")}</pre><div class="aa-facts"><div class="aa-f warn"><b>Impact</b>${esc(c.impact)}</div><div class="aa-f ok"><b>Way back</b>${esc(c.back)}</div><div class="aa-f"><b>Needs</b>${esc(needs)}</div></div>${c.word ? `<label class="mini" style="display:flex;gap:8px;align-items:center;margin-top:10px">Type <b>${c.word}</b> to go on <input id="aaConfirm" class="txt" autocomplete="off" value="${esc(aa.armed)}" style="width:150px"></label>` : ""}<div class="aa-filters" style="margin-top:10px"><button class="btn" data-aacancel>Cancel</button><button class="btn primary" data-aarun${c.word && aa.armed.trim() !== c.word ? " disabled" : ""}>${esc(c.title.replace(/^\S+\s/, ""))} <span class="tag block">writes</span></button></div></div>`;
+  }
+  async function aaRun() {
+    const c = aa.confirm; if (!c || aa.running) return;
+    const scopes = [...AUTH_CONFIG.scopes, ...c.scopes];
+    if (!isDemo && !await preConsent(scopes)) return;
+    aa.running = true; aa.confirm = null; aa.armed = ""; aa.open = null; aa.tab = "decisions"; aa.ledgerHtml = ""; aa.summary = ""; renderAa();
+    const host = $("aaLedger");
+    const L = host ? RunLedger.create(host, { unit: c.kind === "acrp" ? "setting" : c.ops.length === 1 ? "app" : "apps", title: c.verb, items: c.ops.map((op) => ({ label: (op.app || op.record || { name: "Admin consent requests" }).name, sub: c.kind })) }) : null;
+    const io = isDemo ? aaDemoIO() : aaWriteIO(scopes);
+    let results = [];
+    try {
+      if (c.kind === "acrp") {
+        if (L) L.start(0);
+        const r = await AppAccess.setAcrp(io, c.on, c.groupId, c.days);
+        results = [{ kind: "acrp", outcome: r.ok ? (c.on ? "switched on" : "switched off") : "failed", detail: r.ok ? `read back isEnabled: ${c.on}` : "read back unchanged" }];
+        if (L) { if (r.ok) L.done(0, results[0].detail, results[0].outcome); else L.fail(0, results[0].detail); }
+        if (r.after) aa.raw.settings.acrp = r.after;
+      } else results = await AppAccess.apply(c.ops, { io, ledger: L, selfAppId: AUTH_CONFIG.clientId, today: aaToday() });
+    } catch (e) { toast(`Stopped: <span>${esc((e && e.message) || e)}</span>`); }
+    finally {
+      if (L) L.finish({ report: aaReport });
+      aa.ledgerHtml = host ? host.innerHTML : "";
+      let undo = aaUndo();
+      for (const r of results) {
+        if (r.kind === "restore" && (r.outcome === "restored" || r.outcome === "partly")) undo = undo.filter((u) => `${u.id}|${u.at}` !== c.restoreKey);
+        if ((r.kind === "revoke" || r.kind === "remove") && r.undo && r.undo.length) undo.push({ id: r.id, name: r.name, at: new Date().toISOString(), removed: r.outcome === "removed", undo: r.undo });
+      }
+      aaSaveUndo(undo);
+      const good = results.filter((r) => !["failed", "skipped", "refused"].includes(r.outcome)).length, bad = results.filter((r) => r.outcome === "failed").length;
+      aa.summary = `<b>${good} done</b>${bad ? ` · <b class="aa-bad">${bad} failed</b>` : ""}${results.length - good - bad ? ` · ${results.length - good - bad} skipped or refused` : ""} — the lists follow ${isDemo ? "the demo tenant" : "a fresh read"}.`;
+      aa.sel.clear(); aa.ptick.clear(); aa.reason = ""; aa.review = "";
+      aa.running = false;
+      if (isDemo) aa.model = aaAnalyze(); else await aaRead(true);
+      renderAa();
+    }
+  }
+  function aaStart(kind, apps, extra) {
+    if (!apps.length) return;
+    aa.confirm = aaPlan(kind, apps, extra); aa.armed = "";
+    renderAa();
+  }
+  function aaReport() {
+    if (!aa.model) { toast("Read the apps first"); return; }
+    downloadText("app-access-review", "md", "text/markdown", AppAccess.markdown(aa.model, { tenant: tenantName || (isDemo ? "demo" : ""), build: APP_BUILD.label }));
+  }
+  $("toolAppAccess").addEventListener("click", openAa);
+  $("aaRefresh").addEventListener("click", () => { aa.raw = null; aa.open = null; aaRead(); });
+  $("aaAudit").addEventListener("click", aaAudit);
+  $("aaMd").addEventListener("click", aaReport);
+  $("aaCsv").addEventListener("click", () => { if (!aa.model) return toast("Read the apps first"); downloadText("app-access-apps", "csv", "text/csv", AppAccess.csv(aa.model)); });
+  $("aaPermCsv").addEventListener("click", () => { if (!aa.model) return toast("Read the apps first"); downloadText("app-access-permissions", "csv", "text/csv", AppAccess.permCsv(aa.model)); });
+  $("aaPartnersBtn").addEventListener("click", () => { aa.showPartners = !aa.showPartners; renderAa(); });
+  $("aaCustomBtn").addEventListener("click", () => $("aaCustomFile").click());
+  $("aaCustomFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try { aa.custom = AppAccess.parseCustomCsv(await f.text()); aa.customName = f.name; aa.model = aaAnalyze(); toast(`Your table: <span>${aa.custom.size}</span> rules applied`); }
+    catch (err) { toast(`Not used: <span>${esc(err.message || err)}</span>`); }
+    e.target.value = ""; renderAa();
+  });
+  $("aaBody").addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("input,label") && !t.closest("button")) return;
+    const pick = (sel) => t.closest(sel);
+    let el;
+    if ((el = pick("[data-aatab]"))) { aa.tab = el.dataset.aatab; aa.open = null; aa.confirm = null; renderAa(); return; }
+    if ((el = pick("[data-aakpi]"))) { const k = el.dataset.aakpi; aa.kpi = aa.kpi === k ? null : k; if (aa.tab !== "queue" && aa.tab !== "all") aa.tab = "all"; aa.open = null; renderAa(); return; }
+    if ((el = pick("[data-aaseg]"))) { aa[el.dataset.aaseg] = el.dataset.v; renderAa(); return; }
+    if ((el = pick("[data-aaback]"))) { aa.open = null; aa.ptick.clear(); renderAa(); return; }
+    if ((el = pick("[data-aaopen]")) || (el = pick("[data-aaopenm]"))) { aa.open = el.dataset.aaopen || el.dataset.aaopenm; if (aa.tab !== "all" && aa.tab !== "queue") aa.tab = "all"; aa.ptick.clear(); aa.confirm = null; renderAa(); window.scrollTo && window.scrollTo({ top: 0 }); return; }
+    if ((el = pick("[data-aaopenone]"))) { aa.open = [...aa.sel][0]; renderAa(); return; }
+    if ((el = pick("[data-aaclear]"))) { aa.sel.clear(); renderAa(); return; }
+    if ((el = pick("[data-aaaudit]"))) { e.preventDefault(); aaAudit(); return; }
+    if ((el = pick("[data-aacustomoff]"))) { e.preventDefault(); aa.custom = null; aa.model = aaAnalyze(); renderAa(); return; }
+    if ((el = pick("[data-aacancel]"))) { aa.confirm = null; renderAa(); return; }
+    if ((el = pick("[data-aarun]"))) { aaRun(); return; }
+    if ((el = pick("[data-aago]"))) { const apps = aa.model.apps.filter((a) => aa.sel.has(a.id)); aaStart(el.dataset.aago, apps); return; }
+    if ((el = pick("[data-aago1]"))) {
+      const a = aa.model.apps.find((x) => x.id === aa.open); if (!a) return;
+      const kind = el.dataset.aago1;
+      if (kind === "restrict") { aaStart("restrict", [a], { group: aa.restrictGroup }); return; }
+      if (kind === "revoke") {
+        const perms = a.perms.slice().sort((x, y) => AppAccess.RANK[y.tier] - AppAccess.RANK[x.tier] || x.value.localeCompare(y.value)).filter((p, i) => aa.ptick.has(i));
+        const items = [], byGrant = new Map();
+        for (const p of perms) { if (p.type === "app") items.push({ type: "app", resourceId: p.resourceId, assignmentId: p.assignmentId, appRoleId: p.appRoleId, value: p.value, api: p.api }); else { if (!byGrant.has(p.grantId)) byGrant.set(p.grantId, { type: "del", grantId: p.grantId, scopes: [], api: p.api }); byGrant.get(p.grantId).scopes.push(p.value); } }
+        items.push(...byGrant.values());
+        aaStart("revoke", [a], { items, count: perms.length, lines: perms.map((p) => `${a.name}   − ${p.value} (${p.type === "app" ? "application" : p.all ? "delegated, every user" : "delegated, one user"}, ${p.api})`) });
+        return;
+      }
+      aaStart(kind, [a]); return;
+    }
+    if ((el = pick("[data-aago1id]"))) { const a = aa.model.apps.find((x) => x.id === el.dataset.id); if (a) aaStart(el.dataset.aago1id, [a]); return; }
+    if ((el = pick("[data-aarevgrant]"))) {
+      const g = aa.model.userGrants.find((x) => x.grantId === el.dataset.aarevgrant); if (!g) return;
+      const a = aa.model.apps.find((x) => x.id === g.clientId) || { id: g.clientId, appId: "", name: g.app ? g.app.displayName : g.clientId, ms: false, origin: {}, appPerms: [], perms: [] };
+      aaStart("revoke", [a], { items: [{ type: "del", grantId: g.grantId, scopes: g.scopes, api: g.api }], count: g.scopes.length, lines: [`${a.name}   − the consent of ${aa.names[g.principalId] || g.principalId}: ${g.scopes.join(" ")}`] });
+      return;
+    }
+    if ((el = pick("[data-aarestore]"))) {
+      const rec = aaUndo().find((u) => `${u.id}|${u.at}` === el.dataset.aarestore); if (!rec) return;
+      aa.confirm = { kind: "restore", title: `↩ ${rec.removed ? "Restore" : "Grant back"} ${rec.name}`, word: "", scopes: AppAccess.SCOPES.revoke, verb: "restoring", restoreKey: el.dataset.aarestore, impact: "The app gets back exactly what this browser took from it.", back: "✂ Reduce or 🗑 Remove again.", diff: [rec.removed ? `POST /directory/deletedItems/${rec.id}/restore` : "", ...rec.undo.map((u) => `+ ${u.value || (u.scopes || []).join(" ")} (${u.type === "app" ? "application" : "delegated"}, ${u.api || ""})`)].filter(Boolean), ops: [{ kind: "restore", record: rec }] };
+      aa.armed = ""; renderAa(); return;
+    }
+    if ((el = pick("[data-aagsearch]"))) { aaGroupSearch(el.dataset.aagsearch); return; }
+    if ((el = pick("[data-aagpick]"))) { const g = { id: el.dataset.id, displayName: el.dataset.name }; if (el.dataset.aagpick === "restrict") aa.restrictGroup = g; else aa.acrpGroup = g; aa.pick = { for: "", q: "", res: [], busy: false }; renderAa(); return; }
+    if ((el = pick("[data-aagclear]"))) { e.preventDefault(); if (el.dataset.aagclear === "restrict") aa.restrictGroup = null; else aa.acrpGroup = null; renderAa(); return; }
+    if ((el = pick("[data-aaacrp]"))) {
+      const on = el.dataset.aaacrp === "on";
+      aa.confirm = { kind: "acrp", on, groupId: aa.acrpGroup && aa.acrpGroup.id, days: aa.acrpDays, title: on ? "Turn on admin consent requests" : "Switch admin consent requests off", word: "", scopes: AppAccess.SCOPES.acrp, verb: on ? "switching on" : "switching off", impact: on ? "None for users today — they gain a Request approval button; reviewers get email." : "Users lose the Request approval button; open requests expire.", back: on ? "Switch it off again here." : "Turn it on again here.", diff: [`PUT /v1.0/policies/adminConsentRequestPolicy`, JSON.stringify(AppAccess.acrpBody(on, aa.acrpGroup && aa.acrpGroup.id, aa.acrpDays))], ops: [{ record: { name: "Admin consent requests" } }] };
+      aa.armed = ""; renderAa(); return;
+    }
+    if ((el = pick("[data-aapartners]"))) { aa.showPartners = false; renderAa(); return; }
+    if ((el = pick("[data-aapdel]"))) { const l = aaPartners(); l.splice(+el.dataset.aapdel, 1); aaSavePartners(l); aa.model = aaAnalyze(); renderAa(); return; }
+    if ((el = pick("[data-aapreset]"))) { try { localStorage.removeItem(AA_PARTNERS); } catch { /* none */ } aa.model = aaAnalyze(); renderAa(); return; }
+    if ((el = pick("[data-aapadd]"))) {
+      const name = ($("aaPName").value || "").trim(), tid = ($("aaPTid").value || "").trim().toLowerCase();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(tid) || !name) { toast("A name and a tenant ID (GUID) are needed"); return; }
+      const l = aaPartners().filter((p) => p.tenantId !== tid); l.push({ tenantId: tid, name }); aaSavePartners(l); aa.model = aaAnalyze(); renderAa(); return;
+    }
+    // a click on a row (not on its controls) opens the app
+    if ((el = pick("tr[data-aarow]")) && !t.closest("button,a,input")) { aa.open = el.dataset.aarow; aa.ptick.clear(); renderAa(); return; }
+  });
+  $("aaBody").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset.aatick) { if (t.checked) aa.sel.add(t.dataset.aatick); else aa.sel.delete(t.dataset.aatick); renderAa(); return; }
+    if (t.dataset.aaptick != null && t.dataset.aaptick !== undefined && t.hasAttribute("data-aaptick")) { const i = +t.dataset.aaptick; if (t.checked) aa.ptick.add(i); else aa.ptick.delete(i); renderAa(); return; }
+    if (t.id === "aaReview") { aa.review = t.value; return; }
+    if (t.id === "aaAcrpDays") { aa.acrpDays = Math.min(30, Math.max(1, +t.value || 14)); return; }
+  });
+  $("aaBody").addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.id === "aaQ") { aa.q = t.value; clearTimeout(aa.qt); aa.qt = setTimeout(() => { const pos = t.selectionStart; renderAa(); const q = $("aaQ"); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch { /* jsdom */ } } }, 200); return; }
+    if (t.id === "aaConfirm") { aa.armed = t.value; const b = $("aaBody").querySelector("[data-aarun]"); if (b && aa.confirm) b.disabled = aa.confirm.word && aa.armed.trim() !== aa.confirm.word; return; }
+    if (t.id === "aaReason") { aa.reason = t.value; return; }
+    if (t.dataset.aagq) { aa.pick = Object.assign({}, aa.pick, { for: t.dataset.aagq, q: t.value, done: false }); return; }
+  });
+  $("aaBody").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.dataset && e.target.dataset.aagq) { e.preventDefault(); aaGroupSearch(e.target.dataset.aagq); } });
   $("toolEgress").addEventListener("click", openEgress);
   $("egRefresh").addEventListener("click", () => { eg.raw = null; readEgress(); });
   $("egMd").addEventListener("click", () => {
@@ -26514,12 +28372,16 @@ This is a directory write. Nothing else changes.`)) return;
     prepareJoey: async bundle => {
       $("toolImport").click();
       await imLoaded(bundle, `Joey Verlinden ${bundle.release} — fetched at ${String(bundle.commit || '').slice(0, 7)}`);
+      await imEaAddBundled({ auto: true });
     },
     impact: () => riBusy || riCapped || !riReadAt || riReadAt < policiesReadAt || riReadTenant !== (tenantId || tenantName) ? null : { ...riRes, readAt: riReadAt, days: riDays },
     state: () => { $("toolPolicies").click(); $("selActState").click(); },
     action: name => {
       const ids = { policies: "toolPolicies", baseline: "toolBaseline", groups: "toolCaGroups", checks: "toolGapCheck", whatif: "toolWhatIf", import: "toolImport" };
       if (name === "deploy") openRollout();
+      else if (name === "smb") {
+        imSmbLoad({}).then((ok) => { if (ok) $("imDesc").textContent = `${BASELINE_SMB.label} ${BASELINE_SMB.release} from ENCA's own copy: review the policies and the restricted-unit step before importing. CA103 and CA201–CA204 land Off.`; });
+      }
       else if (name === "cloudfellows") {
         $("toolImport").click();
         $("imDesc").textContent = "Choose the CloudFellows baseline backup ZIP. Its policies and dependencies will be listed for review before import.";

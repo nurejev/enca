@@ -281,6 +281,9 @@ Requested **on demand** (incremental consent) only when a tool needs them:
 | `DirectoryRecommendations.Read.All` | 🛡 Checks → 🏅 Identity score and the home page — read the Entra Identity Secure Score and its recommendations (beta, read-only); the user also needs a reader role such as Security Reader or Global Reader |
 | `Policy.ReadWrite.AuthenticationMethod` (passkeys) | 🛡 Checks → 🔑 Passkeys → ✎ Configure — write the Passkey (FIDO2) authentication method: state, targets, self-service, passkey profiles (asked on Save; the user also needs Authentication Policy Administrator) |
 | `CrossTenantInformation.ReadBasic.All` | 🛡 Checks → 🤝 Cross-tenant — look up partner tenant names and default domains (read-only, optional, off by default) |
+| `AppRoleAssignment.ReadWrite.All` | 🔑 App access review — assign a group to an app (Restrict), take an application permission away (Reduce, Remove) and give it back (asked at the click) |
+| `DelegatedPermissionGrant.ReadWrite.All` | 🔑 App access review — take delegated permissions or a user's own consent away from an app, and give them back (asked at the click) |
+| `Policy.ReadWrite.ConsentRequest` | 🔑 App access review → Consent settings — switch the admin consent requests on or off, with a group as reviewers (asked at the click) |
 | `EntitlementManagement.Read.All` | Group Analyzer — access packages and their assignment policies |
 | `DeviceManagementConfiguration.Read.All` | Group Analyzer — Intune compliance policies, configuration profiles, scripts, update profiles |
 | `DeviceManagementApps.Read.All` | Group Analyzer — Intune app assignments, app protection and app configuration policies |

@@ -205,6 +205,14 @@ const Graph = (() => {
     if (!t || !t.trim()) return null;
     return JSON.parse(t);   // a non-empty body that is not JSON still throws, as before
   }
+  // 0.9.0 (T56): a settings catalog policy changes by PUT of the whole policy
+  async function gput(url, body, scopes) {
+    await guardPolicy(url, body, "PUT");
+    scopes = scopes || [...AUTH_CONFIG.scopes, ...WRITE_SCOPES];
+    const r = await graphFetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, scopes);
+    if (!r.ok) throw await graphError(r);
+    return bodyOf(r);
+  }
   async function gpatch(url, body, scopes) {
     await guardPolicy(url, body, "PATCH");
     scopes = scopes || [...AUTH_CONFIG.scopes, ...WRITE_SCOPES];
@@ -753,5 +761,5 @@ const Graph = (() => {
     } catch { return {clientId,name:'',ownerTenantId:null,audience:null}; }
   }
 
-  return { connectionInfo, init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, crossTenantTrust, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
+  return { connectionInfo, init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gput, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, crossTenantTrust, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
 })();

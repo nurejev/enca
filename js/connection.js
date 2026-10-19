@@ -69,13 +69,22 @@ const EncaConn = (() => {
   // shipped (tools/signin-single.test.cjs keeps PS_SHA256 in step with the
   // file), so what runs as an administrator is exactly the file you can read
   // here. It prints the two values ＋ Add takes.
-  const PS_SHA256 = "3084EC5A66C8EFDFF43E694E83A630CB5CA2128C22A7597D41891840FBD1B557";
+  const PS_SHA256 = "A45FB1B60A25425DAA47BB3AF8E22941524CF7CFD5236CDF8E58797E0B6207FE";
   const scriptUrl = () => window.location.origin + window.location.pathname.replace(/[^/]*$/, "") + "New-EncaAppRegistration.ps1";
-  function psLine(redirect) {
+  // The registration's name (32803): what the admins of that tenant will see
+  // in App registrations, Enterprise applications and on the consent screen,
+  // and the handle a re-run updates by. Quotes, backticks and $ are dropped
+  // rather than escaped — the value goes into a single-quoted PowerShell
+  // string pasted by an administrator, and no name needs them.
+  const cleanName = (n) => String(n == null ? "" : n).replace(/['"`$\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+  // Cloud Shell opened straight into PowerShell (Microsoft Learn links it this way).
+  const CLOUD_SHELL_URL = "https://shell.azure.com/powershell";
+  function psLine(redirect, name) {
     const r = String(redirect || redirectUri()).replace(/'/g, "");
+    const n = cleanName(name);
     return `Invoke-WebRequest '${scriptUrl()}' -OutFile ./enca-reg.ps1; ` +
       `if ((Get-FileHash ./enca-reg.ps1 -Algorithm SHA256).Hash -ne '${PS_SHA256}') { throw 'enca-reg.ps1 is not the file this ENCA build shipped - stopped.' }; ` +
-      `./enca-reg.ps1 -RedirectUris '${r}' -RequireAssignment`;
+      `./enca-reg.ps1 ${n ? `-AppName '${n}' ` : ""}-RedirectUris '${r}' -RequireAssignment`;
   }
 
   // The values this copy was SERVED with, captured before anything here can
@@ -276,9 +285,10 @@ const EncaConn = (() => {
         : SHIPPED.clientId ? `⚙ Sign in with another login (another tenant, your own registration)` : `⚙ Your organisation's ENCA login`;
       $("connForget").style.display = c ? "" : "none";
       $("connEdit").style.display = c ? "" : "none";
-      // A non-default choice is never hidden behind a closed fold, and neither
-      // is the panel when it is the only way in.
-      if (c || !SHIPPED.clientId) box.setAttribute("open", "");
+      // Open only when it is the only way in (no login at all). A saved
+      // connection leaves it collapsed: the summary line above already says
+      // which login is selected, and saving one reloads the page.
+      if (!c && !SHIPPED.clientId) box.setAttribute("open", "");
     }
 
     function paintPicker() {
@@ -312,11 +322,15 @@ const EncaConn = (() => {
       const host = $("connRouteBody"), wrap = $("loginOnboard");
       if (!host || !wrap) return;
       wrap.classList.remove("blocked");
+      const name = ($("connRegName") && $("connRegName").value) || "ENCA";
       host.innerHTML =
-        `<p>ENCA signs in only through an app registration in <b>your own tenant</b>. To create one, open <b>Azure Cloud Shell</b> signed in to your tenant, choose <b>PowerShell</b> and <i>No storage account required</i>, and paste:</p>` +
-        `<pre class="conn-cmd" id="connPsLine">${esc(psLine())}</pre>` +
-        `<p><button type="button" class="btn sm" id="connPsCopy">Copy the command</button> <a href="${esc(scriptUrl())}" target="_blank" rel="noopener">Read the script</a></p>` +
-        `<p>It creates a <b>single-tenant</b> registration with this page as its redirect URI, assigns you to it, grants admin consent for your organisation and prints the <b>client ID</b> and <b>tenant ID</b> — ＋ Add them above. You need Global Administrator, or Privileged Role Administrator with Application Administrator. No Azure subscription for Cloud Shell? Run the same script in PowerShell 7 on your own machine with the Microsoft.Graph module.</p>`;
+        `<p>ENCA signs in only through an app registration in <b>your own tenant</b>. Create one in Azure Cloud Shell, signed in to your tenant:</p>` +
+        `<ol class="conn-steps"><li><a class="btn sm primary" id="connShellOpen" href="${CLOUD_SHELL_URL}" target="_blank" rel="noopener">Open Azure Cloud Shell ↗</a> — PowerShell; choose <i>No storage account required</i> if it asks.</li>` +
+        `<li><label for="connRegName">Name of the registration</label> <input id="connRegName" class="conn-name" type="text" maxlength="120" autocomplete="off" spellcheck="false" value="${esc(cleanName(name))}"> <span class="conn-hint">what your admins see in Entra; the same name updates it</span></li>` +
+        `<li>Paste this command and press Enter:<pre class="conn-cmd" id="connPsLine">${esc(psLine(null, name))}</pre>` +
+        `<button type="button" class="btn sm" id="connPsCopy">Copy the command</button> <a href="${esc(scriptUrl())}" target="_blank" rel="noopener">Read the script</a></li>` +
+        `<li><b>＋ Add</b> the client ID and tenant ID it prints, above.</li></ol>` +
+        `<p>It creates a <b>single-tenant</b> registration with this page as its redirect URI, assigns you to it and grants admin consent for your organisation. You need Global Administrator, or Privileged Role Administrator with Application Administrator. No Azure subscription for Cloud Shell? Run the same script in PowerShell 7 on your own machine with the Microsoft.Graph module.</p>`;
     }
 
     paintPicker(); paintCurrent(); paintRoute();
@@ -325,9 +339,15 @@ const EncaConn = (() => {
     const routeBox = $("loginOnboard");
     if (routeBox) routeBox.addEventListener("click", async (e) => {
       const b = e.target.closest("#connPsCopy"); if (!b) return;
-      const line = psLine();
+      const line = psLine(null, ($("connRegName") || {}).value);
       try { await navigator.clipboard.writeText(line); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy the command"; }, 1500); }
       catch { const pre = $("connPsLine"); if (pre) { const r = document.createRange(); r.selectNodeContents(pre); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); } }
+    });
+    // The name field rewrites the command as it is typed; delegated because
+    // paintRoute() owns the markup.
+    if (routeBox) routeBox.addEventListener("input", (e) => {
+      if (!e.target.closest("#connRegName")) return;
+      const pre = $("connPsLine"); if (pre) pre.textContent = psLine(null, e.target.value);
     });
     $("connRedirect").innerHTML =
       `Whichever registration you name must have <code>${esc(redirectUri())}</code> as a <b>SPA</b> redirect URI, ` +
@@ -360,5 +380,5 @@ const EncaConn = (() => {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();
 
-  return { list, active, activeId, use, save, forget, validate, usable, toAuthority, isShared, tail, redirectUri, psLine, scriptUrl, PS_SHA256, clearMsalCache, shipped: SHIPPED, applied: APPLIED };
+  return { list, active, activeId, use, save, forget, validate, usable, toAuthority, isShared, tail, redirectUri, psLine, scriptUrl, cleanName, CLOUD_SHELL_URL, PS_SHA256, clearMsalCache, shipped: SHIPPED, applied: APPLIED };
 })();
