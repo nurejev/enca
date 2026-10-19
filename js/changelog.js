@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 32901, date: "2026-10-19", title: "Production is build 328 (v2.0.6)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 328, ENCA v2.0.6, from the 01 Conditional Access and 03 Entra Tools orders of 19 October: App access review, Entra device cleanup, SMB Basic, security defaults to a baseline, Global Secure Access from setup to go-live (tenant restrictions v2, the macOS and Windows chains, the go-live checks, Monitor), the CA215 to CA218 Global Secure Access block and the sign-in card's Cloud Shell steps. Queue items 336 to 341 and 343 to 353 are out of the queue; 354 and 355 stay, with everything PIM-buddy." },
+    ],
+  },
+  {
     build: 32818, date: "2026-10-19", title: "Waiting for production: the order no longer tells a port to skip the shell files",
     items: [
       { kind: "fixed", tool: "Help", text: "A promotion order listed index.html, js/app.js and css/app.css under Never port whenever only the other workspace's items named them, which is almost always, because most items name no files. The same order's carve-outs then said to port parts of exactly those files. Shell files every workspace is wired through are now listed as port by hunk: this order's changes go, the other workspace's stay on beta. Never port keeps the files a workspace owns." },
