@@ -98,20 +98,16 @@
   // — that is T33 and T34): the dated tools live here only, with T57.
   const ENTRA_ONLY = new Set(['toolDeviceCleanup', 'toolAppAccess', 'toolHarden', 'toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
   const ENTRA_ROSTER = [
-    { group: '🧱 Directory objects', tools: [
-      // 32707: T59 Entra device cleanup (from TUNO T25), beside Groups
-      { id: 'toolCaGroups', name: 'Groups', blurb: 'Every security group in the tenant with what uses it — Conditional Access policies, PIM-buddy, Global Secure Access. Opens on All groups; the scope narrows it to one workload.' },
+    // 33009 (Mihai 20 Oct: the 03 overview scrolls too much — combine and
+    // shorten; mockup option A): six groups of one or two tall cards became
+    // three groups of compact cards, three to a row, with Help as one chip row.
+    { group: '🧱 Directory & apps', tools: [
+      { id: 'toolCaGroups', name: 'Groups', blurb: 'Every security group with what uses it — Conditional Access, PIM-buddy, Global Secure Access. Opens on All groups.' },
       { id: 'toolDeviceCleanup', blurb: blurbs.toolDeviceCleanup },
-    ] },
-    // 32804: T60 App access review — the apps and their consent, for tenants without app governance
-    { group: '🔌 Applications', tools: [
       { id: 'toolAppAccess', blurb: blurbs.toolAppAccess },
     ] },
-    // 33008: T61 Securing M365 — the tenant's M365 security settings, checked and fixed
-    { group: '🛡 Tenant hardening', tools: [
+    { group: '🛡 Security posture', tools: [
       { id: 'toolHarden', blurb: blurbs.toolHarden },
-    ] },
-    { group: '🌐 Global Secure Access', tools: [
       { id: 'toolGsa', blurb: blurbs.toolGsa },
     ] },
     { group: '⏳ Temporary tools', tools: [
@@ -134,7 +130,7 @@
       // holds it, what is wrong with it, then what to protect and what changed.
       shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolPimReport','📋','Report'],['toolPimDoc','📄','Docs'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Admin units'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
     entra: { num: '03', name: 'Entra Tools', title: 'Entra Tools overview', context: 'Entra Tools / Workspace 03',
-      lead: 'The directory objects every workload leans on — groups first, with what uses each one: Conditional Access, PIM-buddy, Global Secure Access. 🌐 Global Secure Access starts with the Microsoft traffic profile; Internet Access and Private Access come later. The ⏳ temporary tools — dated retirements and decisions — live here too.',
+      lead: 'The directory objects every workload leans on — groups, devices, apps — the tenant’s security posture (🛡 Securing M365, 🌐 Global Secure Access), and the ⏳ temporary tools for dated retirements and decisions.',
       shortcuts: [['toolCaGroups','👥','Groups'],['toolDeviceCleanup','🧹','Devices'],['toolAppAccess','🔑','Apps'],['toolHarden','🛡','Harden'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
   };
   const WS_IDS = Object.keys(WORKSPACES);
@@ -235,7 +231,12 @@
     $('wcPimLead').textContent = w.lead || '';
     const list = toolsOf(ws), real = list.filter(t => !t.planned);
     $('wcLibraryCount').textContent = `All ${real.length} tools`;
-    $('wcOverviewTools').innerHTML = [...new Set(list.map(t=>t.group))].map(group=>`<details class="wc-tool-group" open><summary>${esc(group)} <span>${(n=>`${n} tool${n===1?'':'s'}`)(list.filter(t=>t.group===group && !t.planned).length)}</span></summary><div class="wc-tool-grid">${list.filter(t=>t.group===group).map(card).join('')}</div></details>`).join('');
+    // 33009: Workspace 03 draws its library compact — the Help group as one
+    // row of chips instead of four cards (the CSS for the cards is scoped to 03)
+    const compact = ws === 'entra', helpGroup = PLATFORM_GROUP.group;
+    $('wcOverviewTools').classList.toggle('wc-compact', compact);
+    $('wcOverviewTools').innerHTML = [...new Set(list.map(t=>t.group))].filter(group=>!(compact && group===helpGroup)).map(group=>`<details class="wc-tool-group" open><summary>${esc(group)} <span>${(n=>`${n} tool${n===1?'':'s'}`)(list.filter(t=>t.group===group && !t.planned).length)}</span></summary><div class="wc-tool-grid">${list.filter(t=>t.group===group).map(card).join('')}</div></details>`).join('')
+      + (compact ? `<div class="wc-help-row"><span>Help</span>${list.filter(t=>t.group===helpGroup).map(t=>`<button type="button" class="wc-help-chip" data-wc-tool="${esc(t.id)}"><span aria-hidden="true">${icon(t.id)}</span>${esc(t.name)}</button>`).join('')}</div>` : '');
     bindGroups();
     renderRecent();
   }

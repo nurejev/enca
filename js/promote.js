@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 365,
+      ws: "entra",
+      title: "03 · Entra Tools overview compact: three groups, three cards to a row, Help as chips",
+      tools: ["Workspaces"],
+      builds: [33009],
+      risk: "low",
+      files: ["js/workspaces.js", "css/workspaces.css", "index.html"],
+      what: "js/workspaces.js ENTRA_ROSTER: three groups (Directory & apps, Security posture, Temporary tools) and a shorter 03 lead; renderHome draws the 03 library with class wc-compact and the Help group as a wc-help-row of chips. css/workspaces.css: the compact card grid, scoped to #wcOverviewTools.wc-compact. Help bullet for 03.",
+      why: "Mihai, 20 Oct 2026: the Entra tool workspace has too much scrolling now — combine and shorten. Mockup option A chosen, 03 only, the three groups as proposed. Measured in Chromium at 1440 px: the overview page went from 2,568 px to 1,062 px. Risk low: layout only, the same tools and handlers.",
+      carveout: "Only with or after 364 (it names 🛡 Securing M365 in the Security posture group). If 364 is held, drop toolHarden from the roster in the port.",
+      test: [
+        "Beta, demo, 03: the overview shows Directory & apps (3), Security posture (2), Temporary tools (3) as small cards three to a row and a Help chip row; no scrolling at 1440 x 900 beyond the footer.",
+        "Beta, demo: each card and each Help chip opens its tool; Collapse all and Hide still work.",
+        "Beta, demo, 01 and 02: the overview looks as before (two-column cards, Help as cards).",
+        "Phone width: one card per row, no sideways scroll.",
+      ],
+    },
+    {
       n: 364,
       ws: "entra",
       title: "🛡 Securing M365 (T61): the tenant's Microsoft 365 settings against the CIS benchmark — fixed through Graph, DNS checked, the rest from a read-only script",

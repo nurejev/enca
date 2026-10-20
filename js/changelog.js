@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33009, date: "2026-10-20", title: "Workspace 03: a shorter overview",
+    items: [
+      { kind: "improved", tool: "Workspaces", text: "The 03 · Entra Tools overview fits on one screen. Its six groups are now three — Directory & apps (Groups, Entra device cleanup, App access review), Security posture (Securing M365, Global Secure Access) and Temporary tools — shown as compact cards three to a row with two lines of description, and Help is one row of chips instead of four cards. 01 and 02 are unchanged." },
+    ],
+  },
+  {
     build: 33008, date: "2026-10-20", title: "New in Workspace 03: Securing M365 — the tenant's Microsoft 365 settings, checked and fixed",
     items: [
       { kind: "new", tool: "Securing M365", text: "A new tool in 03 · Entra Tools, under 🛡 Tenant hardening (BETA). It reads the tenant's Microsoft 365 security settings against a hardening baseline and places every setting by how a browser reaches it: fixed from here through Microsoft Graph (Entra user and group settings, device registration, app credentials and consent, guests, authentication methods, password rules, Intune defaults, PIM approval, SharePoint sharing), checked only, judged by the Conditional Access engine, looked up in DNS (SPF, DKIM, DMARC), attested in the portal, or read by a script. On the CloudFellows tenant each row carries its CIS Microsoft 365 Foundations Benchmark v7.0.0 number and level." },
