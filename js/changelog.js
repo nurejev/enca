@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33008, date: "2026-10-20", title: "New in Workspace 03: Securing M365 — the tenant's Microsoft 365 settings, checked and fixed",
+    items: [
+      { kind: "new", tool: "Securing M365", text: "A new tool in 03 · Entra Tools, under 🛡 Tenant hardening (BETA). It reads the tenant's Microsoft 365 security settings against a hardening baseline and places every setting by how a browser reaches it: fixed from here through Microsoft Graph (Entra user and group settings, device registration, app credentials and consent, guests, authentication methods, password rules, Intune defaults, PIM approval, SharePoint sharing), checked only, judged by the Conditional Access engine, looked up in DNS (SPF, DKIM, DMARC), attested in the portal, or read by a script. On the CloudFellows tenant each row carries its CIS Microsoft 365 Foundations Benchmark v7.0.0 number and level." },
+      { kind: "new", tool: "Securing M365", text: "Fixing: tick the failures and review the change plan — each setting with its impact and its way back, the input it needs (a group, banned words, allowed domains, a number) and the writes exactly as sent. Type FIX; every write is read back and the values it changed are kept as a snapshot, so ↩ Undo can put them back." },
+      { kind: "new", tool: "Securing M365", text: "📜 Audit script downloads a read-only PowerShell script for what only PowerShell can read — Exchange, Defender for Office, Purview, Teams and the rest of SharePoint. It changes nothing; load the JSON it writes with 📥 Load script result. ✓ Attest and ✓ Accept with a reason are kept in the tenant, so every admin sees them." },
+    ],
+  },
+  {
     build: 33007, date: "2026-10-20", title: "Baseline and Housekeeping: every double policy shown, the old ones offered for delete",
     items: [
       { kind: "fixed", tool: "Baseline", text: "A CA number held more than once in the tenant is shown on its row: each other policy on that number is listed under the matched one, with what it is (an older version, the same version again, another policy on the number). The summary counts them and points at Housekeeping. Before, only a warning count was shown, and only when the list had all of them." },

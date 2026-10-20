@@ -3026,6 +3026,7 @@
     ["toolEgress", "🛰 Egress & location impact"],
     ["toolDeviceCleanup", "🧹 Entra device cleanup"],
     ["toolAppAccess", "🔑 App access review"],
+    ["toolHarden", "🛡 Securing M365"],
     ["toolPolicies", "🗂 Policies"],
     ["toolAnalyze", "🔍 Gap analyse"],
     ["toolGapCheck", "🛡 Checks"],
@@ -30102,6 +30103,410 @@ This is a directory write. Nothing else changes.`)) return;
     if (t.dataset.aagq) { aa.pick = Object.assign({}, aa.pick, { for: t.dataset.aagq, q: t.value, done: false }); return; }
   });
   $("aaBody").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.dataset && e.target.dataset.aagq) { e.preventDefault(); aaGroupSearch(e.target.dataset.aagq); } });
+  // ======================================================================
+  // 🛡 Securing M365 — T61, Workspace 03 (beta 33008, 20 Oct 2026).
+  // js/m365harden.js reads, judges, plans, writes and reports; this is the
+  // screen, as in the approved mockup (review/2026-10-20/securing-m365):
+  // tiles per reach that filter, area and status chips, the list with an
+  // inspector beside it, a change plan that names impact and way back BEFORE
+  // a write and asks for the inputs a fix needs, typed FIX, the run ledger,
+  // and ↩ Undo from the snapshot. Mihai's decisions (20 Oct): every tenant
+  // sees ENCA's own checks and the CIS references only on the publisher
+  // tenant; phase 1 = Graph + Mail DNS + the 📐 CA engine; a read-only
+  // PowerShell script for the rest, its JSON loaded back; attestations and
+  // accepted risks in the tenant (open extension nl.limonit.enca.hardening).
+  // ======================================================================
+  let mh = { S: null, model: null, busy: false, err: null, step: "", session: null, area: "all", st: "all", reach: null, lvl: "all", q: "", sel: new Set(), open: null, planOpen: false, inputs: {}, armed: "", running: false, summary: "", form: null, gq: {}, gres: {}, odBusy: "", qt: null, undoArm: false };
+  const MH = () => M365Harden;
+  const mhSession = () => `${tenantId}:${isDemo}`;
+  const mhRefs = () => isPublisherTenant();
+  const mhKey = (what) => `enca-t61-${what}:${tenantId || "demo"}`;
+  const mhScopes = (k) => [...AUTH_CONFIG.scopes, MH().RSCOPE[k]];
+  const mhLoad = (what) => { try { return JSON.parse(localStorage.getItem(mhKey(what)) || "null"); } catch { return null; } };
+  const mhSave = (what, v) => { try { if (v == null) localStorage.removeItem(mhKey(what)); else localStorage.setItem(mhKey(what), JSON.stringify(v)); } catch { /* best effort */ } };
+  const mhWho = () => (Graph.account && (Graph.account.username || Graph.account.name)) || (isDemo ? "demo" : "");
+  const MH_TOOL = { "auth-sms-voice": ["toolSmsVoice", "📵 SMS & voice retirement"], "app-user-consent": ["toolAppAccess", "🔑 App access review"], "app-consent-workflow": ["toolAppAccess", "🔑 App access review"], "dev-quota": ["toolDeviceCleanup", "🧹 Entra device cleanup"], "adm-ga-count": ["toolPimRoles", "🎖 Roles (02)"], "pim-standing": ["toolPimRoles", "🎖 Roles (02)"], "adm-cloud-only": ["toolPimRoles", "🎖 Roles (02)"], "idle-timeout": ["toolBuilder", "🏗 Policy builder"], "bg-monitored": ["toolSignins", "🚦 Sign-in log"] };
+  // reads: the sign-in scopes, plus an extra read scope per area that needs one
+  function mhReadIO(extra) {
+    return {
+      one: (url, k) => Graph.gget(url, k ? mhScopes(k) : undefined),
+      all: (url, k) => Graph.ggetAll(url, k ? { scopes: mhScopes(k) } : undefined),
+      has: (k) => isDemo || extra.has(k),
+      batch: (reqs, onP, ver, k) => Graph.gbatch(reqs, onP, { base: `https://graph.microsoft.com/${ver}`, scopes: k ? mhScopes(k) : undefined }),
+    };
+  }
+  // the extra read scopes this session already holds — silently, never a prompt
+  async function mhGranted() {
+    const out = new Set();
+    for (const k of Object.keys(MH().RSCOPE)) { try { if (Graph.hasScopes(mhScopes(k)) || (Graph.silentScopes && await Graph.silentScopes(mhScopes(k)))) out.add(k); } catch { /* not granted */ } }
+    return out;
+  }
+  // DNS-over-HTTPS (Cloudflare, JSON): only public names leave the browser,
+  // never a token. connect-src in index.html names the one host.
+  async function mhDns(name, type) {
+    const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`, { headers: { accept: "application/dns-json" }, credentials: "omit", referrerPolicy: "no-referrer" });
+    if (!r.ok) throw new Error(`DNS lookup ${r.status}`);
+    return r.json();
+  }
+  function mhCa(S) {
+    if (typeof CisCheck === "undefined" || !S.caPolicies || !S.caPolicies.ok) return null;
+    try {
+      const lic = MH().licence(S);
+      return CisCheck.run(S.caPolicies.data, { strengths: new Map(((S.strengths && S.strengths.ok && S.strengths.data) || []).map((x) => [x.id, x])), namedLocations: (S.locations && S.locations.ok && S.locations.data) || [], p2: lic.known ? lic.p2 : null, groupNames: {} });
+    } catch (e) { console.warn("T61 CA engine:", e); return null; }
+  }
+  function mhJudge() { if (mh.S) mh.model = MH().judge(mh.S, { ca: mhCa(mh.S), refs: mhRefs() }); }
+  function openMh() {
+    crumb("🛡 Securing M365");
+    show("screen-mh");
+    if (mh.session !== mhSession()) Object.assign(mh, { S: null, model: null, err: null, sel: new Set(), open: null, planOpen: false, inputs: {}, summary: "", form: null, session: mhSession() });
+    $("mhHead").innerHTML = toolHead("toolHarden") + '<p class="mini" style="margin:6px 0 0">The tenant’s Microsoft 365 security settings — Entra, authentication, devices, apps, guests, privileged access, SharePoint, mail DNS and Conditional Access — read against a hardening baseline' + (mhRefs() ? " (the CIS Microsoft 365 Foundations Benchmark v7.0.0)" : "") + '. What Microsoft Graph can change is fixed from here, each fix with its <b>impact</b> and its <b>way back</b> first and a snapshot to undo from; what only PowerShell can read comes from a <b>read-only script</b> you run and load back; portal-only settings are <b>attested</b> and the attestation kept in the tenant.</p>';
+    renderMh();
+    if (!mh.S && !mh.busy) mhRead();
+  }
+  async function mhRead(keepSummary) {
+    if (mh.busy) return;
+    mh.busy = true; mh.err = null; mh.step = "Reading…"; if (!keepSummary) mh.summary = ""; renderMh();
+    try {
+      let S;
+      if (isDemo) {
+        await new Promise((ok) => setTimeout(ok, 250)); S = MH().demo();
+        // the demo tenant's own Conditional Access, so the 17 CA rows judge something
+        if (policies && policies.length) S.caPolicies = { ok: true, data: policies.map((p) => p.raw) };
+        if (typeof DEMO_DATA !== "undefined") {
+          S.locations = { ok: true, data: DEMO_DATA.namedLocations || [] };
+          S.strengths = { ok: true, data: Object.entries(DEMO_DATA.depSettings || {}).filter(([k]) => k.startsWith("authStrength:")).map(([, v]) => v) };
+        }
+      } else {
+        const extra = await mhGranted();
+        S = await MH().read(mhReadIO(extra), { onStep: (m) => { mh.step = m; mhPaintStep(); }, caPolicies: (policies && policies.length) ? policies.map((p) => p.raw) : null });
+        if (S.domains && S.domains.ok) {
+          try { S.dns = { ok: true, data: await MH().readDns(S, mhDns, (m) => { mh.step = m; mhPaintStep(); }) }; }
+          catch (e) { S.dns = { ok: false, why: `DNS lookup refused by the browser (${String((e && e.message) || e)})` }; }
+        }
+        // the on-demand reads of this session survive a re-read
+        if (mh.S && mh.S.perUser) S.perUser = mh.S.perUser;
+        if (mh.S && mh.S.sharedMbx) S.sharedMbx = mh.S.sharedMbx;
+      }
+      const ps = mhLoad("ps"); if (ps && ps.ok) S.ps = ps;
+      mh.S = S; mhJudge();
+    } catch (e) { mh.err = String((e && e.message) || e); }
+    finally { mh.busy = false; }
+    renderMh();
+  }
+  function mhPaintStep() { const el = $("mhStep"); if (el) el.textContent = mh.step; }
+  const mhMissing = () => {
+    if (!mh.S) return [];
+    const ks = new Set(); for (const v of Object.values(mh.S)) if (v && v.ok === false && v.scope && /not granted/.test(v.why || "")) ks.add(v.scope);
+    return [...ks];
+  };
+  async function mhGrant() {
+    const miss = mhMissing(); if (!miss.length) return;
+    const sc = [...AUTH_CONFIG.scopes, ...miss.map((k) => MH().RSCOPE[k])];
+    if (!await preConsent(sc)) return;
+    mhRead();
+  }
+  async function mhOnDemand(kind) {
+    if (mh.odBusy || !mh.S) return;
+    const sc = kind === "sharedMbx" ? mhScopes("mbx") : AUTH_CONFIG.scopes;
+    if (!isDemo && !await preConsent(sc)) return;
+    mh.odBusy = kind; mh.step = kind === "perUser" ? "Reading per-user MFA…" : "Finding shared mailboxes…"; renderMh();
+    try {
+      let data;
+      if (isDemo) { await new Promise((ok) => setTimeout(ok, 300)); data = kind === "perUser" ? { users: [{ id: "u3", upn: "anna.admin@contoso.example", state: "enforced" }, { id: "u7", upn: "finance@contoso.example", state: "enabled" }, { id: "u8", upn: "sales@contoso.example", state: "disabled" }], refused: 0 } : { shared: [{ id: "m1", userPrincipalName: "info@contoso.example", accountEnabled: true }, { id: "m2", userPrincipalName: "invoices@contoso.example", accountEnabled: false }], candidates: 5, refused: 0 }; }
+      else {
+        const io = Object.assign(mhReadIO(new Set()), { batch: (reqs, onP, ver) => Graph.gbatch(reqs, onP, { base: `https://graph.microsoft.com/${ver}`, scopes: sc }) });
+        const say = (m) => { mh.step = m; mhPaintStep(); };
+        data = kind === "perUser" ? await MH().readPerUser(io, say) : await MH().readShared(io, say);
+      }
+      mh.S[kind] = { ok: true, data };
+    } catch (e) { mh.S[kind] = { ok: false, why: String((e && e.message) || e) }; }
+    finally { mh.odBusy = ""; }
+    mhJudge(); renderMh();
+  }
+  // ---- rows and filters -------------------------------------------------
+  const MH_BAD = new Set(["fail", "part"]);
+  function mhRows() {
+    const m = mh.model; if (!m) return [];
+    const q = mh.q.trim().toLowerCase();
+    return m.rows.filter((r) => (mh.area === "all" || r.area === mh.area) && (!mh.reach || r.reach === mh.reach) &&
+      (mh.st === "all" || (mh.st === "fail" ? MH_BAD.has(r.st) : mh.st === "todo" ? ["attest", "notread", "out", "nolic"].includes(r.st) : mh.st === "ok" ? ["pass", "attested", "accepted", "na"].includes(r.st) : r.st === mh.st)) &&
+      (mh.lvl === "all" || !mhRefs() || String(r.lvl) === mh.lvl) &&
+      (!q || `${r.t} ${r.now} ${r.tgt} ${mhRefs() ? r.cis : ""} ${r.k}`.toLowerCase().includes(q)));
+  }
+  const MH_ST_CLASS = { pass: "ok", attested: "ok", accepted: "acc", na: "mute", nolic: "mute", phase2: "mute", out: "mute", notread: "warn", attest: "warn", report: "warn", conf: "warn", part: "bad", fail: "bad", error: "bad" };
+  const mhPill = (st) => `<span class="mh-st ${MH_ST_CLASS[st] || "mute"}">${esc(MH().STATUS[st] || st)}</span>`;
+  const mhHow = (reach) => `<span class="mh-how mh-r-${reach}">${esc(MH().REACH[reach])}</span>`;
+  function renderMh() {
+    if (!$("screen-mh") || !$("screen-mh").classList.contains("active")) return;
+    const body = $("mhBody"), m = mh.model, S = mh.S;
+    const miss = mhMissing();
+    $("mhRead").innerHTML = m ? `Read ${esc(new Date(S.readAt).toLocaleString())} · <b>${m.score.pass}</b> of <b>${m.score.total}</b> judged settings pass · <b>${m.score.fixable}</b> fixable here${miss.length ? ` · <b>${miss.length}</b> area${miss.length === 1 ? "" : "s"} not read` : ""}${S.ps && S.ps.ok ? ` · script result ${esc(String(S.ps.data.ranAt).slice(0, 16).replace("T", " "))}` : ""}` : "";
+    const gb = $("mhGrant"); if (gb) { gb.hidden = !miss.length; gb.textContent = `🔑 Read ${miss.length} more area${miss.length === 1 ? "" : "s"}`; }
+    if (mh.busy) { body.innerHTML = `<p class="mini" style="padding:12px"><span class="spinner" style="width:16px;height:16px;display:inline-block;vertical-align:middle"></span> <span id="mhStep">${esc(mh.step)}</span></p>`; return; }
+    if (mh.err) { body.innerHTML = `<div class="list-card"><b>The read failed.</b><p class="mini">${esc(mh.err)}</p></div>`; return; }
+    if (!m) { body.innerHTML = '<p class="mini muted" style="padding:12px">Not read yet.</p>'; return; }
+    const R = MH().REACH;
+    const tiles = Object.keys(R).map((k) => {
+      const xs = m.rows.filter((r) => r.reach === k), p = xs.filter((r) => r.st === "pass" || r.st === "attested").length, f = xs.filter((r) => MH_BAD.has(r.st)).length;
+      return `<button type="button" class="mh-tile${mh.reach === k ? " sel" : ""}" data-mhreach="${k}" aria-pressed="${mh.reach === k}"><span class="n">${xs.length}</span><span class="l"><i class="mh-sw mh-r-${k}"></i>${esc(R[k])}</span><span class="bar"><i class="p" style="width:${xs.length ? p / xs.length * 100 : 0}%"></i><i class="f" style="width:${xs.length ? f / xs.length * 100 : 0}%"></i></span><span class="s">${p} pass · ${f} fail</span></button>`;
+    }).join("");
+    const L = m.lic, chip = (on, lab) => `<span class="tag${on ? " grant" : ""}"${on ? "" : ' style="opacity:.65"'}>${lab} ${on ? "✓" : "✗"}</span>`;
+    const lic = L.known ? `${chip(L.p1 || L.p2, "Entra ID P1")} ${chip(L.p2, "Entra ID P2")} ${chip(L.intune, "Intune")} ${chip(L.spo, "SharePoint")} ${chip(L.exo, "Exchange")}` : '<span class="mini muted">licences not read</span>';
+    const missNote = miss.length ? `<div class="scope-note mh-miss">${miss.length} area${miss.length === 1 ? " needs" : "s need"} an extra <b>read</b> permission: ${miss.map((k) => `<code>${esc(MH().RSCOPE[k])}</code>`).join(" ")} — <button type="button" class="btn sm" data-mhgrant>🔑 Read them</button> <span class="mini">(a consent prompt only if never granted; read-only)</span></div>` : "";
+    const undo = mhLoad("undo");
+    const undoBand = undo && undo.items && undo.items.length ? `<div class="scope-note mh-undo">↩ Last run ${esc(String(undo.at).slice(0, 16).replace("T", " "))} by ${esc(undo.by || "")}: ${undo.items.length} write${undo.items.length === 1 ? "" : "s"} (${esc(undo.titles.join(" · "))}). ${mh.undoArm ? `<input class="txt" id="mhUndoArm" placeholder="Type UNDO" style="width:120px" autocomplete="off"> <button type="button" class="btn sm" data-mhundogo disabled>↩ Write the snapshot back</button> <button type="button" class="btn sm" data-mhundox>Cancel</button>` : '<button type="button" class="btn sm" data-mhundo>↩ Undo these writes…</button>'} <button type="button" class="btn sm" data-mhsnap>⬇ Snapshot</button> <button type="button" class="btn sm" data-mhforget title="Forget the snapshot in this browser">✕</button></div>` : "";
+    const areas = [["all", "All areas"], ...MH().AREAS].filter(([a]) => a === "all" || m.rows.some((r) => r.area === a));
+    const cnt = (f) => m.rows.filter(f).length;
+    const stc = [["all", "Any status", m.rows.length], ["fail", "Fail", cnt((r) => MH_BAD.has(r.st))], ["todo", "To do (attest, read, script)", cnt((r) => ["attest", "notread", "out", "nolic"].includes(r.st))], ["ok", "Pass / attested / accepted", cnt((r) => ["pass", "attested", "accepted", "na"].includes(r.st))]];
+    const filters = `<div class="mh-filters"><input class="txt mh-search" id="mhQ" placeholder="Search a setting, a value${mhRefs() ? ", a CIS number" : ""}…" value="${esc(mh.q)}" autocomplete="off"><div class="mh-chips">${areas.map(([a, l]) => `<button type="button" class="fchip${mh.area === a ? " on" : ""}" data-mharea="${a}">${esc(l)} <small>${a === "all" ? m.rows.length : cnt((r) => r.area === a)}</small></button>`).join("")}</div><div class="mh-chips">${stc.map(([s, l, n]) => `<button type="button" class="fchip${mh.st === s ? " on" : ""}" data-mhst="${s}">${esc(l)} <small>${n}</small></button>`).join("")}${mhRefs() ? ["all", "1", "2"].map((v) => `<button type="button" class="fchip${mh.lvl === v ? " on" : ""}" data-mhlvl="${v}">${v === "all" ? "L1 + L2" : `L${v}`}</button>`).join("") : ""}</div></div>`;
+    const head = `${missNote}${undoBand}<div class="mh-tiles">${tiles}</div><div class="mh-lic"><span class="mini">Licences:</span> ${lic} <span class="mini">Score: <b>${m.score.pct}%</b> (${m.score.pass} of ${m.score.total} judged)</span></div>`;
+    let main;
+    if (mh.planOpen) main = mhPlanHtml();
+    else main = `${filters}<div class="mh-ld"><div class="mh-list">${mhTableHtml()}</div><aside class="mh-insp" id="mhInsp">${mhInspHtml()}</aside></div>${mhSelbar()}`;
+    body.innerHTML = `${head}${mh.summary ? `<div class="list-card mh-summary">${mh.summary}</div>` : ""}<div id="mhLedger"></div>${main}`;
+  }
+  function mhTableHtml() {
+    const rows = mhRows(), refs = mhRefs();
+    if (!rows.length) return '<p class="mini muted" style="padding:12px">No setting matches — clear a filter.</p>';
+    let tb = "", last = "";
+    const AREA = Object.fromEntries(MH().AREAS);
+    const order = { fail: 0, part: 0, error: 0, notread: 1, attest: 2, out: 3, report: 2, conf: 2, nolic: 4, accepted: 5, pass: 6, attested: 6, na: 7, phase2: 8 };
+    const sorted = rows.slice().sort((a, b) => MH().AREAS.findIndex(([x]) => x === a.area) - MH().AREAS.findIndex(([x]) => x === b.area) || (order[a.st] ?? 9) - (order[b.st] ?? 9));
+    for (const r of sorted) {
+      if (r.area !== last) { last = r.area; tb += `<tr class="mh-grp"><td colspan="${refs ? 6 : 5}">${esc(AREA[r.area] || r.area)} — ${sorted.filter((x) => x.area === r.area).length}</td></tr>`; }
+      const can = r.fixable && MH_BAD.has(r.st);
+      tb += `<tr data-mhrow="${esc(r.k)}"${mh.open === r.k ? ' class="open"' : ""}><td>${can ? `<input type="checkbox" data-mhtick="${esc(r.k)}"${mh.sel.has(r.k) ? " checked" : ""} aria-label="Select ${esc(r.t)}">` : ""}</td>${refs ? `<td class="mh-ref">${esc(r.cis)}<br><small>L${r.lvl}</small></td>` : ""}<td>${esc(r.t)}</td><td class="mh-now">${esc(r.now || "—")}${r.tgt ? `<small> → ${esc(r.tgt)}</small>` : ""}</td><td>${mhPill(r.st)}</td><td>${mhHow(r.reach)}</td></tr>`;
+    }
+    return `<div class="gu-tw"><table class="cg-table mh-table"><thead><tr><th style="width:30px"></th>${refs ? '<th style="width:64px">CIS</th>' : ""}<th>Setting</th><th class="mh-nowh">Now → target</th><th style="width:110px">Status</th><th style="width:130px">How</th></tr></thead><tbody>${tb}</tbody></table></div>`;
+  }
+  function mhSelbar() {
+    const n = mh.sel.size; if (!n) return "";
+    return `<div class="selbar visible mh-selbar"><span><b>${n}</b> fix${n === 1 ? "" : "es"} selected</span><button class="btn sm" data-mhplan>✎ Review the change plan</button><button class="btn sm" data-mhclear>Clear</button></div>`;
+  }
+  function mhStepLabel(s) {
+    const t = s.controls.map((k) => (MH().byKey.get(k) || {}).t).filter(Boolean);
+    return `${s.method} ${s.url.replace(/\?.*$/, "")}${s.label ? ` — ${s.label}` : ""}${t.length > 1 ? ` (${t.length} settings in one write)` : ""}`;
+  }
+  function mhInspHtml() {
+    const r = mh.model && mh.model.rows.find((x) => x.k === mh.open);
+    if (!r) return '<p class="mini muted">Select a setting to see what it reads, what a fix would change, its impact and its way back.</p>';
+    const c = MH().byKey.get(r.k), refs = mhRefs(), AREA = Object.fromEntries(MH().AREAS);
+    const srcs = (c.src || []).map((k) => MH().SOURCE_LABEL[k] || k).join(", ");
+    let h = `<div class="mh-ih"><span class="mini">${esc(AREA[r.area])}${refs ? ` · CIS ${esc(r.cis)} · L${r.lvl}` : ""}</span>${mhPill(r.st)}</div><h4>${esc(r.t)}</h4>`;
+    h += `<dl class="mh-kv"><dt>Now</dt><dd>${esc(r.now || "—")}</dd><dt>Target</dt><dd>${esc(r.tgt || "—")}</dd><dt>How</dt><dd>${mhHow(r.reach)}${srcs ? ` <span class="mini">read from ${esc(srcs)}</span>` : ""}</dd>${c.fix ? `<dt>Needs</dt><dd class="mini">${c.fix.scopes.map((x) => `<code>${esc(x)}</code>`).join(" ")} · role ${esc(c.fix.role)}</dd>` : ""}</dl>`;
+    if (r.items && r.items.length) h += `<details class="mh-items"${r.items.length <= 8 ? " open" : ""}><summary>${r.items.length} item${r.items.length === 1 ? "" : "s"}</summary><ul>${r.items.slice(0, 60).map((x) => `<li>${esc(x)}</li>`).join("")}${r.items.length > 60 ? `<li>… ${r.items.length - 60} more in the report</li>` : ""}</ul></details>`;
+    if (r.ondemand) h += `<p><button type="button" class="btn" data-mhod="${r.ondemand}"${mh.odBusy ? " disabled" : ""}>${r.ondemand === "perUser" ? "🔐 Read per-user MFA" : "📬 Find shared mailboxes"}</button> ${mh.odBusy === r.ondemand ? `<span class="mini" id="mhStep">${esc(mh.step)}</span>` : ""}</p>`;
+    if (r.scope) h += `<p><button type="button" class="btn sm" data-mhgrant>🔑 Read it (${esc(MH().RSCOPE[r.scope])})</button></p>`;
+    if (c.fix) {
+      h += `<div class="mh-impact"><b>Impact.</b> ${esc(c.fix.impact)}</div><div class="mh-back"><b>Way back.</b> ${esc(c.fix.back)}</div>`;
+      if (MH_BAD.has(r.st)) {
+        const p = MH().plan(mh.S, [r.k], mh.inputs);
+        h += p.steps.length ? `<details class="mh-calls"><summary class="mini">Graph call${p.steps.length === 1 ? "" : "s"} (${p.steps.length})</summary>${p.steps.slice(0, 5).map((s) => `<pre>${esc(`${s.method} ${s.url}`)}\n${esc(JSON.stringify(s.body, null, 1)).slice(0, 1500)}</pre>`).join("")}${p.steps.length > 5 ? `<p class="mini">… ${p.steps.length - 5} more</p>` : ""}</details>` : (p.refused[0] ? `<p class="mini">The fix asks for: ${esc(p.refused[0].why)} — in the change plan.</p>` : "");
+        h += `<p class="mh-acts"><button type="button" class="btn primary" data-mhfix="${esc(r.k)}">🔧 Fix this…</button> <button type="button" class="btn" data-mhform="accepted">✓ Accept with a reason…</button></p>`;
+      }
+    } else if (r.go) h += `<p class="mini">${esc(r.go)}</p>`;
+    if (c.fix && r.go) h += `<p class="mini">${esc(r.go)}</p>`;
+    const tool = MH_TOOL[r.k]; if (tool) h += `<p><a href="#" class="md-tool" data-tool="${tool[0]}">→ ${esc(tool[1])}</a></p>`;
+    if (r.reach === "ca") h += '<p><a href="#" class="md-tool" data-tool="toolBuilder">→ 🏗 Policy builder</a> · <a href="#" class="md-tool" data-tool="toolGapCheck">🛡 Checks</a></p>';
+    if (r.reach === "ps") h += `<p class="mini">${r.from ? `From the script run ${esc(String(r.from).slice(0, 16).replace("T", " "))}. ` : ""}Only PowerShell can read this setting. <button type="button" class="btn sm" data-mhscript>📜 Audit script</button> <button type="button" class="btn sm" data-mhloadps>📥 Load result</button></p>`;
+    if (r.portal) h += `<p><a class="btn sm" href="${esc(r.portal)}" target="_blank" rel="noopener noreferrer">↗ Open in the portal</a></p>`;
+    if (r.rec) h += `<div class="mh-rec">${r.rec.kind === "attested" ? "✓ Attested" : "✓ Accepted"} ${esc(r.rec.at)} by ${esc(r.rec.by || "?")}${r.rec.why ? ` — “${esc(r.rec.why)}”` : ""} <button type="button" class="btn sm" data-mhwithdraw>Withdraw</button></div>`;
+    else if (r.reach === "attest") h += '<p><button type="button" class="btn primary" data-mhform="attested">✓ Attest…</button></p>';
+    else if (!c.fix && MH_BAD.has(r.st)) h += '<p><button type="button" class="btn" data-mhform="accepted">✓ Accept with a reason…</button></p>';
+    if (mh.form && mh.form.k === r.k) h += `<div class="mh-form"><label class="mini">${mh.form.kind === "attested" ? "What you confirmed, and where" : "Why this stays as it is (and until when)"} <input class="txt" id="mhWhy" maxlength="60" value="${esc(mh.form.why || "")}" placeholder="60 characters — kept in the tenant"></label><div class="mh-acts"><button type="button" class="btn primary" data-mhsave>Save to the tenant</button> <button type="button" class="btn" data-mhformx>Cancel</button></div><p class="mini muted">Written to the tenant’s ENCA hardening record (open extension ${esc(MH().EXT)} on the organization, Organization.ReadWrite.All), so every admin and every browser sees it.</p></div>`;
+    return h;
+  }
+  // ---- the change plan ---------------------------------------------------
+  function mhInputHtml(k, c, r) {
+    const i = c.fix.input; if (!i) return "";
+    const v = mh.inputs[k] || {};
+    if (i.kind === "pick") {
+      const items = r.pickable || []; const picked = v.picked || items.map((x) => x.id);
+      return `<div class="mh-in"><span class="mini">${esc(i.label)}</span><div class="mh-pick">${items.map((x) => `<label><input type="checkbox" data-mhpick="${esc(k)}" value="${esc(x.id)}"${picked.includes(x.id) ? " checked" : ""}> ${esc(x.label)}</label>`).join("")}</div></div>`;
+    }
+    if (i.kind === "number") return `<div class="mh-in"><label class="mini">${esc(i.label)} <input class="txt" type="number" min="${i.min}" max="${i.max}" data-mhnum="${esc(k)}" value="${esc(v.number != null ? v.number : i.def)}" style="width:90px"></label></div>`;
+    if (i.kind === "choice") return `<div class="mh-in"><span class="mini">${esc(i.label)}</span>${i.options.map(([val, lab]) => `<label class="mh-radio"><input type="radio" name="mhc-${esc(k)}" data-mhchoice="${esc(k)}" value="${esc(val)}"${(v.choice || i.def) === val ? " checked" : ""}> ${esc(lab)}</label>`).join("")}</div>`;
+    if (i.kind === "words") return `<div class="mh-in"><label class="mini">${esc(i.label)}<textarea class="txt" rows="3" data-mhwords="${esc(k)}">${esc((v.words || []).join("\n"))}</textarea></label></div>`;
+    if (i.kind === "group") {
+      const res = mh.gres[k] || [];
+      return `<div class="mh-in"><span class="mini">${esc(i.label)}${i.optional ? " — optional" : ""}</span>${v.group ? `<div class="mh-chosen">👥 <b>${esc(v.group.displayName)}</b> <button type="button" class="btn sm" data-mhgclear="${esc(k)}">Change</button></div>` : `<div class="mh-gsearch"><input class="txt" data-mhgq="${esc(k)}" placeholder="Search a group by name, then Enter" value="${esc(mh.gq[k] || "")}"> <button type="button" class="btn sm" data-mhgfind="${esc(k)}">Search</button></div>${res.length ? `<div class="mh-gres">${res.map((g) => `<button type="button" class="btn sm" data-mhgpick="${esc(k)}" data-id="${esc(g.id)}" data-name="${esc(g.displayName)}">${esc(g.displayName)}</button>`).join("")}</div>` : ""}`}</div>`;
+    }
+    return "";
+  }
+  function mhPlanHtml() {
+    const keys = [...mh.sel], p = MH().plan(mh.S, keys, mh.inputs);
+    const refusedBy = new Map(p.refused.map((x) => [x.k, x.why]));
+    const cards = keys.map((k) => {
+      const c = MH().byKey.get(k), r = mh.model.rows.find((x) => x.k === k);
+      return `<div class="mh-pcard${refusedBy.has(k) ? " need" : ""}"><h4>${esc(c.t)}${mhRefs() ? ` <small class="mini">CIS ${esc(c.cis)}</small>` : ""}</h4><div class="mini">${esc(r.now)} → <b>${esc(c.tgt)}</b></div>${mhInputHtml(k, c, r)}${refusedBy.has(k) ? `<div class="mh-needs">Needed before writing: ${esc(refusedBy.get(k))}</div>` : ""}<div class="mh-impact"><b>Impact.</b> ${esc(c.fix.impact)}</div><div class="mh-back"><b>Way back.</b> ${esc(c.fix.back)}</div><button type="button" class="btn sm" data-mhdrop="${esc(k)}">Leave this one out</button></div>`;
+    }).join("");
+    const roles = [...new Set(keys.map((k) => MH().byKey.get(k).fix.role))];
+    const ready = p.steps.length && !p.refused.length;
+    const writes = p.steps.map((s) => `<li><code>${esc(s.method)}</code> ${esc(s.url.replace(/^\/(v1\.0|beta)/, "$&"))}${s.label ? ` — ${esc(s.label)}` : ""}${s.controls.length > 1 ? ` <span class="mini">(${s.controls.length} settings, one write)</span>` : ""}<details><summary class="mini">body</summary><pre>${esc(JSON.stringify(s.body, null, 1)).slice(0, 2500)}</pre></details></li>`).join("");
+    return `<div class="list-card mh-plan"><div class="mh-ph"><h3>✎ Change plan — ${keys.length} setting${keys.length === 1 ? "" : "s"}, ${p.steps.length} write${p.steps.length === 1 ? "" : "s"} to ${esc(tenantName || (isDemo ? "the demo tenant" : "this tenant"))}</h3><button type="button" class="btn sm" data-mhplanx>← Back to the list</button></div>
+      <p class="mini">Nothing has been written. Read the impact and the way back of each setting. Before the first write ENCA asks for these permissions once: ${p.scopes.map((x) => `<code>${esc(x)}</code>`).join(" ")}. Roles needed: ${esc(roles.join("; "))}. A snapshot of every value it changes is kept in this browser (and downloadable) so ↩ Undo can write it back.</p>
+      ${cards}
+      <details class="mh-writes"><summary>The ${p.steps.length} write${p.steps.length === 1 ? "" : "s"}, exactly as sent</summary><ol>${writes}</ol></details>
+      <div class="mh-go"><input class="txt" id="mhArm" placeholder="Type FIX to continue" value="${esc(mh.armed)}" autocomplete="off" style="width:180px"> <button type="button" class="btn primary" data-mhrun${ready && mh.armed.trim() === "FIX" && !mh.running ? "" : " disabled"}>Write ${p.steps.length} change${p.steps.length === 1 ? "" : "s"}</button>${p.refused.length ? ` <span class="mini mh-needs">${p.refused.length} setting${p.refused.length === 1 ? " needs" : "s need"} an answer above first</span>` : ""}</div></div>`;
+  }
+  function mhWriteIO(scopes) {
+    return { patch: (u, b) => Graph.gpatch(u, b, scopes), put: (u, b) => Graph.gput(u, b, scopes), post: (u, b) => Graph.gpost(u, b, scopes), del: (u) => Graph.gdelete(u, scopes) };
+  }
+  // the demo walks the same pipeline against its own tenant
+  function mhDemoIO(steps) {
+    const S = mh.S, pause = () => new Promise((ok) => setTimeout(ok, 120));
+    const find = (url) => steps.find((s) => url === s.url || url.startsWith(`${s.url}/`)) || null;
+    const write = (url, body, method) => {
+      const s = find(url); if (!s) return {};
+      const src = S[s.source]; if (!src || !src.ok) return {};
+      if (s.source === "amp" && /authenticationMethodConfigurations\/([^/?]+)/.test(url)) { const id = /authenticationMethodConfigurations\/([^/?]+)/.exec(url)[1]; const cfg = src.data.authenticationMethodConfigurations.find((c) => c.id.toLowerCase() === id.toLowerCase()); if (cfg) Object.assign(cfg, MH().deepMerge(cfg, body)); return {}; }
+      if (s.source === "perUser") { const id = /users\/([^/]+)/.exec(url)[1]; const u = src.data.users.find((x) => x.id === id); if (u) u.state = body.perUserMfaState; return {}; }
+      if (s.source === "sharedMbx") { const id = /users\/([^/]+)/.exec(url)[1]; const u = src.data.shared.find((x) => x.id === id); if (u) u.accountEnabled = body.accountEnabled; return {}; }
+      if (s.source === "pimGA" || s.source === "pimPRA") { src.data.rule = MH().deepMerge(src.data.rule, body); return {}; }
+      if (s.source === "intune" && body.settings) { Object.assign(src.data, body.settings); return {}; }
+      if (s.source === "forms" || s.source === "spo" || s.source === "authz" || s.source === "appsSvc" || s.source === "appMgmt" || s.source === "acrp" || s.source === "devReg") { src.data = method === "PUT" ? body : MH().deepMerge(src.data, body); return {}; }
+      if (Array.isArray(src.data)) {
+        if (method === "POST" && url === s.url) { const o = Object.assign({ id: `demo-${Date.now()}`, accountEnabled: true }, body); src.data.push(o); return o; }
+        const id = decodeURIComponent(url.slice(s.url.length + 1) || url.split("/").pop());
+        const o = src.data.find((x) => x.id === id || x.id === decodeURIComponent(url.split("/").pop())); if (o) Object.assign(o, MH().deepMerge(o, body));
+        if (s.source === "enroll" && o) Object.assign(o, body);
+      }
+      return {};
+    };
+    return { patch: async (u, b) => { await pause(); write(u, b, "PATCH"); }, put: async (u, b) => { await pause(); write(u, b, "PUT"); }, post: async (u, b) => { await pause(); return write(u, b, "POST"); }, del: async (u) => { await pause(); const s = find(u); if (s && Array.isArray((mh.S[s.source] || {}).data)) mh.S[s.source].data = mh.S[s.source].data.filter((x) => !u.endsWith(`/${x.id}`)); } };
+  }
+  async function mhRun() {
+    if (mh.running) return;
+    const keys = [...mh.sel], p = MH().plan(mh.S, keys, mh.inputs);
+    if (!p.steps.length || p.refused.length) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...p.scopes])) return;
+    mh.running = true; mh.armed = "";
+    const host = $("mhLedger");
+    const L = RunLedger.create(host, { title: "🛡 Securing M365 — writing", unit: "writes", items: p.steps.map((s) => ({ label: mhStepLabel(s), sub: s.controls.map((k) => (MH().byKey.get(k) || {}).t).join(" · ") })) });
+    const before = mh.model.rows.filter((r) => keys.includes(r.k)).map((r) => ({ k: r.k, st: r.st }));
+    let res;
+    try { res = await MH().apply(p, { io: isDemo ? mhDemoIO(p.steps) : mhWriteIO([...AUTH_CONFIG.scopes, ...p.scopes]), ledger: L }); }
+    catch (e) { res = { results: [], undo: [] }; toast(`The run stopped: <span>${esc((e && e.message) || e)}</span>`); }
+    L.finish({});
+    if (res.undo.length) mhSave("undo", { at: new Date().toISOString(), by: mhWho(), items: res.undo, scopes: p.scopes, titles: keys.map((k) => (MH().byKey.get(k) || {}).t), demo: isDemo });
+    mh.running = false; mh.planOpen = false; mh.sel.clear(); mh.inputs = {};
+    // Graph settles in seconds; read back after a short wait, then say what each setting became
+    if (!isDemo) await new Promise((ok) => setTimeout(ok, 4000));
+    if (isDemo) mhJudge(); else await mhRead(true);
+    const after = (k) => (mh.model.rows.find((r) => r.k === k) || {}).st;
+    const fails = res.results.filter((x) => !x.ok);
+    mh.summary = `<b>${res.results.filter((x) => x.ok).length} of ${res.results.length} write${res.results.length === 1 ? "" : "s"} landed.</b> Read back: ${before.map((b) => `${esc((MH().byKey.get(b.k) || {}).t)} — ${esc(MH().STATUS[b.st])} → <b>${esc(MH().STATUS[after(b.k)] || after(b.k))}</b>`).join("; ")}.${fails.length ? ` <span class="mh-needs">Failed: ${fails.map((f) => esc(f.why || "")).join(" · ")}</span>` : ""}${res.undo.length ? " ↩ Undo is in the band above." : ""}${!isDemo ? " A setting that still reads the old value may need a minute more — ↻ Read again." : ""}`;
+    renderMh();
+  }
+  // ↩ Undo is armed in the band with a typed UNDO, like every other write here
+  async function mhUndo() {
+    const u = mhLoad("undo"); if (!u || !u.items || !u.items.length) return;
+    if (!!u.demo !== !!isDemo) { toast("That snapshot belongs to the other mode (demo / tenant)"); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...(u.scopes || [])])) return;
+    mh.undoArm = false;
+    const L = RunLedger.create($("mhLedger"), { title: "↩ Undo — writing the snapshot back", unit: "writes", items: u.items.map((x) => ({ label: `${x.method} ${x.url}`, sub: x.label || "" })) });
+    const pause = () => new Promise((ok) => setTimeout(ok, 120));
+    const io = isDemo ? { patch: pause, put: pause, post: pause, del: pause } : mhWriteIO([...AUTH_CONFIG.scopes, ...(u.scopes || [])]);
+    const out = await MH().runUndo(u.items, { io, ledger: L });
+    L.finish({});
+    if (out.every((x) => x.ok)) mhSave("undo", null);
+    mh.summary = `<b>↩ Undo: ${out.filter((x) => x.ok).length} of ${out.length} written back.</b>${out.some((x) => !x.ok) ? ` <span class="mh-needs">${out.filter((x) => !x.ok).map((x) => esc(x.why)).join(" · ")}</span>` : ""}`;
+    if (isDemo) { const keep = mh.S; mh.S = MH().demo(); ["perUser", "sharedMbx", "ps"].forEach((k) => { if (keep[k]) mh.S[k] = keep[k]; }); mhJudge(); renderMh(); } else mhRead(true);
+  }
+  async function mhSaveRecord(k, entry) {
+    const S = mh.S, org = S.org && S.org.ok && S.org.data && S.org.data[0];
+    if (!S.ext || !S.ext.ok) { toast(`The ENCA record could not be read (${esc((S.ext && S.ext.why) || "not read")}) — nothing was written`); return; }
+    const { body, full, size } = MH().recordBody(S.ext.data, k, entry);
+    if (full) { toast(`The tenant record would be ${size} bytes — Graph keeps 2 KB per record. Withdraw an old attestation or shorten reasons`); return; }
+    const sc = [...AUTH_CONFIG.scopes, "Organization.ReadWrite.All"];
+    if (!isDemo) {
+      if (!await preConsent(sc)) return;
+      try {
+        if (S.ext.data) await Graph.gpatch(`/v1.0/organization/${org.id}/extensions/${MH().EXT}`, body, sc);
+        else await Graph.gpost(`/v1.0/organization/${org.id}/extensions`, body, sc);
+      } catch (e) { toast(`Not saved: <span>${esc((e && e.message) || e)}</span>`); return; }
+    }
+    S.ext = { ok: true, data: body }; mh.form = null; mhJudge(); renderMh();
+    toast(entry ? "Kept in the tenant’s ENCA hardening record" : "Withdrawn from the tenant record");
+  }
+  async function mhGroupSearch(k) {
+    const q = (mh.gq[k] || "").trim(); if (!q) return;
+    if (isDemo) { mh.gres[k] = [{ id: "g-demo-1", displayName: `${q} — Admins (demo)` }, { id: "g-demo-2", displayName: `${q} — Pilot (demo)` }]; renderMh(); return; }
+    try { const r = await Graph.gget(`/v1.0/groups?$search="displayName:${encodeURIComponent(q.replace(/"/g, ""))}"&$select=id,displayName&$top=12`); mh.gres[k] = (r && r.value) || []; }
+    catch (e) { toast(`Group search failed: <span>${esc((e && e.message) || e)}</span>`); mh.gres[k] = []; }
+    renderMh();
+  }
+  function mhScript() {
+    const S = mh.S || {}, ini = ((S.domains && S.domains.ok && S.domains.data) || []).find((d) => d.isInitial && /\.onmicrosoft\.com$/i.test(d.id));
+    const spo = ini ? `https://${ini.id.replace(/\.onmicrosoft\.com$/i, "")}-admin.sharepoint.com` : "";
+    const org = S.org && S.org.ok && S.org.data && S.org.data[0];
+    const tid = (org && org.id) || tenantId || "";
+    downloadText("enca-m365-audit", "ps1", "text/plain", "﻿" + MH().psScript({ tenantId: tid, spoAdminUrl: spo, build: APP_BUILD.label }));
+    toast("Read-only audit script <span>downloaded</span> — run it in PowerShell 7, then 📥 Load script result");
+  }
+  $("toolHarden").addEventListener("click", openMh);
+  $("mhRefresh").addEventListener("click", () => mhRead());
+  $("mhGrant").addEventListener("click", mhGrant);
+  $("mhScript").addEventListener("click", mhScript);
+  $("mhLoad").addEventListener("click", () => $("mhFile").click());
+  $("mhFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f || !mh.S) return;
+    const org = mh.S.org && mh.S.org.ok && mh.S.org.data && mh.S.org.data[0];
+    const r = MH().parsePs(await f.text(), isDemo ? "" : ((org && org.id) || tenantId));
+    if (!r.ok) { toast(`Not loaded: <span>${esc(r.why)}</span>`); return; }
+    mh.S.ps = r; mhSave("ps", r); mhJudge(); renderMh();
+    toast(`Script result loaded — <span>${Object.keys(r.data.results).length}</span> settings`);
+  });
+  $("mhMd").addEventListener("click", () => { if (!mh.model) return toast("Read the tenant first"); downloadText("securing-m365", "md", "text/markdown", MH().markdown(mh.model, { tenant: tenantName || (isDemo ? "demo" : ""), build: APP_BUILD.label, refs: mhRefs() })); });
+  $("mhBody").addEventListener("click", (e) => {
+    const t = e.target, pick = (sel) => t.closest(sel);
+    let el;
+    if ((el = pick("[data-mhreach]"))) { mh.reach = mh.reach === el.dataset.mhreach ? null : el.dataset.mhreach; renderMh(); return; }
+    if ((el = pick("[data-mharea]"))) { mh.area = el.dataset.mharea; renderMh(); return; }
+    if ((el = pick("[data-mhst]"))) { mh.st = el.dataset.mhst; renderMh(); return; }
+    if ((el = pick("[data-mhlvl]"))) { mh.lvl = el.dataset.mhlvl; renderMh(); return; }
+    if (pick("[data-mhgrant]")) { mhGrant(); return; }
+    if ((el = pick("[data-mhod]"))) { mhOnDemand(el.dataset.mhod); return; }
+    if (pick("[data-mhplan]")) { mh.planOpen = true; mh.armed = ""; renderMh(); return; }
+    if (pick("[data-mhplanx]")) { mh.planOpen = false; renderMh(); return; }
+    if (pick("[data-mhclear]")) { mh.sel.clear(); renderMh(); return; }
+    if ((el = pick("[data-mhfix]"))) { mh.sel = new Set([el.dataset.mhfix]); mh.planOpen = true; mh.armed = ""; renderMh(); return; }
+    if ((el = pick("[data-mhdrop]"))) { mh.sel.delete(el.dataset.mhdrop); if (!mh.sel.size) mh.planOpen = false; renderMh(); return; }
+    if (pick("[data-mhrun]")) { mhRun(); return; }
+    if (pick("[data-mhundo]")) { mh.undoArm = true; renderMh(); const a = $("mhUndoArm"); if (a) a.focus(); return; }
+    if (pick("[data-mhundox]")) { mh.undoArm = false; renderMh(); return; }
+    if (pick("[data-mhundogo]")) { mhUndo(); return; }
+    if (pick("[data-mhsnap]")) { const u = mhLoad("undo"); if (u) downloadText("securing-m365-snapshot", "json", "application/json", JSON.stringify(u, null, 2)); return; }
+    if (pick("[data-mhforget]")) { mhSave("undo", null); renderMh(); return; }
+    if (pick("[data-mhscript]")) { mhScript(); return; }
+    if (pick("[data-mhloadps]")) { $("mhFile").click(); return; }
+    if ((el = pick("[data-mhform]"))) { mh.form = { k: mh.open, kind: el.dataset.mhform, why: "" }; renderMh(); const w = $("mhWhy"); if (w) w.focus(); return; }
+    if (pick("[data-mhformx]")) { mh.form = null; renderMh(); return; }
+    if (pick("[data-mhsave]")) { const why = (($("mhWhy") || {}).value || "").trim(); if (!why) { toast("A reason, please — it is what the next admin reads"); return; } mhSaveRecord(mh.form.k, { kind: mh.form.kind, at: new Date().toISOString().slice(0, 10), by: mhWho(), why }); return; }
+    if (pick("[data-mhwithdraw]")) { mhSaveRecord(mh.open, null); return; }
+    if ((el = pick("[data-mhgfind]"))) { mhGroupSearch(el.dataset.mhgfind); return; }
+    if ((el = pick("[data-mhgpick]"))) { mh.inputs[el.dataset.mhgpick] = Object.assign({}, mh.inputs[el.dataset.mhgpick], { group: { id: el.dataset.id, displayName: el.dataset.name } }); renderMh(); return; }
+    if ((el = pick("[data-mhgclear]"))) { const v = Object.assign({}, mh.inputs[el.dataset.mhgclear]); delete v.group; mh.inputs[el.dataset.mhgclear] = v; renderMh(); return; }
+    if ((el = pick("tr[data-mhrow]")) && !t.closest("button,a,input")) { mh.open = el.dataset.mhrow; mh.form = null; renderMh(); return; }
+  });
+  $("mhBody").addEventListener("change", (e) => {
+    const t = e.target, d = t.dataset || {};
+    if (d.mhtick) { if (t.checked) mh.sel.add(d.mhtick); else mh.sel.delete(d.mhtick); renderMh(); return; }
+    if (d.mhpick) { const k = d.mhpick, all = [...$("mhBody").querySelectorAll(`[data-mhpick="${k}"]`)]; mh.inputs[k] = Object.assign({}, mh.inputs[k], { picked: all.filter((x) => x.checked).map((x) => x.value) }); renderMh(); return; }
+    if (d.mhnum) { mh.inputs[d.mhnum] = Object.assign({}, mh.inputs[d.mhnum], { number: Number(t.value) }); renderMh(); return; }
+    if (d.mhchoice) { mh.inputs[d.mhchoice] = Object.assign({}, mh.inputs[d.mhchoice], { choice: t.value }); renderMh(); return; }
+    if (d.mhwords) { mh.inputs[d.mhwords] = Object.assign({}, mh.inputs[d.mhwords], { words: t.value.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean) }); renderMh(); return; }
+  });
+  $("mhBody").addEventListener("input", (e) => {
+    const t = e.target, d = t.dataset || {};
+    if (t.id === "mhQ") { mh.q = t.value; clearTimeout(mh.qt); mh.qt = setTimeout(() => { const pos = t.selectionStart; renderMh(); const q = $("mhQ"); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch { /* jsdom */ } } }, 200); return; }
+    if (t.id === "mhArm") { mh.armed = t.value; const b = $("mhBody").querySelector("[data-mhrun]"); if (b) { const p = MH().plan(mh.S, [...mh.sel], mh.inputs); b.disabled = !(p.steps.length && !p.refused.length && mh.armed.trim() === "FIX") || mh.running; } return; }
+    if (t.id === "mhWhy" && mh.form) { mh.form.why = t.value; return; }
+    if (t.id === "mhUndoArm") { const b = $("mhBody").querySelector("[data-mhundogo]"); if (b) b.disabled = t.value.trim() !== "UNDO"; return; }
+    if (d.mhgq) { mh.gq[d.mhgq] = t.value; return; }
+  });
+  $("mhBody").addEventListener("keydown", (e) => { const d = (e.target && e.target.dataset) || {}; if (e.key === "Enter" && d.mhgq) { e.preventDefault(); mhGroupSearch(d.mhgq); } });
   $("toolEgress").addEventListener("click", openEgress);
   $("egRefresh").addEventListener("click", () => { eg.raw = null; readEgress(); });
   $("egMd").addEventListener("click", () => {

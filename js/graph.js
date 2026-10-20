@@ -689,6 +689,16 @@ const Graph = (() => {
     return true;
   }
 
+  // 33008 (T61): true when a token for `scopes` comes back SILENTLY — the
+  // scopes were consented before (by this admin or tenant-wide). Never a
+  // prompt, so a read can ask it mid-flight; a false is "not granted yet",
+  // answered later by a click that may raise the consent popup.
+  async function silentScopes(scopes) {
+    if (hasScopes(scopes)) return true;
+    try { const r = await msalApp.acquireTokenSilent({ scopes, account }); noteScopes(r.accessToken); return hasScopes(scopes); }
+    catch { return false; }
+  }
+
   // Scopes actually granted in the current session (from the access token's scp
   // claim). Silent only — never triggers a prompt; returns [] when unavailable.
   async function grantedScopes() {
@@ -761,5 +771,5 @@ const Graph = (() => {
     } catch { return {clientId,name:'',ownerTenantId:null,audience:null}; }
   }
 
-  return { connectionInfo, init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gput, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, crossTenantTrust, grantedScopes, requestConsent, hasScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
+  return { connectionInfo, init, signIn, signInRedirect, authMode, setAuthMode, takeRedirectError, signOut, loadTenant, gget, ggetAll, readPages, mapLimit, gpost, gpatch, gput, gdelete, gpostGroupCreate, gbatch, aget, agetAll, apost, apatch, ARM_SCOPES, existingAppIds, createServicePrincipal, serviceProviderPartners, crossTenantTrust, grantedScopes, requestConsent, hasScopes, silentScopes, ensureScopes, isPopupBlocked, setThrottleHandler, setPolicyGuard, get account() { return account; } };
 })();

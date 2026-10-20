@@ -47,6 +47,7 @@
     toolEgress: 'What a different public IP — a cloud proxy such as Netskope, a new line, a VPN — does to every policy with a location condition: today against via the egress, the country looked up in the sign-in log.',
     toolDeviceCleanup: 'Stale Entra devices in two steps: disable after 30 days without contact, delete after 90 and only what is already disabled — every write read again and read back, the way back included. Ported from TUNO T25.',
     toolAppAccess: 'Every app that can reach the tenant — what it can do, who let it in, whether it is still used — Tier 0 and endpoint apps first, and per app approve, restrict, reduce, quarantine or remove. App governance for Business Premium.',
+    toolHarden: 'The Microsoft 365 security settings against a hardening baseline — Entra, authentication, devices, apps, guests, privileged access, SharePoint, mail DNS, Conditional Access — fixed from here where Graph can, each fix with its impact and way back; a read-only script for the rest.',
     toolGsa: 'Global Secure Access, the Microsoft traffic profile: switched on, assigned, signalling, the compliant network, the client on devices — every link a compliant-network Conditional Access policy needs, and the fixes that live in Entra and Intune.',
   };
   // ---- 32407: the two workspaces ----------------------------------------
@@ -95,7 +96,7 @@
   // Global Secure Access lives only here.
   // 32526 (Mihai, 14 Oct: all temporary tools may be moved to Workspace 03
   // — that is T33 and T34): the dated tools live here only, with T57.
-  const ENTRA_ONLY = new Set(['toolDeviceCleanup', 'toolAppAccess', 'toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
+  const ENTRA_ONLY = new Set(['toolDeviceCleanup', 'toolAppAccess', 'toolHarden', 'toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
   const ENTRA_ROSTER = [
     { group: '🧱 Directory objects', tools: [
       // 32707: T59 Entra device cleanup (from TUNO T25), beside Groups
@@ -105,6 +106,10 @@
     // 32804: T60 App access review — the apps and their consent, for tenants without app governance
     { group: '🔌 Applications', tools: [
       { id: 'toolAppAccess', blurb: blurbs.toolAppAccess },
+    ] },
+    // 33008: T61 Securing M365 — the tenant's M365 security settings, checked and fixed
+    { group: '🛡 Tenant hardening', tools: [
+      { id: 'toolHarden', blurb: blurbs.toolHarden },
     ] },
     { group: '🌐 Global Secure Access', tools: [
       { id: 'toolGsa', blurb: blurbs.toolGsa },
@@ -130,7 +135,7 @@
       shortcuts: [['toolPimBaseline','🧬','Baseline'],['toolPimReport','📋','Report'],['toolPimDoc','📄','Docs'],['toolIntuneRbac','📱','Intune'],['toolPimRoles','🎖','Roles'],['toolCaGroups','👥','PIM groups'],['toolGroupUse','🔗','Who holds…'],['toolGapCheck','🛡','Checks'],['toolRmau','🛡','Admin units'],['toolPimDeploy','🚀','Deploy'],['toolAudit','🕓','Changes']] },
     entra: { num: '03', name: 'Entra Tools', title: 'Entra Tools overview', context: 'Entra Tools / Workspace 03',
       lead: 'The directory objects every workload leans on — groups first, with what uses each one: Conditional Access, PIM-buddy, Global Secure Access. 🌐 Global Secure Access starts with the Microsoft traffic profile; Internet Access and Private Access come later. The ⏳ temporary tools — dated retirements and decisions — live here too.',
-      shortcuts: [['toolCaGroups','👥','Groups'],['toolDeviceCleanup','🧹','Devices'],['toolAppAccess','🔑','Apps'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
+      shortcuts: [['toolCaGroups','👥','Groups'],['toolDeviceCleanup','🧹','Devices'],['toolAppAccess','🔑','Apps'],['toolHarden','🛡','Harden'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
   };
   const WS_IDS = Object.keys(WORKSPACES);
   // Which workspace a tool belongs to when it is opened from the wrong side:
@@ -262,7 +267,7 @@
     return Object.keys(WORKSPACES).filter(id => id !== ws).map(id => {
       const w = WORKSPACES[id], label = `⇄ Switch to ${w.num} · ${w.name}`;
       const sc = score ? score(label, q) : 1;
-      return sc ? { kind: 'tool', id: 'side-home', label, hint: `Workspace ${w.num} — ${id === 'pim' ? 'everything privileged access' : id === 'entra' ? 'groups and Global Secure Access' : 'the Conditional Access tools'}`, score: sc, go: () => setWorkspace(id) } : null;
+      return sc ? { kind: 'tool', id: 'side-home', label, hint: `Workspace ${w.num} — ${id === 'pim' ? 'everything privileged access' : id === 'entra' ? 'groups, apps, tenant hardening and Global Secure Access' : 'the Conditional Access tools'}`, score: sc, go: () => setWorkspace(id) } : null;
     }).filter(Boolean);
   }
   let setLib = () => {};

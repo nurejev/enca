@@ -182,6 +182,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 364,
+      ws: "entra",
+      title: "🛡 Securing M365 (T61): the tenant's Microsoft 365 settings against the CIS benchmark — fixed through Graph, DNS checked, the rest from a read-only script",
+      tools: ["Securing M365"],
+      builds: [33008],
+      risk: "medium",
+      files: ["js/m365harden.js", "js/app.js", "js/graph.js", "js/workspaces.js", "js/flat-icons.js", "index.html", "css/app.css", "tools/m365harden.test.cjs"],
+      what: "New js/m365harden.js (catalog of 161 rows, read, readDns, readPerUser, readShared, judge, plan, apply, runUndo, psScript, parsePs, markdown, demo). js/app.js the mh screen block and a TOOL_TABS row. js/graph.js silentScopes. index.html tile, screen-mh, Help section, roadmap R92, script tag, connect-src https://cloudflare-dns.com and the security note. Workspace 03 roster group 🛡 Tenant hardening with a shortcut. css .mh-*.",
+      why: "Mihai, 20 Oct 2026: need tool in the entra section, Securing M365 — review everything that can be done from the browser and add it to be checked and configured. Mockup review/2026-10-20/securing-m365 approved with four decisions (CIS refs on the publisher tenant only; Graph + DNS + the CA engine in phase 1; a generated read-only script; attestations in the tenant). Risk medium: the tool writes tenant-wide security settings — every write is planned, typed FIX, read back and undoable, but none has run against a live tenant yet.",
+      carveout: "The CIS numbers and levels are gated by isPublisherTenant on both channels. connect-src gains cloudflare-dns.com — a deliberate one-line CSP change that must go to main with the tool.",
+      test: [
+        "Beta, demo tenant: 03 → 🛡 Securing M365 opens and reads; tiles show Fix in browser 43, Check only 9, CA engine 17, Mail DNS 3, Portal — attest 16, PowerShell script 61, Fabric 12; no CIS numbers on the rows.",
+        "Beta, demo: tick Users cannot register applications, GA not local admin, Personal devices cannot enrol; Review the change plan shows three writes with impact and way back; type FIX, the ledger runs, the rows read Pass; ↩ Undo with UNDO puts them back.",
+        "devcf (cloudfellows.dev): the rows carry CIS numbers and L1/L2; 🔑 Read more areas asks once and fills SharePoint, Forms, Intune, PIM, access reviews; Mail DNS rows show per-domain SPF/DKIM/DMARC (if DNS is refused the row says so — CSP or CORS).",
+        "devcf: fix one harmless setting (Forms phishing scan, or Users cannot create tenants) — consent prompt for that write scope only, written, read back as Pass; ↩ Undo restores it.",
+        "devcf: 📜 Audit script, run it in PowerShell 7 with Global Reader + SharePoint Administrator; 📥 Load script result fills the Exchange, Purview, Teams rows; a result from another tenant is refused.",
+        "devcf: ✓ Attest LinkedIn connections with a reason; read again in another browser — the row reads Attested with the reason (organization extension nl.limonit.enca.hardening).",
+      ],
+    },
+    {
       n: 363,
       ws: "ca",
       title: "🧬 Baseline shows every policy on a CA number; 🧹 Housekeeping offers an Off older version beside the baseline's own for delete; the reload after an import reads unlisted new policies by id",
