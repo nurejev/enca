@@ -253,8 +253,8 @@
     // 32515: a tool that follows the workspace (T12's first scope) listens
     if (changed) document.dispatchEvent(new CustomEvent('enca:workspace-switched', { detail: { ws } }));
     if (changed && !opts.quiet) {
-      // A tool open on the other side stays open (its tab is only hidden);
-      // the screen goes to this side's home so rail, strip and page agree.
+      // A tool open on the other side stays open and its tab stays in the
+      // strip (33010); the screen goes to this side's home so rail and page agree.
       const active = $('toolNav').querySelector('.toolnav-tab.active [data-nav]')?.dataset.nav || '';
       if (active && !inWorkspace(active, ws)) $('side-home')?.click();
       else synchronize();
@@ -333,9 +333,13 @@
       const t=tools.find(t=>t.id===button.dataset.nav);
       if(t)button.innerHTML=icon(t.id)+`<span>${esc(nameIn(t.id, ws))}</span>`;
       button.setAttribute('aria-current',button.dataset.nav===active&&!home?'page':'false');
-      // A tab belongs to the workspace its tool is in; the other side's tabs
-      // stay open and come back with the switch (32407).
-      button.closest('.toolnav-tab').hidden = !inWorkspace(button.dataset.nav, ws);
+      // 33010 (Mihai: make the tools tab bar platform, so tools opened show in
+      // every workspace): every open tab shows on every side. A tab whose tool
+      // lives in another workspace carries that workspace's number; clicking it
+      // takes the shell there, as any tool of the other side does (32407).
+      const own = inWorkspace(button.dataset.nav, ws), tabWs = own ? ws : homeOf(button.dataset.nav);
+      if (t) button.innerHTML = icon(t.id) + `<span>${esc(nameIn(t.id, tabWs))}</span>` + (own ? '' : `<small class="wc-tab-ws" title="Workspace ${esc(WORKSPACES[tabWs].num)} · ${esc(WORKSPACES[tabWs].name)}">${esc(WORKSPACES[tabWs].num)}</small>`);
+      button.closest('.toolnav-tab').hidden = false;
     });
     $('wcCloseAll').disabled=!nav.querySelector('[data-close]');
     document.querySelectorAll('#toolNav [data-close]').forEach(button=>{

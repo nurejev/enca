@@ -177,6 +177,16 @@ test("the PowerShell script reads only, covers every PowerShell row, and its res
   assert.strictEqual(r.st, "fail"); assert.match(r.now, /False/);
 });
 
+test("Intune settings go back whole, the check-in threshold always 1–120 (devcf 400, 33010)", () => {
+  const S = H.demo(); S.intune.data = { "@odata.context": "x", secureByDefault: false, enhancedJailBreak: true };
+  const s = H.plan(S, ["intune-secure-default"], {}).steps[0];
+  assert.strictEqual(s.method, "PATCH");
+  assert.deepStrictEqual(s.body, { settings: { secureByDefault: true, enhancedJailBreak: true, deviceComplianceCheckinThresholdDays: 30, isScheduledActionEnabled: true } });
+  assert.strictEqual(s.undo.settings.secureByDefault, false);
+  S.intune.data.deviceComplianceCheckinThresholdDays = 45;
+  assert.strictEqual(H.plan(S, ["intune-secure-default"], {}).steps[0].body.settings.deviceComplianceCheckinThresholdDays, 45);
+});
+
 test("DNS verdicts", () => {
   assert.deepStrictEqual(H.spfVerdict({ spf: ["v=spf1 include:spf.protection.outlook.com ~all"] })[0], true);
   assert.deepStrictEqual(H.spfVerdict({ spf: ["v=spf1 include:spf.protection.outlook.com ?all"] })[0], false);

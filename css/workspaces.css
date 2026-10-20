@@ -240,3 +240,6 @@ body.workspaces-shell[data-ws="entra"] .ws-ca{display:none}
 .wc-help-chip:hover{border-color:var(--accent2)}.wc-help-chip>span{display:inline-flex;width:15px;height:15px}.wc-help-chip svg{width:15px;height:15px}
 @media(max-width:1200px){#wcOverviewTools.wc-compact .wc-tool-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){#wcOverviewTools.wc-compact .wc-tool-grid{grid-template-columns:minmax(0,1fr)}#wcOverviewTools.wc-compact .wc-tool{min-height:0;padding:10px 12px}}
+
+/* 33010: a tab from another workspace names it */
+.wc-tab-ws{font-size:10px;font-weight:700;line-height:1;border:1px solid var(--border);border-radius:5px;padding:2px 4px;margin-left:6px;color:var(--muted);letter-spacing:.03em}

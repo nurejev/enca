@@ -125,7 +125,8 @@ const M365Harden = (() => {
     caPolicies: { url: `${V1}/identity/conditionalAccess/policies`, all: true },
     appsSvc: { url: `${BETA}/admin/appsAndServices`, scope: "apps" },
     forms: { url: `${BETA}/admin/forms/settings`, scope: "forms" },
-    intune: { url: `${V1}/deviceManagement/settings`, scope: "intune" },
+    // beta: the whole settings object — the write sends it back whole (33010)
+    intune: { url: `${BETA}/deviceManagement/settings`, scope: "intune" },
     enroll: { url: `${BETA}/deviceManagement/deviceEnrollmentConfigurations`, scope: "enroll", all: true },
     spo: { url: `${V1}/admin/sharepoint/settings`, scope: "spo" },
     regDetails: { url: `${BETA}/reports/authenticationMethods/userRegistrationDetails?$filter=isMfaCapable eq false and userType eq 'member'&$select=id,userPrincipalName,userDisplayName,isAdmin,isMfaCapable`, scope: "audit", all: true },
@@ -510,7 +511,20 @@ const M365Harden = (() => {
     fix: { scopes: [W.intune, W.intuneCfg], role: "Intune Administrator",
       impact: "An enrolled device that no compliance policy targets becomes NOT compliant. With a 'require compliant device' Conditional Access policy those devices are blocked until a policy covers them — so check that every platform you enrol has a compliance policy assigned to all its devices first.",
       back: "PATCH secureByDefault back to false (the whole settings object is written back from the snapshot).",
-      ops: (S) => [op({ method: "PATCH", url: `${BETA}/deviceManagement`, source: "intune", seed: () => ({ settings: Object.assign(pick(S.intune.data || {}, ["deviceComplianceCheckinThresholdDays", "isScheduledActionEnabled", "secureByDefault"])) }), mutate: (b) => { b.settings.secureByDefault = true; }, undo: { settings: pick(S.intune.data || {}, ["deviceComplianceCheckinThresholdDays", "isScheduledActionEnabled", "secureByDefault"]) } })] } });
+      // 33010 (Mihai on devcf: 400 "DeviceComplianceCheckinThresholdDays must be
+      // between 1 and 120"): settings is a complex property, so a PATCH REPLACES it
+      // whole — a property left out comes back as 0. Send every property the read
+      // returned, and the check-in threshold always inside 1–120 (Intune's 30 when
+      // the read had none).
+      ops: (S) => [op({ method: "PATCH", url: `${BETA}/deviceManagement`, source: "intune", seed: () => ({ settings: intuneSettings(S.intune.data) }), mutate: (b) => { b.settings.secureByDefault = true; }, undo: { settings: intuneSettings(S.intune.data) } })] } });
+  function intuneSettings(d) {
+    const b = {};
+    for (const [k, v] of Object.entries(d || {})) if (!/^@odata/.test(k)) b[k] = clone(v);
+    const t = Number(b.deviceComplianceCheckinThresholdDays);
+    b.deviceComplianceCheckinThresholdDays = t >= 1 && t <= 120 ? t : 30;
+    if (typeof b.isScheduledActionEnabled !== "boolean") b.isScheduledActionEnabled = true;
+    return b;
+  }
   const ENROLL_P = [["windowsRestriction", "Windows"], ["iosRestriction", "iOS"], ["androidRestriction", "Android"], ["androidForWorkRestriction", "Android Enterprise"], ["macOSRestriction", "macOS"]];
   const defaultRestriction = (S) => (S.enroll.data || []).find((c) => /DefaultPlatformRestrictions/i.test(c.id || "") && (c.priority === 0 || c.priority == null) && /platformRestrictionsConfiguration/i.test(c["@odata.type"] || ""));
   add({ k: "intune-byod-block", cis: "4.2", lvl: 1, area: "devices", reach: "fix", t: "Personal devices cannot enrol by default", tgt: "personal blocked on every platform",
@@ -1180,7 +1194,7 @@ const M365Harden = (() => {
   return {
     BENCH, CATALOG_REV, EXT, EXT_MAX, PS_SCHEMA, AREAS, REACH, STATUS, RSCOPE, SOURCES, SOURCE_LABEL, CATALOG, byKey, ROLE,
     read, readPerUser, readShared, readDns, mailDomains, spfVerdict, dmarcVerdict, judge, plan, apply, runUndo, sourcesOf, parseRecord, recordBody,
-    psScript, parsePs, markdown, demo, licence, deepMerge,
+    psScript, parsePs, markdown, demo, licence, deepMerge, intuneSettings,
   };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = M365Harden;

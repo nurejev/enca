@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 366,
+      ws: "platform",
+      title: "The tool tab strip is platform: open tools show in every workspace, a tab from another workspace carries its number",
+      tools: ["Workspaces"],
+      builds: [33010],
+      risk: "low",
+      files: ["js/workspaces.js", "css/workspaces.css", "index.html"],
+      what: "js/workspaces.js synchronize: a tab is never hidden by workspace any more; a tab whose tool lives elsewhere gets small.wc-tab-ws with that workspace's number and the tool's name from its own workspace. Clicking it opens the tool and the existing rule (a tool of the other side takes the shell with it, 32407) switches the workspace. css .wc-tab-ws. Help bullet on the workspaces.",
+      why: "Mihai, 20 Oct 2026: make the tools tab bar platform, so tools opened show in every workspace. Risk low: presentation of the existing tabs only; the workspace switch on click is the 32407 behaviour.",
+      carveout: "Ports with the workspace shell; no tenant writes.",
+      test: [
+        "Beta, demo: open 🛡 Securing M365 in 03, switch to 01 — the tab stays, marked 03; open Policies — both tabs show.",
+        "Click the Securing M365 tab in 01: the shell switches to 03 and the screen opens; the Policies tab now carries 01.",
+        "Close a tab from another workspace with ×: it closes; Close all closes every tab on every side.",
+      ],
+    },
+    {
       n: 365,
       ws: "entra",
       title: "03 · Entra Tools overview compact: three groups, three cards to a row, Help as chips",
@@ -204,7 +221,7 @@ const PROMOTE = {
       ws: "entra",
       title: "🛡 Securing M365 (T61): the tenant's Microsoft 365 settings against the CIS benchmark — fixed through Graph, DNS checked, the rest from a read-only script",
       tools: ["Securing M365"],
-      builds: [33008],
+      builds: [33008, 33010],
       risk: "medium",
       files: ["js/m365harden.js", "js/app.js", "js/graph.js", "js/workspaces.js", "js/flat-icons.js", "index.html", "css/app.css", "tools/m365harden.test.cjs"],
       what: "New js/m365harden.js (catalog of 161 rows, read, readDns, readPerUser, readShared, judge, plan, apply, runUndo, psScript, parsePs, markdown, demo). js/app.js the mh screen block and a TOOL_TABS row. js/graph.js silentScopes. index.html tile, screen-mh, Help section, roadmap R92, script tag, connect-src https://cloudflare-dns.com and the security note. Workspace 03 roster group 🛡 Tenant hardening with a shortcut. css .mh-*.",
@@ -214,6 +231,7 @@ const PROMOTE = {
         "Beta, demo tenant: 03 → 🛡 Securing M365 opens and reads; tiles show Fix in browser 43, Check only 9, CA engine 17, Mail DNS 3, Portal — attest 16, PowerShell script 61, Fabric 12; no CIS numbers on the rows.",
         "Beta, demo: tick Users cannot register applications, GA not local admin, Personal devices cannot enrol; Review the change plan shows three writes with impact and way back; type FIX, the ledger runs, the rows read Pass; ↩ Undo with UNDO puts them back.",
         "devcf (cloudfellows.dev): the rows carry CIS numbers and L1/L2; 🔑 Read more areas asks once and fills SharePoint, Forms, Intune, PIM, access reviews; Mail DNS rows show per-domain SPF/DKIM/DMARC (if DNS is refused the row says so — CSP or CORS).",
+        "devcf (33010): fix Devices with no compliance policy are marked not compliant — the write lands (no 400 about DeviceComplianceCheckinThresholdDays) and the Intune portal still shows the same check-in threshold; Undo puts secureByDefault back.",
         "devcf: fix one harmless setting (Forms phishing scan, or Users cannot create tenants) — consent prompt for that write scope only, written, read back as Pass; ↩ Undo restores it.",
         "devcf: 📜 Audit script, run it in PowerShell 7 with Global Reader + SharePoint Administrator; 📥 Load script result fills the Exchange, Purview, Teams rows; a result from another tenant is refused.",
         "devcf: ✓ Attest LinkedIn connections with a reason; read again in another browser — the row reads Attested with the reason (organization extension nl.limonit.enca.hardening).",

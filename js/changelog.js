@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33010, date: "2026-10-20", title: "Securing M365: the Intune default fix; open tools in every workspace",
+    items: [
+      { kind: "fixed", tool: "Securing M365", text: "Fixing Devices with no compliance policy are marked not compliant failed on a real tenant with a 400 about the compliance check-in threshold. Intune replaces its whole settings object on a write, so the fix now reads all of it and sends all of it back with only that one setting changed; the undo writes the same object back." },
+      { kind: "improved", tool: "Workspaces", text: "The tab strip is shared by every workspace: a tool you opened stays in the strip when you switch to 01, 02 or 03. A tab from another workspace shows that workspace's number, and clicking it takes you there." },
+    ],
+  },
+  {
     build: 33009, date: "2026-10-20", title: "Workspace 03: a shorter overview",
     items: [
       { kind: "improved", tool: "Workspaces", text: "The 03 · Entra Tools overview fits on one screen. Its six groups are now three — Directory & apps (Groups, Entra device cleanup, App access review), Security posture (Securing M365, Global Secure Access) and Temporary tools — shown as compact cards three to a row with two lines of description, and Help is one row of chips instead of four cards. 01 and 02 are unchanged." },
