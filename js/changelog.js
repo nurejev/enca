@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33006, date: "2026-10-20", title: "Import: a new service principal no longer fails its policy",
+    items: [
+      { kind: "fixed", tool: "Import", text: "A policy that names an app whose service principal the run has just created (SMB CA001 and Azure Windows VM Sign-In, the Defender mobile apps in CA009, CA103, CA203, CA204) was refused with a bare 400, because Conditional Access did not know the new service principal yet. The import now waits for it, up to about 1.5 minutes, and posts the policy again; nothing is created twice, because a refused create creates nothing." },
+      { kind: "improved", tool: "Import", text: "The pre-flight names the applications the policies use that have no service principal in the tenant yet, and which policies use them." },
+    ],
+  },
+  {
     build: 33005, date: "2026-10-20", title: "SMB Basic: the shared-device group is dynamic",
     items: [
       { kind: "fixed", tool: "Baseline", text: "SMB Basic creates CAB-SEC-U-TeamsSharedDevices as a dynamic group, as the CloudFellows baseline does: its members are the accounts holding a service plan that only device licences carry (Teams Rooms, Teams Shared Space phones, Teams Phone resource accounts). It was created as an empty assigned group. Teams devices tunes the rule to the tenant's own licences." },

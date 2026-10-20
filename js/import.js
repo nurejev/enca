@@ -1216,9 +1216,16 @@ const Importer = (() => {
       let present = new Set();
       try { present = await Graph.existingAppIds(apps); } catch (e) { console.warn("app check failed", e.message); }
       const missing = apps.filter((a) => !present.has(a));
+      // 33006: a service principal made here is not yet known to Conditional
+      // Access — gimi, 20 Oct 2026: three created at 06:21:18-19, CA001 (it
+      // excludes Azure Windows VM Sign-In) posted a second later and got a
+      // bare 400. Remember which ones are fresh, and when: importPolicies
+      // waits for them instead of failing the policy.
+      maps.freshApps = maps.freshApps || new Map();
       for (const appId of missing) {
         try {
           const sp = await Graph.createServicePrincipal(appId);
+          maps.freshApps.set(appId, Date.now());
           log.created.push(`Service principal: ${sp.displayName || appId} (${appId})`);
         } catch (e) {
           maps.missingApps.add(appId);
@@ -1946,6 +1953,18 @@ const Importer = (() => {
       if (err) add("locations", "warn", "Named locations could not be read", err);
       else add("locations", "ok", "Named locations", locs.map((x) => `${x.displayName}: ${have.some((h) => h.displayName === x.displayName) ? "found" : "created"}`).join(" · "));
     }
+    // 33006: applications named by id need a service principal here
+    const refApps = appRefs(chosen.map((p) => p.raw || {}));
+    if (refApps.length) {
+      let have = null, err = null;
+      try { have = await Graph.existingAppIds(refApps); } catch (e) { err = e.message || String(e); }
+      const lack = have ? refApps.filter((a) => !have.has(a)) : [];
+      const users = (ids) => chosen.filter((p) => appRefs([p.raw || {}]).some((a) => ids.includes(a))).map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]);
+      if (err) add("apps", "info", "Service principals could not be read", `${err} — any of ${refApps.map(appLabel).join(", ")} missing here is created by the run.`);
+      else if (lack.length) add("apps", "warn", `${lack.length} application${lack.length === 1 ? " has" : "s have"} no service principal here — created first by the run`,
+        `${lack.map(appLabel).join(", ")} (named by ${users(lack).join(", ")}). Conditional Access only accepts an app it knows, and it takes a little while to know a new one: a policy naming one waits up to about 1.5 minutes for it. Needs Application.ReadWrite.All; if that is refused, the policy is created without that app reference and the report says so.`, { apps: lack });
+      else add("apps", "ok", "Every application the policies name has a service principal here", refApps.map(appLabel).join(", "));
+    }
     if (usedL.has(COMPLIANT_NETWORK_ID)) {
       const cn = chosen.filter((p) => JSON.stringify((p.raw && p.raw.conditions && p.raw.conditions.locations) || {}).toLowerCase().includes(COMPLIANT_NETWORK_ID)).map((p) => p.name);
       let sig = null, err = null;
@@ -2084,6 +2103,33 @@ const Importer = (() => {
     return { names: out, error };
   }
 
+  // 33006: POST a policy; when it names a service principal this run has just
+  // created and Graph answers 400, Conditional Access has not caught up with
+  // that service principal yet. A 400 creates nothing, so posting again is
+  // safe: wait and retry, up to about 1.5 minutes after the create.
+  const FRESH_WAITS = [5000, 10000, 15000, 20000, 30000];
+  const FRESH_MIN_AGE = 15000;
+  async function postFresh(staged, name, maps, onStatus, waits) {
+    const w = waits || FRESH_WAITS;
+    const fresh = appRefs([staged]).filter((id) => maps && maps.freshApps && maps.freshApps.has(id));
+    const scopes = [...AUTH_CONFIG.scopes, ...WRITE];
+    if (!fresh.length) return Graph.gpost("/identity/conditionalAccess/policies", staged, scopes);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const label = fresh.map((id) => appLabel(id).replace(/ \([0-9a-f-]{36}\)$/i, "")).join(", ");
+    // give Conditional Access a head start before the first try
+    const age = Date.now() - Math.max(...fresh.map((id) => maps.freshApps.get(id)));
+    const head = waits ? 0 : Math.max(0, FRESH_MIN_AGE - age);
+    if (head > 0) { onStatus?.(`${name}: waiting for Conditional Access to see the new service principal for ${label}…`); await sleep(head); }
+    for (let n = 0; ; n++) {
+      try { return await Graph.gpost("/identity/conditionalAccess/policies", staged, scopes); }
+      catch (e) {
+        if (!/\(400\)|BadRequest/i.test(e.message || "") || n >= w.length) throw e;
+        onStatus?.(`${name}: Conditional Access does not know the new service principal for ${label} yet — trying again in ${Math.round(w[n] / 1000)} s…`);
+        await sleep(w[n]);
+      }
+    }
+  }
+
   async function importPolicies(items, maps, onStatus, opts = {}) {
     const replace = opts.mode === "replace", switching = opts.mode === "switch", shipped = opts.mode === "shipped";
     const results = [], warnings = [], deferred = [], stateRetry = [];
@@ -2140,7 +2186,7 @@ const Importer = (() => {
         const staged = { ...payload, state: "disabled" };
         let created;
         try {
-          created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
+          created = await postFresh(staged, it.name, maps, onStatus, opts.freshWaits);
         } catch (e1) {
           // A 400 creates nothing, so one retry is safe — and only for the one
           // part of an agent policy Graph documents nowhere: the agent
@@ -2199,7 +2245,9 @@ const Importer = (() => {
             .filter((x) => /^[0-9a-f]{8}-/i.test(x));
           const bits = [];
           const unknown = refs.filter((x) => maps.missingApps?.has(String(x).toLowerCase()));
+          const fresh = refs.filter((x) => maps.freshApps?.has(String(x).toLowerCase()));
           if (unknown.length) bits.push(`this tenant has no service principal for ${unknown.map(appLabel).join(", ")}`);
+          else if (fresh.length) bits.push(`this run created the service principal for ${fresh.map(appLabel).join(", ")} and Conditional Access had still not seen it after the waits. Nothing was created for this policy: run the import again in a few minutes — it creates only what is missing`);
           else if (refs.length) bits.push(`it references ${refs.length} application(s) by id — each needs a service principal in this tenant`);
           if (isWorkloadIdentity(it.raw)) bits.push("it is a workload-identity policy, which cannot also carry a user or group scope");
           if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");
@@ -2470,5 +2518,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates };
+  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh };
 })();

@@ -4566,6 +4566,7 @@
       { key: "capacity", level: "ok", title: `16 + ${items.length} new = ${16 + items.length} of 240`, detail: "" },
       { key: "strengths", level: "ok", title: "Authentication strengths", detail: "SMB - Passkey (FIDO2): the tenant's “SMB - FIDO2 security key” has the same methods — reused" },
       { key: "passkey", level: "warn", title: "The Passkey (FIDO2) method is off in this tenant", detail: "CA901 asks for a passkey and nothing else." },
+      { key: "apps", level: "warn", title: "3 applications have no service principal here — created first by the run", detail: "Azure Windows VM Sign-In, MicrosoftDefenderATP XPlat, Microsoft Defender for Mobile TVM (named by CA001, CA009, CA103, CA203, CA204). A policy naming one waits up to about 1.5 minutes for Conditional Access to know it." },
       { key: "gsa", level: "info", title: "Global Secure Access signalling is off", detail: "5 policies use the compliant network location — created all the same, Off." },
       { key: "breakglass", level: "ok", title: "CAB-SEC-U-BreakGlass: 2 members", detail: "" },
       { key: "devreg", level: "warn", title: "Device setting “Require MFA to register or join devices” is Yes", detail: "CA007 is not enforced while it is — set it to No (Entra ID → Devices → Device settings)." },

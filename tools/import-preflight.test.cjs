@@ -21,12 +21,13 @@ function world(opts = {}) {
   const id = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`;
   const groups = new Map(), pols = new Map(), posts = [], patches = [];
   const tenant = (opts.tenant || []).map((p) => ({ ...p }));   // what a list read returns
-  const notYet = new Map(Object.entries(opts.notYet || {}));     // name prefix -> how many state writes answer 404
+  const notYet = new Map(Object.entries(opts.notYet || {}));
+  const madeSp = new Set(); let caLag = opts.caLag || 0;   // 33006: SPs made by the run; how many creates CA refuses before it knows them     // name prefix -> how many state writes answer 404
   const strip = (o) => Array.isArray(o) ? o.map(strip) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).filter(([k]) => !k.includes('@odata')).map(([k, v]) => [k, strip(v)])) : o;
   const Graph = {
-    async existingAppIds(ids) { return new Set(ids); },
-    async createServicePrincipal(appId) { return { displayName: appId }; },
+    async existingAppIds(ids) { const no = new Set((opts.noSp || []).filter((a) => !madeSp.has(a))); return new Set(ids.filter((a) => !no.has(a))); },
+    async createServicePrincipal(appId) { if (opts.spRefused) throw new Error('Graph request failed (403): Authorization_RequestDenied'); madeSp.add(appId); return { displayName: appId }; },
     async ggetAll(url) {
       const m = /displayName eq '(.*?)'/.exec(decodeURIComponent(url));
       if (url.startsWith('/groups/') && url.includes('/members')) return opts.bgMembers || [];
@@ -41,6 +42,8 @@ function world(opts = {}) {
     async gpost(url, body) {
       posts.push([url, structuredClone(body)]);
       if (url === '/directoryObjects/getByIds') return { value: body.ids.filter((x) => groups.has(x)).map((x) => ({ id: x })) };
+      if (url === '/identity/conditionalAccess/policies' && opts.always400 && body.displayName.startsWith(opts.always400)) throw new Error('Graph request failed (400): BadRequest');
+      if (url === '/identity/conditionalAccess/policies' && caLag > 0 && JSON.stringify(body.conditions || {}).toLowerCase().split('"').some((x) => madeSp.has(x))) { caLag--; throw new Error('Graph request failed (400): The server could not process the request because it is malformed or incorrect. · code: BadRequest'); }
       if (url === '/identity/conditionalAccess/policies') { const p = { ...structuredClone(body), id: id() }; pols.set(p.id, p); return { id: p.id }; }
       if (/authenticationStrengthPolicies/.test(url) && opts.strengthCreateFails) throw new Error('Graph request failed (400): strength refused');
       return { id: id() };
@@ -78,7 +81,7 @@ function world(opts = {}) {
     localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) }, document: { dispatchEvent() {} }, CustomEvent: class {},
     Render: { caGroup }, AUTH_CONFIG: { scopes: [] }, BRANDING: { name: 'ENCA' }, Graph, Assign };
   vm.createContext(box);
-  const src = ['groupTemplates.js', 'baselineData.js', 'baselineJoeyData.js', 'baselineSmbData.js', 'baseline.js', 'import.js'].map((f) => read(f)).join('\n;\n');
+  const src = ['mslearn.js', 'groupTemplates.js', 'baselineData.js', 'baselineJoeyData.js', 'baselineSmbData.js', 'baseline.js', 'import.js'].map((f) => read(f)).join('\n;\n');
   vm.runInContext(`${src}\n;globalThis.I = Importer; globalThis.S = BASELINE_SMB;`, box);
   return { I: box.I, S: box.S, groups, pols, posts, patches };
 }
@@ -289,4 +292,49 @@ test('🛫 pre-flight, 33005: a dynamic group this file creates that exists here
   assert.match(stat[0].title, /exists here as an assigned group/);
   const dyn = await pf({ groups: [{ id: 'x', displayName: 'CAB-SEC-U-TeamsSharedDevices', groupTypes: ['DynamicMembership'] }] });
   assert.equal(dyn[0].level, 'ok');
+});
+
+// 33006 — gimi, 20 Oct 2026: the run created the service principals for Azure
+// Windows VM Sign-In, Defender XPlat and Defender TVM at 06:21:18-19 and posted
+// CA001 (it excludes VM Sign-In) a second later: a bare 400, CA001 refused.
+const VM = '372140e0-b3b7-4226-8ef9-d57986796201', XPLAT = 'a0e84e36-b067-4d5c-ab4a-3db38e598ae2', TVM = 'e724aa31-0f56-4018-b8be-f8cb82ca1196';
+const quick = [1, 1, 1];
+
+test('33006, gimi 20 Oct: a policy naming a service principal this run just created waits for Conditional Access instead of failing', async () => {
+  const w = world({ noSp: [VM, XPLAT, TVM], caLag: 2 });
+  const { res, dep } = await smbRun(w, { freshWaits: quick }, ['CA001', 'CA002']);
+  assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => r.name)), []);
+  assert.equal(stateOf(w, 'CA001'), 'enabledForReportingButNotEnforced');
+  assert.equal(w.posts.filter(([u, b]) => u === '/identity/conditionalAccess/policies' && b.displayName.startsWith('CA001')).length, 3, 'two refused, the third created');
+  assert.ok(dep.maps.freshApps.has(VM));
+});
+
+test('33006: still unknown after the waits — nothing created, the reason names the new service principal and says run again', async () => {
+  const w = world({ noSp: [VM], caLag: 99 });
+  const { res } = await smbRun(w, { freshWaits: quick }, ['CA001']);
+  const r = res.results[0];
+  assert.equal(r.ok, false);
+  assert.equal(r.createdId, null);
+  assert.match(r.error, /created the service principal for Azure Windows VM Sign-In/);
+  assert.match(r.error, /run the import again in a few minutes/);
+  assert.equal([...w.pols.values()].length, 0);
+});
+
+test('33006: a 400 on a policy that names no new service principal is not retried', async () => {
+  const w = world({ always400: 'CA002' });
+  const { res } = await smbRun(w, { freshWaits: quick }, ['CA002']);
+  assert.equal(res.results[0].ok, false);
+  assert.equal(w.posts.filter(([u]) => u === '/identity/conditionalAccess/policies').length, 1);
+});
+
+test('🛫 pre-flight, 33006: applications with no service principal here are named, with the policies that use them', async () => {
+  const pf = async (o) => { const w = world(o); const p = w.I.prepareBundle(w.S.bundle()); return (await w.I.preflight(p, w.I.plan(p, []), { tenantKey: `sp${Math.random()}` })).checks.find((c) => c.key === 'apps'); };
+  const miss = await pf({ noSp: [VM, TVM] });
+  assert.equal(miss.level, 'warn');
+  assert.match(miss.title, /2 applications have no service principal here/);
+  assert.match(miss.detail, /Azure Windows VM Sign-In/);
+  assert.match(miss.detail, /CA001/);
+  assert.deepEqual(plain(miss.apps).sort(), [VM, TVM].sort());
+  const ok = await pf({});
+  assert.equal(ok.level, 'ok');
 });

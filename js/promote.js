@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 362,
+      ws: "ca",
+      title: "📥 Import: a policy naming a service principal the run just created waits for Conditional Access; pre-flight names the missing service principals",
+      tools: ["Import"],
+      builds: [33006],
+      risk: "low",
+      files: ["js/import.js", "js/app.js", "index.html", "tools/import-preflight.test.cjs"],
+      what: "js/import.js: ensureDependencies keeps maps.freshApps (appId -> time created); postFresh posts the policy and, when it names a fresh service principal and Graph answers 400, waits (head start to 15 s after the create, then 5, 10, 15, 20, 30 s) and posts again; the 400 hint says the service principal was created by this run. Pre-flight check apps (existingAppIds on the policies' app ids). app.js demo row. Tests (4).",
+      why: "gimi, 20 Oct 2026: the run created the service principals for Azure Windows VM Sign-In, Defender XPlat and Defender TVM at 06:21:18-19 and posted CA001 a second later; Graph answered a bare 400 and CA001 v1.0.3 was refused.",
+      carveout: "None beyond the usual.",
+      test: [
+        "A test tenant without the Azure Windows VM Sign-In service principal: the pre-flight names it and CA001; import SMB Basic; the status line says it is waiting, CA001 is created.",
+        "A tenant where all service principals exist: pre-flight ok, no wait.",
+        "gimi: run the import again; CA001 v1.0.3 is created, the rest are already here.",
+      ],
+    },
+    {
       n: 361,
       ws: "ca",
       title: "🏢 SMB Basic: CAB-SEC-U-TeamsSharedDevices created dynamic, as in the CloudFellows baseline; pre-flight flags an assigned one",
