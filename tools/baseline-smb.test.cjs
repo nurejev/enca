@@ -69,7 +69,7 @@ test('the catalog: 19 policies in four sections, numbered where every tool reads
   assert.equal(S.policies.length, 19);
   assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 101, 102, 103, 104, 201, 202, 203, 204, 205, 901]);
   for (const p of S.policies) {
-    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[1-4])?$/, p.name);
+    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[1-5])?$/, p.name);
     assert.equal(S.personaOfPolicy(S, p.name) != null, true, `${p.name} has a section`);
   }
   assert.equal(new Set(S.policies.map((p) => p.name)).size, 19, 'names are unique');
@@ -267,7 +267,7 @@ test('32817 gap matrix under SMB Basic: sections, not CloudFellows personas — 
 
 test('32817 a tenant on 1.0: the eight changed policies read Outdated, and Match & replace brings the sync-role exclusion along', async () => {
   const w = world();
-  const v10 = (n) => n.replace(/-v1\.0\.[1-4]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
+  const v10 = (n) => n.replace(/-v1\.0\.[1-5]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
   // 1.0 had no CA007 and CA008 (added in 1.0.2)
   const tenant = w.S.bundle().policies.filter((p) => !/^CA(00[789]|205)-/.test(p.displayName)).map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
   for (const t of tenant) { delete t.conditions.users.excludeRoles; t.state = 'enabledForReportingButNotEnforced'; w.pols.set(t.id, t); }
@@ -290,7 +290,7 @@ test('1.0.2 (the guide\'s Appendix 1): CA005 adds the admin portals, CA007 guard
   const { S } = world();
   const b = S.bundle();
   const by = (n) => b.policies.find((p) => p.displayName.startsWith(n));
-  assert.equal(S.release, '1.0.4');
+  assert.equal(S.release, '1.0.5');
   assert.deepEqual(plain(by('CA005').conditions.applications.includeApplications), ['MicrosoftAdminPortals', '797f4846-ba00-4fd7-ba43-dac1f8f63013']);
   const ca7 = by('CA007');
   assert.equal(ca7.displayName, 'CA007-GRANT-SMB-Global-RegisterOrJoinDevices-AnyPlatform-MFA-v1.0.2');
@@ -358,13 +358,32 @@ test('1.0.4 CA009: app protection on iOS and Android, with the exclusions it nee
   const { S } = world();
   const b = S.bundle();
   const p = b.policies.find((x) => x.displayName.startsWith('CA009'));
-  assert.equal(p.displayName, 'CA009-GRANT-SMB-Global-AnyApp-iOSorAndroid-AppProtection-v1.0.4');
+  assert.equal(p.displayName, 'CA009-GRANT-SMB-Global-AnyApp-iOSorAndroid-AppProtection-v1.0.5');
   assert.deepEqual(plain(p.grantControls.builtInControls), ['compliantApplication'], 'approved client app retired 30 June 2026');
   assert.deepEqual(plain(p.conditions.platforms.includePlatforms), ['iOS', 'android']);
   assert.deepEqual(plain(p.conditions.applications.includeApplications), ['All']);
-  assert.deepEqual(plain(p.conditions.applications.excludeApplications), ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196'], 'the Defender mobile apps only — no Intune exclusion');
+  assert.deepEqual(plain(p.conditions.applications.excludeApplications), ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196', 'ea890292-c8c8-4433-b5ea-b09d0668e1a6'], 'the Defender mobile apps and Azure Credential Configuration Endpoint Service — no Intune exclusion');
+  for (const n of ['CA103', 'CA203', 'CA204']) assert.ok(b.policies.find((x) => x.displayName.startsWith(n)).conditions.applications.excludeApplications.includes('ea890292-c8c8-4433-b5ea-b09d0668e1a6'), `${n}: passkeys in Authenticator on a phone`);
+  for (const n of ['CA201', 'CA202', 'CA205']) assert.ok(!b.policies.find((x) => x.displayName.startsWith(n)).conditions.applications.excludeApplications.includes('ea890292-c8c8-4433-b5ea-b09d0668e1a6'), `${n}: no phone, no exclusion`);
   const gname = Object.fromEntries(b.groups.map((g) => [g.id, g.displayName]));
   assert.deepEqual(plain(p.conditions.users.excludeGroups.map((g) => gname[g]).sort()), ['CAB-SEC-U-BreakGlass', 'CAB-SEC-U-SMB-CA009-Exclusion', 'CAB-SEC-U-TeamsSharedDevices']);
   assert.ok(p.conditions.users.excludeGuestsOrExternalUsers, 'guests out');
   assert.equal(b.forceOff.includes(p.displayName), false);
+});
+
+test('📘 the new MS Learn check: app protection on all resources without Azure Credential Configuration Endpoint Service is a finding, with a fix', () => {
+  const box = { console, Set, Map, JSON, Math, Date, Array, Object, Number, String, RegExp, Error };
+  vm.createContext(box);
+  vm.runInContext("const Baseline = undefined; function toolHead(){ return ''; }", box);
+  vm.runInContext(read('mslearn.js') + '\n;globalThis.M = MSLearn;', box);
+  const { M } = box;
+  const pol = (exc, plat) => ({ id: 'p', displayName: 'APP', state: 'enabled', conditions: { users: { includeUsers: ['All'], excludeGroups: ['bg'] }, applications: { includeApplications: ['All'], excludeApplications: exc }, platforms: plat }, grantControls: { operator: 'OR', builtInControls: ['compliantApplication'] } });
+  const hit = (p) => M.run([p], new Map(), { includeDisabled: true }).filter((f) => f.check.id === 'authenticator-passkey-app-protection');
+  assert.equal(hit(pol([], { includePlatforms: ['iOS', 'android'] })).length, 1);
+  assert.equal(hit(pol(['ea890292-c8c8-4433-b5ea-b09d0668e1a6'], { includePlatforms: ['iOS', 'android'] })).length, 0);
+  assert.equal(hit(pol([], { includePlatforms: ['windows'] })).length, 0, 'not on Windows');
+  const f = hit(pol([], { includePlatforms: ['iOS'] }))[0];
+  const d = JSON.parse(JSON.stringify(pol([], { includePlatforms: ['iOS'] })));
+  assert.match(f.check.fix(d).join(' '), /Azure Credential Configuration Endpoint Service/);
+  assert.deepEqual(d.conditions.applications.excludeApplications, ['ea890292-c8c8-4433-b5ea-b09d0668e1a6']);
 });

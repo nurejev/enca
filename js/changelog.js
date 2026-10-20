@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33004, date: "2026-10-20", title: "SMB Basic 1.0.5: passkeys in Authenticator past app protection",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "SMB Basic CA009 leaves out Azure Credential Configuration Endpoint Service, as every CloudFellows app protection policy does: Microsoft Authenticator cannot meet app protection, so without it nobody could create a passkey in Authenticator. The same resource is left out of CA103, CA203 and CA204, the policies a phone meets." },
+      { kind: "new", tool: "MS Learn checks", text: "A new check: a policy that requires app protection for all resources on iOS or Android without excluding Azure Credential Configuration Endpoint Service stops passkeys being created in Microsoft Authenticator. Fix adds the exclusion." },
+    ],
+  },
+  {
     build: 33003, date: "2026-10-20", title: "SMB Basic 1.0.4: app protection on phones and tablets",
     items: [
       { kind: "new", tool: "Baseline", text: "SMB Basic CA009: on iOS and Android only apps under an Intune app protection policy reach company data (Outlook, Teams, Edge, the Office apps); the built-in mail app, Safari and Chrome are refused. Guests, the shared-device group and the Defender mobile apps are left out; it uses Require app protection policy alone, because Require approved client app was retired on 30 June 2026." },

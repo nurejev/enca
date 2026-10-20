@@ -182,6 +182,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 360,
+      ws: "ca",
+      title: "🏢 SMB Basic 1.0.5: Azure Credential Configuration Endpoint Service out of CA009, CA103, CA203, CA204; 📘 a new MS Learn check for it",
+      tools: ["Baseline", "MS Learn checks"],
+      builds: [33004],
+      risk: "low",
+      files: ["js/baselineSmbData.js", "js/mslearn.js", "index.html", "tools/baseline-smb.test.cjs"],
+      what: "js/baselineSmbData.js: CRED_CONFIG ea890292-c8c8-4433-b5ea-b09d0668e1a6, EXCLUDE.passkey [9, 103, 203, 204], versions 9/103/203/204 at 1.0.5, catalog 1.0.5. js/mslearn.js: CRED_CONFIG and the check authenticator-passkey-app-protection (active, all resources, compliantApplication, reaches iOS or Android, not excluded) with a fix that adds the exclusion.",
+      why: "Mihai, 20 Oct: app protection policies should exclude Azure Credential Configuration Endpoint Service — check CloudFellows, adjust accordingly. CloudFellows CA108, CA212, CA307, CA1003 and CA215-CA218 exclude it; Learn: Authenticator does not support app protection, so an all-resources app protection policy blocks passkey creation in it.",
+      carveout: "None beyond the usual.",
+      test: [
+        "A tenant with SMB 1.0.5 CA009 On: a user creates a passkey in Microsoft Authenticator on a BYOD phone; Outlook still needs app protection.",
+        "📘 MS Learn on a tenant with an all-resources app protection policy that lacks the exclusion: the new finding appears and Fix adds the exclusion.",
+      ],
+    },
+    {
       n: 359,
       ws: "ca",
       title: "🏢 SMB Basic 1.0.4: CA009 app protection on iOS and Android with its exclusions; pre-flight checks the app protection policies",

@@ -92,6 +92,7 @@ const BASELINE_SMB = (() => {
   const AZURE_VM_SIGNIN = "372140e0-b3b7-4226-8ef9-d57986796201";   // Azure Windows VM Sign-In
   const DEFENDER_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";    // MicrosoftDefenderATP XPlat
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";      // Microsoft Defender for Mobile TVM
+  const CRED_CONFIG = "ea890292-c8c8-4433-b5ea-b09d0668e1a6";       // Azure Credential Configuration Endpoint Service
 
   // The guest-and-external clause: every type, every tenant. Written with
   // the derived type Graph needs on a create (see js/builder.js guestClause).
@@ -118,9 +119,13 @@ const BASELINE_SMB = (() => {
     1: "1.0.3", 3: "1.0.3", 8: "1.0.3", 103: "1.0.3", 201: "1.0.3", 202: "1.0.3", 203: "1.0.3", 204: "1.0.3", 205: "1.0.3",
     // 1.0.4 (Mihai 20 Oct: "also make sure the app protection is there with
     // the right exclusions") — CA009
-    9: "1.0.4" };
+    9: "1.0.5",
+    // 1.0.5 (Mihai 20 Oct: app protection policies should exclude Azure
+    // Credential Configuration Endpoint Service — check CloudFellows): the
+    // policies a phone meets with Authenticator on it
+    103: "1.0.5", 203: "1.0.5", 204: "1.0.5" };
   // the catalog's own release: the newest policy version in it
-  const CATALOG_RELEASE = "1.0.4";
+  const CATALOG_RELEASE = "1.0.5";
   const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3" };
   const add = (num, kind, persona, words, entry, raw) => {
     const version = VERSION[num] || RELEASE;
@@ -205,12 +210,15 @@ const BASELINE_SMB = (() => {
   //                   Secure Access client; they are not app-protection apps
   //                   (Learn, Defender for Endpoint mobile, CA exclusions)
   //   sync roles    — the all-users all-resources rule of this catalog
+  //   Azure Credential Configuration Endpoint Service — where Authenticator
+  //                   creates a passkey; Authenticator cannot meet app
+  //                   protection (1.0.5, as every CloudFellows APP policy)
   // NOT excluded: Microsoft Intune / Intune Enrollment (BYOD here is not
   // enrolled; the app protection service itself is immune to Conditional
   // Access) — every extra app exclusion is a hole.
   add(9, "GRANT", "Global", "AnyApp-iOSorAndroid-AppProtection",
     { persona: "🌐 Base", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources", network: "Any network or location", conditions: ["Platforms: iOS, Android", "Client apps: Any client app"], grant: "Require app protection policy", block: false, session: "",
-      description: "On a phone or tablet only apps under an Intune app protection policy reach company data — Outlook, Teams, Edge, the Office apps; the built-in mail app, Safari and Chrome are refused. Needs app protection policies for iOS and Android assigned to the users (the import's pre-flight checks they exist), Microsoft Authenticator on iOS and Company Portal on Android as the broker." },
+      description: "On a phone or tablet only apps under an Intune app protection policy reach company data — Outlook, Teams, Edge, the Office apps; the built-in mail app, Safari and Chrome are refused. Azure Credential Configuration Endpoint Service is left out so a passkey can still be created in Microsoft Authenticator, which does not support app protection. Needs app protection policies for iOS and Android assigned to the users (the import's pre-flight checks they exist), Microsoft Authenticator on iOS and Company Portal on Android as the broker." },
     { conditions: cond(internalButSync(9), { platforms: { includePlatforms: ["iOS", "android"], excludePlatforms: [] } }), grantControls: { operator: "OR", builtInControls: ["compliantApplication"], customAuthenticationFactors: [], termsOfUse: [] } });
 
   // ADM — admins, stricter than security defaults
@@ -280,6 +288,15 @@ const BASELINE_SMB = (() => {
   //            on iOS and Android and must reach its service from anywhere
   //            (defender-mobile-exclusion; Learn, compliant network, Mobile
   //            app support) — the admins' CA103 too, it is any platform
+  //   PASSKEY  Azure Credential Configuration Endpoint Service — where
+  //            Microsoft Authenticator creates a passkey. Authenticator meets
+  //            neither app protection nor (on a phone without the tunnel up)
+  //            the compliant network, so a passkey could not be created
+  //            (authenticator-passkey-app-protection; Learn, passkeys in
+  //            Authenticator → troubleshoot). CloudFellows excludes it from
+  //            every app protection policy (CA108, CA212, CA307, CA1003) and
+  //            from the GSA block (CA215–CA218); here: CA009 and the policies
+  //            a phone meets, CA103, CA203, CA204 (1.0.5)
   //   DC       B2B direct connect users: sign-in frequency and persistent
   //            browser are not supported for them (dc-unsupported-control;
   //            CloudFellows CA008, CA009)
@@ -291,6 +308,7 @@ const BASELINE_SMB = (() => {
     shared: [1, 3, 8, 9, 201, 202, 203, 204],
     vm: [1],
     defender: [9, 103, 203, 204],
+    passkey: [9, 103, 203, 204],
     directConnect: [8],
   };
   for (const p of P) {
@@ -302,6 +320,7 @@ const BASELINE_SMB = (() => {
     if (EXCLUDE.shared.includes(p.num)) { u.excludeGroups.push(G_TSD); p.entry.sharedDevices = true; }
     if (EXCLUDE.vm.includes(p.num)) { a.excludeApplications.push(AZURE_VM_SIGNIN); why.push("Azure Windows VM Sign-In"); }
     if (EXCLUDE.defender.includes(p.num)) { a.excludeApplications.push(DEFENDER_XPLAT, DEFENDER_TVM); why.push("MicrosoftDefenderATP XPlat", "Microsoft Defender for Mobile TVM"); }
+    if (EXCLUDE.passkey.includes(p.num)) { a.excludeApplications.push(CRED_CONFIG); why.push("Azure Credential Configuration Endpoint Service"); }
     if (EXCLUDE.directConnect.includes(p.num)) {
       u.excludeGuestsOrExternalUsers = { guestOrExternalUserTypes: "b2bDirectConnectUser", externalTenants: { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } };
       p.entry.exclude = [...(p.entry.exclude || []), "Guests & external users: B2B direct connect"];

@@ -23,6 +23,8 @@ const MSLearn = (() => {
   // under the second's name, so a correct policy targeting Windows Cloud Login
   // was flagged as unsupported and the fix wrote the VM sign-in app instead.
   const AZURE_VM_SIGNIN = "372140e0-b3b7-4226-8ef9-d57986796201";
+  // 33004: the resource Microsoft Authenticator calls to create a passkey
+  const CRED_CONFIG = "ea890292-c8c8-4433-b5ea-b09d0668e1a6";   // Azure Credential Configuration Endpoint Service
   const WINDOWS_CLOUD_LOGIN = "270efc09-cd0d-444b-a71f-39af4910ec45";
   const DEFENDER_ATP_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";
@@ -1051,6 +1053,39 @@ const MSLearn = (() => {
       },
     },
 
+    {
+      // 33004 (Mihai 20 Oct: app protection policies should exclude Azure
+      // Credential Configuration Endpoint Service — as every CloudFellows
+      // app protection policy does: CA108, CA212, CA307, CA1003)
+      id: "authenticator-passkey-app-protection",
+      title: "App protection on all resources: passkeys in Microsoft Authenticator cannot be created",
+      appliesWhen: "Policy requires an app protection policy for all resources on iOS or Android",
+      requirement: "Microsoft Authenticator does not support Intune app protection policies on iOS or Android, so a policy that requires app protection for all resources stops users creating a passkey in Authenticator. The registration goes to Azure Credential Configuration Endpoint Service; excluding that resource lets the passkey be created while every other resource keeps the requirement.",
+      severity: "medium",
+      docUrl: "https://learn.microsoft.com/entra/identity/authentication/how-to-enable-authenticator-passkey#troubleshoot-passkeys-in-authenticator",
+      verified: "2026-10-20",
+      remediation: `Exclude Azure Credential Configuration Endpoint Service (${CRED_CONFIG}) from this policy — create its service principal first if it does not exist. The policy that targets Register security information still applies to the registration.`,
+      fix: (d) => {
+        const a = d.conditions.applications || (d.conditions.applications = {});
+        const exc = a.excludeApplications || (a.excludeApplications = []);
+        if (exc.some((x) => String(x).toLowerCase() === CRED_CONFIG)) return [];
+        exc.push(CRED_CONFIG);
+        return [`Excluded Azure Credential Configuration Endpoint Service (${CRED_CONFIG})`];
+      },
+      detect: (p) => {
+        if (!isActive(p) || !allApps(p) || !grants(p).includes("compliantApplication")) return null;
+        const pl = p.conditions?.platforms || {};
+        const inc = (pl.includePlatforms || []).map((x) => String(x).toLowerCase());
+        const exc = (pl.excludePlatforms || []).map((x) => String(x).toLowerCase());
+        const mobile = !inc.length || inc.includes("all") || inc.includes("ios") || inc.includes("android");
+        if (!mobile || (exc.includes("ios") && exc.includes("android"))) return null;
+        if (appsExcLower(p).includes(CRED_CONFIG)) return null;
+        return {
+          detail: "Policy requires an app protection policy for all resources on iOS / Android without excluding Azure Credential Configuration Endpoint Service — Microsoft Authenticator cannot satisfy app protection, so users cannot create a passkey in it.",
+          impactedResources: [`Azure Credential Configuration Endpoint Service (${CRED_CONFIG})`, "Passkey registration in Microsoft Authenticator", "Passkey (FIDO2) rollout on phones"],
+        };
+      },
+    },
     // ── Behavior changes & hybrid identity ────────────────────────────
     {
       id: "all-resources-exclusion-change",
