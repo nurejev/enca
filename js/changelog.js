@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33003, date: "2026-10-20", title: "SMB Basic 1.0.4: app protection on phones and tablets",
+    items: [
+      { kind: "new", tool: "Baseline", text: "SMB Basic CA009: on iOS and Android only apps under an Intune app protection policy reach company data (Outlook, Teams, Edge, the Office apps); the built-in mail app, Safari and Chrome are refused. Guests, the shared-device group and the Defender mobile apps are left out; it uses Require app protection policy alone, because Require approved client app was retired on 30 June 2026." },
+      { kind: "improved", tool: "Import", text: "The pre-flight checks that Intune app protection policies for iOS and Android are assigned when the run includes an app protection policy, and warns per platform when one is missing." },
+    ],
+  },
+  {
     build: 33002, date: "2026-10-19", title: "SMB Basic 1.0.3: the right exclusions on every policy",
     items: [
       { kind: "improved", tool: "Baseline", text: "SMB Basic 1.0.3 runs clean through ENCA's own Bypass and Swiss cheese and MS Learn checks. Teams Rooms, phones, panels and Surface Hub (the new group CAB-SEC-U-TeamsSharedDevices) are left out of the controls their resource accounts cannot meet: MFA for all users, the device code block, the unmanaged-desktop session and the compliant network. Azure Windows VM Sign-In is left out of MFA for all users, the Defender mobile apps (they carry the Global Secure Access client on iOS and Android) out of the compliant-network blocks, and B2B direct connect users out of CA008." },

@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 359,
+      ws: "ca",
+      title: "🏢 SMB Basic 1.0.4: CA009 app protection on iOS and Android with its exclusions; pre-flight checks the app protection policies",
+      tools: ["Baseline", "Import"],
+      builds: [33003],
+      risk: "medium",
+      files: ["js/baselineSmbData.js", "js/import.js", "js/app.js", "index.html", "tools/baseline-smb.test.cjs", "tools/import-preflight.test.cjs"],
+      what: "js/baselineSmbData.js: CA009-GRANT-SMB-Global-AnyApp-iOSorAndroid-AppProtection v1.0.4 (internalButSync, platforms iOS android, grant compliantApplication), EXCLUDE.shared and EXCLUDE.defender gain 9, catalog 1.0.4. js/import.js preflight appprotect (iosManagedAppProtections, androidManagedAppProtections, isAssigned). js/app.js demo pre-flight row. index.html Help.",
+      why: "Mihai, 20 Oct: also make sure the app protection is there with the right exclusions. Mobile is BYOD with app protection (his decision, Oct 2026); SMB Basic had no app protection policy.",
+      carveout: "None beyond the usual.",
+      test: [
+        "Tenant with app protection policies for iOS and Android: the pre-flight shows them assigned; import CA009 Report-only.",
+        "Portal: CA009 users All minus guests, CAB-SEC-U-TeamsSharedDevices, break-glass, own group, sync roles; resources All minus MicrosoftDefenderATP XPlat and Defender for Mobile TVM; platforms iOS and Android; grant Require app protection policy.",
+        "Report-only impact after a day: Outlook and Teams on a BYOD phone satisfied; the native mail app or Safari would have failed.",
+      ],
+    },
+    {
       n: 358,
       ws: "ca",
       title: "🏢 SMB Basic 1.0.3: the exclusions matrix from Swiss cheese and MS Learn, CA205 unknown platforms; two false Swiss-cheese findings fixed",

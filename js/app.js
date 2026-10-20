@@ -4569,6 +4569,7 @@
       { key: "gsa", level: "info", title: "Global Secure Access signalling is off", detail: "5 policies use the compliant network location — created all the same, Off." },
       { key: "breakglass", level: "ok", title: "CAB-SEC-U-BreakGlass: 2 members", detail: "" },
       { key: "devreg", level: "warn", title: "Device setting “Require MFA to register or join devices” is Yes", detail: "CA007 is not enforced while it is — set it to No (Entra ID → Devices → Device settings)." },
+      { key: "appprotect", level: "warn", title: "No assigned app protection policy for Android", detail: "CA009 requires app protection on iOS and Android; with no assigned policy for Android every app there is refused once it is On." },
       { key: "unmanaged", level: "warn", title: "CA008 would treat 17 enabled devices as unmanaged", detail: "12 hybrid-joined Windows PCs, 5 Macs not Entra joined (no Platform SSO yet) — 4-hour sessions, nothing kept in the browser, until they are Entra joined. 41 Entra joined." },
     ];
     return { checks, repair: [{ id: "demo-5", name: n("CA005") }, { id: "demo-101", name: n("CA101") }], blocked: false, present: 16, readAt: Date.now(), demo: true };

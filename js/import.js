@@ -2008,6 +2008,24 @@ const Importer = (() => {
       }
     }
 
+    // 33003 (SMB Basic 1.0.4 CA009): "Require app protection policy" can
+    // only be met by an app an Intune app protection policy covers — with
+    // none assigned for iOS or Android, every phone is refused once it is On.
+    const appProt = chosen.filter((p) => ((p.raw && p.raw.grantControls && p.raw.grantControls.builtInControls) || []).includes("compliantApplication"));
+    if (appProt.length) {
+      const names = appProt.map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]).join(", ");
+      const read = async (kind) => { try { return { list: await Graph.ggetAll(`/deviceAppManagement/${kind}?$select=id,displayName,isAssigned`) }; } catch (e) { return { error: e.message || String(e) }; } };
+      const [ios, android] = await Promise.all([read("iosManagedAppProtections"), read("androidManagedAppProtections")]);
+      if (ios.error || android.error) add("appprotect", "info", "App protection policies could not be read", `${ios.error || android.error}. ${names} refuses every phone app that no Intune app protection policy covers — check Intune → Apps → App protection policies for iOS and Android, assigned to the users.`);
+      else {
+        const assigned = (r) => (r.list || []).filter((x) => x && x.isAssigned !== false);
+        const miss = [!assigned(ios).length && "iOS", !assigned(android).length && "Android"].filter(Boolean);
+        add("appprotect", miss.length ? "warn" : "ok", miss.length ? `No assigned app protection policy for ${miss.join(" and ")}` : "App protection policies for iOS and Android are assigned",
+          miss.length ? `${names} requires app protection on iOS and Android; with no assigned policy for ${miss.join(" and ")} every app there is refused once it is On. Create and assign one (Intune → Apps → App protection policies) before it leaves Report-only.`
+            : `${assigned(ios).map((x) => x.displayName).join(", ")} (iOS) · ${assigned(android).map((x) => x.displayName).join(", ")} (Android) — ${names} can be met.`);
+      }
+    }
+
     if (opts.sdOn) add("sd", "info", "Security defaults is on", "Entra refuses On while it is: new policies land Report-only or Off, and ⇄ on 🧬 Baseline makes the switch.");
     const blocked = checks.some((c) => c.level === "block");
     return { checks, repair, blocked, present: present.names.size, readAt: Date.now() };

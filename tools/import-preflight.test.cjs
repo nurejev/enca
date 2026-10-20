@@ -34,6 +34,7 @@ function world(opts = {}) {
       if (url.startsWith('/policies/authenticationStrengthPolicies')) { if (opts.strengthReadFails) throw new Error('Graph request failed (403)'); return opts.strengths || []; }
       if (url.startsWith('/identity/conditionalAccess/policies')) { if (opts.listFails) throw new Error('Graph request failed (503)'); return opts.staleList ? tenant : [...tenant, ...[...pols.values()].map((p) => ({ id: p.id, displayName: p.displayName, state: p.state }))]; }
       if (url.startsWith('/identity/conditionalAccess/namedLocations')) return opts.locations || [];
+      if (url.startsWith('/deviceAppManagement/')) { if (opts.mamFail) throw new Error('Graph request failed (403)'); return (opts.mam || {})[url.includes('ios') ? 'ios' : 'android'] || []; }
       if (url.startsWith('/devices')) { if (opts.devicesFail) throw new Error('Graph request failed (403)'); return opts.devices || []; }
       return [];
     },
@@ -261,4 +262,18 @@ test('🛫 pre-flight, SMB 1.0.2: the device-join MFA setting, and whom CA008 wo
   const p3 = w3.I.prepareBundle(w3.S.bundle());
   const pf3 = await w3.I.preflight(p3, w3.I.plan(p3, []).filter((p) => !/^CA00[78]/.test(p.name)), { tenantKey: 't11' });
   assert.equal(pf3.checks.some((c) => c.key === 'devreg' || c.key === 'unmanaged'), false);
+});
+
+test('🛫 pre-flight, SMB 1.0.4: app protection policies for iOS and Android must exist before CA009 is On', async () => {
+  const run = async (o) => { const w = world(o); const p = w.I.prepareBundle(w.S.bundle()); const pf = await w.I.preflight(p, w.I.plan(p, []), { tenantKey: `mam${Math.random()}` }); return pf.checks.find((c) => c.key === 'appprotect'); };
+  const none = await run({});
+  assert.equal(none.level, 'warn');
+  assert.match(none.title, /No assigned app protection policy for iOS and Android/);
+  const half = await run({ mam: { ios: [{ id: 'i', displayName: 'iOS - BYOD', isAssigned: true }], android: [{ id: 'a', displayName: 'Android - draft', isAssigned: false }] } });
+  assert.match(half.title, /for Android$/);
+  const ok = await run({ mam: { ios: [{ id: 'i', displayName: 'iOS - BYOD', isAssigned: true }], android: [{ id: 'a', displayName: 'Android - BYOD', isAssigned: true }] } });
+  assert.equal(ok.level, 'ok');
+  assert.match(ok.detail, /CA009 can be met/);
+  const fail = await run({ mamFail: true });
+  assert.equal(fail.level, 'info');
 });

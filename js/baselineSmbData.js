@@ -23,7 +23,7 @@
 // written the CloudFellows way: CAnnn-KIND-SMB-Persona-…-vX.Y. "SMB" is the
 // marker this catalog claims a name by — a CA001 without it is someone
 // else's CA001.
-//   BASE  CA001–CA008  replaces security defaults (+ registration, device
+//   BASE  CA001–CA009  replaces security defaults (+ registration, device
 //                      join, unmanaged desktop sessions — 1.0.2)
 //   ADM   CA101–CA104  admins, stricter than security defaults
 //   CN    CA201–CA205  Global Secure Access, per platform (as CA215–CA218),
@@ -115,10 +115,13 @@ const BASELINE_SMB = (() => {
     // 1.0.3 (Mihai 19 Oct: "make sure every policy has the right exclusions —
     // see the cheese model and the MS Learn modules in ENCA"): the exclusions
     // matrix below, and CA205 for the unknown platforms
-    1: "1.0.3", 3: "1.0.3", 8: "1.0.3", 103: "1.0.3", 201: "1.0.3", 202: "1.0.3", 203: "1.0.3", 204: "1.0.3", 205: "1.0.3" };
+    1: "1.0.3", 3: "1.0.3", 8: "1.0.3", 103: "1.0.3", 201: "1.0.3", 202: "1.0.3", 203: "1.0.3", 204: "1.0.3", 205: "1.0.3",
+    // 1.0.4 (Mihai 20 Oct: "also make sure the app protection is there with
+    // the right exclusions") — CA009
+    9: "1.0.4" };
   // the catalog's own release: the newest policy version in it
-  const CATALOG_RELEASE = "1.0.3";
-  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 205: "1.0.3" };
+  const CATALOG_RELEASE = "1.0.4";
+  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3" };
   const add = (num, kind, persona, words, entry, raw) => {
     const version = VERSION[num] || RELEASE;
     const name = `CA${String(num).padStart(3, "0")}-${kind}-SMB-${persona}-${words}-v${version}`;
@@ -187,6 +190,28 @@ const BASELINE_SMB = (() => {
       description: "On a Windows PC or Mac that is not Entra joined — hybrid joined, only registered, or unknown — a session lasts 4 hours and is never kept in the browser. Macs count as joined once Platform SSO has registered them. The pre-flight counts the devices that would get it." },
     { conditions: cond(everyoneButSync(8), { platforms: { includePlatforms: ["windows", "macOS"], excludePlatforms: [] }, devices: { deviceFilter: { mode: "include", rule: 'device.trustType -ne "AzureAD"' } } }), grantControls: null,
       sessionControls: { signInFrequency: { value: 4, type: "hours", authenticationType: "primaryAndSecondaryAuthentication", frequencyInterval: "timeBased", isEnabled: true }, persistentBrowser: { mode: "never", isEnabled: true } } });
+
+  // 1.0.4: mobile is BYOD with app protection (Mihai, Oct 2026) — the
+  // Conditional Access half of it. Learn ("Require approved client apps or
+  // app protection policy with mobile devices"): All users, All resources,
+  // iOS and Android, the grant. "Require approved client app" retired on
+  // 30 June 2026 (a policy carrying it is read-only), so the grant is
+  // "Require app protection policy" alone. Exclusions, each from a check:
+  //   guests        — their phone's apps are protected by their own tenant,
+  //                   not this one; app protection cannot be met for them
+  //   shared devices — Teams Rooms / phones / panels on Android run no app
+  //                   protection (surface-hub-mfa, shared-device-unsupported)
+  //   Defender mobile apps — they report device posture and carry the Global
+  //                   Secure Access client; they are not app-protection apps
+  //                   (Learn, Defender for Endpoint mobile, CA exclusions)
+  //   sync roles    — the all-users all-resources rule of this catalog
+  // NOT excluded: Microsoft Intune / Intune Enrollment (BYOD here is not
+  // enrolled; the app protection service itself is immune to Conditional
+  // Access) — every extra app exclusion is a hole.
+  add(9, "GRANT", "Global", "AnyApp-iOSorAndroid-AppProtection",
+    { persona: "🌐 Base", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources", network: "Any network or location", conditions: ["Platforms: iOS, Android", "Client apps: Any client app"], grant: "Require app protection policy", block: false, session: "",
+      description: "On a phone or tablet only apps under an Intune app protection policy reach company data — Outlook, Teams, Edge, the Office apps; the built-in mail app, Safari and Chrome are refused. Needs app protection policies for iOS and Android assigned to the users (the import's pre-flight checks they exist), Microsoft Authenticator on iOS and Company Portal on Android as the broker." },
+    { conditions: cond(internalButSync(9), { platforms: { includePlatforms: ["iOS", "android"], excludePlatforms: [] } }), grantControls: { operator: "OR", builtInControls: ["compliantApplication"], customAuthenticationFactors: [], termsOfUse: [] } });
 
   // ADM — admins, stricter than security defaults
   add(101, "GRANT", "Admins", "AnyApp-AnyPlatform-PhishingResistantMFA",
@@ -263,9 +288,9 @@ const BASELINE_SMB = (() => {
   // asks only Intune and Intune Enrollment of a compliant-network policy, and
   // every extra app exclusion is a hole.
   const EXCLUDE = {
-    shared: [1, 3, 8, 201, 202, 203, 204],
+    shared: [1, 3, 8, 9, 201, 202, 203, 204],
     vm: [1],
-    defender: [103, 203, 204],
+    defender: [9, 103, 203, 204],
     directConnect: [8],
   };
   for (const p of P) {
@@ -297,7 +322,7 @@ const BASELINE_SMB = (() => {
     groupFilterPrefix: "CAB-SEC-U-",
     defaultAuName: "CA-RMAU-SMB-BASE",
     exclusionShape: "CAB-SEC-U-SMB-CAnnn-Exclusion",
-    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA008), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA205) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
+    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA009), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA205) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
     adminRoles: ADMIN_ROLES.map(([id, name]) => ({ id, name })),
     syncRoles: SYNC_ROLES.map(([id, name]) => ({ id, name })),
     personas: [
