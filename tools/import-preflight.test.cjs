@@ -338,3 +338,12 @@ test('🛫 pre-flight, 33006: applications with no service principal here are na
   const ok = await pf({});
   assert.equal(ok.level, 'ok');
 });
+
+test('33007: a policy this page created that the list does not show yet is read by id', async () => {
+  const w = world();
+  w.I.rememberCreated('tl', 'CA001-new', 'p-late');
+  w.pols.set('p-late', { id: 'p-late', displayName: 'CA001-new', state: 'disabled' });
+  const late = await w.I.unlisted('tl', [{ id: 'other' }]);
+  assert.deepEqual(plain(late.map((p) => p.id)), ['p-late']);
+  assert.equal((await w.I.unlisted('tl', [{ id: 'p-late' }])).length, 0);
+});

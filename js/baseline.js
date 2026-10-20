@@ -531,6 +531,19 @@ const Baseline = (() => {
 
     const rows = [];
     const claimed = new Set();
+    // a copy another row on the same number carries by exact name is that
+    // row's, not a leftover beside this one
+    const entriesClaim = (p) => entries.some((e) => e.num === caNum(p.name) && exactName(p.name, e.name));
+    // what a second policy on a number is, next to the one the row matched:
+    // an older or newer version of it, the same version again, or another
+    // policy altogether (another baseline's, by its name)
+    const otherOf = (p, best, b) => {
+      const tv = version(p.name);
+      const why = mismatchReason((b && b.name) || best.p.name, p.name);
+      const c = !why && tv && best.tv ? cmpVersion(tv, best.tv) : null;
+      const kind = why ? "other" : c == null ? "copy" : c < 0 ? "older" : c > 0 ? "newer" : "same";
+      return { id: p.id, name: p.name, state: p.state, version: tv, kind };
+    };
     for (const b of order) {
       const hits = byNum.get(b.num) || [];
       // free: the copies no row on this number has taken yet. None left means
@@ -598,17 +611,22 @@ const Baseline = (() => {
       // a catalog that deliberately numbers two policies the same: only count
       // what the catalog does not account for.
       const spare = hits.length > (defined.get(b.num) || 1);
+      // 33007 (gimi, 20 Oct: "a lot of double policies, but not showing in
+      // ENCA"): every other policy on this number that no catalog row claims
+      // is listed on the row, with what it is next to the matched one.
+      const others = spare ? hits.filter((p) => p !== best.p && !entriesClaim(p)).map((p) => otherOf(p, best, b)) : [];
       rows.push({
         num: b.num, baseline: b, tenant: best.p, tenantVersion: best.tv,
         status: best.status, why: best.why || null, edited: !!best.edited, renamed: !!best.renamed, differs: !!best.differs, differsIn: best.differsIn || [],
-        duplicates: spare ? hits.length : 0, shared: b.shared || null,
+        duplicates: spare ? hits.length : 0, others, shared: b.shared || null,
       });
     }
     // the catalog accounted for these numbers, matched or not
     for (const num of byNumEntries.keys()) byNum.delete(num);
     // numbered policies the baseline does not define
     for (const [num, hits] of byNum) {
-      rows.push({ num, baseline: null, tenant: hits[0], tenantVersion: version(hits[0].name), status: "extra", duplicates: hits.length > 1 ? hits.length : 0 });
+      rows.push({ num, baseline: null, tenant: hits[0], tenantVersion: version(hits[0].name), status: "extra", duplicates: hits.length > 1 ? hits.length : 0,
+        others: hits.slice(1).map((p) => otherOf(p, { p: hits[0], tv: version(hits[0].name) }, null)) });
     }
     rows.sort((a, b) => a.num - b.num);
 
@@ -677,11 +695,35 @@ const Baseline = (() => {
     const shown = res.rows.filter((r) => r.status === "ok" && r.differs).length;
     if (shown && !res.byDefinition) parts.push(`${shown} of the up-to-date ones differ from the catalog in their resources, conditions or controls at that version — marked on the row, not counted: outside the baseline tenant the key is the CA number and the version, and the assignments (includes, exclusions) are this tenant's own.`);
     if (n("unversioned")) parts.push(`${n("unversioned")} with a version on one side only.`);
+    const doubled = res.rows.filter((r) => (r.others || []).length);
+    if (doubled.length) {
+      const olds = doubled.reduce((k, r) => k + r.others.filter((o) => o.kind === "older").length, 0);
+      const rest = doubled.reduce((k, r) => k + r.others.length, 0) - olds;
+      parts.push(`<b>${doubled.length} CA number${doubled.length === 1 ? " is" : "s are"} here more than once</b> (${doubled.map((r) => `CA${r.num}`).join(", ")}) — ${[olds ? `${olds} older version${olds === 1 ? "" : "s"} beside the current one: 🧹 Housekeeping lists ${olds === 1 ? "it" : "them"} to delete` : "", rest ? `${rest} other cop${rest === 1 ? "y" : "ies"}, listed on the row` : ""].filter(Boolean).join("; ")}.`);
+    }
     if (n("extra")) {
       const who = tally(res.rows.filter((r) => r.status === "extra"));
       parts.push(`<b>${n("extra")} not in this baseline</b> — numbered policies this catalog does not define${who ? `: ${esc(who)}` : ""}${who ? " (nothing wrong with them — they are the other baseline's)" : ""}.`);
     }
     return parts.join(" ");
+  }
+
+  // 33007: the other policies on a row's CA number, each with what it is and
+  // where it is cleaned up
+  const OTHER_WORD = {
+    older: ["older version", "🧹 Housekeeping lists it to delete"],
+    newer: ["newer version than the one matched", "check which one should stay"],
+    same: ["the same version again", "🧹 Housekeeping → Duplicates keeps one"],
+    copy: ["another copy", "🧹 Housekeeping → Duplicates"],
+    other: ["another policy on this number", "by its name not this baseline's"],
+  };
+  function othersHtml(r) {
+    const list = (r && r.others) || [];
+    if (!list.length) return "";
+    return `<div class="mini bl-others" style="margin-top:4px">${list.map((o) => {
+      const w = OTHER_WORD[o.kind] || OTHER_WORD.copy;
+      return `<div>⚠ also here: <span class="pname" data-blpol="${esc(o.id)}">${esc(o.name)}</span> · ${esc(o.state === "report" ? "report-only" : o.state || "?")} · <b>${esc(w[0])}</b> — ${esc(w[1])}</div>`;
+    }).join("")}</div>`;
   }
 
   function renderSummary(res, filter) {
@@ -1166,8 +1208,9 @@ const Baseline = (() => {
       const tag = r.baseline?.tag ? `<span class="tag new">${esc(r.baseline.tag)}</span>` : "";
       const tenant = r.tenant
         ? `<span class="pname" data-blpol="${esc(r.tenant.id)}">${esc(r.tenant.name)}</span>
-           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}${r.why ? ` · <b>${esc(r.why)}</b>` : ""}${r.status === "ok" && r.differs ? ` · <span class="tag" title="Same number and version as the catalog, but this differs — shown for reading, not counted as newer; assignments are never compared here">differs · ${esc((r.differsIn || []).join(", "))}</span>` : ""}</div>`
+           <div class="mini">state: ${esc(r.tenant.state === "report" ? "report-only" : r.tenant.state)}${r.duplicates && !(r.others || []).length ? ` · ⚠ ${r.duplicates} policies share CA${r.num}` : ""}${r.why ? ` · <b>${esc(r.why)}</b>` : ""}${r.status === "ok" && r.differs ? ` · <span class="tag" title="Same number and version as the catalog, but this differs — shown for reading, not counted as newer; assignments are never compared here">differs · ${esc((r.differsIn || []).join(", "))}</span>` : ""}</div>`
         : '<span class="mini">not present in this tenant</span>';
+      const tenantCell = tenant + othersHtml(r);
       const ver = r.status === "outdated"
         ? `<span class="bl-ver warn">${esc(r.tenantVersion)} → ${esc(r.baseline.version)}</span>`
         : r.status === "missing" ? `<span class="mini">${esc(r.baseline.version || "—")}</span>`
@@ -1185,7 +1228,7 @@ const Baseline = (() => {
         <td class="bl-st"><span class="bl-badge ${s.cls}" title="${esc(s.label)}">${s.icon}</span></td>
         <td><b>CA${String(r.num).padStart(3, "0")}</b></td>
         <td>${esc(bName)} ${tag}${r.shared ? ` <span class="tag" title="Expected under every baseline; this policy is defined by the ${esc(r.shared)} catalog">shared</span>` : ""}<div class="mini">${esc(r.baseline ? `${r.baseline.resources} · ${r.baseline.grant}` : "")}</div></td>
-        <td>${tenant}</td>
+        <td>${tenantCell}</td>
         <td>${ver}</td>
         <td class="bl-chcell">${chCell}</td>
       </tr>`;

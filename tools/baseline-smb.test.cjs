@@ -53,7 +53,7 @@ function world(opts = {}) {
     templates: () => [],
   };
   const ls = new Map();
-  const box = { console: { log() {}, warn() {}, error() {} }, Set, Map, URL, TextDecoder, structuredClone, JSON, Date, Math, encodeURIComponent, decodeURIComponent, setTimeout,
+  const box = { console: { log() {}, warn() {}, error() {} }, Set, Map, URL, TextDecoder, structuredClone, JSON, Date, Math, encodeURIComponent, decodeURIComponent, setTimeout, toolHeadTail: () => "",
     localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) }, document: { dispatchEvent() {} }, CustomEvent: class {},
     Render: { caGroup }, AUTH_CONFIG: { scopes: [] }, BRANDING: { name: 'ENCA' }, Graph, Assign };
   vm.createContext(box);
@@ -409,4 +409,28 @@ test('33005: CAB-SEC-U-TeamsSharedDevices is created dynamic on the CloudFellows
   const tsd = [...w.groups.values()].find((x) => x.displayName === 'CAB-SEC-U-TeamsSharedDevices');
   assert.equal(tsd.dynamic, true);
   assert.equal(tsd.membershipRule, tpl.membershipRule);
+});
+
+// 33007 — gimi, 20 Oct 2026 (Mihai: a lot of double policies, but not showing in ENCA): the 29 policies the
+// two imports left, every older version Off beside its new one
+test('33007 gimi: every CA number held twice is shown on its row, the older version named, and the summary counts them', () => {
+  const { B, S } = world();
+  const old = ['CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1.0', 'CA002-BLOCK-SMB-Global-AnyApp-AnyPlatform-LegacyAuthentication-v1.0', 'CA003-BLOCK-SMB-Global-AnyApp-AnyPlatform-DeviceCodeFlow-v1.0',
+    'CA005-GRANT-SMB-Global-AzureManagement-AnyPlatform-MFA-v1.0', 'CA103-BLOCK-SMB-Admins-AnyApp-AnyPlatform-OutsideCompliantNetwork-v1.0', 'CA201-BLOCK-SMB-Users-AnyApp-Windows-OutsideCompliantNetwork-v1.0',
+    'CA202-BLOCK-SMB-Users-AnyApp-macOS-OutsideCompliantNetwork-v1.0', 'CA203-BLOCK-SMB-Users-AnyApp-iOS-OutsideCompliantNetwork-v1.0', 'CA204-BLOCK-SMB-Users-AnyApp-Android-OutsideCompliantNetwork-v1.0',
+    'CA901-GRANT-SMB-BreakGlass-AnyApp-AnyPlatform-FIDO2-v1.0'];
+  const vms = [...old.map((n, i) => ({ id: `o${i}`, name: n, state: 'off' })), ...S.policies.map((p) => ({ id: `t${p.num}`, name: p.name, state: 'off' }))];
+  assert.equal(vms.length, 29);
+  const r = B.compare(vms, 'smb');
+  assert.equal(r.rows.filter((x) => x.status === 'ok').length, 19);
+  const doubled = r.rows.filter((x) => (x.others || []).length);
+  assert.deepEqual(plain(doubled.map((x) => x.num)), [1, 2, 3, 5, 103, 201, 202, 203, 204, 901]);
+  const ca1 = r.rows.find((x) => x.num === 1);
+  assert.equal(ca1.tenant.name, 'CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1.0.3');
+  assert.equal(ca1.others[0].name, old[0]);
+  assert.equal(ca1.others[0].kind, 'older');
+  const html = B.renderSummary(r, 'all');
+  assert.match(html, /10 CA numbers are here more than once/);
+  assert.match(html, /10 older versions beside the current one/);
+  assert.match(B.renderTable(r, 'all'), /also here: .*CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1\.0<.*older version/);
 });

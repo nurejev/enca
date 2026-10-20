@@ -2570,6 +2570,9 @@
         if (!(await ownRegistrationOk())) return;          // reloading to the sign-in card
       }
       const { policies: raw, org, logo, resolve, account, context, names } = await Graph.loadTenant((m) => $("loadStatus").textContent = m);
+      // 33007: a policy this page created minutes ago that the list has not
+      // caught up with yet is read by id, so every tool shows it
+      if (isRefresh) { try { const late = await Importer.unlisted(account?.tenantId || tenantName, raw); if (late.length) { raw.push(...late); console.info(`${late.length} policies created here read by id — the list had not shown them yet`); } } catch (e) { console.warn("unlisted:", e); } }
       phase = "processing the policies";
       tenantName = org?.displayName || account?.tenantId || "";
       tenantDomain = (account?.username || "").split("@")[1] || "";
@@ -3414,7 +3417,13 @@
   });
 
   // ---------- housekeeping: review older versions across the loaded inventory ----------
-  function hkFind() { return Importer.housekeeping(policies); }
+  // 33007: the active baseline's names make an Off older version beside the
+  // baseline's own version a cleanup candidate
+  function hkCurrent() {
+    try { const c = Baseline.catalog(Baseline.activeCatalogId()); return new Set(((c && c.policies) || []).map((p) => String(p.name || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase())); }
+    catch { return null; }
+  }
+  function hkFind() { return Importer.housekeeping(policies, { current: hkCurrent() }); }
   function syncHkBtn() {
     const n = hkFind().length;
     const b = $("hkBtn"); if (!b) return;
@@ -3521,7 +3530,8 @@
     const item = (r) => {
       const hard = hkHard(r), rev = hkRev.has(r.policy.id), can = hkCan(r);
       const status = r.canDelete ? "Cleanup candidate" : hard.length ? "Blocked" : rev ? "Reviewed" : "Needs review";
-      const why = r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" ");
+      const why = r.basis === "baseline" ? `Off, so it enforces nothing; the version beside it is the one ${Baseline.catalog(Baseline.activeCatalogId())?.label || "the active baseline"} ships.${(r.notes || []).length ? ` For the record: ${r.notes.join(" ")}` : ""}`
+        : r.canDelete ? "Same configuration; newer version is On. Keep the old version if you still need it for rollback." : r.reasons.join(" ");
       return `<li><label class="chk hk-choice">
           <input type="checkbox" data-hk="${esc(r.policy.id)}"${hkSel.has(r.policy.id) ? " checked" : ""}${can ? "" : " disabled"}>
           <span class="hk-details"><span>${Render.stateChip(r.policy.state)} <b>${esc(r.policy.name)}</b></span>

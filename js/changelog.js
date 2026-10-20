@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33007, date: "2026-10-20", title: "Baseline and Housekeeping: every double policy shown, the old ones offered for delete",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "A CA number held more than once in the tenant is shown on its row: each other policy on that number is listed under the matched one, with what it is (an older version, the same version again, another policy on the number). The summary counts them and points at Housekeeping. Before, only a warning count was shown, and only when the list had all of them." },
+      { kind: "fixed", tool: "Policies", text: "After an import the list Conditional Access returns can leave out a policy created seconds earlier. The reload now reads the policies this page created in the last half hour by id when the list does not show them, so every tool sees them." },
+      { kind: "improved", tool: "Housekeeping", text: "An older version that is Off beside the version the active baseline ships is a cleanup candidate straight away: an Off policy enforces nothing, so deleting it changes no sign-in. The differences between the two versions stay on the row for the record. Every delete still takes the JSON backup and the typed DELETE." },
+    ],
+  },
+  {
     build: 33006, date: "2026-10-20", title: "Import: a new service principal no longer fails its policy",
     items: [
       { kind: "fixed", tool: "Import", text: "A policy that names an app whose service principal the run has just created (SMB CA001 and Azure Windows VM Sign-In, the Defender mobile apps in CA009, CA103, CA203, CA204) was refused with a bare 400, because Conditional Access did not know the new service principal yet. The import now waits for it, up to about 1.5 minutes, and posts the policy again; nothing is created twice, because a refused create creates nothing." },

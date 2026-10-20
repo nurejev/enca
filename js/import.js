@@ -731,7 +731,16 @@ const Importer = (() => {
   }
   // A higher version is a review signal, not proof that protection is redundant.
   // Compare the loaded raw payload conservatively, retaining unknown preview fields.
-  function housekeeping(list) {
+  // opts.current: the active baseline's policy names (cleanName). 33007 —
+  // gimi, 20 Oct (Mihai: housekeeping should show what to delete): after an
+  // import replaced ten policies, every older version was Off beside its new
+  // version (Off too, as security defaults was still on) and each one read
+  // Needs review, because the new version was not On and the versions
+  // differed — which is what a new version is for. An older version that is
+  // OFF enforces nothing, so deleting it changes no sign-in; when the version
+  // beside it is the one the active baseline ships, it is a cleanup
+  // candidate. The differences stay on the row, for the record.
+  function housekeeping(list, opts = {}) {
     const signature = PolicyCompare.signature;
     const state = p => ({ disabled: "off", enabled: "on", enabledForReportingButNotEnforced: "report", off: "off", on: "on", report: "report" })[p.raw?.state ?? p.state] || "unknown";
     // 25484: the version is written "-v1.0.3" in every CloudFellows name (and
@@ -759,11 +768,16 @@ const Importer = (() => {
         const rest = p => ({ ...p, conditions: Object.fromEntries(Object.entries(p.conditions).filter(([k]) => !["users", "clientApplications"].includes(k))) });
         if (signature(rest(old)) !== signature(rest(next))) reasons.push("Conditions or controls differ; review the protection before retiring a version.");
       }
+      const hard = reasons.filter((r) => /^Older version is still|incomplete|Multiple policies share/i.test(r));
+      if (reasons.length && !hard.length && state(x.p) === "off" && opts.current && opts.current.has(cleanName(newer.p.name))) {
+        out.push({ policy: x.p, num: x.num, ver: x.ver, newer: newer.p, newerVer: newer.ver, canDelete: true, basis: "baseline", notes: reasons.filter((r) => !/^Newer version is not On/.test(r)), reasons: [] });
+        continue;
+      }
       out.push({ policy: x.p, num: x.num, ver: x.ver, newer: newer.p, newerVer: newer.ver, canDelete: reasons.length === 0, reasons });
     }
     return out.sort((a, b) => a.num - b.num || cmpVer(a.ver, b.ver));
   }
-  function supersededOff(list) { return housekeeping(list).filter(r => r.canDelete); }
+  function supersededOff(list, opts) { return housekeeping(list, opts).filter(r => r.canDelete); }
 
   // ---------- ⇄ switch-over: finish a version change (beta 25484) ----------
   // Mihai, on Perfetti (23 Sep): an import that could not verify its new
@@ -2103,6 +2117,22 @@ const Importer = (() => {
     return { names: out, error };
   }
 
+  // 33007: the policy list Conditional Access returns just after a create
+  // can leave the new policy out (gimi, 20 Oct: CA001 v1.0.3 created at
+  // 06:31:02, the reload after the run did not list it, and 🧬 Baseline read
+  // the old v1.0 as the tenant's CA001). The policies this page created in the
+  // last half hour that a list does not show are read by id and returned.
+  async function unlisted(tenantKey, list) {
+    const have = new Set((list || []).map((p) => p && p.id));
+    const out = [];
+    for (const [, v] of madeIn(tenantKey)) {
+      if (!v.id || have.has(v.id) || Date.now() - v.at > 30 * 60 * 1000) continue;
+      try { const p = await Graph.gget(`/identity/conditionalAccess/policies/${v.id}`); if (p && p.id && !have.has(p.id)) { out.push(p); have.add(p.id); } }
+      catch (e) { console.warn("unlisted policy read:", v.id, e.message || e); }
+    }
+    return out;
+  }
+
   // 33006: POST a policy; when it names a service principal this run has just
   // created and Graph answers 400, Conditional Access has not caught up with
   // that service principal yet. A 400 creates nothing, so posting again is
@@ -2518,5 +2548,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh };
+  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
 })();

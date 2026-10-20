@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 363,
+      ws: "ca",
+      title: "🧬 Baseline shows every policy on a CA number; 🧹 Housekeeping offers an Off older version beside the baseline's own for delete; the reload after an import reads unlisted new policies by id",
+      tools: ["Baseline", "Housekeeping", "Policies"],
+      builds: [33007],
+      risk: "low",
+      files: ["js/baseline.js", "js/import.js", "js/app.js", "index.html", "tools/baseline-smb.test.cjs", "tools/housekeeping.test.cjs", "tools/import-preflight.test.cjs"],
+      what: "js/baseline.js compare: rows carry others (each other policy on the number with kind older / newer / same / copy / other); othersHtml on the row; the reading counts CA numbers held more than once. js/import.js housekeeping(list, { current }) makes an Off older version beside a name in the active catalog a cleanup candidate (basis baseline, notes kept); unlisted(tenantKey, list) reads by id what this page created in the last 30 minutes and the list lacks. js/app.js hkCurrent, the row text, loadFromGraph merges unlisted on a refresh.",
+      why: "gimi, 20 Oct 2026, Mihai with the portal (29 policies) beside 🧬 Baseline (19 of 19, CA001 v1.0 Off as the tenant's one): a lot of double policies, but not showing in ENCA; policies should show everything, and housekeeping should show what to delete.",
+      carveout: "None beyond the usual.",
+      test: [
+        "gimi: 🧬 Baseline SMB Basic reads 19 of 19 up to date and 10 CA numbers here more than once; each row lists the v1.0 under the new version.",
+        "gimi: 🧹 Housekeeping lists the 10 older versions as cleanup candidates; Select all to delete, backup, typed DELETE; afterwards 19 policies and no doubles.",
+        "Import a policy and look at 🗂 Policies straight after the run: the new policy is listed.",
+      ],
+    },
+    {
       n: 362,
       ws: "ca",
       title: "📥 Import: a policy naming a service principal the run just created waits for Conditional Access; pre-flight names the missing service principals",
