@@ -78,7 +78,7 @@ function world(opts = {}) {
     localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) }, document: { dispatchEvent() {} }, CustomEvent: class {},
     Render: { caGroup }, AUTH_CONFIG: { scopes: [] }, BRANDING: { name: 'ENCA' }, Graph, Assign };
   vm.createContext(box);
-  const src = ['baselineData.js', 'baselineJoeyData.js', 'baselineSmbData.js', 'baseline.js', 'import.js'].map((f) => read(f)).join('\n;\n');
+  const src = ['groupTemplates.js', 'baselineData.js', 'baselineJoeyData.js', 'baselineSmbData.js', 'baseline.js', 'import.js'].map((f) => read(f)).join('\n;\n');
   vm.runInContext(`${src}\n;globalThis.I = Importer; globalThis.S = BASELINE_SMB;`, box);
   return { I: box.I, S: box.S, groups, pols, posts, patches };
 }
@@ -276,4 +276,17 @@ test('🛫 pre-flight, SMB 1.0.4: app protection policies for iOS and Android mu
   assert.match(ok.detail, /CA009 can be met/);
   const fail = await run({ mamFail: true });
   assert.equal(fail.level, 'info');
+});
+
+test('🛫 pre-flight, 33005: a dynamic group this file creates that exists here as an assigned group is said', async () => {
+  const pf = async (o) => { const w = world(o); const p = w.I.prepareBundle(w.S.bundle()); return (await w.I.preflight(p, w.I.plan(p, []), { tenantKey: `dg${Math.random()}` })).checks.filter((c) => c.key === 'dyngroup'); };
+  const fresh = await pf({});
+  assert.equal(fresh.length, 1);
+  assert.equal(fresh[0].level, 'ok');
+  assert.match(fresh[0].title, /created dynamic/);
+  const stat = await pf({ groups: [{ id: 'x', displayName: 'CAB-SEC-U-TeamsSharedDevices', groupTypes: [] }] });
+  assert.equal(stat[0].level, 'warn');
+  assert.match(stat[0].title, /exists here as an assigned group/);
+  const dyn = await pf({ groups: [{ id: 'x', displayName: 'CAB-SEC-U-TeamsSharedDevices', groupTypes: ['DynamicMembership'] }] });
+  assert.equal(dyn[0].level, 'ok');
 });

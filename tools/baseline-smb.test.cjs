@@ -47,7 +47,7 @@ function world(opts = {}) {
     async createGroup(t) {
       const hit = [...groups.values()].find((g) => g.displayName.toLowerCase() === t.displayName.toLowerCase());
       if (hit) return { id: hit.id, name: hit.displayName, created: false };
-      const g = { id: id(), displayName: t.displayName }; groups.set(g.id, g);
+      const g = { id: id(), displayName: t.displayName, dynamic: !!t.dynamic, membershipRule: t.membershipRule || null }; groups.set(g.id, g);
       return { id: g.id, name: g.displayName, created: true };
     },
     templates: () => [],
@@ -57,7 +57,7 @@ function world(opts = {}) {
     localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) }, document: { dispatchEvent() {} }, CustomEvent: class {},
     Render: { caGroup }, AUTH_CONFIG: { scopes: [] }, BRANDING: { name: 'ENCA' }, Graph, Assign };
   vm.createContext(box);
-  const src = ['baselineData.js', 'baselineJoeyData.js', 'baselineSmbData.js', 'baseline.js', 'import.js', 'secdefaults.js']
+  const src = ['groupTemplates.js', 'baselineData.js', 'baselineJoeyData.js', 'baselineSmbData.js', 'baseline.js', 'import.js', 'secdefaults.js']
     .map((f) => read(f)).join('\n;\n');
   vm.runInContext(`${src}\n;globalThis.I = Importer; globalThis.B = Baseline; globalThis.S = BASELINE_SMB; globalThis.SD = SecDefaults;`, box);
   return { I: box.I, B: box.B, S: box.S, SD: box.SD, groups, pols, posts };
@@ -386,4 +386,27 @@ test('📘 the new MS Learn check: app protection on all resources without Azure
   const d = JSON.parse(JSON.stringify(pol([], { includePlatforms: ['iOS'] })));
   assert.match(f.check.fix(d).join(' '), /Azure Credential Configuration Endpoint Service/);
   assert.deepEqual(d.conditions.applications.excludeApplications, ['ea890292-c8c8-4433-b5ea-b09d0668e1a6']);
+});
+
+test('33005: CAB-SEC-U-TeamsSharedDevices is created dynamic on the CloudFellows rule — the same rule 📞 Teams devices and the template carry', async () => {
+  const box = { console: { log() {}, warn() {}, error() {} }, Set, Map, JSON, Date, Math, structuredClone, Array, Object, Number, String, RegExp, Error, encodeURIComponent, decodeURIComponent };
+  vm.createContext(box);
+  vm.runInContext(read('groupTemplates.js') + '\n;' + read('baselineSmbData.js') + '\n;globalThis.S = BASELINE_SMB; globalThis.T = GROUP_TEMPLATES;', box);
+  const g = box.S.bundle().groups.find((x) => x.displayName === 'CAB-SEC-U-TeamsSharedDevices');
+  const tpl = box.T.find((x) => x.displayName === 'CAB-SEC-U-TeamsSharedDevices');
+  assert.deepEqual(plain(g.groupTypes), ['DynamicMembership']);
+  assert.equal(g.membershipRule, tpl.membershipRule, 'the CloudFellows template rule');
+  assert.equal(g.membershipRuleProcessingState, 'On');
+  const t = box.S.templates(box.S).find((x) => x.displayName === 'CAB-SEC-U-TeamsSharedDevices');
+  assert.equal(t.dynamic, true);
+  assert.equal(t.membershipRule, tpl.membershipRule);
+  // and the import asks Assign.createGroup for a dynamic group with that rule
+  const w = world();
+  const prepared = w.I.prepareBundle(w.S.bundle());
+  const chosen = w.I.plan(prepared, []).filter((p) => p.num === 1);
+  const dep = await w.I.ensureDependencies(w.I.scopeBundle(prepared, chosen.map((p) => p.raw)), () => {}, { matchedNames: chosen.map((p) => p.name) });
+  void dep;
+  const tsd = [...w.groups.values()].find((x) => x.displayName === 'CAB-SEC-U-TeamsSharedDevices');
+  assert.equal(tsd.dynamic, true);
+  assert.equal(tsd.membershipRule, tpl.membershipRule);
 });

@@ -182,6 +182,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 361,
+      ws: "ca",
+      title: "🏢 SMB Basic: CAB-SEC-U-TeamsSharedDevices created dynamic, as in the CloudFellows baseline; pre-flight flags an assigned one",
+      tools: ["Baseline", "Import"],
+      builds: [33005],
+      risk: "low",
+      files: ["js/baselineSmbData.js", "js/import.js", "index.html", "tools/baseline-smb.test.cjs", "tools/import-preflight.test.cjs"],
+      what: "js/baselineSmbData.js: tsdRule() = TeamsDev.catalogRule() else the GROUP_TEMPLATES entry; the bundle group gets groupTypes DynamicMembership, membershipRule, membershipRuleProcessingState On; the template gets dynamic and membershipRule. js/import.js preflight dyngroup. Tests load groupTemplates.js.",
+      why: "Mihai, 20 Oct: the teams group being created should be dynamic just as in the CloudFellows baseline.",
+      carveout: "None beyond the usual.",
+      test: [
+        "devcf or a test tenant without the group: import SMB Basic; CAB-SEC-U-TeamsSharedDevices is a dynamic group with the device-plan rule, processing On.",
+        "A tenant where the group already exists assigned: the pre-flight warns; 📞 Teams devices makes it dynamic.",
+      ],
+    },
+    {
       n: 360,
       ws: "ca",
       title: "🏢 SMB Basic 1.0.5: Azure Credential Configuration Endpoint Service out of CA009, CA103, CA203, CA204; 📘 a new MS Learn check for it",

@@ -2026,6 +2026,19 @@ const Importer = (() => {
       }
     }
 
+    // 33005: a group this file creates DYNAMIC (SMB Basic's
+    // CAB-SEC-U-TeamsSharedDevices) that already exists here as an assigned
+    // group is reused by name as it is — say so, it does not fill itself
+    const dyn = ((bundle && bundle.groups) || []).filter((g) => (g.groupTypes || []).includes("DynamicMembership"));
+    for (const g of dyn) {
+      let hit = null, err = null;
+      try { hit = ((await Graph.ggetAll(`/groups?$filter=displayName eq '${String(g.displayName).replace(/'/g, "''")}'&$select=id,displayName,groupTypes,membershipRule`)) || [])[0] || null; } catch (e) { err = e.message || String(e); }
+      if (err) continue;
+      if (!hit) add("dyngroup", "ok", `${g.displayName} is created dynamic`, "Membership from its rule — the device-only service plans; 📞 Teams devices can tune it to this tenant's licences.");
+      else if (!(hit.groupTypes || []).includes("DynamicMembership")) add("dyngroup", "warn", `${g.displayName} exists here as an assigned group`, "It is reused as it is, so it holds only the members someone added by hand. Make it dynamic with 📞 Teams devices (👥 CA groups → the group's 📞 Rule action), or check its members cover every Teams Room, phone, panel and Surface Hub.");
+      else add("dyngroup", "ok", `${g.displayName} exists and is dynamic`, "Reused as it is, with its own rule.");
+    }
+
     if (opts.sdOn) add("sd", "info", "Security defaults is on", "Entra refuses On while it is: new policies land Report-only or Off, and ⇄ on 🧬 Baseline makes the switch.");
     const blocked = checks.some((c) => c.level === "block");
     return { checks, repair, blocked, present: present.names.size, readAt: Date.now() };

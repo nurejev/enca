@@ -86,8 +86,22 @@ const BASELINE_SMB = (() => {
   const G_BG = gid(999999);
   // 1.0.3: Teams Rooms, Teams phones and panels and Surface Hub sign in with
   // a resource account nobody sits at — the CloudFellows convention's group,
-  // created empty here and filled by 📞 Teams devices (its dynamic rule).
+  // created dynamic (33005), on the device-only service plans.
   const TSD = "CAB-SEC-U-TeamsSharedDevices";
+  // 33005 (Mihai 20 Oct: "the teams group being created should be dynamic
+  // just as in the CloudFellows baseline"): created DYNAMIC, on the service
+  // plans that exist only in device licences — the rule 📞 Teams devices
+  // (js/teamsdev.js) and the CloudFellows template (js/groupTemplates.js)
+  // carry, read at the time of use so the three can never drift. Before,
+  // 1.0.3–1.0.5 created it assigned and empty.
+  const tsdRule = () => {
+    try { if (typeof TeamsDev !== "undefined" && TeamsDev.catalogRule) return TeamsDev.catalogRule(); } catch { /* fall through */ }
+    if (typeof GROUP_TEMPLATES !== "undefined") {
+      const t = GROUP_TEMPLATES.find((x) => x.displayName === TSD);
+      if (t && t.membershipRule) return t.membershipRule;
+    }
+    return null;
+  };
   const G_TSD = gid(888888);
   const AZURE_VM_SIGNIN = "372140e0-b3b7-4226-8ef9-d57986796201";   // Azure Windows VM Sign-In
   const DEFENDER_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";    // MicrosoftDefenderATP XPlat
@@ -407,8 +421,8 @@ const BASELINE_SMB = (() => {
   cat.templates = function (c) {
     const out = [{ displayName: c.breakGlassGroup, mailNickname: nick(c.breakGlassGroup), persona: "BreakGlass",
       description: "Break-glass (emergency access) accounts — excluded from every SMB Basic policy except CA901, which asks them for a passkey. Keep it to the two emergency accounts." },
-      { displayName: TSD, mailNickname: nick(TSD), persona: "GLO",
-        description: "Teams Rooms, Teams phones and panels and Surface Hub resource accounts — excluded from the SMB Basic controls they cannot meet (MFA, device-code block, sign-in frequency, persistent browser, the compliant network). Fill it with 📞 Teams devices." }];
+      { displayName: TSD, mailNickname: nick(TSD), persona: "GLO", dynamic: !!tsdRule(), membershipRule: tsdRule(),
+        description: "Teams Rooms, Teams phones and panels and Surface Hub resource accounts — excluded from the SMB Basic controls they cannot meet (MFA, device-code block, sign-in frequency, persistent browser, the compliant network, app protection). Dynamic membership on the service plans that exist only in device licences, as in the CloudFellows baseline; 📞 Teams devices tunes the rule to this tenant's licences." }];
     for (const p of c.policies || []) {
       out.push({ displayName: excl(p.num), mailNickname: nick(excl(p.num)), persona: c.personaOfPolicy(c, p.name), policy: p.name,
         description: `Exclusion group for ${p.name} (SMB Basic ${c.release}). Members are exempt from that one policy.` });
@@ -423,7 +437,11 @@ const BASELINE_SMB = (() => {
   // ---- the create bundle ----
   const groupsOf = () => [
     { id: G_BG, displayName: BG, mailNickname: nick(BG), description: cat.templates(cat)[0].description, securityEnabled: true, mailEnabled: false, groupTypes: [] },
-    { id: G_TSD, displayName: TSD, mailNickname: nick(TSD), description: cat.templates(cat)[1].description, securityEnabled: true, mailEnabled: false, groupTypes: [] },
+    (() => {
+      const rule = tsdRule();
+      return { id: G_TSD, displayName: TSD, mailNickname: nick(TSD), description: cat.templates(cat)[1].description, securityEnabled: true, mailEnabled: false,
+        groupTypes: rule ? ["DynamicMembership"] : [], ...(rule ? { membershipRule: rule, membershipRuleProcessingState: "On" } : {}) };
+    })(),
     ...P.map((p) => ({ id: gid(p.num), displayName: excl(p.num), mailNickname: nick(excl(p.num)),
       description: `Exclusion group for ${p.name} (SMB Basic ${CATALOG_RELEASE}). Members are exempt from that one policy.`, securityEnabled: true, mailEnabled: false, groupTypes: [] })),
   ];

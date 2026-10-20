@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33005, date: "2026-10-20", title: "SMB Basic: the shared-device group is dynamic",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "SMB Basic creates CAB-SEC-U-TeamsSharedDevices as a dynamic group, as the CloudFellows baseline does: its members are the accounts holding a service plan that only device licences carry (Teams Rooms, Teams Shared Space phones, Teams Phone resource accounts). It was created as an empty assigned group. Teams devices tunes the rule to the tenant's own licences." },
+      { kind: "improved", tool: "Import", text: "The pre-flight says when a group the file would create dynamic already exists as an assigned group, because it is reused as it is and fills nobody by itself." },
+    ],
+  },
+  {
     build: 33004, date: "2026-10-20", title: "SMB Basic 1.0.5: passkeys in Authenticator past app protection",
     items: [
       { kind: "fixed", tool: "Baseline", text: "SMB Basic CA009 leaves out Azure Credential Configuration Endpoint Service, as every CloudFellows app protection policy does: Microsoft Authenticator cannot meet app protection, so without it nobody could create a passkey in Authenticator. The same resource is left out of CA103, CA203 and CA204, the policies a phone meets." },
