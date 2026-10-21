@@ -45,6 +45,7 @@
     toolEgress: 'What a different public IP — a cloud proxy such as Netskope, a new line, a VPN — does to every policy with a location condition: today against via the egress, the country looked up in the sign-in log.',
     toolDeviceCleanup: 'Stale Entra devices in two steps: disable after 30 days without contact, delete after 90 and only what is already disabled — every write read again and read back, the way back included. Ported from TUNO T25.',
     toolAppAccess: 'Every app that can reach the tenant — what it can do, who let it in, whether it is still used — Tier 0 and endpoint apps first, and per app approve, restrict, reduce, quarantine or remove. App governance for Business Premium.',
+    toolHarden: 'The Microsoft 365 security settings against a hardening baseline — Entra, authentication, devices, apps, guests, privileged access, SharePoint, mail DNS, Conditional Access — fixed from here where Graph can, each fix with its impact and way back; a read-only script for the rest.',
     toolGsa: 'Global Secure Access, the Microsoft traffic profile: switched on, assigned, signalling, the compliant network, the client on devices — every link a compliant-network Conditional Access policy needs, and the fixes that live in Entra and Intune.',
   };
   // ---- 32407: the two workspaces ----------------------------------------
@@ -74,18 +75,18 @@
   // Global Secure Access lives only here.
   // 32526 (Mihai, 14 Oct: all temporary tools may be moved to Workspace 03
   // — that is T33 and T34): the dated tools live here only, with T57.
-  const ENTRA_ONLY = new Set(['toolDeviceCleanup', 'toolAppAccess', 'toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
+  const ENTRA_ONLY = new Set(['toolDeviceCleanup', 'toolAppAccess', 'toolHarden', 'toolGsa', 'toolSmsVoice', 'toolMemberOf', 'toolEgress']);
   const ENTRA_ROSTER = [
-    { group: '🧱 Directory objects', tools: [
-      // 32707: T59 Entra device cleanup (from TUNO T25), beside Groups
-      { id: 'toolCaGroups', name: 'Groups', blurb: 'Every security group in the tenant with what uses it — Conditional Access policies and Global Secure Access. Opens on All groups; the scope narrows it to one workload.' },
+    // 33009 (Mihai 20 Oct: the 03 overview scrolls too much — combine and
+    // shorten; mockup option A): six groups of one or two tall cards became
+    // three groups of compact cards, three to a row, with Help as one chip row.
+    { group: '🧱 Directory & apps', tools: [
+      { id: 'toolCaGroups', name: 'Groups', blurb: 'Every security group with what uses it — Conditional Access and Global Secure Access. Opens on All groups.' },
       { id: 'toolDeviceCleanup', blurb: blurbs.toolDeviceCleanup },
-    ] },
-    // 32804: T60 App access review — the apps and their consent, for tenants without app governance
-    { group: '🔌 Applications', tools: [
       { id: 'toolAppAccess', blurb: blurbs.toolAppAccess },
     ] },
-    { group: '🌐 Global Secure Access', tools: [
+    { group: '🛡 Security posture', tools: [
+      { id: 'toolHarden', blurb: blurbs.toolHarden },
       { id: 'toolGsa', blurb: blurbs.toolGsa },
     ] },
     { group: '⏳ Temporary tools', tools: [
@@ -107,8 +108,8 @@
     // reader knows PIM-buddy exists, never switchable here.
     pim: { num: '02', name: 'PIM-buddy', betaOnly: true, note: 'On the beta channel — not in this build' },
     entra: { num: '03', name: 'Entra Tools', title: 'Entra Tools overview', context: 'Entra Tools / Workspace 03',
-      lead: 'The directory objects every workload leans on — groups first, with what uses each one: Conditional Access and Global Secure Access. 🌐 Global Secure Access starts with the Microsoft traffic profile; Internet Access and Private Access come later. The ⏳ temporary tools — dated retirements and decisions — live here too.',
-      shortcuts: [['toolCaGroups','👥','Groups'],['toolDeviceCleanup','🧹','Devices'],['toolAppAccess','🔑','Apps'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
+      lead: 'The directory objects every workload leans on — groups, devices, apps — the tenant’s security posture (🛡 Securing M365, 🌐 Global Secure Access), and the ⏳ temporary tools for dated retirements and decisions.',
+      shortcuts: [['toolCaGroups','👥','Groups'],['toolDeviceCleanup','🧹','Devices'],['toolAppAccess','🔑','Apps'],['toolHarden','🛡','Harden'],['toolGsa','🌐','GSA'],['toolEgress','🛰','Egress']] },
   };
   const WS_IDS = Object.keys(WORKSPACES).filter((id) => !WORKSPACES[id].betaOnly);
   const switchable = (id) => !!WORKSPACES[id] && !WORKSPACES[id].betaOnly;
@@ -209,7 +210,12 @@
     $('wcPimLead').textContent = w.lead || '';
     const list = toolsOf(ws), real = list.filter(t => !t.planned);
     $('wcLibraryCount').textContent = `All ${real.length} tools`;
-    $('wcOverviewTools').innerHTML = [...new Set(list.map(t=>t.group))].map(group=>`<details class="wc-tool-group" open><summary>${esc(group)} <span>${(n=>`${n} tool${n===1?'':'s'}`)(list.filter(t=>t.group===group && !t.planned).length)}</span></summary><div class="wc-tool-grid">${list.filter(t=>t.group===group).map(card).join('')}</div></details>`).join('');
+    // 33009: Workspace 03 draws its library compact — the Help group as one
+    // row of chips instead of four cards (the CSS for the cards is scoped to 03)
+    const compact = ws === 'entra', helpGroup = PLATFORM_GROUP.group;
+    $('wcOverviewTools').classList.toggle('wc-compact', compact);
+    $('wcOverviewTools').innerHTML = [...new Set(list.map(t=>t.group))].filter(group=>!(compact && group===helpGroup)).map(group=>`<details class="wc-tool-group" open><summary>${esc(group)} <span>${(n=>`${n} tool${n===1?'':'s'}`)(list.filter(t=>t.group===group && !t.planned).length)}</span></summary><div class="wc-tool-grid">${list.filter(t=>t.group===group).map(card).join('')}</div></details>`).join('')
+      + (compact ? `<div class="wc-help-row"><span>Help</span>${list.filter(t=>t.group===helpGroup).map(t=>`<button type="button" class="wc-help-chip" data-wc-tool="${esc(t.id)}"><span aria-hidden="true">${icon(t.id)}</span>${esc(t.name)}</button>`).join('')}</div>` : '');
     bindGroups();
     renderRecent();
   }
@@ -226,8 +232,8 @@
     // 32515: a tool that follows the workspace (T12's first scope) listens
     if (changed) document.dispatchEvent(new CustomEvent('enca:workspace-switched', { detail: { ws } }));
     if (changed && !opts.quiet) {
-      // A tool open on the other side stays open (its tab is only hidden);
-      // the screen goes to this side's home so rail, strip and page agree.
+      // A tool open on the other side stays open and its tab stays in the
+      // strip (33010); the screen goes to this side's home so rail and page agree.
       const active = $('toolNav').querySelector('.toolnav-tab.active [data-nav]')?.dataset.nav || '';
       if (active && !inWorkspace(active, ws)) $('side-home')?.click();
       else synchronize();
@@ -241,7 +247,7 @@
     return WS_IDS.filter(id => id !== ws).map(id => {
       const w = WORKSPACES[id], label = `⇄ Switch to ${w.num} · ${w.name}`;
       const sc = score ? score(label, q) : 1;
-      return sc ? { kind: 'tool', id: 'side-home', label, hint: `Workspace ${w.num} — ${id === 'pim' ? 'everything privileged access' : id === 'entra' ? 'groups and Global Secure Access' : 'the Conditional Access tools'}`, score: sc, go: () => setWorkspace(id) } : null;
+      return sc ? { kind: 'tool', id: 'side-home', label, hint: `Workspace ${w.num} — ${id === 'pim' ? 'everything privileged access' : id === 'entra' ? 'groups, apps, tenant hardening and Global Secure Access' : 'the Conditional Access tools'}`, score: sc, go: () => setWorkspace(id) } : null;
     }).filter(Boolean);
   }
   let setLib = () => {};
@@ -306,9 +312,13 @@
       const t=tools.find(t=>t.id===button.dataset.nav);
       if(t)button.innerHTML=icon(t.id)+`<span>${esc(nameIn(t.id, ws))}</span>`;
       button.setAttribute('aria-current',button.dataset.nav===active&&!home?'page':'false');
-      // A tab belongs to the workspace its tool is in; the other side's tabs
-      // stay open and come back with the switch (32407).
-      button.closest('.toolnav-tab').hidden = !inWorkspace(button.dataset.nav, ws);
+      // 33010 (Mihai: make the tools tab bar platform, so tools opened show in
+      // every workspace): every open tab shows on every side. A tab whose tool
+      // lives in another workspace carries that workspace's number; clicking it
+      // takes the shell there, as any tool of the other side does (32407).
+      const own = inWorkspace(button.dataset.nav, ws), tabWs = own ? ws : homeOf(button.dataset.nav);
+      if (t) button.innerHTML = icon(t.id) + `<span>${esc(nameIn(t.id, tabWs))}</span>` + (own ? '' : `<small class="wc-tab-ws" title="Workspace ${esc(WORKSPACES[tabWs].num)} · ${esc(WORKSPACES[tabWs].name)}">${esc(WORKSPACES[tabWs].num)}</small>`);
+      button.closest('.toolnav-tab').hidden = false;
     });
     $('wcCloseAll').disabled=!nav.querySelector('[data-close]');
     document.querySelectorAll('#toolNav [data-close]').forEach(button=>{

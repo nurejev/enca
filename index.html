@@ -23,28 +23,28 @@
      its file listing, then the policy JSONs from raw. Read-only, unauthenticated,
      one read per session, and the bundled snapshot stays as the fallback. No
      other file talks to either host. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com https://cloudflare-dns.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=329"></script>
+<script src="js/popup-guard.js?v=330"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=329" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=329">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=330" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=330">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=329"></script>
+<script src="js/selfhost-boot.js?v=330"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=329"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=329"></script>
-<link rel="stylesheet" href="css/workspace.css?v=329">
-<link rel="stylesheet" href="css/workspaces.css?v=329">
-<link rel="stylesheet" href="css/tool-layout.css?v=329">
-<link rel="stylesheet" href="css/list-detail.css?v=329">
-<link rel="stylesheet" href="css/flat-icons.css?v=329">
+<script src="js/counter.js?v=330"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=330"></script>
+<link rel="stylesheet" href="css/workspace.css?v=330">
+<link rel="stylesheet" href="css/workspaces.css?v=330">
+<link rel="stylesheet" href="css/tool-layout.css?v=330">
+<link rel="stylesheet" href="css/list-detail.css?v=330">
+<link rel="stylesheet" href="css/flat-icons.css?v=330">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=329" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=330" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=329" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=330" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -238,6 +238,10 @@
       <div class="tool tool-tile" id="toolAppAccess">
         <div class="tool-ic">🔑</div><h3>App access review <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
         <p><b>Workspace 03 · Entra Tools.</b> Every app that can reach this tenant’s data — <b>what it can do</b>, <b>who let it in</b>, <b>whether it is still used</b> — one row per app with the verdict in plain words. App governance for tenants without Defender for Cloud Apps (Business Premium): Tier 0 and endpoint apps first, unverified publishers, unused apps and client secrets; <b>who can do what</b> (assign roles, push to every device, reach every mailbox); the consent settings; and per app approve, restrict, reduce, quarantine or remove — each with its impact and way back first, the decision written on the app. Markdown report and CSV. <span class="tag block">writes to tenant</span></p>
+      </div>
+      <div class="tool tool-tile" id="toolHarden">
+        <div class="tool-ic">🛡</div><h3>Securing M365 <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
+        <p><b>Workspace 03 · Entra Tools.</b> The tenant's Microsoft 365 security settings read against a hardening baseline — Entra user and group settings, authentication methods, devices, apps and consent, guests, privileged access, SharePoint, mail DNS (SPF, DKIM, DMARC) and Conditional Access — every one a browser can reach. What Microsoft Graph can change is <b>fixed from here</b>: tick the failures, read each change's impact and way back, type FIX; a snapshot makes ↩ Undo possible. What only PowerShell can read (Exchange, Defender for Office, Purview, Teams) comes from a <b>read-only script</b> whose result you load back; portal-only settings are attested, and the attestation is kept in the tenant. Markdown report. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolEgress">
         <div class="tool-ic">🛰</div><h3>Egress &amp; location impact <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
@@ -410,7 +414,7 @@
         Sign-in uses Microsoft Entra (MSAL, authorization code flow with PKCE, no client secret); tokens live in session storage and are gone when the tab closes.
         The <b>⚙ connection</b> control on the sign-in card chooses <i>which app registration and which tenant</i> that sign-in uses — the registration this copy ships with, or one of your own, named by its client ID.
         It sets only those two things (never the permissions asked for, nor which Graph endpoint is called), the choice is kept in this browser and sent nowhere, and whichever registration you name must carry this page's address as a SPA redirect URI.
-        Graph tokens are attached only to <code>graph.microsoft.com</code>; optional Azure RBAC reads use a separate token for <code>management.azure.com</code> (both hostname-validated), a strict Content-Security-Policy is enforced,
+        Graph tokens are attached only to <code>graph.microsoft.com</code>; optional Azure RBAC reads use a separate token for <code>management.azure.com</code> (both hostname-validated); 🛡 Securing M365's mail-DNS check asks Cloudflare's public DNS-over-HTTPS resolver (<code>cloudflare-dns.com</code>) for your mail domains' SPF, DKIM and DMARC records — public names only, never a token; a strict Content-Security-Policy is enforced,
         and all JavaScript libraries are self-hosted — nothing loads from third-party CDNs at runtime.
         Exports are generated locally on your machine and carry your tenant's branding, not this tool's.</p>
     </details>
@@ -1516,6 +1520,23 @@
     <div class="tool-body" id="aaBody"></div>
   </section>
 
+  <!-- ============ 🛡 SECURING M365 (T61, build 330 — beta 33008) — js/m365harden.js reads, judges, plans, writes, reports; app.js draws ============ -->
+  <section id="screen-mh" class="screen tool">
+    <div class="list-card readme" id="mhHead"></div>
+    <div class="toolbar" id="mhToolbar">
+      <div class="dd-read mini muted" id="mhRead"></div>
+      <div class="tb-actions">
+        <button class="btn" id="mhRefresh" title="Read every setting again">↻ Read again</button>
+        <button class="btn" id="mhGrant" hidden title="Read the areas that need an extra read permission (asked once)">🔑 Read more areas</button>
+        <button class="btn" id="mhScript" title="A read-only PowerShell script for the settings only PowerShell can read (Exchange, Defender for Office, Purview, Teams, the rest of SharePoint)">📜 Audit script</button>
+        <button class="btn" id="mhLoad" title="Load the JSON the audit script wrote">📥 Load script result</button>
+        <input type="file" id="mhFile" accept=".json,application/json" hidden>
+        <button class="btn" id="mhMd">📝 Report</button>
+      </div>
+    </div>
+    <div class="tool-body" id="mhBody"></div>
+  </section>
+
   <section id="screen-egress" class="screen tool">
     <div class="list-card readme" id="egHead"></div>
     <div class="list-card" id="egForm"></div>
@@ -1748,6 +1769,10 @@
         <h3>Shipped before <span class="rm-when">delivered, and no longer news</span></h3>
         <p class="mini muted" style="margin:0 0 12px">Everything that is live, newest first. A card lands here when it goes live, and a later build ages any other shipped card here too. They are kept rather than deleted — a roadmap that forgets what it delivered is only a wish list — but they stop competing with what is happening now.</p>
         <div id="rmShippedCards">
+          <div class="list-card rm-card" data-shipped="330">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R92</span> <a href="#" class="md-tool" data-tool="toolHarden">🛡 Securing M365 — the tenant's M365 settings, checked and fixed from the browser</a> <span class="tag grant">live · build 330 · v2.0.8</span></h4>
+            <p class="mini" style="margin:0">T61 in Workspace 03, a new 🛡 Tenant hardening group: every recommendation of the CIS Microsoft 365 Foundations Benchmark v7.0.0 placed by how a browser reaches it — 43 fixed through Graph with impact, way back, typed FIX and undo; 9 checked; 17 from the Conditional Access engine; 3 mail-DNS lookups; 16 portal settings attested in the tenant; 61 from a generated read-only PowerShell script loaded back; 12 Fabric settings for phase 2. CIS numbers on the publisher tenant only.</p>
+          </div>
           <div class="list-card rm-card" data-shipped="328">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R91</span> <a href="#" class="md-tool" data-tool="toolBaseline">🏢 SMB Basic — a third Conditional Access baseline</a> <span class="tag grant">live · build 328 · v2.0.6</span></h4>
             <p class="mini" style="margin:0">Security defaults rebuilt as Conditional Access for Business Premium tenants, plus Global Secure Access per platform, stricter admins (phishing-resistant MFA, 4-hour sessions, the compliant network, allowed countries) and a FIDO2-only break-glass policy. An exclusion group per policy and a restricted unit per section, the break-glass accounts in their own unit. A first-class catalog like CloudFellows and Joey Verlinden: the Baseline picker, the security-defaults card, Import, Guided rollout, CA groups, Protect exclusions and Restricted AUs all read it.</p>
@@ -1761,7 +1786,7 @@
             <p class="mini" style="margin:0">T59 in Workspace 03, ported from TUNO T25: disable after 30 days without contact, delete after 90 and only what is already disabled, every write read again and read back, re-enable as the way back, and one Markdown report.</p>
           </div>
           <div class="list-card rm-card" data-shipped="327">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R89</span> 🔐 Sign-in through your own registration only — no shared multi-tenant app <span class="tag grant">live · beta 32709 · production 327</span></h4>
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R89</span> 🔐 Sign-in through your own registration only — no shared multi-tenant app <span class="tag grant">live · build 327 · v2.0.5</span></h4>
             <p class="mini" style="margin:0">Builds on <span class="rm-ref">R14</span>, narrows <span class="rm-ref">R59</span>. A copy of ENCA ships no login; a login is always a client ID and the tenant it lives in, and shared endpoints are refused in the code, the ⚙ panel and the container. After sign-in ENCA checks that the registration belongs to the tenant you signed in to and signs you out if it does not. The first registration in a tenant comes from Azure Cloud Shell (PowerShell, no storage account needed): the sign-in card gives the command, checked by its SHA-256. Next: a separate onboarding page, and permissions per workspace.</p>
           </div>
           <div class="list-card rm-card" data-shipped="326">
@@ -2093,7 +2118,7 @@
         <li><b>Clear</b> (build 322) — takes away everything narrowing the view at once: the selection, an <i>From the Overview</i> filter you arrived through, the persona chips, the search box and the state filter. It greys out when there is nothing to clear, and hovering it names exactly what it would remove. Each filter still has its own control if you want to drop just one — the Overview chip's ✕, a second click on a persona chip, <b>All</b> on the state chips.</li>
         <li><b>Apply flow</b> (per persona) — a visual of what actually applies to a persona, including Global policies in scope and honouring exclusions (an excluded persona group drops the policy from the flow).</li>
         <li><b>👯 Duplicates</b> <span class="tag new">NEW</span> — the same policy <b>twice</b>. 🧹 Housekeeping reads VERSIONS and needs one in the name; a baseline whose names carry none (Joey Verlinden's) leaves a second import sitting beside the first, which is how Courseware ended up with <code>CA004-Global-…-AuthenticationFlows</code> as CA018 (Off, on the deploy group) and CA019 (Report-only, All users). A duplicate set is <b>one name carried by two or more policies</b>, the staging prefix aside. The version is part of the name, so v1.0 beside v3.0 is not a duplicate — that is Housekeeping's case; the same CA number under two different names is a number clash, which 🧬 Baseline reports. Each set is compared with the same engine as 🔍 Compare and gets a verdict: <b>identical</b> (nothing but the state differs), <b>assignment differs</b> (only who they reach), or <b>needs review</b> (conditions, controls, or a guest or workload scope a merge cannot express — never merged here). Each row says when that copy was <b>created</b> — to the minute, in your own timezone — and which of them is the <b>newer</b> one, because two runs of the same import land on the same day and the date alone answers nothing. A copy changed after it was made says that too. <b>Merge</b> is: pick the copy to KEEP, tick what to bring across from the other (include groups, exclusions, directory roles, the state — each tick says what it changes, and whether it widens who the policy reaches), and the rest are deleted. The copy that is On is never the one deleted while the kept one is not: that set is refused with the reason on it. A <b>needs review</b> set carries a <b>Reviewed</b> tick — the tool refuses to decide a security question for you, not to be overruled on one you have looked at: tick it and the set can be selected and merged like any other, with the reason it was held recorded in the report. The page behind the popup does not scroll while it is open, the list keeps its place when you tick something, and closing a comparison comes back to the set it was opened from. Then a plan — what is patched, what is deleted — a JSON backup of what goes, the typed <b>DELETE</b>, the run ledger and a Markdown report. A deleted policy is restorable for 30 days in ♻️ Recycle bin.</li>
-        <li><b>🧹 Housekeeping</b> — lists older versions when a higher version of the same CA number exists, including On and Report-only policies. Status, assignment and configuration differences are shown as review points. Compare opens a read-only, field-by-field view of both versions, with additions and removals highlighted; turn off Differences only to see matching settings too. Every row is a setting: a block one version leaves unset is compared setting by setting against the other (build 315), an authentication strength is shown as its name and id rather than as the strength's own combinations, and Graph's <code>@odata</code> annotations — which name the policy's own id and made two policies on the same strength look different — are not settings and are left out. A <b>cleanup candidate</b> — an Off version with matching configuration and a newer On successor — can be selected straight away; any other row needs the Reviewed tick below first. Either way the delete goes through the same confirmation as 🗑 Delete (JSON backup + typed <code>DELETE</code>, a row per policy, Stop and a report), and the list behind it refreshes afterwards. Nothing is selected automatically. The button reads <b>🧹 Housekeeping (n)</b>, or <b>(n · ⇄ m)</b> when m version changes are waiting to be switched over. Names are compared without the version, written <code>-v1.0.3</code> or <code> v1.0.3</code>.
+        <li><b>🧹 Housekeeping</b> — lists older versions when a higher version of the same CA number exists, including On and Report-only policies. Status, assignment and configuration differences are shown as review points. Compare opens a read-only, field-by-field view of both versions, with additions and removals highlighted; turn off Differences only to see matching settings too. Every row is a setting: a block one version leaves unset is compared setting by setting against the other (build 315), an authentication strength is shown as its name and id rather than as the strength's own combinations, and Graph's <code>@odata</code> annotations — which name the policy's own id and made two policies on the same strength look different — are not settings and are left out. A <b>cleanup candidate</b> — an Off version with matching configuration and a newer On successor, or (build 330) an Off version beside the version the active baseline ships, whatever else differs, since an Off policy enforces nothing — can be selected straight away; any other row needs the Reviewed tick below first. Either way the delete goes through the same confirmation as 🗑 Delete (JSON backup + typed <code>DELETE</code>, a row per policy, Stop and a report), and the list behind it refreshes afterwards. Nothing is selected automatically. The button reads <b>🧹 Housekeeping (n)</b>, or <b>(n · ⇄ m)</b> when m version changes are waiting to be switched over. Names are compared without the version, written <code>-v1.0.3</code> or <code> v1.0.3</code>.
           <b>⇄ Switch over</b> (at the top, when it applies) finishes a version change that stopped half-way — a newer version still Off while an older one is On or Report-only, as an import leaves it when Entra is slow to show the new policy. Tick the pairs: each new version takes its older version's state (or Report-only first, if you tick that), is read back, and only then is the older version switched Off. A pair whose names or scope differ can only be ticked after you have compared it. It also finishes half a switch: a newer version already On beside an older one still On only needs the older one Off. Typed <code>SWITCH</code>, a run ledger and a report; afterwards the older versions are Off and show up here as cleanup candidates.
           <b>Reviewed</b>: a row that differs from its newer version only in ways you meant — an exclusion added, a name tidied — has its own Reviewed tick, and <b>✓ Mark all reviewed</b> ticks them all; a reviewed row can be selected for deletion, and <b>☑ Select all to delete</b> selects every one that can. Still blocked, whatever you tick: an older version that is On or Report-only (switch it over first), incomplete details, or several policies at the highest version. Every delete still goes through the JSON backup and the typed <code>DELETE</code>.</li>
               <li><b>The policy ID is on the expanded card too.</b> The compact card carried it and the expanded one did not, so opening a policy to look at it properly took away the one string that identifies it — on the card that gets exported, screenshotted and pasted into a ticket. Two policies can share a name, a version and a persona; the portal is reached by id. One click selects the whole GUID.</li>
@@ -2526,7 +2551,7 @@
       <h4>🧭 Workspaces &amp; navigation</h4>
       <p>From 2.0, once you are signed in, ENCA is laid out as workspaces: a rail of shortcuts on the left, a branded header across the top, a strip of open tools under it, and the tool itself below. The tools, their data and their confirmation steps are the same as before; this is how you move between them.</p>
       <ul>
-        <li><b>Workspaces 01 and 03</b> <span class="tag new">NEW</span> (build 326) — the chip beside the wordmark says which side you are on: <b>01 · Conditional Access</b>, every Conditional Access tool as before, or <b>03 · Entra Tools</b>, the directory objects every workload leans on — 👥 <b>Groups</b> (the same tool as Conditional Access groups, opened on All groups, with a CA or GSA badge on every row it can place), 🌐 <b>Global Secure Access</b> and the ⏳ temporary tools (🛰 Egress &amp; location impact, 📵 SMS &amp; voice retirement, 🧷 memberOf retirement). Press the chip, the <b>01 ⇄</b> caption at the foot of the rail, <kbd>⌘⇧1</kbd> / <kbd>⌘⇧3</kbd>, or <kbd>⌘K</kbd> → <i>Switch to</i>. The header colour follows the ENCA mark: deep green with a gold line on 01, the beacon green with a pale line on 03. A tool opened from the other side switches sides with it; open tabs of the other side stay open and come back when you switch. <code>?ws=entra</code> opens on 03, and the last side used is remembered in this browser.</li>
+        <li><b>Workspaces 01 and 03</b> <span class="tag new">NEW</span> (build 326) — the chip beside the wordmark says which side you are on: <b>01 · Conditional Access</b>, every Conditional Access tool as before, or <b>03 · Entra Tools</b>, the directory objects every workload leans on — 👥 <b>Groups</b> (the same tool as Conditional Access groups, opened on All groups, with a CA or GSA badge on every row it can place), 🌐 <b>Global Secure Access</b> and the ⏳ temporary tools (🛰 Egress &amp; location impact, 📵 SMS &amp; voice retirement, 🧷 memberOf retirement). Press the chip, the <b>01 ⇄</b> caption at the foot of the rail, <kbd>⌘⇧1</kbd> / <kbd>⌘⇧3</kbd>, or <kbd>⌘K</kbd> → <i>Switch to</i>. The header colour follows the ENCA mark: deep green with a gold line on 01, the beacon green with a pale line on 03. A tool opened from the other side switches sides with it; since build 330 <span class="tag upd">UPDATED</span> the tab strip is shared by every workspace: open tools stay in the strip wherever you are, a tab from the other workspace carries its number (01, 03), and clicking it takes you to that side. <b>Since build 330</b> <span class="tag upd">UPDATED</span> the 03 overview is compact: three groups — <b>🧱 Directory &amp; apps</b> (Groups, Entra device cleanup, App access review), <b>🛡 Security posture</b> (Securing M365, Global Secure Access) and <b>⏳ Temporary tools</b> — as small cards three to a row, and Help as one row of chips, so the whole library fits on one screen. <code>?ws=entra</code> opens on 03, and the last side used is remembered in this browser.</li>
         <li><b>02 · PIM-buddy</b> <span class="tag new">BETA</span> — listed in the chip's menu so the numbering reads 01 · 02 · 03, marked beta and not selectable: PIM-buddy is on the beta channel only and none of it is in this build.</li>
         <li><b>The rail</b> — <b>Home</b>, then the tools in the order the work happens: <b>Policies</b>, <b>Sign-ins</b> and <b>Who is…</b> (what exists and who it reaches), <b>Checks</b> (what is wrong with it), then <b>Baseline</b>, <b>CA groups</b> and <b>Building blocks</b> — 🧩 Policy building blocks (what to change). Below the divider, <b>All tools</b> and <b>Help</b>. The tool you are in is highlighted. On a narrow window the rail becomes a bar along the bottom with fewer shortcuts; the rest stay under All tools.</li>
         <li><b>All tools</b> — in the rail and in the header. Opens the tool library: every tool in its group, searchable by name, task or tool number (<code>T14</code>).</li>
@@ -2694,7 +2719,7 @@
       <p>Matches this tenant against a baseline catalog and shows the gap. <b>The catalogs live behind the picker in the toolbar</b> — 🧬 CloudFellows R26.6, 🧩 Joey Verlinden and, since build 328, 🏢 SMB Basic — which is what T11 🧩 Baseline (Joey Verlinden) was a second tile for until build 311; it keeps its number and its section below. The CloudFellows catalog was published as the <i>Limon-IT baseline</i> until beta 25151 (production 287); the release designation, the catalog and the CAB-SEC / CAD-SEC group names are unchanged — only the name it goes by.</p>
       <ul>
         <li><b>Status filters</b> — <b>Missing</b> (not in tenant), <b>Outdated</b> (older version present), <b>Up to date</b>, <b>Not in baseline</b> (in tenant but not the catalog). The count chips on the summary card are the same filter: click one to see those rows, click it again for all. An active baseline with missing policies <b>opens on Missing</b>, because what is still to do is the question the screen answers.</li>
-        <li><b>🏢 SMB Basic</b> <span class="tag new">BETA</span> (R91) — a third catalog for small tenants on Microsoft 365 Business Premium: security defaults rebuilt as Conditional Access, with more on top. 17 policies in four sections, each section with its own restricted unit: <b>Base</b> CA001–CA008 (MFA for every user, block legacy authentication, block the device code flow, MFA for the 16 admin roles security defaults names, MFA for the Microsoft admin portals and Azure management, registering security info needs MFA or a Temporary Access Pass, <b>1.0.2:</b> registering or joining a device needs MFA or a TAP, and a Windows PC or Mac that is <b>not Entra joined</b> — hybrid joined counts as unmanaged, a Mac counts as joined once Platform SSO registered it — gets a 4-hour session that is never kept in the browser) in <code>CA-RMAU-SMB-BASE</code>; <b>Admins</b> CA101–CA104 (phishing-resistant MFA, a 4-hour session, the compliant network instead of a compliant device, allowed countries) in <code>CA-RMAU-SMB-ADM</code>; <b>Compliant network</b> CA201–CA204 (Global Secure Access per platform, guests excluded, admins not) in <code>CA-RMAU-SMB-CN</code>; <b>Break-glass</b> CA901 (a passkey only — synced passkeys too when the Passkey (FIDO2) profile allows them) in <code>CA-RMAU-BreakGlass</code>, which also holds the break-glass accounts. Every policy has its own exclusion group, <code>CAB-SEC-U-SMB-CAnnn-Exclusion</code>, and every policy but CA901 excludes <code>CAB-SEC-U-BreakGlass</code>; the all-users policies that reach every resource (CA001–CA003, CA008, CA201–CA204) and CA005 also exclude the directory sync roles (Directory Synchronization Accounts, On Premises Directory Sync Account), as security defaults does — the sync server runs no Global Secure Access client. In 🗂 Policies and the Checks matrix SMB policies are grouped by these sections, not by the CloudFellows personas. No personas, no deploy groups and no shared 🚨 E-Admins — its own admin and break-glass policies cover them. ENCA carries the catalog: <b>Import baseline</b> and the security-defaults card need no ZIP and no download. CA103 and CA201–CA204 land <b>Off</b> whatever the landing state, because they wait for 🌐 Global Secure Access; at the ⇄ switch CA001–CA005 go On.</li>
+        <li><b>🏢 SMB Basic</b> <span class="tag new">BETA</span> (R91) — a third catalog for small tenants on Microsoft 365 Business Premium: security defaults rebuilt as Conditional Access, with more on top. 19 policies in four sections, each section with its own restricted unit: <b>Base</b> CA001–CA009 (MFA for every user, block legacy authentication, block the device code flow, MFA for the 16 admin roles security defaults names, MFA for the Microsoft admin portals and Azure management, registering security info needs MFA or a Temporary Access Pass, <b>1.0.2:</b> registering or joining a device needs MFA or a TAP, and a Windows PC or Mac that is <b>not Entra joined</b> — hybrid joined counts as unmanaged, a Mac counts as joined once Platform SSO registered it — gets a 4-hour session that is never kept in the browser; <b>1.0.4:</b> CA009 — on iOS and Android only apps under an Intune app protection policy reach company data, guests, shared devices, the Defender mobile apps and — <b>1.0.5</b>, as every CloudFellows app protection policy — Azure Credential Configuration Endpoint Service left out, so a passkey can still be created in Microsoft Authenticator; that resource is also left out of CA103, CA203 and CA204, the policies a phone meets) in <code>CA-RMAU-SMB-BASE</code>; <b>Admins</b> CA101–CA104 (phishing-resistant MFA, a 4-hour session, the compliant network instead of a compliant device, allowed countries) in <code>CA-RMAU-SMB-ADM</code>; <b>Compliant network</b> CA201–CA205 (Global Secure Access per platform, guests excluded, admins not; <b>1.0.3:</b> CA205 blocks every platform that is not Android, iOS, Windows or macOS, so nobody steps around the per-platform policies) in <code>CA-RMAU-SMB-CN</code>; <b>Break-glass</b> CA901 (a passkey only — synced passkeys too when the Passkey (FIDO2) profile allows them) in <code>CA-RMAU-BreakGlass</code>, which also holds the break-glass accounts. Every policy has its own exclusion group, <code>CAB-SEC-U-SMB-CAnnn-Exclusion</code>, and every policy but CA901 excludes <code>CAB-SEC-U-BreakGlass</code>; the all-users policies that reach every resource (CA001–CA003, CA008, CA201–CA204) and CA005 also exclude the directory sync roles (Directory Synchronization Accounts, On Premises Directory Sync Account), as security defaults does — the sync server runs no Global Secure Access client. <b>1.0.3, the exclusions matrix</b>, from 🛡 Bypass &amp; Swiss cheese and 📘 MS Learn: <code>CAB-SEC-U-TeamsSharedDevices</code> (Teams Rooms, phones, panels, Surface Hub — created <b>dynamic</b> as in the CloudFellows baseline, on the service plans only device licences carry; 📞 Teams devices tunes the rule to the tenant) out of CA001, CA003, CA008 and CA201–CA204; Azure Windows VM Sign-In out of CA001; the two Defender mobile apps, which carry the Global Secure Access client on iOS and Android, out of CA103, CA203 and CA204; B2B direct connect out of CA008. ENCA's own checks on the catalog leave only the documented exclusions under the baseline-scopes change and the sync-role exclusion. In 🗂 Policies and the Checks matrix SMB policies are grouped by these sections, not by the CloudFellows personas. No personas, no deploy groups and no shared 🚨 E-Admins — its own admin and break-glass policies cover them. ENCA carries the catalog: <b>Import baseline</b> and the security-defaults card need no ZIP and no download. CA103 and CA201–CA204 land <b>Off</b> whatever the landing state, because they wait for 🌐 Global Secure Access; at the ⇄ switch CA001–CA005 go On. Every CA number held more than once is shown on its row — <b>⚠ also here</b>, with what the other policy is (an older version, the same version again, another policy on the number) — and the summary counts them, pointing at 🧹 Housekeeping (build 330).</li>
         <li><b>🛡 Security defaults</b> <span class="tag new">NEW</span> <span class="tag block">writes to tenant</span> — the security defaults setting is read with the policies (and the P1/P2 licences when the answer needs them). A tenant on security defaults has no Conditional Access policies, and the screen now says that instead of “No policies loaded.” — the table shows the whole catalog as Missing, and the card above it offers both baselines through three steps: <b>① deploy in Report-only</b> (📥 Import opens with new policies landing Report-only; Entra will not turn one On while security defaults is on), <b>② read what it would do</b> (🎚 Report-only impact), <b>③ ⇄ Switch from security defaults</b>. The switch band lists what security defaults does — MFA for every user, MFA for admins, legacy authentication blocked, the device code flow blocked — next to the policy here that takes each part over, plus the break-glass group (it must exist, have members and be excluded by every policy that goes On). The switch stays off until each is ✓. Its confirmation names the policies, the order (security defaults Off and read back, the policies On one by one and read back, the setting read again), the impact and the recovery. A run in which no policy goes On turns security defaults straight back on. <b>↩ Back to security defaults</b> stays on the band in this browser: the policies go back to the state they had, security defaults goes on — and if Entra refuses, the policies are switched On again at once, so the tenant is never left with neither. Without Entra ID P1 the catalog is a preview and deploying is off; with security defaults <b>off and no policies</b> the card says nothing enforces MFA and offers to turn security defaults on. The Overview shows the same card. Try it without a tenant: <code>?demo=sd</code> (on, no policies) and <code>?demo=sdro</code> (after step ①).</li>
         <li><b>★ Active by match</b> — a tenant that never chose a baseline gets the one it holds most of, by name: 26 policies carrying Joey Verlinden's names and none carrying CloudFellows' makes his the active baseline for the session, and the card says so with the counts. It is not saved — the next read decides again — until <b>📌 Keep</b> or an explicit ★ Switch writes the choice; a saved choice is never overridden by a match.</li>
         <li><b>🚨 E-Admins on every catalog</b> — emergency access is not one baseline's idea, and only the CloudFellows catalog writes those policies out (CA1100–CA1105). So they are expected under every catalog: the Joey Verlinden table carries them as its own section marked shared, a tenant that has them no longer shows six “not in baseline” rows for doing the right thing, and the import count says they are created from ENCA's own copy, not his repository.</li>
@@ -2986,6 +3011,23 @@
       <p class="help-x">Writes are asked for at the click and are new in <code>New-EncaAppRegistration.ps1</code> at this build, so a customer tenant gives admin consent once more: <code>Application.ReadWrite.All</code> (Notes, sign-in on or off, delete and restore), <code>AppRoleAssignment.ReadWrite.All</code> (Restrict, and taking an application permission away or back), <code>DelegatedPermissionGrant.ReadWrite.All</code> (taking delegated permissions or a user's consent away or back) and <code>Policy.ReadWrite.ConsentRequest</code> (the admin consent requests). Roles: Cloud Application Administrator or Application Administrator for the apps and for the admin consent requests; Privileged Role Administrator to give a Microsoft Graph application permission back.</p>
     </section>
     <section class="help-sec">
+      <h4>🛡 Securing M365 <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p><b>Workspace 03 · Entra Tools, T61.</b> The tenant's Microsoft 365 security settings read against a hardening baseline, and fixed from the browser where Microsoft Graph can change them. On the publisher tenant every row carries its CIS Microsoft 365 Foundations Benchmark v7.0.0 number and L1/L2 profile; on every other tenant the rows are ENCA's own wording and the numbers stay out (the CIS terms of use). Each row says <b>how</b> it is reached:</p>
+      <ul>
+        <li><b>Fix in browser</b> — Graph reads it and can change it: the authorization policy (app registration, tenant and security-group creation, BitLocker keys, user consent, guest access and invitations), device registration (who may join, the quota, local admins, LAPS), the default app management policy (no secrets, 180-day lifetimes), the admin consent workflow, authentication methods (Authenticator number and location context, companion apps, SMS and voice, email OTP, system-preferred MFA, per-user MFA), password rules (banned words, on-premises protection, smart lockout), Microsoft 365 groups creation, public groups, shared-mailbox sign-in, password expiry, the idle-session timeout, the Office Store and trials, Forms phishing, third-party storage, Intune's no-policy default and personal enrolment, PIM approval for Global Administrator and Privileged Role Administrator, and SharePoint's legacy auth, external sharing, resharing and domain list.</li>
+        <li><b>Check only</b> — read and judged, changed elsewhere: synced or licensed admins, the number of Global Administrators, standing privileged assignments (→ 02 PIM-buddy), MFA registration, password hash sync, invitation domains, access reviews.</li>
+        <li><b>CA engine</b> — the 17 Conditional Access controls judged by the same engine as 🛡 Checks → CIS 5.2.2; built in 🏗 Policy builder.</li>
+        <li><b>Mail DNS</b> — SPF, DKIM selectors and DMARC per mail domain, looked up from the browser through Cloudflare's DNS-over-HTTPS (public names only, no token).</li>
+        <li><b>Portal — attest</b> — settings with no API (SSPR, LinkedIn, the keep-me-signed-in prompt, My Groups, the admin center restriction, Sway…): the portal link and the value, then <b>✓ Attest</b> with a reason.</li>
+        <li><b>PowerShell script</b> — Exchange, Defender for Office, Purview, Teams and the SharePoint settings Graph does not expose: <b>📜 Audit script</b> downloads a read-only script (Get-* only; ExchangeOnlineManagement, Microsoft.Online.SharePoint.PowerShell, MicrosoftTeams) that writes one JSON file; <b>📥 Load script result</b> fills the rows. A result for another tenant is refused.</li>
+        <li><b>Fabric (phase 2)</b> — the Fabric tenant settings need a second API permission and are not read yet.</li>
+        <li><b>Fixing</b> — tick failing rows (or 🔧 Fix this… on one) and <b>✎ Review the change plan</b>: every setting with its impact and way back, the inputs a fix needs (a group for join or approvers, banned words, allowed domains, a number), and the writes exactly as sent. Two fixes on one object are one write — the device registration policy is always written whole, because a write without the quota resets it to 0. Type <b>FIX</b>; the run ledger shows each write, and every setting is read back. The values it changed are kept as a snapshot in this browser (⬇ downloadable): <b>↩ Undo</b> writes them back after a typed UNDO.</li>
+        <li><b>✓ Accept with a reason</b> keeps a failure on purpose; <b>✓ Attest</b> confirms a portal setting. Both are written to the tenant — the open extension <code>nl.limonit.enca.hardening</code> on the organization (2 KB, so reasons are 60 characters) — so every admin and every browser sees them.</li>
+        <li><b>On demand</b> — 🔐 Read per-user MFA (one read per member, batched by 20) and 📬 Find shared mailboxes (unlicensed accounts with a mailbox, their mailbox type read one by one; a token may only read mailboxes you can open, and the row says so).</li>
+      </ul>
+      <p class="help-x">Reading uses the sign-in permissions; areas that need more (SharePoint settings, Microsoft 365 org settings, Forms, Intune, the MFA report, PIM, access reviews, directory sync) are read after one click on 🔑 Read more areas, read-only. Each fix asks for its own write permission at the click — e.g. <code>Policy.ReadWrite.Authorization</code>, <code>Policy.ReadWrite.DeviceConfiguration</code>, <code>Policy.ReadWrite.ApplicationConfiguration</code>, <code>Policy.ReadWrite.AuthenticationMethod</code>, <code>Directory.ReadWrite.All</code> (password rules, group creation), <code>SharePointTenantSettings.ReadWrite.All</code>, <code>RoleManagementPolicy.ReadWrite.Directory</code>, <code>Organization.ReadWrite.All</code> (the record). They are not added to <code>New-EncaAppRegistration.ps1</code>: an admin consents at the first click. The role still decides — the inspector names it per row.</p>
+    </section>
+    <section class="help-sec">
       <h4>🛰 Egress &amp; location impact <span class="tag new">BETA</span></h4>
       <p>A <b>temporary</b> tool in <b>Workspace 03 · Entra Tools</b> (T57), here until the egress decision of P-2716 is made. Conditional Access evaluates the public IP that reaches Entra: behind a cloud proxy (Netskope, Zscaler) that is the proxy's egress, not the office line — the <code>X-Forwarded-For</code> header is ignored — and the country is looked up from that same IP. A policy that excludes the office, or <b>all trusted locations</b>, then treats everyone as outside.</p>
       <ul>
@@ -3012,10 +3054,10 @@
         <li><b>Assignment mode — 🚀 Deployment groups</b>: new policies are scoped to this tenant’s deploy persona groups (<code>CAD-SEC-U-DG-*</code>). Staged and safe — nothing already in the tenant is touched.</li>
         <li><b>Assignment mode — ♻️ Match &amp; replace</b>: for a policy whose CA number already exists at a different version, the new version keeps the <b>current policy’s assignment and state</b>, merges in any <b>new exclusion groups</b> the update adds (created if missing), and the old version is switched <b>Off</b> — a seamless swap.</li>
         <li><b>Assignment mode — 🔀 Switch baseline</b> <span class="tag new">BETA</span>: for moving a tenant from one baseline's groups to the other's. Policies land with the <b>baseline's own groups</b> as shipped (created here — Joey Verlinden's “&lt;policy name&gt; - Exclude” and <code>CA-BreakGlassAccounts - Exclude</code>, or the CloudFellows <code>CAB-SEC-U-CAnnn-Exclusion</code> set), and the <b>members of the other baseline's counterpart groups are copied across</b>: break-glass to break-glass, the exclusion group of the same CA number, the persona include group. It is a copy — the old groups keep their members as the rollback and show in 🧹 <b>What &lt;baseline&gt; left behind</b> (🧬 Baseline Policies) once nothing references them. A same-policy-other-name it supersedes is switched Off. Offered only when the file matches a baseline the tenant is not on, and pre-selected when the tenant's policies visibly use the other baseline's groups.</li>
-        <li><b>🏢 SMB Basic from ENCA's own copy</b> <span class="tag new">NEW</span> — 📥 Import baseline on 🧬 Baseline (SMB Basic), the security-defaults card and Prepare import in ↗ Guided rollout load the catalog ENCA carries: 17 policies, their 17 exclusion groups, the break-glass group, the named location <code>SMB - Allowed countries</code> (the Netherlands — adjust it in 📍 Locations) and a custom strength <code>SMB - Passkey (FIDO2)</code>, all created by name, assignment as shipped. Choosing it makes SMB Basic the tenant's active baseline, so the restricted-unit step offers its four units and files each exclusion group into its section's unit. CA103 and CA201–CA204 always land <b>Off</b>; Entra knows the compliant network location only once Global Secure Access signalling is on, so before that it may refuse them — the import then reports those as failed and the rest lands; import again once 🌐 Global Secure Access is green.</li>
+        <li><b>🏢 SMB Basic from ENCA's own copy</b> <span class="tag new">NEW</span> — 📥 Import baseline on 🧬 Baseline (SMB Basic), the security-defaults card and Prepare import in ↗ Guided rollout load the catalog ENCA carries: 19 policies, their 19 exclusion groups, the shared-device group, the break-glass group, the named location <code>SMB - Allowed countries</code> (the Netherlands — adjust it in 📍 Locations) and a custom strength <code>SMB - Passkey (FIDO2)</code>, all created by name, assignment as shipped. Choosing it makes SMB Basic the tenant's active baseline, so the restricted-unit step offers its four units and files each exclusion group into its section's unit. CA103 and CA201–CA204 always land <b>Off</b>; Entra knows the compliant network location only once Global Secure Access signalling is on, so before that it may refuse them — the import then reports those as failed and the rest lands; import again once 🌐 Global Secure Access is green.</li>
         <li><b>From the repository</b> — 📥 Import baseline on 🧬 Baseline (Joey Verlinden) and Fetch latest in ↗ Guided rollout need no zip: the live read of his repository ships the policy files, <code>Config/Groups</code> and <code>Config/NamedLocations</code> — the same layout as a backup — so the import starts from that read with the gap ticked and the rest of the release listed unticked. A downloaded copy of the repository imports too (its files are UTF-16).</li>
         <li><b>🚨 E-Admins from a CloudFellows backup</b> — the emergency-access policies (CA1100–CA1105) are expected under every baseline. Besides ＋ Create (ENCA's own copy, above), the 🚨 panel still takes a newer copy from <b>a CloudFellows backup ZIP</b> (or an extracted folder): it takes only the E-Admins policies and the groups, locations and authentication strengths they use into this import, renames the break-glass group to the target baseline's (<code>CAB-SEC-U-BreakGlass</code> → <code>CA-BreakGlassAccounts - Exclude</code> for Joey), files the groups they name in the <b>break-glass</b> restricted unit (never the Admins one, and never a deploy group), and lands them <b>Off</b> whatever the backup says — an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out.</li>
-        <li><b>🛫 Pre-flight</b> <span class="tag new">NEW</span> — at the top of every import, read from the tenant before anything is written: a policy this file would create that is <b>already here</b> by name (read on /beta, so the compliant-network policies v1.0 leaves out are seen) is skipped and never created twice — nor is one this page created earlier in the session, even when the policy list has not shown it yet; this baseline's policies that are <b>here and Off</b> while the run lands Report-only, with a tick to set them Report-only too (each read back); a policy that is in the tenant <b>twice</b>; room for the new ones; each custom <b>authentication strength</b> — found, reused when one with exactly the same methods exists under another name, or created — and the limit of 15; the named locations; <b>Global Secure Access</b> signalling for the compliant network location; the <b>break-glass group</b> and its members; the <b>Passkey (FIDO2)</b> method when a policy asks for a passkey only; the device setting <b>Require MFA to register or join devices</b> (it must be No for a register-or-join policy such as SMB CA007 to be enforced); and, for a policy that treats every Windows PC and Mac that is not Entra joined as unmanaged (SMB CA008), how many enabled devices that is — hybrid joined, Macs without Platform SSO, registered only; security defaults. A ✗ holds Import until it is fixed; ⟳ Check again reads it all once more. During the run a state Conditional Access answers “does not exist” for — a policy created seconds earlier — is tried again, and once more at the end of the run, before it is left Off; a strength or location that could not be created stops only the policy that needs it, before its create.</li>
+        <li><b>🛫 Pre-flight</b> <span class="tag new">NEW</span> — at the top of every import, read from the tenant before anything is written: a policy this file would create that is <b>already here</b> by name (read on /beta, so the compliant-network policies v1.0 leaves out are seen) is skipped and never created twice — nor is one this page created earlier in the session, even when the policy list has not shown it yet; this baseline's policies that are <b>here and Off</b> while the run lands Report-only, with a tick to set them Report-only too (each read back); a policy that is in the tenant <b>twice</b>; room for the new ones; each custom <b>authentication strength</b> — found, reused when one with exactly the same methods exists under another name, or created — and the limit of 15; the named locations; <b>Global Secure Access</b> signalling for the compliant network location; the <b>break-glass group</b> and its members; the <b>Passkey (FIDO2)</b> method when a policy asks for a passkey only; the device setting <b>Require MFA to register or join devices</b> (it must be No for a register-or-join policy such as SMB CA007 to be enforced); and, for a policy that treats every Windows PC and Mac that is not Entra joined as unmanaged (SMB CA008), how many enabled devices that is — hybrid joined, Macs without Platform SSO, registered only; for an app protection policy (SMB CA009), whether Intune app protection policies for iOS and Android are assigned; a group the file creates dynamic (SMB's shared-device group) that already exists as an assigned group; the <b>applications</b> the policies name that have no service principal here yet (created first by the run); security defaults. A ✗ holds Import until it is fixed; ⟳ Check again reads it all once more. During the run a state Conditional Access answers “does not exist” for — a policy created seconds earlier — is tried again, and once more at the end of the run, before it is left Off; a strength or location that could not be created stops only the policy that needs it, before its create; a policy that names a service principal the run has just created (Azure Windows VM Sign-In, the Defender mobile apps) waits up to about 1.5 minutes for Conditional Access to know it, instead of failing with a bare 400.</li>
         <li><b>Land new policies as</b> <span class="tag new">NEW</span> — Off (the default) or <b>Report-only</b>. A new policy is still created Off and read back first; only then is the chosen state written. On is never offered here: a policy goes On after you have read what it would do. 🚨 E-Admins taken into an import from another file always land Off, and a replacement keeps the state of the policy it takes over. The 🛡 security defaults card opens the import on Report-only, because step ② reads what the policies would do — and if Entra refuses Report-only while security defaults is on, the policy stays as created, Off and verified, and the report says so.</li>
         <li><b>🚨 ＋ Create the 6 E-Admins policies</b> <span class="tag new">NEW</span> — ENCA carries its own copy of CA1100–CA1105, read from cloudfellows.dev on 18 Oct 2026, with the groups (Emergency_Access1, Emergency_Access2, the break-glass group) and the Phishing-resistant MFA + TAP strength they use. A file without them shows Create as the button; a CloudFellows backup ZIP or folder is only the way to bring a newer copy. A <b>Joey Verlinden</b> import from the repository — 📥 Import baseline, ↗ Guided rollout's Fetch latest, the security defaults card — adds them by itself, ticked, the break-glass group becoming his (<code>CA-BreakGlassAccounts - Exclude</code>), landing Off.</li>
         <li><b>Read back, patiently</b> <span class="tag upd">UPDATED</span> — Conditional Access is eventually consistent: a policy created a moment ago can answer “does not exist” to a read by its own id. Every read after a write is repeated with a short backoff (about 20 seconds for a missing policy) before it counts. <b>A policy Entra is slow to show is finished at the end of the run</b>, not failed: its row reads <i>created · checked again at the end of the run</i>, the import carries on with the rest, and when the other policies are done every such policy is read again with a longer wait (up to about a minute). Once it shows, it is finished exactly as planned — verified, given its state, and in ♻️ Match &amp; replace the old version switched Off — and its row and the report mark it as done on the second check. Only a policy still invisible after both checks is reported as failed, with its id: it is almost certainly there, Off, and a re-run skips it by name, so finish it with 🧹 Housekeeping → ⇄ Switch over or by hand. The version it was meant to replace is never touched until the new one is verified. <b>Stop</b> while policies are waiting for their second check leaves them created, Off and unverified, with the old versions unchanged. Authentication contexts, locations, strengths and terms of use come along only when a chosen policy names them exactly.</li>
@@ -3808,7 +3850,7 @@
   <div class="modal">
     <h3>🧹 Housekeeping — older policy versions</h3>
     <p class="mini" id="hkDesc"></p>
-    <p class="mini">A higher version is a reason to review an older policy. It does not prove that the older policy is redundant. Compare the status, assignments and controls below. Cleanup candidates are Off with matching configuration and a newer On successor; keep them if you still need a rollback. Selected candidates go through the normal backup and typed deletion confirmation.</p>
+    <p class="mini">A higher version is a reason to review an older policy. It does not prove that the older policy is redundant. Compare the status, assignments and controls below. Cleanup candidates are Off with matching configuration and a newer On successor, or Off beside the version the active baseline ships; keep them if you still need a rollback. Selected candidates go through the normal backup and typed deletion confirmation.</p>
     <div id="hkList" style="max-height:45vh;overflow:auto;margin-top:12px"></div>
     <div class="row">
       <button class="btn" id="hkCancel">Close</button>
@@ -3876,105 +3918,106 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=329"></script>
-<script src="js/selfhost.js?v=329"></script>
-<script src="js/version.js?v=329"></script>
-<script src="js/verdict.js?v=329"></script>
-<script src="js/fork.js?v=329"></script>
-<script src="js/authConfig.js?v=329"></script>
-<script src="js/connection.js?v=329"></script>
-<script src="js/labels.js?v=329"></script>
-<script src="js/capabilities.js?v=329"></script>
-<script src="js/graph.js?v=329"></script>
-<script src="js/model.js?v=329"></script>
-<script src="js/render.js?v=329"></script>
-<script src="js/analyze.js?v=329"></script>
-<script src="js/whatif.js?v=329"></script>
-<script src="js/mslearn.js?v=329"></script>
-<script src="js/learntriage.js?v=329"></script>
-<script src="js/learnfeed.js?v=329"></script>
-<script src="js/gapcheck.js?v=329"></script>
-<script src="js/exclusions.js?v=329"></script>
-<script src="js/cascope.js?v=329"></script>
-<script src="js/coverage.js?v=329"></script>
-<script src="js/runmeta.js?v=329"></script>
-<script src="js/overview.js?v=329"></script>
-<script src="js/validator.js?v=329"></script>
-<script src="js/whatifeval.js?v=329"></script>
-<script src="js/builder.js?v=329"></script>
-<script src="js/onboard.js?v=329"></script>
-<script src="js/compare.js?v=329"></script>
-<script src="js/whois.js?v=329"></script>
-<script src="js/wave.js?v=329"></script>
-<script src="js/sessionctl.js?v=329"></script>
-<script src="js/spgap.js?v=329"></script>
-<script src="js/groupuse.js?v=329"></script>
-<script src="js/iso3166.js?v=329"></script>
-<script src="js/causes.js?v=329"></script>
-<script src="js/locations.js?v=329"></script>
-<script src="js/locsignin.js?v=329"></script>
-<script src="js/workloadid.js?v=329"></script>
-<script src="js/authcontexts.js?v=329"></script>
-<script src="js/authstrengths.js?v=329"></script>
-<script src="js/recycle.js?v=329"></script>
-<script src="js/rmau.js?v=329"></script>
-<script src="js/camap.js?v=329"></script>
-<script src="js/rmaudoc.js?v=329"></script>
-<script src="js/termsofuse.js?v=329"></script>
-<script src="js/audit.js?v=329"></script>
-<script src="js/drift.js?v=329"></script>
-<script src="js/guide.js?v=329"></script>
-<script src="js/userimpact.js?v=329"></script>
-<script src="js/smsvoice.js?v=329"></script>
-<script src="js/memberof.js?v=329"></script>
-<script src="js/devcheck.js?v=329"></script>
-<script src="js/idscore.js?v=329"></script>
-<script src="js/xtenant.js?v=329"></script>
-<script src="js/passkeys.js?v=329"></script>
-<script src="js/tokencov.js?v=329"></script>
-<script src="js/naming.js?v=329"></script>
-<script src="js/licgap.js?v=329"></script>
-<script src="js/teamsdev.js?v=329"></script>
-<script src="js/signinstore.js?v=329"></script>
-<script src="js/signins.js?v=329"></script>
-<script src="js/reportimpact.js?v=329"></script>
-<script src="js/changelog.js?v=329"></script>
-<script src="js/baselineData.js?v=329"></script>
-<script src="js/baselineJoeyData.js?v=329"></script>
-<script src="js/baselineSmbData.js?v=329"></script>
-<script src="js/baselineLive.js?v=329"></script>
-<script src="js/baseline.js?v=329"></script>
-<script src="js/eadminsData.js?v=329"></script>
-<script src="js/secdefaults.js?v=329"></script>
-<script src="js/baselineCleanup.js?v=329"></script>
-<script src="js/groupTemplates.js?v=329"></script>
-<script src="js/assign.js?v=329"></script>
-<script src="js/cagroups.js?v=329"></script>
-<script src="js/groupmerge.js?v=329"></script>
-<script src="js/dgfill.js?v=329"></script>
-<script src="js/deploydash.js?v=329"></script>
-<script src="js/trv2.js?v=329"></script>
-<script src="js/gsa.js?v=329"></script>
-<script src="js/egress.js?v=329"></script>
-<script src="js/devicecleanup.js?v=329"></script>
-<script src="js/appaccess.js?v=329"></script>
-<script src="js/groupsview.js?v=329"></script>
-<script src="js/runledger.js?v=329"></script>
-<script src="js/bgvault.js?v=329"></script>
-<script src="js/protect.js?v=329"></script>
-<script src="js/policy-compare.js?v=329"></script>
-<script src="js/import.js?v=329"></script>
-<script src="js/export.js?v=329"></script>
-<script src="js/demo.js?v=329"></script>
-<script src="js/list-detail.js?v=329"></script>
-<script src="js/flat-icons.js?v=329"></script>
-<script src="js/workspace.js?v=329"></script>
-<script src="js/analysis-jobs.js?v=329"></script>
-<script src="js/search-suggest.js?v=329"></script>
-<script src="js/app.js?v=329"></script>
-<script src="js/col-resize.js?v=329"></script>
-<script src="js/accessibility.js?v=329"></script>
-<script src="js/workspaces.js?v=329"></script>
-<script src="js/tool-layout.js?v=329"></script>
+<script src="js/branding.js?v=330"></script>
+<script src="js/selfhost.js?v=330"></script>
+<script src="js/version.js?v=330"></script>
+<script src="js/verdict.js?v=330"></script>
+<script src="js/fork.js?v=330"></script>
+<script src="js/authConfig.js?v=330"></script>
+<script src="js/connection.js?v=330"></script>
+<script src="js/labels.js?v=330"></script>
+<script src="js/capabilities.js?v=330"></script>
+<script src="js/graph.js?v=330"></script>
+<script src="js/model.js?v=330"></script>
+<script src="js/render.js?v=330"></script>
+<script src="js/analyze.js?v=330"></script>
+<script src="js/whatif.js?v=330"></script>
+<script src="js/mslearn.js?v=330"></script>
+<script src="js/learntriage.js?v=330"></script>
+<script src="js/learnfeed.js?v=330"></script>
+<script src="js/gapcheck.js?v=330"></script>
+<script src="js/exclusions.js?v=330"></script>
+<script src="js/cascope.js?v=330"></script>
+<script src="js/coverage.js?v=330"></script>
+<script src="js/runmeta.js?v=330"></script>
+<script src="js/overview.js?v=330"></script>
+<script src="js/validator.js?v=330"></script>
+<script src="js/whatifeval.js?v=330"></script>
+<script src="js/builder.js?v=330"></script>
+<script src="js/onboard.js?v=330"></script>
+<script src="js/compare.js?v=330"></script>
+<script src="js/whois.js?v=330"></script>
+<script src="js/wave.js?v=330"></script>
+<script src="js/sessionctl.js?v=330"></script>
+<script src="js/spgap.js?v=330"></script>
+<script src="js/groupuse.js?v=330"></script>
+<script src="js/iso3166.js?v=330"></script>
+<script src="js/causes.js?v=330"></script>
+<script src="js/locations.js?v=330"></script>
+<script src="js/locsignin.js?v=330"></script>
+<script src="js/workloadid.js?v=330"></script>
+<script src="js/authcontexts.js?v=330"></script>
+<script src="js/authstrengths.js?v=330"></script>
+<script src="js/recycle.js?v=330"></script>
+<script src="js/rmau.js?v=330"></script>
+<script src="js/camap.js?v=330"></script>
+<script src="js/rmaudoc.js?v=330"></script>
+<script src="js/termsofuse.js?v=330"></script>
+<script src="js/audit.js?v=330"></script>
+<script src="js/drift.js?v=330"></script>
+<script src="js/guide.js?v=330"></script>
+<script src="js/userimpact.js?v=330"></script>
+<script src="js/smsvoice.js?v=330"></script>
+<script src="js/memberof.js?v=330"></script>
+<script src="js/devcheck.js?v=330"></script>
+<script src="js/idscore.js?v=330"></script>
+<script src="js/xtenant.js?v=330"></script>
+<script src="js/passkeys.js?v=330"></script>
+<script src="js/tokencov.js?v=330"></script>
+<script src="js/naming.js?v=330"></script>
+<script src="js/licgap.js?v=330"></script>
+<script src="js/teamsdev.js?v=330"></script>
+<script src="js/signinstore.js?v=330"></script>
+<script src="js/signins.js?v=330"></script>
+<script src="js/reportimpact.js?v=330"></script>
+<script src="js/changelog.js?v=330"></script>
+<script src="js/baselineData.js?v=330"></script>
+<script src="js/baselineJoeyData.js?v=330"></script>
+<script src="js/baselineSmbData.js?v=330"></script>
+<script src="js/baselineLive.js?v=330"></script>
+<script src="js/baseline.js?v=330"></script>
+<script src="js/eadminsData.js?v=330"></script>
+<script src="js/secdefaults.js?v=330"></script>
+<script src="js/baselineCleanup.js?v=330"></script>
+<script src="js/groupTemplates.js?v=330"></script>
+<script src="js/assign.js?v=330"></script>
+<script src="js/cagroups.js?v=330"></script>
+<script src="js/groupmerge.js?v=330"></script>
+<script src="js/dgfill.js?v=330"></script>
+<script src="js/deploydash.js?v=330"></script>
+<script src="js/trv2.js?v=330"></script>
+<script src="js/gsa.js?v=330"></script>
+<script src="js/egress.js?v=330"></script>
+<script src="js/devicecleanup.js?v=330"></script>
+<script src="js/appaccess.js?v=330"></script>
+<script src="js/m365harden.js?v=330"></script>
+<script src="js/groupsview.js?v=330"></script>
+<script src="js/runledger.js?v=330"></script>
+<script src="js/bgvault.js?v=330"></script>
+<script src="js/protect.js?v=330"></script>
+<script src="js/policy-compare.js?v=330"></script>
+<script src="js/import.js?v=330"></script>
+<script src="js/export.js?v=330"></script>
+<script src="js/demo.js?v=330"></script>
+<script src="js/list-detail.js?v=330"></script>
+<script src="js/flat-icons.js?v=330"></script>
+<script src="js/workspace.js?v=330"></script>
+<script src="js/analysis-jobs.js?v=330"></script>
+<script src="js/search-suggest.js?v=330"></script>
+<script src="js/app.js?v=330"></script>
+<script src="js/col-resize.js?v=330"></script>
+<script src="js/accessibility.js?v=330"></script>
+<script src="js/workspaces.js?v=330"></script>
+<script src="js/tool-layout.js?v=330"></script>
 </body>
 </html>

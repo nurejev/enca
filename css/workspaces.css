@@ -227,3 +227,21 @@ body.workspaces-shell[data-ws="entra"] .ws-ca{display:none}
 .wc-ws-row.wc-ws-beta{cursor:default;opacity:.62}
 .wc-ws-row.wc-ws-beta:hover{background:transparent;border-color:transparent}
 .wc-ws-row.wc-ws-beta .wc-chip{vertical-align:1px;margin-left:4px}
+
+/* 33009: Workspace 03 library, compact (mockup option A) — three cards to a row, icon beside the name, two lines of description, Help as chips */
+#wcOverviewTools.wc-compact .wc-tool-group{margin:0 0 10px}
+#wcOverviewTools.wc-compact .wc-tool-group>summary{padding:8px 0}
+#wcOverviewTools.wc-compact .wc-tool-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+#wcOverviewTools.wc-compact .wc-tool{display:grid;grid-template-columns:22px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:10px;row-gap:2px;align-items:start;min-height:0;padding:10px 12px}
+#wcOverviewTools.wc-compact .wc-tool-icon{grid-row:1/3;margin:0}
+#wcOverviewTools.wc-compact .wc-tool strong{grid-column:2;font-size:13.5px;line-height:1.35}
+#wcOverviewTools.wc-compact .wc-tool>span:not(.wc-tool-icon){grid-column:2/4;font-size:12px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#wcOverviewTools.wc-compact .wc-tool small{grid-column:3;grid-row:1;margin:0;padding:0;white-space:nowrap}
+.wc-help-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)}
+.wc-help-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:4px 11px;font:inherit;font-size:12.5px;cursor:pointer}
+.wc-help-chip:hover{border-color:var(--accent2)}.wc-help-chip>span{display:inline-flex;width:15px;height:15px}.wc-help-chip svg{width:15px;height:15px}
+@media(max-width:1200px){#wcOverviewTools.wc-compact .wc-tool-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){#wcOverviewTools.wc-compact .wc-tool-grid{grid-template-columns:minmax(0,1fr)}#wcOverviewTools.wc-compact .wc-tool{min-height:0;padding:10px 12px}}
+
+/* 33010: a tab from another workspace names it */
+.wc-tab-ws{font-size:10px;font-weight:700;line-height:1;border:1px solid var(--border);border-radius:5px;padding:2px 4px;margin-left:6px;color:var(--muted);letter-spacing:.03em}

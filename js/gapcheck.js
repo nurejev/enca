@@ -308,7 +308,11 @@ const GapCheck = (() => {
     } else {
       const name = ctx.names?.[bg.id] || `ID ${bg.id.slice(0, 8)}…`;
       const label = bg.type === "user" ? "break-glass account" : "break-glass group";
-      const userPolicies = raws.filter((p) => isActive(p) && targetsUsers(p));
+      // 32904: a policy written FOR the break-glass accounts (it includes
+      // them — SMB Basic CA901, a passkey for the emergency accounts) cannot
+      // exclude them; it is their own policy, not one they are missing from
+      const forBg = (p) => (bg.type === "user" ? (U(p).includeUsers || []) : (U(p).includeGroups || [])).includes(bg.id);
+      const userPolicies = raws.filter((p) => isActive(p) && targetsUsers(p) && !forBg(p));
       const missing = userPolicies.filter((p) =>
         !(bg.type === "user" ? (U(p).excludeUsers || []).includes(bg.id) : (U(p).excludeGroups || []).includes(bg.id)));
       if (!missing.length) {
@@ -707,8 +711,11 @@ const GapCheck = (() => {
       if (!loc) return;
       const locs = ctx.namedLocations || [];
       const byId = new Map(locs.map((l) => [String(l.id).toLowerCase(), l]));
+      // 32904: "All Compliant Network locations" (Global Secure Access) is
+      // Microsoft's, the same id in every tenant, and the named-locations
+      // list does not return it — it is not a dangling reference
       const refs = [...(loc.includeLocations || []), ...(loc.excludeLocations || [])]
-        .filter((id) => id !== "All" && id !== "AllTrusted");
+        .filter((id) => id !== "All" && id !== "AllTrusted" && String(id).toLowerCase() !== "3d46dbda-8382-466a-856d-eb00cbc6b910");
       // deleted / missing named locations — the policy silently matches nothing there
       if (locs.length) {
         const missing = refs.filter((id) => !byId.has(String(id).toLowerCase()));

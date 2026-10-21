@@ -731,7 +731,16 @@ const Importer = (() => {
   }
   // A higher version is a review signal, not proof that protection is redundant.
   // Compare the loaded raw payload conservatively, retaining unknown preview fields.
-  function housekeeping(list) {
+  // opts.current: the active baseline's policy names (cleanName). 33007 —
+  // gimi, 20 Oct (Mihai: housekeeping should show what to delete): after an
+  // import replaced ten policies, every older version was Off beside its new
+  // version (Off too, as security defaults was still on) and each one read
+  // Needs review, because the new version was not On and the versions
+  // differed — which is what a new version is for. An older version that is
+  // OFF enforces nothing, so deleting it changes no sign-in; when the version
+  // beside it is the one the active baseline ships, it is a cleanup
+  // candidate. The differences stay on the row, for the record.
+  function housekeeping(list, opts = {}) {
     const signature = PolicyCompare.signature;
     const state = p => ({ disabled: "off", enabled: "on", enabledForReportingButNotEnforced: "report", off: "off", on: "on", report: "report" })[p.raw?.state ?? p.state] || "unknown";
     // 25484: the version is written "-v1.0.3" in every CloudFellows name (and
@@ -759,11 +768,16 @@ const Importer = (() => {
         const rest = p => ({ ...p, conditions: Object.fromEntries(Object.entries(p.conditions).filter(([k]) => !["users", "clientApplications"].includes(k))) });
         if (signature(rest(old)) !== signature(rest(next))) reasons.push("Conditions or controls differ; review the protection before retiring a version.");
       }
+      const hard = reasons.filter((r) => /^Older version is still|incomplete|Multiple policies share/i.test(r));
+      if (reasons.length && !hard.length && state(x.p) === "off" && opts.current && opts.current.has(cleanName(newer.p.name))) {
+        out.push({ policy: x.p, num: x.num, ver: x.ver, newer: newer.p, newerVer: newer.ver, canDelete: true, basis: "baseline", notes: reasons.filter((r) => !/^Newer version is not On/.test(r)), reasons: [] });
+        continue;
+      }
       out.push({ policy: x.p, num: x.num, ver: x.ver, newer: newer.p, newerVer: newer.ver, canDelete: reasons.length === 0, reasons });
     }
     return out.sort((a, b) => a.num - b.num || cmpVer(a.ver, b.ver));
   }
-  function supersededOff(list) { return housekeeping(list).filter(r => r.canDelete); }
+  function supersededOff(list, opts) { return housekeeping(list, opts).filter(r => r.canDelete); }
 
   // ---------- ⇄ switch-over: finish a version change (beta 25484) ----------
   // Mihai, on Perfetti (23 Sep): an import that could not verify its new
@@ -1216,9 +1230,16 @@ const Importer = (() => {
       let present = new Set();
       try { present = await Graph.existingAppIds(apps); } catch (e) { console.warn("app check failed", e.message); }
       const missing = apps.filter((a) => !present.has(a));
+      // 33006: a service principal made here is not yet known to Conditional
+      // Access — gimi, 20 Oct 2026: three created at 06:21:18-19, CA001 (it
+      // excludes Azure Windows VM Sign-In) posted a second later and got a
+      // bare 400. Remember which ones are fresh, and when: importPolicies
+      // waits for them instead of failing the policy.
+      maps.freshApps = maps.freshApps || new Map();
       for (const appId of missing) {
         try {
           const sp = await Graph.createServicePrincipal(appId);
+          maps.freshApps.set(appId, Date.now());
           log.created.push(`Service principal: ${sp.displayName || appId} (${appId})`);
         } catch (e) {
           maps.missingApps.add(appId);
@@ -1946,6 +1967,18 @@ const Importer = (() => {
       if (err) add("locations", "warn", "Named locations could not be read", err);
       else add("locations", "ok", "Named locations", locs.map((x) => `${x.displayName}: ${have.some((h) => h.displayName === x.displayName) ? "found" : "created"}`).join(" · "));
     }
+    // 33006: applications named by id need a service principal here
+    const refApps = appRefs(chosen.map((p) => p.raw || {}));
+    if (refApps.length) {
+      let have = null, err = null;
+      try { have = await Graph.existingAppIds(refApps); } catch (e) { err = e.message || String(e); }
+      const lack = have ? refApps.filter((a) => !have.has(a)) : [];
+      const users = (ids) => chosen.filter((p) => appRefs([p.raw || {}]).some((a) => ids.includes(a))).map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]);
+      if (err) add("apps", "info", "Service principals could not be read", `${err} — any of ${refApps.map(appLabel).join(", ")} missing here is created by the run.`);
+      else if (lack.length) add("apps", "warn", `${lack.length} application${lack.length === 1 ? " has" : "s have"} no service principal here — created first by the run`,
+        `${lack.map(appLabel).join(", ")} (named by ${users(lack).join(", ")}). Conditional Access only accepts an app it knows, and it takes a little while to know a new one: a policy naming one waits up to about 1.5 minutes for it. Needs Application.ReadWrite.All; if that is refused, the policy is created without that app reference and the report says so.`, { apps: lack });
+      else add("apps", "ok", "Every application the policies name has a service principal here", refApps.map(appLabel).join(", "));
+    }
     if (usedL.has(COMPLIANT_NETWORK_ID)) {
       const cn = chosen.filter((p) => JSON.stringify((p.raw && p.raw.conditions && p.raw.conditions.locations) || {}).toLowerCase().includes(COMPLIANT_NETWORK_ID)).map((p) => p.name);
       let sig = null, err = null;
@@ -2008,6 +2041,37 @@ const Importer = (() => {
       }
     }
 
+    // 33003 (SMB Basic 1.0.4 CA009): "Require app protection policy" can
+    // only be met by an app an Intune app protection policy covers — with
+    // none assigned for iOS or Android, every phone is refused once it is On.
+    const appProt = chosen.filter((p) => ((p.raw && p.raw.grantControls && p.raw.grantControls.builtInControls) || []).includes("compliantApplication"));
+    if (appProt.length) {
+      const names = appProt.map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]).join(", ");
+      const read = async (kind) => { try { return { list: await Graph.ggetAll(`/deviceAppManagement/${kind}?$select=id,displayName,isAssigned`) }; } catch (e) { return { error: e.message || String(e) }; } };
+      const [ios, android] = await Promise.all([read("iosManagedAppProtections"), read("androidManagedAppProtections")]);
+      if (ios.error || android.error) add("appprotect", "info", "App protection policies could not be read", `${ios.error || android.error}. ${names} refuses every phone app that no Intune app protection policy covers — check Intune → Apps → App protection policies for iOS and Android, assigned to the users.`);
+      else {
+        const assigned = (r) => (r.list || []).filter((x) => x && x.isAssigned !== false);
+        const miss = [!assigned(ios).length && "iOS", !assigned(android).length && "Android"].filter(Boolean);
+        add("appprotect", miss.length ? "warn" : "ok", miss.length ? `No assigned app protection policy for ${miss.join(" and ")}` : "App protection policies for iOS and Android are assigned",
+          miss.length ? `${names} requires app protection on iOS and Android; with no assigned policy for ${miss.join(" and ")} every app there is refused once it is On. Create and assign one (Intune → Apps → App protection policies) before it leaves Report-only.`
+            : `${assigned(ios).map((x) => x.displayName).join(", ")} (iOS) · ${assigned(android).map((x) => x.displayName).join(", ")} (Android) — ${names} can be met.`);
+      }
+    }
+
+    // 33005: a group this file creates DYNAMIC (SMB Basic's
+    // CAB-SEC-U-TeamsSharedDevices) that already exists here as an assigned
+    // group is reused by name as it is — say so, it does not fill itself
+    const dyn = ((bundle && bundle.groups) || []).filter((g) => (g.groupTypes || []).includes("DynamicMembership"));
+    for (const g of dyn) {
+      let hit = null, err = null;
+      try { hit = ((await Graph.ggetAll(`/groups?$filter=displayName eq '${String(g.displayName).replace(/'/g, "''")}'&$select=id,displayName,groupTypes,membershipRule`)) || [])[0] || null; } catch (e) { err = e.message || String(e); }
+      if (err) continue;
+      if (!hit) add("dyngroup", "ok", `${g.displayName} is created dynamic`, "Membership from its rule — the device-only service plans; 📞 Teams devices can tune it to this tenant's licences.");
+      else if (!(hit.groupTypes || []).includes("DynamicMembership")) add("dyngroup", "warn", `${g.displayName} exists here as an assigned group`, "It is reused as it is, so it holds only the members someone added by hand. Make it dynamic with 📞 Teams devices (👥 CA groups → the group's 📞 Rule action), or check its members cover every Teams Room, phone, panel and Surface Hub.");
+      else add("dyngroup", "ok", `${g.displayName} exists and is dynamic`, "Reused as it is, with its own rule.");
+    }
+
     if (opts.sdOn) add("sd", "info", "Security defaults is on", "Entra refuses On while it is: new policies land Report-only or Off, and ⇄ on 🧬 Baseline makes the switch.");
     const blocked = checks.some((c) => c.level === "block");
     return { checks, repair, blocked, present: present.names.size, readAt: Date.now() };
@@ -2051,6 +2115,49 @@ const Importer = (() => {
     } catch (e) { error = e.message || String(e); }
     for (const [n, v] of madeIn(tenantKey)) if (!out.has(n)) out.set(n, { id: v.id, state: null, name: n, session: true });
     return { names: out, error };
+  }
+
+  // 33007: the policy list Conditional Access returns just after a create
+  // can leave the new policy out (gimi, 20 Oct: CA001 v1.0.3 created at
+  // 06:31:02, the reload after the run did not list it, and 🧬 Baseline read
+  // the old v1.0 as the tenant's CA001). The policies this page created in the
+  // last half hour that a list does not show are read by id and returned.
+  async function unlisted(tenantKey, list) {
+    const have = new Set((list || []).map((p) => p && p.id));
+    const out = [];
+    for (const [, v] of madeIn(tenantKey)) {
+      if (!v.id || have.has(v.id) || Date.now() - v.at > 30 * 60 * 1000) continue;
+      try { const p = await Graph.gget(`/identity/conditionalAccess/policies/${v.id}`); if (p && p.id && !have.has(p.id)) { out.push(p); have.add(p.id); } }
+      catch (e) { console.warn("unlisted policy read:", v.id, e.message || e); }
+    }
+    return out;
+  }
+
+  // 33006: POST a policy; when it names a service principal this run has just
+  // created and Graph answers 400, Conditional Access has not caught up with
+  // that service principal yet. A 400 creates nothing, so posting again is
+  // safe: wait and retry, up to about 1.5 minutes after the create.
+  const FRESH_WAITS = [5000, 10000, 15000, 20000, 30000];
+  const FRESH_MIN_AGE = 15000;
+  async function postFresh(staged, name, maps, onStatus, waits) {
+    const w = waits || FRESH_WAITS;
+    const fresh = appRefs([staged]).filter((id) => maps && maps.freshApps && maps.freshApps.has(id));
+    const scopes = [...AUTH_CONFIG.scopes, ...WRITE];
+    if (!fresh.length) return Graph.gpost("/identity/conditionalAccess/policies", staged, scopes);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const label = fresh.map((id) => appLabel(id).replace(/ \([0-9a-f-]{36}\)$/i, "")).join(", ");
+    // give Conditional Access a head start before the first try
+    const age = Date.now() - Math.max(...fresh.map((id) => maps.freshApps.get(id)));
+    const head = waits ? 0 : Math.max(0, FRESH_MIN_AGE - age);
+    if (head > 0) { onStatus?.(`${name}: waiting for Conditional Access to see the new service principal for ${label}…`); await sleep(head); }
+    for (let n = 0; ; n++) {
+      try { return await Graph.gpost("/identity/conditionalAccess/policies", staged, scopes); }
+      catch (e) {
+        if (!/\(400\)|BadRequest/i.test(e.message || "") || n >= w.length) throw e;
+        onStatus?.(`${name}: Conditional Access does not know the new service principal for ${label} yet — trying again in ${Math.round(w[n] / 1000)} s…`);
+        await sleep(w[n]);
+      }
+    }
   }
 
   async function importPolicies(items, maps, onStatus, opts = {}) {
@@ -2109,7 +2216,7 @@ const Importer = (() => {
         const staged = { ...payload, state: "disabled" };
         let created;
         try {
-          created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
+          created = await postFresh(staged, it.name, maps, onStatus, opts.freshWaits);
         } catch (e1) {
           // A 400 creates nothing, so one retry is safe — and only for the one
           // part of an agent policy Graph documents nowhere: the agent
@@ -2168,7 +2275,9 @@ const Importer = (() => {
             .filter((x) => /^[0-9a-f]{8}-/i.test(x));
           const bits = [];
           const unknown = refs.filter((x) => maps.missingApps?.has(String(x).toLowerCase()));
+          const fresh = refs.filter((x) => maps.freshApps?.has(String(x).toLowerCase()));
           if (unknown.length) bits.push(`this tenant has no service principal for ${unknown.map(appLabel).join(", ")}`);
+          else if (fresh.length) bits.push(`this run created the service principal for ${fresh.map(appLabel).join(", ")} and Conditional Access had still not seen it after the waits. Nothing was created for this policy: run the import again in a few minutes — it creates only what is missing`);
           else if (refs.length) bits.push(`it references ${refs.length} application(s) by id — each needs a service principal in this tenant`);
           if (isWorkloadIdentity(it.raw)) bits.push("it is a workload-identity policy, which cannot also carry a user or group scope");
           if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");
@@ -2439,5 +2548,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates };
+  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
 })();
