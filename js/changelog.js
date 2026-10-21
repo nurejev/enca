@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33011, date: "2026-10-21", title: "Production is build 330 (v2.0.8)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 330, ENCA v2.0.8: 🛡 Securing M365 (T61) in Workspace 03, SMB Basic 1.0.3 to 1.0.5, the import that waits for a service principal it just created, every double policy shown on the Baseline with the Off older version offered by Housekeeping, the Global Secure Access install remediation that upgrades an old client, the compact 03 overview and the tab strip in every workspace. Queue 354, 355 and 358 to 366 are out of 🚚 Waiting for production; this channel moves to cycle 331 (v2.0.9-beta.N)." },
+    ],
+  },
+  {
     build: 33010, date: "2026-10-20", title: "Securing M365: the Intune default fix; open tools in every workspace",
     items: [
       { kind: "fixed", tool: "Securing M365", text: "Fixing Devices with no compliance policy are marked not compliant failed on a real tenant with a 400 about the compliance check-in threshold. Intune replaces its whole settings object on a write, so the fix now reads all of it and sends all of it back with only that one setting changed; the undo writes the same object back." },
