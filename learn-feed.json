@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-10-19T04:33:38.953Z",
+ "generated": "2026-10-26T04:35:23.103Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "b585282831",
+  "head": "bccf3a3299",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -14,10 +14,10 @@
   ]
  },
  "counts": {
-  "docs": 15,
+  "docs": 14,
   "newDocs": 1,
   "substantive": 11,
-  "watched": 16,
+  "watched": 17,
   "unwatched": 5
  },
  "docs": [
@@ -26,11 +26,27 @@
    "path": "docs/id-protection/concept-identity-protection-risks.md",
    "title": "What are risk detections?",
    "kind": "changed",
-   "lastChange": "2026-10-15T15:43:30-04:00",
-   "lines": 6,
+   "lastChange": "2026-10-21T09:23:17-04:00",
+   "lines": 34,
    "bulkOnly": false,
    "minor": false,
    "commits": [
+    {
+     "sha": "82e232b313",
+     "date": "2026-10-21T09:23:17-04:00",
+     "subject": "Update suspicious credential detection details",
+     "add": 5,
+     "del": 7,
+     "bulk": false
+    },
+    {
+     "sha": "8d54ff26da",
+     "date": "2026-10-19T14:15:40-04:00",
+     "subject": "Add suspicious credential addition detection",
+     "add": 15,
+     "del": 1,
+     "bulk": false
+    },
     {
      "sha": "2d2e626c16",
      "date": "2026-10-15T15:43:30-04:00",
@@ -364,26 +380,6 @@
      "bulk": true
     }
    ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-assignment-network",
-   "path": "docs/identity/conditional-access/concept-assignment-network.md",
-   "title": "Conditional Access Policy: Using Network Signals",
-   "kind": "changed",
-   "lastChange": "2026-08-25T10:22:41-07:00",
-   "lines": 2,
-   "bulkOnly": true,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "8d666f6b3e",
-     "date": "2026-08-25T10:22:41-07:00",
-     "subject": "Fix link.",
-     "add": 1,
-     "del": 1,
-     "bulk": true
-    }
-   ]
   }
  ],
  "whatsNew": [
@@ -603,6 +599,21 @@
     "sha": "d2c3dc3d6f",
     "date": "2026-05-14T10:56:34-07:00",
     "subject": "Remove DPC branding, rename to system-preferred authentication"
+   }
+  },
+  "https://learn.microsoft.com/entra/identity/authentication/how-to-enable-authenticator-passkey": {
+   "watched": true,
+   "path": "docs/identity/authentication/how-to-enable-authenticator-passkey.md",
+   "title": "Enable and support passkeys in Authenticator for Microsoft Entra ID",
+   "last": {
+    "sha": "88126d77c6",
+    "date": "2026-10-12T16:25:06+01:00",
+    "subject": "Align attestation registration guidance"
+   },
+   "lastSubstantive": {
+    "sha": "88126d77c6",
+    "date": "2026-10-12T16:25:06+01:00",
+    "subject": "Align attestation registration guidance"
    }
   },
   "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation": {
