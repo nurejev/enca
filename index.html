@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com https://cloudflare-dns.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=33011"></script>
+<script src="js/popup-guard.js?v=33101"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=33011" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=33011">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=33101" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=33101">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=33011"></script>
+<script src="js/selfhost-boot.js?v=33101"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=33011"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=33011"></script>
-<link rel="stylesheet" href="css/workspace.css?v=33011">
-<link rel="stylesheet" href="css/workspaces.css?v=33011">
-<link rel="stylesheet" href="css/tool-layout.css?v=33011">
-<link rel="stylesheet" href="css/list-detail.css?v=33011">
-<link rel="stylesheet" href="css/flat-icons.css?v=33011">
+<script src="js/counter.js?v=33101"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=33101"></script>
+<link rel="stylesheet" href="css/workspace.css?v=33101">
+<link rel="stylesheet" href="css/workspaces.css?v=33101">
+<link rel="stylesheet" href="css/tool-layout.css?v=33101">
+<link rel="stylesheet" href="css/list-detail.css?v=33101">
+<link rel="stylesheet" href="css/flat-icons.css?v=33101">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=33011" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=33101" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=33011" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=33101" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -3206,6 +3206,7 @@
               <li><b>Group nesting is <i>offered</i>, not applied.</b> A nested group is an invisible route into a Conditional Access assignment — somebody adds a group to a group and a policy’s scope changes without the policy being touched — so every create path used to set <code>disableNesting</code> automatically. That is off by default as of beta 25166, because the property is <b>not generally available</b>: Microsoft documents the permission that governs it (<i>Group-NestingSupport.ReadWrite.All</i> — “read and write groups’ disableNesting property”) but publishes the property on neither the v1.0 nor the beta <code>group</code> resource, and a directory that has not been given the feature refuses the field outright with <code>Request_BadRequest</code>. Applying it by default meant a red failure line under every single group created in such a tenant, for a setting the panel had promised. It is now a <b>tick</b> in ① Create and ② Build a group manually, off unless you ask; the request goes to <b>v1.0</b>, which is the only version whose documentation names the property; a refusal is reported rather than assumed; and once a tenant has refused it the tool stops asking for the rest of the session. Until it ships, the protection that actually works is a <b>restricted management administrative unit</b>, which limits who can change the members at all.</li>
         <li><b>It is asked for twice and then verified.</b> The property goes in the create body <i>and</i> is confirmed by a PATCH afterwards, because field reports say it only takes at creation while Microsoft documents it as patchable — doing both means whichever is true in your tenant, the group ends up right. Nothing is allowed to cost you the group: a tenant that rejects the property on create has the create retried without it, an unrelated create error still fails loudly, and a group whose nesting could not be set is marked <b>nesting still allowed</b> with the reason rather than reported as done. Not sent for dynamic groups (members are rule-driven, and only users and devices can be members) or role-assignable ones (Entra already refuses group-in-group).</li>
         <li><b>⑦ Migrate keeps running when you navigate away, and now says so.</b> The recreate renames the original group aside before building its replacement, so "did it stop halfway?" has real consequences — and the answer used to be invisible. The progress log and bar were bound to the panel's elements once, so leaving the tool and coming back destroyed them: the run carried on writing into nodes that were no longer on the page, and you returned to an empty panel. Progress now lives with the run, so the panel replays it however often it is rebuilt, and a <b>badge in the corner</b> shows "⑦ Migrating 3/12" from any screen and takes you back with one click. Closing the tab mid-run asks first, and ⟳ Rescan refuses while a migration is in flight rather than discarding it.</li>
+        <li><b>⑦ Migrate waits for the directory, and finishes what an earlier run left half-way <span class="tag upd">UPDATED</span>.</b> Entra is eventually consistent: a group created a moment ago can answer “does not exist” to the very next write naming it. On a tenant on 27 October seven of eight groups failed exactly there — created, then every member add refused — and the only one that went through had no members to copy. The run now <b>reads the new group back until the directory answers</b> (about 20 s at most), every member add, member read and unit placement retries a not-here-yet answer, and a copy that stops part-way reports how many members <i>did</i> land. The other half: a run that stops after the create leaves a pair — the archived <code>(migrated …)</code> original, still role-assignable and still on every policy, and the plain replacement under the live name. The rescan used to offer the archive for migration <i>again</i>, which would have stacked a second suffix and created a permanent group called <code>X (migrated …)</code>. It is now recognised and offered as <b>finish an earlier run</b>: no rename, no create — members copied (the ones already there left alone), policies repointed, unit placement — and any other archived group is refused with the reason. The <b>change report</b> says per failed row where it stopped, why, where things stand in the tenant and, in so many words, that the archived original is still the live group: do not delete it, do not take it out of its policies.</li>
         <li><b>⑦ Migrate removes the old group from every policy, and now proves it did.</b> The repoint used the reference list from the <i>scan</i>, so a policy edited since — by somebody else, or by an earlier group in the same run — was missed. A missed removal is not cosmetic: the old group stays assigned, and when the archive is tidied up later that policy is left naming an object id the directory no longer has, which is what a <b>dangling reference</b> in ① Check actually is. References are now re-read from the live policies at the moment of the repoint, extra ones found are reported, and the removal is <b>verified by reading the policies back</b>. If the old group is still referenced, the run says which policies and warns not to delete the archived group yet; if the check itself fails, it says that too rather than reporting a clean migration.</li>
         <li><b>Deleting from a list no longer jumps you back to the top.</b> Working through a list of named locations, authentication contexts or strengths, terms of use or administrative units meant scrolling back down after every single delete, because the panel re-renders from scratch. The scroll position is now kept across the re-render — and the browser clamps it when the list got shorter, which is the right answer for deleting the last row.</li>
         <li><b>🧹 Archived groups has select all / deselect all</b> — a tenant that has been through a few recreates can have ninety of them, and ticking those by hand is not a review, it is an endurance test. <b>Select all only ticks what is safe to delete</b>: a group still referenced by a policy is never included, because one careless click across a list that long is exactly how a policy ends up pointing at nothing. Those rows stay individually tickable on purpose. <b>Deselect all</b> clears everything, including a referenced row you ticked by hand. A live count says how many of the total are ticked and how many are being deliberately left out, and the typed <code>DELETE</code> confirmation still gates the button.</li>
@@ -4288,124 +4289,124 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=33011"></script>
-<script src="js/selfhost.js?v=33011"></script>
-<script src="js/version.js?v=33011"></script>
-<script src="js/verdict.js?v=33011"></script>
-<script src="js/fork.js?v=33011"></script>
-<script src="js/promote.js?v=33011"></script>
-<script src="js/authConfig.js?v=33011"></script>
-<script src="js/connection.js?v=33011"></script>
-<script src="js/labels.js?v=33011"></script>
-<script src="js/capabilities.js?v=33011"></script>
-<script src="js/graph.js?v=33011"></script>
-<script src="js/model.js?v=33011"></script>
-<script src="js/render.js?v=33011"></script>
-<script src="js/analyze.js?v=33011"></script>
-<script src="js/whatif.js?v=33011"></script>
-<script src="js/mslearn.js?v=33011"></script>
-<script src="js/learntriage.js?v=33011"></script>
-<script src="js/learnfeed.js?v=33011"></script>
-<script src="js/gapcheck.js?v=33011"></script>
-<script src="js/cisdata.js?v=33011"></script>
-<script src="js/cischeck.js?v=33011"></script>
-<script src="js/exclusions.js?v=33011"></script>
-<script src="js/cascope.js?v=33011"></script>
-<script src="js/coverage.js?v=33011"></script>
-<script src="js/runmeta.js?v=33011"></script>
-<script src="js/overview.js?v=33011"></script>
-<script src="js/validator.js?v=33011"></script>
-<script src="js/whatifeval.js?v=33011"></script>
-<script src="js/builder.js?v=33011"></script>
-<script src="js/onboard.js?v=33011"></script>
-<script src="js/compare.js?v=33011"></script>
-<script src="js/whois.js?v=33011"></script>
-<script src="js/wave.js?v=33011"></script>
-<script src="js/sessionctl.js?v=33011"></script>
-<script src="js/spgap.js?v=33011"></script>
-<script src="js/groupuse.js?v=33011"></script>
-<script src="js/iso3166.js?v=33011"></script>
-<script src="js/causes.js?v=33011"></script>
-<script src="js/locations.js?v=33011"></script>
-<script src="js/locsignin.js?v=33011"></script>
-<script src="js/workloadid.js?v=33011"></script>
-<script src="js/authcontexts.js?v=33011"></script>
-<script src="js/authstrengths.js?v=33011"></script>
-<script src="js/recycle.js?v=33011"></script>
-<script src="js/rmau.js?v=33011"></script>
-<script src="js/auinv.js?v=33011"></script>
-<script src="js/camap.js?v=33011"></script>
-<script src="js/rmaudoc.js?v=33011"></script>
-<script src="js/termsofuse.js?v=33011"></script>
-<script src="js/audit.js?v=33011"></script>
-<script src="js/drift.js?v=33011"></script>
-<script src="js/guide.js?v=33011"></script>
-<script src="js/userimpact.js?v=33011"></script>
-<script src="js/smsvoice.js?v=33011"></script>
-<script src="js/memberof.js?v=33011"></script>
-<script src="js/devcheck.js?v=33011"></script>
-<script src="js/idscore.js?v=33011"></script>
-<script src="js/xtenant.js?v=33011"></script>
-<script src="js/passkeys.js?v=33011"></script>
-<script src="js/tokencov.js?v=33011"></script>
-<script src="js/naming.js?v=33011"></script>
-<script src="js/licgap.js?v=33011"></script>
-<script src="js/teamsdev.js?v=33011"></script>
-<script src="js/signinstore.js?v=33011"></script>
-<script src="js/signins.js?v=33011"></script>
-<script src="js/reportimpact.js?v=33011"></script>
-<script src="js/changelog.js?v=33011"></script>
-<script src="js/baselineData.js?v=33011"></script>
-<script src="js/baselineJoeyData.js?v=33011"></script>
-<script src="js/baselineSmbData.js?v=33011"></script>
-<script src="js/baselineLive.js?v=33011"></script>
-<script src="js/pimBaselineData.js?v=33011"></script>
-<script src="js/pimbaseline.js?v=33011"></script>
-<script src="js/pimplan.js?v=33011"></script>
-<script src="js/pimrmau.js?v=33011"></script>
-<script src="js/intunerbac.js?v=33011"></script>
-<script src="js/pimroles.js?v=33011"></script>
-<script src="js/pimreport.js?v=33011"></script>
-<script src="js/pimdoc.js?v=33011"></script>
-<script src="js/pimmodules.js?v=33011"></script>
-<script src="js/pimdeploy.js?v=33011"></script>
-<script src="js/pimscript.js?v=33011"></script>
-<script src="js/pimdesigner.js?v=33011"></script>
-<script src="js/pimcatalog.js?v=33011"></script>
-<script src="js/pimlens.js?v=33011"></script>
-<script src="js/baseline.js?v=33011"></script>
-<script src="js/eadminsData.js?v=33011"></script>
-<script src="js/secdefaults.js?v=33011"></script>
-<script src="js/baselineCleanup.js?v=33011"></script>
-<script src="js/groupTemplates.js?v=33011"></script>
-<script src="js/assign.js?v=33011"></script>
-<script src="js/cagroups.js?v=33011"></script>
-<script src="js/groupmerge.js?v=33011"></script>
-<script src="js/dgfill.js?v=33011"></script>
-<script src="js/deploydash.js?v=33011"></script>
-<script src="js/trv2.js?v=33011"></script>
-<script src="js/gsa.js?v=33011"></script>
-<script src="js/egress.js?v=33011"></script>
-<script src="js/devicecleanup.js?v=33011"></script>
-<script src="js/appaccess.js?v=33011"></script>
-<script src="js/m365harden.js?v=33011"></script>
-<script src="js/groupsview.js?v=33011"></script>
-<script src="js/runledger.js?v=33011"></script>
-<script src="js/bgvault.js?v=33011"></script>
-<script src="js/protect.js?v=33011"></script>
-<script src="js/policy-compare.js?v=33011"></script>
-<script src="js/import.js?v=33011"></script>
-<script src="js/export.js?v=33011"></script>
-<script src="js/demo.js?v=33011"></script>
-<script src="js/list-detail.js?v=33011"></script>
-<script src="js/flat-icons.js?v=33011"></script>
-<script src="js/workspace.js?v=33011"></script>
-<script src="js/analysis-jobs.js?v=33011"></script>
-<script src="js/search-suggest.js?v=33011"></script>
-<script src="js/app.js?v=33011"></script>
-<script src="js/col-resize.js?v=33011"></script>
-<script src="js/accessibility.js?v=33011"></script>
-<script src="js/workspaces.js?v=33011"></script>
-<script src="js/tool-layout.js?v=33011"></script>
+<script src="js/branding.js?v=33101"></script>
+<script src="js/selfhost.js?v=33101"></script>
+<script src="js/version.js?v=33101"></script>
+<script src="js/verdict.js?v=33101"></script>
+<script src="js/fork.js?v=33101"></script>
+<script src="js/promote.js?v=33101"></script>
+<script src="js/authConfig.js?v=33101"></script>
+<script src="js/connection.js?v=33101"></script>
+<script src="js/labels.js?v=33101"></script>
+<script src="js/capabilities.js?v=33101"></script>
+<script src="js/graph.js?v=33101"></script>
+<script src="js/model.js?v=33101"></script>
+<script src="js/render.js?v=33101"></script>
+<script src="js/analyze.js?v=33101"></script>
+<script src="js/whatif.js?v=33101"></script>
+<script src="js/mslearn.js?v=33101"></script>
+<script src="js/learntriage.js?v=33101"></script>
+<script src="js/learnfeed.js?v=33101"></script>
+<script src="js/gapcheck.js?v=33101"></script>
+<script src="js/cisdata.js?v=33101"></script>
+<script src="js/cischeck.js?v=33101"></script>
+<script src="js/exclusions.js?v=33101"></script>
+<script src="js/cascope.js?v=33101"></script>
+<script src="js/coverage.js?v=33101"></script>
+<script src="js/runmeta.js?v=33101"></script>
+<script src="js/overview.js?v=33101"></script>
+<script src="js/validator.js?v=33101"></script>
+<script src="js/whatifeval.js?v=33101"></script>
+<script src="js/builder.js?v=33101"></script>
+<script src="js/onboard.js?v=33101"></script>
+<script src="js/compare.js?v=33101"></script>
+<script src="js/whois.js?v=33101"></script>
+<script src="js/wave.js?v=33101"></script>
+<script src="js/sessionctl.js?v=33101"></script>
+<script src="js/spgap.js?v=33101"></script>
+<script src="js/groupuse.js?v=33101"></script>
+<script src="js/iso3166.js?v=33101"></script>
+<script src="js/causes.js?v=33101"></script>
+<script src="js/locations.js?v=33101"></script>
+<script src="js/locsignin.js?v=33101"></script>
+<script src="js/workloadid.js?v=33101"></script>
+<script src="js/authcontexts.js?v=33101"></script>
+<script src="js/authstrengths.js?v=33101"></script>
+<script src="js/recycle.js?v=33101"></script>
+<script src="js/rmau.js?v=33101"></script>
+<script src="js/auinv.js?v=33101"></script>
+<script src="js/camap.js?v=33101"></script>
+<script src="js/rmaudoc.js?v=33101"></script>
+<script src="js/termsofuse.js?v=33101"></script>
+<script src="js/audit.js?v=33101"></script>
+<script src="js/drift.js?v=33101"></script>
+<script src="js/guide.js?v=33101"></script>
+<script src="js/userimpact.js?v=33101"></script>
+<script src="js/smsvoice.js?v=33101"></script>
+<script src="js/memberof.js?v=33101"></script>
+<script src="js/devcheck.js?v=33101"></script>
+<script src="js/idscore.js?v=33101"></script>
+<script src="js/xtenant.js?v=33101"></script>
+<script src="js/passkeys.js?v=33101"></script>
+<script src="js/tokencov.js?v=33101"></script>
+<script src="js/naming.js?v=33101"></script>
+<script src="js/licgap.js?v=33101"></script>
+<script src="js/teamsdev.js?v=33101"></script>
+<script src="js/signinstore.js?v=33101"></script>
+<script src="js/signins.js?v=33101"></script>
+<script src="js/reportimpact.js?v=33101"></script>
+<script src="js/changelog.js?v=33101"></script>
+<script src="js/baselineData.js?v=33101"></script>
+<script src="js/baselineJoeyData.js?v=33101"></script>
+<script src="js/baselineSmbData.js?v=33101"></script>
+<script src="js/baselineLive.js?v=33101"></script>
+<script src="js/pimBaselineData.js?v=33101"></script>
+<script src="js/pimbaseline.js?v=33101"></script>
+<script src="js/pimplan.js?v=33101"></script>
+<script src="js/pimrmau.js?v=33101"></script>
+<script src="js/intunerbac.js?v=33101"></script>
+<script src="js/pimroles.js?v=33101"></script>
+<script src="js/pimreport.js?v=33101"></script>
+<script src="js/pimdoc.js?v=33101"></script>
+<script src="js/pimmodules.js?v=33101"></script>
+<script src="js/pimdeploy.js?v=33101"></script>
+<script src="js/pimscript.js?v=33101"></script>
+<script src="js/pimdesigner.js?v=33101"></script>
+<script src="js/pimcatalog.js?v=33101"></script>
+<script src="js/pimlens.js?v=33101"></script>
+<script src="js/baseline.js?v=33101"></script>
+<script src="js/eadminsData.js?v=33101"></script>
+<script src="js/secdefaults.js?v=33101"></script>
+<script src="js/baselineCleanup.js?v=33101"></script>
+<script src="js/groupTemplates.js?v=33101"></script>
+<script src="js/assign.js?v=33101"></script>
+<script src="js/cagroups.js?v=33101"></script>
+<script src="js/groupmerge.js?v=33101"></script>
+<script src="js/dgfill.js?v=33101"></script>
+<script src="js/deploydash.js?v=33101"></script>
+<script src="js/trv2.js?v=33101"></script>
+<script src="js/gsa.js?v=33101"></script>
+<script src="js/egress.js?v=33101"></script>
+<script src="js/devicecleanup.js?v=33101"></script>
+<script src="js/appaccess.js?v=33101"></script>
+<script src="js/m365harden.js?v=33101"></script>
+<script src="js/groupsview.js?v=33101"></script>
+<script src="js/runledger.js?v=33101"></script>
+<script src="js/bgvault.js?v=33101"></script>
+<script src="js/protect.js?v=33101"></script>
+<script src="js/policy-compare.js?v=33101"></script>
+<script src="js/import.js?v=33101"></script>
+<script src="js/export.js?v=33101"></script>
+<script src="js/demo.js?v=33101"></script>
+<script src="js/list-detail.js?v=33101"></script>
+<script src="js/flat-icons.js?v=33101"></script>
+<script src="js/workspace.js?v=33101"></script>
+<script src="js/analysis-jobs.js?v=33101"></script>
+<script src="js/search-suggest.js?v=33101"></script>
+<script src="js/app.js?v=33101"></script>
+<script src="js/col-resize.js?v=33101"></script>
+<script src="js/accessibility.js?v=33101"></script>
+<script src="js/workspaces.js?v=33101"></script>
+<script src="js/tool-layout.js?v=33101"></script>
 </body>
 </html>

@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 367,
+      ws: "ca",
+      title: "👥 CA groups — ⑦ Migrate waits for the directory after the create, finishes a half-way run, and the report says why a row failed (T12 6.1.1)",
+      tools: ["CA groups"],
+      builds: [33101],
+      risk: "high",
+      what: "js/app.js: settled() + awaitGroup() (retry a 404 / 429 / 5xx / ResourceNotFound / does not exist answer on 1.5, 3, 6, 10 s; a 400 or 403 is final) around the member add, the member read-back and the unit placement; the run reads the new group back after the create and notes how long it waited; moveGroupMembers carries its log on every throw and names the first member that failed; the runner records the partial member count on failure; resume items skip rename and create (steps marked skipped, nesting kept); the results panel and the state text say the archived original is still live and how to finish. js/cagroups.js: migratePlan recognises a (migrated …) archive with a plain live counterpart (looked up in opts.allRows) as a finish item — resume: true, name = live name, newId, archiveName as it is — and refuses every other archived row with the reason; migrateReport: count line, FAILED at: <step>, Failed section (error, where things stand, archived original, new group with partial count, members that did not copy, step ledger), What to do next starting with the failed rows, delete step for the migrated rows only, cells escaped. Help bullet. tools/cagroups-migrate.test.cjs.",
+      why: "LeeuwendaalAdvies, 27 Oct 2026, production v2.0.8: seven of eight groups FAILED right after the create with no reason in the report, and a rescan would have offered the seven archived originals for a second migration. Risk high while production has it: every migration on a tenant where replication lags fails the same way, the report cannot say so, and the obvious next click (migrate again) makes it worse — a stacked suffix and a permanent group named X (migrated …).",
+      test: [
+        "Beta, demo tenant, 01 → CA groups → ⑦ Migrate → scan → migrate all: every row migrated, the report has a 'N migrated · 0 failed' line, no Failed section, next steps 1 Check / 2 not in the AU or scoped admin / 3 Delete (of the migrated rows only).",
+        "Beta, signed in to a test tenant with ONE role-assignable group that has members: Migrate it — the ledger may show 'waited N s for the directory to show the new group'; members copied n/n, policies repointed, placed in the unit; the report row reads migrated.",
+        "Beta, same tenant, make a half-way pair by hand (rename a role-assignable group aside as 'X (migrated 2026-10-27)' and create a plain 'X'): ⟳ Rescan → the archive is offered as 'finish an earlier run' with steps members / add / remove / unit and no rename or create; the plain X is under NOT MIGRATED as already a plain group. Run it: the ledger shows rename and create as skipped, members copied, policies repointed, X in the unit; the report row reads finished (earlier run) with nesting 'as it was'.",
+        "Beta, same tenant: an archive named 'Y (legacy 2026-08-04)' or one with no live counterpart is under NOT MIGRATED with the reason naming the stacked suffix — never offered.",
+        "Beta, forced failure (take Group.ReadWrite.All away or disable the signed-in account's group write, then migrate a group with members): the row reads FAILED at: Copy the members with the first member's error, the report has a Failed section with 'still the live group' and 'Do not delete', What to do next starts with 'Finish or undo', and 🧹 Archived groups shows the original still referenced and unticked.",
+        "node --test tools/cagroups-migrate.test.cjs: 13 pass; node --test tools/*.test.cjs: the suite passes.",
+      ],
+    },
+    {
       n: 335,
       ws: "pim",
       title: "🧾 Designer — three steps, tier cards in words, the variant beside them (T50 0.2.0)",

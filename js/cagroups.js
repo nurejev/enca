@@ -1395,6 +1395,48 @@ const CaGroups = (() => {
       const nRef = base.refs.include.length + base.refs.exclude.length;
 
       if (!row.id) return { ...base, ok: false, reason: "Not in the tenant yet — create it first." };
+
+      // The archived half of an earlier recreate — "X (migrated 2026-10-27)".
+      // Until 33101 this planner did not look at the name, so a run that had
+      // FAILED after the create (LeeuwendaalAdvies, 27 Oct: seven groups) was
+      // offered for migration AGAIN on the rescan — it would have renamed the
+      // archive to "X (migrated …) (migrated …)" and created a permanent plain
+      // group literally called "X (migrated …)", while the live X sat there
+      // empty. Two answers instead:
+      //   * a role-assignable archive whose live counterpart exists as a plain
+      //     group is a migration that stopped half-way → FINISH it: no rename,
+      //     no create, members + policies + unit from where the run stopped;
+      //   * anything else with the suffix is refused with the reason.
+      if (ARCHIVE_SUFFIX.test(row.name || "")) {
+        const liveName = String(row.name).replace(ARCHIVE_SUFFIX, "").trim();
+        // The counterpart is looked up in EVERY row the scan has, not only the
+        // ones handed to this plan — a scoped plan (“check only the groups I
+        // came with”) would otherwise never see it.
+        const live = (opts.allRows || rows || []).find((r) => r !== row && r.id && r.id !== row.id && String(r.name || "").trim().toLowerCase() === liveName.toLowerCase());
+        const isMigrated = new RegExp(`\\(${MIGRATED_TAG}\\s+\\d{4}-\\d{2}-\\d{2}\\)\\s*$`, "i").test(row.name);
+        if (!row.roleAssignable) return { ...base, ok: false, reason: `“${row.name}” is the archived half of an earlier recreate and already a plain group — nothing to convert. Delete it from 🧹 Archived groups once nothing points at it.` };
+        if (isMigrated && live && !live.roleAssignable) {
+          const r = roles.get(row.id);
+          if (r && !r.ok) return { ...base, ok: false, reason: `Could not check whether this archived group holds a directory role (${r.error}). Skipped rather than risk breaking a role assignment.` };
+          if (r && (r.active.length || r.eligible.length)) return { ...base, ok: false, reason: `This archived group holds a directory role (${[...new Set([...r.active, ...r.eligible])].join(", ")}). Deal with the role first.` };
+          const liveRefs = live.refs || { include: [], exclude: [] };
+          return { ...base, ok: true, resume: true, name: liveName, archiveName: row.name, newId: live.id, disableNesting: false, toAu, nRef,
+            steps: [
+              { key: "resume",  text: `Finish the migration that stopped after the create: “${row.name}” still holds the members and the policies, the plain “${liveName}” (${live.id}) already exists${liveRefs.include.length + liveRefs.exclude.length ? ` and is already on ${liveRefs.include.length + liveRefs.exclude.length} polic${liveRefs.include.length + liveRefs.exclude.length === 1 ? "y" : "ies"}` : ""} — nothing is renamed or created again` },
+              { key: "members", text: row.memberTotal != null
+                  ? `Copy ${row.memberTotal} member${row.memberTotal === 1 ? "" : "s"} across — members already there are left as they are; the archived group keeps its own copy`
+                  : `Copy the members across (count unknown — the read failed) — the archived group keeps its own copy` },
+              ...(base.refs.include.length ? [{ key: "addInc", text: `Add “${liveName}” to the INCLUDE of ${base.refs.include.length} polic${base.refs.include.length === 1 ? "y" : "ies"}` }] : []),
+              ...(base.refs.exclude.length ? [{ key: "addExc", text: `Add “${liveName}” to the EXCLUDE of ${base.refs.exclude.length} polic${base.refs.exclude.length === 1 ? "y" : "ies"}` }] : []),
+              ...(base.refs.include.length ? [{ key: "delInc", text: `Remove the archived group from those ${base.refs.include.length} include assignment${base.refs.include.length === 1 ? "" : "s"}` }] : []),
+              ...(base.refs.exclude.length ? [{ key: "delExc", text: `Remove the archived group from those ${base.refs.exclude.length} exclude assignment${base.refs.exclude.length === 1 ? "" : "s"}` }] : []),
+              ...(toAu ? [{ key: "rmau", text: `Add “${liveName}” to the restricted AU${opts.rmauName ? ` “${opts.rmauName}”` : ""} — last, so the member copy is still possible` }]
+                       : [{ key: "noAu", text: `Leave it outside the restricted AU for now — add it later from ⑥ Protect` }]),
+            ] };
+        }
+        return { ...base, ok: false, reason: `“${row.name}” is the archived half of an earlier recreate, not the live group${live ? ` — and the live “${liveName}” is role-assignable itself, so migrate that one` : ` — and no live “${liveName}” exists`}. Migrating this one would create a permanent group called “${row.name}” and stack a second suffix on this one. ${live ? "" : "Rename it back by hand if it is the group you meant to keep, then migrate it."}`.trim() };
+      }
+
       if (!row.roleAssignable) return { ...base, ok: false, reason: "Already a plain group — nothing to convert. Use ⑥ Protect to place it in a restricted AU." };
       if (protectedIn.has(row.id)) return { ...base, ok: false, reason: `Already inside the restricted AU “${protectedIn.get(row.id).auName}” — its members cannot be read or moved from here.` };
 
@@ -1446,16 +1488,42 @@ const CaGroups = (() => {
       `**When:** ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "",
       `Role-assignable groups were used to keep CA exclusion membership out of reach of tenant-wide group administrators. A restricted management administrative unit does that and lets you name who may manage them. The two cannot be combined: a role-assignable group admits only Global Administrator or Privileged Role Administrator, and a restricted AU blocks exactly those two.`, ""];
     L.push(`## Result`, "");
+    const okRows = (results || []).filter((r) => r.ok), failedRows = (results || []).filter((r) => !r.ok);
+    L.push(`**${okRows.length} migrated** · **${failedRows.length} failed**${(results || []).some((r) => r.stopped) ? ` (${(results || []).filter((r) => r.stopped).length} not reached — stopped)` : ""}`, "");
     // Nesting is the one property the role-assignable flag gave for free, so
     // the report says per group whether the new one has it — as verified by
     // the create, never as requested.
-    const nestOf = (r) => !r.newId ? "—" : r.nesting === "disabled" ? "disabled" : r.nesting === "unsupported" ? "not available in this tenant" : r.nesting === "failed" ? `ALLOWED — ${r.nestingError || "could not be set"}` : r.nesting === "n/a" ? "allowed (not requested)" : "not confirmed";
+    const nestOf = (r) => !r.newId ? "—" : r.nesting === "disabled" ? "disabled" : r.nesting === "unsupported" ? "not available in this tenant" : r.nesting === "failed" ? `ALLOWED — ${r.nestingError || "could not be set"}` : r.nesting === "n/a" ? "allowed (not requested)" : r.nesting === "kept" ? "as it was (finished an earlier run)" : "not confirmed";
+    const cell = (s) => String(s == null ? "" : s).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+    const stepLabel = (r) => ((r.steps || []).find((s) => s.k === r.failedAt) || {}).label || r.failedAt || "";
+    // A failed row says WHERE it failed in the table itself; the reason and
+    // the state of the tenant follow in their own section. The report used
+    // to print a bare FAILED and nothing else — a reader could not tell a
+    // permission problem from a replication hiccup, nor that the archived
+    // original was still the live group (27 Oct 2026, seven rows).
     L.push(`| Group | Outcome | New id | Members | Policies | Nesting |`, `| --- | --- | --- | ---: | ---: | --- |`);
     for (const r of (results || [])) {
       const mem = r.membersMoved != null && r.memberTotal != null ? `${r.membersMoved}/${r.memberTotal}` : (r.membersMoved != null ? String(r.membersMoved) : "—");
-      L.push(`| ${r.name} | ${r.ok ? "migrated" : "FAILED"} | ${r.newId || "—"} | ${mem} | ${r.refsMoved != null ? r.refsMoved : "—"} | ${nestOf(r)} |`);
+      const outcome = r.ok ? (r.resumed ? "finished (earlier run)" : "migrated") : r.stopped ? "not reached (stopped)" : `FAILED at: ${cell(stepLabel(r))}`;
+      L.push(`| ${cell(r.name)} | ${outcome} | ${r.newId || "—"} | ${mem} | ${r.refsMoved != null ? r.refsMoved : "—"} | ${cell(nestOf(r))} |`);
     }
     L.push("");
+    const failedReal = failedRows.filter((r) => !r.stopped);
+    if (failedReal.length) {
+      const MARK = { done: "✓", undone: "↩", partial: "⚠", failed: "✗", skipped: "•" };
+      L.push(`## Failed (${failedReal.length})`, "",
+        `For every group below the archived \`(${MIGRATED_TAG} …)\` original is **still the live group**: it holds the members and every policy still names it, so nobody is uncovered. **Do not delete it and do not take it out of its policies.** To finish: ⟳ Rescan, then run ⑦ Migrate again — the archived group is offered as “finish an earlier run” and the run picks up at the member copy. To undo instead: delete the new (empty) group and rename the original back.`, "");
+      for (const r of failedReal) {
+        L.push(`### ${cell(r.name)}`, "",
+          `- **Failed at:** ${cell(stepLabel(r))} — ${cell(r.error || "no reason recorded")}`,
+          `- **Where things stand:** ${cell(r.state || "")}`,
+          ...(r.archiveName ? [`- **Archived original:** \`${cell(r.archiveName)}\`${r.oldId ? ` (${r.oldId})` : ""}`] : []),
+          ...(r.newId ? [`- **New group:** \`${cell(r.name)}\` (${r.newId})${r.membersMoved != null ? ` — ${r.membersMoved}${r.memberTotal != null ? ` of ${r.memberTotal}` : ""} member${r.membersMoved === 1 ? "" : "s"} copied` : ""}`] : []),
+          ...((r.membersFailed || []).length ? [`- **Members that did not copy:** ${r.membersFailed.slice(0, 10).map((f) => `${cell(f.name)} (${cell(f.error)})`).join("; ")}${r.membersFailed.length > 10 ? ` … and ${r.membersFailed.length - 10} more` : ""}`] : []),
+          ...((r.steps || []).length ? [`- **Steps:** ${r.steps.map((s) => `${MARK[s.s] || "•"} ${cell(s.label)}${s.note ? ` (${cell(s.note)})` : ""}`).join(" · ")}`] : []),
+          "");
+      }
+    }
     const nestOpen = (results || []).filter((r) => r.ok && r.newId && r.nesting !== "disabled");
     if (nestOpen.length) {
       L.push(nestOpen.some((r) => r.nesting === "unsupported")
@@ -1469,16 +1537,20 @@ const CaGroups = (() => {
       L.push("");
     }
     L.push(`## What to do next`, "");
-    L.push(`1. Check the members of each new group against the archived one before deleting anything.`);
-    const outside = (results || []).filter((r) => r.ok && !r.inAu);
+    let n = 0;
+    if (failedReal.length) L.push(`${++n}. **Finish or undo the ${failedReal.length} failed group${failedReal.length === 1 ? "" : "s"} first** (see Failed above). Until then their archived originals are live and must stay exactly as they are.`);
+    if (okRows.length) L.push(`${++n}. Check the members of each new group against the archived one before deleting anything.`);
+    const outside = okRows.filter((r) => !r.inAu);
     if (outside.length) {
-      L.push(`2. **${outside.length} group${outside.length === 1 ? " is" : "s are"} not in the restricted AU yet** — ${outside.map((r) => r.name).join(", ")}. They are ordinary groups now, so **CA groups → ⑥ Protect** can place them whenever you are ready.`);
-    } else {
-      L.push(`2. Grant a **scoped administrator** on the restricted AU if you have not — otherwise nobody can manage these members.`);
+      L.push(`${++n}. **${outside.length} group${outside.length === 1 ? " is" : "s are"} not in the restricted AU yet** — ${outside.map((r) => r.name).join(", ")}. They are ordinary groups now, so **CA groups → ⑥ Protect** can place them whenever you are ready.`);
+    } else if (okRows.length) {
+      L.push(`${++n}. Grant a **scoped administrator** on the restricted AU if you have not — otherwise nobody can manage these members.`);
     }
-    L.push(`3. Delete the archived \`(${MIGRATED_TAG} …)\` groups from **CA groups → 🧹 Archived groups** once satisfied. They are your rollback until then.`);
+    if (okRows.length) L.push(`${++n}. Delete the archived \`(${MIGRATED_TAG} …)\` groups **of the migrated rows only** from **CA groups → 🧹 Archived groups** once satisfied. They are your rollback until then.${failedReal.length ? ` The dialog does not tick a group a policy still names, and the failed rows' originals are exactly those — leave them unticked.` : ""}`);
     L.push("");
-    L.push(`_The archived groups keep their members and remain role-assignable; they simply no longer appear in any Conditional Access policy._`);
+    L.push(okRows.length
+      ? `_The archived groups of the migrated rows keep their members and remain role-assignable; they simply no longer appear in any Conditional Access policy._`
+      : `_Nothing was migrated: every archived group is still the live one, still role-assignable, still in its policies._`);
     return L.join("\n");
   }
 

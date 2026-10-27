@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33101, date: "2026-10-27", title: "CA groups: a migration that stopped half-way is finished, and the report says why it stopped",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "⑦ Migrate waits for the directory before writing to a group it just created. On a tenant on 27 October seven of eight groups FAILED straight after the create — Entra had not yet shown the new group on the replica the member add landed on, and the only group that went through was the one with no members to copy. The run now reads the new group back until the directory answers (about 20 s at most), every member add, member read and unit placement retries on a not-here-yet answer, and a member copy that stops part-way reports how many members DID land instead of a dash." },
+      { kind: "fixed", tool: "CA groups", text: "A migration that stopped after the create is FINISHED on the next run, never migrated again. The rescan found the archived (migrated …) group, still role-assignable and still on every policy, and offered it for migration — which would have renamed it to (migrated …) (migrated …) and created a permanent group literally called that, while the live group sat empty. ⑦ Migrate now recognises the pair — a (migrated …) archive whose live counterpart exists as a plain group — and offers it as finish an earlier run: no rename, no create; members copied (those already there left alone), policies repointed, group placed in the unit. Any other archived group is refused with the reason." },
+      { kind: "improved", tool: "CA groups", text: "The ⑦ migration report says where a row failed and why. The Outcome column names the step (FAILED at: Copy the members), the Members column keeps the partial count, and a Failed section carries the error, where things stand in the tenant, the archived original with its id, the members that did not copy and the ledger of steps. What to do next starts with the failed groups and says in so many words that their archived originals are still the live groups — do not delete them, do not take them out of their policies — and the delete step is for the migrated rows only." },
+    ],
+  },
+  {
     build: 33011, date: "2026-10-21", title: "Production is build 330 (v2.0.8)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 330, ENCA v2.0.8: 🛡 Securing M365 (T61) in Workspace 03, SMB Basic 1.0.3 to 1.0.5, the import that waits for a service principal it just created, every double policy shown on the Baseline with the Off older version offered by Housekeeping, the Global Secure Access install remediation that upgrades an old client, the compact 03 overview and the tab strip in every workspace. Queue 354, 355 and 358 to 366 are out of 🚚 Waiting for production; this channel moves to cycle 331 (v2.0.9-beta.N)." },
