@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33102, date: "2026-10-28", title: "PIM baseline: a region is a list of countries",
+    items: [
+      { kind: "new", tool: "PIM baseline", text: "Framework 5.1: a region in the multi-region profile is a list of countries. The regions file takes a countries column (GB;BE;NL), and the region's units and Intune user group take the members whose usageLocation is one of them. A country belongs to one region; a row that claims a country another row already has is left out and named. Region codes may be plain capitals, EURO, APAC, ITA or BAMSCA, as well as continent-country. A row without countries still picks its users by attribute and value." },
+      { kind: "fixed", tool: "PIM baseline", text: "Region devices are found by their Autopilot group tag. The Intune device group tested the enrollment profile name against the tag, but that field holds the deployment profile name, so it never matched; the device unit and the device group now look for the tag in the device's physical ids, with optional name prefixes beside it. Several tags or prefixes per region are allowed." },
+      { kind: "improved", tool: "PIM baseline", text: "Region units and the Intune user group hold members only and never an adm- account, as the baseline tenant already had them. Before, Deploy would have built wider units than cloudfellows.dev carries." },
+      { kind: "improved", tool: "PIM baseline", text: "The baseline tenant's regions are the five of the large design: Euro, Americas, Asia-Pacific, Italy and BAMSCA, 40 countries, in tools/pim/regions.csv. Load that file on PIM baseline, Regions, to see what each region should carry; PIM documentation lists them with the countries they cover." },
+    ],
+  },
+  {
     build: 33101, date: "2026-10-27", title: "CA groups: a migration that stopped half-way is finished, and the report says why it stopped",
     items: [
       { kind: "fixed", tool: "CA groups", text: "⑦ Migrate waits for the directory before writing to a group it just created. On a tenant on 27 October seven of eight groups FAILED straight after the create — Entra had not yet shown the new group on the replica the member add landed on, and the only group that went through was the one with no members to copy. The run now reads the new group back until the directory answers (about 20 s at most), every member add, member read and unit placement retries on a not-here-yet answer, and a member copy that stops part-way reports how many members DID land instead of a dash." },

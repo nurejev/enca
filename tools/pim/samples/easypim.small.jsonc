@@ -1,5 +1,5 @@
 // ======================================================================
-// CloudFellows PIM framework 5.0 — EasyPIM Orchestrator sample
+// CloudFellows PIM framework 5.1 — EasyPIM Orchestrator sample
 // Scenario: Small business (25–250 people, two to six in IT)
 // Profile: Small business — Four persona groups instead of seven; among Tier 0 roles, approval only on Global Administrator through customer-selected approvers; the other Tier 0 roles activate with justification, authentication context c1 and an alert; Tier 1 and Tier 2 activation alerts are Critical; assignment alerts remain All; Global Administrator for two hours; two Intune access groups; three Defender XDR access groups (Admin on the Tier 0 gate, Operator-T3 for all of IT, Reader — T1 and T2 fold into T3 as the desk folds into Ops); three Azure groups, made only when there is Azure.
 //
@@ -34,8 +34,8 @@
   // Where the sample comes from. Leave it; EasyPIM ignores it.
   "_meta": {
     "schema": "cloudfellows-pim-config/2.1",
-    "catalog": "CloudFellows PIM framework 5.0",
-    "revised": "2026-10-14",
+    "catalog": "CloudFellows PIM framework 5.1",
+    "revised": "2026-10-28",
     "profile": "small",
     "delta": false,
     "sample": "small"
@@ -614,7 +614,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-GlobalAdmin carries Global Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-GlobalAdmin carries Global Administrator"
           }
         ]
       },
@@ -627,7 +627,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-GlobalAdmin carries Privileged Role Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-GlobalAdmin carries Privileged Role Administrator"
           }
         ]
       },
@@ -640,7 +640,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-GlobalAdmin carries Privileged Authentication Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-GlobalAdmin carries Privileged Authentication Administrator"
           }
         ]
       },
@@ -653,7 +653,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Conditional Access Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Conditional Access Administrator"
           }
         ]
       },
@@ -666,7 +666,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Security Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Security Administrator"
           }
         ]
       },
@@ -679,7 +679,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Exchange Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Exchange Administrator"
           }
         ]
       },
@@ -692,7 +692,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries SharePoint Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries SharePoint Administrator"
           }
         ]
       },
@@ -705,7 +705,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Teams Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Teams Administrator"
           },
           {
             "principalId": "<id of PIM-SG-M365-Teams>",
@@ -713,7 +713,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Teams carries Teams Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Teams carries Teams Administrator"
           }
         ]
       },
@@ -726,7 +726,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Intune Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Intune Administrator"
           }
         ]
       },
@@ -739,7 +739,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Application Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Application Administrator"
           }
         ]
       },
@@ -752,7 +752,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Cloud Application Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Cloud Application Administrator"
           }
         ]
       },
@@ -765,7 +765,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Application Developer"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Application Developer"
           }
         ]
       },
@@ -778,7 +778,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Power Platform Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Power Platform Administrator"
           }
         ]
       },
@@ -791,7 +791,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Authentication Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Authentication Administrator"
           }
         ]
       },
@@ -804,7 +804,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Authentication Policy Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Authentication Policy Administrator"
           }
         ]
       },
@@ -817,7 +817,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries User Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries User Administrator"
           }
         ]
       },
@@ -830,7 +830,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Groups Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Groups Administrator"
           }
         ]
       },
@@ -843,7 +843,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries License Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries License Administrator"
           }
         ]
       },
@@ -856,7 +856,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Password Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Password Administrator"
           }
         ]
       },
@@ -869,7 +869,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Cloud Device Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Cloud Device Administrator"
           }
         ]
       },
@@ -882,7 +882,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Microsoft Entra Joined Device Local Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Microsoft Entra Joined Device Local Administrator"
           }
         ]
       },
@@ -895,7 +895,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Identity Governance Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Identity Governance Administrator"
           }
         ]
       },
@@ -908,7 +908,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Lifecycle Workflows Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Lifecycle Workflows Administrator"
           }
         ]
       },
@@ -921,7 +921,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Service Support Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Service Support Administrator"
           }
         ]
       },
@@ -934,7 +934,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Edge Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Edge Administrator"
           }
         ]
       },
@@ -947,7 +947,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Office Apps Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Office Apps Administrator"
           }
         ]
       },
@@ -960,7 +960,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Guest Inviter"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Guest Inviter"
           }
         ]
       },
@@ -973,7 +973,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Compliance Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Compliance Administrator"
           }
         ]
       },
@@ -986,7 +986,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Compliance Data Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Compliance Data Administrator"
           }
         ]
       },
@@ -999,7 +999,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Cloud App Security Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Cloud App Security Administrator"
           }
         ]
       },
@@ -1012,7 +1012,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Security Operator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Security Operator"
           }
         ]
       },
@@ -1025,7 +1025,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Teams carries Teams Communications Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Teams carries Teams Communications Administrator"
           }
         ]
       },
@@ -1038,7 +1038,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Teams carries Teams Telephony Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Teams carries Teams Telephony Administrator"
           }
         ]
       },
@@ -1051,7 +1051,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Teams carries Teams Devices Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Teams carries Teams Devices Administrator"
           }
         ]
       },
@@ -1064,7 +1064,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Teams carries Teams Communications Support Engineer"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Teams carries Teams Communications Support Engineer"
           }
         ]
       },
@@ -1077,7 +1077,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Teams Communications Support Specialist"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Teams Communications Support Specialist"
           }
         ]
       },
@@ -1090,7 +1090,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Backup-Direct carries SharePoint Backup Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Backup-Direct carries SharePoint Backup Administrator"
           }
         ]
       },
@@ -1103,7 +1103,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Backup-Direct carries Exchange Backup Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Backup-Direct carries Exchange Backup Administrator"
           }
         ]
       },
@@ -1116,7 +1116,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Backup-Direct carries Microsoft 365 Backup Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Backup-Direct carries Microsoft 365 Backup Administrator"
           }
         ]
       },
@@ -1129,7 +1129,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Billing Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Billing Administrator"
           }
         ]
       },
@@ -1142,7 +1142,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOpsReader carries Reports Reader"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOpsReader carries Reports Reader"
           }
         ]
       },
@@ -1155,7 +1155,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-GlobalAdmin carries Domain Name Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-GlobalAdmin carries Domain Name Administrator"
           }
         ]
       },
@@ -1168,7 +1168,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Printer Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Printer Administrator"
           }
         ]
       },
@@ -1181,7 +1181,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Attribute Definition Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Attribute Definition Administrator"
           }
         ]
       },
@@ -1194,7 +1194,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Attribute Assignment Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Attribute Assignment Administrator"
           }
         ]
       },
@@ -1207,7 +1207,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries AI Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries AI Administrator"
           }
         ]
       },
@@ -1220,7 +1220,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOpsReader carries AI Reader"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOpsReader carries AI Reader"
           }
         ]
       },
@@ -1233,7 +1233,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Fabric Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Fabric Administrator"
           }
         ]
       },
@@ -1246,7 +1246,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Dynamics 365 Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Dynamics 365 Administrator"
           }
         ]
       },
@@ -1259,7 +1259,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Global Secure Access Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Global Secure Access Administrator"
           }
         ]
       },
@@ -1272,7 +1272,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Global Secure Access Log Reader"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Global Secure Access Log Reader"
           }
         ]
       },
@@ -1285,7 +1285,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Helpdesk Administrator"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Helpdesk Administrator"
           }
         ]
       },
@@ -1298,7 +1298,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-Ops carries Message Center Reader"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-Ops carries Message Center Reader"
           },
           {
             "principalId": "<id of PIM-SG-M365-SecOps>",
@@ -1306,7 +1306,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOps carries Message Center Reader"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOps carries Message Center Reader"
           }
         ]
       },
@@ -1319,7 +1319,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOpsReader carries Global Reader"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOpsReader carries Global Reader"
           }
         ]
       },
@@ -1332,7 +1332,7 @@
             "principalType": "Group",
             "assignmentType": "Eligible",
             "duration": "P365D",
-            "justification": "CloudFellows PIM framework 5.0: PIM-SG-M365-SecOpsReader carries Security Reader"
+            "justification": "CloudFellows PIM framework 5.1: PIM-SG-M365-SecOpsReader carries Security Reader"
           }
         ]
       }

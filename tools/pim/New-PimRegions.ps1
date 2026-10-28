@@ -67,7 +67,7 @@
   is unused.
 
 .PARAMETER RegionsFile
-  regions.csv (columns code,name,attribute,value,devicePrefix,autopilotTag,
+  regions.csv (columns code,name,countries,attribute,value,devicePrefix,autopilotTag,
   itLead,approvers,timezone — code required; approvers "a@x;b@x") or the JSON
   ENCA writes (regions as a list; approvers a list or "a;b").
 .PARAMETER TemplateFile
@@ -144,14 +144,14 @@ Import-Module (Join-Path $PSScriptRoot 'PimCommon.psm1') -Force -DisableNameChec
 $GraphUrl = 'https://graph.microsoft.com/v1.0'
 $SelfPath = try { $rel = Resolve-Path -LiteralPath $PSCommandPath -Relative; if ($rel -like '..*') { $PSCommandPath } else { $rel } } catch { $PSCommandPath }
 $BetaUrl = 'https://graph.microsoft.com/beta'
-$REGION_COLUMNS = @('code', 'name', 'attribute', 'value', 'devicePrefix', 'autopilotTag', 'itLead', 'approvers', 'timezone')
+$REGION_COLUMNS = @('code', 'name', 'countries', 'attribute', 'value', 'devicePrefix', 'autopilotTag', 'itLead', 'approvers', 'timezone')
 $REGION_MAX_ROWS = 250
 $REGION_MAX_BYTES = 262144
 $DEFAULT_FIELDS = @{
   attribute = '^extensionAttribute([1-9]|1[0-5])$'; value = '^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$'; devicePrefix = '^[A-Za-z0-9][A-Za-z0-9-]{0,14}$'
-  autopilotTag = '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'; name = '^[^\u0000-\u001f"<>]{1,64}$'; email = '^[^@\s"<>(),;]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; timezone = '^[A-Za-z_]+(/[A-Za-z0-9_+-]+)*$'
+  autopilotTag = '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'; country = '^[A-Z]{2}$'; name = '^[^\u0000-\u001f"<>]{1,64}$'; email = '^[^@\s"<>(),;]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; timezone = '^[A-Za-z_]+(/[A-Za-z0-9_+-]+)*$'
 }
-$DEFAULT_CODE = '^[A-Z]{2,5}(-[A-Z0-9]{2,6}){1,2}$'
+$DEFAULT_CODE = '^[A-Z]{2,8}(-[A-Z0-9]{2,6}){0,2}$'
 
 $planDoc = if ($Apply) { Read-PimPlanFile $PlanFile 'regions' } else { $null }
 $ctx = Connect-PimTenant -Customer $Customer -ConnectScript $ConnectScript -TenantId $TenantId -Interactive:$Interactive -PlanTenantId $(if ($planDoc) { $planDoc['tenantId'] } else { '' }) -DelegatedScopes @('Directory.Read.All', 'AdministrativeUnit.ReadWrite.All', 'Group.ReadWrite.All', 'RoleManagement.ReadWrite.Directory', 'RoleManagementPolicy.ReadWrite.AzureADGroup', 'DeviceManagementRBAC.ReadWrite.All')
@@ -242,7 +242,7 @@ function Read-RegionsInput {
   $fieldRe = if ($tdoc -and (Get-Key $tdoc 'fields')) { $tdoc['fields'] } else { $DEFAULT_FIELDS }
   $codeRe = if ($tdoc -and (Get-Key $tdoc 'codePattern')) { $tdoc['codePattern'] } else { $DEFAULT_CODE }
   $re = { param($k) if ($fieldRe.Contains($k)) { $fieldRe[$k] } elseif ($DEFAULT_FIELDS.ContainsKey($k)) { $DEFAULT_FIELDS[$k] } else { $null } }
-  $seen = @{}
+  $seen = @{}; $countryOwner = @{}
   for ($i = 0; $i -lt $objs.Count; $i++) {
     $o = $objs[$i]; $line = $i + 2
     if ($o -isnot [System.Collections.IDictionary]) { $res.errors.Add("Row ${line}: not a region (an object with code and name)."); continue }
@@ -250,13 +250,14 @@ function Read-RegionsInput {
     foreach ($k in @('code', 'name', 'attribute', 'value', 'devicePrefix', 'autopilotTag', 'itLead', 'timezone')) {
       $v = Get-Key $o $k
       if ($null -eq $v) { $cell[$k] = ''; continue }
+      if (($k -eq 'devicePrefix' -or $k -eq 'autopilotTag') -and $v -is [System.Collections.IList] -and -not @($v | Where-Object { $_ -isnot [string] }).Count) { $cell[$k] = (@($v | ForEach-Object { $_.Trim() }) -join ';'); continue }
       if ($v -is [string] -or $v -is [int] -or $v -is [long] -or $v -is [double]) { $cell[$k] = "$v".Trim(); continue }
       $res.errors.Add("Row ${line}: $k must be text."); $typeBad = $true; break
     }
     if ($typeBad) { continue }
     $code = $cell.code.ToUpper()
     if (-not $code) { $res.errors.Add("Row ${line}: no code."); continue }
-    if ($code -cnotmatch $codeRe) { $res.errors.Add("Row ${line}: code `"$code`" does not follow continent-country (EU-NL, NA-US, APAC-SG)."); continue }
+    if ($code -cnotmatch $codeRe) { $res.errors.Add("Row ${line}: code `"$code`" is not a region code — 2 to 8 capitals, optionally with a part after a dash (EURO, APAC, EU-NL)."); continue }
     if ($seen.ContainsKey($code)) { $res.errors.Add("Row ${line}: code $code twice."); continue }
     $ap = Get-Key $o 'approvers'
     $approvers = @()
@@ -264,23 +265,36 @@ function Read-RegionsInput {
     elseif ($ap -is [string]) { $approvers = @($ap -split '[;|]' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
     elseif ($ap -is [System.Collections.IList] -and -not @($ap | Where-Object { $_ -isnot [string] }).Count) { $approvers = @($ap | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
     else { $res.errors.Add("Row ${line}: approvers must be text (a;b) or a list of addresses."); continue }
+    $cn = Get-Key $o 'countries'
+    $countries = @()
+    if ($null -eq $cn -or ($cn -is [string] -and -not $cn.Trim())) { $countries = @() }
+    elseif ($cn -is [string]) { $countries = @($cn -split '[;|,\s]+' | ForEach-Object { $_.Trim().ToUpper() } | Where-Object { $_ }) }
+    elseif ($cn -is [System.Collections.IList] -and -not @($cn | Where-Object { $_ -isnot [string] }).Count) { $countries = @($cn | ForEach-Object { $_.Trim().ToUpper() } | Where-Object { $_ }) }
+    else { $res.errors.Add("Row ${line}: countries must be text (GB;BE) or a list of two-letter codes."); continue }
+    $countries = @($countries | Select-Object -Unique)
+    $byCountry = $countries.Count -gt 0
     $last = ($code -split '-')[-1]
     $row = [ordered]@{
-      code = $code; name = $(if ($cell.name) { $cell.name } else { $code })
+      code = $code; name = $(if ($cell.name) { $cell.name } else { $code }); countries = $countries
       attribute = $(if ($cell.attribute) { $cell.attribute } else { 'extensionAttribute1' }); value = $(if ($cell.value) { $cell.value } else { $code })
-      devicePrefix = $(if ($cell.devicePrefix) { $cell.devicePrefix } else { "$last-" }); autopilotTag = $(if ($cell.autopilotTag) { $cell.autopilotTag } else { $code })
+      devicePrefix = $(if ($cell.devicePrefix -or $byCountry) { $cell.devicePrefix } else { "$last-" }); autopilotTag = $(if ($cell.autopilotTag) { $cell.autopilotTag } else { $code })
       itLead = $cell.itLead; approvers = $approvers; timezone = $cell.timezone
     }
     $bad = New-Object System.Collections.Generic.List[string]
     if ($row.attribute -cnotmatch (& $re 'attribute')) { $bad.Add("attribute `"$($row.attribute)`" — only extensionAttribute1 to extensionAttribute15 exist on users and devices both") }
     if ($row.value -cnotmatch (& $re 'value')) { $bad.Add("value `"$($row.value)`" — letters, digits, space, dot, dash and underscore only (it goes inside a membership rule)") }
-    if ($row.devicePrefix -cnotmatch (& $re 'devicePrefix')) { $bad.Add("devicePrefix `"$($row.devicePrefix)`" — letters, digits and dashes, at most 15") }
-    if ($row.autopilotTag -cnotmatch (& $re 'autopilotTag')) { $bad.Add("autopilotTag `"$($row.autopilotTag)`"") }
+    foreach ($x in @("$($row.devicePrefix)" -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { if ($x -cnotmatch (& $re 'devicePrefix')) { $bad.Add("devicePrefix `"$x`" — letters, digits and dashes, at most 15") } }
+    foreach ($x in @("$($row.autopilotTag)" -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { if ($x -cnotmatch (& $re 'autopilotTag')) { $bad.Add("autopilotTag `"$x`"") } }
+    foreach ($c in $countries) { if ($c -cnotmatch (& $re 'country')) { $bad.Add("country `"$c`" — two-letter ISO code as usageLocation holds it (GB, not UK or GBR)") } }
+    $taken = @($countries | Where-Object { $countryOwner.ContainsKey($_) })
+    if ($taken.Count) { $bad.Add((($taken | ForEach-Object { "$_ is already in $($countryOwner[$_])" }) -join ', ') + ' — a country belongs to one region') }
+    if ($byCountry -and ($cell.attribute -or $cell.value)) { $res.warnings.Add("Row ${line}: $code has countries, so attribute and value are not used for its users.") }
     if ($row.name -cnotmatch (& $re 'name')) { $bad.Add('name — at most 64 characters, no quotes or angle brackets') }
     if ($row.itLead -and $row.itLead -cnotmatch (& $re 'email')) { $bad.Add("itLead `"$($row.itLead)`" is not an address") }
     foreach ($a in $row.approvers) { if ($a -cnotmatch (& $re 'email')) { $bad.Add("approver `"$a`" is not an address") } }
     if ($bad.Count) { $res.errors.Add("Row $line ($code) left out: $($bad -join '; ')."); continue }
     $seen[$code] = $true
+    foreach ($c in $countries) { $countryOwner[$c] = $code }
     if (-not $cell.name) { $res.warnings.Add("Row ${line}: $code has no name (the code is used).") }
     if (-not $row.approvers.Count) { $res.warnings.Add("Row ${line}: $code names no approvers — PIM-SG-$code-Approvers stays empty.") }
     if (-not $row.itLead) { $res.warnings.Add("Row ${line}: $code names no IT lead to review the region's access.") }
@@ -290,13 +304,23 @@ function Read-RegionsInput {
   return $res
 }
 
-function Expand-RegionTemplate($v, $row) {
+# The rule parts a row produces — the same as PimBaseline.matches() in ENCA (5.1).
+function Get-RegionMatch($row) {
+  $list = { param($v) @("$(@($v) -join ';')" -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
+  $countries = @(& $list $row.countries)
+  $userMatch = if ($countries.Count) { 'user.usageLocation -in [' + (($countries | ForEach-Object { "`"$_`"" }) -join ',') + ']' } else { "user.$($row.attribute) -eq `"$($row.value)`"" }
+  $tagParts = @(@(& $list $row.autopilotTag) | ForEach-Object { "(device.devicePhysicalIds -any (_ -eq `"[OrderID]:$_`"))" }) + @(@(& $list $row.devicePrefix) | ForEach-Object { "(device.displayName -startsWith `"$_`")" })
+  $deviceParts = if ($countries.Count) { $tagParts } else { @("(device.$($row.attribute) -eq `"$($row.value)`")") + $tagParts }
+  return @{ userMatch = $userMatch; deviceTagMatch = ($tagParts -join ' -or '); deviceMatch = ($deviceParts -join ' -or ') }
+}
+function Expand-RegionTemplate($v, $row, $m = $null) {
   if ($null -eq $v) { return $null }
+  if (-not $m) { $m = Get-RegionMatch $row }
   if ($v -is [string]) {
-    return $v.Replace('<REG>', $row.code).Replace('<attribute>', $row.attribute).Replace('<value>', $row.value).Replace('<devicePrefix>', $row.devicePrefix).Replace('<autopilotTag>', $row.autopilotTag).Replace('<itLead>', $row.itLead).Replace('<approvers>', ($row.approvers -join '; ')).Replace('<name>', $row.name)
+    return $v.Replace('<userMatch>', $m.userMatch).Replace('<deviceTagMatch>', $m.deviceTagMatch).Replace('<deviceMatch>', $m.deviceMatch).Replace('<countries>', (@($row.countries) -join ', ')).Replace('<REG>', $row.code).Replace('<attribute>', $row.attribute).Replace('<value>', $row.value).Replace('<devicePrefix>', $row.devicePrefix).Replace('<autopilotTag>', $row.autopilotTag).Replace('<itLead>', $row.itLead).Replace('<approvers>', ($row.approvers -join '; ')).Replace('<name>', $row.name)
   }
-  if ($v -is [System.Collections.IDictionary]) { $o = [ordered]@{}; foreach ($k in $v.Keys) { $o[$k] = Expand-RegionTemplate $v[$k] $row }; return $o }
-  if ($v -is [System.Collections.IList]) { return , @($v | ForEach-Object { Expand-RegionTemplate $_ $row }) }
+  if ($v -is [System.Collections.IDictionary]) { $o = [ordered]@{}; foreach ($k in $v.Keys) { $o[$k] = Expand-RegionTemplate $v[$k] $row $m }; return $o }
+  if ($v -is [System.Collections.IList]) { return , @($v | ForEach-Object { Expand-RegionTemplate $_ $row $m }) }
   return $v
 }
 function Get-SetKey($list) { return ((@($list) | Where-Object { $_ } | ForEach-Object { "$_".ToLower() } | Sort-Object -Unique) -join ',') }

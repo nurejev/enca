@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 368,
+      ws: "pim",
+      title: "🗺 Regions as lists of countries — usageLocation for users, the Autopilot group tag for devices, the baseline tenant's five regions (framework 5.1, T48 1.2.0)",
+      tools: ["PIM baseline", "Deploy", "Intune RBAC", "PIM documentation"],
+      builds: [33102],
+      risk: "high",
+      what: "js/pimBaselineData.js 5.1: regions.columns + countries, fields.country, codePattern ^[A-Z]{2,8}(-[A-Z0-9]{2,6}){0,2}$, template rules on the userMatch, deviceMatch and deviceTagMatch placeholders, unit and Intune user rules hardened (userType Member, not adm-), example in the countries shape. js/pimbaseline.js: parseRegions reads countries (ISO alpha-2, upper-cased, once; a country in two rows leaves the second out), devicePrefix and autopilotTag as a;b lists, no default name prefix for a row with countries; matches(row) builds the rule parts; fill and region() use it and refuse an unsafe country; a catalog group is never taken for a regional one (plain codes made PIM-SG-INT-Ops look like region INT). js/intunerbac.js fills through PimBaseline.matches. js/pimdoc.js: Users by column and the chapter text. js/demo.js: the demo tenant's region rules in the 5.1 shape. tools/pim/generate.cjs: BASELINE_REGIONS (EURO, AMER, APAC, ITA, BAMSCA, 40 countries) → regions.csv and regions.cloudfellows.dev.json. tools/pim/New-PimRegions.ps1: the same parsing and Get-RegionMatch. Tests: pimbaseline (regions 5.1), pimdoc, Test-PimRegions.inc.ps1 (regions 5.1).",
+      why: "Mihai, 28 Oct 2026: the large profile's regions are Euro, Americas, Asia-Pacific, Italy and BAMSCA as lists of countries — one attribute value per region could not express them. Risk high: it changes the rules Deploy writes into a tenant's units and dynamic groups, and the device rule relies on devicePhysicalIds -any in an administrative unit's dynamic rule, which has not been seen on a live unit yet.",
+      test: [
+        "Beta, demo tenant, 02 → PIM baseline → profile Large multi-region → Regions → Use the example: two regions EURO and AMER load with no error; each card says usageLocation GB, BE, … and Autopilot tag EURO; AU-EURO-Users expects (user.usageLocation -in [\"GB\",…]) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\").",
+        "Beta, any tenant, Regions: paste a file with GB in two rows — the second row is left out with 'GB is already in …'; a row with GBR is left out with the two-letter hint; a row EU-NL with attribute and value and no countries still loads as before.",
+        "Beta, signed in to cloudfellows.dev with Privileged Role Administrator active: Regions → load tools/pim/regions.csv (five rows, 40 countries) → Read → every region Missing; 🚀 Deploy with only Regions ticked → Preview lists 15 units, 35 groups, 40 scoped eligibilities, 10 Intune scope groups. Apply: AU-EURO-Devices is created with the devicePhysicalIds rule (if Entra refuses that rule on a unit, this item fails — record the error), the user unit shows members whose usageLocation is in the list once processing completes.",
+        "Same tenant: the old demo units AU-EU-NL-* still show their extensionAttribute1 rules; nothing in the run touched them.",
+        "Beta, PIM documentation, multi profile with the five loaded: the Regions chapter lists EURO … BAMSCA with Users by usageLocation and the countries.",
+        "pwsh tools/pim/tests/Test-PimScripts.ps1: regions 5.1 passes; node --test tools/*.test.cjs: the suite passes.",
+      ],
+    },
+    {
       n: 367,
       ws: "ca",
       title: "👥 CA groups — ⑦ Migrate waits for the directory after the create, finishes a half-way run, and the report says why a row failed (T12 6.1.1)",

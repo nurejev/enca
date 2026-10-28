@@ -35,7 +35,7 @@ Test-It 'regions: planning makes zero writes; units, groups, scoped eligibilitie
   $el = @($p.ops | Where-Object { $_.key -eq 'elig:Helpdesk Administrator:PIM-SG-EU-NL-Helpdesk:AU-EU-NL-Users' })[0]
   Assert-Eq $el.body.directoryScopeId '/administrativeUnits/{{au:AU-EU-NL-Users}}' 'eligibility scoped to the region unit'
   $au = @($p.ops | Where-Object { $_.key -eq 'au:AU-EU-NL-Users' })[0]
-  Assert-Eq $au.body.membershipRule '(user.extensionAttribute1 -eq "EU-NL")' 'the unit rule from the row'
+  Assert-Eq $au.body.membershipRule '(user.extensionAttribute1 -eq "EU-NL") -and (user.userType -eq "Member") -and (user.userPrincipalName -notStartsWith "adm-")' 'the unit rule from the row'
   Assert-True (-not @($p.ops | Where-Object { $_.body -and $_.body.Contains('isMemberManagementRestricted') }).Count) 'never a restricted management unit'
   $apg = @($p.ops | Where-Object { $_.key -eq 'group:PIM-SG-EU-NL-Approvers' })[0]
   Assert-True (-not $apg.body.Contains('isAssignableToRole')) 'approvers: a plain group'
@@ -68,6 +68,25 @@ Test-It 'regions: an unsafe or malformed row blocks the plan; nothing unsafe rea
   Assert-Eq (Get-FakeWrites).Count 0 'writes'
 }
 
+Test-It 'regions 5.1: a region of countries matches usageLocation and the Autopilot tag; a country in two regions stops the plan' {
+  New-RegionTenant
+  $csv = Join-Path $tmp 'regions.countries.csv'
+  Set-Content $csv "code,name,countries,autopilotTag,itLead,approvers,timezone`nEURO,Euro,GB;be;NL,EURO,approver.a@fake.dev,`"approver.a@fake.dev;approver.b@fake.dev`",Europe/Amsterdam`nITA,Italy,IT,ITA;IT-OLD,,,Europe/Rome"
+  Invoke-Quiet { & $regions -RegionsFile $csv -TenantId fake.dev -OutDir $tmp }
+  Assert-Eq (Get-FakeWrites).Count 0 'non-GET calls while planning'
+  $p = Get-Content (Get-Plans 'regions')[-1].FullName -Raw | ConvertFrom-Json -AsHashtable
+  $u = @($p.ops | Where-Object { $_.key -eq 'au:AU-EURO-Users' })[0]
+  Assert-Eq $u.body.membershipRule '(user.usageLocation -in ["GB","BE","NL"]) -and (user.userType -eq "Member") -and (user.userPrincipalName -notStartsWith "adm-")' 'users by country'
+  $d = @($p.ops | Where-Object { $_.key -eq 'au:AU-ITA-Devices' })[0]
+  Assert-Eq $d.body.membershipRule '(device.devicePhysicalIds -any (_ -eq "[OrderID]:ITA")) -or (device.devicePhysicalIds -any (_ -eq "[OrderID]:IT-OLD"))' 'devices by Autopilot group tag, no name prefix by default'
+  $g = @($p.ops | Where-Object { $_.key -eq 'group:INT-SG-DEV-EURO-All' })[0]
+  Assert-Eq $g.body.membershipRule '(device.devicePhysicalIds -any (_ -eq "[OrderID]:EURO"))' 'Intune device group by tag'
+  Set-Content $csv "code,name,countries`nEURO,Euro,GB;NL`nUKI,UK and Ireland,GB;IE"
+  $out = Get-RunText { & $regions -RegionsFile $csv -TenantId fake.dev -OutDir $tmp }
+  Assert-True ($out -match 'GB is already in EURO') 'a country belongs to one region'
+  Assert-Eq (Get-FakeWrites).Count 0 'still nothing written'
+}
+
 Test-It 'regions: apply the approved plan, then planning again finds nothing; an interrupted tag assignment is repaired without a second tag' {
   New-RegionTenant
   Invoke-Quiet { & $regions -RegionsFile $regionsJson -TenantId fake.dev -OutDir $tmp }
@@ -76,7 +95,7 @@ Test-It 'regions: apply the approved plan, then planning again finds nothing; an
   $F = $global:Fake
   Assert-Eq $F.aus.Count 6 'three units per region'
   $auU = $F.aus | Where-Object { $_.displayName -eq 'AU-EU-NL-Users' }
-  Assert-Eq $auU.membershipRule '(user.extensionAttribute1 -eq "EU-NL")' 'dynamic rule'
+  Assert-Eq $auU.membershipRule '(user.extensionAttribute1 -eq "EU-NL") -and (user.userType -eq "Member") -and (user.userPrincipalName -notStartsWith "adm-")' 'dynamic rule'
   $hd = $F.groups | Where-Object { $_.displayName -eq 'PIM-SG-EU-NL-Helpdesk' }
   Assert-True $hd.isAssignableToRole 'persona group role-assignable'
   # 5.0: the regional desk is a role group — ELIGIBLE at its unit per role, never active, never tenant-wide

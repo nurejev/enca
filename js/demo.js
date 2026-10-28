@@ -713,17 +713,17 @@ DEMO_DATA.pim = (() => {
   Object.assign(names, { [G.nlHd]: "PIM-SG-EU-NL-Helpdesk", [G.nlOps]: "PIM-SG-EU-NL-Ops", [G.nlAp]: "PIM-SG-EU-NL-Approvers", [G.nlUsr]: "INT-SG-USR-EU-NL-All", [G.nlDev]: "INT-SG-DEV-EU-NL-All", [G.deOps]: "PIM-SG-EU-DE-Ops", [G.intOps]: "PIM-SG-INT-Ops", [G.intHdNl]: "PIM-SG-INT-HelpDesk-EU-NL" });
   const AU = { nlU: "au-eu-nl-users", nlD: "au-eu-nl-devices", nlG: "au-eu-nl-groups", deU: "au-eu-de-users", rm: "au-rm-admins" };
   const aus = [
-    { id: AU.nlU, displayName: "AU-EU-NL-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-NL")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
+    { id: AU.nlU, displayName: "AU-EU-NL-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-NL") -and (user.userType -eq "Member") -and (user.userPrincipalName -notStartsWith "adm-")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
     { id: AU.nlD, displayName: "AU-EU-NL-Devices", membershipType: "Dynamic", membershipRule: '(device.displayName -startsWith "NL-")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
     { id: AU.nlG, displayName: "AU-EU-NL-Groups", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: false },
-    { id: AU.deU, displayName: "AU-EU-DE-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-DE")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
+    { id: AU.deU, displayName: "AU-EU-DE-Users", membershipType: "Dynamic", membershipRule: '(user.extensionAttribute1 -eq "EU-DE") -and (user.userType -eq "Member") -and (user.userPrincipalName -notStartsWith "adm-")', membershipRuleProcessingState: "On", isMemberManagementRestricted: false },
     { id: AU.rm, displayName: "AU-RM-Executives", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: true },
     { id: "au-nl-office", displayName: "Amsterdam office", membershipType: "Assigned", membershipRule: null, isMemberManagementRestricted: false },
   ];
   const named = [
     { id: G.nlAp, displayName: "PIM-SG-EU-NL-Approvers", isAssignableToRole: false, membershipRule: null },
-    { id: G.nlUsr, displayName: "INT-SG-USR-EU-NL-All", isAssignableToRole: false, membershipRule: '(user.extensionAttribute1 -eq "EU-NL") -and (user.accountEnabled -eq true)', membershipRuleProcessingState: "On" },
-    { id: G.nlDev, displayName: "INT-SG-DEV-EU-NL-All", isAssignableToRole: false, membershipRule: '(device.enrollmentProfileName -startsWith "EU-NL") -or (device.displayName -startsWith "NL-")', membershipRuleProcessingState: "Paused" },
+    { id: G.nlUsr, displayName: "INT-SG-USR-EU-NL-All", isAssignableToRole: false, membershipRule: '(user.extensionAttribute1 -eq "EU-NL") -and (user.accountEnabled -eq true) -and (user.userType -eq "Member") -and (user.userPrincipalName -notStartsWith "adm-")', membershipRuleProcessingState: "On" },
+    { id: G.nlDev, displayName: "INT-SG-DEV-EU-NL-All", isAssignableToRole: false, membershipRule: '(device.devicePhysicalIds -any (_ -eq "[OrderID]:EU-NL")) -or (device.displayName -startsWith "NL-")', membershipRuleProcessingState: "Paused" },
   ];
   const regionsCsv = ["code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone", "EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@contoso.nl,\"anna@contoso.nl;mihai@contoso.nl\",Europe/Amsterdam", "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"joey@contoso.nl;mihai@contoso.nl\",Europe/Berlin"].join("\n");
   const inst = (roleName, principalId, principalType, endDateTime, assignmentType, directoryScopeId) => ({ roleName, principalId, principalName: names[principalId] || principalId, principalType, endDateTime, assignmentType, directoryScopeId: directoryScopeId || "/" });

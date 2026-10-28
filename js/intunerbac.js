@@ -48,7 +48,10 @@ const IntuneRbac = (() => {
     (I.customRoles || []).forEach((n) => { const r = (cat.intuneRoles || []).find((x) => x.name === n); if (r) out.customRoles.push(r); });
     if (p.regions && Array.isArray(rows) && rows.length) {
       const T = (cat.regions && cat.regions.template && cat.regions.template.intune) || {};
-      const fill = (v, row) => (typeof v === "string" ? v.replace(/<(REG|attribute|value|devicePrefix|autopilotTag)>/g, (m, k) => (k === "REG" ? row.code : String(row[k] ?? ""))) : Array.isArray(v) ? v.map((x) => fill(x, row)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x, row)])) : v);
+      // The rule parts (<userMatch>, <deviceTagMatch> …) come from the one
+      // builder in PimBaseline when it is loaded; the plain fields otherwise.
+      const PBm = typeof PimBaseline !== "undefined" && PimBaseline.matches ? PimBaseline.matches : () => ({});
+      const fill = (v, row, M = PBm(row)) => (typeof v === "string" ? v.replace(/<(REG|attribute|value|devicePrefix|autopilotTag|userMatch|deviceMatch|deviceTagMatch)>/g, (m, k) => (k === "REG" ? row.code : M[k] != null ? M[k] : String(row[k] ?? ""))) : Array.isArray(v) ? v.map((x) => fill(x, row, M)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x, row, M)])) : v);
       rows.forEach((row) => {
         const R = fill(T, row);
         const reg = { code: row.code, tag: R.tag ? { name: R.tag.name, autoAssignFrom: R.tag.autoAssignFrom, where: row.code } : null, groups: R.groups || [], assignments: [] };

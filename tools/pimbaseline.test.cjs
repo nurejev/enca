@@ -17,6 +17,9 @@ const MULTI = PB.profile(CAT, "multi"), SMALL = PB.profile(CAT, "small"), LARGE 
 const row = (res, n) => res.rows.find((r) => r.name === n);
 const grp = (res, n) => res.groups.find((g) => g.name === n);
 
+// The 5.0-shaped example (attribute = value per region), still read as before.
+const OLD_EXAMPLE = ["code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone", "EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@contoso.nl,\"a@contoso.nl;b@contoso.nl\",Europe/Amsterdam", "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"c@contoso.nl;d@contoso.nl\",Europe/Berlin"].join("\n");
+
 test("catalog: every role names a template, every via a group of its profile, names unique and solution-first", () => {
   const all = PB.allGroups(CAT);
   assert.equal(new Set(all.map((g) => g.name)).size, all.length);
@@ -232,7 +235,10 @@ test("render and toMd: every role and group, escaped names, 'Policy matches' bes
 });
 
 test("regions: strict parsing — errors leave a row out, warnings keep it, nothing throws", () => {
-  const ok = PB.parseRegions(CAT.regions.example, CAT);
+  const ex = PB.parseRegions(CAT.regions.example, CAT);
+  assert.deepEqual(ex.errors, []); assert.equal(ex.rows.length, 2);
+  assert.deepEqual(ex.rows[1].countries, ["US", "MX", "CA"]); assert.equal(ex.rows[1].devicePrefix, "", "5.1: a row with countries has no default name prefix");
+  const ok = PB.parseRegions(OLD_EXAMPLE, CAT);
   assert.deepEqual(ok.errors, []); assert.equal(ok.rows.length, 2);
   assert.deepEqual(ok.rows[0].approvers, ["a@contoso.nl", "b@contoso.nl"]); assert.equal(ok.rows[1].devicePrefix, "DE-");
   for (const bad of [JSON.stringify({ regions: {} }), "[null]", "{", "[1,2]", JSON.stringify({ code: "EU-NL" }), ""]) {
@@ -241,7 +247,7 @@ test("regions: strict parsing — errors leave a row out, warnings keep it, noth
   }
   const mixed = PB.parseRegions([
     "code,name,attribute,value,devicePrefix,approvers",
-    "nl,Netherlands,,,,",
+    "n1,Netherlands,,,,",
     "EU-NL,Netherlands,country,,,",
     'EU-DE,Germany,,"DE"") -or (true",,',
     "EU-BE,Belgium,,,,x@y",
@@ -249,7 +255,7 @@ test("regions: strict parsing — errors leave a row out, warnings keep it, noth
     "EU-FR,Again,,,,",
   ].join("\n"), CAT);
   assert.deepEqual(mixed.rows.map((r) => r.code), ["EU-FR"]);
-  assert.ok(mixed.errors.some((e) => /Row 2/.test(e) && /continent-country/.test(e)));
+  assert.ok(mixed.errors.some((e) => /Row 2/.test(e) && /not a region code/.test(e)));
   assert.ok(mixed.errors.some((e) => /EU-NL/.test(e) && /extensionAttribute1 to extensionAttribute15/.test(e)), "country cannot drive the device unit");
   assert.ok(mixed.errors.some((e) => /EU-DE/.test(e) && /membership rule/.test(e)), "a quote never reaches a rule");
   assert.ok(mixed.errors.some((e) => /EU-BE/.test(e) && /not an address/.test(e)));
@@ -300,7 +306,7 @@ function perfectRegion(row) {
 }
 
 test("review: a region whose Entra side matches but whose Intune side is unread is 'partial', not Match; a tenant-wide extra is drift", () => {
-  const row0 = PB.parseRegions(CAT.regions.example, CAT).rows[0];
+  const row0 = PB.parseRegions(OLD_EXAMPLE, CAT).rows[0];
   const t = perfectRegion(row0);
   let cr = PB.compareRegions(MULTI, [row0], t);
   assert.equal(cr.regions[0].status, "partial");
@@ -316,8 +322,8 @@ test("review: a region whose Entra side matches but whose Intune side is unread 
 
 test("regions file: the chosen rows with approvers as a list, the template, both group templates", () => {
   const rows = PB.parseRegions(CAT.regions.example, CAT).rows;
-  const f = PB.toRegionsFile(MULTI, rows, { domain: "contoso.nl", codes: ["EU-DE"] });
-  assert.deepEqual(f.regions.map((r) => r.code), ["EU-DE"]); assert.ok(Array.isArray(f.regions[0].approvers)); assert.equal(f.regions[0].approvers.length, 2);
+  const f = PB.toRegionsFile(MULTI, rows, { domain: "contoso.nl", codes: ["AMER"] });
+  assert.deepEqual(f.regions.map((r) => r.code), ["AMER"]); assert.deepEqual(f.regions[0].countries, ["US", "MX", "CA"]); assert.ok(Array.isArray(f.regions[0].approvers)); assert.equal(f.regions[0].approvers.length, 2);
   assert.deepEqual(Object.keys(f.groupTemplates), ["GroupMember", "GroupJIT"], "5.0: the regional role groups are GroupMember");
   assert.equal(f.intuneRoles[0].name, "INT-ROLE-Regional-Ops"); assert.equal(f._meta.schema, "cloudfellows-pim-regions/2.1");
   assert.ok(f.fields.attribute && f.codePattern);
@@ -444,4 +450,33 @@ test("2.2 compare and exports: an XDR group is a model without Entra roles; the 
   assert.equal(cfg.GroupRoles.Policies["PIM-SG-XDR-Admin"].Member.Template, "GroupJITTier0");
   assert.equal(cfg.PolicyTemplates.GroupJITTier0.AuthenticationContext_Value, "c1");
   for (const id2 of PB.profileIds(CAT)) assert.match(PB.toSample(CAT, id2), /Defender XDR: the PIM-SG-XDR groups are .*Entra side only/);
+});
+
+test("regions 5.1: countries match usageLocation, devices the Autopilot tag, a country belongs to one region", () => {
+  const r = PB.parseRegions([
+    "code,name,countries,autopilotTag,devicePrefix,approvers",
+    "EURO,Euro,GB;be;NL;GB,EURO,,a@x.nl;b@x.nl",
+    "ITA,Italy,IT,ITA;IT-OLD,IT-,",
+    "UKI,UK and Ireland,GB;IE,,,",
+    "BAD,Bad,GBR,,,",
+    "OLD,Old,,,,",
+  ].join("\n"), CAT);
+  assert.deepEqual(r.rows.map((x) => x.code), ["EURO", "ITA", "OLD"]);
+  assert.deepEqual(r.rows[0].countries, ["GB", "BE", "NL"], "upper-cased, each once");
+  assert.ok(r.errors.some((e) => /UKI/.test(e) && /GB is already in EURO/.test(e)));
+  assert.ok(r.errors.some((e) => /BAD/.test(e) && /two-letter ISO/.test(e)));
+  const euro = PB.region(CAT, r.rows[0]);
+  const au = (n) => euro.aus.find((a) => a.name === n);
+  assert.equal(au("AU-EURO-Users").rule, '(user.usageLocation -in ["GB","BE","NL"]) -and (user.userType -eq "Member") -and (user.userPrincipalName -notStartsWith "adm-")');
+  assert.equal(au("AU-EURO-Devices").rule, '(device.devicePhysicalIds -any (_ -eq "[OrderID]:EURO"))');
+  const ita = PB.region(CAT, r.rows[1]);
+  assert.equal(ita.intune.groups.find((g) => g.type === "device").rule, '(device.devicePhysicalIds -any (_ -eq "[OrderID]:ITA")) -or (device.devicePhysicalIds -any (_ -eq "[OrderID]:IT-OLD")) -or (device.displayName -startsWith "IT-")');
+  assert.ok(ita.groups.some((g) => g.name === "PIM-SG-ITA-Helpdesk"));
+  const old = PB.region(CAT, r.rows[2]);
+  assert.equal(old.aus.find((a) => a.name === "AU-OLD-Devices").rule, '(device.extensionAttribute1 -eq "OLD") -or (device.devicePhysicalIds -any (_ -eq "[OrderID]:OLD")) -or (device.displayName -startsWith "OLD-")', "a row without countries keeps attribute = value");
+  assert.throws(() => PB.region(CAT, Object.assign({}, r.rows[0], { countries: ['GB"] -or (true'] })), /not safe/);
+  // the baseline tenant's five regions parse clean
+  const five = PB.parseRegions(require("node:fs").readFileSync(require("node:path").join(__dirname, "pim", "regions.csv"), "utf8"), CAT);
+  assert.deepEqual(five.errors, []); assert.deepEqual(five.rows.map((x) => x.code), ["EURO", "AMER", "APAC", "ITA", "BAMSCA"]);
+  assert.equal(five.rows.reduce((n, x) => n + x.countries.length, 0), 40);
 });

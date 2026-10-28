@@ -81,9 +81,9 @@ test("regions: the template, and the customer's rows when a file is loaded", () 
   const reg = doc.chapters.find((c) => c.id === "regions");
   assert.ok(reg.blocks.some((b) => b.t === "h" && /Your regions · 2/.test(b.text)));
   const yours = reg.blocks.filter((b) => b.t === "table").pop();
-  assert.deepEqual(yours.rows.map((r) => r[0]), ["EU-NL", "EU-DE"]);
+  assert.deepEqual(yours.rows.map((r) => r[0]), ["EURO", "AMER"]); assert.match(yours.rows[0][2], /usageLocation GB, BE/);
   assert.match(yours.rows[0][yours.rows[0].length - 1], /^3 · \d+ · 8$/, "units · groups · eligibilities");
-  assert.ok(reg.blocks.some((b) => b.t === "svg" && /EU-NL/.test(b.svg)), "the diagram draws the first region");
+  assert.ok(reg.blocks.some((b) => b.t === "svg" && /EURO/.test(b.svg)), "the diagram draws the first region");
   assert.equal(doc.meta.regions, 2);
   const none = build("multi");
   assert.ok(none.chapters.find((c) => c.id === "regions").blocks.some((b) => b.t === "note" && /No regions file/.test(b.text)));

@@ -330,8 +330,8 @@ const PimBaseline = (() => {
       const held = [...(tenant.eligible || []).map((a) => Object.assign({ how: "eligible" }, a)), ...(tenant.active || []).filter((a) => a.assignmentType !== "Activated").map((a) => Object.assign({ how: "active" }, a))].filter((a) => ids.has(a.principalId));
       return { name: r.name, into: r.into, release: r.release, note: r.note || "", ids: [...ids], holds: sortStr([...new Set(held.map((a) => a.roleName))]), count: held.length };
     });
-    const extraGroups = sortStr((tenant.groups || []).filter((g) => g.isAssignableToRole !== false && !catNames.has(g.displayName) && !retiredNames.has(g.displayName) && !regional.test(g.displayName)).map((g) => g.displayName));
-    const regionalGroups = sortStr((tenant.groups || []).filter((g) => regional.test(g.displayName)).map((g) => g.displayName));
+    const extraGroups = sortStr((tenant.groups || []).filter((g) => g.isAssignableToRole !== false && !catNames.has(g.displayName) && !retiredNames.has(g.displayName) && (!regional.test(g.displayName) || catNames.has(g.displayName))).map((g) => g.displayName));
+    const regionalGroups = sortStr((tenant.groups || []).filter((g) => regional.test(g.displayName) && !catNames.has(g.displayName)).map((g) => g.displayName));
     const counts = { roles: rows.length, match: 0, differs: 0, missing: 0, unread: 0, conflict: 0 };
     rows.forEach((r) => { counts[r.status]++; });
     const compared = groups.filter((g) => g.scope !== "azure");
@@ -484,20 +484,28 @@ const PimBaseline = (() => {
     if (R.maxRows && objs.length > R.maxRows) { errors.push(`${objs.length} rows — more than ${R.maxRows}; split the file.`); return out(); }
     const re = (k) => (F[k] ? new RegExp(F[k]) : null);
     const codeRe = new RegExp(R.codePattern || "^[A-Z0-9-]+$");
-    const seen = new Set();
+    const seen = new Set(), countryOwner = new Map();
     const str = (v) => (v == null ? "" : typeof v === "string" || typeof v === "number" ? String(v).trim() : null);
     objs.forEach((o, i) => {
       const line = i + 2;
       if (!o || typeof o !== "object" || Array.isArray(o)) { errors.push(`Row ${line}: not a region (an object with code and name).`); return; }
       const fields = {};
       for (const k of ["code", "name", "attribute", "value", "devicePrefix", "autopilotTag", "itLead", "timezone"]) {
-        const v = str(o[k]);
+        const v = Array.isArray(o[k]) && (k === "devicePrefix" || k === "autopilotTag") && o[k].every((x) => typeof x === "string") ? o[k].join(";") : str(o[k]);
         if (v === null) { errors.push(`Row ${line}: ${k} must be text.`); return; }
         fields[k] = v;
       }
+      // countries (5.1): ISO 3166 alpha-2 codes, a;b in CSV or a list in JSON.
+      // A region with countries matches users on usageLocation; without, on
+      // the attribute = value pair as before.
+      let countries = o.countries;
+      if (countries == null || countries === "") countries = [];
+      else if (typeof countries === "string") countries = countries.split(/[;|,\s]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
+      else if (Array.isArray(countries) && countries.every((x) => typeof x === "string")) countries = countries.map((x) => x.trim().toUpperCase()).filter(Boolean);
+      else { errors.push(`Row ${line}: countries must be text (GB;BE) or a list of two-letter codes.`); return; }
       const code = fields.code.toUpperCase();
       if (!code) { errors.push(`Row ${line}: no code.`); return; }
-      if (!codeRe.test(code)) { errors.push(`Row ${line}: code "${code}" does not follow continent-country (EU-NL, NA-US, APAC-SG).`); return; }
+      if (!codeRe.test(code)) { errors.push(`Row ${line}: code "${code}" is not a region code — 2 to 8 capitals, optionally with a part after a dash (EURO, APAC, EU-NL).`); return; }
       if (seen.has(code)) { errors.push(`Row ${line}: code ${code} twice.`); return; }
       const last = code.split("-").pop();
       let approvers = o.approvers;
@@ -505,24 +513,31 @@ const PimBaseline = (() => {
       else if (typeof approvers === "string") approvers = approvers.split(/[;|]/).map((x) => x.trim()).filter(Boolean);
       else if (Array.isArray(approvers) && approvers.every((x) => typeof x === "string")) approvers = approvers.map((x) => x.trim()).filter(Boolean);
       else { errors.push(`Row ${line}: approvers must be text (a;b) or a list of addresses.`); return; }
+      const byCountry = countries.length > 0;
       const row = {
-        code, name: fields.name || code,
+        code, name: fields.name || code, countries: [...new Set(countries)],
         attribute: fields.attribute || "extensionAttribute1",
         value: fields.value || code,
-        devicePrefix: fields.devicePrefix || `${last}-`,
+        devicePrefix: byCountry ? fields.devicePrefix : (fields.devicePrefix || `${last}-`),
         autopilotTag: fields.autopilotTag || code,
         itLead: fields.itLead, approvers, timezone: fields.timezone,
       };
       const bad = [];
+      const each = (k) => String(row[k] || "").split(";").map((x) => x.trim()).filter(Boolean);
+      if (re("country")) row.countries.forEach((c) => { if (!re("country").test(c)) bad.push(`country "${c}" — two-letter ISO code as usageLocation holds it (GB, not UK or GBR)`); });
+      const taken = row.countries.filter((c) => countryOwner.has(c));
+      if (taken.length) bad.push(`${taken.map((c) => `${c} is already in ${countryOwner.get(c)}`).join(", ")} — a country belongs to one region`);
+      if (byCountry && (fields.attribute || fields.value)) warnings.push(`Row ${line}: ${code} has countries, so attribute and value are not used for its users.`);
       if (re("attribute") && !re("attribute").test(row.attribute)) bad.push(`attribute "${row.attribute}" — only extensionAttribute1 to extensionAttribute15 exist on users and devices both`);
       if (re("value") && !re("value").test(row.value)) bad.push(`value "${row.value}" — letters, digits, space, dot, dash and underscore only (it goes inside a membership rule)`);
-      if (re("devicePrefix") && !re("devicePrefix").test(row.devicePrefix)) bad.push(`devicePrefix "${row.devicePrefix}" — letters, digits and dashes, at most 15`);
-      if (re("autopilotTag") && !re("autopilotTag").test(row.autopilotTag)) bad.push(`autopilotTag "${row.autopilotTag}"`);
+      if (re("devicePrefix")) each("devicePrefix").forEach((x) => { if (!re("devicePrefix").test(x)) bad.push(`devicePrefix "${x}" — letters, digits and dashes, at most 15`); });
+      if (re("autopilotTag")) each("autopilotTag").forEach((x) => { if (!re("autopilotTag").test(x)) bad.push(`autopilotTag "${x}"`); });
       if (re("name") && !re("name").test(row.name)) bad.push("name — at most 64 characters, no quotes or angle brackets");
       if (row.itLead && re("email") && !re("email").test(row.itLead)) bad.push(`itLead "${row.itLead}" is not an address`);
       row.approvers.forEach((a) => { if (re("email") && !re("email").test(a)) bad.push(`approver "${a}" is not an address`); });
       if (bad.length) { errors.push(`Row ${line} (${code}) left out: ${bad.join("; ")}.`); return; }
       seen.add(code);
+      row.countries.forEach((c) => countryOwner.set(c, code));
       if (!fields.name) warnings.push(`Row ${line}: ${code} has no name (the code is used).`);
       if (!row.approvers.length) warnings.push(`Row ${line}: ${code} names no approvers — PIM-SG-${code}-Approvers stays empty.`);
       if (!row.itLead) warnings.push(`Row ${line}: ${code} names no IT lead to review the region's access.`);
@@ -534,15 +549,31 @@ const PimBaseline = (() => {
   // One row through the template: every <REG>, <attribute>, … replaced. The
   // values were validated to a safe character set; a value that is not is
   // refused here as well, so no caller can build a rule from one.
-  function fill(v, row) {
-    if (typeof v === "string") return v.replace(/<(REG|attribute|value|devicePrefix|autopilotTag|itLead|approvers|name|timezone)>/g, (m, k) => (k === "REG" ? row.code : k === "approvers" ? row.approvers.join("; ") : String(row[k] ?? "")));
-    if (Array.isArray(v)) return v.map((x) => fill(x, row));
-    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x, row)]));
+  // The rule parts a row produces (5.1). <userMatch>: usageLocation -in the
+  // row's countries, or attribute -eq value. <deviceTagMatch>: the Autopilot
+  // group tags ([OrderID]:<tag> in devicePhysicalIds) and the name prefixes,
+  // OR'ed. <deviceMatch>: the same, with attribute -eq value first when the
+  // region has no countries. Every value went through the field checks.
+  function matches(row) {
+    const list = (v) => (Array.isArray(v) ? v : String(v || "").split(";")).map((x) => String(x).trim()).filter(Boolean);
+    const countries = list(row.countries);
+    const userMatch = countries.length ? `user.usageLocation -in [${countries.map((c) => `"${c}"`).join(",")}]` : `user.${row.attribute} -eq "${row.value}"`;
+    const tagParts = [...list(row.autopilotTag).map((t) => `(device.devicePhysicalIds -any (_ -eq "[OrderID]:${t}"))`), ...list(row.devicePrefix).map((p) => `(device.displayName -startsWith "${p}")`)];
+    const deviceParts = countries.length ? tagParts : [`(device.${row.attribute} -eq "${row.value}")`, ...tagParts];
+    return { userMatch, deviceTagMatch: tagParts.join(" -or "), deviceMatch: deviceParts.join(" -or ") };
+  }
+  function fill(v, row, M) {
+    M = M || matches(row);
+    if (typeof v === "string") return v.replace(/<(REG|attribute|value|devicePrefix|autopilotTag|itLead|approvers|name|timezone|userMatch|deviceMatch|deviceTagMatch|countries)>/g, (m, k) => (k === "REG" ? row.code : k === "approvers" ? (row.approvers || []).join("; ") : k === "countries" ? (row.countries || []).join(", ") : M[k] != null ? M[k] : String(row[k] ?? "")));
+    if (Array.isArray(v)) return v.map((x) => fill(x, row, M));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x, row, M)]));
     return v;
   }
   function region(cat, row) {
     const F = (cat.regions && cat.regions.fields) || {};
-    for (const k of ["attribute", "value", "devicePrefix", "autopilotTag"]) if (F[k] && !new RegExp(F[k]).test(String(row[k] || ""))) throw new Error(`region ${row.code}: ${k} "${row[k]}" is not safe to put in a rule`);
+    const parts = (k) => (k === "devicePrefix" || k === "autopilotTag" ? String(row[k] || "").split(";").map((x) => x.trim()).filter(Boolean) : [String(row[k] || "")]);
+    for (const k of ["attribute", "value", "devicePrefix", "autopilotTag"]) if (F[k]) parts(k).forEach((x) => { if (!new RegExp(F[k]).test(x)) throw new Error(`region ${row.code}: ${k} "${x}" is not safe to put in a rule`); });
+    if (F.country) (row.countries || []).forEach((c) => { if (!new RegExp(F.country).test(String(c))) throw new Error(`region ${row.code}: country "${c}" is not safe to put in a rule`); });
     const T = (cat.regions && cat.regions.template) || {};
     return Object.assign({ code: row.code, name: row.name, row }, fill({ aus: T.aus || [], groups: T.groups || [], eligibilities: T.eligibilities || [], intune: T.intune || {}, review: T.review || null }, row));
   }
@@ -665,7 +696,7 @@ const PimBaseline = (() => {
       const can = r.status !== "match" && r.status !== "conflict";
       const on = can && (sel ? sel.has(r.code) : true);
       return `<div class="list-card xt-card pmb-region"><h3><input type="checkbox" data-pmbreg="${esc(r.code)}"${on ? " checked" : ""}${can ? "" : " disabled"} aria-label="Take ${esc(r.code)} into the regions file"> ${esc(r.code)} · ${esc(r.name)} ${rpill(r.status)} <span class="mini">${r.counts.match} of ${r.compared} compared match · ${r.counts.missing} missing · ${r.counts.differs} differ${r.counts.conflict ? ` · ${r.counts.conflict} conflict` : ""}${r.counts.unread ? ` · ${r.counts.unread} not read` : ""}</span></h3>
-      <p class="mini pmb-rowline">${esc(r.row.attribute)} = "${esc(r.row.value)}" · devices ${esc(r.row.devicePrefix)}%SERIAL% · Autopilot tag ${esc(r.row.autopilotTag)}${r.row.itLead ? ` · IT lead ${esc(r.row.itLead)}` : ""}${r.row.approvers.length ? ` · approvers ${esc(r.row.approvers.join(", "))}` : ""}${r.row.timezone ? ` · ${esc(r.row.timezone)}` : ""}${r.review ? ` · ${esc(r.review.cadence)} access review by ${esc(r.review.reviewer || "the IT lead")} (set up by hand)` : ""}</p>
+      <p class="mini pmb-rowline">${(r.row.countries || []).length ? `usageLocation ${esc(r.row.countries.join(", "))}` : `${esc(r.row.attribute)} = "${esc(r.row.value)}"`} · Autopilot tag ${esc(String(r.row.autopilotTag || "").split(";").join(", "))}${r.row.devicePrefix ? ` · device names ${esc(String(r.row.devicePrefix).split(";").join(", "))}…` : ""}${r.row.itLead ? ` · IT lead ${esc(r.row.itLead)}` : ""}${r.row.approvers.length ? ` · approvers ${esc(r.row.approvers.join(", "))}` : ""}${r.row.timezone ? ` · ${esc(r.row.timezone)}` : ""}${r.review ? ` · ${esc(r.review.cadence)} access review by ${esc(r.review.reviewer || "the IT lead")} (set up by hand)` : ""}</p>
       <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th></th><th>Object</th><th>Expected</th><th>Verdict</th></tr></thead><tbody>${r.items.map(item).join("")}</tbody></table></div></div>`;
     }).join("");
     return head + central + (cards || `<p class="mini" style="padding:14px">No region matches the search.</p>`);
@@ -1015,5 +1046,5 @@ const PimBaseline = (() => {
     return L.join("\n");
   }
 
-  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, canonRoles, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, visibleKeys, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, groupPath, isJob, moduleIds, everyProfile, parseCsv, parseRegions, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
+  return { KEYS, LABEL, STATUS, ABSENT, SCHEMA, SAMPLE, allGroups, canonRoles, toSample, stripJsonComments, human, expected, fromTemplate, fromRules, diff, compare, defaultSelection, selectable, visibleKeys, toOrchestrator, command, tiles, chips, render, toMd, profile, profileIds, groupPath, isJob, moduleIds, everyProfile, parseCsv, parseRegions, matches, region, compareRegions, renderRegions, regionsMd, toRegionsFile, regionsCommand };
 })();

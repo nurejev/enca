@@ -143,11 +143,11 @@ const PIM_BASELINE = {
   id: "cloudfellows-pim",
   label: "CloudFellows PIM framework",
   icon: "🧬",
-  release: "5.0",
-  revised: "2026-10-14",
+  release: "5.1",
+  revised: "2026-10-28",
   tenant: "cloudfellows.dev",
   source: "bundled",
-  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026) → 2.1 (25 Sep 2026: active membership + eligible roles, Intune through eligible access groups, no PIM groups in restricted AUs) → 2.2 (2 Oct 2026: the five Defender XDR access groups PIM-SG-XDR-* on the Entra side; the portal roles and assignments stay separate) → 3.0 (5 Oct 2026: job groups — eligible members, the group active in every role of the job, one activation of four hours; direct groups for Tier 0, Exchange, SharePoint, Purview and the readers, as Microsoft recommends; Exchange RBAC through PIM-SG-EXO access groups) → 4.0 (12 Oct 2026: optional modules Remote Help, Remote Help unattended and Windows 365; INT-ROLE-HelpDesk replaces the built-in Help Desk Operator) → 4.1 (13 Oct 2026: Global Secure Access in every design; Teams, backup, billing, Copilot, Fabric and Power Platform roles with the Teams, Backup-Direct, Billing and Data-Direct groups; Purview access groups PIM-SG-PUR-*; regional Exchange groups in the region template; Azure out of the multi-region profile; where no API exists Deploy generates the script) → 5.0 (14 Oct 2026: role activation first — every Entra role group has ACTIVE members for at most a year and is ELIGIBLE per role, so a person activates the one role the task needs and the role policy is the gate; the job groups keep their names as team rosters; SecOps-, Ops-, AppOps- and Collab-Direct are folded into their job group; GroupJITTier1 is kept only to read 4.1 tenants)",
+  lineage: "Dovilo PIM framework v1.3 (25 Aug 2024) → CloudFellows PIM framework 2.0 (24 Sep 2026) → 2.1 (25 Sep 2026: active membership + eligible roles, Intune through eligible access groups, no PIM groups in restricted AUs) → 2.2 (2 Oct 2026: the five Defender XDR access groups PIM-SG-XDR-* on the Entra side; the portal roles and assignments stay separate) → 3.0 (5 Oct 2026: job groups — eligible members, the group active in every role of the job, one activation of four hours; direct groups for Tier 0, Exchange, SharePoint, Purview and the readers, as Microsoft recommends; Exchange RBAC through PIM-SG-EXO access groups) → 4.0 (12 Oct 2026: optional modules Remote Help, Remote Help unattended and Windows 365; INT-ROLE-HelpDesk replaces the built-in Help Desk Operator) → 4.1 (13 Oct 2026: Global Secure Access in every design; Teams, backup, billing, Copilot, Fabric and Power Platform roles with the Teams, Backup-Direct, Billing and Data-Direct groups; Purview access groups PIM-SG-PUR-*; regional Exchange groups in the region template; Azure out of the multi-region profile; where no API exists Deploy generates the script) → 5.0 (14 Oct 2026: role activation first — every Entra role group has ACTIVE members for at most a year and is ELIGIBLE per role, so a person activates the one role the task needs and the role policy is the gate; the job groups keep their names as team rosters; SecOps-, Ops-, AppOps- and Collab-Direct are folded into their job group; GroupJITTier1 is kept only to read 4.1 tenants) → 5.1 (28 Oct 2026: a region is a list of countries — the units match usageLocation, devices the Autopilot group tag; region units and Intune user groups hold members only, never adm- accounts; region codes may be plain, EURO or APAC)",
   // Names the framework depends on beside the groups. The approver group
   // is a plain security group (not role-assignable, not PIM-managed): its
   // members approve, they hold nothing. The mailbox is a shared mailbox in
@@ -713,19 +713,25 @@ const PIM_BASELINE = {
     },
   },
   // ---- REGIONS: the template, never the regions ------------------------
-  // <REG> is the row's code; <attribute>, <value>, <devicePrefix>,
-  // <autopilotTag>, <itLead> and <approvers> come from the same row.
+  // <REG> is the row's code; <itLead> and <approvers> come from the same row.
+  // 5.1 (28 Oct 2026): a region is a list of countries. <userMatch> is
+  // user.usageLocation -in [the row's countries] (or attribute -eq value for a
+  // row without countries, the 5.0 shape); <deviceTagMatch> is the row's
+  // Autopilot group tags ([OrderID]:<tag> in devicePhysicalIds — the deployment
+  // profile name in enrollmentProfileName never starts with the tag) OR'ed with
+  // its device-name prefixes; <deviceMatch> adds attribute -eq value first for
+  // a row without countries. Built by PimBaseline.matches().
   regions: {
     file: "regions.csv",
-    columns: ["code", "name", "attribute", "value", "devicePrefix", "autopilotTag", "itLead", "approvers", "timezone"],
+    columns: ["code", "name", "countries", "attribute", "value", "devicePrefix", "autopilotTag", "itLead", "approvers", "timezone"],
     required: ["code", "name"],
-    defaults: { attribute: "extensionAttribute1", value: "<code>", devicePrefix: "<last segment of code>-", autopilotTag: "<code>" },
+    defaults: { attribute: "extensionAttribute1", value: "<code>", devicePrefix: "<last segment of code>- (none for a row with countries)", autopilotTag: "<code>" },
     example: [
-      "code,name,attribute,value,devicePrefix,autopilotTag,itLead,approvers,timezone",
-      "EU-NL,Netherlands,extensionAttribute1,EU-NL,NL-,EU-NL,it-lead-nl@contoso.nl,\"a@contoso.nl;b@contoso.nl\",Europe/Amsterdam",
-      "EU-DE,Germany,extensionAttribute1,EU-DE,DE-,EU-DE,it-lead-de@contoso.nl,\"c@contoso.nl;d@contoso.nl\",Europe/Berlin",
+      "code,name,countries,autopilotTag,itLead,approvers,timezone",
+      "EURO,Europe,GB;BE;NL;LU;DE;FR,EURO,it-lead-eu@contoso.nl,\"a@contoso.nl;b@contoso.nl\",Europe/Amsterdam",
+      "AMER,Americas,US;MX;CA,AMER,it-lead-am@contoso.nl,\"c@contoso.nl;d@contoso.nl\",America/New_York",
     ].join("\n"),
-    codePattern: "^[A-Z]{2,5}(-[A-Z0-9]{2,6}){1,2}$",
+    codePattern: "^[A-Z]{2,8}(-[A-Z0-9]{2,6}){0,2}$",
     // What a row may carry. The attribute must exist on users AND devices
     // (the device unit reads it too), so only extensionAttribute1-15; values
     // land inside dynamic-membership rules, so a narrow character set — no
@@ -736,6 +742,7 @@ const PIM_BASELINE = {
       value: "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$",
       devicePrefix: "^[A-Za-z0-9][A-Za-z0-9-]{0,14}$",
       autopilotTag: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      country: "^[A-Z]{2}$",
       name: "^[^\u0000-\u001f\"<>]{1,64}$",
       email: "^[^@\\s\"<>(),;]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$",
       timezone: "^[A-Za-z_]+(/[A-Za-z0-9_+-]+)*$",
@@ -744,8 +751,8 @@ const PIM_BASELINE = {
     maxBytes: 262144,
     template: {
       aus: [
-        { name: "AU-<REG>-Users", kind: "dynamic", type: "user", rule: "(user.<attribute> -eq \"<value>\")", note: "P1 per member; one object type per dynamic unit" },
-        { name: "AU-<REG>-Devices", kind: "dynamic", type: "device", rule: "(device.<attribute> -eq \"<value>\") -or (device.displayName -startsWith \"<devicePrefix>\")", note: "the naming prefix is the second rule for devices without the attribute" },
+        { name: "AU-<REG>-Users", kind: "dynamic", type: "user", rule: "(<userMatch>) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\")", note: "P1 per member; one object type per dynamic unit; members only, never an adm- account (5.1, as cloudfellows.dev has it)" },
+        { name: "AU-<REG>-Devices", kind: "dynamic", type: "device", rule: "<deviceMatch>", note: "devices have no usageLocation: the Autopilot group tag, then the name prefixes" },
         { name: "AU-<REG>-Groups", kind: "assigned", type: "group", note: "dynamic units cannot hold groups; the region adds its own" },
       ],
       groups: [
@@ -777,14 +784,14 @@ const PIM_BASELINE = {
       intune: {
         tag: { name: "INT-TAG-<REG>", autoAssignFrom: "INT-SG-DEV-<REG>-All" },
         groups: [
-          { name: "INT-SG-USR-<REG>-All", type: "user", rule: "(user.<attribute> -eq \"<value>\") -and (user.accountEnabled -eq true)" },
-          { name: "INT-SG-DEV-<REG>-All", type: "device", rule: "(device.enrollmentProfileName -startsWith \"<autopilotTag>\") -or (device.displayName -startsWith \"<devicePrefix>\")" },
+          { name: "INT-SG-USR-<REG>-All", type: "user", rule: "(<userMatch>) -and (user.accountEnabled -eq true) -and (user.userType -eq \"Member\") -and (user.userPrincipalName -notStartsWith \"adm-\")" },
+          { name: "INT-SG-DEV-<REG>-All", type: "device", rule: "<deviceTagMatch>" },
         ],
         assignments: [
           { name: "INT-RBAC-HelpDesk-<REG>", roles: ["INT-ROLE-HelpDesk"], members: ["PIM-SG-INT-HelpDesk-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
           { name: "INT-RBAC-Ops-<REG>", roles: ["INT-ROLE-Regional-Ops"], members: ["PIM-SG-INT-Ops-<REG>"], scopeGroups: ["INT-SG-USR-<REG>-All", "INT-SG-DEV-<REG>-All"], tags: ["INT-TAG-<REG>"] },
         ],
-        autopilot: { profile: "Autopilot · <REG>", naming: "<devicePrefix>%SERIAL%", groupTag: "<autopilotTag>" },
+        autopilot: { profile: "Autopilot · <REG>", groupTag: "<autopilotTag>", naming: "the customer's own (a prefix in devicePrefix is matched too)" },
       },
       review: { name: "Access review · <REG>", scope: "PIM-SG-<REG>-Helpdesk, PIM-SG-<REG>-Ops, PIM-SG-INT-HelpDesk-<REG>, PIM-SG-INT-Ops-<REG>, PIM-SG-EXO-Recipients-<REG>, PIM-SG-EXO-HelpDesk-<REG>", reviewer: "<itLead>", cadence: "yearly", manual: true },
     },
