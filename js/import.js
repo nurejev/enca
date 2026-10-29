@@ -318,6 +318,9 @@ const Importer = (() => {
     }).filter((e) => e.num != null);
     // E-Admins taken from another backup into this one (mergeShared) land Off.
     const forceOff = new Set((bundle.forceOff || []).map(cleanName));
+    // 33105: policies whose compliant network exclusion may be dropped when
+    // Entra refuses it (no GSA signalling) — SMB CA010
+    const cnOptional = new Set((bundle.cnOptional || []).map(cleanName));
     const renamed = bundle.sharedRenamed || null;
     return bundle.policies.map(raw => {
       const { num, ver } = parseCaVersion(raw.displayName);
@@ -344,7 +347,7 @@ const Importer = (() => {
       const off = forceOff.has(cleanName(raw.displayName));
       return {
         raw, name: raw.displayName, num, ver, asIs,
-        agent: isAgentPolicy(raw), forceOff: off,
+        agent: isAgentPolicy(raw), forceOff: off, cnOptional: cnOptional.has(cleanName(raw.displayName)),
         // workload-identity policy (CA900 range): needs the Workload ID SKU
         wid: isWorkloadIdentity(raw),
         persona, personaGroup: (persona && PERSONA_GROUPS[persona]) || null,
@@ -2250,11 +2253,25 @@ const Importer = (() => {
           // part of an agent policy Graph documents nowhere: the agent
           // execution environment (agentContext). Without it the policy covers
           // EVERY session of the agents' user accounts, so the report says so.
+          // 33105: a policy whose compliant network EXCLUSION is optional
+          // (SMB CA010: "allowed from anywhere through Global Secure Access")
+          // is created without it when Entra refuses the location — no GSA
+          // signalling yet. The block itself is the point; the exception
+          // comes with a later Match & replace once GSA is green.
+          const cnEx = payload.conditions && payload.conditions.locations && payload.conditions.locations.excludeLocations;
+          if (it.cnOptional && /\(400\)|BadRequest/i.test(e1.message || "") && Array.isArray(cnEx) && cnEx.some((x) => lower(x) === COMPLIANT_NETWORK_ID)) {
+            payload.conditions.locations.excludeLocations = cnEx.filter((x) => lower(x) !== COMPLIANT_NETWORK_ID);
+            onStatus?.(`${it.name}: retrying without the compliant network exception…`);
+            created = await postFresh(staged, it.name, maps, onStatus, opts.freshWaits);
+            agentNotes.push("created WITHOUT its compliant network exception — Entra refused All Compliant Network locations (Global Secure Access signalling is not on here). It blocks outside its countries for everyone, the Global Secure Access client included. Once 🌐 Global Secure Access is green, import it again with Match & replace to add the exception.");
+            retryWithoutContext = false;
+          } else {
           if (!retryWithoutContext || !/\(400\)|BadRequest/i.test(e1.message || "")) throw e1;
           delete payload.conditions.agentContext;
           onStatus?.(`${it.name}: retrying without the agent execution environment condition…`);
           created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
           agentNotes.push("created WITHOUT the agent execution environment condition (sessions initiated from endpoints), which Graph refused: as created it applies to every session of the agents' user accounts, cloud-hosted agents with no device included — add the condition in the portal before switching it On");
+          }
         }
         if (!created?.id) throw new Error("Create returned no policy id; verify the tenant before retrying. Previous policy was not changed.");
         createdId = created.id;

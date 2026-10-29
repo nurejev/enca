@@ -69,7 +69,7 @@ test('the catalog: 20 policies in four sections, numbered where every tool reads
   assert.equal(S.policies.length, 20);
   assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 101, 102, 103, 104, 201, 202, 203, 204, 205, 901]);
   for (const p of S.policies) {
-    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[1-6])?$/, p.name);
+    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[1-7])?$/, p.name);
     assert.equal(S.personaOfPolicy(S, p.name) != null, true, `${p.name} has a section`);
   }
   assert.equal(new Set(S.policies.map((p) => p.name)).size, 20, 'names are unique');
@@ -160,6 +160,11 @@ test('import on a tenant without Global Secure Access: the compliant-network pol
   const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped' });
   assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => r.name.slice(0, 5)).sort()), ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']);
   assert.equal(res.results.filter((r) => r.ok).length, 15);
+  // 1.0.7: CA010 lands without its compliant network exception, and says so
+  const ca010 = [...w.pols.values()].find((p) => p.displayName.startsWith('CA010'));
+  assert.equal(ca010.conditions.locations.excludeLocations.length, 1, 'only the EU location');
+  assert.notEqual(ca010.conditions.locations.excludeLocations[0], '3d46dbda-8382-466a-856d-eb00cbc6b910');
+  assert.ok(res.warnings.some((x) => /CA010.*WITHOUT its compliant network exception/.test(x)), 'the report says so');
 });
 
 test('security defaults: the SMB policies cover all four protections plus Azure management, and the switch is CA001–CA005', () => {
@@ -268,7 +273,7 @@ test('32817 gap matrix under SMB Basic: sections, not CloudFellows personas — 
 
 test('32817 a tenant on 1.0: the eight changed policies read Outdated, and Match & replace brings the sync-role exclusion along', async () => {
   const w = world();
-  const v10 = (n) => n.replace(/-v1\.0\.[1-6]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
+  const v10 = (n) => n.replace(/-v1\.0\.[1-7]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
   // 1.0 had no CA007 and CA008 (added in 1.0.2), CA009, CA205 or CA010
   const tenant = w.S.bundle().policies.filter((p) => !/^CA(00[789]|010|205)-/.test(p.displayName)).map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
   for (const t of tenant) { delete t.conditions.users.excludeRoles; t.state = 'enabledForReportingButNotEnforced'; w.pols.set(t.id, t); }
@@ -291,7 +296,7 @@ test('1.0.2 (the guide\'s Appendix 1): CA005 adds the admin portals, CA007 guard
   const { S } = world();
   const b = S.bundle();
   const by = (n) => b.policies.find((p) => p.displayName.startsWith(n));
-  assert.equal(S.release, '1.0.6');
+  assert.equal(S.release, '1.0.7');
   assert.deepEqual(plain(by('CA005').conditions.applications.includeApplications), ['MicrosoftAdminPortals', '797f4846-ba00-4fd7-ba43-dac1f8f63013']);
   const ca7 = by('CA007');
   assert.equal(ca7.displayName, 'CA007-GRANT-SMB-Global-RegisterOrJoinDevices-AnyPlatform-MFA-v1.0.2');
@@ -450,8 +455,9 @@ test('1.0.6 CA010 + SMB - Allowed EU countries: every internal user only from th
   assert.equal(loc.countryLookupMethod, 'clientIpAddress');
   assert.equal(b.namedLocations.find((l) => l.displayName === 'SMB - Allowed countries').countriesAndRegions.join(), 'NL', 'the admins\' location is unchanged');
   const p = b.policies.find((x) => x.displayName.startsWith('CA010'));
-  assert.equal(p.displayName, 'CA010-BLOCK-SMB-Global-AnyApp-AnyPlatform-OutsideAllowedEUCountries-v1.0.6');
-  assert.deepEqual(plain(p.conditions.locations), { includeLocations: ['All'], excludeLocations: [loc.id] });
+  assert.equal(p.displayName, 'CA010-BLOCK-SMB-Global-AnyApp-AnyPlatform-OutsideAllowedEUCountries-v1.0.7');
+  assert.deepEqual(plain(p.conditions.locations), { includeLocations: ['All'], excludeLocations: [loc.id, '3d46dbda-8382-466a-856d-eb00cbc6b910'] }, '1.0.7: the EU list, and anywhere through the compliant network');
+  assert.deepEqual(plain(b.cnOptional), [p.displayName], 'the compliant network exception may be dropped without GSA signalling');
   assert.deepEqual(plain(p.grantControls.builtInControls), ['block']);
   assert.deepEqual(plain(p.conditions.users.includeUsers), ['All']);
   assert.ok(p.conditions.users.excludeGuestsOrExternalUsers, 'guests left out');

@@ -382,5 +382,5 @@ test('33104: a location that was already in the tenant is not waited for', async
   const { res, dep } = await smbRun(w, { freshWaits: quick }, ['CA010']);
   assert.equal(res.results[0].ok, true, res.results[0].error);
   assert.equal((dep.maps.freshLocs || new Map()).size, 0);
-  assert.deepEqual(plain([...w.pols.values()][0].conditions.locations.excludeLocations), ['eu-here']);
+  assert.deepEqual(plain([...w.pols.values()][0].conditions.locations.excludeLocations), ['eu-here', '3d46dbda-8382-466a-856d-eb00cbc6b910']);
 });

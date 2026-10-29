@@ -152,9 +152,11 @@ const BASELINE_SMB = (() => {
     // policies a phone meets with Authenticator on it
     103: "1.0.5", 203: "1.0.5", 204: "1.0.5",
     // 1.0.6 (Mihai 29 Oct): CA010, every user only from the EU
-    10: "1.0.6" };
+    // 1.0.7 (Mihai 29 Oct: "add one that allows access outside the eu when
+    // using compliant network"): CA010 also leaves out the compliant network
+    10: "1.0.7" };
   // the catalog's own release: the newest policy version in it
-  const CATALOG_RELEASE = "1.0.6";
+  const CATALOG_RELEASE = "1.0.7";
   const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3", 10: "1.0.6" };
   const add = (num, kind, persona, words, entry, raw) => {
     const version = VERSION[num] || RELEASE;
@@ -258,10 +260,19 @@ const BASELINE_SMB = (() => {
   // too, and CA104 on top holds them to SMB - Allowed countries. A traveller
   // outside the EU goes into the policy's own exclusion group for the trip.
   // Lands as the run lands (Report-only) — nothing to wait for.
+  // 1.0.7: a sign-in through the Global Secure Access client (the compliant
+  // network) is allowed from anywhere. Conditional Access has no allow — a
+  // block always wins — so the "allow" is a second excluded location on this
+  // block, not a policy of its own. Learn (compliant network check): GSA's own
+  // resources are left out automatically once a policy names the compliant
+  // network, so the client can bring its tunnel up from abroad. Admins stay on
+  // NL through CA104 (Mihai chose CA010 only). On a tenant without GSA
+  // signalling Entra refuses the compliant network location: the import then
+  // creates CA010 without it (bundle.cnOptional) and says so — Mihai's choice.
   add(10, "BLOCK", "Global", "AnyApp-AnyPlatform-OutsideAllowedEUCountries",
-    { persona: "🌐 Base", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources", network: "Any network or location · − SMB - Allowed EU countries", conditions: ["Client apps: Any client app"], grant: "Block access", block: true, session: "",
-      description: "Every user is blocked outside the 27 member states of the European Union, Iceland, Liechtenstein, Norway, the United Kingdom and Switzerland — the named location SMB - Allowed EU countries, looked up from the sign-in's IP address; an address with no known country is blocked too. Guests are left out: they sign in from their own countries. Admins meet it as well, and CA104 holds them to SMB - Allowed countries on top. Someone travelling outside those countries goes into CAB-SEC-U-SMB-CA010-Exclusion for the trip. Check the Report-only results for sign-ins from elsewhere before it goes On." },
-    { conditions: cond(internalButSync(10), { locations: { includeLocations: ["All"], excludeLocations: [L_EU] } }), grantControls: block });
+    { persona: "🌐 Base", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources", network: "Any network or location · − SMB - Allowed EU countries · − All Compliant Network locations", conditions: ["Client apps: Any client app"], grant: "Block access", block: true, session: "",
+      description: "Every user is blocked outside the 27 member states of the European Union, Iceland, Liechtenstein, Norway, the United Kingdom and Switzerland — the named location SMB - Allowed EU countries, looked up from the sign-in's IP address; an address with no known country is blocked too. Guests are left out: they sign in from their own countries. Admins meet it as well, and CA104 holds them to SMB - Allowed countries on top. Through the Global Secure Access client (the compliant network) a user may sign in from anywhere — so a traveller with a company device needs no exception; someone without the client goes into CAB-SEC-U-SMB-CA010-Exclusion for the trip. Without Global Secure Access signalling the import creates it without that exception and says so. Check the Report-only results for sign-ins from elsewhere before it goes On." },
+    { conditions: cond(internalButSync(10), { locations: { includeLocations: ["All"], excludeLocations: [L_EU, CN_LOCATION] } }), grantControls: block });
 
   // ADM — admins, stricter than security defaults
   add(101, "GRANT", "Admins", "AnyApp-AnyPlatform-PhishingResistantMFA",
@@ -494,6 +505,9 @@ const BASELINE_SMB = (() => {
       // CA103 and CA201–CA204 land Off whatever the import's landing state:
       // they block, and wait for 🌐 Global Secure Access to be green
       forceOff: landsOff,
+      // 1.0.7: created without the compliant network exclusion when Entra
+      // refuses it (no Global Secure Access signalling) — the import says so
+      cnOptional: P.filter((p) => p.num === 10).map((p) => p.name),
     }));
   };
   cat.landsOff = () => landsOff.slice();

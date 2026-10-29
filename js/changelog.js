@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33105, date: "2026-10-29", title: "SMB Basic 1.0.7: outside the allowed countries through Global Secure Access",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "SMB CA010 now lets a user sign in from outside the allowed countries when the sign-in comes through the Global Secure Access client — the compliant network. Conditional Access has no allow policy (a block always wins), so CA010 v1.0.7 excludes All Compliant Network locations next to SMB - Allowed EU countries. A traveller with a company device running the client needs no exception any more; Global Secure Access's own sign-ins are left out automatically, so the client can connect from abroad. The admins' CA104 is unchanged: admins stay on SMB - Allowed countries. A tenant on 1.0.6 sees CA010 as Outdated on 🧬 Baseline; Match & replace updates it in place and keeps its assignment." },
+      { kind: "improved", tool: "Import", text: "On a tenant without Global Secure Access signalling, Entra refuses any policy that names the compliant network location. CA010 is then created without its compliant network exception — it still blocks outside the allowed countries — and the report says so. Once 🌐 Global Secure Access is green, import it again with Match & replace to add the exception." },
+    ],
+  },
+  {
     build: 33104, date: "2026-10-29", title: "Import: a policy waits for a named location the run has just created",
     items: [
       { kind: "fixed", tool: "Import", text: "A policy that names a named location or an authentication strength the same import has just created now waits for Conditional Access to know it, instead of failing. On a tenant on 29 October, SMB CA010 was refused with a bare 400 one second after SMB - Allowed EU countries was created — Conditional Access had not caught up with the new location yet. The run now gives it a head start and tries again for up to about 1.5 minutes, as it already did for a new service principal. If it is still refused after that, the reason names the new location and says to run the import again in a few minutes, rather than blaming the applications the policy excludes." },
