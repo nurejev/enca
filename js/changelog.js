@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33103, date: "2026-10-29", title: "SMB Basic 1.0.6: sign-ins only from the EU, the rest of the EEA, the UK and Switzerland",
+    items: [
+      { kind: "new", tool: "Baseline", text: "SMB Basic ships a second country location, SMB - Allowed EU countries — 32 countries: the 27 member states of the European Union, Iceland, Liechtenstein, Norway, the United Kingdom and Switzerland — and a new Base policy, CA010, that blocks every internal user signing in from anywhere else. The country is looked up from the sign-in's IP address, and an address with no known country is blocked too. Guests are left out (they sign in from their own countries), as are the sync roles, the break-glass group and the two Defender mobile apps, as in the CloudFellows country policy. It lands Report-only: check the Report-only results for sign-ins from elsewhere, and put a traveller in CAB-SEC-U-SMB-CA010-Exclusion for the trip. CA104 still holds the admins to SMB - Allowed countries (the Netherlands). A tenant on SMB Basic 1.0.5 sees CA010 as Missing on 🧬 Baseline; 📥 Import creates the location, the exclusion group and the policy." },
+    ],
+  },
+  {
     build: 33102, date: "2026-10-28", title: "PIM baseline: a region is a list of countries",
     items: [
       { kind: "new", tool: "PIM baseline", text: "Framework 5.1: a region in the multi-region profile is a list of countries. The regions file takes a countries column (GB;BE;NL), and the region's units and Intune user group take the members whose usageLocation is one of them. A country belongs to one region; a row that claims a country another row already has is left out and named. Region codes may be plain capitals, EURO, APAC, ITA or BAMSCA, as well as continent-country. A row without countries still picks its users by attribute and value." },

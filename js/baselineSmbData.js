@@ -23,8 +23,9 @@
 // written the CloudFellows way: CAnnn-KIND-SMB-Persona-…-vX.Y. "SMB" is the
 // marker this catalog claims a name by — a CA001 without it is someone
 // else's CA001.
-//   BASE  CA001–CA009  replaces security defaults (+ registration, device
-//                      join, unmanaged desktop sessions — 1.0.2)
+//   BASE  CA001–CA010  replaces security defaults (+ registration, device
+//                      join, unmanaged desktop sessions — 1.0.2; app
+//                      protection — 1.0.4; EU countries only — 1.0.6)
 //   ADM   CA101–CA104  admins, stricter than security defaults
 //   CN    CA201–CA205  Global Secure Access, per platform (as CA215–CA218),
 //                      and the unknown platforms (1.0.3)
@@ -79,6 +80,18 @@ const BASELINE_SMB = (() => {
   const SYNC_IDS = SYNC_ROLES.map((r) => r[0]);
   const SYNC_TXT = SYNC_ROLES.map((r) => `${r[1]} (role)`);
   const L_COUNTRIES = "5b5b0000-0000-4000-8000-0000000000c1";  // SMB - Allowed countries (placeholder id)
+  // 1.0.6 (Mihai 29 Oct: "add a SMB - Allowed EU countries, with all countries
+  // member of the EU"; chose a location AND a policy for every user, CA010,
+  // with CA104 keeping the admins on SMB - Allowed countries). The 27 member
+  // states, ISO 3166-1 alpha-2 as Graph takes them — Greece is GR, not the
+  // EU's own EL. Then (Mihai, the same day: "add these also Iceland,
+  // Liechtenstein, Norway, the UK and Switzerland"): the rest of the EEA, the
+  // United Kingdom (GB, not UK) and Switzerland too — 32 countries. The name
+  // stays SMB - Allowed EU countries, as he asked for it.
+  const L_EU = "5b5b0000-0000-4000-8000-0000000000c2";         // SMB - Allowed EU countries (placeholder id)
+  const EU_COUNTRIES = ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+    "IS", "LI", "NO", "GB", "CH"];
   const BG = "CAB-SEC-U-BreakGlass";
   const excl = (num) => `CAB-SEC-U-SMB-CA${String(num).padStart(3, "0")}-Exclusion`;
   // placeholder group ids: one per name, never written into a tenant
@@ -137,10 +150,12 @@ const BASELINE_SMB = (() => {
     // 1.0.5 (Mihai 20 Oct: app protection policies should exclude Azure
     // Credential Configuration Endpoint Service — check CloudFellows): the
     // policies a phone meets with Authenticator on it
-    103: "1.0.5", 203: "1.0.5", 204: "1.0.5" };
+    103: "1.0.5", 203: "1.0.5", 204: "1.0.5",
+    // 1.0.6 (Mihai 29 Oct): CA010, every user only from the EU
+    10: "1.0.6" };
   // the catalog's own release: the newest policy version in it
-  const CATALOG_RELEASE = "1.0.5";
-  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3" };
+  const CATALOG_RELEASE = "1.0.6";
+  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3", 10: "1.0.6" };
   const add = (num, kind, persona, words, entry, raw) => {
     const version = VERSION[num] || RELEASE;
     const name = `CA${String(num).padStart(3, "0")}-${kind}-SMB-${persona}-${words}-v${version}`;
@@ -235,6 +250,19 @@ const BASELINE_SMB = (() => {
       description: "On a phone or tablet only apps under an Intune app protection policy reach company data — Outlook, Teams, Edge, the Office apps; the built-in mail app, Safari and Chrome are refused. Azure Credential Configuration Endpoint Service is left out so a passkey can still be created in Microsoft Authenticator, which does not support app protection. Needs app protection policies for iOS and Android assigned to the users (the import's pre-flight checks they exist), Microsoft Authenticator on iOS and Company Portal on Android as the broker." },
     { conditions: cond(internalButSync(9), { platforms: { includePlatforms: ["iOS", "android"], excludePlatforms: [] } }), grantControls: { operator: "OR", builtInControls: ["compliantApplication"], customAuthenticationFactors: [], termsOfUse: [] } });
 
+  // 1.0.6: every user only from the European Union. Users: all internal
+  // users — guests are left out (they sign in from their own countries, and
+  // their home tenant protects them), the sync roles as everywhere on all
+  // resources. Apps: the two Defender mobile apps, as the CloudFellows
+  // country policy (CA001 CountryWhitelist) leaves them out. Admins meet it
+  // too, and CA104 on top holds them to SMB - Allowed countries. A traveller
+  // outside the EU goes into the policy's own exclusion group for the trip.
+  // Lands as the run lands (Report-only) — nothing to wait for.
+  add(10, "BLOCK", "Global", "AnyApp-AnyPlatform-OutsideAllowedEUCountries",
+    { persona: "🌐 Base", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources", network: "Any network or location · − SMB - Allowed EU countries", conditions: ["Client apps: Any client app"], grant: "Block access", block: true, session: "",
+      description: "Every user is blocked outside the 27 member states of the European Union, Iceland, Liechtenstein, Norway, the United Kingdom and Switzerland — the named location SMB - Allowed EU countries, looked up from the sign-in's IP address; an address with no known country is blocked too. Guests are left out: they sign in from their own countries. Admins meet it as well, and CA104 holds them to SMB - Allowed countries on top. Someone travelling outside those countries goes into CAB-SEC-U-SMB-CA010-Exclusion for the trip. Check the Report-only results for sign-ins from elsewhere before it goes On." },
+    { conditions: cond(internalButSync(10), { locations: { includeLocations: ["All"], excludeLocations: [L_EU] } }), grantControls: block });
+
   // ADM — admins, stricter than security defaults
   add(101, "GRANT", "Admins", "AnyApp-AnyPlatform-PhishingResistantMFA",
     { persona: "🛡 Admins", include: [ROLES_TXT], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Authentication strength: Phishing-resistant MFA", block: false, session: "",
@@ -301,7 +329,8 @@ const BASELINE_SMB = (() => {
   //   DEFENDER the Defender mobile app carries the Global Secure Access client
   //            on iOS and Android and must reach its service from anywhere
   //            (defender-mobile-exclusion; Learn, compliant network, Mobile
-  //            app support) — the admins' CA103 too, it is any platform
+  //            app support) — the admins' CA103 too, it is any platform;
+  //            and CA010, as the CloudFellows country policy (CA001) (1.0.6)
   //   PASSKEY  Azure Credential Configuration Endpoint Service — where
   //            Microsoft Authenticator creates a passkey. Authenticator meets
   //            neither app protection nor (on a phone without the tunnel up)
@@ -321,7 +350,7 @@ const BASELINE_SMB = (() => {
   const EXCLUDE = {
     shared: [1, 3, 8, 9, 201, 202, 203, 204],
     vm: [1],
-    defender: [9, 103, 203, 204],
+    defender: [9, 10, 103, 203, 204],
     passkey: [9, 103, 203, 204],
     directConnect: [8],
   };
@@ -355,7 +384,7 @@ const BASELINE_SMB = (() => {
     groupFilterPrefix: "CAB-SEC-U-",
     defaultAuName: "CA-RMAU-SMB-BASE",
     exclusionShape: "CAB-SEC-U-SMB-CAnnn-Exclusion",
-    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA009), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA205) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
+    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA010), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA205) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
     adminRoles: ADMIN_ROLES.map(([id, name]) => ({ id, name })),
     syncRoles: SYNC_ROLES.map(([id, name]) => ({ id, name })),
     personas: [
@@ -371,7 +400,7 @@ const BASELINE_SMB = (() => {
     predefined: [BG, TSD],
     sharedDevicesGroup: TSD,
     groups: [BG, TSD, "one CAB-SEC-U-SMB-CAnnn-Exclusion group per policy"],
-    namedLocations: ["SMB - Allowed countries", "All Compliant Network locations"],
+    namedLocations: ["SMB - Allowed countries", "SMB - Allowed EU countries", "All Compliant Network locations"],
     note: "Needs Entra ID P1 (Microsoft 365 Business Premium includes it). CA103 and CA201–CA204 need Global Secure Access with Conditional Access signalling on — they land Off. CA901 needs the Passkey (FIDO2) method on for the break-glass accounts; allow synced passkeys in its profile if they use one.",
     policies: P.map((p) => ({ num: p.num, name: p.name, version: p.version, tag: p.version === RELEASE || ADDED_IN[p.num] ? "NEW" : "UP", ...p.entry,
       // the CloudFellows entry shape: groups first, then the other exclusions
@@ -452,7 +481,10 @@ const BASELINE_SMB = (() => {
       catalogId: "smb",
       policies,
       groups: groupsOf(),
-      namedLocations: [{ id: L_COUNTRIES, "@odata.type": "#microsoft.graph.countryNamedLocation", displayName: "SMB - Allowed countries", countriesAndRegions: ["NL"], includeUnknownCountriesAndRegions: false, countryLookupMethod: "clientIpAddress" }],
+      namedLocations: [
+        { id: L_COUNTRIES, "@odata.type": "#microsoft.graph.countryNamedLocation", displayName: "SMB - Allowed countries", countriesAndRegions: ["NL"], includeUnknownCountriesAndRegions: false, countryLookupMethod: "clientIpAddress" },
+        { id: L_EU, "@odata.type": "#microsoft.graph.countryNamedLocation", displayName: "SMB - Allowed EU countries", countriesAndRegions: EU_COUNTRIES.slice(), includeUnknownCountriesAndRegions: false, countryLookupMethod: "clientIpAddress" },
+      ],
       authStrengths: [
         { id: S_MFA, displayName: "Multifactor authentication", policyType: "builtIn" },
         { id: S_PR, displayName: "Phishing-resistant MFA", policyType: "builtIn" },

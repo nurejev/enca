@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 369,
+      ws: "ca",
+      title: "🏢 SMB Basic 1.0.6 — SMB - Allowed EU countries (EU 27 + IS, LI, NO, GB, CH) and CA010, every internal user only from those countries",
+      tools: ["Baseline"],
+      builds: [33103],
+      risk: "medium",
+      what: "js/baselineSmbData.js: L_EU + EU_COUNTRIES (32: the 27 member states, GR not EL, plus IS, LI, NO, GB not UK, CH), a second countryNamedLocation SMB - Allowed EU countries in bundle().namedLocations and in namedLocations; CA010-BLOCK-SMB-Global-AnyApp-AnyPlatform-OutsideAllowedEUCountries-v1.0.6 (internal users − sync roles − break-glass − CAB-SEC-U-SMB-CA010-Exclusion, all resources − the two Defender mobile apps, block outside L_EU); CATALOG_RELEASE 1.0.6, ADDED_IN 10, EXCLUDE.defender gains 10, unitNote CA001–CA010. tools/baseline-smb.test.cjs: counts 19 → 20 and a 1.0.6 test. Help bullet in index.html.",
+      why: "Mihai, 29 Oct 2026: add a SMB - Allowed EU countries, with all countries member of the EU, and then also Iceland, Liechtenstein, Norway, the UK and Switzerland; he chose the location plus a policy for every user, with CA104 left on the NL location for admins. Risk medium: a block on every user — it lands Report-only, but once On anyone outside the 32 countries (travel, a VPN egress elsewhere, an IP Entra cannot place) is refused; the Report-only results decide when it goes On.",
+      test: [
+        "node --test tools/baseline-smb.test.cjs: 22 pass, among them 1.0.6 CA010 + SMB - Allowed EU countries; node --test tools/*.test.cjs: the suite passes.",
+        "Beta, demo tenant, 01 → 🧬 Baseline → SMB Basic: 20 policies, CA010 under Base tagged NEW, release 1.0.6; the policy card reads network Any network or location · − SMB - Allowed EU countries and resources All resources · − MicrosoftDefenderATP XPlat · − Microsoft Defender for Mobile TVM.",
+        "Beta, a test tenant already on SMB Basic 1.0.5: 🧬 Baseline shows CA010 Missing and nothing else changed; 📥 Import of CA010 alone creates SMB - Allowed EU countries (32 countries — the EU 27 plus Iceland, Liechtenstein, Norway, United Kingdom, Switzerland — unknown not included) and CAB-SEC-U-SMB-CA010-Exclusion, and lands CA010 Report-only; SMB - Allowed countries still holds NL only.",
+        "Same tenant, 📍 Locations: SMB - Allowed EU countries lists the 32 countries and is referenced by CA010 only; 🛡 Checks shows no new finding on CA010 beyond the catalog's accepted ones.",
+        "Same tenant, Report-only results after a day (🎚 Report-only impact): sign-ins from inside the 32 countries read not applied / success; any from elsewhere read would be blocked — none from the break-glass accounts or a guest.",
+      ],
+    },
+    {
       n: 368,
       ws: "pim",
       title: "🗺 Regions as lists of countries — usageLocation for users, the Autopilot group tag for devices, the baseline tenant's five regions (framework 5.1, T48 1.2.0)",
