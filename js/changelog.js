@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33106, date: "2026-10-29", title: "SMB Basic 1.0.8: a new or reset Mac or PC can be set up before its Global Secure Access client runs",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "SMB CA103 and CA201–CA204 — the compliant network blocks — now leave out Device Registration Service. Setting up a Mac or Windows PC registers it with Entra (Entra join, Platform SSO) before Intune has installed the Global Secure Access client, and with those policies On that step was refused: on a tenant on 25 October a new Mac registered three times outside the tunnel. Enrolment (Intune, Intune Enrollment) was already left out; now registration is too, and it still needs MFA through CA007. A phone registering in Microsoft Authenticator before Defender's tunnel is on benefits the same way. A tenant on 1.0.7 sees the five policies as Outdated on 🧬 Baseline; Match & replace updates them in place." },
+    ],
+  },
+  {
     build: 33105, date: "2026-10-29", title: "SMB Basic 1.0.7: outside the allowed countries through Global Secure Access",
     items: [
       { kind: "improved", tool: "Baseline", text: "SMB CA010 now lets a user sign in from outside the allowed countries when the sign-in comes through the Global Secure Access client — the compliant network. Conditional Access has no allow policy (a block always wins), so CA010 v1.0.7 excludes All Compliant Network locations next to SMB - Allowed EU countries. A traveller with a company device running the client needs no exception any more; Global Secure Access's own sign-ins are left out automatically, so the client can connect from abroad. The admins' CA104 is unchanged: admins stay on SMB - Allowed countries. A tenant on 1.0.6 sees CA010 as Outdated on 🧬 Baseline; Match & replace updates it in place and keeps its assignment." },

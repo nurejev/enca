@@ -120,6 +120,7 @@ const BASELINE_SMB = (() => {
   const DEFENDER_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";    // MicrosoftDefenderATP XPlat
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";      // Microsoft Defender for Mobile TVM
   const CRED_CONFIG = "ea890292-c8c8-4433-b5ea-b09d0668e1a6";       // Azure Credential Configuration Endpoint Service
+  const DRS = "01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9";               // Device Registration Service
 
   // The guest-and-external clause: every type, every tenant. Written with
   // the derived type Graph needs on a create (see js/builder.js guestClause).
@@ -154,9 +155,13 @@ const BASELINE_SMB = (() => {
     // 1.0.6 (Mihai 29 Oct): CA010, every user only from the EU
     // 1.0.7 (Mihai 29 Oct: "add one that allows access outside the eu when
     // using compliant network"): CA010 also leaves out the compliant network
-    10: "1.0.7" };
+    10: "1.0.7",
+    // 1.0.8 (Mihai 29 Oct, option B from the mockup: "how to allow when
+    // setting up mac or windows when the gsa client is not ready yet"): the
+    // compliant-network blocks leave out Device Registration Service
+    103: "1.0.8", 201: "1.0.8", 202: "1.0.8", 203: "1.0.8", 204: "1.0.8" };
   // the catalog's own release: the newest policy version in it
-  const CATALOG_RELEASE = "1.0.7";
+  const CATALOG_RELEASE = "1.0.8";
   const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3", 10: "1.0.6" };
   const add = (num, kind, persona, words, entry, raw) => {
     const version = VERSION[num] || RELEASE;
@@ -351,6 +356,16 @@ const BASELINE_SMB = (() => {
   //            every app protection policy (CA108, CA212, CA307, CA1003) and
   //            from the GSA block (CA215–CA218); here: CA009 and the policies
   //            a phone meets, CA103, CA203, CA204 (1.0.5)
+  //   DRS      Device Registration Service (1.0.8): a Mac or PC being set up
+  //            registers with Entra (Entra join, Platform SSO) BEFORE Intune
+  //            has installed the Global Secure Access client — gimi, 25 Oct
+  //            2026: three Authentication Broker sign-ins to it from the new
+  //            ADE Mac, none through the tunnel; CA202 On would have refused
+  //            them. The same on a phone registering in Authenticator before
+  //            Defender's tunnel is on. Registering stays behind MFA (CA007);
+  //            excluded by client ID, as Learn documents for the API
+  //            (authentication flows → Device Registration Service). CA103,
+  //            CA201–CA204.
   //   DC       B2B direct connect users: sign-in frequency and persistent
   //            browser are not supported for them (dc-unsupported-control;
   //            CloudFellows CA008, CA009)
@@ -364,6 +379,7 @@ const BASELINE_SMB = (() => {
     defender: [9, 10, 103, 203, 204],
     passkey: [9, 103, 203, 204],
     directConnect: [8],
+    drs: [103, 201, 202, 203, 204],
   };
   for (const p of P) {
     // cnApps and friends are shared objects: each policy gets its own copy
@@ -375,6 +391,7 @@ const BASELINE_SMB = (() => {
     if (EXCLUDE.vm.includes(p.num)) { a.excludeApplications.push(AZURE_VM_SIGNIN); why.push("Azure Windows VM Sign-In"); }
     if (EXCLUDE.defender.includes(p.num)) { a.excludeApplications.push(DEFENDER_XPLAT, DEFENDER_TVM); why.push("MicrosoftDefenderATP XPlat", "Microsoft Defender for Mobile TVM"); }
     if (EXCLUDE.passkey.includes(p.num)) { a.excludeApplications.push(CRED_CONFIG); why.push("Azure Credential Configuration Endpoint Service"); }
+    if (EXCLUDE.drs.includes(p.num)) { a.excludeApplications.push(DRS); why.push("Device Registration Service"); }
     if (EXCLUDE.directConnect.includes(p.num)) {
       u.excludeGuestsOrExternalUsers = { guestOrExternalUserTypes: "b2bDirectConnectUser", externalTenants: { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } };
       p.entry.exclude = [...(p.entry.exclude || []), "Guests & external users: B2B direct connect"];

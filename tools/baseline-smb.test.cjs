@@ -69,7 +69,7 @@ test('the catalog: 20 policies in four sections, numbered where every tool reads
   assert.equal(S.policies.length, 20);
   assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 101, 102, 103, 104, 201, 202, 203, 204, 205, 901]);
   for (const p of S.policies) {
-    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[1-7])?$/, p.name);
+    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[1-8])?$/, p.name);
     assert.equal(S.personaOfPolicy(S, p.name) != null, true, `${p.name} has a section`);
   }
   assert.equal(new Set(S.policies.map((p) => p.name)).size, 20, 'names are unique');
@@ -129,7 +129,7 @@ test('import of ENCA\'s own copy: groups, location and passkey strength by name;
   assert.deepEqual(plain(chosen.filter((p) => p.forceOff).map((p) => p.num)), [103, 201, 202, 203, 204]);
   const scoped = w.I.scopeBundle(prepared, chosen.map((p) => p.raw));
   const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((p) => p.name) });
-  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', landState: 'enabledForReportingButNotEnforced' });
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', landState: 'enabledForReportingButNotEnforced', freshWaits: [1, 1, 1] });
   const bad = res.results.filter((r) => !r.ok);
   assert.deepEqual(plain(bad.map((r) => `${r.name}: ${r.error}`)), []);
   const created = [...w.pols.values()];
@@ -157,7 +157,7 @@ test('import on a tenant without Global Secure Access: the compliant-network pol
   const chosen = w.I.plan(prepared, []).filter((p) => !p.exists);
   const scoped = w.I.scopeBundle(prepared, chosen.map((p) => p.raw));
   const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((p) => p.name) });
-  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped' });
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', freshWaits: [1, 1, 1] });
   assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => r.name.slice(0, 5)).sort()), ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']);
   assert.equal(res.results.filter((r) => r.ok).length, 15);
   // 1.0.7: CA010 lands without its compliant network exception, and says so
@@ -273,7 +273,7 @@ test('32817 gap matrix under SMB Basic: sections, not CloudFellows personas — 
 
 test('32817 a tenant on 1.0: the eight changed policies read Outdated, and Match & replace brings the sync-role exclusion along', async () => {
   const w = world();
-  const v10 = (n) => n.replace(/-v1\.0\.[1-7]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
+  const v10 = (n) => n.replace(/-v1\.0\.[1-8]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
   // 1.0 had no CA007 and CA008 (added in 1.0.2), CA009, CA205 or CA010
   const tenant = w.S.bundle().policies.filter((p) => !/^CA(00[789]|010|205)-/.test(p.displayName)).map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
   for (const t of tenant) { delete t.conditions.users.excludeRoles; t.state = 'enabledForReportingButNotEnforced'; w.pols.set(t.id, t); }
@@ -296,7 +296,7 @@ test('1.0.2 (the guide\'s Appendix 1): CA005 adds the admin portals, CA007 guard
   const { S } = world();
   const b = S.bundle();
   const by = (n) => b.policies.find((p) => p.displayName.startsWith(n));
-  assert.equal(S.release, '1.0.7');
+  assert.equal(S.release, '1.0.8');
   assert.deepEqual(plain(by('CA005').conditions.applications.includeApplications), ['MicrosoftAdminPortals', '797f4846-ba00-4fd7-ba43-dac1f8f63013']);
   const ca7 = by('CA007');
   assert.equal(ca7.displayName, 'CA007-GRANT-SMB-Global-RegisterOrJoinDevices-AnyPlatform-MFA-v1.0.2');
@@ -323,7 +323,7 @@ test('1.0.3 exclusions matrix: shared devices, Azure VM sign-in, the Defender mo
   const exApps = (n) => plain(by(n).conditions.applications.excludeApplications);
   assert.ok(exApps('CA001').includes('372140e0-b3b7-4226-8ef9-d57986796201'), 'CA001 − Azure Windows VM Sign-In');
   for (const n of ['CA103', 'CA203', 'CA204']) for (const id of ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196']) assert.ok(exApps(n).includes(id), `${n} − Defender ${id}`);
-  for (const n of ['CA201', 'CA202']) assert.deepEqual(exApps(n), ['0000000a-0000-0000-c000-000000000000', 'd4ebce55-015a-49b5-a083-c84d1797ae8c'], `${n}: Intune and Intune Enrollment only, as Learn asks`);
+  for (const n of ['CA201', 'CA202']) assert.deepEqual(exApps(n), ['0000000a-0000-0000-c000-000000000000', 'd4ebce55-015a-49b5-a083-c84d1797ae8c', '01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9'], `${n}: Intune and Intune Enrollment, as Learn asks — and (1.0.8) Device Registration Service`);
   assert.equal(by('CA008').conditions.users.excludeGuestsOrExternalUsers.guestOrExternalUserTypes, 'b2bDirectConnectUser');
   const ca205 = by('CA205');
   assert.equal(ca205.displayName, 'CA205-BLOCK-SMB-Users-AnyApp-UnknownPlatforms-v1.0.3');
@@ -466,4 +466,16 @@ test('1.0.6 CA010 + SMB - Allowed EU countries: every internal user only from th
   assert.notEqual(ca104.conditions.locations.excludeLocations[0], loc.id, 'CA104 keeps SMB - Allowed countries');
   assert.ok(S.namedLocations.includes('SMB - Allowed EU countries'));
   assert.equal(S.policies.find((x) => x.num === 10).tag, 'NEW');
+});
+
+test('1.0.8: the compliant-network blocks leave out Device Registration Service, so a Mac or PC can register before its GSA client is up; nothing else does', () => {
+  const { S } = world();
+  const b = S.bundle();
+  const DRS = '01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9';
+  const has = b.policies.filter((p) => (p.conditions.applications.excludeApplications || []).includes(DRS)).map((p) => p.displayName.slice(0, 5));
+  assert.deepEqual(plain(has), ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']);
+  for (const n of has) assert.match(b.policies.find((p) => p.displayName.startsWith(n)).displayName, /-v1\.0\.8$/, `${n} is v1.0.8`);
+  const ca7 = b.policies.find((p) => p.displayName.startsWith('CA007'));
+  assert.deepEqual(plain(ca7.conditions.applications.includeUserActions), ['urn:user:registerdevice'], 'registering a device still needs MFA (CA007)');
+  assert.match(S.policies.find((p) => p.num === 202).resources, /− Device Registration Service/);
 });
