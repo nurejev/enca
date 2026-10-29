@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33104, date: "2026-10-29", title: "Import: a policy waits for a named location the run has just created",
+    items: [
+      { kind: "fixed", tool: "Import", text: "A policy that names a named location or an authentication strength the same import has just created now waits for Conditional Access to know it, instead of failing. On a tenant on 29 October, SMB CA010 was refused with a bare 400 one second after SMB - Allowed EU countries was created — Conditional Access had not caught up with the new location yet. The run now gives it a head start and tries again for up to about 1.5 minutes, as it already did for a new service principal. If it is still refused after that, the reason names the new location and says to run the import again in a few minutes, rather than blaming the applications the policy excludes." },
+    ],
+  },
+  {
     build: 33103, date: "2026-10-29", title: "SMB Basic 1.0.6: sign-ins only from the EU, the rest of the EEA, the UK and Switzerland",
     items: [
       { kind: "new", tool: "Baseline", text: "SMB Basic ships a second country location, SMB - Allowed EU countries — 32 countries: the 27 member states of the European Union, Iceland, Liechtenstein, Norway, the United Kingdom and Switzerland — and a new Base policy, CA010, that blocks every internal user signing in from anywhere else. The country is looked up from the sign-in's IP address, and an address with no known country is blocked too. Guests are left out (they sign in from their own countries), as are the sync roles, the break-glass group and the two Defender mobile apps, as in the CloudFellows country policy. It lands Report-only: check the Report-only results for sign-ins from elsewhere, and put a traveller in CAB-SEC-U-SMB-CA010-Exclusion for the trip. CA104 still holds the admins to SMB - Allowed countries (the Netherlands). A tenant on SMB Basic 1.0.5 sees CA010 as Missing on 🧬 Baseline; 📥 Import creates the location, the exclusion group and the policy." },

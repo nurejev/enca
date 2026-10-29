@@ -182,6 +182,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 370,
+      ws: "ca",
+      title: "📥 Import — a policy waits for a named location or authentication strength the run has just created (Import 2.16.6)",
+      tools: ["Import"],
+      builds: [33104],
+      risk: "low",
+      what: "js/import.js: ensureDependencies records maps.freshLocs and maps.freshStrengths (id → time, name) on create; freshRefs(body, maps) returns every fresh service principal, named location and strength a policy names (raw or staged ids); postFresh waits for all of them (head start to 15 s, then 5, 10, 15, 20, 30 s on a 400); the 400 hint names the fresh dependency and says run again, before the generic N applications by id. tools/import-preflight.test.cjs: locLag in the fake tenant and three 33104 tests.",
+      why: "gimi, 29 Oct 2026: 📥 Import of SMB CA010 created SMB - Allowed EU countries at 09:49:36 and posted CA010 a second later — Graph answered a bare 400 and the hint blamed the Defender apps, whose service principals had existed since 20 Oct. Every baseline import that creates a location or strength and a policy naming it in one run could fail the same way. Risk low: only a policy that names something this run created is retried; a 400 creates nothing, so a retry is safe.",
+      test: [
+        "node --test tools/import-preflight.test.cjs: 25 pass, among them the three 33104 tests; node --test tools/*.test.cjs: the suite passes.",
+        "Beta, a test tenant WITHOUT SMB - Allowed EU countries (gimi already has it — delete the location there first, or use another tenant): 📥 Import SMB Basic, CA010 only — the ledger shows waiting for Conditional Access to see the new named location SMB - Allowed EU countries, then CA010 created and landed Report-only; the location is created once.",
+        "Beta, gimi as it is now (the location exists, CA010 missing): 📥 Import CA010 — no wait, created at once, the location reused (the report lists it under reused).",
+        "Beta, any tenant: an import whose policies name no new dependency posts each policy once — a real 400 there is reported at once, without the waits.",
+      ],
+    },
+    {
       n: 369,
       ws: "ca",
       title: "🏢 SMB Basic 1.0.6 — SMB - Allowed EU countries (EU 27 + IS, LI, NO, GB, CH) and CA010, every internal user only from those countries",

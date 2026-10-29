@@ -1365,6 +1365,9 @@ const Importer = (() => {
             : { "@odata.type": "#microsoft.graph.ipNamedLocation", displayName: raw.displayName, isTrusted: !!raw.isTrusted, ipRanges: (raw.ipRanges || []).map(r => ({ "@odata.type": r["@odata.type"] || "#microsoft.graph.iPv4CidrRange", cidrAddress: r.cidrAddress })) };
           const created = await Graph.gpost("/identity/conditionalAccess/namedLocations", body, [...AUTH_CONFIG.scopes, ...WRITE]);
           maps.loc[raw.id] = created.id;
+          // 33104: a location made here is not yet known to Conditional Access
+          // either — remember it, as the service principals are (postFresh)
+          (maps.freshLocs = maps.freshLocs || new Map()).set(lower(created.id), { at: Date.now(), name: raw.displayName });
           log.created.push(`Named location: ${raw.displayName}`);
         } catch (e) {
           // 32902: recorded, so the policies that name it fail BEFORE their
@@ -1396,6 +1399,7 @@ const Importer = (() => {
             { displayName: raw.displayName, description: raw.description || "", allowedCombinations: raw.allowedCombinations || [] },
             [...AUTH_CONFIG.scopes, ...STRENGTH_WRITE]);
           maps.strength[raw.id] = created.id;
+          (maps.freshStrengths = maps.freshStrengths || new Map()).set(lower(created.id), { at: Date.now(), name: raw.displayName });
           log.created.push(`Auth strength: ${raw.displayName}`);
         } catch (e) {
           (maps.strengthFailed = maps.strengthFailed || {})[raw.id] = { name: raw.displayName, error: e.message || String(e) };
@@ -2137,24 +2141,48 @@ const Importer = (() => {
   // created and Graph answers 400, Conditional Access has not caught up with
   // that service principal yet. A 400 creates nothing, so posting again is
   // safe: wait and retry, up to about 1.5 minutes after the create.
+  // 33104 — gimi, 29 Oct 2026: the same holds for a NAMED LOCATION (and an
+  // authentication strength) made by this run. SMB - Allowed EU countries was
+  // created at 09:49:36 and CA010, which excludes it, was posted within the
+  // same three-second run: a bare 400, and the hint blamed the two Defender
+  // apps, whose service principals had been there since 20 Oct.
   const FRESH_WAITS = [5000, 10000, 15000, 20000, 30000];
   const FRESH_MIN_AGE = 15000;
+  // What a policy body names that this run created: { label, short, at }.
+  // Works on the raw (file) body and the staged (this tenant's ids) body alike.
+  function freshRefs(body, maps) {
+    if (!body || !maps) return [];
+    const out = [];
+    for (const id of appRefs([body])) {
+      const at = maps.freshApps && maps.freshApps.get(id);
+      if (at) out.push({ label: `the service principal for ${appLabel(id)}`, short: `the new service principal for ${appLabel(id).replace(/ \([0-9a-f-]{36}\)$/i, "")}`, at });
+    }
+    const l = (body.conditions && body.conditions.locations) || {};
+    for (const raw of [...(l.includeLocations || []), ...(l.excludeLocations || [])]) {
+      const f = maps.freshLocs && maps.freshLocs.get(lower((maps.loc && maps.loc[raw]) || raw));
+      if (f) out.push({ label: `the named location ${f.name}`, short: `the new named location ${f.name}`, at: f.at });
+    }
+    const sid = body.grantControls && body.grantControls.authenticationStrength && body.grantControls.authenticationStrength.id;
+    const fs = sid && maps.freshStrengths && maps.freshStrengths.get(lower((maps.strength && maps.strength[sid]) || sid));
+    if (fs) out.push({ label: `the authentication strength ${fs.name}`, short: `the new authentication strength ${fs.name}`, at: fs.at });
+    return out;
+  }
   async function postFresh(staged, name, maps, onStatus, waits) {
     const w = waits || FRESH_WAITS;
-    const fresh = appRefs([staged]).filter((id) => maps && maps.freshApps && maps.freshApps.has(id));
+    const fresh = freshRefs(staged, maps);
     const scopes = [...AUTH_CONFIG.scopes, ...WRITE];
     if (!fresh.length) return Graph.gpost("/identity/conditionalAccess/policies", staged, scopes);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const label = fresh.map((id) => appLabel(id).replace(/ \([0-9a-f-]{36}\)$/i, "")).join(", ");
+    const label = fresh.map((f) => f.short).join(", ");
     // give Conditional Access a head start before the first try
-    const age = Date.now() - Math.max(...fresh.map((id) => maps.freshApps.get(id)));
+    const age = Date.now() - Math.max(...fresh.map((f) => f.at));
     const head = waits ? 0 : Math.max(0, FRESH_MIN_AGE - age);
-    if (head > 0) { onStatus?.(`${name}: waiting for Conditional Access to see the new service principal for ${label}…`); await sleep(head); }
+    if (head > 0) { onStatus?.(`${name}: waiting for Conditional Access to see ${label}…`); await sleep(head); }
     for (let n = 0; ; n++) {
       try { return await Graph.gpost("/identity/conditionalAccess/policies", staged, scopes); }
       catch (e) {
         if (!/\(400\)|BadRequest/i.test(e.message || "") || n >= w.length) throw e;
-        onStatus?.(`${name}: Conditional Access does not know the new service principal for ${label} yet — trying again in ${Math.round(w[n] / 1000)} s…`);
+        onStatus?.(`${name}: Conditional Access does not know ${label} yet — trying again in ${Math.round(w[n] / 1000)} s…`);
         await sleep(w[n]);
       }
     }
@@ -2275,9 +2303,11 @@ const Importer = (() => {
             .filter((x) => /^[0-9a-f]{8}-/i.test(x));
           const bits = [];
           const unknown = refs.filter((x) => maps.missingApps?.has(String(x).toLowerCase()));
-          const fresh = refs.filter((x) => maps.freshApps?.has(String(x).toLowerCase()));
+          // 33104: everything the run created that this policy names — service
+          // principals, named locations, authentication strengths
+          const fresh = freshRefs(it.raw, maps);
           if (unknown.length) bits.push(`this tenant has no service principal for ${unknown.map(appLabel).join(", ")}`);
-          else if (fresh.length) bits.push(`this run created the service principal for ${fresh.map(appLabel).join(", ")} and Conditional Access had still not seen it after the waits. Nothing was created for this policy: run the import again in a few minutes — it creates only what is missing`);
+          else if (fresh.length) bits.push(`this run created ${fresh.map((f) => f.label).join(", ")} and Conditional Access had still not seen ${fresh.length > 1 ? "them" : "it"} after the waits. Nothing was created for this policy: run the import again in a few minutes — it creates only what is missing, and reuses what is there`);
           else if (refs.length) bits.push(`it references ${refs.length} application(s) by id — each needs a service principal in this tenant`);
           if (isWorkloadIdentity(it.raw)) bits.push("it is a workload-identity policy, which cannot also carry a user or group scope");
           if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");

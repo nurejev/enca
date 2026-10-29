@@ -22,7 +22,8 @@ function world(opts = {}) {
   const groups = new Map(), pols = new Map(), posts = [], patches = [];
   const tenant = (opts.tenant || []).map((p) => ({ ...p }));   // what a list read returns
   const notYet = new Map(Object.entries(opts.notYet || {}));
-  const madeSp = new Set(); let caLag = opts.caLag || 0;   // 33006: SPs made by the run; how many creates CA refuses before it knows them     // name prefix -> how many state writes answer 404
+  const madeSp = new Set(); let caLag = opts.caLag || 0;
+  const madeLoc = new Set(); let locLag = opts.locLag || 0;   // 33104: named locations made by the run; creates CA refuses before it knows them   // 33006: SPs made by the run; how many creates CA refuses before it knows them     // name prefix -> how many state writes answer 404
   const strip = (o) => Array.isArray(o) ? o.map(strip) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).filter(([k]) => !k.includes('@odata')).map(([k, v]) => [k, strip(v)])) : o;
   const Graph = {
@@ -44,7 +45,9 @@ function world(opts = {}) {
       if (url === '/directoryObjects/getByIds') return { value: body.ids.filter((x) => groups.has(x)).map((x) => ({ id: x })) };
       if (url === '/identity/conditionalAccess/policies' && opts.always400 && body.displayName.startsWith(opts.always400)) throw new Error('Graph request failed (400): BadRequest');
       if (url === '/identity/conditionalAccess/policies' && caLag > 0 && JSON.stringify(body.conditions || {}).toLowerCase().split('"').some((x) => madeSp.has(x))) { caLag--; throw new Error('Graph request failed (400): The server could not process the request because it is malformed or incorrect. · code: BadRequest'); }
+      if (url === '/identity/conditionalAccess/policies' && locLag > 0 && JSON.stringify((body.conditions || {}).locations || {}).split('"').some((x) => madeLoc.has(x))) { locLag--; throw new Error('Graph request failed (400): The server could not process the request because it is malformed or incorrect. · code: BadRequest · inner: d01b95af-5596-4737-b3e5-f9aa32d0dbbc'); }
       if (url === '/identity/conditionalAccess/policies') { const p = { ...structuredClone(body), id: id() }; pols.set(p.id, p); return { id: p.id }; }
+      if (url === '/identity/conditionalAccess/namedLocations') { const l = { id: id() }; madeLoc.add(l.id); return l; }
       if (/authenticationStrengthPolicies/.test(url) && opts.strengthCreateFails) throw new Error('Graph request failed (400): strength refused');
       return { id: id() };
     },
@@ -346,4 +349,38 @@ test('33007: a policy this page created that the list does not show yet is read 
   const late = await w.I.unlisted('tl', [{ id: 'other' }]);
   assert.deepEqual(plain(late.map((p) => p.id)), ['p-late']);
   assert.equal((await w.I.unlisted('tl', [{ id: 'p-late' }])).length, 0);
+});
+
+// 33104 — gimi, 29 Oct 2026: SMB - Allowed EU countries created at 09:49:36,
+// CA010 (which excludes it) posted in the same three-second run: a bare 400,
+// and the hint blamed the two Defender apps, whose service principals had
+// been in the tenant since 20 Oct.
+test('33104, gimi 29 Oct: a policy naming a named location this run just created waits for Conditional Access instead of failing', async () => {
+  const w = world({ locLag: 2 });
+  const { res, dep } = await smbRun(w, { freshWaits: quick }, ['CA010']);
+  assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => `${r.name}: ${r.error}`)), []);
+  assert.equal(stateOf(w, 'CA010'), 'enabledForReportingButNotEnforced');
+  assert.equal(w.posts.filter(([u, b]) => u === '/identity/conditionalAccess/policies' && b.displayName.startsWith('CA010')).length, 3, 'two refused, the third created');
+  assert.equal(dep.maps.freshLocs.size, 1);
+  assert.equal([...dep.maps.freshLocs.values()][0].name, 'SMB - Allowed EU countries');
+});
+
+test('33104: still unknown after the waits — nothing created, the reason names the new location, not the applications', async () => {
+  const w = world({ locLag: 99 });
+  const { res } = await smbRun(w, { freshWaits: quick }, ['CA010']);
+  const r = res.results[0];
+  assert.equal(r.ok, false);
+  assert.equal(r.createdId, null);
+  assert.match(r.error, /this run created the named location SMB - Allowed EU countries and Conditional Access had still not seen it/);
+  assert.match(r.error, /run the import again in a few minutes/);
+  assert.doesNotMatch(r.error, /references 2 application/);
+  assert.equal([...w.pols.values()].length, 0);
+});
+
+test('33104: a location that was already in the tenant is not waited for', async () => {
+  const w = world({ locLag: 99, locations: [{ id: 'eu-here', displayName: 'SMB - Allowed EU countries', '@odata.type': '#microsoft.graph.countryNamedLocation' }] });
+  const { res, dep } = await smbRun(w, { freshWaits: quick }, ['CA010']);
+  assert.equal(res.results[0].ok, true, res.results[0].error);
+  assert.equal((dep.maps.freshLocs || new Map()).size, 0);
+  assert.deepEqual(plain([...w.pols.values()][0].conditions.locations.excludeLocations), ['eu-here']);
 });
