@@ -29,6 +29,19 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33108, date: "2026-10-30", title: "SMB Basic 1.0.10: an admin abroad signs in through the Global Secure Access client",
+    items: [
+      { kind: "changed", tool: "Baseline", text: "SMB CA103 is now the admins' country block with a compliant-network exception: outside SMB - Allowed countries an admin gets in only through the Global Secure Access client of the tenant; at home no client is needed. It replaces CA104, which blocked admins abroad without that exception — Conditional Access has no allow and a block always wins, so CA104 could not stay beside it. On a tenant without Global Secure Access signalling the import creates CA103 without the exception (as CA010) and says so. A tenant holding CA104: give CA103 its state, then switch CA104 Off and delete it." },
+    ],
+  },
+  {
+    build: 33107, date: "2026-10-30", title: "SMB Basic 1.0.9: admins are not held to the compliant network; the pre-flight checks guest admins against MFA trust",
+    items: [
+      { kind: "changed", tool: "Baseline", text: "SMB Basic 1.0.9 withdraws CA103 (admins only through the Global Secure Access client) and CA201–CA204 now leave the 16 admin roles out. In SMB tenants the admins are mostly external people on their own devices, which never carry this tenant's client. Admins stay held by CA004, CA101 (phishing-resistant MFA), CA102 (4-hour sessions, never persistent) and CA104 (allowed countries). A tenant that already has CA103 holds it Off — 🧬 Baseline lists it as not in the catalog and it can be deleted." },
+      { kind: "new", tool: "Import", text: "🛫 Pre-flight: guests that hold an admin role a policy asks a phishing-resistant method of (SMB CA101). A guest can only meet it with MFA from its own tenant, and that only counts with inbound MFA trust for its organisation — without it the guest is locked out once the policy is On. The check names them and says where to turn the trust on. GDAP technicians are not guests and need nothing: Microsoft always trusts their partner-tenant MFA." },
+    ],
+  },
+  {
     build: 33106, date: "2026-10-29", title: "SMB Basic 1.0.8: a new or reset Mac or PC can be set up before its Global Secure Access client runs",
     items: [
       { kind: "improved", tool: "Baseline", text: "SMB CA103 and CA201–CA204 — the compliant network blocks — now leave out Device Registration Service. Setting up a Mac or Windows PC registers it with Entra (Entra join, Platform SSO) before Intune has installed the Global Secure Access client, and with those policies On that step was refused: on a tenant on 25 October a new Mac registered three times outside the tunnel. Enrolment (Intune, Intune Enrollment) was already left out; now registration is too, and it still needs MFA through CA007. A phone registering in Microsoft Authenticator before Defender's tunnel is on benefits the same way. A tenant on 1.0.7 sees the five policies as Outdated on 🧬 Baseline; Match & replace updates them in place." },

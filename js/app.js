@@ -11945,7 +11945,7 @@ This is a directory write. Nothing else changes.`)) return;
     const RO = "enabledForReportingButNotEnforced";
     if (id === "smb") {
       if (!(await imSmbLoad({ land: RO }))) return;
-      $("imDesc").textContent = `Step ① of moving off security defaults: ${BASELINE_SMB.label} ${BASELINE_SMB.release}, every policy ticked. New policies land Report-only — CA103 and CA201–CA204 land Off, they wait for 🌐 Global Secure Access. Nothing changes for users until ⇄ on the 🧬 Baseline screen, which turns CA001–CA005 On.`;
+      $("imDesc").textContent = `Step ① of moving off security defaults: ${BASELINE_SMB.label} ${BASELINE_SMB.release}, every policy ticked. New policies land Report-only — CA201–CA204 land Off, they wait for 🌐 Global Secure Access (admins are not held to it). Nothing changes for users until ⇄ on the 🧬 Baseline screen, which turns CA001–CA005 On.`;
       return;
     }
     if (id === "joey") {

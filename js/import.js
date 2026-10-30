@@ -2079,6 +2079,52 @@ const Importer = (() => {
       else add("dyngroup", "ok", `${g.displayName} exists and is dynamic`, "Reused as it is, with its own rule.");
     }
 
+    // 33107 (SMB Basic 1.0.9, Mihai 30 Oct — the SMB review: "can admins
+    // with GDAP get in, are the guest exclusions right?"): a policy that asks
+    // an AUTHENTICATION STRENGTH of directory roles (SMB CA101: phishing-
+    // resistant) reaches a GUEST who holds one of those roles too. A guest can
+    // only meet a passkey / FIDO2 / Windows Hello strength with MFA done in its
+    // HOME tenant, and that only counts with inbound MFA trust in the
+    // cross-tenant access settings (Learn, authentication strengths for
+    // external users: those methods are home-tenant only). Without the trust
+    // Entra asks MFA here, where none of them can be registered — the guest is
+    // locked out once the policy is On. GDAP technicians are not guests and
+    // not affected: their MFA is always done and trusted in the partner tenant
+    // (Learn, cross-tenant access settings → trust settings). Read: the
+    // activated directory roles with their members, the default inbound trust
+    // and the per-organisation partner settings.
+    const roleStrength = chosen.filter((p) => {
+      const c = (p.raw && p.raw.conditions) || {}, u = c.users || {};
+      const g = (p.raw && p.raw.grantControls) || {};
+      return (u.includeRoles || []).length && g.authenticationStrength && !(u.excludeGuestsOrExternalUsers && /b2bCollaborationGuest/.test(String(u.excludeGuestsOrExternalUsers.guestOrExternalUserTypes || "")));
+    });
+    if (roleStrength.length) {
+      const names = roleStrength.map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]).join(", ");
+      const roleIds = new Set(roleStrength.flatMap((p) => p.raw.conditions.users.includeRoles.map((r) => String(r).toLowerCase())));
+      let roles = null, def = null, partners = null, err = null;
+      try {
+        [roles, def, partners] = await Promise.all([
+          Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId&$expand=members($select=id,displayName,userPrincipalName,userType)"),
+          Graph.gget("/policies/crossTenantAccessPolicy/default"),
+          Graph.ggetAll("/policies/crossTenantAccessPolicy/partners"),
+        ]);
+      } catch (e) { err = e.message || String(e); }
+      if (err) add("guestadmins", "info", "Guest admins and MFA trust could not be read", `${err}. ${names} asks a phishing-resistant method of the admin roles; a guest holding one meets it only with MFA from its home tenant and inbound MFA trust for that organisation (Entra ID → External Identities → Cross-tenant access settings).`);
+      else {
+        const guests = new Map();
+        for (const r of roles || []) {
+          if (!roleIds.has(String(r.roleTemplateId || "").toLowerCase())) continue;
+          for (const m of r.members || []) if (m && String(m.userType || "").toLowerCase() === "guest") guests.set(m.id, `${m.displayName || m.userPrincipalName} (${r.displayName})`);
+        }
+        const defTrust = !!(def && def.inboundTrust && def.inboundTrust.isMfaAccepted);
+        const orgTrust = (partners || []).filter((x) => x && x.inboundTrust && x.inboundTrust.isMfaAccepted).length;
+        if (!guests.size) add("guestadmins", "ok", "No guest holds an admin role this run targets", `${names}: only member accounts (and GDAP technicians, whose MFA is trusted from the partner tenant) meet it.`);
+        else if (defTrust) add("guestadmins", "ok", `${guests.size} guest${guests.size === 1 ? "" : "s"} with an admin role — MFA from home tenants is trusted (default)`, `${[...guests.values()].join(", ")}: they meet ${names} with a passkey, FIDO2 key or Windows Hello in their own tenant.`);
+        else add("guestadmins", "warn", `${guests.size} guest${guests.size === 1 ? "" : "s"} with an admin role — ${names} would lock ${guests.size === 1 ? "it" : "them"} out without MFA trust`,
+          `${[...guests.values()].join(", ")}. Inbound MFA trust is off by default${orgTrust ? ` and on for ${orgTrust} organisation${orgTrust === 1 ? "" : "s"} — check theirs is among them` : ""}. Turn on “Trust multifactor authentication from Microsoft Entra tenants” for their organisation (Entra ID → External Identities → Cross-tenant access settings → Organizational settings), or give them a member account or GDAP, before ${names} leaves Report-only.`);
+      }
+    }
+
     if (opts.sdOn) add("sd", "info", "Security defaults is on", "Entra refuses On while it is: new policies land Report-only or Off, and ⇄ on 🧬 Baseline makes the switch.");
     const blocked = checks.some((c) => c.level === "block");
     return { checks, repair, blocked, present: present.names.size, readAt: Date.now() };

@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 371,
+      ws: "ca",
+      title: "🏢 SMB Basic 1.0.10 — admins not held to the compliant network at home (CA201–CA204 leave the admin roles out), abroad only through it (CA103 replaces CA104); pre-flight guest admins vs inbound MFA trust",
+      tools: ["Baseline", "Import"],
+      builds: [33107, 33108],
+      risk: "medium",
+      what: "33108: CA103 v1.0.10 = roles(103), locations All − L_COUNTRIES − CN_LOCATION, EXCLUDE.defender += 103, bundle.cnOptional += CA103, ADDED_IN 103 1.0.10; CA104 removed from P; CATALOG_RELEASE 1.0.10; tests: 1.0.10 test (incl. import without GSA → created without the exception, warned). 33107: js/baselineSmbData.js: CA103 removed from P (comment kept), VERSION 201–204 → 1.0.9, CATALOG_RELEASE 1.0.9, EXCLUDE.admins = [201..204] → users.excludeRoles += ROLE_IDS, defender/passkey/drs drop 103, entry exclude ADMIN_TXT, CA101 description on guest admins, note. js/import.js preflight(): check guestadmins (directoryRoles+members, crossTenantAccessPolicy default/partners). js/app.js: imDesc text. Tests: baseline-smb (19 policies, new 1.0.9 test), import-preflight (guestadmins test).",
+      why: "Mihai, 30 Oct 2026, the SMB review: can admins with GDAP get in, are the guest exclusions right; then: admin accounts should be outside the compliant network — SMB admins are usually externals with their own devices. A service-provider policy requiring phishing-resistant MFA was dropped: Microsoft always trusts GDAP MFA from the partner tenant and advises against blanket admin policies on partners — the strength belongs in the partner's own tenant.",
+      test: [
+        "node --test tools/baseline-smb.test.cjs tools/import-preflight.test.cjs: 47 pass; node --test tools/*.test.cjs: 944+ pass.",
+        "gimi (CA103 v1.0.8 Off, CA201–CA204 v1.0.8 Off): 🧬 Baseline shows CA201–CA204 Outdated and CA103 not in the catalog; Match & replace → v1.0.9 with the 16 admin roles among the excluded roles, state kept Off; delete CA103 with 🧹 Housekeeping.",
+        "📥 Import SMB Basic on a tenant with a guest Global Administrator and no inbound MFA trust: the pre-flight warns guestadmins with the guest's name; turn the trust on for that organisation and re-read — ok.",
+        "What If (CA201 On in Report-only is enough to read it): a Global Administrator on Windows without the GSA client — CA201 not applied (role excluded); an ordinary user — CA201 block.",
+        "gimi (CA103 v1.0.8 Off, CA104 v1.0 Report-only): 🧬 Baseline shows CA103 Outdated and CA104 not in the catalog; Match & replace CA103 → v1.0.10 (lands Off, as its predecessor) — set it Report-only, switch CA104 Off, delete CA104. A Global Administrator through a VPN egress outside NL: with the GSA client tunnel up CA103 reads not applied (location excluded: All Compliant Network locations); with the client paused CA103 reads block.",
+      ],
+    },
+    {
       n: 370,
       ws: "ca",
       title: "📥 Import — a policy waits for a named location or authentication strength the run has just created (Import 2.16.6)",
