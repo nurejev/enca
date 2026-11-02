@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-10-26T04:35:23.103Z",
+ "generated": "2026-11-02T04:22:53.235Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "bccf3a3299",
+  "head": "7f78b50dce",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -14,13 +14,73 @@
   ]
  },
  "counts": {
-  "docs": 14,
-  "newDocs": 1,
-  "substantive": 11,
+  "docs": 17,
+  "newDocs": 4,
+  "substantive": 14,
   "watched": 17,
   "unwatched": 5
  },
  "docs": [
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans",
+   "path": "docs/identity/conditional-access/concept-conditional-access-policy-plans.md",
+   "title": "What are Microsoft Entra Conditional Access policy plans? (preview)",
+   "kind": "new",
+   "lastChange": "2026-10-26T11:13:59-04:00",
+   "lines": 92,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "b575484cff",
+     "date": "2026-10-26T11:13:59-04:00",
+     "subject": "Add Conditional Access policy plan documentation (#14524)",
+     "add": 92,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/how-to-create-conditional-access-policy-plan",
+   "path": "docs/identity/conditional-access/how-to-create-conditional-access-policy-plan.md",
+   "title": "Create a Conditional Access policy plan (preview)",
+   "kind": "new",
+   "lastChange": "2026-10-26T11:13:59-04:00",
+   "lines": 100,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "b575484cff",
+     "date": "2026-10-26T11:13:59-04:00",
+     "subject": "Add Conditional Access policy plan documentation (#14524)",
+     "add": 100,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/how-to-migrate-conditional-access-policy-plan",
+   "path": "docs/identity/conditional-access/how-to-migrate-conditional-access-policy-plan.md",
+   "title": "Migrate Conditional Access policies to a policy plan (preview)",
+   "kind": "new",
+   "lastChange": "2026-10-26T11:13:59-04:00",
+   "lines": 93,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "b575484cff",
+     "date": "2026-10-26T11:13:59-04:00",
+     "subject": "Add Conditional Access policy plan documentation (#14524)",
+     "add": 93,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
   {
    "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-risks",
    "path": "docs/id-protection/concept-identity-protection-risks.md",
@@ -606,14 +666,14 @@
    "path": "docs/identity/authentication/how-to-enable-authenticator-passkey.md",
    "title": "Enable and support passkeys in Authenticator for Microsoft Entra ID",
    "last": {
-    "sha": "88126d77c6",
-    "date": "2026-10-12T16:25:06+01:00",
-    "subject": "Align attestation registration guidance"
+    "sha": "788312bfc5",
+    "date": "2026-10-28T12:05:29-05:00",
+    "subject": "Note November availability for Authenticator registration resource"
    },
    "lastSubstantive": {
-    "sha": "88126d77c6",
-    "date": "2026-10-12T16:25:06+01:00",
-    "subject": "Align attestation registration guidance"
+    "sha": "788312bfc5",
+    "date": "2026-10-28T12:05:29-05:00",
+    "subject": "Note November availability for Authenticator registration resource"
    }
   },
   "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation": {
@@ -805,6 +865,16 @@
    ]
   },
   {
+   "key": "doc:docs/identity/authentication/how-to-enable-authenticator-passkey.md",
+   "kind": "alert",
+   "title": "Enable and support passkeys in Authenticator for Microsoft Entra ID",
+   "url": "https://learn.microsoft.com/entra/identity/authentication/how-to-enable-authenticator-passkey",
+   "since": "2026-10-28T12:05:29-05:00",
+   "checks": [
+    "authenticator-passkey-app-protection"
+   ]
+  },
+  {
    "key": "doc:docs/identity/conditional-access/concept-enforcement-resource-exclusions.md",
    "kind": "alert",
    "title": "Enforcement for baseline scopes in Conditional Access",
@@ -823,6 +893,30 @@
    "checks": [
     "dirsync-account-mfa"
    ]
+  },
+  {
+   "key": "doc:docs/identity/conditional-access/concept-conditional-access-policy-plans.md",
+   "kind": "new",
+   "title": "What are Microsoft Entra Conditional Access policy plans? (preview)",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans",
+   "since": "2026-10-26T11:13:59-04:00",
+   "checks": []
+  },
+  {
+   "key": "doc:docs/identity/conditional-access/how-to-create-conditional-access-policy-plan.md",
+   "kind": "new",
+   "title": "Create a Conditional Access policy plan (preview)",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/how-to-create-conditional-access-policy-plan",
+   "since": "2026-10-26T11:13:59-04:00",
+   "checks": []
+  },
+  {
+   "key": "doc:docs/identity/conditional-access/how-to-migrate-conditional-access-policy-plan.md",
+   "kind": "new",
+   "title": "Migrate Conditional Access policies to a policy plan (preview)",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/how-to-migrate-conditional-access-policy-plan",
+   "since": "2026-10-26T11:13:59-04:00",
+   "checks": []
   },
   {
    "key": "doc:docs/identity/conditional-access/policy-agent-user.md",
