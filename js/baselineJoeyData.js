@@ -269,6 +269,12 @@ BASELINE_JOEY.EXCLUDE_SUFFIX = " - Exclude";
     for (const p of cat.policies || []) {
       if (n === norm(J.exclusionName(p.name))) return J.personaOfPolicy(cat, p.name);
     }
+    // 33109 ➕ Joey+ (js/joeyPlusData.js): the additions' exclusion groups and
+    // the external-admins group belong to Global (CA-RMAU-Global-Exclusions)
+    if (typeof JOEY_PLUS !== "undefined") {
+      if (n === norm(JOEY_PLUS.externalAdminsGroup)) return "GLO";
+      for (const pn of JOEY_PLUS.names()) if (n === norm(J.exclusionName(pn))) return J.personaOfPolicy(cat, pn);
+    }
     return null;
   };
 
@@ -304,6 +310,13 @@ BASELINE_JOEY.EXCLUDE_SUFFIX = " - Exclude";
     for (const p of cat.policies || []) {
       add(J.exclusionName(p.name), `Exclusion group for ${p.name} (Conditional Access Baseline by Joey Verlinden${cat.release ? ` ${cat.release}` : ""}). Members are exempt from that one policy.`,
         { persona: J.personaOfPolicy(cat, p.name), policy: p.name });
+    }
+    // 33109 ➕ Joey+: the additions' exclusion groups and the external admins
+    if (typeof JOEY_PLUS !== "undefined") {
+      add(JOEY_PLUS.externalAdminsGroup, "External admins who cannot run this tenant's Global Secure Access client — left out of CA020–CA023 (Joey+). Filled by hand; review every quarter.", { persona: "GLO" });
+      for (const pn of JOEY_PLUS.names()) {
+        add(J.exclusionName(pn), `Exclusion group for ${pn} (Joey Verlinden+ addition). Members are exempt from that one policy.`, { persona: J.personaOfPolicy(cat, pn), policy: pn, plus: true });
+      }
     }
     return out;
   };

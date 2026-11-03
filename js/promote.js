@@ -182,6 +182,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 372,
+      ws: "ca",
+      title: "➕ Joey Verlinden+ additions — CA018, CA019, CA020–CA023 shipped beside Joey's release and imported with every Joey import",
+      tools: ["Baseline", "Import"],
+      builds: [33109],
+      risk: "medium",
+      what: "33109: js/joeyPlusData.js (JOEY_PLUS: bundle, entries, isPlus, forceOff CA020–CA023, externalAdminsGroup); js/baseline.js sharedPolicies appends JOEY_PLUS.entries() for cat.id joey (shared 'Joey+'), sharedText() for the summary; js/baselineJoeyData.js codeForGroup + templates know the Joey+ groups (GLO); js/import.js mergeShared opts.match / opts.forceOff; js/app.js imEaAddBundled merges JOEY_PLUS under the Joey catalog, ➕ JOEY+ panel; index.html loads joeyPlusData.js; tools/joeyplus.test.cjs.",
+      why: "Mihai, 3 Nov 2026: CA019–CA023 were in the Joey+ release documentation (v1.2, 30 Oct) as planned but not in ENCA; Courseware's admin-account advice depends on CA020–CA023. Decision: add them as Joey+ the way the E-Admins are added. CA018 (workfile 30 Oct, W03) taken in the same pass.",
+      test: [
+        "node --test tools/joeyplus.test.cjs tools/secdefaults.test.cjs tools/import-joey.test.cjs: all pass; node --test tools/*.test.cjs: no new failures.",
+        "Courseware (Joey catalog, no Joey+ yet): 🧬 Baseline shows a Joey+ section with CA018–CA023 Missing, tag Joey+; the summary reads '+ 6 ➕ Joey+ additions'.",
+        "📥 Import Joey on a test tenant: the ➕ JOEY+ panel lists six; after the run CA018 and CA019 are Report-only, CA020–CA023 Off; groups '<name> - Exclude' and CAB-SEC-U-ExternalAdmins exist and sit in CA-RMAU-Global-Exclusions.",
+        "Tenant without Global Secure Access signalling: CA020–CA023 are refused by Entra (compliant network location) and the report says so; CA018 and CA019 are created. Needs a tenant with GSA off — say so when skipped.",
+      ],
+    },
+    {
       n: 371,
       ws: "ca",
       title: "🏢 SMB Basic 1.0.10 — admins not held to the compliant network at home (CA201–CA204 leave the admin roles out), abroad only through it (CA103 replaces CA104); pre-flight guest admins vs inbound MFA trust",

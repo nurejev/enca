@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33109, date: "2026-11-03", title: "Joey Verlinden+: the compliant network, app protection and office-only enrollment come with every Joey import",
+    items: [
+      { kind: "new", tool: "Baseline", text: "Joey Verlinden+ now carries its own additions, the way the E-Admins come with every baseline: CA018 (Windows Intune enrollment only from a trusted location), CA019 (phones only through apps under an app protection policy) and CA020–CA023 (users and admins only through the Global Secure Access client, one policy per platform). Under the Joey catalog they are listed as a Joey+ section and show Missing until they are in the tenant. External admins go in CAB-SEC-U-ExternalAdmins; guests, GDAP technicians and CA-ServiceAccounts are left out." },
+      { kind: "improved", tool: "Import", text: "A Joey import adds the six Joey+ additions from ENCA's own copy beside the E-Admins, with their exclusion groups and CAB-SEC-U-ExternalAdmins filed in the Global unit. CA018 and CA019 land as the run lands; CA020–CA023 land Off until Global Secure Access shows the chain green." },
+    ],
+  },
+  {
     build: 33108, date: "2026-10-30", title: "SMB Basic 1.0.10: an admin abroad signs in through the Global Secure Access client",
     items: [
       { kind: "changed", tool: "Baseline", text: "SMB CA103 is now the admins' country block with a compliant-network exception: outside SMB - Allowed countries an admin gets in only through the Global Secure Access client of the tenant; at home no client is needed. It replaces CA104, which blocked admins abroad without that exception — Conditional Access has no allow and a block always wins, so CA104 could not stay beside it. On a tenant without Global Secure Access signalling the import creates CA103 without the exception (as CA010) and says so. A tenant holding CA104: give CA103 its state, then switch CA104 Off and delete it." },

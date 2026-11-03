@@ -3,7 +3,7 @@
 Date: 30 October 2026
 Requested by: Mihai (decisions below, 30 October 2026)
 For: ENCA – the CloudFellows baseline (`js/baselineData.js`), SMB Basic (`js/baselineSmbData.js`) and Joey Verlinden+ (`js/baselineJoeyData.js` + the Dovilo additions)
-Status: **open** – nothing is built in ENCA yet. The CloudFellows Intune Deployer 2.8.0 already checks for this policy (read-only, see *Contract with the deployer*).
+Status: **partly done** – Joey Verlinden+ built in beta 33109 (js/joeyPlusData.js, see WORKFILE-JoeyPlus-CA018-CA023-2026-11-03.md); CloudFellows and SMB Basic still open. The CloudFellows Intune Deployer 2.8.0 already checks for this policy (read-only, see *Contract with the deployer*).
 
 ## Why
 
@@ -69,7 +69,7 @@ Description (EN, all three): *"Blocks Windows Intune enrollment outside the trus
 |---|---|---|---|
 | [ ] | W01 | P1 | **CloudFellows**: CA018 in `baselineData.js` (catalog row as CA1005: resources *Microsoft Intune Enrollment*, network *Any network or location · − All trusted networks and locations*, condition *Platforms: Windows*, grant *Block access*, tag NEW) and in the release the import reads. Catalog/version bump + changelog. |
 | [ ] | W02 | P1 | **SMB Basic**: `add(18, …)` with `everyone(18)` minus external users (as `internal(num)`), `applications: { includeApplications: [INTUNE_ENROLL] }`, `locations: { includeLocations: ["All"], excludeLocations: ["AllTrusted"] }`, `platforms: { includePlatforms: ["windows"] }` (as `cnPlatform`), `grantControls: block`, `landsOff`-style report-only state. Catalog 1.0.8 → 1.0.9, BASE unit note, exclusion group. |
-| [ ] | W03 | P1 | **Joey Verlinden+**: CA018 as a Dovilo addition (shared module as `eadminsData.js`, or the `+` additions list); import adds it after Joey's policies; Compare/Housekeeping treat it as baseline, not as "extra". |
+| [x] | W03 | P1 | **Joey Verlinden+**: CA018 as a Dovilo addition (shared module as `eadminsData.js`, or the `+` additions list); import adds it after Joey's policies; Compare/Housekeeping treat it as baseline, not as "extra". |
 | [ ] | W04 | P1 | **Service principal**: pre-flight looks up `servicePrincipals?$filter=appId eq 'd4ebce55-015a-49b5-a083-c84d1797ae8c'`; missing → the import creates it (`POST /servicePrincipals`) and the policy waits for it (the Import 2.16.6 wait for a just-created service principal). Read-only mode: name it as missing. |
 | [ ] | W05 | P1 | **Trusted locations pre-flight**: list the trusted IP named locations (`ipNamedLocation`, `isTrusted`) with their ranges. **None** → CA018 is created **Off/report-only with a red line**: *"no trusted location – CA018 On would block Intune enrollment everywhere"*. SMB Basic has no trusted IP location of its own (only *SMB - Allowed countries* / *Allowed EU countries*) → offer to create **`SMB - Office`** (IP ranges, trusted) from the tenant's office IPs, empty by default, and keep CA018 report-only until it has a range. |
 | [ ] | W06 | P2 | **Trusted-location hygiene**: show a warning on CA018 when a trusted location looks like a home or migration address (the App Access Review already flags these: *"Thuisadressen niet als vertrouwde locatie gebruiken"*). Every trusted IP counts as the office for onboarding. |

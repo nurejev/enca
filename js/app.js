@@ -4318,12 +4318,18 @@
   function imEaPanel() {
     if (!imBundle || !imPlan) return "";
     const toCat = imTargetCatalog();
+    // 33109: the Joey+ additions taken in beside the E-Admins
+    const plusPanel = imEa && imEa.plus && imEa.plus.length ? `<div class="cg-panel">
+        <h4>➕ JOEY+ — ${imEa.plus.length} ADDED — CREATED FROM ENCA'S OWN COPY</h4>
+        <p class="mini" style="margin:0">The Joey Verlinden+ additions ENCA ships beside his release: ${esc(imEa.plus.map((n) => n.slice(0, 5)).join(", "))}. CA018 (Windows enrollment only from a trusted location) and CA019 (app protection on phones) land as this run lands; CA020–CA023 (users and admins only through the Global Secure Access client) land <b>Off</b> until 🌐 Global Secure Access shows the chain green. Their exclusion groups and <code>${esc(JOEY_PLUS.externalAdminsGroup)}</code> are created here and filed in the Global unit.</p>
+      </div>` : "";
     if (imEa && imEa.added && imEa.added.length) {
-      return `<div class="cg-panel">
+      return plusPanel + `<div class="cg-panel">
         <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED${imEa.bundled ? " — CREATED FROM ENCA'S OWN COPY" : ` FROM ${esc(String(imEa.label).toUpperCase())}`}</h4>
         <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
       </div>`;
     }
+    if (plusPanel) return plusPanel;
     // a file that ships its own E-Admins (a CloudFellows backup) needs nothing
     if (imPlan.some((p) => p.asIs)) return "";
     // 32902: nor does a baseline that covers its own admins and break-glass
@@ -4361,17 +4367,28 @@
       const toCat = imTargetCatalog();
       const cf = Baseline.catalog("limonit");
       const m = Importer.mergeShared(imRaw, E_ADMINS.bundle(), { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
-      if (!m.added.length) { if (!opts.auto) toast("The E-Admins policies are already in this import"); return; }
+      // 33109 ➕ Joey+ (js/joeyPlusData.js): under Joey Verlinden's catalog the
+      // additions ENCA ships beside his release come along the same way —
+      // CA018, CA019 as the run lands, CA020–CA023 Off until GSA is green
+      let plus = { added: [], already: 0 };
+      if (toCat && toCat.id === "joey" && typeof JOEY_PLUS !== "undefined") {
+        plus = Importer.mergeShared(m.bundle, JOEY_PLUS.bundle(), { label: JOEY_PLUS.source.label, match: JOEY_PLUS.isPlus, forceOff: JOEY_PLUS.forceOff });
+        plus.bundle.sharedFrom = m.bundle.sharedFrom; plus.bundle.sharedRenamed = m.bundle.sharedRenamed;
+      }
+      const added = [...m.added, ...plus.added];
+      if (!added.length) { if (!opts.auto) toast("The E-Admins policies are already in this import"); return; }
       const keep = new Set([...document.querySelectorAll("[data-imp]:checked")].map((cb) => imPlan[+cb.dataset.imp].name));
       // only what the tenant does not already hold is ticked — the plan marks
       // the rest skip, and an auto-add must never re-tick what was unticked
-      m.added.forEach((n) => keep.add(n));
-      imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed, bundled: true };
+      added.forEach((n) => keep.add(n));
+      imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed, bundled: true, plus: plus.added, plusAlready: plus.already };
       const keepLand = imLand;
-      await imLoaded(m.bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins from ENCA's own copy`, { mode: imMode, only: keep });
+      const bundle = plus.added.length ? plus.bundle : m.bundle;
+      await imLoaded(bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins${plus.added.length ? " and Joey+" : ""} from ENCA's own copy`, { mode: imMode, only: keep });
       imLand = keepLand;
       const r = document.querySelector(`input[name="imLand"][value="${imLand}"]`); if (r) r.checked = true;
-      toast(`<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} added from ENCA's own copy — they land Off`);
+      toast([m.added.length ? `<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} (land Off)` : "",
+        plus.added.length ? `<span>${plus.added.length}</span> Joey+ ${plus.added.length === 1 ? "addition" : "additions"} (CA020–CA023 land Off)` : ""].filter(Boolean).join(" and ") + " added from ENCA's own copy");
     } catch (err) {
       console.error(err);
       imEa = { label, error: `Could not add the E-Admins: ${err.message || err}` };

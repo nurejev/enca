@@ -627,10 +627,16 @@ const Importer = (() => {
   //     out — the one thing they exist to prevent.
   // A policy the bundle already carries is not taken twice. Pure over two raw
   // (unprepared) bundles; the result is prepared like any other.
+  // 33109 (➕ Joey+, js/joeyPlusData.js): opts.match picks other shared
+  // policies than the E-Admins (default: the E-Admins), and opts.forceOff
+  // names which of the added ones land Off whatever the landing choice
+  // (default: all of them — the E-Admins rule). Joey+ forces only CA020–CA023
+  // Off; CA018 and CA019 land as the run lands (Report-only).
   function mergeShared(target, source, opts = {}) {
     const t = target || {};
     const have = new Set((t.policies || []).map((p) => cleanName(p.displayName)));
-    const all = ((source && source.policies) || []).filter((p) => isEAdmins(p.displayName));
+    const match = typeof opts.match === "function" ? opts.match : isEAdmins;
+    const all = ((source && source.policies) || []).filter((p) => match(p.displayName));
     const add = all.filter((p) => !have.has(cleanName(p.displayName)));
     const blob = add.map((p) => JSON.stringify(p)).join("\n");
     const used = (x) => !!x && ((x.id && blob.includes(JSON.stringify(String(x.id)))) || (x.displayName && blob.includes(`:${x.displayName}}}`)));
@@ -653,7 +659,8 @@ const Importer = (() => {
         authStrengths: merge(t.authStrengths, pick(source && source.authStrengths)),
         authContexts: merge(t.authContexts, pick(source && source.authContexts)),
         termsOfUse: merge(t.termsOfUse, pick(source && source.termsOfUse)),
-        forceOff: [...new Set([...(t.forceOff || []), ...add.map((p) => p.displayName)])],
+        forceOff: [...new Set([...(t.forceOff || []), ...add.map((p) => p.displayName)
+          .filter((n) => !Array.isArray(opts.forceOff) || opts.forceOff.some((x) => cleanName(x) === cleanName(n)))])],
         sharedFrom: opts.label || t.sharedFrom || "a CloudFellows backup",
         sharedRenamed: rename ? { from: opts.breakGlassFrom, to } : (t.sharedRenamed || null),
         prepared: false,
