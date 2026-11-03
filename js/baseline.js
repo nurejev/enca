@@ -404,8 +404,23 @@ const Baseline = (() => {
     if (!cat || cat.id === DEFAULT_ID || typeof BASELINE === "undefined") return [];
     // a catalog that covers its own admins and break-glass (SMB Basic) says so
     if (cat.sharedEAdmins === false) return [];
-    return (BASELINE.policies || []).filter((p) => personaKey(p.name) === "eadmin")
+    const ea = (BASELINE.policies || []).filter((p) => personaKey(p.name) === "eadmin")
       .map((p) => ({ ...p, persona: "🚨 E-Admins", shared: "CloudFellows" }));
+    // 33109 ➕ Joey+ (js/joeyPlusData.js): the additions ENCA ships beside
+    // Joey Verlinden's release — CA018, CA019, CA020–CA023 — are expected
+    // under his catalog (bundled or read live) exactly as the E-Admins are,
+    // so a tenant on Joey Verlinden+ sees them Missing until they are in.
+    const plus = cat.id === "joey" && typeof JOEY_PLUS !== "undefined"
+      ? JOEY_PLUS.entries().map((p) => ({ ...p, shared: "Joey+" })) : [];
+    return [...ea, ...plus];
+  }
+  // 33109: the shared rows of a comparison by family, for the sentences that
+  // used to say "E-Admins" for every shared row
+  const SHARED_LABEL = { CloudFellows: "🚨 E-Admins", "Joey+": "➕ Joey+ additions" };
+  function sharedText(rows, pick) {
+    const by = new Map();
+    for (const r of rows || []) if (r.shared && (!pick || pick(r))) by.set(r.shared, (by.get(r.shared) || 0) + 1);
+    return [...by.entries()].map(([k, n]) => `${n} ${SHARED_LABEL[k] || k}`).join(" + ");
   }
 
   // ---- groups every baseline shares (beta 25386) ------------------------
@@ -679,8 +694,8 @@ const Baseline = (() => {
     const ownTotal = res.baselineTotal - (res.shared || 0);
     const sharedOk = res.rows.filter((r) => r.shared && r.tenant && r.status !== "conflict").length;
     const parts = [];
-    parts.push(`<b>${own} of ${esc(cat.label)}${/s$/i.test(cat.label) ? "'" : "'s"} ${ownTotal} policies are in this tenant</b>${res.shared ? `, plus ${sharedOk} of the ${res.shared} 🚨 E-Admins policies every baseline expects` : ""}.`);
-    if (n("missing")) parts.push(`<b>${n("missing")} missing</b> — no policy with that CA number here${res.toImportShared && res.toImportShared.length ? ` (${res.toImportShared.length} of them E-Admins — 📥 Import creates them from ENCA's own copy)` : ""}.`);
+    parts.push(`<b>${own} of ${esc(cat.label)}${/s$/i.test(cat.label) ? "'" : "'s"} ${ownTotal} policies are in this tenant</b>${res.shared ? `, plus ${sharedOk} of the ${res.shared} shared policies (${esc(sharedText(res.rows))}) it is expected to carry` : ""}.`);
+    if (n("missing")) parts.push(`<b>${n("missing")} missing</b> — no policy with that CA number here${res.toImportShared && res.toImportShared.length ? ` (${res.toImportShared.length} of them ${esc(sharedText(res.toImportShared))} — 📥 Import creates them from ENCA's own copy)` : ""}.`);
     if (n("outdated")) parts.push(`<b>${n("outdated")} outdated</b> — deployed at an older version than the baseline.`);
     if (n("conflict")) {
       const who = tally(res.rows.filter((r) => r.status === "conflict"));
@@ -747,8 +762,8 @@ const Baseline = (() => {
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${res.coverage}%<span class="mini" style="font-weight:400"> coverage</span></div>
         <div class="mini">${res.covered} of ${res.baselineTotal} expected policies present</div>
-        ${res.shared ? `<div class="mini" title="Emergency access is expected whichever baseline a tenant deploys; only the CloudFellows catalog writes these policies out, so they are listed under every catalog.">${res.baselineTotal - res.shared} of ${esc(res.catalog.label)} + ${res.shared} 🚨 E-Admins every baseline expects</div>` : ""}
-        <div class="mini"><b>${res.toImport.length}</b> to import${gap.length ? ` (${gap.join(" + ")})` : ""}${res.toImportShared && res.toImportShared.length ? ` · +${res.toImportShared.length} E-Admins from ENCA's own copy` : ""}</div>
+        ${res.shared ? `<div class="mini" title="Emergency access is expected whichever baseline a tenant deploys; only the CloudFellows catalog writes these policies out, so they are listed under every catalog.">${res.baselineTotal - res.shared} of ${esc(res.catalog.label)} + ${esc(sharedText(res.rows))}</div>` : ""}
+        <div class="mini"><b>${res.toImport.length}</b> to import${gap.length ? ` (${gap.join(" + ")})` : ""}${res.toImportShared && res.toImportShared.length ? ` · +${esc(sharedText(res.toImportShared))} from ENCA's own copy` : ""}</div>
         ${res.catalog.note ? `<div class="mini" style="max-width:280px;margin-top:6px">${esc(res.catalog.note)}</div>` : ""}
       </div>
     </div>
@@ -1217,7 +1232,7 @@ const Baseline = (() => {
         : r.status === "extra" ? `<span class="mini">${esc(r.tenantVersion || "—")}</span>`
         : `<span class="mini">${esc(r.tenantVersion || r.baseline?.version || "—")}</span>`;
       const ch = changes(r);
-      const chCell = r.status === "missing" ? `<span class="mini muted">new policy${r.shared ? ` · in the ${esc(r.shared)} backup, not in this catalog's repository` : ""}</span>`
+      const chCell = r.status === "missing" ? `<span class="mini muted">new policy${r.shared ? (r.shared === "Joey+" ? " · a Joey+ addition, ENCA's own copy — not in Joey's repository" : ` · in the ${esc(r.shared)} backup, not in this catalog's repository`) : ""}</span>`
         : r.status === "extra" ? '<span class="mini muted">not in baseline</span>'
         : ch.length
           ? `<div class="bl-ch">${ch.slice(0, 6).map((c) =>
@@ -1227,7 +1242,7 @@ const Baseline = (() => {
       body += `<tr>
         <td class="bl-st"><span class="bl-badge ${s.cls}" title="${esc(s.label)}">${s.icon}</span></td>
         <td><b>CA${String(r.num).padStart(3, "0")}</b></td>
-        <td>${esc(bName)} ${tag}${r.shared ? ` <span class="tag" title="Expected under every baseline; this policy is defined by the ${esc(r.shared)} catalog">shared</span>` : ""}<div class="mini">${esc(r.baseline ? `${r.baseline.resources} · ${r.baseline.grant}` : "")}</div></td>
+        <td>${esc(bName)} ${tag}${r.shared ? ` <span class="tag" title="${r.shared === "Joey+" ? "Joey Verlinden+ addition: expected under this catalog, shipped by ENCA beside Joey's release (js/joeyPlusData.js)" : `Expected under every baseline; this policy is defined by the ${esc(r.shared)} catalog`}">${r.shared === "Joey+" ? "Joey+" : "shared"}</span>` : ""}<div class="mini">${esc(r.baseline ? `${r.baseline.resources} · ${r.baseline.grant}` : "")}</div></td>
         <td>${tenantCell}</td>
         <td>${ver}</td>
         <td class="bl-chcell">${chCell}</td>
@@ -1279,7 +1294,7 @@ const Baseline = (() => {
     if (imp.length) {
       L.push("## Would be imported or updated");
       L.push("");
-      for (const r of imp) L.push(`- **CA${String(r.num).padStart(3, "0")}** ${mdEsc(r.baseline.name)}${r.shared ? ` (shared E-Admins policy — ${mdEsc(r.shared)} backup)` : ""}${
+      for (const r of imp) L.push(`- **CA${String(r.num).padStart(3, "0")}** ${mdEsc(r.baseline.name)}${r.shared ? (r.shared === "Joey+" ? " (Joey+ addition — ENCA's own copy)" : ` (shared E-Admins policy — ${mdEsc(r.shared)} backup)`) : ""}${
         r.status === "outdated" ? ` — currently v${mdEsc(r.tenantVersion)}`
         : r.status === "conflict" ? ` — CA${String(r.num).padStart(3, "0")} is taken by "${mdEsc(r.tenant.name)}" (${mdEsc(r.why)})`
         : " — not present"}`);

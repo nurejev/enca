@@ -22,7 +22,8 @@ function world(opts = {}) {
   const groups = new Map(), pols = new Map(), posts = [], patches = [];
   const tenant = (opts.tenant || []).map((p) => ({ ...p }));   // what a list read returns
   const notYet = new Map(Object.entries(opts.notYet || {}));
-  const madeSp = new Set(); let caLag = opts.caLag || 0;   // 33006: SPs made by the run; how many creates CA refuses before it knows them     // name prefix -> how many state writes answer 404
+  const madeSp = new Set(); let caLag = opts.caLag || 0;
+  const madeLoc = new Set(); let locLag = opts.locLag || 0;   // 33104: named locations made by the run; creates CA refuses before it knows them   // 33006: SPs made by the run; how many creates CA refuses before it knows them     // name prefix -> how many state writes answer 404
   const strip = (o) => Array.isArray(o) ? o.map(strip) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).filter(([k]) => !k.includes('@odata')).map(([k, v]) => [k, strip(v)])) : o;
   const Graph = {
@@ -36,6 +37,8 @@ function world(opts = {}) {
       if (url.startsWith('/identity/conditionalAccess/policies')) { if (opts.listFails) throw new Error('Graph request failed (503)'); return opts.staleList ? tenant : [...tenant, ...[...pols.values()].map((p) => ({ id: p.id, displayName: p.displayName, state: p.state }))]; }
       if (url.startsWith('/identity/conditionalAccess/namedLocations')) return opts.locations || [];
       if (url.startsWith('/deviceAppManagement/')) { if (opts.mamFail) throw new Error('Graph request failed (403)'); return (opts.mam || {})[url.includes('ios') ? 'ios' : 'android'] || []; }
+      if (url.startsWith('/directoryRoles')) { if (opts.rolesFail) throw new Error('Graph request failed (403)'); return opts.dirRoles || []; }
+      if (url.startsWith('/policies/crossTenantAccessPolicy/partners')) return opts.partners || [];
       if (url.startsWith('/devices')) { if (opts.devicesFail) throw new Error('Graph request failed (403)'); return opts.devices || []; }
       return [];
     },
@@ -44,7 +47,9 @@ function world(opts = {}) {
       if (url === '/directoryObjects/getByIds') return { value: body.ids.filter((x) => groups.has(x)).map((x) => ({ id: x })) };
       if (url === '/identity/conditionalAccess/policies' && opts.always400 && body.displayName.startsWith(opts.always400)) throw new Error('Graph request failed (400): BadRequest');
       if (url === '/identity/conditionalAccess/policies' && caLag > 0 && JSON.stringify(body.conditions || {}).toLowerCase().split('"').some((x) => madeSp.has(x))) { caLag--; throw new Error('Graph request failed (400): The server could not process the request because it is malformed or incorrect. · code: BadRequest'); }
+      if (url === '/identity/conditionalAccess/policies' && locLag > 0 && JSON.stringify((body.conditions || {}).locations || {}).split('"').some((x) => madeLoc.has(x))) { locLag--; throw new Error('Graph request failed (400): The server could not process the request because it is malformed or incorrect. · code: BadRequest · inner: d01b95af-5596-4737-b3e5-f9aa32d0dbbc'); }
       if (url === '/identity/conditionalAccess/policies') { const p = { ...structuredClone(body), id: id() }; pols.set(p.id, p); return { id: p.id }; }
+      if (url === '/identity/conditionalAccess/namedLocations') { const l = { id: id() }; madeLoc.add(l.id); return l; }
       if (/authenticationStrengthPolicies/.test(url) && opts.strengthCreateFails) throw new Error('Graph request failed (400): strength refused');
       return { id: id() };
     },
@@ -62,6 +67,7 @@ function world(opts = {}) {
     async gget(url) {
       if (url.endsWith('/fido2')) { if (opts.fido === 'error') throw new Error('Graph request failed (403)'); return { id: 'fido2', state: opts.fido || 'disabled' }; }
       if (url.startsWith('/networkAccess')) return { signalingStatus: opts.gsa || 'disabled' };
+      if (url.startsWith('/policies/crossTenantAccessPolicy/default')) return { inboundTrust: { isMfaAccepted: !!opts.mfaTrust } };
       if (url.startsWith('/policies/deviceRegistrationPolicy')) return { multiFactorAuthConfiguration: opts.devreg || 'notRequired' };
       const p = pols.get(url.split('/').pop()) || tenant.find((t) => t.id === url.split('/').pop());
       return p ? strip(structuredClone(p)) : {};
@@ -101,8 +107,8 @@ test('gimi, 19 Oct: a state write answered "does not exist" right after the crea
   const w = world({ notYet: { CA002: 1, CA003: 2, CA005: 1, CA101: 1, CA102: 1, CA901: 2 } });
   const { res } = await smbRun(w);
   assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => r.name)), []);
-  for (const k of ['CA001', 'CA002', 'CA003', 'CA004', 'CA005', 'CA006', 'CA101', 'CA102', 'CA104', 'CA901']) assert.equal(stateOf(w, k), 'enabledForReportingButNotEnforced', k);
-  for (const k of ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']) assert.equal(stateOf(w, k), 'disabled', k);
+  for (const k of ['CA001', 'CA002', 'CA003', 'CA004', 'CA005', 'CA006', 'CA101', 'CA102', 'CA103', 'CA901']) assert.equal(stateOf(w, k), 'enabledForReportingButNotEnforced', k);
+  for (const k of ['CA201', 'CA202', 'CA203', 'CA204']) assert.equal(stateOf(w, k), 'disabled', k);
   assert.equal(res.warnings.filter((x) => /Entra refused/.test(x)).length, 0, res.warnings.join(' | '));
 });
 
@@ -187,7 +193,7 @@ test('🛫 pre-flight on a gimi-like tenant: here already, Off to repair, a CA90
     { id: 'p5', displayName: smbName(S0, 5), state: 'disabled' },
     { id: 'p101', displayName: smbName(S0, 101), state: 'disabled' },
     { id: 'p4', displayName: smbName(S0, 4), state: 'enabledForReportingButNotEnforced' },
-    { id: 'p103', displayName: smbName(S0, 103), state: 'disabled' },
+    { id: 'p103', displayName: smbName(S0, 103), state: 'enabledForReportingButNotEnforced' },
     { id: 'a', displayName: 'CA901-GRANT-SMB-BreakGlass-AnyApp-AnyPlatform-Passkey-v1.0.1', state: 'disabled' },
     { id: 'b', displayName: 'CA901-GRANT-SMB-BreakGlass-AnyApp-AnyPlatform-FIDO2-v1.0', state: 'disabled' },
     { id: 'c', displayName: 'CA001-GRANT-Global-IP-AnyApp-AnyPlatform-MFA-v1.0.3', state: 'enabled' },
@@ -199,7 +205,7 @@ test('🛫 pre-flight on a gimi-like tenant: here already, Off to repair, a CA90
   const by = Object.fromEntries(pf.checks.map((c) => [c.key, c]));
   assert.equal(by.names.level, 'warn');
   assert.equal(by.names.names.length, 5, "CA004, CA005, CA101, CA103 and the 1.0.1 CA901 are here by name");
-  assert.deepEqual(plain(pf.repair.map((r) => r.id).sort()), ['a', 'p101', 'p5'], 'CA103 lands Off on purpose, CA004 is already Report-only; the 1.0.1 CA901 is Off');
+  assert.deepEqual(plain(pf.repair.map((r) => r.id).sort()), ['a', 'p101', 'p5'], 'CA004 and CA103 are already Report-only; the 1.0.1 CA901 is Off');
   assert.equal(by.twins.level, 'warn');
   assert.match(by.twins.detail, /Passkey-v1\.0\.1.*FIDO2-v1\.0|FIDO2-v1\.0.*Passkey-v1\.0\.1/);
   assert.doesNotMatch(by.twins.detail, /CA001-GRANT-Global/, 'a CloudFellows CA001 is not SMB\'s twin');
@@ -346,4 +352,71 @@ test('33007: a policy this page created that the list does not show yet is read 
   const late = await w.I.unlisted('tl', [{ id: 'other' }]);
   assert.deepEqual(plain(late.map((p) => p.id)), ['p-late']);
   assert.equal((await w.I.unlisted('tl', [{ id: 'p-late' }])).length, 0);
+});
+
+// 33104 — gimi, 29 Oct 2026: SMB - Allowed EU countries created at 09:49:36,
+// CA010 (which excludes it) posted in the same three-second run: a bare 400,
+// and the hint blamed the two Defender apps, whose service principals had
+// been in the tenant since 20 Oct.
+test('33104, gimi 29 Oct: a policy naming a named location this run just created waits for Conditional Access instead of failing', async () => {
+  const w = world({ locLag: 2 });
+  const { res, dep } = await smbRun(w, { freshWaits: quick }, ['CA010']);
+  assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => `${r.name}: ${r.error}`)), []);
+  assert.equal(stateOf(w, 'CA010'), 'enabledForReportingButNotEnforced');
+  assert.equal(w.posts.filter(([u, b]) => u === '/identity/conditionalAccess/policies' && b.displayName.startsWith('CA010')).length, 3, 'two refused, the third created');
+  assert.equal(dep.maps.freshLocs.size, 1);
+  assert.equal([...dep.maps.freshLocs.values()][0].name, 'SMB - Allowed EU countries');
+});
+
+test('33104: still unknown after the waits — nothing created, the reason names the new location, not the applications', async () => {
+  const w = world({ locLag: 99 });
+  const { res } = await smbRun(w, { freshWaits: quick }, ['CA010']);
+  const r = res.results[0];
+  assert.equal(r.ok, false);
+  assert.equal(r.createdId, null);
+  assert.match(r.error, /this run created the named location SMB - Allowed EU countries and Conditional Access had still not seen it/);
+  assert.match(r.error, /run the import again in a few minutes/);
+  assert.doesNotMatch(r.error, /references 2 application/);
+  assert.equal([...w.pols.values()].length, 0);
+});
+
+test('33104: a location that was already in the tenant is not waited for', async () => {
+  const w = world({ locLag: 99, locations: [{ id: 'eu-here', displayName: 'SMB - Allowed EU countries', '@odata.type': '#microsoft.graph.countryNamedLocation' }] });
+  const { res, dep } = await smbRun(w, { freshWaits: quick }, ['CA010']);
+  assert.equal(res.results[0].ok, true, res.results[0].error);
+  assert.equal((dep.maps.freshLocs || new Map()).size, 0);
+  assert.deepEqual(plain([...w.pols.values()][0].conditions.locations.excludeLocations), ['eu-here', '3d46dbda-8382-466a-856d-eb00cbc6b910']);
+});
+
+// 33107 (SMB Basic 1.0.9, the SMB review): a guest holding an admin role meets
+// CA101 (phishing-resistant) only with MFA from its home tenant AND inbound MFA
+// trust; GDAP technicians are not guests and are not counted.
+test('🛫 pre-flight, SMB 1.0.9: guests with an admin role and inbound MFA trust for CA101', async () => {
+  const GA = '62e90394-69f5-4237-9190-012177145e10';
+  const dirRoles = [
+    { id: 'r1', displayName: 'Global Administrator', roleTemplateId: GA, members: [
+      { id: 'm1', displayName: 'Admin', userPrincipalName: 'admin@klant.nl', userType: 'Member' },
+      { id: 'g1', displayName: 'Jan (MSP)', userPrincipalName: 'jan_msp.nl#EXT#@klant.onmicrosoft.com', userType: 'Guest' }] },
+    { id: 'r2', displayName: 'Directory Readers', roleTemplateId: '88d8e3e3-8f55-4a1e-953a-9b9898b8876b', members: [{ id: 'g2', displayName: 'Reader guest', userType: 'Guest' }] },
+  ];
+  const run = async (o) => {
+    const w = world(o);
+    const prepared = w.I.prepareBundle(w.S.bundle());
+    const pf = await w.I.preflight(prepared, w.I.plan(prepared, []), { tenantKey: 't9' });
+    return pf.checks.find((c) => c.key === 'guestadmins');
+  };
+  const warn = await run({ dirRoles });
+  assert.equal(warn.level, 'warn');
+  assert.match(warn.title, /1 guest with an admin role — CA101 would lock it out/);
+  assert.match(warn.detail, /Jan \(MSP\) \(Global Administrator\)/);
+  assert.doesNotMatch(warn.detail, /Reader guest/, 'a role CA101 does not target is not counted');
+  const trusted = await run({ dirRoles, mfaTrust: true });
+  assert.equal(trusted.level, 'ok');
+  const org = await run({ dirRoles, partners: [{ tenantId: 'x', inboundTrust: { isMfaAccepted: true } }] });
+  assert.equal(org.level, 'warn');
+  assert.match(org.detail, /on for 1 organisation/);
+  const none = await run({ dirRoles: [dirRoles[0]].map((r) => ({ ...r, members: [r.members[0]] })) });
+  assert.equal(none.level, 'ok');
+  const fail = await run({ rolesFail: true });
+  assert.equal(fail.level, 'info');
 });

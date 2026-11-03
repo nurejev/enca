@@ -10,12 +10,21 @@
 //     defaults → Require administrators to do multifactor authentication);
 //   * SMB tenants do not enrol admin devices — no compliant-device policy,
 //     a compliant network (Global Secure Access) for the admins instead;
+//     1.0.9 (Mihai 30 Oct: "admin accounts should be outside compliant
+//     network — SMB admins are usually externals with their own devices"):
+//     CA103 is withdrawn and CA201–CA204 leave the admin roles out; admins
+//     are held by CA004, CA101 (phishing-resistant), CA102 and CA104;
+//     1.0.10 (Mihai 30 Oct: "103 may become: admins outside the allowed
+//     countries only through a compliant network connection"): CA103 is the
+//     admins' country block WITH the compliant-network exception, and CA104
+//     (the same block without it) is withdrawn — a block always wins, so the
+//     two could not live side by side;
 //   * security-info registration protected (MFA or a Temporary Access Pass);
 //   * an exclusion group per policy and a restricted unit per section; the
 //     break-glass unit also holds the break-glass ACCOUNTS (T20 places them);
 //   * break-glass sign-in alert: left for later;
-//   * no E-Admins and no deploy groups — SMB004, CA101–CA104 and CA901
-//     cover the admins and the emergency accounts.
+//   * no E-Admins and no deploy groups — CA004, CA101, CA102, CA103 and
+//     CA901 cover the admins and the emergency accounts.
 //
 // NAMING. The mockup showed SMB001…SMB901. Every ENCA tool identifies a
 // policy by the CA number in its name (/CA(\d{3,4})/ — compare, import,
@@ -23,9 +32,12 @@
 // written the CloudFellows way: CAnnn-KIND-SMB-Persona-…-vX.Y. "SMB" is the
 // marker this catalog claims a name by — a CA001 without it is someone
 // else's CA001.
-//   BASE  CA001–CA009  replaces security defaults (+ registration, device
-//                      join, unmanaged desktop sessions — 1.0.2)
-//   ADM   CA101–CA104  admins, stricter than security defaults
+//   BASE  CA001–CA010  replaces security defaults (+ registration, device
+//                      join, unmanaged desktop sessions — 1.0.2; app
+//                      protection — 1.0.4; EU countries only — 1.0.6)
+//   ADM   CA101–CA103  admins, stricter than security defaults (1.0.10: CA103
+//                      is the country block with the compliant-network
+//                      exception; CA104 withdrawn)
 //   CN    CA201–CA205  Global Secure Access, per platform (as CA215–CA218),
 //                      and the unknown platforms (1.0.3)
 //   BG    CA901        the break-glass accounts themselves
@@ -79,6 +91,18 @@ const BASELINE_SMB = (() => {
   const SYNC_IDS = SYNC_ROLES.map((r) => r[0]);
   const SYNC_TXT = SYNC_ROLES.map((r) => `${r[1]} (role)`);
   const L_COUNTRIES = "5b5b0000-0000-4000-8000-0000000000c1";  // SMB - Allowed countries (placeholder id)
+  // 1.0.6 (Mihai 29 Oct: "add a SMB - Allowed EU countries, with all countries
+  // member of the EU"; chose a location AND a policy for every user, CA010,
+  // with CA104 keeping the admins on SMB - Allowed countries). The 27 member
+  // states, ISO 3166-1 alpha-2 as Graph takes them — Greece is GR, not the
+  // EU's own EL. Then (Mihai, the same day: "add these also Iceland,
+  // Liechtenstein, Norway, the UK and Switzerland"): the rest of the EEA, the
+  // United Kingdom (GB, not UK) and Switzerland too — 32 countries. The name
+  // stays SMB - Allowed EU countries, as he asked for it.
+  const L_EU = "5b5b0000-0000-4000-8000-0000000000c2";         // SMB - Allowed EU countries (placeholder id)
+  const EU_COUNTRIES = ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+    "IS", "LI", "NO", "GB", "CH"];
   const BG = "CAB-SEC-U-BreakGlass";
   const excl = (num) => `CAB-SEC-U-SMB-CA${String(num).padStart(3, "0")}-Exclusion`;
   // placeholder group ids: one per name, never written into a tenant
@@ -107,6 +131,7 @@ const BASELINE_SMB = (() => {
   const DEFENDER_XPLAT = "a0e84e36-b067-4d5c-ab4a-3db38e598ae2";    // MicrosoftDefenderATP XPlat
   const DEFENDER_TVM = "e724aa31-0f56-4018-b8be-f8cb82ca1196";      // Microsoft Defender for Mobile TVM
   const CRED_CONFIG = "ea890292-c8c8-4433-b5ea-b09d0668e1a6";       // Azure Credential Configuration Endpoint Service
+  const DRS = "01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9";               // Device Registration Service
 
   // The guest-and-external clause: every type, every tenant. Written with
   // the derived type Graph needs on a create (see js/builder.js guestClause).
@@ -137,10 +162,30 @@ const BASELINE_SMB = (() => {
     // 1.0.5 (Mihai 20 Oct: app protection policies should exclude Azure
     // Credential Configuration Endpoint Service — check CloudFellows): the
     // policies a phone meets with Authenticator on it
-    103: "1.0.5", 203: "1.0.5", 204: "1.0.5" };
+    103: "1.0.5", 203: "1.0.5", 204: "1.0.5",
+    // 1.0.6 (Mihai 29 Oct): CA010, every user only from the EU
+    // 1.0.7 (Mihai 29 Oct: "add one that allows access outside the eu when
+    // using compliant network"): CA010 also leaves out the compliant network
+    10: "1.0.7",
+    // 1.0.8 (Mihai 29 Oct, option B from the mockup: "how to allow when
+    // setting up mac or windows when the gsa client is not ready yet"): the
+    // compliant-network blocks leave out Device Registration Service
+    103: "1.0.8", 201: "1.0.8", 202: "1.0.8", 203: "1.0.8", 204: "1.0.8",
+    // 1.0.9 (Mihai 30 Oct, the SMB review: "admin accounts should be outside
+    // compliant network — SMB admins are usually externals with their own
+    // devices"): CA103 withdrawn; the per-platform compliant-network blocks
+    // leave the 16 admin roles out
+    201: "1.0.9", 202: "1.0.9", 203: "1.0.9", 204: "1.0.9",
+    // 1.0.10 (Mihai 30 Oct: "103 may become: admins outside the allowed
+    // countries only through a compliant network connection"): CA103 is the
+    // admins' country block with the compliant-network exception (as CA010
+    // 1.0.7 for everyone); CA104 withdrawn. Only CA103's definition changes —
+    // CA010 and CA201–CA204 merely name CA103 in their descriptions, which
+    // are not part of the policy, so they keep their versions
+    103: "1.0.10" };
   // the catalog's own release: the newest policy version in it
-  const CATALOG_RELEASE = "1.0.5";
-  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3" };
+  const CATALOG_RELEASE = "1.0.10";
+  const ADDED_IN = { 7: "1.0.2", 8: "1.0.2", 9: "1.0.4", 205: "1.0.3", 10: "1.0.6", 103: "1.0.10" };
   const add = (num, kind, persona, words, entry, raw) => {
     const version = VERSION[num] || RELEASE;
     const name = `CA${String(num).padStart(3, "0")}-${kind}-SMB-${persona}-${words}-v${version}`;
@@ -161,6 +206,7 @@ const BASELINE_SMB = (() => {
   const internalButSync = (num) => everyoneButSync(num, { excludeGuestsOrExternalUsers: ALL_EXTERNAL() });
   const ROLES_TXT = `${ADMIN_ROLES.length} directory roles (the security-defaults admin roles)`;
   const XG = "Guests & external users (all types, incl. service providers)";
+  const ADMIN_TXT = `${ADMIN_ROLES.length} directory roles (the security-defaults admin roles) — 1.0.9`;
   const cnPlatform = (p) => ({ platforms: { includePlatforms: [p], excludePlatforms: [] } });
   const cnLoc = { locations: { includeLocations: ["All"], excludeLocations: [CN_LOCATION] } };
   const cnApps = apps({ excludeApplications: [INTUNE, INTUNE_ENROLL] });
@@ -235,31 +281,77 @@ const BASELINE_SMB = (() => {
       description: "On a phone or tablet only apps under an Intune app protection policy reach company data — Outlook, Teams, Edge, the Office apps; the built-in mail app, Safari and Chrome are refused. Azure Credential Configuration Endpoint Service is left out so a passkey can still be created in Microsoft Authenticator, which does not support app protection. Needs app protection policies for iOS and Android assigned to the users (the import's pre-flight checks they exist), Microsoft Authenticator on iOS and Company Portal on Android as the broker." },
     { conditions: cond(internalButSync(9), { platforms: { includePlatforms: ["iOS", "android"], excludePlatforms: [] } }), grantControls: { operator: "OR", builtInControls: ["compliantApplication"], customAuthenticationFactors: [], termsOfUse: [] } });
 
+  // 1.0.6: every user only from the European Union. Users: all internal
+  // users — guests are left out (they sign in from their own countries, and
+  // their home tenant protects them), the sync roles as everywhere on all
+  // resources. Apps: the two Defender mobile apps, as the CloudFellows
+  // country policy (CA001 CountryWhitelist) leaves them out. Admins meet it
+  // too, and CA104 on top holds them to SMB - Allowed countries (1.0.10: CA103,
+  // with the same compliant-network exception as this policy). A traveller
+  // outside the EU goes into the policy's own exclusion group for the trip.
+  // Lands as the run lands (Report-only) — nothing to wait for.
+  // 1.0.7: a sign-in through the Global Secure Access client (the compliant
+  // network) is allowed from anywhere. Conditional Access has no allow — a
+  // block always wins — so the "allow" is a second excluded location on this
+  // block, not a policy of its own. Learn (compliant network check): GSA's own
+  // resources are left out automatically once a policy names the compliant
+  // network, so the client can bring its tunnel up from abroad. Admins stay on
+  // NL through CA104 (Mihai chose CA010 only; 1.0.10 gives the admins the same
+  // exception in CA103, which replaces CA104). On a tenant without GSA
+  // signalling Entra refuses the compliant network location: the import then
+  // creates CA010 without it (bundle.cnOptional) and says so — Mihai's choice.
+  add(10, "BLOCK", "Global", "AnyApp-AnyPlatform-OutsideAllowedEUCountries",
+    { persona: "🌐 Base", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources", network: "Any network or location · − SMB - Allowed EU countries · − All Compliant Network locations", conditions: ["Client apps: Any client app"], grant: "Block access", block: true, session: "",
+      description: "Every user is blocked outside the 27 member states of the European Union, Iceland, Liechtenstein, Norway, the United Kingdom and Switzerland — the named location SMB - Allowed EU countries, looked up from the sign-in's IP address; an address with no known country is blocked too. Guests are left out: they sign in from their own countries. Admins meet it as well, and CA103 holds them to SMB - Allowed countries on top — with the same compliant-network exception (1.0.10). Through the Global Secure Access client (the compliant network) a user may sign in from anywhere — so a traveller with a company device needs no exception; someone without the client goes into CAB-SEC-U-SMB-CA010-Exclusion for the trip. Without Global Secure Access signalling the import creates it without that exception and says so. Check the Report-only results for sign-ins from elsewhere before it goes On." },
+    { conditions: cond(internalButSync(10), { locations: { includeLocations: ["All"], excludeLocations: [L_EU, CN_LOCATION] } }), grantControls: block });
+
   // ADM — admins, stricter than security defaults
   add(101, "GRANT", "Admins", "AnyApp-AnyPlatform-PhishingResistantMFA",
     { persona: "🛡 Admins", include: [ROLES_TXT], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "Authentication strength: Phishing-resistant MFA", block: false, session: "",
-      description: "A passkey, FIDO2 key or Windows Hello for Business for every admin role. Check that every admin — the operator too — has one before it goes On." },
+      description: "A passkey, FIDO2 key or Windows Hello for Business for every admin role. Check that every admin — the operator too — has one before it goes On. A GUEST holding an admin role can only meet it with MFA from its home tenant: without inbound MFA trust for that organisation (cross-tenant access settings) Entra asks MFA here, where a guest cannot use a passkey or FIDO2 key — the pre-flight lists such guests (1.0.9). GDAP technicians are not guests: their MFA is always done and trusted in the partner tenant." },
     { conditions: cond(roles(101)), grantControls: strength(S_PR) });
   add(102, "SESSION", "Admins", "AnyApp-AnyPlatform-SIF4h-NeverPersistent",
     { persona: "🛡 Admins", include: [ROLES_TXT], resources: "All resources", network: "Any network or location", conditions: ["Client apps: Any client app"], grant: "No controls (grant)", block: false, session: "Sign-in frequency: 4 hours · Persistent browser: never",
       description: "Admin sessions end after 4 hours and are never kept in the browser." },
     { conditions: cond(roles(102)), grantControls: null,
       sessionControls: { signInFrequency: { value: 4, type: "hours", authenticationType: "primaryAndSecondaryAuthentication", frequencyInterval: "timeBased", isEnabled: true }, persistentBrowser: { mode: "never", isEnabled: true } } });
-  add(103, "BLOCK", "Admins", "AnyApp-AnyPlatform-OutsideCompliantNetwork",
-    { persona: "🛡 Admins", include: [ROLES_TXT], resources: "All resources · − Microsoft Intune · − Microsoft Intune Enrollment", network: "Any network or location · − All Compliant Network locations", conditions: ["Client apps: Any client app"], grant: "Block access", block: true, session: "",
-      landsOff: true, description: "Admins only from a device running the Global Secure Access client — the compliant network, instead of a compliant device (SMB tenants do not enrol admin devices). Lands Off: switch it on once 🌐 Global Secure Access shows the chain green for the admins' devices, before CA201–CA204 reach everyone." },
-    { conditions: { ...cond(roles(103), cnLoc), applications: cnApps }, grantControls: block });
-  add(104, "BLOCK", "Admins", "AnyApp-AnyPlatform-OutsideAllowedCountries",
-    { persona: "🛡 Admins", include: [ROLES_TXT], resources: "All resources", network: "Any network or location · − SMB - Allowed countries", conditions: ["Client apps: Any client app"], grant: "Block access", block: true, session: "",
-      description: "Admins are blocked outside the countries in the named location SMB - Allowed countries (the Netherlands by default — adjust it in 📍 Locations)." },
-    { conditions: cond(roles(104), { locations: { includeLocations: ["All"], excludeLocations: [L_COUNTRIES] } }), grantControls: block });
+  // CA103 (admins only through the compliant network, 1.0–1.0.8) is withdrawn
+  // in 1.0.9: SMB admins are mostly external people on their own devices,
+  // which carry no Global Secure Access client of this tenant. A tenant that
+  // imported it holds it Off (it always landed Off): 🧬 Baseline lists it as
+  // not in the catalog, and it can be deleted. The number stays free.
+  // 1.0.10 (Mihai 30 Oct, after the SMB review: "103 may become: admins
+  // outside the allowed countries only through a compliant network
+  // connection"). The admins' country block, with the exception CA010 has for
+  // everyone since 1.0.7: All locations, minus SMB - Allowed countries, minus
+  // All Compliant Network locations. An admin abroad gets in only through the
+  // Global Secure Access client of THIS tenant; at home it needs no client
+  // (admins are not held to the compliant network — 1.0.9). It replaces
+  // CA104 (the same block without the exception): Conditional Access has no
+  // allow and a block always wins, so CA104 beside it would still refuse the
+  // admin abroad. Without GSA signalling Entra refuses the compliant network
+  // location: the import creates it without that exception (bundle.cnOptional)
+  // and says so — it is then the old CA104. The Defender mobile apps are left
+  // out as in CA010: they carry the client on iOS and Android. Lands as the run
+  // lands — it waits for nothing. Guests holding an admin role meet it too
+  // (abroad they cannot use this tenant's client: their organisation's own
+  // exclusion, CAB-SEC-U-SMB-CA103-Exclusion, if they must); GDAP technicians
+  // are not in the role condition.
+  add(103, "BLOCK", "Admins", "AnyApp-AnyPlatform-OutsideAllowedCountriesUnlessCompliantNetwork",
+    { persona: "🛡 Admins", include: [ROLES_TXT], resources: "All resources", network: "Any network or location · − SMB - Allowed countries · − All Compliant Network locations", conditions: ["Client apps: Any client app"], grant: "Block access", block: true, session: "",
+      description: "Admins are blocked outside the countries in SMB - Allowed countries (the Netherlands by default — adjust it in 📍 Locations), unless the sign-in comes through the Global Secure Access client (the compliant network): an admin abroad works through the client, at home no client is needed. Replaces CA104 (1.0.10), which blocked abroad without that exception. Without Global Secure Access signalling the import creates it without the exception and says so." },
+    { conditions: cond(roles(103), { locations: { includeLocations: ["All"], excludeLocations: [L_COUNTRIES, CN_LOCATION] } }), grantControls: block });
+  // CA104 (admins blocked outside SMB - Allowed countries, 1.0–1.0.9) is
+  // withdrawn in 1.0.10: CA103 does the same with the compliant-network
+  // exception. A tenant that holds CA104 sees it as not in the catalog; switch
+  // it Off once CA103 is in place, then delete it.
 
   // CN — Global Secure Access, per platform
   const PLAT = [[201, "Windows", "windows"], [202, "macOS", "macOS"], [203, "iOS", "iOS"], [204, "Android", "android"]];
   for (const [num, label, plat] of PLAT) {
     add(num, "BLOCK", "Users", `AnyApp-${label}-OutsideCompliantNetwork`,
-      { persona: "🔒 Compliant network", include: ["All users"], exclude: [XG, ...SYNC_TXT], resources: "All resources · − Microsoft Intune · − Microsoft Intune Enrollment", network: "Any network or location · − All Compliant Network locations", conditions: [`Platforms: ${label}`, "Client apps: Any client app"], grant: "Block access", block: true, session: "",
-        landsOff: true, description: `Every user on ${label} only through the Global Secure Access client${/iOS|Android/.test(label) ? " (BYOD with app protection)" : ""}, so a stolen token is useless elsewhere. Admins are not excluded. Guests are: their device cannot carry this tenant's client. Lands Off until 🌐 Global Secure Access shows the chain green.` },
+      { persona: "🔒 Compliant network", include: ["All users"], exclude: [XG, ...SYNC_TXT, ADMIN_TXT], resources: "All resources · − Microsoft Intune · − Microsoft Intune Enrollment", network: "Any network or location · − All Compliant Network locations", conditions: [`Platforms: ${label}`, "Client apps: Any client app"], grant: "Block access", block: true, session: "",
+        landsOff: true, description: `Every user on ${label} only through the Global Secure Access client${/iOS|Android/.test(label) ? " (BYOD with app protection)" : ""}, so a stolen token is useless elsewhere. The admin roles are left out (1.0.9): SMB admins are mostly external people on their own devices, held instead by phishing-resistant MFA (CA101), 4-hour sessions (CA102) and the allowed countries, or the compliant network when abroad (CA103). Guests and service providers (GDAP) are left out too: their device cannot carry this tenant's client. Lands Off until 🌐 Global Secure Access shows the chain green.` },
       { conditions: { ...cond(internalButSync(num), { ...cnLoc, ...cnPlatform(plat) }), applications: cnApps }, grantControls: block });
   }
 
@@ -301,7 +393,8 @@ const BASELINE_SMB = (() => {
   //   DEFENDER the Defender mobile app carries the Global Secure Access client
   //            on iOS and Android and must reach its service from anywhere
   //            (defender-mobile-exclusion; Learn, compliant network, Mobile
-  //            app support) — the admins' CA103 too, it is any platform
+  //            app support) — the admins' CA103 too (withdrawn 1.0.9);
+  //            and CA010, as the CloudFellows country policy (CA001) (1.0.6)
   //   PASSKEY  Azure Credential Configuration Endpoint Service — where
   //            Microsoft Authenticator creates a passkey. Authenticator meets
   //            neither app protection nor (on a phone without the tunnel up)
@@ -310,7 +403,17 @@ const BASELINE_SMB = (() => {
   //            Authenticator → troubleshoot). CloudFellows excludes it from
   //            every app protection policy (CA108, CA212, CA307, CA1003) and
   //            from the GSA block (CA215–CA218); here: CA009 and the policies
-  //            a phone meets, CA103, CA203, CA204 (1.0.5)
+  //            a phone meets, CA103 (withdrawn 1.0.9), CA203, CA204 (1.0.5)
+  //   DRS      Device Registration Service (1.0.8): a Mac or PC being set up
+  //            registers with Entra (Entra join, Platform SSO) BEFORE Intune
+  //            has installed the Global Secure Access client — gimi, 25 Oct
+  //            2026: three Authentication Broker sign-ins to it from the new
+  //            ADE Mac, none through the tunnel; CA202 On would have refused
+  //            them. The same on a phone registering in Authenticator before
+  //            Defender's tunnel is on. Registering stays behind MFA (CA007);
+  //            excluded by client ID, as Learn documents for the API
+  //            (authentication flows → Device Registration Service). CA103 (until 1.0.9),
+  //            CA201–CA204.
   //   DC       B2B direct connect users: sign-in frequency and persistent
   //            browser are not supported for them (dc-unsupported-control;
   //            CloudFellows CA008, CA009)
@@ -318,12 +421,17 @@ const BASELINE_SMB = (() => {
   // exclusions (Windows Azure Active Directory, My Apps, My Profile …) — Learn
   // asks only Intune and Intune Enrollment of a compliant-network policy, and
   // every extra app exclusion is a hole.
+  //   ADMINS   the 16 admin roles (1.0.9): out of the compliant-network
+  //            blocks CA201–CA204 — SMB admins are mostly external people on
+  //            their own devices (Mihai, 30 Oct); CA101/CA102/CA103 hold them
   const EXCLUDE = {
     shared: [1, 3, 8, 9, 201, 202, 203, 204],
     vm: [1],
-    defender: [9, 103, 203, 204],
-    passkey: [9, 103, 203, 204],
+    defender: [9, 10, 103, 203, 204],
+    passkey: [9, 203, 204],
     directConnect: [8],
+    drs: [201, 202, 203, 204],
+    admins: [201, 202, 203, 204],
   };
   for (const p of P) {
     // cnApps and friends are shared objects: each policy gets its own copy
@@ -335,6 +443,8 @@ const BASELINE_SMB = (() => {
     if (EXCLUDE.vm.includes(p.num)) { a.excludeApplications.push(AZURE_VM_SIGNIN); why.push("Azure Windows VM Sign-In"); }
     if (EXCLUDE.defender.includes(p.num)) { a.excludeApplications.push(DEFENDER_XPLAT, DEFENDER_TVM); why.push("MicrosoftDefenderATP XPlat", "Microsoft Defender for Mobile TVM"); }
     if (EXCLUDE.passkey.includes(p.num)) { a.excludeApplications.push(CRED_CONFIG); why.push("Azure Credential Configuration Endpoint Service"); }
+    if (EXCLUDE.drs.includes(p.num)) { a.excludeApplications.push(DRS); why.push("Device Registration Service"); }
+    if (EXCLUDE.admins.includes(p.num)) { u.excludeRoles = [...(u.excludeRoles || []), ...ROLE_IDS.filter((r) => !(u.excludeRoles || []).includes(r))]; }
     if (EXCLUDE.directConnect.includes(p.num)) {
       u.excludeGuestsOrExternalUsers = { guestOrExternalUserTypes: "b2bDirectConnectUser", externalTenants: { "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants", membershipKind: "all" } };
       p.entry.exclude = [...(p.entry.exclude || []), "Guests & external users: B2B direct connect"];
@@ -349,13 +459,13 @@ const BASELINE_SMB = (() => {
     url: null,
     breakGlassGroup: BG,
     // No CloudFellows E-Admins under this baseline (Mihai, mockup 19 Oct):
-    // CA004, CA101–CA104 and CA901 cover the admins and the emergency accounts.
+    // CA004, CA101–CA103 and CA901 cover the admins and the emergency accounts.
     sharedEAdmins: false,
     groupPrefixes: ["CAB-SEC"],
     groupFilterPrefix: "CAB-SEC-U-",
     defaultAuName: "CA-RMAU-SMB-BASE",
     exclusionShape: "CAB-SEC-U-SMB-CAnnn-Exclusion",
-    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA009), CA-RMAU-SMB-ADM (CA101–CA104), CA-RMAU-SMB-CN (CA201–CA205) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
+    unitNote: "SMB Basic has no personas: one restricted unit per section — CA-RMAU-SMB-BASE (CA001–CA010), CA-RMAU-SMB-ADM (CA101–CA103), CA-RMAU-SMB-CN (CA201–CA205) — plus CA-RMAU-BreakGlass, which also holds the break-glass accounts.",
     adminRoles: ADMIN_ROLES.map(([id, name]) => ({ id, name })),
     syncRoles: SYNC_ROLES.map(([id, name]) => ({ id, name })),
     personas: [
@@ -371,8 +481,8 @@ const BASELINE_SMB = (() => {
     predefined: [BG, TSD],
     sharedDevicesGroup: TSD,
     groups: [BG, TSD, "one CAB-SEC-U-SMB-CAnnn-Exclusion group per policy"],
-    namedLocations: ["SMB - Allowed countries", "All Compliant Network locations"],
-    note: "Needs Entra ID P1 (Microsoft 365 Business Premium includes it). CA103 and CA201–CA204 need Global Secure Access with Conditional Access signalling on — they land Off. CA901 needs the Passkey (FIDO2) method on for the break-glass accounts; allow synced passkeys in its profile if they use one.",
+    namedLocations: ["SMB - Allowed countries", "SMB - Allowed EU countries", "All Compliant Network locations"],
+    note: "Needs Entra ID P1 (Microsoft 365 Business Premium includes it). CA201–CA204 need Global Secure Access with Conditional Access signalling on — they land Off; the admin roles are not held to the compliant network (1.0.9). CA901 needs the Passkey (FIDO2) method on for the break-glass accounts; allow synced passkeys in its profile if they use one.",
     policies: P.map((p) => ({ num: p.num, name: p.name, version: p.version, tag: p.version === RELEASE || ADDED_IN[p.num] ? "NEW" : "UP", ...p.entry,
       // the CloudFellows entry shape: groups first, then the other exclusions
       exclude: [`${excl(p.num)} (group)`, ...(p.num === 901 ? [] : [`${BG} (group)`]), ...(p.entry.sharedDevices ? [`${TSD} (group)`] : []), ...((p.entry.exclude || []).filter((x) => !/\(group\)$/.test(x)))] })),
@@ -452,16 +562,22 @@ const BASELINE_SMB = (() => {
       catalogId: "smb",
       policies,
       groups: groupsOf(),
-      namedLocations: [{ id: L_COUNTRIES, "@odata.type": "#microsoft.graph.countryNamedLocation", displayName: "SMB - Allowed countries", countriesAndRegions: ["NL"], includeUnknownCountriesAndRegions: false, countryLookupMethod: "clientIpAddress" }],
+      namedLocations: [
+        { id: L_COUNTRIES, "@odata.type": "#microsoft.graph.countryNamedLocation", displayName: "SMB - Allowed countries", countriesAndRegions: ["NL"], includeUnknownCountriesAndRegions: false, countryLookupMethod: "clientIpAddress" },
+        { id: L_EU, "@odata.type": "#microsoft.graph.countryNamedLocation", displayName: "SMB - Allowed EU countries", countriesAndRegions: EU_COUNTRIES.slice(), includeUnknownCountriesAndRegions: false, countryLookupMethod: "clientIpAddress" },
+      ],
       authStrengths: [
         { id: S_MFA, displayName: "Multifactor authentication", policyType: "builtIn" },
         { id: S_PR, displayName: "Phishing-resistant MFA", policyType: "builtIn" },
         { id: S_PASSKEY, displayName: "SMB - Passkey (FIDO2)", description: "Break-glass accounts: a passkey only — device-bound or synced, as the Passkey (FIDO2) profile allows (SMB Basic CA901).", policyType: "custom", requirementsSatisfied: "mfa", allowedCombinations: ["fido2"] },
       ],
       authContexts: [], termsOfUse: [],
-      // CA103 and CA201–CA204 land Off whatever the import's landing state:
+      // CA201–CA204 land Off whatever the import's landing state:
       // they block, and wait for 🌐 Global Secure Access to be green
       forceOff: landsOff,
+      // 1.0.7 (CA010) and 1.0.10 (CA103): created without the compliant network exclusion when Entra
+      // refuses it (no Global Secure Access signalling) — the import says so
+      cnOptional: P.filter((p) => p.num === 10 || p.num === 103).map((p) => p.name),
     }));
   };
   cat.landsOff = () => landsOff.slice();

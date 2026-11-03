@@ -90,6 +90,19 @@ const UserImpact = (() => {
     return f.value ? `${f.value} ${f.type === "days" ? "day(s)" : "hour(s)"}` : null;
   };
   const netTxt = (vm) => [...(vm.net && vm.net.inc || []), ...(vm.net && vm.net.exc || [])].join(" · ");
+  // 33111: a country block may now ALSO exclude the compliant network (CA001
+  // v1.0.3, SMB CA010/CA103), so the text test that told the two apart read
+  // CA001 as "the client must be running". Decided on the location ids: a
+  // block whose only exclusion is All Compliant Network locations is the GSA
+  // requirement; one with any other exclusion is a country/location block.
+  const CN_ID = "3d46dbda-8382-466a-856d-eb00cbc6b910";
+  const exLocs = (vm) => ((c(vm).locations || {}).excludeLocations || []).map((x) => String(x).toLowerCase());
+  const exCn = (vm) => exLocs(vm).includes(CN_ID);
+  const exNonCn = (vm) => exLocs(vm).filter((x) => x !== CN_ID);
+  // CA018 (CloudFellows, Joey+): a block on Microsoft Intune Enrollment alone
+  // outside trusted locations — an enrollment rule, not a country rule.
+  const INTUNE_ENROLL = "d4ebce55-015a-49b5-a083-c84d1797ae8c";
+  const enrollOnly = (vm) => { const a = (apps(vm).includeApplications || []).map((x) => String(x).toLowerCase()); return a.length === 1 && a[0] === INTUNE_ENROLL; };
 
   // One rule = one statement in the communication. `match` collects the
   // policies that make the statement true; `expect` is what the person
@@ -142,13 +155,17 @@ const UserImpact = (() => {
       expect: "Closing the browser ends the session — 'Stay signed in?' is no longer offered on the devices in scope (unmanaged devices, privileged accounts).",
       lost: "Staying signed in across browser restarts on unmanaged devices." },
     { id: "geo", icon: "🌍", title: "Sign-in only from approved countries",
-      match: (vm) => isBlock(vm) && ((c(vm).locations || {}).includeLocations || []).includes("All") && ((c(vm).locations || {}).excludeLocations || []).length > 0 && !/compliant network/i.test(netTxt(vm)),
+      match: (vm) => isBlock(vm) && ((c(vm).locations || {}).includeLocations || []).includes("All") && exNonCn(vm).length > 0 && !enrollOnly(vm),
       expect: "Sign-ins from outside the approved countries are blocked. Travelling for work? Request a travel exception BEFORE you leave.",
       lost: "Signing in from countries where the organization does not operate, without a pre-approved exception." },
+    { id: "enroll", icon: "🏢", title: "New Windows devices are set up from the office",
+      match: (vm) => isBlock(vm) && enrollOnly(vm),
+      expect: "Setting up a new or reset Windows laptop for work (enrolling it in Intune) only works on the office network. Ask IT before you reset a laptop at home.",
+      lost: "Enrolling a Windows device from home or another outside network." },
     { id: "cn", icon: "🛡", title: "The secure network client must be running",
-      match: (vm) => isBlock(vm) && /compliant network/i.test(netTxt(vm)),
-      expect: "On company Windows/macOS devices the Global Secure Access client must be active — if it is off or broken, access to company data is blocked until it runs again.",
-      lost: "Working without the secure network client on corporate desktops and laptops." },
+      match: (vm) => isBlock(vm) && (exCn(vm) || /compliant network/i.test(netTxt(vm))) && !exNonCn(vm).length,
+      expect: "On the devices in scope — company laptops, and phones where the policy covers them — the Global Secure Access client must be active. If it is off or broken, access to company data is blocked until it runs again.",
+      lost: "Working without the secure network client on the devices the policy covers." },
     { id: "compliant", icon: "💻", title: "Company devices must be enrolled and healthy",
       match: (vm) => managedGrant(vm) || managedBlock(vm),
       // Both forms can be in scope for the same audience, and they do not say
@@ -231,7 +248,7 @@ const UserImpact = (() => {
   // catalog is newer than this, the brief says so rather than quietly assuming
   // it still matches. Bumping this is a deliberate act: read the new catalog's
   // header, walk the RULES, THEN change the date.
-  const RULES_CHECKED_AGAINST = "2026-08-20";
+  const RULES_CHECKED_AGAINST = "2026-11-03";
   const baselineRev = () => (typeof BASELINE !== "undefined" && BASELINE && BASELINE.revised) || null;
   // Absent or unreadable is not "stale" — an integration that is missing must
   // not turn into a warning about something else (roadmap R32/R34).

@@ -120,6 +120,11 @@ const GROUP_TEMPLATES = [
     "mailNickname": "CABSECUCA017Exclusion"
   },
   {
+    "displayName": "CAB-SEC-U-CA018-Exclusion",
+    "description": "CA Baseline group - exclusion for CA018 (Windows Intune enrollment only from a trusted location)",
+    "mailNickname": "CABSECUCA018Exclusion"
+  },
+  {
     "displayName": "CAB-SEC-U-CA100-Exclusion",
     "description": "Description of CAB-SEC-U-CA100-Exclusion",
     "mailNickname": "CABSECUCA100Exclusion"
@@ -230,6 +235,26 @@ const GROUP_TEMPLATES = [
     "mailNickname": "CABSECUCA112Exclusion"
   },
   {
+    "displayName": "CAB-SEC-U-CA113-Exclusion",
+    "description": "CA Baseline group - exclusion for CA113 (Admins only through Global Secure Access, Windows)",
+    "mailNickname": "CABSECUCA113Exclusion"
+  },
+  {
+    "displayName": "CAB-SEC-U-CA114-Exclusion",
+    "description": "CA Baseline group - exclusion for CA114 (Admins only through Global Secure Access, macOS)",
+    "mailNickname": "CABSECUCA114Exclusion"
+  },
+  {
+    "displayName": "CAB-SEC-U-CA115-Exclusion",
+    "description": "CA Baseline group - exclusion for CA115 (Admins only through Global Secure Access, iOS)",
+    "mailNickname": "CABSECUCA115Exclusion"
+  },
+  {
+    "displayName": "CAB-SEC-U-CA116-Exclusion",
+    "description": "CA Baseline group - exclusion for CA116 (Admins only through Global Secure Access, Android)",
+    "mailNickname": "CABSECUCA116Exclusion"
+  },
+  {
     "displayName": "CAB-SEC-U-CA200-Exclusion",
     "description": "Description of CAB-SEC-U-CA200-Exclusion",
     "mailNickname": "CABSECUCA200Exclusion"
@@ -308,6 +333,11 @@ const GROUP_TEMPLATES = [
     "displayName": "CAB-SEC-U-CA214-Exclusion",
     "description": "Description of CAB-SEC-U-CA214-Exclusion",
     "mailNickname": "CABSECUCA214Exclusion"
+  },
+  {
+    "displayName": "CAB-SEC-U-CA215-Exclusion",
+    "description": "Description of CAB-SEC-U-CA215-Exclusion",
+    "mailNickname": "CABSECUCA215Exclusion"
   },
   {
     "displayName": "CAB-SEC-U-CA216-Exclusion",
@@ -478,6 +508,11 @@ const GROUP_TEMPLATES = [
     "displayName": "CAB-SEC-U-CA604-Exclusion",
     "description": "Description of CAB-SEC-U-CA604-Exclusion",
     "mailNickname": "CABSECUCA604Exclusion"
+  },
+  {
+    "displayName": "CAB-SEC-U-ExternalAdmins",
+    "description": "External admins who cannot run this tenant's Global Secure Access client - excluded from CA113-CA116. Filled by hand; review every quarter.",
+    "mailNickname": "CABSECUExternalAdmins"
   },
   {
     "displayName": "CAB-SEC-U-Persona-Admins",

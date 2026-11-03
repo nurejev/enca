@@ -4212,12 +4212,18 @@
   function imEaPanel() {
     if (!imBundle || !imPlan) return "";
     const toCat = imTargetCatalog();
+    // 33109: the Joey+ additions taken in beside the E-Admins
+    const plusPanel = imEa && imEa.plus && imEa.plus.length ? `<div class="cg-panel">
+        <h4>➕ JOEY+ — ${imEa.plus.length} ADDED — CREATED FROM ENCA'S OWN COPY</h4>
+        <p class="mini" style="margin:0">The Joey Verlinden+ additions ENCA ships beside his release: ${esc(imEa.plus.map((n) => n.slice(0, 5)).join(", "))}. CA018 (Windows enrollment only from a trusted location) and CA019 (app protection on phones) land as this run lands; CA020–CA023 (users and admins only through the Global Secure Access client) land <b>Off</b> until 🌐 Global Secure Access shows the chain green. Their exclusion groups and <code>${esc(JOEY_PLUS.externalAdminsGroup)}</code> are created here and filed in the Global unit.</p>
+      </div>` : "";
     if (imEa && imEa.added && imEa.added.length) {
-      return `<div class="cg-panel">
+      return plusPanel + `<div class="cg-panel">
         <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED${imEa.bundled ? " — CREATED FROM ENCA'S OWN COPY" : ` FROM ${esc(String(imEa.label).toUpperCase())}`}</h4>
         <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
       </div>`;
     }
+    if (plusPanel) return plusPanel;
     // a file that ships its own E-Admins (a CloudFellows backup) needs nothing
     if (imPlan.some((p) => p.asIs)) return "";
     // 32902: nor does a baseline that covers its own admins and break-glass
@@ -4255,17 +4261,28 @@
       const toCat = imTargetCatalog();
       const cf = Baseline.catalog("limonit");
       const m = Importer.mergeShared(imRaw, E_ADMINS.bundle(), { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
-      if (!m.added.length) { if (!opts.auto) toast("The E-Admins policies are already in this import"); return; }
+      // 33109 ➕ Joey+ (js/joeyPlusData.js): under Joey Verlinden's catalog the
+      // additions ENCA ships beside his release come along the same way —
+      // CA018, CA019 as the run lands, CA020–CA023 Off until GSA is green
+      let plus = { added: [], already: 0 };
+      if (toCat && toCat.id === "joey" && typeof JOEY_PLUS !== "undefined") {
+        plus = Importer.mergeShared(m.bundle, JOEY_PLUS.bundle(), { label: JOEY_PLUS.source.label, match: JOEY_PLUS.isPlus, forceOff: JOEY_PLUS.forceOff });
+        plus.bundle.sharedFrom = m.bundle.sharedFrom; plus.bundle.sharedRenamed = m.bundle.sharedRenamed;
+      }
+      const added = [...m.added, ...plus.added];
+      if (!added.length) { if (!opts.auto) toast("The E-Admins policies are already in this import"); return; }
       const keep = new Set([...document.querySelectorAll("[data-imp]:checked")].map((cb) => imPlan[+cb.dataset.imp].name));
       // only what the tenant does not already hold is ticked — the plan marks
       // the rest skip, and an auto-add must never re-tick what was unticked
-      m.added.forEach((n) => keep.add(n));
-      imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed, bundled: true };
+      added.forEach((n) => keep.add(n));
+      imEa = { label, added: m.added, already: m.already, renamed: m.bundle.sharedRenamed, bundled: true, plus: plus.added, plusAlready: plus.already };
       const keepLand = imLand;
-      await imLoaded(m.bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins from ENCA's own copy`, { mode: imMode, only: keep });
+      const bundle = plus.added.length ? plus.bundle : m.bundle;
+      await imLoaded(bundle, `${imFileName.replace(/ \+ E-Admins from .*$/, "")} + E-Admins${plus.added.length ? " and Joey+" : ""} from ENCA's own copy`, { mode: imMode, only: keep });
       imLand = keepLand;
       const r = document.querySelector(`input[name="imLand"][value="${imLand}"]`); if (r) r.checked = true;
-      toast(`<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} added from ENCA's own copy — they land Off`);
+      toast([m.added.length ? `<span>${m.added.length}</span> E-Admins ${m.added.length === 1 ? "policy" : "policies"} (land Off)` : "",
+        plus.added.length ? `<span>${plus.added.length}</span> Joey+ ${plus.added.length === 1 ? "addition" : "additions"} (CA020–CA023 land Off)` : ""].filter(Boolean).join(" and ") + " added from ENCA's own copy");
     } catch (err) {
       console.error(err);
       imEa = { label, error: `Could not add the E-Admins: ${err.message || err}` };
@@ -5805,7 +5822,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     cgManual.migrate.set(row.id, row);
     const one = CaGroups.migratePlan([row], { roles, protectedIn, rmauName: st.auName,
-      disableNesting: st.nesting, toAu: st.toAu !== false });
+      disableNesting: st.nesting, toAu: st.toAu !== false, allRows: (cgRes && cgRes.rows) || [] });
     const mark = (x) => ({ ...x, manual: true });
     st.plan = { ...st.plan,
       items: [...st.plan.items, ...one.items.map(mark)],
@@ -6153,7 +6170,7 @@ max@contoso.com,"Global, DevOps"</pre>
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
       cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0, scopeIds: only ? [...only] : null,
-        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA }) };
+        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA, allRows: cgRes.rows }) };
       if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
       console.error("Migrate scan failed:", e);
@@ -6204,7 +6221,7 @@ max@contoso.com,"Global, DevOps"</pre>
     const rows = p.eligible.map((x) => `<div style="padding:8px 0;border-top:1px solid var(--border)">
         <label class="chk" style="margin:0"><input type="checkbox" data-cgmig="${esc(x.id)}"${sel.has(x.id) ? " checked" : ""}>
           <b>${esc(x.name)}</b></label>
-        <span class="tag">${x.nRef} polic${x.nRef === 1 ? "y" : "ies"}</span>${x.memberTotal != null ? ` <span class="tag">${x.memberTotal} member${x.memberTotal === 1 ? "" : "s"}</span>` : ""}${byHand(x)}
+        ${x.resume ? `<span class="tag upd" title="An earlier run stopped after creating the replacement. The archived original still holds the members and the policies; this run picks up at the member copy.">finish an earlier run</span> ` : ""}<span class="tag">${x.nRef} polic${x.nRef === 1 ? "y" : "ies"}</span>${x.memberTotal != null ? ` <span class="tag">${x.memberTotal} member${x.memberTotal === 1 ? "" : "s"}</span>` : ""}${byHand(x)}
         <ol class="mini muted" style="margin:6px 0 0 20px;padding:0">${x.steps.map((q) => `<li>${esc(q.text)}</li>`).join("")}</ol>
       </div>`).join("");
 
@@ -6227,6 +6244,7 @@ max@contoso.com,"Global, DevOps"</pre>
           <span class="mini muted">${nSel} of ${p.eligible.length} selected</span>
         </div>
         <div class="cg-pick">${rows}</div>
+        ${p.eligible.some((x) => x.resume) ? `<p class="mini" style="margin:8px 0 0;color:var(--report)">⚠ <b>${p.eligible.filter((x) => x.resume).length} of these finish an earlier run</b> that stopped after creating the replacement: the archived <code>(migrated …)</code> group still holds the members and every policy still names it. The run does not rename or create anything for them — it copies the members (those already there are left as they are), repoints the policies and places the group in the unit. The archived group stays as your rollback until 🧹 Archived groups deletes it.</p>` : ""}
         ${findPanel}
         <div class="cg-actionbar">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
@@ -6272,7 +6290,7 @@ max@contoso.com,"Global, DevOps"</pre>
           const COL = { done: "var(--on)", undone: "var(--report)", partial: "var(--report)", failed: "var(--off)", skipped: "var(--muted)" };
           const ledger = (x.steps || []).length ? `<ol class="mini" style="margin:6px 0 0 4px;padding:0;list-style:none">${x.steps.map((s) => `<li style="padding:1px 0"><b style="color:${COL[s.s] || "inherit"}">${ICON[s.s] || "•"}</b> ${esc(s.label)}${s.note ? ` <span class="muted">— ${esc(s.note)}</span>` : ""}</li>`).join("")}</ol>` : "";
           return `<div style="padding:8px 0;border-top:1px solid var(--border)">
-            <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? "migrated" : `failed at: ${esc((x.steps.find((s) => s.k === x.failedAt) || {}).label || x.failedAt || "")}`}</span> <b>${esc(x.name)}</b>
+            <span class="tag ${x.ok ? "grant" : "block"}">${x.ok ? (x.resumed ? "finished" : "migrated") : `failed at: ${esc((x.steps.find((s) => s.k === x.failedAt) || {}).label || x.failedAt || "")}`}</span> <b>${esc(x.name)}</b>
             ${x.membersMoved != null && x.memberTotal != null ? `<span class="tag">${x.membersMoved}/${x.memberTotal} members</span>` : ""}
             ${x.refsMoved != null ? `<span class="tag">${x.refsMoved} policies</span>` : ""}
             ${x.ok ? (x.inAu ? '<span class="tag ok">in the restricted AU</span>' : '<span class="tag block">not protected yet</span>') : ""}
@@ -6282,7 +6300,8 @@ max@contoso.com,"Global, DevOps"</pre>
             ${x.archiveName && x.ok ? `<div class="mini muted">rollback: ${esc(x.archiveName)}</div>` : ""}
           </div>`; }).join("")}
         ${outside.length ? `<p class="mini" style="margin:12px 0 0;color:var(--report)">⚠ <b>${outside.length} group${outside.length === 1 ? " is" : "s are"} converted but not protected.</b> They are ordinary groups now, so any tenant-wide Groups Administrator can change their members until you place them in a restricted AU.</p>` : ""}
-        <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups are your rollback — remove them from <b>🧹 Archived groups</b> in the toolbar once you are satisfied; that dialog takes the old group out of any policy still naming it and checks its other uses before it deletes.</p>
+        ${ok < r.length ? `<p class="mini" style="margin:12px 0 0;color:var(--off)">⛔ <b>For the ${r.length - ok} failed group${r.length - ok === 1 ? "" : "s"} the archived <code>(migrated …)</code> original is still the live group</b> — it holds the members and every policy still names it. Do not delete it and do not take it out of its policies. <b>⟳ Rescan</b> then run ⑦ Migrate again: the archived group is offered as “finish an earlier run” and the run picks up at the member copy.</p>` : ""}
+        <p class="mini" style="margin:12px 0 0">Check the members of each new group before deleting anything. The archived groups of the ${ok < r.length ? "<b>migrated</b> rows" : "migrated groups"} are your rollback — remove them from <b>🧹 Archived groups</b> in the toolbar once you are satisfied; that dialog takes the old group out of any policy still naming it and checks its other uses before it deletes.</p>
         <div class="row" style="justify-content:flex-start;margin-top:12px">
           ${outside.length ? '<button class="btn primary" id="cgMigProtect">🔒 Protect them now (⑥)</button>' : ""}
           <button class="btn" id="cgMigMd">📄 Change report</button>
@@ -6434,12 +6453,24 @@ max@contoso.com,"Global, DevOps"</pre>
       cur = i; L.start(i);
       // The ledger: every step the run takes, with what it did — so a failure
       // says exactly where it stopped, what is already changed and what to do.
-      const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName, oldId: x.id, steps: [] };
+      const res = { name: x.name, ok: false, memberTotal: x.memberTotal, archiveName: x.archiveName, oldId: x.id, steps: [], resumed: !!x.resume };
       const STEP = { rename: "Rename the old group aside", create: "Create the plain replacement", members: "Copy the members", repoint: "Repoint the policies", verify: "Verify no policy still names the old group", au: "Place the new group in the restricted AU" };
       const step = (k, s, note) => { const e = res.steps.find((q) => q.k === k); if (e) { e.s = s; e.note = note || e.note; } else res.steps.push({ k, label: STEP[k], s, note: note || "" }); };
       let stage = "rename";
       try {
-        say(`<div><b>${esc(x.name)}</b></div>`);
+        say(`<div><b>${esc(x.name)}</b>${x.resume ? ' <span class="muted">— finishing an earlier run</span>' : ""}</div>`);
+        let created;
+        if (x.resume) {
+          // FINISHING an earlier run that stopped after the create: the old
+          // group is already renamed aside and the plain replacement already
+          // exists under the live name. Neither step is repeated — repeating
+          // the rename would stack a second suffix, repeating the create would
+          // make a third group — and the run picks up at the member copy.
+          step("rename", "skipped", `already named ${x.archiveName} by the earlier run`);
+          step("create", "skipped", `${x.name} already exists (${x.newId})`);
+          say(`<div>&nbsp;&nbsp;• the archived group and the plain replacement are both there — picking up at the member copy</div>`);
+          created = { id: x.newId, nesting: "kept" };
+        } else {
         // 1. rename the old one aside
         if (!isDemo) await Graph.gpatch(`/groups/${x.id}`, { displayName: x.archiveName }, scopes);
         step("rename", "done", `now named ${x.archiveName}`);
@@ -6448,7 +6479,6 @@ max@contoso.com,"Global, DevOps"</pre>
         // failed create rolls the rename back, so a group that failed here is
         // exactly as it was.
         stage = "create";
-        let created;
         if (isDemo) { created = { id: "demo-new-" + x.id, nesting: t.nesting ? "disabled" : "n/a" }; }
         else {
           try { created = await Assign.createGroup({ displayName: x.name, roleAssignable: false, disableNesting: !!t.nesting }, { mustCreate: true }); }
@@ -6471,6 +6501,16 @@ max@contoso.com,"Global, DevOps"</pre>
         const nestWord = res.nesting === "disabled" ? "nesting disabled" : res.nesting === "unsupported" ? "nesting not available in this tenant" : res.nesting === "failed" ? `nesting STILL ALLOWED — ${res.nestingError || "not confirmed"}` : "";
         step("create", "done", `${x.name} (${created.id})${nestWord ? `, ${nestWord}` : ""}`);
         say(`<div>&nbsp;&nbsp;✓ created plain group${nestWord ? ` (${nestWord})` : ""}</div>`);
+        // The next write names the new id. Give the directory the moment it
+        // sometimes needs before that write lands on a replica that has not
+        // seen the create (LeeuwendaalAdvies, 27 Oct: seven of eight failed
+        // right here). Every later write retries on its own as well.
+        if (!isDemo) {
+          const waited = await awaitGroup(created.id);
+          if (waited) { step("create", "done", `${x.name} (${created.id})${nestWord ? `, ${nestWord}` : ""} — the directory took ${waited} s to show it`); say(`<div>&nbsp;&nbsp;· waited ${waited} s for the directory to show the new group</div>`); }
+        }
+        }
+        if (x.resume) { res.newId = created.id; res.nesting = "kept"; }
         stage = "members";
         // 3. members BEFORE the AU, or they can never be added
         if (!isDemo) {
@@ -6564,8 +6604,8 @@ max@contoso.com,"Global, DevOps"</pre>
         stage = "au";
         if (toAu) {
           if (!isDemo) {
-            await Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
-              { "@odata.id": `https://graph.microsoft.com/beta/groups/${created.id}` }, scopes);
+            await settled(() => Graph.gpost(`/administrativeUnits/${auId}/members/$ref`,
+              { "@odata.id": `https://graph.microsoft.com/beta/groups/${created.id}` }, scopes));
           }
           res.inAu = true;
           step("au", "done", t.auName || "");
@@ -6580,13 +6620,16 @@ max@contoso.com,"Global, DevOps"</pre>
       } catch (err) {
         res.error = err.message || String(err);
         res.failedAt = stage;
+        // A member copy that stopped part-way still moved what it moved — the
+        // row and the report say how many, not "—".
+        if (err.log) { res.membersMoved = err.log.moved; res.memberTotal = err.log.total; res.membersFailed = err.log.failed; }
         L.fail(i, `${STEP[stage] || stage}: ${res.error}`);
         step(stage, "failed", res.error);
         // what the tenant looks like NOW, and what to do about it
         res.state = stage === "rename" ? "Nothing changed."
           : stage === "create" ? (res.steps.find((q) => q.k === "rename" && q.s === "undone") ? "Nothing changed — the old group has its name and every policy still points at it." : `The old group is still renamed to ${x.archiveName}; nothing else changed. Rename it back by hand, or run Migrate again for this group.`)
-          : stage === "members" ? `The new plain group exists with ${res.membersMoved || 0} of ${res.memberTotal ?? "?"} members; every policy still points at the OLD group (${x.archiveName}), so nobody is uncovered. Finish by hand: copy the missing members to the new group, then use ④ Assign to swap the policies from the old group to the new one — or delete the new group and rename the old one back.`
-          : stage === "repoint" ? `The new group has its members; the new group was ADDED to ${res.refsAdded || 0} polic${res.refsAdded === 1 ? "y" : "ies"} and the old group REMOVED from ${res.refsRemoved || 0} — the rest still point at the old group (${x.archiveName}), so nobody is uncovered. Finish with ④ Assign: add the new group and remove the old one on the policies still naming it.`
+          : stage === "members" ? `The new plain group exists with ${res.membersMoved || 0} of ${res.memberTotal ?? "?"} members; every policy still points at the OLD group (${x.archiveName}), so nobody is uncovered — do NOT delete the archived group. Finish it: ⟳ Rescan and run ⑦ Migrate again — it finds the archived group and picks up at the member copy — or by hand: copy the missing members, then ④ Assign to swap the policies from the old group to the new one; or undo: delete the new group and rename the old one back.`
+          : stage === "repoint" ? `The new group has its members; the new group was ADDED to ${res.refsAdded || 0} polic${res.refsAdded === 1 ? "y" : "ies"} and the old group REMOVED from ${res.refsRemoved || 0} — the rest still point at the old group (${x.archiveName}), so nobody is uncovered — do NOT delete the archived group yet. Finish it: ⟳ Rescan and run ⑦ Migrate again, or with ④ Assign: add the new group and remove the old one on the policies still naming it.`
           : stage === "verify" ? "The migration is done; the read-back could not confirm every policy dropped the old group — check the list for a dangling reference before deleting the archive."
           : "The group is migrated but sits OUTSIDE the restricted AU — a tenant-wide Groups Administrator can change its members until ⑥ Protect files it.";
         say(`<div style="color:var(--off)">&nbsp;&nbsp;✗ ${esc(res.error)}</div><div class="mini" style="color:var(--report)">&nbsp;&nbsp;→ ${esc(res.state)}</div>`);
@@ -7626,13 +7669,19 @@ max@contoso.com,"Global, DevOps"</pre>
   // Group.ReadWrite.All "won't work" for their membership — so both scopes go
   // on every call rather than guessing which the target turned out to be.
   const MEMBER_MOVE_SCOPES = ["Group.ReadWrite.All", "RoleManagement.ReadWrite.Directory"];
+
   async function moveGroupMembers(fromId, toId, onStatus) {
     // ALL member types come across, not just users — a persona group can hold
     // service principals (service-account personas) and the old code left
     // those behind silently. The one hard limit is Entra's, not ours: a
     // role-assignable group cannot contain GROUPS as members, so nested
     // groups are reported as skipped with that reason instead of failing.
+    //
+    // Every throw below carries the log (e.log): the caller reports how many
+    // members DID land before the failure, instead of a dash — the report
+    // used to show "—" for a group with 40 of 41 members copied.
     const log = { moved: 0, total: 0, failed: [], skippedGroups: [] };
+    const fail = (msg) => { const e = new Error(msg); e.log = log; return e; };
     const members = await Graph.ggetAll(`/groups/${fromId}/members?$select=id,displayName`);
     const movable = [];
     for (const m of members) {
@@ -7640,13 +7689,13 @@ max@contoso.com,"Global, DevOps"</pre>
       else movable.push(m);
     }
     log.total = members.length;
-    if (log.skippedGroups.length) throw new Error(`Membership copy stopped: ${log.skippedGroups.length} nested groups need an explicit migration plan. Policy references were not changed.`);
+    if (log.skippedGroups.length) throw fail(`Membership copy stopped: ${log.skippedGroups.length} nested groups need an explicit migration plan. Policy references were not changed.`);
     for (let i = 0; i < movable.length; i++) {
       onStatus?.(`Moving member ${i + 1}/${movable.length}…`);
       try {
-        await Graph.gpost(`/groups/${toId}/members/$ref`,
+        await settled(() => Graph.gpost(`/groups/${toId}/members/$ref`,
           { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${movable[i].id}` },
-          [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]);
+          [...AUTH_CONFIG.scopes, ...MEMBER_MOVE_SCOPES]));
         log.moved++;
       } catch (e) {
         const already = /already exist/i.test(e.message || "");
@@ -7654,11 +7703,48 @@ max@contoso.com,"Global, DevOps"</pre>
         else log.failed.push({ name: movable[i].displayName || movable[i].id, error: e.message || String(e) });
       }
     }
-    if (log.failed.length) throw new Error(`Membership copy incomplete: ${log.failed.length} failed. The replacement remains staged; policy references were not changed.`);
-    const actual = new Set((await Graph.ggetAll(`/groups/${toId}/members?$select=id`)).map(m => m.id));
+    if (log.failed.length) {
+      // The reason travels with the count. "3 failed" says nothing about
+      // whether to retry, fix a permission or stop; the first error does.
+      const first = log.failed[0];
+      throw fail(`Membership copy incomplete: ${log.failed.length} of ${movable.length} failed — ${first.name}: ${first.error}. The replacement remains staged; policy references were not changed.`);
+    }
+    const actual = new Set((await settled(() => Graph.ggetAll(`/groups/${toId}/members?$select=id`))).map(m => m.id));
     const missing = movable.filter(m => !actual.has(m.id));
-    if (missing.length) throw new Error(`Membership verification incomplete: ${missing.length} members not confirmed in the replacement. Retry after replication; policy references were not changed.`);
+    if (missing.length) throw fail(`Membership verification incomplete: ${missing.length} members not confirmed in the replacement. Retry after replication; policy references were not changed.`);
     return log;
+  }
+
+  // ---- a write right after a create (beta 33101) ----------------------------
+  // The directory is eventually consistent: a group created a moment ago can
+  // answer "does not exist" to the very next call that names it — a member
+  // add, a read of its members, its placement in a unit. LeeuwendaalAdvies,
+  // 27 Oct 2026 (v2.0.8): ⑦ Migrate created the replacement for seven groups
+  // and every one of them then FAILED at the member copy; the only group that
+  // went through was the one with no members to copy, because nothing was
+  // written to its new id until seconds later. 📥 Import met the same thing
+  // on policies (readSettled / patchSettled in js/import.js); this is the
+  // group-side counterpart. A "not here yet / busy" answer is repeated on a
+  // short backoff (about 20 s in all); a real refusal — a 400, a 403 — is
+  // final at once, because waiting would not change it.
+  const SETTLE_TRANSIENT = /\((404|429|500|502|503|504)\)|ResourceNotFound|does not exist|temporarily|try again/i;
+  const SETTLE_WAITS = [1500, 3000, 6000, 10000];
+  async function settled(fn, onWait) {
+    for (let n = 0; ; n++) {
+      try { return await fn(); }
+      catch (e) {
+        if (!SETTLE_TRANSIENT.test(e.message || "") || n >= SETTLE_WAITS.length) throw e;
+        onWait?.(SETTLE_WAITS[n], n + 1, e);
+        await new Promise((r) => setTimeout(r, SETTLE_WAITS[n]));
+      }
+    }
+  }
+  // Wait until the directory answers for a group it just created. Returns the
+  // seconds waited (0 when the first read answered), so the ledger can say so.
+  async function awaitGroup(id) {
+    const t0 = Date.now();
+    await settled(() => Graph.gget(`/groups/${id}?$select=id`));
+    return Math.round((Date.now() - t0) / 1000);
   }
 
   // ---- housekeeping: the groups a recreate left behind ----------------------
@@ -11698,7 +11784,7 @@ This is a directory write. Nothing else changes.`)) return;
     const RO = "enabledForReportingButNotEnforced";
     if (id === "smb") {
       if (!(await imSmbLoad({ land: RO }))) return;
-      $("imDesc").textContent = `Step ① of moving off security defaults: ${BASELINE_SMB.label} ${BASELINE_SMB.release}, every policy ticked. New policies land Report-only — CA103 and CA201–CA204 land Off, they wait for 🌐 Global Secure Access. Nothing changes for users until ⇄ on the 🧬 Baseline screen, which turns CA001–CA005 On.`;
+      $("imDesc").textContent = `Step ① of moving off security defaults: ${BASELINE_SMB.label} ${BASELINE_SMB.release}, every policy ticked. New policies land Report-only — CA201–CA204 land Off, they wait for 🌐 Global Secure Access (admins are not held to it). Nothing changes for users until ⇄ on the 🧬 Baseline screen, which turns CA001–CA005 On.`;
       return;
     }
     if (id === "joey") {

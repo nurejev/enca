@@ -64,12 +64,12 @@ function world(opts = {}) {
 }
 const nameOf = (w, gid) => (w.groups.get(gid) || {}).displayName || `MISSING ${gid}`;
 
-test('the catalog: 19 policies in four sections, numbered where every tool reads a CA number', () => {
+test('the catalog: 19 policies in four sections (1.0.10: CA103 the admins\' country block, CA104 withdrawn), numbered where every tool reads a CA number', () => {
   const { S } = world();
   assert.equal(S.policies.length, 19);
-  assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 101, 102, 103, 104, 201, 202, 203, 204, 205, 901]);
+  assert.deepEqual(plain(S.policies.map((p) => p.num)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 101, 102, 103, 201, 202, 203, 204, 205, 901]);
   for (const p of S.policies) {
-    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.[1-5])?$/, p.name);
+    assert.match(p.name, /^CA\d{3}-(GRANT|BLOCK|SESSION)-SMB-[A-Za-z]+-.+-v1\.0(\.([1-9]|10))?$/, p.name);
     assert.equal(S.personaOfPolicy(S, p.name) != null, true, `${p.name} has a section`);
   }
   assert.equal(new Set(S.policies.map((p) => p.name)).size, 19, 'names are unique');
@@ -89,6 +89,7 @@ test('the contract: exclusion group per policy, a unit per section, break-glass 
   }
   assert.equal(c.codeForGroup('CAB-SEC-U-SMB-CA004-Exclusion'), 'GLO');
   assert.equal(c.codeForGroup('CAB-SEC-U-SMB-CA103-Exclusion'), 'ADM');
+  assert.equal(c.codeForGroup('CAB-SEC-U-SMB-CA104-Exclusion'), null, '1.0.10: CA104 is withdrawn');
   assert.equal(c.codeForGroup('CAB-SEC-U-SMB-CA204-Exclusion'), 'CN');
   assert.equal(c.codeForGroup('CAB-SEC-U-SMB-CA901-Exclusion'), 'BreakGlass');
   assert.equal(c.codeForGroup('CAB-SEC-U-BreakGlass'), 'BreakGlass');
@@ -126,17 +127,17 @@ test('import of ENCA\'s own copy: groups, location and passkey strength by name;
   const prepared = w.I.prepareBundle(bundle);
   const chosen = w.I.plan(prepared, []).filter((p) => !p.exists);
   assert.equal(chosen.length, 19);
-  assert.deepEqual(plain(chosen.filter((p) => p.forceOff).map((p) => p.num)), [103, 201, 202, 203, 204]);
+  assert.deepEqual(plain(chosen.filter((p) => p.forceOff).map((p) => p.num)), [201, 202, 203, 204]);
   const scoped = w.I.scopeBundle(prepared, chosen.map((p) => p.raw));
   const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((p) => p.name) });
-  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', landState: 'enabledForReportingButNotEnforced' });
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', landState: 'enabledForReportingButNotEnforced', freshWaits: [1, 1, 1] });
   const bad = res.results.filter((r) => !r.ok);
   assert.deepEqual(plain(bad.map((r) => `${r.name}: ${r.error}`)), []);
   const created = [...w.pols.values()];
   assert.equal(created.length, 19);
   const st = Object.fromEntries(created.map((p) => [p.displayName.slice(0, 5), p.state]));
-  for (const k of ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']) assert.equal(st[k], 'disabled', k);
-  for (const k of ['CA001', 'CA002', 'CA003', 'CA004', 'CA005', 'CA006', 'CA007', 'CA008', 'CA009', 'CA101', 'CA102', 'CA104', 'CA205', 'CA901']) assert.equal(st[k], 'enabledForReportingButNotEnforced', k);
+  for (const k of ['CA201', 'CA202', 'CA203', 'CA204']) assert.equal(st[k], 'disabled', k);
+  for (const k of ['CA001', 'CA002', 'CA003', 'CA004', 'CA005', 'CA006', 'CA007', 'CA008', 'CA009', 'CA010', 'CA101', 'CA102', 'CA103', 'CA205', 'CA901']) assert.equal(st[k], 'enabledForReportingButNotEnforced', k);
   // every exclusion is this tenant's group, by name
   const by = (n) => created.find((p) => p.displayName.startsWith(n));
   assert.deepEqual(by('CA001').conditions.users.excludeGroups.map((g) => nameOf(w, g)).sort(), ['CAB-SEC-U-BreakGlass', 'CAB-SEC-U-SMB-CA001-Exclusion', 'CAB-SEC-U-TeamsSharedDevices']);
@@ -146,6 +147,7 @@ test('import of ENCA\'s own copy: groups, location and passkey strength by name;
   assert.deepEqual(by('CA001').conditions.users.includeUsers, ['All'], 'as shipped: All users, never a deploy group');
   assert.equal(w.groups.size, 21);
   assert.ok(w.posts.some(([u, b]) => u === '/identity/conditionalAccess/namedLocations' && b.displayName === 'SMB - Allowed countries'));
+  assert.ok(w.posts.some(([u, b]) => u === '/identity/conditionalAccess/namedLocations' && b.displayName === 'SMB - Allowed EU countries' && b.countriesAndRegions.length === 32));
   assert.ok(w.posts.some(([u, b]) => /authenticationStrengthPolicies/.test(u) && b.displayName === 'SMB - Passkey (FIDO2)' && b.allowedCombinations.join() === 'fido2'));
   assert.equal(by('CA201').conditions.locations.excludeLocations[0], '3d46dbda-8382-466a-856d-eb00cbc6b910', 'Microsoft\'s compliant network location, as-is');
 });
@@ -156,9 +158,14 @@ test('import on a tenant without Global Secure Access: the compliant-network pol
   const chosen = w.I.plan(prepared, []).filter((p) => !p.exists);
   const scoped = w.I.scopeBundle(prepared, chosen.map((p) => p.raw));
   const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((p) => p.name) });
-  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped' });
-  assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => r.name.slice(0, 5)).sort()), ['CA103', 'CA201', 'CA202', 'CA203', 'CA204']);
-  assert.equal(res.results.filter((r) => r.ok).length, 14);
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', freshWaits: [1, 1, 1] });
+  assert.deepEqual(plain(res.results.filter((r) => !r.ok).map((r) => r.name.slice(0, 5)).sort()), ['CA201', 'CA202', 'CA203', 'CA204']);
+  assert.equal(res.results.filter((r) => r.ok).length, 15);
+  // 1.0.7: CA010 lands without its compliant network exception, and says so
+  const ca010 = [...w.pols.values()].find((p) => p.displayName.startsWith('CA010'));
+  assert.equal(ca010.conditions.locations.excludeLocations.length, 1, 'only the EU location');
+  assert.notEqual(ca010.conditions.locations.excludeLocations[0], '3d46dbda-8382-466a-856d-eb00cbc6b910');
+  assert.ok(res.warnings.some((x) => /CA010.*WITHOUT its compliant network exception/.test(x)), 'the report says so');
 });
 
 test('security defaults: the SMB policies cover all four protections plus Azure management, and the switch is CA001–CA005', () => {
@@ -209,10 +216,12 @@ test('32817 exclusions: every policy its own group, break-glass out of all but C
     assert.deepEqual(plain(ex), want, p.displayName);
     const everyoneEverywhere = (u.includeUsers || []).includes('All') && (p.conditions.applications.includeApplications || []).includes('All');
     // 1.0.2: CA005 (admin portals + Azure management, all users) leaves them out too
-    assert.deepEqual(plain((u.excludeRoles || []).slice().sort()), everyoneEverywhere || num === 5 ? SYNC.slice().sort() : [], `${p.displayName}: sync roles`);
+    // 1.0.9: CA201–CA204 leave the 16 admin roles out as well
+    const admins = [201, 202, 203, 204].includes(num) ? S.adminRoles.map((r) => r.id) : [];
+    assert.deepEqual(plain((u.excludeRoles || []).slice().sort()), [...(everyoneEverywhere || num === 5 ? SYNC : []), ...admins].sort(), `${p.displayName}: sync roles${admins.length ? ' + admin roles' : ''}`);
     // guests are out where they cannot comply (registration, compliant network)
     const guestsOut = !!u.excludeGuestsOrExternalUsers;
-    assert.equal(guestsOut, [6, 7, 8, 9, 201, 202, 203, 204, 205].includes(num), `${p.displayName}: guests`);
+    assert.equal(guestsOut, [6, 7, 8, 9, 10, 201, 202, 203, 204, 205].includes(num), `${p.displayName}: guests`);
     // nobody is excluded by user id — ids never travel between tenants
     assert.deepEqual(plain(u.excludeUsers), [], p.displayName);
   }
@@ -267,14 +276,14 @@ test('32817 gap matrix under SMB Basic: sections, not CloudFellows personas — 
 
 test('32817 a tenant on 1.0: the eight changed policies read Outdated, and Match & replace brings the sync-role exclusion along', async () => {
   const w = world();
-  const v10 = (n) => n.replace(/-v1\.0\.[1-5]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
-  // 1.0 had no CA007 and CA008 (added in 1.0.2)
-  const tenant = w.S.bundle().policies.filter((p) => !/^CA(00[789]|205)-/.test(p.displayName)).map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
+  const v10 = (n) => n.replace(/-v1\.0\.[1-9]$/, '-v1.0').replace('-Passkey-', '-FIDO2-').replace('-AdminPortalsAndAzureMgmt-', '-AzureManagement-');
+  // 1.0 had no CA007 and CA008 (added in 1.0.2), CA009, CA205 or CA010
+  const tenant = w.S.bundle().policies.filter((p) => !/^CA(00[789]|010|205)-/.test(p.displayName)).map((p, i) => ({ ...JSON.parse(JSON.stringify(p)), id: `t${i}`, displayName: v10(p.displayName) }));
   for (const t of tenant) { delete t.conditions.users.excludeRoles; t.state = 'enabledForReportingButNotEnforced'; w.pols.set(t.id, t); }
   const r = w.B.compare(tenant.map((t) => ({ id: t.id, name: t.displayName })), 'smb');
-  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'outdated').map((x) => x.num).sort((a, b) => a - b)), [1, 2, 3, 5, 103, 201, 202, 203, 204, 901]);
+  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'outdated').map((x) => x.num).sort((a, b) => a - b)), [1, 2, 3, 5, 201, 202, 203, 204, 901]);
   assert.equal(r.rows.filter((x) => x.status === 'ok').length, 5);
-  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'missing').map((x) => x.num)), [7, 8, 9, 205]);
+  assert.deepEqual(plain(r.rows.filter((x) => x.status === 'missing').map((x) => x.num)), [7, 8, 9, 10, 205]);
   const prepared = w.I.prepareBundle(w.S.bundle());
   const chosen = w.I.plan(prepared, tenant).filter((p) => p.upgrade && p.num === 1);
   assert.equal(chosen.length, 1);
@@ -290,7 +299,7 @@ test('1.0.2 (the guide\'s Appendix 1): CA005 adds the admin portals, CA007 guard
   const { S } = world();
   const b = S.bundle();
   const by = (n) => b.policies.find((p) => p.displayName.startsWith(n));
-  assert.equal(S.release, '1.0.5');
+  assert.equal(S.release, '1.0.10');
   assert.deepEqual(plain(by('CA005').conditions.applications.includeApplications), ['MicrosoftAdminPortals', '797f4846-ba00-4fd7-ba43-dac1f8f63013']);
   const ca7 = by('CA007');
   assert.equal(ca7.displayName, 'CA007-GRANT-SMB-Global-RegisterOrJoinDevices-AnyPlatform-MFA-v1.0.2');
@@ -316,8 +325,8 @@ test('1.0.3 exclusions matrix: shared devices, Azure VM sign-in, the Defender mo
   const by = (n) => b.policies.find((p) => p.displayName.startsWith(n));
   const exApps = (n) => plain(by(n).conditions.applications.excludeApplications);
   assert.ok(exApps('CA001').includes('372140e0-b3b7-4226-8ef9-d57986796201'), 'CA001 − Azure Windows VM Sign-In');
-  for (const n of ['CA103', 'CA203', 'CA204']) for (const id of ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196']) assert.ok(exApps(n).includes(id), `${n} − Defender ${id}`);
-  for (const n of ['CA201', 'CA202']) assert.deepEqual(exApps(n), ['0000000a-0000-0000-c000-000000000000', 'd4ebce55-015a-49b5-a083-c84d1797ae8c'], `${n}: Intune and Intune Enrollment only, as Learn asks`);
+  for (const n of ['CA203', 'CA204']) for (const id of ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196']) assert.ok(exApps(n).includes(id), `${n} − Defender ${id}`);
+  for (const n of ['CA201', 'CA202']) assert.deepEqual(exApps(n), ['0000000a-0000-0000-c000-000000000000', 'd4ebce55-015a-49b5-a083-c84d1797ae8c', '01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9'], `${n}: Intune and Intune Enrollment, as Learn asks — and (1.0.8) Device Registration Service`);
   assert.equal(by('CA008').conditions.users.excludeGuestsOrExternalUsers.guestOrExternalUserTypes, 'b2bDirectConnectUser');
   const ca205 = by('CA205');
   assert.equal(ca205.displayName, 'CA205-BLOCK-SMB-Users-AnyApp-UnknownPlatforms-v1.0.3');
@@ -363,7 +372,7 @@ test('1.0.4 CA009: app protection on iOS and Android, with the exclusions it nee
   assert.deepEqual(plain(p.conditions.platforms.includePlatforms), ['iOS', 'android']);
   assert.deepEqual(plain(p.conditions.applications.includeApplications), ['All']);
   assert.deepEqual(plain(p.conditions.applications.excludeApplications), ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196', 'ea890292-c8c8-4433-b5ea-b09d0668e1a6'], 'the Defender mobile apps and Azure Credential Configuration Endpoint Service — no Intune exclusion');
-  for (const n of ['CA103', 'CA203', 'CA204']) assert.ok(b.policies.find((x) => x.displayName.startsWith(n)).conditions.applications.excludeApplications.includes('ea890292-c8c8-4433-b5ea-b09d0668e1a6'), `${n}: passkeys in Authenticator on a phone`);
+  for (const n of ['CA203', 'CA204']) assert.ok(b.policies.find((x) => x.displayName.startsWith(n)).conditions.applications.excludeApplications.includes('ea890292-c8c8-4433-b5ea-b09d0668e1a6'), `${n}: passkeys in Authenticator on a phone`);
   for (const n of ['CA201', 'CA202', 'CA205']) assert.ok(!b.policies.find((x) => x.displayName.startsWith(n)).conditions.applications.excludeApplications.includes('ea890292-c8c8-4433-b5ea-b09d0668e1a6'), `${n}: no phone, no exclusion`);
   const gname = Object.fromEntries(b.groups.map((g) => [g.id, g.displayName]));
   assert.deepEqual(plain(p.conditions.users.excludeGroups.map((g) => gname[g]).sort()), ['CAB-SEC-U-BreakGlass', 'CAB-SEC-U-SMB-CA009-Exclusion', 'CAB-SEC-U-TeamsSharedDevices']);
@@ -419,18 +428,102 @@ test('33007 gimi: every CA number held twice is shown on its row, the older vers
     'CA005-GRANT-SMB-Global-AzureManagement-AnyPlatform-MFA-v1.0', 'CA103-BLOCK-SMB-Admins-AnyApp-AnyPlatform-OutsideCompliantNetwork-v1.0', 'CA201-BLOCK-SMB-Users-AnyApp-Windows-OutsideCompliantNetwork-v1.0',
     'CA202-BLOCK-SMB-Users-AnyApp-macOS-OutsideCompliantNetwork-v1.0', 'CA203-BLOCK-SMB-Users-AnyApp-iOS-OutsideCompliantNetwork-v1.0', 'CA204-BLOCK-SMB-Users-AnyApp-Android-OutsideCompliantNetwork-v1.0',
     'CA901-GRANT-SMB-BreakGlass-AnyApp-AnyPlatform-FIDO2-v1.0'];
-  const vms = [...old.map((n, i) => ({ id: `o${i}`, name: n, state: 'off' })), ...S.policies.map((p) => ({ id: `t${p.num}`, name: p.name, state: 'off' }))];
-  assert.equal(vms.length, 29);
+  // 1.0.9: the catalog no longer holds CA103, so its v1.0 copy is not a row here
+  const vms = [...old.filter((n) => !n.startsWith('CA103')).map((n, i) => ({ id: `o${i}`, name: n, state: 'off' })), ...S.policies.map((p) => ({ id: `t${p.num}`, name: p.name, state: 'off' }))];
+  assert.equal(vms.length, 28);
   const r = B.compare(vms, 'smb');
   assert.equal(r.rows.filter((x) => x.status === 'ok').length, 19);
   const doubled = r.rows.filter((x) => (x.others || []).length);
-  assert.deepEqual(plain(doubled.map((x) => x.num)), [1, 2, 3, 5, 103, 201, 202, 203, 204, 901]);
+  assert.deepEqual(plain(doubled.map((x) => x.num)), [1, 2, 3, 5, 201, 202, 203, 204, 901]);
   const ca1 = r.rows.find((x) => x.num === 1);
   assert.equal(ca1.tenant.name, 'CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1.0.3');
   assert.equal(ca1.others[0].name, old[0]);
   assert.equal(ca1.others[0].kind, 'older');
   const html = B.renderSummary(r, 'all');
-  assert.match(html, /10 CA numbers are here more than once/);
-  assert.match(html, /10 older versions beside the current one/);
+  assert.match(html, /9 CA numbers are here more than once/);
+  assert.match(html, /9 older versions beside the current one/);
   assert.match(B.renderTable(r, 'all'), /also here: .*CA001-GRANT-SMB-Global-AnyApp-AnyPlatform-MFA-v1\.0<.*older version/);
+});
+
+test('1.0.6 CA010 + SMB - Allowed EU countries: every internal user only from the 27 EU member states, the rest of the EEA, the UK and Switzerland; admins on CA103 (1.0.10, was CA104)', () => {
+  const { S } = world();
+  const b = S.bundle();
+  const loc = b.namedLocations.find((l) => l.displayName === 'SMB - Allowed EU countries');
+  assert.ok(loc, 'the location ships with the bundle');
+  const EU = ['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
+  const MORE = ['CH', 'GB', 'IS', 'LI', 'NO'];
+  assert.equal(loc.countriesAndRegions.length, 32);
+  assert.deepEqual(plain(loc.countriesAndRegions.slice().sort()), [...EU, ...MORE].sort(), 'the 27 member states + Iceland, Liechtenstein, Norway, the UK and Switzerland, ISO 3166-1 alpha-2');
+  for (const x of ['EL', 'UK']) assert.ok(!loc.countriesAndRegions.includes(x), `${x} is not an ISO 3166-1 code`);
+  assert.equal(loc.includeUnknownCountriesAndRegions, false);
+  assert.equal(loc.countryLookupMethod, 'clientIpAddress');
+  assert.equal(b.namedLocations.find((l) => l.displayName === 'SMB - Allowed countries').countriesAndRegions.join(), 'NL', 'the admins\' location is unchanged');
+  const p = b.policies.find((x) => x.displayName.startsWith('CA010'));
+  assert.equal(p.displayName, 'CA010-BLOCK-SMB-Global-AnyApp-AnyPlatform-OutsideAllowedEUCountries-v1.0.7');
+  assert.deepEqual(plain(p.conditions.locations), { includeLocations: ['All'], excludeLocations: [loc.id, '3d46dbda-8382-466a-856d-eb00cbc6b910'] }, '1.0.7: the EU list, and anywhere through the compliant network');
+  assert.ok(b.cnOptional.includes(p.displayName), 'the compliant network exception may be dropped without GSA signalling');
+  assert.deepEqual(plain(p.grantControls.builtInControls), ['block']);
+  assert.deepEqual(plain(p.conditions.users.includeUsers), ['All']);
+  assert.ok(p.conditions.users.excludeGuestsOrExternalUsers, 'guests left out');
+  assert.deepEqual(plain(p.conditions.applications.excludeApplications), ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196'], 'the Defender mobile apps, as CloudFellows CA001');
+  const ca103 = b.policies.find((x) => x.displayName.startsWith('CA103'));
+  assert.notEqual(ca103.conditions.locations.excludeLocations[0], loc.id, 'the admins keep SMB - Allowed countries');
+  assert.ok(S.namedLocations.includes('SMB - Allowed EU countries'));
+  assert.equal(S.policies.find((x) => x.num === 10).tag, 'NEW');
+});
+
+test('1.0.8: the compliant-network blocks leave out Device Registration Service, so a Mac or PC can register before its GSA client is up; nothing else does', () => {
+  const { S } = world();
+  const b = S.bundle();
+  const DRS = '01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9';
+  const has = b.policies.filter((p) => (p.conditions.applications.excludeApplications || []).includes(DRS)).map((p) => p.displayName.slice(0, 5));
+  assert.deepEqual(plain(has), ['CA201', 'CA202', 'CA203', 'CA204'], '1.0.9: CA103 withdrawn');
+  for (const n of has) assert.match(b.policies.find((p) => p.displayName.startsWith(n)).displayName, /-v1\.0\.9$/, `${n} is v1.0.9`);
+  const ca7 = b.policies.find((p) => p.displayName.startsWith('CA007'));
+  assert.deepEqual(plain(ca7.conditions.applications.includeUserActions), ['urn:user:registerdevice'], 'registering a device still needs MFA (CA007)');
+  assert.match(S.policies.find((p) => p.num === 202).resources, /− Device Registration Service/);
+});
+
+test('1.0.9 (the SMB review, Mihai 30 Oct): admins are not held to the compliant network — CA103 withdrawn, CA201–CA204 leave the 16 admin roles out; GDAP and guests stay out', () => {
+  const { S } = world();
+  const b = S.bundle();
+  assert.equal(b.policies.some((p) => /^CA103-BLOCK-SMB-Admins-AnyApp-AnyPlatform-OutsideCompliantNetwork/.test(p.displayName)), false, 'the 1.0.8 CA103 (admins only through the compliant network) is gone');
+  const ROLES = S.adminRoles.map((r) => r.id);
+  for (const n of ['CA201', 'CA202', 'CA203', 'CA204']) {
+    const p = b.policies.find((x) => x.displayName.startsWith(n));
+    for (const r of ROLES) assert.ok(p.conditions.users.excludeRoles.includes(r), `${n} leaves out ${r}`);
+    assert.match(p.conditions.users.excludeGuestsOrExternalUsers.guestOrExternalUserTypes, /serviceProvider/, `${n}: GDAP technicians stay out`);
+    assert.ok(b.forceOff.includes(p.displayName), `${n} still lands Off`);
+  }
+  // the admin policies themselves do not leave admins or GDAP out
+  for (const n of ['CA004', 'CA101', 'CA102', 'CA103']) assert.equal(b.policies.find((x) => x.displayName.startsWith(n)).conditions.users.includeRoles.length, 16, n);
+  assert.match(S.policies.find((p) => p.num === 201).description, /admin roles are left out/);
+});
+
+test('1.0.10 (Mihai 30 Oct: "103 may become: admins outside the allowed countries only through a compliant network connection"): CA103 replaces CA104', async () => {
+  const { S } = world();
+  const b = S.bundle();
+  assert.equal(S.release, '1.0.10');
+  const p = b.policies.find((x) => x.displayName.startsWith('CA103'));
+  assert.equal(p.displayName, 'CA103-BLOCK-SMB-Admins-AnyApp-AnyPlatform-OutsideAllowedCountriesUnlessCompliantNetwork-v1.0.10');
+  const L = b.namedLocations.find((l) => l.displayName === 'SMB - Allowed countries');
+  assert.deepEqual(plain(p.conditions.locations), { includeLocations: ['All'], excludeLocations: [L.id, '3d46dbda-8382-466a-856d-eb00cbc6b910'] }, 'abroad only through the compliant network');
+  assert.equal(p.conditions.users.includeRoles.length, 16);
+  assert.deepEqual(plain(p.grantControls.builtInControls), ['block']);
+  assert.ok(b.cnOptional.includes(p.displayName), 'without GSA signalling it is created as the old CA104 and the report says so');
+  assert.equal(b.forceOff.includes(p.displayName), false, 'lands as the run lands — it waits for nothing');
+  assert.deepEqual(plain(p.conditions.applications.excludeApplications), ['a0e84e36-b067-4d5c-ab4a-3db38e598ae2', 'e724aa31-0f56-4018-b8be-f8cb82ca1196'], 'the Defender mobile apps, as CA010');
+  assert.equal(b.policies.some((x) => /^CA104-/.test(x.displayName)), false, 'CA104 withdrawn: a block beside it would still refuse the admin abroad');
+  assert.equal(S.policies.find((x) => x.num === 103).tag, 'NEW');
+  // on a tenant without GSA: created without the compliant network exception
+  const w = world({ refuseCn: true });
+  const prepared = w.I.prepareBundle(w.S.bundle());
+  const chosen = w.I.plan(prepared, []).filter((x) => !x.exists && x.num === 103);
+  const scoped = w.I.scopeBundle(prepared, chosen.map((x) => x.raw));
+  const dep = await w.I.ensureDependencies(scoped, () => {}, { matchedNames: chosen.map((x) => x.name) });
+  const res = await w.I.importPolicies(chosen, dep.maps, () => {}, { mode: 'shipped', freshWaits: [1, 1, 1] });
+  assert.equal(res.results[0].ok, true, res.results[0].error);
+  const made = [...w.pols.values()].find((x) => x.displayName.startsWith('CA103'));
+  assert.equal(made.conditions.locations.excludeLocations.length, 1, 'only SMB - Allowed countries');
+  assert.ok(res.warnings.some((x) => /CA103.*WITHOUT its compliant network exception/.test(x)), 'the report says so');
 });

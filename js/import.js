@@ -318,6 +318,9 @@ const Importer = (() => {
     }).filter((e) => e.num != null);
     // E-Admins taken from another backup into this one (mergeShared) land Off.
     const forceOff = new Set((bundle.forceOff || []).map(cleanName));
+    // 33105: policies whose compliant network exclusion may be dropped when
+    // Entra refuses it (no GSA signalling) — SMB CA010
+    const cnOptional = new Set((bundle.cnOptional || []).map(cleanName));
     const renamed = bundle.sharedRenamed || null;
     return bundle.policies.map(raw => {
       const { num, ver } = parseCaVersion(raw.displayName);
@@ -344,7 +347,7 @@ const Importer = (() => {
       const off = forceOff.has(cleanName(raw.displayName));
       return {
         raw, name: raw.displayName, num, ver, asIs,
-        agent: isAgentPolicy(raw), forceOff: off,
+        agent: isAgentPolicy(raw), forceOff: off, cnOptional: cnOptional.has(cleanName(raw.displayName)),
         // workload-identity policy (CA900 range): needs the Workload ID SKU
         wid: isWorkloadIdentity(raw),
         persona, personaGroup: (persona && PERSONA_GROUPS[persona]) || null,
@@ -483,6 +486,26 @@ const Importer = (() => {
   // displayName, srcIds, fileNames, … }), the notes worth showing, and an
   // index the repair step asks "which group did this source id mean for
   // THIS policy?".
+  // 33111: the CloudFellows compliant-network policies get the handling SMB
+  // Basic has had since 33105 (WORKFILE-CF-GSA-parity-SMB, G7). CA113-CA116
+  // (admins) and CA215-CA218 (internals) block every sign-in outside the
+  // compliant network, so in a tenant where Global Secure Access is not green
+  // yet they would lock people out the moment they are switched on: they land
+  // Off whatever the backup says. CA001 (country whitelist) excludes All
+  // Compliant Network locations since v1.0.3; Entra refuses that location
+  // while GSA signalling is off, so CA001 is retried without it (cnOptional).
+  const CF_GSA_OFF = new Set([113, 114, 115, 116, 215, 216, 217, 218]);
+  function cloudFellowsGsa(cat, policies) {
+    if (!cat || cat.id !== "limonit") return null;
+    const forceOff = [], cnOptional = [];
+    for (const p of policies || []) {
+      const n = caNumOf(p && p.displayName);
+      if (CF_GSA_OFF.has(n)) forceOff.push(p.displayName);
+      else if (n === 1) cnOptional.push(p.displayName);
+    }
+    return { forceOff, cnOptional };
+  }
+
   function prepareBundle(raw) {
     if (!raw || raw.prepared) return raw;
     const cat = catalogForBundle(raw);
@@ -593,9 +616,14 @@ const Importer = (() => {
       notes.push(`one source id carries ${fs.length} names (${fs.map((f) => `“${f.displayName}”`).join(", ")}) — each policy is attached to the group that carries its own name${got.length ? `: ${got.join(", ")}` : ""}`);
     }
     const sourceIds = new Set(files.keys());
+    const gsa = cloudFellowsGsa(cat, policies);
     return {
       ...raw,
       policies,
+      ...(gsa ? {
+        forceOff: [...new Set([...(raw.forceOff || []), ...gsa.forceOff])],
+        cnOptional: [...new Set([...(raw.cnOptional || []), ...gsa.cnOptional])],
+      } : {}),
       groups: [...planned.values()],
       prepared: true,
       groupNotes: notes,
@@ -624,10 +652,16 @@ const Importer = (() => {
   //     out — the one thing they exist to prevent.
   // A policy the bundle already carries is not taken twice. Pure over two raw
   // (unprepared) bundles; the result is prepared like any other.
+  // 33109 (➕ Joey+, js/joeyPlusData.js): opts.match picks other shared
+  // policies than the E-Admins (default: the E-Admins), and opts.forceOff
+  // names which of the added ones land Off whatever the landing choice
+  // (default: all of them — the E-Admins rule). Joey+ forces only CA020–CA023
+  // Off; CA018 and CA019 land as the run lands (Report-only).
   function mergeShared(target, source, opts = {}) {
     const t = target || {};
     const have = new Set((t.policies || []).map((p) => cleanName(p.displayName)));
-    const all = ((source && source.policies) || []).filter((p) => isEAdmins(p.displayName));
+    const match = typeof opts.match === "function" ? opts.match : isEAdmins;
+    const all = ((source && source.policies) || []).filter((p) => match(p.displayName));
     const add = all.filter((p) => !have.has(cleanName(p.displayName)));
     const blob = add.map((p) => JSON.stringify(p)).join("\n");
     const used = (x) => !!x && ((x.id && blob.includes(JSON.stringify(String(x.id)))) || (x.displayName && blob.includes(`:${x.displayName}}}`)));
@@ -650,7 +684,8 @@ const Importer = (() => {
         authStrengths: merge(t.authStrengths, pick(source && source.authStrengths)),
         authContexts: merge(t.authContexts, pick(source && source.authContexts)),
         termsOfUse: merge(t.termsOfUse, pick(source && source.termsOfUse)),
-        forceOff: [...new Set([...(t.forceOff || []), ...add.map((p) => p.displayName)])],
+        forceOff: [...new Set([...(t.forceOff || []), ...add.map((p) => p.displayName)
+          .filter((n) => !Array.isArray(opts.forceOff) || opts.forceOff.some((x) => cleanName(x) === cleanName(n)))])],
         sharedFrom: opts.label || t.sharedFrom || "a CloudFellows backup",
         sharedRenamed: rename ? { from: opts.breakGlassFrom, to } : (t.sharedRenamed || null),
         prepared: false,
@@ -1365,6 +1400,9 @@ const Importer = (() => {
             : { "@odata.type": "#microsoft.graph.ipNamedLocation", displayName: raw.displayName, isTrusted: !!raw.isTrusted, ipRanges: (raw.ipRanges || []).map(r => ({ "@odata.type": r["@odata.type"] || "#microsoft.graph.iPv4CidrRange", cidrAddress: r.cidrAddress })) };
           const created = await Graph.gpost("/identity/conditionalAccess/namedLocations", body, [...AUTH_CONFIG.scopes, ...WRITE]);
           maps.loc[raw.id] = created.id;
+          // 33104: a location made here is not yet known to Conditional Access
+          // either — remember it, as the service principals are (postFresh)
+          (maps.freshLocs = maps.freshLocs || new Map()).set(lower(created.id), { at: Date.now(), name: raw.displayName });
           log.created.push(`Named location: ${raw.displayName}`);
         } catch (e) {
           // 32902: recorded, so the policies that name it fail BEFORE their
@@ -1396,6 +1434,7 @@ const Importer = (() => {
             { displayName: raw.displayName, description: raw.description || "", allowedCombinations: raw.allowedCombinations || [] },
             [...AUTH_CONFIG.scopes, ...STRENGTH_WRITE]);
           maps.strength[raw.id] = created.id;
+          (maps.freshStrengths = maps.freshStrengths || new Map()).set(lower(created.id), { at: Date.now(), name: raw.displayName });
           log.created.push(`Auth strength: ${raw.displayName}`);
         } catch (e) {
           (maps.strengthFailed = maps.strengthFailed || {})[raw.id] = { name: raw.displayName, error: e.message || String(e) };
@@ -2072,6 +2111,52 @@ const Importer = (() => {
       else add("dyngroup", "ok", `${g.displayName} exists and is dynamic`, "Reused as it is, with its own rule.");
     }
 
+    // 33107 (SMB Basic 1.0.9, Mihai 30 Oct — the SMB review: "can admins
+    // with GDAP get in, are the guest exclusions right?"): a policy that asks
+    // an AUTHENTICATION STRENGTH of directory roles (SMB CA101: phishing-
+    // resistant) reaches a GUEST who holds one of those roles too. A guest can
+    // only meet a passkey / FIDO2 / Windows Hello strength with MFA done in its
+    // HOME tenant, and that only counts with inbound MFA trust in the
+    // cross-tenant access settings (Learn, authentication strengths for
+    // external users: those methods are home-tenant only). Without the trust
+    // Entra asks MFA here, where none of them can be registered — the guest is
+    // locked out once the policy is On. GDAP technicians are not guests and
+    // not affected: their MFA is always done and trusted in the partner tenant
+    // (Learn, cross-tenant access settings → trust settings). Read: the
+    // activated directory roles with their members, the default inbound trust
+    // and the per-organisation partner settings.
+    const roleStrength = chosen.filter((p) => {
+      const c = (p.raw && p.raw.conditions) || {}, u = c.users || {};
+      const g = (p.raw && p.raw.grantControls) || {};
+      return (u.includeRoles || []).length && g.authenticationStrength && !(u.excludeGuestsOrExternalUsers && /b2bCollaborationGuest/.test(String(u.excludeGuestsOrExternalUsers.guestOrExternalUserTypes || "")));
+    });
+    if (roleStrength.length) {
+      const names = roleStrength.map((p) => (p.name.match(/CA\d{3,4}/) || [p.name])[0]).join(", ");
+      const roleIds = new Set(roleStrength.flatMap((p) => p.raw.conditions.users.includeRoles.map((r) => String(r).toLowerCase())));
+      let roles = null, def = null, partners = null, err = null;
+      try {
+        [roles, def, partners] = await Promise.all([
+          Graph.ggetAll("/directoryRoles?$select=id,displayName,roleTemplateId&$expand=members($select=id,displayName,userPrincipalName,userType)"),
+          Graph.gget("/policies/crossTenantAccessPolicy/default"),
+          Graph.ggetAll("/policies/crossTenantAccessPolicy/partners"),
+        ]);
+      } catch (e) { err = e.message || String(e); }
+      if (err) add("guestadmins", "info", "Guest admins and MFA trust could not be read", `${err}. ${names} asks a phishing-resistant method of the admin roles; a guest holding one meets it only with MFA from its home tenant and inbound MFA trust for that organisation (Entra ID → External Identities → Cross-tenant access settings).`);
+      else {
+        const guests = new Map();
+        for (const r of roles || []) {
+          if (!roleIds.has(String(r.roleTemplateId || "").toLowerCase())) continue;
+          for (const m of r.members || []) if (m && String(m.userType || "").toLowerCase() === "guest") guests.set(m.id, `${m.displayName || m.userPrincipalName} (${r.displayName})`);
+        }
+        const defTrust = !!(def && def.inboundTrust && def.inboundTrust.isMfaAccepted);
+        const orgTrust = (partners || []).filter((x) => x && x.inboundTrust && x.inboundTrust.isMfaAccepted).length;
+        if (!guests.size) add("guestadmins", "ok", "No guest holds an admin role this run targets", `${names}: only member accounts (and GDAP technicians, whose MFA is trusted from the partner tenant) meet it.`);
+        else if (defTrust) add("guestadmins", "ok", `${guests.size} guest${guests.size === 1 ? "" : "s"} with an admin role — MFA from home tenants is trusted (default)`, `${[...guests.values()].join(", ")}: they meet ${names} with a passkey, FIDO2 key or Windows Hello in their own tenant.`);
+        else add("guestadmins", "warn", `${guests.size} guest${guests.size === 1 ? "" : "s"} with an admin role — ${names} would lock ${guests.size === 1 ? "it" : "them"} out without MFA trust`,
+          `${[...guests.values()].join(", ")}. Inbound MFA trust is off by default${orgTrust ? ` and on for ${orgTrust} organisation${orgTrust === 1 ? "" : "s"} — check theirs is among them` : ""}. Turn on “Trust multifactor authentication from Microsoft Entra tenants” for their organisation (Entra ID → External Identities → Cross-tenant access settings → Organizational settings), or give them a member account or GDAP, before ${names} leaves Report-only.`);
+      }
+    }
+
     if (opts.sdOn) add("sd", "info", "Security defaults is on", "Entra refuses On while it is: new policies land Report-only or Off, and ⇄ on 🧬 Baseline makes the switch.");
     const blocked = checks.some((c) => c.level === "block");
     return { checks, repair, blocked, present: present.names.size, readAt: Date.now() };
@@ -2137,24 +2222,48 @@ const Importer = (() => {
   // created and Graph answers 400, Conditional Access has not caught up with
   // that service principal yet. A 400 creates nothing, so posting again is
   // safe: wait and retry, up to about 1.5 minutes after the create.
+  // 33104 — gimi, 29 Oct 2026: the same holds for a NAMED LOCATION (and an
+  // authentication strength) made by this run. SMB - Allowed EU countries was
+  // created at 09:49:36 and CA010, which excludes it, was posted within the
+  // same three-second run: a bare 400, and the hint blamed the two Defender
+  // apps, whose service principals had been there since 20 Oct.
   const FRESH_WAITS = [5000, 10000, 15000, 20000, 30000];
   const FRESH_MIN_AGE = 15000;
+  // What a policy body names that this run created: { label, short, at }.
+  // Works on the raw (file) body and the staged (this tenant's ids) body alike.
+  function freshRefs(body, maps) {
+    if (!body || !maps) return [];
+    const out = [];
+    for (const id of appRefs([body])) {
+      const at = maps.freshApps && maps.freshApps.get(id);
+      if (at) out.push({ label: `the service principal for ${appLabel(id)}`, short: `the new service principal for ${appLabel(id).replace(/ \([0-9a-f-]{36}\)$/i, "")}`, at });
+    }
+    const l = (body.conditions && body.conditions.locations) || {};
+    for (const raw of [...(l.includeLocations || []), ...(l.excludeLocations || [])]) {
+      const f = maps.freshLocs && maps.freshLocs.get(lower((maps.loc && maps.loc[raw]) || raw));
+      if (f) out.push({ label: `the named location ${f.name}`, short: `the new named location ${f.name}`, at: f.at });
+    }
+    const sid = body.grantControls && body.grantControls.authenticationStrength && body.grantControls.authenticationStrength.id;
+    const fs = sid && maps.freshStrengths && maps.freshStrengths.get(lower((maps.strength && maps.strength[sid]) || sid));
+    if (fs) out.push({ label: `the authentication strength ${fs.name}`, short: `the new authentication strength ${fs.name}`, at: fs.at });
+    return out;
+  }
   async function postFresh(staged, name, maps, onStatus, waits) {
     const w = waits || FRESH_WAITS;
-    const fresh = appRefs([staged]).filter((id) => maps && maps.freshApps && maps.freshApps.has(id));
+    const fresh = freshRefs(staged, maps);
     const scopes = [...AUTH_CONFIG.scopes, ...WRITE];
     if (!fresh.length) return Graph.gpost("/identity/conditionalAccess/policies", staged, scopes);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const label = fresh.map((id) => appLabel(id).replace(/ \([0-9a-f-]{36}\)$/i, "")).join(", ");
+    const label = fresh.map((f) => f.short).join(", ");
     // give Conditional Access a head start before the first try
-    const age = Date.now() - Math.max(...fresh.map((id) => maps.freshApps.get(id)));
+    const age = Date.now() - Math.max(...fresh.map((f) => f.at));
     const head = waits ? 0 : Math.max(0, FRESH_MIN_AGE - age);
-    if (head > 0) { onStatus?.(`${name}: waiting for Conditional Access to see the new service principal for ${label}…`); await sleep(head); }
+    if (head > 0) { onStatus?.(`${name}: waiting for Conditional Access to see ${label}…`); await sleep(head); }
     for (let n = 0; ; n++) {
       try { return await Graph.gpost("/identity/conditionalAccess/policies", staged, scopes); }
       catch (e) {
         if (!/\(400\)|BadRequest/i.test(e.message || "") || n >= w.length) throw e;
-        onStatus?.(`${name}: Conditional Access does not know the new service principal for ${label} yet — trying again in ${Math.round(w[n] / 1000)} s…`);
+        onStatus?.(`${name}: Conditional Access does not know ${label} yet — trying again in ${Math.round(w[n] / 1000)} s…`);
         await sleep(w[n]);
       }
     }
@@ -2222,11 +2331,25 @@ const Importer = (() => {
           // part of an agent policy Graph documents nowhere: the agent
           // execution environment (agentContext). Without it the policy covers
           // EVERY session of the agents' user accounts, so the report says so.
+          // 33105: a policy whose compliant network EXCLUSION is optional
+          // (SMB CA010: "allowed from anywhere through Global Secure Access")
+          // is created without it when Entra refuses the location — no GSA
+          // signalling yet. The block itself is the point; the exception
+          // comes with a later Match & replace once GSA is green.
+          const cnEx = payload.conditions && payload.conditions.locations && payload.conditions.locations.excludeLocations;
+          if (it.cnOptional && /\(400\)|BadRequest/i.test(e1.message || "") && Array.isArray(cnEx) && cnEx.some((x) => lower(x) === COMPLIANT_NETWORK_ID)) {
+            payload.conditions.locations.excludeLocations = cnEx.filter((x) => lower(x) !== COMPLIANT_NETWORK_ID);
+            onStatus?.(`${it.name}: retrying without the compliant network exception…`);
+            created = await postFresh(staged, it.name, maps, onStatus, opts.freshWaits);
+            agentNotes.push("created WITHOUT its compliant network exception — Entra refused All Compliant Network locations (Global Secure Access signalling is not on here). It blocks outside its countries for everyone, the Global Secure Access client included. Once 🌐 Global Secure Access is green, import it again with Match & replace to add the exception.");
+            retryWithoutContext = false;
+          } else {
           if (!retryWithoutContext || !/\(400\)|BadRequest/i.test(e1.message || "")) throw e1;
           delete payload.conditions.agentContext;
           onStatus?.(`${it.name}: retrying without the agent execution environment condition…`);
           created = await Graph.gpost("/identity/conditionalAccess/policies", staged, [...AUTH_CONFIG.scopes, ...WRITE]);
           agentNotes.push("created WITHOUT the agent execution environment condition (sessions initiated from endpoints), which Graph refused: as created it applies to every session of the agents' user accounts, cloud-hosted agents with no device included — add the condition in the portal before switching it On");
+          }
         }
         if (!created?.id) throw new Error("Create returned no policy id; verify the tenant before retrying. Previous policy was not changed.");
         createdId = created.id;
@@ -2275,9 +2398,11 @@ const Importer = (() => {
             .filter((x) => /^[0-9a-f]{8}-/i.test(x));
           const bits = [];
           const unknown = refs.filter((x) => maps.missingApps?.has(String(x).toLowerCase()));
-          const fresh = refs.filter((x) => maps.freshApps?.has(String(x).toLowerCase()));
+          // 33104: everything the run created that this policy names — service
+          // principals, named locations, authentication strengths
+          const fresh = freshRefs(it.raw, maps);
           if (unknown.length) bits.push(`this tenant has no service principal for ${unknown.map(appLabel).join(", ")}`);
-          else if (fresh.length) bits.push(`this run created the service principal for ${fresh.map(appLabel).join(", ")} and Conditional Access had still not seen it after the waits. Nothing was created for this policy: run the import again in a few minutes — it creates only what is missing`);
+          else if (fresh.length) bits.push(`this run created ${fresh.map((f) => f.label).join(", ")} and Conditional Access had still not seen ${fresh.length > 1 ? "them" : "it"} after the waits. Nothing was created for this policy: run the import again in a few minutes — it creates only what is missing, and reuses what is there`);
           else if (refs.length) bits.push(`it references ${refs.length} application(s) by id — each needs a service principal in this tenant`);
           if (isWorkloadIdentity(it.raw)) bits.push("it is a workload-identity policy, which cannot also carry a user or group scope");
           if ((it.raw.conditions?.insiderRiskLevels || []).length) bits.push("it uses insider risk, which needs the licence and the feature enabled");
@@ -2548,5 +2673,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
+  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, cloudFellowsGsa, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
 })();
