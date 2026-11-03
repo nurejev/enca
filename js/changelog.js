@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33201, date: "2026-11-03", title: "Production is build 331 (v2.0.9)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 331, ENCA v2.0.9: SMB Basic 1.0.6 to 1.0.10, the Joey Verlinden+ additions CA018-CA023, the CloudFellows catalog of 3 November (CA113-CA116, CA018, CA215-CA218, CA001), imports that wait for what the run just created and land the compliant-network policies Off, CA groups Migrate that waits for the directory, User impact brief 1.3 and the Global Secure Access macOS repair fix. PIM framework 5.1 (regions as lists of countries) stays on beta with the rest of PIM-buddy." },
+    ],
+  },
+  {
     build: 33111, date: "2026-11-03", title: "CloudFellows baseline: admins only through the secure network client, and the SMB fixes on CA215-CA218",
     items: [
       { kind: "new", tool: "Baseline", text: "CA113-CA116 (one per platform): admins sign in only through the Global Secure Access client. Break glass, each policy's own exclusion group, CAB-SEC-U-ExternalAdmins, guest admins and every external type are excluded." },
