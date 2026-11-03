@@ -182,6 +182,22 @@ const PROMOTE = {
 
   items: [
     {
+      n: 374,
+      ws: "ca",
+      title: "🧬 CloudFellows catalog 2026-11-03: CA113-CA116, CA018, CA215-CA218 and CA001 with the compliant network; import lands them Off",
+      tools: ["Baseline", "Import", "UserImpact"],
+      builds: [33111],
+      risk: "medium",
+      what: "33111: js/baselineData.js revised 2026-11-03 (CA001 1.0.3, CA018 1.0, CA113-CA116 1.0, CA215 3.0.5, CA216-CA218 3.0.1, entries from Baseline.vmToEntry on the CloudFellows.dev policies); js/groupTemplates.js + CA018/CA113-CA116/CA215 exclusion groups and CAB-SEC-U-ExternalAdmins; js/import.js cloudFellowsGsa() -> bundle.forceOff CA113-CA116, CA215-CA218 and bundle.cnOptional CA001 in prepareBundle; js/userimpact.js geo/cn decided on location ids, new enroll rule, RULES_CHECKED_AGAINST 2026-11-03; tools/baseline-cf-gsa.test.cjs (7).",
+      why: "WORKFILE-CF-GSA-parity-SMB-2026-10-30 W09-W12 and WORKFILE-CA018: CloudFellows had none of the SMB compliant-network fixes, and the import would land CA215-CA218 in the catalog's state in a tenant without GSA. Built in CloudFellows.dev first (Report-only / Off), then taken here.",
+      test: [
+        "node --test tools/*.test.cjs: all green (baseline-cf-gsa 7).",
+        "🧬 Baseline on CloudFellows.dev: CA001, CA018, CA113-CA116, CA215-CA218 show as matching the catalog (the old CA215 v3.0.4 / CA216-CA218 v3.0 are Off and read as superseded).",
+        "📥 Import a CloudFellows backup on a test tenant without GSA: CA113-CA116 and CA215-CA218 land Off; CA001 is created without the compliant network exception and the report says so; the CA018/CA113-CA116/CA215 exclusion groups and CAB-SEC-U-ExternalAdmins are created.",
+        "🗣 User impact brief on CloudFellows.dev: no stale-baseline warning; CA001 under approved countries, CA113/CA215 under the secure network client, CA018 under enrollment from the office.",
+      ],
+    },
+    {
       n: 373,
       ws: "platform",
       title: "🌐 GSA macOS repair: the bumped name takes the chosen release (opts.rel) — fixes the CI failure from 1 Nov",

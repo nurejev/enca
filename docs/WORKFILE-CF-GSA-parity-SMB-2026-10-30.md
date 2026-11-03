@@ -3,7 +3,7 @@
 Date: 30 October 2026
 Requested by: Mihai (30 October 2026)
 For: ENCA – the CloudFellows baseline (`js/baselineData.js`, generated from the CloudFellows.dev reference tenant), the import (`js/import.js`), and the documentation in the repo and in Klantdocumentatie
-Status: **open** – nothing changed yet. One decision is open (D1, DevOps).
+Status: **CloudFellows.dev and ENCA done (3 November 2026, build 33111)** – W07 (delete the old twin) waits for Mihai's go; the documentation tasks W16–W19 and the rollout W20 are open. D1 taken: DevOps **in**.
 
 ## Why
 
@@ -29,7 +29,7 @@ Facts from Microsoft Learn (checked 29–30 October 2026):
 
 | ID | Decision | Status |
 |---|---|---|
-| D1 | **DevOps accounts in or out of CA215–CA218?** Today they are not covered. In: same protection as Internals, but every DevOps device needs GSA. Out: keep as is, write it down as a known gap in the release doc. | **open – Mihai** |
+| D1 | **DevOps accounts in or out of CA215–CA218?** Today they are not covered. In: same protection as Internals, but every DevOps device needs GSA. Out: keep as is, write it down as a known gap in the release doc. | **taken – in** (CA215 v3.0.5, CA216–CA218 v3.0.1 include CAB-SEC-U-Persona-DevOps) |
 | D2 | Fix in the **reference tenant first** (CloudFellows.dev), then *🧱 Update the catalog* in ENCA. `baselineData.js` is never edited by hand. | taken (ENCA rule) |
 | D3 | Customer tenants are **not** changed by this workpackage. Rollout = next ENCA import/compare per customer. | proposal |
 
@@ -50,21 +50,21 @@ No customer has CA215–CA218 yet, so the risk is in the **next import**, not in
 
 | Done | ID | Priority | Task |
 |---|---|---|---|
-| [ ] | W01 | P1 | **Backup first**: export all CA policies + named locations of CloudFellows.dev (ENCA export) and save it under `klanten/…/ENCA/` with date. |
-| [ ] | W02 | P1 | **G1** – CloudFellows.dev: add `CAB-SEC-U-TeamsSharedDevices` to the excluded groups of CA215–CA218 (new policy version, name suffix bumped). Check CA200 and the other *Internals* policies for the same gap and fix them in the same round. |
-| [ ] | W03 | P1 | **G2** – CloudFellows.dev: exclude Device Registration Service (`01cb2876-…`) on CA215–CA218. |
-| [ ] | W04 | P2 | **G3** – CloudFellows.dev: CA001 CountryWhitelist – exclude location *All Compliant Network locations* (new version). Same check for any CA001 variant (CA001A). |
-| [ ] | W05 | P2 | **G4** – create `CAB-SEC-U-CA215-Exclusion` (assigned, empty) and exclude it on CA215; add it to the ENCA group templates so the import creates it. |
-| [ ] | W06 | P2 | **G5** – trim the app exclusions of CA215–CA218 to the SMB set; at least remove Windows Azure Active Directory. Test sign-in on a Windows and a macOS test device in Report-only first (sign-in logs → *Report-only: failure*). |
-| [ ] | W07 | P3 | **G6** – delete the disabled `(NEW)CA215-…-v3.0.3` twin in CloudFellows.dev (after W01). |
-| [ ] | W08 | P1 | **D1** – Mihai decides DevOps in/out; if in: add DevOps to CA215–CA218 in CloudFellows.dev, otherwise write it as a known point (W16). |
-| [ ] | W09 | P1 | **ENCA catalog**: *🧱 Update the catalog* from CloudFellows.dev → new catalog revision in `js/baselineData.js`; check the diff only touches CA001, CA200(+), CA215–CA218 and the group templates. |
-| [ ] | W10 | P1 | **G7 – ENCA import**: give the CloudFellows bundle the same handling as SMB – `forceOff` for CA215–CA218, `cnOptional` for CA001 (retry without the compliant-network exclusion when GSA is not set up), pre-flight line when *All Compliant Network locations* is missing. |
-| [ ] | W11 | P1 | **ENCA tests** (`node --test tools/*.test.cjs`): CloudFellows tests for (a) TeamsSharedDevices + DRS excluded on CA215–CA218, (b) CA001 excludes the CN location, (c) CN policies land Off, (d) cnOptional retry; all existing tests green. |
-| [ ] | W12 | P1 | **ENCA bookkeeping**: `js/version.js` (build + tool versions), `js/changelog.js`, `js/promote.js` queue item, `index.html ?v=<build>`, catalog release in the release picker. |
-| [ ] | W13 | P2 | **CA018 workfile**: W02 still says SMB catalog *1.0.8 → 1.0.9* (now 1.0.10) and W08 calls SMB CA103 a compliant-network policy – since 1.0.10 CA103 = *admins outside allowed countries unless compliant network*. Update both lines; check that the new CA103 keeps *Microsoft Intune Enrollment* reachable. |
+| [x] | W01 | P1 | **Backup first**: export all CA policies + named locations of CloudFellows.dev (ENCA export) and save it under `klanten/…/ENCA/` with date. **→ done 3 Nov – `klanten/DEVCF/Identity/CA/ENCA/backup-2026-11-03/` (109 policies + named locations); the new policies as posted in `devcf-new-policies-2026-11-03.json`.** |
+| [x] | W02 | P1 | **G1** – CloudFellows.dev: add `CAB-SEC-U-TeamsSharedDevices` to the excluded groups of CA215–CA218 (new policy version, name suffix bumped). Check CA200 and the other *Internals* policies for the same gap and fix them in the same round. **→ done 3 Nov – `(UP)CA215 v3.0.5` (5ae43179), `(UP)CA216/217/218 v3.0.1` (892cff3a, 084e11df, ed88e112), Report-only; the old CA215 v3.0.4 and CA216–CA218 v3.0 set **Off**. CA200 and the other Internals policies: not changed in this round.** |
+| [x] | W03 | P1 | **G2** – CloudFellows.dev: exclude Device Registration Service (`01cb2876-…`) on CA215–CA218. **→ done 3 Nov – DRS excluded on CA215–CA218.** |
+| [x] | W04 | P2 | **G3** – CloudFellows.dev: CA001 CountryWhitelist – exclude location *All Compliant Network locations* (new version). Same check for any CA001 variant (CA001A). **→ done 3 Nov – `(UP)CA001 v1.0.3` (b2fdfdb8), **Off** like the v1.0.2 beside it; no CA001A in CloudFellows.dev.** |
+| [x] | W05 | P2 | **G4** – create `CAB-SEC-U-CA215-Exclusion` (assigned, empty) and exclude it on CA215; add it to the ENCA group templates so the import creates it. **→ done 3 Nov – group existed in the tenant (bbafd1c2), now excluded on CA215; template added (33111).** |
+| [x] | W06 | P2 | **G5** – trim the app exclusions of CA215–CA218 to the SMB set; at least remove Windows Azure Active Directory. Test sign-in on a Windows and a macOS test device in Report-only first (sign-in logs → *Report-only: failure*). **→ done 3 Nov – app exclusions = SMB set. Sign-in test on Windows/macOS in Report-only still to do (sign-in logs → *Report-only: failure*).** |
+| [ ] | W07 | P3 | **waits for Mihai's go (delete)** – **G6** – delete the disabled `(NEW)CA215-…-v3.0.3` twin in CloudFellows.dev (after W01). |
+| [x] | W08 | P1 | **D1** – Mihai decides DevOps in/out; if in: add DevOps to CA215–CA218 in CloudFellows.dev, otherwise write it as a known point (W16). **→ done 3 Nov – DevOps **in** (D1).** |
+| [x] | W09 | P1 | **ENCA catalog**: *🧱 Update the catalog* from CloudFellows.dev → new catalog revision in `js/baselineData.js`; check the diff only touches CA001, CA200(+), CA215–CA218 and the group templates. **→ done 3 Nov, build 33111 – entries generated with ENCA's own serialiser (`Baseline.vmToEntry`, the code behind *🧱 Update the catalog*) from the CloudFellows.dev policies; diff touches only CA001, CA018, CA113–CA116, CA215–CA218 and the templates (CA200 not changed, see W02).** |
+| [x] | W10 | P1 | **G7 – ENCA import**: give the CloudFellows bundle the same handling as SMB – `forceOff` for CA215–CA218, `cnOptional` for CA001 (retry without the compliant-network exclusion when GSA is not set up), pre-flight line when *All Compliant Network locations* is missing. **→ done 33111 – `Importer.cloudFellowsGsa()` in `prepareBundle`: forceOff CA113–CA116 + CA215–CA218, cnOptional CA001; the pre-flight line for the compliant network already applies to every bundle.** |
+| [x] | W11 | P1 | **ENCA tests** (`node --test tools/*.test.cjs`): CloudFellows tests for (a) TeamsSharedDevices + DRS excluded on CA215–CA218, (b) CA001 excludes the CN location, (c) CN policies land Off, (d) cnOptional retry; all existing tests green. **→ done 33111 – `tools/baseline-cf-gsa.test.cjs` (7 tests: catalog, templates, import, user impact); full suite green.** |
+| [x] | W12 | P1 | **ENCA bookkeeping**: `js/version.js` (build + tool versions), `js/changelog.js`, `js/promote.js` queue item, `index.html ?v=<build>`, catalog release in the release picker. **→ done 33111 – version.js (Baseline 2.17.0, Import 2.17.0, User impact 1.3), changelog, promote item 374, `index.html ?v=33111`.** |
+| [x] | W13 | P2 | **CA018 workfile**: W02 still says SMB catalog *1.0.8 → 1.0.9* (now 1.0.10) and W08 calls SMB CA103 a compliant-network policy – since 1.0.10 CA103 = *admins outside allowed countries unless compliant network*. Update both lines; check that the new CA103 keeps *Microsoft Intune Enrollment* reachable. **→ done 3 Nov – see WORKFILE-CA018 (status updated).** |
 | [ ] | W14 | P3 | **Joey Verlinden+**: check `js/baselineJoeyData.js` for the same patterns (CA001 without CN exception, rooms not excluded). Report only – Joey's set is not ours to change; additions go via the Dovilo/`+` list. |
-| [ ] | W15 | P1 | **Repo doc – CloudFellows release**: `klanten/Docs/ConditionalAccess/_bron/CF/` → new version of *New Release Conditional Access-baseline CloudFellows* (CA215–CA218 exclusions, CA001 change, CA215 exclusion group, known points), rebuild PDF + DOCX, remove the old version (only newest kept). Update `_bron/README.md` and `_bron/enca-catalogus/` (new export + `BRON.txt`). |
+| [x] | W15 | P1 | **Repo doc – CloudFellows release**: `klanten/Docs/ConditionalAccess/_bron/CF/` → new version of *New Release Conditional Access-baseline CloudFellows* (CA215–CA218 exclusions, CA001 change, CA215 exclusion group, known points), rebuild PDF + DOCX, remove the old version (only newest kept). Update `_bron/README.md` and `_bron/enca-catalogus/` (new export + `BRON.txt`). **→ done 3 Nov – CloudFellows v1.2 and Joey Verlinden+ v1.3 (CA018–CA023 built) in `klanten/docs/ConditionalAccess/R26.11`, old v1.1/v1.2 and the replaced snapshots removed; `_bron/README.md`, `BRON.txt`, `gen_tables.py` 1.0.4.** |
 | [ ] | W16 | P2 | **Repo doc – known points**: DevOps decision (D1), GSA required before CA215–CA218 go On, Teams Rooms excluded and why. |
 | [ ] | W17 | P2 | **Repo doc – end-user guides** (iOS / Android): today generic for SMB (CA009, CA203/CA204). Add a CloudFellows variant or an IT appendix naming the CloudFellows policies (CA212, CA217, CA218); note that CloudFellows CA212 covers Office 365 only. |
 | [ ] | W18 | P3 | **Repo – other references**: `klanten/DVL/Identity/CA/ENCA/ConditionalAccess-Dovilo-BV-2026-08-21.md` (CA001/CA001A – Dovilo wording, no CloudFellows), PVM PIMBuddy files and `PVM/Intune/Exports/PSSO-READINESS-20261027-212107/READINESS.md` (DRS exclusion) – check and update where they describe CA215 or CountryWhitelist. |
@@ -77,3 +77,10 @@ No customer has CA215–CA218 yet, so the risk is in the **next import**, not in
 - CloudFellows.dev has CA215–CA218 and CA001 matching the SMB patterns (G1–G6 closed), backup saved.
 - ENCA catalog, import and tests cover G1–G7, build promoted.
 - CloudFellows release doc, guides and Klantdocumentatie show the new state; old versions removed.
+
+## Also built in this round (3 November 2026)
+
+- **CA113–CA116** `(NEW)…-Admins-CN-AllApps-<platform>-Require Global Secure Access client active-v1.0` (6f34507d, 5f9b1d91, 683bfe52, 83585aba), Report-only: CAB-SEC-U-Persona-Admins + the CA100 roles; excluded: break glass, own exclusion group, `CAB-SEC-U-ExternalAdmins`, guest admins, every external type; apps and network as CA215. New groups in the restricted AU `CAB-SEC-RMAU-ADM-Exclusions`.
+- **CA018** `(NEW)CA018-BLOCK-Global-ASR-MicrosoftIntuneEnrollment-Windows-NonTrustedLocations-v1.0` (92080cb0), Report-only, `CAB-SEC-U-CA018-Exclusion` in the GLO exclusions AU.
+- 🗣 User impact brief: CA001 v1.0.3 would have been read as *the client must be running* (the rule told the two apart by the words "compliant network"); now decided on the location ids, plus an enrollment statement for CA018.
+- **Impact:** none for users – every new policy is Report-only or Off, the old CA215–CA218 were Report-only. **Recovery:** set the new policy Off and the old version back to Report-only; the backup holds every policy as it was.

@@ -486,6 +486,26 @@ const Importer = (() => {
   // displayName, srcIds, fileNames, … }), the notes worth showing, and an
   // index the repair step asks "which group did this source id mean for
   // THIS policy?".
+  // 33111: the CloudFellows compliant-network policies get the handling SMB
+  // Basic has had since 33105 (WORKFILE-CF-GSA-parity-SMB, G7). CA113-CA116
+  // (admins) and CA215-CA218 (internals) block every sign-in outside the
+  // compliant network, so in a tenant where Global Secure Access is not green
+  // yet they would lock people out the moment they are switched on: they land
+  // Off whatever the backup says. CA001 (country whitelist) excludes All
+  // Compliant Network locations since v1.0.3; Entra refuses that location
+  // while GSA signalling is off, so CA001 is retried without it (cnOptional).
+  const CF_GSA_OFF = new Set([113, 114, 115, 116, 215, 216, 217, 218]);
+  function cloudFellowsGsa(cat, policies) {
+    if (!cat || cat.id !== "limonit") return null;
+    const forceOff = [], cnOptional = [];
+    for (const p of policies || []) {
+      const n = caNumOf(p && p.displayName);
+      if (CF_GSA_OFF.has(n)) forceOff.push(p.displayName);
+      else if (n === 1) cnOptional.push(p.displayName);
+    }
+    return { forceOff, cnOptional };
+  }
+
   function prepareBundle(raw) {
     if (!raw || raw.prepared) return raw;
     const cat = catalogForBundle(raw);
@@ -596,9 +616,14 @@ const Importer = (() => {
       notes.push(`one source id carries ${fs.length} names (${fs.map((f) => `“${f.displayName}”`).join(", ")}) — each policy is attached to the group that carries its own name${got.length ? `: ${got.join(", ")}` : ""}`);
     }
     const sourceIds = new Set(files.keys());
+    const gsa = cloudFellowsGsa(cat, policies);
     return {
       ...raw,
       policies,
+      ...(gsa ? {
+        forceOff: [...new Set([...(raw.forceOff || []), ...gsa.forceOff])],
+        cnOptional: [...new Set([...(raw.cnOptional || []), ...gsa.cnOptional])],
+      } : {}),
       groups: [...planned.values()],
       prepared: true,
       groupNotes: notes,
@@ -2648,5 +2673,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
+  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, cloudFellowsGsa, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
 })();

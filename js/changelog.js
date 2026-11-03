@@ -29,6 +29,17 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33111, date: "2026-11-03", title: "CloudFellows baseline: admins only through the secure network client, and the SMB fixes on CA215-CA218",
+    items: [
+      { kind: "new", tool: "Baseline", text: "CA113-CA116 (one per platform): admins sign in only through the Global Secure Access client. Break glass, each policy's own exclusion group, CAB-SEC-U-ExternalAdmins, guest admins and every external type are excluded." },
+      { kind: "new", tool: "Baseline", text: "CA018: Windows devices are enrolled in Intune from a trusted location only." },
+      { kind: "improved", tool: "Baseline", text: "CA215 v3.0.5 and CA216-CA218 v3.0.1 include DevOps, exclude Teams shared devices (and CA215 now has its own exclusion group), and exclude the same apps as SMB Basic, Device Registration Service included. The directory sign-in apps are no longer excluded." },
+      { kind: "improved", tool: "Baseline", text: "CA001 v1.0.3 excludes All Compliant Network locations, so sign-ins through Global Secure Access are not blocked as a foreign country." },
+      { kind: "improved", tool: "Import", text: "A CloudFellows import creates CA113-CA116 and CA215-CA218 Off, and creates CA001 without the compliant network exception in a tenant where Global Secure Access is not set up, saying so in the report." },
+      { kind: "fixed", tool: "User impact brief", text: "A country block that also excludes the compliant network is described as a country rule again, and Windows enrollment from the office has its own statement." },
+    ],
+  },
+  {
     build: 33110, date: "2026-11-03", title: "Global Secure Access: a macOS repair names its new version after the chosen release",
     items: [
       { kind: "fixed", tool: "Global Secure Access", text: "Repairing a macOS GSA profile named the new version after the current month (R26.11 in November) even when a release had been chosen; it now carries the chosen release, as the newly created objects already did. This also made the build check fail from 1 November." },
