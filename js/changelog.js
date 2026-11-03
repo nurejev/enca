@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33110, date: "2026-11-03", title: "Global Secure Access: a macOS repair names its new version after the chosen release",
+    items: [
+      { kind: "fixed", tool: "Global Secure Access", text: "Repairing a macOS GSA profile named the new version after the current month (R26.11 in November) even when a release had been chosen; it now carries the chosen release, as the newly created objects already did. This also made the build check fail from 1 November." },
+    ],
+  },
+  {
     build: 33109, date: "2026-11-03", title: "Joey Verlinden+: the compliant network, app protection and office-only enrollment come with every Joey import",
     items: [
       { kind: "new", tool: "Baseline", text: "Joey Verlinden+ now carries its own additions, the way the E-Admins come with every baseline: CA018 (Windows Intune enrollment only from a trusted location), CA019 (phones only through apps under an app protection policy) and CA020–CA023 (users and admins only through the Global Secure Access client, one policy per platform). Under the Joey catalog they are listed as a Joey+ section and show Missing until they are in the tenant. External admins go in CAB-SEC-U-ExternalAdmins; guests, GDAP technicians and CA-ServiceAccounts are left out." },

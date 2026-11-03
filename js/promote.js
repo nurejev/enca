@@ -182,6 +182,20 @@ const PROMOTE = {
 
   items: [
     {
+      n: 373,
+      ws: "platform",
+      title: "🌐 GSA macOS repair: the bumped name takes the chosen release (opts.rel) — fixes the CI failure from 1 Nov",
+      tools: ["Gsa"],
+      builds: [33110],
+      risk: "low",
+      what: "33110: js/gsa.js bumpName(old, d, rel) — macFixPlan passes o.rel for the repaired object's new version name, as it already did for created objects.",
+      why: "docker image / checks failed on beta 33109 (5a39641): tools/gsa.test.cjs 0.9.0 pins R26.10 and the name took the current month (R26.11) — a date-dependent test exposing that opts.rel was ignored on the repair path.",
+      test: [
+        "node --test tools/gsa.test.cjs: 58 pass; the docker image checks job green on beta.",
+        "🌐 GSA on a tenant with an outdated macOS GSA settings profile: Repair with release R26.10 → the new version is named ' - R26.10 - v3.2'.",
+      ],
+    },
+    {
       n: 372,
       ws: "ca",
       title: "➕ Joey Verlinden+ additions — CA018, CA019, CA020–CA023 shipped beside Joey's release and imported with every Joey import",

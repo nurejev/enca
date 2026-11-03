@@ -1679,10 +1679,15 @@ const Gsa = (() => {
     return { rows, groups, noMac, otherSx: otherSx.filter((p) => p.name !== undefined).map((p) => ({ id: p.id, name: p.name })), otherSxLegacy: otherSx.filter((p) => p.name === undefined).map((p) => ({ id: p.id, name: p.displayName })), policiesById: Object.fromEntries((c.policies || []).map((p) => [p.id, p])), problems, scriptAsg, ok: !problems && rows.every((r) => r.st === "ok") };
   }
   // ---- names: next version, U → D, the [OPTIONAL] prefix kept ------------
-  function bumpName(old, d) {
+  // 33110: `rel` (the release the plan was asked for, opts.rel) wins over the
+  // month of today — macFixPlan passed it for the new objects but not here, so
+  // a repair made in November named its new version R26.11 whatever release
+  // was chosen (and the CI test pinned to R26.10 began failing on 1 Nov)
+  function bumpName(old, d, rel) {
     let n = String(old || "").replace(DEP_RX, "").replace(/ - U - /, " - D - ").trim();
+    const tag = rel || relTag(d);
     const mm = n.match(/^(.*?)(?: - R\d+(?:\.\d+)?)? - v(\d+)(?:\.(\d+))?(?:\.\d+)*\s*$/);
-    return mm ? `${mm[1]} - ${relTag(d)} - v${mm[2]}.${(+(mm[3] || 0)) + 1}` : `${n} - ${relTag(d)} - v1.0`;
+    return mm ? `${mm[1]} - ${tag} - v${mm[2]}.${(+(mm[3] || 0)) + 1}` : `${n} - ${tag} - v1.0`;
   }
   // the GSA ids added to an existing system-extension policy (the PUT body's settings)
   function sysextAdd(settings) {
@@ -1745,7 +1750,7 @@ const Gsa = (() => {
       return { mode, row, ops, changes, title: `Assign the ${label} to the script's Macs`, impact: `The script's Macs get ${row.name} at their next check-in.`, recovery: `Remove the added assignment from ${row.name}.` };
     }
     // repair: a corrected next version, the old one unassigned and marked
-    const newName = bumpName(row.name), ck = kindOf(cur);
+    const newName = bumpName(row.name, null, o.rel), ck = kindOf(cur);
     const lock = key === "settings" ? (o.lock != null ? o.lock : settingsMode(cur) === "lock-down") : o.lock;
     const body = key === "settings" ? Object.assign(macSettingsBody(Object.assign({}, nameOpts, { lock })), { displayName: newName }) : bodyFor(newName);
     const why = row.issues.filter((i) => i.sev === "bad").map((i) => i.t).join("; ");
