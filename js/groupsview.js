@@ -330,7 +330,7 @@ const GroupsView = (() => {
       : r.nesting === "disabled" ? "Nesting is disabled on this group (disableNesting is set), so Entra refuses a group as a member."
       : "";
     const log = `<div id="cgAddLog" class="mini" style="margin:4px 0 6px">${o.addMsg ? `<span style="${o.addMsg.bad ? "color:var(--off)" : ""}">${o.addMsg.html}</span>` : ""}</div>`;
-    if (block) return `<p class="mini" style="color:var(--off);margin:0 0 6px">${esc(block)}</p>${log}`;
+    if (block) return `<p class="mini" style="color:var(--off);margin:0 0 6px">${esc(block)}</p><p class="mini muted" style="margin:0 0 6px">The toolbar's <b>🚀 Add to deploy groups</b> can add the group's users instead${r.roleAssignable ? "" : ", or switch nesting on for this deploy group (opt-in, undoable)"}.</p>${log}`;
     return `<div class="cgg-add"><input id="cgNestName" class="txt" list="cgNestSug" placeholder="Nest a group — group name or object id" spellcheck="false" autocomplete="off"><button class="btn primary" id="cgNestGo">＋ Nest group</button></div>
         <p class="mini muted" style="margin:0 0 2px">Everyone in that group — and in groups inside it — becomes a member of <b>${esc(r.name)}</b> through the nesting, so every policy trialled on it applies to them. From then on whoever manages that group also decides who is in here. Security groups only (no Microsoft 365 or distribution groups). Asks before it writes; the nested group gets a × below to take it out again.</p>
         ${log}`;

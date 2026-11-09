@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 380,
+      ws: "ca",
+      title: "🚀 Add to deploy groups — paste testers once, add them to GLO + INT, GLO + EXT or ticked deploy groups (nest groups or add their users; add only, undoable)",
+      tools: ["Conditional Access groups"],
+      builds: [33207],
+      risk: "medium",
+      files: ["js/dgadd.js", "js/app.js", "js/groupsview.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/dgadd.test.cjs"],
+      what: "33207 (Mihai 9 Nov): js/dgadd.js (pure plan), app.js openDgAdd / dgaPreview (dgaReadTargets, dgaResolve, dgaExpand) / dgaApply (unlock disableNesting at v1.0 with read-back, $batch POST members/$ref) / dgaUndo (DELETE + relock) / Export MD; toolbar button cgDgAdd + modal dgaModal; drawer nest box points to it.",
+      why: "The rollout trial puts the same testers in two deploy groups (GLO + INT, GLO + EXT); the drawer adds to one group at a time and 🌍 Fill from regions is a whole-tenant sort.",
+      test: [
+        "node --test tools/*.test.cjs: all green (dgadd +11).",
+        "devcf → CA groups → 🚀 Add to deploy groups → GLO + INT, paste two UPNs and one security group, Nest → preview: GLO (role-assignable) blocks the group with the reason, INT nesting disabled blocks it until Allow nesting is ticked.",
+        "Tick Allow nesting → preview names INT as switched on first → Add → INT shows the nested group in the drawer; disableNesting reads false.",
+        "Add its users instead → the group's users land in GLO and INT, the group itself not.",
+        "↩ Undo this run → the adds are gone, INT nesting disabled again.",
+      ],
+    },
+    {
       n: 379,
       ws: "ca",
       title: "👥 Deployment groups: nest a group (group nesting) from the drawer, and take a nested group out again",

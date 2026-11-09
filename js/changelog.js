@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33207, date: "2026-11-09", title: "🚀 Add to deploy groups — testers into GLO + INT or GLO + EXT in one go",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "🚀 Add to deploy groups (toolbar): paste users and groups once and add them to GLO + INT, GLO + EXT or the deploy groups you tick. A UPN or e-mail is a user, an object id a user or a group, an exact name the one group or user with that name. A group is nested, or its users are added (a snapshot). The preview shows each entry against each deploy group — add, already in, or blocked with the reason — before anything is written." },
+      { kind: "new", tool: "Conditional Access groups", text: "Opt-in Allow nesting: where a deploy group has nesting disabled, it is switched on for that deploy group only, read back before the add. Undo this run takes out exactly what the run added and switches nesting off again. Add only — nothing is removed." },
+    ],
+  },
+  {
     build: 33206, date: "2026-11-09", title: "👥 Deployment groups: nest a group",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "A deploy group (CAD-SEC-U-DG-*) takes a group as a member: Members tab → 👤 User | 👥 Group (nesting) → type the group name or paste its object id → ＋ Nest group. Security groups only; a Microsoft 365 group, a distribution list, an archived migration leftover, the group itself, one already nested and a group that already contains the deployment group are refused, as is a role-assignable or nesting-disabled target. The confirmation names how many users come in and which policies include or exclude the deployment group." },

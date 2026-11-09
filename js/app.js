@@ -8474,6 +8474,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function syncDgFillBtn() {
     const b = $("cgDgFill"); if (!b) return;
     b.style.display = document.body.dataset.ws && document.body.dataset.ws !== "ca" ? "none" : "inline-flex";
+    const a = $("cgDgAdd"); if (a) a.style.display = b.style.display;
   }
   const dgNum = (n) => Number(n || 0).toLocaleString("en-US");
   const dgStepNames = [["sources", "① Sources"], ["preview", "② Preview"], ["apply", "③ Apply"]];
@@ -8997,6 +8998,260 @@ max@contoso.com,"Global, DevOps"</pre>
     $("dgSub").textContent = `Undo: ${dgNum(done.filter((d) => d.ok).length)} of ${dgNum(done.length)} reversed${isDemo ? " (simulated)" : ""}.`;
     $("dgCancel").disabled = false; dgPaintButtons();
   }
+
+  // ---------- 🚀 Add to deploy groups (beta 33207) ----------
+  // js/dgadd.js plans; this is the dialog, the reads and the writes. Paste a
+  // list, pick GLO + INT / GLO + EXT (or tick deploy groups), preview, add.
+  // Add only — never removes. The target names are 🌍 Fill from regions'
+  // per-tenant names (DgFill.targets), so a renamed deploy group is found.
+  let dga = null;
+  const DGA_USEL = "id,displayName,userPrincipalName,accountEnabled,userType";
+  const DGA_GSEL = "id,displayName,groupTypes,securityEnabled,mailEnabled,isAssignableToRole,membershipRule";
+  const dgaAll = () => DgFill.targets(dgPrefs());
+  const dgaKeys = () => dga.set === "custom" ? [...dga.custom] : (DgAdd.PRESETS.find((p) => p.key === dga.set) || DgAdd.PRESETS[0]).keys;
+  const dgaTargets = () => { const k = dgaKeys(); return dgaAll().filter((t) => k.includes(t.key)); };
+  function openDgAdd() {
+    // ticked deploy groups in the list → arrive as a hand-picked set
+    const all = dgaAll(), picked = all.filter((t) => cgSel && cgSel.has(t.name)).map((t) => t.key);
+    const keep = dga && dga.step !== "done" ? dga.text : "";
+    dga = { step: "pick", set: picked.length ? "custom" : (dga ? dga.set : "GLO+INT"), custom: new Set(picked.length ? picked : (dga ? [...dga.custom] : [])),
+      text: keep, groupMode: dga ? dga.groupMode : "nest", allowNesting: false, skipDisabled: dga ? dga.skipDisabled : true, busy: false, err: "", plan: null, run: null };
+    $("dgaModal").classList.add("open");
+    renderDgAdd();
+  }
+  function dgaPaint() {
+    const s = dga.step, busy = dga.busy;
+    const at = s === "done" ? "add" : s;
+    $("dgaSteps").innerHTML = [["pick", "① Who and where"], ["preview", "② Preview"], ["add", "③ Add"]].map(([k, l]) => `<span class="dg-step${k === at ? " on" : ""}">${l}</span>`).join("");
+    $("dgaBack").style.display = s === "preview" ? "" : "none";
+    $("dgaNext").style.display = s === "pick" ? "" : s === "done" ? "" : "none";
+    $("dgaNext").textContent = s === "done" ? "Add more…" : busy ? "Reading…" : "Preview →";
+    $("dgaNext").disabled = busy;
+    const n = dga.plan ? dga.plan.writes.length : 0;
+    $("dgaGo").style.display = s === "preview" ? "" : "none";
+    $("dgaGo").disabled = busy || !n;
+    $("dgaGo").textContent = n ? `Add ${n} membership${n === 1 ? "" : "s"}` : "Nothing to add";
+    $("dgaMd").style.display = s === "done" && dga.run ? "" : "none";
+    $("dgaUndo").style.display = s === "done" && dga.run && dga.run.done.length && !dga.run.undone ? "" : "none";
+    $("dgaCancel").disabled = busy;
+  }
+  function renderDgAdd() {
+    dgaPaint();
+    const body = $("dgaBody");
+    if (dga.err) { $("dgaSub").innerHTML = ""; body.innerHTML = `<div class="wo-callout bad">${esc(dga.err)}</div>`; return; }
+    if (dga.step === "pick") { body.innerHTML = dgaPickHtml(); $("dgaSub").innerHTML = "Testers for the trial step: paste them once, they go into every deploy group of the set. Nothing is removed from any group."; dgaCount(); return; }
+    if (dga.step === "preview") { body.innerHTML = dgaPreviewHtml(); return; }
+    if (dga.step === "done") { body.innerHTML = dgaDoneHtml(); return; }
+  }
+  function dgaPickHtml() {
+    const all = dgaAll();
+    const sets = DgAdd.PRESETS.map((p) => `<button class="${dga.set === p.key ? "active" : ""}" data-dga-set="${p.key}" title="${esc(p.note)}">${esc(p.label)}</button>`).join("");
+    const names = dga.set === "custom"
+      ? `<div class="mini" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px">${all.map((t) => `<label class="chk"><input type="checkbox" data-dga-key="${t.key}" ${dga.custom.has(t.key) ? "checked" : ""}> <span>${esc(t.name)}</span></label>`).join("")}</div>`
+      : `<p class="mini muted" style="margin:6px 0 0">Into: ${dgaTargets().map((t) => `<b>${esc(t.name)}</b>`).join(" + ")}</p>`;
+    return `<div style="display:grid;gap:12px">
+      <div><b class="mini">Deploy groups</b><div style="margin-top:4px"><span class="seg sw">${sets}</span></div>${names}</div>
+      <div><b class="mini">Users and groups</b>
+        <textarea id="dgaText" class="txt" rows="8" spellcheck="false" style="width:100%;margin-top:4px;font-family:inherit" placeholder="One per line, or separated with ; or ,&#10;eva.jansen@contoso.com&#10;SG-Pilot-Finance&#10;8b0c…-object id">${esc(dga.text)}</textarea>
+        <p class="mini muted" style="margin:2px 0 0"><span id="dgaN"></span> A UPN or e-mail is a user; an object id is a user or a group; a name is the one group (or user) with exactly that display name. A column pasted from Excel or an Outlook To line works.</p></div>
+      <div><b class="mini">A group in the list</b>
+        <div class="mini" style="display:grid;gap:4px;margin-top:4px">
+          <label class="chk"><input type="radio" name="dgaMode" value="nest" ${dga.groupMode === "nest" ? "checked" : ""}> <span><b>Nest the group</b> — the deploy group follows it: who joins or leaves that group later is in or out of the trial too.</span></label>
+          <label class="chk"><input type="radio" name="dgaMode" value="expand" ${dga.groupMode === "expand" ? "checked" : ""}> <span><b>Add its users</b> — the users in it now (direct and nested), each added by name; later changes to that group do not follow.</span></label>
+          <label class="chk" style="margin-left:22px"><input type="checkbox" id="dgaAllow" ${dga.allowNesting ? "checked" : ""} ${dga.groupMode === "nest" ? "" : "disabled"}> <span>Allow nesting on these deploy groups where it is switched off <span class="muted">(disableNesting off on that deploy group only — the preview names which; Undo switches it back on)</span></span></label>
+          <label class="chk"><input type="checkbox" id="dgaSkip" ${dga.skipDisabled ? "checked" : ""}> <span>Skip disabled accounts</span></label>
+        </div></div>
+    </div>`;
+  }
+  function dgaCount() {
+    const n = DgAdd.parse(($("dgaText") || {}).value || dga.text).length, el = $("dgaN");
+    if (el) el.textContent = n ? `${n} entr${n === 1 ? "y" : "ies"}.` : "";
+  }
+
+  // Read the targets and resolve the entries, then plan.
+  async function dgaPreview() {
+    dga.text = ($("dgaText") || {}).value ?? dga.text;
+    const list = DgAdd.parse(dga.text), T = dgaTargets();
+    if (!T.length) { toast("Pick at least one <span>deploy group</span>"); return; }
+    if (!list.length) { toast("Paste at least one <span>user or group</span>"); return; }
+    if (list.length > 500) { toast("At most <span>500 entries</span> a run — split the list"); return; }
+    dga.busy = true; dga.err = ""; dgaPaint();
+    $("dgaSub").textContent = `Reading ${T.length} deploy group${T.length === 1 ? "" : "s"} and looking up ${list.length} entr${list.length === 1 ? "y" : "ies"}…`;
+    try {
+      const [targets, entries] = await Promise.all([dgaReadTargets(T), dgaResolve(list)]);
+      if (dga.groupMode === "expand") await dgaExpand(entries);
+      dga.targets = targets; dga.entries = entries;
+      dga.plan = DgAdd.plan(entries, targets, { groupMode: dga.groupMode, allowNesting: dga.allowNesting, skipDisabled: dga.skipDisabled });
+      dga.step = "preview";
+    } catch (e) { console.error(e); dga.err = `Could not prepare the preview: ${e.message || e}`; }
+    dga.busy = false; renderDgAdd();
+  }
+  async function dgaReadTargets(T) {
+    if (isDemo) return T.map((t, i) => ({ ...t, id: `g-dg-${t.key}`, dynamic: false, roleAssignable: t.key === "GUESTUSERS", nesting: i % 2 ? "disabled" : "unknown", members: new Set([`u-demo-${t.key === "GLO" ? 1 : 9}`]) }));
+    const res = await Graph.gbatch(T.map((t, i) => ({ id: i, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${t.name.replace(/'/g, "''")}'`)}&$select=${DGA_GSEL}` })));
+    const out = T.map((t, i) => {
+      const v = (res[i] && res[i].body && res[i].body.value) || [];
+      if (v.length > 1) throw new Error(`${v.length} groups are called ${t.name} — 🔀 Duplicate names merges them first`);
+      const g = v[0];
+      return g ? { ...t, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), roleAssignable: !!g.isAssignableToRole, nesting: "unknown", members: null } : { ...t, id: null };
+    });
+    const live = out.filter((t) => t.id);
+    // direct members (users and groups) — "already in" — and the nesting state
+    await Promise.all(live.map(async (t) => {
+      const ms = await Graph.ggetAll(`/groups/${t.id}/members?$select=id&$top=999`);
+      t.members = new Set(ms.map((m) => m.id));
+    }));
+    const nb = await Graph.gbatch(live.map((t, i) => ({ id: i, url: `/groups/${t.id}?$select=id,disableNesting` })), null, { base: "https://graph.microsoft.com/v1.0" }).catch(() => ({}));
+    live.forEach((t, i) => { const b = nb[i] && nb[i].body; t.nesting = b ? CaGroups.nestingState(b) : "unknown"; });
+    return out;
+  }
+  async function dgaResolve(list) {
+    if (isDemo) return list.map((q, i) => {
+      if (q.includes("@")) return { q, obj: DgAdd.userFacts({ id: `u-demo-${i + 1}`, displayName: q.split("@")[0], userPrincipalName: q, accountEnabled: !/disabled/i.test(q) }) };
+      if (/^sg-|^grp|group/i.test(q)) return { q, obj: DgAdd.groupFacts({ id: `g-demo-${i}`, displayName: q, groupTypes: /m365/i.test(q) ? ["Unified"] : [], securityEnabled: true }) };
+      return { q, obj: null, err: "not found — use the UPN or the object id" };
+    });
+    const reqs = [];
+    list.forEach((q, i) => {
+      const k = DgAdd.kindOf(q), f = q.replace(/'/g, "''");
+      if (k === "upn") reqs.push({ id: `${i}u`, url: `/users/${encodeURIComponent(q)}?$select=${DGA_USEL}` });
+      else if (k === "id") { reqs.push({ id: `${i}u`, url: `/users/${q}?$select=${DGA_USEL}` }); reqs.push({ id: `${i}g`, url: `/groups/${q}?$select=${DGA_GSEL}` }); }
+      else { reqs.push({ id: `${i}g`, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${f}'`)}&$select=${DGA_GSEL}&$top=3` }); reqs.push({ id: `${i}u`, url: `/users?$filter=${encodeURIComponent(`displayName eq '${f}'`)}&$select=${DGA_USEL}&$top=3` }); }
+    });
+    const r = await Graph.gbatch(reqs);
+    return list.map((q, i) => {
+      const k = DgAdd.kindOf(q), U = r[`${i}u`] || {}, G = r[`${i}g`] || {};
+      if (k === "upn") return U.body && U.body.id ? { q, obj: DgAdd.userFacts(U.body) } : { q, obj: null, err: U.error && !/not ?found|does not exist|404/i.test(U.error) ? `lookup failed: ${U.error}` : "no user with this UPN" };
+      if (k === "id") return U.body && U.body.id ? { q, obj: DgAdd.userFacts(U.body) } : G.body && G.body.id ? { q, obj: DgAdd.groupFacts(G.body) } : { q, obj: null, err: "no user or group with this object id" };
+      const gs = (G.body && G.body.value) || [], us = (U.body && U.body.value) || [];
+      if (gs.length + us.length === 0) return { q, obj: null, err: "no group or user with exactly this name — use the UPN or the object id" };
+      if (gs.length + us.length > 1) return { q, obj: null, err: `${gs.length + us.length} objects have this name — use the UPN or the object id` };
+      return { q, obj: gs.length ? DgAdd.groupFacts(gs[0]) : DgAdd.userFacts(us[0]) };
+    });
+  }
+  async function dgaExpand(entries) {
+    for (const e of entries) {
+      if (!e.obj || e.obj.kind !== "group") continue;
+      if (isDemo) { e.users = [1, 2, 3].map((n) => DgAdd.userFacts({ id: `u-${e.obj.id}-${n}`, displayName: `${e.obj.name} user ${n}`, userPrincipalName: `u${n}@contoso.example`, accountEnabled: n !== 3 })); continue; }
+      const us = await Graph.ggetAll(`/groups/${e.obj.id}/transitiveMembers/microsoft.graph.user?$select=${DGA_USEL}&$top=999`);
+      e.users = us.map(DgAdd.userFacts);
+    }
+  }
+  function dgaPreviewHtml() {
+    const P = dga.plan, T = dga.targets;
+    const head = `<tr><th>Entry</th>${T.map((t) => `<th>${esc(t.name)}${!t.id ? '<div class="mini" style="color:var(--off)">not in this tenant</div>' : t.roleAssignable ? '<div class="mini muted">role-assignable</div>' : t.nesting === "disabled" ? '<div class="mini muted">🚫 nesting disabled</div>' : ""}</th>`).join("")}</tr>`;
+    const cell = (c) => c.state === "add" ? `<span class="wo-res nc">＋ ${c.n != null ? `${c.n} user${c.n === 1 ? "" : "s"}` : "add"}</span>${c.unlock ? '<div class="mini muted">nesting switched on first</div>' : ""}${c.same ? `<div class="mini muted">${c.same} already in</div>` : ""}${c.skip ? `<div class="mini muted">${c.skip} disabled skipped</div>` : ""}`
+      : c.state === "same" ? `<span class="mini muted">= already in${c.reason ? ` (${esc(c.reason)})` : ""}</span>`
+      : c.state === "blocked" ? `<span class="mini" style="color:var(--off)">✗ ${esc(c.reason)}</span>`
+      : c.state === "missing" ? '<span class="mini muted">—</span>'
+      : `<span class="mini muted">— ${esc(c.reason || "")}</span>`;
+    const who = (r) => !r.obj ? `<b>${esc(r.q)}</b><div class="mini" style="color:var(--off)">✗ ${esc(r.err)}</div>`
+      : r.obj.kind === "group" ? `👥 <b>${esc(r.obj.name)}</b><div class="mini muted">group${r.obj.dynamic ? " · dynamic" : ""}${r.users != null ? ` · ${r.users} user${r.users === 1 ? "" : "s"}` : ""}</div>`
+      : `👤 <b>${esc(r.obj.name)}</b><div class="mini muted">${esc(r.obj.upn)}${r.obj.disabled ? " · disabled" : ""}${r.obj.guest ? " · guest" : ""}</div>`;
+    const rows = P.rows.map((r) => `<tr><td>${who(r)}</td>${T.map((t) => `<td>${cell(r.cells[t.key])}</td>`).join("")}</tr>`).join("");
+    const per = T.filter((t) => t.id).map((t) => `<b>${P.counts.perTarget[t.key]}</b> into ${esc(t.name)}`).join(" · ");
+    $("dgaSub").innerHTML = `${P.counts.writes ? per : "Nothing to add."}${P.counts.notFound ? ` · <span style="color:var(--off)">${P.counts.notFound} not found</span>` : ""}${P.counts.blocked ? ` · <span style="color:var(--off)">${P.counts.blocked} blocked</span>` : ""}`;
+    const unl = P.unlock.length ? `<div class="wo-callout" style="margin-bottom:8px"><b>Nesting is switched on first</b> on ${P.unlock.map((u) => `<b>${esc(u.name)}</b>`).join(", ")} (disableNesting off on that group only, read back before the add). ↩ Undo switches it off again.</div>` : "";
+    const ra = T.some((t) => t.id && t.roleAssignable) && P.rows.some((r) => r.obj && r.obj.kind === "group" && P.mode === "nest") ? `<p class="mini muted">A role-assignable deploy group cannot hold a group: choose <b>Add its users</b>, or ⑦ Migrate that deploy group to a plain group first.</p>` : "";
+    return `${unl}<div class="gu-tw"><table class="plist wo-tbl" style="min-width:0"><thead>${head}</thead><tbody>${rows}</tbody></table></div>${ra}`;
+  }
+
+  async function dgaApply() {
+    const P = dga.plan; if (!P || !P.writes.length) return;
+    const tNames = [...new Set(P.writes.map((w) => w.targetName))];
+    if (!confirm(`Add ${P.writes.length} membership${P.writes.length === 1 ? "" : "s"} to ${tNames.join(", ")}?${P.unlock.length ? `\n\nNesting is switched on first on: ${P.unlock.map((u) => u.name).join(", ")}.` : ""}\n\nEveryone added is in scope of every policy that includes these deploy groups. Nothing is removed. ↩ Undo takes out exactly what this run adds.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", ...(P.unlock.length ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
+    dga.busy = true; dgaPaint();
+    const run = { at: new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC", set: dga.set === "custom" ? dgaTargets().map((t) => t.key).join(" + ") : dga.set, mode: P.mode, allowNesting: dga.allowNesting, unlocked: [], done: [], failed: [] };
+    const blockedTargets = new Set();
+    for (const u of P.unlock) {
+      $("dgaSub").textContent = `Switching nesting on: ${u.name}…`;
+      try {
+        if (!isDemo) {
+          await Graph.gpatch(CaGroups.NEST_V1(`/groups/${u.id}`), { disableNesting: false }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+          const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${u.id}?$select=id,disableNesting`));
+          if (back && back.disableNesting === true) throw new Error("still disabled after the write");
+        }
+        run.unlocked.push(u);
+      } catch (e) { blockedTargets.add(u.id); run.nestError = `${u.name}: ${e.message || e}`; }
+    }
+    const todo = P.writes.filter((w) => !(w.kind === "group" && blockedTargets.has(w.targetId)));
+    P.writes.filter((w) => w.kind === "group" && blockedTargets.has(w.targetId)).forEach((w) => run.failed.push({ ...w, error: `nesting could not be switched on (${run.nestError})` }));
+    if (isDemo) todo.forEach((w) => run.done.push(w));
+    else {
+      const out = await Graph.gbatch(todo.map((w, i) => ({ id: i, method: "POST", url: `/groups/${w.targetId}/members/$ref`, body: { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${w.memberId}` } })),
+        (d, n) => { $("dgaSub").textContent = `Adding… ${d} of ${n}`; }, { scopes: [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"] });
+      todo.forEach((w, i) => {
+        const o = out[i] || { error: "no response" };
+        if (!o.error) run.done.push(w);
+        else if (/already exist/i.test(o.error)) run.same = (run.same || 0) + 1;
+        else run.failed.push({ ...w, error: o.error });
+      });
+    }
+    dga.run = run; dga.busy = false; dga.step = "done";
+    renderDgAdd();
+    dgaRefreshRows(P.writes.map((w) => w.targetId));
+  }
+  // Loaded rows of those deploy groups re-read, so the list and drawer agree.
+  async function dgaRefreshRows(ids) {
+    if (!cgRes || isDemo) return;
+    const rows = (cgRes.rows || []).filter((r) => r.id && ids.includes(r.id));
+    rows.forEach((r) => { r.nestedGroups = undefined; });
+    try { await CaGroups.loadMembers(rows.filter((r) => r.members != null), {}); await loadNestedGroups(rows); } catch (e) { console.warn("deploy group re-read failed:", e.message); }
+    if (cgTab === "groups") renderCaGroups();
+  }
+  function dgaDoneHtml() {
+    const R = dga.run, ok = R.done.length;
+    $("dgaSub").innerHTML = R.undone ? `Undone: ${R.undone.ok} of ${R.undone.n} taken out${R.undone.relocked ? `, nesting switched off again on ${R.undone.relocked}` : ""}${isDemo ? " (simulated)" : ""}.`
+      : `<b>${ok} added</b>${R.same ? ` · ${R.same} were already in` : ""}${R.failed.length ? ` · <span style="color:var(--off)">${R.failed.length} failed</span>` : ""}${isDemo ? " (simulated)" : ""}.`;
+    const by = {};
+    R.done.forEach((w) => { (by[w.targetName] = by[w.targetName] || []).push(w); });
+    const groups = Object.entries(by).map(([t, ws]) => `<li class="d"><span><b>${esc(t)}</b> <span class="mini muted">＋ ${ws.length}: ${ws.slice(0, 12).map((w) => `${w.kind === "group" ? "👥 " : ""}${esc(w.memberName)}`).join(", ")}${ws.length > 12 ? ` … +${ws.length - 12}` : ""}</span></span></li>`).join("");
+    const fail = R.failed.map((w) => `<li class="d"><span style="color:var(--off)">✗ ${esc(w.memberName)} → ${esc(w.targetName)}: ${esc(w.error)}</span></li>`).join("");
+    return `<ul class="cgg-tree">${groups}${fail}</ul>${R.unlocked.length ? `<p class="mini muted">Nesting switched on: ${R.unlocked.map((u) => esc(u.name)).join(", ")}.</p>` : ""}`;
+  }
+  async function dgaUndo() {
+    const R = dga.run; if (!R || !R.done.length) return;
+    const U = DgAdd.undoPlan(R);
+    if (!confirm(`Undo this run? ${U.remove.length} membership${U.remove.length === 1 ? "" : "s"} taken out again${U.relock.length ? `, nesting switched off again on ${U.relock.map((u) => u.name).join(", ")}` : ""}.\n\nOnly what this run added is touched.`)) return;
+    dga.busy = true; dgaPaint();
+    let ok = 0;
+    if (isDemo) ok = U.remove.length;
+    else {
+      const out = await Graph.gbatch(U.remove.map((w, i) => ({ id: i, method: "DELETE", url: `/groups/${w.targetId}/members/${w.memberId}/$ref` })), null, { scopes: [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"] });
+      U.remove.forEach((w, i) => { const o = out[i] || {}; if (!o.error || /not ?found|does not exist/i.test(o.error)) ok++; });
+    }
+    let relocked = 0;
+    for (const u of U.relock) {
+      try { if (!isDemo) await Graph.gpatch(CaGroups.NEST_V1(`/groups/${u.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]); relocked++; } catch (e) { console.warn("relock failed:", e.message); }
+    }
+    R.undone = { n: U.remove.length, ok, relocked };
+    dga.busy = false; renderDgAdd();
+    dgaRefreshRows(U.remove.map((w) => w.targetId));
+  }
+
+  $("cgDgAdd").addEventListener("click", openDgAdd);
+  $("dgaCancel").addEventListener("click", () => { if (dga && !dga.busy) $("dgaModal").classList.remove("open"); });
+  $("dgaBack").addEventListener("click", () => { dga.step = "pick"; dga.plan = null; dga.err = ""; renderDgAdd(); });
+  $("dgaNext").addEventListener("click", () => { if (dga.step === "done") { dga.text = ""; dga.run = null; dga.plan = null; dga.step = "pick"; renderDgAdd(); return; } dgaPreview(); });
+  $("dgaGo").addEventListener("click", dgaApply);
+  $("dgaUndo").addEventListener("click", dgaUndo);
+  $("dgaMd").addEventListener("click", () => { if (dga && dga.run) showReport("🚀 Add to deploy groups — report", `DG-Add-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, DgAdd.report(dga.run, tenantName)); });
+  $("dgaBody").addEventListener("click", (e) => {
+    const s = e.target.closest("[data-dga-set]"); if (!s) return;
+    dga.text = ($("dgaText") || {}).value ?? dga.text;
+    dga.set = s.dataset.dgaSet;
+    if (dga.set === "custom" && !dga.custom.size) DgAdd.PRESETS[0].keys.forEach((k) => dga.custom.add(k));
+    renderDgAdd();
+  });
+  $("dgaBody").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.dgaKey) { t.checked ? dga.custom.add(t.dataset.dgaKey) : dga.custom.delete(t.dataset.dgaKey); return; }
+    if (t.name === "dgaMode") { dga.text = ($("dgaText") || {}).value ?? dga.text; dga.groupMode = t.value; if (t.value !== "nest") dga.allowNesting = false; renderDgAdd(); return; }
+    if (t.id === "dgaAllow") dga.allowNesting = t.checked;
+    if (t.id === "dgaSkip") dga.skipDisabled = t.checked;
+  });
+  $("dgaBody").addEventListener("input", (e) => { if (e.target.id === "dgaText") { dga.text = e.target.value; dgaCount(); } });
 
   $("cgDgFill").addEventListener("click", openDgFill);
   $("dgCancel").addEventListener("click", () => { if (!dg || !dg.running) $("dgModal").classList.remove("open"); });
