@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33204, date: "2026-11-09", title: "Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "Under Joey Verlinden's baseline CA200–CA210 also exclude his service-accounts group CA-ServiceAccounts — ENCA's change to his release (decided 9 Nov). The internals group CAB-SEC-U-Persona-Internals is dynamic (every user with Entra ID P1 enabled), so licensed service accounts land in it; his CA300 block covers them, the internals' MFA and risk policies must not. 🧬 Baseline lists ENCA's changes to his release under the source line." },
+      { kind: "improved", tool: "Import", text: "A Joey import adds CA-ServiceAccounts to the exclusions of CA200–CA210 whatever his files ship — the bundled snapshot and a live read alike — and creates or finds the group by name. The import notes say it is ENCA's change." },
+      { kind: "new", tool: "Conditional Access groups", text: "⑦ Migrate on a tenant imported earlier (Courseware): CA200–CA210 without the exclusion are listed with impact and recovery first — who leaves the policies, which policies still cover the service accounts, how to undo — then added after a confirm, one policy at a time, read back, with a change report." },
+    ],
+  },
+  {
     build: 33203, date: "2026-11-09", title: "Import as shipped, Report-only; 🚀 Trial on deployment group and ↩ Back to persona per policy",
     items: [
       { kind: "improved", tool: "Import", text: "Every baseline — CloudFellows included — now imports As shipped on the real persona groups and lands Report-only by default. The deploy groups (CAD-SEC-U-DG-*) are created empty beside them. A policy the file or the catalog forces Off still lands Off (SMB CA201–CA204, Joey+ CA020–CA023, CloudFellows CA113–CA116 / CA215–CA218, E-Admins from another file), and each row of the list says where it lands." },

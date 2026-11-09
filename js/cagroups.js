@@ -1594,6 +1594,87 @@ const CaGroups = (() => {
     return L.join("\n");
   }
 
+  // ---- e13: exclusions the baseline ADDS to its repository's policies -----
+  // Joey Verlinden in ENCA (Mihai 9 Nov, 33204): CA200–CA210 also exclude
+  // CA-ServiceAccounts, so the licensed service accounts the dynamic internals
+  // group takes in are not hit by the internals' MFA and risk policies (his
+  // CA300 block covers them). A tenant imported before 33204 has CA200–CA210
+  // without it; this plans the add — preview first, one policy write each.
+  //   policies: what CaGroups.scan reads ({ id, name|displayName, raw? })
+  //   rows:     the scan's rows (the group is found there by name, with id)
+  // Pure over its input; the run is runAddedExclusion.
+  function addedExclusionPlan(policies, rows, opts = {}) {
+    const cat = opts.cat || activeCat();
+    const items = [];
+    if (!cat || typeof cat.addedExcludesFor !== "function") return { items, eligible: [], skipped: [], done: [], warnings: [] };
+    const lc = (x) => String(x || "").trim().toLowerCase();
+    const rowOf = (name) => (rows || []).find((r) => r.id && lc(r.name) === lc(name)) || null;
+    const groupsSeen = new Map();
+    for (const p of policies || []) {
+      const name = p.name || p.displayName || (p.raw && p.raw.displayName) || "";
+      let want = [];
+      try { want = cat.addedExcludesFor(name) || []; } catch { want = []; }
+      if (!want.length) continue;
+      const u = ((p.raw || p).conditions || {}).users || {};
+      const exc = (u.excludeGroups || []).map(lc), inc = (u.includeGroups || []).map(lc);
+      const state = (p.raw || p).state || p.state || "";
+      for (const gn of want) {
+        const r = rowOf(gn);
+        const base = { policyId: p.id, policy: name, group: gn, groupId: r ? r.id : null, state };
+        if (r) groupsSeen.set(lc(gn), r);
+        if (!r) { items.push({ ...base, ok: false, reason: `“${gn}” is not in this tenant — create it first (② Create), fill it with the service accounts, then rescan.` }); continue; }
+        if (exc.includes(lc(r.id))) { items.push({ ...base, ok: false, done: true, reason: "Already excluded." }); continue; }
+        if (inc.includes(lc(r.id))) { items.push({ ...base, ok: false, reason: `“${gn}” is INCLUDED by this policy — excluding it as well would take it out again. Left alone; check the policy by hand.` }); continue; }
+        items.push({ ...base, ok: true,
+          steps: [
+            { key: "add", text: `Add “${gn}” to the EXCLUDE of ${name} — the include, the other exclusions, conditions, controls and the state (${state || "as it is"}) stay` },
+            { key: "verify", text: "Read the policy back: the group is in its exclusions" },
+          ] });
+      }
+    }
+    // impact: who leaves these policies, and what still covers them
+    const warnings = [];
+    for (const [, r] of groupsSeen) {
+      const covering = ((r.refs && r.refs.include) || []).map((x) => x.name);
+      if (r.memberTotal === 0) warnings.push(`“${r.name}” has no members yet — the exclusion changes nothing until the service accounts are in it.`);
+      if (!covering.length) warnings.push(`No policy in this tenant INCLUDES “${r.name}” — the service-account policies (his CA300 MFA, CA301 trusted locations) are not there, so the accounts in it would be left without any MFA policy. Import CA300–CA301 first.`);
+      else warnings.push(`The accounts in “${r.name}”${r.memberTotal != null ? ` (${r.memberTotal})` : ""} stay covered by ${covering.join(", ")}.`);
+    }
+    return { items, eligible: items.filter((x) => x.ok), skipped: items.filter((x) => !x.ok && !x.done), done: items.filter((x) => x.done), warnings };
+  }
+
+  // Runs ONE planned add. io: { add(policyId, groupId) -> { ok, changed, error },
+  // get(url) } — Assign.apply (action 3, add to EXCLUDE) and Graph in the app,
+  // a fake in the tests. Recovery: 🎯 Assign → remove from EXCLUDE.
+  async function runAddedExclusion(item, io) {
+    const out = { policyId: item.policyId, policy: item.policy, group: item.group, groupId: item.groupId, ok: false, changed: false, verified: false, error: null };
+    try {
+      const r = (await io.add(item.policyId, item.groupId)) || {};
+      if (r.ok === false) throw new Error(r.error || "the write failed");
+      out.changed = r.changed !== false;
+      const back = await io.get(`/identity/conditionalAccess/policies/${item.policyId}`);
+      const ex = (((back || {}).conditions || {}).users || {}).excludeGroups || [];
+      out.verified = ex.map((x) => String(x).toLowerCase()).includes(String(item.groupId).toLowerCase());
+      out.ok = out.verified;
+      if (!out.ok) out.error = "read back without the group in its exclusions — check the policy";
+    } catch (e) { out.error = e.message || String(e); }
+    return out;
+  }
+
+  function addedExclusionReport(plan, results, meta = {}) {
+    const L = [`# Add: exclusions the baseline adds to its repository's policies`, "",
+      `**Tenant:** ${meta.tenant || "—"}  `, `**Generated by:** ${meta.build || ""}  `,
+      `**When:** ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "",
+      "Each policy keeps its include, its other exclusions, its conditions, controls and state; only the group below is added to its exclusions. To undo: 🎯 Assign → remove the group from EXCLUDE on the same policies.", "",
+      "| Policy | Group added to EXCLUDE | Outcome |", "| --- | --- | --- |"];
+    for (const r of results || []) L.push(`| ${String(r.policy).replace(/\|/g, "\\|")} | ${r.group} | ${r.ok ? (r.changed ? "added, verified" : "already there, verified") : `FAILED — ${String(r.error || "").replace(/\|/g, "\\|")}`} |`);
+    const w = (plan && plan.warnings) || [];
+    if (w.length) { L.push("", "## Impact", ""); for (const x of w) L.push(`- ${x}`); }
+    const sk = (plan && plan.skipped) || [];
+    if (sk.length) { L.push("", "## Not changed", ""); for (const x of sk) L.push(`- **${x.policy}** — ${x.reason}`); }
+    return L.join("\n");
+  }
+
   function migrateReport(plan, results, meta = {}) {
     const L = [`# Migration: role-assignable → restricted administrative unit`, "",
       `**Tenant:** ${meta.tenant || "—"}  `,
@@ -1677,6 +1758,7 @@ const CaGroups = (() => {
     catalogGroupNames, templateNames, knownNames, eAdminTargets, policyRefs, convertPlan, runConvert,
     MIGRATE_SCOPES, heldRoles, migratePlan, migrateReport, migratedName,
     legacyRenamePlan, runLegacyRename, legacyRenameReport,
+    addedExclusionPlan, runAddedExclusion, addedExclusionReport,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
     rmauCandidates, rmauReport,
   };

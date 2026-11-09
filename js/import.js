@@ -629,6 +629,14 @@ const Importer = (() => {
       }
       return g;
     };
+    // e13 (Mihai 9 Nov, 33204): exclusions the catalog ADDS to a policy on
+    // top of what the file ships (Joey Verlinden: CA200–CA210 exclude
+    // CA-ServiceAccounts). By name: the group file of that name when the
+    // bundle carries one, else the catalog's template — so the import creates
+    // or finds the tenant's own group either way.
+    const addedFor = (n) => safe(() => (cat && cat.addedExcludesFor ? cat.addedExcludesFor(n) : []) || [], []);
+    const fileByName = (n) => { for (const fs of files.values()) for (const f of fs) if (lower(f.displayName) === lower(n)) return f; return null; };
+    const added = [];
     const policies = (raw.policies || []).map((p) => {
       const q = JSON.parse(JSON.stringify(p));
       const u = q.conditions && q.conditions.users;
@@ -641,8 +649,29 @@ const Importer = (() => {
           return r ? want(r, id).id : id;
         });
       }
+      const extra = addedFor(p.displayName);
+      if (extra.length) {
+        if (!Array.isArray(u.excludeGroups)) u.excludeGroups = [];
+        for (const gn of extra) {
+          const f = fileByName(gn);
+          const g = want(f ? { name: f.displayName, file: f } : { name: gn }, f ? f.id : null);
+          if (u.excludeGroups.includes(g.id)) continue;
+          // the file may already name it by source id (a later release of his)
+          if (f && u.excludeGroups.some((x) => typeof x === "string" && lower(x) === lower(f.id))) continue;
+          u.excludeGroups.push(g.id);
+          added.push({ policy: p.displayName, group: g.displayName });
+        }
+      }
       return q;
     });
+    if (added.length) {
+      const by = new Map();
+      for (const a of added) { if (!by.has(a.group)) by.set(a.group, []); by.get(a.group).push(a.policy); }
+      for (const [gname, ps] of by) {
+        const nums = ps.map((n) => { const m = /\bCA(\d{3,4})\b/.exec(n); return m ? `CA${m[1]}` : n; });
+        notes.push(`“${gname}” is added to the EXCLUDE of ${ps.length} polic${ps.length === 1 ? "y" : "ies"} (${nums.join(", ")}) — ENCA's change to the baseline, not in the file`);
+      }
+    }
     // a group a file ships that the policies name only by NAME (a {{group:…}}
     // placeholder, say) still comes along, as it always did
     const blobs = (raw.policies || []).map((p) => JSON.stringify(p));
@@ -669,6 +698,7 @@ const Importer = (() => {
       groups: [...planned.values()],
       prepared: true,
       groupNotes: notes,
+      addedExclusions: added,
       groupIndex: {
         isSource: (id) => sourceIds.has(lower(id)),
         nameFor: (policyName, id) => { const r = resolve(policyName, id); return r ? r.name : null; },

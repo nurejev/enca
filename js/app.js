@@ -6534,7 +6534,11 @@ max@contoso.com,"Global, DevOps"</pre>
         // previewed first; "configured" = stated as internals in CaMap
         legacy: CaGroups.legacyRenamePlan(cgRes.rows, { configured: (r) => {
           try { const m = typeof CaMap !== "undefined" ? CaMap.codeForGroup({ id: r.id, displayName: r.name }) : null; return !!(m && m.source === "tenant" && m.code === "INT"); } catch { return false; }
-        } }), legacyAck: false, legacyResults: null };
+        } }), legacyAck: false, legacyResults: null,
+        // e13 (33204): exclusions the active baseline ADDS to its
+        // repository's policies (Joey: CA200–CA210 exclude CA-ServiceAccounts)
+        // — one policy write each, previewed first
+        added: CaGroups.addedExclusionPlan(policies, cgRes.rows), addedAck: false, addedResults: null };
       if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
       console.error("Migrate scan failed:", e);
@@ -6560,7 +6564,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!cgMig) {
       migBody().innerHTML = `<div class="run-prompt">
         <button class="btn primary" data-migrun>▶ Scan for role-assignable groups</button>
-        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. It also lists legacy group names the active baseline replaced (Joey Verlinden's example APP_Microsoft365_E5 → CAB-SEC-U-Persona-Internals) for a preview-first rename. Nothing is written. The result stays until you rescan.</p>
+        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. It also lists legacy group names the active baseline replaced (Joey Verlinden's example APP_Microsoft365_E5 → CAB-SEC-U-Persona-Internals) for a preview-first rename, and policies missing an exclusion the active baseline adds (Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts). Nothing is written. The result stays until you rescan.</p>
       </div>`;
       return;
     }
@@ -6594,6 +6598,7 @@ max@contoso.com,"Global, DevOps"</pre>
 
     migBody().innerHTML = `
       ${cgLegacyPanel(t)}
+      ${cgAddedPanel(t)}
       ${t.scoped ? `<p class="mini" style="margin:0 0 10px"><span class="tag">scoped</span> Checked only the ${t.scoped} group${t.scoped === 1 ? "" : "s"} you came with from the list. <button class="btn sm" data-migrun>▶ Check every role-assignable group</button></p>` : ""}
       <div class="cg-panel">
         <h4>WHY MIGRATE</h4>
@@ -6667,6 +6672,48 @@ max@contoso.com,"Global, DevOps"</pre>
       <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn primary" id="cgLegGo">Rename ${L.eligible.length} group${L.eligible.length === 1 ? "" : "s"}</button></div>` : ""}
       ${res ? `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="cgLegMd">📄 Rename report</button> <button class="btn" id="cgMigRescan">⟳ Rescan</button></div>` : ""}
     </div>`;
+  }
+
+  // e13 (33204): the exclusions the active baseline adds to its repository's
+  // policies — Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts. Impact
+  // and recovery first, then the policies, then the confirm.
+  function cgAddedPanel(t) {
+    const A = t && t.added;
+    if (!A || !A.items.length) return "";
+    const res = t.addedResults;
+    const items = A.eligible.map((x) => {
+      const r = res && res.find((y) => y.policyId === x.policyId && y.groupId === x.groupId);
+      return `<div style="padding:6px 0;border-top:1px solid var(--border)">
+        <b>${esc(x.policy)}</b> <span class="tag">${esc(x.state || "?")}</span> — exclude <b>${esc(x.group)}</b>
+        ${r ? ` <span class="tag ${r.ok ? "grant" : "block"}">${r.ok ? (r.changed ? "added, verified" : "already there") : "failed"}</span>${r.error ? `<div class="mini" style="color:var(--off)">${esc(r.error)}</div>` : ""}` : ""}
+      </div>`; }).join("");
+    const skipped = A.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.policy)}</b> — ${esc(x.reason)}</span></div>`).join("");
+    const why = (() => { try { const c = Baseline.active(); return ((c.changesVsUpstream ? c.changesVsUpstream() : []) || []).filter((x) => x.kind === "exclusion"); } catch { return []; } })();
+    return `<div class="cg-panel">
+      <h4>EXCLUSIONS THE BASELINE ADDS (${A.eligible.length} TO ADD${A.done.length ? ` · ${A.done.length} ALREADY THERE` : ""})</h4>
+      ${why.map((w) => `<p class="mini" style="margin:0 0 8px"><b>${esc(w.text)}</b> — ${esc(w.detail)}</p>`).join("")}
+      <p class="mini" style="margin:0 0 8px"><b>Impact:</b> the members of the group leave these policies — nobody else does. The include, the other exclusions, conditions, controls and the state stay as they are. <b>Recovery:</b> 🎯 Assign → remove the group from EXCLUDE on the same policies; the change report lists them.</p>
+      ${(A.warnings || []).map((w) => `<p class="mini" style="margin:0 0 6px;color:var(--report)">⚠ ${esc(w)}</p>`).join("")}
+      ${items}${skipped}
+      ${A.eligible.length && !res ? `<label class="chk" style="display:block;margin-top:12px"><input type="checkbox" id="cgAddAck"${t.addedAck ? " checked" : ""}> I have checked the preview: add the group to the exclusions of these ${A.eligible.length} polic${A.eligible.length === 1 ? "y" : "ies"} — nothing else changes</label>
+      <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn primary" id="cgAddGo">Add to ${A.eligible.length} polic${A.eligible.length === 1 ? "y" : "ies"}</button></div>` : ""}
+      ${res ? `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="cgAddMd">📄 Change report</button> <button class="btn" id="cgMigRescan">⟳ Rescan</button></div>` : ""}
+    </div>`;
+  }
+
+  async function cgAddedRun() {
+    const t = cgMig;
+    if (!t || !t.added || !t.added.eligible.length) return;
+    if (!t.addedAck) { toast("Tick the box under the preview first"); return; }
+    const io = isDemo
+      ? { add: async () => ({ ok: true, changed: true }), get: async (u) => { const id = u.split("/").pop(); const x = t.added.eligible.find((y) => y.policyId === id); return { id, conditions: { users: { excludeGroups: x ? [x.groupId] : [] } } }; } }
+      : { add: async (pid, gid) => ((await Assign.apply([pid], 3, [gid])) || [])[0] || { ok: false, error: "no result" }, get: (u) => Graph.gget(u) };
+    const out = [];
+    for (const x of t.added.eligible) out.push(await CaGroups.runAddedExclusion(x, io));
+    t.addedResults = out;
+    const ok = out.filter((r) => r.ok).length;
+    toast(`${ok} of ${out.length} policies updated`);
+    renderCgMigrate();
   }
 
   async function cgLegacyRun() {
@@ -6748,6 +6795,7 @@ max@contoso.com,"Global, DevOps"</pre>
     }
     if (e.target.id === "cgMigAck") { cgMig.ack = e.target.checked; return; }
     if (e.target.id === "cgLegAck") { cgMig.legacyAck = e.target.checked; return; }
+    if (e.target.id === "cgAddAck") { cgMig.addedAck = e.target.checked; return; }
     const cb = e.target.closest("[data-cgmig]");
     if (cb) {
       cgMig.sel = cgMig.sel || new Set(cgMig.plan.eligible.map((x) => x.id));
@@ -6793,6 +6841,12 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     if (e.target.id === "cgLegGo") { await cgLegacyRun(); return; }
+    if (e.target.id === "cgAddGo") { await cgAddedRun(); return; }
+    if (e.target.id === "cgAddMd" && cgMig && cgMig.addedResults) {
+      showReport("⑦ Exclusions report", "CA-AddedExclusions",
+        CaGroups.addedExclusionReport(cgMig.added, cgMig.addedResults, { tenant: tenantName, build: APP_BUILD.label }));
+      return;
+    }
     if (e.target.id === "cgLegMd" && cgMig && cgMig.legacyResults) {
       showReport("⑦ Rename report", "CA-LegacyRename",
         CaGroups.legacyRenameReport(cgMig.legacy, cgMig.legacyResults, { tenant: tenantName, build: APP_BUILD.label }));

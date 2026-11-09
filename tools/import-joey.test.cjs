@@ -157,6 +157,41 @@ test('e12: his example APP_Microsoft365_E5 lands on CAB-SEC-U-Persona-Internals;
   assert.equal([...w.groups.values()].some((g) => g.displayName === 'APP_Microsoft365_E5'), false);
 });
 
+test('e13: CA200–CA210 exclude CA-ServiceAccounts after import although his files do not; CA300 and the others unchanged; one group, a note', async () => {
+  const SA = '77c1ed37-10d0-4ef1-93dc-198e70abb166', E5 = 'ceeac9b8-ddf5-48cb-afcb-e2ab8bfd1a57';
+  const N200 = 'CA200-Internals-IdentityProtection-AnyApp-AnyPlatform-MFA', N210 = 'CA210-Internals-IdentityProtection-AnyApp-AnyPlatform-BLOCK-HighRiskSignIn';
+  const N300 = 'CA300-ServiceAccounts-IdentityProtection-AnyApp-AnyPlatform-MFA';
+  const b = joey();
+  b.policies.push(pol(N200, { includeUsers: [], includeGroups: [E5], excludeGroups: [BG] }));
+  b.policies.push(pol(N210, { includeUsers: [], includeGroups: [E5], excludeGroups: [BG, SA] }));   // a later release that ships it
+  b.policies.push(pol(N300, { includeUsers: [], includeGroups: [SA], excludeGroups: [BG] }));
+  b.groups.push({ id: SA, displayName: 'CA-ServiceAccounts' }, { id: E5, displayName: 'APP_Microsoft365_E5' });
+  const w = world();
+  const { prepared, byName } = await runImport(w, b);
+  const ex = (n) => plain(w.pols.get(byName[n].createdId).conditions.users.excludeGroups.map((g) => nameOf(w, g))).sort();
+  assert.deepEqual(ex(N200), ['CA-BreakGlassAccounts - Exclude', 'CA-ServiceAccounts']);
+  assert.deepEqual(ex(N210), ['CA-BreakGlassAccounts - Exclude', 'CA-ServiceAccounts'], 'not twice');
+  assert.deepEqual(ex(N300), ['CA-BreakGlassAccounts - Exclude']);
+  assert.deepEqual(ex(N000), ['CA-BreakGlassAccounts - Exclude', `${N000} - Exclude`]);
+  assert.equal([...w.groups.values()].filter((g) => g.displayName === 'CA-ServiceAccounts').length, 1);
+  assert.deepEqual(plain(prepared.addedExclusions.map((a) => a.policy)), [N200]);
+  assert.ok(prepared.groupNotes.some((n) => /“CA-ServiceAccounts” is added to the EXCLUDE of 1 policy \(CA200\) — ENCA's change/.test(n)));
+});
+
+test('e13: a bundle without his CA-ServiceAccounts file still gets it — created by name from the catalog template', async () => {
+  const N201 = 'CA201-Internals-IdentityProtection-AnyApp-AnyPlatform-BLOCK-HighRiskUser';
+  const b = joey();
+  b.policies.push(pol(N201, { includeUsers: ['All'], excludeGroups: [BG] }));
+  const w = world();
+  const { prepared, byName } = await runImport(w, b);
+  const g = prepared.groups.find((x) => x.displayName === 'CA-ServiceAccounts');
+  assert.ok(g, 'planned');
+  assert.match(g.description || '', /CA300/);
+  assert.deepEqual(plain(g.groupTypes), [], 'assigned, as he ships it');
+  const names = plain(w.pols.get(byName[N201].createdId).conditions.users.excludeGroups.map((x) => nameOf(w, x))).sort();
+  assert.deepEqual(names, ['CA-BreakGlassAccounts - Exclude', 'CA-ServiceAccounts']);
+});
+
 test('as shipped: every group is created by name and attached; nothing points at the source tenant', async () => {
   const w = world();
   const { res, byName } = await runImport(w, joey());

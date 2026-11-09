@@ -317,3 +317,76 @@ test('e12 ⑦ Migrate run: one PATCH of displayName only, read back by id; a rea
   assert.match(md, /\| APP_Microsoft365_E5 \| CAB-SEC-U-Persona-Internals \| renamed, verified \|/);
   assert.match(md, /## Manual — not done by this run/);
 });
+
+// ---- e13 (Mihai 9 Nov, 33204): CA200–CA210 also exclude CA-ServiceAccounts
+// — ENCA's deviation from Joey; ⑦ Migrate adds it to a tenant imported before ----
+const SA = 'CA-ServiceAccounts';
+const N210 = 'CA210-Internals-IdentityProtection-AnyApp-AnyPlatform-BLOCK-HighRiskSignIn';
+const N300 = 'CA300-ServiceAccounts-IdentityProtection-AnyApp-AnyPlatform-MFA';
+
+test('e13 catalog: CA200–CA210 exclude CA-ServiceAccounts beside their own group and break-glass; no other policy does; listed as a change vs Joey', () => {
+  const w = world();
+  const cat = JSON.parse(JSON.stringify(w.J.policies));
+  for (const p of cat) {
+    const want = p.num >= 200 && p.num <= 210;
+    assert.equal(p.exclude.includes(`${SA} (group)`), want, `${p.name}`);
+    assert.ok(p.exclude.includes(`${p.name} - Exclude (group)`) && p.exclude.includes(`${JOEY_BG} (group)`), `${p.name} keeps his two`);
+  }
+  const c = w.B.withContract(w.J);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.addedExcludesFor(N210))), [SA]);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.addedExcludesFor('(NEW)' + N200))), [SA]);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.addedExcludesFor(N300))), []);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.addedExcludesFor('CA211-Internals-Future-AnyApp-AnyPlatform-MFA'))), [], 'only CA200–CA210');
+  assert.deepEqual(JSON.parse(JSON.stringify(c.addedExcludesFor('CA205-GRANT-Internals-BP-AnyApp-Windows-EntraJoined-v3.0'))), [], 'a CloudFellows name is not his');
+  const ch = JSON.parse(JSON.stringify(c.changesVsUpstream()));
+  assert.deepEqual(ch.map((x) => x.id), ['e12', 'e13']);
+  assert.match(ch[1].text, /CA200–CA210 also exclude CA-ServiceAccounts/);
+});
+
+test('e13 ⑦ Migrate: CA200–CA210 without the exclusion are offered (preview, impact, recovery); already-excluded and other policies are not', () => {
+  const w = world();
+  const p = (id, name, users) => ({ id, name, raw: { id, displayName: name, state: 'enabledForReportingButNotEnforced', conditions: { users: { includeGroups: [], excludeGroups: [], ...users } } } });
+  const pols = [
+    p('p200', N200, { includeGroups: ['g-int'], excludeGroups: ['g-bg'] }),
+    p('p210', N210, { includeGroups: ['g-int'], excludeGroups: ['g-bg', 'g-sa'] }),
+    p('p300', N300, { includeGroups: ['g-sa'], excludeGroups: ['g-bg'] }),
+    p('p000', N000, { excludeGroups: ['g-bg'] }),
+  ];
+  const rows = [{ id: 'g-sa', name: SA, memberTotal: 4, refs: { include: [{ id: 'p300', name: N300 }], exclude: [{ id: 'p210', name: N210 }] } }];
+  const plan = JSON.parse(JSON.stringify(w.C.addedExclusionPlan(pols, rows)));
+  assert.deepEqual(plan.eligible.map((x) => x.policy), [N200]);
+  assert.equal(plan.eligible[0].groupId, 'g-sa');
+  assert.deepEqual(plan.eligible[0].steps.map((s) => s.key), ['add', 'verify']);
+  assert.deepEqual(plan.done.map((x) => x.policy), [N210]);
+  assert.match(plan.warnings.join(' '), /stay covered by CA300/);
+  // the group is not in the tenant: nothing to add, says how
+  const none = JSON.parse(JSON.stringify(w.C.addedExclusionPlan(pols, [])));
+  assert.equal(none.eligible.length, 0);
+  assert.match(none.skipped[0].reason, /not in this tenant — create it first/);
+  // nobody includes it: the impact says the accounts would be uncovered
+  const bare = JSON.parse(JSON.stringify(w.C.addedExclusionPlan(pols, [{ ...rows[0], refs: { include: [], exclude: [] } }])));
+  assert.match(bare.warnings.join(' '), /No policy in this tenant INCLUDES “CA-ServiceAccounts”/);
+  // under CloudFellows nothing is offered
+  const cf = world({ active: 'limonit' });
+  assert.equal(cf.C.addedExclusionPlan(pols, rows).items.length, 0);
+});
+
+test('e13 ⑦ Migrate run: adds through the EXCLUDE write, reads back; a read-back without the group fails the row; report names the undo', async () => {
+  const w = world();
+  const item = { policyId: 'p200', policy: N200, group: SA, groupId: 'g-sa' };
+  const calls = [];
+  let ex = ['g-bg'];
+  const io = { add: async (pid, gid) => { calls.push([pid, gid]); ex = [...ex, gid]; return { ok: true, changed: true }; },
+    get: async () => ({ id: 'p200', conditions: { users: { excludeGroups: ex } } }) };
+  const out = await w.C.runAddedExclusion(item, io);
+  assert.deepEqual(calls, [['p200', 'g-sa']]);
+  assert.equal(out.ok, true);
+  const bad = await w.C.runAddedExclusion(item, { add: async () => ({ ok: true }), get: async () => ({ conditions: { users: { excludeGroups: ['g-bg'] } } }) });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error, /read back without the group/);
+  const fail = await w.C.runAddedExclusion(item, { add: async () => ({ ok: false, error: 'Graph 403' }), get: async () => ({}) });
+  assert.match(fail.error, /Graph 403/);
+  const md = w.C.addedExclusionReport({ warnings: ['x'] }, [out, bad]);
+  assert.match(md, /\| CA200-Internals-IdentityProtection-AnyApp-AnyPlatform-MFA \| CA-ServiceAccounts \| added, verified \|/);
+  assert.match(md, /To undo: 🎯 Assign → remove the group from EXCLUDE/);
+});

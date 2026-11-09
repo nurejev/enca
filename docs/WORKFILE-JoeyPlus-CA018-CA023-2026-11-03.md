@@ -32,6 +32,8 @@ Deviation from WORKFILE-CA018: the Joey+ CA018 exclusion group follows Joey's co
 
 Groups (e12, decision Mihai 7 Nov, ENCA 33202): ENCA changes as little as possible in Joey's baseline, and its own additions follow Joey. His exclusion groups (`<policy name> - Exclude`), `CA-BreakGlassAccounts - Exclude` and `CA-ServiceAccounts` stay exactly as he ships them, for his 36 policies and for CA018–CA023 alike. The only group replaced is his EXAMPLE internals include group: `APP_Microsoft365_E5` → `CAB-SEC-U-Persona-Internals` (dynamic, the CloudFellows "Entra ID P1 enabled" rule), included by CA200–CA210. A tenant imported before 33202 gets the rename from 👥 CA groups ⑦ Migrate (preview first, same object id and members; assigned → dynamic is a separate manual step). `CAB-SEC-U-ExternalAdmins` stays as is.
 
+Service accounts (e13, decision Mihai 9 Nov, ENCA 33204): CA200–CA210 also exclude `CA-ServiceAccounts` — ENCA's one policy change to Joey's release. The dynamic `CAB-SEC-U-Persona-Internals` (Entra ID P1 enabled) takes in licensed service accounts; his CA300 block (CA300 MFA, CA301 trusted locations) covers them, so the internals' MFA and risk policies must not. 📥 Import adds the exclusion whatever his files ship (bundled snapshot or live read); a tenant imported before 33204 (Courseware) gets it from 👥 CA groups ⑦ Migrate (impact and recovery, preview, confirm, read back). `BASELINE_JOEY.changesVsUpstream()` lists both ENCA changes.
+
 ## Open
 
 | Done | ID | Task |

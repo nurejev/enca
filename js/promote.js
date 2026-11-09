@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 377,
+      ws: "ca",
+      title: "🧩 Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts (ENCA's change to his release); ⑦ Migrate adds it to tenants imported earlier",
+      tools: ["Baseline", "Import", "CaGroups"],
+      builds: [33204],
+      risk: "medium",
+      files: ["js/baselineJoeyData.js", "js/baseline.js", "js/import.js", "js/cagroups.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/import-joey.test.cjs", "tools/cagroups-shared.test.cjs"],
+      what: "33204 (Mihai 9 Nov): js/baselineJoeyData.js serviceAccountsGroup / addedExclusions / addedExcludesFor / changesVsUpstream, decorate lists CA-ServiceAccounts in the CA200–CA210 exclusions; js/baseline.js withContract exposes addedExcludesFor and changesVsUpstream, the source panel names ENCA's changes; js/import.js prepareBundle adds the catalog's added exclusions by name (group file or template; never twice) with a note and bundle.addedExclusions; js/cagroups.js addedExclusionPlan / runAddedExclusion / addedExclusionReport; js/app.js ⑦ Migrate panel (impact and recovery, preview, confirm, Assign.apply action 3, read back, report).",
+      why: "Decision Mihai 9 Nov: the dynamic internals group (Entra ID P1 enabled) takes in licensed service accounts; CA200–CA210 must exclude Joey's CA-ServiceAccounts so they are not hit by MFA/risk blocks. His naming stays.",
+      test: [
+        "node --test tools/*.test.cjs: all green (import-joey +2, cagroups-shared +3).",
+        "📥 Import Joey's repository (live read) on a test tenant: CA200–CA210 exclude CA-ServiceAccounts, their own - Exclude group and CA-BreakGlassAccounts - Exclude; CA300/CA301 include CA-ServiceAccounts; the import notes name the added exclusion.",
+        "🧬 Baseline, Joey Verlinden: the source line lists ENCA's two changes (APP_Microsoft365_E5 → CAB-SEC-U-Persona-Internals; CA200–CA210 exclude CA-ServiceAccounts).",
+        "Courseware: 👥 CA groups ⑦ Migrate → Scan lists CA200–CA210 under EXCLUSIONS THE BASELINE ADDS with the impact line (CA300/CA301 still cover the accounts); fill CA-ServiceAccounts first, tick, Add → each policy read back with the group excluded; the change report names the undo.",
+      ],
+    },
+    {
       n: 376,
       ws: "ca",
       title: "📥 Import as shipped, Report-only by default; 🚀 Trial on deployment group / ↩ Back to persona per policy; SMB CA001–CA005 take over from security defaults",

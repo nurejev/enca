@@ -192,6 +192,10 @@ const Baseline = (() => {
       ...(typeof J.ownGroupName === "function" ? { ownGroupName: (name) => J.ownGroupName(J, name) } : {}),
       ...(typeof J.legacyGroups === "function" ? { legacyGroups: () => J.legacyGroups(J) } : {}),
       ...(typeof J.isInternalsPolicy === "function" ? { isInternalsPolicy: (name) => J.isInternalsPolicy(name) } : {}),
+      // e13 (33204): the exclusions ENCA adds to his policies (CA200–CA210:
+      // CA-ServiceAccounts) and the full list of ENCA's changes to his release
+      ...(typeof J.addedExcludesFor === "function" ? { addedExcludesFor: (name) => J.addedExcludesFor(J, name) } : {}),
+      ...(typeof J.changesVsUpstream === "function" ? { changesVsUpstream: () => J.changesVsUpstream(J) } : {}),
       templates: () => J.templates(J),
     };
   }
@@ -788,6 +792,11 @@ const Baseline = (() => {
     const extra = [];
     if (cat.source === "live" && (cat.dups || []).length) extra.push(`⚠ ${cat.dups.length === 1 ? "One CA number is" : `${cat.dups.length} CA numbers are`} used by more than one file in the repository at this release (${cat.dups.join(", ")}) — both are listed, and both exclusion groups are expected, because that is what the repository ships.`);
     if (cat.source === "live" && (cat.skipped || []).length) extra.push(`${cat.skipped.length} file${cat.skipped.length === 1 ? " was" : "s were"} skipped as not a policy: ${cat.skipped.slice(0, 3).join("; ")}${cat.skipped.length > 3 ? "; …" : ""}`);
+    // e12/e13: what ENCA changes in his release, said where the source is
+    try {
+      const ch = typeof cat.changesVsUpstream === "function" ? cat.changesVsUpstream(cat) : [];
+      if (ch.length) extra.push(`ENCA's changes to his release (📥 Import applies them to the bundled snapshot and a live read alike): ${ch.map((x) => `${x.text} — ${x.detail}`).join(" · ")}`);
+    } catch { /* the source line stands without it */ }
     if (cat.source === "live" && st.error) extra.push(`The last refresh failed (${st.error}) — this is the read that succeeded earlier in the session.`);
     if (cat.source === "live" && cat.bundle) {
       const b = cat.bundle;
