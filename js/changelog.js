@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33206, date: "2026-11-09", title: "👥 Deployment groups: nest a group",
+    items: [
+      { kind: "new", tool: "Conditional Access groups", text: "A deploy group (CAD-SEC-U-DG-*) takes a group as a member: Members tab → 👤 User | 👥 Group (nesting) → type the group name or paste its object id → ＋ Nest group. Security groups only; a Microsoft 365 group, a distribution list, an archived migration leftover, the group itself, one already nested and a group that already contains the deployment group are refused, as is a role-assignable or nesting-disabled target. The confirmation names how many users come in and which policies include or exclude the deployment group." },
+      { kind: "new", tool: "Conditional Access groups", text: "A nested group has a × on its own line in the Members tree: takes the whole group out of the parent, after a confirmation that says who leaves and which policies that touches (on an exclusion group: inside the policy again)." },
+    ],
+  },
+  {
     build: 33205, date: "2026-11-09", title: "🧬 Baseline: one baseline at a time — devcf no longer shows all three through each other",
     items: [
       { kind: "fixed", tool: "Baseline", text: "A tenant holding several baselines (devcf: CloudFellows, Joey Verlinden+ and SMB Basic side by side) is compared with the ONE baseline you pick. A policy is matched only within that baseline's own naming — a CloudFellows CA201 is never Joey's CA201 or SMB's CA201 — so the other baselines' policies no longer show up as number clashes, Not in baseline rows or \"also here\" copies on nearly every row." },

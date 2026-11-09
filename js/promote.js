@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 379,
+      ws: "ca",
+      title: "👥 Deployment groups: nest a group (group nesting) from the drawer, and take a nested group out again",
+      tools: ["Conditional Access groups"],
+      builds: [33206],
+      risk: "medium",
+      files: ["js/groupsview.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/cg-nest.test.cjs"],
+      what: "33206 (Mihai 9 Nov): js/groupsview.js NESTABLE_KINDS ['deploy'], nestBox, nestCheck (pure rules), × on the nested-group line (data-cgg-unnest); js/app.js cgAddKind, cgNestSuggest (datalist cgNestSug), cgNestGroup (lookup by name or id, nestCheck, loop check via transitiveMemberOf, user $count, confirm with include/exclude policies, POST members/$ref, re-read), cgUnnestGroup (confirm, DELETE members/{id}/$ref, re-read).",
+      why: "The rollout model trials a policy on CAD-SEC-U-DG-<persona>; adding a pilot team as one group is faster and stays current, instead of typing every user.",
+      test: [
+        "node --test tools/*.test.cjs: all green (cg-nest +9).",
+        "devcf → CA groups → CAD-SEC-U-DG-INT → Members: switch to 👥 Group, type the first letters of a security group, pick it, ＋ Nest group: the confirmation names the user count and the policies; after OK the group shows nested with its members.",
+        "Try a Microsoft 365 group, the DG itself, the same group again: each refused with its own line, nothing written.",
+        "× on the nested group line: confirmation, the group leaves, members that only came through it leave the tree.",
+        "An exclusion group (CAB-SEC-U-CA003-Exclusion): no 👥 Group switch.",
+      ],
+    },
+    {
       n: 378,
       ws: "ca",
       title: "🧬 Baseline: one baseline at a time — a tenant holding several (devcf) is compared with the one picked; the others listed apart",

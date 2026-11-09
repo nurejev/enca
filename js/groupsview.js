@@ -293,8 +293,13 @@ const GroupsView = (() => {
     if (!r.id) return `<p class="mini muted">This group does not exist in the tenant yet.${r.template ? ' <button class="btn sm primary" data-cgg-act="create" data-cgg-name="' + esc(r.name) + '">＋ Create it</button>' : ""}</p>`;
     if (r.members == null) return `${r.nestedGroups && r.nestedGroups.length ? `<div class="wo-callout bad" style="margin:0 0 8px"><b>↪ ${r.nestedGroups.length} nested group${r.nestedGroups.length === 1 ? "" : "s"}:</b> ${r.nestedGroups.map((g) => esc(g.name)).join(", ")}. Whoever manages ${r.nestedGroups.length === 1 ? "that group" : "those groups"} decides who is in this one.</div>` : ""}<div class="run-prompt" style="padding:18px"><button class="btn primary" data-cgg-read="${esc(r.name)}">👥 Read the members</button><p class="mini muted">Transitive, first 500, with the nested groups they came through.</p></div>`;
     if (r.memberError) return `<p class="mini" style="color:var(--off)">Could not read the members: ${esc(r.memberError)}</p>`;
+    // 6.4.0 (33206): a deployment group can take a GROUP as well — the
+    // 👤 User | 👥 Group switch only shows on a deploy group (CAD-SEC-U-DG-*).
+    const nestable = NESTABLE_KINDS.includes(c.kind) && !o.engine && !r.dynamic;
+    const kindSw = nestable ? `<div class="cgg-addkind" style="margin:0 0 6px"><span class="seg sw" title="What to add to this deployment group">${[["user", "👤 User"], ["group", "👥 Group (nesting)"]].map(([k, l]) => `<button class="${(o.addKind || "user") === k ? "active" : ""}" data-cgg-addkind="${k}">${l}</button>`).join("")}</span></div>` : "";
     const addBox = o.engine ? '<p class="mini muted">Add and remove from the matrix below while Compare is open.</p>' : r.dynamic ? '<p class="mini muted">Dynamic group — the rule decides the membership.</p>'
-      : `<div class="cgg-add"><input id="cgAddUser" class="txt" list="cgUserSug" placeholder="Add a member — name or UPN" spellcheck="false" autocomplete="off"><input id="cgAddGroup" type="hidden" value="${esc(r.name)}"><button class="btn primary" id="cgAddGo">＋ Add</button></div>
+      : nestable && o.addKind === "group" ? kindSw + nestBox(r, o)
+      : kindSw + `<div class="cgg-add"><input id="cgAddUser" class="txt" list="cgUserSug" placeholder="Add a member — name or UPN" spellcheck="false" autocomplete="off"><input id="cgAddGroup" type="hidden" value="${esc(r.name)}"><button class="btn primary" id="cgAddGo">＋ Add</button></div>
         <p class="mini muted" style="margin:0 0 2px">Several at once: separate with <b>;</b> <b>,</b> or a new line — a column pasted from Excel or an Outlook To line works too.</p>
         <div id="cgAddLog" class="mini" style="margin:4px 0 6px">${o.addMsg ? `<span style="${o.addMsg.bad ? "color:var(--off)" : ""}">${o.addMsg.html}</span>` : ""}</div>`;
     // 5.10: find + order. A 10,530-member group showed as a wall of 500 names
@@ -311,6 +316,49 @@ const GroupsView = (() => {
     const addedBar = hr ? `<p class="mini muted" style="margin:4px 0">Added: from the last 30 days of the audit log${hr.more ? " (the newest events only — the group has more)" : ""}. A member with no add there was added earlier, or by the membership rule.</p>`
       : `<p class="mini muted" style="margin:4px 0"><button class="btn sm" data-cgg-hist="${esc(r.name)}">🕓 Show when each member was added</button> reads the last 30 days of the audit log (AuditLog.Read.All).</p>`;
     return `${addBox}${findBar}${r.members.length ? addedBar : ""}<div id="cgMemTree">${memberTree(r, c, o)}</div>`;
+  }
+
+  // ---- 👥 nest a group into a deployment group (6.4.0, 33206) -------------
+  // A deployment group is where a policy is TRIALLED before it goes on for
+  // the persona, so "the Finance pilot team" or "IT" as one entry is exactly
+  // what you want there — instead of typing twenty names. Only deploy groups
+  // get it: on an exclusion or break-glass group a nested group is a standing
+  // bypass that widens without anybody touching the group (the ⚠ chip).
+  const NESTABLE_KINDS = ["deploy"];
+  function nestBox(r, o) {
+    const block = r.roleAssignable ? "This group is role-assignable — Entra never allows a group inside one."
+      : r.nesting === "disabled" ? "Nesting is disabled on this group (disableNesting is set), so Entra refuses a group as a member."
+      : "";
+    const log = `<div id="cgAddLog" class="mini" style="margin:4px 0 6px">${o.addMsg ? `<span style="${o.addMsg.bad ? "color:var(--off)" : ""}">${o.addMsg.html}</span>` : ""}</div>`;
+    if (block) return `<p class="mini" style="color:var(--off);margin:0 0 6px">${esc(block)}</p>${log}`;
+    return `<div class="cgg-add"><input id="cgNestName" class="txt" list="cgNestSug" placeholder="Nest a group — group name or object id" spellcheck="false" autocomplete="off"><button class="btn primary" id="cgNestGo">＋ Nest group</button></div>
+        <p class="mini muted" style="margin:0 0 2px">Everyone in that group — and in groups inside it — becomes a member of <b>${esc(r.name)}</b> through the nesting, so every policy trialled on it applies to them. From then on whoever manages that group also decides who is in here. Security groups only (no Microsoft 365 or distribution groups). Asks before it writes; the nested group gets a × below to take it out again.</p>
+        ${log}`;
+  }
+  // Can group g be nested into row r? g as Graph returns it:
+  // { id, displayName, groupTypes, securityEnabled, mailEnabled, isAssignableToRole, membershipRule }
+  // → { ok, reason?, warnings[] }. Pure, so the rules are tested without a tenant.
+  function nestCheck(r, g) {
+    const no = (reason) => ({ ok: false, reason, warnings: [] });
+    if (!r || !r.id) return no("This group does not exist in the tenant yet.");
+    if (!g || !g.id) return no("No group to nest.");
+    const gName = g.displayName || g.id;
+    if (r.dynamic) return no(`<b>${esc(r.name)}</b> is a dynamic group — its membership is decided by the rule, not by hand.`);
+    if (r.roleAssignable) return no(`<b>${esc(r.name)}</b> is role-assignable — Entra never allows a group inside a role-assignable group.`);
+    if (r.nesting === "disabled") return no(`Nesting is disabled on <b>${esc(r.name)}</b> — Entra refuses a group as a member.`);
+    if (g.id === r.id) return no("A group cannot be nested into itself.");
+    const types = g.groupTypes || [];
+    if (types.includes("Unified")) return no(`<b>${esc(gName)}</b> is a Microsoft 365 group — Entra does not nest a Microsoft 365 group into a security group. Use a security group with the same people.`);
+    if (g.securityEnabled === false) return no(`<b>${esc(gName)}</b> is not a security group (a distribution list) — Conditional Access only follows security groups.`);
+    const arch = typeof CaGroups !== "undefined" && CaGroups.ARCHIVE_SUFFIX ? CaGroups.ARCHIVE_SUFFIX : /\((?:legacy|nesting|migrated|merged)\s+\d{4}-\d{2}-\d{2}\)\s*$/i;
+    if (arch.test(gName)) return no(`<b>${esc(gName)}</b> is the archived half of an earlier migration — nest the live group, the same name without the suffix.`);
+    const inside = [...(r.nestedGroups || []), ...(r.children || [])];
+    if (inside.some((x) => x.id === g.id)) return no(`<b>${esc(gName)}</b> is already nested in <b>${esc(r.name)}</b>.`);
+    const warnings = [];
+    if (types.includes("DynamicMembership") || g.membershipRule) warnings.push(`${gName} is dynamic — who comes in through it follows its membership rule.`);
+    if (g.mailEnabled) warnings.push(`${gName} is a mail-enabled security group — its members are managed in Exchange.`);
+    if (/-DG-/i.test(gName)) warnings.push(`${gName} is itself a deployment group — its trial members land in this one too.`);
+    return { ok: true, warnings };
   }
 
   // The tree under the find bar — direct members, then each nested group.
@@ -349,12 +397,12 @@ const GroupsView = (() => {
     const tree = `<ul class="cgg-tree">
       ${directShown.map((m) => li(m, "d", r.name, r.id)).join("")}
       ${direct.length ? (q && !directShown.length ? '<li class="d mini muted">no direct member matches</li>' : "") : '<li class="d mini muted">no direct members</li>'}
-      ${children.filter((x) => x.keep).map(({ ch, shown }) => { const open = q ? true : (o.nestOpen || new Set()).has(ch.id); return `<li class="g"><button class="cgg-nest" data-cgg-nest="${esc(ch.id)}">${open ? "▾" : "▸"} <b>${esc(ch.name)}</b></button> <span class="mini muted">nested group · ${ch.memberTotal} member${ch.memberTotal === 1 ? "" : "s"}${ch.dynamic ? " · dynamic" : ""}${q ? ` · ${shown.length} match${shown.length === 1 ? "" : "es"}` : ""}${ch.error ? ` · could not read: ${esc(ch.error)}` : ""}</span></li>${open ? shown.map((m) => li(m, "c", ch.name, ch.dynamic ? "" : ch.id)).join("") + (ch.memberTotal > (ch.members || []).length ? `<li class="c mini muted">… ${ch.memberTotal - (ch.members || []).length} more${q ? " not read" : ""}</li>` : "") : ""}`; }).join("")}
+      ${children.filter((x) => x.keep).map(({ ch, shown }) => { const open = q ? true : (o.nestOpen || new Set()).has(ch.id); return `<li class="g"><span><button class="cgg-nest" data-cgg-nest="${esc(ch.id)}">${open ? "▾" : "▸"} <b>${esc(ch.name)}</b></button> <span class="mini muted">nested group · ${ch.memberTotal} member${ch.memberTotal === 1 ? "" : "s"}${ch.dynamic ? " · dynamic" : ""}${q ? ` · ${shown.length} match${shown.length === 1 ? "" : "es"}` : ""}${ch.error ? ` · could not read: ${esc(ch.error)}` : ""}</span></span>${r.dynamic ? "" : `<button class="cgg-x" data-cgg-unnest="${esc(ch.id)}" title="Take the nested group ${esc(ch.name)} out of ${esc(r.name)} — its members leave unless they are also in another way">×</button>`}</li>${open ? shown.map((m) => li(m, "c", ch.name, ch.dynamic ? "" : ch.id)).join("") + (ch.memberTotal > (ch.members || []).length ? `<li class="c mini muted">… ${ch.memberTotal - (ch.members || []).length} more${q ? " not read" : ""}</li>` : "") : ""}`; }).join("")}
       ${capped && !q ? `<li class="d mini muted">… ${r.memberTotal - r.members.length} more (first ${r.members.length} read) — type a name to search all ${r.memberTotal}</li>` : ""}
     </ul>`;
     const tenant = q && capped ? tenantBlock(r, q, o) : "";
     const bypass = c.excOn && r.memberTotal ? `<div class="wo-callout bad"><b>Standing bypass.</b> This group is excluded from ${c.excOn} enforced polic${c.excOn === 1 ? "y" : "ies"}, so all ${r.memberTotal} people here skip ${c.excOn === 1 ? "it" : "them"}.${children.length && (r.memberTotal - direct.length) > 0 ? ` ${r.memberTotal - direct.length} come in through a nested group — was excluding the whole group the intent?` : ""}</div>` : "";
-    return `${countLine}${tree}${tenant}${bypass}<p class="mini muted" style="margin-top:8px">× asks first and says what the group is used for. A member under a nested group is removed from that nested group, not from ${esc(r.name)}. Only this group is re-read afterwards.</p>`;
+    return `${countLine}${tree}${tenant}${bypass}<p class="mini muted" style="margin-top:8px">× asks first and says what the group is used for. A member under a nested group is removed from that nested group, not from ${esc(r.name)}; the × on a nested group's own line takes the whole group out of ${esc(r.name)}. Only this group is re-read afterwards.</p>`;
   }
 
   // The read stops at 500 of a bigger group, so a name that is not on screen
@@ -442,5 +490,5 @@ const GroupsView = (() => {
     return out;
   }
 
-  return { classify, chips, render, bulkBar, memberTree, splitMembers, CHIPS };
+  return { classify, chips, render, bulkBar, memberTree, splitMembers, nestCheck, NESTABLE_KINDS, CHIPS };
 })();

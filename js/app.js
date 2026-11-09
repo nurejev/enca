@@ -9767,6 +9767,11 @@ max@contoso.com,"Global, DevOps"</pre>
   // tenant search { q, gid, busy | err | hits[], more } — dropped when another
   // row opens, because the hits belong to one group and one query
   let cgMemQ = "", cgMemSort = "", cgMemHits = null;
+  // 6.4.0 (33206): what the drawer's add box adds on a deployment group —
+  // "user" (as always) or "group" (nesting). Kept across rows: who switched to
+  // Group is usually nesting a few teams in a row.
+  let cgAddKind = "user";
+  let cgNestTimer = null;
 
   // 5.17: the box takes a list, so the button says how many it will add, and
   // the directory suggestions only make sense while there is one name in it.
@@ -9989,6 +9994,149 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) {
       say(`Remove failed: ${esc(e.message || e)}`, true);
     }
+  }
+
+  // ---------- 👥 nest a group into a deployment group (6.4.0, 33206) ----------
+  // The drawer's 👥 Group switch (deploy groups only, GroupsView.NESTABLE_KINDS).
+  // Same shape as cgAddMember: look up, check (GroupsView.nestCheck, plus a
+  // loop check against the tenant), say what it means for the policies that
+  // use the deployment group, confirm, one POST, then re-read that group.
+  const CG_NEST_SEL = "id,displayName,groupTypes,securityEnabled,mailEnabled,isAssignableToRole,membershipRule";
+  const CG_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const cgOpenRowObj = () => (cgRes && cgOpen ? (cgRes.rows || []).find((x) => x.name === cgOpen && x.id) : null);
+  const cgSay = (html, bad) => {
+    cgAddMsg = { html, bad: !!bad };
+    const el = $("cgAddLog");
+    if (el) el.innerHTML = `<span style="${bad ? "color:var(--off)" : ""}">${html}</span>`;
+  };
+  // policies that name the group, split include / exclude, for the confirmations
+  function cgPolicyUse(gid) {
+    const users = (p) => ((p.raw || {}).conditions || {}).users || {};
+    const inc = (policies || []).filter((p) => (users(p).includeGroups || []).includes(gid));
+    const exc = (policies || []).filter((p) => (users(p).excludeGroups || []).includes(gid));
+    const st = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+    const label = (p) => `${p.seq || p.name}${st[p.state] ? ` (${st[p.state]})` : ""}`;
+    return { inc, exc, label };
+  }
+  function cgNestSuggest(e) {
+    if (e.target.id !== "cgNestName") return;
+    const term = String(e.target.value || "").trim();
+    clearTimeout(cgNestTimer);
+    const dlNow = $("cgNestSug");
+    if (dlNow && [...dlNow.options].some((o) => o.value === term)) return;
+    if (term.length < 2 || isDemo || CG_GUID.test(term)) return;
+    const self = cgOpenRowObj();
+    cgNestTimer = setTimeout(async () => {
+      const f = term.replace(/'/g, "''");
+      try {
+        const r = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=${CG_NEST_SEL}&$top=25`);
+        const dl = $("cgNestSug");
+        if (dl) dl.innerHTML = ((r && r.value) || [])
+          .filter((g) => g.securityEnabled && !(g.groupTypes || []).includes("Unified") && (!self || g.id !== self.id))
+          .slice(0, 12)
+          .map((g) => `<option value="${esc(g.displayName)}" label="${esc(((g.groupTypes || []).includes("DynamicMembership") ? "dynamic " : "") + "security group")}"></option>`).join("");
+      } catch (err) { console.warn("group suggest failed:", err.message); }
+    }, 250);
+  }
+
+  async function cgNestGroup() {
+    const r = cgOpenRowObj();
+    const term = String($("cgNestName")?.value || "").trim();
+    if (!r) { cgSay("Open a deployment group first.", true); return; }
+    if (!term) { cgSay("Type a group first.", true); return; }
+    if (r.members == null) { cgSay(`Read the members of <b>${esc(r.name)}</b> first.`, true); return; }
+    const pre = GroupsView.nestCheck(r, { id: "?", displayName: "?", securityEnabled: true });
+    if (!pre.ok && !/itself|already nested/.test(pre.reason)) { cgSay(pre.reason, true); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    cgSay("Looking up the group…");
+    let g;
+    try {
+      if (isDemo) g = { id: "demo-g-" + term.toLowerCase().replace(/[^a-z0-9]+/g, "-"), displayName: term, groupTypes: [], securityEnabled: true, mailEnabled: false };
+      else if (CG_GUID.test(term)) g = await Graph.gget(`/groups/${term}?$select=${CG_NEST_SEL}`);
+      else {
+        const res = await Graph.gget(`/groups?$filter=displayName eq '${term.replace(/'/g, "''")}'&$select=${CG_NEST_SEL}&$top=5`);
+        const list = (res && res.value) || [];
+        if (!list.length) { cgSay(`No group called <b>${esc(term)}</b> — pick one from the suggestions, or paste its object id.`, true); return; }
+        if (list.length > 1) { cgSay(`${list.length} groups are called <b>${esc(term)}</b> — paste the object id of the one you mean (🔀 Duplicate names can merge them).`, true); return; }
+        g = list[0];
+      }
+    } catch (e) {
+      cgSay(/404|not ?found|does not exist/i.test(e.message || "") ? `No group with id <b>${esc(term)}</b> in this tenant.` : `Lookup failed: ${esc(e.message || e)}`, true);
+      return;
+    }
+    const chk = GroupsView.nestCheck(r, g);
+    if (!chk.ok) { cgSay(chk.reason, true); return; }
+    const gName = g.displayName || g.id;
+    let users = null;
+    if (!isDemo) {
+      // a loop: the deployment group already sits (somewhere) inside g
+      try {
+        const up = await Graph.ggetAll(`/groups/${r.id}/transitiveMemberOf/microsoft.graph.group?$select=id&$top=999`);
+        if ((up || []).some((x) => x.id === g.id)) { cgSay(`<b>${esc(gName)}</b> already contains <b>${esc(r.name)}</b> — nesting it here would make a loop.`, true); return; }
+      } catch (e) { console.warn("nest loop check failed:", e.message); }
+      try { const n = Number(await Graph.gget(`/groups/${g.id}/transitiveMembers/microsoft.graph.user/$count`)); if (Number.isFinite(n)) users = n; } catch { /* the count is a courtesy */ }
+    }
+    const U = cgPolicyUse(r.id);
+    const who = users == null ? `The users in ${gName}` : `${users} user${users === 1 ? "" : "s"} in ${gName}`;
+    const lines = [
+      `${who} (directly, or through groups inside it) become members of ${r.name} through the nesting.`,
+      U.inc.length ? `${r.name} is INCLUDED by ${U.inc.length} polic${U.inc.length === 1 ? "y" : "ies"} — they come into scope of: ${U.inc.map(U.label).join(", ")}.` : `No policy includes ${r.name} right now — nothing applies to them until a trial puts it on a policy.`,
+      U.exc.length ? `${r.name} is EXCLUDED from ${U.exc.length} polic${U.exc.length === 1 ? "y" : "ies"} — they skip: ${U.exc.map(U.label).join(", ")}.` : "",
+      `From now on whoever manages ${gName} also decides who is in ${r.name}.`,
+      ...chk.warnings,
+    ].filter(Boolean);
+    if (!confirm(`Nest ${gName} into ${r.name}?\n\n${lines.join("\n\n")}\n\nThis is a directory write. Nothing else changes.`)) return;
+    cgSay("Nesting…");
+    try {
+      if (!isDemo) await Graph.gpost(`/groups/${r.id}/members/$ref`,
+        { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${g.id}` },
+        [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+    } catch (e) {
+      const m = e.message || String(e);
+      if (/already exist/i.test(m)) cgSay(`<b>${esc(gName)}</b> is already a member of <b>${esc(r.name)}</b>.`);
+      else if (/nesting/i.test(m)) cgSay(`Entra refused: group nesting is not allowed on <b>${esc(r.name)}</b>. ${esc(m)}`, true);
+      else cgSay(`Nest failed: ${esc(m)}`, true);
+      return;
+    }
+    const dyn = (g.groupTypes || []).includes("DynamicMembership") || !!g.membershipRule;
+    r.nestedGroups = [...(r.nestedGroups || []).filter((x) => x.id !== g.id), { id: g.id, name: gName, dynamic: dyn }];
+    if (Array.isArray(r.children)) { r.children = [...r.children.filter((x) => x.id !== g.id), { id: g.id, name: gName, dynamic: dyn, rule: g.membershipRule || "", error: null, members: [], memberTotal: users || 0 }]; r.childTotal = r.children.length; }
+    cgSay(`✓ <b>${esc(gName)}</b> nested into <b>${esc(r.name)}</b>${users != null ? ` — ${users} user${users === 1 ? "" : "s"} come in through it` : ""}.`);
+    const box = $("cgNestName"); if (box) box.value = "";
+    cgNestOpenDr.add(g.id);
+    cgRerenderMembers();
+    if (!isDemo) { try { await CaGroups.loadMembers([r], {}); cgRerenderMembers(); } catch { /* the optimistic row stands */ } }
+  }
+
+  // The × on a nested group's own line: take the whole group out. The mirror
+  // of the nest — and on an exclusion group the direction that puts people
+  // back INSIDE a policy, so it always confirms and names the policies.
+  async function cgUnnestGroup(childId) {
+    const r = cgOpenRowObj(); if (!r) return;
+    const ch = [...(r.children || []), ...(r.nestedGroups || [])].find((x) => x.id === childId);
+    const cName = (ch && ch.name) || childId;
+    const only = r.directIds && ch && ch.members ? ch.members.filter((m) => !r.directIds.has(m.id) && !(r.children || []).some((o) => o.id !== childId && (o.members || []).some((x) => x.id === m.id))).length : null;
+    const U = cgPolicyUse(r.id);
+    const who = only == null ? `Everyone who is in ${r.name} only through ${cName}` : `${only} user${only === 1 ? "" : "s"} who ${only === 1 ? "is" : "are"} in ${r.name} only through ${cName}`;
+    const lines = [
+      `${who} leave${only === 1 ? "s" : ""} ${r.name}.`,
+      U.exc.length ? `${r.name} is an EXCLUSION for ${U.exc.map(U.label).join(", ")} — they are INSIDE ${U.exc.length === 1 ? "that policy" : "those policies"} again.` : "",
+      U.inc.length ? `${r.name} is included by ${U.inc.map(U.label).join(", ")} — they drop out of ${U.inc.length === 1 ? "its" : "their"} scope.` : "",
+      !U.exc.length && !U.inc.length ? `No policy references ${r.name} right now.` : "",
+    ].filter(Boolean);
+    if (!confirm(`Take the nested group ${cName} out of ${r.name}?\n\n${lines.join("\n\n")}\n\n${cName} itself and its members are not changed. This is a directory write.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    cgSay("Removing the nested group…");
+    try {
+      if (!isDemo) await Graph.gdelete(`/groups/${r.id}/members/${childId}/$ref`, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+    } catch (e) { cgSay(`Remove failed: ${esc(e.message || e)}`, true); return; }
+    const gone = new Set(ch && ch.members ? ch.members.filter((m) => !(r.directIds && r.directIds.has(m.id))).map((m) => m.id) : []);
+    r.nestedGroups = (r.nestedGroups || []).filter((x) => x.id !== childId);
+    if (Array.isArray(r.children)) { r.children = r.children.filter((x) => x.id !== childId); r.childTotal = r.children.length; }
+    if (r.members && gone.size) { r.members = r.members.filter((m) => !gone.has(m.id) || (r.children || []).some((o) => (o.members || []).some((x) => x.id === m.id))); r.memberTotal = r.members.length; }
+    cgSay(`✓ <b>${esc(cName)}</b> is no longer nested in <b>${esc(r.name)}</b>.${U.exc.length ? ` <span style="color:var(--report)">Its people are inside ${U.exc.map((p) => esc(p.seq || p.name)).join(", ")} again.</span>` : ""}`);
+    cgRerenderMembers();
+    if (!isDemo) { try { await CaGroups.loadMembers([r], {}); cgRerenderMembers(); } catch { /* the optimistic row stands */ } }
   }
 
   // ③ nesting view: "how" instead of "who" — ● direct, ◐ through a nested
@@ -10360,7 +10508,7 @@ This is a directory write. Nothing else changes.`)) return;
     await CaGroups.loadMembers(todo, {});
   }
   const cgRerenderMembers = () => { if (cgTab === "groups") renderCaGroups(); else renderCgMembers(); };
-  const cgViewOpts = () => ({ filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull, memQ: cgMemQ, memSort: cgMemSort, memHits: cgMemHits });
+  const cgViewOpts = () => ({ filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull, memQ: cgMemQ, memSort: cgMemSort, memHits: cgMemHits, addKind: cgAddKind });
   // The find box lives inside the drawer, and the drawer is innerHTML on every
   // render — so typing re-renders the TREE under it, never the box itself, or
   // the caret would be gone after the first letter.
@@ -10511,6 +10659,8 @@ This is a directory write. Nothing else changes.`)) return;
     const hi = t.closest("[data-cgg-hist]"); if (hi) { const r = cgRes.rows.find((x) => x.name === hi.dataset.cggHist); if (r) cgReadHistory(r); return; }
     const ms = t.closest("[data-cgg-msort]"); if (ms) { cgMemSort = ms.dataset.cggMsort; renderCaGroups(); return; }
     if (t.closest("[data-cgg-memfind]")) { cgMemFind(); return; }
+    const ak = t.closest("[data-cgg-addkind]"); if (ak) { if (cgAddKind !== ak.dataset.cggAddkind) { cgAddKind = ak.dataset.cggAddkind; cgAddMsg = null; renderCaGroups(); } return; }
+    const un = t.closest("[data-cgg-unnest]"); if (un) { await cgUnnestGroup(un.dataset.cggUnnest); return; }
     const rm = t.closest("[data-cgg-rm]");
     if (rm) {
       const r = cgRes.rows.find((x) => x.name === cgOpen); if (!r) return;
@@ -10613,9 +10763,12 @@ This is a directory write. Nothing else changes.`)) return;
   $("cgList").addEventListener("input", cgAddSuggest);
   $("cgList").addEventListener("input", (e) => { if (e.target.id !== "cgMemQ") return; cgMemQ = e.target.value; cgMemRefresh(); });
   $("cgList").addEventListener("keydown", (e) => { if (e.target.id === "cgMemQ" && e.key === "Enter") { e.preventDefault(); cgMemFind(); } });
+  $("cgList").addEventListener("input", cgNestSuggest);
+  $("cgList").addEventListener("keydown", (e) => { if (e.target.id === "cgNestName" && e.key === "Enter") { e.preventDefault(); cgNestGroup(); } });
   $("cgList").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgList").addEventListener("click", async (e) => {
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
+    if (e.target.id === "cgNestGo") { await cgNestGroup(); return; }
     if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); }
   });
   $("cgTabs").addEventListener("click", (e) => {
