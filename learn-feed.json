@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-11-02T04:22:53.235Z",
+ "generated": "2026-11-09T04:23:47.518Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "7f78b50dce",
+  "head": "59b123da69",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -14,13 +14,109 @@
   ]
  },
  "counts": {
-  "docs": 17,
+  "docs": 20,
   "newDocs": 4,
-  "substantive": 14,
+  "substantive": 17,
   "watched": 17,
   "unwatched": 5
  },
  "docs": [
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
+   "path": "docs/identity/conditional-access/managed-policies.md",
+   "title": "Microsoft-Managed Conditional Access Policies for Enhanced Security",
+   "kind": "changed",
+   "lastChange": "2026-11-03T16:03:01-08:00",
+   "lines": 5,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "d7e296693c",
+     "date": "2026-11-03T16:03:01-08:00",
+     "subject": "Update user risk remediation policy details",
+     "add": 3,
+     "del": 2,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows",
+   "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
+   "title": "Token Protection Deployment Guide - Windows",
+   "kind": "changed",
+   "lastChange": "2026-11-02T12:53:04-08:00",
+   "lines": 12,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "9bd474d0ff",
+     "date": "2026-11-02T12:53:04-08:00",
+     "subject": "Clarify Office perpetual client support for Token Protection",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "669e5943d6",
+     "date": "2026-09-24T11:26:07-07:00",
+     "subject": "Update deployment-guide-token-protection-windows.md (#14422)",
+     "add": 6,
+     "del": 2,
+     "bulk": false
+    },
+    {
+     "sha": "bf45f8ce25",
+     "date": "2026-09-10T10:45:39-07:00",
+     "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337",
+     "add": 1,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-session-lifetime",
+   "path": "docs/identity/conditional-access/concept-session-lifetime.md",
+   "title": "Conditional Access adaptive session lifetime policies",
+   "kind": "changed",
+   "lastChange": "2026-11-02T10:00:00-06:00",
+   "lines": 30,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "d8e5f0c562",
+     "date": "2026-11-02T10:00:00-06:00",
+     "subject": "Document Every time strict preview and Private Access sign-in every time (#14758)",
+     "add": 27,
+     "del": 3,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-grant",
+   "path": "docs/identity/conditional-access/concept-conditional-access-grant.md",
+   "title": "How to Configure Grant Controls in Microsoft Entra",
+   "kind": "changed",
+   "lastChange": "2026-10-28T00:12:21+09:00",
+   "lines": 2,
+   "bulkOnly": false,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "769bedfd8e",
+     "date": "2026-10-28T00:12:21+09:00",
+     "subject": "Update Microsoft Authenticator access requirements",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    }
+   ]
+  },
   {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans",
    "path": "docs/identity/conditional-access/concept-conditional-access-policy-plans.md",
@@ -350,34 +446,6 @@
      "add": 2,
      "del": 1,
      "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows",
-   "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
-   "title": "Token Protection Deployment Guide - Windows",
-   "kind": "changed",
-   "lastChange": "2026-09-24T11:26:07-07:00",
-   "lines": 10,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "669e5943d6",
-     "date": "2026-09-24T11:26:07-07:00",
-     "subject": "Update deployment-guide-token-protection-windows.md (#14422)",
-     "add": 6,
-     "del": 2,
-     "bulk": false
-    },
-    {
-     "sha": "bf45f8ce25",
-     "date": "2026-09-10T10:45:39-07:00",
-     "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337",
-     "add": 1,
-     "del": 1,
-     "bulk": true
     }
    ]
   },
@@ -726,14 +794,14 @@
    "path": "docs/identity/conditional-access/deployment-guide-token-protection-windows.md",
    "title": "Token Protection Deployment Guide - Windows",
    "last": {
-    "sha": "669e5943d6",
-    "date": "2026-09-24T11:26:07-07:00",
-    "subject": "Update deployment-guide-token-protection-windows.md (#14422)"
+    "sha": "9bd474d0ff",
+    "date": "2026-11-02T12:53:04-08:00",
+    "subject": "Clarify Office perpetual client support for Token Protection"
    },
    "lastSubstantive": {
-    "sha": "669e5943d6",
-    "date": "2026-09-24T11:26:07-07:00",
-    "subject": "Update deployment-guide-token-protection-windows.md (#14422)"
+    "sha": "9bd474d0ff",
+    "date": "2026-11-02T12:53:04-08:00",
+    "subject": "Clarify Office perpetual client support for Token Protection"
    }
   },
   "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app": {
@@ -849,7 +917,7 @@
    "kind": "alert",
    "title": "Token Protection Deployment Guide - Windows",
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/deployment-guide-token-protection-windows",
-   "since": "2026-09-24T11:26:07-07:00",
+   "since": "2026-11-02T12:53:04-08:00",
    "checks": [
     "token-prot-devices"
    ]
