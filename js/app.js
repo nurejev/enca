@@ -521,7 +521,7 @@
     baseline: {
       tile: "toolBaseline", label: "🧬 Baseline",
       tabs: [
-        { key: "baseline", icon: "🧬", name: "Baseline",         toolbar: "blToolbar", open: () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); } },
+        { key: "baseline", icon: "🧬", name: "Baseline",         toolbar: "blToolbar", open: () => { crumb("🧬 Baseline"); openBaseline(blOpenId()); } },
         { key: "guide",    icon: "📖", name: "Deployment guide", toolbar: "ugToolbar", open: () => openGuide(), beta: true },
       ],
     },
@@ -3445,7 +3445,7 @@
   // second tile for — openBaseline("joey") is still the deep-link target and has
   // six callers. Opens on the tenant's active catalog rather than always
   // CloudFellows, which is what the ★ choice is for.
-  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); });
+  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline"); openBaseline(blOpenId()); });
   function openStateModal() {
     if (!selected.size) { toast("Select at least one policy first"); return; }
     const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
@@ -11562,8 +11562,13 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- Baseline Policies ----------
   // Pure client-side comparison against the bundled catalog — no Graph calls
   // beyond the policies already loaded, so it is instant and re-runs on filter.
-  let blResult = null, blFilter = "all", blQuery = "", blCat = "limonit";
+  let blResult = null, blFilter = "all", blQuery = "", blCat = "limonit", blForeignOpen = false;
   const blCollapsed = new Set();
+  // 33205: the catalog the tool opens on — the one last shown for this tenant
+  // (devcf holds all three baselines; Mihai picks which one to read), else
+  // the active baseline (saved choice, or the best match). Looking at a
+  // catalog is remembered; it never changes the active baseline.
+  const blOpenId = () => { try { return Baseline.viewed() || Baseline.activeCatalogId() || "limonit"; } catch { return "limonit"; } };
   // ONE VIEW, THE TABLE. There used to be a Cards/Table toggle, defaulting to
   // the table for the CloudFellows catalog and to cards for the community ones —
   // so the same screen answered the same question two different ways depending
@@ -11603,7 +11608,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
     blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
     if (!keepView) {
-      blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
+      blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); blForeignOpen = false; $("blSearch").value = "";
     }
     renderBaseline();
     if (blCat === "joey") blLiveEnsure();
@@ -11611,10 +11616,15 @@ This is a directory write. Nothing else changes.`)) return;
   function renderBaseline() {
     if (!blResult) return;
     $("blHead").innerHTML = Baseline.renderSummary(blResult, blFilter);
-    $("blCatalog").innerHTML = Baseline.catalogs()
-      .map((c) => `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}">${c.icon || "🧬"} ${esc(c.label)}</button>`).join("");
+    // 33205: ONE baseline on screen at a time. Each button says how many of
+    // the tenant's policies carry that baseline's naming, and ★ marks the
+    // active one (what the write tools use) — on devcf all three are there.
+    { const fam = (() => { try { return Baseline.familyCounts(policies); } catch { return {}; } })();
+      $("blCatalog").innerHTML = `<span class="mini muted" style="align-self:center;padding:0 6px">Baseline:</span>` + Baseline.catalogs()
+        .map((c) => { const n = fam[c.id] || 0, on = Baseline.isActive(c.id);
+          return `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}" title="Compare this tenant with ${esc(c.label)} only — ${n} of its policies carry ${esc(c.label)}'s naming${on ? ". ★ the active baseline for this tenant" : ""}. Remembered for this tenant in this browser.">${c.icon || "🧬"} ${esc(c.label)}${n ? ` <span class="mini">(${n})</span>` : ""}${on ? " ★" : ""}</button>`; }).join(""); }
     $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
-    $("blBody").innerHTML = Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed);
+    $("blBody").innerHTML = Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed, { foreignOpen: blForeignOpen });
     const shown = Baseline.personas(blResult, blFilter, blQuery);
     const allCollapsed = shown.length > 0 && shown.every((g) => blCollapsed.has(g));
     $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
@@ -11793,12 +11803,17 @@ This is a directory write. Nothing else changes.`)) return;
     const t = e.target.closest("[data-bltake]");
     if (t) { const n = +t.dataset.bltake; if (t.checked) blTake.add(n); else blTake.delete(n); renderCatalogUpdate(); }
   });
-  $("blCatalog").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
-    blCat = b.dataset.blcat;
+  function blPick(id) {
+    if (!id || id === blCat) return;
+    blCat = id;
+    try { Baseline.setViewed(id); } catch {}
     blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
-    blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); renderBaseline();
+    blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); blForeignOpen = false; renderBaseline();
     if (blCat === "joey") blLiveEnsure();
+  }
+  $("blCatalog").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-blcat]"); if (!b) return;
+    blPick(b.dataset.blcat);
   });
   // R36 — make the catalog on screen the one every tool works against, and
   // read Joey's repository on request. Both live in the summary card.
@@ -12091,6 +12106,15 @@ This is a directory write. Nothing else changes.`)) return;
     const allCollapsed = shown.length > 0 && shown.every((g) => blCollapsed.has(g));
     if (allCollapsed) blCollapsed.clear(); else shown.forEach((g) => blCollapsed.add(g));
     renderBaseline();
+  });
+  // 33205: the "Other baselines in this tenant" fold keeps its state across
+  // re-renders (search, filter), and its "compare with …" link picks that one
+  $("blBody").addEventListener("toggle", (e) => {
+    if (e.target && e.target.classList && e.target.classList.contains("bl-foreign")) blForeignOpen = e.target.open;
+  }, true);
+  $("blBody").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-blcat-pick]"); if (!a) return;
+    e.preventDefault(); blPick(a.dataset.blcatPick);
   });
   // clicking a tenant policy name opens its card, same as everywhere else
   $("blBody").addEventListener("click", (e) => {

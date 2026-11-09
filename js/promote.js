@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 378,
+      ws: "ca",
+      title: "🧬 Baseline: one baseline at a time — a tenant holding several (devcf) is compared with the one picked; the others listed apart",
+      tools: ["Baseline", "Import"],
+      builds: [33205],
+      risk: "medium",
+      files: ["js/baseline.js", "js/import.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/baseline-onebaseline.test.cjs"],
+      what: "33205 (Mihai 9 Nov, devcf): js/baseline.js familyOf / familyCounts (SMB marker, CloudFellows kind token, Joey persona-first unversioned or exact catalog name), compare() sets other baselines' policies aside before matching (res.foreign / foreignBy; kept where the catalog expects that naming on that number — the E-Admins under Joey), mismatchReason refuses two namings, reading/renderTable/toMd add the collapsed Other baselines in this tenant fold, viewed / setViewed remember the catalog last shown per tenant (enca-baseline-view:<tenant>); js/app.js picker with Baseline: label, per-baseline counts and ★ on the active one, opens on the remembered catalog, compare with … link, fold state kept across re-renders; js/import.js plan(): same number + same version is the same policy only within one naming.",
+      why: "devcf holds CloudFellows, Joey Verlinden+ and SMB Basic side by side and their CA numbers overlap, so every view mixed them (clashes, extras, also-here copies), and 📥 Import read SMB CA001 v1.0.3 as already there because CloudFellows CA001 is also v1.0.3.",
+      test: [
+        "node --test tools/*.test.cjs: all green (baseline-onebaseline +12).",
+        "devcf → 🧬 Baseline: the picker reads Baseline: CloudFellows (107) ★, Joey Verlinden (42), SMB Basic (19) — ★ on the saved or matched active baseline; each one alone reads 0 clashes, 0 Not in baseline, no also-here lines, 100% coverage; the Other baselines in this tenant fold lists the other two (Joey: CloudFellows minus the six E-Admins + SMB).",
+        "Pick SMB Basic, leave the tool, reopen: it opens on SMB Basic; the active-baseline card still names the active one unchanged.",
+        "A customer tenant on one baseline (Courseware, Joey; MCA, CloudFellows): the table reads as before; Outdated/Missing counts unchanged.",
+        "devcf → 📥 Import SMB Basic preview: CA001 is not 'already exists'; nothing is offered to replace a CloudFellows or Joey policy in place.",
+      ],
+    },
+    {
       n: 377,
       ws: "ca",
       title: "🧩 Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts (ENCA's change to his release); ⑦ Migrate adds it to tenants imported earlier",

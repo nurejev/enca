@@ -313,6 +313,17 @@ const Importer = (() => {
     catch { return false; }
   };
   const cleanName = (s) => String(s || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase();
+  // 33205: named the way two DIFFERENT baselines name their policies (SMB
+  // Basic, CloudFellows, Joey Verlinden — Baseline.familyOf). On devcf, which
+  // holds all three, SMB CA001 v1.0.3 read "already exists" because the
+  // CloudFellows CA001 is also at v1.0.3, and the import skipped it.
+  const otherFamily = (a, b) => {
+    try {
+      if (typeof Baseline === "undefined" || !Baseline.familyOf) return false;
+      const fa = Baseline.familyOf(a), fb = Baseline.familyOf(b);
+      return !!(fa && fb && fa !== fb);
+    } catch { return false; }
+  };
 
   function plan(bundle, existing) {
     const ex = (existing || []).map((e) => {
@@ -333,7 +344,7 @@ const Importer = (() => {
       // Versioned names: same CA number + same version is the same policy.
       // A baseline that does not version its names (Joey's): same CA number
       // + same name, staging prefix aside — being there is the whole test.
-      const exact = ver ? sameNum.find((e) => e.ver === ver)
+      const exact = ver ? sameNum.find((e) => e.ver === ver && !otherFamily(raw.displayName, e.name))
         : sameNum.find((e) => cleanName(e.name) === cleanName(raw.displayName));
       // present, but at another version or under an older name of the SAME
       // policy — never a number clash from the other baseline

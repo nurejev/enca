@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33205, date: "2026-11-09", title: "🧬 Baseline: one baseline at a time — devcf no longer shows all three through each other",
+    items: [
+      { kind: "fixed", tool: "Baseline", text: "A tenant holding several baselines (devcf: CloudFellows, Joey Verlinden+ and SMB Basic side by side) is compared with the ONE baseline you pick. A policy is matched only within that baseline's own naming — a CloudFellows CA201 is never Joey's CA201 or SMB's CA201 — so the other baselines' policies no longer show up as number clashes, Not in baseline rows or \"also here\" copies on nearly every row." },
+      { kind: "improved", tool: "Baseline", text: "The other baselines' policies are listed under the table in a collapsed \"Other baselines in this tenant (n)\" fold, per baseline, each with a link to compare with that one. The picker reads Baseline: CloudFellows | Joey Verlinden | SMB Basic, with how many of the tenant's policies carry each naming and ★ on the active one; the one you last looked at is remembered for the tenant in this browser. Looking never changes the active baseline — ★ Switch still does." },
+      { kind: "fixed", tool: "Import", text: "📥 Import no longer takes another baseline's same-number policy for this one: on devcf SMB CA001 v1.0.3 read \"already exists\" because the CloudFellows CA001 is also v1.0.3, and Joey's CA000 could be offered to replace the CloudFellows CA000 in place. Each now lands alongside." },
+    ],
+  },
+  {
     build: 33204, date: "2026-11-09", title: "Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts",
     items: [
       { kind: "improved", tool: "Baseline", text: "Under Joey Verlinden's baseline CA200–CA210 also exclude his service-accounts group CA-ServiceAccounts — ENCA's change to his release (decided 9 Nov). The internals group CAB-SEC-U-Persona-Internals is dynamic (every user with Entra ID P1 enabled), so licensed service accounts land in it; his CA300 block covers them, the internals' MFA and risk policies must not. 🧬 Baseline lists ENCA's changes to his release under the source line." },

@@ -270,6 +270,22 @@ const Baseline = (() => {
     try { localStorage.setItem(ACTIVE_KEY(tenantId), target); } catch { /* session only */ }
     return true;
   }
+  // 33205: the catalog the 🧬 Baseline tool last SHOWED for this tenant —
+  // remembered per tenant in this browser, so devcf (all three baselines)
+  // reopens on the one Mihai picked. Looking is not choosing: this never
+  // changes the active baseline the write tools use (★ Switch does).
+  const VIEW_KEY = (tid) => `enca-baseline-view:${tid || "unknown"}`;
+  function viewed() {
+    try {
+      const v = localStorage.getItem(VIEW_KEY(tenantId));
+      return v && catalogs().some((c) => c.id === v) ? v : null;
+    } catch { return null; }
+  }
+  function setViewed(id) {
+    if (!catalogs().some((c) => c.id === id)) return false;
+    try { localStorage.setItem(VIEW_KEY(tenantId), id); } catch { return false; }
+    return true;
+  }
   // The active catalog WITH its contract. Every downstream consumer goes
   // through here and nowhere else.
   const active = () => withContract(catalog(activeCatalogId()));
@@ -355,6 +371,11 @@ const Baseline = (() => {
   // Does the tenant policy plausibly correspond to this baseline policy?
   // Returns null when it does, or a reason string when it clearly does not.
   function mismatchReason(baselineName, tenantName) {
+    // 33205: two baselines' namings never match each other, however many
+    // words they share (SMB CA001 "GRANT-SMB-Global-…-MFA" and CloudFellows
+    // CA001 "BLOCK-Global-…" overlapped on "global" and passed)
+    const bf = familyOf(baselineName), tf = familyOf(tenantName);
+    if (bf && tf && bf !== tf) return `another baseline's policy — named the ${familyLabel(tf)} way, not the ${familyLabel(bf)} way`;
     const bp = personaKey(baselineName), tp = personaKey(tenantName);
     if (bp && tp && bp !== tp) return `different persona — the baseline policy is ${bp}, this one is ${tp}`;
     const sim = similarity(baselineName, tenantName);
@@ -380,6 +401,56 @@ const Baseline = (() => {
   const cleanName = (s) => String(s || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase();
   const exactName = (a, b) => (cleanName(a) === cleanName(b) ? 1 : 0);
   const version = (name) => { const m = /v\s?(\d+\.\d+(?:\.\d+)?)\s*$/i.exec((name || "").trim()); return m ? m[1] : null; };
+
+  // ---- whose naming is this? (33205) -------------------------------------
+  // devcf (CloudFellows.dev), the source tenant, holds all three baselines
+  // side by side, and 36 of Joey Verlinden's CA numbers and all 19 of SMB
+  // Basic's are also CloudFellows numbers. The CA number alone therefore
+  // said nothing about WHICH baseline a policy is, and the comparison read
+  // the other two baselines' policies as clashes, extras and "also here"
+  // copies on nearly every row (Mihai, 9 Nov: "it shows every policy
+  // through each other"). Each baseline's naming says it outright:
+  //   SMB Basic      CAnnn-KIND-SMB-…-vX.Y            (the SMB marker)
+  //   CloudFellows   CAnnn-GRANT|BLOCK|SESSION-…-vX.Y (the kind token)
+  //   Joey Verlinden CAnnn-Persona-…, no version      (his persona first —
+  //                  Joey+ CA018–CA023 follow it), or an exact name in his
+  //                  catalog (a live read may bring a persona word ENCA does
+  //                  not list yet)
+  // null: no baseline's naming — the tenant's own policy, judged as before.
+  const FAMILY_SMB_RE = /^CA\d{3,4}-[A-Z]+-SMB-/i;
+  const FAMILY_CF_RE = /^CA\d{3,4}-(GRANT|BLOCK|SESSION)-/i;
+  const FAMILY_JOEY_RE = /^CA\d{3,4}-(Global|Admins|Internals|ServiceAccounts|GuestUsers|Guests|Agents)-/i;
+  const FAMILY_VERSIONED_RE = /[-\s]v\d+\.\d+(\.\d+)*\s*$/i;
+  const FAMILIES = ["limonit", "joey", "smb"];
+  let joeyNamesMemo = { cat: null, names: null };
+  function joeyNames() {
+    let c = null;
+    try { c = (typeof BaselineLive !== "undefined" && BaselineLive.catalog && BaselineLive.catalog()) || null; } catch { c = null; }
+    if (!c && typeof BASELINE_JOEY !== "undefined") c = BASELINE_JOEY;
+    if (joeyNamesMemo.cat === c && joeyNamesMemo.names) return joeyNamesMemo.names;
+    const names = new Set(((c && c.policies) || []).map((p) => cleanName(p.name)));
+    try { if (typeof JOEY_PLUS !== "undefined") JOEY_PLUS.entries().forEach((p) => names.add(cleanName(p.name))); } catch { /* not loaded */ }
+    joeyNamesMemo = { cat: c, names };
+    return names;
+  }
+  function familyOf(name) {
+    const n = String(name || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim();
+    if (!n) return null;
+    if (FAMILY_SMB_RE.test(n)) return "smb";
+    if (FAMILY_CF_RE.test(n)) return "limonit";
+    if (FAMILY_JOEY_RE.test(n) && !FAMILY_VERSIONED_RE.test(n)) return "joey";
+    if (joeyNames().has(cleanName(n))) return "joey";
+    return null;
+  }
+  const familyLabel = (f) => { const c = catalogs().find((x) => x.id === f); return c ? c.label : f; };
+  const familyIcon = (f) => { const c = catalogs().find((x) => x.id === f); return (c && c.icon) || "🧬"; };
+  // per baseline, how many of the tenant's policies carry its naming — the
+  // numbers on the catalog picker
+  function familyCounts(vms) {
+    const out = {};
+    for (const p of vms || []) { const f = familyOf(p && p.name); if (f) out[f] = (out[f] || 0) + 1; }
+    return out;
+  }
 
   // -1 a<b, 0 equal, 1 a>b — segment-wise, so 1.0.10 > 1.0.9
   function cmpVersion(a, b) {
@@ -519,8 +590,32 @@ const Baseline = (() => {
     const byDefinition = !!(opts && opts.byDefinition);
     const cat = catalog(catId);
     const shared = sharedPolicies(cat);
+    // 33205: ONE BASELINE AT A TIME. A policy named the way ANOTHER baseline
+    // names its policies is that baseline's: it is set aside before matching,
+    // so it can be no clash, no extra and no "also here" copy on this
+    // catalog's rows. It still counts where this catalog itself expects that
+    // naming on that number — the CloudFellows E-Admins under Joey
+    // Verlinden's catalog. Listed apart as `foreign`, by baseline.
+    const ownFamily = FAMILIES.includes(cat.id) ? cat.id : null;
+    const entryFamilies = new Map();
+    for (const b of [...cat.policies, ...shared]) {
+      const f = familyOf(b.name);
+      if (!f) continue;
+      if (!entryFamilies.has(b.num)) entryFamilies.set(b.num, new Set());
+      entryFamilies.get(b.num).add(f);
+    }
+    const foreign = [];
+    const inScope = [];
+    for (const p of vms || []) {
+      const f = ownFamily ? familyOf(p.name) : null;
+      const n = caNum(p.name);
+      if (!f || f === ownFamily || (n != null && entryFamilies.has(n) && entryFamilies.get(n).has(f))) { inScope.push(p); continue; }
+      foreign.push({ id: p.id, name: p.name, state: p.state, num: n, version: version(p.name), family: f });
+    }
+    foreign.sort((a, b) => FAMILIES.indexOf(a.family) - FAMILIES.indexOf(b.family) || (a.num ?? 1e9) - (b.num ?? 1e9) || String(a.name).localeCompare(String(b.name)));
+    const foreignBy = FAMILIES.filter((f) => f !== ownFamily).map((f) => ({ id: f, label: familyLabel(f), icon: familyIcon(f), count: foreign.filter((x) => x.family === f).length })).filter((x) => x.count);
     const byNum = new Map();
-    for (const p of vms) {
+    for (const p of inScope) {
       const n = caNum(p.name);
       if (n == null) continue;
       // duplicate CA numbers in a tenant are real (a leftover copy) — keep both
@@ -663,6 +758,7 @@ const Baseline = (() => {
     return {
       rows, counts, byDefinition,
       catalog: cat,
+      foreign, foreignBy,
       baselineTotal: total,
       shared: shared.length,
       covered,
@@ -730,6 +826,8 @@ const Baseline = (() => {
       const who = tally(res.rows.filter((r) => r.status === "extra"));
       parts.push(`<b>${n("extra")} not in this baseline</b> — numbered policies this catalog does not define${who ? `: ${esc(who)}` : ""}${who ? " (nothing wrong with them — they are the other baseline's)" : ""}.`);
     }
+    const fo = res.foreign || [];
+    if (fo.length) parts.push(`<b>${fo.length} ${fo.length === 1 ? "policy belongs" : "policies belong"} to other baselines</b> (${esc((res.foreignBy || []).map((x) => `${x.count} ${x.label}`).join(", "))}, by their naming) — not compared with ${esc(cat.label)}${/s$/i.test(cat.label) ? "'" : "'s"} and not counted here; listed collapsed under the table. Pick that baseline above to compare them.`);
     return parts.join(" ");
   }
 
@@ -763,7 +861,7 @@ const Baseline = (() => {
       <div style="flex:1;min-width:280px">
         <h3>${esc(res.catalog.icon || "🧬")} ${esc(res.catalog.label)} baseline — ${esc(res.catalog.release)}${res.catalog.line ? ` (${esc(res.catalog.line)})` : ""}${!res.catalog.url && res.catalog.released ? ` <span class="mini muted">rev ${esc(res.catalog.released)}</span>` : ""}${toolHeadTail("toolBaseline")}</h3>
         <p style="margin-bottom:6px">${reading(res)}</p>
-        <p class="mini muted" style="margin-bottom:10px">Matched policy by policy on the CA number, versions compared per segment.
+        <p class="mini muted" style="margin-bottom:10px">Matched policy by policy on the CA number, within this baseline's own naming (another baseline's policies are listed apart, never matched), versions compared per segment.
           ${res.catalog.url ? `Source: <a href="${esc(res.catalog.url)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.url)}</a>${res.catalog.released ? ` · released ${esc(res.catalog.released)}` : ""}.` : ""}
           ${res.catalog.importerUrl ? `The author's own importer: <a href="${esc(res.catalog.importerUrl)}" target="_blank" rel="noopener noreferrer">${esc(res.catalog.importerUrl)}</a>.` : ""}
           Click a count to filter the table; hover it for what it means.</p>
@@ -1206,13 +1304,14 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  function renderTable(res, filter, query, collapsed) {
+  function renderTable(res, filter, query, collapsed, opts) {
     const q = (query || "").toLowerCase();
     const isCollapsed = (g) => collapsed && collapsed.has(g);
     let rows = res.rows;
     if (filter && filter !== "all") rows = rows.filter((r) => r.status === filter);
     if (q) rows = rows.filter((r) => `${r.num} ${r.baseline?.name || ""} ${r.tenant?.name || ""}`.toLowerCase().includes(q));
-    if (!rows.length) return '<p class="mini" style="padding:20px">No baseline policies match the current filter.</p>';
+    const tail = foreignHtml(res, q, !!(opts && opts.foreignOpen));
+    if (!rows.length) return '<p class="mini" style="padding:20px">No baseline policies match the current filter.</p>' + tail;
 
     // how many rows each persona holds, so a collapsed header can still say
     const perGroup = new Map(), sharedGroup = new Set();
@@ -1265,7 +1364,27 @@ const Baseline = (() => {
     }
     return `<div class="list-card"><table class="plist bl-table">
       <thead><tr><th style="width:44px"></th><th style="width:78px">CA</th><th>Baseline policy (${esc(res.catalog.release)})</th><th>In this tenant</th><th style="width:150px">Version</th><th style="width:280px">Changes</th></tr></thead>
-      <tbody>${body}</tbody></table></div>`;
+      <tbody>${body}</tbody></table></div>${tail}`;
+  }
+
+  // 33205: the policies of the OTHER baselines in this tenant, collapsed
+  // under the table — present, named, clickable, and out of the comparison.
+  function foreignHtml(res, q, open) {
+    let list = res.foreign || [];
+    if (!list.length) return "";
+    if (q) list = list.filter((x) => `${x.num ?? ""} ${x.name}`.toLowerCase().includes(q));
+    const by = (res.foreignBy || []).map((g) => ({ ...g, items: list.filter((x) => x.family === g.id) })).filter((g) => g.items.length);
+    if (!by.length) return "";
+    const total = by.reduce((k, g) => k + g.items.length, 0);
+    const label = res.catalog && res.catalog.label;
+    return `<details class="list-card bl-foreign" style="margin-top:10px;padding:8px 12px"${open ? " open" : ""}>
+      <summary><b>Other baselines in this tenant (${total})</b> <span class="mini muted">— ${esc(by.map((g) => `${g.icon} ${g.count} ${g.label}`).join(" · "))}. Named the way another baseline names its policies, so not compared with ${esc(label)} and not counted above.</span></summary>
+      ${by.map((g) => `<div style="margin-top:8px"><b>${esc(g.icon)} ${esc(g.label)}</b> <span class="mini muted">${g.items.length} ${g.items.length === 1 ? "policy" : "policies"} · <a href="#" data-blcat-pick="${esc(g.id)}">compare with ${esc(g.label)} →</a></span>
+        <table class="plist bl-table" style="margin-top:4px"><tbody>${g.items.map((x) => `<tr>
+          <td style="width:78px"><b>${x.num != null ? `CA${String(x.num).padStart(3, "0")}` : "—"}</b></td>
+          <td><span class="pname" data-blpol="${esc(x.id)}">${esc(x.name)}</span></td>
+          <td style="width:120px" class="mini">${esc(x.state === "report" ? "report-only" : x.state || "?")}</td></tr>`).join("")}</tbody></table></div>`).join("")}
+    </details>`;
   }
 
 
@@ -1305,6 +1424,16 @@ const Baseline = (() => {
       L.push(`| ${STATUS[r.status].label} | CA${String(r.num).padStart(3, "0")} | ${mdEsc(r.baseline?.name || "—")} | ${mdEsc(r.tenant?.name || "—")}${r.why ? ` — ${mdEsc(r.why)}` : ""} | ${mdEsc(v)} |`);
     }
     L.push("");
+    if ((res.foreign || []).length) {
+      L.push(`## Other baselines in this tenant (${res.foreign.length})`);
+      L.push("");
+      L.push(`Named the way another baseline names its policies — not compared with ${mdEsc(res.catalog.label)} and not counted above.`);
+      L.push("");
+      for (const g of res.foreignBy || []) {
+        L.push(`- **${mdEsc(g.label)}** (${g.count}): ${res.foreign.filter((x) => x.family === g.id).map((x) => mdEsc(x.name)).join(", ")}`);
+      }
+      L.push("");
+    }
     const imp = [...res.toImport, ...(res.toImportShared || [])];
     if (imp.length) {
       L.push("## Would be imported or updated");
@@ -1322,5 +1451,7 @@ const Baseline = (() => {
     // R36
     use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, previewSwitch, renderPreview, DEFAULT_ID,
     // R36.1 — matched, not chosen
-    autoPick, isAutoPicked, pin, stored };
+    autoPick, isAutoPicked, pin, stored,
+    // 33205 — one baseline at a time
+    familyOf, familyCounts, viewed, setViewed };
 })();
