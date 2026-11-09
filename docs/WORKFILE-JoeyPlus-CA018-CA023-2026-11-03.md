@@ -30,6 +30,8 @@ The Joey Verlinden+ release documentation (R26.11, v1.2 of 30 October) lists fiv
 
 Deviation from WORKFILE-CA018: the Joey+ CA018 exclusion group follows Joey's convention (`<policy name> - Exclude`), not `CAB-SEC-U-CA018-Exclusion`, like CA019–CA023 in the release documentation.
 
+Groups (e12, decision Mihai 7 Nov, ENCA 33202): ENCA changes as little as possible in Joey's baseline, and its own additions follow Joey. His exclusion groups (`<policy name> - Exclude`), `CA-BreakGlassAccounts - Exclude` and `CA-ServiceAccounts` stay exactly as he ships them, for his 36 policies and for CA018–CA023 alike. The only group replaced is his EXAMPLE internals include group: `APP_Microsoft365_E5` → `CAB-SEC-U-Persona-Internals` (dynamic, the CloudFellows "Entra ID P1 enabled" rule), included by CA200–CA210. A tenant imported before 33202 gets the rename from 👥 CA groups ⑦ Migrate (preview first, same object id and members; assigned → dynamic is a separate manual step). `CAB-SEC-U-ExternalAdmins` stays as is.
+
 ## Open
 
 | Done | ID | Task |

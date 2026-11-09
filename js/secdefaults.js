@@ -131,6 +131,22 @@ const SecDefaults = (() => {
     // policy covers (CloudFellows CA100) still brings that policy, flagged.
     const seen = new Set();
     const set = [];
+    // 33203 (e05): a catalog that NAMES the set (SMB Basic: CA001–CA005,
+    // cat.replacing()) decides it — exactly those, matched by CA number and
+    // the SMB marker so a newer version of the same policy counts. The
+    // protections above still say what is covered and still gate the switch.
+    const named = Array.isArray(o.replacing) && o.replacing.length ? o.replacing : null;
+    if (named) {
+      const key = (n) => { const m = /^\(?(?:NEW|UP)?\)?\s*CA(\d{3,4})-[A-Z]+-SMB-/i.exec(String(n || "").trim()); return m ? +m[1] : null; };
+      const want = new Set(named.map(key).filter((x) => x != null));
+      for (const p of list) {
+        const k = key(p.name);
+        if (k == null || !want.has(k) || seen.has(p.id)) continue;
+        seen.add(p.id);
+        const st = grant(p.raw).authenticationStrength;
+        set.push({ id: p.id, name: p.name, state: p.raw.state, strength: !!st && st.id !== MFA_STRENGTH });
+      }
+    } else
     for (const it of items) {
       const plainMfa = it.policies.filter((p) => !p.strength);
       for (const p of plainMfa.length ? plainMfa : it.policies) if (!seen.has(p.id)) { seen.add(p.id); set.push(p); }
@@ -239,6 +255,64 @@ const SecDefaults = (() => {
       </div></div>`;
   }
 
+  // ---- SMB Basic on a tenant that already has Conditional Access (e05) --
+  // Mihai, 7 Nov: Keij & Stefels moves from the CloudFellows baseline v1.0
+  // to SMB Basic. There is no security defaults to switch off — the old
+  // policies do its job. So: CA001–CA005 land Report-only beside them and
+  // run a week; then CA001–CA005 go On; one week LATER their old
+  // counterparts (the policies doing the same protection) go Off. The
+  // rest of SMB Basic follows the normal model. This is the plan, said on
+  // 🧬 Baseline; the writes are 🎚 Policy state, by hand, per step.
+  const WEEK = 7 * 24 * 3600 * 1000;
+  const SMB_SD = /^\(?(?:NEW|UP)?\)?\s*CA00([1-5])-[A-Z]+-SMB-/i;
+  const SMB_ANY = /^\(?(?:NEW|UP)?\)?\s*CA\d{3,4}-[A-Z]+-SMB-/i;
+  const isEAdminsName = (n) => /\be[-_]?admins?\b/i.test(String(n || "")) || /\bCA11\d\d\b/.test(String(n || ""));
+  function smbMigration(vms, opts) {
+    const o = opts || {};
+    const list = (vms || []).filter((p) => p && p.raw);
+    const smb = list.filter((p) => SMB_SD.test(String(p.name || "").trim())).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const old = list.filter((p) => !SMB_ANY.test(String(p.name || "").trim()) && !isEAdminsName(p.name) && p.raw.state !== "disabled");
+    if (!smb.length || !old.length || (o.sd && o.sd.enabled === true)) return null;
+    const t = (x) => { const v = Date.parse(x || ""); return Number.isFinite(v) ? v : null; };
+    const rows = smb.map((p) => {
+      const does = PROTECTIONS.filter((pr) => { try { return pr.test(p.raw); } catch { return false; } });
+      const counterparts = old.filter((q) => does.some((pr) => { try { return pr.test(q.raw); } catch { return false; } }));
+      return { id: p.id, name: p.name, state: p.raw.state, protections: does.map((pr) => pr.label), since: t(p.raw.modifiedDateTime) || t(p.raw.createdDateTime),
+        counterparts: counterparts.map((q) => ({ id: q.id, name: q.name, state: q.raw.state })) };
+    });
+    const allOn = rows.every((r) => r.state === "enabled");
+    const live = [...new Map(rows.flatMap((r) => r.counterparts).filter((q) => q.state !== "disabled").map((q) => [q.id, q])).values()];
+    const phase = !allOn ? "report" : live.length ? "retire" : "done";
+    // done: the five are On and nothing they replace is still live — the
+    // band has said its piece
+    if (phase === "done") return null;
+    const ref = phase === "report"
+      ? Math.max(...rows.filter((r) => r.state === "enabledForReportingButNotEnforced").map((r) => r.since || 0), 0)
+      : Math.max(...rows.map((r) => r.since || 0), 0);
+    return { phase, rows, retire: live, readyAt: ref ? ref + WEEK : null, now: o.now || Date.now(),
+      off: rows.filter((r) => r.state === "disabled").map((r) => r.name) };
+  }
+  function migrationBand(plan, ctx) {
+    if (!plan) return "";
+    const c = ctx || {};
+    const day = (t) => t ? new Date(t).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "—";
+    const ready = plan.readyAt && plan.readyAt <= (plan.now || Date.now());
+    const num = (n) => (String(n).match(/CA\d{3,4}/) || [n])[0];
+    const step = (n, on, title, body) => `<div class="sd-step${on ? " now" : ""}"><b><span class="sd-n">${n}</span>${title}</b><p>${body}</p></div>`;
+    const rows = plan.rows.map((r) => `<li class="mini" style="margin:2px 0"><b>${esc(num(r.name))}</b> · ${esc(STATE[r.state] || r.state)}${r.protections.length ? ` · ${esc(r.protections.join(", "))}` : ""}${r.counterparts.length ? ` <span class="muted">— takes over from ${esc(r.counterparts.map((q) => `${num(q.name)} (${STATE[q.state] || q.state})`).join(", "))}</span>` : ' <span class="muted">— no old counterpart found</span>'}</li>`).join("");
+    return `<div class="sd-band">
+      <h3>🏢 SMB Basic beside an existing baseline — CA001–CA005 take over in two steps, one week apart</h3>
+      <div class="mini">This tenant already has Conditional Access${c.tenantName ? ` (${esc(c.tenantName)})` : ""}, so there is no security defaults to switch: the five SMB Basic policies that replace it take over from the old policies doing the same job.</div>
+      <div class="sd-steps">
+        ${step(1, plan.phase === "report", "Report-only, one week", `CA001–CA005 run Report-only beside the old policies${plan.phase === "report" && plan.readyAt ? ` — ${ready ? "the week is over" : `until ${esc(day(plan.readyAt))}`}` : ""}. Read 🎚 Report-only impact.${plan.off.length ? ` ${plan.off.length} still Off: ${esc(plan.off.map(num).join(", "))} — set them Report-only first.` : ""}`)}
+        ${step(2, plan.phase === "report" && ready, "CA001–CA005 On", "🎚 Policy state → On for the five, together. The old counterparts stay On: both apply for a week, nothing is uncovered.")}
+        ${step(3, plan.phase === "retire", "Old counterparts Off, one week later", plan.phase === "retire" ? `${plan.readyAt ? (ready ? "Due now" : `From ${esc(day(plan.readyAt))}`) : "One week after step 2"}: ${esc(plan.retire.map((q) => num(q.name)).join(", ")) || "—"} → Off (🎚 Policy state). They stay in the tenant; 🧹 Housekeeping offers them later.` : "One week after step 2, the old policies listed below go Off (🎚 Policy state).")}
+      </div>
+      <ul style="list-style:none;margin:6px 0 0;padding:0">${rows}</ul>
+      <p class="mini muted" style="margin:6px 0 0">No deployment-group trial for CA001–CA005; the rest of SMB Basic follows the normal model (Report-only, 🚀 Trial on deployment group where it helps, then On).${plan.phase === "done" ? " ✓ Done — the old counterparts are Off." : ""}</p>
+    </div>`;
+  }
+
   // The confirmation for ⇄ — impact and recovery before anything is written.
   function switchBody(cov, ctx) {
     const c = ctx || {};
@@ -305,5 +379,5 @@ const SecDefaults = (() => {
     ];
   }
 
-  return { PATH, read, verdict, coverage, asksMfa, narrowed, PROTECTIONS, startCard, band, switchBody, backBody, turnOnBody, STATE, DEMO_NAMES, demoPolicies };
+  return { PATH, read, verdict, coverage, asksMfa, narrowed, PROTECTIONS, startCard, band, switchBody, backBody, turnOnBody, smbMigration, migrationBand, STATE, DEMO_NAMES, demoPolicies };
 })();

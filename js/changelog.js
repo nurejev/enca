@@ -29,6 +29,24 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33203, date: "2026-11-09", title: "Import as shipped, Report-only; 🚀 Trial on deployment group and ↩ Back to persona per policy",
+    items: [
+      { kind: "improved", tool: "Import", text: "Every baseline — CloudFellows included — now imports As shipped on the real persona groups and lands Report-only by default. The deploy groups (CAD-SEC-U-DG-*) are created empty beside them. A policy the file or the catalog forces Off still lands Off (SMB CA201–CA204, Joey+ CA020–CA023, CloudFellows CA113–CA116 / CA215–CA218, E-Admins from another file), and each row of the list says where it lands." },
+      { kind: "new", tool: "Policies", text: "🚀 Trial on deployment group on the policy card: the include becomes the persona's deploy group alone, after the include it had — groups, directory roles and guests — is saved. ↩ Back to persona restores it exactly and reads it back. A pre-flight warns per tester who is also excluded by the policy (its exclusion group, break-glass, TeamsSharedDevices, an excluded persona) and, for DG-INT, who is not in the Internals persona." },
+      { kind: "improved", tool: "Policies", text: "Refused with the reason: CloudFellows CA000, CA006, CA099 and CA1009 (All users minus every persona — Report-only evaluation, then On, CA099 last), SMB Basic CA001–CA005 (they replace security defaults), the E-Admins, workload-identity and agent policies. SMB's CA200–CA299 trial on CAD-SEC-U-DG-INT, labelled Compliant network." },
+      { kind: "fixed", tool: "Import", text: "The Deployment groups mode no longer loses role includes for good: the include each policy ships is kept, so ↩ Back to persona restores CA100 and CA113–CA116 with every role (Leeuwendaal lost 132)." },
+      { kind: "improved", tool: "Baseline", text: "SMB Basic: ⇄ Switch from security defaults turns exactly CA001–CA005 On. On a tenant that already has Conditional Access (moving from another baseline), a band lays out the take-over: a Report-only week, CA001–CA005 On, the old counterparts Off one week later." },
+    ],
+  },
+  {
+    build: 33202, date: "2026-11-09", title: "Joey Verlinden: ENCA's own internals group in place of his example APP_Microsoft365_E5",
+    items: [
+      { kind: "improved", tool: "Baseline", text: "Under Joey Verlinden's baseline the internals group (included by CA200–CA210) is ENCA's CAB-SEC-U-Persona-Internals — dynamic, every user with Entra ID P1 enabled, as in the CloudFellows baseline — instead of his example group APP_Microsoft365_E5. Everything else stays as he ships it: his “<policy name> - Exclude” groups, CA-BreakGlassAccounts - Exclude and CA-ServiceAccounts, also for the Joey+ additions CA018–CA023." },
+      { kind: "improved", tool: "Import", text: "A Joey import creates CAB-SEC-U-Persona-Internals for CA200–CA210 and never APP_Microsoft365_E5; the import report says the file calls it otherwise." },
+      { kind: "new", tool: "Conditional Access groups", text: "A tenant imported earlier that still holds APP_Microsoft365_E5: the group counts as the baseline's under its legacy name, CAB-SEC-U-Persona-Internals is not reported missing while it stands in, and ⑦ Migrate renames it — preview first, same object id, same members, every policy keeps pointing at it. Only when a Joey CA200–CA210 policy includes it or the tenant's group mapping says Internals. Turning it from assigned into dynamic is shown as a separate manual step and is never done by the rename." },
+    ],
+  },
+  {
     build: 33201, date: "2026-11-03", title: "Production is build 331 (v2.0.9)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 331, ENCA v2.0.9: SMB Basic 1.0.6 to 1.0.10, the Joey Verlinden+ additions CA018-CA023, the CloudFellows catalog of 3 November (CA113-CA116, CA018, CA215-CA218, CA001), imports that wait for what the run just created and land the compliant-network policies Off, CA groups Migrate that waits for the directory, User impact brief 1.3 and the Global Secure Access macOS repair fix. PIM framework 5.1 (regions as lists of countries) stays on beta with the rest of PIM-buddy." },

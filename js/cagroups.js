@@ -49,6 +49,14 @@ const CaGroups = (() => {
   const activeCat = () => {
     try { return (typeof Baseline !== "undefined" && Baseline.active) ? Baseline.active() : null; } catch { return null; }
   };
+  // e12: the names the active catalog REPLACES — legacy name -> ENCA's name
+  // (Joey Verlinden's: APP_Microsoft365_E5 -> CAB-SEC-U-Persona-Internals).
+  // A tenant imported before the replacement still holds the old name: it is
+  // the baseline's (legacy), the new name is not reported missing while the
+  // old one stands in for it, and ⑦ Migrate renames it.
+  const legacyPairs = (c) => {
+    try { return (c && typeof c.legacyGroups === "function" ? c.legacyGroups() : []) || []; } catch { return []; }
+  };
   function activeCatalogs() {
     const c = activeCat();
     if (c) return [c];
@@ -141,8 +149,10 @@ const CaGroups = (() => {
   // what is expected (the names that can be reported missing). Lowercased
   // name -> basis:
   //   template / catalog — the active catalog's own groups (its predefined
-  //                        names included: APP_Microsoft365_E5 is Joey's
-  //                        example include group, never expected, still his)
+  //                        names included)
+  //   legacy             — a name the catalog replaced (e12: Joey's example
+  //                        APP_Microsoft365_E5) — still the baseline's, and
+  //                        ⑦ Migrate renames it
   //   repository         — the name the repository's own group file gives
   //                        (CA403-Guests-… - Exclude for the CA403-GuestUsers
   //                        policy): the bundled release's groupFiles, or the
@@ -163,6 +173,7 @@ const CaGroups = (() => {
     templateNames().forEach((_, n) => add(n, "template"));
     catalogGroupNames(raws).forEach((n) => add(n, "catalog"));
     for (const n of (c && c.predefined) || []) add(n, "catalog");
+    for (const lp of legacyPairs(c)) add(lp.from, "legacy");
     for (const n of (c && c.groupFiles) || []) add(n, "repository");
     for (const g of (c && c.bundle && c.bundle.groups) || []) add(g && g.displayName, "repository");
     shared.forEach((sg) => add(sg.name, sg.family));
@@ -299,7 +310,8 @@ const CaGroups = (() => {
 
     // Resolve the expected names in one $filter per chunk rather than one call
     // per group — 100+ sequential lookups is a visibly slow tool.
-    const names = [...expected.keys()];
+    const legacy = workload ? [] : legacyPairs(activeCat());
+    const names = [...new Set([...expected.keys(), ...(scope === "all" || scope === "tenant" ? legacy.map((lp) => lp.from) : [])])];
     const found = new Map();  // lowercased name -> {id,name,...}
     let done = 0;
     for (const part of chunk(names, 15)) {
@@ -364,6 +376,29 @@ const CaGroups = (() => {
         status: g ? (basis ? "present" : "extra") : "dangling",
         refs: ref, basis,
       }));
+    }
+
+    // e12: a replaced name that still stands in the tenant. Its new name is not
+    // MISSING while the old group does the job — the legacy row carries the
+    // way forward (⑦ Migrate renames it, keeping id and members).
+    for (const lp of legacy) {
+      const lo = String(lp.from).toLowerCase();
+      const old = found.get(lo) || [...byId.values()].find((g) => String(g.displayName || "").toLowerCase() === lo) || null;
+      if (!old) continue;
+      const ti = rows.findIndex((r) => r.name.toLowerCase() === String(lp.to).toLowerCase());
+      const target = ti >= 0 ? rows[ti] : null;
+      if (target && target.status === "missing") rows.splice(ti, 1);
+      let r = rows.find((x) => x.id === old.id);
+      if (!r) {
+        r = row({ name: old.displayName, group: old, template: null, sources: ["legacy"], status: "present", refs: refs.get(old.id) || null, basis: "legacy" });
+        rows.push(r);
+      }
+      if (r.status === "extra") r.status = "present";
+      r.basis = "legacy";
+      r.legacyFor = lp.to;
+      r.drift = target && target.status === "present"
+        ? `legacy name — “${lp.to}” exists as well; move the policies to it with 🎯 Assign`
+        : `legacy name — ⑦ Migrate renames it to “${lp.to}” (same id, same members)`;
     }
 
     // tenant scope: every other security group, as "not in the baseline"
@@ -935,6 +970,7 @@ const CaGroups = (() => {
           <td><b>${esc(r.name)}</b>${r.id ? `<div class="mini muted">${esc(r.id)}</div>` : ""}
             ${r.drift ? `<div class="mini" style="color:var(--report)">⚠ ${esc(r.drift)}</div>` : ""}
             ${r.roleAssignable ? `<button class="btn sm" data-cgmigrate="${esc(r.name)}" style="margin-top:4px">⑦ Migrate off role-assignable</button>` : ""}
+            ${r.legacyFor && !r.roleAssignable ? `<button class="btn sm" data-cgmigrate="${esc(r.name)}" style="margin-top:4px" title="Legacy name — ⑦ Migrate previews the rename to ${esc(r.legacyFor)} (same id, same members)">⑦ Rename to ${esc(r.legacyFor)}</button>` : ""}
             ${dynDrift ? `<button class="btn sm" data-cgdynamic="${esc(r.name)}" style="margin-top:4px">⟳ Make dynamic</button>` : ""}
             ${r.roleAssignable
               ? `<div class="mini" style="color:var(--on)">🚫 Nesting already impossible — Entra does not allow a group as a member of a role-assignable group</div>`
@@ -1480,6 +1516,84 @@ const CaGroups = (() => {
     };
   }
 
+  // ---- e12: rename a legacy name to the baseline's own -------------------
+  // Joey Verlinden's example include group APP_Microsoft365_E5 becomes
+  // CAB-SEC-U-Persona-Internals in a tenant imported before e12. A RENAME:
+  // the object id, the members and every policy reference stay as they are.
+  // Offered only for a group that is actually the internals group here —
+  // included by the Joey CA200–CA210 policies, or stated as the internals
+  // group in this tenant's group → persona mapping (opts.configured). The
+  // membership type is never changed by this: when the group is assigned and
+  // the baseline's group is dynamic, the preview says so as a separate,
+  // MANUAL step (convert to dynamic, which drops whoever the rule does not
+  // match) — it is not part of the run.
+  function legacyRenamePlan(rows, opts = {}) {
+    const cat = opts.cat || activeCat();
+    const pairs = legacyPairs(cat);
+    const all = rows || [];
+    const isInt = (n) => { try { return !!(cat && cat.isInternalsPolicy && cat.isInternalsPolicy(n)); } catch { return false; } };
+    const tplOf = (name) => { try { return ((cat && typeof cat.templates === "function" ? cat.templates() : []) || []).find((t) => String(t.displayName).toLowerCase() === String(name).toLowerCase()) || null; } catch { return null; } };
+    const items = [];
+    for (const lp of pairs) {
+      for (const r of all.filter((x) => String(x.name || "").toLowerCase() === String(lp.from).toLowerCase())) {
+        const refs = r.refs || { include: [], exclude: [] };
+        const base = { id: r.id, name: r.name, to: lp.to, row: r, refs };
+        if (!r.id) { items.push({ ...base, ok: false, reason: "Not in the tenant." }); continue; }
+        const intRefs = refs.include.filter((p) => isInt(p.name));
+        const configured = typeof opts.configured === "function" ? !!opts.configured(r) : false;
+        if (!intRefs.length && !configured) {
+          items.push({ ...base, ok: false, reason: `No Joey CA200–CA210 policy includes it and it is not the internals group in this tenant's group mapping — left alone. Rename it by hand if it is.` });
+          continue;
+        }
+        const clash = all.find((x) => x.id && x.id !== r.id && String(x.name || "").toLowerCase() === String(lp.to).toLowerCase());
+        if (clash) { items.push({ ...base, ok: false, reason: `“${lp.to}” already exists (${clash.id}) — two groups cannot share the name. Move the policies to it with 🎯 Assign instead.` }); continue; }
+        if (r.roleAssignable) { items.push({ ...base, ok: false, reason: "Role-assignable — migrate it off role-assignable first (⑦ Migrate, above), then rename." }); continue; }
+        const tpl = tplOf(lp.to);
+        const wantDynamic = !!(tpl && tpl.dynamic && tpl.membershipRule);
+        const steps = [
+          { key: "rename", text: `Rename “${r.name}” to “${lp.to}” — same object id, same members; the ${refs.include.length + refs.exclude.length} polic${refs.include.length + refs.exclude.length === 1 ? "y" : "ies"} naming it keep pointing at it` },
+          { key: "verify", text: "Read the group back: the new name, the same id" },
+        ];
+        const manual = [];
+        if (wantDynamic && !r.dynamic) {
+          manual.push({ key: "dynamic", manual: true,
+            text: `MANUAL — membership type: “${r.name}” is an ASSIGNED group, the baseline's “${lp.to}” is DYNAMIC (${tpl.membershipRule}). Not changed by this run. Converting it (👥 CA groups → the group's convert-to-dynamic) replaces the ${r.memberTotal != null ? `${r.memberTotal} ` : ""}hand-picked members with whoever the rule matches — CA200–CA210 then reach every user with Entra ID P1 enabled, service accounts with that licence included. Check that first.` });
+        }
+        items.push({ ...base, ok: true, steps, manual, wantDynamic, internalsRefs: intRefs.map((p) => p.name), configured });
+      }
+    }
+    return { items, eligible: items.filter((x) => x.ok), skipped: items.filter((x) => !x.ok) };
+  }
+
+  // Runs ONE planned rename. io: { patch(url, body), get(url) } — Graph in the
+  // app, a fake in the tests. Only displayName is written; mailNickname,
+  // membership type and members are not touched.
+  async function runLegacyRename(item, io) {
+    const out = { id: item.id, from: item.name, to: item.to, ok: false, error: null, verified: false };
+    try {
+      await io.patch(`/groups/${item.id}`, { displayName: item.to });
+      const back = await io.get(`/groups/${item.id}?$select=id,displayName,groupTypes`);
+      out.verified = !!(back && back.id === item.id && String(back.displayName) === item.to);
+      out.ok = out.verified;
+      if (!out.ok) out.error = `read back as “${back && back.displayName}” (${back && back.id}) — check the group`;
+    } catch (e) { out.error = e.message || String(e); }
+    return out;
+  }
+
+  function legacyRenameReport(plan, results, meta = {}) {
+    const L = [`# Rename: legacy group names → the baseline's`, "",
+      `**Tenant:** ${meta.tenant || "—"}  `, `**Generated by:** ${meta.build || ""}  `,
+      `**When:** ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "",
+      "A rename keeps the object id and the members, so every policy that names the group keeps pointing at it.", "",
+      "| Group | Renamed to | Outcome |", "| --- | --- | --- |"];
+    for (const r of results || []) L.push(`| ${r.from} | ${r.to} | ${r.ok ? "renamed, verified" : `FAILED — ${String(r.error || "").replace(/\|/g, "\\|")}`} |`);
+    const man = ((plan && plan.eligible) || []).filter((x) => (x.manual || []).length);
+    if (man.length) { L.push("", "## Manual — not done by this run", ""); for (const x of man) for (const m of x.manual) L.push(`- **${x.to}**: ${m.text}`); }
+    const sk = (plan && plan.skipped) || [];
+    if (sk.length) { L.push("", "## Not renamed", ""); for (const x of sk) L.push(`- **${x.name}** — ${x.reason}`); }
+    return L.join("\n");
+  }
+
   function migrateReport(plan, results, meta = {}) {
     const L = [`# Migration: role-assignable → restricted administrative unit`, "",
       `**Tenant:** ${meta.tenant || "—"}  `,
@@ -1562,6 +1676,7 @@ const CaGroups = (() => {
     ARCHIVE_SUFFIX, findArchived,
     catalogGroupNames, templateNames, knownNames, eAdminTargets, policyRefs, convertPlan, runConvert,
     MIGRATE_SCOPES, heldRoles, migratePlan, migrateReport, migratedName,
+    legacyRenamePlan, runLegacyRename, legacyRenameReport,
     csvParse, csvDetect, csvPersonas, csvUsers, csvSuggest, csvReport,
     rmauCandidates, rmauReport,
   };

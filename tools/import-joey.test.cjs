@@ -135,6 +135,28 @@ test('prepareBundle writes names, not source ids — dup ids split per policy, C
   assert.equal(p.groupIndex.nameFor(N000, BG), 'CA-BreakGlassAccounts - Exclude');
 });
 
+test('e12: his example APP_Microsoft365_E5 lands on CAB-SEC-U-Persona-Internals; his break-glass, service-accounts and - Exclude groups stay his', async () => {
+  const SA = '77c1ed37-10d0-4ef1-93dc-198e70abb166', E5 = 'ceeac9b8-ddf5-48cb-afcb-e2ab8bfd1a57';
+  const N200 = 'CA200-Internals-IdentityProtection-AnyApp-AnyPlatform-MFA', N300 = 'CA300-ServiceAccounts-IdentityProtection-AnyApp-AnyPlatform-MFA';
+  const b = joey();
+  b.policies.push(pol(N200, { includeUsers: [], includeGroups: [E5], excludeGroups: [BG] }));
+  b.policies.push(pol(N300, { includeUsers: [], includeGroups: [SA], excludeGroups: [BG] }));
+  b.groups.push({ id: SA, displayName: 'CA-ServiceAccounts' }, { id: E5, displayName: 'APP_Microsoft365_E5' });
+  const w = world();
+  const { prepared, byName } = await runImport(w, b);
+  const names = prepared.groups.map((g) => g.displayName);
+  assert.ok(names.includes('CAB-SEC-U-Persona-Internals'));
+  assert.ok(!names.includes('APP_Microsoft365_E5'), 'the example group is never created');
+  for (const n of ['CA-BreakGlassAccounts - Exclude', 'CA-ServiceAccounts', `${N000} - Exclude`]) assert.ok(names.includes(n), `${n} stays as he ships it`);
+  const int = prepared.groups.find((g) => g.displayName === 'CAB-SEC-U-Persona-Internals');
+  assert.deepEqual(plain(int.renamedFrom), ['APP_Microsoft365_E5']);
+  assert.ok(prepared.groupNotes.some((n) => /CAB-SEC-U-Persona-Internals.*ENCA's own name.*APP_Microsoft365_E5/.test(n)));
+  const inc = (n) => plain(w.pols.get(byName[n].createdId).conditions.users.includeGroups.map((g) => nameOf(w, g)));
+  assert.deepEqual(inc(N200), ['CAB-SEC-U-Persona-Internals']);
+  assert.deepEqual(inc(N300), ['CA-ServiceAccounts']);
+  assert.equal([...w.groups.values()].some((g) => g.displayName === 'APP_Microsoft365_E5'), false);
+});
+
 test('as shipped: every group is created by name and attached; nothing points at the source tenant', async () => {
   const w = world();
   const { res, byName } = await runImport(w, joey());

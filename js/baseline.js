@@ -186,6 +186,12 @@ const Baseline = (() => {
       exclusionGroupFor: (name) => J.exclusionGroupFor(J, name),
       exclusionByNumber: (num) => { const p = (J.policies || []).find((x) => x.num === num); return p ? J.exclusionName(p.name) : null; },
       isExclusionGroup: (name) => J.isExclusionGroup(name),
+      // e12: the groups this catalog replaces (Joey: only his example
+      // APP_Microsoft365_E5 -> CAB-SEC-U-Persona-Internals) — 📥 Import lands
+      // on ENCA's name, 👥 CA groups shows the old one as legacy
+      ...(typeof J.ownGroupName === "function" ? { ownGroupName: (name) => J.ownGroupName(J, name) } : {}),
+      ...(typeof J.legacyGroups === "function" ? { legacyGroups: () => J.legacyGroups(J) } : {}),
+      ...(typeof J.isInternalsPolicy === "function" ? { isInternalsPolicy: (name) => J.isInternalsPolicy(name) } : {}),
       templates: () => J.templates(J),
     };
   }

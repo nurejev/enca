@@ -228,3 +228,92 @@ test('baseline switch cleanup: a shared group is no leftover of the old baseline
   assert.ok(!names.includes('CAD-SEC-U-DG-INT'), 'the deploy group serves Joey as well');
   assert.ok(!names.includes('Emergency_Access1'));
 });
+
+// ---- e12 (Mihai 7 Nov): Joey's example APP_Microsoft365_E5 is replaced by
+// CAB-SEC-U-Persona-Internals; everything else of his stays as he ships it ----
+const INT = 'CAB-SEC-U-Persona-Internals', E5 = 'APP_Microsoft365_E5';
+
+test('e12 check: the legacy APP_Microsoft365_E5 stands in for CAB-SEC-U-Persona-Internals — not reported missing, not offered for create', async () => {
+  const w = world();
+  const res = await w.C.scan(POLICIES, { scope: 'all' });
+  const r = byName(res);
+  assert.equal(r[INT], undefined, 'the new name is not a missing row while the old group does the job');
+  assert.ok(!w.C.creatable(res).some((x) => x.name === INT));
+  assert.equal(r[E5].status, 'present');
+  assert.equal(r[E5].basis, 'legacy');
+  assert.equal(r[E5].legacyFor, INT);
+  assert.match(r[E5].drift, /⑦ Migrate renames it/);
+  assert.equal(r[JOEY_BG].status, 'present');
+  assert.notEqual(r[JOEY_BG].basis, 'legacy', "Joey's break-glass group is NOT legacy — kept as he ships it");
+  assert.equal(r['CA-ServiceAccounts'].status, 'missing', 'his service-accounts group stays expected under his name');
+});
+
+test('e12 check: without the legacy group CAB-SEC-U-Persona-Internals is expected and creatable, dynamic on the CloudFellows rule', async () => {
+  const w = world({ groups: GROUPS.filter((g) => g.displayName !== E5) });
+  const pols = POLICIES.map((p) => p.id === 'p200' ? pol('p200', N200, { includeGroups: [gid(3)], excludeGroups: [gid(7)] }) : p);
+  const res = await w.C.scan(pols, { scope: 'all' });
+  const r = byName(res);
+  assert.equal(r[INT].status, 'missing');
+  const t = w.C.creatable(res).find((x) => x.name === INT);
+  assert.ok(t, 'creatable from the Joey template');
+  assert.equal(t.template.dynamic, true);
+  assert.match(t.template.membershipRule, /41781fb2-bc02-4b7c-bd55-b576c07bb09d/, 'Entra ID P1 enabled');
+  assert.equal(r[E5], undefined);
+});
+
+const rowOf = (name, o = {}) => ({ id: o.id || `id-${name}`, name, roleAssignable: !!o.ra, dynamic: !!o.dynamic, memberTotal: o.members ?? 3,
+  refs: { include: (o.inc || []).map((n) => ({ id: `p-${n.slice(0, 5)}`, name: n })), exclude: [] } });
+
+test('e12 ⑦ Migrate: APP_Microsoft365_E5 included by CA200–CA210 is renamed (preview first), assigned → dynamic is a separate MANUAL step', () => {
+  const w = world();
+  const rows = [rowOf(E5, { inc: [N200, 'CA210-Internals-IdentityProtection-AnyApp-AnyPlatform-BLOCK-HighRiskSignIn'] })];
+  const plan = JSON.parse(JSON.stringify(w.C.legacyRenamePlan(rows)));
+  assert.equal(plan.eligible.length, 1);
+  const x = plan.eligible[0];
+  assert.equal(x.to, INT);
+  assert.deepEqual(x.steps.map((s) => s.key), ['rename', 'verify'], 'the run renames and reads back — nothing else');
+  assert.match(x.steps[0].text, /same object id, same members/);
+  assert.equal(x.manual.length, 1);
+  assert.equal(x.manual[0].key, 'dynamic');
+  assert.match(x.manual[0].text, /^MANUAL — membership type: .*ASSIGNED.*DYNAMIC.*Not changed by this run/);
+  // already dynamic: no manual step
+  const dyn = JSON.parse(JSON.stringify(w.C.legacyRenamePlan([rowOf(E5, { inc: [N200], dynamic: true })])));
+  assert.equal(dyn.eligible[0].manual.length, 0);
+});
+
+test('e12 ⑦ Migrate: not offered when no CA200–CA210 policy includes it (unless the tenant mapping says internals), when the new name exists, or when role-assignable', () => {
+  const w = world();
+  const none = JSON.parse(JSON.stringify(w.C.legacyRenamePlan([rowOf(E5, { inc: [N000] })])));
+  assert.equal(none.eligible.length, 0);
+  assert.match(none.skipped[0].reason, /No Joey CA200–CA210 policy includes it/);
+  const mapped = JSON.parse(JSON.stringify(w.C.legacyRenamePlan([rowOf(E5)], { configured: (r) => r.name === E5 })));
+  assert.equal(mapped.eligible.length, 1, 'the internals group of this tenant\'s mapping');
+  assert.equal(mapped.eligible[0].configured, true);
+  const clash = JSON.parse(JSON.stringify(w.C.legacyRenamePlan([rowOf(E5, { inc: [N200] }), rowOf(INT, { id: 'int-1' })])));
+  assert.equal(clash.eligible.length, 0);
+  assert.match(clash.skipped[0].reason, /already exists \(int-1\)/);
+  const ra = JSON.parse(JSON.stringify(w.C.legacyRenamePlan([rowOf(E5, { inc: [N200], ra: true })])));
+  assert.match(ra.skipped[0].reason, /Role-assignable/);
+  // Joey's own functional groups are never offered
+  const keep = JSON.parse(JSON.stringify(w.C.legacyRenamePlan([rowOf(JOEY_BG, { inc: [N200] }), rowOf('CA-ServiceAccounts', { inc: [N200] })])));
+  assert.equal(keep.items.length, 0);
+});
+
+test('e12 ⑦ Migrate run: one PATCH of displayName only, read back by id; a read-back that disagrees fails the row', async () => {
+  const w = world();
+  const plan = w.C.legacyRenamePlan([rowOf(E5, { id: 'g-e5', inc: [N200] })]);
+  const calls = [];
+  const store = { id: 'g-e5', displayName: E5, groupTypes: [] };
+  const io = { patch: async (u, b) => { calls.push([u, JSON.parse(JSON.stringify(b))]); Object.assign(store, b); }, get: async () => ({ ...store }) };
+  const out = await w.C.runLegacyRename(plan.eligible[0], io);
+  assert.deepEqual(calls, [['/groups/g-e5', { displayName: INT }]], 'nothing but the name — no membership type, no mailNickname');
+  assert.equal(out.ok, true);
+  assert.equal(out.verified, true);
+  assert.equal(store.id, 'g-e5', 'same object');
+  const bad = await w.C.runLegacyRename(plan.eligible[0], { patch: async () => {}, get: async () => ({ id: 'g-e5', displayName: E5 }) });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error, /read back as “APP_Microsoft365_E5”/);
+  const md = w.C.legacyRenameReport(plan, [out]);
+  assert.match(md, /\| APP_Microsoft365_E5 \| CAB-SEC-U-Persona-Internals \| renamed, verified \|/);
+  assert.match(md, /## Manual — not done by this run/);
+});

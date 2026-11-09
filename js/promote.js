@@ -182,6 +182,41 @@ const PROMOTE = {
 
   items: [
     {
+      n: 376,
+      ws: "ca",
+      title: "📥 Import as shipped, Report-only by default; 🚀 Trial on deployment group / ↩ Back to persona per policy; SMB CA001–CA005 take over from security defaults",
+      tools: ["Import", "Policies", "Baseline"],
+      builds: [33203],
+      risk: "medium",
+      files: ["js/dgtrial.js", "js/import.js", "js/secdefaults.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/dgtrial.test.cjs"],
+      what: "33203 (e04–e09, Mihai 7 Nov): js/dgtrial.js NEW (rule, includeOf / usersWith, store enca-dgtrial:<tenant>, trial / back with read-back, catalogSpec / bundleSpec / resolveSpec fallback, preflight / readPreflight, report); js/import.js landingState, ensureDependencies opts.deployGroups (empty DGs), trialOriginals in the deploy remap → result.trialOriginal, plan dgLabel; js/secdefaults.js coverage opts.replacing, smbMigration / migrationBand; js/app.js import defaults (shipped, Report-only), row landing hints, the trial store after a deploy-mode run, the policy-card 🚀 / ↩ buttons and the dgtModal dialog, sdCoverage replacing, the SMB migration band; index.html dgtModal, script tag, help (Import, Policies, Baseline).",
+      why: "Pick list e04–e09: a whole baseline staged on the empty deploy groups tested nothing and lost role includes (LWD: CA100/CA113–CA116, 132 roles). Decided 7 Nov: import as shipped on the persona groups in Report-only; trial one policy at a time on its deploy group with an exact way back; CA000/CA006/CA099/CA1009 and SMB CA001–CA005 never on a deploy group.",
+      test: [
+        "node --test tools/*.test.cjs: all green (dgtrial 13 new).",
+        "📥 Import a CloudFellows backup on a test tenant: As shipped is pre-selected, Land new policies as is Report-only; CA113–CA116 / CA215–CA218 rows say lands Off; the DGs of the imported personas exist afterwards, empty, and no policy includes one.",
+        "Policy card of CA100 (roles only): 🚀 Trial on deployment group → pre-flight lists the DG-ADM testers; after the run the include is CAD-SEC-U-DG-ADM alone; ↩ Back to persona → every role back (compare with the backup), the record gone from enca-dgtrial:<tenant>.",
+        "Policy card of CA000 / CA099 (CloudFellows) and SMB CA001: the button explains why it is refused and what to do instead.",
+        "SMB Basic tenant with security defaults on: ⇄ Switch lists exactly CA001–CA005. K&S (CloudFellows v1.0 + SMB): the take-over band shows the Report-only week and, once the five are On, the counterparts to switch Off a week later.",
+        "Leeuwendaal: open CA100 / CA113–CA116 (imported in Deployment groups mode before 33203, no record) → ↩ Back to persona offers the catalog include (persona group + roles by name) — check it against the CloudFellows catalog before running.",
+      ],
+    },
+    {
+      n: 375,
+      ws: "ca",
+      title: "🧩 Joey Verlinden: CAB-SEC-U-Persona-Internals in place of his example APP_Microsoft365_E5; ⑦ Migrate renames the legacy group",
+      tools: ["Baseline", "Import", "CaGroups"],
+      builds: [33202],
+      risk: "medium",
+      what: "33202 (e12, Mihai 7 Nov): js/baselineJoeyData.js internalsGroup / upstreamGroups / ownGroupName / legacyGroups / isInternalsPolicy, the internals persona group, predefined and expected groups and a dynamic template (CloudFellows Entra ID P1 enabled rule); js/baseline.js withContract exposes them; js/import.js prepareBundle lands a replaced group on ENCA's name (toOwn, template membership); js/cagroups.js legacy basis, the legacy row standing in for the new name in ① Check, legacyRenamePlan / runLegacyRename / legacyRenameReport and a ⑦ Rename row button; js/app.js the legacy panel in ⑦ Migrate (preview, ack, run, report). Joey's - Exclude groups, CA-BreakGlassAccounts - Exclude and CA-ServiceAccounts unchanged, Joey+ unchanged.",
+      why: "Pick list e12: a Joey(+) import must not create Joey's example group. Decision 7 Nov: change as little as possible in Joey's baseline — only the example internals group is replaced; tenants imported earlier (Courseware) get a preview-first rename that keeps id and members.",
+      test: [
+        "node --test tools/*.test.cjs: all green (import-joey 19, cagroups-shared 14).",
+        "📥 Import Joey's repository on a test tenant: CAB-SEC-U-Persona-Internals is created dynamic (Entra ID P1 enabled) and included by CA200–CA210; no APP_Microsoft365_E5 group is created; every other group has his name.",
+        "👥 CA groups on a tenant that holds APP_Microsoft365_E5 (Courseware): it shows as legacy with ⑦ Rename, CAB-SEC-U-Persona-Internals is not listed as missing; ⑦ Migrate previews the rename and the manual assigned → dynamic step; Rename keeps the object id and members.",
+        "Before switching a renamed assigned group to dynamic: check which licensed service accounts the P1 rule pulls in — CA200–CA210 do not exclude CA-ServiceAccounts.",
+      ],
+    },
+    {
       n: 368,
       ws: "pim",
       title: "🗺 Regions as lists of countries — usageLocation for users, the Autopilot group tag for devices, the baseline tenant's five regions (framework 5.1, T48 1.2.0)",

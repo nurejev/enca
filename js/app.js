@@ -2235,6 +2235,7 @@
            <button class="btn" data-pact="backup">🗄 Backup</button>
            <button class="btn" data-pact="assign">👥 Assign groups or roles</button>
            <button class="btn" data-pact="state">🎚 Policy state</button>
+           ${dgtButton(p)}
            <span class="pa-sep"></span>
            <button class="btn" data-pbdetail="clone" title="A new policy from this one, with the next free number in its range, in report-only — the 🏗 Policy builder">⧉ Clone in builder</button>
          </div>
@@ -2279,6 +2280,9 @@
       if (k === "save") { pbWrite(); return; }
       if (k === "diff" || k === "preflight") { cardEdit.view = cardEdit.view === k ? "" : k; cardEditBar(); return; }
     }
+    // 🚀 / ↩ the deployment-group trial (33203)
+    const dg = e.target.closest("[data-dgt]");
+    if (dg && detailPolicyId) { dgtOpen(dg.dataset.dgt); return; }
     // ⧉ the builder, from the card (25445): a new policy from this one
     const pb = e.target.closest("[data-pbdetail]");
     if (pb && detailPolicyId) { closeDetail(); openBuilder({ from: detailPolicyId, as: "clone" }); return; }
@@ -2293,6 +2297,167 @@
       setToolMode(mode);
       runToolMode(mode);
     }
+  });
+
+  // ---------- 🚀 Trial on deployment group / ↩ Back to persona (33203) ----------
+  // e04–e09, Mihai 7 Nov: an import lands as shipped, on the persona groups;
+  // ONE policy is tried on its CAD-SEC-U-DG-* group from its card, and put
+  // back. js/dgtrial.js holds the rule, the pre-flight, the record and the
+  // writes; this is the dialog. Impact and recovery are said before the
+  // button, the include is saved before the write, both are read back.
+  const DGT_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let dgt = null;
+  const dgtStore = () => DgTrial.store(tenantId || tenantName);
+  const dgtCatalogId = () => { try { return Baseline.activeCatalogId(); } catch { return null; } };
+  const dgtContract = () => { try { return Baseline.withContract(Baseline.active()) || {}; } catch { return {}; } };
+  const dgtNameOf = (p) => (id) => { const d = ((p && p.deps) || []).find((x) => x.type === "group" && x.id === id); return d ? d.label : null; };
+  const dgtGroupName = (s) => String(s || "").replace(/\s*\(group\)$/i, "");
+  // On a trial: a record in this browser, or an include that is one deploy group.
+  function dgtOnTrial(p) {
+    if (!p || typeof DgTrial === "undefined") return false;
+    if (dgtStore().get(p.id)) return true;
+    const inc = (p.users && p.users.inc) || [];
+    return inc.length === 1 && /^CAD-SEC-U-DG-/i.test(dgtGroupName(inc[0]));
+  }
+  function dgtButton(p) {
+    if (typeof DgTrial === "undefined" || !p || !p.raw) return "";
+    if (dgtOnTrial(p)) return `<button class="btn" data-dgt="back" title="Put back the include this policy had before its deployment-group trial — groups, directory roles and guests, exactly">↩ Back to persona</button>`;
+    const r = DgTrial.rule({ name: p.name, raw: p.raw }, { catalogId: dgtCatalogId() });
+    return `<button class="btn" data-dgt="trial"${r.ok ? "" : ` aria-disabled="true"`} title="${esc(r.ok ? `Include only ${r.dg}${r.label ? ` (${r.label})` : ""} for a trial — the current include is saved first` : `${r.reason}${r.guidance ? `. ${r.guidance}` : ""}`)}">🚀 Trial on deployment group</button>`;
+  }
+  // ↩ without a record in this browser: what the baseline ships.
+  function dgtCatalogSpec(p) {
+    const name = p.name, cat = DgTrial.catalogOf(name, dgtCatalogId());
+    const bundles = [];
+    try { if (cat === "smb" && typeof BASELINE_SMB !== "undefined") bundles.push(BASELINE_SMB.bundle()); } catch { /* not loaded */ }
+    try { if (cat === "joey" && typeof JOEY_PLUS !== "undefined") bundles.push(JOEY_PLUS.bundle()); } catch { /* not loaded */ }
+    try { if (cat === "joey" && typeof BaselineLive !== "undefined" && BaselineLive.bundle()) bundles.push(BaselineLive.bundle()); } catch { /* not read */ }
+    for (const b of bundles) { const s = DgTrial.bundleSpec(b, name); if (s) return s; }
+    try {
+      const c = Baseline.catalog(cat);
+      const num = (String(name).match(/\bCA(\d{3,4})\b/i) || [])[1];
+      const e = c && (c.policies || []).find((x) => x.num === +num);
+      if (e) return DgTrial.catalogSpec(e);
+    } catch { /* no catalog */ }
+    return null;
+  }
+  let dgtRoles = null;
+  const dgtResolvers = {
+    groupIdByName: async (n) => { const g = await DgTrial.groupByName(Graph, n); return g && g.id; },
+    roleIdByName: async (n) => {
+      if (!dgtRoles) dgtRoles = await Graph.ggetAll("/directoryRoleTemplates?$select=id,displayName");
+      const hit = dgtRoles.find((r) => String(r.displayName || "").toLowerCase() === String(n).toLowerCase());
+      return hit && hit.id;
+    },
+  };
+  async function dgtOpen(kind) {
+    const p = policies.find((x) => x.id === detailPolicyId);
+    if (!p || typeof DgTrial === "undefined") return;
+    const rule = DgTrial.rule({ name: p.name, raw: p.raw }, { catalogId: dgtCatalogId() });
+    if (kind === "trial" && !rule.ok) { toast(`${esc(rule.reason)}${rule.guidance ? ` — <span>${esc(rule.guidance)}</span>` : ""}`); return; }
+    closeDetail();
+    dgt = { kind, p, rule, dg: null, pre: null, original: null, source: null, err: null, force: false };
+    $("dgtLedger").innerHTML = "";
+    $("dgtTitle").textContent = kind === "trial" ? `🚀 Trial ${p.name} on ${rule.dg}` : `↩ Back to persona — ${p.name}`;
+    $("dgtGo").style.display = ""; $("dgtGo").disabled = true;
+    $("dgtGo").textContent = kind === "trial" ? `Trial on ${rule.dg}` : "↩ Back to persona";
+    $("dgtBody").innerHTML = `<p class="mini muted">Reading ${kind === "trial" ? "the deployment group and its testers" : "the saved include"}…</p>`;
+    $("dgtModal").classList.add("open");
+    const nameOf = dgtNameOf(p);
+    try {
+      if (kind === "trial") {
+        const c = dgtContract();
+        if (isDemo) {
+          dgt.dg = { id: `demo-${rule.dg}`, name: rule.dg };
+          dgt.pre = { rows: [{ tester: { id: "u1", displayName: "Anna Jansen", userPrincipalName: "anna@contoso.com" }, warnings: [] }, { tester: { id: "u2", displayName: "Ben de Vries", userPrincipalName: "ben@contoso.com" }, warnings: [{ kind: "exclusion", text: `in this policy's exclusion group — the trial does not reach this tester` }] }], notes: [], warnings: 1 };
+        } else {
+          const g = await DgTrial.groupByName(Graph, rule.dg);
+          dgt.dg = g ? { id: g.id, name: g.displayName || rule.dg } : { id: null, name: rule.dg };
+          dgt.pre = g ? await DgTrial.readPreflight(Graph, p.raw, { dg: dgt.dg, breakGlass: c.breakGlassGroup, sharedDevices: c.sharedDevicesGroup || "CAB-SEC-U-TeamsSharedDevices",
+            internals: rule.catalog === "smb" ? null : (c.internalsGroup || "CAB-SEC-U-Persona-Internals"), nameOf, catalog: rule.catalog,
+            isExclusionGroup: (n) => { try { return !!(c.isExclusionGroup && c.isExclusionGroup(n)); } catch { return false; } } }) : null;
+        }
+      } else {
+        const rec = dgtStore().get(p.id);
+        if (rec) { dgt.original = rec.original; dgt.source = "record"; dgt.rec = rec; }
+        else if (isDemo) { dgt.original = { includeUsers: [], includeGroups: ["demo-persona"], includeRoles: ["62e90394-69f5-4237-9190-012177145e10"], includeGuestsOrExternalUsers: null }; dgt.source = "catalog"; }
+        else {
+          try { dgt.original = await DgTrial.resolveSpec(dgtCatalogSpec(p), dgtResolvers); dgt.source = "catalog"; }
+          catch (e) { dgt.err = e.message || String(e); }
+        }
+      }
+    } catch (e) { dgt.err = e.message || String(e); }
+    dgtPaint();
+  }
+  function dgtPaint() {
+    if (!dgt) return;
+    const { kind, p, rule } = dgt;
+    const nameOf = dgtNameOf(p);
+    const cur = DgTrial.includeOf(p.raw);
+    let html = `<p class="mini muted" style="margin:0 0 10px">Tenant: <b>${esc(tenantName || "")}</b> · ${esc(STATE_WORD_UI[p.raw.state] || p.raw.state || "")}${isDemo ? " · demo — simulated" : ""}</p>`;
+    if (kind === "trial") {
+      const pre = dgt.pre;
+      html += `<h4 class="sd-h4">What changes</h4>
+        <p class="mini" style="margin:0">Include: <b>${esc(DgTrial.describe(cur, nameOf))}</b> → <b>${esc(rule.dg)}</b>${rule.label ? ` <span class="muted">(${esc(rule.label)})</span>` : ""} only. Every exclusion, condition, control and the state stay as they are.</p>
+        <h4 class="sd-h4">Testers in ${esc(rule.dg)}</h4>`;
+      if (!dgt.dg || !dgt.dg.id) html += `<div class="danger-note mini">${esc(rule.dg)} is not in this tenant. An As shipped import creates it empty (📥 Import), or 👥 Conditional Access groups ② Create — then add the testers.</div>`;
+      else if (!pre) html += `<p class="mini muted">${esc(dgt.err || "not read")}</p>`;
+      else {
+        html += pre.notes.map((n) => `<p class="mini" style="margin:2px 0;color:${n.level === "warn" ? "var(--report)" : "var(--muted)"}">${n.level === "warn" ? "⚠" : "ℹ"} ${esc(n.text)}</p>`).join("");
+        html += `<ul style="list-style:none;margin:0;padding:0">${pre.rows.map((r) => `<li class="mini" style="margin:3px 0">${r.warnings.length ? '<span style="color:var(--report);font-weight:600">⚠</span>' : '<span style="color:var(--on);font-weight:600">✓</span>'} <b>${esc(r.tester.displayName || r.tester.userPrincipalName || r.tester.id)}</b> <span class="muted">${esc(r.tester.userPrincipalName || "")}</span>${r.warnings.map((w) => `<div class="muted" style="margin-left:18px">${esc(w.text)}</div>`).join("")}</li>`).join("")}</ul>`;
+      }
+      html += `<h4 class="sd-h4">Impact</h4>
+        <div class="sd-box warn mini">${p.raw.state === "enabled" ? `The policy is <b>On</b>: from the next sign-in it applies ONLY to the members of ${esc(rule.dg)} — everybody it reaches today (${esc(DgTrial.describe(cur, nameOf))}) is no longer covered until ↩ Back to persona.` : `The policy is ${esc(STATE_WORD_UI[p.raw.state] || p.raw.state)}: it ${p.raw.state === "disabled" ? "enforces nothing either way" : "reports only — for the testers instead of the persona"}. Switch it On for the trial with 🎚 Policy state when the testers are ready.`}</div>
+        <h4 class="sd-h4">If it goes wrong</h4>
+        <div class="sd-box ok mini">The include it has now — ${esc(DgTrial.describe(cur, nameOf))} — is saved in this browser BEFORE the write (and in the report, as JSON). <b>↩ Back to persona</b> on the policy card puts it back exactly and reads it back. Nothing is written if the include cannot be saved.</div>`;
+      $("dgtGo").disabled = !(dgt.dg && dgt.dg.id);
+    } else {
+      html += `<h4 class="sd-h4">What changes</h4>`;
+      if (!dgt.original) html += `<div class="danger-note mini">${esc(dgt.err || "No saved include.")} Nothing can be restored from here: put the include back by hand (the trial report holds it as JSON) or import the policy again with ♻️ Match &amp; replace.</div>`;
+      else {
+        html += `<p class="mini" style="margin:0">Include: <b>${esc(DgTrial.describe(cur, nameOf))}</b> → <b>${esc(DgTrial.describe(dgt.original, nameOf))}</b>. Exclusions, conditions, controls and the state stay as they are.</p>
+          <p class="mini muted" style="margin:4px 0 0">Source: ${dgt.source === "record" ? `the include saved in this browser at the trial${dgt.rec && dgt.rec.at ? ` (${esc(new Date(dgt.rec.at).toLocaleString())})` : ""}` : "<b>the catalog</b> — no include was saved in this browser for this policy, so the one the baseline ships is rebuilt by name in this tenant. Compare it with the policy you expect."}</p>`;
+        if (dgt.rec && dgt.rec.dgId && !DgTrial.onlyOn(cur, dgt.rec.dgId)) html += `<label class="chk" style="margin:8px 0 0;align-items:flex-start"><input type="checkbox" id="dgtForce" ${dgt.force ? "checked" : ""}><span class="mini">The include changed since the trial (it is no longer ${esc(dgt.rec.dg)} alone). Restore the saved include anyway — over what is there now.</span></label>`;
+      }
+      html += `<h4 class="sd-h4">Impact</h4>
+        <div class="sd-box warn mini">${p.raw.state === "enabled" ? "The policy is <b>On</b>: from the next sign-in it applies to the persona again — everybody the restored include reaches, not only the testers." : "The policy is not On: nothing changes for users until it is."}</div>
+        <h4 class="sd-h4">If it goes wrong</h4>
+        <div class="sd-box ok mini">The include is read back; a mismatch is reported and the saved record is kept. 🚀 Trial on deployment group moves it onto the testers again.</div>`;
+      $("dgtGo").disabled = !dgt.original || !!(dgt.rec && dgt.rec.dgId && !DgTrial.onlyOn(cur, dgt.rec.dgId) && !dgt.force);
+    }
+    html += `<h4 class="sd-h4">Needs</h4><p class="mini" style="margin:0">Conditional Access Administrator or higher · consent for Policy.ReadWrite.ConditionalAccess, asked at the click.</p>`;
+    $("dgtBody").innerHTML = html;
+  }
+  const STATE_WORD_UI = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+  $("dgtCancel").addEventListener("click", () => { $("dgtModal").classList.remove("open"); dgt = null; });
+  $("dgtBody").addEventListener("change", (e) => { if (e.target.id === "dgtForce" && dgt) { dgt.force = e.target.checked; dgtPaint(); } });
+  $("dgtGo").addEventListener("click", async () => {
+    if (!dgt) return;
+    const { kind, p } = dgt;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...DGT_WRITE])) return;
+    $("dgtGo").disabled = true;
+    const L = RunLedger.create($("dgtLedger"), { unit: "policy", items: [{ label: p.name, sub: kind === "trial" ? `include → ${dgt.rule.dg}` : "include → the saved one" }] });
+    L.start(0);
+    const row = { name: p.name, action: kind, dg: dgt.rule.dg, label: dgt.rule.label };
+    try {
+      if (isDemo) { await new Promise((r) => setTimeout(r, 120)); row.ok = true; row.original = kind === "trial" ? DgTrial.includeOf(p.raw) : dgt.original; row.source = kind === "back" ? dgt.source : null; }
+      else if (kind === "trial") {
+        const r = await DgTrial.trial(Graph, p.id, { store: dgtStore(), dgId: dgt.dg.id, dgName: dgt.dg.name, catalogId: dgtCatalogId() });
+        row.ok = true; row.original = r.record.original;
+      } else {
+        const r = await DgTrial.back(Graph, p.id, { store: dgtStore(), original: dgt.source === "catalog" ? dgt.original : null, source: dgt.source, force: dgt.force });
+        row.ok = true; row.source = r.source; row.original = dgt.original;
+      }
+      L.done(0, kind === "trial" ? `on ${dgt.rule.dg}, read back` : "persona include restored, read back");
+    } catch (e) {
+      row.ok = false; row.error = e.message || String(e);
+      L.fail(0, row.error);
+    }
+    L.finish();
+    $("dgtGo").style.display = "none";
+    showReport(kind === "trial" ? "🚀 Deployment-group trial" : "↩ Back to persona", "CA-DG-Trial-Report", DgTrial.report({ tenant: tenantName }, [row]));
+    toast(row.ok ? (kind === "trial" ? `${esc(p.name)} is on <span>${esc(dgt.rule.dg)}</span>` : `${esc(p.name)} is back on its persona`) : `Not done: <span>${esc(row.error)}</span>`);
+    if (!isDemo && row.ok) await loadFromGraph(true);
   });
 
   // ---------- export ----------
@@ -3866,7 +4031,10 @@
   });
 
   // ---------- import tool (BETA) ----------
-  let imBundle = null, imPlan = null, imFileName = "", imMode = "deploy";
+  // 33203 (e04): an import opens on 🧩 As shipped — the real persona groups,
+  // landing Report-only. The deploy groups are a per-policy action now
+  // (🚀 Trial on deployment group on the policy card), not the default.
+  let imBundle = null, imPlan = null, imFileName = "", imMode = "shipped";
   // imRaw — the bundle as it was read, before prepareBundle() turned its group
   // references into names; the E-Admins merge works on this one.
   // imEa — the 🚨 E-Admins taken from a CloudFellows backup into this import.
@@ -3875,7 +4043,11 @@
   // 32706 — the state new policies land in: "disabled" (Off, the default) or
   // "enabledForReportingButNotEnforced"; the security defaults path opens
   // the import on Report-only, because step ② reads what they would do.
-  let imLand = "disabled";
+  // 33203 (e04): Report-only is the default; a policy the file or the
+  // catalog forces Off (E-Admins from another file, SMB CA201–CA204, Joey+
+  // CA020–CA023, CloudFellows CA113–CA116 / CA215–CA218) still lands Off.
+  const IM_LAND_DEFAULT = "enabledForReportingButNotEnforced";
+  let imLand = IM_LAND_DEFAULT;
   // 32902: 🛫 pre-flight — what the run needs from the tenant, read before
   // Import is pressed (Importer.preflight). imPreFix: the ticked repair of
   // this baseline's policies that are here and Off while the run lands
@@ -3889,8 +4061,8 @@
   const imWidBlocked = p => !imRequirement(p).ok;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
-    imRaw = null; imEa = null; imRepair = null; imLand = "disabled"; imPre = null; imPreFix = false; imPreErr = null;
+    imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "shipped"; imLic = { known: false, licensed: false, sku: null };
+    imRaw = null; imEa = null; imRepair = null; imLand = IM_LAND_DEFAULT; imPre = null; imPreFix = false; imPreErr = null;
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -4543,10 +4715,10 @@
     imPlan = Importer.plan(bundle, policies.map(p => p.raw));
     imCapabilities = await readCapabilities(true);
     imSwitch = imSwitchPlan(bundle);
-    // A baseline other than CloudFellows has no CAD-SEC-U-DG deploy groups of
-    // its own: its policies land as shipped, on its own groups.
-    const cid = Importer.catalogOfBundle(bundle);
-    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : cid && cid !== "limonit" ? "shipped" : "deploy");
+    // 33203 (e04): every baseline — CloudFellows too — lands as shipped, on
+    // its own persona groups; 🚀 Trial on deployment group moves ONE policy
+    // onto its CAD-SEC-U-DG-* group afterwards (the policy card).
+    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : "shipped");
     const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${(bundle[k] || []).length} ${k}`).join(", ");
     $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.${bundle.depSkipped && bundle.depSkipped.length ? ` ${bundle.depSkipped.length} dependency file(s) could not be read.` : ""}`;
     // Only worth a Graph call when the file actually contains one.
@@ -4660,9 +4832,10 @@
       if (shipped && !p.asIs) {
         const u = (p.raw.conditions && p.raw.conditions.users) || {};
         const n = (u.includeGroups || []).length + (u.excludeGroups || []).length;
-        return `🧩 as shipped${n ? ` — ${n} group${n === 1 ? "" : "s"} attached by name` : ""}${p.agent ? ` · <span style="color:var(--muted)">agent policy (preview): needs Microsoft Entra Agent ID</span>` : ""}`;
+        const land = Importer.landingState(p, imLand, imMode);
+        return `🧩 as shipped${n ? ` — ${n} group${n === 1 ? "" : "s"} attached by name` : ""} · lands <b>${land === "disabled" ? "Off" : land === "enabled" ? "On" : "Report-only"}</b>${p.forceOff ? ' <span class="muted">(forced Off — waits for its prerequisite)</span>' : ""}${p.agent ? ` · <span style="color:var(--muted)">agent policy (preview): needs Microsoft Entra Agent ID</span>` : ""}`;
       }
-      if (p.personaGroup) return `→ ${esc(p.personaGroup)}`;
+      if (p.personaGroup) return `→ ${esc(p.personaGroup)}${p.dgLabel === "Compliant network" ? ` <span class="muted">(${esc(p.dgLabel)})</span>` : ""}`;
       return esc(p.reason || "");
     };
     const swOpt = sw
@@ -4681,9 +4854,9 @@
       ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
         <label class="im-mode-opt${shipped ? " on" : ""}"><input type="radio" name="imMode" value="shipped" ${shipped ? "checked" : ""}>
-          <b>🧩 As shipped — the baseline's own groups</b><span class="mini">Every group the policies name is created in this tenant, or found when one with that name exists, and attached: includes and exclusions exactly as the file ships them. Nothing existing is touched; the policies land Off.</span></label>
+          <b>🧩 As shipped — the baseline's own groups</b> <span class="tag new">default</span><span class="mini">Every group the policies name is created in this tenant, or found when one with that name exists, and attached: includes and exclusions exactly as the file ships them. Nothing existing is touched; the policies land in the state below (Report-only by default). The deploy groups (CAD-SEC-U-DG-*) are created <b>empty</b> beside them — to try ONE policy on a few testers first, use <b>🚀 Trial on deployment group</b> on its policy card afterwards; <b>↩ Back to persona</b> restores its include exactly.</span></label>
         <label class="im-mode-opt${imMode === "deploy" ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${imMode === "deploy" ? "checked" : ""}>
-          <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
+          <b>🚀 Deployment groups — the whole import staged</b><span class="mini">Every include remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched. The include each policy ships (groups, directory roles, guests) is saved in this browser, so ↩ Back to persona on its card restores it. For one policy at a time, prefer As shipped and 🚀 Trial on deployment group.</span></label>
         <label class="im-mode-opt${replace ? " on" : ""}"><input type="radio" name="imMode" value="replace" ${replace ? "checked" : ""}>
           <b>♻️ Match &amp; replace</b><span class="mini">A policy already in this tenant keeps its current assignment and state (plus any new exclusion groups this version adds); its old version is switched Off.${nUpg ? ` ${nUpg} match${nUpg === 1 ? "es" : "es"} here.` : " No matches in this file."}</span></label>
         ${swOpt}
@@ -4786,7 +4959,14 @@
   });
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); imLoadPre(); return; }
-    if (e.target.matches('input[name="imLand"]')) { imLand = e.target.value; imLoadPre(); return; }
+    if (e.target.matches('input[name="imLand"]')) {
+      imLand = e.target.value;
+      // 33203: the rows say where each policy lands — repaint them, ticks kept
+      const ticked = new Map([...document.querySelectorAll("[data-imp]")].map((cb) => [cb.dataset.imp, cb.checked]));
+      imRenderList();
+      for (const [i, on] of ticked) { const cb = document.querySelector(`[data-imp="${i}"]`); if (cb && !cb.disabled) cb.checked = on; }
+      updateImGo(); imLoadPre(); return;
+    }
     if (e.target.id === "imPreFix") { imPreFix = e.target.checked; return; }
     if (e.target.matches("[data-imp]")) updateImGo();
     const f = e.target.closest("[data-imfix]");
@@ -4930,7 +5110,7 @@
     imHost.innerHTML = "";
     const L = RunLedger.create(imHost, { unit: "policies", items: [
       { label: "Dependencies", sub: "groups, named locations, authentication strengths, contexts, terms of use — created if missing" },
-      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : p.forceOff || imLand !== "enabledForReportingButNotEnforced" ? "new policy, Off" : "new policy, Report-only" })),
+      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : (() => { const s = Importer.landingState(p, imLand, imMode); return `new policy, ${s === "disabled" ? "Off" : s === "enabled" ? "On" : "Report-only"}`; })() })),
       ...(preFix.length ? [{ label: `Set ${preFix.length} existing ${preFix.length === 1 ? "policy" : "policies"} Report-only`, sub: preFix.map((r) => r.name).join(", ") }] : []),
     ], onStop: () => {} });
     const depSay = (m) => L.note(0, m);
@@ -4982,7 +5162,7 @@
         L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused (simulated)`, "ready");
         for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, `imported, ${res.results[i].state === "enabled" ? "On" : res.results[i].state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"} (simulated)`, "imported"); }
       } else {
-        const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
+        const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, deployGroups: imMode === "shipped", auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
         const heldBack = Object.keys(maps.groupFailed || {}).length;
@@ -5023,6 +5203,13 @@
         (bad ? (bad === out.length ? L.fail : L.part) : L.done)(ri, bad ? `${out.length - bad} Report-only · ${bad} not: ${out.filter((r) => !r.ok).map((r) => r.name).join(", ")}` : `${out.length} Report-only, read back`);
       }
       if (imPre) depLog.preflight = imPre.checks;
+      // 33203 (e06): a policy staged on its deploy group (Deployment groups
+      // mode) — its shipped include goes into the trial store, so ↩ Back to
+      // persona on its card restores groups AND roles exactly
+      if (!isDemo && typeof DgTrial !== "undefined") {
+        const st = DgTrial.store(tenantId || tenantName);
+        for (const r of res.results) if (r.ok && r.createdId && r.trialOriginal) st.put(r.createdId, { id: r.createdId, name: r.name, dg: r.trialDg, dgId: r.trialDgId, at: new Date().toISOString(), state: r.state || null, original: r.trialOriginal, source: "import" });
+      }
       // R04: finish the job on the groups this import REUSED — but only if the
       // policies actually landed. An import that failed has no business having
       // changed an existing group on the way past.
@@ -6341,7 +6528,13 @@ max@contoso.com,"Global, DevOps"</pre>
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
       cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0, scopeIds: only ? [...only] : null,
-        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA, allRows: cgRes.rows }) };
+        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA, allRows: cgRes.rows }),
+        // e12: legacy names the active baseline replaced (Joey's example
+        // APP_Microsoft365_E5 -> CAB-SEC-U-Persona-Internals) — a rename,
+        // previewed first; "configured" = stated as internals in CaMap
+        legacy: CaGroups.legacyRenamePlan(cgRes.rows, { configured: (r) => {
+          try { const m = typeof CaMap !== "undefined" ? CaMap.codeForGroup({ id: r.id, displayName: r.name }) : null; return !!(m && m.source === "tenant" && m.code === "INT"); } catch { return false; }
+        } }), legacyAck: false, legacyResults: null };
       if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
       console.error("Migrate scan failed:", e);
@@ -6367,7 +6560,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!cgMig) {
       migBody().innerHTML = `<div class="run-prompt">
         <button class="btn primary" data-migrun>▶ Scan for role-assignable groups</button>
-        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. Nothing is written. The result stays until you rescan.</p>
+        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. It also lists legacy group names the active baseline replaced (Joey Verlinden's example APP_Microsoft365_E5 → CAB-SEC-U-Persona-Internals) for a preview-first rename. Nothing is written. The result stays until you rescan.</p>
       </div>`;
       return;
     }
@@ -6400,6 +6593,7 @@ max@contoso.com,"Global, DevOps"</pre>
       "The scan reads the groups the baseline and your policies know about. A role-assignable group of your own — one that predates all of this, or that no policy references — is reached by searching for it here. It is then checked exactly like a scanned one: directory roles it holds, members it would move, and whether it already sits in a restricted unit.");
 
     migBody().innerHTML = `
+      ${cgLegacyPanel(t)}
       ${t.scoped ? `<p class="mini" style="margin:0 0 10px"><span class="tag">scoped</span> Checked only the ${t.scoped} group${t.scoped === 1 ? "" : "s"} you came with from the list. <button class="btn sm" data-migrun>▶ Check every role-assignable group</button></p>` : ""}
       <div class="cg-panel">
         <h4>WHY MIGRATE</h4>
@@ -6447,6 +6641,50 @@ max@contoso.com,"Global, DevOps"</pre>
         <h4>NOT MIGRATED (${p.skipped.length})</h4>
         ${p.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}${byHand(x)}</span></div>`).join("")}
       </div>` : ""}`;
+  }
+
+  // e12: the legacy-name rename (Joey's example APP_Microsoft365_E5 ->
+  // CAB-SEC-U-Persona-Internals). Preview first; the run renames only — the
+  // membership type is a separate MANUAL step the preview names.
+  function cgLegacyPanel(t) {
+    const L = t && t.legacy;
+    if (!L || !L.items.length) return "";
+    const res = t.legacyResults;
+    const items = L.eligible.map((x) => {
+      const r = res && res.find((y) => y.id === x.id);
+      return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+        <b>${esc(x.name)}</b> → <b>${esc(x.to)}</b> <span class="tag">${x.refs.include.length + x.refs.exclude.length} polic${x.refs.include.length + x.refs.exclude.length === 1 ? "y" : "ies"}</span>${x.configured ? ' <span class="tag">internals in this tenant\'s mapping</span>' : ""}
+        ${r ? ` <span class="tag ${r.ok ? "grant" : "block"}">${r.ok ? "renamed, verified" : "failed"}</span>${r.error ? `<div class="mini" style="color:var(--off)">${esc(r.error)}</div>` : ""}` : ""}
+        <ol class="mini muted" style="margin:6px 0 0 20px;padding:0">${x.steps.map((q) => `<li>${esc(q.text)}</li>`).join("")}</ol>
+        ${(x.manual || []).map((m) => `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ ${esc(m.text)}</p>`).join("")}
+      </div>`; }).join("");
+    const skipped = L.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}</span></div>`).join("");
+    return `<div class="cg-panel">
+      <h4>LEGACY NAMES — RENAME TO THE BASELINE'S (${L.items.length})</h4>
+      <p class="mini" style="margin:0 0 8px">${esc(Baseline.active().label)} in ENCA replaces the example group of its repository with ENCA's own. A tenant imported before that still holds the old name. A <b>rename</b> keeps the object id and the members, so every policy that names the group keeps pointing at it. Nothing else changes.</p>
+      ${items}${skipped}
+      ${L.eligible.length && !res ? `<label class="chk" style="display:block;margin-top:12px"><input type="checkbox" id="cgLegAck"${t.legacyAck ? " checked" : ""}> I have checked the preview: rename only — the membership type stays as it is</label>
+      <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn primary" id="cgLegGo">Rename ${L.eligible.length} group${L.eligible.length === 1 ? "" : "s"}</button></div>` : ""}
+      ${res ? `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="cgLegMd">📄 Rename report</button> <button class="btn" id="cgMigRescan">⟳ Rescan</button></div>` : ""}
+    </div>`;
+  }
+
+  async function cgLegacyRun() {
+    const t = cgMig;
+    if (!t || !t.legacy || !t.legacy.eligible.length) return;
+    if (!t.legacyAck) { toast("Tick the box under the preview first"); return; }
+    const scopes = [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"];
+    const io = isDemo
+      ? { patch: async () => null, get: async (u) => { const id = u.split("/")[2].split("?")[0]; const x = t.legacy.eligible.find((y) => y.id === id); return { id, displayName: x ? x.to : "" }; } }
+      : { patch: (u, b) => Graph.gpatch(u, b, scopes), get: (u) => Graph.gget(u) };
+    const out = [];
+    for (const x of t.legacy.eligible) out.push(await CaGroups.runLegacyRename(x, io));
+    t.legacyResults = out;
+    const ok = out.filter((r) => r.ok).length;
+    toast(`${ok} of ${out.length} renamed`);
+    // the list is stale the moment a name changes
+    if (ok) cgRes = null;
+    renderCgMigrate();
   }
 
   function renderCgMigResults() {
@@ -6509,6 +6747,7 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     if (e.target.id === "cgMigAck") { cgMig.ack = e.target.checked; return; }
+    if (e.target.id === "cgLegAck") { cgMig.legacyAck = e.target.checked; return; }
     const cb = e.target.closest("[data-cgmig]");
     if (cb) {
       cgMig.sel = cgMig.sel || new Set(cgMig.plan.eligible.map((x) => x.id));
@@ -6551,6 +6790,12 @@ max@contoso.com,"Global, DevOps"</pre>
         catch (err) { toast(`Could not re-read the groups: <span>${esc(err.message || err)}</span>`); return; }
       }
       renderCaGroups();
+      return;
+    }
+    if (e.target.id === "cgLegGo") { await cgLegacyRun(); return; }
+    if (e.target.id === "cgLegMd" && cgMig && cgMig.legacyResults) {
+      showReport("⑦ Rename report", "CA-LegacyRename",
+        CaGroups.legacyRenameReport(cgMig.legacy, cgMig.legacyResults, { tenant: tenantName, build: APP_BUILD.label }));
       return;
     }
     if (e.target.id === "cgMigMd" && cgMig && cgMig.results) {
@@ -11885,7 +12130,10 @@ This is a directory write. Nothing else changes.`)) return;
   const sdBgKey = () => `${tenantId || "demo"}:${policiesReadAt}:${sdBreakGlass()}`;
   function sdCoverage() {
     const n = isDemo ? (sdBg ? sdBg.n : 2) : sdBg && sdBg.key === sdBgKey() ? sdBg.n : null;
-    return SecDefaults.coverage(policies, { breakGlass: sdBreakGlass(), bgMembers: n });
+    // 33203 (e05): under SMB Basic exactly CA001–CA005 go On at the switch
+    let replacing = null;
+    try { if (Baseline.activeCatalogId() === "smb" && typeof BASELINE_SMB !== "undefined") replacing = BASELINE_SMB.replacing(); } catch { replacing = null; }
+    return SecDefaults.coverage(policies, { breakGlass: sdBreakGlass(), bgMembers: n, replacing });
   }
   // The break-glass group's members, read once per policy read: the switch
   // waits for them, because MFA for everyone without the emergency accounts
@@ -11928,7 +12176,12 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function sdHtml() {
     const kind = sdKind();
-    if (!kind) return "";
+    // 33203 (e05): SMB Basic beside an existing baseline (K&S from
+    // CloudFellows v1.0) — the two-step take-over, said on the band
+    if (!kind) {
+      try { if (Baseline.activeCatalogId() === "smb" && policiesReadAt) return SecDefaults.migrationBand(SecDefaults.smbMigration(policies, { sd: secDef }), { tenantName }); } catch (e) { console.warn("SMB migration plan:", e); }
+      return "";
+    }
     const ctx = sdCtx();
     if (kind === "sd-on-policies" || kind === "sd-switched") {
       const cov = kind === "sd-on-policies" ? sdCoverage() : null;
