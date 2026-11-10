@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33301, date: "2026-11-10", title: "Production is build 332 (v2.0.10)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 332, ENCA v2.0.10: the ⑦ Migrate member check that waits for the directory (beta 33209) is live for everybody. This channel moves to cycle 333 and reads v2.0.11-beta.N from here." },
+    ],
+  },
+  {
     build: 33209, date: "2026-11-10", title: "👥 ⑦ Migrate: the member check waits for the directory instead of failing a copy that worked",
     items: [
       { kind: "fixed", tool: "CA groups", text: "A migration could stop at Copy the members with every member copied — the report read FAILED, 1 of 1 members, 1 not confirmed. The members were added, but the check straight after read the new group before the directory showed them. That check now reads again for about 20 seconds before it gives up, the step says how long it waited, and a member that is still missing is named. A run that stopped this way is finished the usual way: Rescan, then ⑦ Migrate — the archived group is offered as finish an earlier run." },
