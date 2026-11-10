@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 381,
+      ws: "ca",
+      title: "📊 Deployment dashboard 0.3.0: Covered = targeted by a policy (enforced · report-only only · no live policy · left out), plus the no-live-policy list",
+      tools: ["DeployDash"],
+      builds: [33208],
+      risk: "medium",
+      files: ["js/deploydash.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/deploydash.test.cjs"],
+      what: "33208 (Mihai 10 Nov: the Covered ring is not accurate): js/deploydash.js build() computes per user the strongest state a policy on one of her deploy groups gives her (enforced 2, report-only 1, none 0; off policies ignored, membership transitive) into cov { enf, ro, none, out, in } and a noPolicy list with the groups she sits in; SER.cov has four series, the ring's centre is the enforced share, the card carries two list links; covStrip draws the four slices; listTable(kind) serves leftout and nopolicy; toCsv adds a coverage block and the no-live-policy rows; the export holds both lists. js/app.js ddToMd writes the split and the list.",
+      why: "Being in a deploy group is not being covered: a large tenant with region groups that no policy includes read 28% covered while an enforced policy reached a fraction of that.",
+      test: [
+        "node --test tools/deploydash.test.cjs: all green (+1 coverage split test).",
+        "Large tenant → 📊 Deployment dashboard → Read: the Covered ring has four slices that add up to the enabled users; the centre reads targeted by an enforced policy and is below the old in-a-deploy-group share wherever groups carry no policy.",
+        "Click the no-live-policy link (card and strip): the list names users and their deploy groups — spot-check one in 🕵 Who is Anna: no enforced or report-only policy reaches her through a deploy group.",
+        "A group with only report-only policies: its members land in report-only only, not enforced.",
+        "Export CSV, Markdown and HTML: each carries the four coverage counts and the no-live-policy list next to Left out.",
+      ],
+    },
+    {
       n: 380,
       ws: "ca",
       title: "🚀 Add to deploy groups — paste testers once, add them to GLO + INT, GLO + EXT or ticked deploy groups (nest groups or add their users; add only, undoable)",

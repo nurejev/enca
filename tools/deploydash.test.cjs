@@ -183,3 +183,33 @@ test("csv: one row per group, then the left-out rows — who, not where", () => 
   assert.ok(lines.includes("left_out_upn,name,type"));
   assert.ok(lines.some((l) => l === "dee@contoso.com,d,member"));
 });
+
+// 0.3.0 (33208) — Mihai 10 Nov: "i dont think that the Covered · of every
+// enabled user piechart is acurate": being in a deploy group no live policy
+// includes is not coverage. The ring splits by the strongest state a policy on
+// one of her groups gives her, and its centre is the ENFORCED share.
+test("coverage splits by what a policy does: enforced, report-only only, no live policy, left out", () => {
+  const base = DeployDash.build(fixture());
+  assert.deepEqual({ enf: base.cov.enf, ro: base.cov.ro, none: base.cov.none, out: base.cov.out, in: base.cov.in }, { enf: 5, ro: 0, none: 0, out: 3, in: 5 }, "GLO is enforced and holds every grouped user");
+  const f = fixture();
+  f.users.push(U("n", "nora@contoso.com"));
+  f.groups.find((g) => g.key === "EXT").direct = set("c", "n");           // EXT's only policy is off
+  f.policies.find((p) => p.id === "p1").state = "enabledForReportingButNotEnforced";
+  const m = DeployDash.build(f);
+  // g: GUESTUSERS enforced (p4) beats GLO report-only → enf; a b c bg: GLO/INT report-only → ro; n: EXT (off) only → none
+  assert.equal(m.cov.enf, 1);
+  assert.equal(m.cov.ro, 4);
+  assert.equal(m.cov.none, 1);
+  assert.equal(m.cov.out, 3);
+  assert.equal(m.cov.in, m.cov.enf + m.cov.ro + m.cov.none, "in a deploy group is still the sum");
+  assert.equal(m.cov.enf + m.cov.ro + m.cov.none + m.cov.out, m.total.enabled, "every enabled user once");
+  assert.deepEqual(m.noPolicy.map((r) => [r.id, r.groups]), [["n", ["DG-EXT"]]], "the no-policy list says which groups she sits in");
+  const h = DeployDash.html(m, { app: true });
+  assert.match(h, /targeted by an enforced policy/);
+  assert.match(h, /data-dd-list="nopolicy"/);
+  assert.match(h, /data-dd-list="leftout"/);
+  assert.match(DeployDash.html(m, { app: true, list: "nopolicy" }), /In a deploy group, no live policy — 1 enabled user/);
+  const x = DeployDash.exportHtml(m, { tenant: "T" });
+  assert.match(x, /no live policy/i, "the export carries both lists");
+  assert.match(DeployDash.toCsv(m), /no_live_policy_upn,name,type,deploy_groups\r\nnora@contoso.com,n,member,DG-EXT/);
+});

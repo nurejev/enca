@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33208, date: "2026-11-10", title: "📊 Deployment dashboard: Covered means targeted by a policy, not just in a deploy group",
+    items: [
+      { kind: "fixed", tool: "Deployment dashboard", text: "The Covered ring counted everybody in any CAD-SEC-U-DG-* group as covered, so region groups that no policy includes made it read far higher than what a policy actually reaches. It now splits every enabled user four ways, each person once by the strongest: targeted by an enforced policy, report-only only, in a deploy group with no live policy, and left out. The big number in the middle is the enforced share; off policies do not count." },
+      { kind: "improved", tool: "Deployment dashboard", text: "A new list — In a deploy group, no live policy — names those users and the deploy groups they sit in, from the ring, the strip at the top, the CSV, the Markdown and the HTML export, beside the Left out list." },
+    ],
+  },
+  {
     build: 33207, date: "2026-11-09", title: "🚀 Add to deploy groups — testers into GLO + INT or GLO + EXT in one go",
     items: [
       { kind: "new", tool: "Conditional Access groups", text: "🚀 Add to deploy groups (toolbar): paste users and groups once and add them to GLO + INT, GLO + EXT or the deploy groups you tick. A UPN or e-mail is a user, an object id a user or a group, an exact name the one group or user with that name. A group is nested, or its users are added (a snapshot). The preview shows each entry against each deploy group — add, already in, or blocked with the reason — before anything is written." },

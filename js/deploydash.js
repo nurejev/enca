@@ -15,7 +15,12 @@
 //              members (transitive): in a deploy group, or LEFT OUT of every
 //              one. The tenant total is what makes left out a number instead
 //              of "whoever happened to be read". Disabled accounts are
-//              counted apart and never as left out.
+//              counted apart and never as left out. Since 0.3.0 (33208,
+//              Mihai 10 Nov: the 28% "is not accurate") the in-a-group part
+//              splits by what a policy does for her: an ENFORCED policy
+//              includes one of her groups (the ring's centre number),
+//              report-only at best, or no live policy at all — being in a
+//              region group nobody targets is not coverage.
 //   route in   direct member · nested through a group inside the deploy group
 //   policies   every policy that includes a deploy group, by state
 //   exclusions the members an exclusion takes back out of at least one policy
@@ -24,8 +29,9 @@
 //              a PIE, with direct labels (the ask)
 //   per group  the same four side by side, plus 🌊's go-live readiness for
 //              the report-only policies on the group, and what needs a look
-//   left out   the one LIST this page makes itself: each left-out user, her
-//              UPN and type. Every other count is a drill-through into 🌊 Who is
+//   left out   the two LISTS this page makes itself: each left-out user, her
+//              UPN and type; and (0.3.0) each one in a deploy group no live
+//              policy includes, with the groups she is in. Every other count is a drill-through into 🌊 Who is
 //              the wave (the group picked) or 🕵 Who is Anna — the per-member
 //              answer already has a home and one list in three places would
 //              drift.
@@ -70,7 +76,11 @@ const DeployDash = (() => {
   // The chart series. `c` names a --dd-* colour token; the order is the
   // order in the ring, the legend and the bar.
   const SER = {
-    cov:   [{ k: "in", label: "In a deploy group", c: "on" }, { k: "out", label: "Left out of every deploy group", c: "off" }],
+    // Coverage (33208): "covered" is TARGETED BY A POLICY, not "is in a
+    // deploy group" — a region group nobody's policy includes made the ring
+    // read 28% where an enforced policy reached a fraction of that. Each
+    // enabled user counts once, by her strongest state, in this order.
+    cov:   [{ k: "enf", label: "Targeted · enforced policy", c: "on" }, { k: "ro", label: "Targeted · report-only only", c: "report" }, { k: "none", label: "In a deploy group, no live policy", c: "na" }, { k: "out", label: "Left out of every deploy group", c: "off" }],
     route: [{ k: "nested", label: "Nested via a group inside", c: "on" }, { k: "direct", label: "Direct", c: "blue" }],
     pol:   [{ k: "enf", label: "Enforced", c: "on" }, { k: "ro", label: "Report-only", c: "report" }, { k: "off", label: "Off", c: "na" }],
     excl:  [{ k: "ca", label: "CA*-Exclusion group", c: "c2" }, { k: "bg", label: "BreakGlass", c: "c1" }, { k: "group", label: "Another group", c: "c3" }, { k: "user", label: "User, direct", c: "c4" }, { k: "role", label: "Directory role", c: "c5" }],
@@ -108,16 +118,6 @@ const DeployDash = (() => {
       return Object.assign({}, g, { all });
     });
 
-    // --- coverage over the ENABLED users
-    const cov = { in: 0, out: 0 };
-    const leftOut = [];
-    enabled.forEach((u) => {
-      if (inAny.has(u.id)) { cov.in++; return; }
-      cov.out++;
-      leftOut.push({ id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName, type: lc(u.userType) === "guest" ? "guest" : "member" });
-    });
-    leftOut.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-
     // --- the policies: which deploy groups each includes, by state
     const pols = (I.policies || []).map((p) => ({
       id: p.id, name: p.name, seq: caNumOf(p.name) || p.name,
@@ -127,6 +127,37 @@ const DeployDash = (() => {
     const groupById = new Map(G.filter((g) => g.id).map((g) => [g.id, g]));
     const polTotal = { enf: 0, ro: 0, off: 0 };
     const polSeen = new Set();
+
+    // --- coverage over the ENABLED users, by the strongest state a policy
+    //     on one of her deploy groups gives her: 2 = an enforced policy
+    //     includes the group, 1 = report-only at best, 0 = in a deploy group
+    //     no live policy includes (off policies do not count). Membership is
+    //     transitive, so a region group nested inside GLO is reached by
+    //     GLO's policies. Exclusions are NOT subtracted here — the
+    //     Exclusions card says who is taken back out.
+    const level = new Map();     // userId → 2 | 1
+    const dgOf = new Map();      // userId → deploy group names (the no-policy list says where she sits)
+    G.forEach((g) => {
+      g.all.forEach((id) => { const a = dgOf.get(id) || dgOf.set(id, []).get(id); a.push(short(g.name)); });
+      if (!g.id) return;
+      const live = pols.filter((p) => p.inc.has(g.id) && p.state !== "off");
+      if (!live.length) return;
+      const lv = live.some((p) => p.state === "enf") ? 2 : 1;
+      g.all.forEach((id) => { if ((level.get(id) || 0) < lv) level.set(id, lv); });
+    });
+    const cov = { enf: 0, ro: 0, none: 0, out: 0, in: 0 };
+    const leftOut = [], noPolicy = [];
+    const who = (u) => ({ id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName, type: lc(u.userType) === "guest" ? "guest" : "member" });
+    enabled.forEach((u) => {
+      if (!inAny.has(u.id)) { cov.out++; leftOut.push(who(u)); return; }
+      cov.in++;
+      const lv = level.get(u.id) || 0;
+      if (lv === 2) cov.enf++;
+      else if (lv === 1) cov.ro++;
+      else { cov.none++; noPolicy.push(Object.assign(who(u), { groups: dgOf.get(u.id) || [] })); }
+    });
+    const byName = (a, b) => String(a.name).localeCompare(String(b.name));
+    leftOut.sort(byName); noPolicy.sort(byName);
 
     // --- per group
     const exclTotal = { ca: 0, bg: 0, group: 0, user: 0, role: 0 };
@@ -194,7 +225,7 @@ const DeployDash = (() => {
     return {
       readAt: I.readAt || null, tenant: I.tenant || "",
       total: { users: users.length, enabled: enabled.length, disabled, guests: enabled.filter((u) => lc(u.userType) === "guest").length },
-      cov, leftOut, route, pol: polTotal, excl: exclTotal, exclMembers,
+      cov, leftOut, noPolicy, route, pol: polTotal, excl: exclTotal, exclMembers,
       groups: rows, exclList, biggest,
       readinessRead: readiness.size > 0, readinessAt: I.readinessAt || null,
       notFound: rows.filter((r) => !r.found).map((r) => r.name),
@@ -248,7 +279,7 @@ const DeployDash = (() => {
   function card(title, defs, counts, caption, src, link, o) {
     const T = total(defs, counts);
     const chart = o && o.pie ? `<div class="dd-donut">${pieSvg(defs, counts)}</div>` : `<div class="dd-donut">${donutSvg(defs, counts)}<div class="dd-center"><b>${pct(counts[defs[0].k], T)}</b><small>${esc(caption)}</small></div></div>`;
-    const btn = link && o && o.app ? `<button type="button" class="dd-link" ${link.attr || ""}>${esc(link.text)} →</button>` : "";
+    const btn = o && o.app ? [].concat(link || []).filter(Boolean).map((l) => `<button type="button" class="dd-link" ${l.attr || ""}>${esc(l.text)} →</button>`).join("") : "";
     return `<section class="dd-card" aria-label="${esc(title)}"><h4>${esc(title)}</h4>${chart}${legend(defs, counts)}${btn}<p class="dd-src">${esc(src)}</p></section>`;
   }
   const pill = (text, kind) => `<span class="dd-pill${kind ? ` ${kind}` : ""}">${esc(text)}</span>`;
@@ -270,12 +301,14 @@ const DeployDash = (() => {
 
   function covStrip(m, o) {
     const c = m.cov, T = m.total.enabled;
+    const k = (d) => `<span${d.k === "out" ? ' class="dd-out"' : ""}><i style="background:${col(d.c)}"></i><b>${fmt(c[d.k])}</b> ${esc(d.label.toLowerCase())} · ${pct(c[d.k], T)}${o.app && c[d.k] && LISTS[d.k] ? ` <button type="button" class="dd-link" data-dd-list="${LISTS[d.k]}">list them →</button>` : ""}</span>`;
     return `<div class="dd-cov"><div><div class="dd-big">${fmt(T)}<small>enabled users in the tenant</small></div></div><div>
-      <div class="dd-bar dd-bar-lg" title="${fmt(c.in)} in a deploy group · ${fmt(c.out)} left out of every deploy group">${SER.cov.map((d) => c[d.k] ? `<span style="flex:${c[d.k]} 0 0;background:${col(d.c)}"></span>` : "").join("")}</div>
-      <div class="dd-kl"><span><i style="background:${col("on")}"></i><b>${fmt(c.in)}</b> in a deploy group · ${pct(c.in, T)}</span>
-      <span class="dd-out"><i style="background:${col("off")}"></i><b>${fmt(c.out)}</b> left out of every deploy group · ${pct(c.out, T)}${o.app && c.out ? ` <button type="button" class="dd-link" data-dd-list="leftout">list them →</button>` : ""}</span>
+      <div class="dd-bar dd-bar-lg" title="${esc(SER.cov.map((d) => `${fmt(c[d.k])} ${d.label.toLowerCase()}`).join(" · "))}">${SER.cov.map((d) => c[d.k] ? `<span style="flex:${c[d.k]} 0 0;background:${col(d.c)}"></span>` : "").join("")}</div>
+      <div class="dd-kl">${SER.cov.map(k).join("")}
       <span class="muted">${fmt(m.total.disabled)} disabled, not counted · ${fmt(m.total.guests)} guests counted</span></div></div></div>`;
   }
+  // which coverage slice has a list behind it
+  const LISTS = { none: "nopolicy", out: "leftout" };
 
   function groupsTable(m, o) {
     const rows = (o.group ? m.groups.filter((r) => r.key === o.group) : m.groups);
@@ -290,21 +323,26 @@ const DeployDash = (() => {
       <p class="mini muted" style="margin:8px 0 0">Readiness is 🌊 Who is the wave's verdict for the report-only policies on the group: locked out (named there), prompted, unchanged, silent — silent is no data, never safety. A live group with nothing left in report-only shows its enforced count. Route in and reach count members once per group; a person in two groups is in both rows.</p></section>`;
   }
 
-  function leftOutTable(m, o) {
-    const rows = m.leftOut;
+  // The two lists only this page can make: who is in no deploy group, and
+  // who is in one that no live policy includes (with the groups she is in).
+  function listTable(m, o, kind) {
+    const np = kind === "nopolicy";
+    const rows = np ? m.noPolicy : m.leftOut;
     const cap = o.app ? 300 : 2000;
     const shown = rows.slice(0, cap);
-    const head = o.app ? `<div class="dd-panel-head"><div><h4>Left out — ${plural(m.leftOut.length, "enabled user")} in no deploy group</h4><p class="mini muted" style="margin:0">${rows.length > cap ? `first ${fmt(cap)} of ${fmt(rows.length)} — the CSV and the HTML export hold all` : plural(rows.length, "row")} · the one list only this page can make</p></div>
+    const title = np ? `In a deploy group, no live policy — ${plural(rows.length, "enabled user")}` : `Left out — ${plural(rows.length, "enabled user")} in no deploy group`;
+    const head = o.app ? `<div class="dd-panel-head"><div><h4>${esc(title)}</h4><p class="mini muted" style="margin:0">${rows.length > cap ? `first ${fmt(cap)} of ${fmt(rows.length)} — the CSV and the HTML export hold all` : plural(rows.length, "row")} · ${np ? "no enforced or report-only policy includes any of her deploy groups" : "the one list only this page can make"}</p></div>
       <div class="dd-ctrl"><button type="button" class="btn" data-dd-list="">Close</button></div></div>`
-      : `<h4>Left out — ${plural(m.leftOut.length, "enabled user")} in no deploy group</h4>`;
-    if (!rows.length) return `<section class="dd-panel dd-list">${head}<p class="mini muted">Nobody — every enabled user is in a deploy group.</p></section>`;
+      : `<h4>${esc(title)}</h4>`;
+    if (!rows.length) return `<section class="dd-panel dd-list">${head}<p class="mini muted">${np ? "Nobody — every deploy-group member is targeted by a live policy." : "Nobody — every enabled user is in a deploy group."}</p></section>`;
     const who = (r) => o.app ? `<a href="#" class="dd-who" data-dd-who="${esc(r.upn)}" title="Open 🕵 Who is Anna to CA">${esc(r.name)}</a>` : `<b>${esc(r.name)}</b>`;
-    return `<section class="dd-panel dd-list" aria-label="Left out">${head}
-      <div class="dd-twrap"><table class="cg-table dd-table"><thead><tr><th>Member</th><th>UPN</th><th>Type</th></tr></thead><tbody>
-      ${shown.map((r) => `<tr><td>${who(r)}</td><td>${esc(r.upn)}</td><td>${esc(r.type)}</td></tr>`).join("")}
+    return `<section class="dd-panel dd-list" aria-label="${np ? "No live policy" : "Left out"}">${head}
+      <div class="dd-twrap"><table class="cg-table dd-table"><thead><tr><th>Member</th><th>UPN</th><th>Type</th>${np ? "<th>Deploy groups</th>" : ""}</tr></thead><tbody>
+      ${shown.map((r) => `<tr><td>${who(r)}</td><td>${esc(r.upn)}</td><td>${esc(r.type)}</td>${np ? `<td>${esc(r.groups.join(", "))}</td>` : ""}</tr>`).join("")}
       </tbody></table></div>
-      <p class="mini muted" style="margin:8px 0 0">Who is left out is this page's answer; which group each one belongs in is the deployment's own decision — 👥 CA groups adds members, and a name opens 🕵 for her whole picture.</p></section>`;
+      <p class="mini muted" style="margin:8px 0 0">${np ? "These are in the deployment but nothing reaches them yet — a policy on their group, or a move to a group that has one, is the deployment's own decision." : "Who is left out is this page's answer; which group each one belongs in is the deployment's own decision — 👥 CA groups adds members, and a name opens 🕵 for her whole picture."}</p></section>`;
   }
+  const leftOutTable = (m, o) => listTable(m, o, "leftout");
 
   function exclTable(m, o) {
     const rows = m.exclList;
@@ -323,16 +361,17 @@ const DeployDash = (() => {
     const route = g1 ? g1.route : m.route, pol = g1 ? g1.pol : m.pol, excl = g1 ? g1.exclBy : m.excl;
     const exclN = g1 ? g1.excl : m.exclMembers;
     const chips = o.app ? `<div class="dd-chips" role="group" aria-label="Group filter"><button type="button" class="fchip${o.group ? "" : " active"}" data-dd-chip="">All groups</button>${m.groups.filter((r) => r.found).map((r) => `<button type="button" class="fchip${o.group === r.key ? " active" : ""}" data-dd-chip="${esc(r.key)}">${esc(short(r.name))}${r.live ? " <small>live</small>" : r.pol.ro ? " <small>report-only</small>" : ""}</button>`).join("")}</div>` : (g1 ? `<p class="mini"><b>Group: ${esc(g1.name)}</b></p>` : "");
-    const out = m.cov.out;
+    const out = m.cov.out, none = m.cov.none;
     const cards = [
-      card("Covered · of every enabled user", SER.cov, m.cov, "in a deploy group", "All enabled users (members and guests) against the CAD-SEC-U-DG-* members, transitive. Left out = in none of them.", out ? { text: `${fmt(out)} left out — list them`, attr: 'data-dd-list="leftout"' } : null, o),
+      card("Covered · of every enabled user", SER.cov, m.cov, "targeted by an enforced policy", "Covered = in a CAD-SEC-U-DG-* group (transitive) that an enforced policy includes. Each enabled user (members and guests) counts once, by her strongest state; an off policy does not count. Targeted is not proof the policy applied — exclusions are in their own card.",
+        [none ? { text: `${fmt(none)} with no live policy — list them`, attr: 'data-dd-list="nopolicy"' } : null, out ? { text: `${fmt(out)} left out — list them`, attr: 'data-dd-list="leftout"' } : null], o),
       card(g1 ? `Route in · ${short(g1.name)}` : "Route in · how members got there", SER.route, route, "nested", "Direct membership vs. a group nested inside the deploy group.", null, o),
       card(g1 ? `Policies on ${short(g1.name)}` : "Policies on the deploy groups", SER.pol, pol, "enforced", "Every policy that includes a deploy group, by state. Report-only on a live group is the go-live question.", null, o),
       card(g1 ? `Exclusions · ${short(g1.name)}` : "Exclusions · taken back out, by what", SER.excl, excl, "", `Deploy-group members an exclusion removes from at least one enforced or report-only policy on their group — ${fmt(exclN)}${g1 ? "" : ` of ${fmt(m.cov.in)}`}. First route wins: BreakGlass, then a CA*-Exclusion group, another group, a direct user, a role.`, null, Object.assign({ pie: true }, o)),
     ].join("");
     const missing = m.notFound.length ? `<p class="dd-wait bad">Not in this tenant: ${esc(m.notFound.join(", "))} — 👥 CA groups ② Create makes them.</p>` : "";
-    const list = o.app && o.list === "leftout" ? leftOutTable(m, o) : "";
-    const allLists = !o.app ? leftOutTable(m, o) : "";
+    const list = o.app && (o.list === "leftout" || o.list === "nopolicy") ? listTable(m, o, o.list) : "";
+    const allLists = !o.app ? listTable(m, o, "nopolicy") + listTable(m, o, "leftout") : "";
     const foot = `<p class="mini muted dd-foot">Group membership and policy reach are separate checks: a deploy-group member is a target, not proof the policy applied. A read time is not a sign-in time. Disabled accounts are counted apart and never as left out. Missing report-only data stays unknown — never counted as safe.</p>`;
     return `<div class="dd">${covStrip(m, o)}${chips}<div class="dd-grid">${cards}</div>${missing}${list}${groupsTable(m, o)}${allLists}${exclTable(m, o)}${foot}</div>`;
   }
@@ -342,6 +381,10 @@ const DeployDash = (() => {
     const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look"]];
     m.groups.forEach((r) => rows.push([r.name, r.found, r.members, r.route.direct, r.route.nested, r.pol.enf, r.pol.ro, r.pol.off, r.excl, r.exclBy.bg, r.exclBy.ca, r.exclBy.group, r.exclBy.user, r.exclBy.role,
       r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; ")]));
+    rows.push([]); rows.push(["coverage", "enabled_users"]);
+    SER.cov.forEach((d) => rows.push([d.label, m.cov[d.k]]));
+    rows.push([]); rows.push(["no_live_policy_upn", "name", "type", "deploy_groups"]);
+    (m.noPolicy || []).forEach((r) => rows.push([r.upn, r.name, r.type, r.groups.join("; ")]));
     rows.push([]); rows.push(["left_out_upn", "name", "type"]);
     m.leftOut.forEach((r) => rows.push([r.upn, r.name, r.type]));
     return rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
