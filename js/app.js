@@ -6986,7 +6986,7 @@ max@contoso.com,"Global, DevOps"</pre>
         if (!isDemo) {
           const mm = await moveGroupMembers(x.id, created.id);
           res.membersMoved = mm.moved; res.memberTotal = mm.total; res.membersFailed = mm.failed;
-          step("members", mm.failed.length ? "partial" : "done", `${mm.moved} of ${mm.total} copied${mm.failed.length ? ` — ${mm.failed.length} failed: ${mm.failed.map((f) => f.name || f.id || f).slice(0, 5).join(", ")}` : ""}`);
+          step("members", mm.failed.length ? "partial" : "done", `${mm.moved} of ${mm.total} copied${mm.waited ? `, confirmed after ${mm.waited} s` : ""}${mm.failed.length ? ` — ${mm.failed.length} failed: ${mm.failed.map((f) => f.name || f.id || f).slice(0, 5).join(", ")}` : ""}`);
           say(`<div>&nbsp;&nbsp;✓ ${mm.moved}/${mm.total} members copied${mm.failed.length ? ` — ${mm.failed.length} failed` : ""}</div>`);
         } else { res.membersMoved = res.memberTotal || 0; step("members", "done", `${res.membersMoved} copied`); }
         stage = "repoint";
@@ -8179,9 +8179,29 @@ max@contoso.com,"Global, DevOps"</pre>
       const first = log.failed[0];
       throw fail(`Membership copy incomplete: ${log.failed.length} of ${movable.length} failed — ${first.name}: ${first.error}. The replacement remains staged; policy references were not changed.`);
     }
-    const actual = new Set((await settled(() => Graph.ggetAll(`/groups/${toId}/members?$select=id`))).map(m => m.id));
-    const missing = movable.filter(m => !actual.has(m.id));
-    if (missing.length) throw fail(`Membership verification incomplete: ${missing.length} members not confirmed in the replacement. Retry after replication; policy references were not changed.`);
+    // The read-back WAITS as well (beta 33209). LeeuwendaalAdvies, 10 Nov 2026
+    // (v2.0.9): one member, the add accepted, and the read of the new group's
+    // members a moment later answered 200 WITHOUT her — a replica that had
+    // not seen the write yet. settled() only repeats an ERROR, so that stale
+    // but successful answer was final and the run stopped at "1 members not
+    // confirmed" with the member in place. A read that is missing members the
+    // directory just accepted is repeated on the same schedule; only what is
+    // still missing after it is a failure, and it is named.
+    let missing = movable, waitedMs = 0;
+    for (let n = 0; ; n++) {
+      const actual = new Set((await settled(() => Graph.ggetAll(`/groups/${toId}/members?$select=id`))).map(m => m.id));
+      missing = movable.filter(m => !actual.has(m.id));
+      if (!missing.length || n >= SETTLE_WAITS.length) break;
+      onStatus?.(`Waiting for the directory to show ${missing.length} of ${movable.length} members…`);
+      await new Promise((r) => setTimeout(r, SETTLE_WAITS[n]));
+      waitedMs += SETTLE_WAITS[n];
+    }
+    log.waited = Math.round(waitedMs / 1000);
+    if (missing.length) {
+      log.unconfirmed = missing.map((m) => m.displayName || m.id);
+      const names = log.unconfirmed.slice(0, 5).join(", ") + (missing.length > 5 ? ` and ${missing.length - 5} more` : "");
+      throw fail(`Membership verification incomplete: ${missing.length} of ${movable.length} members still not visible in the replacement after ${log.waited} s (${names}). Every add was accepted, so the directory is most likely still replicating — rescan and run again; policy references were not changed.`);
+    }
     return log;
   }
 

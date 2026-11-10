@@ -182,6 +182,23 @@ const PROMOTE = {
 
   items: [
     {
+      n: 382,
+      ws: "ca",
+      title: "👥 CA groups 6.5.1: ⑦ Migrate — the member read-back waits for replication",
+      tools: ["Conditional Access groups"],
+      builds: [33209],
+      risk: "high",
+      files: ["js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/cagroups-migrate.test.cjs"],
+      what: "33209 (LeeuwendaalAdvies 10 Nov, production v2.0.9: FAILED at Copy the members, 1 of 1 copied, 1 not confirmed): moveGroupMembers repeats the read of the new group's members on SETTLE_WAITS while members the directory accepted are missing from the answer; log.waited carries the seconds into the step ledger; a member still missing after the schedule throws with log.unconfirmed and the names in the message. Nothing is added twice. Help bullet under CA groups extended.",
+      why: "A stale read is a 200, not an error, so the 33101 retry never saw it: a migration whose copy WORKED stopped before the policy swap and left a half-way pair to finish by hand. Any group with members can hit it on a tenant that replicates slowly.",
+      test: [
+        "node --test tools/cagroups-migrate.test.cjs: 16 green (3 new: stale read-back retried, complete read-back waits for nothing, still missing after the schedule fails by name).",
+        "LeeuwendaalAdvies → CA groups → ⑦ Migrate → Rescan: CAB-SEC-U-CA001-Exclusion (migrated 2026-11-10) is offered as finish an earlier run. Run it: members 1 of 1, policies repointed, placed in CAB-SEC-RMAU-GLO-Exclusions, report reads 1 migrated, 0 failed.",
+        "A fresh role-assignable group with a few members on any tenant: migrate it — the run reaches the policy swap; when the directory was slow the Copy the members step reads confirmed after N s.",
+        "Demo mode: ⑦ Migrate runs to the results panel as before, no page errors.",
+      ],
+    },
+    {
       n: 381,
       ws: "ca",
       title: "📊 Deployment dashboard 0.3.0: Covered = targeted by a policy (enforced · report-only only · no live policy · left out), plus the no-live-policy list",

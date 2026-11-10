@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33209, date: "2026-11-10", title: "👥 ⑦ Migrate: the member check waits for the directory instead of failing a copy that worked",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "A migration could stop at Copy the members with every member copied — the report read FAILED, 1 of 1 members, 1 not confirmed. The members were added, but the check straight after read the new group before the directory showed them. That check now reads again for about 20 seconds before it gives up, the step says how long it waited, and a member that is still missing is named. A run that stopped this way is finished the usual way: Rescan, then ⑦ Migrate — the archived group is offered as finish an earlier run." },
+    ],
+  },
+  {
     build: 33208, date: "2026-11-10", title: "📊 Deployment dashboard: Covered means targeted by a policy, not just in a deploy group",
     items: [
       { kind: "fixed", tool: "Deployment dashboard", text: "The Covered ring counted everybody in any CAD-SEC-U-DG-* group as covered, so region groups that no policy includes made it read far higher than what a policy actually reaches. It now splits every enabled user four ways, each person once by the strongest: targeted by an enforced policy, report-only only, in a deploy group with no live policy, and left out. The big number in the middle is the enforced share; off policies do not count." },
