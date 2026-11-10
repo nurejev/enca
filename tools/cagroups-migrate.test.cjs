@@ -167,14 +167,14 @@ test('a pipe or a newline in a name or an error cannot break the table', () => {
 });
 
 // ---- the write after the create (js/app.js, sliced like tools/workpackages.test.cjs) ----
-function copyWorld({ notFoundTimes = 0, forbid = false } = {}) {
+function copyWorld({ notFoundTimes = 0, forbid = false, staleReads = 0 } = {}) {
   const app = fs.readFileSync(path.join(root, 'js', 'app.js'), 'utf8');
   const posts = [], gets = [], waits = [];
-  let left = notFoundTimes;
+  let left = notFoundTimes, stale = staleReads;
   const box = vm.createContext({ console: { log() {}, warn() {}, error() {} }, AUTH_CONFIG: { scopes: [] }, MEMBER_MOVE_SCOPES: [], Date, Math,
     setTimeout: (fn, ms) => { waits.push(ms); fn(); }, Set, Map,
     Graph: {
-      async ggetAll(url) { if (/old\/members/.test(url)) return [{ id: 'u1', displayName: 'Anna', '@odata.type': '#microsoft.graph.user' }, { id: 'u2', displayName: 'Bob', '@odata.type': '#microsoft.graph.user' }]; return [{ id: 'u1' }, { id: 'u2' }]; },
+      async ggetAll(url) { if (/old\/members/.test(url)) return [{ id: 'u1', displayName: 'Anna', '@odata.type': '#microsoft.graph.user' }, { id: 'u2', displayName: 'Bob', '@odata.type': '#microsoft.graph.user' }]; if (stale > 0) { stale--; return [{ id: 'u1' }]; } return [{ id: 'u1' }, { id: 'u2' }]; },
       async gget(url) { gets.push(url); if (left > 0) { left--; throw new Error("Graph request failed (404): Resource 'new' does not exist or one of its queried reference-property objects are not present. · code: Request_ResourceNotFound"); } return { id: 'new' }; },
       async gpost(url) { posts.push(url); if (forbid) throw new Error('Graph request failed (403): Insufficient privileges to complete the operation. · code: Authorization_RequestDenied'); if (left > 0) { left--; throw new Error("Graph request failed (404): Resource 'new' does not exist or one of its queried reference-property objects are not present. · code: Request_ResourceNotFound"); } return {}; },
     } });
@@ -209,4 +209,31 @@ test('the settle gives up after the schedule and awaitGroup reports the seconds 
   const secs = await w2.box.awaitGroup('new');
   assert.equal(typeof secs, 'number');
   assert.equal(w2.gets.length, 2);
+});
+
+// ---- the read-back waits for replication (LeeuwendaalAdvies, 10 Nov 2026) ----
+test('a read-back that does not show an accepted member yet is read again, and the run goes on', async () => {
+  const w = copyWorld({ staleReads: 2 });
+  const log = await w.box.move('old', 'new');
+  assert.equal(log.moved, 2); assert.equal(log.failed.length, 0);
+  assert.equal(w.posts.length, 2, 'nothing is added twice while waiting');
+  assert.equal(w.waits.join(','), '1500,3000');
+  assert.equal(log.waited, 5, 'the seconds waited travel with the log');
+});
+
+test('a first read-back that is complete waits for nothing', async () => {
+  const w = copyWorld();
+  const log = await w.box.move('old', 'new');
+  assert.equal(w.waits.length, 0); assert.equal(log.waited, 0);
+});
+
+test('a member still missing after the whole schedule fails, is named, and the counts travel with the error', async () => {
+  const w = copyWorld({ staleReads: 99 });
+  await assert.rejects(w.box.move('old', 'new'), (e) => {
+    assert.match(e.message, /Membership verification incomplete: 1 of 2 members still not visible in the replacement after 21 s \(Bob\)/);
+    assert.match(e.message, /policy references were not changed/);
+    assert.equal(e.log.moved, 2); assert.equal(e.log.total, 2); assert.deepEqual([...e.log.unconfirmed], ['Bob']);
+    return true;
+  });
+  assert.equal(w.waits.join(','), '1500,3000,6000,10000');
 });

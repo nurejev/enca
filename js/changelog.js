@@ -19,6 +19,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 332, date: "2026-11-10", release: "2.0.10",
+    title: "ENCA 2.0.10 — ⑦ Migrate: the member check waits for the directory instead of failing a copy that worked",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "Production is build 332 (v2.0.10). A migration could stop at Copy the members with every member copied — the report read FAILED, 1 of 1 members, 1 not confirmed. The members were added, but the check straight after read the new group before the directory showed them. That check now reads again for about 20 seconds before it gives up, the step says how long it waited, and a member that is still missing is named. A run that stopped this way is finished the usual way: Rescan, then ⑦ Migrate — the archived group is offered as finish an earlier run." },
+    ],
+  },
+  {
     build: 331, date: "2026-11-03", release: "2.0.9",
     title: "ENCA 2.0.9 — SMB Basic 1.0.10, Joey Verlinden+ additions, the CloudFellows compliant-network policies for admins, and imports that wait for what they create",
     items: [
