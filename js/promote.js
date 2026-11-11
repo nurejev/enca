@@ -182,6 +182,24 @@ const PROMOTE = {
 
   items: [
     {
+      n: 386,
+      ws: "ca",
+      title: "🌐 Named locations 1.12.0: ⭳ Locations only — CSV per IP range, CSV per location, Markdown table, without policies or findings",
+      tools: ["Locations"],
+      builds: [33305],
+      risk: "low",
+      files: ["js/locations.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/locinventory.test.cjs"],
+      what: "33305 (Mihai 11 Nov: T15 needs to export location and IP only, not with the policies attached; mockup approved as shown). js/locations.js inventoryCsv(list, range|location) and inventoryMd(list, meta) built on configOf — no usedBy, no findings. index.html: #loOnly menu (#loOnlyMenu, three data-loonly buttons, #loOnlyShown tick) in the Locations toolbar; app.js keeps loShown (the rows the list shows after search and chips) and exports those when ticked, closes on an outside click. Files CA-NamedLocations-IPRanges.csv / CA-NamedLocations-Inventory.csv / .md.",
+      why: "The MD export carries which policies use each location and the findings; someone who needs the ranges for a firewall, a partner or an audit had to strip that by hand.",
+      test: [
+        "node --test tools/locinventory.test.cjs: all green.",
+        "🧩 Policy building blocks → Locations → ⭳ Locations only → CSV — one row per IP range: opens in Excel with one row per range, country locations on one row with their countries, no policy names anywhere.",
+        "CSV — one row per location and Markdown — inventory table: one row per location, ranges joined, the MD has no Used by or findings.",
+        "Search for one location (or pick the Trusted chip), open the menu: the tick reads N of M; with it ticked the file holds only those rows; with nothing filtered the tick is disabled.",
+        "Click outside the menu: it closes.",
+      ],
+    },
+    {
       n: 385,
       ws: "ca",
       title: "📊 Deployment dashboard 0.5.0: on which policies a deploy group is excluded; excluding another deploy group is scoped out, not a bypass",

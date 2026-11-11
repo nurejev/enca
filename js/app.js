@@ -18709,6 +18709,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- Named locations (view / create / edit / delete) ----------
   const LO_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let loShown = null; // the rows the list shows now — ⭳ Locations only can export just these
   let loList = null, loFilter = "all", loQuery = "", loEditing = null, loDeleting = null;
   // Cards sit in a grid (two or more per row); Table is the same information
   // one line per location, for tenants with 80+ of them.
@@ -18785,6 +18786,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (loFilter === "findings" && !(F.byLocation[l.id] || []).length) return false;
       return !q || `${l.displayName} ${Locations.detail(l)}`.toLowerCase().includes(q);
     }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+    loShown = rows;
 
     [...$("loViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.loview === loView));
 
@@ -19074,6 +19076,30 @@ This is a directory write. Nothing else changes.`)) return;
     }
     return L.join("\n");
   }
+
+  // ---- ⭳ Locations only (1.12.0): the inventory without policies or findings
+  const loOnlyClose = () => { $("loOnlyMenu").hidden = true; $("loOnly").setAttribute("aria-expanded", "false"); };
+  $("loOnly").addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!loList) { toast("Read the named locations first"); return; }
+    const m = $("loOnlyMenu"), open = m.hidden;
+    if (open) {
+      const n = (loShown || loList).length, filtered = loShown && n !== loList.length;
+      $("loOnlyShown").disabled = !filtered; if (!filtered) $("loOnlyShown").checked = false;
+      $("loOnlyShownTxt").textContent = filtered ? `only what the search / chips show (${n} of ${loList.length})` : `only what the search / chips show (all ${loList.length} are shown)`;
+    }
+    m.hidden = !open; $("loOnly").setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (e) => { if (!$("loOnlyMenu").hidden && !e.target.closest(".lo-only")) loOnlyClose(); });
+  $("loOnlyMenu").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-loonly]"); if (!b || !loList) return;
+    const list = $("loOnlyShown").checked && loShown ? loShown : loList;
+    const kind = b.dataset.loonly;
+    if (kind === "md") downloadText("CA-NamedLocations-Inventory", "md", "text/markdown", Locations.inventoryMd(list, { tenant: tenantName, of: loList.length, generatedBy: Brand.generatedBy("Generated") }));
+    else downloadText(kind === "range" ? "CA-NamedLocations-IPRanges" : "CA-NamedLocations-Inventory", "csv", "text/csv", Locations.inventoryCsv(list, kind));
+    loOnlyClose();
+    toast(`Exported <span>${list.length}</span> named location${list.length === 1 ? "" : "s"} — the locations only, no policies`);
+  });
 
   // ---- config snapshot: export, and compare a later state against it ----
   $("loJson").addEventListener("click", () => {

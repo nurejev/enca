@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33305, date: "2026-11-11", title: "🌐 Named locations: export the locations and their IP ranges only",
+    items: [
+      { kind: "new", tool: "Named locations", text: "🌐 ⭳ Locations only exports the named locations as they are in Entra — no policies, no findings. Pick a CSV with one row per IP range (for Excel or an allow list), a CSV with one row per location, or a Markdown table, and tick a box to export only what the search and chips show." },
+    ],
+  },
+  {
     build: 33304, date: "2026-11-11", title: "📊 Deployment dashboard: on which policies a deploy group is excluded, and scoping is no longer a bypass",
     items: [
       { kind: "fixed", tool: "Deployment dashboard", text: "📊 GLO could read 100% excluded with a standing bypass for every member. A policy that includes GLO and excludes DG-INT, DG-EXT and DG-DevOps is aimed at the people in no persona group, and that scoping was counted as an exclusion. Excluding another deploy group now counts as scoped out by design — a grey slice in the bar, not in the exclusions pie, never a standing bypass." },
