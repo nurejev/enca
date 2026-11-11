@@ -213,3 +213,79 @@ test("coverage splits by what a policy does: enforced, report-only only, no live
   assert.match(x, /no live policy/i, "the export carries both lists");
   assert.match(DeployDash.toCsv(m), /no_live_policy_upn,name,type,deploy_groups\r\nnora@contoso.com,n,member,DG-EXT/);
 });
+
+// 0.4.0 (33303, Mihai 11 Nov): a site group nested in GLO and INT read "no
+// group nested inside" and no policy. The row says where it is nested and
+// counts the policies that reach it through those groups.
+function nestFixture(extra) {
+  const users = [U("a", "a@c.com"), U("b", "b@c.com"), U("x", "x@c.com"), U("y", "y@c.com")];
+  const groups = [
+    { key: "GLO", name: "CAD-SEC-U-DG-GLO", id: "g-glo", direct: set(), nested: set("a", "b"), children: [], childIds: ["g-int-sit", "g-ext-sit"] },
+    { key: "INT", name: "CAD-SEC-U-DG-INT", id: "g-int", direct: set(), nested: set("a"), children: [], childIds: ["g-int-sit"] },
+    { key: "EXT", name: "CAD-SEC-U-DG-EXT", id: "g-ext", direct: set(), nested: set("b"), children: [], childIds: ["g-ext-sit"] },
+    { key: "INT-NL-Sittard", name: "CAD-SEC-U-DG-INT-NL-Sittard", id: "g-int-sit", direct: set("a"), nested: set(), dynamic: true },
+    { key: "EXT-NL-Sittard", name: "CAD-SEC-U-DG-EXT-NL-Sittard", id: "g-ext-sit", direct: set("b"), nested: set(), dynamic: true },
+    { key: "EXT-BD", name: "CAD-SEC-U-DG-EXT-BD", id: "g-ext-bd", direct: set("x"), nested: set(), dynamic: true },
+    { key: "EXT-AU", name: "CAD-SEC-U-DG-EXT-AU", id: "g-ext-au", direct: set(), nested: set(), dynamic: true, ancestors: [{ id: "g-glo", name: "CAD-SEC-U-DG-GLO" }, { id: "g-ext", name: "CAD-SEC-U-DG-EXT" }] },
+    { key: "EXT-PL", name: "CAD-SEC-U-DG-EXT-PL", id: "g-ext-pl", direct: set("y"), nested: set(), ancestors: [{ id: "sg-poland", name: "SG-Poland-All" }] },
+  ];
+  const policies = [
+    { id: "p1", name: "CA001-Global", state: "enabled", includeGroups: ["g-glo"], excludeGroups: [], excludeUsers: [], excludeRoles: [] },
+    { id: "p2", name: "CA200-Int-MFA", state: "enabledForReportingButNotEnforced", includeGroups: ["g-int"], excludeGroups: [], excludeUsers: [], excludeRoles: [] },
+    { id: "p3", name: "CA300-Ext", state: "enabled", includeGroups: ["g-ext", "g-glo"], excludeGroups: [], excludeUsers: [], excludeRoles: [] },
+    { id: "p4", name: "CA500-Poland", state: "enabled", includeGroups: ["sg-poland"], excludeGroups: [], excludeUsers: [], excludeRoles: [] },
+  ];
+  return Object.assign({ users, groups, policies }, extra || {});
+}
+
+test("nested in: deploy-group parents from childIds, outside parents from ancestors, inherited policies counted once", () => {
+  const m = DeployDash.build(nestFixture());
+  const row = (k) => m.groups.find((r) => r.key === k);
+  const sit = row("INT-NL-Sittard");
+  assert.deepEqual(sit.nestedIn.map((a) => a.label), ["GLO", "INT"]);
+  assert.deepEqual(sit.polDirect, { enf: 0, ro: 0, off: 0 });
+  assert.deepEqual(sit.pol, { enf: 2, ro: 1, off: 0 }, "CA001 + CA300 via GLO, CA200 via INT — each once");
+  assert.ok(sit.look.some((l) => l.kind === "through" && l.text === "targeted through GLO · INT"));
+  const ext = row("EXT-NL-Sittard");
+  assert.deepEqual(ext.nestedIn.map((a) => a.label), ["GLO", "EXT"]);
+  assert.equal(ext.pol.enf, 2, "CA300 includes both GLO and EXT — counted once");
+  const bd = row("EXT-BD");
+  assert.deepEqual(bd.nestedIn, []);
+  assert.ok(bd.look.some((l) => l.kind === "untargeted" && /nest it in GLO \+ EXT/.test(l.text)));
+  assert.ok(row("EXT-AU").look.some((l) => l.text === "empty group"));
+  const pl = row("EXT-PL");
+  assert.deepEqual(pl.nestedIn.map((a) => [a.label, a.dg]), [["SG-Poland-All", false]]);
+  assert.equal(pl.pol.enf, 1, "a parent outside CAD-SEC-U-DG-* brings its policy");
+  assert.equal(row("GLO").nestedIn.length, 0);
+  assert.deepEqual(row("GLO").pol, { enf: 2, ro: 0, off: 0 }, "a parent's own count is untouched");
+  // coverage: y is targeted through the outside parent, x through nothing
+  assert.equal(m.cov.enf, 3);
+  assert.equal(m.cov.none, 1);
+  assert.equal(m.noPolicy[0].upn, "x@c.com");
+});
+
+test("nested in: chips, the via line, jump buttons only in the app, and the CSV columns", () => {
+  const m = DeployDash.build(nestFixture());
+  const app = DeployDash.html(m, { app: true });
+  assert.match(app, /data-dd-row="g-int-sit"/);
+  assert.match(app, /data-dd-jump="g-glo"[^>]*>↑ GLO</);
+  assert.match(app, /<b>0<\/b> direct · 2 via GLO · 1 via INT/);
+  assert.match(app, /dd-up-out[^>]*>↑ SG-Poland-All</, "an outside parent is a grey chip, not a jump");
+  assert.match(app, /nested in nothing/);
+  assert.match(app, /targeted through GLO · INT/);
+  const x = DeployDash.exportHtml(m, { tenant: "T" });
+  assert.doesNotMatch(x, /data-dd-jump|data-dd-row/);
+  assert.match(x, /↑ GLO/);
+  const csv = DeployDash.toCsv(m);
+  assert.match(csv, /needs_a_look,nested_in,policies_direct/);
+  assert.match(csv, /CAD-SEC-U-DG-INT-NL-Sittard,.*"CAD-SEC-U-DG-GLO; CAD-SEC-U-DG-INT",0/);
+});
+
+test("nested in: a two-level chain is closed — a group under a region group under GLO is in both", () => {
+  const f = nestFixture();
+  f.groups.push({ key: "INT-NL", name: "CAD-SEC-U-DG-INT-NL", id: "g-int-nl", direct: set(), nested: set("a"), children: [], childIds: ["g-int-sit"] });
+  f.groups[0].childIds = ["g-int-nl", "g-ext-sit"];
+  f.groups[1].childIds = ["g-int-nl"];
+  const sit = DeployDash.build(f).groups.find((r) => r.key === "INT-NL-Sittard");
+  assert.deepEqual(sit.nestedIn.map((a) => a.label).sort(), ["GLO", "INT", "INT-NL"]);
+});

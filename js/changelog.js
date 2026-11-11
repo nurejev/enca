@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33303, date: "2026-11-11", title: "📊 Deployment dashboard: which groups a deploy group is nested in, and the policies that reach it through them",
+    items: [
+      { kind: "improved", tool: "Deployment dashboard", text: "📊 A site group nested into GLO and INT used to read no group nested inside and no policy, while GLO's and INT's policies reach every one of its members. Each row now shows what the group is nested in — ↑ GLO, ↑ INT, at any depth; click a chip to jump to that group, hover it for the policies that come through it — and Policies on it counts those inherited policies too, with 0 direct · 2 via GLO · 1 via INT under the bar. Needs a look says targeted through GLO · INT, not targeted — nest it in GLO + EXT, or empty group. A parent outside the deploy groups shows as a grey chip and its policies count, in the coverage ring too. The CSV gains nested_in and policies_direct." },
+    ],
+  },
+  {
     build: 33302, date: "2026-11-11", title: "🗺 Roadmap: PIM for the people who use ENCA",
     items: [
       { kind: "improved", tool: "Roadmap", text: "🗺 A new card, R94 — which roles someone needs to use ENCA, and when. Built-in roles in six PIM groups, one per job (always-on reads; eligible Conditional Access, authentication methods, apps, security defaults; Tier 0 PIM with approval), one custom group role, and three things to build: a role check before every write that says which group to activate instead of failing with a bare 403, creating the model from PIM-buddy, and checking it read-only." },

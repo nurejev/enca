@@ -125,6 +125,24 @@ const DeployDash = (() => {
       inc: new Set(p.includeGroups || []), excGroups: p.excludeGroups || [], excUsers: p.excludeUsers || [], excRoles: p.excludeRoles || [],
     }));
     const groupById = new Map(G.filter((g) => g.id).map((g) => [g.id, g]));
+
+    // --- upward nesting (0.4.0, 33303 — Mihai 11 Nov: a site group nested in
+    //     GLO and INT read "no group nested inside" and no policy, while
+    //     GLO's and INT's policies reach every one of its members). The
+    //     groups each deploy group is nested in, at any depth: the deploy
+    //     groups that list it among their children (inverted, no read) plus
+    //     g.ancestors — app.js's transitiveMemberOf read, which also brings
+    //     parents outside CAD-SEC-U-DG-*. A policy on any of them reaches
+    //     the group's members, so it counts as on the group — INHERITED.
+    const parentsOf = new Map();   // group id → Map(parent id → { id, name })
+    G.forEach((g) => { if (!g.id) return; const m = new Map(); (g.ancestors || []).forEach((a) => { if (a && a.id && a.id !== g.id) m.set(a.id, { id: a.id, name: a.name || names[a.id] || a.id }); }); parentsOf.set(g.id, m); });
+    G.forEach((p) => { if (!p.id) return; (p.childIds || (p.children || []).map((c) => c.id)).forEach((cid) => { const m = parentsOf.get(cid); if (m && cid !== p.id && !m.has(p.id)) m.set(p.id, { id: p.id, name: p.name }); }); });
+    for (let changed = true, n = 0; changed && n < 20; n++) {
+      changed = false;
+      parentsOf.forEach((m, gid) => { [...m.keys()].forEach((pid) => { const pm = parentsOf.get(pid); if (pm) pm.forEach((v, k) => { if (k !== gid && !m.has(k)) { m.set(k, v); changed = true; } }); }); });
+    }
+    const reachOf = (g) => (g.id ? [g.id, ...(parentsOf.get(g.id) || new Map()).keys()] : []);
+    const reaches = (p, g) => reachOf(g).some((id) => p.inc.has(id));
     const polTotal = { enf: 0, ro: 0, off: 0 };
     const polSeen = new Set();
 
@@ -140,7 +158,7 @@ const DeployDash = (() => {
     G.forEach((g) => {
       g.all.forEach((id) => { const a = dgOf.get(id) || dgOf.set(id, []).get(id); a.push(short(g.name)); });
       if (!g.id) return;
-      const live = pols.filter((p) => p.inc.has(g.id) && p.state !== "off");
+      const live = pols.filter((p) => p.state !== "off" && reaches(p, g));
       if (!live.length) return;
       const lv = live.some((p) => p.state === "enf") ? 2 : 1;
       g.all.forEach((id) => { if ((level.get(id) || 0) < lv) level.set(id, lv); });
@@ -168,7 +186,13 @@ const DeployDash = (() => {
       const members = g.all.size;
       const route = { nested: nested.size, direct: direct.size };
       // policies on it
-      const on = g.id ? pols.filter((p) => p.inc.has(g.id)) : [];
+      const on = g.id ? pols.filter((p) => reaches(p, g)) : [];
+      const pm = (g.id && parentsOf.get(g.id)) || new Map();
+      const nestedIn = [...pm.values()].map((a) => { const dg = groupById.get(a.id); return { id: a.id, name: dg ? dg.name : a.name, label: dg ? keyOf(dg.name) : a.name, dg: !!dg }; })
+        .sort((a, b) => (b.dg - a.dg) || rank(a.name) - rank(b.name) || String(a.name).localeCompare(String(b.name)));
+      const polDirect = { enf: 0, ro: 0, off: 0 };
+      on.filter((p) => p.inc.has(g.id)).forEach((p) => { polDirect[p.state]++; });
+      const via = nestedIn.map((a) => { const ps = pols.filter((p) => p.inc.has(a.id)); return { id: a.id, label: a.label, dg: a.dg, n: ps.length, live: ps.filter((p) => p.state !== "off").length, policies: ps.map((p) => ({ seq: p.seq, name: p.name, state: p.state })) }; });
       const pol = { enf: 0, ro: 0, off: 0 };
       on.forEach((p) => { pol[p.state]++; if (!polSeen.has(p.id)) { polSeen.add(p.id); polTotal[p.state]++; } });
       // exclusions: a member an exclusion takes out of at least one enforced
@@ -199,8 +223,14 @@ const DeployDash = (() => {
       let dis = 0; g.all.forEach((id) => { if (!byId.has(id) && anyId.has(id)) dis++; }); if (dis) look.push({ kind: "disabled", n: dis, text: `${fmt(dis)} disabled` });
       const onLive = on.filter((p) => p.state === "enf");
       if (excl && onLive.length) { let n = 0; taken.forEach((kind, id) => { if (onLive.some((p) => p.excGroups.some((gid) => (exclGroups.get(gid) || {}).members?.has(id)) || p.excUsers.includes(id))) n++; }); if (n) look.push({ kind: "bypass", n, text: `${fmt(n)} standing bypass` }); }
+      if (g.id) {
+        const liveDirect = polDirect.enf + polDirect.ro, liveVia = via.filter((v) => v.live);
+        if (!members) look.push({ kind: "info", n: 0, text: "empty group" });
+        else if (!liveDirect && !liveVia.length) { const k = keyOf(g.name).toUpperCase(); look.push({ kind: "untargeted", n: members, text: `not targeted — ${/^INT-/.test(k) ? "nest it in GLO + INT" : /^EXT-/.test(k) ? "nest it in GLO + EXT" : "no live policy includes it or a group it is in"}` }); }
+        else if (!liveDirect) look.push({ kind: "through", n: members, text: `targeted through ${liveVia.map((v) => v.label).join(" · ")}` });
+      }
       const rd = readiness.get(g.key) || null;
-      return { key: g.key, name: g.name, id: g.id, found: !!g.id, dynamic: !!g.dynamic, nestedGroups: (g.children || []).length, members, route, pol, on: on.map((p) => ({ id: p.id, name: p.name, seq: p.seq, state: p.state })),
+      return { key: g.key, name: g.name, id: g.id, found: !!g.id, dynamic: !!g.dynamic, nestedGroups: (g.childIds || g.children || []).length, nestedIn, via, polDirect, members, route, pol, on: on.map((p) => ({ id: p.id, name: p.name, seq: p.seq, state: p.state, direct: p.inc.has(g.id) })),
         live: pol.enf > 0, excl, exclBy, look, readiness: rd };
     });
     // the tenant-wide pie counts a PERSON once, by her strongest route; the
@@ -294,9 +324,32 @@ const DeployDash = (() => {
     const open = o.app && r.id ? ` data-dd-wave="${esc(r.id)}" title="Open 🌊 Who is the wave on this group"` : "";
     return `${stateChip(r)}<div style="margin-top:4px"><span class="dd-pill ${kind}"${open}>${esc(VERDICT[rd.verdict])} · ${esc(text)}</span></div>`;
   }
+  // The groups a deploy group is nested in — a chip each; a deploy group's
+  // chip jumps to its row, one outside CAD-SEC-U-DG-* is grey. The tooltip
+  // is the path: the policies that reach this group through that parent.
+  function nestedInLine(r, o) {
+    if (!r.found) return "";
+    if (!r.nestedIn || !r.nestedIn.length) return '<div class="mini muted">nested in nothing</div>';
+    const st = { enf: "enforced", ro: "report-only", off: "off" };
+    const chip = (a) => {
+      const v = (r.via || []).find((x) => x.id === a.id) || { policies: [] };
+      const tip = `${a.name}${a.dg ? "" : " — not a deploy group; its policies still count"}\n${v.policies.length ? v.policies.map((p) => `${p.seq || p.name} · ${st[p.state]}`).join("\n") : "no policy includes it"}`;
+      const cls = `dd-pill dd-up${a.dg ? "" : " dd-up-out"}`;
+      return o.app && a.dg ? `<button type="button" class="${cls}" data-dd-jump="${esc(a.id)}" title="${esc(tip)}">↑ ${esc(a.label)}</button>` : `<span class="${cls}" title="${esc(tip)}">↑ ${esc(a.label)}</span>`;
+    };
+    return `<div class="dd-upline"><span class="mini muted">nested in</span> ${r.nestedIn.map(chip).join("")}</div>`;
+  }
+  // Under the policy bar: how many of those policies are on the group
+  // itself and how many come from a group it is nested in.
+  function viaLine(r) {
+    const inh = (r.via || []).filter((v) => v.n);
+    if (!inh.length) return "";
+    const d = r.polDirect.enf + r.polDirect.ro + r.polDirect.off;
+    return `<div class="mini muted">${d ? fmt(d) : "<b>0</b>"} direct · ${inh.map((v) => `${fmt(v.n)} via ${esc(v.label)}`).join(" · ")}</div>`;
+  }
   function lookCell(r, o) {
     if (!r.look.length) return '<span class="mini muted">—</span>';
-    return r.look.map((l) => `<span class="dd-pill ${l.kind === "two" || l.kind === "disabled" ? "bad" : l.kind === "bypass" ? "warn" : ""}"${o.app && r.id && l.kind !== "info" ? ` data-dd-wave="${esc(r.id)}" data-dd-wavefilter="${l.kind === "bypass" ? "bypass" : l.kind === "two" ? "twowaves" : "look"}"` : ""}>${esc(l.text)}</span>`).join(" ");
+    return r.look.map((l) => `<span class="dd-pill ${l.kind === "two" || l.kind === "disabled" || l.kind === "untargeted" ? "bad" : l.kind === "bypass" ? "warn" : l.kind === "through" ? "ok" : ""}"${o.app && r.id && l.kind !== "info" && l.kind !== "through" ? ` data-dd-wave="${esc(r.id)}" data-dd-wavefilter="${l.kind === "bypass" ? "bypass" : l.kind === "two" ? "twowaves" : "look"}"` : ""}>${esc(l.text)}</span>`).join(" ");
   }
 
   function covStrip(m, o) {
@@ -316,8 +369,8 @@ const DeployDash = (() => {
     const count = (r, filter, n) => o.app && r.id && n ? `<button type="button" class="dd-link" data-dd-wave="${esc(r.id)}"${filter ? ` data-dd-wavefilter="${filter}"` : ""} title="Open 🌊 Who is the wave on this group">${fmt(n)}</button>` : fmt(n);
     return `<section class="dd-panel"><div class="dd-panel-head"><h4>Group by group</h4><span class="mini muted">Same colours as the charts · hover a bar for its counts · a count opens 🌊 with the group picked</span></div>
       <div class="dd-twrap"><table class="cg-table dd-table"><thead><tr><th>Deploy group</th><th class="dd-num">Members</th><th>Route in</th><th>Policies on it</th><th>Go-live readiness</th><th>Taken out by exclusions</th><th>Needs a look</th></tr></thead><tbody>
-      ${rows.map((r) => `<tr${r.found ? "" : ' class="dd-missing"'}><td>${name(r)}<div class="mini muted">${r.found ? (r.nestedGroups ? esc(plural(r.nestedGroups, "group nested inside", "groups nested inside")) : "no group nested inside") : "not in this tenant"}${r.dynamic ? " · dynamic" : ""}</div></td>
-        <td class="dd-num">${count(r, "", r.members)}</td><td>${bar(SER.route, r.route)}</td><td>${bar(SER.pol, r.pol)}</td><td>${readinessCell(r, m, o)}</td>
+      ${rows.map((r) => `<tr${r.found ? "" : ' class="dd-missing"'}${o.app && r.id ? ` data-dd-row="${esc(r.id)}"` : ""}><td>${name(r)}<div class="mini muted">${r.found ? (r.nestedGroups ? esc(plural(r.nestedGroups, "group nested inside", "groups nested inside")) : "no group nested inside") : "not in this tenant"}${r.dynamic ? " · dynamic" : ""}</div>${nestedInLine(r, o)}</td>
+        <td class="dd-num">${count(r, "", r.members)}</td><td>${bar(SER.route, r.route)}</td><td>${bar(SER.pol, r.pol)}${viaLine(r)}</td><td>${readinessCell(r, m, o)}</td>
         <td>${r.members ? `${bar(SER.taken, { in: r.members - r.excl, ex: r.excl }, "ex")}${r.excl ? `<div class="mini muted">${count(r, "bypass", r.excl)} excluded</div>` : ""}` : '<span class="mini muted">—</span>'}</td><td>${lookCell(r, o)}</td></tr>`).join("")}
       </tbody></table></div>
       <p class="mini muted" style="margin:8px 0 0">Readiness is 🌊 Who is the wave's verdict for the report-only policies on the group: locked out (named there), prompted, unchanged, silent — silent is no data, never safety. A live group with nothing left in report-only shows its enforced count. Route in and reach count members once per group; a person in two groups is in both rows.</p></section>`;
@@ -378,9 +431,9 @@ const DeployDash = (() => {
 
   // ------------------------------------------------------------- csv --
   function toCsv(m) {
-    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look"]];
+    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look", "nested_in", "policies_direct"]];
     m.groups.forEach((r) => rows.push([r.name, r.found, r.members, r.route.direct, r.route.nested, r.pol.enf, r.pol.ro, r.pol.off, r.excl, r.exclBy.bg, r.exclBy.ca, r.exclBy.group, r.exclBy.user, r.exclBy.role,
-      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; ")]));
+      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; "), (r.nestedIn || []).map((a) => a.name).join("; "), r.polDirect ? r.polDirect.enf + r.polDirect.ro + r.polDirect.off : ""]));
     rows.push([]); rows.push(["coverage", "enabled_users"]);
     SER.cov.forEach((d) => rows.push([d.label, m.cov[d.k]]));
     rows.push([]); rows.push(["no_live_policy_upn", "name", "type", "deploy_groups"]);
@@ -420,6 +473,7 @@ ${"" /* shared with css/app.css — keep the two in step */}
 .dd-bar{display:flex;gap:2px;height:10px;flex:1 1 auto;min-width:60px}.dd-bar span{display:block;height:10px}.dd-bar span:first-child{border-radius:4px 0 0 4px}.dd-bar span:last-child{border-radius:0 4px 4px 0}.dd-bar-lg,.dd-bar-lg span{height:14px}
 .dd-state{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--soft);white-space:nowrap}.dd-state.live{color:var(--dd-on)}.dd-state.ro{color:var(--dd-report)}.dd-state.off{color:var(--muted)}
 .dd-pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;margin:1px 2px 1px 0}.dd-pill.warn{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}.dd-pill.bad{background:var(--bad-bg);color:var(--bad-fg);border-color:transparent}.dd-pill.ok{background:var(--ok-bg);color:var(--dd-on);border-color:transparent}.dd-pill.muted{color:var(--muted)}
+.dd-upline{margin-top:3px}.dd-pill.dd-up{background:#eaf2ff;color:#1e4fa3;border-color:#c9dbfb;font:inherit;font-size:11px;font-weight:600;cursor:default}button.dd-pill.dd-up{cursor:pointer}.dd-pill.dd-up-out{background:transparent;color:var(--muted);border-style:dashed}tr.dd-flash td{background:var(--ok-bg)}@media(prefers-color-scheme:dark){.dd-pill.dd-up{background:#1b2a44;color:#9fc0f5;border-color:#2c4670}}
 .dd-foot{margin:8px 0 0}.dd-missing td{opacity:.6}.dd-link{font:inherit;font-size:12.5px;font-weight:600;color:var(--dd-on);background:none;border:0;padding:0;cursor:pointer;text-align:left}.dd-name{font-size:13px}
 .dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.dd-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}details.dd-fold summary{cursor:pointer;font-weight:600;font-size:13px}details.dd-fold[open] summary{margin-bottom:10px}
 .dd-who{color:var(--dd-on);font-weight:600;text-decoration:none}`;

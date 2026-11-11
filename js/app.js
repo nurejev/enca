@@ -25999,10 +25999,23 @@ This is a directory write. Nothing else changes.`)) return;
             children = cg.slice(0, 40).map((c, j) => ({ id: c.id, name: c.displayName || c.id, rule: c.membershipRule || "", memberIds: new Set(((res[j] && res[j].body && res[j].body.value) || []).map((x) => x.id)) }));
           }
           names[g.id] = g.displayName;
-          groups.push({ key: t.key, name: g.displayName, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), direct, nested: new Set(all.map((u) => u.id).filter((x) => !direct.has(x))), children });
+          groups.push({ key: t.key, name: g.displayName, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), direct, nested: new Set(all.map((u) => u.id).filter((x) => !direct.has(x))), children, childIds: cg.map((c) => c.id) });
           ddProg.tick(i + 1);
         }
         stamp(`Deploy groups ${groups.filter((g) => g.id).length} of ${groups.length}`);
+        // the groups each deploy group is nested IN, at any depth (0.4.0) —
+        // one transitiveMemberOf per group, batched. Deploy-group parents are
+        // also derived from childIds without this read, so a failed batch
+        // only loses the parents outside CAD-SEC-U-DG-*.
+        const found = groups.filter((g) => g.id);
+        if (found.length) {
+          say("Reading what the deploy groups are nested in…", "One transitiveMemberOf read per group, twenty to a batch.");
+          try {
+            const res = await Graph.gbatch(found.map((g, j) => ({ id: j, url: `/groups/${g.id}/transitiveMemberOf/microsoft.graph.group?$select=id,displayName&$top=999` })), null, { signal: ddProg.signal });
+            found.forEach((g, j) => { const r = res[j]; if (r && !r.error && r.body && Array.isArray(r.body.value)) g.ancestors = r.body.value.map((x) => ({ id: x.id, name: x.displayName })); });
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; console.warn("deploydash: nested-in read failed — deploy-group parents only", e.message); }
+          stamp(`Nested in · ${found.filter((g) => g.ancestors).length} of ${found.length} groups`);
+        }
         // exclusion groups and roles of the policies that include a deploy group
         const dgIds = new Set(groups.filter((g) => g.id).map((g) => g.id));
         const onDg = pol.filter((p) => p.includeGroups.some((gid) => dgIds.has(gid)));
@@ -26138,6 +26151,13 @@ This is a directory write. Nothing else changes.`)) return;
       wvPick = id; $("wvTerm").value = ""; if (f) wvFilter = f;
       await openWave(); renderWvPicker();
       if (!wvRes || !wvRes.group || wvRes.group.id !== id) runWave();
+      return;
+    }
+    const jump = t.closest("[data-dd-jump]");
+    if (jump) {
+      if (ddGroup) { ddGroup = ""; renderDeployDash(); }
+      const row = $("ddBody").querySelector(`tr[data-dd-row="${CSS.escape(jump.dataset.ddJump)}"]`);
+      if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.add("dd-flash"); setTimeout(() => row.classList.remove("dd-flash"), 1600); }
       return;
     }
     const grp = t.closest("[data-dd-group]");
@@ -27326,7 +27346,7 @@ This is a directory write. Nothing else changes.`)) return;
     const L = [`# 📊 Deployment dashboard — ${tenantName || "tenant"}`, "", `Read ${new Date(m.readAt).toISOString().replace("T", " ").slice(0, 16)} UTC · ${APP_BUILD.label}${m.readinessAt ? ` · readiness ${new Date(m.readinessAt).toISOString().replace("T", " ").slice(0, 16)} UTC` : " · readiness not read"}`, ""];
     L.push(`- **Enabled users:** ${m.total.enabled.toLocaleString()} (${m.total.disabled.toLocaleString()} disabled, not counted)`, `- **Targeted by an enforced policy:** ${m.cov.enf.toLocaleString()}`, `- **Targeted by report-only only:** ${m.cov.ro.toLocaleString()}`, `- **In a deploy group, no live policy:** ${m.cov.none.toLocaleString()}`, `- **Left out of every deploy group:** ${m.cov.out.toLocaleString()}`, `- **Taken out by an exclusion:** ${m.exclMembers.toLocaleString()} (BreakGlass ${m.excl.bg}, CA*-Exclusion ${m.excl.ca}, other group ${m.excl.group}, user ${m.excl.user}, role ${m.excl.role})`, "");
     L.push("## Group by group", "", "| Deploy group | Members | Direct · nested | Enforced · report-only · off | Readiness | Excluded | Needs a look |", "| --- | --- | --- | --- | --- | --- | --- |");
-    m.groups.forEach((r) => L.push(`| ${r.name}${r.found ? "" : " (not in tenant)"} | ${r.members} | ${r.route.direct} · ${r.route.nested} | ${r.pol.enf} · ${r.pol.ro} · ${r.pol.off} | ${r.readiness ? `${DeployDash.VERDICT[r.readiness.verdict] || "—"} (${r.readiness.locked} locked out, ${r.readiness.prompted} prompted)` : r.pol.ro ? "not read" : "—"} | ${r.excl} | ${r.look.map((l) => l.text).join("; ") || "—"} |`));
+    m.groups.forEach((r) => L.push(`| ${r.name}${r.found ? "" : " (not in tenant)"}${r.nestedIn && r.nestedIn.length ? ` — in ${r.nestedIn.map((a) => a.label).join(", ")}` : ""} | ${r.members} | ${r.route.direct} · ${r.route.nested} | ${r.pol.enf} · ${r.pol.ro} · ${r.pol.off} | ${r.readiness ? `${DeployDash.VERDICT[r.readiness.verdict] || "—"} (${r.readiness.locked} locked out, ${r.readiness.prompted} prompted)` : r.pol.ro ? "not read" : "—"} | ${r.excl} | ${r.look.map((l) => l.text).join("; ") || "—"} |`));
     if ((m.noPolicy || []).length) { L.push("", `## In a deploy group, no live policy (${m.noPolicy.length})`, "", "| Member | UPN | Type | Deploy groups |", "| --- | --- | --- | --- |"); m.noPolicy.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} | ${r.groups.join(", ")} |`)); }
     if (m.leftOut.length) { L.push("", `## Left out (${m.leftOut.length})`, "", "| Member | UPN | Type |", "| --- | --- | --- |"); m.leftOut.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} |`)); }
     L.push("", "Group membership and policy reach are separate checks; silent members are no data, never safety.");

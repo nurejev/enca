@@ -182,6 +182,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 384,
+      ws: "ca",
+      title: "📊 Deployment dashboard 0.4.0: nested in (↑ GLO · INT chips), inherited policies on a nested group, targeted through / not targeted",
+      tools: ["DeployDash"],
+      builds: [33303],
+      risk: "medium",
+      files: ["js/deploydash.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/deploydash.test.cjs"],
+      what: "33303 (Mihai 11 Nov, screenshot of the EXT country rows reading no group nested inside · dynamic: the site groups are nested in GLO + INT / GLO + EXT and are targeted). js/deploydash.js build(): parentsOf per deploy group = deploy groups listing it in childIds (inverted, closed transitively) plus g.ancestors (app.js: one batched /groups/{id}/transitiveMemberOf/microsoft.graph.group per found group; a failed batch keeps the deploy-group parents). A policy including the group or any parent is on it: pol counts it once, polDirect keeps the direct part, via lists per parent; coverage uses the same reach. Row: nested-in chips (deploy group = data-dd-jump button to its row, tooltip = the policies via it; outside = grey dd-up-out span), N direct · M via X under the policy bar, looks through (ok) / untargeted (bad, INT-* nest it in GLO + INT, EXT-* GLO + EXT) / empty group. CSV + nested_in, policies_direct; Markdown names the parents. Mockup approved first.",
+      why: "A nested site group showed no policy and looked untargeted while GLO and INT policies reach all its members — the table contradicted the coverage ring and sent people looking for a gap that was not there.",
+      test: [
+        "node --test tools/deploydash.test.cjs: all green (+3 nested-in tests).",
+        "Tenant with site groups nested in GLO and INT (e.g. CAD-SEC-U-DG-INT-NL-Sittard) → 📊 Deployment dashboard → Read: that row shows nested in ↑ GLO ↑ INT, the policy bar is not empty and reads 0 direct · n via GLO · m via INT, Needs a look reads targeted through GLO · INT.",
+        "Click ↑ GLO on that row: the page scrolls to the CAD-SEC-U-DG-GLO row and it flashes; hover the chip: the tooltip lists the GLO policies with their state.",
+        "A country group nested in nothing (EXT-BD in the screenshot): nested in nothing, policy cell empty, Needs a look red not targeted — nest it in GLO + EXT; its members are in the no-live-policy list.",
+        "A deploy group nested in a non-DG group that a policy includes: grey chip with that group's name, no jump, the policy counted.",
+        "Export CSV: nested_in and policies_direct columns filled; Export HTML shows the chips without buttons.",
+      ],
+    },
+    {
       n: 383,
       ws: "pim",
       title: "🗺 R94 PIM for the people who use ENCA — roadmap card (planned, nothing built yet)",
