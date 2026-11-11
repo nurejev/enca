@@ -179,7 +179,7 @@ test("csv: one row per group, then the left-out rows — who, not where", () => 
   const lines = csv.split("\r\n");
   assert.equal(lines[0].split(",")[0], "deploy_group");
   assert.doesNotMatch(lines[0], /by_hand/);
-  assert.equal(lines.filter((l) => l.startsWith("CAD-SEC-U-DG-")).length, 5);
+  assert.equal(lines.slice(0, lines.indexOf("")).filter((l) => l.startsWith("CAD-SEC-U-DG-")).length, 5, "the group section — the exclusion lines (0.5.0) come after it");
   assert.ok(lines.includes("left_out_upn,name,type"));
   assert.ok(lines.some((l) => l === "dee@contoso.com,d,member"));
 });
@@ -288,4 +288,64 @@ test("nested in: a two-level chain is closed — a group under a region group un
   f.groups[1].childIds = ["g-int-nl"];
   const sit = DeployDash.build(f).groups.find((r) => r.key === "INT-NL-Sittard");
   assert.deepEqual(sit.nestedIn.map((a) => a.label).sort(), ["GLO", "INT", "INT-NL"]);
+});
+
+// 0.5.0 (33304, Mihai 11 Nov: GLO 100% excluded, 1,534 standing bypass, and
+// "we need to show on which policies these groups get excluded"): excluding
+// another deploy group is scoping, counted apart and never a bypass; every
+// exclusion is a line per policy and excluded object.
+function scopeFixture() {
+  const users = ["i1", "i2", "e1", "n1", "n2"].map((id) => U(id, id + "@c.com"));
+  const groups = [
+    { key: "GLO", name: "CAD-SEC-U-DG-GLO", id: "g-glo", direct: set(), nested: set("i1", "i2", "e1", "n1", "n2"), children: [], childIds: ["g-int", "g-ext"] },
+    { key: "INT", name: "CAD-SEC-U-DG-INT", id: "g-int", direct: set("i1", "i2"), nested: set() },
+    { key: "EXT", name: "CAD-SEC-U-DG-EXT", id: "g-ext", direct: set("e1"), nested: set() },
+  ];
+  const policies = [
+    { id: "p9", name: "CA009-Global-Unassigned-Block", state: "enabled", includeGroups: ["g-glo"], excludeGroups: ["g-int", "g-ext"], excludeUsers: [], excludeRoles: [] },
+    { id: "p1", name: "CA001-Global-Base", state: "enabled", includeGroups: ["g-glo"], excludeGroups: ["x-bg", "x-ca001"], excludeUsers: ["n2"], excludeRoles: [] },
+    { id: "p2", name: "CA012-Countries", state: "enabledForReportingButNotEnforced", includeGroups: ["g-glo"], excludeGroups: [], excludeUsers: [], excludeRoles: ["r-sync"] },
+  ];
+  const exclGroups = new Map([
+    ["g-int", { name: "CAD-SEC-U-DG-INT", members: set("i1", "i2") }],
+    ["g-ext", { name: "CAD-SEC-U-DG-EXT", members: set("e1") }],
+    ["x-bg", { name: "CAB-SEC-U-BreakGlass", members: set() }],
+    ["x-ca001", { name: "CAB-SEC-U-CA001-Exclusion", members: set("n1") }],
+  ]);
+  return { users, groups, policies, exclGroups, roleMembers: new Map([["r-sync", set("i1")]]), names: { "r-sync": "Directory Synchronization Accounts" } };
+}
+
+test("scoped out: excluding another deploy group is not an exclusion, not a bypass, and is not in the pie", () => {
+  const m = DeployDash.build(scopeFixture());
+  const glo = m.groups.find((r) => r.key === "GLO");
+  assert.equal(glo.scoped, 2, "i2 and e1 are only scoped out (i1 is also taken out by the role line)");
+  assert.equal(glo.excl, 3, "n1 by the CA001 group, n2 directly, i1 by the role");
+  const by = glo.look.find((l) => l.kind === "bypass");
+  assert.equal(by.n, 2, "standing bypass = n1 + n2 on the enforced CA001 — never the scoped members");
+  assert.equal(m.excl.ca + m.excl.bg + m.excl.group + m.excl.user + m.excl.role, 3, "the pie counts no scoped member");
+  assert.ok(m.exclList.find((e) => e.id === "g-int").scope);
+});
+
+test("on which policies: one line per policy and excluded object, sorted, labelled, in app (toggled), export and CSV", () => {
+  const m = DeployDash.build(scopeFixture());
+  const glo = m.groups.find((r) => r.key === "GLO");
+  assert.deepEqual(glo.exclLines.map((l) => [l.policy, l.excluded, l.kind, l.n, l.bypass]), [
+    ["CA009", "CAD-SEC-U-DG-INT", "scope", 2, false],
+    ["CA001", "CAB-SEC-U-CA001-Exclusion", "ca", 1, true],
+    ["CA001", "1 user directly", "user", 1, true],
+    ["CA009", "CAD-SEC-U-DG-EXT", "scope", 1, false],
+    ["CA012", "Directory Synchronization Accounts", "role", 1, false],
+  ]);
+  const closed = DeployDash.html(m, { app: true });
+  assert.match(closed, /data-dd-excl="g-glo"[^>]*>▸ on which policies \(3\)/);
+  assert.doesNotMatch(closed, /dd-exrow/);
+  const open = DeployDash.html(m, { app: true, exOpen: new Set(["g-glo"]) });
+  assert.match(open, /dd-exrow/);
+  assert.match(open, /scoped out — another deploy group/);
+  assert.match(open, /data-dd-cg="CAB-SEC-U-CA001-Exclusion"/);
+  assert.match(open, /2 scoped out by design/);
+  const x = DeployDash.exportHtml(m, { tenant: "T" });
+  assert.match(x, /<details><summary>On which policies CAD-SEC-U-DG-GLO is excluded \(5\)/);
+  assert.doesNotMatch(x, /data-dd-cg|data-dd-excl/);
+  assert.match(DeployDash.toCsv(m), /exclusion_deploy_group,policy,state,excluded,kind,members_taken_out\r\nCAD-SEC-U-DG-GLO,CA009-Global-Unassigned-Block,enforced,CAD-SEC-U-DG-INT,scope,2/);
 });

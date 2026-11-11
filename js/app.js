@@ -25892,7 +25892,7 @@ This is a directory write. Nothing else changes.`)) return;
   // page never waits for it.
   const DD_SEL = "id,userPrincipalName,displayName,userType,accountEnabled";
   const DD_PREFIX = "CAD-SEC-U-DG-";
-  let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
+  let ddExOpen = new Set(); let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
   const ddProg = makeProgress("dd");
   const DD_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The rollout as a picture: every enabled user in the tenant against the CAD-SEC-U-DG-* deploy groups — who is in which group and how, who is <b>left out</b> of every group, which policies reach each group and in what state, and how many members an <b>exclusion</b> takes back out again. Readiness per group is 🌊 Who is the wave\'s verdict, read on request. One page, exportable as HTML for people without ENCA. Nothing here writes.</p>';
 
@@ -25923,7 +25923,7 @@ This is a directory write. Nothing else changes.`)) return;
     ddRebuild();
     if (!ddModel) return;
     ddPaintButtons();
-    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, list: ddList });
+    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, list: ddList, exOpen: ddExOpen });
     const strip = $("ddRead");
     if (strip) strip.innerHTML = ddRaw.times.map(([label, t]) => `<span>${esc(label)} · ${esc(new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>`).join("") + (ddReadinessAt ? `<span>Readiness (🌊) · ${esc(new Date(ddReadinessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>` : "");
   }
@@ -26153,6 +26153,10 @@ This is a directory write. Nothing else changes.`)) return;
       if (!wvRes || !wvRes.group || wvRes.group.id !== id) runWave();
       return;
     }
+    const exb = t.closest("[data-dd-excl]");
+    if (exb) { const id = exb.dataset.ddExcl; if (ddExOpen.has(id)) ddExOpen.delete(id); else ddExOpen.add(id); renderDeployDash(); return; }
+    const cgb = t.closest("[data-dd-cg]");
+    if (cgb) { const nm = cgb.dataset.ddCg; await openCaGroups(); if (cgRes && cgRes.rows.some((r) => r.name === nm)) cgOpenRow(nm); else { cgQuery = nm; $("cgSearch").value = nm; renderCaGroups(); } return; }
     const jump = t.closest("[data-dd-jump]");
     if (jump) {
       if (ddGroup) { ddGroup = ""; renderDeployDash(); }
@@ -27347,6 +27351,8 @@ This is a directory write. Nothing else changes.`)) return;
     L.push(`- **Enabled users:** ${m.total.enabled.toLocaleString()} (${m.total.disabled.toLocaleString()} disabled, not counted)`, `- **Targeted by an enforced policy:** ${m.cov.enf.toLocaleString()}`, `- **Targeted by report-only only:** ${m.cov.ro.toLocaleString()}`, `- **In a deploy group, no live policy:** ${m.cov.none.toLocaleString()}`, `- **Left out of every deploy group:** ${m.cov.out.toLocaleString()}`, `- **Taken out by an exclusion:** ${m.exclMembers.toLocaleString()} (BreakGlass ${m.excl.bg}, CA*-Exclusion ${m.excl.ca}, other group ${m.excl.group}, user ${m.excl.user}, role ${m.excl.role})`, "");
     L.push("## Group by group", "", "| Deploy group | Members | Direct · nested | Enforced · report-only · off | Readiness | Excluded | Needs a look |", "| --- | --- | --- | --- | --- | --- | --- |");
     m.groups.forEach((r) => L.push(`| ${r.name}${r.found ? "" : " (not in tenant)"}${r.nestedIn && r.nestedIn.length ? ` — in ${r.nestedIn.map((a) => a.label).join(", ")}` : ""} | ${r.members} | ${r.route.direct} · ${r.route.nested} | ${r.pol.enf} · ${r.pol.ro} · ${r.pol.off} | ${r.readiness ? `${DeployDash.VERDICT[r.readiness.verdict] || "—"} (${r.readiness.locked} locked out, ${r.readiness.prompted} prompted)` : r.pol.ro ? "not read" : "—"} | ${r.excl} | ${r.look.map((l) => l.text).join("; ") || "—"} |`));
+    const exl = m.groups.filter((r) => (r.exclLines || []).length);
+    if (exl.length) { L.push("", "## On which policies each deploy group is excluded", "", "| Deploy group | Policy | State | Excluded | What it is | Members taken out |", "| --- | --- | --- | --- | --- | --- |"); exl.forEach((r) => r.exclLines.forEach((l) => L.push(`| ${r.name} | ${l.policyName} | ${l.state} | ${l.excluded} | ${l.kind === "scope" ? "scoped out (another deploy group)" : l.kind} | ${l.n} |`))); }
     if ((m.noPolicy || []).length) { L.push("", `## In a deploy group, no live policy (${m.noPolicy.length})`, "", "| Member | UPN | Type | Deploy groups |", "| --- | --- | --- | --- |"); m.noPolicy.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} | ${r.groups.join(", ")} |`)); }
     if (m.leftOut.length) { L.push("", `## Left out (${m.leftOut.length})`, "", "| Member | UPN | Type |", "| --- | --- | --- |"); m.leftOut.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} |`)); }
     L.push("", "Group membership and policy reach are separate checks; silent members are no data, never safety.");

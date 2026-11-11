@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33304, date: "2026-11-11", title: "📊 Deployment dashboard: on which policies a deploy group is excluded, and scoping is no longer a bypass",
+    items: [
+      { kind: "fixed", tool: "Deployment dashboard", text: "📊 GLO could read 100% excluded with a standing bypass for every member. A policy that includes GLO and excludes DG-INT, DG-EXT and DG-DevOps is aimed at the people in no persona group, and that scoping was counted as an exclusion. Excluding another deploy group now counts as scoped out by design — a grey slice in the bar, not in the exclusions pie, never a standing bypass." },
+      { kind: "improved", tool: "Deployment dashboard", text: "📊 Every group opens ▸ on which policies: one line per policy and excluded object — the group, the users excluded directly, a role — with how many of the group's members it takes out and what that means: by design, expected, report-only, or a standing bypass with a jump to 👥 CA groups or 🌊 for the names. The HTML export, the CSV and Markdown carry the same lines." },
+    ],
+  },
+  {
     build: 33303, date: "2026-11-11", title: "📊 Deployment dashboard: which groups a deploy group is nested in, and the policies that reach it through them",
     items: [
       { kind: "improved", tool: "Deployment dashboard", text: "📊 A site group nested into GLO and INT used to read no group nested inside and no policy, while GLO's and INT's policies reach every one of its members. Each row now shows what the group is nested in — ↑ GLO, ↑ INT, at any depth; click a chip to jump to that group, hover it for the policies that come through it — and Policies on it counts those inherited policies too, with 0 direct · 2 via GLO · 1 via INT under the bar. Needs a look says targeted through GLO · INT, not targeted — nest it in GLO + EXT, or empty group. A parent outside the deploy groups shows as a grey chip and its policies count, in the coverage ring too. The CSV gains nested_in and policies_direct." },

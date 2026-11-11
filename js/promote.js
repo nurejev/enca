@@ -182,6 +182,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 385,
+      ws: "ca",
+      title: "📊 Deployment dashboard 0.5.0: on which policies a deploy group is excluded; excluding another deploy group is scoped out, not a bypass",
+      tools: ["DeployDash"],
+      builds: [33304],
+      risk: "medium",
+      requires: [384],
+      files: ["js/deploydash.js", "js/app.js", "css/app.css", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/deploydash.test.cjs"],
+      what: "33304 (Mihai 11 Nov, screenshot: GLO 1,534 members, 100% excluded, 1,534 standing bypass). js/deploydash.js build(): an excluded group that is a deploy group (id among the read groups, or a CAD-SEC-U-DG-* name) is kind scope — its members go to scoped, not taken; scoped (only) is a third slice of the taken bar (Reached / By an exclusion / Scoped out by design), not in exclBy or the pie, and the standing-bypass check skips scope groups. Per row exclLines: policy x excluded object (group, the direct users as one line, each role) x members of the group, sorted by count, bypass = enforced and not scope or role. App: data-dd-excl toggles a full-width dd-exrow under the row (ddExOpen set in app.js), data-dd-cg opens the exclusion group in 👥, user lines open 🌊 with the bypass filter. Export: the same table in a details per group; CSV section exclusion_deploy_group,policy,state,excluded,kind,members_taken_out plus a scoped_out column; Markdown table. The folded Exclusion groups list marks a deploy group as scoping. Requires 384 (same file, 0.4.0). Mockup approved first.",
+      why: "The row said everyone in GLO was excluded and a standing bypass, from a policy that excludes the persona groups on purpose — a false alarm on the biggest group, and no way to see which policy caused it.",
+      test: [
+        "node --test tools/deploydash.test.cjs: all green (+2 scoped-out / on-which-policies tests).",
+        "The tenant from the screenshot → 📊 Deployment dashboard → Read: GLO no longer reads 100% excluded; the bar has a grey scoped-out slice, the words say N by an exclusion · M scoped out by design, and the standing-bypass pill drops to the members excluded by CA*-Exclusion groups or directly on enforced policies.",
+        "Click ▸ on which policies on GLO: the policy that excludes DG-INT / DG-EXT / DG-DevOps is listed as scoped out — another deploy group, by design; CA*-Exclusion lines on enforced policies show standing bypass and open in 👥 jumps to that group in CA groups.",
+        "A row whose only exclusions are BreakGlass: no bypass pill for them, the line reads expected.",
+        "Exports: the HTML has a folded On which policies … per group; the CSV has the exclusion lines section and a scoped_out column; the Markdown has the table.",
+      ],
+    },
+    {
       n: 384,
       ws: "ca",
       title: "📊 Deployment dashboard 0.4.0: nested in (↑ GLO · INT chips), inherited policies on a nested group, targeted through / not targeted",

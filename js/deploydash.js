@@ -84,7 +84,7 @@ const DeployDash = (() => {
     route: [{ k: "nested", label: "Nested via a group inside", c: "on" }, { k: "direct", label: "Direct", c: "blue" }],
     pol:   [{ k: "enf", label: "Enforced", c: "on" }, { k: "ro", label: "Report-only", c: "report" }, { k: "off", label: "Off", c: "na" }],
     excl:  [{ k: "ca", label: "CA*-Exclusion group", c: "c2" }, { k: "bg", label: "BreakGlass", c: "c1" }, { k: "group", label: "Another group", c: "c3" }, { k: "user", label: "User, direct", c: "c4" }, { k: "role", label: "Directory role", c: "c5" }],
-    taken: [{ k: "in", label: "Reached", c: "on" }, { k: "ex", label: "Excluded", c: "c2" }],
+    taken: [{ k: "in", label: "Reached", c: "on" }, { k: "ex", label: "By an exclusion", c: "c2" }, { k: "sc", label: "Scoped out by design", c: "na" }],
   };
   const VERDICT = { notyet: "NOT YET", friction: "friction only", ready: "ready", nodata: "no data" };
 
@@ -197,23 +197,40 @@ const DeployDash = (() => {
       on.forEach((p) => { pol[p.state]++; if (!polSeen.has(p.id)) { polSeen.add(p.id); polTotal[p.state]++; } });
       // exclusions: a member an exclusion takes out of at least one enforced
       // or report-only policy on this group — by what, first route wins
+      // 0.5.0 (33304, Mihai 11 Nov: GLO read 100% excluded and a standing
+      // bypass for every member): a policy that includes GLO and excludes
+      // DG-INT, DG-EXT and DG-DevOps is aimed at the people in no persona
+      // group — everyone else is SCOPED OUT by design, covered by their own
+      // group's policies. An excluded group that is itself a deploy group is
+      // "scope": counted apart, never in the pie, never a bypass. And every
+      // exclusion is kept as a LINE (policy × excluded object × members of
+      // this group it takes out), the "on which policies" table.
       const exclBy = { ca: 0, bg: 0, group: 0, user: 0, role: 0 };
       const taken = new Map();   // userId → kind
+      const scoped = new Set();
+      const lines = [];
+      const isScope = (gid, nm) => groupById.has(gid) || /^CAD-SEC-U-DG-/i.test(nm || "");
       on.filter((p) => p.state !== "off").forEach((p) => {
+        const P = { policy: p.seq || p.name, policyName: p.name, state: p.state };
         p.excGroups.forEach((gid) => {
           const eg = exclGroups.get(gid); if (!eg) return;
           const nm = eg.name || names[gid] || gid;
-          const kind = /breakglass|break-glass|emergency/i.test(nm) ? "bg" : /\bCA\d{3,4}[A-Za-z]?-Exclusion\b/i.test(nm) ? "ca" : "group";
+          const kind = isScope(gid, nm) ? "scope" : /breakglass|break-glass|emergency/i.test(nm) ? "bg" : /\bCA\d{3,4}[A-Za-z]?-Exclusion\b/i.test(nm) ? "ca" : "group";
           let n = 0;
-          (eg.members || new Set()).forEach((id) => { if (!g.all.has(id)) return; n++; const cur = taken.get(id); if (!cur || RANK[kind] < RANK[cur]) taken.set(id, kind); });
+          (eg.members || new Set()).forEach((id) => { if (!g.all.has(id)) return; n++; if (kind === "scope") { scoped.add(id); return; } const cur = taken.get(id); if (!cur || RANK[kind] < RANK[cur]) taken.set(id, kind); });
+          if (n) lines.push(Object.assign({ excluded: nm, excludedId: gid, kind, n }, P));
           const u = exclGroupUse.get(gid) || exclGroupUse.set(gid, { n: new Set(), policies: new Set() }).get(gid);
           (eg.members || new Set()).forEach((id) => { if (g.all.has(id)) u.n.add(id); });
           u.policies.add(p.seq || p.name);
-          void n;
         });
-        p.excUsers.forEach((id) => { if (g.all.has(id)) { const cur = taken.get(id); if (!cur || RANK.user < RANK[cur]) taken.set(id, "user"); } });
-        p.excRoles.forEach((rt) => { (roleMembers.get(rt) || new Set()).forEach((id) => { if (g.all.has(id)) { const cur = taken.get(id); if (!cur || RANK.role < RANK[cur]) taken.set(id, "role"); } }); });
+        let nu = 0;
+        p.excUsers.forEach((id) => { if (g.all.has(id)) { nu++; const cur = taken.get(id); if (!cur || RANK.user < RANK[cur]) taken.set(id, "user"); } });
+        if (nu) lines.push(Object.assign({ excluded: nu === 1 ? "1 user directly" : `${fmt(nu)} users directly`, excludedId: "", kind: "user", n: nu }, P));
+        p.excRoles.forEach((rt) => { let nr = 0; (roleMembers.get(rt) || new Set()).forEach((id) => { if (g.all.has(id)) { nr++; const cur = taken.get(id); if (!cur || RANK.role < RANK[cur]) taken.set(id, "role"); } }); if (nr) lines.push(Object.assign({ excluded: names[rt] || rt, excludedId: rt, kind: "role", n: nr }, P)); });
       });
+      lines.sort((a, b) => b.n - a.n || String(a.policy).localeCompare(String(b.policy)));
+      lines.forEach((l) => { l.bypass = l.state === "enf" && l.kind !== "scope" && l.kind !== "role"; });
+      const scopedOnly = [...scoped].filter((id) => !taken.has(id)).length;
       taken.forEach((kind, id) => { exclBy[kind]++; const cur = exclUsersAll.get(id); if (!cur || RANK[kind] < RANK[cur]) exclUsersAll.set(id, kind); });
       const excl = taken.size;
       // needs a look — what this page can see without 🌊
@@ -222,7 +239,7 @@ const DeployDash = (() => {
       if (twin) { let n = 0; g.all.forEach((id) => { if (twin.all.has(id)) n++; }); if (n) look.push({ kind: "two", n, text: `${fmt(n)} in both INT and EXT` }); }
       let dis = 0; g.all.forEach((id) => { if (!byId.has(id) && anyId.has(id)) dis++; }); if (dis) look.push({ kind: "disabled", n: dis, text: `${fmt(dis)} disabled` });
       const onLive = on.filter((p) => p.state === "enf");
-      if (excl && onLive.length) { let n = 0; taken.forEach((kind, id) => { if (onLive.some((p) => p.excGroups.some((gid) => (exclGroups.get(gid) || {}).members?.has(id)) || p.excUsers.includes(id))) n++; }); if (n) look.push({ kind: "bypass", n, text: `${fmt(n)} standing bypass` }); }
+      if (excl && onLive.length) { let n = 0; taken.forEach((kind, id) => { if (onLive.some((p) => p.excGroups.some((gid) => { const eg = exclGroups.get(gid) || {}; return !isScope(gid, eg.name || names[gid]) && eg.members?.has(id); }) || p.excUsers.includes(id))) n++; }); if (n) look.push({ kind: "bypass", n, text: `${fmt(n)} standing bypass` }); }
       if (g.id) {
         const liveDirect = polDirect.enf + polDirect.ro, liveVia = via.filter((v) => v.live);
         if (!members) look.push({ kind: "info", n: 0, text: "empty group" });
@@ -231,7 +248,7 @@ const DeployDash = (() => {
       }
       const rd = readiness.get(g.key) || null;
       return { key: g.key, name: g.name, id: g.id, found: !!g.id, dynamic: !!g.dynamic, nestedGroups: (g.childIds || g.children || []).length, nestedIn, via, polDirect, members, route, pol, on: on.map((p) => ({ id: p.id, name: p.name, seq: p.seq, state: p.state, direct: p.inc.has(g.id) })),
-        live: pol.enf > 0, excl, exclBy, look, readiness: rd };
+        live: pol.enf > 0, excl, scoped: scopedOnly, exclLines: lines, exclBy, look, readiness: rd };
     });
     // the tenant-wide pie counts a PERSON once, by her strongest route; the
     // per-group bars count her in every group she is taken out of
@@ -247,7 +264,7 @@ const DeployDash = (() => {
     const exclList = [...exclGroups.entries()].map(([gid, eg]) => {
       const u = exclGroupUse.get(gid);
       const usedBy = pols.filter((p) => p.excGroups.includes(gid));
-      return { id: gid, name: eg.name || names[gid] || gid, members: (eg.members || new Set()).size, usedBy: usedBy.map((p) => `${p.seq || p.name} · ${{ enf: "enforced", ro: "report-only", off: "off" }[p.state]}`),
+      return { id: gid, scope: groupById.has(gid) || /^CAD-SEC-U-DG-/i.test(eg.name || names[gid] || ""), name: eg.name || names[gid] || gid, members: (eg.members || new Set()).size, usedBy: usedBy.map((p) => `${p.seq || p.name} · ${{ enf: "enforced", ro: "report-only", off: "off" }[p.state]}`),
         live: usedBy.some((p) => p.state === "enf"), inDg: u ? u.n.size : 0, orphan: !usedBy.length };
     }).sort((a, b) => b.inDg - a.inDg || b.members - a.members);
     const biggest = exclList.filter((e) => e.inDg).slice(0, 1).map((e) => e.id);
@@ -324,6 +341,34 @@ const DeployDash = (() => {
     const open = o.app && r.id ? ` data-dd-wave="${esc(r.id)}" title="Open 🌊 Who is the wave on this group"` : "";
     return `${stateChip(r)}<div style="margin-top:4px"><span class="dd-pill ${kind}"${open}>${esc(VERDICT[rd.verdict])} · ${esc(text)}</span></div>`;
   }
+  // Taken out by exclusions (0.5.0): reached / by an exclusion / scoped out
+  // by design, the two counts in words, and the toggle to the per-policy lines.
+  function takenCell(r, o, count) {
+    if (!r.members) return '<span class="mini muted">—</span>';
+    const sc = r.scoped || 0, ex = r.excl || 0;
+    const words = [ex ? `${count(r, "bypass", ex)} by an exclusion` : "", sc ? `<span class="muted">${fmt(sc)} scoped out by design</span>` : ""].filter(Boolean).join(" · ");
+    const n = (r.exclLines || []).length;
+    const tog = n ? (o.app ? `<div><button type="button" class="dd-link mini" data-dd-excl="${esc(r.id)}" aria-expanded="${o.exOpen && o.exOpen.has(r.id) ? "true" : "false"}">${o.exOpen && o.exOpen.has(r.id) ? "▾" : "▸"} on which policies (${fmt(new Set(r.exclLines.map((l) => l.policy)).size)})</button></div>` : "") : "";
+    return `${bar(SER.taken, { in: Math.max(0, r.members - ex - sc), ex, sc }, "ex")}${words ? `<div class="mini">${words}</div>` : ""}${tog}`;
+  }
+  const KIND = { scope: "scoped out — another deploy group", bg: "BreakGlass", ca: "CA*-Exclusion group", group: "another group", user: "user, direct", role: "directory role" };
+  // The per-policy lines under a row: in the app when its toggle is open,
+  // in the export always, folded in a details (works without script).
+  function exclRow(r, o) {
+    const L = r.exclLines || [];
+    if (!L.length) return "";
+    if (o.app && !(o.exOpen && o.exOpen.has(r.id))) return "";
+    const st = { enf: "enforced", ro: "report-only", off: "off" };
+    const note = (l) => l.kind === "scope" ? '<span class="mini muted">by design — the policy is aimed at the rest of the group</span>'
+      : l.kind === "bg" ? '<span class="mini muted">expected</span>'
+      : l.state === "ro" ? '<span class="mini muted">report-only — not a bypass yet</span>'
+      : l.kind === "role" ? '<span class="mini muted">a role exclusion — check it is the sync or emergency role</span>'
+      : `<span class="dd-pill warn">standing bypass</span>${o.app ? (l.kind === "user" ? ` <button type="button" class="dd-link mini" data-dd-wave="${esc(r.id)}" data-dd-wavefilter="bypass">names in 🌊 →</button>` : l.excludedId ? ` <button type="button" class="dd-link mini" data-dd-cg="${esc(l.excluded)}">open in 👥 →</button>` : "") : ""}`;
+    const tbl = `<table class="cg-table dd-table dd-extable"><thead><tr><th>Policy</th><th>State</th><th>Excluded</th><th>What it is</th><th class="dd-num">${esc(keyOf(r.name))} members taken out</th><th></th></tr></thead><tbody>
+      ${L.map((l) => `<tr><td><b>${esc(l.policy)}</b> <span class="mini muted">${esc(l.policyName === l.policy ? "" : String(l.policyName).replace(l.policy, "").replace(/^-/, ""))}</span></td><td>${esc(st[l.state])}</td><td><code>${esc(l.excluded)}</code></td><td><span class="dd-pill${l.kind === "scope" ? " dd-scope" : ""}">${esc(KIND[l.kind])}</span></td><td class="dd-num">${fmt(l.n)}</td><td>${note(l)}</td></tr>`).join("")}
+      </tbody></table><p class="mini muted" style="margin:6px 0 0">One line per policy and excluded object; a member under several lines is one person in the row's counts. Off policies are left out. Scoped out = the policy excludes another deploy group: those members are covered by their own group's policies, so it is neither in the exclusions pie nor a standing bypass.</p>`;
+    return `<tr class="dd-exrow"><td colspan="7">${o.app ? tbl : `<details><summary>On which policies ${esc(r.name)} is excluded (${fmt(L.length)})</summary>${tbl}</details>`}</td></tr>`;
+  }
   // The groups a deploy group is nested in — a chip each; a deploy group's
   // chip jumps to its row, one outside CAD-SEC-U-DG-* is grey. The tooltip
   // is the path: the policies that reach this group through that parent.
@@ -371,7 +416,7 @@ const DeployDash = (() => {
       <div class="dd-twrap"><table class="cg-table dd-table"><thead><tr><th>Deploy group</th><th class="dd-num">Members</th><th>Route in</th><th>Policies on it</th><th>Go-live readiness</th><th>Taken out by exclusions</th><th>Needs a look</th></tr></thead><tbody>
       ${rows.map((r) => `<tr${r.found ? "" : ' class="dd-missing"'}${o.app && r.id ? ` data-dd-row="${esc(r.id)}"` : ""}><td>${name(r)}<div class="mini muted">${r.found ? (r.nestedGroups ? esc(plural(r.nestedGroups, "group nested inside", "groups nested inside")) : "no group nested inside") : "not in this tenant"}${r.dynamic ? " · dynamic" : ""}</div>${nestedInLine(r, o)}</td>
         <td class="dd-num">${count(r, "", r.members)}</td><td>${bar(SER.route, r.route)}</td><td>${bar(SER.pol, r.pol)}${viaLine(r)}</td><td>${readinessCell(r, m, o)}</td>
-        <td>${r.members ? `${bar(SER.taken, { in: r.members - r.excl, ex: r.excl }, "ex")}${r.excl ? `<div class="mini muted">${count(r, "bypass", r.excl)} excluded</div>` : ""}` : '<span class="mini muted">—</span>'}</td><td>${lookCell(r, o)}</td></tr>`).join("")}
+        <td>${takenCell(r, o, count)}</td><td>${lookCell(r, o)}</td></tr>${exclRow(r, o)}`).join("")}
       </tbody></table></div>
       <p class="mini muted" style="margin:8px 0 0">Readiness is 🌊 Who is the wave's verdict for the report-only policies on the group: locked out (named there), prompted, unchanged, silent — silent is no data, never safety. A live group with nothing left in report-only shows its enforced count. Route in and reach count members once per group; a person in two groups is in both rows.</p></section>`;
   }
@@ -402,7 +447,7 @@ const DeployDash = (() => {
     if (!rows.length) return "";
     const empty = rows.filter((r) => !r.members).length, orphan = rows.filter((r) => r.orphan && r.members).length;
     const body = `<div class="dd-twrap"><table class="cg-table dd-table"><thead><tr><th>Group</th><th class="dd-num">Members</th><th>Used by</th><th class="dd-num">Of which in a deploy group</th><th></th></tr></thead><tbody>
-      ${rows.filter((r) => r.members).slice(0, o.app ? 60 : 500).map((r) => `<tr><td><b>${esc(r.name)}</b></td><td class="dd-num">${fmt(r.members)}</td><td>${r.usedBy.length ? esc(r.usedBy.slice(0, 3).join(" · ")) + (r.usedBy.length > 3 ? ` · +${r.usedBy.length - 3}` : "") : '<span class="muted">no policy</span>'}</td><td class="dd-num">${fmt(r.inDg)}</td><td>${r.orphan ? pill("orphan — nothing uses it", "bad") : m.biggest.includes(r.id) ? pill("largest hole", "warn") : ""}</td></tr>`).join("")}
+      ${rows.filter((r) => r.members).slice(0, o.app ? 60 : 500).map((r) => `<tr><td><b>${esc(r.name)}</b>${r.scope ? '<div class="mini muted">a deploy group — excluding it scopes the policy, it is not a hole</div>' : ""}</td><td class="dd-num">${fmt(r.members)}</td><td>${r.usedBy.length ? esc(r.usedBy.slice(0, 3).join(" · ")) + (r.usedBy.length > 3 ? ` · +${r.usedBy.length - 3}` : "") : '<span class="muted">no policy</span>'}</td><td class="dd-num">${fmt(r.inDg)}</td><td>${r.orphan ? pill("orphan — nothing uses it", "bad") : m.biggest.includes(r.id) ? pill("largest hole", "warn") : ""}</td></tr>`).join("")}
       </tbody></table></div>`;
     const sum = `${plural(rows.length, "group")}, ${fmt(empty)} empty${orphan ? `, ${plural(orphan, "orphan")} with members` : ""}`;
     return o.app ? `<details class="dd-panel dd-fold"><summary>Exclusion groups on the policies — ${esc(sum)}</summary>${body}</details>` : `<section class="dd-panel"><h4>Exclusion groups on the policies — ${esc(sum)}</h4>${body}</section>`;
@@ -420,7 +465,7 @@ const DeployDash = (() => {
         [none ? { text: `${fmt(none)} with no live policy — list them`, attr: 'data-dd-list="nopolicy"' } : null, out ? { text: `${fmt(out)} left out — list them`, attr: 'data-dd-list="leftout"' } : null], o),
       card(g1 ? `Route in · ${short(g1.name)}` : "Route in · how members got there", SER.route, route, "nested", "Direct membership vs. a group nested inside the deploy group.", null, o),
       card(g1 ? `Policies on ${short(g1.name)}` : "Policies on the deploy groups", SER.pol, pol, "enforced", "Every policy that includes a deploy group, by state. Report-only on a live group is the go-live question.", null, o),
-      card(g1 ? `Exclusions · ${short(g1.name)}` : "Exclusions · taken back out, by what", SER.excl, excl, "", `Deploy-group members an exclusion removes from at least one enforced or report-only policy on their group — ${fmt(exclN)}${g1 ? "" : ` of ${fmt(m.cov.in)}`}. First route wins: BreakGlass, then a CA*-Exclusion group, another group, a direct user, a role.`, null, Object.assign({ pie: true }, o)),
+      card(g1 ? `Exclusions · ${short(g1.name)}` : "Exclusions · taken back out, by what", SER.excl, excl, "", `Deploy-group members an exclusion removes from at least one enforced or report-only policy on their group — ${fmt(exclN)}${g1 ? "" : ` of ${fmt(m.cov.in)}`}. First route wins: BreakGlass, then a CA*-Exclusion group, another group, a direct user, a role. Excluding another deploy group scopes the policy and is not counted here — see on which policies in the table.`, null, Object.assign({ pie: true }, o)),
     ].join("");
     const missing = m.notFound.length ? `<p class="dd-wait bad">Not in this tenant: ${esc(m.notFound.join(", "))} — 👥 CA groups ② Create makes them.</p>` : "";
     const list = o.app && (o.list === "leftout" || o.list === "nopolicy") ? listTable(m, o, o.list) : "";
@@ -431,9 +476,11 @@ const DeployDash = (() => {
 
   // ------------------------------------------------------------- csv --
   function toCsv(m) {
-    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look", "nested_in", "policies_direct"]];
+    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look", "nested_in", "policies_direct", "scoped_out"]];
     m.groups.forEach((r) => rows.push([r.name, r.found, r.members, r.route.direct, r.route.nested, r.pol.enf, r.pol.ro, r.pol.off, r.excl, r.exclBy.bg, r.exclBy.ca, r.exclBy.group, r.exclBy.user, r.exclBy.role,
-      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; "), (r.nestedIn || []).map((a) => a.name).join("; "), r.polDirect ? r.polDirect.enf + r.polDirect.ro + r.polDirect.off : ""]));
+      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; "), (r.nestedIn || []).map((a) => a.name).join("; "), r.polDirect ? r.polDirect.enf + r.polDirect.ro + r.polDirect.off : "", r.scoped || 0]));
+    rows.push([]); rows.push(["exclusion_deploy_group", "policy", "state", "excluded", "kind", "members_taken_out"]);
+    m.groups.forEach((r) => (r.exclLines || []).forEach((l) => rows.push([r.name, l.policyName, { enf: "enforced", ro: "report-only", off: "off" }[l.state] || l.state, l.excluded, l.kind, l.n])));
     rows.push([]); rows.push(["coverage", "enabled_users"]);
     SER.cov.forEach((d) => rows.push([d.label, m.cov[d.k]]));
     rows.push([]); rows.push(["no_live_policy_upn", "name", "type", "deploy_groups"]);
@@ -473,7 +520,7 @@ ${"" /* shared with css/app.css — keep the two in step */}
 .dd-bar{display:flex;gap:2px;height:10px;flex:1 1 auto;min-width:60px}.dd-bar span{display:block;height:10px}.dd-bar span:first-child{border-radius:4px 0 0 4px}.dd-bar span:last-child{border-radius:0 4px 4px 0}.dd-bar-lg,.dd-bar-lg span{height:14px}
 .dd-state{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--soft);white-space:nowrap}.dd-state.live{color:var(--dd-on)}.dd-state.ro{color:var(--dd-report)}.dd-state.off{color:var(--muted)}
 .dd-pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;margin:1px 2px 1px 0}.dd-pill.warn{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}.dd-pill.bad{background:var(--bad-bg);color:var(--bad-fg);border-color:transparent}.dd-pill.ok{background:var(--ok-bg);color:var(--dd-on);border-color:transparent}.dd-pill.muted{color:var(--muted)}
-.dd-upline{margin-top:3px}.dd-pill.dd-up{background:#eaf2ff;color:#1e4fa3;border-color:#c9dbfb;font:inherit;font-size:11px;font-weight:600;cursor:default}button.dd-pill.dd-up{cursor:pointer}.dd-pill.dd-up-out{background:transparent;color:var(--muted);border-style:dashed}tr.dd-flash td{background:var(--ok-bg)}@media(prefers-color-scheme:dark){.dd-pill.dd-up{background:#1b2a44;color:#9fc0f5;border-color:#2c4670}}
+.dd-exrow>td{background:var(--soft);padding:6px 10px 10px}.dd-extable{background:var(--card,#fff)}.dd-extable th{font-size:10px}.dd-pill.dd-scope{background:var(--soft);color:var(--muted)}.dd-upline{margin-top:3px}.dd-pill.dd-up{background:#eaf2ff;color:#1e4fa3;border-color:#c9dbfb;font:inherit;font-size:11px;font-weight:600;cursor:default}button.dd-pill.dd-up{cursor:pointer}.dd-pill.dd-up-out{background:transparent;color:var(--muted);border-style:dashed}tr.dd-flash td{background:var(--ok-bg)}@media(prefers-color-scheme:dark){.dd-pill.dd-up{background:#1b2a44;color:#9fc0f5;border-color:#2c4670}}
 .dd-foot{margin:8px 0 0}.dd-missing td{opacity:.6}.dd-link{font:inherit;font-size:12.5px;font-weight:600;color:var(--dd-on);background:none;border:0;padding:0;cursor:pointer;text-align:left}.dd-name{font-size:13px}
 .dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.dd-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}details.dd-fold summary{cursor:pointer;font-weight:600;font-size:13px}details.dd-fold[open] summary{margin-bottom:10px}
 .dd-who{color:var(--dd-on);font-weight:600;text-decoration:none}`;
