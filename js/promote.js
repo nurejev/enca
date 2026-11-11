@@ -182,6 +182,21 @@ const PROMOTE = {
 
   items: [
     {
+      n: 383,
+      ws: "pim",
+      title: "🗺 R94 PIM for the people who use ENCA — roadmap card (planned, nothing built yet)",
+      tools: ["Roadmap"],
+      builds: [33302],
+      risk: "low",
+      files: ["index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
+      what: "33302 (Mihai 11 Nov: draw it, put it in the project files, and put it on the roadmap to be created): roadmap card R94 under Next. The design: six role-assignable PIM groups, one per job (PIM-SG-ENCA-Read Global Reader always active; -CA Conditional Access Administrator plus a custom ENCA Group Operator role; -AuthMethods Authentication Policy Administrator; -Apps Cloud Application Administrator; -SecDefaults Security Administrator with approval; -PIM Privileged Role Administrator, Tier 0, approval and phishing-resistant MFA). To build: a role pre-flight before every write, create the model from PIM-buddy, check the model read-only. Design and diagram in the project doc claude/ENCA-pim-for-enca-roles.md (+ .svg). R93 is left free for the CA policy plans card from bundle 33012, which never reached this branch.",
+      why: "Queued only because every beta build needs an item (tools/regression.test.cjs); by the header rule a roadmap card travels with the next promotion rather than being promoted on its own — tick it with whatever goes next, or let the R94 build replace it.",
+      test: [
+        "Beta site → 🗺 Roadmap → Next: the last card is R94 🔑 PIM for the people who use ENCA, tagged planned, and names the six groups and the three things to build.",
+        "📋 What's new shows build 33302 with one Roadmap line; the footer reads build 33302.",
+      ],
+    },
+    {
       n: 381,
       ws: "ca",
       title: "📊 Deployment dashboard 0.3.0: Covered = targeted by a policy (enforced · report-only only · no live policy · left out), plus the no-live-policy list",

@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33302, date: "2026-11-11", title: "🗺 Roadmap: PIM for the people who use ENCA",
+    items: [
+      { kind: "improved", tool: "Roadmap", text: "🗺 A new card, R94 — which roles someone needs to use ENCA, and when. Built-in roles in six PIM groups, one per job (always-on reads; eligible Conditional Access, authentication methods, apps, security defaults; Tier 0 PIM with approval), one custom group role, and three things to build: a role check before every write that says which group to activate instead of failing with a bare 403, creating the model from PIM-buddy, and checking it read-only." },
+    ],
+  },
+  {
     build: 33301, date: "2026-11-10", title: "Production is build 332 (v2.0.10)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 332, ENCA v2.0.10: the ⑦ Migrate member check that waits for the directory (beta 33209) is live for everybody. This channel moves to cycle 333 and reads v2.0.11-beta.N from here." },
