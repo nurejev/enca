@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-11-09T04:23:47.518Z",
+ "generated": "2026-11-16T04:27:24.594Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "59b123da69",
+  "head": "01f21c9cc0",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -14,13 +14,41 @@
   ]
  },
  "counts": {
-  "docs": 20,
+  "docs": 18,
   "newDocs": 4,
-  "substantive": 17,
+  "substantive": 16,
   "watched": 17,
   "unwatched": 5
  },
  "docs": [
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans",
+   "path": "docs/identity/conditional-access/concept-conditional-access-policy-plans.md",
+   "title": "What are Microsoft Entra Conditional Access policy plans? (preview)",
+   "kind": "new",
+   "lastChange": "2026-11-09T12:51:40-06:00",
+   "lines": 118,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "a0398fd2f1",
+     "date": "2026-11-09T12:51:40-06:00",
+     "subject": "Clarify Conditional Access policy plan limits and streamline overview (#14817)",
+     "add": 9,
+     "del": 17,
+     "bulk": false
+    },
+    {
+     "sha": "b575484cff",
+     "date": "2026-10-26T11:13:59-04:00",
+     "subject": "Add Conditional Access policy plan documentation (#14524)",
+     "add": 92,
+     "del": 0,
+     "bulk": false
+    }
+   ]
+  },
   {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
    "path": "docs/identity/conditional-access/managed-policies.md",
@@ -47,7 +75,7 @@
    "title": "Token Protection Deployment Guide - Windows",
    "kind": "changed",
    "lastChange": "2026-11-02T12:53:04-08:00",
-   "lines": 12,
+   "lines": 10,
    "bulkOnly": false,
    "minor": false,
    "commits": [
@@ -66,14 +94,6 @@
      "add": 6,
      "del": 2,
      "bulk": false
-    },
-    {
-     "sha": "bf45f8ce25",
-     "date": "2026-09-10T10:45:39-07:00",
-     "subject": "[BULK cpcli] Rebrand Microsoft 365 Copilot to Microsoft Copilot MAXADO-12279337",
-     "add": 1,
-     "del": 1,
-     "bulk": true
     }
    ]
   },
@@ -113,26 +133,6 @@
      "subject": "Update Microsoft Authenticator access requirements",
      "add": 1,
      "del": 1,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans",
-   "path": "docs/identity/conditional-access/concept-conditional-access-policy-plans.md",
-   "title": "What are Microsoft Entra Conditional Access policy plans? (preview)",
-   "kind": "new",
-   "lastChange": "2026-10-26T11:13:59-04:00",
-   "lines": 92,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "b575484cff",
-     "date": "2026-10-26T11:13:59-04:00",
-     "subject": "Add Conditional Access policy plan documentation (#14524)",
-     "add": 92,
-     "del": 0,
      "bulk": false
     }
    ]
@@ -468,46 +468,6 @@
      "bulk": false
     }
    ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/id-protection/howto-export-risk-data",
-   "path": "docs/id-protection/howto-export-risk-data.md",
-   "title": "Export and use Microsoft Entra ID Protection data",
-   "kind": "changed",
-   "lastChange": "2026-09-10T13:15:00-07:00",
-   "lines": 26,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "526695aaed",
-     "date": "2026-09-10T13:15:00-07:00",
-     "subject": "Map ID Protection diagnostic categories to Log Analytics tables",
-     "add": 18,
-     "del": 8,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-teams-devices-device-code-flow",
-   "path": "docs/identity/conditional-access/policy-teams-devices-device-code-flow.md",
-   "title": "Restrict device code flow for Microsoft Teams devices with Conditional Access",
-   "kind": "changed",
-   "lastChange": "2026-09-10T09:42:03-07:00",
-   "lines": 2,
-   "bulkOnly": true,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "0740715fcd",
-     "date": "2026-09-10T09:42:03-07:00",
-     "subject": "Confirm merge from repo_sync_working_branch to main to sync with https://github.com/MicrosoftDocs/entra-docs (branch main) (#14334)",
-     "add": 1,
-     "del": 1,
-     "bulk": true
-    }
-   ]
   }
  ],
  "whatsNew": [
@@ -694,9 +654,9 @@
     "subject": "[BULK UPDATE] User Story 573314: Ensure every doc in MSec repos has an author from MSec Docs (entra-docs-pr 4) (#13372)"
    },
    "lastSubstantive": {
-    "sha": "366ce48831",
-    "date": "2026-03-25T09:47:31Z",
-    "subject": "Merge pull request #9605 from pradeepmi-MSFT/patch-5"
+    "sha": "083fe24f9a",
+    "date": "2026-03-26T11:23:26Z",
+    "subject": "Merge pull request #9979 from v-rakegurram-MSFT/patch-3"
    }
   },
   "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths": {
@@ -967,7 +927,7 @@
    "kind": "new",
    "title": "What are Microsoft Entra Conditional Access policy plans? (preview)",
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans",
-   "since": "2026-10-26T11:13:59-04:00",
+   "since": "2026-11-09T12:51:40-06:00",
    "checks": []
   },
   {
