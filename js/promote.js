@@ -182,6 +182,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 387,
+      ws: "entra",
+      title: "📵 SMS & voice retirement 1.8.0: ⌚ last 5 sign-ins per phone user with the authentication used, ⭳ filterable HTML export",
+      tools: ["SmsVoice"],
+      builds: [33306],
+      risk: "low",
+      files: ["js/smsvoice.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/regression.test.cjs"],
+      what: "33306 (Mihai 16 Nov: the SMS/voice users also need their last 5 logins and the authentication they used, output to HTML with filtering). js/smsvoice.js: isPhoneAuth, summarizeSignIn (authenticationDetails succeeded/failed steps + mfaDetail.authMethod, status, app, client, location), withSignIns(res, byId, info) → rows.signins/siPhone/siLast + res.si counts, siBucket, siWord, siLines, toHtml(res, meta) — standalone page, filters (search, verdict, phone role, sign-in bucket, method used, enabled), sortable headers, CSV of shown rows; toMd adds a Last 5 sign-ins column when read, toCsv appends signInsRead,signInsWithPhone,lastSignIn,last5SignIns. app.js: svReadSignIns — /beta/auditLogs/signIns?$filter=userId eq … &$orderby=createdDateTime desc&$top=5 per enabled blocking/migrate user (all in scope without registration), mapLimit 4, cap 2000, stops after three refusals with nothing read; table column and 📱/🔑/∅ filter row; #svSignIns and #svHtml in the toolbar; demo data for u1–u3.",
+      why: "The verdict says who has a phone registered; it does not say who actually signs in with it. The last sign-ins separate the people who will feel the retirement from those whose phone is a dormant backup, and the HTML lets a service desk filter that without ENCA.",
+      test: [
+        "node --test tools/regression.test.cjs: all green (+1 sign-in / HTML test).",
+        "Demo (?demo=1) → 03 Entra Tools → 📵 SMS & voice retirement → Check → ⌚ Last 5 sign-ins: maria shows 5 sign-ins with Text message / Phone call in red and one struck-through failed Text message, pieter 3 with one Text message, 📱 phone used (2) filters to those two.",
+        "A P1 tenant with SMS enabled for a group: ⌚ Last 5 sign-ins reads one call per phone user; the column matches the Entra sign-in log for one user checked by hand (date, app, authentication details).",
+        "A tenant without P1 or without Reports Reader: after three refusals the read stops with a toast naming AuditLog.Read.All / P1, the table is unchanged.",
+        "⭳ Export HTML before and after reading sign-ins: opens offline; search, every select and Reset change the N of M count; clicking Verdict / Phone / Last 5 headers sorts; CSV of shown rows holds only the filtered rows.",
+        "Export MD and CSV after the read: the MD has a Last 5 sign-ins column, the CSV the four new columns filled for read users and empty for the rest.",
+      ],
+    },
+    {
       n: 386,
       ws: "ca",
       title: "🌐 Named locations 1.12.0: ⭳ Locations only — CSV per IP range, CSV per location, Markdown table, without policies or findings",

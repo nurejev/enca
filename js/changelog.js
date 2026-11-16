@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33306, date: "2026-11-16", title: "📵 SMS & voice retirement: the last 5 sign-ins of every phone user, and a filterable HTML export",
+    items: [
+      { kind: "improved", tool: "SMS & voice retirement", text: "📵 ⌚ Last 5 sign-ins reads the newest five interactive sign-ins of every enabled user with a phone method registered and shows, per sign-in, the app and the authentication used — a text message or phone call stands out, a failed step is struck through. Filter on who used the phone in their last five, who signed in without it, and who has no sign-in in the log. Needs AuditLog.Read.All and Entra ID P1/P2; capped at 2,000 users." },
+      { kind: "new", tool: "SMS & voice retirement", text: "📵 ⭳ Export HTML saves a standalone page with every user in scope, their registered methods, verdict and last sign-ins, with search, filters on verdict, phone role, sign-in, method used and enabled, sortable columns and a CSV of the rows the filters leave. The Markdown and CSV exports carry the sign-ins too." },
+    ],
+  },
+  {
     build: 33305, date: "2026-11-11", title: "🌐 Named locations: export the locations and their IP ranges only",
     items: [
       { kind: "new", tool: "Named locations", text: "🌐 ⭳ Locations only exports the named locations as they are in Entra — no policies, no findings. Pick a CSV with one row per IP range (for Excel or an allow list), a CSV with one row per location, or a Markdown table, and tick a box to export only what the search and chips show." },

@@ -32,6 +32,33 @@ test('SMS/voice scope-only scan keeps unread registration distinct from no metho
  assert.equal(result.rows[0].risk,'unknown');assert.equal(api.methodsWord(result.rows[0]),'?');
  assert.match(api.toMd(result),/registration data NOT read/);assert.equal(api.notifyEmail(result).scopeOnly,true);
 });
+test('SMS/voice last 5 sign-ins: phone steps, failed steps, buckets, exports and HTML filters',()=>{
+ const api=load('smsvoice.js','SmsVoice');
+ const reg={a:{methods:['mobilePhone'],defaultMethod:'sms'},b:{methods:['mobilePhone','microsoftAuthenticatorPush'],defaultMethod:'push'},c:{methods:['mobilePhone'],defaultMethod:'sms'},d:{methods:['mobilePhone'],defaultMethod:'sms'}};
+ const res=api.analyze({sms:{state:'enabled'},voice:{state:'disabled'},users:Object.keys(reg).map(id=>({id,upn:id+'@example.com',enabled:true,inSms:true})),reg});
+ const si=(when,app,steps,err)=>({createdDateTime:when,appDisplayName:app,status:{errorCode:err||0,failureReason:err?'MFA failed':undefined},authenticationDetails:steps});
+ const ok=m=>({authenticationMethod:m,succeeded:true});
+ const out=api.withSignIns(res,{
+  a:[si('2026-11-10T08:00:00Z','Teams',[ok('Password'),ok('Text message')]),si('2026-11-12T08:00:00Z','Outlook',[ok('Password'),{authenticationMethod:'Phone call',succeeded:false}],500121)],
+  b:[si('2026-11-11T08:00:00Z','Teams',[ok('Password'),ok('Mobile app notification')]),si('2026-11-09T08:00:00Z','Teams',[ok('Phone sign-in')])],
+  c:[]},{asked:4});
+ const row=id=>out.rows.find(r=>r.id===id);
+ assert.equal(row('a').siPhone,2);assert.equal(row('a').siLast,'2026-11-12T08:00:00Z');
+ assert.equal(row('a').signins[0].ok,false);assert.deepEqual(Array.from(row('a').signins[0].failedSteps),['Phone call']);
+ assert.equal(api.signInMethodWord(row('a').signins[0]),'Password + Phone call (failed)');
+ assert.equal(row('b').siPhone,0,'Authenticator notification and phone sign-in are not phone steps');
+ assert.deepEqual(['a','b','c','d'].map(id=>api.siBucket(row(id))),['phone','nophone','none','unread']);
+ assert.deepEqual({read:out.si.read,phoneUsed:out.si.phoneUsed,noPhone:out.si.noPhone,none:out.si.none,asked:out.si.asked},{read:3,phoneUsed:1,noPhone:1,none:1,asked:4});
+ const csv=api.toCsv(out);assert.match(csv.split('\n')[0],/signInsRead,signInsWithPhone,lastSignIn,last5SignIns$/);
+ assert.match(csv,/Outlook: Password \+ Phone call \(failed\) \[FAILED 500121 — MFA failed\]/);
+ assert.match(api.toMd(out),/Last 5 sign-ins \|/);assert.doesNotMatch(api.toMd(res),/Last 5 sign-ins \|/);
+ const html=api.toHtml(out,{tenantName:'<Contoso>',now:Date.parse('2026-11-16T12:00:00Z')});
+ assert.match(html,/^<!doctype html>/);assert.match(html,/&lt;Contoso&gt;/);assert.doesNotMatch(html,/<Contoso>/);
+ for(const id of ['q','fRisk','fRole','fSi','fM','fEn','csv'])assert.match(html,new RegExp(`id="${id}"`));
+ assert.equal((html.match(/<tr data-risk=/g)||[]).length,4);
+ assert.match(html,/data-si="phone"/);assert.match(html,/data-si="unread"/);assert.match(html,/<option value="Text message">/);
+ assert.match(api.toHtml(res),/Sign-ins were not read/);
+});
 function importer(overrides={}){
   const writes=[],store=new Map([['old-p',{...policy(),id:'old-p'}]]);
   const Graph={

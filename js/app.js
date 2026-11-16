@@ -29449,7 +29449,7 @@ This is a directory write. Nothing else changes.`)) return;
   // is about who actually USES a phone, not just who a policy names. Reads
   // only; the registration consent is asked once, on the run click, and a
   // refusal degrades the report to scope-only instead of killing the run.
-  let svRes = null, svBusy = false, svFilter = "";
+  let svRes = null, svBusy = false, svFilter = "", svSiFilter = "";
   const svProg = makeProgress("sv");
   const SV_REG_READ = ["AuditLog.Read.All"];
   const SV_GROUP_PAGES = 10;   // ~10k members per group
@@ -29472,6 +29472,22 @@ This is a directory write. Nothing else changes.`)) return;
       u3: { methods: ["passKeyDeviceBound", "microsoftAuthenticatorPush"], defaultMethod: "passKeyDeviceBound" },
       u4: { methods: [], defaultMethod: "" },
     },
+    // 1.8.0: what ⌚ Last 5 sign-ins reads in the demo — raw signIn records.
+    signins: (() => {
+      const at = (h) => new Date(Date.now() - h * 3600000).toISOString();
+      const si = (h, app, steps, extra = {}) => ({ createdDateTime: at(h), appDisplayName: app, ipAddress: "203.0.113.24",
+        location: { city: "Zoetermeer", countryOrRegion: "NL" }, deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 142" },
+        status: { errorCode: 0 }, authenticationRequirement: steps.length > 1 ? "multiFactorAuthentication" : "singleFactorAuthentication",
+        authenticationDetails: steps.map((m) => typeof m === "string" ? { authenticationMethod: m, succeeded: true } : m), ...extra });
+      return {
+        u1: [si(3, "Office 365 Exchange Online", ["Password", "Text message"]), si(27, "Microsoft Teams", ["Previously satisfied"]),
+          si(50, "OfficeHome", ["Password", { authenticationMethod: "Text message", succeeded: false }], { status: { errorCode: 500121, failureReason: "Authentication failed during strong authentication request." } }),
+          si(51, "OfficeHome", ["Password", "Phone call"]), si(120, "Microsoft Teams", ["Password", "Text message"])],
+        u2: [si(5, "Microsoft Teams", ["Password", "Mobile app notification"]), si(30, "OfficeHome", ["Password", "Mobile app notification"]),
+          si(75, "Office 365 Exchange Online", ["Password", "Text message"])],
+        u3: [si(2, "OfficeHome", ["Passkey (device-bound)"]), si(26, "Microsoft Teams", ["Previously satisfied"])],
+      };
+    })(),
   };
 
   async function svExpandGroup(id, nameOf) {
@@ -29653,7 +29669,7 @@ This is a directory write. Nothing else changes.`)) return;
           names, users, usersPartial, reg, regPartial };
       }
       svRes = SmsVoice.analyze(ctx);
-      svFilter = "";
+      svFilter = ""; svSiFilter = "";
     } catch (e) {
       $("svBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the authentication method policies failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-svrun>▶ Try again</button></div></div>`;
       svProg.stop(); svBusy = false;
@@ -29662,6 +29678,65 @@ This is a directory write. Nothing else changes.`)) return;
     svProg.stop(); svBusy = false;
     renderSmsVoice();
   }
+
+  // ⌚ Last 5 sign-ins (1.8.0) — per phone user, the newest five interactive
+  // sign-ins with the authentication each one used. One server-filtered read
+  // per user (userId, newest first, $top=5, beta for mfaDetail), four at a
+  // time; capped so a 20k-user scope cannot spend an afternoon in the log.
+  // Who: enabled accounts with a phone registered (verdict blocking or
+  // migrate) — or everyone in scope when registration was not read.
+  const SV_SI_CAP = 2000;
+  async function svReadSignIns() {
+    if (!svRes) { toast("Run the check first — the sign-ins are read for the users it finds."); return; }
+    if (svBusy) return;
+    const targets = svRes.rows.filter((r) => r.enabled !== false && (!svRes.regRead || r.risk === "blocking" || r.risk === "migrate"));
+    if (!targets.length) { toast("Nobody to read — no enabled user in scope carries a phone method."); return; }
+    const list = targets.slice(0, SV_SI_CAP);
+    svBusy = true;
+    $("svRun").style.display = "none";
+    svProg.start(list.length, "users", "user");
+    $("svBody").innerHTML = svProg.panel(`Reading the last 5 sign-ins of ${list.length.toLocaleString()} user${list.length === 1 ? "" : "s"}…`,
+      `auditLogs/signIns — one filtered read per user, newest first, five records, the authentication details of each. ${targets.length > list.length ? `Capped at ${SV_SI_CAP.toLocaleString()} of ${targets.length.toLocaleString()} users. ` : ""}Reads only; the log keeps 30 days on P1/P2.`);
+    const byId = {};
+    let failed = 0, done = 0, firstErr = "", stop = false;
+    try {
+      if (isDemo) {
+        for (const u of list) byId[u.id] = SV_DEMO.signins[u.id] || [];
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SV_REG_READ])) throw new Error("AuditLog.Read.All was not granted — the sign-in log cannot be read");
+        await Graph.mapLimit(list, 4, async (u) => {
+          if (stop) return;
+          try {
+            const j = await Graph.gget(`/beta/auditLogs/signIns?$filter=${encodeURIComponent(`userId eq '${u.id}'`)}&$orderby=createdDateTime desc&$top=5`);
+            byId[u.id] = (j.value || []).slice(0, 5);
+          } catch (e) {
+            failed++;
+            if (!firstErr) firstErr = String(e.message || e);
+            // The same refusal on the first reads (no P1, no reader role)
+            // will be the same for all of them — stop instead of asking 2000 times.
+            if (failed >= 3 && !Object.keys(byId).length) stop = true;
+          }
+          svProg.tick(++done, done);
+        });
+        if (stop && !Object.keys(byId).length) throw new Error(`the sign-in log refused the reads: ${firstErr} — needs AuditLog.Read.All, a reader role such as Reports Reader, and Entra ID P1/P2`);
+      }
+      svRes = SmsVoice.withSignIns(svRes, byId, { asked: targets.length, capped: targets.length > list.length, failed, error: firstErr });
+      svSiFilter = "";
+      if (failed) toast(`${failed} sign-in read${failed === 1 ? "" : "s"} failed: <span>${esc(firstErr)}</span>`);
+    } catch (e) {
+      toast(`Sign-ins not read: <span>${esc(e.message || e)}</span>`);
+    }
+    svProg.stop(); svBusy = false;
+    renderSmsVoice();
+  }
+  // The five sign-ins, compact: date · app · the methods used, phone steps in
+  // the retirement colour, failed steps struck through, a failed sign-in red.
+  const svSiCell = (x) => {
+    if (x.signins == null) return '<span class="muted">—</span>';
+    if (!x.signins.length) return '<span class="muted">no sign-in in the log</span>';
+    const tag = (m, failed) => `<span class="tag${SmsVoice.isPhoneAuth(m) ? " block" : ""}" style="margin:1px 3px 1px 0;white-space:nowrap${failed ? ";text-decoration:line-through" : ""}">${esc(m)}</span>`;
+    return x.signins.map((s) => `<div style="white-space:nowrap${s.ok ? "" : ";color:var(--off)"}" title="${esc([s.client, s.where, s.ip, s.requirement, s.error].filter(Boolean).join(" · "))}"><span class="muted">${esc(String(s.when).replace("T", " ").slice(0, 16))}</span> ${esc(s.app || "?")} — ${s.methods.map((m) => tag(m)).join("")}${s.failedSteps.map((m) => tag(m, true)).join("")}${!s.methods.length && !s.failedSteps.length ? '<span class="muted">—</span>' : ""}${s.ok ? "" : " ✗"}</div>`).join("");
+  };
 
   const SV_RISK = {
     blocking: { cls: "block", word: "locked out Feb 1", icon: "⛔" },
@@ -29724,7 +29799,11 @@ This is a directory write. Nothing else changes.`)) return;
     ];
     const filters = r.regRead ? ["blocking", "migrate", "ready", "clean", "unknown"] : [];
     const counts = { blocking: s.blocking, migrate: s.migrate, ready: s.ready, clean: s.clean, unknown: s.unknown };
-    const shown = svFilter ? r.rows.filter((x) => x.risk === svFilter) : r.rows;
+    const shown = r.rows.filter((x) => (!svFilter || x.risk === svFilter) && (!svSiFilter || SmsVoice.siBucket(x) === svSiFilter));
+    const si = r.si;
+    const siFilters = si ? ["phone", "nophone", "none"] : [];
+    const siCounts = si ? { phone: si.phoneUsed, nophone: si.noPhone, none: si.none } : {};
+    const SI_ICON = { phone: "📱", nophone: "🔑", none: "∅" };
     const yn = (v) => v === null ? "?" : v ? "yes" : "—";
     const head = `<div class="list-card" style="padding:14px 16px">
       ${verdict}
@@ -29737,8 +29816,9 @@ This is a directory write. Nothing else changes.`)) return;
 
     const table = !r.rows.length ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       ${filters.length ? `<p class="mini" style="margin:0 0 8px">${filters.map((k) => `<button class="btn${svFilter === k ? " primary" : ""}" data-svfilter="${k}" style="margin-right:6px">${SV_RISK[k].icon} ${SV_RISK[k].word} (${counts[k]})</button>`).join("")}${svFilter ? '<button class="btn" data-svfilter="">✕ All</button>' : ""}</p>` : ""}
+      ${si ? `<p class="mini" style="margin:0 0 8px">⌚ Last 5 sign-ins read for <b>${si.read.toLocaleString()}</b> of ${si.asked.toLocaleString()} phone user${si.asked === 1 ? "" : "s"}${si.capped ? ' <span style="color:var(--off)">(capped)</span>' : ""}${si.failed ? ` · <span style="color:var(--off)">${si.failed} failed</span>` : ""}: ${siFilters.map((k) => `<button class="btn${svSiFilter === k ? " primary" : ""}" data-svsifilter="${k}" style="margin-right:6px">${SI_ICON[k]} ${esc(SmsVoice.SI_BUCKET_WORD[k])} (${siCounts[k]})</button>`).join("")}${svSiFilter ? '<button class="btn" data-svsifilter="">✕ All</button>' : ""}</p>` : ""}
       <div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
-        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="Every MFA method the registration report lists for this account, the default first, bold and starred; phones in the retirement colour — the record the verdict was made from">Methods registered</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="Every MFA method the registration report lists for this account, the default first, bold and starred; phones in the retirement colour — the record the verdict was made from">Methods registered</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th>${si ? '<th style="padding:4px 8px" title="The newest five interactive sign-ins and the authentication each used — phone steps in the retirement colour, failed steps struck through; times in UTC; hover for client, location, IP and error">Last 5 sign-ins (UTC)</th>' : ""}</tr></thead>
         <tbody>${shown.slice(0, SV_TABLE_CAP).map((x) => `<tr style="border-top:1px solid var(--line)">
           <td style="padding:4px 8px"><b>${esc(x.upn)}</b>${x.name ? `<br><span class="muted">${esc(x.name)}</span>` : ""}</td>
           <td style="padding:4px 8px">${x.enabled === false ? '<span style="color:var(--off)">no</span>' : x.enabled === true ? "yes" : "?"}</td>
@@ -29751,6 +29831,7 @@ This is a directory write. Nothing else changes.`)) return;
           <td style="padding:4px 8px;min-width:220px">${svMethods(x)}</td>
           <td style="padding:4px 8px">${x.phoneOnly ? '<b style="color:var(--off)">only method</b>' : x.phoneDefault ? "<b>default</b>" : esc(SmsVoice.phoneRole(x))}</td>
           <td style="padding:4px 8px">${svChip(x.risk)}</td>
+          ${si ? `<td style="padding:4px 8px;min-width:340px">${svSiCell(x)}</td>` : ""}
         </tr>`).join("")}</tbody>
       </table></div>
       ${shown.length > SV_TABLE_CAP ? `<p class="mini muted" style="margin:8px 0 0">Showing the first ${SV_TABLE_CAP} of ${shown.length.toLocaleString()} rows — the CSV export carries all of them.</p>` : ""}
@@ -29768,7 +29849,16 @@ This is a directory write. Nothing else changes.`)) return;
   $("svBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-svrun]")) { svRun(); return; }
     const f = e.target.closest("[data-svfilter]");
-    if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); }
+    if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); return; }
+    const g = e.target.closest("[data-svsifilter]");
+    if (g) { svSiFilter = g.dataset.svsifilter || ""; renderSmsVoice(); }
+  });
+  $("svSignIns").addEventListener("click", svReadSignIns);
+  $("svHtml").addEventListener("click", () => {
+    if (!svRes) { toast("Run the check first — the HTML is the user list."); return; }
+    if (!svRes.rows.length) { toast("No users in scope — there is nothing to export."); return; }
+    const name = downloadText("CA-SmsVoiceUsers", "html", "text/html", SmsVoice.toHtml(svRes, { tenantName, build: APP_BUILD.label, now: Date.now() }));
+    toast(`Saved ${esc(name)} — ${svRes.si ? "it names users and where they sign in from" : "sign-ins not read yet, run ⌚ Last 5 sign-ins first to include them"}; share it like tenant data`);
   });
   // ✉️ Notify users — the recipient list plus a ready-to-send email. The
   // modal is built fresh on every open so it always reflects the current run.
