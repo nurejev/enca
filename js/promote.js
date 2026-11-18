@@ -182,6 +182,25 @@ const PROMOTE = {
 
   items: [
     {
+      n: 388,
+      ws: "ca",
+      title: "🚪 Exclusion analyzer 1.18.1: an excluded group that is not in the directory no longer stops the scan — it is reported as a dead reference",
+      tools: ["Exclusion analyzer"],
+      builds: [33307],
+      risk: "high",
+      files: ["js/exclusions.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/exclusions-gone-group.test.cjs"],
+      what: "33307 (Mihai 18 Nov, screenshot: Failed: Exclusion membership incomplete for 602b8033-…: Graph request failed (404) … Request_ResourceNotFound. No complete user totals are available.). js/exclusions.js resolve(): the member read's catch treats 404 / Request_ResourceNotFound as an answer — g.gone, members [], memberTotal 0 — and continues; every other error still throws as 25368 made it. One best-effort GET /directory/deletedItems/{id} per gone group gives the name and deletedDateTime back while the group is in the recycle bin. goneWord() feeds rowSub, the chip, evidence() (no members action), a Medium risk flag per policy, summary().goneGroups / goneGroupNames, the head tag, toMd and toCsv. Production carries the same throw since 312, so the tool fails there today on any tenant in this state.",
+      why: "One deleted group in one policy's exclusions made the whole tool unusable for the tenant, with a message that named an object id and no way forward — and the thing it tripped over is itself a finding the tool should report. Checked read-only on cloudfellows.dev: a soft-deleted group answers the member read with the same 404, and /directory/deletedItems/{id} returns its displayName and deletedDateTime.",
+      test: [
+        "node --test tools/exclusions-gone-group.test.cjs: 7 green — 404 does not abort, 403 and 500 still do, the recycle-bin name, the risk flag, the evidence card, MD and CSV.",
+        "The tenant from the screenshot (a policy excluding 602b8033-2beb-4780-a66e-18b4d2ca6995): 🚪 Exclusion analyzer → Rescan completes. The head shows ⚠ 1 excluded group not in the directory; the Risk review names the policy or policies carrying it; Effective users totals are shown.",
+        "A test tenant: create a group, exclude it from a report-only policy, delete the group, Rescan. The row shows the group's NAME with deleted <date>, still in the recycle bin; its evidence card has no View members button. Restore the group, Rescan: an ordinary group row again, the flag gone.",
+        "The same tenant after the group is permanently deleted from the recycle bin: the row shows the object id and ⚠ not in the directory · excludes no one.",
+        "Export MD: the Summary has the line on excluded groups not in the directory, the Exclusions table shows 0 members and the ⚠ note for that row. Export CSV: Members reads not found for it.",
+        "A tenant with no deleted group in any exclusion: no head tag, no flag, exports unchanged from 33306.",
+      ],
+    },
+    {
       n: 387,
       ws: "entra",
       title: "📵 SMS & voice retirement 1.8.0: ⌚ last 5 sign-ins per phone user with the authentication used, ⭳ filterable HTML export",

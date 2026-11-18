@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33307, date: "2026-11-18", title: "🚪 Exclusion analyzer: a deleted group in an exclusion no longer stops the scan",
+    items: [
+      { kind: "fixed", tool: "Exclusion analyzer", text: "🚪 A policy that still excludes a deleted group stopped the whole scan with Failed: Exclusion membership incomplete … (404). A policy keeps a group's object id after the group is deleted; Graph answering 404 for it means nobody is excluded through it, not that the read failed. The scan now finishes with complete totals." },
+      { kind: "improved", tool: "Exclusion analyzer", text: "🚪 The dead reference is reported instead: a head tag counts the excluded groups that are not in the directory, the row and chip carry ⚠ not in the directory · excludes no one, the evidence card says so, and the Risk review raises a Medium flag on every policy that names the group. A group still in the recycle bin shows its name and the day it was deleted. The Markdown export has a summary line; the CSV Members column reads not found." },
+    ],
+  },
+  {
     build: 33306, date: "2026-11-16", title: "📵 SMS & voice retirement: the last 5 sign-ins of every phone user, and a filterable HTML export",
     items: [
       { kind: "improved", tool: "SMS & voice retirement", text: "📵 ⌚ Last 5 sign-ins reads the newest five interactive sign-ins of every enabled user with a phone method registered and shows, per sign-in, the app and the authentication used — a text message or phone call stands out, a failed step is struck through. Filter on who used the phone in their last five, who signed in without it, and who has no sign-in in the log. Needs AuditLog.Read.All and Entra ID P1/P2; capped at 2,000 users." },
