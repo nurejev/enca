@@ -97,6 +97,34 @@ const Builder = (() => {
   const personaOf = (key, cat) => personas(cat).find((p) => p.key === key) || null;
   // "CA216-…" → 216; anything else → null. The staging prefixes are skipped.
   const caNum = (name) => { const m = /^(?:\((?:NEW|UP)\))?\s*CA(\d{3,4})\b/i.exec(String(name || "")); return m ? +m[1] : null; };
+  // 33311 — the rows ⬇ Export baseline offers (Mihai 19 Nov: "where are the
+  // e-admins to download"). The chooser read personas() and so stopped at
+  // DevOps: a baseline policy numbered CA1100 or higher had no box and was
+  // left out of the zip whichever boxes were ticked. The two ranges the
+  // catalog also numbers get their own row, and a number outside every range
+  // gets one too — a policy that is in scope is counted in exactly ONE row.
+  // Deliberately NOT in PERSONAS: that table is the Policy builder's persona
+  // picker, and nobody builds a new emergency-access policy from a template.
+  const EXPORT_EXTRA = [
+    { key: "eadmins",        label: "🚨 E-Admins",        lo: 1100, hi: 1199 },
+    { key: "factoryworkers", label: "🏭 Factory workers", lo: 1200, hi: 1299 },
+  ];
+  const exportPersonas = (cat) => [...personas(cat), ...EXPORT_EXTRA.map((p) => ({ ...p }))];
+  function exportRowKey(name, cat) {
+    const n = caNum(name);
+    if (n == null) return "__none";
+    const p = exportPersonas(cat).find((x) => n >= x.lo && n <= x.hi);
+    return p ? p.key : "__other";
+  }
+  // [{ key, label, n }] — only the rows that hold something, in persona order
+  function exportRows(names, cat) {
+    const count = new Map();
+    for (const nm of names || []) { const k = exportRowKey(nm, cat); count.set(k, (count.get(k) || 0) + 1); }
+    const out = exportPersonas(cat).filter((p) => count.get(p.key)).map((p) => ({ ...p, n: count.get(p.key) }));
+    if (count.get("__other")) out.push({ key: "__other", label: "— other CA numbers", lo: -1, hi: -1, n: count.get("__other") });
+    if (count.get("__none")) out.push({ key: "__none", label: "— no CA number", lo: -1, hi: -1, n: count.get("__none") });
+    return out;
+  }
   // the smallest unused number in the persona's range, and who holds the taken ones
   function nextNumber(personaKey, raws, cat, skipId) {
     const p = personaOf(personaKey, cat); if (!p) return { num: null, taken: [] };
@@ -648,7 +676,7 @@ const Builder = (() => {
   }
 
   return { PERSONAS, PLATFORMS, CLIENT_APPS, RISK, INSIDER, FLOWS, USER_ACTIONS, GRANTS, APP_GROUPS, ROLES, STATES, STEPS, KINDS, BREAK_GLASS_RE,
-    personas, personaOf, caNum, nextNumber, blank, kindOf, sessionCount, suggestWords, nameOf, exclusionGroupName,
+    personas, personaOf, exportPersonas, exportRowKey, exportRows, caNum, nextNumber, blank, kindOf, sessionCount, suggestWords, nameOf, exclusionGroupName,
     toRaw, fromRaw, guestClause, cloneOf, fromTemplate, validate, hints, preflight, willDo, diff, patchBody, canon,
     summary, stepsHtml, hintsHtml, preflightHtml, willHtml, diffHtml };
 })();

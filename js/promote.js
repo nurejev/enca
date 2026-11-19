@@ -182,6 +182,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 392,
+      ws: "ca",
+      title: "🧬 Baseline T10 2.22.0 + 🗂 Policies T01 2.22.1: 🚨 Create E-Admins as its own import under CloudFellows and Joey Verlinden (ENCA’s own copy, no ZIP, lands Off), and ⬇ Export baseline no longer leaves CA1100 and up out",
+      tools: ["Baseline", "List Policies"],
+      builds: [33311],
+      risk: "medium",
+      files: ["js/baseline.js", "js/builder.js", "js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/eadmins-separate.test.cjs", "tools/builder.test.cjs"],
+      what: "33311 (Mihai 19 Nov, on ⬇ Export baseline on cloudfellows.dev: where are the e-admins to download; then: the cf must also have the create those 6, may put them separate to import in the baseline tool; mockup approved). js/baseline.js: compare returns toCreateEAdmins — the gap rows that are E-Admins, empty under a catalog with sharedEAdmins false — and under the CloudFellows catalog moves those rows from toImport to toImportShared; sharedText labels them 🚨 E-Admins; the summary, the import note and the MD export say ENCA’s own copy. js/app.js + index.html: #blEaCreate on the Baseline toolbar, painted from toCreateEAdmins, hands Importer.mergeShared({}, E_ADMINS.bundle()) to the existing import with mode shipped, the gap ticked and the bundle marked with the baseline it is for (catalogId). js/builder.js: exportPersonas / exportRowKey / exportRows — the chooser rows of ⬇ Export baseline, with 🚨 E-Admins, 🏭 Factory workers and a row for a number outside every range; bkPersonaKeys and bkInPersona in js/app.js read them.",
+      why: "Two things were wrong at once. Under CloudFellows the six emergency-access policies could only arrive in a backup ZIP, and the export that makes that ZIP on the baseline tenant left them out — so a tenant deployed from it had break-glass accounts and no policy for them, with nothing on the screen saying why. Medium because the button leads to a WRITE: six policies, their three groups and an authentication strength. It reuses the import that has created them under Joey Verlinden since 32706 and they are forced Off, so the exposure is a wrong group name, not a lockout. Hold it to the tenant steps below before production: this was verified in the offline suite and in the demo walk, not on a live tenant.",
+      test: [
+        "node --test tools/eadmins-separate.test.cjs tools/builder.test.cjs: 15 and 26 tests green.",
+        "Demo (?demo=1): 🧬 Baseline → CloudFellows: 🚨 Create E-Admins (6) → sits left of 📥 Import baseline. Click it: 📥 Import opens with six rows, all ticked, each reading lands Off; the panel reads E-ADMINS — 6 ADDED — CREATED FROM ENCA’S OWN COPY. Switch the picker to SMB Basic: the button is gone.",
+        "A CloudFellows tenant WITHOUT CA1100–CA1105: the button reads (6); Import baseline (n) is six lower than on beta 33310 and the summary shows +6 🚨 E-Admins from ENCA’s own copy. Run the import: six policies exist, all Off; Emergency_Access1, Emergency_Access2 and CAB-SEC-U-BreakGlass exist (reused when already there, never duplicated); the authentication strength Phishing-resistant MFA + TAP exists. ⟳ Refresh on Baseline: the button is gone.",
+        "A Joey Verlinden tenant without them: the same, and the block policies name CA-BreakGlassAccounts - Exclude, not CAB-SEC-U-BreakGlass; the import’s pre-flight names that same group.",
+        "A tenant holding CA1100 at v2.0: the button reads (1); the import ticks only CA1100 and creates the v3.0 policy Off BESIDE the v2.0 one, which is left untouched (E-Admins are imported as-is, never as a replacement).",
+        "A tenant on Report-only landing (the default): the six still land Off, the ledger says so.",
+        "cloudfellows.dev, 🧬 Baseline → ⬇ Export baseline: a 🚨 E-Admins row with 6 is offered; ☑ All counts six policies more than on beta 33310 (the rows there added up to 107); tick only E-Admins: 6 policies and their 3 groups and 1 authentication strength; the zip holds the six JSON files.",
+        "🏗 Policy builder → step 1: the persona chips are the nine they were — no E-Admins, no Factory workers.",
+      ],
+    },
+    {
       n: 391,
       ws: "ca",
       title: "🕵 Who is Anna to CA T36 1.5.0: 🗃 Applications she signs in to — one row per application with its resources, sign-ins, last sign-in, and the exclusions that cover it; a callout for an exclusion nothing in the window uses",

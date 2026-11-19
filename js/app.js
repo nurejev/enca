@@ -3040,25 +3040,18 @@
     $("bkGo").textContent = opts.personas ? "Download export" : "Download backup";
     paintBackup();
   }
-  // The personas actually present in the pool, with their counts — never the
-  // nine in the registry, so a chooser can not offer an empty box.
+  // The rows actually present in the pool, with their counts — never the
+  // whole registry, so a chooser can not offer an empty box. 33311: the rows
+  // are Builder.exportRows (js/builder.js) — the personas, 🚨 E-Admins,
+  // Factory workers, and a row each for a number outside every range and for
+  // no number at all, so every policy in scope sits in exactly one of them.
+  // Until then CA1100+ had no box and was left out whichever were ticked.
   function bkPersonaKeys(pool) {
     const ids = pool || (selected.size ? [...selected] : visible().map(p => p.id));
     const ps = backupScope(ids.map(id => policies.find(p => p.id === id)).filter(Boolean)).policies;
-    const out = [];
-    for (const per of Builder.personas(pbCat())) {
-      const n = ps.filter((p) => { const num = Builder.caNum(p.raw.displayName); return num != null && num >= per.lo && num <= per.hi; }).length;
-      if (n) out.push({ ...per, n });
-    }
-    const un = ps.filter((p) => Builder.caNum(p.raw.displayName) == null).length;
-    if (un) out.push({ key: "__none", label: "— no CA number", lo: -1, hi: -1, n: un });
-    return out;
+    return Builder.exportRows(ps.map((p) => p.raw.displayName), pbCat());
   }
-  const bkInPersona = (p, keys) => {
-    const num = Builder.caNum(p.raw.displayName);
-    if (num == null) return keys.has("__none");
-    return Builder.personas(pbCat()).some((per) => keys.has(per.key) && num >= per.lo && num <= per.hi);
-  };
+  const bkInPersona = (p, keys) => keys.has(Builder.exportRowKey(p.raw.displayName, pbCat()));
   function paintBackup() {
     const picked = exportOrder(((bkPool || (selected.size ? [...selected] : visible().map(p => p.id)))).map(id => policies.find(p => p.id === id)).filter(Boolean));
     if (!picked.length) { toast("Nothing to back up"); return; }
@@ -4499,7 +4492,7 @@
     if (imEa && imEa.added && imEa.added.length) {
       return plusPanel + `<div class="cg-panel">
         <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED${imEa.bundled ? " — CREATED FROM ENCA'S OWN COPY" : ` FROM ${esc(String(imEa.label).toUpperCase())}`}</h4>
-        <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
+        <p class="mini" style="margin:0">${imEa.alone ? "This import holds only these. The ones this tenant is missing are ticked in the list below." : "Ticked in the list below and imported with the rest."} They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
       </div>`;
     }
     if (plusPanel) return plusPanel;
@@ -12059,6 +12052,12 @@ This is a directory write. Nothing else changes.`)) return;
     $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
     const n = blResult.toImport.length;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
+    // 33311: the E-Admins this tenant still needs, as their own import — only
+    // where there is a gap, and never under a catalog that covers its own
+    // break-glass (SMB Basic: toCreateEAdmins is empty there)
+    { const nEa = typeof E_ADMINS !== "undefined" && blResult.toCreateEAdmins ? blResult.toCreateEAdmins.length : 0;
+      $("blEaCreate").style.display = nEa ? "" : "none";
+      $("blEaCreate").textContent = `🚨 Create E-Admins (${nEa}) →`; }
     // Regenerating the catalog is only meaningful where the catalog is BUILT.
     $("blCatalogUpdate").style.display = isBaselineTenant() && !isDemo ? "" : "none";
     { const nR = blCat === "limonit" && isBaselineTenant() ? Object.keys(catReadyLoad()).length : 0;
@@ -12574,11 +12573,46 @@ This is a directory write. Nothing else changes.`)) return;
   // locations — so the import starts from that read with the gap ticked,
   // and only a catalog without a repository (or a read that failed) asks
   // for a zip.
+  // 33311 (Mihai 19 Nov: "the cf must also have the create those 6. may put
+  // them seperate to import in the baseline tool") — 🚨 Create E-Admins. The
+  // six emergency-access policies as an import of their own, under either
+  // persona baseline, from ENCA's own copy (js/eadminsData.js): no backup ZIP
+  // to find first. NOT a second write path — the same Importer.mergeShared()
+  // a ZIP's E-Admins go through (break-glass group renamed to the baseline
+  // being looked at, every one forced Off), handed to the same 📥 Import
+  // screen, where nothing is written until the run is started. The gap is
+  // ticked; one the tenant already holds is listed as skip by the plan.
+  // mode "shipped" is said outright: six CloudFellows-named policies loaded
+  // under Joey Verlinden's baseline must never read as a baseline switch.
+  $("blEaCreate").addEventListener("click", async () => {
+    const res = blResult;
+    if (!res || typeof E_ADMINS === "undefined") return;
+    const btn = $("blEaCreate");
+    btn.disabled = true;
+    try {
+      const toCat = Baseline.withContract(res.catalog) || res.catalog, cf = Baseline.catalog("limonit");
+      const label = E_ADMINS.source.label;
+      const m = Importer.mergeShared({}, E_ADMINS.bundle(), { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
+      // The six carry CloudFellows names whichever baseline they are for, so
+      // an import left to guess its baseline from them (catalogOfBundle) would
+      // preflight CloudFellows' break-glass group under Joey Verlinden's and
+      // name the wrong baseline in the panel. Say which one this is for.
+      m.bundle.catalogId = res.catalog.id;
+      const only = new Set((res.toCreateEAdmins || []).map((r) => r.baseline.name));
+      $("toolImport").click();
+      imEa = { label, added: m.added, already: 0, renamed: m.bundle.sharedRenamed, bundled: true, alone: true, plus: [], plusAlready: 0 };
+      await imLoaded(m.bundle, label, { mode: "shipped", only });
+      $("imDesc").textContent = `🚨 E-Admins for ${toCat.label}: ${only.size} of the ${m.added.length} emergency-access policies ${only.size === 1 ? "is" : "are"} missing or outdated in this tenant and ${only.size === 1 ? "is" : "are"} ticked. Created from ENCA's own copy (${E_ADMINS.source.tenant}, read ${E_ADMINS.source.read}) — no backup ZIP. They land Off whatever the run lands, with their groups and authentication strength created when missing. Nothing is written until you start the import.`;
+    } catch (err) {
+      console.error(err);
+      toast(`Could not load the E-Admins: <span>${esc(err.message || err)}</span>`);
+    } finally { btn.disabled = false; }
+  });
   $("blImport").addEventListener("click", async () => {
     const res = blResult;
     const n = res ? res.toImport.length : 0;
     const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
-      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"}, added from ENCA's own copy (or ＋ Create below)` : "") + ". ";
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"}${res.catalog.id === "limonit" ? " — not in this file unless your backup holds them: 🚨 Create E-Admins on the 🧬 Baseline screen brings them in from ENCA's own copy, without a ZIP" : ", added from ENCA's own copy (or ＋ Create below)"}` : "") + ". ";
     if (res && res.catalog.id === "smb") {
       const only = new Set(res.toImport.map((r) => r.baseline.name));
       if (await imSmbLoad({ only })) $("imDesc").textContent = gapNote() + `From ENCA's own copy of ${res.catalog.label} ${res.catalog.release}: the ${only.size} in the gap are ticked. 🧩 As shipped creates the exclusion groups and the break-glass group by name; CA103 and CA201–CA204 land Off.`;

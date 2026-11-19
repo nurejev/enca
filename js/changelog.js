@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33311, date: "2026-11-19", title: "🚨 Create E-Admins on the Baseline screen, and an export that no longer leaves them out",
+    items: [
+      { kind: "new", tool: "Baseline", text: "🚨 Create E-Admins is a button of its own on the 🧬 Baseline toolbar, under CloudFellows and under Joey Verlinden. It shows how many of the six emergency-access policies (CA1100–CA1105) this tenant is missing or holds at an older version, and opens 📥 Import with ONLY those six, from the copy ENCA carries — no backup ZIP to find first. The missing ones are ticked, the break-glass group is the one of the baseline you are looking at, and they land OFF whatever the run lands. Nothing is written until you start the import there. Where the tenant holds one at an older version, the new version is created beside it and the old policy is left untouched. Not offered under SMB Basic, which carries its own break-glass policy." },
+      { kind: "improved", tool: "Baseline", text: "🧬 Under CloudFellows the six E-Admins are no longer counted in 📥 Import baseline (n). They sat there as ordinary rows of the catalog, waiting for a ZIP they might not be in; the summary now shows them apart as +6 🚨 E-Admins from ENCA’s own copy, the way it already did under Joey Verlinden. A CloudFellows backup ZIP that holds them still imports them, and choosing Joey Verlinden still brings them along." },
+      { kind: "fixed", tool: "List Policies", text: "⬇ Export baseline left the E-Admins out. The per-persona chooser stopped at DevOps (CA1000–CA1099), so a baseline policy numbered CA1100 or higher had no box and was missing from the zip even with ☑ All — the six E-Admins on the baseline tenant. The chooser now has rows for 🚨 E-Admins and 🏭 Factory workers, and one for any CA number outside every range, so every policy in scope is in exactly one row. 🗄 Backup on the action bar has no chooser and was never affected." },
+    ],
+  },
+  {
     build: 33310, date: "2026-11-19", title: "🕵 Who is … to CA: the applications she signs in to, and the exclusions that cover them",
     items: [
       { kind: "new", tool: "Who is … to CA", text: "🕵 A new card, Applications she signs in to, lists every application from her own sign-ins of the window: the resources it reached, the number of sign-ins, how many Conditional Access stopped and when she last signed in. It is the list you need when somebody was excluded from a policy for one application — Viva Engage, say — and you want to know whether she still uses it." },

@@ -498,9 +498,13 @@ const Baseline = (() => {
   // 33109: the shared rows of a comparison by family, for the sentences that
   // used to say "E-Admins" for every shared row
   const SHARED_LABEL = { CloudFellows: "🚨 E-Admins", "Joey+": "➕ Joey+ additions" };
+  // 33311: an E-Admins row of the CloudFellows catalog itself carries no
+  // `shared` (it is that catalog's own entry), and still comes from ENCA's
+  // own copy — so it is counted under the same label.
+  const isEaRow = (r) => !!(r && r.baseline && personaKey(r.baseline.name) === "eadmin");
   function sharedText(rows, pick) {
     const by = new Map();
-    for (const r of rows || []) if (r.shared && (!pick || pick(r))) by.set(r.shared, (by.get(r.shared) || 0) + 1);
+    for (const r of rows || []) { const fam = r.shared || (isEaRow(r) ? "CloudFellows" : null); if (fam && (!pick || pick(r))) by.set(fam, (by.get(fam) || 0) + 1); }
     return [...by.entries()].map(([k, n]) => `${n} ${SHARED_LABEL[k] || k}`).join(" + ");
   }
 
@@ -755,6 +759,7 @@ const Baseline = (() => {
     const covered = rows.filter((r) => r.baseline && r.tenant && r.status !== "conflict").length;
     const total = cat.policies.length + shared.length;
     const gap = (r) => ["missing", "outdated", "conflict"].includes(r.status);
+    const eaOwn = cat.id === DEFAULT_ID && cat.sharedEAdmins !== false;
     return {
       rows, counts, byDefinition,
       catalog: cat,
@@ -765,8 +770,17 @@ const Baseline = (() => {
       coverage: total ? Math.round((covered / total) * 100) : 0,
       // what an import of THIS catalog would actually bring in — the shared
       // E-Admins rows are not in its repository, so they are counted apart
-      toImport: rows.filter((r) => gap(r) && !r.shared),
-      toImportShared: rows.filter((r) => gap(r) && r.shared),
+      // 33311 (Mihai 19 Nov: "the cf must also have the create those 6. may
+      // put them seperate to import in the baseline tool"): under the
+      // CloudFellows catalog the six E-Admins are its own entries, so they
+      // sat inside toImport — behind a backup ZIP they may not even be in.
+      // ENCA carries them (js/eadminsData.js), so there too they are counted
+      // apart, and toCreateEAdmins is what 🚨 Create E-Admins brings in under
+      // either persona baseline. A catalog that covers its own break-glass
+      // (SMB Basic) has none.
+      toImport: rows.filter((r) => gap(r) && !r.shared && !(eaOwn && isEaRow(r))),
+      toImportShared: rows.filter((r) => gap(r) && (r.shared || (eaOwn && isEaRow(r)))),
+      toCreateEAdmins: cat.sharedEAdmins === false ? [] : rows.filter((r) => gap(r) && isEaRow(r)),
     };
   }
 
@@ -801,7 +815,7 @@ const Baseline = (() => {
     const sharedOk = res.rows.filter((r) => r.shared && r.tenant && r.status !== "conflict").length;
     const parts = [];
     parts.push(`<b>${own} of ${esc(cat.label)}${/s$/i.test(cat.label) ? "'" : "'s"} ${ownTotal} policies are in this tenant</b>${res.shared ? `, plus ${sharedOk} of the ${res.shared} shared policies (${esc(sharedText(res.rows))}) it is expected to carry` : ""}.`);
-    if (n("missing")) parts.push(`<b>${n("missing")} missing</b> — no policy with that CA number here${res.toImportShared && res.toImportShared.length ? ` (${res.toImportShared.length} of them ${esc(sharedText(res.toImportShared))} — 📥 Import creates them from ENCA's own copy)` : ""}.`);
+    if (n("missing")) parts.push(`<b>${n("missing")} missing</b> — no policy with that CA number here${res.toImportShared && res.toImportShared.length ? ` (${res.toImportShared.length} of them ${esc(sharedText(res.toImportShared))} — ${res.catalog && res.catalog.id === DEFAULT_ID ? "🚨 Create E-Admins on the toolbar creates them from ENCA's own copy, no backup ZIP needed" : `📥 Import creates them from ENCA's own copy${res.toCreateEAdmins && res.toCreateEAdmins.length ? ", and 🚨 Create E-Admins on the toolbar brings in the E-Admins alone" : ""}`})` : ""}.`);
     if (n("outdated")) parts.push(`<b>${n("outdated")} outdated</b> — deployed at an older version than the baseline.`);
     if (n("conflict")) {
       const who = tally(res.rows.filter((r) => r.status === "conflict"));
@@ -1438,7 +1452,7 @@ const Baseline = (() => {
     if (imp.length) {
       L.push("## Would be imported or updated");
       L.push("");
-      for (const r of imp) L.push(`- **CA${String(r.num).padStart(3, "0")}** ${mdEsc(r.baseline.name)}${r.shared ? (r.shared === "Joey+" ? " (Joey+ addition — ENCA's own copy)" : ` (shared E-Admins policy — ${mdEsc(r.shared)} backup)`) : ""}${
+      for (const r of imp) L.push(`- **CA${String(r.num).padStart(3, "0")}** ${mdEsc(r.baseline.name)}${r.shared ? (r.shared === "Joey+" ? " (Joey+ addition — ENCA's own copy)" : ` (shared E-Admins policy — ${mdEsc(r.shared)} backup)`) : isEaRow(r) ? " (E-Admins — created from ENCA's own copy)" : ""}${
         r.status === "outdated" ? ` — currently v${mdEsc(r.tenantVersion)}`
         : r.status === "conflict" ? ` — CA${String(r.num).padStart(3, "0")} is taken by "${mdEsc(r.tenant.name)}" (${mdEsc(r.why)})`
         : " — not present"}`);
@@ -1447,7 +1461,7 @@ const Baseline = (() => {
     return L.join("\n");
   }
 
-  return { catalogs, catalog, compare, vmToEntry, entryDiff, reviewRow, catalogReview, catalogSource, diffSig, sharedPolicies, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
+  return { catalogs, catalog, compare, vmToEntry, entryDiff, reviewRow, catalogReview, catalogSource, diffSig, sharedPolicies, sharedText, sharedGroups, sharedFamily, isDeployGroup, personas, personaKey, similarity, mismatchReason, renderSummary, chips, renderTable, changes, toMd, STATUS, caNum, version, cmpVersion,
     // R36
     use, active, activeCatalogId, isActive, setActive, activeLine, activeChip, withContract, previewSwitch, renderPreview, DEFAULT_ID,
     // R36.1 — matched, not chosen
