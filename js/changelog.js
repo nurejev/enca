@@ -19,6 +19,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 335, date: "2026-11-19", release: "2.0.13",
+    title: "ENCA 2.0.13 — 🔐 ENCA access: the PIM groups for the people who use the Conditional Access workspace",
+    items: [
+      { kind: "new", tool: "ENCA access", text: "Production is build 335 (v2.0.13). 🔐 A new Workspace 01 tool creates the two PIM groups the ENCA design (R94) asks for. PIM-SG-ENCA-CA-Read holds Global Reader and Security Reader, active, for everyone who opens ENCA. PIM-SG-ENCA-CA-Admin holds Conditional Access Administrator, a custom ENCA CA Group Operator role (create groups and manage members, no delete; also at every restricted CA-RMAU-* unit) and Authentication Policy Administrator, eligible, so a member activates only the role the task needs. Every row says why that role. Add the members, preview, type the domain, apply — and undo the run if you need to." },
+      { kind: "new", tool: "ENCA access", text: "🔐 Two optional ticks: set the design’s activation settings (4 hours, MFA and justification, permanent eligibility) — which the tool says plainly changes them for everyone eligible for those roles — and lock ENCA’s sign-in to the two groups, refused when you would lock yourself out." },
+    ],
+  },
+  {
     build: 334, date: "2026-11-19", release: "2.0.12",
     title: "ENCA 2.0.12 — ⑦ Migrate checks the group you came with, also right after another one was migrated",
     items: [

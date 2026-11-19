@@ -3105,6 +3105,7 @@
     ["toolProtect", "🔒 Protect exclusions"],
     ["toolLocations", "🧩 Policy building blocks"],
     ["toolRmau", "🛡 Restricted AUs"],
+    ["toolEncaAccess", "🔐 ENCA access"],
     ["toolUserImpact", "🗣 User impact brief"],
     ["toolImport", "📥 Import"],
     ["toolDeploy", "↗ Guided rollout"],
@@ -23746,6 +23747,343 @@ This is a directory write. Nothing else changes.`)) return;
     gcExpanded.has(id) ? gcExpanded.delete(id) : gcExpanded.add(id);
     renderGapCheck();
   });
+
+  // ======================================================================
+  // WORKSPACE 02 WRITES — one runner for every PIM plan (beta 32422, R69).
+  //
+  // PRODUCTION (build 335): the runner is here for 🔐 ENCA access (T62)
+  // alone — it is the block the beta channel runs, with js/pimplan.js and
+  // js/pimscript.js, carried so that tool can ship. Workspace 02's own tools
+  // (🧬 PIM baseline, 🚀 Deploy and the rest) stay on the beta channel; keep
+  // this block in step with beta by porting, not by editing it here.
+  //
+  // PIM onboarding runs from the browser; the customer never runs a script
+  // (Mihai, 28 Sep 2026). A tool builds a plan from reads only
+  // (js/pimplan.js), this runner shows it as a WhatIf with its impact and its
+  // recovery, asks for the tenant's domain typed out, asks every permission
+  // the plan needs in one consent while the click is fresh, and applies it
+  // with the run ledger: ✓ done, ◐ deferred (a new group's membership policy),
+  // ✗ failed, – skipped because what it needed was not made. Every rule it
+  // PATCHes is kept as it was, in a backup file the person downloads, and
+  // ↩ Put back rewrites those rules from that file.
+  // ======================================================================
+  // The domain typed to apply, and the alert domain: the TENANT's default
+  // verified domain. tenantDomain is the signed-in admin's own domain, which
+  // for an MSP or guest admin is the same text in every customer (beta 32429).
+  const pimExpectDomain = () => (isDemo ? "contoso.nl" : (tenantDefaultDomain || (tenantDomains.includes((tenantDomain || "").toLowerCase()) ? tenantDomain : "") || tenantDomains[0] || "").toLowerCase());
+  async function pimSend(method, url, body, needs) {
+    const scopes = [...AUTH_CONFIG.scopes, ...(needs || [])];
+    if (method === "DELETE") { await Graph.gdelete(url, scopes); return null; }
+    if (method === "PATCH") return Graph.gpatch(url, body, scopes);
+    return Graph.gpost(url, body, scopes);
+  }
+  // A group's Member policy (PIM for Groups) at run time: read by the group's
+  // id, the rules the template governs changed one by one. A group that is
+  // not in PIM for Groups yet has no policy — deferred, not failed.
+  async function pimGroupPolicyStep(op, ids, send, late) {
+    const gid = op.groupId || ids[`group:${op.group}`];
+    if (!gid) throw new Error(`${op.group} has no id`);
+    if (isDemo) return /^demo-/.test(String(gid)) ? "deferred — not in PIM for Groups yet (the first member assignment brings it in; plan again then)" : "done";
+    const sc = [...AUTH_CONFIG.scopes, "RoleManagementPolicy.ReadWrite.AzureADGroup"];
+    const r = await Graph.gget(`https://graph.microsoft.com/v1.0/policies/roleManagementPolicyAssignments?$filter=scopeId eq '${gid}' and scopeType eq 'Group' and roleDefinitionId eq 'member'&$expand=policy($expand=rules)`, sc);
+    const pol = r && r.value && r.value[0] && r.value[0].policy;
+    if (!pol) return "deferred — not in PIM for Groups yet (the first member assignment brings it in; plan again then)";
+    // Only the approvers THIS template names: one failed approver group must
+    // not fail every other group's policy (beta 32429).
+    const approverIds = {};
+    for (const n of PimPlan.approverNames(op.settings)) if ((op.approverIds || {})[n]) approverIds[n] = PimPlan.resolve(op.approverIds[n], ids);
+    const ch = PimPlan.ruleChanges(pol.rules || [], op.settings, { approverIds, domain: op.domain, verifiedDomains: op.verifiedDomains, skipApproval: !!op.skipApproval });
+    if (ch.problem) throw new Error(ch.problem);
+    let n = 0;
+    for (const c of ch.changes) { if (c.missing) continue; const url = `${PimPlan.V1}/policies/roleManagementPolicies/${pol.id}/rules/${c.ruleId}`; if (late) late.push({ key: `gpolnew:${op.group}:${c.ruleId}`, url, before: c.before }); await send("PATCH", url, c.after, ["RoleManagementPolicy.ReadWrite.AzureADGroup"]); n++; }
+    return n ? `done (${n} rule${n === 1 ? "" : "s"})` : "done (already as the template says)";
+  }
+  // The WhatIf panel. opts: { title, impact: [...], recovery: [...], irreversible: [...],
+  //   onDone(result), host }
+  function pimPlanPanel(plan, opts) {
+    const n = plan.ops.length;
+    const sections = {};
+    plan.ops.forEach((o) => { sections[o.section] = (sections[o.section] || 0) + 1; });
+    const scopes = PimPlan.scopesOf(plan);
+    const lines = plan.ops.map((o, i) => `<tr class="pmb-row"><td class="mini">${i + 1}</td><td>${esc(o.summary)}</td><td><span class="pmb-kind">${o.removes ? "removes" : o.kind === "request" ? "add" : o.method === "POST" ? "create" : o.kind === "groupPolicy" ? "policy" : o.method === "PATCH" ? "update" : o.method}</span></td></tr>`).join("");
+    const bl = plan.blocked.length ? `<ul class="pmb-diffs pmb-findings">${plan.blocked.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : "";
+    const fi = plan.findings.length || plan.manual.length ? `<ul class="pmb-diffs">${[...plan.findings, ...plan.manual.map((m) => `by hand — ${m}`)].map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : "";
+    const dom = pimExpectDomain();
+    // 4.1: where no API exists, the script — one download per workload, and
+    // the outcome file it writes comes back through Import outcome.
+    const sc = (plan.scripts || []).length ? `<div class="pmb-scripts" data-pimscripts><p class="mini"><b>Where no API exists — the script:</b> ${plan.scripts.map((x) => `${esc(x.label)} (${x.entries.length} binding${x.entries.length === 1 ? "" : "s"})`).join(" · ")}. Each script carries display names and object ids only, performs the bindings and writes an outcome file next to itself; import that file here so the bindings count as verified.</p>
+      <div class="pmb-upload-row">${plan.scripts.map((x, i) => `<button class="btn" data-pimscript="${i}">⬇ ${esc(x.label)}</button>`).join("")}<label class="btn">📂 Import outcome <input type="file" accept=".json,application/json" data-pimoutcome hidden></label></div>
+      <div data-pimoutcomes></div></div>` : "";
+    return `<div class="list-card xt-card pim-plan" data-pimplan>
+      <h3>${esc(opts.title || "WhatIf")} <span class="mini">${n} operation${n === 1 ? "" : "s"}, in the order they run · nothing is written until ▶ Apply</span></h3>
+      ${bl ? `<p class="mini pmb-bad-txt"><b>Blocked</b> — resolve these items and create a new preview before applying:</p>${bl}` : ""}
+      ${n ? `<div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>#</th><th>Operation</th><th>Kind</th></tr></thead><tbody>${lines}</tbody></table></div>` : `<p class="mini">Nothing to do for what is ticked.</p>`}
+      ${fi ? `<p class="mini"><b>Found, not changed</b>:</p>${fi}` : ""}
+      ${sc}
+      ${n ? `<dl class="pim-kv">
+        <dt>Impact</dt><dd>${(opts.impact || []).map(esc).join(" ") || "—"}</dd>
+        <dt>Recovery</dt><dd>${(opts.recovery || []).map(esc).join(" ")}</dd>
+        ${(opts.irreversible || []).length ? `<dt>Cannot be undone</dt><dd class="pmb-bad-txt">${opts.irreversible.map(esc).join(" ")}</dd>` : ""}
+        <dt>Permissions</dt><dd class="mini">${esc(scopes.join(", ") || "none beyond sign-in")} — asked once, on ▶ Apply</dd>
+      </dl>
+      <div class="pim-confirm"><label for="pimTyped"><b>Type ${esc(dom || "the tenant's domain")} to apply ${n} operation${n === 1 ? "" : "s"}</b></label>
+        <div class="pmb-upload-row"><input id="pimTyped" type="text" autocomplete="off" spellcheck="false" placeholder="${esc(dom)}"><button class="btn primary" data-pimapply disabled>▶ Apply ${n}${isDemo ? " (simulated)" : ""}</button><button class="btn" data-pimplanjson>⬇ Plan (JSON)</button></div></div>` : ""}
+      <div data-pimrun></div></div>`;
+  }
+  // Wire a rendered plan panel. Returns nothing; calls opts.onDone(result).
+  function pimPlanWire(host, plan, opts) {
+    const panel = host.querySelector("[data-pimplan]");
+    if (!panel) return;
+    const typed = panel.querySelector("#pimTyped"), go = panel.querySelector("[data-pimapply]");
+    const dom = pimExpectDomain();
+    // A plan runs ONCE (beta 32429): after its run — or while it runs — the box no
+    // longer arms the button; a second import is a new Preview from a new read.
+    if (plan._applied || plan._running) { if (go) { go.disabled = true; go.textContent = plan._applied ? "✓ Applied — Preview again for another run" : "Running…"; } if (typed) typed.disabled = true; }
+    if (typed && go) typed.addEventListener("input", () => { go.disabled = plan.blocked.length > 0 || plan._applied || plan._running || !dom || typed.value.trim().toLowerCase() !== dom; });
+    const pj = panel.querySelector("[data-pimplanjson]");
+    if (pj) pj.addEventListener("click", () => { downloadText(`pim-plan.${dom || "tenant"}`, "json", "application/json", JSON.stringify(plan, null, 2) + "\n"); });
+    if (go) go.addEventListener("click", () => pimApply(panel.querySelector("[data-pimrun]"), plan, opts, go));
+    panel.querySelectorAll("[data-pimscript]").forEach((b) => b.addEventListener("click", () => {
+      const x = (plan.scripts || [])[Number(b.getAttribute("data-pimscript"))];
+      if (!x) return;
+      downloadText(x.file.replace(/\.ps1$/, ""), "ps1", "text/plain", x.text);
+    }));
+    const oc = panel.querySelector("[data-pimoutcome]");
+    if (oc) oc.addEventListener("change", async () => {
+      const f = oc.files && oc.files[0]; if (!f) return;
+      const host = panel.querySelector("[data-pimoutcomes]");
+      let text = ""; try { text = await f.text(); } catch { text = ""; }
+      const r = PimScript.readOutcome(text);
+      oc.value = "";
+      if (!r.ok) { if (host) host.innerHTML = `<p class="mini pmb-bad-txt">${esc(f.name)}: not an outcome file (${esc(r.error)}).</p>`; return; }
+      plan._outcomes = plan._outcomes || [];
+      plan._outcomes.push({ file: f.name, kind: r.kind, ran: r.ran, summary: r.summary, verified: r.verified });
+      const rows = r.results.map((x) => `<tr class="pmb-row pmb-${x.status === "failed" ? "differs" : x.status === "unknown" ? "unread" : "match"}"><td>${esc(x.group)}</td><td>${esc(x.target)}${x.role ? ` · ${esc(x.role)}` : ""}</td><td>${x.status === "failed" ? "✗ failed" : x.status === "added" ? "✓ added" : x.status === "present" ? "✓ already there" : "? unknown"}${x.error ? ` <span class="mini">${esc(x.error)}</span>` : ""}</td></tr>`).join("");
+      if (host) host.innerHTML = `<p class="mini"><b>${esc(f.name)}</b> — ${esc(r.kind)}${r.tenant ? ` · ${esc(r.tenant)}` : ""}${r.ran ? ` · ran ${esc(r.ran.slice(0, 16).replace("T", " "))}` : ""}: ${r.summary.added} added, ${r.summary.present} already there, ${r.summary.failed} failed${r.summary.unknown ? `, ${r.summary.unknown} unknown` : ""}.</p>
+        <div class="xt-tw"><table class="xt-tbl pmb-rtbl"><thead><tr><th>Group</th><th>Role group or scope</th><th>Outcome</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      toast(r.summary.failed ? `${r.summary.failed} binding${r.summary.failed === 1 ? "" : "s"} failed — see the outcome` : `${r.verified.length} binding${r.verified.length === 1 ? "" : "s"} verified from the outcome file`);
+    });
+  }
+  async function pimApply(host, plan, opts, btn) {
+    if (plan.blocked.length || plan._applied || plan._running) return;
+    plan._running = true;
+    if (btn) btn.disabled = true;
+    const typedBox = host && host.closest("[data-pimplan]") && host.closest("[data-pimplan]").querySelector("#pimTyped");
+    if (typedBox) typedBox.disabled = true;
+    const scopes = [...AUTH_CONFIG.scopes, ...PimPlan.scopesOf(plan)];
+    if (!isDemo && !await preConsent(scopes)) { plan._running = false; if (btn) btn.disabled = false; if (typedBox) typedBox.disabled = false; return; }
+    // Put back keeps what it overwrites too: each rule is read just before
+    // the run, so its backup can undo the undo (beta 32429).
+    if (!isDemo) for (const o of plan.ops) if (o.method === "PATCH" && !o.before && /\/policies\/roleManagementPolicies\//.test(o.url)) { try { o.before = PimPlan.ruleBody(await Graph.gget(o.url, scopes)); } catch { /* no before: not in the backup */ } }
+    const late = [];
+    const L = RunLedger.create(host, { unit: "operations", title: opts.title || "", items: plan.ops.map((o) => ({ label: o.summary, sub: o.section })) });
+    let demoN = 0;
+    const send = isDemo ? async (method, url) => { await new Promise((r) => setTimeout(r, 120)); return method === "POST" ? { id: `demo-${++demoN}`, status: /ScheduleRequests/.test(url) ? "Provisioned" : undefined } : null; } : pimSend;
+    const res = await PimPlan.run(plan, {
+      send, stopped: () => L.stopped,
+      groupPolicy: (op, ids, s) => pimGroupPolicyStep(op, ids, s, late),
+      onStart: (i) => L.start(i), onDone: (i, note) => L.done(i, note), onFail: (i, why) => L.fail(i, why), onPart: (i, note) => L.part(i, note, "later"), onSkip: (i, why) => L.skip(i, why),
+      onWait: (i, s, a) => L.note(i, `not replicated yet — trying again in ${s} s (${a} of ${PimPlan.WAITS.length})`),
+    });
+    plan._running = false; plan._applied = true;
+    const bk = PimPlan.backup(plan, { tenant: tenantName || (isDemo ? "Demo tenant" : ""), tenantId: isDemo ? "demo" : tenantId, domain: pimExpectDomain(), appliedAt: new Date().toISOString(), by: `ENCA ${APP_BUILD.label || APP_BUILD.build}` });
+    bk.rules.push(...late);   // membership policies changed at run time (new groups)
+    const report = () => {
+      const md = [`# ${opts.title || "PIM plan"} — ${tenantName || pimExpectDomain()}`, "", `${isDemo ? "Demo — simulated. " : ""}${res.done} done · ${res.deferred} later · ${res.failed} failed · ${res.skipped} skipped, ${new Date().toLocaleString()}.`, "", "| # | Operation | Outcome |", "|---|---|---|",
+        ...res.outcome.map((r, i) => `| ${i + 1} | ${r.summary} | ${r.status}${r.error ? ` — ${r.error}` : ""}${r.id ? ` (id ${r.id})` : ""} |`), "",
+        bk.rules.length ? `The ${bk.rules.length} rule${bk.rules.length === 1 ? "" : "s"} changed were kept as they were: ⬇ Backup downloads them, ↩ Undo this run puts them back.` : "No rule was changed, so there is nothing to put back.",
+        ...(plan.findings.length ? ["", "## Found, not changed", "", ...plan.findings.map((f) => `- ${f}`)] : []),
+        ...(plan.manual.length ? ["", "## By hand", "", ...plan.manual.map((f) => `- ${f}`)] : [])].join("\n");
+      showReport(opts.title || "PIM plan", `pim-outcome.${pimExpectDomain() || "tenant"}`, md);
+    };
+    L.finish({ report });
+    if (bk.rules.length) {
+      const b = document.createElement("button"); b.className = "btn sm"; b.type = "button"; b.textContent = `⬇ Backup (${bk.rules.length} rule${bk.rules.length === 1 ? "" : "s"} as they were)`;
+      b.addEventListener("click", () => downloadText(`pim-backup.${pimExpectDomain() || "tenant"}`, "json", "application/json", JSON.stringify(bk, null, 2) + "\n"));
+      const acts = host.querySelector(".rl-actions"); if (acts) acts.append(" ", b);
+      try { if (!isDemo && tenantId) localStorage.setItem(`enca.pimBackup:${tenantId}`, JSON.stringify(bk)); } catch { /* storage off: the download is the backup */ }
+    }
+    toast(`${esc(opts.title || "PIM plan")} <span>${res.done} done${res.deferred ? ` · ${res.deferred} later` : ""}${res.failed ? ` · ${res.failed} failed` : ""}${isDemo ? " (simulated)" : ""}</span>`);
+    if (opts.onDone) opts.onDone(res);
+  }
+
+  // ======================================================================
+  // 🔐 ENCA access — T62, Workspace 01 (build 335, beta 33308, R94). js/encaaccess.js
+  // judges and plans; this block reads, collects the people, and hands the
+  // plan to the runner 🚀 Deploy uses on the beta channel (pimPlanPanel / pimPlanWire /
+  // pimApply: preview, typed domain, run ledger, ⬇ Backup of every rule).
+  // ↩ Undo this run is a second plan built from what the run made.
+  // ======================================================================
+  let eaRaw = null, eaRes = null, eaBusy = false, eaErr = null, eaReadAt = null;
+  let eaOpts = { settings: false, lock: false, members: { read: [], admin: [] } };
+  let eaLast = null;
+  const eaProg = makeProgress("ea"); eaProg.by = "🔐 ENCA access";
+  function openEncaAccess() {
+    crumb("🔐 ENCA access");
+    show("screen-encaaccess");
+    $("eaHead").innerHTML = `${toolHead("toolEncaAccess")}
+      <p style="margin-bottom:6px">The two PIM groups for the people who use ENCA's <b>Workspace 01 · Conditional Access</b> (design R94 v3). <b>PIM-SG-ENCA-CA-Read</b> — Global Reader + Security Reader, <b>active</b>: everyone who opens ENCA. <b>PIM-SG-ENCA-CA-Admin</b> — Conditional Access Administrator, the custom <b>ENCA CA Group Operator</b> (tenant-wide and at every restricted CA-RMAU-* unit) and Authentication Policy Administrator, <b>eligible</b>: a member activates the role the task needs. Every row says why that role.</p>
+      <p class="mini muted" style="margin:0">Run once per tenant by a Tier 0 admin (Privileged Role Administrator or Global Administrator active). Reads first; nothing is written before ▶ Preview, the typed domain and ▶ Apply. Nothing that exists is removed or renamed. Needs Entra ID P2 for eligible assignments.</p>`;
+    eaPaintButtons();
+    if (eaBusy) { $("eaBody").innerHTML = eaProg.panel("Reading…"); return; }
+    if (eaErr && !eaRes) { $("eaBody").innerHTML = `<p class="mini pmb-bad-txt">${esc(eaErr)}</p><div class="run-prompt"><button class="btn primary" data-earun>▶ Read again</button></div>`; return; }
+    if (eaRes) { renderEncaAccess(); return; }
+    $("eaBody").innerHTML = `<div class="run-prompt"><button class="btn primary" data-earun>▶ Read the tenant</button><p class="mini muted">The two groups, their roles and members, the ENCA CA Group Operator role, the CA-RMAU-* units, the three roles' PIM settings, your own active roles and this tenant's ENCA service principal. Nothing is written.</p></div>`;
+  }
+  function eaPaintButtons() {
+    const on = !!eaRes && !eaBusy;
+    ["eaRefresh", "eaMd", "eaPreview"].forEach((id) => { const b = $(id); if (b) b.style.display = on ? "" : "none"; });
+  }
+  function eaDemoRaw() {
+    const ids = { gr: "f2ef992c-3afb-46b9-b7cf-a126ee74c451", sr: "5d6b6bb7-de71-4623-b4af-96380a352509", caa: "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9", apa: "0526716b-113d-4c15-b2c8-68e3c22b9f80" };
+    const rules = (d) => [{ id: "Expiration_EndUser_Assignment", isExpirationRequired: true, maximumDuration: d }, { id: "Enablement_EndUser_Assignment", enabledRules: ["MultiFactorAuthentication", "Justification"] }, { id: "AuthenticationContext_EndUser_Assignment", isEnabled: false }, { id: "Approval_EndUser_Assignment", setting: { isApprovalRequired: false } }, { id: "Expiration_Admin_Eligibility", isExpirationRequired: true, maximumDuration: "P365D" }, { id: "Expiration_Admin_Assignment", isExpirationRequired: false }];
+    return { groups: [], roleDefs: Object.values(ids).map((id) => ({ id, templateId: id, isBuiltIn: true, displayName: id })), active: [], eligible: [],
+      aus: [{ id: "demo-au-bg", displayName: "CA-RMAU-BreakGlass", isMemberManagementRestricted: true }, { id: "demo-au-adm", displayName: "CA-RMAU-Persona-Admins", isMemberManagementRestricted: true }, { id: "demo-au-int", displayName: "CA-RMAU-Persona-Internals", isMemberManagementRestricted: true }],
+      policies: { [ids.caa]: { id: "demo-pol-caa", rules: rules("PT8H") }, [ids.apa]: { id: "demo-pol-apa", rules: rules("PT8H") } },
+      members: {}, me: { id: "demo-me", upn: "admin@contoso.nl", canWrite: true, via: "Privileged Role Administrator" },
+      sp: { id: "demo-sp", appId: "demo", displayName: "ENCA", appRoleAssignmentRequired: false, assignedTo: [] }, skus: { p1: true, p2: true } };
+  }
+  async function eaRead() {
+    if (eaBusy) return;
+    eaBusy = true; eaErr = null; eaPaintButtons();
+    $("eaBody").innerHTML = eaProg.panel("Reading the tenant…");
+    $("eaPlan").innerHTML = "";
+    eaProg.begin();
+    try {
+      let raw;
+      if (isDemo) raw = eaDemoRaw();
+      else {
+        const sc = [...AUTH_CONFIG.scopes, ...EncaAccess.READ_SCOPES];
+        if (!await preConsent(sc)) throw new Error("the read permissions were not granted");
+        const o = { scopes: sc, signal: eaProg.signal };
+        const q = (s) => String(s).replace(/'/g, "''");
+        const groups = [];
+        for (const g of EncaAccess.GROUPS) groups.push(...await Graph.ggetAll(`/groups?$filter=${encodeURIComponent(`displayName eq '${q(g.name)}'`)}&$select=id,displayName,isAssignableToRole,securityEnabled,groupTypes,createdDateTime`, o));
+        eaProg.check();
+        const roleDefs = await Graph.ggetAll("/roleManagement/directory/roleDefinitions?$select=id,displayName,templateId,isBuiltIn,rolePermissions", o);
+        const active = [], eligible = [], members = {};
+        for (const g of groups.filter((x) => x.id)) {
+          eaProg.check();
+          const f = encodeURIComponent(`principalId eq '${g.id}'`);
+          active.push(...await Graph.ggetAll(`/roleManagement/directory/roleAssignmentSchedules?$filter=${f}`, o));
+          eligible.push(...await Graph.ggetAll(`/roleManagement/directory/roleEligibilitySchedules?$filter=${f}`, o));
+          members[g.id] = await Graph.ggetAll(`/groups/${g.id}/members/microsoft.graph.user?$select=id,displayName,userPrincipalName`, o);
+        }
+        const aus = await Graph.ggetAll("/directory/administrativeUnits?$select=id,displayName,isMemberManagementRestricted", o);
+        const policies = {};
+        const pre = { groups, roleDefs };
+        for (const r of EncaAccess.ROLES.filter((x) => x.how === "eligible")) {
+          const rid = EncaAccess.roleIdOf(pre, r);
+          if (!rid) continue;
+          try {
+            const pa = await Graph.gget(`/policies/roleManagementPolicyAssignments?$filter=${encodeURIComponent(`scopeId eq '/' and scopeType eq 'DirectoryRole' and roleDefinitionId eq '${rid}'`)}&$expand=policy($expand=rules)`, sc);
+            const pol = pa && pa.value && pa.value[0] && pa.value[0].policy;
+            if (pol) policies[rid] = { id: pol.id, rules: pol.rules || [] };
+          } catch (e) { if (e && e.stopped) throw e; console.warn("ENCA access: policy read failed for", r.name, e.message); }
+        }
+        let me = { canWrite: null };
+        try {
+          const m = await Graph.gget("/me?$select=id,userPrincipalName");
+          const roles = await Graph.ggetAll("/me/transitiveMemberOf/microsoft.graph.directoryRole?$select=roleTemplateId,displayName", o);
+          const hit = roles.find((x) => x.roleTemplateId === EncaAccess.GA) || roles.find((x) => x.roleTemplateId === EncaAccess.PRA);
+          me = { id: m.id, upn: m.userPrincipalName, canWrite: !!hit, via: hit ? hit.displayName : "" };
+        } catch (e) { if (e && e.stopped) throw e; }
+        let sp = null;
+        try {
+          if (/^[0-9a-f-]{36}$/i.test(AUTH_CONFIG.clientId || "")) {
+            const s = await Graph.gget(`/servicePrincipals(appId='${AUTH_CONFIG.clientId}')?$select=id,appId,displayName,appRoleAssignmentRequired`, sc);
+            const at = await Graph.ggetAll(`/servicePrincipals/${s.id}/appRoleAssignedTo?$select=principalId`, o);
+            sp = { id: s.id, appId: s.appId, displayName: s.displayName, appRoleAssignmentRequired: !!s.appRoleAssignmentRequired, assignedTo: at.map((x) => x.principalId) };
+          }
+        } catch (e) { if (e && e.stopped) throw e; }
+        let skus = {};
+        try { const c = await readCapabilities(); skus = { p1: c.p1, p2: c.p2 }; } catch { skus = {}; }
+        raw = { groups, roleDefs, active, eligible, aus, policies, members, me, sp, skus };
+      }
+      eaRaw = raw; eaRes = EncaAccess.compare(raw); eaReadAt = Date.now();
+    } catch (e) {
+      eaErr = e && e.stopped ? "stopped by you — read again for the whole picture" : `The read failed: ${(e && e.message) || e}`;
+      eaRes = null;
+    } finally { eaBusy = false; eaProg.stop(); }
+    if ($("screen-encaaccess").classList.contains("active")) openEncaAccess();
+  }
+  function renderEncaAccess() {
+    eaPaintButtons();
+    $("eaBody").innerHTML = `<p class="mini muted" style="margin:0 0 8px">Read ${eaReadAt ? esc(new Date(eaReadAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) : ""}${isDemo ? " · demo tenant" : ""}</p>` + EncaAccess.render(eaRes, Object.assign({ app: true }, eaOpts));
+  }
+  async function eaAddPerson(k) {
+    const box = $("eaBody").querySelector(`[data-eaupn="${k}"]`);
+    const v = box ? box.value.trim() : "";
+    if (!v) return;
+    let u = null;
+    try {
+      if (isDemo) u = { id: `demo-u-${v.toLowerCase().replace(/[^a-z0-9]/g, "")}`, displayName: v.split("@")[0], userPrincipalName: v.includes("@") ? v : `${v}@contoso.nl`, userType: "Member" };
+      else if (v.includes("@")) u = await Graph.gget(`/users/${encodeURIComponent(v)}?$select=id,displayName,userPrincipalName,userType`);
+      else {
+        const l = await Graph.ggetAll(`/users?$filter=${encodeURIComponent(`startswith(displayName,'${v.replace(/'/g, "''")}')`)}&$select=id,displayName,userPrincipalName,userType&$top=5`, { cap: 5 });
+        if (l.length !== 1) { toast(l.length ? `${l.length} people match "${esc(v)}" — type the UPN` : `Nobody called "${esc(v)}" — type the UPN`); return; }
+        u = l[0];
+      }
+    } catch (e) { toast(`Not found: ${esc(v)}`); return; }
+    if (String(u.userType || "").toLowerCase() === "guest") { toast("Guests are left out — ENCA's operators are members of this tenant"); return; }
+    const list = eaOpts.members[k];
+    if (!list.some((m) => m.id === u.id)) list.push({ id: u.id, name: u.displayName || u.userPrincipalName, upn: u.userPrincipalName });
+    $("eaPlan").innerHTML = "";
+    renderEncaAccess();
+    const nb = $("eaBody").querySelector(`[data-eaupn="${k}"]`); if (nb) nb.focus();
+  }
+  function eaPreview() {
+    if (!eaRes) return;
+    const plan = EncaAccess.plan(eaRaw, eaRes, Object.assign({ PimPlan }, eaOpts));
+    const host = $("eaPlan");
+    host.innerHTML = pimPlanPanel(plan, {
+      title: "🔐 ENCA access",
+      impact: [`Creates what the table marks ＋ and adds the people listed. ${eaOpts.settings ? "The activation settings change for EVERYONE eligible for those roles in the tenant." : "No PIM setting is changed."}${eaOpts.lock ? " ENCA sign-in is limited to the two groups." : ""}`],
+      recovery: ["↩ Undo this run (shown after it) takes back exactly what it made, in reverse: assignments removed, people taken out, rules put back, the groups and the custom role deleted."],
+      irreversible: [],
+    });
+    pimPlanWire(host, plan, { title: "🔐 ENCA access", onDone: (res) => { eaLast = { plan, res }; eaShowUndo(); eaReRead(); } });
+    host.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+  async function eaReRead() {
+    // a fresh read for the table, leaving the run ledger in place
+    const keep = $("eaPlan").innerHTML ? $("eaPlan").firstChild : null;
+    const saved = keep ? [...$("eaPlan").childNodes] : [];
+    await eaRead();
+    if (saved.length) { $("eaPlan").innerHTML = ""; saved.forEach((n) => $("eaPlan").appendChild(n)); }
+  }
+  function eaShowUndo() {
+    if (!eaLast || !eaLast.res || !eaLast.res.done) return;
+    const host = $("eaPlan");
+    const b = document.createElement("div");
+    b.className = "list-card xt-card"; b.dataset.eaundowrap = "1";
+    b.innerHTML = `<h3>↩ Undo this run <span class="mini">· ${eaLast.res.done} change${eaLast.res.done === 1 ? "" : "s"} made — taken back in reverse, with a preview and the typed domain again</span></h3><button class="btn" type="button" data-eaundo>↩ Preview the undo</button><div data-eaundohost></div>`;
+    host.appendChild(b);
+  }
+  $("toolEncaAccess").addEventListener("click", () => openEncaAccess());
+  $("eaRefresh").addEventListener("click", () => eaRead());
+  $("eaPreview").addEventListener("click", () => eaPreview());
+  $("eaMd").addEventListener("click", () => { if (eaRes) showReport("🔐 ENCA access", `ENCA-access.${pimExpectDomain() || "tenant"}`, EncaAccess.toMd(eaRes, { tenant: tenantName, readAt: eaReadAt, build: APP_BUILD.label })); });
+  $("eaBody").addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("[data-earun]")) { eaRead(); return; }
+    const add = t.closest("[data-eaadd]"); if (add) { eaAddPerson(add.dataset.eaadd); return; }
+    const rm = t.closest("[data-earm]");
+    if (rm) { const [k, id] = rm.dataset.earm.split(":"); eaOpts.members[k] = eaOpts.members[k].filter((m) => m.id !== id); $("eaPlan").innerHTML = ""; renderEncaAccess(); }
+  });
+  $("eaBody").addEventListener("keydown", (e) => { const box = e.target.closest && e.target.closest("[data-eaupn]"); if (box && e.key === "Enter") { e.preventDefault(); eaAddPerson(box.dataset.eaupn); } });
+  $("eaBody").addEventListener("change", (e) => {
+    if (e.target.matches("[data-easettings]")) { eaOpts.settings = e.target.checked; $("eaPlan").innerHTML = ""; renderEncaAccess(); }
+    if (e.target.matches("[data-ealock]")) { eaOpts.lock = e.target.checked; $("eaPlan").innerHTML = ""; renderEncaAccess(); }
+  });
+  $("eaPlan").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-eaundo]") || !eaLast) return;
+    const U = EncaAccess.undoPlan(eaLast.plan, eaLast.res, PimPlan);
+    const h = $("eaPlan").querySelector("[data-eaundohost]");
+    h.innerHTML = pimPlanPanel(U, { title: "↩ Undo — ENCA access", impact: ["Takes back what the run made, newest first. People lose the groups' roles at once."], recovery: ["Run 🔐 ENCA access again to create it anew."], irreversible: ["Deleted groups stay in Deleted items for 30 days; the custom role is gone at once."] });
+    pimPlanWire(h, U, { title: "↩ Undo — ENCA access", onDone: () => { eaLast = null; eaRead(); } });
+  });
+
 
   // ---------- 🏅 Identity Secure Score (32308, T42) ----------
   // Entra's Identity Secure Score and its recommendations, read on ▶ and kept

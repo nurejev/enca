@@ -3413,3 +3413,34 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 
 /* T15 ⭳ Locations only (33305) */
 .lo-only{position:relative;display:inline-block}.lo-only-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:360px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px}.lo-only-menu[hidden]{display:none}.lo-only-menu button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:7px;padding:7px 9px;font:inherit;color:inherit;cursor:pointer}.lo-only-menu button:hover,.lo-only-menu button:focus-visible{background:var(--soft)}.lo-only-menu b{display:block;font-size:12.5px}.lo-only-menu span{display:block;font-size:11.5px;color:var(--muted)}.lo-only-shown{display:flex;gap:6px;align-items:center;border-top:1px solid var(--border);margin-top:4px;padding:8px 9px 4px;font-size:11.5px}.lo-only-shown span{display:inline;color:var(--muted)}
+
+/* T62 🔐 ENCA access (33308) */
+.ea-pre{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px}.ea-pf{flex:1 1 260px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12px;color:var(--muted)}.ea-pf b{display:block;font-size:13px;color:var(--text,inherit)}
+.ea-good{color:var(--on)!important}.ea-badt{color:var(--bad-fg,#a3261a)!important}.ea-warnt{color:var(--warn-fg,#8a5a00)!important}
+.ea-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:start}@media (max-width:1100px){.ea-grid{grid-template-columns:1fr}}
+.ea-tbl td{vertical-align:top;white-space:normal;overflow-wrap:anywhere}.ea-why{font-size:12px;color:var(--muted);max-width:460px}.ea-grp td{background:var(--soft);font-weight:700;font-size:12px}
+.ea-pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;white-space:nowrap}.ea-ok{background:var(--ok-bg);color:var(--on)}.ea-new{background:#dde9fb;color:#1e4fa3}.ea-dif{background:var(--warn-bg);color:var(--warn-fg)}.ea-bad{background:var(--bad-bg);color:var(--bad-fg,#a3261a)}
+:root[data-theme="dark"] .ea-new{background:#1b2a44;color:#9fc0f5}
+.ea-people{margin:0 0 10px}.ea-who{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.ea-who>span{background:var(--soft);border-radius:999px;padding:2px 10px;font-size:12px}.ea-who .ea-add{background:#dde9fb;color:#1e4fa3}.ea-who button{background:none;border:0;cursor:pointer;color:inherit;font:inherit;padding:0 0 0 4px}
+.ea-addrow{display:flex;gap:6px}.ea-addrow input{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;padding:5px 9px;font:inherit;background:var(--surface);color:inherit}
+.ea-opt{display:flex;gap:6px;align-items:flex-start;margin:8px 0 4px;font-size:12.5px}
+
+/* The plan runner (pimPlanPanel / pimApply), carried with T62 🔐 ENCA access in build 335 —
+   only the rules that panel draws with; the rest of Workspace 02's styles stay on the beta channel */
+.pmb-diffs{margin:0;padding:0 0 0 14px;font-size:12px;line-height:1.45}
+.pmb-diffs li{margin:1px 0}
+.pmb-diffs b{font-weight:600}
+.pmb-findings li{color:var(--crit-fg)}
+.pmb-bad-txt{color:var(--crit-fg);font-weight:600}
+.pmb-upload-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.pmb-rtbl{min-width:760px}
+.pmb-rtbl td:first-child,.pmb-rtbl th:first-child{width:80px}
+.pmb-rtbl td:nth-child(3){max-width:46ch;white-space:normal}
+.pmb-kind{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 6px;white-space:nowrap}
+.pim-plan{margin-top:12px}
+.pim-kv{display:grid;grid-template-columns:130px minmax(0,1fr);gap:6px 12px;margin:10px 0;font-size:12.5px}
+.pim-kv dt{color:var(--muted);font-weight:600}
+.pim-kv dd{margin:0;overflow-wrap:anywhere}
+.pim-confirm{border:1px dashed var(--off);border-radius:8px;padding:10px 12px;margin-top:10px;display:grid;gap:6px}
+.pim-confirm input[type=text]{border:1px solid var(--border);border-radius:6px;padding:6px 9px;font:inherit;background:var(--surface);color:var(--ink);min-width:0;width:min(280px,100%)}
+@media (max-width:760px){.pim-kv{grid-template-columns:1fr}}
