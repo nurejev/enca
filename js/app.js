@@ -6457,6 +6457,7 @@ max@contoso.com,"Global, DevOps"</pre>
   // nothing but an AU-scoped role could add them.
   let cgMig = null;      // { plan, aus, auChoice, auName, results, ack, nesting, toAu, sel }
   let cgMigBusy = false; // a scan in flight — survives navigating away and back
+  let cgMigNext = null;  // the groups ⑦ was opened with WHILE a scan was reading — checked when it is done (33402)
 
   function migBody() { return $("cgBody"); }
 
@@ -6521,7 +6522,14 @@ max@contoso.com,"Global, DevOps"</pre>
       }
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
-      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0, scopeIds: only ? [...only] : null,
+      // scoped is the number of groups the check was ASKED about, not the
+      // number of role-assignable ones it found. Until 33402 it was the
+      // latter, so a scoped check of a group that is a plain group already —
+      // what a group is the moment it has been migrated — recorded 0: the
+      // panel lost its "checked only the groups you came with" line and the
+      // button to the full check, and the next arrival from the list took the
+      // plan for a full scan (see cgGoTab).
+      cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? only.size : 0, scopeIds: only ? [...only] : null,
         plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA, allRows: cgRes.rows }),
         // e12: legacy names the active baseline replaced (Joey's example
         // APP_Microsoft365_E5 -> CAB-SEC-U-Persona-Internals) — a rename,
@@ -6536,13 +6544,23 @@ max@contoso.com,"Global, DevOps"</pre>
       if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
       console.error("Migrate scan failed:", e);
-      cgMigBusy = false;
+      cgMigBusy = false; cgMigNext = null;
       migBody().innerHTML = `<div class="cg-panel"><h4>SCAN FAILED</h4>
         <p class="mini" style="color:var(--off);margin:0">${esc(e.message || e)}</p>
         <div class="row" style="justify-content:flex-start;margin-top:12px"><button class="btn" data-migrun>▶ Try again</button></div></div>`;
       return;
     }
     cgMigBusy = false;
+    // ⑦ was opened with other groups while this scan was reading (close, tick
+    // another group, ⑦ again): a scan in flight cannot be replaced, so the
+    // answer on screen would be for the groups of whichever scan happened to
+    // be running. A scoped scan reads again for the groups asked for last; a
+    // full scan covers them already and only takes their ticks.
+    if (cgMigNext) {
+      const next = cgMigNext, had = cgMig.scopeIds; cgMigNext = null;
+      if (had && !(had.length === next.length && next.every((id) => had.includes(id)))) { cgMigScan(next); return; }
+      if (!had) cgMig.sel = new Set(next.filter((id) => cgMig.plan.eligible.some((x) => x.id === id)));
+    }
     renderCgMigrate();
   }
 
@@ -10912,7 +10930,22 @@ This is a directory write. Nothing else changes.`)) return;
     // the check straight away instead of showing a Scan button for what was
     // just clicked
     if (tab === "rmau" && rows.length && !(cgRmau && cgRmau.status) && !rmauBusy) cgRmauScan();
-    if (tab === "migrate" && rows.length && !cgMigBusy && (!cgMig || cgMig.scoped)) cgMigScan(rows.filter((r) => r.id).map((r) => r.id));
+    // ⑦: does the plan in hand answer for the groups that were just ticked?
+    // Only a FULL scan that has not been run yet does — then the ticks set
+    // above are enough. A scoped plan answers for the groups it was opened
+    // with, and a finished run for groups that no longer exist the way it
+    // planned them: both are checked again, for these groups. Until 33402 the
+    // test was cgMig.scoped, the count of role-assignable groups the last
+    // scoped check FOUND — so after a check that found none (the group you
+    // migrated a minute ago is a plain group now) every later arrival was
+    // shown that same plan: "2 groups carried from the list", nothing to
+    // migrate, and the group actually ticked not in the answer at all. A scan
+    // still reading is not interrupted; the groups wait in cgMigNext.
+    if (tab === "migrate" && rows.length) {
+      const ids = rows.filter((r) => r.id).map((r) => r.id);
+      if (cgMigBusy) cgMigNext = ids;
+      else if (!cgMig || cgMig.scopeIds || cgMig.results) cgMigScan(ids);
+    }
   }
   const cggClick = async (e) => {
     const t = e.target;

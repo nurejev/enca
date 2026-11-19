@@ -182,6 +182,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 393,
+      ws: "ca",
+      title: "👥 CA groups 6.5.2 — ⑦ Migrate checks the groups it is opened with: after a migration, after a finished run, and while another check is still reading",
+      tools: ["CA groups"],
+      builds: [33402],
+      risk: "medium",
+      files: ["js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/cagroups-migrate.test.cjs"],
+      what: "33402 (Mihai 19 Nov with a screenshot: when returning after migrating a group, the other group selected is stated nothing to do — 2 groups carried from the list, NOTHING TO MIGRATE, NOT MIGRATED (1) CAB-SEC-U-BreakGlass already a plain group). js/app.js only. cgGoTab decided whether to check the groups it arrived with from cgMig.scoped, which cgMigScan set to the number of role-assignable CANDIDATES of a scoped check — 0 when the groups it was opened with are plain groups, which a migrated group is. That 0 read as a full scan in hand, so no later arrival was checked and the stale plan was shown for whatever was ticked; the scoped line with ▶ Check every role-assignable group was hidden by the same 0, and ⟳ Rescan reuses the scope, so the dialog had no way out. Now: cgGoTab scans for the arriving groups unless the plan in hand is a FULL scan (scopeIds null) that has not been run (no results) — that one only takes the ticks; scoped is only.size, the number of groups asked about; an arrival while cgMigBusy is kept in cgMigNext and the tail of cgMigScan reads again for it (a full scan takes its ticks instead). Nothing in the run itself, the planner or the report changed.",
+      why: "Reachable in production today by the ordinary order of work — migrate one group, look at it again, tick the next — and it ends in a dialog that says there is nothing to migrate for a group that is role-assignable, with no button that leads anywhere else. Nothing is written wrongly; the migration simply cannot be started from the list until the page is reloaded.",
+      test: [
+        "node --test tools/cagroups-migrate.test.cjs: 21 tests green (the last five are this item).",
+        "Demo (?demo=1): 👥 CA groups → tick CAB-SEC-U-Persona-GuestUsers (dynamic, so a plain group) → ⑦ Migrate: NOTHING TO MIGRATE, the group under NOT MIGRATED as already a plain group, AND the scoped line “Checked only the 1 group you came with from the list” with ▶ Check every role-assignable group. Before this build the line and the button were absent.",
+        "Same session: Close → tick CAB-SEC-U-Persona-Admins as well → ⑦ Migrate: “2 groups carried from the list”, MIGRATE 1 GROUP with Persona-Admins ticked, GuestUsers under NOT MIGRATED. Before: the first answer again, Persona-Admins nowhere.",
+        "Demo: arrive with one group → ▶ Check every role-assignable group → untick all but one → tick the confirmation → Migrate → Close → tick another role-assignable group → ⑦ Migrate: the check for that group, not MIGRATION COMPLETE of the run before.",
+        "Demo: arrive with one group → ▶ Check every role-assignable group → Close WITHOUT running → tick another role-assignable group → ⑦ Migrate: the same 15-group plan with only that group ticked, no scoped line (the full scan is kept).",
+        "Live tenant with two role-assignable groups A and B: tick A → ⑦ Migrate → run it to the end → Close → tick A again (a plain group now) → ⑦ Migrate: nothing to migrate, A listed as already a plain group, scoped line present → Close → tick B as well → ⑦ Migrate: B is offered with its steps, A under NOT MIGRATED.",
+        "Live, slow tenant: tick A → ⑦ Migrate → Close while it still says Scanning → untick A, tick B → ⑦ Migrate: when the reading stops the plan is B’s, not A’s.",
+      ],
+    },
+    {
       n: 389,
       ws: "ca",
       title: "🔐 ENCA access T62 0.1.0: the two PIM groups for Workspace 01 (Read active, Admin eligible), custom ENCA CA Group Operator, optional activation settings and ENCA lock, undo",
