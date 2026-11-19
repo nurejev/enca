@@ -2145,6 +2145,10 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-cnt{white-space:nowrap}
 .wo-tbl .ctrl{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap}
 .wo-tbl .ctrl.block{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
+/* 1.5.0 — an exclusion that covers the application: red when the policy names it, plain when it covers every resource */
+.wo-tbl .wo-xchip{display:inline-block;background:var(--bad-bg);border:1px solid var(--bad-bd);color:var(--off);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 3px 1px 0;white-space:nowrap}
+.wo-tbl .wo-xchip.all{background:var(--soft);border-color:var(--border);color:inherit}
+.wo-tbl .wo-xchip:hover{text-decoration:none;border-color:currentColor}
 /* The Flags cell wraps (25343). One chip per policy instead of one nowrap
    span holding a comma list: the cell grows DOWN, so the column can never
    force the table past its card again. The cap is what guarantees it — the
@@ -3015,6 +3019,9 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 .dd-bar{display:flex;gap:2px;height:10px;flex:1 1 auto;min-width:60px}.dd-bar span{display:block;height:10px}.dd-bar span:first-child{border-radius:4px 0 0 4px}.dd-bar span:last-child{border-radius:0 4px 4px 0}.dd-bar-lg,.dd-bar-lg span{height:14px}
 .dd-state{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--soft);white-space:nowrap}.dd-state.live{color:var(--on)}.dd-state.ro{color:var(--report)}.dd-state.off{color:var(--muted)}
 .dd-pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--border);white-space:nowrap;margin:1px 2px 1px 0}.dd-pill.warn{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}.dd-pill.bad{background:var(--bad-bg);color:var(--bad-fg,var(--crit-fg));border-color:transparent}.dd-pill.ok{background:var(--ok-bg);color:var(--on);border-color:transparent}.dd-pill.muted{color:var(--muted)}
+.dd-exrow>td{background:var(--soft);padding:6px 10px 10px}.dd-extable{background:var(--card,#fff)}.dd-extable th{font-size:10px}.dd-pill.dd-scope{background:var(--soft);color:var(--muted)}.dd-upline{margin-top:3px}.dd-pill.dd-up{background:#eaf2ff;color:#1e4fa3;border-color:#c9dbfb;font:inherit;font-size:11px;font-weight:600;cursor:default}button.dd-pill.dd-up{cursor:pointer}.dd-pill.dd-up-out{background:transparent;color:var(--muted);border-style:dashed}tr.dd-flash td{background:var(--ok-bg)}
+:root[data-theme="dark"] .dd-pill.dd-up{background:#1b2a44;color:#9fc0f5;border-color:#2c4670}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .dd-pill.dd-up{background:#1b2a44;color:#9fc0f5;border-color:#2c4670}}
 .dd-pill[data-dd-wave]{cursor:pointer}.dd-foot{margin:8px 0 0}.dd-missing td{opacity:.6}
 .dd-link{font:inherit;font-size:12.5px;font-weight:600;color:var(--on);background:none;border:0;padding:0;cursor:pointer;text-align:left}.dd-link:hover{text-decoration:underline}.dd-name{font-size:13px}
 .dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.dd-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}details.dd-fold summary{cursor:pointer;font-weight:600;font-size:13px}details.dd-fold[open] summary{margin-bottom:10px}
@@ -3403,3 +3410,6 @@ table.cr-measuring th,table.cr-measuring td{overflow:visible}
 @media (max-width:1100px){.mh-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:900px){.mh-ld{grid-template-columns:1fr}.mh-insp{position:static;max-height:none}}
 @media (max-width:600px){.mh-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.mh-table .mh-nowh,.mh-table td.mh-now{display:none}}
+
+/* T15 ⭳ Locations only (33305) */
+.lo-only{position:relative;display:inline-block}.lo-only-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:360px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px}.lo-only-menu[hidden]{display:none}.lo-only-menu button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:7px;padding:7px 9px;font:inherit;color:inherit;cursor:pointer}.lo-only-menu button:hover,.lo-only-menu button:focus-visible{background:var(--soft)}.lo-only-menu b{display:block;font-size:12.5px}.lo-only-menu span{display:block;font-size:11.5px;color:var(--muted)}.lo-only-shown{display:flex;gap:6px;align-items:center;border-top:1px solid var(--border);margin-top:4px;padding:8px 9px 4px;font-size:11.5px}.lo-only-shown span{display:inline;color:var(--muted)}

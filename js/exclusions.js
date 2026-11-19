@@ -26,6 +26,14 @@ const Exclusions = (() => {
   };
   const isGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || "");
   const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+  // Graph's "this object is not in the directory". Graph.graphError() puts the
+  // status on the error; the text is matched as well because an error that
+  // came through a wrapper keeps the words and loses the property.
+  const isNotFound = (e) => !!e && (e.status === 404 || /\(404\)|Request_ResourceNotFound/i.test(String(e.message || e)));
+  const dayOf = (iso) => String(iso || "").slice(0, 10);
+  // What a group that is not in the directory says about itself, in one place
+  // for the list, the grid, the evidence card and the exports.
+  const goneWord = (e) => `not in the directory${e.deletedAt ? ` — deleted ${dayOf(e.deletedAt)}, still in the recycle bin` : ""}`;
 
   // ---- 1. collect every exclusion reference from the raw policies ----
   function collect(raws) {
@@ -208,9 +216,36 @@ const Exclusions = (() => {
         g.members = members.map((m) => ({ id: m.id, name: m.displayName || m.id, upn: m.userPrincipalName || "", disabled: m.accountEnabled === false }));
         g.disabledMembers = g.members.filter((m) => m.disabled).length;
       } catch (e) {
+        // 404 is an ANSWER, not a failed read. A Conditional Access policy
+        // keeps a group's object id after the group is deleted, and Graph
+        // answers the member read for that id with Request_ResourceNotFound.
+        // Nobody is excluded through a group that is not there, so the totals
+        // are complete without it — and the dead reference is a finding of its
+        // own. Until beta 33307 this fell into the rule below (25368: a group
+        // that could not be READ must never produce totals), so one deleted
+        // group anywhere in the tenant took the whole scan down.
+        if (isNotFound(e)) {
+          g.gone = true; g.members = []; g.memberTotal = 0; g.disabledMembers = 0;
+          g.nested = []; g.directCount = 0; g.nestedCount = 0;
+          console.warn(`Exclusions: excluded group ${g.id} is not in the directory`);
+          continue;
+        }
         console.warn(`Exclusions: members of ${g.name || g.id} failed`, e.message);
         throw new Error(`Exclusion membership incomplete for ${g.name || g.id}: ${e.message}. No complete user totals are available.`);
       }
+    }
+    // A deleted group stays in the recycle bin for a while, and there it still
+    // has its name — the difference between "602b8033-…" and a row someone can
+    // act on. Best effort: one read per missing group, and a group that is not
+    // in the recycle bin either simply keeps its id.
+    const goneGroups = groups.filter((g) => g.gone);
+    for (let i = 0; i < goneGroups.length; i++) {
+      const g = goneGroups[i];
+      onStatus?.(`Looking up deleted group ${i + 1}/${goneGroups.length}…`);
+      try {
+        const d = await Graph.gget(`/directory/deletedItems/${g.id}`);
+        if (d && d.id) { g.name = d.displayName || g.name; if (d.deletedDateTime) g.deletedAt = d.deletedDateTime; }
+      } catch (e) { /* purged, or never in this directory: nothing more to say */ }
     }
     // Nesting — HOW each member got in. One $batch over the excluded groups'
     // direct members (users and groups), then one over the nested groups'
@@ -555,6 +590,13 @@ const Exclusions = (() => {
       if (phantom.length) add("medium", `Phantom app exclusion${phantom.length === 1 ? "" : "s"}: ${phantom.map((e) => e.name).join(", ")}`,
         "No service principal for this app id exists in the tenant, so the exclusion matches nothing today — and the moment someone consents to or creates the app, it is excluded from this policy without anyone deciding so. Remove the exclusion, or register the app deliberately and review it.");
 
+      // Medium — an excluded group that is not in the directory. Inert today;
+      // a group still in the recycle bin comes back with its members when it
+      // is restored, and the exclusion comes back with it.
+      const goneGs = (x.groups || []).map((id) => ent("group", id)).filter((e) => e && e.gone);
+      if (goneGs.length) add("medium", `Excluded group${goneGs.length === 1 ? "" : "s"} not in the directory: ${goneGs.map((e) => e.name + (e.deletedAt ? ` (deleted ${dayOf(e.deletedAt)})` : "")).join(", ")}`,
+        "The policy still names the object id of a group that no longer exists, so nobody is excluded through it today. If the group is still in the recycle bin, restoring it brings the exclusion back with the members it had — without anyone deciding so. Remove the group from this policy's exclusions, or restore it if deleting it was the mistake.");
+
       // Medium — an exclusion list that has grown
       if ((x.groups || []).length > maxGroups) add("medium", `${x.groups.length} group exclusions`,
         "Review each for relevance; consider restructuring who the policy includes instead.");
@@ -591,8 +633,9 @@ const Exclusions = (() => {
     const pathUnknownUsers = new Set();
     model.entities.forEach((e) => { if (e.kind === "group" && e.members) e.members.forEach((m) => { if (m.direct === null || m.pathUnknown) pathUnknownUsers.add(m.id); }); });
     const phantomApps = model.entities.filter((e) => e.kind === "app" && e.noSp).length;
+    const goneGroupList = model.entities.filter((e) => e.kind === "group" && e.gone);
     const uncoveredApps = model.entities.filter((e) => e.kind === "app" && e.uncoveredIn && e.uncoveredIn.length).length;
-    return { phantomApps, uncoveredApps, policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts, nestedGroups: nestedGroups.length, nestedUsers: nestedUsers.size, allNested: nestedGroups.filter((e) => e.directCount === 0).length,
+    return { goneGroups: goneGroupList.length, goneGroupNames: goneGroupList.map((e) => e.name), phantomApps, uncoveredApps, policies: model.policies.length, policiesWithExclusions: withExc, entities: model.entities.length, users: users.length, counts, nestedGroups: nestedGroups.length, nestedUsers: nestedUsers.size, allNested: nestedGroups.filter((e) => e.directCount === 0).length,
       pathPartial, pathUnknownUsers: pathUnknownUsers.size,
       states: model.userStates || { bypass: 0, configured: 0, unknown: 0 },
       unexpandedRoles: (model.unexpanded && model.unexpanded.roles.length) || 0 };
@@ -608,7 +651,7 @@ const Exclusions = (() => {
       <div style="flex:1;min-width:260px">
         ${toolHead("toolExclusions")}
         <p style="margin-bottom:8px">Every exclusion configured across your Conditional Access policies — users, groups (with their members), directory roles, guest types, applications, named locations and device platforms — mapped against the policies that exclude them.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy where no other enabled policy was shown to give the same users the same protection">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no equivalent coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}${s.states && (s.states.bypass || s.states.configured || s.states.unknown) ? ` <span class="tag block" title="A user listed in an exclusion is not necessarily taken out of anything: the policy has to include them first. Effective bypass counts only the users a policy would otherwise have reached.">✗ ${s.states.bypass} effective bypass${s.states.bypass === 1 ? "" : "es"}${s.states.configured ? ` · ○ ${s.states.configured} configured only` : ""}${s.states.unknown ? ` · ? ${s.states.unknown} not established` : ""}</span>` : ""}${s.unexpandedRoles ? ` <span class="tag new" title="An excluded directory role is not expanded to its members, so those users are excluded and are not counted above">🛡 ${s.unexpandedRoles} excluded role${s.unexpandedRoles === 1 ? "" : "s"} not expanded</span>` : ""}${s.pathPartial ? ` <span class="tag new" title="Effective membership is complete; the route (direct or through which nested group) could not be fully resolved for these groups">↪ ${s.pathPartial} group${s.pathPartial === 1 ? "" : "s"} with an unresolved path${s.pathUnknownUsers ? ` · ${s.pathUnknownUsers} user${s.pathUnknownUsers === 1 ? "" : "s"}` : ""}</span>` : ""}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${kinds || '<span class="mini">No exclusions found.</span>'}${s.goneGroups ? ` <span class="tag block" title="A policy still names the object id of a group that no longer exists — nobody is excluded through it. See the Risk review.">⚠ ${s.goneGroups} excluded group${s.goneGroups === 1 ? "" : "s"} not in the directory</span>` : ""}${s.nestedGroups ? ` <span class="tag block" title="Members who come into an exclusion group through a group nested inside it">↪ ${s.nestedGroups} excluded group${s.nestedGroups === 1 ? "" : "s"} with nested groups · ${s.nestedUsers} user${s.nestedUsers === 1 ? "" : "s"} through nesting${s.allNested ? ` · ${s.allNested} fed entirely by nesting` : ""}</span>` : ""}${s.uncoveredApps ? ` <span class="tag block" title="Apps excluded from an All-resources policy where no other enabled policy was shown to give the same users the same protection">⚠ ${s.uncoveredApps} excluded app${s.uncoveredApps === 1 ? "" : "s"} with no equivalent coverage</span>` : ""}${s.phantomApps ? ` <span class="tag new" title="Excluded app ids with no service principal in this tenant — the exclusion matches nothing today">👻 ${s.phantomApps} phantom app exclusion${s.phantomApps === 1 ? "" : "s"}</span>` : ""}${s.states && (s.states.bypass || s.states.configured || s.states.unknown) ? ` <span class="tag block" title="A user listed in an exclusion is not necessarily taken out of anything: the policy has to include them first. Effective bypass counts only the users a policy would otherwise have reached.">✗ ${s.states.bypass} effective bypass${s.states.bypass === 1 ? "" : "es"}${s.states.configured ? ` · ○ ${s.states.configured} configured only` : ""}${s.states.unknown ? ` · ? ${s.states.unknown} not established` : ""}</span>` : ""}${s.unexpandedRoles ? ` <span class="tag new" title="An excluded directory role is not expanded to its members, so those users are excluded and are not counted above">🛡 ${s.unexpandedRoles} excluded role${s.unexpandedRoles === 1 ? "" : "s"} not expanded</span>` : ""}${s.pathPartial ? ` <span class="tag new" title="Effective membership is complete; the route (direct or through which nested group) could not be fully resolved for these groups">↪ ${s.pathPartial} group${s.pathPartial === 1 ? "" : "s"} with an unresolved path${s.pathUnknownUsers ? ` · ${s.pathUnknownUsers} user${s.pathUnknownUsers === 1 ? "" : "s"}` : ""}</span>` : ""}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:700">${s.entities}<span class="mini" style="font-weight:400"> exclusions</span></div>
@@ -662,7 +705,8 @@ const Exclusions = (() => {
     return bits.join(" · ");
   };
   const rowSub = (e) => (e.kind === "group"
-    ? (e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}${nestSub(e)}`)
+    ? e.gone ? `⚠ ${goneWord(e)} · excludes no one`
+    : (e.memberTotal == null ? "members unknown" : `${e.memberTotal} member${e.memberTotal === 1 ? "" : "s"}${nestSub(e)}`)
     : e.kind === "app"
       ? [e.id !== e.name ? e.id : "", appSub(e)].filter(Boolean).join(" · ")
       : e.upn || (e.id !== e.name ? e.id : ""));
@@ -813,7 +857,7 @@ const Exclusions = (() => {
           const chips = items.map((e) => {
             const sub = rowSub(e);
             const nest = e.kind === "group" && e.nested && e.nested.length ? `<em class="ex-nest" title="${esc(e.nestedCount)} of ${esc(e.memberTotal)} members come through ${esc(e.nested.map((n) => n.name).join(", "))}">↪${e.nestedCount === e.memberTotal ? " all" : ` ${e.nestedCount}`}</em>` : "";
-            return `<span class="ex-ent${e.kind === "group" && e.nested && e.nested.length && e.directCount === 0 ? " allnested" : ""}" title="${esc(e.id)}${sub ? " · " + esc(sub) : ""}">${esc(e.name)}${e.kind === "group" && e.memberTotal != null ? `<i>${e.memberTotal}</i>` : ""}${nest}</span>`;
+            return `<span class="ex-ent${e.kind === "group" && e.nested && e.nested.length && e.directCount === 0 ? " allnested" : ""}" title="${esc(e.id)}${sub ? " · " + esc(sub) : ""}">${esc(e.name)}${e.kind === "group" && e.gone ? "<i>⚠</i>" : e.kind === "group" && e.memberTotal != null ? `<i>${e.memberTotal}</i>` : ""}${nest}</span>`;
           }).join("");
           return `<div class="ex-kind"><div class="ex-kind-h">${KIND[k].icon} ${esc(KIND[k].label)}${items.length === 1 ? "" : "s"} <b>${items.length}</b></div><div class="ex-chips">${chips}</div></div>`;
         }).join("");
@@ -910,7 +954,12 @@ const Exclusions = (() => {
       ev.verdict = "The odd one out — if the exclusion is deliberate everywhere else, this policy is the one to check.";
       return ev;
     }
-    if (e.kind === "group") {
+    if (e.kind === "group" && e.gone) {
+      ev.lines.push(`This group is ${goneWord(e)}. The policy still names its object id; nobody is excluded through it.`);
+      ev.verdict = e.deletedAt
+        ? "A dead reference today — and a live exclusion again, with the members it had, if the group is restored. Remove it from the policy or restore the group deliberately."
+        : "A dead reference: remove the group from this policy's exclusions.";
+    } else if (e.kind === "group") {
       ev.lines.push(`${e.memberTotal ?? (e.members || []).length} transitive member${(e.memberTotal ?? 0) === 1 ? "" : "s"}${e.nested && e.nested.length ? ` · ${e.directCount} direct · ${e.nestedCount} through ${e.nested.length} nested group${e.nested.length === 1 ? "" : "s"}` : ""}${e.unknownPathCount ? ` · ${e.unknownPathCount} path not resolved` : ""}.`);
       if (e.disabled) ev.lines.push("The group's members include disabled accounts.");
       ev.actions.push({ kind: "members", key: e.key, label: "View members" });
@@ -959,7 +1008,7 @@ const Exclusions = (() => {
     const lines = [];
     lines.push([q("Type"), q("Exclusion"), q("Id"), q("Members"), ...pols.map((p) => q(p.name))].join(","));
     model.entities.slice().sort(sortEntities).forEach((e) => {
-      lines.push([q(KIND[e.kind].label), q(e.name), q(e.id), q(e.kind === "group" ? (e.memberTotal ?? "") : ""),
+      lines.push([q(KIND[e.kind].label), q(e.name), q(e.id), q(e.kind === "group" ? (e.gone ? "not found" : e.memberTotal ?? "") : ""),
         ...pols.map((p) => q(e.policyIds.has(p.id) ? "excluded" : ""))].join(","));
     });
     lines.push("");
@@ -1005,6 +1054,7 @@ const Exclusions = (() => {
       : ""));
     L.push(`- Users effectively excluded from at least one policy (directly or through a group): **${s.users}**`);
     if (s.uncoveredApps) L.push(`- **${s.uncoveredApps}** app${s.uncoveredApps === 1 ? "" : "s"} excluded from an All-resources policy with **no equivalent coverage established** — no enabled policy was shown to give the same users the same protection. This is what the comparison could establish, not proof that nothing else protects them.`);
+    if (s.goneGroups) L.push(`- **${s.goneGroups}** excluded group${s.goneGroups === 1 ? "" : "s"} not in the directory: ${s.goneGroupNames.map(mdEsc).join(", ")} — a policy still names the object id of a deleted group. Nobody is excluded through it today; restoring the group from the recycle bin would bring the exclusion back.`);
     if (s.phantomApps) L.push(`- **${s.phantomApps}** phantom app exclusion${s.phantomApps === 1 ? "" : "s"}: excluded app ids with no service principal in this tenant — the exclusion matches nothing today and goes live on consent.`);
     L.push("");
 
@@ -1036,8 +1086,9 @@ const Exclusions = (() => {
       for (const r of mergeRows(ents)) {
         const names = pols.filter((p) => r.policyIds.has(p.id)).map((p) => mdEsc(p.name));
         const who = (r.merged ? `**${r.items.length} ${KIND[r.kind].label.toLowerCase()}s** — ${r.items.map((i) => mdEsc(i.name)).join(", ")}` : mdEsc(r.items[0].name))
-          + (r.kind === "app" ? r.items.map((i) => appSub(i)).filter(Boolean).map((t) => ` _${mdEsc(t)}_`).join("") : "");
-        const members = r.kind === "group" ? r.items.reduce((s, i) => s + (i.memberTotal || 0), 0) || "?" : "—";
+          + (r.kind === "app" ? r.items.map((i) => appSub(i)).filter(Boolean).map((t) => ` _${mdEsc(t)}_`).join("") : "")
+          + (r.kind === "group" && r.items.some((i) => i.gone) ? ` _⚠ ${mdEsc(r.items.filter((i) => i.gone).length === r.items.length ? goneWord(r.items[0]) : `${r.items.filter((i) => i.gone).length} not in the directory`)}_` : "");
+        const members = r.kind === "group" ? r.items.reduce((s, i) => s + (i.memberTotal || 0), 0) || (r.items.every((i) => i.gone) ? "0" : "?") : "—";
         L.push(`| ${KIND[r.kind].label} | ${who} | ${members} | ${names.length} | ${names.join("<br>") || "—"} |`);
       }
     }

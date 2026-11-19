@@ -5,6 +5,11 @@
 // the disabled ("Off") state, skipped when a policy with the same CA
 // number AND version (vX.Y[.Z]) already exists, and their INCLUDE
 // assignment is remapped to the deploy/test persona group.
+// 33203 (e04, Mihai 7 Nov): the DEFAULT is now As shipped on the real
+// persona groups, landing Report-only; the deploy groups are still created
+// (empty) so 🚀 Trial on deployment group (js/dgtrial.js) can move ONE
+// policy onto its group and ↩ back. The Deployment groups mode stays for a
+// whole-baseline staging and saves each policy's original include for ↩.
 // ======================================================================
 const Importer = (() => {
   // Application.Read.All is required by Graph whenever a policy carries an
@@ -308,6 +313,17 @@ const Importer = (() => {
     catch { return false; }
   };
   const cleanName = (s) => String(s || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim().toLowerCase();
+  // 33205: named the way two DIFFERENT baselines name their policies (SMB
+  // Basic, CloudFellows, Joey Verlinden — Baseline.familyOf). On devcf, which
+  // holds all three, SMB CA001 v1.0.3 read "already exists" because the
+  // CloudFellows CA001 is also at v1.0.3, and the import skipped it.
+  const otherFamily = (a, b) => {
+    try {
+      if (typeof Baseline === "undefined" || !Baseline.familyOf) return false;
+      const fa = Baseline.familyOf(a), fb = Baseline.familyOf(b);
+      return !!(fa && fb && fa !== fb);
+    } catch { return false; }
+  };
 
   function plan(bundle, existing) {
     const ex = (existing || []).map((e) => {
@@ -328,7 +344,7 @@ const Importer = (() => {
       // Versioned names: same CA number + same version is the same policy.
       // A baseline that does not version its names (Joey's): same CA number
       // + same name, staging prefix aside — being there is the whole test.
-      const exact = ver ? sameNum.find((e) => e.ver === ver)
+      const exact = ver ? sameNum.find((e) => e.ver === ver && !otherFamily(raw.displayName, e.name))
         : sameNum.find((e) => cleanName(e.name) === cleanName(raw.displayName));
       // present, but at another version or under an older name of the SAME
       // policy — never a number clash from the other baseline
@@ -351,6 +367,9 @@ const Importer = (() => {
         // workload-identity policy (CA900 range): needs the Workload ID SKU
         wid: isWorkloadIdentity(raw),
         persona, personaGroup: (persona && PERSONA_GROUPS[persona]) || null,
+        // e09: SMB Basic has no Internals persona — its CA200–CA299 reach the
+        // INT deploy group by number range and say "Compliant network"
+        dgLabel: typeof DgTrial !== "undefined" && persona ? DgTrial.dgLabel(DgTrial.catalogOf(raw.displayName, bundle.catalogId), num, persona) : null,
         exists, upgrade,
         existing: upgrade ? { id: other.id, name: other.name, ver: other.ver, label: label(other), raw: other.raw } : null,
         needsTou,
@@ -362,6 +381,21 @@ const Importer = (() => {
           : !persona ? "no persona detected — include assignment kept as-is" : null,
       };
     });
+  }
+
+  // 33203 (e03/e04): the state a policy of the plan lands in — what the
+  // preview row and the run ledger say, and what importPolicies does. A
+  // policy the file or the catalog forces Off (forceOff: E-Admins from
+  // another file, SMB CA201–CA204, Joey+ CA020–CA023, CloudFellows
+  // CA113–CA116 / CA215–CA218) wins over the run's landing state; Report-only
+  // is the default since 33203.
+  function landingState(p, landState, mode) {
+    const RO = "enabledForReportingButNotEnforced";
+    if (!p) return "disabled";
+    if (p.forceOff) return "disabled";
+    if (mode === "replace" && p.upgrade && p.existing && p.existing.raw && p.existing.raw.state) return p.existing.raw.state;
+    const s = p.asIs ? ((p.raw && p.raw.state) || "disabled") : "disabled";
+    return s === "disabled" && landState === RO ? RO : s;
   }
 
   // ---------- 🔀 switch baseline: which old group feeds which new one ----------
@@ -511,6 +545,17 @@ const Importer = (() => {
     const cat = catalogForBundle(raw);
     const safe = (fn, dflt) => { try { return fn(); } catch { return dflt; } };
     const isExcl = (n) => safe(() => !!(cat && cat.isExclusionGroup && cat.isExclusionGroup(n)), false);
+    // e12: a catalog that replaces one of its repository's groups (Joey
+    // Verlinden's: only the example APP_Microsoft365_E5 ->
+    // CAB-SEC-U-Persona-Internals) lands every policy on ENCA's group — the
+    // example name is never created
+    const ownName = (n) => safe(() => (cat && cat.ownGroupName ? cat.ownGroupName(n) : null), null);
+    const toOwn = (r) => {
+      if (!r) return r;
+      const to = ownName(r.name);
+      if (!to || lower(to) === lower(r.name)) return r;
+      return { ...r, name: to, renamedFrom: [...new Set([...(r.renamedFrom || []), r.name])], own: true };
+    };
     const convFor = (policyName) => safe(() => { const e = cat && cat.exclusionGroupFor ? cat.exclusionGroupFor(policyName) : null; return e && e.name ? e.name : null; }, null);
     const templates = safe(() => (cat && cat.templates ? cat.templates() : []) || [], []);
     const tplFor = (name) => templates.find((t) => lower(t.displayName) === lower(name)) || null;
@@ -548,7 +593,8 @@ const Importer = (() => {
         if (!owners.get(k).some((x) => lower(x.name) === lower(o.name))) owners.get(k).push(o);
       }
     }
-    const resolve = (policyName, id) => {
+    const resolve = (policyName, id) => toOwn(resolveFile(policyName, id));
+    const resolveFile = (policyName, id) => {
       const k = lower(id);
       const cands = files.get(k);
       if (!cands || !cands.length) return null;
@@ -569,11 +615,14 @@ const Importer = (() => {
       if (!planned.has(k)) {
         const f = r.file || {};
         const tpl = tplFor(r.name);
+        // a renamed group (e12) is ENCA's: its template decides description
+        // and membership, not his file
+        const mine = r.own && tpl;
         planned.set(k, {
           id: groupKey(r.name), displayName: r.name,
-          description: f.description || (tpl && tpl.description) || null,
-          groupTypes: Array.isArray(f.groupTypes) ? f.groupTypes.slice() : [],
-          membershipRule: f.membershipRule || null,
+          description: (mine ? tpl.description : f.description) || (tpl && tpl.description) || null,
+          groupTypes: mine ? (tpl.dynamic ? ["DynamicMembership"] : []) : (Array.isArray(f.groupTypes) ? f.groupTypes.slice() : []),
+          membershipRule: (mine ? tpl.membershipRule : f.membershipRule) || null,
           securityEnabled: f.securityEnabled !== false, mailEnabled: f.mailEnabled === true,
           srcIds: [], fileNames: [],
         });
@@ -583,10 +632,22 @@ const Importer = (() => {
       for (const n of [r.file && r.file.displayName, ...(r.renamedFrom || [])]) if (n && !g.fileNames.includes(n)) g.fileNames.push(n);
       if (r.renamedFrom && !g.renamedFrom) {
         g.renamedFrom = r.renamedFrom.slice();
-        notes.push(`“${r.name}” is created under the name the baseline gives this policy's exclusion group — the file calls it “${r.renamedFrom.join("” / “")}”`);
+        notes.push(r.own
+          ? `“${r.name}” is created under ENCA's own name — the file calls it “${r.renamedFrom.join("” / “")}”`
+          : `“${r.name}” is created under the name the baseline gives this policy's exclusion group — the file calls it “${r.renamedFrom.join("” / “")}”`);
+      } else if (r.renamedFrom) {
+        for (const n of r.renamedFrom) if (!g.renamedFrom.includes(n)) g.renamedFrom.push(n);
       }
       return g;
     };
+    // e13 (Mihai 9 Nov, 33204): exclusions the catalog ADDS to a policy on
+    // top of what the file ships (Joey Verlinden: CA200–CA210 exclude
+    // CA-ServiceAccounts). By name: the group file of that name when the
+    // bundle carries one, else the catalog's template — so the import creates
+    // or finds the tenant's own group either way.
+    const addedFor = (n) => safe(() => (cat && cat.addedExcludesFor ? cat.addedExcludesFor(n) : []) || [], []);
+    const fileByName = (n) => { for (const fs of files.values()) for (const f of fs) if (lower(f.displayName) === lower(n)) return f; return null; };
+    const added = [];
     const policies = (raw.policies || []).map((p) => {
       const q = JSON.parse(JSON.stringify(p));
       const u = q.conditions && q.conditions.users;
@@ -599,8 +660,29 @@ const Importer = (() => {
           return r ? want(r, id).id : id;
         });
       }
+      const extra = addedFor(p.displayName);
+      if (extra.length) {
+        if (!Array.isArray(u.excludeGroups)) u.excludeGroups = [];
+        for (const gn of extra) {
+          const f = fileByName(gn);
+          const g = want(f ? { name: f.displayName, file: f } : { name: gn }, f ? f.id : null);
+          if (u.excludeGroups.includes(g.id)) continue;
+          // the file may already name it by source id (a later release of his)
+          if (f && u.excludeGroups.some((x) => typeof x === "string" && lower(x) === lower(f.id))) continue;
+          u.excludeGroups.push(g.id);
+          added.push({ policy: p.displayName, group: g.displayName });
+        }
+      }
       return q;
     });
+    if (added.length) {
+      const by = new Map();
+      for (const a of added) { if (!by.has(a.group)) by.set(a.group, []); by.get(a.group).push(a.policy); }
+      for (const [gname, ps] of by) {
+        const nums = ps.map((n) => { const m = /\bCA(\d{3,4})\b/.exec(n); return m ? `CA${m[1]}` : n; });
+        notes.push(`“${gname}” is added to the EXCLUDE of ${ps.length} polic${ps.length === 1 ? "y" : "ies"} (${nums.join(", ")}) — ENCA's change to the baseline, not in the file`);
+      }
+    }
     // a group a file ships that the policies name only by NAME (a {{group:…}}
     // placeholder, say) still comes along, as it always did
     const blobs = (raw.policies || []).map((p) => JSON.stringify(p));
@@ -627,6 +709,7 @@ const Importer = (() => {
       groups: [...planned.values()],
       prepared: true,
       groupNotes: notes,
+      addedExclusions: added,
       groupIndex: {
         isSource: (id) => sourceIds.has(lower(id)),
         nameFor: (policyName, id) => { const r = resolve(policyName, id); return r ? r.name : null; },
@@ -1286,15 +1369,24 @@ const Importer = (() => {
 
     // persona groups needed by the policies themselves (not the replaced ones)
     // (an E-Admins policy is imported as-is: it never gets a deploy group)
-    const personaNames = [...new Set(bundle.policies.filter(p => !matchedNames.has(p.displayName) && !isEAdmins(p.displayName)).map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]).filter(Boolean))];
+    // 33203 (e04): opts.deployGroups — an As shipped import also makes sure
+    // the deploy group of every persona it lands exists, EMPTY and attached
+    // to nothing, so 🚀 Trial on deployment group has a group to move a
+    // policy onto. Not for a policy that can never be tried on one
+    // (DgTrial.rule: E-Admins, CA000/CA006/CA099/CA1009, SMB CA001–CA005).
+    const trialable = (p) => typeof DgTrial === "undefined" || DgTrial.rule({ name: p.displayName, raw: p }, { catalogId: bundle.catalogId }).ok;
+    const staged = (p) => !matchedNames.has(p.displayName);
+    const personaNames = [...new Set(bundle.policies.filter(p => !isEAdmins(p.displayName) && (staged(p) || (opts.deployGroups && trialable(p)))).map(p => personaOf(p.displayName)).filter(Boolean).map(p => PERSONA_GROUPS[p]).filter(Boolean))];
+    const stagedNames = new Set(bundle.policies.filter(p => staged(p) && !isEAdmins(p.displayName)).map(p => PERSONA_GROUPS[personaOf(p.displayName)]).filter(Boolean));
     maps.personaGroupIds = {};
+    maps.trialOriginals = {};
     for (const gname of personaNames) {
-      onStatus?.(`Persona group ${gname}…`);
+      onStatus?.(`${stagedNames.has(gname) ? "Persona" : "Deploy"} group ${gname}…`);
       try {
         const g = await Assign.createGroup({ displayName: gname });
         maps.personaGroupIds[gname] = g.id;
-        noteGroup(g, `Group (persona): ${gname}`);
-      } catch (e) { log.warnings.push(`Persona group ${gname}: ${e.message}`); }
+        noteGroup(g, stagedNames.has(gname) ? `Group (persona): ${gname}` : `Group (deploy, empty — for 🚀 Trial on deployment group): ${gname}`);
+      } catch (e) { log.warnings.push(`${stagedNames.has(gname) ? "Persona" : "Deploy"} group ${gname}: ${e.message}`); }
     }
 
     // Placement into the persona's restricted AU, when the caller supplied a
@@ -1606,6 +1698,20 @@ const Importer = (() => {
     } else {
       // include assignment → persona deploy group
       if (personaGroupId) {
+        // 33203 (e06): the include the file ships — groups (as THIS tenant's
+        // ids), directory roles, the guest clause — kept for ↩ Back to
+        // persona. The remap below drops all three; at Leeuwendaal CA100
+        // and CA113–CA116 lost 132 roles that way with no road back.
+        if (maps.trialOriginals) {
+          try {
+            maps.trialOriginals[raw.displayName] = {
+              includeUsers: (u.includeUsers || []).filter((x) => !parsePlaceholder(x)),
+              includeGroups: mapGroups(u.includeGroups),
+              includeRoles: (u.includeRoles || []).slice(),
+              includeGuestsOrExternalUsers: u.includeGuestsOrExternalUsers ? JSON.parse(JSON.stringify(u.includeGuestsOrExternalUsers)) : null,
+            };
+          } catch (e) { maps.trialOriginals[raw.displayName] = null; warnings.push(`${raw.displayName}: its shipped include could not be resolved in this tenant (${e.message}) — ↩ Back to persona will rebuild it from the catalog`); }
+        }
         u.includeUsers = ["None"];
         u.includeGroups = [personaGroupId];
         u.includeRoles = [];
@@ -2454,6 +2560,13 @@ const Importer = (() => {
       catch (e) { results[d.at] = { ...results[d.at], statePending: false, note: null }; warnings.push(`${it.name}: created Off — its state could not be set (${e.message || e}). Set it with 🗂 Policies → Policy state.`); }
       opts.onItem?.(d.i, "end", results[d.at]);
     }
+    // 33203 (e06): a policy staged on its deploy group carries the include
+    // it shipped with, for the caller to save (DgTrial.store) — ↩ Back to
+    // persona restores it exactly.
+    items.forEach((it, i) => {
+      const r = results[i], o = maps.trialOriginals && it.raw && maps.trialOriginals[it.raw.displayName];
+      if (r && r.createdId && o && it.personaGroup && !switching && !shipped) { r.trialOriginal = o; r.trialDg = it.personaGroup; r.trialDgId = maps.personaGroupIds && maps.personaGroupIds[it.personaGroup] || null; }
+    });
     return { results, warnings };
   }
 
@@ -2556,7 +2669,7 @@ const Importer = (() => {
       `- **Source:** ${fileName}`,
       `- **Assignment mode:** ${mode === "replace" ? "Match & replace — existing policies keep their current assignment; the superseded version is switched Off"
         : mode === "switch" ? `Switch baseline — policies land with the baseline's own groups (created here), members copied across from the ${depLog.switchFrom ? depLog.switchFrom + " " : ""}counterpart groups; a superseded policy is switched Off`
-        : mode === "shipped" ? "As shipped — the baseline's own groups, created or found by name in this tenant and attached; no id from the source tenant is written into a policy"
+        : mode === "shipped" ? "As shipped — the baseline's own groups, created or found by name in this tenant and attached; no id from the source tenant is written into a policy. The deploy groups (CAD-SEC-U-DG-*) are created empty for 🚀 Trial on deployment group, one policy at a time"
         : "Deployment groups — includes remapped to the deploy persona group (CAD-SEC-U-DG-*)"}`,
       `- **Policies imported:** ${results.filter(r => r.ok && !r.skipped).length} (${["enabled", "enabledForReportingButNotEnforced", "disabled"].map(s => `${results.filter(r => r.ok && !r.skipped && r.state === s).length} ${stateLabel(s)}`).join(", ")})`,
       ...(replaced.length ? [`- **Policies replaced (old version disabled):** ${replaced.filter(r => r.disabledOld).length} of ${replaced.length}`] : []),
@@ -2673,5 +2786,5 @@ const Importer = (() => {
     return lines.join("\n");
   }
 
-  return { switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, cloudFellowsGsa, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
+  return { landingState, switchCandidates, switchOver, switchReport, PERSONA_GROUPS, PERSONA_CODE, fixedCode, personaOf, groupPersonas, personaCodes, isEAdmins, isWorkloadIdentity, isAgentPolicy, agentWriteShape, workloadIdLicence, touReferences, parseCaVersion, cmpVer, housekeeping, supersededOff, duplicates, mergePlan, mergePolicies, mergeReport, USER_LISTS, countLabel, parsePlaceholder, collectPlaceholders, decodeBytes, parseEntries, readZip, readFolder, plan, counterpartPlan, catalogOfBundle, prepareBundle, cloudFellowsGsa, mergeShared, repairPlan, repairPolicies, repairReport, readDirectoryIds, groupKey, COMPLIANT_NETWORK_ID, scopeBundle, ensureDependencies, buildPolicyPayload, importPolicies, buildReport, readSettled, patchSettled, presentNames, rememberCreated, sameCombinations, dependencyGaps, preflight, setStates, postFresh, unlisted };
 })();

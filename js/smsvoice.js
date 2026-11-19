@@ -302,11 +302,14 @@ const SmsVoice = (() => {
       (res.regRead
         ? ` · ${s.phone} with a phone method registered (${s.phoneDefault} as their default) · **${s.blocking} phone-only (blocked after ${DATES.retire.label})** · ${s.migrate} to migrate · ${s.ready} already phishing-resistant · ${s.clean} clean${s.unknown ? ` · ${s.unknown} unknown` : ""}${res.regPartial ? " · registration read was capped — unknowns may be understated" : ""}`
         : " · registration data NOT read (needs AuditLog.Read.All) — the table shows scope only, not who actually uses a phone"), "");
+    if (res.si) L.push(`Last 5 interactive sign-ins read for ${res.si.read} of ${res.si.asked} phone user${res.si.asked === 1 ? "" : "s"}${res.si.capped ? " (capped)" : ""}: **${res.si.phoneUsed} used a text message or phone call** in at least one of them · ${res.si.noPhone} signed in without the phone · ${res.si.none} have no sign-in in the log window (30 days on P1/P2). The CSV and HTML exports carry every sign-in with the authentication used.`, "");
     if (res.rows.length) {
-      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Methods registered | Phone role | Verdict |", "|---|---|---|---|---|---|---|---|---|---|---|---|");
+      const withSi = !!res.si;
+      L.push("| User | Name | Enabled | SMS scope | Voice scope | Via | SMS reg. | Voice reg. | Phishing-resistant | Methods registered | Phone role | Verdict |" + (withSi ? " Last 5 sign-ins |" : ""),
+        "|---|---|---|---|---|---|---|---|---|---|---|---|" + (withSi ? "---|" : ""));
       const yn = (v) => v === null ? "?" : v ? "yes" : "no";
       for (const r of res.rows.slice(0, MD_ROW_CAP))
-        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${methodsWord(r)} | ${phoneRole(r)} | ${RISK_WORD[r.risk]} |`);
+        L.push(`| ${r.upn} | ${r.name || ""} | ${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"} | ${r.inSms ? "yes" : "no"} | ${r.inVoice ? "yes" : "no"} | ${(r.via || []).join("; ")} | ${yn(r.sms)} | ${yn(r.voice)} | ${yn(r.pr)} | ${methodsWord(r)} | ${phoneRole(r)} | ${RISK_WORD[r.risk]} |${withSi ? ` ${siWord(r)} |` : ""}`);
       if (res.rows.length > MD_ROW_CAP) L.push("", `…and ${res.rows.length - MD_ROW_CAP} more — the CSV export carries the full list.`);
       L.push("");
     }
@@ -321,16 +324,181 @@ const SmsVoice = (() => {
   function toCsv(res) {
     const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const yn = (v) => v === null ? "" : v ? "yes" : "no";
-    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,methodsRegistered,methodsRegisteredLabels,phoneIsOnlyMfaMethod,phoneIsDefaultMethod,defaultMethod,verdict"];
+    const L = ["userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,via,smsRegistered,voiceRegistered,phishingResistantRegistered,methodsRegistered,methodsRegisteredLabels,phoneIsOnlyMfaMethod,phoneIsDefaultMethod,defaultMethod,verdict,signInsRead,signInsWithPhone,lastSignIn,last5SignIns"];
     for (const r of res.rows)
       L.push([q(r.upn), q(r.name), r.enabled === false ? "no" : r.enabled === true ? "yes" : "",
         r.inSms ? "yes" : "no", r.inVoice ? "yes" : "no", q((r.via || []).join("; ")),
         yn(r.sms), yn(r.voice), yn(r.pr),
         q(r.methods === null ? "" : r.methods.join("; ")), q(r.methods === null ? "" : methodsWord(r)),
-        yn(r.phoneOnly), yn(r.phoneDefault), q(r.defaultMethod), q(RISK_WORD[r.risk])].join(","));
+        yn(r.phoneOnly), yn(r.phoneDefault), q(r.defaultMethod), q(RISK_WORD[r.risk]),
+        r.signins == null ? "" : r.signins.length, r.signins == null ? "" : r.siPhone, q(r.siLast || ""), q(siLines(r))].join(","));
     return L.join("\n");
   }
 
+
+  // ---- the last sign-ins (1.8.0) ------------------------------------------
+  // Registration says what a user COULD sign in with; the sign-in log says
+  // what they actually DID. The wiring reads, per phone user, the newest five
+  // interactive sign-ins (auditLogs/signIns, userId filter, newest first) and
+  // hands the raw records here. authenticationDetails holds one entry per
+  // step — "Password", "Text message", "Mobile app notification", "Previously
+  // satisfied"… — and mfaDetail.authMethod (beta) the MFA method by name.
+  // A phone step is a text message or a call; Authenticator's "phone sign-in"
+  // and "mobile app notification" are not, whatever the word phone suggests.
+  const PHONE_AUTH = /text message|\bsms\b|phone call|voice call|\bvoice\b/i;
+  const NOT_PHONE = /mobile app|authenticator|notification|oath|phone sign-in/i;
+  const isPhoneAuth = (m) => PHONE_AUTH.test(String(m || "")) && !NOT_PHONE.test(String(m || ""));
+
+  function summarizeSignIn(si) {
+    const det = Array.isArray(si && si.authenticationDetails) ? si.authenticationDetails : [];
+    const methods = [], failedSteps = [];
+    for (const d of det) {
+      const m = String(d.authenticationMethod || "").trim();
+      if (!m) continue;
+      if (d.succeeded === false) { if (!failedSteps.includes(m)) failedSteps.push(m); }
+      else if (!methods.includes(m)) methods.push(m);
+    }
+    const mfa = si && si.mfaDetail && si.mfaDetail.authMethod;
+    if (mfa && !methods.includes(mfa) && !failedSteps.includes(mfa)) methods.push(String(mfa));
+    const st = (si && si.status) || {};
+    const loc = (si && si.location) || {};
+    const dev = (si && si.deviceDetail) || {};
+    return {
+      when: (si && si.createdDateTime) || "",
+      app: (si && (si.appDisplayName || si.resourceDisplayName)) || "",
+      ok: !st.errorCode,
+      error: st.errorCode ? `${st.errorCode}${st.failureReason ? ` — ${st.failureReason}` : ""}` : "",
+      methods, failedSteps,
+      requirement: (si && si.authenticationRequirement) || "",
+      // A failed text message still means the phone was what got prompted.
+      phone: methods.concat(failedSteps).some(isPhoneAuth),
+      ip: (si && si.ipAddress) || "",
+      where: [loc.city, loc.countryOrRegion].filter(Boolean).join(", "),
+      client: [dev.operatingSystem, dev.browser || (si && si.clientAppUsed)].filter(Boolean).join(" · "),
+    };
+  }
+  const signInMethodWord = (s) => {
+    const a = (s.methods || []).slice();
+    for (const f of s.failedSteps || []) a.push(`${f} (failed)`);
+    return a.length ? a.join(" + ") : "—";
+  };
+  const siStamp = (iso) => iso ? String(iso).replace("T", " ").slice(0, 16) : "";
+
+  // byId: { userId → raw signIn records } for every user that was read; a user
+  // absent from byId was not read (cap, error, disabled) and keeps signins:
+  // null, which is not the same as [] — read, nothing in the log's window.
+  function withSignIns(res, byId, info = {}) {
+    const rows = res.rows.map((r) => {
+      if (!Object.prototype.hasOwnProperty.call(byId, r.id) || byId[r.id] === null) return { ...r, signins: null, siPhone: null, siLast: "" };
+      const s = (byId[r.id] || []).slice(0, 5).map(summarizeSignIn)
+        .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+      return { ...r, signins: s, siPhone: s.filter((x) => x.phone).length, siLast: s.length ? s[0].when : "" };
+    });
+    const read = rows.filter((r) => r.signins !== null);
+    return { ...res, rows,
+      si: { read: read.length, asked: info.asked != null ? info.asked : read.length,
+        capped: !!info.capped, failed: info.failed || 0, error: info.error || "",
+        phoneUsed: read.filter((r) => r.siPhone > 0).length,
+        noPhone: read.filter((r) => r.signins.length && !r.siPhone).length,
+        none: read.filter((r) => !r.signins.length).length,
+        at: info.at || new Date().toISOString() } };
+  }
+  // One bucket per row for the filters: phone (a phone step in the last five),
+  // nophone (signed in, never with the phone), none (read, empty log window),
+  // unread (not read).
+  const siBucket = (r) => r.signins == null ? "unread" : !r.signins.length ? "none" : r.siPhone ? "phone" : "nophone";
+  const SI_BUCKET_WORD = { phone: "phone used in last 5", nophone: "signed in without the phone", none: "no sign-in in the log", unread: "sign-ins not read" };
+  const siWord = (r) => r.signins == null ? "not read" : !r.signins.length ? "none in the log"
+    : `${r.siPhone}/${r.signins.length} with phone · last ${siStamp(r.siLast)}`;
+  const siLines = (r) => r.signins == null ? "" : r.signins.map((s) =>
+    `${siStamp(s.when)} ${s.app || "?"}: ${signInMethodWord(s)}${s.ok ? "" : ` [FAILED ${s.error}]`}`).join(" | ");
+
+  // ---- standalone HTML with filtering --------------------------------------
+  // A snapshot file anybody can open without ENCA: every row is in the page,
+  // the filters only hide and show. Search, verdict, phone role, sign-in
+  // bucket, a method seen in the last five sign-ins, enabled — combined with
+  // AND — and a CSV of exactly the rows the filters leave.
+  const hx = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const HTML_RISK = { blocking: ["b", "⛔ locked out Feb 1"], migrate: ["m", "📵 migrate"], unknown: ["", "❔ unknown"], clean: ["", "➖ no phone method"], ready: ["ok", "✅ passkey-ready"] };
+  const HTML_CSS = `*{box-sizing:border-box}body{font:13px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f6f7f9;color:#1d2433}.wrap{max-width:1500px;margin:0 auto;padding:24px}h1{font-size:22px;margin:4px 0}.eyebrow{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:#6b7385;margin:0}.meta{color:#6b7385;font-size:12px}.card{background:#fff;border:1px solid #e3e6ec;border-radius:10px;padding:14px 16px;margin:12px 0}.kpis{display:flex;gap:10px;flex-wrap:wrap}.kpi{background:#fff;border:1px solid #e3e6ec;border-radius:10px;padding:10px 14px;min-width:130px}.kpi b{display:block;font-size:20px}.kpi span{font-size:11px;color:#6b7385}.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.filters label{display:flex;flex-direction:column;font-size:11px;color:#6b7385;gap:2px}input,select,button{font:inherit;padding:5px 8px;border:1px solid #cfd4dd;border-radius:6px;background:#fff}button{cursor:pointer}input[type=search]{min-width:240px}table{border-collapse:collapse;width:100%;background:#fff}th,td{text-align:left;padding:6px 8px;border-top:1px solid #edf0f4;vertical-align:top}th{position:sticky;top:0;background:#fafbfc;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7385;cursor:pointer;white-space:nowrap}.tag{display:inline-block;padding:1px 7px;border-radius:999px;background:#eef0f4;font-size:11px;margin:1px 3px 1px 0;white-space:nowrap}.tag.b{background:#fde3e3;color:#a11}.tag.m{background:#fff1d6;color:#8a5a00}.tag.ok{background:#dff5e6;color:#11622f}.tag.ph{background:#fde3e3;color:#a11;font-weight:600}.si{white-space:nowrap;font-size:12px}.si .d{color:#6b7385}.si.fail{color:#a11}.muted{color:#8a91a1}.count{margin-left:auto;color:#6b7385}`;
+
+  function toHtml(res, meta = {}) {
+    const s = res.summary, si = res.si;
+    const methodsSeen = new Set();
+    for (const r of res.rows) for (const x of r.signins || []) for (const m of (x.methods || []).concat(x.failedSteps || [])) methodsSeen.add(m);
+    const regCell = (r) => {
+      const L = methodsList(r);
+      if (L === null) return '<span class="muted">?</span>';
+      if (!L.length) return '<span class="muted">none</span>';
+      return L.map((m) => `<span class="tag${/Phone/.test(m.label) ? " ph" : ""}"${m.isDefault ? ' style="font-weight:700"' : ""}>${hx(m.label)}${m.isDefault ? " ★" : ""}</span>`).join("");
+    };
+    const siCell = (r) => {
+      if (r.signins == null) return '<span class="muted">not read</span>';
+      if (!r.signins.length) return '<span class="muted">no sign-in in the log</span>';
+      return r.signins.map((x) => `<div class="si${x.ok ? "" : " fail"}" title="${hx([x.client, x.where, x.ip, x.requirement, x.error].filter(Boolean).join(" · "))}"><span class="d">${hx(siStamp(x.when))}</span> ${hx(x.app || "?")} — ${
+        (x.methods.length || x.failedSteps.length) ? x.methods.map((m) => `<span class="tag${isPhoneAuth(m) ? " ph" : ""}">${hx(m)}</span>`).join("") + x.failedSteps.map((m) => `<span class="tag${isPhoneAuth(m) ? " ph" : ""}" style="text-decoration:line-through">${hx(m)}</span>`).join("") : '<span class="muted">—</span>'}${x.ok ? "" : " ✗"}</div>`).join("");
+    };
+    const role = (r) => phoneRole(r);
+    const rowsHtml = res.rows.map((r) => {
+      const used = new Set();
+      for (const x of r.signins || []) for (const m of (x.methods || []).concat(x.failedSteps || [])) used.add(m);
+      const text = [r.upn, r.name, (r.via || []).join(" "), methodsWord(r), siLines(r)].join(" ").toLowerCase();
+      const csv = [r.upn, r.name, r.enabled === false ? "no" : r.enabled === true ? "yes" : "", r.inSms ? "yes" : "no", r.inVoice ? "yes" : "no",
+        methodsWord(r), role(r), RISK_WORD[r.risk], siWord(r), siLines(r)];
+      const rk = HTML_RISK[r.risk];
+      return `<tr data-risk="${r.risk}" data-role="${hx(role(r))}" data-si="${siBucket(r)}" data-en="${r.enabled === false ? "no" : r.enabled === true ? "yes" : "?"}" data-m="${hx([...used].join("\u001f"))}" data-t="${hx(text)}" data-last="${hx(r.siLast || "")}" data-csv="${hx(JSON.stringify(csv))}">
+<td><b>${hx(r.upn)}</b>${r.name ? `<br><span class="muted">${hx(r.name)}</span>` : ""}</td>
+<td>${r.enabled === false ? '<span style="color:#a11">no</span>' : r.enabled === true ? "yes" : "?"}</td>
+<td>${[r.inSms ? "SMS" : "", r.inVoice ? "Voice" : ""].filter(Boolean).join(" · ") || "—"}</td>
+<td style="min-width:200px">${regCell(r)}</td>
+<td>${hx(role(r))}</td>
+<td><span class="tag ${rk[0]}">${hx(rk[1])}</span></td>
+<td>${r.signins == null ? '<span class="muted">—</span>' : r.signins.length ? `<b>${r.siPhone}</b>/${r.signins.length}` : "0"}</td>
+<td style="min-width:380px">${siCell(r)}</td></tr>`;
+    }).join("\n");
+    const opt = (v, l) => `<option value="${hx(v)}">${hx(l)}</option>`;
+    const kpi = (n, l) => `<div class="kpi"><b>${Number(n).toLocaleString("en")}</b><span>${hx(l)}</span></div>`;
+    const stamp = new Date(meta.now || Date.now()).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${hx(`SMS & voice users — ${meta.tenantName || "tenant"}`)}</title><style>${HTML_CSS}</style></head><body><div class="wrap">
+<p class="eyebrow">Entra · SMS &amp; voice retirement · users and their last sign-ins</p><h1>${hx(meta.tenantName || "SMS & voice users")}</h1>
+<p class="meta">Generated ${hx(stamp)}${meta.build ? ` · ${hx(meta.build)}` : ""} · ENCA T33 · SMS policy ${hx(stateWord((res.sms || {}).state))} · Voice policy ${hx(stateWord((res.voice || {}).state))} · SMS/voice delivery retires ${hx(DATES.retire.label)}</p>
+<div class="kpis">${kpi(s.total, "users in scope")}${res.regRead ? kpi(s.phone, "phone registered") + kpi(s.blocking, "phone is the only MFA") + kpi(s.phoneDefault, "phone is the default") : ""}${si ? kpi(si.phoneUsed, "used the phone in their last 5") + kpi(si.noPhone, "signed in without the phone") + kpi(si.none, "no sign-in in the log") : ""}</div>
+<div class="card"><p class="meta" style="margin:0">${si
+  ? `Last 5 interactive sign-ins read for ${si.read.toLocaleString("en")} of ${si.asked.toLocaleString("en")} user${si.asked === 1 ? "" : "s"} (enabled accounts with a phone method registered${res.regRead ? "" : " — registration not read, so everyone in scope"})${si.capped ? " — capped, the rest are marked not read" : ""}${si.failed ? ` · ${si.failed} read${si.failed === 1 ? "" : "s"} failed` : ""}. The sign-in log keeps 30 days on Entra ID P1/P2: no sign-in means none in that window, not never. A phone step is a text message or a phone call; a struck-through method is a step that failed. Hover a sign-in for client, location, IP and error.`
+  : "Sign-ins were not read for this export — run ⌚ Last 5 sign-ins in ENCA first to fill the last two columns."}${res.usersPartial ? " The user read was capped — the list is partial." : ""}</p></div>
+<div class="card filters">
+<label>Search<input type="search" id="q" placeholder="UPN, name, app, method…"></label>
+<label>Verdict<select id="fRisk">${opt("", "All")}${["blocking", "migrate", "ready", "clean", "unknown"].map((k) => opt(k, HTML_RISK[k][1])).join("")}</select></label>
+<label>Phone role<select id="fRole">${opt("", "All")}${["only method", "default", "backup", "—", "?"].map((k) => opt(k, k)).join("")}</select></label>
+<label>Last 5 sign-ins<select id="fSi">${opt("", "All")}${Object.entries(SI_BUCKET_WORD).map(([k, v]) => opt(k, v)).join("")}</select></label>
+<label>Method used<select id="fM">${opt("", "Any")}${[...methodsSeen].sort().map((m) => opt(m, m)).join("")}</select></label>
+<label>Enabled<select id="fEn">${opt("", "All")}${opt("yes", "yes")}${opt("no", "no")}</select></label>
+<button id="reset">✕ Reset</button><button id="csv">⭳ CSV of shown rows</button>
+<span class="count" id="count"></span></div>
+<div class="card" style="padding:0;overflow:auto"><table id="t"><thead><tr><th data-k="upn">User</th><th>Enabled</th><th>Policy</th><th>Methods registered</th><th>Phone role</th><th data-k="risk">Verdict</th><th data-k="ph" title="Sign-ins with a phone step / sign-ins read">Phone</th><th data-k="last">Last 5 sign-ins (newest first, UTC) · authentication used</th></tr></thead><tbody>
+${rowsHtml}
+</tbody></table></div>
+<p class="meta">A read-only snapshot. It names users and where they sign in from — share it like the tenant data it is.</p>
+</div><script>
+(function(){var $=function(i){return document.getElementById(i)};var rows=[].slice.call(document.querySelectorAll('#t tbody tr'));
+function apply(){var q=$('q').value.trim().toLowerCase(),r=$('fRisk').value,ro=$('fRole').value,s=$('fSi').value,m=$('fM').value,e=$('fEn').value,n=0;
+rows.forEach(function(tr){var d=tr.dataset,ok=(!q||d.t.indexOf(q)>=0)&&(!r||d.risk===r)&&(!ro||d.role===ro)&&(!s||d.si===s)&&(!e||d.en===e)&&(!m||d.m.split('\\u001f').indexOf(m)>=0);tr.style.display=ok?'':'none';if(ok)n++;});
+$('count').textContent=n+' of '+rows.length+' users shown';}
+['q','fRisk','fRole','fSi','fM','fEn'].forEach(function(i){$(i).addEventListener('input',apply);});
+$('reset').addEventListener('click',function(){['q','fRisk','fRole','fSi','fM','fEn'].forEach(function(i){$(i).value='';});apply();});
+var RANK={blocking:0,migrate:1,unknown:2,clean:3,ready:4},dir={};
+[].forEach.call(document.querySelectorAll('th[data-k]'),function(th){th.addEventListener('click',function(){var k=th.dataset.k;dir[k]=-(dir[k]||-1);var tb=$('t').tBodies[0];
+var key=function(tr){var d=tr.dataset;return k==='risk'?RANK[d.risk]:k==='last'?d.last:k==='ph'?(d.si==='phone'?0:d.si==='nophone'?1:d.si==='none'?2:3):d.t;};
+rows.sort(function(a,b){var x=key(a),y=key(b);return (x<y?-1:x>y?1:0)*dir[k];}).forEach(function(tr){tb.appendChild(tr);});});});
+$('csv').addEventListener('click',function(){var q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';};
+var L=['userPrincipalName,displayName,accountEnabled,inSmsScope,inVoiceScope,methodsRegistered,phoneRole,verdict,lastSignInsSummary,lastSignIns'];
+rows.forEach(function(tr){if(tr.style.display!=='none')L.push(JSON.parse(tr.dataset.csv).map(q).join(','));});
+var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\\ufeff'+L.join('\\r\\n')],{type:'text/csv'}));a.download='SmsVoice-users-filtered.csv';a.click();});
+apply();})();
+</script></body></html>`;
+  }
+
   return { DATES, daysUntil, parseScope, classify, phoneRole, analyze, toMd, toCsv, notifyEmail, stateWord, campaignWord, RISK_WORD, MD_ROW_CAP,
-    METHOD_LABELS, methodLabel, defaultOf, methodsList, methodsWord };
+    METHOD_LABELS, methodLabel, defaultOf, methodsList, methodsWord,
+    isPhoneAuth, summarizeSignIn, signInMethodWord, withSignIns, siBucket, siWord, siLines, SI_BUCKET_WORD, toHtml };
 })();

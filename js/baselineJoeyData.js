@@ -14,7 +14,23 @@
 //
 // Naming convention in this baseline: every policy has a matching exclusion
 // group "<policy name> - Exclude", and the break-glass group is
-// "CA-BreakGlassAccounts - Exclude".
+// "CA-BreakGlassAccounts - Exclude". ENCA keeps his groups as he ships them —
+// ENCA's own Joey+ additions follow the same convention — with ONE exception
+// (e12, Mihai 7 Nov): his EXAMPLE internals include group APP_Microsoft365_E5
+// is replaced by ENCA's CAB-SEC-U-Persona-Internals (dynamic, the CloudFellows
+// "Entra ID P1 enabled" rule). 📥 Import lands CA200–CA210 on it; a tenant
+// imported before e12 gets the rename from 👥 CA groups ⑦ Migrate.
+//
+// And ONE policy change (e13, Mihai 9 Nov, build 33204): CA200–CA210 also
+// EXCLUDE his service-accounts group CA-ServiceAccounts. The dynamic
+// internals group takes in every user with Entra ID P1 enabled — licensed
+// service accounts included — and his CA300 block already covers those, so
+// they must not be hit by the internals' MFA and risk policies as well.
+// BASELINE_JOEY.addedExclusions carries it; 📥 Import adds the exclusion to
+// whatever his repository files ship (the bundled snapshot and a live read
+// alike), and a tenant imported before 33204 gets it from 👥 CA groups
+// ⑦ Migrate (preview, then confirm). Both changes are listed, with their
+// reason, by BASELINE_JOEY.changesVsUpstream().
 // ======================================================================
 const BASELINE_JOEY = {
   id: "joey",
@@ -29,7 +45,7 @@ const BASELINE_JOEY = {
   commit: "38469a4faf26bbe013344c57c00fbfc922086950",
   configPath: "Config/ConditionalAccess",
   namedLocations: ["ALLOWED COUNTRIES", "ALLOWED COUNTRIES - SERVICE ACCOUNTS", "All Compliant Network locations"],
-  groups: ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "APP_Microsoft365_E5", "one <policy name> - Exclude group per policy"],
+  groups: ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "CAB-SEC-U-Persona-Internals", "one <policy name> - Exclude group per policy"],
   note: "Conditional Access for agents requires Entra ID P1/P2 and a Microsoft Agent 365 license per user.",
   policies: [
     { num: 0, persona: "🌐 Global", name: "CA000-Global-IdentityProtection-AnyApp-AnyPlatform-MFA",
@@ -75,7 +91,7 @@ const BASELINE_JOEY = {
 
     { num: 200, persona: "👤 Internals", name: "CA200-Internals-IdentityProtection-AnyApp-AnyPlatform-MFA",
       grant: "Require MFA", resources: "All cloud apps", platform: "Any platform",
-      description: "Requires MFA for all internal identities on all cloud apps. Verify the included group — APP_Microsoft365_E5 ships as the example." },
+      description: "Requires MFA for all internal identities on all cloud apps. ENCA includes CAB-SEC-U-Persona-Internals (dynamic: Entra ID P1 enabled) where his repository ships the example APP_Microsoft365_E5." },
     { num: 201, persona: "👤 Internals", name: "CA201-Internals-IdentityProtection-AnyApp-AnyPlatform-BLOCK-HighRiskUser",
       grant: "Block access", resources: "All cloud apps", platform: "Any platform", conditions: "User risk: high",
       description: "Blocks internal users at high user risk. Split from the combined risk policy in 2025.2.3." },
@@ -203,20 +219,34 @@ BASELINE_JOEY.personas = [
 ];
 // The persona groups the wizard can pick by persona. His baseline has two
 // real ones — the service-accounts group and the break-glass group. The
-// internals include group ships as an EXAMPLE (APP_Microsoft365_E5) that a
-// tenant is expected to replace with its own, so it is offered but labelled.
+// internals include group ships as an EXAMPLE (APP_Microsoft365_E5); ENCA
+// replaces it with its own CAB-SEC-U-Persona-Internals (e12).
+BASELINE_JOEY.internalsGroup = "CAB-SEC-U-Persona-Internals";
+// His repository's name -> ENCA's, for the groups ENCA replaces. ONLY the
+// example group: everything else stays as he ships it (Mihai 7 Nov).
+BASELINE_JOEY.upstreamGroups = { "APP_Microsoft365_E5": BASELINE_JOEY.internalsGroup };
+// e13 (Mihai 9 Nov, 33204): exclusions ENCA adds to his policies — ENCA's
+// deviation from his release, on top of what his files ship. Matched by
+// policy NAME shape (his CAnnn-Persona-… convention), so a live read of a
+// newer release gets the same treatment.
+BASELINE_JOEY.serviceAccountsGroup = "CA-ServiceAccounts";
+BASELINE_JOEY.addedExclusions = [
+  { id: "e13", group: BASELINE_JOEY.serviceAccountsGroup, policies: "CA200–CA210", range: [200, 210], persona: "Internals",
+    decided: "Mihai, 9 Nov 2026", build: "333",
+    why: "CAB-SEC-U-Persona-Internals is dynamic (every user with Entra ID P1 enabled), so licensed service accounts land in it. They are covered by his CA300 block (CA300 MFA, CA301 trusted locations) and must not be hit by the internals' MFA, risk and device policies." },
+];
 BASELINE_JOEY.personaGroups = [
   { key: "global", label: "🌐 Global", group: null },
-  { key: "internals", label: "👤 Internals", group: "APP_Microsoft365_E5", example: true },
+  { key: "internals", label: "👤 Internals", group: BASELINE_JOEY.internalsGroup },
   { key: "serviceaccounts", label: "⚙ Service accounts", group: "CA-ServiceAccounts" },
   { key: "breakglass", label: "🚨 Break-glass", group: "CA-BreakGlassAccounts - Exclude" },
 ];
-BASELINE_JOEY.predefined = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "APP_Microsoft365_E5"];
+BASELINE_JOEY.predefined = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", BASELINE_JOEY.internalsGroup];
 // The groups the baseline names that are not one policy's exclusion group.
-// APP_Microsoft365_E5 is deliberately NOT here: it is the example include
-// group, and expecting every tenant to have a group by that name would report
-// a missing group nobody should create.
-BASELINE_JOEY.groups = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", "one <policy name> - Exclude group per policy"];
+// The internals include group is ENCA's own (e12), so it IS expected — and a
+// tenant that still holds APP_Microsoft365_E5 sees it as the legacy name
+// (👥 CA groups), not as a missing group.
+BASELINE_JOEY.groups = ["CA-BreakGlassAccounts - Exclude", "CA-ServiceAccounts", BASELINE_JOEY.internalsGroup, "one <policy name> - Exclude group per policy"];
 // The group files of this release (Config/Groups) whose name is not
 // "<a policy in this list> - Exclude": CA403 and CA404 name the persona
 // "Guests" where the policies say "GuestUsers", and CA005/CA006 ship an
@@ -258,6 +288,48 @@ BASELINE_JOEY.EXCLUDE_SUFFIX = " - Exclude";
   };
   J.exclusionName = (name) => `${String(name || "").trim()}${J.EXCLUDE_SUFFIX}`;
   J.isExclusionGroup = (name) => /\s-\sExclude$/i.test(String(name || "").trim());
+  // e12: his repository's name -> the name ENCA creates and uses, or null
+  // when ENCA keeps his (everything except the example internals group)
+  J.ownGroupName = function (cat, name) {
+    const n = norm(name);
+    if (!n) return null;
+    for (const [from, to] of Object.entries(cat.upstreamGroups || J.upstreamGroups || {})) if (n === norm(from)) return to;
+    return null;
+  };
+  // the same pairs for 👥 CA groups: legacy name -> ENCA's name
+  J.legacyGroups = (cat) => Object.entries(cat.upstreamGroups || J.upstreamGroups || {}).map(([from, to]) => ({ from, to }));
+  // the policies whose include the internals group is: CA200–CA210
+  J.isInternalsPolicy = (name) => /^CA2(0\d|10)-Internals-/i.test(String(name || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim());
+  // e13: the groups ENCA adds to a policy's EXCLUDE on top of what his file
+  // ships — by CA number AND persona segment of the name (CA200–CA210
+  // Internals: CA-ServiceAccounts). [] for every other policy.
+  J.addedExcludesFor = function (cat, name) {
+    const clean = String(name || "").replace(/^\(?(NEW|UP)\)\s*/i, "").trim();
+    const m = /^CA(\d{3,4})-([A-Za-z]+)-/.exec(clean);
+    if (!m) return [];
+    const num = +m[1];
+    const out = [];
+    for (const d of (cat && cat.addedExclusions) || J.addedExclusions || []) {
+      if (!d || !d.group || !Array.isArray(d.range)) continue;
+      if (num < d.range[0] || num > d.range[1]) continue;
+      if (d.persona && norm(d.persona) !== norm(m[2])) continue;
+      if (!out.some((g) => norm(g) === norm(d.group))) out.push(d.group);
+    }
+    return out;
+  };
+  // Everything ENCA changes in his release, with the reason — for 🧬 Baseline,
+  // the release documentation and the import report.
+  J.changesVsUpstream = function (cat) {
+    const c = cat || J;
+    const out = [];
+    for (const [from, to] of Object.entries(c.upstreamGroups || J.upstreamGroups || {})) {
+      out.push({ id: "e12", kind: "group", text: `${from} → ${to}`, detail: `His example internals include group (CA200–CA210) is replaced by ENCA's ${to} — dynamic, every user with Entra ID P1 enabled. 👥 CA groups ⑦ Migrate renames it in a tenant imported earlier.` });
+    }
+    for (const d of c.addedExclusions || J.addedExclusions || []) {
+      out.push({ id: d.id, kind: "exclusion", text: `${d.policies} also exclude ${d.group}`, detail: `${d.why} Decided ${d.decided} (ENCA ${d.build}); 👥 CA groups ⑦ Migrate adds it to a tenant imported earlier.` });
+    }
+    return out;
+  };
 
   // Group name → persona code. EXACT, case-insensitive, against the names
   // this catalog defines. Returns null for everything else.
@@ -307,6 +379,11 @@ BASELINE_JOEY.EXCLUDE_SUFFIX = " - Exclude";
     };
     add(cat.breakGlassGroup, "Break-glass (emergency access) accounts — excluded from every policy in the Conditional Access Baseline by Joey Verlinden. Keep it to the emergency accounts only.", { persona: "BreakGlass" });
     add("CA-ServiceAccounts", "Service accounts targeted by the CA300 block of the Conditional Access Baseline by Joey Verlinden (CA300 MFA, CA301 trusted locations).", { persona: "SA" });
+    // e12: the internals include group (CA200–CA210) is ENCA's — dynamic on the
+    // CloudFellows "Entra ID P1 enabled" rule when that template is loaded
+    const cf = (typeof GROUP_TEMPLATES !== "undefined" ? GROUP_TEMPLATES : []).find((t) => norm(t.displayName) === norm(cat.internalsGroup || J.internalsGroup)) || {};
+    add(cat.internalsGroup || J.internalsGroup, "Internal users included by CA200–CA210 of the Conditional Access Baseline by Joey Verlinden — ENCA's group in place of his example APP_Microsoft365_E5. Dynamic: every user with Entra ID P1 enabled.",
+      cf.dynamic && cf.membershipRule ? { dynamic: true, membershipRule: cf.membershipRule } : {});
     for (const p of cat.policies || []) {
       add(J.exclusionName(p.name), `Exclusion group for ${p.name} (Conditional Access Baseline by Joey Verlinden${cat.release ? ` ${cat.release}` : ""}). Members are exempt from that one policy.`,
         { persona: J.personaOfPolicy(cat, p.name), policy: p.name });
@@ -332,7 +409,9 @@ BASELINE_JOEY.EXCLUDE_SUFFIX = " - Exclude";
 BASELINE_JOEY.decorate = function (cat) {
   (cat.policies || []).forEach((p) => {
     if (!p.persona) p.persona = BASELINE_JOEY.personaLabel(cat, BASELINE_JOEY.personaOfPolicy(cat, p.name));
-    p.exclude = [`${BASELINE_JOEY.exclusionName(p.name)} (group)`, `${cat.breakGlassGroup} (group)`];
+    p.exclude = [`${BASELINE_JOEY.exclusionName(p.name)} (group)`, `${cat.breakGlassGroup} (group)`,
+      // e13: ENCA's added exclusions (CA200–CA210: CA-ServiceAccounts)
+      ...BASELINE_JOEY.addedExcludesFor(cat, p.name).map((g) => `${g} (group)`)];
     p.include = [p.persona.replace(/^\S+\s*/, "")];
     p.docUrl = p.learn || `${cat.url}#${p.name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`;
     // the exact policy JSON at the commit this catalog was read from

@@ -496,7 +496,7 @@
     baseline: {
       tile: "toolBaseline", label: "🧬 Baseline",
       tabs: [
-        { key: "baseline", icon: "🧬", name: "Baseline",         toolbar: "blToolbar", open: () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); } },
+        { key: "baseline", icon: "🧬", name: "Baseline",         toolbar: "blToolbar", open: () => { crumb("🧬 Baseline"); openBaseline(blOpenId()); } },
         { key: "guide",    icon: "📖", name: "Deployment guide", toolbar: "ugToolbar", open: () => openGuide(), beta: true },
       ],
     },
@@ -2141,6 +2141,7 @@
            <button class="btn" data-pact="backup">🗄 Backup</button>
            <button class="btn" data-pact="assign">👥 Assign groups or roles</button>
            <button class="btn" data-pact="state">🎚 Policy state</button>
+           ${dgtButton(p)}
            <span class="pa-sep"></span>
            <button class="btn" data-pbdetail="clone" title="A new policy from this one, with the next free number in its range, in report-only — the 🏗 Policy builder">⧉ Clone in builder</button>
          </div>
@@ -2185,6 +2186,9 @@
       if (k === "save") { pbWrite(); return; }
       if (k === "diff" || k === "preflight") { cardEdit.view = cardEdit.view === k ? "" : k; cardEditBar(); return; }
     }
+    // 🚀 / ↩ the deployment-group trial (33203)
+    const dg = e.target.closest("[data-dgt]");
+    if (dg && detailPolicyId) { dgtOpen(dg.dataset.dgt); return; }
     // ⧉ the builder, from the card (25445): a new policy from this one
     const pb = e.target.closest("[data-pbdetail]");
     if (pb && detailPolicyId) { closeDetail(); openBuilder({ from: detailPolicyId, as: "clone" }); return; }
@@ -2199,6 +2203,167 @@
       setToolMode(mode);
       runToolMode(mode);
     }
+  });
+
+  // ---------- 🚀 Trial on deployment group / ↩ Back to persona (33203) ----------
+  // e04–e09, Mihai 7 Nov: an import lands as shipped, on the persona groups;
+  // ONE policy is tried on its CAD-SEC-U-DG-* group from its card, and put
+  // back. js/dgtrial.js holds the rule, the pre-flight, the record and the
+  // writes; this is the dialog. Impact and recovery are said before the
+  // button, the include is saved before the write, both are read back.
+  const DGT_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let dgt = null;
+  const dgtStore = () => DgTrial.store(tenantId || tenantName);
+  const dgtCatalogId = () => { try { return Baseline.activeCatalogId(); } catch { return null; } };
+  const dgtContract = () => { try { return Baseline.withContract(Baseline.active()) || {}; } catch { return {}; } };
+  const dgtNameOf = (p) => (id) => { const d = ((p && p.deps) || []).find((x) => x.type === "group" && x.id === id); return d ? d.label : null; };
+  const dgtGroupName = (s) => String(s || "").replace(/\s*\(group\)$/i, "");
+  // On a trial: a record in this browser, or an include that is one deploy group.
+  function dgtOnTrial(p) {
+    if (!p || typeof DgTrial === "undefined") return false;
+    if (dgtStore().get(p.id)) return true;
+    const inc = (p.users && p.users.inc) || [];
+    return inc.length === 1 && /^CAD-SEC-U-DG-/i.test(dgtGroupName(inc[0]));
+  }
+  function dgtButton(p) {
+    if (typeof DgTrial === "undefined" || !p || !p.raw) return "";
+    if (dgtOnTrial(p)) return `<button class="btn" data-dgt="back" title="Put back the include this policy had before its deployment-group trial — groups, directory roles and guests, exactly">↩ Back to persona</button>`;
+    const r = DgTrial.rule({ name: p.name, raw: p.raw }, { catalogId: dgtCatalogId() });
+    return `<button class="btn" data-dgt="trial"${r.ok ? "" : ` aria-disabled="true"`} title="${esc(r.ok ? `Include only ${r.dg}${r.label ? ` (${r.label})` : ""} for a trial — the current include is saved first` : `${r.reason}${r.guidance ? `. ${r.guidance}` : ""}`)}">🚀 Trial on deployment group</button>`;
+  }
+  // ↩ without a record in this browser: what the baseline ships.
+  function dgtCatalogSpec(p) {
+    const name = p.name, cat = DgTrial.catalogOf(name, dgtCatalogId());
+    const bundles = [];
+    try { if (cat === "smb" && typeof BASELINE_SMB !== "undefined") bundles.push(BASELINE_SMB.bundle()); } catch { /* not loaded */ }
+    try { if (cat === "joey" && typeof JOEY_PLUS !== "undefined") bundles.push(JOEY_PLUS.bundle()); } catch { /* not loaded */ }
+    try { if (cat === "joey" && typeof BaselineLive !== "undefined" && BaselineLive.bundle()) bundles.push(BaselineLive.bundle()); } catch { /* not read */ }
+    for (const b of bundles) { const s = DgTrial.bundleSpec(b, name); if (s) return s; }
+    try {
+      const c = Baseline.catalog(cat);
+      const num = (String(name).match(/\bCA(\d{3,4})\b/i) || [])[1];
+      const e = c && (c.policies || []).find((x) => x.num === +num);
+      if (e) return DgTrial.catalogSpec(e);
+    } catch { /* no catalog */ }
+    return null;
+  }
+  let dgtRoles = null;
+  const dgtResolvers = {
+    groupIdByName: async (n) => { const g = await DgTrial.groupByName(Graph, n); return g && g.id; },
+    roleIdByName: async (n) => {
+      if (!dgtRoles) dgtRoles = await Graph.ggetAll("/directoryRoleTemplates?$select=id,displayName");
+      const hit = dgtRoles.find((r) => String(r.displayName || "").toLowerCase() === String(n).toLowerCase());
+      return hit && hit.id;
+    },
+  };
+  async function dgtOpen(kind) {
+    const p = policies.find((x) => x.id === detailPolicyId);
+    if (!p || typeof DgTrial === "undefined") return;
+    const rule = DgTrial.rule({ name: p.name, raw: p.raw }, { catalogId: dgtCatalogId() });
+    if (kind === "trial" && !rule.ok) { toast(`${esc(rule.reason)}${rule.guidance ? ` — <span>${esc(rule.guidance)}</span>` : ""}`); return; }
+    closeDetail();
+    dgt = { kind, p, rule, dg: null, pre: null, original: null, source: null, err: null, force: false };
+    $("dgtLedger").innerHTML = "";
+    $("dgtTitle").textContent = kind === "trial" ? `🚀 Trial ${p.name} on ${rule.dg}` : `↩ Back to persona — ${p.name}`;
+    $("dgtGo").style.display = ""; $("dgtGo").disabled = true;
+    $("dgtGo").textContent = kind === "trial" ? `Trial on ${rule.dg}` : "↩ Back to persona";
+    $("dgtBody").innerHTML = `<p class="mini muted">Reading ${kind === "trial" ? "the deployment group and its testers" : "the saved include"}…</p>`;
+    $("dgtModal").classList.add("open");
+    const nameOf = dgtNameOf(p);
+    try {
+      if (kind === "trial") {
+        const c = dgtContract();
+        if (isDemo) {
+          dgt.dg = { id: `demo-${rule.dg}`, name: rule.dg };
+          dgt.pre = { rows: [{ tester: { id: "u1", displayName: "Anna Jansen", userPrincipalName: "anna@contoso.com" }, warnings: [] }, { tester: { id: "u2", displayName: "Ben de Vries", userPrincipalName: "ben@contoso.com" }, warnings: [{ kind: "exclusion", text: `in this policy's exclusion group — the trial does not reach this tester` }] }], notes: [], warnings: 1 };
+        } else {
+          const g = await DgTrial.groupByName(Graph, rule.dg);
+          dgt.dg = g ? { id: g.id, name: g.displayName || rule.dg } : { id: null, name: rule.dg };
+          dgt.pre = g ? await DgTrial.readPreflight(Graph, p.raw, { dg: dgt.dg, breakGlass: c.breakGlassGroup, sharedDevices: c.sharedDevicesGroup || "CAB-SEC-U-TeamsSharedDevices",
+            internals: rule.catalog === "smb" ? null : (c.internalsGroup || "CAB-SEC-U-Persona-Internals"), nameOf, catalog: rule.catalog,
+            isExclusionGroup: (n) => { try { return !!(c.isExclusionGroup && c.isExclusionGroup(n)); } catch { return false; } } }) : null;
+        }
+      } else {
+        const rec = dgtStore().get(p.id);
+        if (rec) { dgt.original = rec.original; dgt.source = "record"; dgt.rec = rec; }
+        else if (isDemo) { dgt.original = { includeUsers: [], includeGroups: ["demo-persona"], includeRoles: ["62e90394-69f5-4237-9190-012177145e10"], includeGuestsOrExternalUsers: null }; dgt.source = "catalog"; }
+        else {
+          try { dgt.original = await DgTrial.resolveSpec(dgtCatalogSpec(p), dgtResolvers); dgt.source = "catalog"; }
+          catch (e) { dgt.err = e.message || String(e); }
+        }
+      }
+    } catch (e) { dgt.err = e.message || String(e); }
+    dgtPaint();
+  }
+  function dgtPaint() {
+    if (!dgt) return;
+    const { kind, p, rule } = dgt;
+    const nameOf = dgtNameOf(p);
+    const cur = DgTrial.includeOf(p.raw);
+    let html = `<p class="mini muted" style="margin:0 0 10px">Tenant: <b>${esc(tenantName || "")}</b> · ${esc(STATE_WORD_UI[p.raw.state] || p.raw.state || "")}${isDemo ? " · demo — simulated" : ""}</p>`;
+    if (kind === "trial") {
+      const pre = dgt.pre;
+      html += `<h4 class="sd-h4">What changes</h4>
+        <p class="mini" style="margin:0">Include: <b>${esc(DgTrial.describe(cur, nameOf))}</b> → <b>${esc(rule.dg)}</b>${rule.label ? ` <span class="muted">(${esc(rule.label)})</span>` : ""} only. Every exclusion, condition, control and the state stay as they are.</p>
+        <h4 class="sd-h4">Testers in ${esc(rule.dg)}</h4>`;
+      if (!dgt.dg || !dgt.dg.id) html += `<div class="danger-note mini">${esc(rule.dg)} is not in this tenant. An As shipped import creates it empty (📥 Import), or 👥 Conditional Access groups ② Create — then add the testers.</div>`;
+      else if (!pre) html += `<p class="mini muted">${esc(dgt.err || "not read")}</p>`;
+      else {
+        html += pre.notes.map((n) => `<p class="mini" style="margin:2px 0;color:${n.level === "warn" ? "var(--report)" : "var(--muted)"}">${n.level === "warn" ? "⚠" : "ℹ"} ${esc(n.text)}</p>`).join("");
+        html += `<ul style="list-style:none;margin:0;padding:0">${pre.rows.map((r) => `<li class="mini" style="margin:3px 0">${r.warnings.length ? '<span style="color:var(--report);font-weight:600">⚠</span>' : '<span style="color:var(--on);font-weight:600">✓</span>'} <b>${esc(r.tester.displayName || r.tester.userPrincipalName || r.tester.id)}</b> <span class="muted">${esc(r.tester.userPrincipalName || "")}</span>${r.warnings.map((w) => `<div class="muted" style="margin-left:18px">${esc(w.text)}</div>`).join("")}</li>`).join("")}</ul>`;
+      }
+      html += `<h4 class="sd-h4">Impact</h4>
+        <div class="sd-box warn mini">${p.raw.state === "enabled" ? `The policy is <b>On</b>: from the next sign-in it applies ONLY to the members of ${esc(rule.dg)} — everybody it reaches today (${esc(DgTrial.describe(cur, nameOf))}) is no longer covered until ↩ Back to persona.` : `The policy is ${esc(STATE_WORD_UI[p.raw.state] || p.raw.state)}: it ${p.raw.state === "disabled" ? "enforces nothing either way" : "reports only — for the testers instead of the persona"}. Switch it On for the trial with 🎚 Policy state when the testers are ready.`}</div>
+        <h4 class="sd-h4">If it goes wrong</h4>
+        <div class="sd-box ok mini">The include it has now — ${esc(DgTrial.describe(cur, nameOf))} — is saved in this browser BEFORE the write (and in the report, as JSON). <b>↩ Back to persona</b> on the policy card puts it back exactly and reads it back. Nothing is written if the include cannot be saved.</div>`;
+      $("dgtGo").disabled = !(dgt.dg && dgt.dg.id);
+    } else {
+      html += `<h4 class="sd-h4">What changes</h4>`;
+      if (!dgt.original) html += `<div class="danger-note mini">${esc(dgt.err || "No saved include.")} Nothing can be restored from here: put the include back by hand (the trial report holds it as JSON) or import the policy again with ♻️ Match &amp; replace.</div>`;
+      else {
+        html += `<p class="mini" style="margin:0">Include: <b>${esc(DgTrial.describe(cur, nameOf))}</b> → <b>${esc(DgTrial.describe(dgt.original, nameOf))}</b>. Exclusions, conditions, controls and the state stay as they are.</p>
+          <p class="mini muted" style="margin:4px 0 0">Source: ${dgt.source === "record" ? `the include saved in this browser at the trial${dgt.rec && dgt.rec.at ? ` (${esc(new Date(dgt.rec.at).toLocaleString())})` : ""}` : "<b>the catalog</b> — no include was saved in this browser for this policy, so the one the baseline ships is rebuilt by name in this tenant. Compare it with the policy you expect."}</p>`;
+        if (dgt.rec && dgt.rec.dgId && !DgTrial.onlyOn(cur, dgt.rec.dgId)) html += `<label class="chk" style="margin:8px 0 0;align-items:flex-start"><input type="checkbox" id="dgtForce" ${dgt.force ? "checked" : ""}><span class="mini">The include changed since the trial (it is no longer ${esc(dgt.rec.dg)} alone). Restore the saved include anyway — over what is there now.</span></label>`;
+      }
+      html += `<h4 class="sd-h4">Impact</h4>
+        <div class="sd-box warn mini">${p.raw.state === "enabled" ? "The policy is <b>On</b>: from the next sign-in it applies to the persona again — everybody the restored include reaches, not only the testers." : "The policy is not On: nothing changes for users until it is."}</div>
+        <h4 class="sd-h4">If it goes wrong</h4>
+        <div class="sd-box ok mini">The include is read back; a mismatch is reported and the saved record is kept. 🚀 Trial on deployment group moves it onto the testers again.</div>`;
+      $("dgtGo").disabled = !dgt.original || !!(dgt.rec && dgt.rec.dgId && !DgTrial.onlyOn(cur, dgt.rec.dgId) && !dgt.force);
+    }
+    html += `<h4 class="sd-h4">Needs</h4><p class="mini" style="margin:0">Conditional Access Administrator or higher · consent for Policy.ReadWrite.ConditionalAccess, asked at the click.</p>`;
+    $("dgtBody").innerHTML = html;
+  }
+  const STATE_WORD_UI = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+  $("dgtCancel").addEventListener("click", () => { $("dgtModal").classList.remove("open"); dgt = null; });
+  $("dgtBody").addEventListener("change", (e) => { if (e.target.id === "dgtForce" && dgt) { dgt.force = e.target.checked; dgtPaint(); } });
+  $("dgtGo").addEventListener("click", async () => {
+    if (!dgt) return;
+    const { kind, p } = dgt;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...DGT_WRITE])) return;
+    $("dgtGo").disabled = true;
+    const L = RunLedger.create($("dgtLedger"), { unit: "policy", items: [{ label: p.name, sub: kind === "trial" ? `include → ${dgt.rule.dg}` : "include → the saved one" }] });
+    L.start(0);
+    const row = { name: p.name, action: kind, dg: dgt.rule.dg, label: dgt.rule.label };
+    try {
+      if (isDemo) { await new Promise((r) => setTimeout(r, 120)); row.ok = true; row.original = kind === "trial" ? DgTrial.includeOf(p.raw) : dgt.original; row.source = kind === "back" ? dgt.source : null; }
+      else if (kind === "trial") {
+        const r = await DgTrial.trial(Graph, p.id, { store: dgtStore(), dgId: dgt.dg.id, dgName: dgt.dg.name, catalogId: dgtCatalogId() });
+        row.ok = true; row.original = r.record.original;
+      } else {
+        const r = await DgTrial.back(Graph, p.id, { store: dgtStore(), original: dgt.source === "catalog" ? dgt.original : null, source: dgt.source, force: dgt.force });
+        row.ok = true; row.source = r.source; row.original = dgt.original;
+      }
+      L.done(0, kind === "trial" ? `on ${dgt.rule.dg}, read back` : "persona include restored, read back");
+    } catch (e) {
+      row.ok = false; row.error = e.message || String(e);
+      L.fail(0, row.error);
+    }
+    L.finish();
+    $("dgtGo").style.display = "none";
+    showReport(kind === "trial" ? "🚀 Deployment-group trial" : "↩ Back to persona", "CA-DG-Trial-Report", DgTrial.report({ tenant: tenantName }, [row]));
+    toast(row.ok ? (kind === "trial" ? `${esc(p.name)} is on <span>${esc(dgt.rule.dg)}</span>` : `${esc(p.name)} is back on its persona`) : `Not done: <span>${esc(row.error)}</span>`);
+    if (!isDemo && row.ok) await loadFromGraph(true);
   });
 
   // ---------- export ----------
@@ -2779,25 +2944,18 @@
     $("bkGo").textContent = opts.personas ? "Download export" : "Download backup";
     paintBackup();
   }
-  // The personas actually present in the pool, with their counts — never the
-  // nine in the registry, so a chooser can not offer an empty box.
+  // The rows actually present in the pool, with their counts — never the
+  // whole registry, so a chooser can not offer an empty box. 33311: the rows
+  // are Builder.exportRows (js/builder.js) — the personas, 🚨 E-Admins,
+  // Factory workers, and a row each for a number outside every range and for
+  // no number at all, so every policy in scope sits in exactly one of them.
+  // Until then CA1100+ had no box and was left out whichever were ticked.
   function bkPersonaKeys(pool) {
     const ids = pool || (selected.size ? [...selected] : visible().map(p => p.id));
     const ps = backupScope(ids.map(id => policies.find(p => p.id === id)).filter(Boolean)).policies;
-    const out = [];
-    for (const per of Builder.personas(pbCat())) {
-      const n = ps.filter((p) => { const num = Builder.caNum(p.raw.displayName); return num != null && num >= per.lo && num <= per.hi; }).length;
-      if (n) out.push({ ...per, n });
-    }
-    const un = ps.filter((p) => Builder.caNum(p.raw.displayName) == null).length;
-    if (un) out.push({ key: "__none", label: "— no CA number", lo: -1, hi: -1, n: un });
-    return out;
+    return Builder.exportRows(ps.map((p) => p.raw.displayName), pbCat());
   }
-  const bkInPersona = (p, keys) => {
-    const num = Builder.caNum(p.raw.displayName);
-    if (num == null) return keys.has("__none");
-    return Builder.personas(pbCat()).some((per) => keys.has(per.key) && num >= per.lo && num <= per.hi);
-  };
+  const bkInPersona = (p, keys) => keys.has(Builder.exportRowKey(p.raw.displayName, pbCat()));
   function paintBackup() {
     const picked = exportOrder(((bkPool || (selected.size ? [...selected] : visible().map(p => p.id)))).map(id => policies.find(p => p.id === id)).filter(Boolean));
     if (!picked.length) { toast("Nothing to back up"); return; }
@@ -3174,7 +3332,7 @@
   // second tile for — openBaseline("joey") is still the deep-link target and has
   // six callers. Opens on the tenant's active catalog rather than always
   // CloudFellows, which is what the ★ choice is for.
-  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline"); openBaseline(Baseline.activeCatalogId() || "limonit"); });
+  $("toolBaseline").addEventListener("click", () => { crumb("🧬 Baseline"); openBaseline(blOpenId()); });
   function openStateModal() {
     if (!selected.size) { toast("Select at least one policy first"); return; }
     const ps = exportOrder([...selected].map(id => policies.find(p => p.id === id)));
@@ -3760,7 +3918,10 @@
   });
 
   // ---------- import tool (BETA) ----------
-  let imBundle = null, imPlan = null, imFileName = "", imMode = "deploy";
+  // 33203 (e04): an import opens on 🧩 As shipped — the real persona groups,
+  // landing Report-only. The deploy groups are a per-policy action now
+  // (🚀 Trial on deployment group on the policy card), not the default.
+  let imBundle = null, imPlan = null, imFileName = "", imMode = "shipped";
   // imRaw — the bundle as it was read, before prepareBundle() turned its group
   // references into names; the E-Admins merge works on this one.
   // imEa — the 🚨 E-Admins taken from a CloudFellows backup into this import.
@@ -3769,7 +3930,11 @@
   // 32706 — the state new policies land in: "disabled" (Off, the default) or
   // "enabledForReportingButNotEnforced"; the security defaults path opens
   // the import on Report-only, because step ② reads what they would do.
-  let imLand = "disabled";
+  // 33203 (e04): Report-only is the default; a policy the file or the
+  // catalog forces Off (E-Admins from another file, SMB CA201–CA204, Joey+
+  // CA020–CA023, CloudFellows CA113–CA116 / CA215–CA218) still lands Off.
+  const IM_LAND_DEFAULT = "enabledForReportingButNotEnforced";
+  let imLand = IM_LAND_DEFAULT;
   // 32902: 🛫 pre-flight — what the run needs from the tenant, read before
   // Import is pressed (Importer.preflight). imPreFix: the ticked repair of
   // this baseline's policies that are here and Off while the run lands
@@ -3783,8 +3948,8 @@
   const imWidBlocked = p => !imRequirement(p).ok;
   $("toolImport").addEventListener("click", () => {
     crumb("📥 Import");
-    imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "deploy"; imLic = { known: false, licensed: false, sku: null };
-    imRaw = null; imEa = null; imRepair = null; imLand = "disabled"; imPre = null; imPreFix = false; imPreErr = null;
+    imBundle = null; imPlan = null; imAu = null; imRa = null; imSwitch = null; imMode = "shipped"; imLic = { known: false, licensed: false, sku: null };
+    imRaw = null; imEa = null; imRepair = null; imLand = IM_LAND_DEFAULT; imPre = null; imPreFix = false; imPreErr = null;
     $("imBody").innerHTML = ""; $("imGo").style.display = "none"; $("imPick").style.display = "flex";
     $("imDesc").textContent = `Select a ${BRANDING.name} backup zip, or pick the extracted backup folder — both use the same structure.`;
     $("importModal").classList.add("open");
@@ -4220,7 +4385,7 @@
     if (imEa && imEa.added && imEa.added.length) {
       return plusPanel + `<div class="cg-panel">
         <h4>🚨 E-ADMINS — ${imEa.added.length} ADDED${imEa.bundled ? " — CREATED FROM ENCA'S OWN COPY" : ` FROM ${esc(String(imEa.label).toUpperCase())}`}</h4>
-        <p class="mini" style="margin:0">Ticked in the list below and imported with the rest. They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
+        <p class="mini" style="margin:0">${imEa.alone ? "This import holds only these. The ones this tenant is missing are ticked in the list below." : "Ticked in the list below and imported with the rest."} They land <b>Off</b> whatever state the backup had them in: an emergency-access policy switched On in a tenant without the trusted locations or the phishing-resistant methods it expects locks the emergency accounts out. ${imEa.renamed ? `The break-glass group is ${esc(toCat ? toCat.label : "this baseline")}'s — <code>${esc(imEa.renamed.from)}</code> becomes <code>${esc(imEa.renamed.to)}</code> — so the block policies reach the accounts every one of its policies excludes.` : ""}${imEa.already ? ` ${imEa.already} ${imEa.already === 1 ? "was" : "were"} already in this import.` : ""}</p>
       </div>`;
     }
     if (plusPanel) return plusPanel;
@@ -4437,10 +4602,10 @@
     imPlan = Importer.plan(bundle, policies.map(p => p.raw));
     imCapabilities = await readCapabilities(true);
     imSwitch = imSwitchPlan(bundle);
-    // A baseline other than CloudFellows has no CAD-SEC-U-DG deploy groups of
-    // its own: its policies land as shipped, on its own groups.
-    const cid = Importer.catalogOfBundle(bundle);
-    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : cid && cid !== "limonit" ? "shipped" : "deploy");
+    // 33203 (e04): every baseline — CloudFellows too — lands as shipped, on
+    // its own persona groups; 🚀 Trial on deployment group moves ONE policy
+    // onto its CAD-SEC-U-DG-* group afterwards (the policy card).
+    imMode = opts.mode || (imSwitch && imLooksSwitch(imSwitch) ? "switch" : "shipped");
     const dep = ["groups", "namedLocations", "authStrengths", "authContexts", "termsOfUse"].map(k => `${(bundle[k] || []).length} ${k}`).join(", ");
     $("imDesc").textContent = `${fileName}: ${bundle.policies.length} policies, dependencies: ${dep}.${bundle.depSkipped && bundle.depSkipped.length ? ` ${bundle.depSkipped.length} dependency file(s) could not be read.` : ""}`;
     // Only worth a Graph call when the file actually contains one.
@@ -4554,9 +4719,10 @@
       if (shipped && !p.asIs) {
         const u = (p.raw.conditions && p.raw.conditions.users) || {};
         const n = (u.includeGroups || []).length + (u.excludeGroups || []).length;
-        return `🧩 as shipped${n ? ` — ${n} group${n === 1 ? "" : "s"} attached by name` : ""}${p.agent ? ` · <span style="color:var(--muted)">agent policy (preview): needs Microsoft Entra Agent ID</span>` : ""}`;
+        const land = Importer.landingState(p, imLand, imMode);
+        return `🧩 as shipped${n ? ` — ${n} group${n === 1 ? "" : "s"} attached by name` : ""} · lands <b>${land === "disabled" ? "Off" : land === "enabled" ? "On" : "Report-only"}</b>${p.forceOff ? ' <span class="muted">(forced Off — waits for its prerequisite)</span>' : ""}${p.agent ? ` · <span style="color:var(--muted)">agent policy (preview): needs Microsoft Entra Agent ID</span>` : ""}`;
       }
-      if (p.personaGroup) return `→ ${esc(p.personaGroup)}`;
+      if (p.personaGroup) return `→ ${esc(p.personaGroup)}${p.dgLabel === "Compliant network" ? ` <span class="muted">(${esc(p.dgLabel)})</span>` : ""}`;
       return esc(p.reason || "");
     };
     const swOpt = sw
@@ -4575,9 +4741,9 @@
       ${imAuPanel()}
       <div class="im-mode" role="radiogroup" aria-label="Assignment mode">
         <label class="im-mode-opt${shipped ? " on" : ""}"><input type="radio" name="imMode" value="shipped" ${shipped ? "checked" : ""}>
-          <b>🧩 As shipped — the baseline's own groups</b><span class="mini">Every group the policies name is created in this tenant, or found when one with that name exists, and attached: includes and exclusions exactly as the file ships them. Nothing existing is touched; the policies land Off.</span></label>
+          <b>🧩 As shipped — the baseline's own groups</b> <span class="tag new">default</span><span class="mini">Every group the policies name is created in this tenant, or found when one with that name exists, and attached: includes and exclusions exactly as the file ships them. Nothing existing is touched; the policies land in the state below (Report-only by default). The deploy groups (CAD-SEC-U-DG-*) are created <b>empty</b> beside them — to try ONE policy on a few testers first, use <b>🚀 Trial on deployment group</b> on its policy card afterwards; <b>↩ Back to persona</b> restores its include exactly.</span></label>
         <label class="im-mode-opt${imMode === "deploy" ? " on" : ""}"><input type="radio" name="imMode" value="deploy" ${imMode === "deploy" ? "checked" : ""}>
-          <b>🚀 Deployment groups</b><span class="mini">Includes remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched.</span></label>
+          <b>🚀 Deployment groups — the whole import staged</b><span class="mini">Every include remapped to the deploy persona group (CAD-SEC-U-DG-*) — staged, nothing existing is touched. The include each policy ships (groups, directory roles, guests) is saved in this browser, so ↩ Back to persona on its card restores it. For one policy at a time, prefer As shipped and 🚀 Trial on deployment group.</span></label>
         <label class="im-mode-opt${replace ? " on" : ""}"><input type="radio" name="imMode" value="replace" ${replace ? "checked" : ""}>
           <b>♻️ Match &amp; replace</b><span class="mini">A policy already in this tenant keeps its current assignment and state (plus any new exclusion groups this version adds); its old version is switched Off.${nUpg ? ` ${nUpg} match${nUpg === 1 ? "es" : "es"} here.` : " No matches in this file."}</span></label>
         ${swOpt}
@@ -4680,7 +4846,14 @@
   });
   $("imBody").addEventListener("change", (e) => {
     if (e.target.matches('input[name="imMode"]')) { imMode = e.target.value; imRenderList(); imLoadPre(); return; }
-    if (e.target.matches('input[name="imLand"]')) { imLand = e.target.value; imLoadPre(); return; }
+    if (e.target.matches('input[name="imLand"]')) {
+      imLand = e.target.value;
+      // 33203: the rows say where each policy lands — repaint them, ticks kept
+      const ticked = new Map([...document.querySelectorAll("[data-imp]")].map((cb) => [cb.dataset.imp, cb.checked]));
+      imRenderList();
+      for (const [i, on] of ticked) { const cb = document.querySelector(`[data-imp="${i}"]`); if (cb && !cb.disabled) cb.checked = on; }
+      updateImGo(); imLoadPre(); return;
+    }
     if (e.target.id === "imPreFix") { imPreFix = e.target.checked; return; }
     if (e.target.matches("[data-imp]")) updateImGo();
     const f = e.target.closest("[data-imfix]");
@@ -4824,7 +4997,7 @@
     imHost.innerHTML = "";
     const L = RunLedger.create(imHost, { unit: "policies", items: [
       { label: "Dependencies", sub: "groups, named locations, authentication strengths, contexts, terms of use — created if missing" },
-      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : p.forceOff || imLand !== "enabledForReportingButNotEnforced" ? "new policy, Off" : "new policy, Report-only" })),
+      ...chosen.map((p) => ({ label: p.name, sub: p.upgrade ? (imMode === "replace" ? "update in place — the current version is switched Off after" : "new version next to the current one") : (() => { const s = Importer.landingState(p, imLand, imMode); return `new policy, ${s === "disabled" ? "Off" : s === "enabled" ? "On" : "Report-only"}`; })() })),
       ...(preFix.length ? [{ label: `Set ${preFix.length} existing ${preFix.length === 1 ? "policy" : "policies"} Report-only`, sub: preFix.map((r) => r.name).join(", ") }] : []),
     ], onStop: () => {} });
     const depSay = (m) => L.note(0, m);
@@ -4876,7 +5049,7 @@
         L.done(0, `${depLog.created.length} created · ${(depLog.reused || []).length} reused (simulated)`, "ready");
         for (let i = 0; i < chosen.length; i++) { L.start(i + 1); await new Promise((r) => setTimeout(r, 40)); L.done(i + 1, `imported, ${res.results[i].state === "enabled" ? "On" : res.results[i].state === "enabledForReportingButNotEnforced" ? "Report-only" : "Off"} (simulated)`, "imported"); }
       } else {
-        const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, auByCode: imAu && !imAu.error ? imAu.byCode : null });
+        const dep = await Importer.ensureDependencies(scoped, depSay, { matchedNames, deployGroups: imMode === "shipped", auByCode: imAu && !imAu.error ? imAu.byCode : null });
         depLog = dep.log; maps = dep.maps;
         if (switching) { depLog.switchFrom = imSwitch.from.label; depLog.switchTo = imSwitch.to.label; }
         const heldBack = Object.keys(maps.groupFailed || {}).length;
@@ -4917,6 +5090,13 @@
         (bad ? (bad === out.length ? L.fail : L.part) : L.done)(ri, bad ? `${out.length - bad} Report-only · ${bad} not: ${out.filter((r) => !r.ok).map((r) => r.name).join(", ")}` : `${out.length} Report-only, read back`);
       }
       if (imPre) depLog.preflight = imPre.checks;
+      // 33203 (e06): a policy staged on its deploy group (Deployment groups
+      // mode) — its shipped include goes into the trial store, so ↩ Back to
+      // persona on its card restores groups AND roles exactly
+      if (!isDemo && typeof DgTrial !== "undefined") {
+        const st = DgTrial.store(tenantId || tenantName);
+        for (const r of res.results) if (r.ok && r.createdId && r.trialOriginal) st.put(r.createdId, { id: r.createdId, name: r.name, dg: r.trialDg, dgId: r.trialDgId, at: new Date().toISOString(), state: r.state || null, original: r.trialOriginal, source: "import" });
+      }
       // R04: finish the job on the groups this import REUSED — but only if the
       // policies actually landed. An import that failed has no business having
       // changed an existing group on the way past.
@@ -6170,7 +6350,17 @@ max@contoso.com,"Global, DevOps"</pre>
       const auChoice = aus.length ? aus[0].id : "new";
       const auName = aus.length ? aus[0].name : RMAU_DEFAULT_NAME();
       cgMig = { aus, auChoice, auName, busy: false, results: null, ack: false, nesting: CaGroups.NESTING_GA, toAu: true, sel: null, scoped: only ? cands.length : 0, scopeIds: only ? [...only] : null,
-        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA, allRows: cgRes.rows }) };
+        plan: CaGroups.migratePlan(rows, { roles, protectedIn, rmauName: auName, disableNesting: CaGroups.NESTING_GA, allRows: cgRes.rows }),
+        // e12: legacy names the active baseline replaced (Joey's example
+        // APP_Microsoft365_E5 -> CAB-SEC-U-Persona-Internals) — a rename,
+        // previewed first; "configured" = stated as internals in CaMap
+        legacy: CaGroups.legacyRenamePlan(cgRes.rows, { configured: (r) => {
+          try { const m = typeof CaMap !== "undefined" ? CaMap.codeForGroup({ id: r.id, displayName: r.name }) : null; return !!(m && m.source === "tenant" && m.code === "INT"); } catch { return false; }
+        } }), legacyAck: false, legacyResults: null,
+        // e13 (33204): exclusions the active baseline ADDS to its
+        // repository's policies (Joey: CA200–CA210 exclude CA-ServiceAccounts)
+        // — one policy write each, previewed first
+        added: CaGroups.addedExclusionPlan(policies, cgRes.rows), addedAck: false, addedResults: null };
       if (cgMigPre && cgMigPre.length) { cgMig.sel = new Set(cgMigPre.filter((id) => cgMig.plan.eligible.some((x) => x.id === id))); cgMigPre = null; }
     } catch (e) {
       console.error("Migrate scan failed:", e);
@@ -6196,7 +6386,7 @@ max@contoso.com,"Global, DevOps"</pre>
     if (!cgMig) {
       migBody().innerHTML = `<div class="run-prompt">
         <button class="btn primary" data-migrun>▶ Scan for role-assignable groups</button>
-        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. Nothing is written. The result stays until you rescan.</p>
+        <p class="mini muted">Reads the baseline groups, checks each role-assignable one for directory roles and restricted-AU membership, and counts the members that would move. It also lists legacy group names the active baseline replaced (Joey Verlinden's example APP_Microsoft365_E5 → CAB-SEC-U-Persona-Internals) for a preview-first rename, and policies missing an exclusion the active baseline adds (Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts). Nothing is written. The result stays until you rescan.</p>
       </div>`;
       return;
     }
@@ -6229,6 +6419,8 @@ max@contoso.com,"Global, DevOps"</pre>
       "The scan reads the groups the baseline and your policies know about. A role-assignable group of your own — one that predates all of this, or that no policy references — is reached by searching for it here. It is then checked exactly like a scanned one: directory roles it holds, members it would move, and whether it already sits in a restricted unit.");
 
     migBody().innerHTML = `
+      ${cgLegacyPanel(t)}
+      ${cgAddedPanel(t)}
       ${t.scoped ? `<p class="mini" style="margin:0 0 10px"><span class="tag">scoped</span> Checked only the ${t.scoped} group${t.scoped === 1 ? "" : "s"} you came with from the list. <button class="btn sm" data-migrun>▶ Check every role-assignable group</button></p>` : ""}
       <div class="cg-panel">
         <h4>WHY MIGRATE</h4>
@@ -6276,6 +6468,92 @@ max@contoso.com,"Global, DevOps"</pre>
         <h4>NOT MIGRATED (${p.skipped.length})</h4>
         ${p.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}${byHand(x)}</span></div>`).join("")}
       </div>` : ""}`;
+  }
+
+  // e12: the legacy-name rename (Joey's example APP_Microsoft365_E5 ->
+  // CAB-SEC-U-Persona-Internals). Preview first; the run renames only — the
+  // membership type is a separate MANUAL step the preview names.
+  function cgLegacyPanel(t) {
+    const L = t && t.legacy;
+    if (!L || !L.items.length) return "";
+    const res = t.legacyResults;
+    const items = L.eligible.map((x) => {
+      const r = res && res.find((y) => y.id === x.id);
+      return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+        <b>${esc(x.name)}</b> → <b>${esc(x.to)}</b> <span class="tag">${x.refs.include.length + x.refs.exclude.length} polic${x.refs.include.length + x.refs.exclude.length === 1 ? "y" : "ies"}</span>${x.configured ? ' <span class="tag">internals in this tenant\'s mapping</span>' : ""}
+        ${r ? ` <span class="tag ${r.ok ? "grant" : "block"}">${r.ok ? "renamed, verified" : "failed"}</span>${r.error ? `<div class="mini" style="color:var(--off)">${esc(r.error)}</div>` : ""}` : ""}
+        <ol class="mini muted" style="margin:6px 0 0 20px;padding:0">${x.steps.map((q) => `<li>${esc(q.text)}</li>`).join("")}</ol>
+        ${(x.manual || []).map((m) => `<p class="mini" style="margin:6px 0 0;color:var(--report)">⚠ ${esc(m.text)}</p>`).join("")}
+      </div>`; }).join("");
+    const skipped = L.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.name)}</b> — ${esc(x.reason)}</span></div>`).join("");
+    return `<div class="cg-panel">
+      <h4>LEGACY NAMES — RENAME TO THE BASELINE'S (${L.items.length})</h4>
+      <p class="mini" style="margin:0 0 8px">${esc(Baseline.active().label)} in ENCA replaces the example group of its repository with ENCA's own. A tenant imported before that still holds the old name. A <b>rename</b> keeps the object id and the members, so every policy that names the group keeps pointing at it. Nothing else changes.</p>
+      ${items}${skipped}
+      ${L.eligible.length && !res ? `<label class="chk" style="display:block;margin-top:12px"><input type="checkbox" id="cgLegAck"${t.legacyAck ? " checked" : ""}> I have checked the preview: rename only — the membership type stays as it is</label>
+      <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn primary" id="cgLegGo">Rename ${L.eligible.length} group${L.eligible.length === 1 ? "" : "s"}</button></div>` : ""}
+      ${res ? `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="cgLegMd">📄 Rename report</button> <button class="btn" id="cgMigRescan">⟳ Rescan</button></div>` : ""}
+    </div>`;
+  }
+
+  // e13 (33204): the exclusions the active baseline adds to its repository's
+  // policies — Joey Verlinden: CA200–CA210 exclude CA-ServiceAccounts. Impact
+  // and recovery first, then the policies, then the confirm.
+  function cgAddedPanel(t) {
+    const A = t && t.added;
+    if (!A || !A.items.length) return "";
+    const res = t.addedResults;
+    const items = A.eligible.map((x) => {
+      const r = res && res.find((y) => y.policyId === x.policyId && y.groupId === x.groupId);
+      return `<div style="padding:6px 0;border-top:1px solid var(--border)">
+        <b>${esc(x.policy)}</b> <span class="tag">${esc(x.state || "?")}</span> — exclude <b>${esc(x.group)}</b>
+        ${r ? ` <span class="tag ${r.ok ? "grant" : "block"}">${r.ok ? (r.changed ? "added, verified" : "already there") : "failed"}</span>${r.error ? `<div class="mini" style="color:var(--off)">${esc(r.error)}</div>` : ""}` : ""}
+      </div>`; }).join("");
+    const skipped = A.skipped.map((x) => `<div style="padding:6px 0;border-top:1px solid var(--border)"><span class="mini"><b>${esc(x.policy)}</b> — ${esc(x.reason)}</span></div>`).join("");
+    const why = (() => { try { const c = Baseline.active(); return ((c.changesVsUpstream ? c.changesVsUpstream() : []) || []).filter((x) => x.kind === "exclusion"); } catch { return []; } })();
+    return `<div class="cg-panel">
+      <h4>EXCLUSIONS THE BASELINE ADDS (${A.eligible.length} TO ADD${A.done.length ? ` · ${A.done.length} ALREADY THERE` : ""})</h4>
+      ${why.map((w) => `<p class="mini" style="margin:0 0 8px"><b>${esc(w.text)}</b> — ${esc(w.detail)}</p>`).join("")}
+      <p class="mini" style="margin:0 0 8px"><b>Impact:</b> the members of the group leave these policies — nobody else does. The include, the other exclusions, conditions, controls and the state stay as they are. <b>Recovery:</b> 🎯 Assign → remove the group from EXCLUDE on the same policies; the change report lists them.</p>
+      ${(A.warnings || []).map((w) => `<p class="mini" style="margin:0 0 6px;color:var(--report)">⚠ ${esc(w)}</p>`).join("")}
+      ${items}${skipped}
+      ${A.eligible.length && !res ? `<label class="chk" style="display:block;margin-top:12px"><input type="checkbox" id="cgAddAck"${t.addedAck ? " checked" : ""}> I have checked the preview: add the group to the exclusions of these ${A.eligible.length} polic${A.eligible.length === 1 ? "y" : "ies"} — nothing else changes</label>
+      <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn primary" id="cgAddGo">Add to ${A.eligible.length} polic${A.eligible.length === 1 ? "y" : "ies"}</button></div>` : ""}
+      ${res ? `<div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn" id="cgAddMd">📄 Change report</button> <button class="btn" id="cgMigRescan">⟳ Rescan</button></div>` : ""}
+    </div>`;
+  }
+
+  async function cgAddedRun() {
+    const t = cgMig;
+    if (!t || !t.added || !t.added.eligible.length) return;
+    if (!t.addedAck) { toast("Tick the box under the preview first"); return; }
+    const io = isDemo
+      ? { add: async () => ({ ok: true, changed: true }), get: async (u) => { const id = u.split("/").pop(); const x = t.added.eligible.find((y) => y.policyId === id); return { id, conditions: { users: { excludeGroups: x ? [x.groupId] : [] } } }; } }
+      : { add: async (pid, gid) => ((await Assign.apply([pid], 3, [gid])) || [])[0] || { ok: false, error: "no result" }, get: (u) => Graph.gget(u) };
+    const out = [];
+    for (const x of t.added.eligible) out.push(await CaGroups.runAddedExclusion(x, io));
+    t.addedResults = out;
+    const ok = out.filter((r) => r.ok).length;
+    toast(`${ok} of ${out.length} policies updated`);
+    renderCgMigrate();
+  }
+
+  async function cgLegacyRun() {
+    const t = cgMig;
+    if (!t || !t.legacy || !t.legacy.eligible.length) return;
+    if (!t.legacyAck) { toast("Tick the box under the preview first"); return; }
+    const scopes = [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"];
+    const io = isDemo
+      ? { patch: async () => null, get: async (u) => { const id = u.split("/")[2].split("?")[0]; const x = t.legacy.eligible.find((y) => y.id === id); return { id, displayName: x ? x.to : "" }; } }
+      : { patch: (u, b) => Graph.gpatch(u, b, scopes), get: (u) => Graph.gget(u) };
+    const out = [];
+    for (const x of t.legacy.eligible) out.push(await CaGroups.runLegacyRename(x, io));
+    t.legacyResults = out;
+    const ok = out.filter((r) => r.ok).length;
+    toast(`${ok} of ${out.length} renamed`);
+    // the list is stale the moment a name changes
+    if (ok) cgRes = null;
+    renderCgMigrate();
   }
 
   function renderCgMigResults() {
@@ -6338,6 +6616,8 @@ max@contoso.com,"Global, DevOps"</pre>
       return;
     }
     if (e.target.id === "cgMigAck") { cgMig.ack = e.target.checked; return; }
+    if (e.target.id === "cgLegAck") { cgMig.legacyAck = e.target.checked; return; }
+    if (e.target.id === "cgAddAck") { cgMig.addedAck = e.target.checked; return; }
     const cb = e.target.closest("[data-cgmig]");
     if (cb) {
       cgMig.sel = cgMig.sel || new Set(cgMig.plan.eligible.map((x) => x.id));
@@ -6380,6 +6660,18 @@ max@contoso.com,"Global, DevOps"</pre>
         catch (err) { toast(`Could not re-read the groups: <span>${esc(err.message || err)}</span>`); return; }
       }
       renderCaGroups();
+      return;
+    }
+    if (e.target.id === "cgLegGo") { await cgLegacyRun(); return; }
+    if (e.target.id === "cgAddGo") { await cgAddedRun(); return; }
+    if (e.target.id === "cgAddMd" && cgMig && cgMig.addedResults) {
+      showReport("⑦ Exclusions report", "CA-AddedExclusions",
+        CaGroups.addedExclusionReport(cgMig.added, cgMig.addedResults, { tenant: tenantName, build: APP_BUILD.label }));
+      return;
+    }
+    if (e.target.id === "cgLegMd" && cgMig && cgMig.legacyResults) {
+      showReport("⑦ Rename report", "CA-LegacyRename",
+        CaGroups.legacyRenameReport(cgMig.legacy, cgMig.legacyResults, { tenant: tenantName, build: APP_BUILD.label }));
       return;
     }
     if (e.target.id === "cgMigMd" && cgMig && cgMig.results) {
@@ -8024,6 +8316,7 @@ max@contoso.com,"Global, DevOps"</pre>
   function syncDgFillBtn() {
     const b = $("cgDgFill"); if (!b) return;
     b.style.display = document.body.dataset.ws && document.body.dataset.ws !== "ca" ? "none" : "inline-flex";
+    const a = $("cgDgAdd"); if (a) a.style.display = b.style.display;
   }
   const dgNum = (n) => Number(n || 0).toLocaleString("en-US");
   const dgStepNames = [["sources", "① Sources"], ["preview", "② Preview"], ["apply", "③ Apply"]];
@@ -8547,6 +8840,260 @@ max@contoso.com,"Global, DevOps"</pre>
     $("dgSub").textContent = `Undo: ${dgNum(done.filter((d) => d.ok).length)} of ${dgNum(done.length)} reversed${isDemo ? " (simulated)" : ""}.`;
     $("dgCancel").disabled = false; dgPaintButtons();
   }
+
+  // ---------- 🚀 Add to deploy groups (beta 33207) ----------
+  // js/dgadd.js plans; this is the dialog, the reads and the writes. Paste a
+  // list, pick GLO + INT / GLO + EXT (or tick deploy groups), preview, add.
+  // Add only — never removes. The target names are 🌍 Fill from regions'
+  // per-tenant names (DgFill.targets), so a renamed deploy group is found.
+  let dga = null;
+  const DGA_USEL = "id,displayName,userPrincipalName,accountEnabled,userType";
+  const DGA_GSEL = "id,displayName,groupTypes,securityEnabled,mailEnabled,isAssignableToRole,membershipRule";
+  const dgaAll = () => DgFill.targets(dgPrefs());
+  const dgaKeys = () => dga.set === "custom" ? [...dga.custom] : (DgAdd.PRESETS.find((p) => p.key === dga.set) || DgAdd.PRESETS[0]).keys;
+  const dgaTargets = () => { const k = dgaKeys(); return dgaAll().filter((t) => k.includes(t.key)); };
+  function openDgAdd() {
+    // ticked deploy groups in the list → arrive as a hand-picked set
+    const all = dgaAll(), picked = all.filter((t) => cgSel && cgSel.has(t.name)).map((t) => t.key);
+    const keep = dga && dga.step !== "done" ? dga.text : "";
+    dga = { step: "pick", set: picked.length ? "custom" : (dga ? dga.set : "GLO+INT"), custom: new Set(picked.length ? picked : (dga ? [...dga.custom] : [])),
+      text: keep, groupMode: dga ? dga.groupMode : "nest", allowNesting: false, skipDisabled: dga ? dga.skipDisabled : true, busy: false, err: "", plan: null, run: null };
+    $("dgaModal").classList.add("open");
+    renderDgAdd();
+  }
+  function dgaPaint() {
+    const s = dga.step, busy = dga.busy;
+    const at = s === "done" ? "add" : s;
+    $("dgaSteps").innerHTML = [["pick", "① Who and where"], ["preview", "② Preview"], ["add", "③ Add"]].map(([k, l]) => `<span class="dg-step${k === at ? " on" : ""}">${l}</span>`).join("");
+    $("dgaBack").style.display = s === "preview" ? "" : "none";
+    $("dgaNext").style.display = s === "pick" ? "" : s === "done" ? "" : "none";
+    $("dgaNext").textContent = s === "done" ? "Add more…" : busy ? "Reading…" : "Preview →";
+    $("dgaNext").disabled = busy;
+    const n = dga.plan ? dga.plan.writes.length : 0;
+    $("dgaGo").style.display = s === "preview" ? "" : "none";
+    $("dgaGo").disabled = busy || !n;
+    $("dgaGo").textContent = n ? `Add ${n} membership${n === 1 ? "" : "s"}` : "Nothing to add";
+    $("dgaMd").style.display = s === "done" && dga.run ? "" : "none";
+    $("dgaUndo").style.display = s === "done" && dga.run && dga.run.done.length && !dga.run.undone ? "" : "none";
+    $("dgaCancel").disabled = busy;
+  }
+  function renderDgAdd() {
+    dgaPaint();
+    const body = $("dgaBody");
+    if (dga.err) { $("dgaSub").innerHTML = ""; body.innerHTML = `<div class="wo-callout bad">${esc(dga.err)}</div>`; return; }
+    if (dga.step === "pick") { body.innerHTML = dgaPickHtml(); $("dgaSub").innerHTML = "Testers for the trial step: paste them once, they go into every deploy group of the set. Nothing is removed from any group."; dgaCount(); return; }
+    if (dga.step === "preview") { body.innerHTML = dgaPreviewHtml(); return; }
+    if (dga.step === "done") { body.innerHTML = dgaDoneHtml(); return; }
+  }
+  function dgaPickHtml() {
+    const all = dgaAll();
+    const sets = DgAdd.PRESETS.map((p) => `<button class="${dga.set === p.key ? "active" : ""}" data-dga-set="${p.key}" title="${esc(p.note)}">${esc(p.label)}</button>`).join("");
+    const names = dga.set === "custom"
+      ? `<div class="mini" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px">${all.map((t) => `<label class="chk"><input type="checkbox" data-dga-key="${t.key}" ${dga.custom.has(t.key) ? "checked" : ""}> <span>${esc(t.name)}</span></label>`).join("")}</div>`
+      : `<p class="mini muted" style="margin:6px 0 0">Into: ${dgaTargets().map((t) => `<b>${esc(t.name)}</b>`).join(" + ")}</p>`;
+    return `<div style="display:grid;gap:12px">
+      <div><b class="mini">Deploy groups</b><div style="margin-top:4px"><span class="seg sw">${sets}</span></div>${names}</div>
+      <div><b class="mini">Users and groups</b>
+        <textarea id="dgaText" class="txt" rows="8" spellcheck="false" style="width:100%;margin-top:4px;font-family:inherit" placeholder="One per line, or separated with ; or ,&#10;eva.jansen@contoso.com&#10;SG-Pilot-Finance&#10;8b0c…-object id">${esc(dga.text)}</textarea>
+        <p class="mini muted" style="margin:2px 0 0"><span id="dgaN"></span> A UPN or e-mail is a user; an object id is a user or a group; a name is the one group (or user) with exactly that display name. A column pasted from Excel or an Outlook To line works.</p></div>
+      <div><b class="mini">A group in the list</b>
+        <div class="mini" style="display:grid;gap:4px;margin-top:4px">
+          <label class="chk"><input type="radio" name="dgaMode" value="nest" ${dga.groupMode === "nest" ? "checked" : ""}> <span><b>Nest the group</b> — the deploy group follows it: who joins or leaves that group later is in or out of the trial too.</span></label>
+          <label class="chk"><input type="radio" name="dgaMode" value="expand" ${dga.groupMode === "expand" ? "checked" : ""}> <span><b>Add its users</b> — the users in it now (direct and nested), each added by name; later changes to that group do not follow.</span></label>
+          <label class="chk" style="margin-left:22px"><input type="checkbox" id="dgaAllow" ${dga.allowNesting ? "checked" : ""} ${dga.groupMode === "nest" ? "" : "disabled"}> <span>Allow nesting on these deploy groups where it is switched off <span class="muted">(disableNesting off on that deploy group only — the preview names which; Undo switches it back on)</span></span></label>
+          <label class="chk"><input type="checkbox" id="dgaSkip" ${dga.skipDisabled ? "checked" : ""}> <span>Skip disabled accounts</span></label>
+        </div></div>
+    </div>`;
+  }
+  function dgaCount() {
+    const n = DgAdd.parse(($("dgaText") || {}).value || dga.text).length, el = $("dgaN");
+    if (el) el.textContent = n ? `${n} entr${n === 1 ? "y" : "ies"}.` : "";
+  }
+
+  // Read the targets and resolve the entries, then plan.
+  async function dgaPreview() {
+    dga.text = ($("dgaText") || {}).value ?? dga.text;
+    const list = DgAdd.parse(dga.text), T = dgaTargets();
+    if (!T.length) { toast("Pick at least one <span>deploy group</span>"); return; }
+    if (!list.length) { toast("Paste at least one <span>user or group</span>"); return; }
+    if (list.length > 500) { toast("At most <span>500 entries</span> a run — split the list"); return; }
+    dga.busy = true; dga.err = ""; dgaPaint();
+    $("dgaSub").textContent = `Reading ${T.length} deploy group${T.length === 1 ? "" : "s"} and looking up ${list.length} entr${list.length === 1 ? "y" : "ies"}…`;
+    try {
+      const [targets, entries] = await Promise.all([dgaReadTargets(T), dgaResolve(list)]);
+      if (dga.groupMode === "expand") await dgaExpand(entries);
+      dga.targets = targets; dga.entries = entries;
+      dga.plan = DgAdd.plan(entries, targets, { groupMode: dga.groupMode, allowNesting: dga.allowNesting, skipDisabled: dga.skipDisabled });
+      dga.step = "preview";
+    } catch (e) { console.error(e); dga.err = `Could not prepare the preview: ${e.message || e}`; }
+    dga.busy = false; renderDgAdd();
+  }
+  async function dgaReadTargets(T) {
+    if (isDemo) return T.map((t, i) => ({ ...t, id: `g-dg-${t.key}`, dynamic: false, roleAssignable: t.key === "GUESTUSERS", nesting: i % 2 ? "disabled" : "unknown", members: new Set([`u-demo-${t.key === "GLO" ? 1 : 9}`]) }));
+    const res = await Graph.gbatch(T.map((t, i) => ({ id: i, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${t.name.replace(/'/g, "''")}'`)}&$select=${DGA_GSEL}` })));
+    const out = T.map((t, i) => {
+      const v = (res[i] && res[i].body && res[i].body.value) || [];
+      if (v.length > 1) throw new Error(`${v.length} groups are called ${t.name} — 🔀 Duplicate names merges them first`);
+      const g = v[0];
+      return g ? { ...t, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), roleAssignable: !!g.isAssignableToRole, nesting: "unknown", members: null } : { ...t, id: null };
+    });
+    const live = out.filter((t) => t.id);
+    // direct members (users and groups) — "already in" — and the nesting state
+    await Promise.all(live.map(async (t) => {
+      const ms = await Graph.ggetAll(`/groups/${t.id}/members?$select=id&$top=999`);
+      t.members = new Set(ms.map((m) => m.id));
+    }));
+    const nb = await Graph.gbatch(live.map((t, i) => ({ id: i, url: `/groups/${t.id}?$select=id,disableNesting` })), null, { base: "https://graph.microsoft.com/v1.0" }).catch(() => ({}));
+    live.forEach((t, i) => { const b = nb[i] && nb[i].body; t.nesting = b ? CaGroups.nestingState(b) : "unknown"; });
+    return out;
+  }
+  async function dgaResolve(list) {
+    if (isDemo) return list.map((q, i) => {
+      if (q.includes("@")) return { q, obj: DgAdd.userFacts({ id: `u-demo-${i + 1}`, displayName: q.split("@")[0], userPrincipalName: q, accountEnabled: !/disabled/i.test(q) }) };
+      if (/^sg-|^grp|group/i.test(q)) return { q, obj: DgAdd.groupFacts({ id: `g-demo-${i}`, displayName: q, groupTypes: /m365/i.test(q) ? ["Unified"] : [], securityEnabled: true }) };
+      return { q, obj: null, err: "not found — use the UPN or the object id" };
+    });
+    const reqs = [];
+    list.forEach((q, i) => {
+      const k = DgAdd.kindOf(q), f = q.replace(/'/g, "''");
+      if (k === "upn") reqs.push({ id: `${i}u`, url: `/users/${encodeURIComponent(q)}?$select=${DGA_USEL}` });
+      else if (k === "id") { reqs.push({ id: `${i}u`, url: `/users/${q}?$select=${DGA_USEL}` }); reqs.push({ id: `${i}g`, url: `/groups/${q}?$select=${DGA_GSEL}` }); }
+      else { reqs.push({ id: `${i}g`, url: `/groups?$filter=${encodeURIComponent(`displayName eq '${f}'`)}&$select=${DGA_GSEL}&$top=3` }); reqs.push({ id: `${i}u`, url: `/users?$filter=${encodeURIComponent(`displayName eq '${f}'`)}&$select=${DGA_USEL}&$top=3` }); }
+    });
+    const r = await Graph.gbatch(reqs);
+    return list.map((q, i) => {
+      const k = DgAdd.kindOf(q), U = r[`${i}u`] || {}, G = r[`${i}g`] || {};
+      if (k === "upn") return U.body && U.body.id ? { q, obj: DgAdd.userFacts(U.body) } : { q, obj: null, err: U.error && !/not ?found|does not exist|404/i.test(U.error) ? `lookup failed: ${U.error}` : "no user with this UPN" };
+      if (k === "id") return U.body && U.body.id ? { q, obj: DgAdd.userFacts(U.body) } : G.body && G.body.id ? { q, obj: DgAdd.groupFacts(G.body) } : { q, obj: null, err: "no user or group with this object id" };
+      const gs = (G.body && G.body.value) || [], us = (U.body && U.body.value) || [];
+      if (gs.length + us.length === 0) return { q, obj: null, err: "no group or user with exactly this name — use the UPN or the object id" };
+      if (gs.length + us.length > 1) return { q, obj: null, err: `${gs.length + us.length} objects have this name — use the UPN or the object id` };
+      return { q, obj: gs.length ? DgAdd.groupFacts(gs[0]) : DgAdd.userFacts(us[0]) };
+    });
+  }
+  async function dgaExpand(entries) {
+    for (const e of entries) {
+      if (!e.obj || e.obj.kind !== "group") continue;
+      if (isDemo) { e.users = [1, 2, 3].map((n) => DgAdd.userFacts({ id: `u-${e.obj.id}-${n}`, displayName: `${e.obj.name} user ${n}`, userPrincipalName: `u${n}@contoso.example`, accountEnabled: n !== 3 })); continue; }
+      const us = await Graph.ggetAll(`/groups/${e.obj.id}/transitiveMembers/microsoft.graph.user?$select=${DGA_USEL}&$top=999`);
+      e.users = us.map(DgAdd.userFacts);
+    }
+  }
+  function dgaPreviewHtml() {
+    const P = dga.plan, T = dga.targets;
+    const head = `<tr><th>Entry</th>${T.map((t) => `<th>${esc(t.name)}${!t.id ? '<div class="mini" style="color:var(--off)">not in this tenant</div>' : t.roleAssignable ? '<div class="mini muted">role-assignable</div>' : t.nesting === "disabled" ? '<div class="mini muted">🚫 nesting disabled</div>' : ""}</th>`).join("")}</tr>`;
+    const cell = (c) => c.state === "add" ? `<span class="wo-res nc">＋ ${c.n != null ? `${c.n} user${c.n === 1 ? "" : "s"}` : "add"}</span>${c.unlock ? '<div class="mini muted">nesting switched on first</div>' : ""}${c.same ? `<div class="mini muted">${c.same} already in</div>` : ""}${c.skip ? `<div class="mini muted">${c.skip} disabled skipped</div>` : ""}`
+      : c.state === "same" ? `<span class="mini muted">= already in${c.reason ? ` (${esc(c.reason)})` : ""}</span>`
+      : c.state === "blocked" ? `<span class="mini" style="color:var(--off)">✗ ${esc(c.reason)}</span>`
+      : c.state === "missing" ? '<span class="mini muted">—</span>'
+      : `<span class="mini muted">— ${esc(c.reason || "")}</span>`;
+    const who = (r) => !r.obj ? `<b>${esc(r.q)}</b><div class="mini" style="color:var(--off)">✗ ${esc(r.err)}</div>`
+      : r.obj.kind === "group" ? `👥 <b>${esc(r.obj.name)}</b><div class="mini muted">group${r.obj.dynamic ? " · dynamic" : ""}${r.users != null ? ` · ${r.users} user${r.users === 1 ? "" : "s"}` : ""}</div>`
+      : `👤 <b>${esc(r.obj.name)}</b><div class="mini muted">${esc(r.obj.upn)}${r.obj.disabled ? " · disabled" : ""}${r.obj.guest ? " · guest" : ""}</div>`;
+    const rows = P.rows.map((r) => `<tr><td>${who(r)}</td>${T.map((t) => `<td>${cell(r.cells[t.key])}</td>`).join("")}</tr>`).join("");
+    const per = T.filter((t) => t.id).map((t) => `<b>${P.counts.perTarget[t.key]}</b> into ${esc(t.name)}`).join(" · ");
+    $("dgaSub").innerHTML = `${P.counts.writes ? per : "Nothing to add."}${P.counts.notFound ? ` · <span style="color:var(--off)">${P.counts.notFound} not found</span>` : ""}${P.counts.blocked ? ` · <span style="color:var(--off)">${P.counts.blocked} blocked</span>` : ""}`;
+    const unl = P.unlock.length ? `<div class="wo-callout" style="margin-bottom:8px"><b>Nesting is switched on first</b> on ${P.unlock.map((u) => `<b>${esc(u.name)}</b>`).join(", ")} (disableNesting off on that group only, read back before the add). ↩ Undo switches it off again.</div>` : "";
+    const ra = T.some((t) => t.id && t.roleAssignable) && P.rows.some((r) => r.obj && r.obj.kind === "group" && P.mode === "nest") ? `<p class="mini muted">A role-assignable deploy group cannot hold a group: choose <b>Add its users</b>, or ⑦ Migrate that deploy group to a plain group first.</p>` : "";
+    return `${unl}<div class="gu-tw"><table class="plist wo-tbl" style="min-width:0"><thead>${head}</thead><tbody>${rows}</tbody></table></div>${ra}`;
+  }
+
+  async function dgaApply() {
+    const P = dga.plan; if (!P || !P.writes.length) return;
+    const tNames = [...new Set(P.writes.map((w) => w.targetName))];
+    if (!confirm(`Add ${P.writes.length} membership${P.writes.length === 1 ? "" : "s"} to ${tNames.join(", ")}?${P.unlock.length ? `\n\nNesting is switched on first on: ${P.unlock.map((u) => u.name).join(", ")}.` : ""}\n\nEveryone added is in scope of every policy that includes these deploy groups. Nothing is removed. ↩ Undo takes out exactly what this run adds.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", ...(P.unlock.length ? CaGroups.NEST_WRITE_SCOPES : [])])) return;
+    dga.busy = true; dgaPaint();
+    const run = { at: new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC", set: dga.set === "custom" ? dgaTargets().map((t) => t.key).join(" + ") : dga.set, mode: P.mode, allowNesting: dga.allowNesting, unlocked: [], done: [], failed: [] };
+    const blockedTargets = new Set();
+    for (const u of P.unlock) {
+      $("dgaSub").textContent = `Switching nesting on: ${u.name}…`;
+      try {
+        if (!isDemo) {
+          await Graph.gpatch(CaGroups.NEST_V1(`/groups/${u.id}`), { disableNesting: false }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]);
+          const back = await Graph.gget(CaGroups.NEST_V1(`/groups/${u.id}?$select=id,disableNesting`));
+          if (back && back.disableNesting === true) throw new Error("still disabled after the write");
+        }
+        run.unlocked.push(u);
+      } catch (e) { blockedTargets.add(u.id); run.nestError = `${u.name}: ${e.message || e}`; }
+    }
+    const todo = P.writes.filter((w) => !(w.kind === "group" && blockedTargets.has(w.targetId)));
+    P.writes.filter((w) => w.kind === "group" && blockedTargets.has(w.targetId)).forEach((w) => run.failed.push({ ...w, error: `nesting could not be switched on (${run.nestError})` }));
+    if (isDemo) todo.forEach((w) => run.done.push(w));
+    else {
+      const out = await Graph.gbatch(todo.map((w, i) => ({ id: i, method: "POST", url: `/groups/${w.targetId}/members/$ref`, body: { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${w.memberId}` } })),
+        (d, n) => { $("dgaSub").textContent = `Adding… ${d} of ${n}`; }, { scopes: [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"] });
+      todo.forEach((w, i) => {
+        const o = out[i] || { error: "no response" };
+        if (!o.error) run.done.push(w);
+        else if (/already exist/i.test(o.error)) run.same = (run.same || 0) + 1;
+        else run.failed.push({ ...w, error: o.error });
+      });
+    }
+    dga.run = run; dga.busy = false; dga.step = "done";
+    renderDgAdd();
+    dgaRefreshRows(P.writes.map((w) => w.targetId));
+  }
+  // Loaded rows of those deploy groups re-read, so the list and drawer agree.
+  async function dgaRefreshRows(ids) {
+    if (!cgRes || isDemo) return;
+    const rows = (cgRes.rows || []).filter((r) => r.id && ids.includes(r.id));
+    rows.forEach((r) => { r.nestedGroups = undefined; });
+    try { await CaGroups.loadMembers(rows.filter((r) => r.members != null), {}); await loadNestedGroups(rows); } catch (e) { console.warn("deploy group re-read failed:", e.message); }
+    if (cgTab === "groups") renderCaGroups();
+  }
+  function dgaDoneHtml() {
+    const R = dga.run, ok = R.done.length;
+    $("dgaSub").innerHTML = R.undone ? `Undone: ${R.undone.ok} of ${R.undone.n} taken out${R.undone.relocked ? `, nesting switched off again on ${R.undone.relocked}` : ""}${isDemo ? " (simulated)" : ""}.`
+      : `<b>${ok} added</b>${R.same ? ` · ${R.same} were already in` : ""}${R.failed.length ? ` · <span style="color:var(--off)">${R.failed.length} failed</span>` : ""}${isDemo ? " (simulated)" : ""}.`;
+    const by = {};
+    R.done.forEach((w) => { (by[w.targetName] = by[w.targetName] || []).push(w); });
+    const groups = Object.entries(by).map(([t, ws]) => `<li class="d"><span><b>${esc(t)}</b> <span class="mini muted">＋ ${ws.length}: ${ws.slice(0, 12).map((w) => `${w.kind === "group" ? "👥 " : ""}${esc(w.memberName)}`).join(", ")}${ws.length > 12 ? ` … +${ws.length - 12}` : ""}</span></span></li>`).join("");
+    const fail = R.failed.map((w) => `<li class="d"><span style="color:var(--off)">✗ ${esc(w.memberName)} → ${esc(w.targetName)}: ${esc(w.error)}</span></li>`).join("");
+    return `<ul class="cgg-tree">${groups}${fail}</ul>${R.unlocked.length ? `<p class="mini muted">Nesting switched on: ${R.unlocked.map((u) => esc(u.name)).join(", ")}.</p>` : ""}`;
+  }
+  async function dgaUndo() {
+    const R = dga.run; if (!R || !R.done.length) return;
+    const U = DgAdd.undoPlan(R);
+    if (!confirm(`Undo this run? ${U.remove.length} membership${U.remove.length === 1 ? "" : "s"} taken out again${U.relock.length ? `, nesting switched off again on ${U.relock.map((u) => u.name).join(", ")}` : ""}.\n\nOnly what this run added is touched.`)) return;
+    dga.busy = true; dgaPaint();
+    let ok = 0;
+    if (isDemo) ok = U.remove.length;
+    else {
+      const out = await Graph.gbatch(U.remove.map((w, i) => ({ id: i, method: "DELETE", url: `/groups/${w.targetId}/members/${w.memberId}/$ref` })), null, { scopes: [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"] });
+      U.remove.forEach((w, i) => { const o = out[i] || {}; if (!o.error || /not ?found|does not exist/i.test(o.error)) ok++; });
+    }
+    let relocked = 0;
+    for (const u of U.relock) {
+      try { if (!isDemo) await Graph.gpatch(CaGroups.NEST_V1(`/groups/${u.id}`), { disableNesting: true }, [...AUTH_CONFIG.scopes, ...CaGroups.NEST_WRITE_SCOPES]); relocked++; } catch (e) { console.warn("relock failed:", e.message); }
+    }
+    R.undone = { n: U.remove.length, ok, relocked };
+    dga.busy = false; renderDgAdd();
+    dgaRefreshRows(U.remove.map((w) => w.targetId));
+  }
+
+  $("cgDgAdd").addEventListener("click", openDgAdd);
+  $("dgaCancel").addEventListener("click", () => { if (dga && !dga.busy) $("dgaModal").classList.remove("open"); });
+  $("dgaBack").addEventListener("click", () => { dga.step = "pick"; dga.plan = null; dga.err = ""; renderDgAdd(); });
+  $("dgaNext").addEventListener("click", () => { if (dga.step === "done") { dga.text = ""; dga.run = null; dga.plan = null; dga.step = "pick"; renderDgAdd(); return; } dgaPreview(); });
+  $("dgaGo").addEventListener("click", dgaApply);
+  $("dgaUndo").addEventListener("click", dgaUndo);
+  $("dgaMd").addEventListener("click", () => { if (dga && dga.run) showReport("🚀 Add to deploy groups — report", `DG-Add-${(tenantName || "tenant").replace(/[^\w.-]+/g, "-")}`, DgAdd.report(dga.run, tenantName)); });
+  $("dgaBody").addEventListener("click", (e) => {
+    const s = e.target.closest("[data-dga-set]"); if (!s) return;
+    dga.text = ($("dgaText") || {}).value ?? dga.text;
+    dga.set = s.dataset.dgaSet;
+    if (dga.set === "custom" && !dga.custom.size) DgAdd.PRESETS[0].keys.forEach((k) => dga.custom.add(k));
+    renderDgAdd();
+  });
+  $("dgaBody").addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.dgaKey) { t.checked ? dga.custom.add(t.dataset.dgaKey) : dga.custom.delete(t.dataset.dgaKey); return; }
+    if (t.name === "dgaMode") { dga.text = ($("dgaText") || {}).value ?? dga.text; dga.groupMode = t.value; if (t.value !== "nest") dga.allowNesting = false; renderDgAdd(); return; }
+    if (t.id === "dgaAllow") dga.allowNesting = t.checked;
+    if (t.id === "dgaSkip") dga.skipDisabled = t.checked;
+  });
+  $("dgaBody").addEventListener("input", (e) => { if (e.target.id === "dgaText") { dga.text = e.target.value; dgaCount(); } });
 
   $("cgDgFill").addEventListener("click", openDgFill);
   $("dgCancel").addEventListener("click", () => { if (!dg || !dg.running) $("dgModal").classList.remove("open"); });
@@ -9317,6 +9864,11 @@ max@contoso.com,"Global, DevOps"</pre>
   // tenant search { q, gid, busy | err | hits[], more } — dropped when another
   // row opens, because the hits belong to one group and one query
   let cgMemQ = "", cgMemSort = "", cgMemHits = null;
+  // 6.4.0 (33206): what the drawer's add box adds on a deployment group —
+  // "user" (as always) or "group" (nesting). Kept across rows: who switched to
+  // Group is usually nesting a few teams in a row.
+  let cgAddKind = "user";
+  let cgNestTimer = null;
 
   // 5.17: the box takes a list, so the button says how many it will add, and
   // the directory suggestions only make sense while there is one name in it.
@@ -9539,6 +10091,149 @@ This is a directory write. Nothing else changes.`)) return;
     } catch (e) {
       say(`Remove failed: ${esc(e.message || e)}`, true);
     }
+  }
+
+  // ---------- 👥 nest a group into a deployment group (6.4.0, 33206) ----------
+  // The drawer's 👥 Group switch (deploy groups only, GroupsView.NESTABLE_KINDS).
+  // Same shape as cgAddMember: look up, check (GroupsView.nestCheck, plus a
+  // loop check against the tenant), say what it means for the policies that
+  // use the deployment group, confirm, one POST, then re-read that group.
+  const CG_NEST_SEL = "id,displayName,groupTypes,securityEnabled,mailEnabled,isAssignableToRole,membershipRule";
+  const CG_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const cgOpenRowObj = () => (cgRes && cgOpen ? (cgRes.rows || []).find((x) => x.name === cgOpen && x.id) : null);
+  const cgSay = (html, bad) => {
+    cgAddMsg = { html, bad: !!bad };
+    const el = $("cgAddLog");
+    if (el) el.innerHTML = `<span style="${bad ? "color:var(--off)" : ""}">${html}</span>`;
+  };
+  // policies that name the group, split include / exclude, for the confirmations
+  function cgPolicyUse(gid) {
+    const users = (p) => ((p.raw || {}).conditions || {}).users || {};
+    const inc = (policies || []).filter((p) => (users(p).includeGroups || []).includes(gid));
+    const exc = (policies || []).filter((p) => (users(p).excludeGroups || []).includes(gid));
+    const st = { enabled: "On", enabledForReportingButNotEnforced: "Report-only", disabled: "Off" };
+    const label = (p) => `${p.seq || p.name}${st[p.state] ? ` (${st[p.state]})` : ""}`;
+    return { inc, exc, label };
+  }
+  function cgNestSuggest(e) {
+    if (e.target.id !== "cgNestName") return;
+    const term = String(e.target.value || "").trim();
+    clearTimeout(cgNestTimer);
+    const dlNow = $("cgNestSug");
+    if (dlNow && [...dlNow.options].some((o) => o.value === term)) return;
+    if (term.length < 2 || isDemo || CG_GUID.test(term)) return;
+    const self = cgOpenRowObj();
+    cgNestTimer = setTimeout(async () => {
+      const f = term.replace(/'/g, "''");
+      try {
+        const r = await Graph.gget(`/groups?$filter=startswith(displayName,'${f}')&$select=${CG_NEST_SEL}&$top=25`);
+        const dl = $("cgNestSug");
+        if (dl) dl.innerHTML = ((r && r.value) || [])
+          .filter((g) => g.securityEnabled && !(g.groupTypes || []).includes("Unified") && (!self || g.id !== self.id))
+          .slice(0, 12)
+          .map((g) => `<option value="${esc(g.displayName)}" label="${esc(((g.groupTypes || []).includes("DynamicMembership") ? "dynamic " : "") + "security group")}"></option>`).join("");
+      } catch (err) { console.warn("group suggest failed:", err.message); }
+    }, 250);
+  }
+
+  async function cgNestGroup() {
+    const r = cgOpenRowObj();
+    const term = String($("cgNestName")?.value || "").trim();
+    if (!r) { cgSay("Open a deployment group first.", true); return; }
+    if (!term) { cgSay("Type a group first.", true); return; }
+    if (r.members == null) { cgSay(`Read the members of <b>${esc(r.name)}</b> first.`, true); return; }
+    const pre = GroupsView.nestCheck(r, { id: "?", displayName: "?", securityEnabled: true });
+    if (!pre.ok && !/itself|already nested/.test(pre.reason)) { cgSay(pre.reason, true); return; }
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    cgSay("Looking up the group…");
+    let g;
+    try {
+      if (isDemo) g = { id: "demo-g-" + term.toLowerCase().replace(/[^a-z0-9]+/g, "-"), displayName: term, groupTypes: [], securityEnabled: true, mailEnabled: false };
+      else if (CG_GUID.test(term)) g = await Graph.gget(`/groups/${term}?$select=${CG_NEST_SEL}`);
+      else {
+        const res = await Graph.gget(`/groups?$filter=displayName eq '${term.replace(/'/g, "''")}'&$select=${CG_NEST_SEL}&$top=5`);
+        const list = (res && res.value) || [];
+        if (!list.length) { cgSay(`No group called <b>${esc(term)}</b> — pick one from the suggestions, or paste its object id.`, true); return; }
+        if (list.length > 1) { cgSay(`${list.length} groups are called <b>${esc(term)}</b> — paste the object id of the one you mean (🔀 Duplicate names can merge them).`, true); return; }
+        g = list[0];
+      }
+    } catch (e) {
+      cgSay(/404|not ?found|does not exist/i.test(e.message || "") ? `No group with id <b>${esc(term)}</b> in this tenant.` : `Lookup failed: ${esc(e.message || e)}`, true);
+      return;
+    }
+    const chk = GroupsView.nestCheck(r, g);
+    if (!chk.ok) { cgSay(chk.reason, true); return; }
+    const gName = g.displayName || g.id;
+    let users = null;
+    if (!isDemo) {
+      // a loop: the deployment group already sits (somewhere) inside g
+      try {
+        const up = await Graph.ggetAll(`/groups/${r.id}/transitiveMemberOf/microsoft.graph.group?$select=id&$top=999`);
+        if ((up || []).some((x) => x.id === g.id)) { cgSay(`<b>${esc(gName)}</b> already contains <b>${esc(r.name)}</b> — nesting it here would make a loop.`, true); return; }
+      } catch (e) { console.warn("nest loop check failed:", e.message); }
+      try { const n = Number(await Graph.gget(`/groups/${g.id}/transitiveMembers/microsoft.graph.user/$count`)); if (Number.isFinite(n)) users = n; } catch { /* the count is a courtesy */ }
+    }
+    const U = cgPolicyUse(r.id);
+    const who = users == null ? `The users in ${gName}` : `${users} user${users === 1 ? "" : "s"} in ${gName}`;
+    const lines = [
+      `${who} (directly, or through groups inside it) become members of ${r.name} through the nesting.`,
+      U.inc.length ? `${r.name} is INCLUDED by ${U.inc.length} polic${U.inc.length === 1 ? "y" : "ies"} — they come into scope of: ${U.inc.map(U.label).join(", ")}.` : `No policy includes ${r.name} right now — nothing applies to them until a trial puts it on a policy.`,
+      U.exc.length ? `${r.name} is EXCLUDED from ${U.exc.length} polic${U.exc.length === 1 ? "y" : "ies"} — they skip: ${U.exc.map(U.label).join(", ")}.` : "",
+      `From now on whoever manages ${gName} also decides who is in ${r.name}.`,
+      ...chk.warnings,
+    ].filter(Boolean);
+    if (!confirm(`Nest ${gName} into ${r.name}?\n\n${lines.join("\n\n")}\n\nThis is a directory write. Nothing else changes.`)) return;
+    cgSay("Nesting…");
+    try {
+      if (!isDemo) await Graph.gpost(`/groups/${r.id}/members/$ref`,
+        { "@odata.id": `https://graph.microsoft.com/beta/directoryObjects/${g.id}` },
+        [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+    } catch (e) {
+      const m = e.message || String(e);
+      if (/already exist/i.test(m)) cgSay(`<b>${esc(gName)}</b> is already a member of <b>${esc(r.name)}</b>.`);
+      else if (/nesting/i.test(m)) cgSay(`Entra refused: group nesting is not allowed on <b>${esc(r.name)}</b>. ${esc(m)}`, true);
+      else cgSay(`Nest failed: ${esc(m)}`, true);
+      return;
+    }
+    const dyn = (g.groupTypes || []).includes("DynamicMembership") || !!g.membershipRule;
+    r.nestedGroups = [...(r.nestedGroups || []).filter((x) => x.id !== g.id), { id: g.id, name: gName, dynamic: dyn }];
+    if (Array.isArray(r.children)) { r.children = [...r.children.filter((x) => x.id !== g.id), { id: g.id, name: gName, dynamic: dyn, rule: g.membershipRule || "", error: null, members: [], memberTotal: users || 0 }]; r.childTotal = r.children.length; }
+    cgSay(`✓ <b>${esc(gName)}</b> nested into <b>${esc(r.name)}</b>${users != null ? ` — ${users} user${users === 1 ? "" : "s"} come in through it` : ""}.`);
+    const box = $("cgNestName"); if (box) box.value = "";
+    cgNestOpenDr.add(g.id);
+    cgRerenderMembers();
+    if (!isDemo) { try { await CaGroups.loadMembers([r], {}); cgRerenderMembers(); } catch { /* the optimistic row stands */ } }
+  }
+
+  // The × on a nested group's own line: take the whole group out. The mirror
+  // of the nest — and on an exclusion group the direction that puts people
+  // back INSIDE a policy, so it always confirms and names the policies.
+  async function cgUnnestGroup(childId) {
+    const r = cgOpenRowObj(); if (!r) return;
+    const ch = [...(r.children || []), ...(r.nestedGroups || [])].find((x) => x.id === childId);
+    const cName = (ch && ch.name) || childId;
+    const only = r.directIds && ch && ch.members ? ch.members.filter((m) => !r.directIds.has(m.id) && !(r.children || []).some((o) => o.id !== childId && (o.members || []).some((x) => x.id === m.id))).length : null;
+    const U = cgPolicyUse(r.id);
+    const who = only == null ? `Everyone who is in ${r.name} only through ${cName}` : `${only} user${only === 1 ? "" : "s"} who ${only === 1 ? "is" : "are"} in ${r.name} only through ${cName}`;
+    const lines = [
+      `${who} leave${only === 1 ? "s" : ""} ${r.name}.`,
+      U.exc.length ? `${r.name} is an EXCLUSION for ${U.exc.map(U.label).join(", ")} — they are INSIDE ${U.exc.length === 1 ? "that policy" : "those policies"} again.` : "",
+      U.inc.length ? `${r.name} is included by ${U.inc.map(U.label).join(", ")} — they drop out of ${U.inc.length === 1 ? "its" : "their"} scope.` : "",
+      !U.exc.length && !U.inc.length ? `No policy references ${r.name} right now.` : "",
+    ].filter(Boolean);
+    if (!confirm(`Take the nested group ${cName} out of ${r.name}?\n\n${lines.join("\n\n")}\n\n${cName} itself and its members are not changed. This is a directory write.`)) return;
+    if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, "Group.ReadWrite.All", "Group-NestingSupport.ReadWrite.All"])) return;
+    cgSay("Removing the nested group…");
+    try {
+      if (!isDemo) await Graph.gdelete(`/groups/${r.id}/members/${childId}/$ref`, [...AUTH_CONFIG.scopes, "Group.ReadWrite.All"]);
+    } catch (e) { cgSay(`Remove failed: ${esc(e.message || e)}`, true); return; }
+    const gone = new Set(ch && ch.members ? ch.members.filter((m) => !(r.directIds && r.directIds.has(m.id))).map((m) => m.id) : []);
+    r.nestedGroups = (r.nestedGroups || []).filter((x) => x.id !== childId);
+    if (Array.isArray(r.children)) { r.children = r.children.filter((x) => x.id !== childId); r.childTotal = r.children.length; }
+    if (r.members && gone.size) { r.members = r.members.filter((m) => !gone.has(m.id) || (r.children || []).some((o) => (o.members || []).some((x) => x.id === m.id))); r.memberTotal = r.members.length; }
+    cgSay(`✓ <b>${esc(cName)}</b> is no longer nested in <b>${esc(r.name)}</b>.${U.exc.length ? ` <span style="color:var(--report)">Its people are inside ${U.exc.map((p) => esc(p.seq || p.name)).join(", ")} again.</span>` : ""}`);
+    cgRerenderMembers();
+    if (!isDemo) { try { await CaGroups.loadMembers([r], {}); cgRerenderMembers(); } catch { /* the optimistic row stands */ } }
   }
 
   // ③ nesting view: "how" instead of "who" — ● direct, ◐ through a nested
@@ -9904,7 +10599,7 @@ This is a directory write. Nothing else changes.`)) return;
     await CaGroups.loadMembers(todo, {});
   }
   const cgRerenderMembers = () => { if (cgTab === "groups") renderCaGroups(); else renderCgMembers(); };
-  const cgViewOpts = () => ({ filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull, memQ: cgMemQ, memSort: cgMemSort, memHits: cgMemHits });
+  const cgViewOpts = () => ({ filter: cgGFilter, q: cgQuery, sel: cgSel, open: cgOpen, drTab: cgDrTab, hist: cgHist, histBusy: cgHistBusy, nestOpen: cgNestOpenDr, addMsg: cgAddMsg, sort: cgSort, engine: cgTab === "members" ? "③ Members / Compare" : null, sheetFull: cgSheetFull, memQ: cgMemQ, memSort: cgMemSort, memHits: cgMemHits, addKind: cgAddKind });
   // The find box lives inside the drawer, and the drawer is innerHTML on every
   // render — so typing re-renders the TREE under it, never the box itself, or
   // the caret would be gone after the first letter.
@@ -10055,6 +10750,8 @@ This is a directory write. Nothing else changes.`)) return;
     const hi = t.closest("[data-cgg-hist]"); if (hi) { const r = cgRes.rows.find((x) => x.name === hi.dataset.cggHist); if (r) cgReadHistory(r); return; }
     const ms = t.closest("[data-cgg-msort]"); if (ms) { cgMemSort = ms.dataset.cggMsort; renderCaGroups(); return; }
     if (t.closest("[data-cgg-memfind]")) { cgMemFind(); return; }
+    const ak = t.closest("[data-cgg-addkind]"); if (ak) { if (cgAddKind !== ak.dataset.cggAddkind) { cgAddKind = ak.dataset.cggAddkind; cgAddMsg = null; renderCaGroups(); } return; }
+    const un = t.closest("[data-cgg-unnest]"); if (un) { await cgUnnestGroup(un.dataset.cggUnnest); return; }
     const rm = t.closest("[data-cgg-rm]");
     if (rm) {
       const r = cgRes.rows.find((x) => x.name === cgOpen); if (!r) return;
@@ -10156,9 +10853,12 @@ This is a directory write. Nothing else changes.`)) return;
   $("cgList").addEventListener("input", cgAddSuggest);
   $("cgList").addEventListener("input", (e) => { if (e.target.id !== "cgMemQ") return; cgMemQ = e.target.value; cgMemRefresh(); });
   $("cgList").addEventListener("keydown", (e) => { if (e.target.id === "cgMemQ" && e.key === "Enter") { e.preventDefault(); cgMemFind(); } });
+  $("cgList").addEventListener("input", cgNestSuggest);
+  $("cgList").addEventListener("keydown", (e) => { if (e.target.id === "cgNestName" && e.key === "Enter") { e.preventDefault(); cgNestGroup(); } });
   $("cgList").addEventListener("change", (e) => { if (e.target.id === "cgAddGroup") cgAddGroup = e.target.value; });
   $("cgList").addEventListener("click", async (e) => {
     if (e.target.id === "cgAddGo") { await cgAddMember(); return; }
+    if (e.target.id === "cgNestGo") { await cgNestGroup(); return; }
     if (e.target.id === "cgAddRm") { await cgRemoveMember($("cgAddUser")?.value, $("cgAddGroup")?.value); }
   });
   $("cgTabs").addEventListener("click", (e) => {
@@ -11105,8 +11805,13 @@ This is a directory write. Nothing else changes.`)) return;
   // ---------- Baseline Policies ----------
   // Pure client-side comparison against the bundled catalog — no Graph calls
   // beyond the policies already loaded, so it is instant and re-runs on filter.
-  let blResult = null, blFilter = "all", blQuery = "", blCat = "limonit";
+  let blResult = null, blFilter = "all", blQuery = "", blCat = "limonit", blForeignOpen = false;
   const blCollapsed = new Set();
+  // 33205: the catalog the tool opens on — the one last shown for this tenant
+  // (devcf holds all three baselines; Mihai picks which one to read), else
+  // the active baseline (saved choice, or the best match). Looking at a
+  // catalog is remembered; it never changes the active baseline.
+  const blOpenId = () => { try { return Baseline.viewed() || Baseline.activeCatalogId() || "limonit"; } catch { return "limonit"; } };
   // ONE VIEW, THE TABLE. There used to be a Cards/Table toggle, defaulting to
   // the table for the CloudFellows catalog and to cards for the community ones —
   // so the same screen answered the same question two different ways depending
@@ -11146,7 +11851,7 @@ This is a directory write. Nothing else changes.`)) return;
     }
     blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
     if (!keepView) {
-      blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); $("blSearch").value = "";
+      blFilter = blDefaultFilter(blResult, blCat); blQuery = ""; blCollapsed.clear(); blForeignOpen = false; $("blSearch").value = "";
     }
     renderBaseline();
     if (blCat === "joey") blLiveEnsure();
@@ -11154,15 +11859,26 @@ This is a directory write. Nothing else changes.`)) return;
   function renderBaseline() {
     if (!blResult) return;
     $("blHead").innerHTML = Baseline.renderSummary(blResult, blFilter);
-    $("blCatalog").innerHTML = Baseline.catalogs()
-      .map((c) => `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}">${c.icon || "🧬"} ${esc(c.label)}</button>`).join("");
+    // 33205: ONE baseline on screen at a time. Each button says how many of
+    // the tenant's policies carry that baseline's naming, and ★ marks the
+    // active one (what the write tools use) — on devcf all three are there.
+    { const fam = (() => { try { return Baseline.familyCounts(policies); } catch { return {}; } })();
+      $("blCatalog").innerHTML = `<span class="mini muted" style="align-self:center;padding:0 6px">Baseline:</span>` + Baseline.catalogs()
+        .map((c) => { const n = fam[c.id] || 0, on = Baseline.isActive(c.id);
+          return `<button class="${c.id === blCat ? "active" : ""}" data-blcat="${esc(c.id)}" title="Compare this tenant with ${esc(c.label)} only — ${n} of its policies carry ${esc(c.label)}'s naming${on ? ". ★ the active baseline for this tenant" : ""}. Remembered for this tenant in this browser.">${c.icon || "🧬"} ${esc(c.label)}${n ? ` <span class="mini">(${n})</span>` : ""}${on ? " ★" : ""}</button>`; }).join(""); }
     $("blChips").innerHTML = Baseline.chips(blResult, blFilter);
-    $("blBody").innerHTML = Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed);
+    $("blBody").innerHTML = Baseline.renderTable(blResult, blFilter, blQuery, blCollapsed, { foreignOpen: blForeignOpen });
     const shown = Baseline.personas(blResult, blFilter, blQuery);
     const allCollapsed = shown.length > 0 && shown.every((g) => blCollapsed.has(g));
     $("blCollapseAll").textContent = allCollapsed ? "⊞ Expand all" : "⊟ Collapse all";
     const n = blResult.toImport.length;
     $("blImport").textContent = n ? `📥 Import baseline (${n}) →` : "📥 Import baseline →";
+    // 33311: the E-Admins this tenant still needs, as their own import — only
+    // where there is a gap, and never under a catalog that covers its own
+    // break-glass (SMB Basic: toCreateEAdmins is empty there)
+    { const nEa = typeof E_ADMINS !== "undefined" && blResult.toCreateEAdmins ? blResult.toCreateEAdmins.length : 0;
+      $("blEaCreate").style.display = nEa ? "" : "none";
+      $("blEaCreate").textContent = `🚨 Create E-Admins (${nEa}) →`; }
     // Regenerating the catalog is only meaningful where the catalog is BUILT.
     $("blCatalogUpdate").style.display = isBaselineTenant() && !isDemo ? "" : "none";
     { const nR = blCat === "limonit" && isBaselineTenant() ? Object.keys(catReadyLoad()).length : 0;
@@ -11336,12 +12052,17 @@ This is a directory write. Nothing else changes.`)) return;
     const t = e.target.closest("[data-bltake]");
     if (t) { const n = +t.dataset.bltake; if (t.checked) blTake.add(n); else blTake.delete(n); renderCatalogUpdate(); }
   });
-  $("blCatalog").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-blcat]"); if (!b || b.dataset.blcat === blCat) return;
-    blCat = b.dataset.blcat;
+  function blPick(id) {
+    if (!id || id === blCat) return;
+    blCat = id;
+    try { Baseline.setViewed(id); } catch {}
     blResult = Baseline.compare(policies, blCat, { byDefinition: isBaselineTenant() });
-    blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); renderBaseline();
+    blFilter = blDefaultFilter(blResult, blCat); blCollapsed.clear(); blForeignOpen = false; renderBaseline();
     if (blCat === "joey") blLiveEnsure();
+  }
+  $("blCatalog").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-blcat]"); if (!b) return;
+    blPick(b.dataset.blcat);
   });
   // R36 — make the catalog on screen the one every tool works against, and
   // read Joey's repository on request. Both live in the summary card.
@@ -11635,6 +12356,15 @@ This is a directory write. Nothing else changes.`)) return;
     if (allCollapsed) blCollapsed.clear(); else shown.forEach((g) => blCollapsed.add(g));
     renderBaseline();
   });
+  // 33205: the "Other baselines in this tenant" fold keeps its state across
+  // re-renders (search, filter), and its "compare with …" link picks that one
+  $("blBody").addEventListener("toggle", (e) => {
+    if (e.target && e.target.classList && e.target.classList.contains("bl-foreign")) blForeignOpen = e.target.open;
+  }, true);
+  $("blBody").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-blcat-pick]"); if (!a) return;
+    e.preventDefault(); blPick(a.dataset.blcatPick);
+  });
   // clicking a tenant policy name opens its card, same as everywhere else
   $("blBody").addEventListener("click", (e) => {
     const el = e.target.closest("[data-blpol]"); if (!el) return;
@@ -11664,11 +12394,46 @@ This is a directory write. Nothing else changes.`)) return;
   // locations — so the import starts from that read with the gap ticked,
   // and only a catalog without a repository (or a read that failed) asks
   // for a zip.
+  // 33311 (Mihai 19 Nov: "the cf must also have the create those 6. may put
+  // them seperate to import in the baseline tool") — 🚨 Create E-Admins. The
+  // six emergency-access policies as an import of their own, under either
+  // persona baseline, from ENCA's own copy (js/eadminsData.js): no backup ZIP
+  // to find first. NOT a second write path — the same Importer.mergeShared()
+  // a ZIP's E-Admins go through (break-glass group renamed to the baseline
+  // being looked at, every one forced Off), handed to the same 📥 Import
+  // screen, where nothing is written until the run is started. The gap is
+  // ticked; one the tenant already holds is listed as skip by the plan.
+  // mode "shipped" is said outright: six CloudFellows-named policies loaded
+  // under Joey Verlinden's baseline must never read as a baseline switch.
+  $("blEaCreate").addEventListener("click", async () => {
+    const res = blResult;
+    if (!res || typeof E_ADMINS === "undefined") return;
+    const btn = $("blEaCreate");
+    btn.disabled = true;
+    try {
+      const toCat = Baseline.withContract(res.catalog) || res.catalog, cf = Baseline.catalog("limonit");
+      const label = E_ADMINS.source.label;
+      const m = Importer.mergeShared({}, E_ADMINS.bundle(), { label, breakGlassFrom: cf && cf.breakGlassGroup, breakGlassTo: toCat && toCat.breakGlassGroup });
+      // The six carry CloudFellows names whichever baseline they are for, so
+      // an import left to guess its baseline from them (catalogOfBundle) would
+      // preflight CloudFellows' break-glass group under Joey Verlinden's and
+      // name the wrong baseline in the panel. Say which one this is for.
+      m.bundle.catalogId = res.catalog.id;
+      const only = new Set((res.toCreateEAdmins || []).map((r) => r.baseline.name));
+      $("toolImport").click();
+      imEa = { label, added: m.added, already: 0, renamed: m.bundle.sharedRenamed, bundled: true, alone: true, plus: [], plusAlready: 0 };
+      await imLoaded(m.bundle, label, { mode: "shipped", only });
+      $("imDesc").textContent = `🚨 E-Admins for ${toCat.label}: ${only.size} of the ${m.added.length} emergency-access policies ${only.size === 1 ? "is" : "are"} missing or outdated in this tenant and ${only.size === 1 ? "is" : "are"} ticked. Created from ENCA's own copy (${E_ADMINS.source.tenant}, read ${E_ADMINS.source.read}) — no backup ZIP. They land Off whatever the run lands, with their groups and authentication strength created when missing. Nothing is written until you start the import.`;
+    } catch (err) {
+      console.error(err);
+      toast(`Could not load the E-Admins: <span>${esc(err.message || err)}</span>`);
+    } finally { btn.disabled = false; }
+  });
   $("blImport").addEventListener("click", async () => {
     const res = blResult;
     const n = res ? res.toImport.length : 0;
     const gapNote = () => `Baseline ${res.catalog.label} ${res.catalog.release}: ${n} ${n === 1 ? "policy is" : "policies are"} missing or outdated in this tenant`
-      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"}, added from ENCA's own copy (or ＋ Create below)` : "") + ". ";
+      + (res.toImportShared && res.toImportShared.length ? `, plus ${res.toImportShared.length} shared E-Admins ${res.toImportShared.length === 1 ? "policy" : "policies"}${res.catalog.id === "limonit" ? " — not in this file unless your backup holds them: 🚨 Create E-Admins on the 🧬 Baseline screen brings them in from ENCA's own copy, without a ZIP" : ", added from ENCA's own copy (or ＋ Create below)"}` : "") + ". ";
     if (res && res.catalog.id === "smb") {
       const only = new Set(res.toImport.map((r) => r.baseline.name));
       if (await imSmbLoad({ only })) $("imDesc").textContent = gapNote() + `From ENCA's own copy of ${res.catalog.label} ${res.catalog.release}: the ${only.size} in the gap are ticked. 🧩 As shipped creates the exclusion groups and the break-glass group by name; CA103 and CA201–CA204 land Off.`;
@@ -11727,7 +12492,10 @@ This is a directory write. Nothing else changes.`)) return;
   const sdBgKey = () => `${tenantId || "demo"}:${policiesReadAt}:${sdBreakGlass()}`;
   function sdCoverage() {
     const n = isDemo ? (sdBg ? sdBg.n : 2) : sdBg && sdBg.key === sdBgKey() ? sdBg.n : null;
-    return SecDefaults.coverage(policies, { breakGlass: sdBreakGlass(), bgMembers: n });
+    // 33203 (e05): under SMB Basic exactly CA001–CA005 go On at the switch
+    let replacing = null;
+    try { if (Baseline.activeCatalogId() === "smb" && typeof BASELINE_SMB !== "undefined") replacing = BASELINE_SMB.replacing(); } catch { replacing = null; }
+    return SecDefaults.coverage(policies, { breakGlass: sdBreakGlass(), bgMembers: n, replacing });
   }
   // The break-glass group's members, read once per policy read: the switch
   // waits for them, because MFA for everyone without the emergency accounts
@@ -11770,7 +12538,12 @@ This is a directory write. Nothing else changes.`)) return;
   }
   function sdHtml() {
     const kind = sdKind();
-    if (!kind) return "";
+    // 33203 (e05): SMB Basic beside an existing baseline (K&S from
+    // CloudFellows v1.0) — the two-step take-over, said on the band
+    if (!kind) {
+      try { if (Baseline.activeCatalogId() === "smb" && policiesReadAt) return SecDefaults.migrationBand(SecDefaults.smbMigration(policies, { sd: secDef }), { tenantName }); } catch (e) { console.warn("SMB migration plan:", e); }
+      return "";
+    }
     const ctx = sdCtx();
     if (kind === "sd-on-policies" || kind === "sd-switched") {
       const cov = kind === "sd-on-policies" ? sdCoverage() : null;
@@ -17015,6 +17788,14 @@ This is a directory write. Nothing else changes.`)) return;
   $("siSearch").addEventListener("input", (e) => { siQuery = e.target.value; renderSignins(); });
 
   const siWhere = (r) => [r.city, r.country].filter(Boolean).join(", ");
+  // What the split view's list row says per column (33309) — the table has
+  // headers for this, the list (ListDetail.rowText, data-ldmeta) does not.
+  const siN = (n) => Number(n || 0).toLocaleString();
+  const siFailMeta = (p) => [`${siN(p.count)} failure${p.count === 1 ? "" : "s"}`, p.ints ? `${siN(p.ints)} interrupted` : "",
+    p.gap ? `🔑 ${siN(p.gap)} without the MFA asked` : ""].filter(Boolean).join(" · ");
+  // p.count is the whole read; p.rows is what the chips and the search left
+  const siShown = (p) => p.rows.length === p.count ? `${siN(p.count)} sign-in${p.count === 1 ? "" : "s"}`
+    : `${siN(p.rows.length)} of ${siN(p.count)} sign-ins shown`;
   const siDevice = (r) => r.compliant ? "compliant" : /hybrid/i.test(r.trustType) ? "hybrid joined" : r.os ? "unmanaged" : "";
 
   // An expanded policy can hold 40 sign-ins — scrolling through them pushes the
@@ -17077,23 +17858,24 @@ This is a directory write. Nothing else changes.`)) return;
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
           const open = true;
+          const most = `${p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", ")}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}`;
           const detail = open ? `<tr class="au-sumdet"><td colspan="6">
-            <div class="si-dethead">🚦 <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b><span class="mini muted">${p.rows.length} sign-in${p.rows.length === 1 ? "" : "s"}${siMode === "reportonly" ? " · report-only" : ""}${p.controls.length ? ` · ${esc(p.controls.join(", "))}` : ""}</span><button class="fchip" data-sisum="${esc(p.key)}" title="Collapse this policy">✕</button></div>
+            <div class="si-dethead">🚦 <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b><span class="mini muted">${siShown(p)}${siMode === "reportonly" ? " · report-only" : ""}${p.controls.length ? ` · ${esc(p.controls.join(", "))}` : ""}</span><button class="fchip" data-sisum="${esc(p.key)}" title="Collapse this policy">✕</button></div>
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
               <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${x.interactive ? "" : "non-interactive · "}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
-              ${x.auth ? `<div class="wi-why${x.auth.gap ? " si-authgap" : ""}" title="${esc(x.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 signed in with ${esc(x.auth.summary)}</div>` : ""}
+              ${x.auth ? `<div class="wi-why${x.auth.gap ? " si-authgap" : ""}" title="${esc(x.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 ${esc(x.auth.line)}</div>` : ""}
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
           return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
             <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
-            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}${p.gap ? `<div class="mini si-authgap" title="The second factor was asked for and never came — these users signed in with a password where MFA or an authentication strength was required">🔑 ${p.gap} without the MFA asked</div>` : ""}</td>
-            <td>${p.userCount} distinct</td>
-            <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
-            <td class="mini">${esc(p.controls.join(", ") || "—")}</td>
-            <td class="mini">${esc(auAgo(p.last))}</td>
+            <td data-ldmeta="${esc(siFailMeta(p))}"><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}${p.gap ? `<div class="mini si-authgap" title="The second factor was asked for and never came — these users signed in with a password where MFA or an authentication strength was required">🔑 ${p.gap} without the MFA asked</div>` : ""}</td>
+            <td data-ldmeta="${siN(p.userCount)} user${p.userCount === 1 ? "" : "s"}">${p.userCount} distinct</td>
+            <td class="mini" data-ldmeta="${esc(`most: ${most}`)}">${esc(most)}</td>
+            <td class="mini" data-ldmeta="${esc(p.controls.length ? `not met: ${p.controls.join(", ")}` : "control not named in the log")}">${esc(p.controls.join(", ") || "—")}</td>
+            <td class="mini" data-ldmeta="last ${esc(auAgo(p.last))}">${esc(auAgo(p.last))}</td>
           </tr>${detail}`;
         }).join("")}</tbody></table></div>
         <p class="mini muted" style="margin-top:8px">${pols.length} polic${pols.length === 1 ? "y" : "ies"} across ${rows.length} failed sign-in${rows.length === 1 ? "" : "s"} — click a row for the individual sign-ins, 🧪 to replay one in What-If.</p>`;
@@ -17111,7 +17893,7 @@ This is a directory write. Nothing else changes.`)) return;
       const detail = open ? `<div class="au-diff">
           ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
-          ${x.auth ? `<div><span class="au-op ${x.auth.gap ? "remove" : "set"}">signed in with</span> <span class="au-path">${esc(x.auth.summary)}</span></div>
+          ${x.auth ? `<div><span class="au-op ${x.auth.gap ? "remove" : "set"}">${x.auth.lead || "authentication"}</span> <span class="au-path">${esc(x.auth.summary)}</span></div>
           ${x.auth.steps.length ? `<div class="mini muted si-steps">${x.auth.steps.map((st) => `${st.ok ? "✓" : "✗"} ${esc(st.method || "(no method)")}${st.detail && st.detail !== st.method ? ` <span class="muted">· ${esc(st.detail)}</span>` : ""}${st.result ? ` — ${esc(st.result)}` : ""}${st.req ? ` <span class="muted">[${esc(st.req)}]</span>` : ""}`).join("<br>")}</div>` : ""}` : ""}
           ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
           ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}
@@ -17590,6 +18372,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   // ---------- Named locations (view / create / edit / delete) ----------
   const LO_WRITE = ["Policy.ReadWrite.ConditionalAccess"];
+  let loShown = null; // the rows the list shows now — ⭳ Locations only can export just these
   let loList = null, loFilter = "all", loQuery = "", loEditing = null, loDeleting = null;
   // Cards sit in a grid (two or more per row); Table is the same information
   // one line per location, for tenants with 80+ of them.
@@ -17666,6 +18449,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (loFilter === "findings" && !(F.byLocation[l.id] || []).length) return false;
       return !q || `${l.displayName} ${Locations.detail(l)}`.toLowerCase().includes(q);
     }).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+    loShown = rows;
 
     [...$("loViewSeg").children].forEach((b) => b.classList.toggle("active", b.dataset.loview === loView));
 
@@ -17955,6 +18739,30 @@ This is a directory write. Nothing else changes.`)) return;
     }
     return L.join("\n");
   }
+
+  // ---- ⭳ Locations only (1.12.0): the inventory without policies or findings
+  const loOnlyClose = () => { $("loOnlyMenu").hidden = true; $("loOnly").setAttribute("aria-expanded", "false"); };
+  $("loOnly").addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!loList) { toast("Read the named locations first"); return; }
+    const m = $("loOnlyMenu"), open = m.hidden;
+    if (open) {
+      const n = (loShown || loList).length, filtered = loShown && n !== loList.length;
+      $("loOnlyShown").disabled = !filtered; if (!filtered) $("loOnlyShown").checked = false;
+      $("loOnlyShownTxt").textContent = filtered ? `only what the search / chips show (${n} of ${loList.length})` : `only what the search / chips show (all ${loList.length} are shown)`;
+    }
+    m.hidden = !open; $("loOnly").setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (e) => { if (!$("loOnlyMenu").hidden && !e.target.closest(".lo-only")) loOnlyClose(); });
+  $("loOnlyMenu").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-loonly]"); if (!b || !loList) return;
+    const list = $("loOnlyShown").checked && loShown ? loShown : loList;
+    const kind = b.dataset.loonly;
+    if (kind === "md") downloadText("CA-NamedLocations-Inventory", "md", "text/markdown", Locations.inventoryMd(list, { tenant: tenantName, of: loList.length, generatedBy: Brand.generatedBy("Generated") }));
+    else downloadText(kind === "range" ? "CA-NamedLocations-IPRanges" : "CA-NamedLocations-Inventory", "csv", "text/csv", Locations.inventoryCsv(list, kind));
+    loOnlyClose();
+    toast(`Exported <span>${list.length}</span> named location${list.length === 1 ? "" : "s"} — the locations only, no policies`);
+  });
 
   // ---- config snapshot: export, and compare a later state against it ----
   $("loJson").addEventListener("click", () => {
@@ -20293,7 +21101,13 @@ This is a directory write. Nothing else changes.`)) return;
   // read — a single user's window is small, so it never needs the 10,000
   // cap — unless the shared window is already in memory and uncapped, in
   // which case it is filtered from there and the tenant is not read twice.
-  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSfilter = "any", woSeedList = "", woLogSkipped = "";
+  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSfilter = "any", woAfilter = "all", woSeedList = "", woLogSkipped = "";
+  // What the applications card (1.5.0) says about its source: "no sign-in to
+  // this app" on an interactive-only read is not "does not use it".
+  const woSrc = () => ({ label: logSourceLabel(), nonInteractive: logSource === "huntall" || logSource === "entraall", fuller: logSource === "hunt" ? "Hunting + non-interactive" : "Entra + non-interactive or Hunting + non-interactive" });
+  // "N days ago" counts from now — except in the demo, whose sign-ins carry
+  // fixed dates and would all read as months old.
+  const woNow = () => { if (!isDemo) return undefined; let m = 0; demoSignIns().forEach((r) => { const t = Date.parse(r.createdDateTime); if (t > m) m = t; }); return m || undefined; };
   const woProg = makeProgress("wo");
   const WO_METHODS = ["UserAuthenticationMethod.Read.All"];
   // Identity Protection: the user's risk record + the detections behind it.
@@ -20504,7 +21318,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (runKey !== logReadKey(woDays)) throw new Error("Read discarded: selected range, source or tenant changed");
       woProg.check();
       if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
-      woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays });
+      woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays, now: woNow() });
       Object.assign(woRes, { records, cat, dgPresent });   // kept so the optional risk read can re-derive without re-reading
       woBusy = false;
       $("woRescan").style.display = ""; $("woMd").style.display = ""; $("woCsv").style.display = "";
@@ -20518,7 +21332,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderWhoIs() {
     const R = woRes; if (!R) return;
-    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, logSkipped: woLogSkipped });
+    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, appFilter: woAfilter, source: woSrc(), logSkipped: woLogSkipped });
     applyFolds("woBody");
   }
   $("woBody").addEventListener("click", async (e) => {
@@ -20526,7 +21340,9 @@ This is a directory write. Nothing else changes.`)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-wo-filter]"); if (f) { woFilter = f.dataset.woFilter; renderWhoIs(); return; }
     const sf = e.target.closest("[data-wo-sfilter]"); if (sf) { woSfilter = sf.dataset.woSfilter; renderWhoIs(); return; }
+    const af = e.target.closest("[data-wo-afilter]"); if (af) { woAfilter = af.dataset.woAfilter; renderWhoIs(); return; }
     const R = woRes; if (!R) return;
+    if (e.target.closest("[data-wo-appcsv]")) { downloadText(`CA-WhoIs-apps-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", WhoIs.appsCsv(R)); return; }
     if (e.target.closest("[data-wo-compare]")) {
       // Compare adds by term; hand it the UPN and let it resolve, so the
       // comparison starts with this user and the second one is a keystroke away.
@@ -20551,7 +21367,7 @@ This is a directory write. Nothing else changes.`)) return;
       // the risk half of the result is derived, so re-derive it
       woProg.check();
       if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
-      woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays });
+      woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays, now: woNow() });
       if (R.user.risk && R.user.risk.err) toast(`Identity risk: <span>${esc(R.user.risk.err)}</span>`);
       renderWhoIs();
     }
@@ -20559,7 +21375,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("woMd").addEventListener("click", () => {
     const R = woRes; if (!R) return;
     showReport("🕵 Who is … to CA", `CA-WhoIs-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`,
-      WhoIs.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(woDays) }));
+      WhoIs.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(woDays), source: woSrc() }));
   });
   $("woCsv").addEventListener("click", () => {
     const R = woRes; if (!R) return;
@@ -23014,7 +23830,7 @@ This is a directory write. Nothing else changes.`)) return;
   // page never waits for it.
   const DD_SEL = "id,userPrincipalName,displayName,userType,accountEnabled";
   const DD_PREFIX = "CAD-SEC-U-DG-";
-  let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
+  let ddExOpen = new Set(); let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
   const ddProg = makeProgress("dd");
   const DD_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The rollout as a picture: every enabled user in the tenant against the CAD-SEC-U-DG-* deploy groups — who is in which group and how, who is <b>left out</b> of every group, which policies reach each group and in what state, and how many members an <b>exclusion</b> takes back out again. Readiness per group is 🌊 Who is the wave\'s verdict, read on request. One page, exportable as HTML for people without ENCA. Nothing here writes.</p>';
 
@@ -23045,7 +23861,7 @@ This is a directory write. Nothing else changes.`)) return;
     ddRebuild();
     if (!ddModel) return;
     ddPaintButtons();
-    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, list: ddList });
+    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, list: ddList, exOpen: ddExOpen });
     const strip = $("ddRead");
     if (strip) strip.innerHTML = ddRaw.times.map(([label, t]) => `<span>${esc(label)} · ${esc(new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>`).join("") + (ddReadinessAt ? `<span>Readiness (🌊) · ${esc(new Date(ddReadinessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>` : "");
   }
@@ -23121,10 +23937,23 @@ This is a directory write. Nothing else changes.`)) return;
             children = cg.slice(0, 40).map((c, j) => ({ id: c.id, name: c.displayName || c.id, rule: c.membershipRule || "", memberIds: new Set(((res[j] && res[j].body && res[j].body.value) || []).map((x) => x.id)) }));
           }
           names[g.id] = g.displayName;
-          groups.push({ key: t.key, name: g.displayName, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), direct, nested: new Set(all.map((u) => u.id).filter((x) => !direct.has(x))), children });
+          groups.push({ key: t.key, name: g.displayName, id: g.id, dynamic: (g.groupTypes || []).includes("DynamicMembership"), direct, nested: new Set(all.map((u) => u.id).filter((x) => !direct.has(x))), children, childIds: cg.map((c) => c.id) });
           ddProg.tick(i + 1);
         }
         stamp(`Deploy groups ${groups.filter((g) => g.id).length} of ${groups.length}`);
+        // the groups each deploy group is nested IN, at any depth (0.4.0) —
+        // one transitiveMemberOf per group, batched. Deploy-group parents are
+        // also derived from childIds without this read, so a failed batch
+        // only loses the parents outside CAD-SEC-U-DG-*.
+        const found = groups.filter((g) => g.id);
+        if (found.length) {
+          say("Reading what the deploy groups are nested in…", "One transitiveMemberOf read per group, twenty to a batch.");
+          try {
+            const res = await Graph.gbatch(found.map((g, j) => ({ id: j, url: `/groups/${g.id}/transitiveMemberOf/microsoft.graph.group?$select=id,displayName&$top=999` })), null, { signal: ddProg.signal });
+            found.forEach((g, j) => { const r = res[j]; if (r && !r.error && r.body && Array.isArray(r.body.value)) g.ancestors = r.body.value.map((x) => ({ id: x.id, name: x.displayName })); });
+          } catch (e) { if (e.stopped || e.name === "AbortError") throw e; console.warn("deploydash: nested-in read failed — deploy-group parents only", e.message); }
+          stamp(`Nested in · ${found.filter((g) => g.ancestors).length} of ${found.length} groups`);
+        }
         // exclusion groups and roles of the policies that include a deploy group
         const dgIds = new Set(groups.filter((g) => g.id).map((g) => g.id));
         const onDg = pol.filter((p) => p.includeGroups.some((gid) => dgIds.has(gid)));
@@ -23260,6 +24089,17 @@ This is a directory write. Nothing else changes.`)) return;
       wvPick = id; $("wvTerm").value = ""; if (f) wvFilter = f;
       await openWave(); renderWvPicker();
       if (!wvRes || !wvRes.group || wvRes.group.id !== id) runWave();
+      return;
+    }
+    const exb = t.closest("[data-dd-excl]");
+    if (exb) { const id = exb.dataset.ddExcl; if (ddExOpen.has(id)) ddExOpen.delete(id); else ddExOpen.add(id); renderDeployDash(); return; }
+    const cgb = t.closest("[data-dd-cg]");
+    if (cgb) { const nm = cgb.dataset.ddCg; await openCaGroups(); if (cgRes && cgRes.rows.some((r) => r.name === nm)) cgOpenRow(nm); else { cgQuery = nm; $("cgSearch").value = nm; renderCaGroups(); } return; }
+    const jump = t.closest("[data-dd-jump]");
+    if (jump) {
+      if (ddGroup) { ddGroup = ""; renderDeployDash(); }
+      const row = $("ddBody").querySelector(`tr[data-dd-row="${CSS.escape(jump.dataset.ddJump)}"]`);
+      if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.add("dd-flash"); setTimeout(() => row.classList.remove("dd-flash"), 1600); }
       return;
     }
     const grp = t.closest("[data-dd-group]");
@@ -24446,9 +25286,12 @@ This is a directory write. Nothing else changes.`)) return;
   $("ddMd").addEventListener("click", () => { if (!ddModel) return; showReport("📊 Deployment dashboard", `ENCA-deployment-dashboard-${new Date().toISOString().slice(0, 10)}`, ddToMd(ddModel)); });
   function ddToMd(m) {
     const L = [`# 📊 Deployment dashboard — ${tenantName || "tenant"}`, "", `Read ${new Date(m.readAt).toISOString().replace("T", " ").slice(0, 16)} UTC · ${APP_BUILD.label}${m.readinessAt ? ` · readiness ${new Date(m.readinessAt).toISOString().replace("T", " ").slice(0, 16)} UTC` : " · readiness not read"}`, ""];
-    L.push(`- **Enabled users:** ${m.total.enabled.toLocaleString()} (${m.total.disabled.toLocaleString()} disabled, not counted)`, `- **In a deploy group:** ${m.cov.in.toLocaleString()}`, `- **Left out of every deploy group:** ${m.cov.out.toLocaleString()}`, `- **Taken out by an exclusion:** ${m.exclMembers.toLocaleString()} (BreakGlass ${m.excl.bg}, CA*-Exclusion ${m.excl.ca}, other group ${m.excl.group}, user ${m.excl.user}, role ${m.excl.role})`, "");
+    L.push(`- **Enabled users:** ${m.total.enabled.toLocaleString()} (${m.total.disabled.toLocaleString()} disabled, not counted)`, `- **Targeted by an enforced policy:** ${m.cov.enf.toLocaleString()}`, `- **Targeted by report-only only:** ${m.cov.ro.toLocaleString()}`, `- **In a deploy group, no live policy:** ${m.cov.none.toLocaleString()}`, `- **Left out of every deploy group:** ${m.cov.out.toLocaleString()}`, `- **Taken out by an exclusion:** ${m.exclMembers.toLocaleString()} (BreakGlass ${m.excl.bg}, CA*-Exclusion ${m.excl.ca}, other group ${m.excl.group}, user ${m.excl.user}, role ${m.excl.role})`, "");
     L.push("## Group by group", "", "| Deploy group | Members | Direct · nested | Enforced · report-only · off | Readiness | Excluded | Needs a look |", "| --- | --- | --- | --- | --- | --- | --- |");
-    m.groups.forEach((r) => L.push(`| ${r.name}${r.found ? "" : " (not in tenant)"} | ${r.members} | ${r.route.direct} · ${r.route.nested} | ${r.pol.enf} · ${r.pol.ro} · ${r.pol.off} | ${r.readiness ? `${DeployDash.VERDICT[r.readiness.verdict] || "—"} (${r.readiness.locked} locked out, ${r.readiness.prompted} prompted)` : r.pol.ro ? "not read" : "—"} | ${r.excl} | ${r.look.map((l) => l.text).join("; ") || "—"} |`));
+    m.groups.forEach((r) => L.push(`| ${r.name}${r.found ? "" : " (not in tenant)"}${r.nestedIn && r.nestedIn.length ? ` — in ${r.nestedIn.map((a) => a.label).join(", ")}` : ""} | ${r.members} | ${r.route.direct} · ${r.route.nested} | ${r.pol.enf} · ${r.pol.ro} · ${r.pol.off} | ${r.readiness ? `${DeployDash.VERDICT[r.readiness.verdict] || "—"} (${r.readiness.locked} locked out, ${r.readiness.prompted} prompted)` : r.pol.ro ? "not read" : "—"} | ${r.excl} | ${r.look.map((l) => l.text).join("; ") || "—"} |`));
+    const exl = m.groups.filter((r) => (r.exclLines || []).length);
+    if (exl.length) { L.push("", "## On which policies each deploy group is excluded", "", "| Deploy group | Policy | State | Excluded | What it is | Members taken out |", "| --- | --- | --- | --- | --- | --- |"); exl.forEach((r) => r.exclLines.forEach((l) => L.push(`| ${r.name} | ${l.policyName} | ${l.state} | ${l.excluded} | ${l.kind === "scope" ? "scoped out (another deploy group)" : l.kind} | ${l.n} |`))); }
+    if ((m.noPolicy || []).length) { L.push("", `## In a deploy group, no live policy (${m.noPolicy.length})`, "", "| Member | UPN | Type | Deploy groups |", "| --- | --- | --- | --- |"); m.noPolicy.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} | ${r.groups.join(", ")} |`)); }
     if (m.leftOut.length) { L.push("", `## Left out (${m.leftOut.length})`, "", "| Member | UPN | Type |", "| --- | --- | --- |"); m.leftOut.slice(0, 2000).forEach((r) => L.push(`| ${r.name} | ${r.upn} | ${r.type} |`)); }
     L.push("", "Group membership and policy reach are separate checks; silent members are no data, never safety.");
     return L.join("\n");
@@ -26421,7 +27264,7 @@ This is a directory write. Nothing else changes.`)) return;
   // is about who actually USES a phone, not just who a policy names. Reads
   // only; the registration consent is asked once, on the run click, and a
   // refusal degrades the report to scope-only instead of killing the run.
-  let svRes = null, svBusy = false, svFilter = "";
+  let svRes = null, svBusy = false, svFilter = "", svSiFilter = "";
   const svProg = makeProgress("sv");
   const SV_REG_READ = ["AuditLog.Read.All"];
   const SV_GROUP_PAGES = 10;   // ~10k members per group
@@ -26444,6 +27287,22 @@ This is a directory write. Nothing else changes.`)) return;
       u3: { methods: ["passKeyDeviceBound", "microsoftAuthenticatorPush"], defaultMethod: "passKeyDeviceBound" },
       u4: { methods: [], defaultMethod: "" },
     },
+    // 1.8.0: what ⌚ Last 5 sign-ins reads in the demo — raw signIn records.
+    signins: (() => {
+      const at = (h) => new Date(Date.now() - h * 3600000).toISOString();
+      const si = (h, app, steps, extra = {}) => ({ createdDateTime: at(h), appDisplayName: app, ipAddress: "203.0.113.24",
+        location: { city: "Zoetermeer", countryOrRegion: "NL" }, deviceDetail: { operatingSystem: "Windows 11", browser: "Edge 142" },
+        status: { errorCode: 0 }, authenticationRequirement: steps.length > 1 ? "multiFactorAuthentication" : "singleFactorAuthentication",
+        authenticationDetails: steps.map((m) => typeof m === "string" ? { authenticationMethod: m, succeeded: true } : m), ...extra });
+      return {
+        u1: [si(3, "Office 365 Exchange Online", ["Password", "Text message"]), si(27, "Microsoft Teams", ["Previously satisfied"]),
+          si(50, "OfficeHome", ["Password", { authenticationMethod: "Text message", succeeded: false }], { status: { errorCode: 500121, failureReason: "Authentication failed during strong authentication request." } }),
+          si(51, "OfficeHome", ["Password", "Phone call"]), si(120, "Microsoft Teams", ["Password", "Text message"])],
+        u2: [si(5, "Microsoft Teams", ["Password", "Mobile app notification"]), si(30, "OfficeHome", ["Password", "Mobile app notification"]),
+          si(75, "Office 365 Exchange Online", ["Password", "Text message"])],
+        u3: [si(2, "OfficeHome", ["Passkey (device-bound)"]), si(26, "Microsoft Teams", ["Previously satisfied"])],
+      };
+    })(),
   };
 
   async function svExpandGroup(id, nameOf) {
@@ -26625,7 +27484,7 @@ This is a directory write. Nothing else changes.`)) return;
           names, users, usersPartial, reg, regPartial };
       }
       svRes = SmsVoice.analyze(ctx);
-      svFilter = "";
+      svFilter = ""; svSiFilter = "";
     } catch (e) {
       $("svBody").innerHTML = `<div class="list-card"><p class="mini" style="color:var(--off)">Reading the authentication method policies failed: ${esc(e.message || e)}</p><div class="run-prompt" style="padding:8px 20px 20px"><button class="btn" data-svrun>▶ Try again</button></div></div>`;
       svProg.stop(); svBusy = false;
@@ -26634,6 +27493,65 @@ This is a directory write. Nothing else changes.`)) return;
     svProg.stop(); svBusy = false;
     renderSmsVoice();
   }
+
+  // ⌚ Last 5 sign-ins (1.8.0) — per phone user, the newest five interactive
+  // sign-ins with the authentication each one used. One server-filtered read
+  // per user (userId, newest first, $top=5, beta for mfaDetail), four at a
+  // time; capped so a 20k-user scope cannot spend an afternoon in the log.
+  // Who: enabled accounts with a phone registered (verdict blocking or
+  // migrate) — or everyone in scope when registration was not read.
+  const SV_SI_CAP = 2000;
+  async function svReadSignIns() {
+    if (!svRes) { toast("Run the check first — the sign-ins are read for the users it finds."); return; }
+    if (svBusy) return;
+    const targets = svRes.rows.filter((r) => r.enabled !== false && (!svRes.regRead || r.risk === "blocking" || r.risk === "migrate"));
+    if (!targets.length) { toast("Nobody to read — no enabled user in scope carries a phone method."); return; }
+    const list = targets.slice(0, SV_SI_CAP);
+    svBusy = true;
+    $("svRun").style.display = "none";
+    svProg.start(list.length, "users", "user");
+    $("svBody").innerHTML = svProg.panel(`Reading the last 5 sign-ins of ${list.length.toLocaleString()} user${list.length === 1 ? "" : "s"}…`,
+      `auditLogs/signIns — one filtered read per user, newest first, five records, the authentication details of each. ${targets.length > list.length ? `Capped at ${SV_SI_CAP.toLocaleString()} of ${targets.length.toLocaleString()} users. ` : ""}Reads only; the log keeps 30 days on P1/P2.`);
+    const byId = {};
+    let failed = 0, done = 0, firstErr = "", stop = false;
+    try {
+      if (isDemo) {
+        for (const u of list) byId[u.id] = SV_DEMO.signins[u.id] || [];
+      } else {
+        if (!await preConsent([...AUTH_CONFIG.scopes, ...SV_REG_READ])) throw new Error("AuditLog.Read.All was not granted — the sign-in log cannot be read");
+        await Graph.mapLimit(list, 4, async (u) => {
+          if (stop) return;
+          try {
+            const j = await Graph.gget(`/beta/auditLogs/signIns?$filter=${encodeURIComponent(`userId eq '${u.id}'`)}&$orderby=createdDateTime desc&$top=5`);
+            byId[u.id] = (j.value || []).slice(0, 5);
+          } catch (e) {
+            failed++;
+            if (!firstErr) firstErr = String(e.message || e);
+            // The same refusal on the first reads (no P1, no reader role)
+            // will be the same for all of them — stop instead of asking 2000 times.
+            if (failed >= 3 && !Object.keys(byId).length) stop = true;
+          }
+          svProg.tick(++done, done);
+        });
+        if (stop && !Object.keys(byId).length) throw new Error(`the sign-in log refused the reads: ${firstErr} — needs AuditLog.Read.All, a reader role such as Reports Reader, and Entra ID P1/P2`);
+      }
+      svRes = SmsVoice.withSignIns(svRes, byId, { asked: targets.length, capped: targets.length > list.length, failed, error: firstErr });
+      svSiFilter = "";
+      if (failed) toast(`${failed} sign-in read${failed === 1 ? "" : "s"} failed: <span>${esc(firstErr)}</span>`);
+    } catch (e) {
+      toast(`Sign-ins not read: <span>${esc(e.message || e)}</span>`);
+    }
+    svProg.stop(); svBusy = false;
+    renderSmsVoice();
+  }
+  // The five sign-ins, compact: date · app · the methods used, phone steps in
+  // the retirement colour, failed steps struck through, a failed sign-in red.
+  const svSiCell = (x) => {
+    if (x.signins == null) return '<span class="muted">—</span>';
+    if (!x.signins.length) return '<span class="muted">no sign-in in the log</span>';
+    const tag = (m, failed) => `<span class="tag${SmsVoice.isPhoneAuth(m) ? " block" : ""}" style="margin:1px 3px 1px 0;white-space:nowrap${failed ? ";text-decoration:line-through" : ""}">${esc(m)}</span>`;
+    return x.signins.map((s) => `<div style="white-space:nowrap${s.ok ? "" : ";color:var(--off)"}" title="${esc([s.client, s.where, s.ip, s.requirement, s.error].filter(Boolean).join(" · "))}"><span class="muted">${esc(String(s.when).replace("T", " ").slice(0, 16))}</span> ${esc(s.app || "?")} — ${s.methods.map((m) => tag(m)).join("")}${s.failedSteps.map((m) => tag(m, true)).join("")}${!s.methods.length && !s.failedSteps.length ? '<span class="muted">—</span>' : ""}${s.ok ? "" : " ✗"}</div>`).join("");
+  };
 
   const SV_RISK = {
     blocking: { cls: "block", word: "locked out Feb 1", icon: "⛔" },
@@ -26696,7 +27614,11 @@ This is a directory write. Nothing else changes.`)) return;
     ];
     const filters = r.regRead ? ["blocking", "migrate", "ready", "clean", "unknown"] : [];
     const counts = { blocking: s.blocking, migrate: s.migrate, ready: s.ready, clean: s.clean, unknown: s.unknown };
-    const shown = svFilter ? r.rows.filter((x) => x.risk === svFilter) : r.rows;
+    const shown = r.rows.filter((x) => (!svFilter || x.risk === svFilter) && (!svSiFilter || SmsVoice.siBucket(x) === svSiFilter));
+    const si = r.si;
+    const siFilters = si ? ["phone", "nophone", "none"] : [];
+    const siCounts = si ? { phone: si.phoneUsed, nophone: si.noPhone, none: si.none } : {};
+    const SI_ICON = { phone: "📱", nophone: "🔑", none: "∅" };
     const yn = (v) => v === null ? "?" : v ? "yes" : "—";
     const head = `<div class="list-card" style="padding:14px 16px">
       ${verdict}
@@ -26709,8 +27631,9 @@ This is a directory write. Nothing else changes.`)) return;
 
     const table = !r.rows.length ? "" : `<div class="list-card" style="padding:14px 16px;margin-top:12px">
       ${filters.length ? `<p class="mini" style="margin:0 0 8px">${filters.map((k) => `<button class="btn${svFilter === k ? " primary" : ""}" data-svfilter="${k}" style="margin-right:6px">${SV_RISK[k].icon} ${SV_RISK[k].word} (${counts[k]})</button>`).join("")}${svFilter ? '<button class="btn" data-svfilter="">✕ All</button>' : ""}</p>` : ""}
+      ${si ? `<p class="mini" style="margin:0 0 8px">⌚ Last 5 sign-ins read for <b>${si.read.toLocaleString()}</b> of ${si.asked.toLocaleString()} phone user${si.asked === 1 ? "" : "s"}${si.capped ? ' <span style="color:var(--off)">(capped)</span>' : ""}${si.failed ? ` · <span style="color:var(--off)">${si.failed} failed</span>` : ""}: ${siFilters.map((k) => `<button class="btn${svSiFilter === k ? " primary" : ""}" data-svsifilter="${k}" style="margin-right:6px">${SI_ICON[k]} ${esc(SmsVoice.SI_BUCKET_WORD[k])} (${siCounts[k]})</button>`).join("")}${svSiFilter ? '<button class="btn" data-svsifilter="">✕ All</button>' : ""}</p>` : ""}
       <div style="overflow-x:auto"><table class="mini" style="border-collapse:collapse;width:100%">
-        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="Every MFA method the registration report lists for this account, the default first, bold and starred; phones in the retirement colour — the record the verdict was made from">Methods registered</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th></tr></thead>
+        <thead><tr style="text-align:left"><th style="padding:4px 8px">User</th><th style="padding:4px 8px">Enabled</th><th style="padding:4px 8px">SMS</th><th style="padding:4px 8px">Voice</th><th style="padding:4px 8px">Via</th><th style="padding:4px 8px">SMS reg.</th><th style="padding:4px 8px">Voice reg.</th><th style="padding:4px 8px">Phishing-resistant</th><th style="padding:4px 8px" title="Every MFA method the registration report lists for this account, the default first, bold and starred; phones in the retirement colour — the record the verdict was made from">Methods registered</th><th style="padding:4px 8px" title="What the phone IS to this user: their ONLY MFA method, the DEFAULT their prompts use today, or a backup next to something better">Phone role</th><th style="padding:4px 8px">Verdict</th>${si ? '<th style="padding:4px 8px" title="The newest five interactive sign-ins and the authentication each used — phone steps in the retirement colour, failed steps struck through; times in UTC; hover for client, location, IP and error">Last 5 sign-ins (UTC)</th>' : ""}</tr></thead>
         <tbody>${shown.slice(0, SV_TABLE_CAP).map((x) => `<tr style="border-top:1px solid var(--line)">
           <td style="padding:4px 8px"><b>${esc(x.upn)}</b>${x.name ? `<br><span class="muted">${esc(x.name)}</span>` : ""}</td>
           <td style="padding:4px 8px">${x.enabled === false ? '<span style="color:var(--off)">no</span>' : x.enabled === true ? "yes" : "?"}</td>
@@ -26723,6 +27646,7 @@ This is a directory write. Nothing else changes.`)) return;
           <td style="padding:4px 8px;min-width:220px">${svMethods(x)}</td>
           <td style="padding:4px 8px">${x.phoneOnly ? '<b style="color:var(--off)">only method</b>' : x.phoneDefault ? "<b>default</b>" : esc(SmsVoice.phoneRole(x))}</td>
           <td style="padding:4px 8px">${svChip(x.risk)}</td>
+          ${si ? `<td style="padding:4px 8px;min-width:340px">${svSiCell(x)}</td>` : ""}
         </tr>`).join("")}</tbody>
       </table></div>
       ${shown.length > SV_TABLE_CAP ? `<p class="mini muted" style="margin:8px 0 0">Showing the first ${SV_TABLE_CAP} of ${shown.length.toLocaleString()} rows — the CSV export carries all of them.</p>` : ""}
@@ -26740,7 +27664,16 @@ This is a directory write. Nothing else changes.`)) return;
   $("svBody").addEventListener("click", (e) => {
     if (e.target.closest("[data-svrun]")) { svRun(); return; }
     const f = e.target.closest("[data-svfilter]");
-    if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); }
+    if (f) { svFilter = f.dataset.svfilter || ""; renderSmsVoice(); return; }
+    const g = e.target.closest("[data-svsifilter]");
+    if (g) { svSiFilter = g.dataset.svsifilter || ""; renderSmsVoice(); }
+  });
+  $("svSignIns").addEventListener("click", svReadSignIns);
+  $("svHtml").addEventListener("click", () => {
+    if (!svRes) { toast("Run the check first — the HTML is the user list."); return; }
+    if (!svRes.rows.length) { toast("No users in scope — there is nothing to export."); return; }
+    const name = downloadText("CA-SmsVoiceUsers", "html", "text/html", SmsVoice.toHtml(svRes, { tenantName, build: APP_BUILD.label, now: Date.now() }));
+    toast(`Saved ${esc(name)} — ${svRes.si ? "it names users and where they sign in from" : "sign-ins not read yet, run ⌚ Last 5 sign-ins first to include them"}; share it like tenant data`);
   });
   // ✉️ Notify users — the recipient list plus a ready-to-send email. The
   // modal is built fresh on every open so it always reflects the current run.

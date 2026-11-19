@@ -363,3 +363,25 @@ test("Require one (OR) gets the same verdict as Checks: template info, app-prote
   d.grant.operator = "OR"; d.grant.controls = ["mfa"];
   assert.equal(orHint().length, 0, "one control has no OR to judge");
 });
+
+// 33311 (Mihai 19 Nov, on ⬇ Export baseline: "where are the e-admins to
+// download"): the chooser's rows stopped at DevOps, so CA1100+ had no box and
+// was left out of the zip whichever boxes were ticked.
+test("export rows: E-Admins and Factory workers have their own row, and no numbered policy is dropped", () => {
+  const names = ["CA101-x", "CA1100-GRANT-E-Admins-x", "(UP) CA1105-y", "CA1201-z", "CA1300-q", "Legacy"];
+  const rows = Builder.exportRows(names, null);
+  eq(rows.map((r) => r.key), ["admins", "eadmins", "factoryworkers", "__other", "__none"]);
+  eq(rows.map((r) => r.n), [1, 2, 1, 1, 1]);
+  assert.equal(rows.reduce((s, r) => s + r.n, 0), names.length, "every policy is counted in exactly one row");
+  assert.match(rows[1].label, /E-Admins/);
+});
+test("export row key: CA1099 is DevOps, CA1100 is E-Admins", () => {
+  assert.equal(Builder.exportRowKey("CA1099-a", null), "devops");
+  assert.equal(Builder.exportRowKey("CA1100-a", null), "eadmins");
+  assert.equal(Builder.exportRowKey("CA1300-a", null), "__other");
+  assert.equal(Builder.exportRowKey("Legacy", null), "__none");
+});
+test("the Policy builder's own persona list is not extended by the export rows", () => {
+  assert.equal(Builder.personas(null).some((p) => p.key === "eadmins"), false);
+  assert.equal(Builder.exportPersonas(null).some((p) => p.key === "eadmins"), true);
+});

@@ -472,7 +472,43 @@ const Locations = (() => {
     };
   }
 
+  // ⭳ Locations only (1.12.0, 33305 — Mihai 11 Nov: "export location and
+  // ip only, not with the policies attached"): the inventory as it is in
+  // Entra and nothing else — no policy usage, no findings. Built on configOf
+  // so the three formats and the JSON snapshot read the same fields.
+  const KIND_LABEL = { ip: "IP", country: "Country", compliantNetwork: "Compliant network" };
+  const csvCell = (v) => { const s = String(v == null ? "" : v); return /[",\r\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const inventory = (list) => (list || []).map(configOf).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  // by "range": one row per IP range (a firewall or allow-list source); a
+  // country or compliant-network location is one row with its countries.
+  // by "location": one row per location, the ranges joined with "; ".
+  function inventoryCsv(list, by) {
+    const inv = inventory(list), out = [];
+    if (by === "range") {
+      out.push(["name", "type", "trusted", "ip_range", "countries"]);
+      inv.forEach((c) => {
+        if (c.kind === "ip") { (c.ipRanges.length ? c.ipRanges : [""]).forEach((r) => out.push([c.displayName, "ip", c.isTrusted, r, ""])); }
+        else out.push([c.displayName, c.kind, "", "", (c.countriesAndRegions || []).join("; ")]);
+      });
+    } else {
+      out.push(["name", "type", "trusted", "ip_ranges", "range_count", "countries", "country_lookup", "include_unknown"]);
+      inv.forEach((c) => out.push([c.displayName, c.kind, c.kind === "ip" ? c.isTrusted : "", (c.ipRanges || []).join("; "), c.kind === "ip" ? c.ipRanges.length : "",
+        (c.countriesAndRegions || []).join("; "), c.countryLookupMethod || "", c.kind === "country" ? c.includeUnknownCountriesAndRegions : ""]));
+    }
+    return out.map((r) => r.map(csvCell).join(",")).join("\r\n");
+  }
+  function inventoryMd(list, meta = {}) {
+    const inv = inventory(list), e = (v) => String(v == null ? "" : v).replace(/\|/g, "\\|");
+    const ip = inv.filter((c) => c.kind === "ip"), ranges = ip.reduce((n, c) => n + c.ipRanges.length, 0);
+    const L = [`# Named locations — ${meta.tenant || "tenant"}`, "", meta.generatedBy || "", "",
+      `- ${inv.length} location${inv.length === 1 ? "" : "s"}${meta.of && meta.of !== inv.length ? ` (the ${inv.length} shown of ${meta.of})` : ""} — ${ip.length} IP (${ranges} range${ranges === 1 ? "" : "s"}), ${inv.filter((c) => c.kind === "country").length} country`,
+      "- The locations only: which policies use them and the findings are in the full Export MD.", "",
+      "| Name | Type | Trusted | IP ranges / countries |", "| --- | --- | --- | --- |"];
+    inv.forEach((c) => L.push(`| ${e(c.displayName)} | ${KIND_LABEL[c.kind] || c.kind} | ${c.kind === "ip" ? (c.isTrusted ? "yes" : "no") : "—"} | ${e(c.kind === "ip" ? c.ipRanges.join(", ") : c.kind === "country" ? `${c.countriesAndRegions.join(", ")}${c.includeUnknownCountriesAndRegions ? " + unknown" : ""} (${c.countryLookupMethod === "authenticatorAppGps" ? "GPS" : "IP"})` : "—")} |`));
+    return L.filter((l, i) => !(l === "" && L[i - 1] === "")).join("\n");
+  }
+
   return { IP_TYPE, COUNTRY_TYPE, EXPORT_SCHEMA, kindOf, isTrusted, editable, validCidr, validCountry, splitList,
     buildPayload, usedBy, trustedConsumers, summarize, detail, toForm, diff, configOf, toExport, fromExport, compare,
-    findings, broadness, SEV_LABEL };
+    findings, broadness, SEV_LABEL, inventoryCsv, inventoryMd };
 })();
