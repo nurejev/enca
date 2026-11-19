@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v2.0.11",
+  productionBuild: "v2.0.13",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -181,63 +181,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 393,
-      ws: "ca",
-      title: "👥 CA groups 6.5.2 — ⑦ Migrate checks the groups it is opened with: after a migration, after a finished run, and while another check is still reading",
-      tools: ["CA groups"],
-      builds: [33402],
-      risk: "medium",
-      files: ["js/app.js", "index.html", "js/version.js", "js/changelog.js", "js/promote.js", "tools/cagroups-migrate.test.cjs"],
-      what: "33402 (Mihai 19 Nov with a screenshot: when returning after migrating a group, the other group selected is stated nothing to do — 2 groups carried from the list, NOTHING TO MIGRATE, NOT MIGRATED (1) CAB-SEC-U-BreakGlass already a plain group). js/app.js only. cgGoTab decided whether to check the groups it arrived with from cgMig.scoped, which cgMigScan set to the number of role-assignable CANDIDATES of a scoped check — 0 when the groups it was opened with are plain groups, which a migrated group is. That 0 read as a full scan in hand, so no later arrival was checked and the stale plan was shown for whatever was ticked; the scoped line with ▶ Check every role-assignable group was hidden by the same 0, and ⟳ Rescan reuses the scope, so the dialog had no way out. Now: cgGoTab scans for the arriving groups unless the plan in hand is a FULL scan (scopeIds null) that has not been run (no results) — that one only takes the ticks; scoped is only.size, the number of groups asked about; an arrival while cgMigBusy is kept in cgMigNext and the tail of cgMigScan reads again for it (a full scan takes its ticks instead). Nothing in the run itself, the planner or the report changed.",
-      why: "Reachable in production today by the ordinary order of work — migrate one group, look at it again, tick the next — and it ends in a dialog that says there is nothing to migrate for a group that is role-assignable, with no button that leads anywhere else. Nothing is written wrongly; the migration simply cannot be started from the list until the page is reloaded.",
-      test: [
-        "node --test tools/cagroups-migrate.test.cjs: 21 tests green (the last five are this item).",
-        "Demo (?demo=1): 👥 CA groups → tick CAB-SEC-U-Persona-GuestUsers (dynamic, so a plain group) → ⑦ Migrate: NOTHING TO MIGRATE, the group under NOT MIGRATED as already a plain group, AND the scoped line “Checked only the 1 group you came with from the list” with ▶ Check every role-assignable group. Before this build the line and the button were absent.",
-        "Same session: Close → tick CAB-SEC-U-Persona-Admins as well → ⑦ Migrate: “2 groups carried from the list”, MIGRATE 1 GROUP with Persona-Admins ticked, GuestUsers under NOT MIGRATED. Before: the first answer again, Persona-Admins nowhere.",
-        "Demo: arrive with one group → ▶ Check every role-assignable group → untick all but one → tick the confirmation → Migrate → Close → tick another role-assignable group → ⑦ Migrate: the check for that group, not MIGRATION COMPLETE of the run before.",
-        "Demo: arrive with one group → ▶ Check every role-assignable group → Close WITHOUT running → tick another role-assignable group → ⑦ Migrate: the same 15-group plan with only that group ticked, no scoped line (the full scan is kept).",
-        "Live tenant with two role-assignable groups A and B: tick A → ⑦ Migrate → run it to the end → Close → tick A again (a plain group now) → ⑦ Migrate: nothing to migrate, A listed as already a plain group, scoped line present → Close → tick B as well → ⑦ Migrate: B is offered with its steps, A under NOT MIGRATED.",
-        "Live, slow tenant: tick A → ⑦ Migrate → Close while it still says Scanning → untick A, tick B → ⑦ Migrate: when the reading stops the plan is B’s, not A’s.",
-      ],
-    },
-    {
-      n: 389,
-      ws: "ca",
-      title: "🔐 ENCA access T62 0.1.0: the two PIM groups for Workspace 01 (Read active, Admin eligible), custom ENCA CA Group Operator, optional activation settings and ENCA lock, undo",
-      tools: ["EncaAccess"],
-      builds: [33308],
-      risk: "medium",
-      requires: [302, 321],
-      requiresWhy: "Found at the production 333 port (19 Nov): the tool does not run without Workspace 02's plan runner. js/encaaccess.js builds its plan on PimPlan (js/pimplan.js, 302) and the app.js block hands it to pimPlanPanel / pimPlanWire / pimApply, which also call PimScript (js/pimscript.js, 321) and use the pim-plan / pim-confirm / pmb-* styles; none of that is on main. Promote it with the runner — 302 and 321, or the runner block, js/pimplan.js, js/pimscript.js and those styles carried along on their own — never alone. The R94 roadmap card (383) goes with it.",
-      files: ["js/encaaccess.js", "js/app.js", "css/app.css", "index.html", "js/workspaces.js", "js/flat-icons.js", "js/version.js", "js/changelog.js", "js/promote.js", "tools/encaaccess.test.cjs"],
-      what: "33308 (Mihai 19 Nov: create a tool in ENCA to create the PIM groups for using ENCA, CA workspace only, the reader and the operator; mockup approved with the activation settings added and a why per role). New pure module js/encaaccess.js (compare / plan / undoPlan / render / toMd) on PimPlan; app.js block openEncaAccess / eaRead / eaPreview reuses pimPlanPanel + pimPlanWire + pimApply. Creates PIM-SG-ENCA-CA-Read (role-assignable; Global Reader + Security Reader ACTIVE) and PIM-SG-ENCA-CA-Admin (role-assignable; Conditional Access Administrator, custom ENCA CA Group Operator at tenant and every restricted CA-RMAU-* unit, Authentication Policy Administrator ELIGIBLE), the custom role (groups create, members/update, basic/update, dynamicMembershipRule/update, standard/read, members/read), direct members. Ticked: three PIM rules per eligible role (Expiration_EndUser_Assignment 4h/2h, Enablement MFA+Justification unless auth context, Expiration_Admin_Eligibility permanent) with before kept; ENCA lock (appRoleAssignedTo both groups, then appRoleAssignmentRequired). Blocks on no PRA/GA, a non-role-assignable or duplicate group, self-lockout. Undo plan: adminRemove the requests, DELETE members and app assignments, PATCH rules back, DELETE the custom role and the groups, reverse order. R94 card to In beta today.",
-      why: "The R94 design had no way into a tenant except by hand in PIM; doing it by hand gets the role-assignable flag, the RMAU scopes and the eligible-vs-active split wrong easily.",
-      test: [
-        "node --test tools/encaaccess.test.cjs: all green.",
-        "Demo (?demo=1): 🔐 ENCA access → Read → 2 groups, the custom role and 7 assignments marked create, each with its why; Preview lists them groups first, then the custom role, then the requests; typed domain contoso.nl arms Apply; the simulated run finishes and Undo this run appears.",
-        "cloudfellows.dev, Privileged Role Administrator active: Read → Preview → Apply: PIM-SG-ENCA-CA-Read and -Admin exist and are role-assignable; Entra roles: Read active in Global Reader and Security Reader, Admin eligible for CAA, ENCA CA Group Operator (tenant + each CA-RMAU-*) and Authentication Policy Administrator; Read again shows every row ✓ exists.",
-        "Without PRA/GA active: Preview is blocked and says which role to activate.",
-        "Tick the activation settings: Preview shows the rule PATCHes marked for EVERYONE; after Apply, CAA reads 4h · MFA · justification; ⬇ Backup holds the rules as they were; Undo puts them back.",
-        "Tick Lock ENCA with yourself in neither group: blocked. With yourself in Read: Apply assigns both groups and turns assignment required on; a test user outside the groups gets not assigned at sign-in; Undo turns it off.",
-        "Undo this run on cloudfellows.dev: assignments gone, groups and the custom role deleted (groups in Deleted items).",
-      ],
-    },
-    {
-      n: 383,
-      ws: "pim",
-      title: "🗺 R94 PIM for the people who use ENCA — roadmap card (planned, nothing built yet)",
-      tools: ["Roadmap"],
-      builds: [33302],
-      risk: "low",
-      files: ["index.html", "js/version.js", "js/changelog.js", "js/promote.js"],
-      what: "33302 (Mihai 11 Nov: draw it, put it in the project files, and put it on the roadmap to be created): roadmap card R94 under Next. The design: six role-assignable PIM groups, one per job (PIM-SG-ENCA-Read Global Reader always active; -CA Conditional Access Administrator plus a custom ENCA Group Operator role; -AuthMethods Authentication Policy Administrator; -Apps Cloud Application Administrator; -SecDefaults Security Administrator with approval; -PIM Privileged Role Administrator, Tier 0, approval and phishing-resistant MFA). To build: a role pre-flight before every write, create the model from PIM-buddy, check the model read-only. Design and diagram in the project doc claude/ENCA-pim-for-enca-roles.md (+ .svg). R93 is left free for the CA policy plans card from bundle 33012, which never reached this branch.",
-      why: "Queued only because every beta build needs an item (tools/regression.test.cjs); by the header rule a roadmap card travels with the next promotion rather than being promoted on its own — tick it with whatever goes next, or let the R94 build replace it.",
-      test: [
-        "Beta site → 🗺 Roadmap → Next: the last card is R94 🔑 PIM for the people who use ENCA, tagged planned, and names the six groups and the three things to build.",
-        "📋 What's new shows build 33302 with one Roadmap line; the footer reads build 33302.",
-      ],
-    },
     {
       n: 368,
       ws: "pim",
@@ -405,6 +348,7 @@ const PROMOTE = {
       tools: ["PIM baseline", "Deploy"],
       builds: [32510],
       risk: "high",
+      carveout: "Production 335 already carries js/pimscript.js as it is on beta: it went along with the plan runner for 🔐 ENCA access (queue 389) and no production tool reaches it. Everything else of this item is still beta-only.",
       what: "Catalog 4.1 in js/pimBaselineData.js: twenty workload roles (template ids read from cloudfellows.dev on 13 Oct 2026), the groups PIM-SG-M365-Teams (job), -Backup-Direct, -Billing and -Data-Direct, five Purview access groups PIM-SG-PUR-*, PIM-SG-EXO-Recipients-REG and -HelpDesk-REG in the region template, Global Secure Access in every design, the multi-region profile explicit without Azure, the naming rule with PUR/SPO/FAB/PP, the stale first-line and Tier 0 texts corrected. js/pimscript.js (new, pure): the script Deploy generates where no API exists — Exchange role groups, Purview role groups, the regional Exchange scopes — with the object ids filled in, plus readOutcome for the file it writes. js/pimdeploy.js: a purview section, P.scripts, By hand lines without any repository .ps1. app.js: ⬇ Script buttons and 📂 Import outcome on the Preview panel. pimbaseline.js carries and renders the purview scope. demo.js carries the new roles.",
       why: "Mihai, 12 Oct: Exchange must be fully covered — the PIM-SG-EXO groups in the right Exchange RBAC groups; the baseline docs were missing the overview; Global Secure Access in every design; Teams, backups, billing, Copilot, Fabric, Power Platform and Purview in the design; Azure out of multi-region; and the amendment to the no-script rule — where ENCA cannot act from the browser it offers a downloadable script that performs the actions. Risk high: it rewrites what Deploy plans for every profile (new groups, new eligibilities, approval overrides on Tier 1 roles) and the write path of the scripts is unverified until the outcome files from a real run come back. Nothing here has written to a live tenant.",
       test: [
@@ -701,6 +645,7 @@ const PROMOTE = {
       tools: ["Restricted AUs"],
       builds: [32422, 32424, 32429],
       risk: "medium",
+      carveout: "Production 335 already carries part of this item: js/pimplan.js and the runner block of js/app.js (pimExpectDomain, pimSend, pimGroupPolicyStep, pimPlanPanel, pimPlanWire, pimApply), with the CSS rules the plan panel draws with, went along with 🔐 ENCA access (queue 389). At promotion: port the rest — js/pimrmau.js, the PIM lens, the demo data, tools/pimplan.test.cjs — and diff those two against main. Main’s runner differs in one sentence of the outcome report: it names ↩ Undo this run where beta names ↩ Put back (🚀 Deploy).",
       what: "js/pimplan.js (new, pure): the browser port of tools/pim/PimCommon.psm1 — plans of ordered ops with produces/{{placeholders}}, rule-by-rule PATCH with before kept (ruleChanges), eligibility requests capped by the role's own maximum and started now, replication retry 5/10/15/30/30/30 s on a 404 that names a just-created object (or SubjectNotFound), deferred membership policies, skip-on-failed-dependency, backup and restorePlan (PIM policy rules only). js/pimrmau.js (new, pure): check/plan/render of the lens. js/app.js: pimSend / pimGroupPolicyStep / pimPlanPanel / pimPlanWire / pimApply (typed domain, one preConsent of the plan's scopes, RunLedger, report, ⬇ backup) and the lens block (prl*), renderRmau swaps the CA panels for prlPanel() when Workspaces.current() is pim. js/demo.js: rmauMembers (two executives, a device, PIM-SG-M365-Tier0 and adm-joey in AU-RM-Executives). tools/pimplan.test.cjs (11).",
       why: "Mihai, 28 Sep: continue the whole PIM roadmap in the mockup's order, T27 first; and PIM onboarding/configuration always from the browser, never a .ps1. Medium: the lens writes (create a restricted unit — immutable flag —, scoped eligibilities, take a member out of a restricted unit), each behind a preview and a typed domain; nothing is ticked for a removal.",
       test: [

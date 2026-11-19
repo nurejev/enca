@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33601, date: "2026-11-19", title: "Production is build 335 (v2.0.13)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 335, ENCA v2.0.13. Two releases went out together: v2.0.12 (build 334) is the ⑦ Migrate fix of beta 33402 — the dialog checks the groups you arrive with, also right after another group was migrated — and v2.0.13 (build 335) brings 🔐 ENCA access to Workspace 01 for everybody, with the preview-and-apply runner it runs on. The rest of PIM-buddy stays here on the beta channel. This channel moves to v2.0.14-beta." },
+    ],
+  },
+  {
     build: 33402, date: "2026-11-19", title: "👥 ⑦ Migrate checks the group you came with — also right after another one was migrated",
     items: [
       { kind: "fixed", tool: "Conditional Access groups", text: "👥 ⑦ Migrate answered for the wrong groups. Back in the list after a migration, with another group ticked, the dialog said NOTHING TO MIGRATE and listed only the group that had just been migrated as already a plain group — the role-assignable group you ticked was not in the answer at all, and ⟳ Rescan gave the same answer again. A check that found no role-assignable group among the groups it was opened with was remembered as a scan of the whole tenant, so it was shown again for whatever you ticked next. The dialog now checks the groups you arrive with every time; only a scan of every role-assignable group that has not been run yet is kept, with your groups ticked in it." },
