@@ -26,6 +26,7 @@
     toolCaGroups: 'Inspect and manage Conditional Access groups.',
     toolProtect: 'Manage protection of exclusion groups.',
     toolLocations: 'Manage named locations, strengths, contexts and terms of use.',
+    toolEncaAccess: 'The two PIM groups for the people who use this workspace: Read (active) and Admin (eligible), with why each role.',
     toolRmau: 'Every administrative unit, restricted and regular: what it holds, who can act inside it, and what it should not hold.',
     toolUserImpact: 'Prepare a policy-based user impact brief.',
     toolImport: 'Import policies and dependencies with the existing review steps.',

@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com https://cloudflare-dns.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=33307"></script>
+<script src="js/popup-guard.js?v=33308"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=33307" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=33307">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=33308" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=33308">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=33307"></script>
+<script src="js/selfhost-boot.js?v=33308"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=33307"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=33307"></script>
-<link rel="stylesheet" href="css/workspace.css?v=33307">
-<link rel="stylesheet" href="css/workspaces.css?v=33307">
-<link rel="stylesheet" href="css/tool-layout.css?v=33307">
-<link rel="stylesheet" href="css/list-detail.css?v=33307">
-<link rel="stylesheet" href="css/flat-icons.css?v=33307">
+<script src="js/counter.js?v=33308"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=33308"></script>
+<link rel="stylesheet" href="css/workspace.css?v=33308">
+<link rel="stylesheet" href="css/workspaces.css?v=33308">
+<link rel="stylesheet" href="css/tool-layout.css?v=33308">
+<link rel="stylesheet" href="css/list-detail.css?v=33308">
+<link rel="stylesheet" href="css/flat-icons.css?v=33308">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=33307" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=33308" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=33307" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=33308" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -354,6 +354,10 @@
       <div class="tool tool-tile" id="toolRmau">
         <div class="tool-ic">🛡</div><h3>Administrative units <span class="tag upd">UPDATED</span></h3>
         <p><b>Every unit, restricted and regular</b> — what it holds, who holds a role at its scope (active and eligible), and what it holds that it should not: a CA group a scoped admin can change, a role held directly and permanently, two desks on the same people, a paused rule, a unit nothing uses. <b>In 02 PIM-buddy: the PIM lens</b> — AU-RM-Executives and the desk scoped on it, no PIM object in any restricted unit, and the units against your regions file. Manage restricted management administrative units — the vaults that shield CA exclusion groups from tenant-wide admins. One vault per persona of the active baseline (CloudFellows or Joey Verlinden). List them with members and scoped role grants, edit, add or remove members, grant scoped administrators, create and delete. The restricted flag itself is immutable, and the tool says so.</p>
+      </div>
+      <div class="tool tool-tile" id="toolEncaAccess">
+        <div class="tool-ic">🔐</div><h3>ENCA access <span class="tag new">BETA</span> <span class="tag new">NEW</span></h3>
+        <p>The two PIM groups for the people who use this workspace. <b>PIM-SG-ENCA-CA-Read</b> — Global Reader and Security Reader, active, for everyone who opens ENCA. <b>PIM-SG-ENCA-CA-Admin</b> — Conditional Access Administrator, the custom <b>ENCA CA Group Operator</b> (tenant-wide and at every restricted CA-RMAU-* unit) and Authentication Policy Administrator, eligible: activate the role the task needs. Every row says why that role. Read, preview, type the domain, apply, read back — and ↩ undo the run. Optional: the design's activation settings, and locking ENCA to the two groups. <span class="tag block">writes to tenant</span></p>
       </div>
       <div class="tool tool-tile" id="toolGsa">
         <div class="tool-ic">🌐</div><h3>Global Secure Access <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
@@ -1223,6 +1227,19 @@
     <div class="tool-body" id="sgBody"></div>
   </section>
 
+  <section id="screen-encaaccess" class="screen tool">
+    <div class="list-card readme" id="eaHead"></div>
+    <div class="toolbar" id="eaToolbar">
+      <div class="tb-actions">
+        <button class="btn" id="eaRefresh" style="display:none" title="Read the groups, roles, units and settings again">⟳ Read again</button>
+        <button class="btn" id="eaMd" style="display:none" title="The table, the why of every role and the activation settings as Markdown">Export MD</button>
+        <button class="btn primary" id="eaPreview" style="display:none" title="Build the plan from this read — nothing is written until ▶ Apply">Preview →</button>
+      </div>
+    </div>
+    <div class="tool-body" id="eaBody"></div>
+    <div class="tool-body" id="eaPlan"></div>
+  </section>
+
   <!-- ============ NAMED LOCATIONS ============ -->
   <section id="screen-locations" class="screen tool">
     <div class="list-card readme" id="loHead"></div>
@@ -1858,6 +1875,10 @@
         <div class="rm-era beta">
           <h3>In beta today <span class="rm-when">running on the beta channel, not yet in production</span></h3>
           <div class="list-card rm-card">
+            <h4 style="margin:0 0 4px"><span class="rm-ref">R94</span> <a href="#" class="md-tool" data-tool="toolEncaAccess">🔐 ENCA access — PIM for the people who use ENCA's Workspace 01</a> <span class="tag ok">in beta today · beta 33308</span></h4>
+            <p class="mini" style="margin:0">Two role-assignable PIM groups, created from the browser by a Tier 0 admin: <code>PIM-SG-ENCA-CA-Read</code> (Global Reader + Security Reader, active) and <code>PIM-SG-ENCA-CA-Admin</code> (Conditional Access Administrator, the custom ENCA CA Group Operator — tenant-wide and at every restricted CA-RMAU-* unit — and Authentication Policy Administrator, eligible, each activated on its own). Every role says why. Optional: the design's activation settings (role-wide, said so) and locking ENCA to the two groups. Undo of the run. Still to come: a role pre-flight before every Workspace 01 write that names the role to activate instead of a bare 403. Design narrowed from six groups for all workspaces (11 Nov) to two for Workspace 01 (13 Nov).</p>
+          </div>
+          <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R87</span> <a href="#" class="md-tool" data-tool="toolPimDoc">📄 PIM documentation — the handover, generated and readable here</a> <span class="tag ok">in beta today · beta 32609</span></h4>
             <p class="mini" style="margin:0">T58 in Workspace 02: the CloudFellows PIM framework as it applies to this tenant — profile, variant, modules and regions folded in — as twelve ticked chapters with the diagrams, readable on the page with a contents list that jumps, and downloadable as one Markdown file with every diagram embedded. As designed from the catalog, or + as found with an In this tenant column from 🧬 PIM baseline's read. The offline handover files no longer have to be kept by hand.</p>
           </div>
@@ -1947,10 +1968,6 @@
           <div class="list-card rm-card">
             <h4 style="margin:0 0 4px"><span class="rm-ref">R47</span> 🖥 Device reality check — the Defender half <span class="tag">planned</span></h4>
             <p class="mini" style="margin:0">🖥 checks the Intune half: is the scope of a compliant-device policy actually assigned a compliance policy. The Defender half is the fleet as Defender for Endpoint sees it (<code>DeviceInfo</code>): join type, sensor health, onboarding, exposure — held against every compliant / hybrid-device policy. The findings only the fleet side can give: devices that can never be compliant because they are not joined, a hybrid-join grant that permanently excludes cloud-native laptops, and “compliant” devices with high exposure. A second tab on the existing tool.</p>
-          </div>
-          <div class="list-card rm-card">
-            <h4 style="margin:0 0 4px"><span class="rm-ref">R94</span> 🔑 PIM for the people who use ENCA <span class="tag">planned</span></h4>
-            <p class="mini" style="margin:0">Which roles does someone need to use ENCA, and when? ENCA signs in as the user, so what it can write is its scopes <i>and</i> the roles that person has active right now — PIM decides the second half. The design: built-in roles in six role-assignable PIM groups, one per job — <code>PIM-SG-ENCA-Read</code> (Global Reader, always active), <code>-CA</code> (Conditional Access Administrator plus one custom <b>ENCA Group Operator</b> role: create groups and manage members, no delete), <code>-AuthMethods</code> (Authentication Policy Administrator), <code>-Apps</code> (Cloud Application Administrator), <code>-SecDefaults</code> (Security Administrator, with approval) and <code>-PIM</code> (Privileged Role Administrator, Tier 0, with approval and phishing-resistant MFA). Not a custom role for everything: Entra custom roles cannot carry Conditional Access, named locations, authentication methods or role management. To build: a <b>role pre-flight</b> before every write (“this needs Conditional Access Administrator — you are eligible through PIM-SG-ENCA-CA, activate and sign in again” instead of a bare 403), <b>create the model</b> from 🔑 PIM-buddy with preview, typed confirmation, read-back and undo, and <b>check the model</b> read-only — groups, roles, activation settings, no nesting, and assignment required on the tenant's own ENCA registration. Design and diagram: project doc <code>ENCA-pim-for-enca-roles</code>.</p>
           </div>
         </div>
         <div class="rm-era future">
@@ -3263,6 +3280,21 @@
       <p class="help-x">Reads are covered by the baseline <code>Directory.Read.All</code>. The write asks for <code>Group.ReadWrite.All</code> once, on the click, and needs a role that can edit the group (Groups Administrator, or the restricted unit's scoped role when the group is protected). Entra re-evaluates a changed rule in the background: accounts the old rule matched and the new one does not leave the group and lose its exclusions; new matches join. The catalog reflects Microsoft's licensing reference as read on 2 September 2026 — the tenant's own SKUs are always preferred over it.</p>
     </section>
 
+    <section class="help-sec">
+      <h4>🔐 ENCA access <span class="tag new">BETA</span> <span class="tag block">writes to tenant</span></h4>
+      <p><b>Workspace 01, T62 (R94).</b> Who may use ENCA's Conditional Access workspace, and when, as two PIM groups. ENCA signs in as the person, so what it can write is its scopes <i>and</i> the roles that person has active right now; these two groups decide the second half.</p>
+      <ul>
+        <li><b>PIM-SG-ENCA-CA-Read</b> — everyone who uses ENCA. <b>Global Reader</b> (every read: Policies, Checks, Baseline compare, What-If, Who is…, Change audit, the sign-in log) and <b>Security Reader</b> (Defender hunting as the sign-in source, which Global Reader does not reach in every tenant), both <b>active</b>: they read everything and change nothing.</li>
+        <li><b>PIM-SG-ENCA-CA-Admin</b> — CA engineers and rollout people. Three roles, each <b>eligible</b> and activated on its own: <b>Conditional Access Administrator</b> (every policy write, named locations, contexts, strengths — CA cannot go into a custom role), the custom <b>ENCA CA Group Operator</b> (create groups, members, dynamic rules, no delete; also eligible at every restricted CA-RMAU-* unit, the only way below Tier 0 to edit a protected exclusion group) and <b>Authentication Policy Administrator</b> (Checks → Passkeys).</li>
+        <li><b>Members</b> are active and direct: a role-assignable group takes no nested group. Add them under People (UPN or name; guests are left out) or in Entra.</li>
+        <li><b>Activation settings</b> (tick): 4 hours (2 for Authentication Policy Administrator), MFA + justification, permanent eligibility. They belong to the <b>role</b>, so the tick changes them for everyone eligible for that role in the tenant; approval, authentication context and notifications are not touched, and a role that asks an authentication context keeps it instead of MFA. The custom role is made in the run itself — read again and tick once more to set its settings.</li>
+        <li><b>Lock ENCA</b> (tick): assignment required on this tenant's ENCA service principal, with both groups assigned. Refused when you are in neither group.</li>
+        <li><b>The run</b> is 🚀 Deploy's runner: Preview lists every operation in order with its permissions, the typed domain arms ▶ Apply, the run ledger shows each step, a just-made group that is not replicated yet is retried, and every PIM rule changed is kept as it was (⬇ Backup). <b>↩ Undo this run</b> builds a second plan from what the run made — assignments removed, people taken out, rules put back, the groups and the custom role deleted — newest first, with its own preview and typed domain.</li>
+        <li><b>Never done here:</b> Privileged Role Administrator for the operators (Tier 0 stays out of both groups), creating the CA-RMAU-* units (🔒 Protect exclusions), removing or renaming anything that exists, editing an existing custom role. An assignment held another way — active where the design says eligible — is reported and left.</li>
+      </ul>
+      <p class="help-x">Reads: RoleManagement.Read.Directory, RoleManagementPolicy.Read.Directory, AdministrativeUnit.Read.All, Application.Read.All. Writes, asked on ▶ Apply: Group.ReadWrite.All and RoleManagement.ReadWrite.Directory (groups, roles, assignments, members), RoleManagementPolicy.ReadWrite.Directory (the ticked settings), Application.ReadWrite.All and AppRoleAssignment.ReadWrite.All (the ticked lock). Run by Privileged Role Administrator or Global Administrator; eligible assignments need Entra ID P2, the custom role P1. Design: project doc ENCA-pim-for-enca-roles (v3).</p>
+    </section>
+
         <section class="help-sec">
       <h4>🔒 Protect exclusions <span class="tag upd">UPDATED</span> <span class="tag block">writes to tenant</span></h4>
       <p>An exclusion group is exposed in two ways, and one lock does not cover the other: <b>who can change its members</b> (a restricted management administrative unit — the vault) and <b>whether a group can be nested into it</b> (the group's <code>disableNesting</code> setting — otherwise anyone who can edit some other group can put that group inside the exclusion and walk through the policy). This tool shows <b>both locks per group in one table</b> and applies either or both in one run. It is the standalone version of Conditional Access groups → ⑥ Protect and shares that scan and selection.</p>
@@ -4345,127 +4377,128 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=33307"></script>
-<script src="js/selfhost.js?v=33307"></script>
-<script src="js/version.js?v=33307"></script>
-<script src="js/verdict.js?v=33307"></script>
-<script src="js/fork.js?v=33307"></script>
-<script src="js/promote.js?v=33307"></script>
-<script src="js/authConfig.js?v=33307"></script>
-<script src="js/connection.js?v=33307"></script>
-<script src="js/labels.js?v=33307"></script>
-<script src="js/capabilities.js?v=33307"></script>
-<script src="js/graph.js?v=33307"></script>
-<script src="js/model.js?v=33307"></script>
-<script src="js/render.js?v=33307"></script>
-<script src="js/analyze.js?v=33307"></script>
-<script src="js/whatif.js?v=33307"></script>
-<script src="js/mslearn.js?v=33307"></script>
-<script src="js/learntriage.js?v=33307"></script>
-<script src="js/learnfeed.js?v=33307"></script>
-<script src="js/gapcheck.js?v=33307"></script>
-<script src="js/cisdata.js?v=33307"></script>
-<script src="js/cischeck.js?v=33307"></script>
-<script src="js/exclusions.js?v=33307"></script>
-<script src="js/cascope.js?v=33307"></script>
-<script src="js/coverage.js?v=33307"></script>
-<script src="js/runmeta.js?v=33307"></script>
-<script src="js/overview.js?v=33307"></script>
-<script src="js/validator.js?v=33307"></script>
-<script src="js/whatifeval.js?v=33307"></script>
-<script src="js/builder.js?v=33307"></script>
-<script src="js/onboard.js?v=33307"></script>
-<script src="js/compare.js?v=33307"></script>
-<script src="js/whois.js?v=33307"></script>
-<script src="js/wave.js?v=33307"></script>
-<script src="js/sessionctl.js?v=33307"></script>
-<script src="js/spgap.js?v=33307"></script>
-<script src="js/groupuse.js?v=33307"></script>
-<script src="js/iso3166.js?v=33307"></script>
-<script src="js/causes.js?v=33307"></script>
-<script src="js/locations.js?v=33307"></script>
-<script src="js/locsignin.js?v=33307"></script>
-<script src="js/workloadid.js?v=33307"></script>
-<script src="js/authcontexts.js?v=33307"></script>
-<script src="js/authstrengths.js?v=33307"></script>
-<script src="js/recycle.js?v=33307"></script>
-<script src="js/rmau.js?v=33307"></script>
-<script src="js/auinv.js?v=33307"></script>
-<script src="js/camap.js?v=33307"></script>
-<script src="js/rmaudoc.js?v=33307"></script>
-<script src="js/termsofuse.js?v=33307"></script>
-<script src="js/audit.js?v=33307"></script>
-<script src="js/drift.js?v=33307"></script>
-<script src="js/guide.js?v=33307"></script>
-<script src="js/userimpact.js?v=33307"></script>
-<script src="js/smsvoice.js?v=33307"></script>
-<script src="js/memberof.js?v=33307"></script>
-<script src="js/devcheck.js?v=33307"></script>
-<script src="js/idscore.js?v=33307"></script>
-<script src="js/xtenant.js?v=33307"></script>
-<script src="js/passkeys.js?v=33307"></script>
-<script src="js/tokencov.js?v=33307"></script>
-<script src="js/naming.js?v=33307"></script>
-<script src="js/licgap.js?v=33307"></script>
-<script src="js/teamsdev.js?v=33307"></script>
-<script src="js/signinstore.js?v=33307"></script>
-<script src="js/signins.js?v=33307"></script>
-<script src="js/reportimpact.js?v=33307"></script>
-<script src="js/changelog.js?v=33307"></script>
-<script src="js/baselineData.js?v=33307"></script>
-<script src="js/baselineJoeyData.js?v=33307"></script>
-<script src="js/baselineSmbData.js?v=33307"></script>
-<script src="js/baselineLive.js?v=33307"></script>
-<script src="js/pimBaselineData.js?v=33307"></script>
-<script src="js/pimbaseline.js?v=33307"></script>
-<script src="js/pimplan.js?v=33307"></script>
-<script src="js/pimrmau.js?v=33307"></script>
-<script src="js/intunerbac.js?v=33307"></script>
-<script src="js/pimroles.js?v=33307"></script>
-<script src="js/pimreport.js?v=33307"></script>
-<script src="js/pimdoc.js?v=33307"></script>
-<script src="js/pimmodules.js?v=33307"></script>
-<script src="js/pimdeploy.js?v=33307"></script>
-<script src="js/pimscript.js?v=33307"></script>
-<script src="js/pimdesigner.js?v=33307"></script>
-<script src="js/pimcatalog.js?v=33307"></script>
-<script src="js/pimlens.js?v=33307"></script>
-<script src="js/baseline.js?v=33307"></script>
-<script src="js/eadminsData.js?v=33307"></script>
-<script src="js/joeyPlusData.js?v=33307"></script>
-<script src="js/secdefaults.js?v=33307"></script>
-<script src="js/baselineCleanup.js?v=33307"></script>
-<script src="js/groupTemplates.js?v=33307"></script>
-<script src="js/assign.js?v=33307"></script>
-<script src="js/cagroups.js?v=33307"></script>
-<script src="js/groupmerge.js?v=33307"></script>
-<script src="js/dgfill.js?v=33307"></script>
-<script src="js/dgadd.js?v=33307"></script>
-<script src="js/deploydash.js?v=33307"></script>
-<script src="js/trv2.js?v=33307"></script>
-<script src="js/gsa.js?v=33307"></script>
-<script src="js/egress.js?v=33307"></script>
-<script src="js/devicecleanup.js?v=33307"></script>
-<script src="js/appaccess.js?v=33307"></script>
-<script src="js/m365harden.js?v=33307"></script>
-<script src="js/groupsview.js?v=33307"></script>
-<script src="js/runledger.js?v=33307"></script>
-<script src="js/bgvault.js?v=33307"></script>
-<script src="js/protect.js?v=33307"></script>
-<script src="js/policy-compare.js?v=33307"></script>
-<script src="js/import.js?v=33307"></script>
-<script src="js/dgtrial.js?v=33307"></script>
-<script src="js/export.js?v=33307"></script>
-<script src="js/demo.js?v=33307"></script>
-<script src="js/list-detail.js?v=33307"></script>
-<script src="js/flat-icons.js?v=33307"></script>
-<script src="js/workspace.js?v=33307"></script>
-<script src="js/analysis-jobs.js?v=33307"></script>
-<script src="js/search-suggest.js?v=33307"></script>
-<script src="js/app.js?v=33307"></script>
-<script src="js/col-resize.js?v=33307"></script>
-<script src="js/accessibility.js?v=33307"></script>
-<script src="js/workspaces.js?v=33307"></script>
-<script src="js/tool-layout.js?v=33307"></script>
+<script src="js/branding.js?v=33308"></script>
+<script src="js/selfhost.js?v=33308"></script>
+<script src="js/version.js?v=33308"></script>
+<script src="js/verdict.js?v=33308"></script>
+<script src="js/fork.js?v=33308"></script>
+<script src="js/promote.js?v=33308"></script>
+<script src="js/authConfig.js?v=33308"></script>
+<script src="js/connection.js?v=33308"></script>
+<script src="js/labels.js?v=33308"></script>
+<script src="js/capabilities.js?v=33308"></script>
+<script src="js/graph.js?v=33308"></script>
+<script src="js/model.js?v=33308"></script>
+<script src="js/render.js?v=33308"></script>
+<script src="js/analyze.js?v=33308"></script>
+<script src="js/whatif.js?v=33308"></script>
+<script src="js/mslearn.js?v=33308"></script>
+<script src="js/learntriage.js?v=33308"></script>
+<script src="js/learnfeed.js?v=33308"></script>
+<script src="js/gapcheck.js?v=33308"></script>
+<script src="js/cisdata.js?v=33308"></script>
+<script src="js/cischeck.js?v=33308"></script>
+<script src="js/exclusions.js?v=33308"></script>
+<script src="js/cascope.js?v=33308"></script>
+<script src="js/coverage.js?v=33308"></script>
+<script src="js/runmeta.js?v=33308"></script>
+<script src="js/overview.js?v=33308"></script>
+<script src="js/validator.js?v=33308"></script>
+<script src="js/whatifeval.js?v=33308"></script>
+<script src="js/builder.js?v=33308"></script>
+<script src="js/onboard.js?v=33308"></script>
+<script src="js/compare.js?v=33308"></script>
+<script src="js/whois.js?v=33308"></script>
+<script src="js/wave.js?v=33308"></script>
+<script src="js/sessionctl.js?v=33308"></script>
+<script src="js/spgap.js?v=33308"></script>
+<script src="js/groupuse.js?v=33308"></script>
+<script src="js/iso3166.js?v=33308"></script>
+<script src="js/causes.js?v=33308"></script>
+<script src="js/locations.js?v=33308"></script>
+<script src="js/locsignin.js?v=33308"></script>
+<script src="js/workloadid.js?v=33308"></script>
+<script src="js/authcontexts.js?v=33308"></script>
+<script src="js/authstrengths.js?v=33308"></script>
+<script src="js/recycle.js?v=33308"></script>
+<script src="js/rmau.js?v=33308"></script>
+<script src="js/auinv.js?v=33308"></script>
+<script src="js/camap.js?v=33308"></script>
+<script src="js/rmaudoc.js?v=33308"></script>
+<script src="js/termsofuse.js?v=33308"></script>
+<script src="js/audit.js?v=33308"></script>
+<script src="js/drift.js?v=33308"></script>
+<script src="js/guide.js?v=33308"></script>
+<script src="js/userimpact.js?v=33308"></script>
+<script src="js/smsvoice.js?v=33308"></script>
+<script src="js/memberof.js?v=33308"></script>
+<script src="js/devcheck.js?v=33308"></script>
+<script src="js/idscore.js?v=33308"></script>
+<script src="js/xtenant.js?v=33308"></script>
+<script src="js/passkeys.js?v=33308"></script>
+<script src="js/tokencov.js?v=33308"></script>
+<script src="js/naming.js?v=33308"></script>
+<script src="js/licgap.js?v=33308"></script>
+<script src="js/teamsdev.js?v=33308"></script>
+<script src="js/signinstore.js?v=33308"></script>
+<script src="js/signins.js?v=33308"></script>
+<script src="js/reportimpact.js?v=33308"></script>
+<script src="js/changelog.js?v=33308"></script>
+<script src="js/baselineData.js?v=33308"></script>
+<script src="js/baselineJoeyData.js?v=33308"></script>
+<script src="js/baselineSmbData.js?v=33308"></script>
+<script src="js/baselineLive.js?v=33308"></script>
+<script src="js/pimBaselineData.js?v=33308"></script>
+<script src="js/pimbaseline.js?v=33308"></script>
+<script src="js/pimplan.js?v=33308"></script>
+<script src="js/encaaccess.js?v=33308"></script>
+<script src="js/pimrmau.js?v=33308"></script>
+<script src="js/intunerbac.js?v=33308"></script>
+<script src="js/pimroles.js?v=33308"></script>
+<script src="js/pimreport.js?v=33308"></script>
+<script src="js/pimdoc.js?v=33308"></script>
+<script src="js/pimmodules.js?v=33308"></script>
+<script src="js/pimdeploy.js?v=33308"></script>
+<script src="js/pimscript.js?v=33308"></script>
+<script src="js/pimdesigner.js?v=33308"></script>
+<script src="js/pimcatalog.js?v=33308"></script>
+<script src="js/pimlens.js?v=33308"></script>
+<script src="js/baseline.js?v=33308"></script>
+<script src="js/eadminsData.js?v=33308"></script>
+<script src="js/joeyPlusData.js?v=33308"></script>
+<script src="js/secdefaults.js?v=33308"></script>
+<script src="js/baselineCleanup.js?v=33308"></script>
+<script src="js/groupTemplates.js?v=33308"></script>
+<script src="js/assign.js?v=33308"></script>
+<script src="js/cagroups.js?v=33308"></script>
+<script src="js/groupmerge.js?v=33308"></script>
+<script src="js/dgfill.js?v=33308"></script>
+<script src="js/dgadd.js?v=33308"></script>
+<script src="js/deploydash.js?v=33308"></script>
+<script src="js/trv2.js?v=33308"></script>
+<script src="js/gsa.js?v=33308"></script>
+<script src="js/egress.js?v=33308"></script>
+<script src="js/devicecleanup.js?v=33308"></script>
+<script src="js/appaccess.js?v=33308"></script>
+<script src="js/m365harden.js?v=33308"></script>
+<script src="js/groupsview.js?v=33308"></script>
+<script src="js/runledger.js?v=33308"></script>
+<script src="js/bgvault.js?v=33308"></script>
+<script src="js/protect.js?v=33308"></script>
+<script src="js/policy-compare.js?v=33308"></script>
+<script src="js/import.js?v=33308"></script>
+<script src="js/dgtrial.js?v=33308"></script>
+<script src="js/export.js?v=33308"></script>
+<script src="js/demo.js?v=33308"></script>
+<script src="js/list-detail.js?v=33308"></script>
+<script src="js/flat-icons.js?v=33308"></script>
+<script src="js/workspace.js?v=33308"></script>
+<script src="js/analysis-jobs.js?v=33308"></script>
+<script src="js/search-suggest.js?v=33308"></script>
+<script src="js/app.js?v=33308"></script>
+<script src="js/col-resize.js?v=33308"></script>
+<script src="js/accessibility.js?v=33308"></script>
+<script src="js/workspaces.js?v=33308"></script>
+<script src="js/tool-layout.js?v=33308"></script>
 </body>
 </html>

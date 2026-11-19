@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33308, date: "2026-11-19", title: "🔐 ENCA access: the PIM groups for the people who use the Conditional Access workspace",
+    items: [
+      { kind: "new", tool: "ENCA access", text: "🔐 A new Workspace 01 tool creates the two PIM groups the ENCA design (R94) asks for. PIM-SG-ENCA-CA-Read holds Global Reader and Security Reader, active, for everyone who opens ENCA. PIM-SG-ENCA-CA-Admin holds Conditional Access Administrator, a custom ENCA CA Group Operator role (create groups and manage members, no delete; also at every restricted CA-RMAU-* unit) and Authentication Policy Administrator, eligible, so a member activates only the role the task needs. Every row says why that role. Add the members, preview, type the domain, apply — and undo the run if you need to." },
+      { kind: "new", tool: "ENCA access", text: "🔐 Two optional ticks: set the design's activation settings (4 hours, MFA and justification, permanent eligibility) — which the tool says plainly changes them for everyone eligible for those roles — and lock ENCA's sign-in to the two groups, refused when you would lock yourself out." },
+    ],
+  },
+  {
     build: 33307, date: "2026-11-18", title: "🚪 Exclusion analyzer: a deleted group in an exclusion no longer stops the scan",
     items: [
       { kind: "fixed", tool: "Exclusion analyzer", text: "🚪 A policy that still excludes a deleted group stopped the whole scan with Failed: Exclusion membership incomplete … (404). A policy keeps a group's object id after the group is deleted; Graph answering 404 for it means nobody is excluded through it, not that the read failed. The scan now finishes with complete totals." },

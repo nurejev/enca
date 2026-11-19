@@ -182,6 +182,26 @@ const PROMOTE = {
 
   items: [
     {
+      n: 389,
+      ws: "ca",
+      title: "🔐 ENCA access T62 0.1.0: the two PIM groups for Workspace 01 (Read active, Admin eligible), custom ENCA CA Group Operator, optional activation settings and ENCA lock, undo",
+      tools: ["EncaAccess"],
+      builds: [33308],
+      risk: "medium",
+      files: ["js/encaaccess.js", "js/app.js", "css/app.css", "index.html", "js/workspaces.js", "js/flat-icons.js", "js/version.js", "js/changelog.js", "js/promote.js", "tools/encaaccess.test.cjs"],
+      what: "33308 (Mihai 19 Nov: create a tool in ENCA to create the PIM groups for using ENCA, CA workspace only, the reader and the operator; mockup approved with the activation settings added and a why per role). New pure module js/encaaccess.js (compare / plan / undoPlan / render / toMd) on PimPlan; app.js block openEncaAccess / eaRead / eaPreview reuses pimPlanPanel + pimPlanWire + pimApply. Creates PIM-SG-ENCA-CA-Read (role-assignable; Global Reader + Security Reader ACTIVE) and PIM-SG-ENCA-CA-Admin (role-assignable; Conditional Access Administrator, custom ENCA CA Group Operator at tenant and every restricted CA-RMAU-* unit, Authentication Policy Administrator ELIGIBLE), the custom role (groups create, members/update, basic/update, dynamicMembershipRule/update, standard/read, members/read), direct members. Ticked: three PIM rules per eligible role (Expiration_EndUser_Assignment 4h/2h, Enablement MFA+Justification unless auth context, Expiration_Admin_Eligibility permanent) with before kept; ENCA lock (appRoleAssignedTo both groups, then appRoleAssignmentRequired). Blocks on no PRA/GA, a non-role-assignable or duplicate group, self-lockout. Undo plan: adminRemove the requests, DELETE members and app assignments, PATCH rules back, DELETE the custom role and the groups, reverse order. R94 card to In beta today.",
+      why: "The R94 design had no way into a tenant except by hand in PIM; doing it by hand gets the role-assignable flag, the RMAU scopes and the eligible-vs-active split wrong easily.",
+      test: [
+        "node --test tools/encaaccess.test.cjs: all green.",
+        "Demo (?demo=1): 🔐 ENCA access → Read → 2 groups, the custom role and 7 assignments marked create, each with its why; Preview lists them groups first, then the custom role, then the requests; typed domain contoso.nl arms Apply; the simulated run finishes and Undo this run appears.",
+        "cloudfellows.dev, Privileged Role Administrator active: Read → Preview → Apply: PIM-SG-ENCA-CA-Read and -Admin exist and are role-assignable; Entra roles: Read active in Global Reader and Security Reader, Admin eligible for CAA, ENCA CA Group Operator (tenant + each CA-RMAU-*) and Authentication Policy Administrator; Read again shows every row ✓ exists.",
+        "Without PRA/GA active: Preview is blocked and says which role to activate.",
+        "Tick the activation settings: Preview shows the rule PATCHes marked for EVERYONE; after Apply, CAA reads 4h · MFA · justification; ⬇ Backup holds the rules as they were; Undo puts them back.",
+        "Tick Lock ENCA with yourself in neither group: blocked. With yourself in Read: Apply assigns both groups and turns assignment required on; a test user outside the groups gets not assigned at sign-in; Undo turns it off.",
+        "Undo this run on cloudfellows.dev: assignments gone, groups and the custom role deleted (groups in Deleted items).",
+      ],
+    },
+    {
       n: 388,
       ws: "ca",
       title: "🚪 Exclusion analyzer 1.18.1: an excluded group that is not in the directory no longer stops the scan — it is reported as a dead reference",
