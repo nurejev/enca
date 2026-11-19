@@ -21448,7 +21448,13 @@ This is a directory write. Nothing else changes.`)) return;
   // read — a single user's window is small, so it never needs the 10,000
   // cap — unless the shared window is already in memory and uncapped, in
   // which case it is filtered from there and the tenant is not read twice.
-  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSfilter = "any", woSeedList = "", woLogSkipped = "";
+  let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSfilter = "any", woAfilter = "all", woSeedList = "", woLogSkipped = "";
+  // What the applications card (1.5.0) says about its source: "no sign-in to
+  // this app" on an interactive-only read is not "does not use it".
+  const woSrc = () => ({ label: logSourceLabel(), nonInteractive: logSource === "huntall" || logSource === "entraall", fuller: logSource === "hunt" ? "Hunting + non-interactive" : "Entra + non-interactive or Hunting + non-interactive" });
+  // "N days ago" counts from now — except in the demo, whose sign-ins carry
+  // fixed dates and would all read as months old.
+  const woNow = () => { if (!isDemo) return undefined; let m = 0; demoSignIns().forEach((r) => { const t = Date.parse(r.createdDateTime); if (t > m) m = t; }); return m || undefined; };
   const woProg = makeProgress("wo");
   const WO_METHODS = ["UserAuthenticationMethod.Read.All"];
   // Identity Protection: the user's risk record + the detections behind it.
@@ -21659,7 +21665,7 @@ This is a directory write. Nothing else changes.`)) return;
       if (runKey !== logReadKey(woDays)) throw new Error("Read discarded: selected range, source or tenant changed");
       woProg.check();
       if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
-      woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays });
+      woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays, now: woNow() });
       Object.assign(woRes, { records, cat, dgPresent });   // kept so the optional risk read can re-derive without re-reading
       woBusy = false;
       $("woRescan").style.display = ""; $("woMd").style.display = ""; $("woCsv").style.display = "";
@@ -21673,7 +21679,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderWhoIs() {
     const R = woRes; if (!R) return;
-    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, logSkipped: woLogSkipped });
+    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, appFilter: woAfilter, source: woSrc(), logSkipped: woLogSkipped });
     applyFolds("woBody");
   }
   $("woBody").addEventListener("click", async (e) => {
@@ -21681,7 +21687,9 @@ This is a directory write. Nothing else changes.`)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
     const f = e.target.closest("[data-wo-filter]"); if (f) { woFilter = f.dataset.woFilter; renderWhoIs(); return; }
     const sf = e.target.closest("[data-wo-sfilter]"); if (sf) { woSfilter = sf.dataset.woSfilter; renderWhoIs(); return; }
+    const af = e.target.closest("[data-wo-afilter]"); if (af) { woAfilter = af.dataset.woAfilter; renderWhoIs(); return; }
     const R = woRes; if (!R) return;
+    if (e.target.closest("[data-wo-appcsv]")) { downloadText(`CA-WhoIs-apps-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", WhoIs.appsCsv(R)); return; }
     if (e.target.closest("[data-wo-compare]")) {
       // Compare adds by term; hand it the UPN and let it resolve, so the
       // comparison starts with this user and the second one is a keystroke away.
@@ -21706,7 +21714,7 @@ This is a directory write. Nothing else changes.`)) return;
       // the risk half of the result is derived, so re-derive it
       woProg.check();
       if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
-      woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays });
+      woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays, now: woNow() });
       if (R.user.risk && R.user.risk.err) toast(`Identity risk: <span>${esc(R.user.risk.err)}</span>`);
       renderWhoIs();
     }
@@ -21714,7 +21722,7 @@ This is a directory write. Nothing else changes.`)) return;
   $("woMd").addEventListener("click", () => {
     const R = woRes; if (!R) return;
     showReport("🕵 Who is … to CA", `CA-WhoIs-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`,
-      WhoIs.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(woDays) }));
+      WhoIs.toMd(R, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(woDays), source: woSrc() }));
   });
   $("woCsv").addEventListener("click", () => {
     const R = woRes; if (!R) return;

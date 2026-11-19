@@ -182,6 +182,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 391,
+      ws: "ca",
+      title: "🕵 Who is Anna to CA T36 1.5.0: 🗃 Applications she signs in to — one row per application with its resources, sign-ins, last sign-in, and the exclusions that cover it; a callout for an exclusion nothing in the window uses",
+      tools: ["Who is … to CA"],
+      builds: [33310],
+      risk: "low",
+      files: ["js/whois.js", "js/app.js", "css/app.css", "js/version.js", "js/changelog.js", "js/promote.js", "index.html", "tools/whois-apps.test.cjs"],
+      what: "33310 (Mihai 19 Nov: T36 needs a list of the applications she logs on to — users get excluded from a policy because they need Viva Engage, later that may not be needed, and then we need to know what the user is using; mockup approved). js/whois.js: buildLookup carries the policy’s resource scope (apps: include ids, exclude ids, the vm’s labels, application filter); new appsOf(recs, failedIds, rows, now) → res.apps — one row per application keyed on appId, the resources it reached, count, stopped, non-interactive, first, last, days since, and per row the policies with s exc and state not off whose scope covers the sign-in’s appId or resourceId (all / app / group; excludeApplications takes it back out). unused = such a policy that names its applications (no All, no app group, no application filter) with no covered sign-in. render: the 🗃 card between 💻 Devices and 🔐 MFA, chips data-wo-afilter, ⭳ CSV data-wo-appcsv (WhoIs.appsCsv), toMd section. app.js: woAfilter, woSrc (label, non-interactive or not, the fuller source to name), woNow (demo only). css: .wo-xchip. No Graph read, no scope and no write added.",
+      why: "Reads only, from records the tool already holds, so there is nothing to break in a tenant; the risk is a wrong conclusion. Two things to hold it to before production: the Excluded from chips on a real tenant must agree with the policies table of the same user (every chip is a row that reads Excluded there), and the no-sign-in callout must only ever appear for a policy that names applications. The app-group match is deliberately partial — core services only — and says so on the card.",
+      test: [
+        "node --test tools/whois-apps.test.cjs: 10 tests green.",
+        "Demo (?demo=1): 🕵 Who is … to CA → read Eva Employee, 30 days: the 🗃 Applications card sits between 💻 Devices and 🔐 MFA, lists her applications with sign-in counts that add up to the sign-ins read on the tile, and folds on its heading.",
+        "A tenant where a user is in an exclusion group on an enforced all-resources policy: every application row carries that policy as a plain chip; the chip’s tooltip names the exclusion group; clicking it opens the policy card; the same policy reads Excluded in the Policies table above.",
+        "A user excluded from a policy that names one application she has not used in the window (30 days, Hunting + non-interactive): the amber callout names the policy, the exclusion group and the application. Sign her in to that application once and read again: the callout is gone and the row carries a red chip.",
+        "Same user on the Entra sign-in log source: the callout adds that the source is interactive only and names the fuller source; on Hunting + non-interactive that sentence is absent and rows show a non-interactive count.",
+        "An application opened inside Teams (Viva Engage, Planner): the Teams row lists it under reaches, and a policy naming that resource puts a red chip on the Teams row.",
+        "Chips: Covered by an exclusion, Stopped and Not seen for 14 days each narrow the table to the count on the chip; a chip with zero is not offered. ⭳ CSV downloads one line per application with the excluded_from column filled.",
+        "MD brief: the section Applications she signs in to follows Devices, with the same rows and the candidate line.",
+      ],
+    },
+    {
       n: 390,
       ws: "ca",
       title: "🚦 Sign-in log T17 2.8.1 + 🕓 Changes T16 1.11.1: the split-view list reads a table row as words (no numbers run together, every value labelled), the policy label pins to the panel",

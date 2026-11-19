@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33310, date: "2026-11-19", title: "🕵 Who is … to CA: the applications she signs in to, and the exclusions that cover them",
+    items: [
+      { kind: "new", tool: "Who is … to CA", text: "🕵 A new card, Applications she signs in to, lists every application from her own sign-ins of the window: the resources it reached, the number of sign-ins, how many Conditional Access stopped and when she last signed in. It is the list you need when somebody was excluded from a policy for one application — Viva Engage, say — and you want to know whether she still uses it." },
+      { kind: "new", tool: "Who is … to CA", text: "🕵 Each application shows the policies she is EXCLUDED FROM that would otherwise cover it, with the exclusion group on the chip. Red means the policy names that application; plain means the policy covers every resource. When a policy names its applications and none of them shows a sign-in in the window, a callout says so: that exclusion is a candidate to remove." },
+      { kind: "new", tool: "Who is … to CA", text: "🕵 The card says which sign-in source it read. On an interactive-only source an application she reaches on a token refresh does not show, so the callout asks for the fuller source and 30 days before she is taken out. Filter chips, a CSV of every application, and the table in the Markdown brief. Nothing extra is read and no new permission is asked." },
+    ],
+  },
+  {
     build: 33309, date: "2026-11-19", title: "🚦 Sign-in log: the per-policy list reads as words again",
     items: [
       { kind: "fixed", tool: "Sign-in log", text: "🚦 Per policy, the list beside the detail panel ran two numbers of one column together — 1105 failures with 21 interrupted read 110521 interrupted — and showed the rest without the column headers that explained it. Each row now says what its numbers are: failures, interrupted, users, most affected, the controls not met and the last failure. A policy for which the log names no control says so instead of showing a dash." },

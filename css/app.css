@@ -2160,6 +2160,10 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-cnt{white-space:nowrap}
 .wo-tbl .ctrl{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap}
 .wo-tbl .ctrl.block{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--off)}
+/* 1.5.0 — an exclusion that covers the application: red when the policy names it, plain when it covers every resource */
+.wo-tbl .wo-xchip{display:inline-block;background:var(--bad-bg);border:1px solid var(--bad-bd);color:var(--off);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 3px 1px 0;white-space:nowrap}
+.wo-tbl .wo-xchip.all{background:var(--soft);border-color:var(--border);color:inherit}
+.wo-tbl .wo-xchip:hover{text-decoration:none;border-color:currentColor}
 /* The Flags cell wraps (25343). One chip per policy instead of one nowrap
    span holding a comma list: the cell grows DOWN, so the column can never
    force the table past its card again. The cap is what guarantees it — the

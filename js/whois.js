@@ -21,6 +21,7 @@
 //   WhoIs.analyze({ user, vms, records, cat, dgPresent })  → res
 //   WhoIs.render(res, opts)                                 → html
 //   WhoIs.toMd(res, meta)                                   → markdown
+//   WhoIs.appsCsv(res)                                      → csv of the applications card (1.5.0)
 //
 // user     the shape Comparer.resolveUser returns, plus (optional)
 //          direct:Set of direct group ids, via:{groupId:[parentName]},
@@ -69,6 +70,12 @@ const WhoIs = (() => {
         builtIn: (((p.grantControls || {}).builtInControls) || []).map((x) => String(x)),
         retired: (((p.grantControls || {}).builtInControls) || []).some((x) => /^approvedApplication$/i.test(String(x))),
         session: (vm.session || []).map((x) => (x && typeof x === "object") ? x.t : x).filter(Boolean),
+        // the RESOURCE scope (1.5.0) — ids for deciding, the vm's labels for
+        // reading (vm.apps.inc lists the include applications first, in order)
+        apps: (() => {
+          const a = (p.conditions || {}).applications || {}, inc = (a.includeApplications || []).map(String), nm = (vm.apps && vm.apps.inc) || [];
+          return { inc, exc: (a.excludeApplications || []).map(String), names: Object.fromEntries(inc.map((id, i) => [lc(id), nm[i] || id])), filter: !!a.applicationFilter };
+        })(),
         block: ((vm.grant && vm.grant.controls) || []).some((c) => /^block/i.test(String(c))),
         // risk-based = needs Entra ID P2 on every targeted user
         risk: !!(((p.conditions || {}).userRiskLevels || []).length || ((p.conditions || {}).signInRiskLevels || []).length || ((p.conditions || {}).insiderRiskLevels || []).length),
@@ -314,6 +321,107 @@ const WhoIs = (() => {
     return { ...tot, devices: tot.devices.size, freshDevices: tot.freshDevices.size, policies: [...tot.policies.values()].sort((x, y) => y.n - x.n), apps: rows };
   }
 
+  // ------------------------------------------------------------- apps --
+  // "She was excluded from a policy because she needed Viva Engage — does
+  // she still use it?" (1.5.0, Mihai 19 Nov 2026). An exclusion is granted
+  // for an application and then outlives the need; reviewing it starts with
+  // what she actually signs in to. One row per APPLICATION (the client that
+  // asked), with the RESOURCES it reached underneath — Conditional Access
+  // decides on the resource, so Viva Engage opened inside Teams is a Teams
+  // row that reaches Viva Engage, and the match below reads both ids.
+  //
+  // Excluded from = a policy that is not Off, that would reach her (include
+  // scope) and that an exclusion takes her out of — rows with s === "exc" —
+  // whose RESOURCE scope covers the sign-in. "all" = the policy covers every
+  // resource, so the chip is on every row and says nothing about this app;
+  // "app" = the policy names it; "group" = through an app group.
+  //
+  // An app group is matched on the suite's core services only: Microsoft
+  // does not publish the membership of Office 365 or Microsoft Admin Portals
+  // in a readable place, so a group match is said to be one and a group
+  // policy is never called unused.
+  const APP_GROUPS = {
+    office365: ["00000002-0000-0ff1-ce00-000000000000", "00000003-0000-0ff1-ce00-000000000000", "00000004-0000-0ff1-ce00-000000000000", "00000005-0000-0ff1-ce00-000000000000", "00000006-0000-0ff1-ce00-000000000000", "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe", "4765445b-32c6-49b0-83e6-1d93765276ca"],
+    microsoftadminportals: ["c44b4083-3bb0-49c1-b47d-974e53cbdf3c"],
+  };
+  const APP_STALE_DAYS = 14;
+  const COVER_RANK = { all: 1, group: 2, app: 3 };
+  const COVER_TEXT = { all: "it covers every resource", group: "through an app group it names", app: "it names this application" };
+  const scopeHit = (list, ids) => {
+    let best = "";
+    for (const x of list || []) {
+      const k = lc(x);
+      const h = k === "all" ? "all" : ids.has(k) ? "app" : (APP_GROUPS[k] && APP_GROUPS[k].some((g) => ids.has(g))) ? "group" : "";
+      if (h && (COVER_RANK[h] > (COVER_RANK[best] || 0))) best = h;
+    }
+    return best;
+  };
+  // "" = this sign-in is outside the policy's resource scope
+  const coverOf = (A, ids) => {
+    const inc = scopeHit(A.inc, ids);
+    if (!inc) return "";
+    return scopeHit(A.exc, ids) ? "" : inc;
+  };
+  const isSpecific = (A) => A.inc.length > 0 && !A.filter && A.inc.every((x) => lc(x) !== "all" && lc(x) !== "none" && !APP_GROUPS[lc(x)]);
+  function appsOf(recs, failedIds, rows, now) {
+    const exRows = (rows || []).filter((r) => r.s === "exc" && r.state !== "off" && r.apps);
+    const excl = exRows.filter((r) => r.apps.inc.length);
+    const seen = new Map(excl.map((P) => [P.id, 0]));
+    const interactiveOf = (typeof Signins !== "undefined" && Signins.isInteractive) ? Signins.isInteractive : () => true;
+    const out = new Map();
+    let nonInteractive = 0;
+    (recs || []).forEach((r) => {
+      const name = r.appDisplayName || r.resourceDisplayName || "(app)";
+      const appId = lc(r.appId), resId = lc(r.resourceId);
+      const key = appId || lc(name);
+      let a = out.get(key);
+      if (!a) out.set(key, a = { key, app: name, appId: r.appId || "", count: 0, stopped: 0, nonInteractive: 0, last: "", first: "", resources: new Map(), devices: new Set(), excluded: new Map() });
+      a.count++;
+      if (failedIds && failedIds.has(r.id)) a.stopped++;
+      if (!interactiveOf(r)) { a.nonInteractive++; nonInteractive++; }
+      const when = String(r.createdDateTime || "");
+      if (when > a.last) a.last = when;
+      if (when && (!a.first || when < a.first)) a.first = when;
+      const resName = r.resourceDisplayName || "";
+      if (resName || resId) {
+        const rk = resId || lc(resName);
+        const e = a.resources.get(rk) || a.resources.set(rk, { id: r.resourceId || "", name: resName || r.resourceId, n: 0 }).get(rk);
+        e.n++;
+      }
+      const dd = r.deviceDetail || {};
+      a.devices.add(dd.deviceId || dd.displayName || `${dd.operatingSystem || ""}|${dd.browser || ""}`);
+      if (!excl.length) return;
+      const ids = new Set([appId, resId].filter(Boolean));
+      excl.forEach((P) => {
+        const how = coverOf(P.apps, ids);
+        if (!how) return;
+        seen.set(P.id, seen.get(P.id) + 1);
+        const e = a.excluded.get(P.id) || a.excluded.set(P.id, { id: P.id, seq: P.seq, name: P.name, state: P.state, how, n: 0, via: (P.exc || {}).text || "", viaHow: (P.exc || {}).how || "" }).get(P.id);
+        e.n++;
+        if (COVER_RANK[how] > COVER_RANK[e.how]) e.how = how;
+      });
+    });
+    const ref = now || Date.now();
+    const list = [...out.values()].map((a) => {
+      const t = Date.parse(a.last);
+      const days = Number.isFinite(t) ? Math.max(0, Math.floor((ref - t) / 86400000)) : null;
+      const excluded = [...a.excluded.values()].sort((x, y) => (COVER_RANK[y.how] - COVER_RANK[x.how]) || (x.seq || x.name).localeCompare(y.seq || y.name));
+      return { ...a, resources: [...a.resources.values()].sort((x, y) => y.n - x.n), devices: a.devices.size, excluded, named: excluded.some((e) => e.how !== "all"), days, stale: days != null && days >= APP_STALE_DAYS };
+    }).sort((x, y) => (y.count - x.count) || x.app.localeCompare(y.app));
+    const brief = (P) => ({ id: P.id, seq: P.seq, name: P.name, state: P.state, via: (P.exc || {}).text || "", viaHow: (P.exc || {}).how || "" });
+    return {
+      rows: list, total: (recs || []).length, nonInteractive, staleDays: APP_STALE_DAYS,
+      exclusions: exRows.length,
+      // exclusions on a policy that covers every resource: on every row, so counted once
+      allRes: excl.filter((P) => P.apps.inc.some((x) => lc(x) === "all")).map(brief),
+      // the review candidates: the policy names its applications and none of them shows a sign-in
+      unused: excl.filter((P) => !seen.get(P.id) && isSpecific(P.apps)).map((P) => ({ ...brief(P), apps: P.apps.inc.map((id) => P.apps.names[lc(id)] || id) })),
+      // aimed at a user action or an authentication context — no application row can show those
+      otherScope: exRows.filter((r) => !r.apps.inc.length).map(brief),
+      by: { all: list.length, excl: list.filter((a) => a.excluded.length).length, stopped: list.filter((a) => a.stopped).length, stale: list.filter((a) => a.stale).length },
+    };
+  }
+
   // ---------------------------------------------------------- retired --
   // "Require approved client app" was retired on 30 June 2026: a policy that
   // carries it is READ-ONLY (enforced until disabled, never editable), and
@@ -388,7 +496,7 @@ const WhoIs = (() => {
   }
 
   // ---------------------------------------------------------- analyze --
-  function analyze({ user, vms, records, cat, dgPresent, days }) {
+  function analyze({ user, vms, records, cat, dgPresent, days, now }) {
     const lookup = buildLookup(vms);
     const ladder = ladderOf(user, cat, dgPresent);
     const exclusions = exclusionsOf(user, lookup, cat);
@@ -436,8 +544,10 @@ const WhoIs = (() => {
       forecast = { worst: block.length ? "block" : prompt.length ? "prompt" : (ro && ro.policies.length) ? "clean" : (scoped.length && !silent.length) ? "scoped" : "nodata", block, prompt, scoped, silent, roCount: counts.ro };
     }
     const risk = riskOf(records, user.id, user, lookup);
-    const retired = records ? retiredOf(records.filter((r) => !user.id || r.userId === user.id), lookup, rows) : null;
-    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, retired, bypasses: exclusions.filter((x) => x.bypass) };
+    const mine = records ? records.filter((r) => !user.id || r.userId === user.id) : null;
+    const retired = mine ? retiredOf(mine, lookup, rows) : null;
+    const apps = log ? appsOf(mine, new Set(log.rows.map((r) => r.id)), rows, now) : null;
+    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, retired, apps, bypasses: exclusions.filter((x) => x.bypass) };
   }
 
   // ----------------------------------------------------------- render --
@@ -697,6 +807,44 @@ const WhoIs = (() => {
         <p class="mini muted" style="margin-top:8px">“Through the approved app” = the policy applied with success on a sign-in whose device was not compliant — the only way that grant is met. Removing the control without a replacement turns such a policy into compliant-device-only; replacing it with Require app protection policy needs an Intune APP policy assigned to her and picked up by the app. ${rt.appPolicies ? `${rt.appPolicies} polic${rt.appPolicies === 1 ? "y" : "ies"} in the tenant already grant${rt.appPolicies === 1 ? "s" : ""} on app protection policy.` : "No policy in the tenant grants on app protection policy yet."} Report-only cannot evaluate that control — its report-only failures are not denials.</p>
       </div>`;
     }
+    // ---- applications: what she actually signs in to, and which of her
+    // exclusions cover it — the review of an exclusion starts here (1.5.0)
+    let appsHtml = "";
+    if (log && res.apps) {
+      const ap = res.apps, src = opts.source || null;
+      const af = ["excl", "stopped", "stale"].includes(opts.appFilter) && ap.by[opts.appFilter] ? opts.appFilter : "all";
+      const shown = ap.rows.filter((a) => af === "excl" ? a.excluded.length : af === "stopped" ? a.stopped : af === "stale" ? a.stale : true);
+      const viaTxt = (x) => x.via ? `${x.via}${x.viaHow && x.viaHow !== "member" ? ` (${x.viaHow})` : ""}` : "an exclusion";
+      const interactiveOnly = src ? !src.nonInteractive : ap.nonInteractive === 0;
+      const srcNote = interactiveOnly
+        ? ` This source holds <b>interactive</b> sign-ins only — an application she reaches on a token refresh does not show. Read ${src && src.fuller ? `<b>${esc(src.fuller)}</b>` : "a source with non-interactive sign-ins"}${res.days && res.days < 30 ? " over 30 days" : ""} before taking her out.`
+        : res.days && res.days < 30 ? " The window is short — read 30 days before taking her out." : "";
+      const chips = [["all", `All ${ap.by.all}`], ["excl", `Covered by an exclusion ${ap.by.excl}`], ["stopped", `Stopped ${ap.by.stopped}`], ["stale", `Not seen for ${ap.staleDays} days ${ap.by.stale}`]]
+        .filter(([k]) => k === "all" || ap.by[k])
+        .map(([k, l]) => `<button class="fchip${af === k ? " active" : ""}" data-wo-afilter="${k}">${l}</button>`).join("");
+      const xchip = (e) => `<span class="pol-link wo-xchip${e.how === "all" ? " all" : ""}" data-polid="${esc(e.id)}" title="${esc(`${e.name} — she is excluded through ${viaTxt(e)}; ${COVER_TEXT[e.how]}; ${e.n} of her sign-ins here${e.state === "ro" ? "; report-only" : ""}`)}">${esc(e.seq || e.name)}${e.state === "ro" ? " · RO" : ""}</span>`;
+      const resLine = (a) => {
+        const rs = a.resources.filter((r) => r.name);
+        if (!rs.length || (rs.length === 1 && lc(rs[0].name) === lc(a.app))) return "";
+        return `<div class="mini muted">reaches ${esc(rs.slice(0, 4).map((r) => r.name).join(", "))}${rs.length > 4 ? ` +${rs.length - 4}` : ""}</div>`;
+      };
+      appsHtml = `<div class="list-card wo-card">
+        <h3 class="wo-h" data-wo-fold="apps">🗃 Applications she signs in to · ${esc(rangeLabel)} ${pill(ap.rows.length, "")}</h3>
+        ${ap.rows.length ? `<p class="mini" style="margin:0 0 8px">${ap.total.toLocaleString()} sign-in${ap.total === 1 ? "" : "s"} to ${ap.rows.length} application${ap.rows.length === 1 ? "" : "s"}${src ? ` · source: <b>${esc(src.label)}</b>` : ""}${interactiveOnly ? ", interactive only" : `, ${ap.nonInteractive.toLocaleString()} of them non-interactive`}${ap.exclusions ? ` · she is excluded from <b>${ap.exclusions}</b> polic${ap.exclusions === 1 ? "y" : "ies"} that would otherwise reach her${ap.allRes.length ? `, ${ap.allRes.length} of them covering every resource` : ""}` : ""}.</p>
+        ${ap.unused.map((x) => `<div class="wo-callout"><b>No sign-in to what ${polLink(x)} covers</b> — she is excluded from it through <b>${esc(viaTxt(x))}</b>${x.state === "ro" ? " (the policy is report-only)" : ""}. The policy names ${esc(x.apps.slice(0, 4).join(", "))}${x.apps.length > 4 ? ` +${x.apps.length - 4}` : ""}, and none of ${x.apps.length === 1 ? "it" : "them"} appears in her ${ap.total.toLocaleString()} sign-ins of this window: a candidate to take her out of the exclusion.${srcNote}</div>`).join("")}
+        ${ap.exclusions ? "" : `<p class="mini muted" style="margin:0 0 8px">She is excluded from no policy that would otherwise reach her, so no application here depends on an exclusion.</p>`}
+        <div class="chip-filter" style="margin:0 0 8px">${chips}<button class="fchip" data-wo-appcsv title="Every application, with its resources and the exclusions that cover it">⭳ CSV</button></div>
+        <div class="gu-tw"><table class="plist wo-tbl"><thead><tr><th>Application</th><th class="num">Sign-ins</th><th class="num">Stopped</th><th>Last sign-in</th><th>Excluded from</th></tr></thead><tbody>
+          ${shown.slice(0, 40).map((a) => `<tr><td><b>${esc(a.app)}</b>${resLine(a)}</td>
+            <td class="num">${a.count.toLocaleString()}${a.nonInteractive ? `<div class="mini muted" title="token refreshes and background sign-ins">${a.nonInteractive.toLocaleString()} non-interactive</div>` : ""}</td>
+            <td class="num">${a.stopped ? `<span class="wo-res blk">${a.stopped}</span>` : ""}</td>
+            <td class="num">${a.last ? esc(fmtWhen(a.last)) : "—"}${a.stale ? `<div class="mini wo-res int">${a.days} days ago</div>` : ""}</td>
+            <td>${a.excluded.length ? `${a.excluded.slice(0, 6).map(xchip).join("")}${a.excluded.length > 6 ? ` <span class="mini muted">+${a.excluded.length - 6}</span>` : ""}` : '<span class="mini muted">none</span>'}</td></tr>`).join("")}
+        </tbody></table></div>${shown.length > 40 ? `<p class="mini muted" style="margin-top:6px">${shown.length - 40} more applications — in the CSV.</p>` : ""}
+        <p class="mini muted" style="margin-top:8px">One row per application, with the resources it reached under it — Conditional Access decides on the resource, so an application opened inside another shows under the one that asked. <b>Excluded from</b> = a policy that is enforced or report-only, would reach her, covers this sign-in's application or resource, and that an exclusion takes her out of: red when the policy names the application, plain when it covers every resource. An app group (Office 365, Microsoft Admin Portals) is matched on its core services only.${ap.otherScope.length ? ` ${ap.otherScope.length} more exclusion${ap.otherScope.length === 1 ? " is" : "s are"} on a policy aimed at a user action or an authentication context, which no application row can show.` : ""} No sign-in in the window is not the same as never used: the log does not reach further back than the window.</p>`
+          : `<p class="mini muted">No sign-ins in the window, so no applications.</p>`}
+      </div>`;
+    }
     let mfaHtml = "";
     if (log && log.mfa) {
       const mf = log.mfa;
@@ -765,7 +913,7 @@ const WhoIs = (() => {
     } else {
       logHtml = `<div class="list-card wo-card"><div class="run-prompt" style="padding:24px 20px"><p class="mini muted">The sign-in half was not read — ${esc(opts.logSkipped || "sign-in log not available")}.</p></div></div>`;
     }
-    return head + ladderHtml + tbl + riskHtml + retHtml + devHtml + mfaHtml + logHtml;
+    return head + ladderHtml + tbl + riskHtml + retHtml + devHtml + appsHtml + mfaHtml + logHtml;
   }
 
   // ------------------------------------------------------------- csv --
@@ -779,6 +927,19 @@ const WhoIs = (() => {
       (r.controls || []).join(" " + (r.op || ",") + " "),
       r.log ? r.log.blocked : "", r.log ? r.log.interrupted : "",
       r.forecast && !r.forecast.nodata ? r.forecast.failure : "", r.forecast && !r.forecast.nodata ? r.forecast.interrupted : "", r.forecast && !r.forecast.nodata ? r.forecast.success : "",
+    ].map(csvCell).join(",")));
+    return L.join("\n");
+  }
+
+  // One line per application; the exclusions that cover it in one cell,
+  // each as policy [coverage] via group.
+  function appsCsv(res) {
+    const ap = res.apps;
+    const H = ["application", "appId", "resources", "sign_ins", "non_interactive", "stopped", "devices", "first_sign_in", "last_sign_in", "days_since_last", "excluded_from"];
+    const L = [H.join(",")];
+    ((ap && ap.rows) || []).forEach((a) => L.push([
+      a.app, a.appId, a.resources.map((r) => r.name).filter(Boolean).join("; "), a.count, a.nonInteractive, a.stopped, a.devices, a.first, a.last, a.days == null ? "" : a.days,
+      a.excluded.map((x) => `${x.seq || x.name} [${x.how === "all" ? "every resource" : x.how === "group" ? "app group" : "named"}${x.state === "ro" ? ", report-only" : ""}] via ${x.via || "exclusion"}`).join("; "),
     ].map(csvCell).join(",")));
     return L.join("\n");
   }
@@ -834,6 +995,16 @@ const WhoIs = (() => {
         L.push("| Device | OS · browser | State | Sign-ins | Stopped | Last seen |", "| --- | --- | --- | --- | --- | --- |");
         dv.rows.forEach((d) => L.push(`| ${e(d.name || d.id || (d.os ? `${d.os} device` : "Unknown device"))} | ${e([d.os, d.browser].filter(Boolean).join(" · "))}${d.trustType ? ` (${e(d.trustType)})` : ""} | ${DEV_STATE[d.state].label} | ${d.count} | ${d.stopped} | ${e(d.last)} |`));
       }
+      if (res.apps && res.apps.rows.length) {
+        const ap = res.apps;
+        const via = (x) => x.via ? `${x.via}${x.viaHow && x.viaHow !== "member" ? ` (${x.viaHow})` : ""}` : "an exclusion";
+        L.push("", `## Applications she signs in to (${e(meta.rangeLabel || "window")})`, "");
+        L.push(`${ap.total} sign-ins to ${ap.rows.length} application(s)${meta.source ? `, source: ${e(meta.source.label)}` : ""}${ap.nonInteractive ? `, ${ap.nonInteractive} non-interactive` : ", interactive only"}. Excluded from ${ap.exclusions} polic${ap.exclusions === 1 ? "y" : "ies"} that would otherwise reach her${ap.allRes.length ? ` (${ap.allRes.length} covering every resource: ${ap.allRes.map((x) => e(x.seq || x.name)).join(", ")})` : ""}.`, "");
+        ap.unused.forEach((x) => L.push(`- **No sign-in to what ${e(x.seq || x.name)} covers** — excluded through ${e(via(x))}; the policy names ${e(x.apps.join(", "))} and none appears in the window. A candidate to remove from the exclusion; no sign-in in the window is not proof of no use${ap.nonInteractive ? "" : " (interactive sign-ins only)"}.`));
+        if (ap.unused.length) L.push("");
+        L.push("| Application | Reaches | Sign-ins | Stopped | Last sign-in | Excluded from |", "| --- | --- | --- | --- | --- | --- |");
+        ap.rows.forEach((a) => L.push(`| ${e(a.app)} | ${e(a.resources.map((r) => r.name).filter(Boolean).join(", "))} | ${a.count} | ${a.stopped || ""} | ${e(a.last)}${a.stale ? ` (${a.days} days ago)` : ""} | ${a.excluded.map((x) => `${e(x.seq || x.name)}${x.how === "all" ? " (every resource)" : x.how === "group" ? " (app group)" : ""}${x.state === "ro" ? " (report-only)" : ""} via ${e(via(x))}`).join("; ") || "none"} |`));
+      }
       if (log.mfa && (log.mfa.required || (log.mfa.methods && log.mfa.methods.known))) {
         const mf = log.mfa, mt = mf.methods;
         L.push("", `## MFA on her sign-ins (${e(meta.rangeLabel || "window")})`, "");
@@ -868,5 +1039,5 @@ const WhoIs = (() => {
     return L.join("\n");
   }
 
-  return { analyze, render, toMd, toCsv, buildLookup, stateFor, ladderOf, exclusionsOf, logOf };
+  return { analyze, render, toMd, toCsv, appsCsv, buildLookup, stateFor, ladderOf, exclusionsOf, logOf, appsOf };
 })();
