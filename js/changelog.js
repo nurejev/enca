@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 334, date: "2026-11-19", release: "2.0.12",
+    title: "ENCA 2.0.12 — ⑦ Migrate checks the group you came with, also right after another one was migrated",
+    items: [
+      { kind: "fixed", tool: "CA groups", text: "Production is build 334 (v2.0.12). ⑦ Migrate answered for the wrong groups. Back in the list after a migration, with another group ticked, the dialog said NOTHING TO MIGRATE and listed only the group that had just been migrated as already a plain group — the role-assignable group you ticked was not in the answer at all, and ⟳ Rescan gave the same answer again. A check that found no role-assignable group among the groups it was opened with was remembered as a scan of the whole tenant, so it was shown again for whatever you ticked next. The dialog now checks the groups you arrive with every time; only a scan of every role-assignable group that has not been run yet is kept, with your groups ticked in it." },
+      { kind: "fixed", tool: "CA groups", text: "⑦ Migrate opened with a ticked group after a run that started from the full scan showed that run’s MIGRATION COMPLETE again instead of the check for the group. A finished run now gives way to the check for the groups you bring — take the 📄 Change report before you close the results if you want it kept." },
+      { kind: "fixed", tool: "CA groups", text: "A check limited to the groups you came with says so — and offers ▶ Check every role-assignable group — also when none of those groups can be converted. In exactly that case the line and the button were missing, which left ⟳ Rescan as the only button and the same answer as the only result. Opening ⑦ Migrate for another group while a check is still reading no longer ends on the first group’s answer." },
+    ],
+  },
+  {
     build: 333, date: "2026-11-19", release: "2.0.11",
     title: "ENCA 2.0.11 — Import as shipped with a per-policy trial, one baseline at a time, Create E-Admins, deploy-group nesting and the Deployment dashboard, and an Exclusion analyzer that survives a deleted group",
     items: [

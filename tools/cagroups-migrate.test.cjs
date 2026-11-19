@@ -237,3 +237,91 @@ test('a member still missing after the whole schedule fails, is named, and the c
   });
   assert.equal(w.waits.join(','), '1500,3000,6000,10000');
 });
+
+// ---- arriving from the list (js/app.js cgGoTab + cgMigScan, sliced) ----
+// Build 334 (beta 33402), Mihai 19 Nov with a screenshot: back in the list after migrating a
+// group, another group ticked, ⑦ Migrate — "2 groups carried from the list",
+// NOTHING TO MIGRATE, and only the group that had already been migrated listed
+// as "already a plain group". The ticked role-assignable group was not in the
+// answer at all. The dialog decided whether to check the groups it arrived
+// with from cgMig.scoped, which held the NUMBER OF ROLE-ASSIGNABLE CANDIDATES
+// of the last scoped check — so a check that found none (the migrated group is
+// a plain group now) read as "a full scan is in hand" and was never repeated.
+function arrivalWorld({ demo = true } = {}) {
+  const app = fs.readFileSync(path.join(root, 'js', 'app.js'), 'utf8');
+  const cut = (from, to) => { const a = app.indexOf(from), b = app.indexOf(to, a); assert.ok(a > 0 && b > a, `slice ${from}`); return app.slice(a, b); };
+  const gate = {}; gate.wait = new Promise((r) => { gate.open = r; });
+  const el = { innerHTML: '', value: '', textContent: '' };
+  const box = vm.createContext({ console: { log() {}, warn() {}, error() {} }, Set, Map, JSON, encodeURIComponent, decodeURIComponent, Date, Math, RegExp, Promise,
+    localStorage: { getItem: () => null, setItem() {} },
+    document: { dispatchEvent() {} }, CustomEvent: class {},
+    Render: { caGroup: () => ({ num: null, key: null, label: 'x' }) },
+    Graph: { async ggetAll(url) { if (/administrativeUnits/.test(url)) await gate.wait; return []; }, async gget() { return { value: [] }; } } });
+  const lib = ['baselineData.js', 'groupTemplates.js', 'baselineJoeyData.js', 'baseline.js', 'cagroups.js']
+    .map((f) => fs.readFileSync(path.join(root, 'js', f), 'utf8')).join('\n;\n');
+  vm.runInContext(lib, box);
+  const g = (id, name, roleAssignable) => ({ id, name, roleAssignable, status: 'present', sources: ['template'], refs: { include: [], exclude: [] }, memberTotal: 2 });
+  box.rows = [g('p', 'CAB-SEC-U-BreakGlass', false), g('r', 'CAB-SEC-U-Persona-Admins', true), g('r2', 'CAB-SEC-U-CA002-Exclusion', true)];
+  vm.runInContext(`
+    const isDemo = ${demo}; const policies = []; const toasts = []; const el = { innerHTML: '', value: '', textContent: '' };
+    const $ = () => el, toast = (m) => toasts.push(m), progInline = () => '', RMAU_DEFAULT_NAME = () => 'CA-RMAU';
+    const demoGroupScan = () => ({ rows }), renderCaGroups = () => {}, renderCgMigrate = () => {}, startMemberScan = () => {}, cgRmauScan = () => {};
+    const cgManual = { migrate: new Map() }, cgMemberSel = new Set();
+    let cgTab = 'groups', cgQuery = '', cgScope = 'ca', cgRes = { rows }, cgProt = new Map(), cgMemberPick = false, cgRmau = null, rmauBusy = false;
+    let cgRmauPre = null, cgMigPre = null;
+    ${cut('  let cgMig = null;', '  function renderCgMigrate() {')}
+    ${cut('  function cgGoTab(tab, names) {', '  const cggClick = async')}
+    globalThis.T = { go: (names) => cgGoTab('migrate', names), scan: cgMigScan, close: () => { cgTab = 'groups'; }, toasts,
+      get mig() { return cgMig; }, // a run throws the list's scan away; closing the dialog re-reads it before anything can be ticked
+      ran: (results) => { cgMig.results = results; cgRes = { rows }; } };`, box);
+  return { T: box.T, gate };
+}
+const names = (xs) => xs.map((x) => x.name).join(',');
+
+test('arriving with another group after a check that found nothing to convert checks THAT group', () => {
+  const { T } = arrivalWorld();
+  T.go(['CAB-SEC-U-BreakGlass']);                       // the migrated group: a plain group now
+  assert.equal(names(T.mig.plan.eligible), ''); assert.equal(names(T.mig.plan.skipped), 'CAB-SEC-U-BreakGlass');
+  T.close();
+  T.go(['CAB-SEC-U-BreakGlass', 'CAB-SEC-U-Persona-Admins']);
+  assert.equal(names(T.mig.plan.eligible), 'CAB-SEC-U-Persona-Admins', 'the role-assignable group that was ticked is offered');
+  assert.equal(names(T.mig.plan.skipped), 'CAB-SEC-U-BreakGlass');
+});
+
+test('a scoped check says it was scoped even when none of the groups was role-assignable — the way to the full check stays on screen', () => {
+  const { T } = arrivalWorld();
+  T.go(['CAB-SEC-U-BreakGlass']);
+  assert.equal(T.mig.scoped, 1, 'one group came from the list');
+  assert.deepEqual([...T.mig.scopeIds], ['p']);
+});
+
+test('arriving with a group after a finished run shows the check for that group, not the last run again', () => {
+  const { T } = arrivalWorld();
+  T.scan();                                              // the full scan, no selection
+  assert.equal(T.mig.scopeIds, null);
+  T.ran([{ name: 'CAB-SEC-U-CA002-Exclusion', ok: true }]);
+  T.close();
+  T.go(['CAB-SEC-U-Persona-Admins']);
+  assert.equal(T.mig.results, null, 'the finished run gives way');
+  assert.equal(names(T.mig.plan.eligible), 'CAB-SEC-U-Persona-Admins');
+});
+
+test('a full scan that has not been run still only pre-ticks: no second read of every group', () => {
+  const { T } = arrivalWorld();
+  T.scan();
+  const first = T.mig;
+  T.go(['CAB-SEC-U-Persona-Admins']);
+  assert.equal(T.mig, first, 'the same plan');
+  assert.deepEqual([...T.mig.sel], ['r']);
+});
+
+test('arriving while the check for another group is still reading ends on the group that was asked for last', async () => {
+  const { T, gate } = arrivalWorld({ demo: false });
+  T.go(['CAB-SEC-U-BreakGlass']);                       // its scan is waiting on Graph
+  T.close();
+  T.go(['CAB-SEC-U-Persona-Admins']);
+  gate.open();
+  for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(names(T.mig.plan.eligible), 'CAB-SEC-U-Persona-Admins');
+  assert.deepEqual([...T.mig.scopeIds], ['r']);
+});
