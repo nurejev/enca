@@ -59,3 +59,21 @@ body.workspaces-shell #policyWorkspace.with-inspector>#listView,
   body.workspaces-shell #policyWorkspace.with-inspector>#listView,
   #workspaceInspector{position:static;max-height:none;overflow:auto}
 }
+
+/* 🚦 The pinned policy label inside a pair detail (33309). In the table it
+   pins under the page's own sticky chrome, at --si-dethead-top. In the split
+   view that offset is the wrong one twice over: the panel is the scroller,
+   and .ld-content scrolls SIDEWAYS, which makes it the label's sticky
+   scrollport — one that never scrolls down. So the label was pushed
+   --si-dethead-top into the list of sign-ins and stayed there, on top of
+   the rows. A pair detail wraps its own text, so its .ld-content needs no
+   sideways scroll; without it the panel is the scrollport and the label
+   pins at the panel's top, where the name is worth keeping in view. */
+.ld-content:has(>.ld-pair-detail){overflow:visible}
+.ld-pair-detail .si-dethead{top:0;margin:0 -16px 8px;padding:8px 16px;flex-wrap:nowrap;align-items:baseline}
+/* One line: the panel's own title already spells the name out in full, and
+   a pinned label three lines tall hides the rows it is there to name. */
+.ld-pair-detail .si-dethead>b{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ld-pair-detail .si-dethead>.mini{flex:0 1 auto;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ld-pair-detail .si-dethead>.enca-icon-slot{flex:none;align-self:center}
+@media(max-width:900px){.ld-pair-detail .si-dethead{position:static}}

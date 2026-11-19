@@ -115,7 +115,11 @@ const Signins = (() => {
     else if (gap) summary = `${used.length ? used.join(" + ") : "nothing completed"} — ${need} required, not provided${asked && asked.result ? ` (${asked.result})` : ""}`;
     else if (mfaAsked) summary = `${used.join(" + ") || "MFA"}${claim ? " — MFA by a claim already in the token" : ""} — ${need} satisfied`;
     else summary = `${used.join(" + ") || steps.map((st) => st.method).filter(Boolean).join(" + ") || "—"} — single factor`;
-    return { known, requirement, policies, strength, steps, used, claim, mfaAsked, mfaOk, gap, passwordOnly, phishResistant, need, summary };
+    // "signed in with" introduces METHODS. With none to list — a hunting row,
+    // or a record with no step — the summary is a sentence of its own, and
+    // the lead made it "signed in with MFA was required" (33309).
+    const lead = known && steps.length ? "signed in with" : "";
+    return { known, requirement, policies, strength, steps, used, claim, mfaAsked, mfaOk, gap, passwordOnly, phishResistant, need, summary, lead, line: lead ? `${lead} ${summary}` : summary };
   }
 
   // The error code narrows WHICH control stopped the sign-in — a 50097 next
@@ -345,6 +349,12 @@ union${withTotals ? `
   // interactive unless the record says otherwise (the Graph list ENCA reads is interactive-only)
   const isInteractive = (rec) => rec.interactive != null ? !!rec.interactive : !((rec.signInEventTypes || []).some((t) => /noninteractive/i.test(String(t))));
 
+  // The platform by its name. Defender hunting writes OSPlatform as "Ios" and
+  // "MacOs"; the sign-in log mostly "iOS" and "MacOs". Anything else is left
+  // exactly as the source wrote it, version and all.
+  const OS_NAME = [[/^ios\b/i, "iOS"], [/^ipados\b/i, "iPadOS"], [/^macos\b/i, "macOS"]];
+  const osName = (os) => { const v = String(os || ""); const hit = OS_NAME.find(([rx]) => rx.test(v)); return hit ? v.replace(hit[0], hit[1]) : v; };
+
   const shapePol = (p) => ({
     id: p.id || "",
     name: p.displayName || p.id || "(unnamed policy)",
@@ -393,7 +403,7 @@ union${withTotals ? `
       city: loc.city || "",
       country: loc.countryOrRegion || "",
       client: rec.clientAppUsed || "",
-      os: dev.operatingSystem || "",
+      os: osName(dev.operatingSystem),
       browser: dev.browser || "",
       compliant: dev.isCompliant === true,
       managed: dev.isManaged === true,
@@ -495,5 +505,5 @@ union${withTotals ? `
     return L.join("\r\n");
   }
 
-  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, RO_CAP, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText, authOf, PHISH_RESISTANT };
+  return { FAIL, INTERRUPT, isInterrupt, query, interruptQuery, huntingQuery, fromHunting, roBucketQuery, fromRoBuckets, RO_CAP, isInteractive, HUNT_CAP, failuresOf, parse, build, toCsv, codeText, authOf, osName, PHISH_RESISTANT };
 })();

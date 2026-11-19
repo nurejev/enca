@@ -18135,6 +18135,14 @@ This is a directory write. Nothing else changes.`)) return;
   $("siSearch").addEventListener("input", (e) => { siQuery = e.target.value; renderSignins(); });
 
   const siWhere = (r) => [r.city, r.country].filter(Boolean).join(", ");
+  // What the split view's list row says per column (33309) — the table has
+  // headers for this, the list (ListDetail.rowText, data-ldmeta) does not.
+  const siN = (n) => Number(n || 0).toLocaleString();
+  const siFailMeta = (p) => [`${siN(p.count)} failure${p.count === 1 ? "" : "s"}`, p.ints ? `${siN(p.ints)} interrupted` : "",
+    p.gap ? `🔑 ${siN(p.gap)} without the MFA asked` : ""].filter(Boolean).join(" · ");
+  // p.count is the whole read; p.rows is what the chips and the search left
+  const siShown = (p) => p.rows.length === p.count ? `${siN(p.count)} sign-in${p.count === 1 ? "" : "s"}`
+    : `${siN(p.rows.length)} of ${siN(p.count)} sign-ins shown`;
   const siDevice = (r) => r.compliant ? "compliant" : /hybrid/i.test(r.trustType) ? "hybrid joined" : r.os ? "unmanaged" : "";
 
   // An expanded policy can hold 40 sign-ins — scrolling through them pushes the
@@ -18197,23 +18205,24 @@ This is a directory write. Nothing else changes.`)) return;
         <thead><tr><th>Policy</th><th style="width:110px">Failures</th><th style="width:100px">Users</th><th>Most affected</th><th>Controls not met</th><th style="width:110px">Last failure</th></tr></thead>
         <tbody>${pols.map((p) => {
           const open = true;
+          const most = `${p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", ")}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}`;
           const detail = open ? `<tr class="au-sumdet"><td colspan="6">
-            <div class="si-dethead">🚦 <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b><span class="mini muted">${p.rows.length} sign-in${p.rows.length === 1 ? "" : "s"}${siMode === "reportonly" ? " · report-only" : ""}${p.controls.length ? ` · ${esc(p.controls.join(", "))}` : ""}</span><button class="fchip" data-sisum="${esc(p.key)}" title="Collapse this policy">✕</button></div>
+            <div class="si-dethead">🚦 <b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b><span class="mini muted">${siShown(p)}${siMode === "reportonly" ? " · report-only" : ""}${p.controls.length ? ` · ${esc(p.controls.join(", "))}` : ""}</span><button class="fchip" data-sisum="${esc(p.key)}" title="Collapse this policy">✕</button></div>
             <ul class="wi-list">${p.rows.slice(0, 40).map((x) => `<li>
               <div class="wi-pn">${esc(x.user)}${x.upn && x.upn !== x.user ? ` <span class="mini muted">(${esc(x.upn)})</span>` : ""} → <b>${esc(x.app)}</b>
                 <button class="fchip" data-sireplay="${esc(x.id)}" title="Prefill What-If with this sign-in">🧪 Replay</button></div>
               <div class="wi-why">${x.interrupted ? "interrupted · " : ""}${x.interactive ? "" : "non-interactive · "}${esc(new Date(x.when).toLocaleString())} · ${esc([x.client, x.os, siWhere(x), x.ip, siDevice(x)].filter(Boolean).join(" · "))}${x.failureReason ? ` · ${esc(x.failureReason)}` : ""}</div>
-              ${x.auth ? `<div class="wi-why${x.auth.gap ? " si-authgap" : ""}" title="${esc(x.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 signed in with ${esc(x.auth.summary)}</div>` : ""}
+              ${x.auth ? `<div class="wi-why${x.auth.gap ? " si-authgap" : ""}" title="${esc(x.auth.steps.map((st) => `${st.method || "(step)"}${st.detail ? ` · ${st.detail}` : ""} · ${st.ok ? "succeeded" : "not completed"}${st.result ? ` · ${st.result}` : ""}${st.req ? ` · ${st.req}` : ""}`).join("\n"))}">🔑 ${esc(x.auth.line)}</div>` : ""}
             </li>`).join("")}</ul>
             ${p.rows.length > 40 ? `<p class="mini muted">Showing the 40 most recent of ${p.rows.length} — switch to Sign-ins and search to see the rest.</p>` : ""}
           </td></tr>` : "";
           return `<tr class="au-sumrow" data-sisum="${esc(p.key)}">
             <td><b class="pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</b>${siMode === "reportonly" ? '<div class="mini muted">report-only</div>' : ""}</td>
-            <td><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}${p.gap ? `<div class="mini si-authgap" title="The second factor was asked for and never came — these users signed in with a password where MFA or an authentication strength was required">🔑 ${p.gap} without the MFA asked</div>` : ""}</td>
-            <td>${p.userCount} distinct</td>
-            <td class="mini">${esc(p.users.slice(0, 2).map(([n, c]) => `${n} (${c})`).join(", "))}${p.users.length > 2 ? ` +${p.users.length - 2}` : ""}</td>
-            <td class="mini">${esc(p.controls.join(", ") || "—")}</td>
-            <td class="mini">${esc(auAgo(p.last))}</td>
+            <td data-ldmeta="${esc(siFailMeta(p))}"><span class="au-n rem">${p.count}</span>${p.ints ? `<div class="mini muted">${p.ints} interrupted</div>` : ""}${p.gap ? `<div class="mini si-authgap" title="The second factor was asked for and never came — these users signed in with a password where MFA or an authentication strength was required">🔑 ${p.gap} without the MFA asked</div>` : ""}</td>
+            <td data-ldmeta="${siN(p.userCount)} user${p.userCount === 1 ? "" : "s"}">${p.userCount} distinct</td>
+            <td class="mini" data-ldmeta="${esc(`most: ${most}`)}">${esc(most)}</td>
+            <td class="mini" data-ldmeta="${esc(p.controls.length ? `not met: ${p.controls.join(", ")}` : "control not named in the log")}">${esc(p.controls.join(", ") || "—")}</td>
+            <td class="mini" data-ldmeta="last ${esc(auAgo(p.last))}">${esc(auAgo(p.last))}</td>
           </tr>${detail}`;
         }).join("")}</tbody></table></div>
         <p class="mini muted" style="margin-top:8px">${pols.length} polic${pols.length === 1 ? "y" : "ies"} across ${rows.length} failed sign-in${rows.length === 1 ? "" : "s"} — click a row for the individual sign-ins, 🧪 to replay one in What-If.</p>`;
@@ -18231,7 +18240,7 @@ This is a directory write. Nothing else changes.`)) return;
       const detail = open ? `<div class="au-diff">
           ${x.policies.map((p) => `<div><span class="au-op ${p.result === "interrupted" ? "change" : "remove"}">${p.result === "interrupted" ? "interrupted" : "failed"}</span> <span class="au-path pol-link" data-polid="${esc(p.id || "")}" title="Open the policy card">${esc(p.name)}</span>${p.controls.length ? ` <span class="au-to">${esc(p.controls.join(", "))}</span>` : ""}</div>`).join("")}
           ${x.failureReason ? `<div><span class="au-op change">reason</span> <span class="au-path">${esc(x.failureReason)}${x.errorCode ? ` (${esc(String(x.errorCode))})` : ""}</span></div>` : ""}
-          ${x.auth ? `<div><span class="au-op ${x.auth.gap ? "remove" : "set"}">signed in with</span> <span class="au-path">${esc(x.auth.summary)}</span></div>
+          ${x.auth ? `<div><span class="au-op ${x.auth.gap ? "remove" : "set"}">${x.auth.lead || "authentication"}</span> <span class="au-path">${esc(x.auth.summary)}</span></div>
           ${x.auth.steps.length ? `<div class="mini muted si-steps">${x.auth.steps.map((st) => `${st.ok ? "✓" : "✗"} ${esc(st.method || "(no method)")}${st.detail && st.detail !== st.method ? ` <span class="muted">· ${esc(st.detail)}</span>` : ""}${st.result ? ` — ${esc(st.result)}` : ""}${st.req ? ` <span class="muted">[${esc(st.req)}]</span>` : ""}`).join("<br>")}</div>` : ""}` : ""}
           ${x.browser ? `<div><span class="au-op set">client</span> <span class="au-path">${esc([x.browser, x.os].filter(Boolean).join(" on "))}</span></div>` : ""}
           ${x.signInRisk && x.signInRisk !== "none" && x.signInRisk !== "hidden" ? `<div><span class="au-op change">risk</span> <span class="au-path">${esc(x.signInRisk)}</span></div>` : ""}

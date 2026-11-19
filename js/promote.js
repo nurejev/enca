@@ -182,6 +182,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 390,
+      ws: "ca",
+      title: "🚦 Sign-in log T17 2.8.1 + 🕓 Changes T16 1.11.1: the split-view list reads a table row as words (no numbers run together, every value labelled), the policy label pins to the panel",
+      tools: ["Sign-in log", "Changes"],
+      builds: [33309],
+      risk: "low",
+      files: ["js/list-detail.js", "css/list-detail.css", "js/signins.js", "js/app.js", "js/version.js", "js/changelog.js", "js/promote.js", "index.html", "tools/list-detail-pairs.test.cjs"],
+      what: "33309 (Mihai 19 Nov with a screenshot of 🚦 Per policy on Perfetti: check the list, some outputs are not readable; mockup approved). ListDetail.pairs flattened each table cell with textContent: the failure count and the interrupted count under it ran together (110521 interrupted), and the list had none of the column headers. New ListDetail.rowText: a cell is read piece by piece, the first piece of the first cell is the title, a cell with data-ldmeta is read by that, a lone dash says nothing. app.js gives the five 🚦 cells their words (siFailMeta, siN, siShown). css/list-detail.css: a pair detail’s .ld-content no longer scrolls sideways (it was the label’s sticky scrollport), .si-dethead pins at top 0 of the panel on one line. Signins.authOf gains lead and line (no signed in with when there is no method to list); Signins.osName spells iOS, iPadOS, macOS.",
+      why: "Display only — no read, no count and no export changes. Without it the per-policy list on a large tenant cannot be read: a count that looks a hundred times too high, and a label lying over the rows it names. Low risk; the one thing to look at is that no pair detail needs to scroll sideways now that its content box does not.",
+      test: [
+        "node --test tools/list-detail-pairs.test.cjs: 8 tests green.",
+        "Demo (?demo=1): 🚦 Sign-in log → ▶ read → Per policy: every row reads N failures · N users · most: … · not met: … · last …; no row shows two numbers run together.",
+        "A tenant with interrupted sign-ins (Perfetti, Hunting + non-interactive): the session policies read 222 failures · 222 interrupted, not 222222 interrupted; a policy with an authentication strength reads control not named in the log.",
+        "Open a policy with more than ten sign-ins and scroll the panel: the policy label is one line, lies over no row at rest, and stays at the top of the panel while the sign-ins move under it.",
+        "Type an IP in the search with a policy open: the label reads N of M sign-ins shown; clear it: M sign-ins.",
+        "Hunting source: the 🔑 line of a sign-in reads MFA was required — the methods are not in the hunting source, with no signed in with in front; an iPhone sign-in reads iOS. Entra source: the line still starts with signed in with and the methods.",
+        "🕓 Changes → Summary: the title of a row is the resource alone, its kind starts the line below, and the counts are apart (+3 −2).",
+        "At phone width (390): open a policy — the label is an ordinary line at the top of the detail, nothing pinned, nothing over the rows.",
+      ],
+    },
+    {
       n: 389,
       ws: "ca",
       title: "🔐 ENCA access T62 0.1.0: the two PIM groups for Workspace 01 (Read active, Admin eligible), custom ENCA CA Group Operator, optional activation settings and ENCA lock, undo",

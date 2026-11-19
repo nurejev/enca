@@ -29,6 +29,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33309, date: "2026-11-19", title: "🚦 Sign-in log: the per-policy list reads as words again",
+    items: [
+      { kind: "fixed", tool: "Sign-in log", text: "🚦 Per policy, the list beside the detail panel ran two numbers of one column together — 1105 failures with 21 interrupted read 110521 interrupted — and showed the rest without the column headers that explained it. Each row now says what its numbers are: failures, interrupted, users, most affected, the controls not met and the last failure. A policy for which the log names no control says so instead of showing a dash." },
+      { kind: "fixed", tool: "Sign-in log", text: "🚦 The policy label in the detail panel sat on top of the sign-ins, partway down the list. It is one line now and stays at the top of the panel while you scroll. When the chips or the search narrow the list it says how many of the policy’s sign-ins are shown — 182 of 185 — where the row and the panel used to give two counts without a word." },
+      { kind: "fixed", tool: "Sign-in log", text: "🚦 A sign-in read from Defender hunting no longer says “signed in with MFA was required”. Hunting has no methods to list, so the line says that MFA was required and that the methods are not in that source. iOS and macOS are spelled as their names." },
+      { kind: "fixed", tool: "Changes", text: "🕓 The audit summary list had the same fault: the resource and its kind ran together in the title. The title is the resource; its kind opens the line below." },
+    ],
+  },
+  {
     build: 33308, date: "2026-11-19", title: "🔐 ENCA access: the PIM groups for the people who use the Conditional Access workspace",
     items: [
       { kind: "new", tool: "ENCA access", text: "🔐 A new Workspace 01 tool creates the two PIM groups the ENCA design (R94) asks for. PIM-SG-ENCA-CA-Read holds Global Reader and Security Reader, active, for everyone who opens ENCA. PIM-SG-ENCA-CA-Admin holds Conditional Access Administrator, a custom ENCA CA Group Operator role (create groups and manage members, no delete; also at every restricted CA-RMAU-* unit) and Authentication Policy Administrator, eligible, so a member activates only the role the task needs. Every row says why that role. Add the members, preview, type the domain, apply — and undo the run if you need to." },

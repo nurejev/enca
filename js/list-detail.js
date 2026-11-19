@@ -54,13 +54,30 @@ const ListDetail = (() => {
     const containers=new Set(cards.map(n=>n.parentElement===host?n:n.parentElement));const before=[...host.children].filter(n=>!containers.has(n));
     mount(host,items,{key,before});
   }
+  // A summary table's row as a list row (33309). A cell says two things on
+  // two lines ("1105" over "21 interrupted") and its column header says what
+  // they are; textContent glued the first into "110521 interrupted", and a
+  // list has no headers, so a bare dash or "152 distinct" explained nothing.
+  // So: the inline pieces of a cell run on, a block is a piece of its own,
+  // the first piece of the first cell is the title and the rest of that cell
+  // opens the meta. A cell carrying data-ldmeta is read by THAT — the words
+  // its header would have supplied; empty means say nothing. A lone dash is
+  // a table's "nothing here" and is not a thing to read out.
+  const BLOCK=/^(DIV|P|UL|OL|LI|TABLE|H[1-6])$/;
+  function cellParts(cell){const parts=[];let run='';
+    for(const n of cell.childNodes){const t=String(n.textContent||'').replace(/\s+/g,' ').trim();if(!t)continue;
+      if(n.nodeType===1&&BLOCK.test(n.tagName)){if(run){parts.push(run);run='';}parts.push(t);}else run=run?run+' '+t:t;}
+    if(run)parts.push(run);return parts;}
+  function rowText(row){const cells=[...row.cells],head=cells.length?cellParts(cells[0]):[];
+    const said=c=>{const own=c.getAttribute?c.getAttribute('data-ldmeta'):null;return own!=null?[own.trim()].filter(Boolean):cellParts(c).filter(t=>t!=='—');};
+    const title=head.shift()||'Details';return {title,meta:[...head,...cells.slice(1).flatMap(said)].join(' · ')};}
   function pairs(id,rowSelector,attribute,key){
     const host=document.getElementById(id),rows=[...host.querySelectorAll(rowSelector)];if(!rows.length)return;
     const items=rows.map((row,i)=>{const node=el('div','ld-pair-detail');const next=row.nextElementSibling;if(next?.classList.contains('au-sumdet')){node.innerHTML=next.firstElementChild.innerHTML;node.querySelectorAll('button[data-sisum]').forEach(b=>b.remove());}
-      const title=row.cells[0].textContent.trim();const meta=[...row.cells].slice(1).map(c=>c.textContent.trim()).filter(Boolean).join(' · ');
+      const {title,meta}=rowText(row);
       const summary=el('p','mini muted',meta);node.prepend(summary);return {key:row.getAttribute(attribute)||String(i),title,meta,node};});
     const before=[...host.children].filter(n=>!n.querySelector(rowSelector));mount(host,items,{key,before});
   }
   function reset(){states.clear();}
-  return {mount,cards,pairs,reset};
+  return {mount,cards,pairs,rowText,reset};
 })();
