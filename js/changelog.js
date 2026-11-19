@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33401, date: "2026-11-19", title: "Production is build 333 (v2.0.11)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 333, ENCA v2.0.11: everything Conditional Access and Entra Tools had waiting is live for everybody — import as shipped with the per-policy trial on a deployment group, one baseline at a time, Create E-Admins, nesting and Add to deploy groups, the Deployment dashboard up to 0.5.0, Locations only, the Exclusion analyzer that survives a deleted group, the sign-in and change lists, the applications in Who is … to CA, and the last sign-ins in SMS & voice (beta 33202–33311). 🔐 ENCA access stays on this channel: it runs on PIM-buddy's plan runner, which is not in production yet. This channel moves to cycle 334 and reads v2.0.12-beta.N from here." },
+    ],
+  },
+  {
     build: 33311, date: "2026-11-19", title: "🚨 Create E-Admins on the Baseline screen, and an export that no longer leaves them out",
     items: [
       { kind: "new", tool: "Baseline", text: "🚨 Create E-Admins is a button of its own on the 🧬 Baseline toolbar, under CloudFellows and under Joey Verlinden. It shows how many of the six emergency-access policies (CA1100–CA1105) this tenant is missing or holds at an older version, and opens 📥 Import with ONLY those six, from the copy ENCA carries — no backup ZIP to find first. The missing ones are ticked, the break-glass group is the one of the baseline you are looking at, and they land OFF whatever the run lands. Nothing is written until you start the import there. Where the tenant holds one at an older version, the new version is created beside it and the old policy is left untouched. Not offered under SMB Basic, which carries its own break-glass policy." },

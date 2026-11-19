@@ -48,9 +48,10 @@ const APP_BUILD = {
   // real build of the cycle is 33101.)
   // 2.0.9 (production 331): the next cycle is 332 — builds 33201+, v2.0.10-beta.N.
   // 2.0.10 (production 332): the next cycle is 333 — builds 33301+, v2.0.11-beta.N.
-  cycle: 333,
+  // 2.0.11 (production 333): the next cycle is 334 — builds 33401+, v2.0.12-beta.N.
+  cycle: 334,
   patchBase: 322,
-  build: 33311,
+  build: 33401,
   date: "2026-11-19",
   // When this build was cut, UTC — set it with `date -u +%Y-%m-%dT%H:%MZ`,
   // never by hand. Builds 25090-25092 and 277 carried a local Amsterdam time
@@ -60,7 +61,7 @@ const APP_BUILD = {
   // Shown on the sign-in screen with the version:
   // the date alone cannot tell two releases of the same day apart, and "is the
   // thing I just pushed actually live?" is a question about minutes, not days.
-  released: "2026-11-19T13:29Z",
+  released: "2026-11-19T15:29Z",
   get isBeta() { return this.build >= 10000; },
   // Stored UTC, shown in the reader's own timezone with the offset named.
   // A build is cut once, so one absolute instant is the right thing to record —
