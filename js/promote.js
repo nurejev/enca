@@ -182,6 +182,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 394,
+      ws: "ca",
+      title: "📊 Deployment dashboard by region — region chip rows, a coverage ring and an exclusions pie per region, the dashboard's own region list with a default and a CSV import (T54 0.6.0)",
+      tools: ["Deployment dashboard"],
+      builds: [33602],
+      risk: "medium",
+      what: "js/deploydash.js: DEFAULT_REGIONS (region, two-letter code, optional city), regionFor (the code and city after -DG-, INT-/EXT- stripped; city row first, then the country; framework keys are Core; unknown is No region), parseRegionCsv (region,code,city or Fill's region,group,label,ticked,mode), regionsCsv, regionListHtml; build() takes input.regions and returns m.regions — per region the groups, live groups, coverage over its enabled members by strongest state, route, distinct policies by state, exclusions by first route; html() takes opts.region: region chip rows, the By region panel, the four cards and the group table narrowed to the region. app.js: 🗺 Regions button and panel (Import CSV, Export CSV, Back to the default list), the list kept in localStorage enca-ddregions:<tenantId>, ddRegion state. CSS in css/app.css and DeployDash.CSS. CSV gains a region column and a region section.",
+      why: "Mihai, 20 Nov 2026, with a screenshot of 60-plus group chips in one row: group this on regions (euro, bamsca), make the pie charts per region, a separate region list for the dashboard (his pick off the two options — Fill from regions stays separate, no dependencies), filled first with the country code and city and the option to import. Mockups shown first and approved. Medium: a reading aid on a read-only page, nothing written.",
+      test: [
+        "Demo (?demo=1), 01 → 📊 Deployment dashboard → ▶ Read: the chips sit in rows — Core first, then the regions the demo's group names point at, No region last if any; each row label says how many of its groups are live.",
+        "Click Euro (top row or the row label): the Covered card reads Covered · Euro with no left-out slice, Route in / Policies / Exclusions say Euro, the group table lists only the Euro groups; click Euro again or All groups: back to the tenant.",
+        "Click a group chip inside a region row: the page shows that one group as before and the region chip is no longer active.",
+        "By region panel: one card per region, ring percentage = enforced share of that region's users, small pie by exclusion route; clicking a card filters like the chip. The strip above still shows the tenant's left out.",
+        "🗺 Regions: the panel says The default list and lists Euro … BAMSCA with codes and the NL/PL/NG cities. Export CSV downloads region,code,city.",
+        "Import CSV with docs/regions-pvm.csv (Fill's shape): the toast counts the rows imported and skipped (Review, Ignored, ticked=no, unlicensed rows); the panel names the file; the chips regroup. Back to the default list restores the default.",
+        "Import a CSV with only region,code,city where NL-Sittard is put in a region Pilot: DG-EXT-NL-Sittard moves to Pilot, the other NL groups stay in Euro.",
+        "Switch tenant: the list follows the tenant (default where nothing was imported). Fill from regions still shows its own list — nothing changed there.",
+        "Export HTML: region rows (as text) and the By region panel render with no script, light and dark; Export CSV has a region column and a region section.",
+        "Real tenant (PVM, 104 deploy groups): every DG-EXT-<CC> lands in its region, DG-EXT-IT-SELECTION in Italy, the NL sites in Euro; No region lists only what the list really lacks.",
+        "node --test tools/*.test.cjs — all pass; node tools/check-plain-text.js clean.",
+      ],
+    },
+    {
       n: 368,
       ws: "pim",
       title: "🗺 Regions as lists of countries — usageLocation for users, the Autopilot group tag for devices, the baseline tenant's five regions (framework 5.1, T48 1.2.0)",

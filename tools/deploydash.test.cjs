@@ -349,3 +349,70 @@ test("on which policies: one line per policy and excluded object, sorted, labell
   assert.doesNotMatch(x, /data-dd-cg|data-dd-excl/);
   assert.match(DeployDash.toCsv(m), /exclusion_deploy_group,policy,state,excluded,kind,members_taken_out\r\nCAD-SEC-U-DG-GLO,CA009-Global-Unassigned-Block,enforced,CAD-SEC-U-DG-INT,scope,2/);
 });
+
+// ---- 0.6.0 (33602): by region — the dashboard's own region list
+test("regionFor: code and city after -DG-, city row first, framework keys Core, unknown No region", () => {
+  const L = [{ region: "Euro", code: "NL", city: "" }, { region: "Pilot", code: "NL", city: "Sittard" }, { region: "Italy", code: "IT", city: "" }];
+  assert.equal(DeployDash.regionFor("GLO", L), "Core");
+  assert.equal(DeployDash.regionFor("EXT", L), "Core");
+  assert.equal(DeployDash.regionFor("GUESTADMINS", L), "Core");
+  assert.equal(DeployDash.regionFor("EXT-NL", L), "Euro");
+  assert.equal(DeployDash.regionFor("EXT-NL-Breda", L), "Euro");
+  assert.equal(DeployDash.regionFor("INT-NL-sittard", L), "Pilot");
+  assert.equal(DeployDash.regionFor("EXT-IT-SELECTION", L), "Italy");
+  assert.equal(DeployDash.regionFor("EXT-XX", L), "No region");
+  assert.equal(DeployDash.regionFor("EXT-BAMSCA-AND-MORE", L), "Core", "no country shape → Core");
+});
+
+test("the default list has the five regions with two-letter codes and the NL sites", () => {
+  const D = DeployDash.DEFAULT_REGIONS;
+  assert.deepEqual([...new Set(D.map((r) => r.region))], ["Euro", "Americas", "Asia-Pacific", "Italy", "BAMSCA"]);
+  assert.ok(D.some((r) => r.code === "NL" && r.city === "Sittard"));
+  assert.equal(DeployDash.regionFor("EXT-BD", D), "BAMSCA");
+  assert.equal(DeployDash.regionFor("EXT-CH", D), "Euro");
+});
+
+test("parseRegionCsv: region,code,city and Fill's region,group,… shape; regionsCsv round-trips", () => {
+  const a = DeployDash.parseRegionCsv("region,code,city\nEuro,NL,\nEuro,NL,Breda\nPilot,nl,breda\nX,1Z,\n");
+  assert.equal(a.shape, "code");
+  assert.deepEqual(a.rows, [{ region: "Euro", code: "NL", city: "" }, { region: "Euro", code: "NL", city: "Breda" }]);
+  assert.equal(a.skipped, 2, "the duplicate NL|breda and the bad code");
+  const pvm = fs.readFileSync(path.join(__dirname, "..", "docs", "regions-pvm.csv"), "utf8");
+  const b = DeployDash.parseRegionCsv(pvm);
+  assert.equal(b.shape, "group");
+  assert.ok(b.rows.some((r) => r.region === "BAMSCA" && r.code === "BD"));
+  assert.ok(b.rows.some((r) => r.region === "Euro" && r.code === "NL" && r.city === "Breda"));
+  assert.ok(!b.rows.some((r) => r.region === "Review" || r.region === "Ignored"), "ticked=no and mode=ignore skipped");
+  const c = DeployDash.parseRegionCsv(DeployDash.regionsCsv(a.rows));
+  assert.deepEqual(c.rows, a.rows);
+  assert.ok(DeployDash.parseRegionCsv("name,value\na,b").error, "a file with neither shape says why");
+});
+
+test("build: regions aggregate coverage and exclusions over their groups; html narrows to a region", () => {
+  const f = fixture();
+  f.groups.push({ key: "EXT-NL-Sittard", name: "CAD-SEC-U-DG-EXT-NL-Sittard", id: "g-sit", direct: set("d"), nested: set() });
+  f.groups.push({ key: "EXT-BD", name: "CAD-SEC-U-DG-EXT-BD", id: "g-bd", direct: set("e"), nested: set() });
+  f.policies.push({ id: "p5", name: "CA210-Sittard", state: "enabled", includeGroups: ["g-sit"], excludeGroups: ["x-ca001"], excludeUsers: ["d"], excludeRoles: [] });
+  const m = DeployDash.build(Object.assign(f, { regions: DeployDash.DEFAULT_REGIONS }));
+  assert.ok(m.regionsOn);
+  assert.deepEqual(m.regions.map((x) => x.name), ["Core", "Euro", "BAMSCA"]);
+  const eu = m.regions.find((x) => x.name === "Euro"), bd = m.regions.find((x) => x.name === "BAMSCA");
+  assert.equal(eu.groups, 1); assert.equal(eu.live, 1);
+  assert.deepEqual([eu.cov.in, eu.cov.enf, eu.cov.out], [1, 1, 0]);
+  assert.equal(eu.excl.user, 1, "d is excluded directly on the Sittard policy");
+  assert.deepEqual([bd.cov.in, bd.cov.none], [1, 1], "e sits in DG-EXT-BD with no policy on it");
+  assert.equal(m.groups.find((r) => r.key === "EXT-NL-Sittard").region, "Euro");
+  const h = DeployDash.html(m, { app: true, region: "Euro" });
+  assert.match(h, /Covered · Euro/);
+  assert.match(h, /data-dd-region="BAMSCA"/);
+  assert.match(h, /By region/);
+  const table = h.slice(h.indexOf("Group by group"));
+  assert.match(table, /CAD-SEC-U-DG-EXT-NL-Sittard/);
+  assert.doesNotMatch(table, /CAD-SEC-U-DG-EXT-BD</, "the table holds the region's groups only");
+  const x = DeployDash.exportHtml(m, { tenant: "t" });
+  assert.doesNotMatch(x, /<script/i);
+  assert.match(DeployDash.toCsv(m), /\nregion,groups,live_groups/);
+  const flat = DeployDash.build(fixture());
+  assert.equal(flat.regionsOn, false);
+  assert.doesNotMatch(DeployDash.html(flat, { app: true }), /data-dd-region/, "no list → the flat chip row");
+});

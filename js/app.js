@@ -26180,7 +26180,7 @@ This is a directory write. Nothing else changes.`)) return;
   // page never waits for it.
   const DD_SEL = "id,userPrincipalName,displayName,userType,accountEnabled";
   const DD_PREFIX = "CAD-SEC-U-DG-";
-  let ddExOpen = new Set(); let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
+  let ddExOpen = new Set(); let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddRegion = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
   const ddProg = makeProgress("dd");
   const DD_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The rollout as a picture: every enabled user in the tenant against the CAD-SEC-U-DG-* deploy groups — who is in which group and how, who is <b>left out</b> of every group, which policies reach each group and in what state, and how many members an <b>exclusion</b> takes back out again. Readiness per group is 🌊 Who is the wave\'s verdict, read on request. One page, exportable as HTML for people without ENCA. Nothing here writes.</p>';
 
@@ -26203,15 +26203,45 @@ This is a directory write. Nothing else changes.`)) return;
     b.disabled = ddRdBusy;
     b.textContent = ddRdBusy ? "🌊 Reading readiness…" : ddReadiness ? "🌊 Read readiness again" : "🌊 Read readiness";
   }
+  // The dashboard's OWN region list (0.6.0, 33602): DeployDash.DEFAULT_REGIONS
+  // until a CSV is imported, then that list, per tenant under
+  // `enca-ddregions:<tenantId>` — { file, at, rows }. Nothing else reads it,
+  // and it reads nothing of 🌍 Fill from regions (separate, no dependencies).
+  const ddRegKey = () => `enca-ddregions:${tenantId || "demo"}`;
+  function ddRegStored() { try { const v = JSON.parse(localStorage.getItem(ddRegKey()) || "null"); return v && Array.isArray(v.rows) && v.rows.length ? v : null; } catch (e) { return null; } }
+  const ddRegionList = () => { const v = ddRegStored(); return v ? v.rows : DeployDash.DEFAULT_REGIONS; };
+  function ddPaintRegions() {
+    const host = $("ddRegPanel"); if (!host || host.hidden) return;
+    const v = ddRegStored(), list = ddRegionList();
+    const src = v ? `Imported from <b>${esc(v.file || "a CSV")}</b> on ${esc(new Date(v.at).toLocaleString())} · ${fmtN(v.rows.length)} rows` : `The default list · ${fmtN(list.length)} rows — country codes and cities; import a CSV to replace it`;
+    host.innerHTML = `<section class="dd-panel"><div class="dd-panel-head"><div><h4>🗺 Regions</h4><p class="mini muted" style="margin:0">${src}. A deploy group joins a region by the country code in its name — CAD-SEC-U-DG-EXT-NL-Sittard is NL, city Sittard; a city row wins over its country. GLO, INT, EXT and the other framework groups are Core. This list is the dashboard's own, kept in this browser for this tenant.</p></div>
+      <div class="dd-ctrl"><button type="button" class="btn" data-ddreg="import">Import CSV</button><button type="button" class="btn" data-ddreg="export">Export CSV</button>${v ? '<button type="button" class="btn" data-ddreg="reset">Back to the default list</button>' : ""}<button type="button" class="btn" data-ddreg="close">Close</button></div></div>
+      ${DeployDash.regionListHtml(list)}
+      <p class="mini muted" style="margin:8px 0 0">The CSV is <code>region,code,city</code> (city may be empty) — or the <code>region,group,label,ticked,mode</code> file 🌍 Fill from regions takes, read for the country and city after USERS- in each group name; rows marked ticked=no or mode=ignore are skipped.</p></section>`;
+  }
+  const fmtN = (n) => Number(n || 0).toLocaleString("en-US");
+  function ddRegImport() {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".csv,text/csv,text/plain";
+    inp.addEventListener("change", async () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const res = DeployDash.parseRegionCsv(await f.text());
+      if (!res.rows.length) { toast(res.error ? esc(res.error) : `No region rows in ${esc(f.name)}${res.skipped ? ` — ${res.skipped} skipped` : ""}`); return; }
+      try { localStorage.setItem(ddRegKey(), JSON.stringify({ file: f.name, at: Date.now(), rows: res.rows })); } catch (e) { toast("Could not keep the list in this browser — storage is full or blocked"); return; }
+      toast(`Imported ${fmtN(res.rows.length)} region rows from ${esc(f.name)}${res.skipped ? ` · ${res.skipped} skipped` : ""}`);
+      ddRegion = ""; ddPaintRegions(); if (ddRaw) renderDeployDash();
+    });
+    inp.click();
+  }
   function ddRebuild() {
     if (!ddRaw) { ddModel = null; return; }
-    ddModel = DeployDash.build(Object.assign({}, ddRaw, { readiness: ddReadiness || new Map(), readinessAt: ddReadinessAt, tenant: tenantName }));
+    ddModel = DeployDash.build(Object.assign({}, ddRaw, { readiness: ddReadiness || new Map(), readinessAt: ddReadinessAt, tenant: tenantName, regions: ddRegionList() }));
   }
   function renderDeployDash() {
     ddRebuild();
     if (!ddModel) return;
     ddPaintButtons();
-    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, list: ddList, exOpen: ddExOpen });
+    if (ddRegion && !(ddModel.regions || []).some((x) => x.name === ddRegion)) ddRegion = "";
+    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, region: ddRegion, list: ddList, exOpen: ddExOpen });
     const strip = $("ddRead");
     if (strip) strip.innerHTML = ddRaw.times.map(([label, t]) => `<span>${esc(label)} · ${esc(new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>`).join("") + (ddReadinessAt ? `<span>Readiness (🌊) · ${esc(new Date(ddReadinessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>` : "");
   }
@@ -26228,7 +26258,7 @@ This is a directory write. Nothing else changes.`)) return;
   }
   async function readDeployDash() {
     if (ddBusy) return;
-    ddBusy = true; ddErr = null; ddModel = null; ddReadiness = null; ddReadinessAt = null; ddList = ""; ddGroup = "";
+    ddBusy = true; ddErr = null; ddModel = null; ddReadiness = null; ddReadinessAt = null; ddList = ""; ddGroup = ""; ddRegion = "";
     ddProg.begin();
     const say = (m, note) => { if ($("screen-deploydash").classList.contains("active")) $("ddBody").innerHTML = ddProg.panel(m, note); };
     const times = [];
@@ -26429,7 +26459,8 @@ This is a directory write. Nothing else changes.`)) return;
   $("ddBody").addEventListener("click", async (e) => {
     const t = e.target;
     const run = t.closest("[data-ddrun]"); if (run) { $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); return; }
-    const chip = t.closest("[data-dd-chip]"); if (chip) { ddGroup = chip.dataset.ddChip || ""; renderDeployDash(); return; }
+    const chip = t.closest("[data-dd-chip]"); if (chip) { ddGroup = chip.dataset.ddChip || ""; ddRegion = ""; renderDeployDash(); return; }
+    const reg = t.closest("[data-dd-region]"); if (reg) { const n = reg.dataset.ddRegion || ""; ddRegion = ddRegion === n ? "" : n; ddGroup = ""; renderDeployDash(); return; }
     const list = t.closest("[data-dd-list]"); if (list) { ddList = list.dataset.ddList || ""; renderDeployDash(); if (ddList) { const el = $("ddBody").querySelector(".dd-list"); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); } return; }
     const who = t.closest("[data-dd-who]"); if (who) { e.preventDefault(); $("woUser").value = who.dataset.ddWho; $("toolWhoIs").click(); runWhoIs(); return; }
     const wave = t.closest("[data-dd-wave]");
@@ -26447,7 +26478,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (cgb) { const nm = cgb.dataset.ddCg; await openCaGroups(); if (cgRes && cgRes.rows.some((r) => r.name === nm)) cgOpenRow(nm); else { cgQuery = nm; $("cgSearch").value = nm; renderCaGroups(); } return; }
     const jump = t.closest("[data-dd-jump]");
     if (jump) {
-      if (ddGroup) { ddGroup = ""; renderDeployDash(); }
+      if (ddGroup || ddRegion) { ddGroup = ""; ddRegion = ""; renderDeployDash(); }
       const row = $("ddBody").querySelector(`tr[data-dd-row="${CSS.escape(jump.dataset.ddJump)}"]`);
       if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.add("dd-flash"); setTimeout(() => row.classList.remove("dd-flash"), 1600); }
       return;
@@ -26461,6 +26492,15 @@ This is a directory write. Nothing else changes.`)) return;
     }
   });
   $("toolDeployDash").addEventListener("click", () => openDeployDash());
+  $("ddRegions").addEventListener("click", () => { const h = $("ddRegPanel"); h.hidden = !h.hidden; if (h.hidden) h.innerHTML = ""; else ddPaintRegions(); });
+  $("ddRegPanel").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ddreg]"); if (!b) return;
+    const a = b.dataset.ddreg;
+    if (a === "import") ddRegImport();
+    else if (a === "export") downloadText("ENCA-deployment-regions", "csv", "text/csv", DeployDash.regionsCsv(ddRegionList()));
+    else if (a === "reset") { try { localStorage.removeItem(ddRegKey()); } catch (err) { /* nothing kept */ } ddRegion = ""; ddPaintRegions(); if (ddRaw) renderDeployDash(); toast("Back to the default region list"); }
+    else if (a === "close") { const h = $("ddRegPanel"); h.hidden = true; h.innerHTML = ""; }
+  });
   $("ddRefresh").addEventListener("click", () => { if (ddBusy) return; ddRaw = null; ddModel = null; if ($("screen-deploydash").classList.contains("active")) $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); });
 
   // ======================================================================

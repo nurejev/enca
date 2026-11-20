@@ -73,6 +73,89 @@ const DeployDash = (() => {
   const rank = (name) => { const i = ORDER.findIndex((k) => k.toLowerCase() === keyOf(name).toLowerCase()); return i < 0 ? ORDER.length : i; };
   const sortNames = (names) => [...names].sort((a, b) => rank(a) - rank(b) || String(a).localeCompare(String(b), undefined, { sensitivity: "base" }));
 
+  // ------------------------------------------------------------ regions --
+  // 0.6.0 (33602, Mihai 20 Nov with a screenshot of the chip row: "can we
+  // group this on regions. So euro, bamsca etc.?", then "make the piecharts
+  // per regions", "Separate region list for the dashboard", and "fill the
+  // regions first with the 2 letter country code and city and the option to
+  // import"). A region list is rows of { region, code, city }: the country
+  // code and, optionally, the city/site that follows it in a deploy group's
+  // name. CAD-SEC-U-DG-EXT-NL-Sittard → code NL, city Sittard; a city row
+  // wins over its country row, the country row catches every other site.
+  // The framework groups (GLO, INT, EXT, …) and any key with no country
+  // shape are Core; a country the list lacks is No region.
+  //
+  // THE LIST IS THE DASHBOARD'S OWN. It is filled from DEFAULT_REGIONS until
+  // a list is imported, kept per tenant by app.js under its own key, and
+  // read by nothing else — 🌍 Fill from regions keeps its own list (Mihai,
+  // 13 Oct: separate, no dependencies). The import accepts this file's own
+  // shape (region,code,city) and the region,group,label,… shape Fill uses,
+  // so one file can serve both, each tool keeping its own copy.
+  const DEFAULT_REGIONS = [
+    ["Euro", "NL NL-Amsterdam NL-Andelst NL-Breda NL-Sittard NL-Weert GB BE LU CZ SK PL PL-Warszawa PL-Skarbimierz DK FR CH ES PT GR DE"],
+    ["Americas", "US MX CA"],
+    ["Asia-Pacific", "CN ID VN PH JP MY TH KR AU SG HK"],
+    ["Italy", "IT"],
+    ["BAMSCA", "IN BR BD LK NG NG-Lagos NP AE UAE ZA RU KZ TR"],
+  ].flatMap(([region, list]) => list.split(" ").map((t) => { const [code, ...c] = t.split("-"); return { region, code, city: c.join("-") }; }));
+  const CORE = "Core", NOREGION = "No region";
+  // The country and city a deploy group's key names, or null for a Core key.
+  function placeOf(key) {
+    const k = String(key || "");
+    if (ORDER.some((o) => o.toLowerCase() === k.toLowerCase())) return null;
+    const parts = k.replace(/^(INT|EXT)-/i, "").split("-");
+    if (!/^[A-Za-z]{2,3}$/.test(parts[0])) return null;
+    return { code: parts[0], city: parts.slice(1).join("-") };
+  }
+  function regionIndex(list) {
+    const idx = new Map();
+    (list || []).forEach((r) => { if (!r || !r.region || !r.code) return; const k = `${r.code}|${r.city || ""}`.toLowerCase(); if (!idx.has(k)) idx.set(k, r.region); });
+    return idx;
+  }
+  function regionFor(key, list, idx) {
+    const p = placeOf(key);
+    if (!p) return CORE;
+    const I = idx || regionIndex(list);
+    return (p.city && I.get(`${p.code}|${p.city}`.toLowerCase())) || I.get(`${p.code}|`.toLowerCase()) || NOREGION;
+  }
+  const regionOrderOf = (list) => [...new Set((list || []).map((r) => r && r.region).filter(Boolean))];
+  // CSV in either shape → { rows, shape, skipped }. A row Fill marks
+  // ticked=no or mode=ignore is not a deployment region and is skipped; a
+  // group name is read for the part after USERS- or -DG-, so
+  // PVM-UG-CORP-MEM-USERS-NL-Breda gives NL / Breda.
+  function splitCsvLine(line) {
+    const out = []; let cur = "", q = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+      else if (ch === '"') q = true; else if (ch === ",") { out.push(cur); cur = ""; } else cur += ch;
+    }
+    out.push(cur);
+    return out.map((v) => v.trim());
+  }
+  function parseRegionCsv(text) {
+    const lines = String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim() && !/^\s*#/.test(l));
+    if (!lines.length) return { rows: [], shape: "", skipped: 0 };
+    const head = splitCsvLine(lines[0]).map((h) => h.toLowerCase());
+    const ix = (n) => head.indexOf(n);
+    const shape = ix("code") >= 0 ? "code" : ix("group") >= 0 ? "group" : "";
+    if (!shape || ix("region") < 0) return { rows: [], shape: "", skipped: lines.length - 1, error: "The first line needs a region column and a code column (region,code,city) or a group column (region,group,…)." };
+    const rows = [], seen = new Set(); let skipped = 0;
+    lines.slice(1).forEach((l) => {
+      const c = splitCsvLine(l), region = c[ix("region")] || "";
+      if (shape === "group" && (lc(c[ix("ticked")]) === "no" || lc(c[ix("mode")]) === "ignore")) { skipped++; return; }
+      let code = "", city = "";
+      if (shape === "code") { code = c[ix("code")] || ""; city = ix("city") >= 0 ? c[ix("city")] || "" : ""; }
+      else { const g = String(c[ix("group")] || ""); const tail = /USERS-/i.test(g) ? g.replace(/^.*USERS-/i, "") : g.replace(/^.*-DG-/i, ""); const p = placeOf(tail); if (p) { code = p.code; city = p.city; } }
+      if (!region || !/^[A-Za-z]{2,3}$/.test(code)) { skipped++; return; }
+      const k = `${code}|${city}`.toLowerCase();
+      if (seen.has(k)) { skipped++; return; }
+      seen.add(k); rows.push({ region, code: code.toUpperCase(), city });
+    });
+    return { rows, shape, skipped };
+  }
+  const regionsCsv = (list) => ["region,code,city", ...(list || []).map((r) => [r.region, r.code, r.city || ""].map(csvCell).join(","))].join("\r\n");
+
   // The chart series. `c` names a --dd-* colour token; the order is the
   // order in the ring, the legend and the bar.
   const SER = {
@@ -102,6 +185,8 @@ const DeployDash = (() => {
     const exclGroups = I.exclGroups || new Map();
     const roleMembers = I.roleMembers || new Map();
     const readiness = I.readiness || new Map();
+    const regionList = (I.regions || []).filter((r) => r && r.region && r.code);
+    const regIdx = regionIndex(regionList);
 
     // --- the tenant: enabled users are the population; disabled apart
     const enabled = users.filter((u) => u.accountEnabled !== false);
@@ -181,6 +266,7 @@ const DeployDash = (() => {
     const exclTotal = { ca: 0, bg: 0, group: 0, user: 0, role: 0 };
     const exclUsersAll = new Map();   // userId → strongest route across the groups
     const exclGroupUse = new Map();   // exclusion group id → { n members of a DG taken out, policies:Set }
+    const takenByRow = [];            // row index → userId → exclusion route (the region pies)
     const rows = G.map((g) => {
       const direct = g.direct || new Set(), nested = g.nested || new Set();
       const members = g.all.size;
@@ -246,9 +332,10 @@ const DeployDash = (() => {
         else if (!liveDirect && !liveVia.length) { const k = keyOf(g.name).toUpperCase(); look.push({ kind: "untargeted", n: members, text: `not targeted — ${/^INT-/.test(k) ? "nest it in GLO + INT" : /^EXT-/.test(k) ? "nest it in GLO + EXT" : "no live policy includes it or a group it is in"}` }); }
         else if (!liveDirect) look.push({ kind: "through", n: members, text: `targeted through ${liveVia.map((v) => v.label).join(" · ")}` });
       }
+      takenByRow.push(taken);
       const rd = readiness.get(g.key) || null;
       return { key: g.key, name: g.name, id: g.id, found: !!g.id, dynamic: !!g.dynamic, nestedGroups: (g.childIds || g.children || []).length, nestedIn, via, polDirect, members, route, pol, on: on.map((p) => ({ id: p.id, name: p.name, seq: p.seq, state: p.state, direct: p.inc.has(g.id) })),
-        live: pol.enf > 0, excl, scoped: scopedOnly, exclLines: lines, exclBy, look, readiness: rd };
+        live: pol.enf > 0, excl, scoped: scopedOnly, exclLines: lines, exclBy, look, readiness: rd, region: regionList.length ? regionFor(g.key, regionList, regIdx) : "" };
     });
     // the tenant-wide pie counts a PERSON once, by her strongest route; the
     // per-group bars count her in every group she is taken out of
@@ -269,11 +356,36 @@ const DeployDash = (() => {
     }).sort((a, b) => b.inDg - a.inDg || b.members - a.members);
     const biggest = exclList.filter((e) => e.inDg).slice(0, 1).map((e) => e.id);
 
+    // --- regions (0.6.0): the groups found in the tenant, by the region
+    //     their name points at. A person counts once per region (in two
+    //     regions, in both pies), by her strongest coverage state and her
+    //     first exclusion route over the region's groups. Left out of every
+    //     deploy group has no region — it stays the tenant's number.
+    const regions = [];
+    if (regionList.length) {
+      const by = new Map();
+      rows.forEach((r, i) => { if (r.found) (by.get(r.region) || by.set(r.region, []).get(r.region)).push(i); });
+      [CORE, ...regionOrderOf(regionList), NOREGION].filter((n, i, a) => by.has(n) && a.indexOf(n) === i).forEach((n) => {
+        const idx = by.get(n), mem = new Set(), ps = new Map(), ex = new Map(), route = { nested: 0, direct: 0 };
+        idx.forEach((i) => {
+          G[i].all.forEach((id) => mem.add(id));
+          route.nested += rows[i].route.nested; route.direct += rows[i].route.direct;
+          rows[i].on.forEach((p) => ps.set(p.id, p.state));
+          takenByRow[i].forEach((k, id) => { const c = ex.get(id); if (!c || RANK[k] < RANK[c]) ex.set(id, k); });
+        });
+        const cov = { enf: 0, ro: 0, none: 0, out: 0, in: 0 };
+        mem.forEach((id) => { if (!byId.has(id)) return; cov.in++; const lv = level.get(id) || 0; if (lv === 2) cov.enf++; else if (lv === 1) cov.ro++; else cov.none++; });
+        const pol = { enf: 0, ro: 0, off: 0 }; ps.forEach((st) => { pol[st]++; });
+        const excl = { ca: 0, bg: 0, group: 0, user: 0, role: 0 }; ex.forEach((k) => { excl[k]++; });
+        regions.push({ name: n, keys: idx.map((i) => rows[i].key), groups: idx.length, live: idx.filter((i) => rows[i].live).length, cov, route, pol, excl, exclMembers: ex.size });
+      });
+    }
+
     return {
       readAt: I.readAt || null, tenant: I.tenant || "",
       total: { users: users.length, enabled: enabled.length, disabled, guests: enabled.filter((u) => lc(u.userType) === "guest").length },
       cov, leftOut, noPolicy, route, pol: polTotal, excl: exclTotal, exclMembers,
-      groups: rows, exclList, biggest,
+      groups: rows, exclList, biggest, regions, regionsOn: regionList.length > 0,
       readinessRead: readiness.size > 0, readinessAt: I.readinessAt || null,
       notFound: rows.filter((r) => !r.found).map((r) => r.name),
     };
@@ -313,7 +425,7 @@ const DeployDash = (() => {
       const full = v === T;
       const p = full ? `M${cx},${cy - r} A${r},${r} 0 1 1 ${cx - 0.01},${cy - r} Z` : `M${cx},${cy} L${(cx + r * Math.cos(a0)).toFixed(2)},${(cy + r * Math.sin(a0)).toFixed(2)} A${r},${r} 0 ${big} 1 ${(cx + r * Math.cos(a1)).toFixed(2)},${(cy + r * Math.sin(a1)).toFixed(2)} Z`;
       const am = (a0 + a1) / 2, share = v / T;
-      const label = share > 0.1 ? `<text x="${(cx + r * 0.62 * Math.cos(am)).toFixed(1)}" y="${(cy + r * 0.62 * Math.sin(am)).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="600" fill="#fff">${pct(v, T)}</text>` : "";
+      const label = size >= 100 && share > 0.1 ? `<text x="${(cx + r * 0.62 * Math.cos(am)).toFixed(1)}" y="${(cy + r * 0.62 * Math.sin(am)).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="600" fill="#fff">${pct(v, T)}</text>` : "";
       const s = `<path d="${p}" fill="${col(d.c)}" stroke="var(--dd-card)" stroke-width="2"><title>${esc(d.label)}: ${fmt(v)} (${pct(v, T)})</title></path>${label}`; a0 = a1; return s; }).join("");
     return `<svg class="dd-svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="pie">${parts}</svg>`;
   }
@@ -409,7 +521,7 @@ const DeployDash = (() => {
   const LISTS = { none: "nopolicy", out: "leftout" };
 
   function groupsTable(m, o) {
-    const rows = (o.group ? m.groups.filter((r) => r.key === o.group) : m.groups);
+    const rows = o.group ? m.groups.filter((r) => r.key === o.group) : o.region && m.regionsOn ? m.groups.filter((r) => r.region === o.region) : m.groups;
     const name = (r) => o.app && r.id ? `<button type="button" class="dd-link dd-name" data-dd-group="${esc(r.id)}" title="Open this group in 👥 CA groups">${esc(r.name)}</button>` : `<b>${esc(r.name)}</b>`;
     const count = (r, filter, n) => o.app && r.id && n ? `<button type="button" class="dd-link" data-dd-wave="${esc(r.id)}"${filter ? ` data-dd-wavefilter="${filter}"` : ""} title="Open 🌊 Who is the wave on this group">${fmt(n)}</button>` : fmt(n);
     return `<section class="dd-panel"><div class="dd-panel-head"><h4>Group by group</h4><span class="mini muted">Same colours as the charts · hover a bar for its counts · a count opens 🌊 with the group picked</span></div>
@@ -453,34 +565,77 @@ const DeployDash = (() => {
     return o.app ? `<details class="dd-panel dd-fold"><summary>Exclusion groups on the policies — ${esc(sum)}</summary>${body}</details>` : `<section class="dd-panel"><h4>Exclusion groups on the policies — ${esc(sum)}</h4>${body}</section>`;
   }
 
+  // The group filter. With a region list: one row per region — its chip
+  // filters the page to the region, each group chip to the group; without
+  // one, the flat row it always was.
+  const groupChip = (r, o, label) => `<button type="button" class="fchip${o.group === r.key ? " active" : ""}" data-dd-chip="${esc(r.key)}">${esc(label)}${r.live ? " <small>live</small>" : r.pol.ro ? " <small>report-only</small>" : ""}</button>`;
+  function chipsHtml(m, o, g1, R) {
+    if (!o.app) return g1 ? `<p class="mini"><b>Group: ${esc(g1.name)}</b></p>` : R ? `<p class="mini"><b>Region: ${esc(R.name)}</b> — ${esc(R.keys.join(", "))}</p>` : "";
+    const all = `<button type="button" class="fchip${o.group || o.region ? "" : " active"}" data-dd-chip="">All groups</button>`;
+    if (!m.regionsOn || !m.regions.length) return `<div class="dd-chips" role="group" aria-label="Group filter">${all}${m.groups.filter((r) => r.found).map((r) => groupChip(r, o, short(r.name))).join("")}</div>`;
+    const top = `<div class="dd-chips dd-rtop" role="group" aria-label="Region filter">${all}${m.regions.map((x) => `<button type="button" class="fchip${o.region === x.name ? " active" : ""}" data-dd-region="${esc(x.name)}">${esc(x.name)} <small>${fmt(x.groups)}</small></button>`).join("")}</div>`;
+    const rowsOf = (x) => m.groups.filter((r) => r.found && r.region === x.name);
+    const lines = m.regions.map((x) => `<div class="dd-rrow${o.region === x.name ? " on" : ""}"><button type="button" class="dd-rlab" data-dd-region="${esc(x.name)}" title="Filter the page to ${esc(x.name)}"><b>${esc(x.name)}</b><small>${x.name === CORE ? "not a country" : x.name === NOREGION ? "not in the region list" : `${fmt(x.live)} of ${fmt(x.groups)} live · ${fmt(x.cov.in)} users`}</small></button><div class="dd-chips">${rowsOf(x).map((r) => groupChip(r, o, keyOf(r.name))).join("")}</div></div>`).join("");
+    return `${top}<div class="dd-rrows">${lines}</div>`;
+  }
+  const regionCov = SER.cov.filter((d) => d.k !== "out");
+  // By region: one card per region — the coverage ring (no left-out slice,
+  // left out has no region) and the exclusions pie, routes as in the card.
+  function regionPanel(m, o) {
+    if (!m.regionsOn || m.regions.length < 2) return "";
+    const one = (x) => {
+      const T = total(regionCov, x.cov);
+      const tag = o.app ? "button" : "div";
+      return `<${tag}${o.app ? ` type="button" data-dd-region="${esc(x.name)}"` : ""} class="dd-rcard${o.region === x.name ? " active" : ""}" aria-label="${esc(x.name)}"><b class="dd-rname">${esc(x.name)}</b><small class="mini muted">${plural(x.groups, "group")} · ${fmt(x.live)} live</small>
+        <span class="dd-rcharts"><span class="dd-rdonut">${donutSvg(regionCov, x.cov, 96, 12)}<span class="dd-center"><b>${pct(x.cov.enf, T)}</b></span></span><span class="dd-rpie" title="Exclusions · ${fmt(x.exclMembers)} taken out">${pieSvg(SER.excl, x.excl, 56)}</span></span>
+        <small class="mini">${fmt(x.cov.in)} users · ${fmt(x.exclMembers)} excluded</small></${tag}>`;
+    };
+    const leg = (defs) => defs.map((d) => `<span><i style="background:${col(d.c)}"></i>${esc(d.label)}</span>`).join("");
+    return `<section class="dd-panel" aria-label="By region"><div class="dd-panel-head"><h4>By region</h4><span class="mini muted">${o.app ? "Click a region to filter the page · " : ""}ring: coverage of the region's users · small pie: exclusions · a person in two regions counts in both · left out of every deploy group has no region</span></div>
+      <div class="dd-rgrid">${m.regions.map(one).join("")}</div><div class="dd-kl dd-rleg">${leg(regionCov)}<span class="muted">·</span>${leg(SER.excl)}</div></section>`;
+  }
+  // The region list as the ⚙ Regions panel shows it (app.js paints the
+  // buttons around it): one line per region, its codes and cities.
+  function regionListHtml(list) {
+    const order = regionOrderOf(list);
+    if (!order.length) return '<p class="mini muted">No regions — the chips stay one row.</p>';
+    return `<table class="cg-table dd-table"><thead><tr><th>Region</th><th>Country codes · cities</th></tr></thead><tbody>${order.map((n) => `<tr><td><b>${esc(n)}</b></td><td>${list.filter((r) => r.region === n).map((r) => `<span class="dd-pill">${esc(r.code)}${r.city ? ` · ${esc(r.city)}` : ""}</span>`).join(" ")}</td></tr>`).join("")}</tbody></table>`;
+  }
+
   function html(m, opts) {
     const o = opts || {};
     const g1 = o.group ? m.groups.find((r) => r.key === o.group) : null;
-    const route = g1 ? g1.route : m.route, pol = g1 ? g1.pol : m.pol, excl = g1 ? g1.exclBy : m.excl;
-    const exclN = g1 ? g1.excl : m.exclMembers;
-    const chips = o.app ? `<div class="dd-chips" role="group" aria-label="Group filter"><button type="button" class="fchip${o.group ? "" : " active"}" data-dd-chip="">All groups</button>${m.groups.filter((r) => r.found).map((r) => `<button type="button" class="fchip${o.group === r.key ? " active" : ""}" data-dd-chip="${esc(r.key)}">${esc(short(r.name))}${r.live ? " <small>live</small>" : r.pol.ro ? " <small>report-only</small>" : ""}</button>`).join("")}</div>` : (g1 ? `<p class="mini"><b>Group: ${esc(g1.name)}</b></p>` : "");
+    const R = !g1 && o.region && m.regionsOn ? (m.regions || []).find((x) => x.name === o.region) || null : null;
+    const route = g1 ? g1.route : R ? R.route : m.route, pol = g1 ? g1.pol : R ? R.pol : m.pol, excl = g1 ? g1.exclBy : R ? R.excl : m.excl;
+    const exclN = g1 ? g1.excl : R ? R.exclMembers : m.exclMembers;
+    const chips = chipsHtml(m, o, g1, R);
     const out = m.cov.out, none = m.cov.none;
     const cards = [
+      R ? card(`Covered · ${R.name}`, regionCov, R.cov, "targeted by an enforced policy", `The ${R.name} groups' enabled members, each once, by her strongest state. Left out of every deploy group has no region — the strip above keeps the tenant's number.`, null, o) :
       card("Covered · of every enabled user", SER.cov, m.cov, "targeted by an enforced policy", "Covered = in a CAD-SEC-U-DG-* group (transitive) that an enforced policy includes. Each enabled user (members and guests) counts once, by her strongest state; an off policy does not count. Targeted is not proof the policy applied — exclusions are in their own card.",
         [none ? { text: `${fmt(none)} with no live policy — list them`, attr: 'data-dd-list="nopolicy"' } : null, out ? { text: `${fmt(out)} left out — list them`, attr: 'data-dd-list="leftout"' } : null], o),
-      card(g1 ? `Route in · ${short(g1.name)}` : "Route in · how members got there", SER.route, route, "nested", "Direct membership vs. a group nested inside the deploy group.", null, o),
-      card(g1 ? `Policies on ${short(g1.name)}` : "Policies on the deploy groups", SER.pol, pol, "enforced", "Every policy that includes a deploy group, by state. Report-only on a live group is the go-live question.", null, o),
-      card(g1 ? `Exclusions · ${short(g1.name)}` : "Exclusions · taken back out, by what", SER.excl, excl, "", `Deploy-group members an exclusion removes from at least one enforced or report-only policy on their group — ${fmt(exclN)}${g1 ? "" : ` of ${fmt(m.cov.in)}`}. First route wins: BreakGlass, then a CA*-Exclusion group, another group, a direct user, a role. Excluding another deploy group scopes the policy and is not counted here — see on which policies in the table.`, null, Object.assign({ pie: true }, o)),
+      card(g1 ? `Route in · ${short(g1.name)}` : R ? `Route in · ${R.name}` : "Route in · how members got there", SER.route, route, "nested", "Direct membership vs. a group nested inside the deploy group.", null, o),
+      card(g1 ? `Policies on ${short(g1.name)}` : R ? `Policies on the ${R.name} groups` : "Policies on the deploy groups", SER.pol, pol, "enforced", "Every policy that includes a deploy group, by state. Report-only on a live group is the go-live question.", null, o),
+      card(g1 ? `Exclusions · ${short(g1.name)}` : R ? `Exclusions · ${R.name}` : "Exclusions · taken back out, by what", SER.excl, excl, "", `Deploy-group members an exclusion removes from at least one enforced or report-only policy on their group — ${fmt(exclN)}${g1 ? "" : ` of ${fmt(R ? R.cov.in : m.cov.in)}`}. First route wins: BreakGlass, then a CA*-Exclusion group, another group, a direct user, a role. Excluding another deploy group scopes the policy and is not counted here — see on which policies in the table.`, null, Object.assign({ pie: true }, o)),
     ].join("");
     const missing = m.notFound.length ? `<p class="dd-wait bad">Not in this tenant: ${esc(m.notFound.join(", "))} — 👥 CA groups ② Create makes them.</p>` : "";
     const list = o.app && (o.list === "leftout" || o.list === "nopolicy") ? listTable(m, o, o.list) : "";
     const allLists = !o.app ? listTable(m, o, "nopolicy") + listTable(m, o, "leftout") : "";
     const foot = `<p class="mini muted dd-foot">Group membership and policy reach are separate checks: a deploy-group member is a target, not proof the policy applied. A read time is not a sign-in time. Disabled accounts are counted apart and never as left out. Missing report-only data stays unknown — never counted as safe.</p>`;
-    return `<div class="dd">${covStrip(m, o)}${chips}<div class="dd-grid">${cards}</div>${missing}${list}${groupsTable(m, o)}${allLists}${exclTable(m, o)}${foot}</div>`;
+    return `<div class="dd">${covStrip(m, o)}${chips}${regionPanel(m, o)}<div class="dd-grid">${cards}</div>${missing}${list}${groupsTable(m, o)}${allLists}${exclTable(m, o)}${foot}</div>`;
   }
 
   // ------------------------------------------------------------- csv --
   function toCsv(m) {
-    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look", "nested_in", "policies_direct", "scoped_out"]];
+    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look", "nested_in", "policies_direct", "scoped_out", "region"]];
     m.groups.forEach((r) => rows.push([r.name, r.found, r.members, r.route.direct, r.route.nested, r.pol.enf, r.pol.ro, r.pol.off, r.excl, r.exclBy.bg, r.exclBy.ca, r.exclBy.group, r.exclBy.user, r.exclBy.role,
-      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; "), (r.nestedIn || []).map((a) => a.name).join("; "), r.polDirect ? r.polDirect.enf + r.polDirect.ro + r.polDirect.off : "", r.scoped || 0]));
+      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; "), (r.nestedIn || []).map((a) => a.name).join("; "), r.polDirect ? r.polDirect.enf + r.polDirect.ro + r.polDirect.off : "", r.scoped || 0, r.region || ""]));
     rows.push([]); rows.push(["exclusion_deploy_group", "policy", "state", "excluded", "kind", "members_taken_out"]);
     m.groups.forEach((r) => (r.exclLines || []).forEach((l) => rows.push([r.name, l.policyName, { enf: "enforced", ro: "report-only", off: "off" }[l.state] || l.state, l.excluded, l.kind, l.n])));
+    if (m.regionsOn && m.regions.length) {
+      rows.push([]); rows.push(["region", "groups", "live_groups", "users", "enforced", "report_only_only", "no_live_policy", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role"]);
+      m.regions.forEach((x) => rows.push([x.name, x.groups, x.live, x.cov.in, x.cov.enf, x.cov.ro, x.cov.none, x.exclMembers, x.excl.bg, x.excl.ca, x.excl.group, x.excl.user, x.excl.role]));
+    }
     rows.push([]); rows.push(["coverage", "enabled_users"]);
     SER.cov.forEach((d) => rows.push([d.label, m.cov[d.k]]));
     rows.push([]); rows.push(["no_live_policy_upn", "name", "type", "deploy_groups"]);
@@ -523,7 +678,9 @@ ${"" /* shared with css/app.css — keep the two in step */}
 .dd-exrow>td{background:var(--soft);padding:6px 10px 10px}.dd-extable{background:var(--card,#fff)}.dd-extable th{font-size:10px}.dd-pill.dd-scope{background:var(--soft);color:var(--muted)}.dd-upline{margin-top:3px}.dd-pill.dd-up{background:#eaf2ff;color:#1e4fa3;border-color:#c9dbfb;font:inherit;font-size:11px;font-weight:600;cursor:default}button.dd-pill.dd-up{cursor:pointer}.dd-pill.dd-up-out{background:transparent;color:var(--muted);border-style:dashed}tr.dd-flash td{background:var(--ok-bg)}@media(prefers-color-scheme:dark){.dd-pill.dd-up{background:#1b2a44;color:#9fc0f5;border-color:#2c4670}}
 .dd-foot{margin:8px 0 0}.dd-missing td{opacity:.6}.dd-link{font:inherit;font-size:12.5px;font-weight:600;color:var(--dd-on);background:none;border:0;padding:0;cursor:pointer;text-align:left}.dd-name{font-size:13px}
 .dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.dd-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}details.dd-fold summary{cursor:pointer;font-weight:600;font-size:13px}details.dd-fold[open] summary{margin-bottom:10px}
-.dd-who{color:var(--dd-on);font-weight:600;text-decoration:none}`;
+.dd-who{color:var(--dd-on);font-weight:600;text-decoration:none}
+.dd-rtop{margin-bottom:6px}.dd-rrows{margin:0 0 14px}.dd-rrow{display:grid;grid-template-columns:180px minmax(0,1fr);gap:10px;align-items:start;padding:7px 6px;border-top:1px solid var(--line)}.dd-rrow.on{background:var(--warn-bg)}.dd-rrow .dd-chips{margin:0}.dd-rlab{font:inherit;text-align:left;background:none;border:0;padding:3px 0;cursor:pointer;color:inherit}.dd-rlab b{display:block;font-size:13px}.dd-rlab small{display:block;font-size:11.5px;color:var(--muted)}
+.dd-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.dd-rcard{font:inherit;color:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);text-align:center;cursor:pointer}.dd-rcard.active{border:2px solid var(--dd-report);padding:9px}.dd-rname{font-size:13px}.dd-rcharts{display:flex;align-items:center;gap:8px}.dd-rdonut{position:relative;width:96px;height:96px}.dd-rdonut .dd-svg{width:96px;height:96px}.dd-rdonut .dd-center b{font-size:18px}.dd-rpie .dd-svg{width:56px;height:56px}.dd-rleg{margin-top:10px}@media(max-width:600px){.dd-rrow{grid-template-columns:minmax(0,1fr)}}`;
 
   function exportHtml(m, meta) {
     const mt = meta || {};
@@ -536,6 +693,6 @@ ${html(m, { app: false })}
 </div></body></html>`;
   }
 
-  return { build, html, toCsv, exportHtml, readinessOf, keyOf, sortNames, ORDER, SER, VERDICT, CSS };
+  return { build, html, toCsv, exportHtml, readinessOf, keyOf, sortNames, ORDER, SER, VERDICT, CSS, DEFAULT_REGIONS, regionFor, parseRegionCsv, regionsCsv, regionListHtml };
 })();
 if (typeof module !== "undefined") module.exports = DeployDash;

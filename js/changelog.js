@@ -29,6 +29,14 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33602, date: "2026-11-20", title: "📊 Deployment dashboard: the deploy groups by region, with a coverage ring and an exclusions pie per region",
+    items: [
+      { kind: "improved", tool: "Deployment dashboard", text: "📊 The group chips are grouped by region — Core (GLO, INT, EXT and the other framework groups), then Euro, Americas, Asia-Pacific, Italy, BAMSCA and No region, one row each with how many of its groups are live. Click a region to see the coverage, route, policy and exclusion charts and the group table for that region's groups combined; click a group to see that one group, as before." },
+      { kind: "new", tool: "Deployment dashboard", text: "📊 By region: one card per region with a coverage ring — enforced, report-only only, in a group with no live policy — and a pie of who an exclusion takes back out, by route. Left out of every deploy group has no region, so that number stays the tenant's in the strip above; a person in groups of two regions counts in both. The HTML export and the CSV carry the regions too." },
+      { kind: "new", tool: "Deployment dashboard", text: "📊 🗺 Regions holds the list the dashboard groups by: region, two-letter country code and, where a site has its own group, the city — CAD-SEC-U-DG-EXT-NL-Sittard is NL, city Sittard. It starts filled with a default list; Import CSV replaces it with your own (region,code,city — or the region,group,… file 🌍 Fill from regions takes), Export CSV writes it back, and Back to the default list drops the import. The list is the dashboard's own, kept in this browser per tenant; Fill keeps its own." },
+    ],
+  },
+  {
     build: 33601, date: "2026-11-19", title: "Production is build 335 (v2.0.13)",
     items: [
       { kind: "improved", tool: "General", text: "Production is build 335, ENCA v2.0.13. Two releases went out together: v2.0.12 (build 334) is the ⑦ Migrate fix of beta 33402 — the dialog checks the groups you arrive with, also right after another group was migrated — and v2.0.13 (build 335) brings 🔐 ENCA access to Workspace 01 for everybody, with the preview-and-apply runner it runs on. The rest of PIM-buddy stays here on the beta channel. This channel moves to v2.0.14-beta." },
